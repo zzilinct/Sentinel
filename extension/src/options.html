@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel settings</title>
+<link rel="stylesheet" href="popup.css">
+<link rel="stylesheet" href="options.css">
+</head>
+<body class="options">
+  <header class="brand-row">
+    <img src="../icons/icon48.png" alt="" width="32" height="32">
+    <div>
+      <h1>Sentinel Companion</h1>
+      <p class="small" id="account">Checking your account&hellip;</p>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="label">Live protection</div>
+    <label class="opt"><span><b>Live scanning</b><small>Masks on search results and a warning before dangerous pages load.</small></span><input type="checkbox" id="enabled"></label>
+    <label class="opt"><span><b>Email protection</b><small>Masks in Gmail and Outlook on the web (Pro and Max).</small></span><input type="checkbox" id="emailProtection"></label>
+    <label class="opt"><span><b>Full-page warnings</b><small>Stop likely and confirmed threats before you interact with them.</small></span><input type="checkbox" id="warnOnNavigate"></label>
+    <label class="opt"><span><b>Desktop notifications</b><small>Alert when a confirmed threat opens in any tab.</small></span><input type="checkbox" id="notifications"></label>
+  </section>
+
+  <section class="card">
+    <div class="label">Masks</div>
+    <div class="legend" id="legend"></div>
+    <label class="opt"><span><b>Mask style</b><small>Sentinel's three masks, or the 🎭 emoji in a coloured ring.</small></span>
+      <select id="badgeStyle"><option value="mask">Sentinel masks</option><option value="emoji">🎭 emoji</option></select></label>
+    <label class="opt"><span><b>Show masks from</b><small>Hide lower-severity masks.</small></span>
+      <select id="minimumBadge"><option value="yellow">Yellow and above</option><option value="orange">Orange and above</option><option value="red">Red only</option></select></label>
+  </section>
+
+  <section class="card">
+    <div class="label">Advanced</div>
+    <label class="opt"><span><b>Sentinel server</b><small>Only change this if you run your own Sentinel.</small></span><input type="url" id="apiBase" spellcheck="false"></label>
+    <div class="actions"><button class="btn" id="signout" type="button">Sign out</button></div>
+  </section>
+
+  <p class="small saved" id="saved" aria-live="polite"></p>
+  <script src="content/masks.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

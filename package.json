@@ -1,0 +1,19 @@
+{
+  "name": "sentinel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sentinel - real-time scam, virus and malware protection",
+  "type": "commonjs",
+  "engines": { "node": ">=22.5.0" },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test tests/detection.test.js tests/api.test.js tests/security.test.js",
+    "evaluate": "node scripts/evaluate.js --research-safe",
+    "feeds": "node scripts/admin.js refresh-feeds",
+    "admin": "node scripts/admin.js",
+    "build:icons": "node scripts/make-icons.js",
+    "build:ext": "node scripts/build-extension.js",
+    "build": "node scripts/make-icons.js && node scripts/build-extension.js"
+  }
+}

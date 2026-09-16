@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel is ready</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/sentinel.css">
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="mask" viewBox="0 0 64 64">
+    <path fill="currentColor" fill-rule="evenodd" d="M32 5c13.2 0 23 4.3 23 10.8 0 15.8-7.4 36.6-23 43.9C16.4 52.4 9 31.6 9 15.8 9 9.3 18.8 5 32 5Zm-9.8 20.4c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Zm19.6 0c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Z"/>
+    <path fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" d="M22.5 42.2c2.7 3.6 5.9 5.4 9.5 5.4s6.8-1.8 9.5-5.4"/>
+  </symbol>
+</svg>
+
+<header class="site-header">
+  <div class="wrap site-header__inner">
+    <a class="brand" href="/">
+      <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#mask"/></svg>
+      <span class="brand__name">Sentinel</span>
+    </a>
+    <nav class="nav">
+      <a href="/#how">How it works</a>
+      <a href="/#legend">The masks</a>
+      <a href="/download">Download</a>
+    </nav>
+    <div class="header-actions" data-auth-slot></div>
+  </div>
+</header>
+
+<main>
+<section class="hero" style="padding:70px 0 44px">
+  <div class="wrap narrow center">
+    <svg viewBox="0 0 64 64" style="width:64px;height:64px;color:var(--gold)" aria-hidden="true"><use href="#mask"/></svg>
+    <h1 style="font-size:clamp(2rem,4.4vw,2.8rem);margin-top:18px">Sentinel is watching your back</h1>
+    <p class="lede" id="lede">The extension is installed. Here is what happens from now on.</p>
+  </div>
+</section>
+
+<section class="tight" style="padding-top:0">
+  <div class="wrap narrow">
+    <div class="steps">
+      <div class="step">
+        <div><h3>Search as you normally would</h3>
+        <p>Masks appear beside risky results within a second of the page loading. Safe results stay clean.</p></div>
+      </div>
+      <div class="step">
+        <div><h3>Click a mask to see why</h3>
+        <p>Every rating comes with its reasons &mdash; the lookalike domain, the abused TLD, the bait wording.</p></div>
+      </div>
+      <div class="step">
+        <div><h3>Open a confirmed scam and Sentinel stops you</h3>
+        <p>A full-page warning appears before the site loads, wherever the link came from.</p></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:26px">
+      <h2 style="font-size:1.15rem">Try it right now</h2>
+      <p class="muted small">
+        Search for something a scammer would target &mdash; <b>paypal login</b>,
+        <b>usps tracking</b> or <b>metamask wallet</b> &mdash; and watch the masks appear.
+      </p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
+        <a class="btn btn--gold" href="/app">Open your dashboard</a>
+        <a class="btn btn--ghost" href="https://www.google.com/search?q=paypal+login" target="_blank" rel="noopener">Run a test search</a>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <h2 style="font-size:1.15rem">Not seeing any masks?</h2>
+      <p class="muted small" style="margin:0">
+        Open the Sentinel popup from your toolbar and check that you are signed in. If the
+        extension was loaded unpacked, its ID is unique to your machine &mdash; see the note
+        at the bottom of the <a href="/download">download page</a> to pair it with this site.
+      </p>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap site-footer__grid">
+    <div>
+      <a class="brand" href="/">
+        <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#mask"/></svg>
+        <span class="brand__name">Sentinel</span>
+      </a>
+    </div>
+    <nav>
+      <a href="/download">Download</a>
+      <a href="/app">Dashboard</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/assets/js/config.js"></script>
+<script src="/assets/js/sentinel.js"></script>
+<script>
+  Sentinel.paintHeader();
+  if (Sentinel.qs('paired')) {
+    document.getElementById('lede').textContent =
+      'You are signed in and the extension is switched on. Here is what happens from now on.';
+  }
+</script>
+</body>
+</html>

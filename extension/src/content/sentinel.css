@@ -1,0 +1,54 @@
+/* Sentinel masks inside search results and webmail. Scoped so host pages can't restyle them. */
+
+.sentinel-masks {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  vertical-align: middle;
+  cursor: pointer;
+  line-height: 1 !important;
+  animation: sentinel-in .28s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.sentinel-masks--mail { margin-left: 6px; cursor: help; }
+
+.sentinel-mask {
+  display: inline-grid !important;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 45%, transparent);
+  transition: transform .15s ease, background .15s ease;
+}
+
+.sentinel-mask svg { width: 15px; height: 15px; display: block; }
+.sentinel-masks:hover .sentinel-mask,
+.sentinel-masks:focus-visible .sentinel-mask { transform: translateY(-1px); background: color-mix(in srgb, currentColor 26%, transparent); }
+.sentinel-masks:focus-visible { outline: 2px solid #c9a64e; outline-offset: 2px; border-radius: 8px; }
+
+.sentinel-mask--emoji { font-size: 13px; }
+
+.sentinel-mask--yellow { color: #a87a00 !important; }
+.sentinel-mask--orange { color: #c4570b !important; }
+.sentinel-mask--red    { color: #c9302c !important; }
+
+@media (prefers-color-scheme: dark) {
+  .sentinel-mask--yellow { color: #f5c542 !important; }
+  .sentinel-mask--orange { color: #f08a24 !important; }
+  .sentinel-mask--red    { color: #ff6b6b !important; }
+}
+
+.sentinel-row--danger { opacity: .6; filter: saturate(.5); transition: opacity .15s ease, filter .15s ease; }
+.sentinel-row--danger:hover { opacity: 1; filter: none; }
+
+@keyframes sentinel-in {
+  from { opacity: 0; transform: translateY(2px) scale(.9); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sentinel-masks { animation: none; }
+}

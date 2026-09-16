@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download Sentinel</title>
+<meta name="description" content="Download the Sentinel extension for Chrome, Edge, Brave and Opera, and switch on real-time scam checking.">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/sentinel.css">
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="mask" viewBox="0 0 64 64">
+    <path fill="currentColor" fill-rule="evenodd" d="M32 5c13.2 0 23 4.3 23 10.8 0 15.8-7.4 36.6-23 43.9C16.4 52.4 9 31.6 9 15.8 9 9.3 18.8 5 32 5Zm-9.8 20.4c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Zm19.6 0c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Z"/>
+    <path fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" d="M22.5 42.2c2.7 3.6 5.9 5.4 9.5 5.4s6.8-1.8 9.5-5.4"/>
+  </symbol>
+</svg>
+
+<header class="site-header">
+  <div class="wrap site-header__inner">
+    <a class="brand" href="/">
+      <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#mask"/></svg>
+      <span class="brand__name">Sentinel</span>
+    </a>
+    <nav class="nav">
+      <a href="/#how">How it works</a>
+      <a href="/#legend">The masks</a>
+      <a href="/download">Download</a>
+    </nav>
+    <div class="header-actions" data-auth-slot></div>
+  </div>
+</header>
+
+<main>
+<section class="hero" style="padding-bottom:40px">
+  <div class="wrap narrow center">
+    <span class="eyebrow">Download</span>
+    <h1 style="font-size:clamp(2rem,4.4vw,2.9rem)">Put Sentinel in your browser</h1>
+    <p class="lede">One file, about 26&nbsp;KB. Works in Chrome, Edge, Brave, Opera and any other Chromium browser.</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:26px">
+      <a class="btn btn--lg btn--gold" href="/downloads/sentinel-chrome-latest.zip" download id="dl">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 19h16"/>
+        </svg>
+        Download for Chrome
+      </a>
+      <a class="btn btn--lg btn--ghost" href="/signup">Create your account first</a>
+    </div>
+    <p class="hero__note" id="meta">Version &mdash; &middot; free while in beta</p>
+  </div>
+</section>
+
+<section class="tight" style="padding-top:20px">
+  <div class="wrap narrow">
+    <div class="card">
+      <span class="eyebrow">Installation</span>
+      <h2 style="font-size:1.5rem">Four steps, about two minutes</h2>
+      <p class="muted small" style="margin-bottom:22px">
+        Sentinel is in review for the Chrome Web Store. Until it is listed, you install
+        it the same way developers do &mdash; nothing is hidden and you can read every
+        line of the extension in the folder you unzip.
+      </p>
+
+      <div class="steps">
+        <div class="step">
+          <div>
+            <h3>Unzip the download</h3>
+            <p>Right-click <code>sentinel-chrome-latest.zip</code> and extract it to a folder you will keep, such as Documents. Deleting the folder later removes the extension.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>Open your extensions page</h3>
+            <p>Paste <code>chrome://extensions</code> into the address bar (Edge: <code>edge://extensions</code>, Brave: <code>brave://extensions</code>) and press Enter.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>Turn on Developer mode</h3>
+            <p>Toggle <b>Developer mode</b> in the top-right corner, then click <b>Load unpacked</b> and choose the folder you just unzipped.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>Sign in once</h3>
+            <p>Click the Sentinel mask in your toolbar and sign in. From then on it runs in the background whenever your browser is open.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:26px;display:flex;gap:12px;flex-wrap:wrap">
+        <a class="btn btn--gold" href="/signup">Create free account</a>
+        <a class="btn btn--ghost" href="/app">Open dashboard</a>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <h2 style="font-size:1.2rem">Pin it where you can see it</h2>
+      <p class="muted small" style="margin:0">
+        Click the puzzle-piece icon in your toolbar and pin Sentinel. The mask shows
+        the rating for whatever page you are on, and turns
+        <span class="mask-badge mask-badge--yellow"><svg viewBox="0 0 64 64"><use href="#mask"/></svg>yellow</span>,
+        <span class="mask-badge mask-badge--orange"><svg viewBox="0 0 64 64"><use href="#mask"/></svg>orange</span> or
+        <span class="mask-badge mask-badge--red"><svg viewBox="0 0 64 64"><use href="#mask"/></svg>red</span>
+        as the risk rises.
+      </p>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <h2 style="font-size:1.2rem">Running your own instance?</h2>
+      <p class="muted small">
+        If you host Sentinel yourself, open the extension's options page and point the
+        <b>Sentinel server</b> field at your own origin. To let a locally loaded build
+        pair with this site, run this in the browser console on this page, using the ID
+        from your extensions page:
+      </p>
+      <p><code>localStorage.setItem('sentinel.extensionId', 'your-extension-id')</code></p>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap site-footer__grid">
+    <div>
+      <a class="brand" href="/">
+        <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#mask"/></svg>
+        <span class="brand__name">Sentinel</span>
+      </a>
+    </div>
+    <nav>
+      <a href="/download">Download</a>
+      <a href="/login">Sign in</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/assets/js/config.js"></script>
+<script src="/assets/js/sentinel.js"></script>
+<script>
+  Sentinel.paintHeader();
+  fetch('/downloads/latest.json')
+    .then((r) => r.json())
+    .then((info) => {
+      document.getElementById('meta').textContent =
+        `Version ${info.version} · ${(info.size / 1024).toFixed(0)} KB · free while in beta`;
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>

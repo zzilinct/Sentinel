@@ -1,0 +1,43 @@
+{
+  "name": "sentinel-desktop",
+  "productName": "Sentinel",
+  "version": "1.0.0",
+  "description": "Sentinel - real-time scam, virus and malware protection",
+  "main": "src/main.js",
+  "author": "Sentinel",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "prepare-shared": "node scripts/sync-shared.js",
+    "start": "node scripts/sync-shared.js && electron .",
+    "dev": "node scripts/sync-shared.js && electron . --dev",
+    "dist:win": "node scripts/sync-shared.js && electron-builder --win nsis",
+    "dist:mac": "node scripts/sync-shared.js && electron-builder --mac dmg",
+    "dist:linux": "node scripts/sync-shared.js && electron-builder --linux AppImage"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.sentinelscan.desktop",
+    "productName": "Sentinel",
+    "copyright": "Copyright © 2026 Sentinel",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["src/**/*", "shared/**/*", "assets/**/*", "package.json"],
+    "extraResources": [{ "from": "../extension", "to": "companion", "filter": ["**/*"] }],
+    "artifactName": "Sentinel-Setup-${version}.${ext}",
+    "win": { "target": "nsis", "icon": "assets/icon.png" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sentinel",
+      "runAfterFinish": true
+    },
+    "mac": { "target": "dmg", "icon": "assets/icon.png", "category": "public.app-category.utilities" },
+    "linux": { "target": "AppImage", "icon": "assets/icon.png", "category": "Utility" }
+  }
+}

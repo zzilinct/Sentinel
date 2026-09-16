@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- @include head -->
+<title>Sentinel — See the scam before you click</title>
+<meta name="description" content="Sentinel marks scams, viruses and malware on every search result, email and download with a colour-coded mask — before you click.">
+<meta property="og:title" content="Sentinel — See the scam before you click">
+<meta property="og:description" content="Three masks. Scam, virus, malware. On every search result, email and download.">
+<meta property="og:url" content="https://www.sentinelscan.com/">
+</head>
+<body>
+<!-- @include nav -->
+
+<main>
+
+  <!-- ================================================================ hero -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero__copy">
+        <a class="hero__pill" href="#masks" data-reveal>
+          <b>New</b> Virus &amp; malware masks, alongside scams
+        </a>
+        <h1 data-split>The internet wears masks.<br><span class="serif italic gold-text">Sentinel sees through them.</span></h1>
+        <p class="hero__lede" data-reveal style="--d:.5s">
+          Real-time protection that flags scams, viruses and malware on your search results,
+          in your inbox and in your downloads&nbsp;&mdash; before a single click.
+        </p>
+        <div class="hero__cta" data-reveal style="--d:.65s">
+          <a class="btn btn--gold btn--lg" href="/download">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg>
+            Download Sentinel
+          </a>
+          <a class="btn btn--lg" href="/app">Open in your browser <span class="arrow">&rarr;</span></a>
+        </div>
+        <p class="hero__fine" data-reveal style="--d:.8s"><span>Free plan, no card</span><span>Works with Chrome, Edge &amp; Brave</span><span>Gmail &amp; Outlook</span></p>
+      </div>
+
+      <!-- product stage -->
+      <div class="stage" data-stage aria-hidden="true">
+        <div class="stage__glow"></div>
+        <div class="window">
+          <div class="window__bar">
+            <div class="window__dots"><i></i><i></i><i></i></div>
+            <div class="window__url">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              paypal account locked help
+            </div>
+            <div class="window__shield"><i class="dot"></i><span>Sentinel live</span></div>
+          </div>
+          <div class="serp" data-serp>
+            <div class="serp__q">About 48,200,000 results</div>
+            <div class="res" data-masks="">
+              <div class="res__title">Resolve a limited account — PayPal Help Center <span class="masks"></span></div>
+              <div class="res__url">https://www.paypal.com/us/cshelp/limited-account</div>
+              <p class="res__desc">Find out why your account may be limited and what you can do to restore access.</p>
+            </div>
+            <div class="res" data-masks="scam:yellow">
+              <div class="res__title">PayPal Account Recovery Support (24/7 help) <span class="masks"></span></div>
+              <div class="res__url">https://paypal-recovery-help.online/unlock</div>
+              <p class="res__desc">Unlock your PayPal account instantly with our recovery specialists.</p>
+            </div>
+            <div class="res" data-masks="scam:orange,malware:yellow">
+              <div class="res__title">Restore PayPal Access — Secure Verification Portal <span class="masks"></span></div>
+              <div class="res__url">https://paypal.com.secure-verify-login.xyz/signin</div>
+              <p class="res__desc">Your account has been limited. Verify your identity within 24 hours.</p>
+            </div>
+            <div class="res" data-masks="virus:red">
+              <div class="res__title">PayPal Account Unlock Tool 2026 (Free Download) <span class="masks"></span></div>
+              <div class="res__url">https://unlock-tools-hub.icu/PayPalUnlock_Setup.pdf.exe</div>
+              <p class="res__desc">Download the official unlock utility. Works on Windows 10 and 11.</p>
+            </div>
+            <div class="res" data-masks="scam:red" data-danger>
+              <div class="res__title">PayPaI — Log in to your account <span class="masks"></span></div>
+              <div class="res__url">https://paypa1-secure-login.com/account</div>
+              <p class="res__desc">Log in to your PayPal account to review recent activity.</p>
+            </div>
+            <div class="scanline" data-scanline></div>
+          </div>
+        </div>
+
+        <div class="float float--verdict" data-float="verdict">
+          <div class="verdict__head">
+            <div class="verdict__icon" data-glyph="scam"></div>
+            <div>
+              <div class="verdict__title">Confirmed scam</div>
+              <div class="verdict__host">paypa1-secure-login.com</div>
+            </div>
+          </div>
+          <div class="verdict__bars">
+            <div class="bar" style="--c:var(--red)"><span>Scam</span><div class="bar__track"><div class="bar__fill" data-w="100"></div></div><b>100</b></div>
+            <div class="bar" style="--c:var(--yellow)"><span>Malware</span><div class="bar__track"><div class="bar__fill" data-w="18"></div></div><b>18</b></div>
+            <div class="bar" style="--c:var(--green)"><span>Virus</span><div class="bar__track"><div class="bar__fill" data-w="4"></div></div><b>4</b></div>
+          </div>
+          <div class="verdict__foot"><span>89 checks &middot; 7 failed</span><span>OpenPhish</span></div>
+        </div>
+
+        <div class="float float--mail" data-float="mail">
+          <div class="mailrow">
+            <div class="mailrow__avatar">P</div>
+            <div style="min-width:0">
+              <div class="mailrow__from">PayPal Security <span class="masks"><span class="m m--orange is-on" data-glyph="scam"></span><span class="m m--red is-on" data-glyph="virus"></span></span></div>
+              <div class="mailrow__subject">Action required: Account_Statement.pdf.exe</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============================================================== stats -->
+  <section class="stats" aria-label="Sentinel in numbers">
+    <div class="wrap stats__grid">
+      <div class="stat" data-reveal><div class="stat__n tabular"><span data-count="400000" data-live="threats">400,000</span><span class="unit">+</span></div><div class="stat__l">known threats tracked from live public feeds</div></div>
+      <div class="stat" data-reveal style="--d:.08s"><div class="stat__n tabular"><span data-count="89" data-live="checks">89</span></div><div class="stat__l">individual checks behind every verdict</div></div>
+      <div class="stat" data-reveal style="--d:.16s"><div class="stat__n tabular"><span data-count="3">3</span></div><div class="stat__l">masks&nbsp;&mdash; scam, virus and malware</div></div>
+      <div class="stat" data-reveal style="--d:.24s"><div class="stat__n tabular">0<span class="unit">%</span></div><div class="stat__l">false alarms across 127 of the web&rsquo;s most visited sites</div></div>
+    </div>
+  </section>
+
+  <!-- ========================================================= three masks -->
+  <section class="section" id="masks">
+    <div class="wrap">
+      <div class="section__head">
+        <span class="kicker" data-reveal>The masks</span>
+        <h2 data-split>Three masks.<br><span class="serif italic">One glance.</span></h2>
+        <p data-reveal>Every threat gets its own face, and every face gets a colour. Yellow means look closer. Orange means it&rsquo;s probably dangerous. Red means Sentinel has proof.</p>
+      </div>
+
+      <div class="trio" data-reveal="scale">
+        <article class="mask-card" style="--c:var(--red)" data-trio>
+          <div class="mask-card__glyph" data-glyph="scam"></div>
+          <h3>Scam</h3>
+          <p>Sites built to take your money, passwords or wallet.</p>
+          <ul>
+            <li>Look-alike and misspelled brand domains</li>
+            <li>Fake login, parcel-fee and prize pages</li>
+            <li>Crypto drainers asking for recovery phrases</li>
+          </ul>
+          <div class="severity" role="group" aria-label="Scam severity">
+            <button type="button" data-sev="yellow" style="--sc:var(--yellow)" aria-pressed="false">Suspicious</button>
+            <button type="button" data-sev="orange" style="--sc:var(--orange)" aria-pressed="false">Likely</button>
+            <button type="button" data-sev="red" style="--sc:var(--red)" aria-pressed="true">Confirmed</button>
+          </div>
+        </article>
+        <article class="mask-card" style="--c:var(--orange)" data-trio>
+          <div class="mask-card__glyph" data-glyph="virus"></div>
+          <h3>Virus</h3>
+          <p>Files that infect your computer the moment they run.</p>
+          <ul>
+            <li>Programs disguised as PDFs and photos</li>
+            <li>Known malicious files, matched by fingerprint</li>
+            <li>Archives smuggling executables</li>
+          </ul>
+          <div class="severity" role="group" aria-label="Virus severity">
+            <button type="button" data-sev="yellow" style="--sc:var(--yellow)" aria-pressed="false">Possible</button>
+            <button type="button" data-sev="orange" style="--sc:var(--orange)" aria-pressed="true">Likely</button>
+            <button type="button" data-sev="red" style="--sc:var(--red)" aria-pressed="false">Detected</button>
+          </div>
+        </article>
+        <article class="mask-card" style="--c:var(--yellow)" data-trio>
+          <div class="mask-card__glyph" data-glyph="malware"></div>
+          <h3>Malware</h3>
+          <p>Pages and documents that attack from the inside.</p>
+          <ul>
+            <li>Fake browser updates and &ldquo;paste this command&rdquo; lures</li>
+            <li>Hidden cryptominers and invisible frames</li>
+            <li>Macro documents and download-and-run scripts</li>
+          </ul>
+          <div class="severity" role="group" aria-label="Malware severity">
+            <button type="button" data-sev="yellow" style="--sc:var(--yellow)" aria-pressed="true">Possible</button>
+            <button type="button" data-sev="orange" style="--sc:var(--orange)" aria-pressed="false">Likely</button>
+            <button type="button" data-sev="red" style="--sc:var(--red)" aria-pressed="false">Detected</button>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ pipeline -->
+  <section class="section" id="how" style="padding-top:40px">
+    <div class="wrap">
+      <div class="section__head">
+        <span class="kicker" data-reveal>How a verdict is made</span>
+        <h2 data-split>Evidence first.<br><span class="serif italic">Then everything else.</span></h2>
+        <p data-reveal>Sentinel never guesses red. Every link goes through the same four stages, and you can open the full checklist behind any mask.</p>
+      </div>
+
+      <div class="pipeline" data-pipeline>
+        <div class="pipeline__rail"><i></i></div>
+        <div class="step" data-reveal>
+          <div class="step__num">01</div>
+          <h3>Knowledge</h3>
+          <p>First, what&rsquo;s already known. Live phishing and malware feeds, Sentinel&rsquo;s own database and community reports.</p>
+          <div class="step__sample">5 sources checked<br><span class="ok">No record found</span><br><b>Risk lowered 20%</b></div>
+        </div>
+        <div class="step" data-reveal style="--d:.1s">
+          <div class="step__num">02</div>
+          <h3>Checklist</h3>
+          <p>Dozens of individual checks on the address itself: look-alikes, abused endings, bait wording, disguised downloads.</p>
+          <div class="step__sample"><span class="bad">&times;</span> Near-identical to paypal.com<br><span class="bad">&times;</span> .xyz heavily abused<br><span class="ok">&check;</span> Uses HTTPS</div>
+        </div>
+        <div class="step" data-reveal style="--d:.2s">
+          <div class="step__num">03</div>
+          <h3>Compare</h3>
+          <p>Is it built like scams we&rsquo;ve already caught? Name patterns, known phishing kits, copies of confirmed pages.</p>
+          <div class="step__sample">Matches<br><b>&ldquo;Microsoft 365 phishing kit&rdquo;</b><br>4 signature phrases</div>
+        </div>
+        <div class="step" data-reveal style="--d:.3s">
+          <div class="step__num">04</div>
+          <h3>Research</h3>
+          <p>On Pro and Max, Sentinel visits for you: domain age, certificate, redirects, forms and scripts&nbsp;&mdash; safely, from our servers.</p>
+          <div class="step__sample">Registered <b>3 days ago</b><br>Password form posts to .ru<br><span class="bad">Sends data to a Telegram bot</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================== everywhere -->
+  <section class="section" id="everywhere">
+    <div class="wrap">
+      <div class="section__head">
+        <span class="kicker" data-reveal>Protection</span>
+        <h2 data-split>Wherever you click,<br><span class="serif italic">it&rsquo;s already checked.</span></h2>
+      </div>
+
+      <div class="surfaces">
+        <article class="tile" data-reveal>
+          <div class="tile__label">Search results</div>
+          <h3>Masks before you choose</h3>
+          <p>Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more. Masks appear as the page loads&nbsp;&mdash; on Max, each result is researched too.</p>
+          <div class="tile__demo demo-list">
+            <div class="demo-row"><div class="grow"><div class="t">Coinbase — Buy &amp; Sell Bitcoin</div><div class="s">coinbase.com</div></div></div>
+            <div class="demo-row"><div class="grow"><div class="t">Coinbase Wallet Extension — Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row"><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" data-glyph="scam"></span></div>
+            <div class="demo-row"><div class="grow"><div class="t">Crypto Price Tracker — Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span></div>
+            <div class="demo-row"><div class="grow"><div class="t">Coinbase Help — Contact Support</div><div class="s">help.coinbase.com</div></div></div>
+            <div class="demo-row"><div class="grow"><div class="t">Coinbase Support Number 24/7 — Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row"><div class="grow"><div class="t">Crypto Tax Calculator — Free Guide 2026</div><div class="s">koinly.io/guides</div></div></div>
+          </div>
+          <div class="tile__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Live scanning: 24 hours a week on Pro, 96 on Max</div>
+        </article>
+
+        <article class="tile" data-reveal style="--d:.1s">
+          <div class="tile__label">Inbox</div>
+          <h3>Emails, unmasked</h3>
+          <p>Gmail and Outlook get the same masks. Spoofed senders, mismatched links and disguised attachments are marked in the list.</p>
+          <div class="tile__demo demo-list">
+            <div class="demo-row"><div class="file">DS</div><div class="grow"><div class="t">DocuSign — Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row"><div class="file">GH</div><div class="grow"><div class="t">GitHub — Your weekly digest</div><div class="s">noreply@github.com</div></div></div>
+          </div>
+        </article>
+
+        <article class="tile" data-reveal style="--d:.2s">
+          <div class="tile__label">Downloads</div>
+          <h3>Every file, inspected</h3>
+          <p>The Sentinel app scans new downloads on your computer. Files never leave your device&nbsp;&mdash; only their fingerprint does.</p>
+          <div class="tile__demo demo-list">
+            <div class="demo-row"><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" data-glyph="virus"></span></div>
+            <div class="demo-row"><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" data-glyph="malware"></span></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= pricing -->
+  <section class="section" id="pricing">
+    <div class="wrap">
+      <div class="section__head section__head--center">
+        <span class="kicker" data-reveal>Pricing</span>
+        <h2 data-split>Simple plans.<br><span class="serif italic">Serious protection.</span></h2>
+        <p data-reveal>Start free. Upgrade when you want Sentinel watching in real time.</p>
+      </div>
+      <!-- @include pricing -->
+    </div>
+  </section>
+
+  <!-- ============================================================ security -->
+  <section class="section" id="security">
+    <div class="wrap vault">
+      <div>
+        <span class="kicker" data-reveal>Security &amp; privacy</span>
+        <h2 data-split style="margin-top:18px;font-size:clamp(38px,5vw,60px)">Built like <span class="serif italic">a vault.</span></h2>
+        <div class="vault__list" style="margin-top:36px">
+          <div class="vault__item" data-reveal>
+            <div class="vault__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v6c0 4.5 3 8.2 7 9 4-.8 7-4.5 7-9V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+            <div><h4>Addresses, not content</h4><p>Sentinel checks where a link goes. It never records what you type or reads pages behind your logins.</p></div>
+          </div>
+          <div class="vault__item" data-reveal style="--d:.08s">
+            <div class="vault__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+            <div><h4>Two-factor sign-in</h4><p>Authenticator-app codes, lockout after repeated failures, and a list of every signed-in device you can revoke.</p></div>
+          </div>
+          <div class="vault__item" data-reveal style="--d:.16s">
+            <div class="vault__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12h16M12 4v16"/><circle cx="12" cy="12" r="8"/></svg></div>
+            <div><h4>Research happens on our side</h4><p>Suspicious pages are opened from isolated servers that refuse to touch private networks&nbsp;&mdash; never from your computer.</p></div>
+          </div>
+          <div class="vault__item" data-reveal style="--d:.24s">
+            <div class="vault__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h10v10H7z"/><path d="M4 4h3M17 4h3M4 20h3M17 20h3"/></svg></div>
+            <div><h4>Files stay on your device</h4><p>Downloads are analysed locally by the Sentinel app. Only a SHA-256 fingerprint is compared online.</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="lockart" data-reveal="scale" aria-hidden="true">
+        <div class="lockart__ring"></div><div class="lockart__ring"></div><div class="lockart__ring"></div>
+        <div class="lockart__orbit"><i></i></div><div class="lockart__orbit"><i></i></div>
+        <div class="lockart__core" data-glyph="scam"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================= faq -->
+  <section class="section" style="padding-top:40px">
+    <div class="wrap-narrow">
+      <div class="section__head section__head--center" style="margin-bottom:48px">
+        <span class="kicker" data-reveal>Questions</span>
+        <h2 data-split>Good to know</h2>
+      </div>
+      <div class="faq" data-reveal>
+        <details>
+          <summary>What&rsquo;s the difference between yellow, orange and red?<i></i></summary>
+          <div>Yellow means a few warning signs&nbsp;&mdash; worth a second look. Orange means many strong signs at once, so it&rsquo;s probably dangerous. Red is only ever shown with evidence: the site is on a live threat list, matches a known scam kit while impersonating a brand, or does something unmistakably hostile.</div>
+        </details>
+        <details>
+          <summary>Do I need to download anything?<i></i></summary>
+          <div>No. The web app works in any browser for scanning links and files. Live protection&nbsp;&mdash; masks on search results, emails and downloads&nbsp;&mdash; runs through the Sentinel app, which you download once.</div>
+        </details>
+        <details>
+          <summary>What does &ldquo;research&rdquo; mean on Pro and Max?<i></i></summary>
+          <div>Sentinel visits the site from its own servers and gathers facts the address alone can&rsquo;t reveal: when the domain was registered, its certificate, where it redirects, whether its forms send passwords elsewhere, and whether its scripts try to mine crypto or push downloads.</div>
+        </details>
+        <details>
+          <summary>How are live scanning hours counted?<i></i></summary>
+          <div>Only minutes in which Sentinel actually checks something for you count, and each minute counts once however many results it checks. Hours reset every Monday.</div>
+        </details>
+        <details>
+          <summary>Does Sentinel need an AI account?<i></i></summary>
+          <div>No. Every verdict comes from Sentinel&rsquo;s own threat intelligence, checklist and research. Connecting ChatGPT, Claude, Gemini or DeepSeek is an optional extra for asking questions about a link.</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================= cta -->
+  <section class="section--tight">
+    <div class="wrap">
+      <div class="cta" data-reveal="scale">
+        <div class="cta__mask" data-glyph="scam"></div>
+        <h2 data-split>Stop guessing <span class="serif italic gold-text">which link is safe.</span></h2>
+        <p>Free to start. Up and running in two minutes.</p>
+        <div class="hero__cta">
+          <a class="btn btn--gold btn--lg" href="/download">Download Sentinel</a>
+          <a class="btn btn--lg" href="/signup">Create free account</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- @include footer -->
+<script src="/assets/js/masks.js"></script>
+<script src="/assets/js/site.js"></script>
+</body>
+</html>

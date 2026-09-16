@@ -1,0 +1,15 @@
+body.options { width: auto; max-width: 640px; margin: 0 auto; padding: 36px 20px 60px; }
+.brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.brand-row img { border-radius: 10px; }
+.brand-row h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+.brand-row p { margin: 2px 0 0; }
+.opt { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.opt:first-of-type { border-top: 0; }
+.opt b { display: block; font-weight: 600; font-size: 13.5px; }
+.opt small { color: var(--muted); font-size: 12px; }
+.opt input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); flex: none; }
+.opt select, .opt input[type=url] { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font: inherit; min-width: 190px; }
+.legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.legend div { background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px; padding: 10px; text-align: center; font-size: 12px; }
+.legend svg { width: 24px; height: 24px; display: block; margin: 0 auto 4px; }
+.saved { text-align: center; min-height: 18px; color: var(--green); }

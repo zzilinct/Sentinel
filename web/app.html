@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/sentinel.css">
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="mask" viewBox="0 0 64 64">
+    <path fill="currentColor" fill-rule="evenodd" d="M32 5c13.2 0 23 4.3 23 10.8 0 15.8-7.4 36.6-23 43.9C16.4 52.4 9 31.6 9 15.8 9 9.3 18.8 5 32 5Zm-9.8 20.4c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Zm19.6 0c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Z"/>
+    <path fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" d="M22.5 42.2c2.7 3.6 5.9 5.4 9.5 5.4s6.8-1.8 9.5-5.4"/>
+  </symbol>
+</svg>
+
+<div class="app-shell">
+
+  <header class="app-bar">
+    <a class="brand" href="/">
+      <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#mask"/></svg>
+      <span class="brand__name">Sentinel</span>
+    </a>
+    <div class="app-bar__actions">
+      <button class="btn btn--sm btn--gold" id="openWorkspace">AI workspace</button>
+      <div class="menu">
+        <button class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" title="Account">&nbsp;</button>
+        <div class="menu__panel" id="menuPanel" hidden>
+          <div class="menu__head">
+            <b id="menuName">&nbsp;</b>
+            <span id="menuEmail">&nbsp;</span>
+          </div>
+          <a class="menu__item" href="/download">Install the extension</a>
+          <a class="menu__item" href="/privacy">Privacy</a>
+          <button class="menu__item" id="signOut">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+
+    <div class="app-head">
+      <div>
+        <h1 id="greeting">Welcome back</h1>
+        <p class="muted">Here is what Sentinel has caught for you in the last 30 days.</p>
+      </div>
+      <a class="btn btn--sm" href="/download">Install the extension</a>
+    </div>
+
+    <div class="tiles" id="tiles">
+      <div class="tile"><div class="tile__value" id="tFlagged">&ndash;</div><div class="tile__label">Links flagged</div></div>
+      <div class="tile tile--yellow"><div class="tile__value" id="tYellow">&ndash;</div><div class="tile__label">Suspicious</div></div>
+      <div class="tile tile--orange"><div class="tile__value" id="tOrange">&ndash;</div><div class="tile__label">Likely scam</div></div>
+      <div class="tile tile--red"><div class="tile__value" id="tRed">&ndash;</div><div class="tile__label">Confirmed scam</div></div>
+    </div>
+
+    <div class="cols">
+      <div style="display:grid;gap:22px">
+
+        <section class="card">
+          <div class="panel-title"><h2>Protection status</h2></div>
+          <div class="status-row">
+            <span class="status-row__dot" id="extDot" style="background:var(--faint)"></span>
+            <div>
+              <b id="extTitle">Checking for the extension&hellip;</b>
+              <span id="extNote">Sentinel runs in the background whenever your browser is open.</span>
+            </div>
+          </div>
+          <div class="status-row">
+            <span class="status-row__dot" style="background:var(--green)"></span>
+            <div>
+              <b>Account active</b>
+              <span id="accountNote">Your trusted sites and reports follow you across devices.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="panel-title"><h2>Check a link</h2></div>
+          <form class="checker" id="checkForm">
+            <input type="text" id="checkUrl" placeholder="Paste a link you were sent" aria-label="URL to check" spellcheck="false" autocomplete="off">
+            <button class="btn btn--gold" type="submit" id="checkBtn">Check</button>
+          </form>
+          <div id="checkResult" aria-live="polite"></div>
+        </section>
+
+        <section class="ai-launch">
+          <div class="ai-logos">
+            <span class="ai-chip" style="background:#10a37f">GPT</span>
+            <span class="ai-chip" style="background:#d97757">Cl</span>
+            <span class="ai-chip" style="background:#4285f4">Gm</span>
+            <span class="ai-chip" style="background:#4d6bfe">DS</span>
+          </div>
+          <div>
+            <h3 style="margin:0 0 3px;font-size:1.05rem">Your AI workspace</h3>
+            <p class="muted small" style="margin:0">ChatGPT, Claude, Gemini and DeepSeek in four tabs. Ask any of them about a link you are unsure of.</p>
+          </div>
+          <button class="btn btn--gold" id="openWorkspace2">Open workspace</button>
+        </section>
+
+      </div>
+
+      <div style="display:grid;gap:22px">
+        <section class="card">
+          <div class="panel-title"><h2>Recently flagged</h2></div>
+          <ul class="list" id="recent"><li class="empty">Nothing flagged yet.</li></ul>
+        </section>
+
+        <section class="card">
+          <div class="panel-title"><h2>Sites you trust</h2></div>
+          <ul class="list" id="overrides"><li class="empty">No overrides yet.</li></ul>
+          <p class="small muted" style="margin:14px 0 0">
+            Marking a site as trusted hides its mask for your account only.
+          </p>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ---------------------------------------------------- AI workspace overlay -->
+<div class="overlay" id="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="wsTitle">
+  <div class="workspace">
+    <div class="workspace__head">
+      <h2 id="wsTitle">AI workspace</h2>
+      <button class="workspace__close" id="wsClose" aria-label="Close workspace">&times;</button>
+    </div>
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div class="panes" id="panes"></div>
+  </div>
+</div>
+
+<script src="/assets/js/config.js"></script>
+<script src="/assets/js/sentinel.js"></script>
+<script src="/assets/js/app.js"></script>
+</body>
+</html>

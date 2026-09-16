@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sentinel</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="../icons/icon32.png" alt="" width="20" height="20">
+      <span>Sentinel</span>
+    </div>
+    <span class="plan" id="plan" hidden></span>
+  </header>
+
+  <main id="view" class="view" aria-live="polite">
+    <div class="loading"><span class="spin"></span></div>
+  </main>
+
+  <footer class="foot">
+    <a id="openApp" href="#" target="_blank" rel="noopener">Open Sentinel</a>
+    <button id="settings" class="link" type="button">Settings</button>
+  </footer>
+
+  <script src="content/masks.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

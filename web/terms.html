@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms - Sentinel</title>
+<meta name="description" content="Terms of use for the Sentinel beta.">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/sentinel.css">
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="mask" viewBox="0 0 64 64">
+    <path fill="currentColor" fill-rule="evenodd" d="M32 5c13.2 0 23 4.3 23 10.8 0 15.8-7.4 36.6-23 43.9C16.4 52.4 9 31.6 9 15.8 9 9.3 18.8 5 32 5Zm-9.8 20.4c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Zm19.6 0c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Z"/>
+    <path fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" d="M22.5 42.2c2.7 3.6 5.9 5.4 9.5 5.4s6.8-1.8 9.5-5.4"/>
+  </symbol>
+</svg>
+
+<header class="site-header">
+  <div class="wrap site-header__inner">
+    <a class="brand" href="/">
+      <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#mask"/></svg>
+      <span class="brand__name">Sentinel</span>
+    </a>
+    <nav class="nav">
+      <a href="/#how">How it works</a>
+      <a href="/#legend">The masks</a>
+      <a href="/download">Download</a>
+    </nav>
+    <div class="header-actions" data-auth-slot></div>
+  </div>
+</header>
+
+<main>
+<section class="tight">
+  <div class="wrap narrow">
+    <span class="eyebrow">Terms</span>
+    <h1 style="font-size:2rem">Terms of use</h1>
+    <p class="lede">Sentinel is in beta, and free to use while it is.</p>
+
+    <div class="card" style="margin:26px 0">
+      <h2 style="font-size:1.15rem">Sentinel is a warning, not a guarantee</h2>
+      <p class="muted small" style="margin:0">
+        Sentinel flags what it can detect. New scam sites appear constantly and no checker
+        catches all of them, so an unmarked link is not a promise of safety. In the other
+        direction, a yellow or orange mask means "look closer", not "this is criminal". Use
+        your own judgement before entering passwords or payment details anywhere.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:1.15rem">Your account</h2>
+      <p class="muted small" style="margin:0">
+        Keep your password to yourself and be accurate when you report a site. Deliberately
+        false reports, automated scraping of the scan API, and attempts to overload the
+        service will end your access.
+      </p>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <h2 style="font-size:1.15rem">Your AI provider accounts</h2>
+      <p class="muted small" style="margin:0">
+        The AI workspace uses API keys from your own OpenAI, Anthropic, Google or DeepSeek
+        accounts. That usage is billed by those providers to you, under their terms, and
+        Sentinel is not a party to that relationship.
+      </p>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <h2 style="font-size:1.15rem">Liability</h2>
+      <p class="muted small" style="margin:0">
+        The beta is provided as-is, without warranty. Sentinel is not liable for losses
+        arising from a site it failed to flag, or from a legitimate site it flagged. If you
+        believe a site is rated wrongly, report it and it will be reviewed.
+      </p>
+    </div>
+
+    <p class="small muted" style="margin-top:26px">Contact: hello@sentinelscamscan.com</p>
+  </div>
+</section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap site-footer__grid">
+    <div>
+      <a class="brand" href="/">
+        <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#mask"/></svg>
+        <span class="brand__name">Sentinel</span>
+      </a>
+    </div>
+    <nav>
+      <a href="/download">Download</a>
+      <a href="/login">Sign in</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/assets/js/config.js"></script>
+<script src="/assets/js/sentinel.js"></script>
+<script>Sentinel.paintHeader();</script>
+</body>
+</html>
