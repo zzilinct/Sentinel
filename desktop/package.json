@@ -16,13 +16,13 @@
     "dist:linux": "node scripts/sync-shared.js && electron-builder --linux AppImage"
   },
   "devDependencies": {
-    "electron": "^38.0.0",
+    "electron": "^44.4.1",
     "electron-builder": "^26.0.0"
   },
   "build": {
     "appId": "com.usesentinel.desktop",
     "productName": "Sentinel",
-    "copyright": "Copyright \u00a9 2026 Sentinel",
+    "copyright": "Copyright © 2026 Sentinel",
     "directories": {
       "output": "dist",
       "buildResources": "build"
