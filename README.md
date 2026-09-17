@@ -45,7 +45,7 @@ extension/         Browser companion (MV3): search masks, email masks, page warn
 desktop/           Sentinel desktop app (Electron): tray, download protection, unlocks live features
 tests/             node:test suites with local scam/malware fixture sites
 scripts/           evaluate, admin, icons, fonts, packaging
-deploy/            docker-compose + Caddy (automatic HTTPS for www.sentinelscan.com)
+deploy/            docker-compose + Caddy (automatic HTTPS for www.usesentinel.technology)
 ```
 
 ## Run locally
