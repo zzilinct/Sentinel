@@ -24,7 +24,7 @@ const PLANS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    price: 6,
+    price: 15,
     limits: { linkScans: 40, fileScans: 40, liveMinutes: 24 * 60 },
     features: {
       research: true,
@@ -38,7 +38,7 @@ const PLANS = {
   max: {
     id: 'max',
     name: 'Max',
-    price: 14,
+    price: 40,
     limits: { linkScans: 100, fileScans: 100, liveMinutes: 96 * 60 },
     features: {
       research: true,
@@ -48,8 +48,26 @@ const PLANS = {
       emailLive: true,
       emailManual: true
     }
+  },
+  ultimate: {
+    id: 'ultimate',
+    name: 'Ultimate',
+    price: 100,
+    // liveMinutes null = uncapped: round-the-clock scanning with no weekly ceiling.
+    limits: { linkScans: 500, fileScans: 500, liveMinutes: null },
+    features: {
+      research: true,
+      liveScanning: true,
+      liveResearch: true,
+      virusMalwareOnLinks: true,
+      emailLive: true,
+      emailManual: true
+    }
   }
 };
+
+/** Uncapped allowances are stored as null so the UI can say so plainly. */
+const uncapped = (limit) => limit === null;
 
 const METRICS = {
   linkScans: 'link_scans',
@@ -116,11 +134,11 @@ const minuteCache = new Map(); // `${userId}` -> last minute bucket recorded
 function trackLive(user) {
   const plan = planFor(user);
   if (!plan.features.liveScanning) {
-    throw new HttpError(403, 'plan_required', 'Live scanning is included with Sentinel Pro and Max.', { plan: plan.id, needs: 'pro' });
+    throw new HttpError(403, 'plan_required', 'Live scanning is included with Sentinel Pro, Max and Ultimate.', { plan: plan.id, needs: 'pro' });
   }
   const minute = Math.floor(now() / 60000);
   const usedMinutes = liveMinutesUsed(user.id);
-  if (usedMinutes >= plan.limits.liveMinutes && minuteCache.get(user.id) !== minute) {
+  if (!uncapped(plan.limits.liveMinutes) && usedMinutes >= plan.limits.liveMinutes && minuteCache.get(user.id) !== minute) {
     throw new HttpError(429, 'live_hours_exhausted',
       `You have used all ${plan.limits.liveMinutes / 60} hours of live scanning this week.`,
       { limitMinutes: plan.limits.liveMinutes, usedMinutes, resetsAt: weekResetsAt(), plan: plan.id });

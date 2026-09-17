@@ -25,33 +25,49 @@ const mix = (a, b, t) => [
   255
 ];
 
+/** Signed helpers for the helmet geometry. */
 const inEllipse = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
 
 /**
- * The mask silhouette in a unit square: a rounded top that tapers to a chin,
- * with two eye holes and a straight, expressionless mouth cut out of it.
+ * The Sentinel helmet in a unit square: a domed brow, straight cheek guards
+ * and a chin that tapers to a point, with angled eye slits and a face opening
+ * either side of the nose guard. Matches the vector mark in web/assets/js/masks.js.
  */
 function maskAlpha(u, v) {
-  // u,v in [0,1]; centre the face horizontally.
-  const x = u - 0.5;
-  const y = v - 0.5;
+  // Work in the same 64-unit space as the SVG, so both marks stay in step.
+  const X = u * 64;
+  const Y = v * 64;
+  const dx = Math.abs(X - 32);
 
-  // Body: a broad brow that tapers to a chin.
+  // Silhouette: dome (y < 21.8), straight sides, then a taper to the chin.
   let halfWidth;
-  if (y < 0) {
-    halfWidth = 0.45 * Math.sqrt(Math.max(0, 1 - (y / 0.47) ** 2));
+  if (Y < 11.6 || Y > 49.4) return 0;
+  if (Y < 21.8) {
+    // Dome: widen from the crown down to the brow line.
+    const t = (21.8 - Y) / 10.2;                 // 1 at the crown, 0 at the brow
+    halfWidth = 14 * Math.sqrt(Math.max(0, 1 - t * t));
+  } else if (Y < 29.6) {
+    halfWidth = 14;                              // straight cheek guards
   } else {
-    halfWidth = 0.45 * Math.sqrt(Math.max(0, 1 - (y / 0.56) ** 2)) * (1 - 0.30 * (y / 0.56));
+    // Taper to the chin point at (32, 49.4).
+    halfWidth = 14 * (1 - ((Y - 29.6) / 19.8) ** 1.5);
   }
-  if (Math.abs(x) > halfWidth) return 0;
+  if (dx > halfWidth) return 0;
 
-  // Eyes.
-  if (inEllipse(x, y, -0.165, -0.10, 0.098, 0.082)) return 0;
-  if (inEllipse(x, y, 0.165, -0.10, 0.098, 0.082)) return 0;
+  // Eye slits: angled bands running inward and down.
+  const eye = (side) => {
+    const ex = side * (X - 32);
+    if (ex < -11 || ex > -2.4) return false;
+    const top = 23.4 + (ex + 11) * 0.36;
+    return Y > top && Y < top + 3.4;
+  };
+  if (eye(1) || eye(-1)) return 0;
 
-  // Mouth: a straight bar with rounded ends - deliberately no smile.
-  if (Math.abs(x) < 0.17 && Math.abs(y - 0.215) < 0.038) return 0;
-  if (Math.hypot(Math.abs(x) - 0.17, y - 0.215) < 0.038) return 0;
+  // Face opening: two tapering slots either side of the nose guard.
+  if (Y > 32 && Y < 41.4 && dx > 2.2 && dx < 7.4 - (Y - 32) * 0.18) return 0;
+
+  // Rivet on the upper right, ringed by a thin gap so it reads as a separate stud.
+  if (inEllipse(X, Y, 42.8, 18.5, 3.4, 3.4) && !inEllipse(X, Y, 42.8, 18.5, 2.3, 2.3)) return 0;
 
   return 1;
 }

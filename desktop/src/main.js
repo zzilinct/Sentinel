@@ -29,7 +29,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', () => showWindow());
 }
 
-app.setAppUserModelId('com.sentinelscan.desktop');
+app.setAppUserModelId('com.usesentinel.desktop');
 
 /* ------------------------------------------------------------- window */
 

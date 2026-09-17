@@ -3,7 +3,7 @@
   'use strict';
 
   const DEFAULTS = {
-    apiBase: 'https://www.sentinelscan.com',
+    apiBase: 'https://www.usesentinel.technology',
     enabled: true,
     emailProtection: true,
     badgeStyle: 'mask',

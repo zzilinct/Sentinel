@@ -141,7 +141,7 @@ async function coreScan(p, { research }) {
       compare: compare.compareDomain(p),
       contentCompare: { kits: [], similarPages: [], fingerprint: null },
       research: null,
-      researchSkipReason: research ? null : 'Research is included with Pro and Max scans',
+      researchSkipReason: research ? null : 'Research is included with Pro, Max and Ultimate scans',
       finalKnowledge: null
     };
 

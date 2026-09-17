@@ -1,32 +1,41 @@
 /**
- * Sentinel's three masks - one per threat - shared by the web app and the
- * browser extension (the build copies this file into the extension).
+ * Sentinel's brand mark and its three masks, shared by the web app, the
+ * marketing site and the browser extension (the build copies this file).
  *
- *   scam     expressionless theatre mask        (the anonymous con)
- *   virus    mask ringed with spores            (infectious files)
- *   malware  horned mask with a jagged mouth    (hostile code)
+ *   logo     helmet inside a shield            (the brand mark)
+ *   scam     bare helmet, expressionless       (the anonymous con)
+ *   virus    helmet ringed with spores         (infectious files)
+ *   malware  horned helmet with a jagged jaw   (hostile code)
  *
- * Features are cut out of the face (even-odd fill), so the glyph reads on any
- * background in a single colour: yellow, orange or red.
+ * All four are drawn from one helmet silhouette, so a mask always reads as the
+ * same face as the logo. Features are cut out of the helmet (even-odd fill),
+ * which keeps every glyph legible in a single colour at any size.
  */
 (function (root) {
   'use strict';
 
-  var FACE = 'M32 5c13.2 0 23 4.3 23 10.8 0 15.8-7.4 36.6-23 43.9C16.4 52.4 9 31.6 9 15.8 9 9.3 18.8 5 32 5Z';
-  var ROUND_EYES = 'M22.2 25.4c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7ZM41.8 25.4c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Z';
-  var STRAIGHT = 'M22.5 41.4h19a2.3 2.3 0 0 1 0 4.6h-19a2.3 2.3 0 0 1 0-4.6Z';
-  var ROUND = 'M32 38.6a4.8 4.8 0 1 1 0 9.6 4.8 4.8 0 0 1 0-9.6Z';
-  var ANGRY_EYES = 'M16.5 24.5l12.8 4.6-.6 5.6-11.2-2.2ZM47.5 24.5l-12.8 4.6.6 5.6 11.2-2.2Z';
-  var ZIGZAG = 'M19.5 43.2l6.2-4.6 6.3 4.6 6.3-4.6 6.2 4.6v4.4l-6.2-4.6-6.3 4.6-6.3-4.6-6.2 4.6Z';
+  // Helmet: domed brow, flared cheeks, a chin that tapers to a point.
+  var HELMET = 'M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5Z';
+  // Eye slits, angled inward and down.
+  var EYES = 'M21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8Z';
+  // The face opening either side of the nose guard.
+  var CHEEKS = 'M24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z';
+  // Jagged jaw, used in place of the plain opening on the malware mask.
+  var JAW = 'M24 32.6l3.6 2.1 3.6-2.1 3.6 2.1 3.6-2.1v3.8l-3.6 2.1-3.6-2.1-3.6 2.1-3.6-2.1Z';
+  var HORNS = 'M17.6 15.4 12.4 3.8l12.2 5.9ZM46.4 15.4l5.2-11.6-12.2 5.9Z';
+  var SPORES = 'M32 1.4a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4ZM8.6 12.4a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4ZM55.4 12.4a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4ZM4.8 33.2a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4ZM59.2 33.2a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4ZM15 53a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4ZM49 53a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4Z';
+  // Shield that carries the helmet in the brand mark.
+  var SHIELD = 'M32 2.6 57.4 10v18.6c0 14.6-9.9 24.6-25.4 31.4C16.5 53.2 6.6 43.2 6.6 28.6V10Zm0 4.2L10.6 13v15.6c0 12.2 8 20.7 21.4 26.8 13.4-6.1 21.4-14.6 21.4-26.8V13Z';
+  // Rivet on the helmet's upper right, as on the supplied logo.
+  var RIVET = 'M42.8 16.2a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6Z';
+
+  var fill = function (d) { return '<path fill="currentColor" fill-rule="evenodd" d="' + d + '"/>'; };
 
   var GLYPHS = {
-    scam: '<path fill="currentColor" fill-rule="evenodd" d="' + FACE + ROUND_EYES + STRAIGHT + '"/>',
-    virus:
-      '<g transform="translate(6.4 7.4) scale(.8)"><path fill="currentColor" fill-rule="evenodd" d="' + FACE + ROUND_EYES + ROUND + '"/></g>' +
-      '<path fill="currentColor" d="M32 1.2a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8ZM8.2 12.2a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8ZM55.8 12.2a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8ZM4.4 33.4a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8ZM59.6 33.4a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8ZM14.6 53.6a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8ZM49.4 53.6a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8Z"/>',
-    malware:
-      '<path fill="currentColor" d="M14.5 13.5 9.2 1.6l12.4 5.7ZM49.5 13.5l5.3-11.9-12.4 5.7Z"/>' +
-      '<path fill="currentColor" fill-rule="evenodd" d="' + FACE + ANGRY_EYES + ZIGZAG + '"/>'
+    logo: fill(SHIELD) + '<g transform="translate(32 30.5) scale(.70) translate(-32 -30.5)">' + fill(HELMET + EYES + CHEEKS) + fill(RIVET) + '</g>',
+    scam: fill(HELMET + EYES + CHEEKS) + fill(RIVET),
+    virus: '<g transform="translate(32 32) scale(.82) translate(-32 -32)">' + fill(HELMET + EYES + CHEEKS) + '</g>' + fill(SPORES),
+    malware: fill(HORNS) + fill(HELMET + EYES + JAW)
   };
 
   var COLORS = { yellow: '#f5c542', orange: '#f08a24', red: '#e5484d', clear: '#4cb782' };
@@ -37,5 +46,14 @@
     return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" ' + extra + '>' + (GLYPHS[threat] || GLYPHS.scam) + '</svg>';
   }
 
-  root.SentinelMasks = { svg: svg, GLYPHS: GLYPHS, COLORS: COLORS, NAMES: NAMES };
+  /** Fill every [data-glyph] element under `scope` (no-op once painted). */
+  function paint(scope) {
+    var root = scope || document;
+    var nodes = root.querySelectorAll('[data-glyph]');
+    for (var i = 0; i < nodes.length; i++) {
+      if (!nodes[i].firstElementChild) nodes[i].innerHTML = svg(nodes[i].dataset.glyph);
+    }
+  }
+
+  root.SentinelMasks = { svg: svg, paint: paint, GLYPHS: GLYPHS, COLORS: COLORS, NAMES: NAMES };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

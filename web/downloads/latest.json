@@ -1,15 +1,15 @@
 {
   "name": "Sentinel Companion",
   "version": "1.0.0",
-  "size": 44767,
+  "size": 42505,
   "files": 22,
-  "builtAt": "2026-09-17T00:00:50.727Z",
+  "builtAt": "2026-09-17T19:08:05.768Z",
   "download": "/downloads/sentinel-companion-latest.zip",
   "desktop": {
     "version": "1.0.0",
     "platform": "windows-x64",
-    "size": 93776108,
-    "builtAt": "2026-09-17T00:00:50.608Z",
+    "size": 93754291,
+    "builtAt": "2026-09-17T19:08:32.704Z",
     "download": "/downloads/Sentinel-Setup-1.0.0.exe"
   }
 }

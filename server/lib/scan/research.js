@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Stage 4 - research (Pro and Max). Gathers facts about a site from the outside:
+ * Stage 4 - research (Pro, Max and Ultimate). Gathers facts about a site from the outside:
  * who registered it and when (RDAP), whether it resolves and receives mail (DNS),
  * its certificate, where it redirects, and what the page actually contains.
  *

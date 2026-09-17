@@ -138,7 +138,7 @@ const DEFAULT_ALLOWLIST = [
   'dropbox.com', 'zoom.us', 'slack.com', 'notion.so', 'figma.com', 'stripe.com',
   'cloudflare.com', 'mozilla.org', 'w3.org', 'npmjs.com', 'python.org', 'nodejs.org',
   'developer.mozilla.org', 'gov.uk', 'usa.gov', 'irs.gov', 'nhs.uk', 'who.int', 'europa.eu',
-  'sentinelscan.com'
+  'usesentinel.technology'
 ];
 
 // Seed threat data so every mask works on day one, before feeds are refreshed.

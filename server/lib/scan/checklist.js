@@ -336,7 +336,7 @@ function kitCheck(ctx, threat) {
 }
 
 /* ======================================================================
-   Research checks - infrastructure (Pro and Max)
+   Research checks - infrastructure (Pro, Max and Ultimate)
    ====================================================================== */
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -470,7 +470,7 @@ const INFRA_CHECKS = [
 ];
 
 /* ======================================================================
-   Research checks - page content (Pro and Max)
+   Research checks - page content (Pro, Max and Ultimate)
    ====================================================================== */
 
 const URGENCY = ['account has been suspended', 'account will be suspended', 'within 24 hours', 'within 48 hours', 'immediately', 'final notice', 'unusual activity', 'verify your identity', 'action required', 'your account will be closed', 'last warning', 'avoid suspension'];

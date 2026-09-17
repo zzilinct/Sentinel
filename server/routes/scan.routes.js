@@ -185,7 +185,7 @@ function register(router) {
   router.post('/api/v1/live/email', async (req, res) => {
     const user = A.requireUser(req);
     const plan = plans.trackLive(user);
-    if (!plan.features.emailLive) throw new HttpError(403, 'plan_required', 'Email protection is part of Sentinel Pro and Max.', { needs: 'pro' });
+    if (!plan.features.emailLive) throw new HttpError(403, 'plan_required', 'Email protection is part of Sentinel Pro, Max and Ultimate.', { needs: 'pro' });
     security.rateLimit(`live-email:${user.id}`, 120, 60 * 1000);
     const body = await readJson(req, 512 * 1024);
     const list = Array.isArray(body.emails) ? body.emails.slice(0, 50) : [body];
@@ -202,7 +202,7 @@ function register(router) {
   router.post('/api/v1/live/file-hash', async (req, res) => {
     const user = A.requireUser(req);
     const plan = plans.planFor(user);
-    if (!plan.features.liveScanning) throw new HttpError(403, 'plan_required', 'Download protection is part of Sentinel Pro and Max.', { needs: 'pro' });
+    if (!plan.features.liveScanning) throw new HttpError(403, 'plan_required', 'Download protection is part of Sentinel Pro, Max and Ultimate.', { needs: 'pro' });
     security.rateLimit(`file-hash:${user.id}`, 300, 60 * 60 * 1000);
     const { sha256 } = await readJson(req);
     if (!/^[a-f0-9]{64}$/i.test(String(sha256 || ''))) throw new HttpError(400, 'bad_hash', 'Provide a SHA-256 hex digest');

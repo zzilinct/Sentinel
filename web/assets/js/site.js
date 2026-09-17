@@ -7,7 +7,15 @@
   const Masks = window.SentinelMasks;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  window.Site = { $, $$, reduced };
+  // Browsers without IntersectionObserver still get everything, revealed at once.
+  const Observer = window.IntersectionObserver || class {
+    constructor(callback) { this.callback = callback; }
+    observe(target) { setTimeout(() => this.callback([{ target, isIntersecting: true }], this), 0); }
+    unobserve() {}
+    disconnect() {}
+  };
+
+  window.Site = { $, $$, reduced, Observer };
 
   /* ------------------------------------------------------------- glyphs */
 
@@ -28,6 +36,12 @@
     }));
     document.addEventListener('keydown', (ev) => {
       if (ev.key === 'Escape' && nav.classList.contains('is-open')) { nav.classList.remove('is-open'); toggle && toggle.focus(); }
+    });
+    document.addEventListener('click', (ev) => {
+      if (!nav.contains(ev.target) && nav.classList.contains('is-open')) {
+        nav.classList.remove('is-open');
+        toggle && toggle.setAttribute('aria-expanded', 'false');
+      }
     });
   }
 
@@ -57,7 +71,7 @@
   const spyLinks = $$('[data-spy]');
   const spyTargets = spyLinks.map((a) => document.getElementById(a.dataset.spy)).filter(Boolean);
   if (spyTargets.length) {
-    const spy = new IntersectionObserver((entries) => {
+    const spy = new Observer((entries) => {
       for (const e of entries) {
         if (!e.isIntersecting) continue;
         spyLinks.forEach((a) => a.classList.toggle('is-active', a.dataset.spy === e.target.id));
@@ -111,7 +125,7 @@
 
   /* ------------------------------------------------------------ reveals */
 
-  const io = new IntersectionObserver((entries) => {
+  const io = new Observer((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       e.target.classList.add('is-in');
@@ -138,7 +152,7 @@
   const counters = $$('[data-count]');
   if (counters.length) {
     const live = fetch('/api/v1/threat-stats').then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    const cio = new IntersectionObserver(async (entries) => {
+    const cio = new Observer(async (entries) => {
       const stats = await live;
       for (const e of entries) {
         if (!e.isIntersecting) continue;
@@ -187,26 +201,28 @@
 
     function update() {
       hoursOut.textContent = `${state.hours} h`;
-      hours.style.setProperty('--p', `${state.hours}%`);
+      hours.style.setProperty('--p', `${(state.hours / Number(hours.max || 100)) * 100}%`);
       hours.disabled = !state.live;
       hoursRow.classList.toggle('is-muted', !state.live);
 
       let pick;
       let why;
-      if (state.email) {
-        pick = 'max';
-        why = 'pasting emails in for a full scan is part of Max, and it researches every live result too.';
-      } else if (!state.live) {
+      if (!state.live && !state.email) {
         pick = 'free';
         why = '10 link scans and 5 virus &amp; malware scans a week cover the odd link you&rsquo;re unsure about.';
-      } else if (state.hours <= 24) {
+      } else if (state.hours > 96) {
+        pick = 'ultimate';
+        why = `at around ${state.hours} hours a week you&rsquo;d run past Max&rsquo;s 96, and Ultimate lifts the weekly cap entirely.`;
+      } else if (state.email || state.hours > 24) {
+        pick = 'max';
+        why = state.email
+          ? 'pasting emails in for a full scan is part of Max, and it researches every live result too.'
+          : `at around ${state.hours} hours a week you&rsquo;d outgrow Pro&rsquo;s 24; Max gives you 96, with research on every result.`;
+      } else {
         pick = 'pro';
         why = `its 24 live hours a week cover your ${state.hours}, and minutes only count while Sentinel is actually checking something.`;
-      } else {
-        pick = 'max';
-        why = `at around ${state.hours} hours a week you&rsquo;d outgrow Pro&rsquo;s 24; Max gives you 96, with research on every result.`;
       }
-      answer.innerHTML = `<b>${{ free: 'Free', pro: 'Pro', max: 'Max' }[pick]}</b> fits best &mdash; ${why}`;
+      answer.innerHTML = `<b>${{ free: 'Free', pro: 'Pro', max: 'Max', ultimate: 'Ultimate' }[pick]}</b> fits best &mdash; ${why}`;
 
       $$('[data-plan-card]', pricing).forEach((card) => {
         const on = card.dataset.planCard === pick;

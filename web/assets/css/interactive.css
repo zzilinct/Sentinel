@@ -182,3 +182,15 @@
 .to-top.is-on { opacity: 1; transform: none; pointer-events: auto; }
 .to-top:hover { color: var(--gold-200); }
 .to-top svg { width: 18px; height: 18px; }
+
+/* ------------------------------------------------------ severity cycling */
+
+.severity-cycle {
+  margin-top: 12px; height: 28px; padding: 0 11px; border: 0; border-radius: 99px; cursor: pointer;
+  font: 500 11.5px var(--mono); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); background: rgba(255, 255, 255, .03); box-shadow: inset 0 0 0 1px var(--line);
+  transition: color .2s, box-shadow .2s;
+}
+.severity-cycle:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
+.mask-card[data-cycling="true"] .severity-cycle { color: var(--c); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
+@media (prefers-reduced-motion: reduce) { .severity-cycle { display: none; } }

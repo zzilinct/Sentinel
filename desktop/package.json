@@ -20,7 +20,7 @@
     "electron-builder": "^26.0.0"
   },
   "build": {
-    "appId": "com.sentinelscan.desktop",
+    "appId": "com.usesentinel.desktop",
     "productName": "Sentinel",
     "copyright": "Copyright © 2026 Sentinel",
     "directories": { "output": "dist", "buildResources": "build" },

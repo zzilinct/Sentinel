@@ -1,7 +1,7 @@
 # Sentinel
 
 **See the scam before you click.** Real-time scam, virus and malware protection for search results, email and downloads.
-Brand domain: **https://www.sentinelscan.com** (configured in [brand.json](brand.json)).
+Brand domain: **https://www.usesentinel.technology** (configured in [brand.json](brand.json)).
 
 Sentinel marks risky links with three masks, each coloured by severity:
 
@@ -22,16 +22,17 @@ Red is only ever shown with **evidence** (a threat-feed match, a known scam kit 
 
 ## Plans (enforced server-side, reset Mondays 00:00 UTC)
 
-| | Free | Pro | Max |
-|---|---|---|---|
-| Link scans / week | 10 (no research, scam mask only) | 40 (researched, all masks) | 100 (researched, all masks) |
-| Virus & malware scans / week | 5 | 40 | 100 |
-| Live scanning / week | — | 24 h (checklist, no research) | 96 h (every result researched) |
-| Email masks (Gmail/Outlook) | — | ✓ | ✓ |
-| Paste-in email scans | — | — | ✓ (counts as a link scan) |
-| Download protection (app) | — | ✓ | ✓ |
+| | Free | Pro | Max | Ultimate |
+|---|---|---|---|---|
+| Price / month | $0 | $15 | $40 | $100 |
+| Link scans / week | 10 (no research, scam mask only) | 40 (researched, all masks) | 100 (researched, all masks) | 500 (researched, all masks) |
+| Virus & malware scans / week | 5 | 40 | 100 | 500 |
+| Live scanning / week | — | 24 h (checklist, no research) | 96 h (every result researched) | 24/7, no weekly cap (every result researched) |
+| Email masks (Gmail/Outlook) | — | ✓ | ✓ | ✓ |
+| Paste-in email scans | — | — | ✓ (counts as a link scan) | ✓ (counts as a link scan) |
+| Download protection (app) | — | ✓ | ✓ | ✓ |
 
-Prices ($6 / $14) are placeholders in [server/lib/plans.js](server/lib/plans.js).
+Prices and entitlements live in [server/lib/plans.js](server/lib/plans.js) and are enforced there — the client only renders what the server returns. Ultimate's live allowance is stored as `null`, meaning uncapped.
 
 ## What's in the repo
 
@@ -45,7 +46,7 @@ extension/         Browser companion (MV3): search masks, email masks, page warn
 desktop/           Sentinel desktop app (Electron): tray, download protection, unlocks live features
 tests/             node:test suites with local scam/malware fixture sites
 scripts/           evaluate, admin, icons, fonts, packaging
-deploy/            docker-compose + Caddy (automatic HTTPS for www.sentinelscan.com)
+deploy/            docker-compose + Caddy (automatic HTTPS for www.usesentinel.technology)
 ```
 
 ## Run locally
@@ -84,13 +85,13 @@ node scripts/publish-desktop.js
 
 The installer is copied to `web/downloads/` and the download page picks it up automatically.
 
-## Deploy to www.sentinelscan.com
+## Deploy to www.usesentinel.technology
 
 ```bash
 cd deploy && docker compose up -d --build
 ```
 
-Before that: point DNS for `sentinelscan.com` and `www.sentinelscan.com` at the server, copy `.env.example` to `.env`, and set `SESSION_SECRET`. Optional: `GOOGLE_CLIENT_ID/SECRET`, `SAFE_BROWSING_API_KEY`, `RESEND_API_KEY` (password-reset emails).
+Before that: point DNS for `usesentinel.technology` and `www.usesentinel.technology` at the server, copy `.env.example` to `.env`, and set `SESSION_SECRET`. Optional: `GOOGLE_CLIENT_ID/SECRET`, `SAFE_BROWSING_API_KEY`, `RESEND_API_KEY` (password-reset emails).
 
 ## Security
 
@@ -104,7 +105,7 @@ node scripts/admin.js set-plan user@example.com max
 
 ## Known limits
 
-- **sentinelscan.com is registered to someone else** (since 2017, via CSC Corporate Domains). Change `brand.json` to a domain you own before publishing the companion, because it sends browsing data to that origin.
+- **Point DNS before publishing the companion.** `brand.json` drives the origin the extension and desktop app talk to, so `www.usesentinel.technology` must resolve to the server before either is distributed.
 - **No payment processing yet.** Production defaults to `BILLING_MODE=disabled` (upgrade buttons explain plans are coming). Stripe or similar must be added before charging.
 - No email verification at sign-up.
 - The Windows installer is unsigned, so SmartScreen will warn until it's code-signed. macOS/Linux builds are configured but untested.

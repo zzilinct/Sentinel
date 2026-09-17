@@ -51,7 +51,7 @@ function layout(title, bodyHtml) {
     <h1 style="margin:0 0 14px;font-size:24px;font-weight:500;color:#efece5">${title}</h1>
     ${bodyHtml}
   </td></tr></table>
-  <p style="color:#5f5e5a;font-size:12px;margin-top:18px">www.sentinelscan.com</p>
+  <p style="color:#5f5e5a;font-size:12px;margin-top:18px">www.usesentinel.technology</p>
   </td></tr></table></body></html>`;
 }
 

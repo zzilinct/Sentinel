@@ -150,6 +150,24 @@ test('max plan: 100/week, researched live scanning, manual email scans', async (
   assert.equal(mail.data.usage.linkScans.used, 1, 'manual email scans count toward the weekly scans');
 });
 
+test('ultimate plan: 500/week, uncapped live scanning, everything Max has', async () => {
+  const c = await newUser('ultimate');
+  const me = await c.get('/api/v1/auth/me');
+  assert.equal(me.data.plan.price, 100);
+  assert.equal(me.data.usage.linkScans.limit, 500);
+  assert.equal(me.data.usage.fileScans.limit, 500);
+  assert.equal(me.data.usage.liveMinutes.limit, null, 'live minutes are uncapped, not a number');
+  assert.equal(me.data.plan.features.liveResearch, true);
+  assert.equal(me.data.plan.features.emailManual, true);
+
+  // An uncapped allowance must never trip the weekly live-hours limit.
+  for (let i = 0; i < 3; i++) {
+    const live = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'], research: true });
+    assert.equal(live.status, 200, JSON.stringify(live.data));
+    assert.equal(live.data.live.limitMinutes, null);
+  }
+});
+
 test('live hours run out and reset weekly', async () => {
   const c = await newUser('pro');
   const me = await c.get('/api/v1/auth/me');

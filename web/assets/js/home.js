@@ -2,7 +2,8 @@
 (() => {
   'use strict';
 
-  const { $, $$, reduced } = window.Site;
+  const Site = window.Site;
+  const { $, $$, reduced } = Site;
   const Masks = window.SentinelMasks;
 
   const ORDER = ['scam', 'virus', 'malware'];
@@ -229,15 +230,53 @@
       requestAnimationFrame(() => { $('.bar__fill', slot).style.width = `${Math.max(t.score, 2)}%`; });
     };
 
+    // Each card walks its own severities so all three can be read at a glance;
+    // any interaction stops it, and the button below puts the reader in charge.
+    const cycle = document.createElement('button');
+    cycle.type = 'button';
+    cycle.className = 'severity-cycle';
+    const name = $('h3', card).textContent;
+    let timer = null;
+
+    const stop = () => {
+      clearInterval(timer);
+      timer = null;
+      card.dataset.cycling = 'false';
+      cycle.textContent = 'Play stages';
+      cycle.setAttribute('aria-label', `Play ${name} severity stages`);
+    };
+    const start = () => {
+      if (reduced) return;
+      clearInterval(timer);
+      card.dataset.cycling = 'true';
+      cycle.textContent = 'Pause stages';
+      cycle.setAttribute('aria-label', `Pause ${name} severity stages`);
+      timer = setInterval(() => {
+        const at = buttons.findIndex((b) => b.getAttribute('aria-pressed') === 'true');
+        choose(buttons[(at + 1) % buttons.length]);
+      }, 3200);
+    };
+    cycle.addEventListener('click', () => (timer ? stop() : start()));
+    card.appendChild(cycle);
+    stop();
+
     buttons.forEach((b, i) => {
       b.tabIndex = b.getAttribute('aria-pressed') === 'true' ? 0 : -1;
-      b.addEventListener('click', () => choose(b));
+      b.addEventListener('click', () => { stop(); choose(b); });
       b.addEventListener('keydown', (ev) => {
         if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
         ev.preventDefault();
+        stop();
         choose(buttons[(i + (ev.key === 'ArrowRight' ? 1 : buttons.length - 1)) % buttons.length], true);
       });
     });
+
+    // Only cycle while the card is actually on screen.
+    new Site.Observer((entries) => {
+      const visible = entries[0].isIntersecting;
+      if (visible && !timer && card.dataset.cycling !== 'paused') start();
+      else if (!visible && timer) { clearInterval(timer); timer = null; }
+    }, { threshold: 0.4 }).observe(card);
   }
 
   /* ============================================================== spot the scam */

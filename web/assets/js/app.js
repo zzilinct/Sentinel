@@ -71,6 +71,9 @@
   const plan = () => state.me.plan;
   const usage = () => state.me.usage;
   const left = (key) => Math.max(0, usage()[key].limit - usage()[key].used);
+  // Ultimate has no weekly live-hours ceiling; the API sends null for that.
+  const uncapped = (limit) => limit === null;
+  const hours = (minutes) => (minutes / 60).toFixed(minutes < 36000 ? 1 : 0);
 
   function paintAccount() {
     const u = state.me.user;
@@ -92,7 +95,9 @@
     $('[data-usage-mini]').innerHTML =
       row('Link scans', us.linkScans.used, us.linkScans.limit) +
       row('Virus scans', us.fileScans.used, us.fileScans.limit) +
-      row('Live hours', us.liveMinutes.used / 60, us.liveMinutes.limit / 60, 'h').replace(/(\d+\.\d)\d+h/, '$1h');
+      (uncapped(us.liveMinutes.limit)
+        ? `<div class="usage-mini__row"><span>Live hours</span><b class="tabular">Unlimited</b></div><div class="meter is-uncapped"><i style="width:100%"></i></div>`
+        : row('Live hours', us.liveMinutes.used / 60, us.liveMinutes.limit / 60, 'h').replace(/(\d+\.\d)\d+h/, '$1h'));
   }
 
   async function pairDesktop() {
@@ -246,7 +251,7 @@
   }
 
   function stagesView(research) {
-    const steps = [['knowledge', 'Checking known threat sources'], ['checklist', 'Running the checklist'], ['compare', 'Comparing with known scams'], ['research', research ? 'Researching the site' : 'Research (Pro & Max)']];
+    const steps = [['knowledge', 'Checking known threat sources'], ['checklist', 'Running the checklist'], ['compare', 'Comparing with known scams'], ['research', research ? 'Researching the site' : 'Research (Pro & up)']];
     return `<div class="panel scanning" data-scanning>
       <div class="scanning__rings">${Masks.svg('scam')}</div>
       <h3>Scanning</h3>
@@ -296,10 +301,10 @@
     }).join('')}</ul>`;
   }
 
-  function usageCard(icon, n, unit, label, used, limit, locked) {
+  function usageCard(icon, n, unit, label, used, limit, locked, meta) {
     const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
     return `<div class="usage-card${locked ? ' is-locked' : ''}">
-      <div class="usage-card__top"><span class="usage-card__icon">${icon}</span><span class="mono muted" style="font-size:12px">${locked ? 'Pro & Max' : `resets ${until(state.me.week.resetsAt)}`}</span></div>
+      <div class="usage-card__top"><span class="usage-card__icon">${icon}</span><span class="mono muted" style="font-size:12px">${meta || (locked ? 'Pro & up' : `resets ${until(state.me.week.resetsAt)}`)}</span></div>
       <div class="usage-card__n tabular">${locked ? '—' : n}<span>${locked ? '' : unit}</span></div>
       <div class="usage-card__l">${label}</div>
       <div class="meter${pct >= 100 ? ' is-full' : ''}"><i style="width:${locked ? 0 : 100 - pct}%"></i></div>
@@ -337,7 +342,9 @@
       <div class="grid3" style="margin-top:28px">
         <a class="usage-link" href="/app/scan" aria-label="Link scan">${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, `link scans left${f.research ? ', researched' : ''}`, us.linkScans.used, us.linkScans.limit)}</a>
         <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
-        <a class="usage-link" href="/app/protection" aria-label="Live protection">${usageCard(ICON.clock, ((us.liveMinutes.limit - us.liveMinutes.used) / 60).toFixed(us.liveMinutes.limit - us.liveMinutes.used < 600 ? 1 : 0), `h / ${us.liveMinutes.limit / 60}h`, 'live scanning left', us.liveMinutes.used, us.liveMinutes.limit, !f.liveScanning)}</a>
+        <a class="usage-link" href="/app/protection" aria-label="Live protection">${uncapped(us.liveMinutes.limit)
+          ? usageCard(ICON.clock, '24/7', '', 'live scanning, no weekly cap', 0, null, false, 'never resets')
+          : usageCard(ICON.clock, ((us.liveMinutes.limit - us.liveMinutes.used) / 60).toFixed(us.liveMinutes.limit - us.liveMinutes.used < 600 ? 1 : 0), `h / ${us.liveMinutes.limit / 60}h`, 'live scanning left', us.liveMinutes.used, us.liveMinutes.limit, !f.liveScanning)}</a>
       </div>
 
       <div style="margin-top:18px">${protectionTeaser()}</div>
@@ -369,7 +376,7 @@
     const f = plan().features;
     if (!f.liveScanning) {
       return lockedCard({
-        tag: 'Pro & Max',
+        tag: 'Pro & up',
         heading: 'Masks on every search result, email and download',
         body: 'Upgrade to turn on live protection. Pro includes 24 hours of live scanning a week; Max includes 96 hours and researches every result.',
         actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>'
@@ -423,7 +430,7 @@
         const data = await busy(button, 'Scanning', () => api('/scan/link', { method: 'POST', body: { url } }));
         stop();
         applyUsage(data.usage);
-        showVerdict(out, data.verdict, { lockedLabel: 'Pro & Max' });
+        showVerdict(out, data.verdict, { lockedLabel: 'Pro & up' });
         $('[data-left]', el).textContent = `${left('linkScans')} of ${usage().linkScans.limit} scans left this week`;
       } catch (err) {
         stop();
@@ -563,7 +570,7 @@
     const f = plan().features;
     if (!f.emailManual) {
       el.innerHTML = `${title('Email scan', 'Paste a suspicious email and Sentinel checks the sender, wording, every link and every attachment.')}
-        ${lockedCard({ tag: 'Max', heading: 'Scan any email you paste in', body: `Pasting emails in is part of Sentinel Max. ${f.emailLive ? 'Your Pro plan already marks emails automatically in Gmail and Outlook through the Sentinel app.' : 'Pro and Max also mark emails automatically in Gmail and Outlook.'}`, actions: '<a class="btn btn--gold" href="/app/plan">Upgrade to Max</a>' })}`;
+        ${lockedCard({ tag: 'Max', heading: 'Scan any email you paste in', body: `Pasting emails in is part of Sentinel Max. ${f.emailLive ? 'Your Pro plan already marks emails automatically in Gmail and Outlook through the Sentinel app.' : 'Pro, Max and Ultimate also mark emails automatically in Gmail and Outlook.'}`, actions: '<a class="btn btn--gold" href="/app/plan">Upgrade to Max</a>' })}`;
       return;
     }
     el.innerHTML = `
@@ -770,24 +777,24 @@
     const st = (on, lockedText) => (on ? '<span class="status is-on">On</span>' : `<span class="status is-locked">${lockedText}</span>`);
 
     const needsApp = !desktop;
-    const lock = planLocked ? 'Pro & Max' : needsApp ? 'Needs app' : null;
+    const lock = planLocked ? 'Pro & up' : needsApp ? 'Needs app' : null;
 
     el.innerHTML = `
       ${title('Live protection', 'Sentinel watching in real time — on search results, in your inbox and on every download.')}
-      ${planLocked ? lockedCard({ tag: 'Pro & Max', heading: 'Turn on live protection', body: 'Your Free plan includes manual link and file scans. Upgrade to Pro for 24 hours of live scanning a week, or Max for 96 hours with every result researched.', actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>' })
+      ${planLocked ? lockedCard({ tag: 'Pro & up', heading: 'Turn on live protection', body: 'Your Free plan includes manual link and file scans. Upgrade to Pro for 24 hours of live scanning a week, or Max for 96 hours with every result researched.', actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>' })
         : needsApp ? lockedCard({ tag: 'Unlocked by the Sentinel app', heading: 'Download Sentinel to switch these on', body: 'Your plan includes live protection. It runs through the Sentinel app on your computer, so it can watch downloads and add masks inside your browser.', actions: `<a class="btn btn--gold" href="/download">${ICON.download}Download Sentinel</a>` })
         : ''}
 
       <div class="feature-grid">
         ${feature(Masks.svg('scam'), 'Search result masks', `Masks on Google, Bing, DuckDuckGo and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock, lock))}
-        ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: spoofed senders, bad links and dangerous attachments.', st(!lock && f.emailLive, lock || 'Pro & Max'))}
+        ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: spoofed senders, bad links and dangerous attachments.', st(!lock && f.emailLive, lock || 'Pro & up'))}
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
 
       ${!planLocked ? `<div class="panel" style="margin-top:18px">
         <div class="panel__head"><div><h2>Live scanning this week</h2><p>Minutes only count when Sentinel actually checks something. Resets ${until(state.me.week.resetsAt)}.</p></div>
-        <span class="mono tabular" style="font-size:20px">${(us.liveMinutes.used / 60).toFixed(1)}<span class="muted" style="font-size:14px"> / ${us.liveMinutes.limit / 60}h</span></span></div>
-        <div class="meter"><i style="width:${Math.min(100, (us.liveMinutes.used / us.liveMinutes.limit) * 100)}%"></i></div>
+        <span class="mono tabular" style="font-size:20px">${hours(us.liveMinutes.used)}<span class="muted" style="font-size:14px"> / ${uncapped(us.liveMinutes.limit) ? '24&#47;7' : `${us.liveMinutes.limit / 60}h`}</span></span></div>
+        <div class="meter${uncapped(us.liveMinutes.limit) ? ' is-uncapped' : ''}"><i style="width:${uncapped(us.liveMinutes.limit) ? 100 : Math.min(100, (us.liveMinutes.used / us.liveMinutes.limit) * 100)}%"></i></div>
       </div>` : ''}
 
       <div data-desktop></div>
@@ -865,7 +872,8 @@
     const lines = {
       free: ['10 link scans a week', '5 virus & malware scans a week', 'Known threats + full checklist', 'Scam mask on link scans'],
       pro: ['24 hours of live scanning a week', '40 researched link scans', '40 virus & malware scans', 'All three masks', 'Email & download protection'],
-      max: ['96 hours of live scanning a week', 'Research on every live result', '100 researched link scans', '100 virus & malware scans', 'Paste-in email scans']
+      max: ['96 hours of live scanning a week', 'Research on every live result', '100 researched link scans', '100 virus & malware scans', 'Paste-in email scans'],
+      ultimate: ['24/7 live scanning, no weekly hour cap', 'Research on every live result', '500 researched link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max']
     };
     el.innerHTML = `
       ${title('Plan &amp; usage', `You’re on <b style="color:var(--gold-200);font-weight:500">${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
@@ -873,7 +881,9 @@
       <div class="grid3">
         ${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, 'link scans left', us.linkScans.used, us.linkScans.limit)}
         ${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}
-        ${usageCard(ICON.clock, ((us.liveMinutes.limit - us.liveMinutes.used) / 60).toFixed(1), `h / ${us.liveMinutes.limit / 60}h`, 'live scanning left', us.liveMinutes.used, us.liveMinutes.limit, !plan().features.liveScanning)}
+        ${uncapped(us.liveMinutes.limit)
+          ? usageCard(ICON.clock, '24/7', '', 'live scanning, no weekly cap', 0, null, false, 'never resets')
+          : usageCard(ICON.clock, ((us.liveMinutes.limit - us.liveMinutes.used) / 60).toFixed(1), `h / ${us.liveMinutes.limit / 60}h`, 'live scanning left', us.liveMinutes.used, us.liveMinutes.limit, !plan().features.liveScanning)}
       </div>
       <div class="plans" style="margin-top:28px">${state.plans.map((p) => `
         <article class="plan${p.id === 'pro' ? ' plan--featured' : ''}${p.id === current ? ' is-current' : ''}">

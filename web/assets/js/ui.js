@@ -125,7 +125,7 @@ window.UI = (() => {
     return { title: titles[t][th.badge], sub, tone: th.badge, threat: t };
   }
 
-  function threatTiles(v, { lockedLabel = 'Pro & Max' } = {}) {
+  function threatTiles(v, { lockedLabel = 'Pro & up' } = {}) {
     return `<div class="tiles3">${THREATS.map((t) => {
       const th = v.threats[t];
       if (!th) {
@@ -275,7 +275,7 @@ window.UI = (() => {
 
     const notes = [];
     if (v.knowledge && v.knowledge.discountApplied) notes.push('No threat source has a record of this site, so Sentinel lowered its risk by 20%.');
-    if (v.kind === 'url' && !v.researched) notes.push('Research wasn’t part of this scan. Pro and Max also check registration, certificates, redirects and page content.');
+    if (v.kind === 'url' && !v.researched) notes.push('Research wasn’t part of this scan. Pro, Max and Ultimate also check registration, certificates, redirects and page content.');
     if (v.comparison && v.comparison.kits.length) notes.push(`Page matches known scam pattern: ${v.comparison.kits.map((k) => k.label).join(', ')}.`);
     if (v.comparison && v.comparison.similarDomains.length) notes.push(`Built like known scam domains: ${v.comparison.similarDomains.slice(0, 3).join(', ')}.`);
 
