@@ -84,8 +84,9 @@
 
   $$('[data-year]').forEach((el) => { el.textContent = new Date().getFullYear(); });
 
-  // Signed-in visitors get a direct way back into the app.
-  fetch('/api/v1/auth/me', { credentials: 'same-origin' })
+  // Signed-in visitors get a direct way back into the app. A static export has
+  // no API to ask, so the signed-out header stands.
+  if (!window.SENTINEL_STATIC) fetch('/api/v1/auth/me', { credentials: 'same-origin' })
     .then((r) => (r.ok ? r.json() : null))
     .then((me) => {
       const slot = $('[data-auth-actions]');
@@ -151,7 +152,9 @@
 
   const counters = $$('[data-count]');
   if (counters.length) {
-    const live = fetch('/api/v1/threat-stats').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const live = window.SENTINEL_STATIC
+      ? Promise.resolve(window.SENTINEL_DEMO && window.SENTINEL_DEMO.stats)
+      : fetch('/api/v1/threat-stats').then((r) => (r.ok ? r.json() : null)).catch(() => null);
     const cio = new Observer(async (entries) => {
       const stats = await live;
       for (const e of entries) {

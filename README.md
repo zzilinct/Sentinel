@@ -85,6 +85,19 @@ node scripts/publish-desktop.js
 
 The installer is copied to `web/downloads/` and the download page picks it up automatically.
 
+## The static site
+
+`npm run build:static` exports `web/` to `dist-static/` for hosts with no Node
+server (GitHub Pages and the like). It expands the same `@include` partials the
+server renders, rewrites root-absolute links so the site works from a subpath,
+and bakes today's demo verdicts in, so the search demo, mask explorer and
+Spot-the-scam game still run against real scan results. Anything that needs the
+API - sign-in, live scans, the app - links back to the full site instead.
+
+`.github/workflows/pages.yml` publishes it on every push that touches `web/`.
+Turn it on once under **Settings -> Pages -> Source: GitHub Actions**. Keeping
+the static copy as a build output is what stops it drifting from the real site.
+
 ## Deploy to www.usesentinel.technology
 
 ```bash

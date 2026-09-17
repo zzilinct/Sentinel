@@ -20,9 +20,13 @@
   const flagged = (v) => ORDER.filter((t) => v.threats[t] && v.threats[t].badge)
     .sort((a, b) => rank(v.threats[b].badge) - rank(v.threats[a].badge));
 
-  const examples = fetch('/api/v1/demo/examples')
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-    .catch(() => null);
+  // On a static export the verdicts are baked in at build time; with a server
+  // behind the page they come from the live engine.
+  const examples = window.SENTINEL_DEMO
+    ? Promise.resolve(window.SENTINEL_DEMO)
+    : fetch('/api/v1/demo/examples')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .catch(() => null);
 
   /* ================================================================ demo search */
 
@@ -434,6 +438,12 @@
       ev.preventDefault();
       const url = input.value.trim();
       if (!url) return;
+      if (window.SENTINEL_STATIC) {
+        const site = window.SENTINEL_STATIC.origin;
+        out.innerHTML = `<div class="try__empty"><p>This preview can&rsquo;t reach the scanner. Check this link on the live site &mdash; no account needed.</p>`
+          + `<a class="btn btn--gold btn--sm" href="${site}/#try">Open ${esc(site.replace(/^https?:\/\//, ''))}</a></div>`;
+        return;
+      }
       button.disabled = true;
       button.innerHTML = '<span class="spinner"></span>';
       out.setAttribute('aria-busy', 'true');
