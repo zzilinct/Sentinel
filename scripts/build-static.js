@@ -66,7 +66,7 @@ const ROUTES = {
 /** Pages that only exist with a server: point them at the live site. */
 const NEEDS_SERVER = ['/app', '/login', '/signup', '/forgot', '/reset', '/connect', '/welcome'];
 
-function rewriteLinks(html, origin) {
+function rewriteLinks(html, origin, launched) {
   return html.replace(/(href|src|content)="(\/[^"]*)"/g, (whole, attr, url) => {
     // Absolute URLs into the live origin stay absolute (og:url, and so on).
     if (url.startsWith('//')) return whole;
@@ -77,9 +77,10 @@ function rewriteLinks(html, origin) {
     const tail = (m[2] || '') + (m[3] || '');
     const keep = (file) => `${attr}="${file}${tail}"`;
 
-    // Anything under a server-only route has to reach the real site.
+    // Anything under a server-only route has to reach the real site. Before
+    // launch there is no server to reach, so those links are defused instead.
     if (NEEDS_SERVER.some((p) => pathPart === p || pathPart.startsWith(p + '/'))) {
-      return `${attr}="${origin}${pathPart}${tail}"`;
+      return launched ? `${attr}="${origin}${pathPart}${tail}"` : `${attr}="#" data-soon`;
     }
     if (ROUTES[pathPart]) return keep(ROUTES[pathPart]);
     if (pathPart === '' || pathPart === '/') return keep('index.html');
@@ -109,11 +110,46 @@ async function demoSnapshot() {
   return data;
 }
 
+
+/**
+ * Pre-launch pass: anything that needs a server we do not have yet becomes a
+ * clearly-disabled control, and the page says why once at the top. A dead link
+ * is worse than an honest one.
+ */
+function prelaunch(html) {
+  // An anchor with no href is already inert - not focusable, not clickable -
+  // so these stay <a> elements and their closing tags need no surgery.
+  const inert = (attrs) => `<a ${attrs.replace(/\s*download/, '').trim()} role="link" aria-disabled="true" title="Not available until launch">`;
+
+  // Links rewriteLinks defused, plus downloads whose files are not published
+  // here (the installer is far too large for a static host).
+  html = html.replace(/<a ([^>]*?)href="#" data-soon([^>]*?)>/g, (_, a, b) => inert(a + b));
+  html = html.replace(/<a ([^>]*?)href="downloads\/[^"]*"([^>]*?)>/g, (_, a, b) => inert(a + b));
+  // Mark them for styling, inside the existing class list.
+  html = html.replace(/<a ([^>]*?)class="([^"]*)"([^>]*?)aria-disabled="true"/g, '<a $1class="$2 is-soon"$3aria-disabled="true"');
+
+  const banner = '<div class="prelaunch" role="status">'
+    + '<b>Preview.</b> Sentinel hasn&rsquo;t launched yet, so accounts, scanning and downloads aren&rsquo;t available here. '
+    + 'Everything else is the real product &mdash; the verdicts on this page come from Sentinel&rsquo;s own engine.'
+    + '</div>';
+  // Sits in normal flow at the top of <main>, so it clears the fixed header
+  // rather than hiding underneath it.
+  html = html.replace(/<body(\s[^>]*)?>/, (_, attrs) => {
+    const a = attrs || '';
+    return a.includes('class="')
+      ? `<body${a.replace(/class="([^"]*)"/, 'class="$1 has-prelaunch"')}>`
+      : `<body${a} class="has-prelaunch">`;
+  });
+  return html.replace(/(<main[^>]*>)/, `$1\n${banner}`);
+}
+
 /* ------------------------------------------------------------- build */
 
 async function main() {
   const brand = JSON.parse(fs.readFileSync(path.join(ROOT, 'brand.json'), 'utf8'));
   const origin = argOf('--origin', brand.origin).replace(/\/$/, '');
+  // --launched forces the live wiring even while brand.json says otherwise.
+  const launched = args.includes('--launched') || brand.launched === true;
 
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(OUT, { recursive: true });
@@ -147,7 +183,11 @@ async function main() {
     const file = path.join(WEB, page);
     if (!fs.existsSync(file)) continue;
     let html = expandIncludes(file);
-    html = rewriteLinks(html, origin);
+    // Absolute brand URLs (og:url, og:image) point wherever this build lands.
+    if (origin !== brand.origin) html = html.split(brand.origin).join(origin);
+    html = rewriteLinks(html, origin, launched);
+    if (!launched) html = prelaunch(html);
+
     // The config has to land before boot.js, the first script that reads it.
     const tag = '<script src="assets/js/static.js"></script>';
     const boot = '<script src="assets/js/boot.js"></script>';

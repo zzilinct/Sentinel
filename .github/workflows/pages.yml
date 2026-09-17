@@ -31,10 +31,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      # Resolved first so the build can use the real published URL.
+      - uses: actions/configure-pages@v5
+        id: pages
       # Seeds the local threat data so the baked demo verdicts are real.
       - run: node scripts/admin.js refresh-feeds || echo "feeds unavailable; using bundled intelligence"
-      - run: node scripts/build-static.js --out dist-static
-      - uses: actions/configure-pages@v5
+      # --origin makes social previews and any live links point at where this
+      # actually lands, which is the Pages URL until the domain is pointed.
+      - run: node scripts/build-static.js --out dist-static --origin "${{ steps.pages.outputs.base_url }}"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist-static
