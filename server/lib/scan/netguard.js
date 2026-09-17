@@ -15,6 +15,7 @@ const zlib = require('zlib');
 const config = require('../../config');
 
 const MAX_BYTES = 1.5 * 1024 * 1024;
+const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 const TIMEOUT_MS = 8000;
 
@@ -126,14 +127,20 @@ function requestOnce(url, { method = 'GET', headers = {} } = {}) {
       else if (encoding === 'deflate') stream = res.pipe(zlib.createInflate());
       else if (encoding === 'br') stream = res.pipe(zlib.createBrotliDecompress());
 
+      // Pages are only read far enough to analyse them; file downloads are read
+      // in full (up to the file scanner's limit) so their fingerprints can match.
+      const type = String(res.headers['content-type'] || '').toLowerCase();
+      const isPage = !type || /html|text\/|json|xml|javascript/.test(type);
+      const limit = isPage ? MAX_BYTES : MAX_DOWNLOAD_BYTES;
       const chunks = [];
       let size = 0;
       let truncated = false;
       stream.on('data', (c) => {
+        if (truncated) return;
         size += c.length;
-        if (size > MAX_BYTES) {           // also caps decompression bombs
+        if (size > limit) {               // also caps decompression bombs
           truncated = true;
-          chunks.push(c.subarray(0, c.length - (size - MAX_BYTES)));
+          chunks.push(c.subarray(0, c.length - (size - limit)));
           res.destroy();
           stream.destroy();
           finish();
@@ -204,4 +211,4 @@ async function safeFetch(url, options = {}) {
   throw Object.assign(new Error('Too many redirects'), { code: 'too_many_redirects', chain });
 }
 
-module.exports = { safeFetch, isPublicAddress, isPrivateV4, isPrivateV6, guardedLookup, BlockedError, MAX_BYTES };
+module.exports = { safeFetch, isPublicAddress };

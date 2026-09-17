@@ -18,11 +18,12 @@ function buildRouter() {
   require('./routes/account.routes').register(router);
   require('./routes/scan.routes').register(router);
   require('./routes/ai.routes').register(router);
+  require('./routes/demo.routes').register(router);
   return router;
 }
 
 // Clean URLs for the app shell: /app/scan, /app/settings ... all serve app.html.
-const APP_ROUTES = /^\/app(\/(scan|threats|email|history|plan|security|assistants|download))?\/?$/;
+const APP_ROUTES = /^\/app(\/(scan|threats|email|history|sites|protection|plan|security|assistants|download))?\/?$/;
 
 function createServer() {
   const router = buildRouter();

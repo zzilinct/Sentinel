@@ -43,8 +43,8 @@
         <div class="label">Welcome</div>
         <p style="margin:0 0 12px;color:#c4c8ce">Sign in to Sentinel to turn on live scam, virus and malware protection in this browser.</p>
         <div class="actions">
-          <a class="btn gold" href="${esc(site)}/login?from=extension" target="_blank" rel="noopener">Sign in</a>
-          <a class="btn" href="${esc(site)}/signup?from=extension" target="_blank" rel="noopener">Create account</a>
+          <a class="btn gold" href="${esc(site)}/connect" target="_blank" rel="noopener">Sign in</a>
+          <a class="btn" href="${esc(site)}/signup?next=/connect" target="_blank" rel="noopener">Create account</a>
         </div>
       </div>
       <p class="small" style="text-align:center;margin:4px 0 0">Signed in on the website? <a href="#" id="recheck" style="color:var(--gold)">Check again</a></p>`;

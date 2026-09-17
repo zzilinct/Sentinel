@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- @include head -->
+<link rel="stylesheet" href="/assets/css/app.css">
+<title>Reset your password · Sentinel</title>
+<meta name="robots" content="noindex">
+</head>
+<body data-page="forgot">
+<div class="auth">
+  <section class="auth__form">
+    <a class="logo" href="/"><span class="logo__mark" data-glyph="scam"></span>Sentinel</a>
+    <div class="auth__inner">
+      <h1>Forgot your <span class="serif italic">password?</span></h1>
+      <p>Enter your account email and we’ll send you a link to choose a new one.</p>
+      <div data-note></div>
+      <form data-form novalidate style="margin-top:28px">
+        <div class="field">
+          <label for="email">Email</label>
+          <input class="input" id="email" name="email" type="email" autocomplete="email" required>
+        </div>
+        <button class="btn btn--gold btn--lg btn--block" style="margin-top:22px" type="submit">Send reset link</button>
+      </form>
+      <p class="auth__switch"><a href="/login">Back to sign in</a></p>
+    </div>
+  </section>
+  <!-- @include auth-art -->
+</div>
+<script src="/assets/js/masks.js"></script>
+<script src="/assets/js/ui.js"></script>
+<script src="/assets/js/reset.js"></script>
+</body>
+</html>

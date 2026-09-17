@@ -198,3 +198,85 @@ test('trusting a site clears its masks for that user only', async () => {
   assert.equal(va.threats.scam.badge, null);
   assert.notEqual(vb.threats.scam.badge, null);
 });
+
+test('password reset: emailed one-time link, sessions revoked, unknown emails get the same answer', async () => {
+  const mailer = require('../server/lib/mailer');
+  const c = await newUser('free');
+  const other = client(app.base);
+  assert.equal((await other.post('/api/v1/auth/login', { email: c.email, password: 'Correct-Horse-42' })).status, 200);
+
+  mailer.outbox.length = 0;
+  const known = await client(app.base).post('/api/v1/auth/forgot', { email: c.email });
+  const unknown = await client(app.base).post('/api/v1/auth/forgot', { email: 'nobody-here@example.com' });
+  assert.equal(known.status, 200);
+  assert.equal(unknown.status, 200);
+  assert.equal(known.data.message, unknown.data.message);
+  assert.equal(mailer.outbox.length, 1, 'only the real account gets an email');
+
+  const token = /token=([A-Za-z0-9_-]+)/.exec(mailer.outbox[0].text)[1];
+  const weak = await client(app.base).post('/api/v1/auth/reset', { token, password: 'short1' });
+  assert.equal(weak.status, 400);
+
+  const ok = await client(app.base).post('/api/v1/auth/reset', { token, password: 'Brand-New-Secret-91' });
+  assert.equal(ok.status, 200);
+  assert.equal((await other.get('/api/v1/auth/me')).status, 401, 'existing sessions are signed out');
+
+  const reuse = await client(app.base).post('/api/v1/auth/reset', { token, password: 'Another-Secret-92' });
+  assert.equal(reuse.status, 400);
+  assert.equal(reuse.data.error.code, 'reset_invalid');
+
+  assert.equal((await client(app.base).post('/api/v1/auth/login', { email: c.email, password: 'Correct-Horse-42' })).status, 401);
+  assert.equal((await client(app.base).post('/api/v1/auth/login', { email: c.email, password: 'Brand-New-Secret-91' })).status, 200);
+});
+
+test('new pages are served and partials are not directly reachable', async () => {
+  for (const path of ['/', '/pricing', '/download', '/login', '/signup', '/forgot', '/reset', '/connect', '/app', '/app/protection', '/privacy', '/terms']) {
+    const r = await fetch(app.base + path);
+    assert.equal(r.status, 200, path);
+    const html = await r.text();
+    assert.ok(!html.includes('@include'), `${path} has unexpanded includes`);
+  }
+  assert.equal((await fetch(`${app.base}/partials/nav.html`)).status, 404);
+  assert.equal((await fetch(`${app.base}/partials/nav`)).status, 404);
+});
+
+/* ------------------------------------------------------- public demo */
+
+test('demo examples: every mask button shows a real verdict at the colour it claims', async () => {
+  const r = await fetch(`${app.base}/api/v1/demo/examples`);
+  assert.equal(r.status, 200);
+  const d = await r.json();
+  for (const threat of ['scam', 'virus', 'malware']) {
+    for (const badge of ['yellow', 'orange', 'red']) {
+      const ex = d.masks[threat][badge];
+      assert.equal(ex.threats[threat].badge, badge, `${threat}/${badge}: ${ex.url} scored ${ex.threats[threat].score}`);
+      assert.ok(ex.context && ex.reasons.length, `${threat}/${badge} needs context and reasons`);
+    }
+  }
+  for (const key of ['paypal', 'crypto', 'parcel']) {
+    const set = d.serp[key];
+    assert.ok(set.query && set.results.length === 5);
+    assert.ok(set.results.some((v) => !v.overall.badge), `${key} should include a safe result`);
+    assert.ok(set.results.some((v) => v.overall.badge), `${key} should include a flagged result`);
+  }
+  const safe = d.game.filter((v) => !v.overall.badge).length;
+  assert.ok(safe >= 2 && d.game.length - safe >= 4, 'the game needs both safe and dangerous links');
+  // Nothing internal leaks through the public summary.
+  assert.ok(!JSON.stringify(d).includes('evidence'));
+});
+
+test('demo scan: no account needed, bare domains are treated as HTTPS, bad input rejected', async () => {
+  const post = (body) => fetch(`${app.base}/api/v1/demo/scan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.base }, body: JSON.stringify(body)
+  });
+  const ok = await post({ url: 'paypal-account-verify.com/login' });
+  assert.equal(ok.status, 200);
+  const { verdict } = await ok.json();
+  assert.equal(verdict.url.startsWith('https://'), true);
+  assert.ok(verdict.threats.scam.badge, 'a paypal look-alike should get a mask');
+  assert.ok(!verdict.reasons.some((x) => /Unencrypted/.test(x.text)), 'a typed domain must not be called unencrypted');
+
+  assert.equal((await post({ url: 'javascript:alert(1)' })).status, 400);
+  assert.equal((await post({ url: '   ' })).status, 400);
+  assert.equal((await post({ url: 42 })).status, 400);
+});

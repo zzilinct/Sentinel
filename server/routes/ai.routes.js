@@ -219,4 +219,4 @@ function register(router) {
   });
 }
 
-module.exports = { register, PROVIDERS };
+module.exports = { register };

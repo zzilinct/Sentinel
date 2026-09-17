@@ -313,4 +313,4 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
   return { sha256, size: buf.length, type, name, checks, evidence };
 }
 
-module.exports = { scanFile, sniff, zipEntries, EICAR_SHA256, MAX_FILE_BYTES };
+module.exports = { scanFile, MAX_FILE_BYTES };

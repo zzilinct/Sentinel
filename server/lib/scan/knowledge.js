@@ -20,7 +20,7 @@ const q = {
   feedUrl: db.prepare('SELECT source, threat, category FROM feed_urls WHERE url_key = ?'),
   feedUrlHostCount: db.prepare('SELECT COUNT(*) AS n FROM feed_urls WHERE host = ?'),
   reports: db.prepare('SELECT category, COUNT(*) AS n FROM reports WHERE host = ? GROUP BY category'),
-  sources: db.prepare('SELECT source, entries FROM feed_status WHERE ok = 1')
+  sources: db.prepare("SELECT source, entries FROM feed_status WHERE ok = 1 AND substr(source, 1, 1) != '_'")
 };
 
 const SOURCE_NAMES = {
@@ -32,11 +32,15 @@ const SOURCE_NAMES = {
   google_safe_browsing: 'Google Safe Browsing'
 };
 
+// The source list only changes when a feed refreshes, so read it at most once a minute.
+let sourcesCache = { at: 0, names: [] };
 function checkedSources() {
+  if (Date.now() - sourcesCache.at < 60_000) return sourcesCache.names;
   const names = ['Sentinel threat database', 'Sentinel community reports'];
   for (const row of q.sources.all()) names.push(SOURCE_NAMES[row.source] || row.source);
   if (safeBrowsing.enabled()) names.push('Google Safe Browsing');
-  return [...new Set(names)];
+  sourcesCache = { at: Date.now(), names: [...new Set(names)] };
+  return sourcesCache.names;
 }
 
 /**
@@ -55,9 +59,11 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
   const key = urlKey(p.url);
   if (key) for (const row of q.feedUrl.all(key)) add(row.source, row.threat, row.category);
 
-  // Several distinct malicious URLs on one host: the host itself is compromised.
-  const onHost = q.feedUrlHostCount.get(p.host).n;
-  if (!matches.length && onHost >= 3) add('urlhaus', 'malware', 'compromised_host', 'likely');
+  // Several distinct malicious URLs on one host usually means the host itself is
+  // compromised - except on verified platforms (GitHub, Google Drive, Discord...)
+  // where users upload content: there, only the exact malicious URLs count.
+  const verified = Boolean(q.allow.get(p.host, p.registrable));
+  if (!matches.length && !verified && q.feedUrlHostCount.get(p.host).n >= 3) add('urlhaus', 'malware', 'compromised_host', 'likely');
 
   let reports = 0;
   for (const row of q.reports.all(p.registrable)) reports += row.n;
@@ -72,7 +78,7 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
     }
   }
 
-  const trusted = !matches.length && Boolean(q.allow.get(p.host, p.registrable));
+  const trusted = !matches.length && verified;
   return {
     known: matches.some((m) => m.strength === 'confirmed'),
     trusted,
@@ -92,4 +98,4 @@ function dedupe(matches) {
   });
 }
 
-module.exports = { lookup, checkedSources, SOURCE_NAMES, REPORTS_FOR_CONFIRMED };
+module.exports = { lookup };

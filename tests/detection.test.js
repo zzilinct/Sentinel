@@ -274,3 +274,32 @@ function zipOf(files) {
   end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, cd, end]);
 }
+
+test('malicious uploads on a verified platform flag only that exact URL', async () => {
+  await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'urlhaus'), [
+    'https://github.com/evil-user/tools/releases/download/v1/stealer.exe',
+    'https://github.com/evil-user/tools/raw/main/loader.ps1',
+    'https://github.com/another-bad/x/raw/main/payload.bin',
+    'https://github.com/yet-another/y/raw/main/drop.zip'
+  ]);
+  assert.equal(lvl(await scan('https://github.com/evil-user/tools/releases/download/v1/stealer.exe'), 'virus'), 'confirmed');
+  const clean = await scan('https://github.com/paypal');
+  for (const t of ['scam', 'virus', 'malware']) assert.equal(clean.threats[t].badge, null, `github.com/paypal ${t}`);
+});
+
+test('no checklist rule crashes on unusual addresses, with or without research', async () => {
+  const odd = [
+    'http://192.0.2.1:8080/', 'https://[2001:db8::1]/login', 'https://xn--pypal-4ve.com/', 'https://a.b.c.d.e.f.example.co.uk/x',
+    'https://user:pass@evil.example.com/', 'https://parcel-customs-release.top/track', 'https://my-shop.myshopify.com/checkout',
+    'https://sites.google.com/view/paypal-login', 'https://example.com/%E0%A4%A', 'https://example.com/?url=https%3A%2F%2Fevil.xyz',
+    'https://docs.example.com/a.pdf.exe', 'https://x.duckdns.org:8443/bins/mips', 'https://tools.usps.com/go/TrackConfirmAction',
+    'https://paypal-account-verify.com/login', 'https://browser-update-center.top/', 'https://tools-download-hub.net/setup.exe'
+  ];
+  for (const url of odd) {
+    for (const research of [false, true]) {
+      const v = await scan(url, { research });
+      assert.ok(v.ok, url);
+      assert.ok(!v.checklist.items.some((c) => c.detail === 'Check could not run'), `${url} research=${research}`);
+    }
+  }
+});

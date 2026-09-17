@@ -218,10 +218,6 @@ function compoundWords(token) {
   return hits.length >= 2 && covered / token.length >= 0.6 ? hits : [];
 }
 
-function matchKeywords(host) {
-  return [...hostWords(host)].filter((w) => w in L.HOST_KEYWORDS);
-}
-
 /** Distinctive tokens of a domain name, used for known-scam comparison. */
 function nameTokens(registrable) {
   const sld = String(registrable).split('.')[0].toLowerCase();
@@ -290,7 +286,15 @@ function brandInfo(p) {
   return { official, inDomain, inSubdomain, lookalike };
 }
 
+/**
+ * An address a person typed or pasted. Like a browser's address bar, a bare
+ * domain means HTTPS - otherwise "example.com" would be marked unencrypted.
+ */
+function typedUrl(raw) {
+  const input = String(raw == null ? '' : raw).trim();
+  return /^[a-z][a-z0-9+.-]*:/i.test(input) ? input : `https://${input.replace(/^\/\//, '')}`;
+}
+
 module.exports = {
-  analyze, splitHost, urlKey, deskin, levenshtein, entropy,
-  segments, hostWords, matchKeywords, nameTokens, brandInfo
+  analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo
 };

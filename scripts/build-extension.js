@@ -32,7 +32,11 @@ const originPattern = `${brand.origin}/*`;
 manifest.homepage_url = brand.origin;
 manifest.host_permissions = [originPattern, ...manifest.host_permissions.filter((h) => !/^https:\/\/[^*]+\/\*$/.test(h))];
 manifest.externally_connectable.matches = [originPattern, ...manifest.externally_connectable.matches.filter((h) => !/^https:\/\//.test(h))];
+// The connect page content script must run on the brand origin.
+const connect = manifest.content_scripts.find((c) => c.js.includes('src/content/connect.js'));
+if (connect) connect.matches = [`${brand.origin}/connect*`, ...connect.matches.filter((h) => !h.startsWith('https://'))];
 if (process.argv.includes('--production')) {
+  if (connect) connect.matches = connect.matches.filter((h) => !h.includes('localhost') && !h.includes('127.0.0.1'));
   // Store builds must not talk to a developer's localhost.
   manifest.host_permissions = manifest.host_permissions.filter((h) => !h.includes('localhost'));
   manifest.externally_connectable.matches = manifest.externally_connectable.matches.filter((h) => !h.includes('localhost'));
@@ -151,7 +155,10 @@ const latest = path.join(OUT_DIR, 'sentinel-companion-latest.zip');
 fs.writeFileSync(versioned, zip);
 fs.writeFileSync(latest, zip);
 
-fs.writeFileSync(path.join(OUT_DIR, 'latest.json'), JSON.stringify({
+const latestPath = path.join(OUT_DIR, 'latest.json');
+const previous = fs.existsSync(latestPath) ? JSON.parse(fs.readFileSync(latestPath, 'utf8')) : {};
+fs.writeFileSync(latestPath, JSON.stringify({
+  ...previous,
   name: manifest.name,
   version: manifest.version,
   size: zip.length,

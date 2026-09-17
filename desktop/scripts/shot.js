@@ -31,6 +31,7 @@ async function capture(job, outDir) {
   if (scrollY) await win.webContents.executeJavaScript(`window.scrollTo(0, ${Number(scrollY)}); 0`);
   if (js) await win.webContents.executeJavaScript(`${js}; 0`);
   await new Promise((resolve) => setTimeout(resolve, wait));
+  log('title', name, win.getTitle());
   const image = await win.webContents.capturePage();
   const file = path.join(outDir, `${name}.png`);
   fs.writeFileSync(file, image.toPNG());
@@ -40,6 +41,10 @@ async function capture(job, outDir) {
 
 app.whenReady().then(async () => {
   log('ready');
+  // Every run starts from a clean browser: no leftover sessions, caches or service workers.
+  const { session } = require('electron');
+  await session.defaultSession.clearStorageData();
+  await session.defaultSession.clearCache();
   try {
     const i = process.argv.indexOf('--batch');
     const spec = JSON.parse(fs.readFileSync(process.argv[i + 1], 'utf8'));

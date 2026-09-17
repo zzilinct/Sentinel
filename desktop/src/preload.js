@@ -8,7 +8,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('sentinelDesktop', {
   info: () => ipcRenderer.invoke('sentinel:info'),
-  setToken: (token) => ipcRenderer.invoke('sentinel:set-token', token),
+  setToken: (token, userId) => ipcRenderer.invoke('sentinel:set-token', token, userId),
   clearToken: () => ipcRenderer.invoke('sentinel:clear-token'),
   setDownloadProtection: (enabled) => ipcRenderer.invoke('sentinel:set-download-protection', Boolean(enabled)),
   setOpenAtLogin: (enabled) => ipcRenderer.invoke('sentinel:set-open-at-login', Boolean(enabled)),

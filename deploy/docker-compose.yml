@@ -1,0 +1,34 @@
+# Production stack for www.sentinelscan.com
+#   1. Point DNS A/AAAA records for sentinelscan.com and www.sentinelscan.com at this server.
+#   2. cp ../.env.example ../.env  and fill in SESSION_SECRET (and optional keys).
+#   3. docker compose up -d --build
+services:
+  sentinel:
+    build: ..
+    env_file: ../.env
+    environment:
+      NODE_ENV: production
+      PUBLIC_ORIGIN: https://www.sentinelscan.com
+      TRUST_PROXY: "1"
+    volumes:
+      - sentinel-data:/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [sentinel]
+    restart: unless-stopped
+
+volumes:
+  sentinel-data:
+  caddy-data:
+  caddy-config:

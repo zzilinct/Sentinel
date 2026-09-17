@@ -133,4 +133,4 @@ function analyzeEmail(mail) {
   };
 }
 
-module.exports = { analyzeEmail, parseAddress };
+module.exports = { analyzeEmail };

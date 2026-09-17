@@ -192,17 +192,36 @@
         anchors.add(h.tagName === 'A' ? h : h.closest('a[href]'));
       }
     }
-    const fresh = [];
     for (const a of anchors) {
       if (!a || seen.has(a)) continue;
       seen.add(a);
       const url = realUrl(a.getAttribute('href'));
       if (!isResult(a, url)) continue;
-      if (!byUrl.has(url)) { byUrl.set(url, []); fresh.push(url); }
+      if (!byUrl.has(url)) byUrl.set(url, []);
       byUrl.get(url).push(a);
+      anchorUrl.set(a, url);
+      nearView.observe(a);
     }
-    return fresh;
   }
+
+  // Only check results that are on screen or about to be: long result pages and
+  // infinite scroll don't spend live-scanning time on links nobody looks at.
+  const anchorUrl = new WeakMap();
+  const requested = new Set();
+  const nearView = new IntersectionObserver((entries) => {
+    let added = false;
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      nearView.unobserve(e.target);
+      const url = anchorUrl.get(e.target);
+      if (url && !requested.has(url)) { requested.add(url); queue.push(url); added = true; }
+    }
+    if (added) {
+      clearTimeout(flushTimer);
+      flushTimer = setTimeout(flush, 60);   // batch results that appear together
+    }
+  }, { rootMargin: '900px 0px' });
+  let flushTimer;
 
   function send(message) {
     return new Promise((resolve) => {
@@ -239,7 +258,7 @@
   let timer;
   function schedule(delay = 300) {
     clearTimeout(timer);
-    timer = setTimeout(() => { queue.push(...collect()); flush(); }, delay);
+    timer = setTimeout(collect, delay);
   }
 
   chrome.storage.sync.get(DEFAULTS, (stored) => {

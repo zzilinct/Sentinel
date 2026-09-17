@@ -1,142 +1,94 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- @include head -->
+<link rel="stylesheet" href="/assets/css/app.css">
 <title>Sentinel</title>
 <meta name="robots" content="noindex">
-<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/css/sentinel.css">
-<link rel="stylesheet" href="/assets/css/app.css">
 </head>
-<body>
+<body class="app">
 
-<svg style="display:none" aria-hidden="true">
-  <symbol id="mask" viewBox="0 0 64 64">
-    <path fill="currentColor" fill-rule="evenodd" d="M32 5c13.2 0 23 4.3 23 10.8 0 15.8-7.4 36.6-23 43.9C16.4 52.4 9 31.6 9 15.8 9 9.3 18.8 5 32 5Zm-9.8 20.4c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Zm19.6 0c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Z"/>
-    <path fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" d="M22.5 42.2c2.7 3.6 5.9 5.4 9.5 5.4s6.8-1.8 9.5-5.4"/>
-  </symbol>
-</svg>
-
-<div class="app-shell">
-
-  <header class="app-bar">
-    <a class="brand" href="/">
-      <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#mask"/></svg>
-      <span class="brand__name">Sentinel</span>
+<div class="shell">
+  <aside class="side" aria-label="Sentinel">
+    <a class="logo" href="/">
+      <span class="logo__mark" data-glyph="scam"></span>
+      Sentinel
     </a>
-    <div class="app-bar__actions">
-      <button class="btn btn--sm btn--gold" id="openWorkspace">AI workspace</button>
-      <div class="menu">
-        <button class="avatar" id="avatarBtn" aria-haspopup="true" aria-expanded="false" title="Account">&nbsp;</button>
-        <div class="menu__panel" id="menuPanel" hidden>
-          <div class="menu__head">
-            <b id="menuName">&nbsp;</b>
-            <span id="menuEmail">&nbsp;</span>
-          </div>
-          <a class="menu__item" href="/download">Install the extension</a>
-          <a class="menu__item" href="/privacy">Privacy</a>
-          <button class="menu__item" id="signOut">Sign out</button>
-        </div>
+
+    <button class="side__search" type="button" data-palette aria-label="Search or scan (Ctrl K)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span>Search or scan</span><kbd>Ctrl K</kbd>
+    </button>
+
+    <nav class="side__nav" aria-label="App">
+      <a class="side__link" href="/app" data-route="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1Z"/></svg>
+        Overview
+      </a>
+      <a class="side__link" href="/app/scan" data-route="scan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>
+        Link scan
+      </a>
+      <a class="side__link" href="/app/threats" data-route="threats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 8.2 7 9 4-.8 7-4.5 7-9V6l-7-3Z"/><path d="M12 9v4M12 16h.01"/></svg>
+        Virus &amp; malware
+      </a>
+      <a class="side__link" href="/app/email" data-route="email">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+        Email scan
+        <span class="pill" data-max-pill>MAX</span>
+      </a>
+      <a class="side__link" href="/app/history" data-route="history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.7"/><path d="M4 4v4.7h4.7M12 8v4l3 2"/></svg>
+        History
+      </a>
+      <a class="side__link" href="/app/sites" data-route="sites">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h7"/><path d="m15 16 2 2 4-4"/></svg>
+        Site rules
+      </a>
+
+      <div class="side__label">Account</div>
+      <a class="side__link is-secondary" href="/app/protection" data-route="protection">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+        Live protection
+      </a>
+      <a class="side__link is-secondary" href="/app/plan" data-route="plan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.4 6.7 19.1l1-5.8L3.5 9.2l5.9-.9Z"/></svg>
+        Plan &amp; usage
+      </a>
+      <a class="side__link is-secondary" href="/app/security" data-route="security">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Security
+      </a>
+      <a class="side__link is-secondary" href="/app/assistants" data-route="assistants">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M6.3 17.7l2.1-2.1M15.6 8.4l2.1-2.1"/></svg>
+        AI assistants
+      </a>
+    </nav>
+
+    <div class="side__foot">
+      <div class="usage-mini" data-usage-mini>
+        <div class="skeleton" style="height:64px"></div>
       </div>
+      <button class="me" type="button" data-signout title="Sign out">
+        <span class="avatar" data-avatar></span>
+        <span class="me__text"><span class="me__name" data-name>&nbsp;</span><span class="me__plan" data-plan>&nbsp;</span></span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--faint)"><path d="M15 12H4m0 0 4-4m-4 4 4 4M13 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/></svg>
+      </button>
     </div>
-  </header>
+  </aside>
 
-  <main class="app-main">
-
-    <div class="app-head">
-      <div>
-        <h1 id="greeting">Welcome back</h1>
-        <p class="muted">Here is what Sentinel has caught for you in the last 30 days.</p>
-      </div>
-      <a class="btn btn--sm" href="/download">Install the extension</a>
+  <main class="main" id="main">
+    <div class="topbar-mobile">
+      <a class="logo" href="/"><span class="logo__mark" data-glyph="scam"></span>Sentinel</a>
+      <span style="display:flex;gap:8px"><button class="btn btn--sm" type="button" data-palette aria-label="Search or scan"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button><a class="btn btn--sm" href="/app/security" aria-label="Account"><span class="avatar" data-avatar style="width:24px;height:24px;font-size:10px"></span></a></span>
     </div>
-
-    <div class="tiles" id="tiles">
-      <div class="tile"><div class="tile__value" id="tFlagged">&ndash;</div><div class="tile__label">Links flagged</div></div>
-      <div class="tile tile--yellow"><div class="tile__value" id="tYellow">&ndash;</div><div class="tile__label">Suspicious</div></div>
-      <div class="tile tile--orange"><div class="tile__value" id="tOrange">&ndash;</div><div class="tile__label">Likely scam</div></div>
-      <div class="tile tile--red"><div class="tile__value" id="tRed">&ndash;</div><div class="tile__label">Confirmed scam</div></div>
-    </div>
-
-    <div class="cols">
-      <div style="display:grid;gap:22px">
-
-        <section class="card">
-          <div class="panel-title"><h2>Protection status</h2></div>
-          <div class="status-row">
-            <span class="status-row__dot" id="extDot" style="background:var(--faint)"></span>
-            <div>
-              <b id="extTitle">Checking for the extension&hellip;</b>
-              <span id="extNote">Sentinel runs in the background whenever your browser is open.</span>
-            </div>
-          </div>
-          <div class="status-row">
-            <span class="status-row__dot" style="background:var(--green)"></span>
-            <div>
-              <b>Account active</b>
-              <span id="accountNote">Your trusted sites and reports follow you across devices.</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="panel-title"><h2>Check a link</h2></div>
-          <form class="checker" id="checkForm">
-            <input type="text" id="checkUrl" placeholder="Paste a link you were sent" aria-label="URL to check" spellcheck="false" autocomplete="off">
-            <button class="btn btn--gold" type="submit" id="checkBtn">Check</button>
-          </form>
-          <div id="checkResult" aria-live="polite"></div>
-        </section>
-
-        <section class="ai-launch">
-          <div class="ai-logos">
-            <span class="ai-chip" style="background:#10a37f">GPT</span>
-            <span class="ai-chip" style="background:#d97757">Cl</span>
-            <span class="ai-chip" style="background:#4285f4">Gm</span>
-            <span class="ai-chip" style="background:#4d6bfe">DS</span>
-          </div>
-          <div>
-            <h3 style="margin:0 0 3px;font-size:1.05rem">Your AI workspace</h3>
-            <p class="muted small" style="margin:0">ChatGPT, Claude, Gemini and DeepSeek in four tabs. Ask any of them about a link you are unsure of.</p>
-          </div>
-          <button class="btn btn--gold" id="openWorkspace2">Open workspace</button>
-        </section>
-
-      </div>
-
-      <div style="display:grid;gap:22px">
-        <section class="card">
-          <div class="panel-title"><h2>Recently flagged</h2></div>
-          <ul class="list" id="recent"><li class="empty">Nothing flagged yet.</li></ul>
-        </section>
-
-        <section class="card">
-          <div class="panel-title"><h2>Sites you trust</h2></div>
-          <ul class="list" id="overrides"><li class="empty">No overrides yet.</li></ul>
-          <p class="small muted" style="margin:14px 0 0">
-            Marking a site as trusted hides its mask for your account only.
-          </p>
-        </section>
-      </div>
-    </div>
+    <div id="view" aria-live="polite"></div>
   </main>
 </div>
 
-<!-- ---------------------------------------------------- AI workspace overlay -->
-<div class="overlay" id="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="wsTitle">
-  <div class="workspace">
-    <div class="workspace__head">
-      <h2 id="wsTitle">AI workspace</h2>
-      <button class="workspace__close" id="wsClose" aria-label="Close workspace">&times;</button>
-    </div>
-    <div class="tabs" id="tabs" role="tablist"></div>
-    <div class="panes" id="panes"></div>
-  </div>
-</div>
-
-<script src="/assets/js/config.js"></script>
-<script src="/assets/js/sentinel.js"></script>
+<script src="/assets/js/masks.js"></script>
+<script src="/assets/js/ui.js"></script>
 <script src="/assets/js/app.js"></script>
 </body>
 </html>

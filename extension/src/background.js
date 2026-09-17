@@ -197,6 +197,19 @@ const handlers = {
     return { settings, account, live, locked: liveBlockReason(), site: settings.apiBase };
   },
   async connect() { return { account: await connect() }; },
+  async 'set-token'({ token }, sender) {
+    // Only accept tokens relayed from Sentinel's own site.
+    const { apiBase } = await getSettings();
+    const from = sender.tab && sender.tab.url ? new URL(sender.tab.url).origin : null;
+    if (from !== new URL(apiBase).origin || typeof token !== 'string' || token.length > 200) {
+      throw new ApiError('Not allowed', 403, 'forbidden');
+    }
+    await setToken(token);
+    cache.clear();
+    await refreshAccount(true);
+    syncIntel();
+    return { account };
+  },
   async 'live-batch'({ urls, phase = 'quick' }) {
     const settings = await getSettings();
     if (!settings.enabled) return { locked: 'disabled' };
@@ -289,7 +302,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   if (!account.signedIn) await connect();
   if (details.reason === 'install') {
     const { apiBase } = await getSettings();
-    chrome.tabs.create({ url: siteUrl(apiBase, '/welcome?from=extension') });
+    chrome.tabs.create({ url: siteUrl(apiBase, '/connect') });
   }
 });
 

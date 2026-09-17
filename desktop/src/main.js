@@ -115,7 +115,7 @@ function refreshTray() {
 
 function setOpenAtLogin(enabled) {
   store.set('openAtLogin', enabled);
-  app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
+  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
   refreshTray();
 }
 
@@ -149,13 +149,16 @@ function registerBridge() {
     version: app.getVersion(),
     platform: process.platform,
     openAtLogin: store.get('openAtLogin', true),
+    pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
     companionPath: path.join(process.resourcesPath || '', 'companion')
   }));
 
-  handle('sentinel:set-token', (token) => {
+  handle('sentinel:set-token', (token, userId) => {
     if (typeof token !== 'string' || token.length < 20 || token.length > 200) throw new Error('Invalid token');
+    if (typeof userId !== 'string' || !/^usr_[a-f0-9]{24}$/.test(userId)) throw new Error('Invalid account');
     store.setSecret('token', token);
+    store.set('pairedUserId', userId);
     downloads.restart();
     refreshTray();
     return { ok: true };
@@ -163,6 +166,7 @@ function registerBridge() {
 
   handle('sentinel:clear-token', () => {
     store.setSecret('token', null);
+    store.set('pairedUserId', null);
     downloads.stop('Signed out');
     refreshTray();
     return { ok: true };
@@ -199,7 +203,9 @@ app.whenReady().then(() => {
   createWindow();
   buildTray();
 
-  if (store.get('openAtLogin') === undefined) setOpenAtLogin(true);
+  // Installed builds start with the computer by default; development runs never
+  // touch the system's startup items.
+  if (app.isPackaged && store.get('openAtLogin') === undefined) setOpenAtLogin(true);
 
   downloads.init({
     origin: ORIGIN,

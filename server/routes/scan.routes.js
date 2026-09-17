@@ -17,7 +17,7 @@ const security = require('../lib/security');
 const { db, now } = require('../lib/db');
 const engine = require('../lib/scan/engine');
 const feeds = require('../lib/scan/feeds');
-const { analyze } = require('../lib/scan/url');
+const { analyze, typedUrl } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
 const { ALL_CHECKS } = require('../lib/scan/checklist');
 
@@ -79,8 +79,9 @@ function register(router) {
 
   router.post('/api/v1/scan/link', async (req, res) => {
     const user = A.requireUser(req);
-    const { url } = await readJson(req);
-    if (!url || typeof url !== 'string') throw new HttpError(400, 'missing_url', 'Paste a link to check');
+    const body = await readJson(req);
+    if (!body.url || typeof body.url !== 'string') throw new HttpError(400, 'missing_url', 'Paste a link to check');
+    const url = typedUrl(body.url);
     if (!analyze(url)) throw new HttpError(400, 'bad_url', 'That is not a web address Sentinel can check');
 
     const plan = plans.planFor(user);
@@ -99,11 +100,12 @@ function register(router) {
 
   router.post('/api/v1/scan/threat', async (req, res) => {
     const user = A.requireUser(req);
-    const { url } = await readJson(req);
-    if (!url || !analyze(String(url))) throw new HttpError(400, 'bad_url', 'Paste a download link or web address to scan');
+    const body = await readJson(req);
+    const url = body.url && typedUrl(body.url);
+    if (!url || !analyze(url)) throw new HttpError(400, 'bad_url', 'Paste a download link or web address to scan');
 
     const plan = plans.planFor(user);
-    const verdict = await metered(user, 'fileScans', () => engine.scanUrl(String(url), {
+    const verdict = await metered(user, 'fileScans', () => engine.scanUrl(url, {
       userId: user.id,
       planId: plan.id,
       research: plan.features.research,

@@ -159,4 +159,4 @@ function publicPlans() {
   return Object.values(PLANS).map(({ id, name, price, limits, features }) => ({ id, name, price, limits, features }));
 }
 
-module.exports = { PLANS, planFor, consume, trackLive, usageSummary, setPlan, publicPlans, weekStart, weekResetsAt, liveMinutesUsed };
+module.exports = { planFor, consume, trackLive, usageSummary, setPlan, publicPlans, weekStart, weekResetsAt, liveMinutesUsed };

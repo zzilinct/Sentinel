@@ -29,7 +29,7 @@ const inEllipse = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / r
 
 /**
  * The mask silhouette in a unit square: a rounded top that tapers to a chin,
- * with two eye holes and a smile cut out of it.
+ * with two eye holes and a straight, expressionless mouth cut out of it.
  */
 function maskAlpha(u, v) {
   // u,v in [0,1]; centre the face horizontally.
@@ -49,11 +49,9 @@ function maskAlpha(u, v) {
   if (inEllipse(x, y, -0.165, -0.10, 0.098, 0.082)) return 0;
   if (inEllipse(x, y, 0.165, -0.10, 0.098, 0.082)) return 0;
 
-  // Smile: a band following an upward-opening parabola, clipped to the mouth.
-  if (Math.abs(x) < 0.21) {
-    const curve = 0.21 - 1.4 * x * x;
-    if (Math.abs(y - curve) < 0.042) return 0;
-  }
+  // Mouth: a straight bar with rounded ends - deliberately no smile.
+  if (Math.abs(x) < 0.17 && Math.abs(y - 0.215) < 0.038) return 0;
+  if (Math.hypot(Math.abs(x) - 0.17, y - 0.215) < 0.038) return 0;
 
   return 1;
 }
@@ -169,4 +167,37 @@ console.log('Icons written to extension/icons/');
 const WEB_DIR = path.join(__dirname, '..', 'web', 'assets', 'img');
 fs.mkdirSync(WEB_DIR, { recursive: true });
 for (const size of [192, 512]) fs.writeFileSync(path.join(WEB_DIR, `icon-${size}.png`), render(size));
-console.log('Web app icons written to web/assets/img/');
+
+/** Link preview banner: the mask centred on charcoal, with a soft gold glow behind it. */
+function renderBanner(width, height) {
+  const ss = 2;
+  const pixels = Buffer.alloc(width * height * 4);
+  const maskSize = height * 0.62;
+  const left = (width - maskSize) / 2;
+  const top = (height - maskSize) / 2;
+  for (let py = 0; py < height; py++) {
+    for (let px = 0; px < width; px++) {
+      let r = 0, g = 0, b = 0;
+      for (let sy = 0; sy < ss; sy++) {
+        for (let sx = 0; sx < ss; sx++) {
+          const x = px + (sx + 0.5) / ss;
+          const y = py + (sy + 0.5) / ss;
+          const d = Math.hypot(x - width / 2, y - height / 2) / (height * 0.55);
+          let color = mix(BG, [40, 36, 26, 255], Math.max(0, 1 - d) ** 2);   // glow
+          const mu = (x - left) / maskSize;
+          const mv = (y - top) / maskSize;
+          if (mu >= 0 && mu <= 1 && mv >= 0 && mv <= 1 && maskAlpha(mu, mv)) {
+            color = mix(GOLD, GOLD_DIM, Math.max(0, Math.min(1, (mv - 0.35) / 0.6)));
+          }
+          r += color[0]; g += color[1]; b += color[2];
+        }
+      }
+      const i = (py * width + px) * 4;
+      const n = ss * ss;
+      pixels[i] = Math.round(r / n); pixels[i + 1] = Math.round(g / n); pixels[i + 2] = Math.round(b / n); pixels[i + 3] = 255;
+    }
+  }
+  return encodePng(width, height, pixels);
+}
+fs.writeFileSync(path.join(WEB_DIR, 'og.png'), renderBanner(1200, 630));
+console.log('Web app icons and link preview written to web/assets/img/');

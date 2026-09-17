@@ -1,4 +1,4 @@
-/* Sentinel marketing site: navigation, reveals, the hero scan, counters. */
+/* Sentinel marketing pages: navigation, reveals, counters, plan finder. */
 (() => {
   'use strict';
 
@@ -7,28 +7,65 @@
   const Masks = window.SentinelMasks;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  window.Site = { $, $$, reduced };
+
   /* ------------------------------------------------------------- glyphs */
 
-  function paintGlyphs(root = document) {
-    for (const el of $$('[data-glyph]', root)) {
-      if (!el.firstElementChild) el.innerHTML = Masks.svg(el.dataset.glyph);
-    }
-  }
-  paintGlyphs();
+  $$('[data-glyph]').forEach((el) => { if (!el.firstElementChild) el.innerHTML = Masks.svg(el.dataset.glyph); });
 
   /* ---------------------------------------------------------------- nav */
 
   const nav = $('[data-nav]');
   if (nav) {
-    const onScroll = () => nav.classList.toggle('is-scrolled', scrollY > 12);
-    addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
     const toggle = $('[data-nav-toggle]');
     toggle && toggle.addEventListener('click', () => {
       const open = nav.classList.toggle('is-open');
       toggle.setAttribute('aria-expanded', String(open));
     });
-    $$('.nav__links a', nav).forEach((a) => a.addEventListener('click', () => nav.classList.remove('is-open')));
+    $$('.nav__links a', nav).forEach((a) => a.addEventListener('click', () => {
+      nav.classList.remove('is-open');
+      toggle && toggle.setAttribute('aria-expanded', 'false');
+    }));
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && nav.classList.contains('is-open')) { nav.classList.remove('is-open'); toggle && toggle.focus(); }
+    });
+  }
+
+  // Back-to-top button, shown once the reader is well down the page.
+  const toTop = document.createElement('button');
+  toTop.className = 'to-top';
+  toTop.type = 'button';
+  toTop.setAttribute('aria-label', 'Back to top');
+  toTop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m0 0-6 6m6-6 6 6"/></svg>';
+  toTop.addEventListener('click', () => scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }));
+  document.body.appendChild(toTop);
+
+  let ticking = false;
+  const onScroll = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      if (nav) nav.classList.toggle('is-scrolled', scrollY > 12);
+      toTop.classList.toggle('is-on', scrollY > innerHeight * 1.5);
+      ticking = false;
+    });
+  };
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  // Highlight the nav link for the section being read (home page only).
+  const spyLinks = $$('[data-spy]');
+  const spyTargets = spyLinks.map((a) => document.getElementById(a.dataset.spy)).filter(Boolean);
+  if (spyTargets.length) {
+    const spy = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        spyLinks.forEach((a) => a.classList.toggle('is-active', a.dataset.spy === e.target.id));
+      }
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    spyTargets.forEach((t) => spy.observe(t));
+  } else if (location.pathname === '/pricing') {
+    spyLinks.forEach((a) => a.classList.toggle('is-active', a.dataset.spy === 'pricing'));
   }
 
   $$('[data-year]').forEach((el) => { el.textContent = new Date().getFullYear(); });
@@ -38,8 +75,7 @@
     .then((r) => (r.ok ? r.json() : null))
     .then((me) => {
       const slot = $('[data-auth-actions]');
-      if (!me || !slot) return;
-      slot.innerHTML = '<a class="btn btn--gold btn--sm" href="/app">Open Sentinel</a>';
+      if (me && slot) slot.innerHTML = '<a class="btn btn--gold btn--sm" href="/app">Open Sentinel</a>';
     })
     .catch(() => {});
 
@@ -62,8 +98,7 @@
           }
           child.replaceWith(frag);
         } else if (child.nodeType === 1 && child.classList.contains('gold-text')) {
-          // Gradient text can't be split into separate boxes without losing the
-          // gradient, so it animates in as one unit.
+          // Gradient text can't be split without losing the gradient, so it animates as one unit.
           child.classList.add('word');
           child.style.setProperty('--d', `${0.05 + i++ * 0.055}s`);
         } else if (child.nodeType === 1 && child.tagName !== 'BR') {
@@ -92,11 +127,9 @@
     if (reduced) { el.textContent = target.toLocaleString(); return; }
     el.textContent = '0';
     const start = performance.now();
-    const dur = 1600;
     const tick = (now) => {
-      const t = Math.min(1, (now - start) / dur);
-      const eased = 1 - Math.pow(1 - t, 4);
-      el.textContent = Math.round(target * eased).toLocaleString();
+      const t = Math.min(1, (now - start) / 1600);
+      el.textContent = Math.round(target * (1 - Math.pow(1 - t, 4))).toLocaleString();
       if (t < 1) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -119,89 +152,76 @@
     counters.forEach((c) => cio.observe(c));
   }
 
-  /* ---------------------------------------------------------- hero scan */
+  /* -------------------------------------------------------- plan finder */
 
-  const stage = $('[data-stage]');
-  if (stage) {
-    const rows = $$('.res', stage);
-    const scan = $('[data-scanline]', stage);
-    const floats = $$('[data-float]', stage);
-    const serp = $('[data-serp]', stage);
+  const finder = $('[data-finder]');
+  if (finder) {
+    const pricing = $('[data-pricing]');
+    const state = { live: true, hours: 20, email: false };
+    const hours = $('[data-f-hours]', finder);
+    const hoursOut = $('[data-f-hours-out]', finder);
+    const hoursRow = $('[data-f-hours-row]', finder);
+    const answer = $('[data-f-answer]', finder);
 
-    const build = (row) => {
-      const slot = $('.masks', row);
-      slot.innerHTML = '';
-      const spec = row.dataset.masks;
-      if (!spec) return [];
-      return spec.split(',').map((pair) => {
-        const [threat, color] = pair.split(':');
-        const m = document.createElement('span');
-        m.className = `m m--${color}`;
-        m.innerHTML = Masks.svg(threat);
-        slot.appendChild(m);
-        return m;
+    const radio = (attr, key, parse) => {
+      const buttons = $$(`[${attr}]`, finder);
+      const choose = (b) => {
+        buttons.forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+        state[key] = parse(b.getAttribute(attr));
+        update();
+      };
+      buttons.forEach((b, i) => {
+        b.addEventListener('click', () => choose(b));
+        b.addEventListener('keydown', (ev) => {
+          if (!['ArrowLeft', 'ArrowRight'].includes(ev.key)) return;
+          ev.preventDefault();
+          const next = buttons[(i + (ev.key === 'ArrowRight' ? 1 : buttons.length - 1)) % buttons.length];
+          next.focus();
+          choose(next);
+        });
       });
     };
+    radio('data-f-live', 'live', (v) => v === 'yes');
+    radio('data-f-email', 'email', (v) => v === 'yes');
+    hours.addEventListener('input', () => { state.hours = Number(hours.value); update(); });
 
-    const run = () => {
-      floats.forEach((f) => f.classList.remove('is-on'));
-      $$('.bar__fill', stage).forEach((b) => { b.style.width = '0'; });
-      rows.forEach((r) => r.classList.remove('is-danger'));
-      const built = rows.map(build);
-      serp.style.setProperty('--scan-end', `${serp.offsetHeight + 20}px`);
-      scan.classList.remove('is-running');
-      void scan.offsetWidth;
+    function update() {
+      hoursOut.textContent = `${state.hours} h`;
+      hours.style.setProperty('--p', `${state.hours}%`);
+      hours.disabled = !state.live;
+      hoursRow.classList.toggle('is-muted', !state.live);
 
-      if (reduced) {
-        built.flat().forEach((m) => m.classList.add('is-on'));
-        floats.forEach((f) => f.classList.add('is-on'));
-        $$('.bar__fill', stage).forEach((b) => { b.style.width = `${b.dataset.w}%`; });
-        return;
+      let pick;
+      let why;
+      if (state.email) {
+        pick = 'max';
+        why = 'pasting emails in for a full scan is part of Max, and it researches every live result too.';
+      } else if (!state.live) {
+        pick = 'free';
+        why = '10 link scans and 5 virus &amp; malware scans a week cover the odd link you&rsquo;re unsure about.';
+      } else if (state.hours <= 24) {
+        pick = 'pro';
+        why = `its 24 live hours a week cover your ${state.hours}, and minutes only count while Sentinel is actually checking something.`;
+      } else {
+        pick = 'max';
+        why = `at around ${state.hours} hours a week you&rsquo;d outgrow Pro&rsquo;s 24; Max gives you 96, with research on every result.`;
       }
+      answer.innerHTML = `<b>${{ free: 'Free', pro: 'Pro', max: 'Max' }[pick]}</b> fits best &mdash; ${why}`;
 
-      scan.classList.add('is-running');
-      rows.forEach((row, i) => {
-        const at = 280 + (row.offsetTop / serp.offsetHeight) * 2300;
-        setTimeout(() => {
-          built[i].forEach((m, k) => setTimeout(() => m.classList.add('is-on'), k * 110));
-          if ('danger' in row.dataset) row.classList.add('is-danger');
-        }, at);
+      $$('[data-plan-card]', pricing).forEach((card) => {
+        const on = card.dataset.planCard === pick;
+        card.classList.toggle('is-recommended', on);
+        const badge = $('.plan__pick', card);
+        if (on && !badge) card.insertAdjacentHTML('afterbegin', '<span class="plan__pick">Best for you</span>');
+        if (!on && badge) badge.remove();
       });
-      setTimeout(() => {
-        floats[0] && floats[0].classList.add('is-on');
-        $$('.bar__fill', stage).forEach((b, i) => setTimeout(() => { b.style.width = `${b.dataset.w}%`; }, 250 + i * 120));
-      }, 2700);
-      setTimeout(() => floats[1] && floats[1].classList.add('is-on'), 3300);
-    };
-
-    let timer = null;
-    const sio = new IntersectionObserver((entries) => {
-      const visible = entries[0].isIntersecting;
-      if (visible) {
-        stage.classList.add('is-in');
-        if (!timer) { run(); timer = setInterval(run, 9000); }
-      } else if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-    }, { threshold: 0.25 });
-    sio.observe(stage);
-  }
-
-  /* ------------------------------------------------------ mask severity */
-
-  for (const card of $$('[data-trio]')) {
-    const colors = { yellow: 'var(--yellow)', orange: 'var(--orange)', red: 'var(--red)' };
-    const buttons = $$('[data-sev]', card);
-    buttons.forEach((b) => b.addEventListener('click', () => {
-      buttons.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      card.style.setProperty('--c', colors[b.dataset.sev]);
-    }));
+      pricing.classList.add('has-pick');
+    }
+    update();
   }
 
   /* ---------------------------------------------------- download picker */
 
   const os = /Mac/i.test(navigator.platform) ? 'mac' : /Linux/i.test(navigator.platform) && !/Android/i.test(navigator.userAgent) ? 'linux' : 'windows';
   $$('[data-os-label]').forEach((el) => { el.textContent = { windows: 'Windows', mac: 'macOS', linux: 'Linux' }[os]; });
-  $$('[data-os]').forEach((el) => { if (el.dataset.os === os) el.classList.add('is-current'); });
 })();

@@ -1,0 +1,10 @@
+node_modules
+desktop
+tests
+scripts
+extension
+data
+.git
+.claude
+.env
+*.md

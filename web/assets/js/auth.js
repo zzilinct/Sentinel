@@ -1,28 +1,35 @@
-/* Sign-up and sign-in behaviour, shared by /signup and /login. */
-window.Auth = (() => {
+/* Sign-in and sign-up. */
+(() => {
   'use strict';
 
-  const { api, esc, qs } = window.Sentinel;
+  const { api, esc, $, $$, busy } = window.UI;
+  const Masks = window.SentinelMasks;
+  const params = new URLSearchParams(location.search);
+  const isSignup = location.pathname.startsWith('/signup');
 
-  function note(html, kind = 'error') {
-    const el = document.getElementById('note');
-    el.hidden = false;
-    el.className = `form-note form-note--${kind}`;
-    el.innerHTML = html;
+  $$('[data-glyph]').forEach((el) => { el.innerHTML = Masks.svg(el.dataset.glyph); });
+  $$('[data-keep-query]').forEach((a) => { a.href += location.search; });
+
+  const next = () => {
+    const n = params.get('next') || '';
+    if (n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\')) return n;
+    return params.get('plan') ? '/app/plan' : '/app';
+  };
+
+  const note = (slot, html, kind = 'error') => {
+    $(slot).innerHTML = html ? `<div class="banner${kind === 'error' ? ' banner--error' : ''}" style="margin:22px 0 0"><div>${html}</div></div>` : '';
+  };
+
+  function clearErrors(form) {
+    $$('[data-error]', form).forEach((e) => { e.textContent = ''; });
+    $$('.input', form).forEach((i) => i.removeAttribute('aria-invalid'));
   }
 
-  function clearErrors() {
-    document.querySelectorAll('[data-error]').forEach((el) => { el.textContent = ''; });
-    document.querySelectorAll('.field input').forEach((el) => el.removeAttribute('aria-invalid'));
-    const el = document.getElementById('note');
-    el.hidden = true;
-  }
-
-  function showFieldErrors(errors) {
+  function showErrors(form, errors) {
     let first = null;
     for (const [field, message] of Object.entries(errors || {})) {
-      const slot = document.querySelector(`[data-error="${field}"]`);
-      const input = document.getElementById(field);
+      const slot = $(`[data-error="${field}"]`, form);
+      const input = form.elements[field];
       if (slot) slot.textContent = message;
       if (input) { input.setAttribute('aria-invalid', 'true'); first = first || input; }
     }
@@ -30,69 +37,87 @@ window.Auth = (() => {
     return Boolean(first);
   }
 
-  /** Where to land after a successful sign-in. */
-  function destination() {
-    const next = qs('next');
-    if (next && next.startsWith('/') && !next.startsWith('//')) return next;
-    return qs('from') === 'extension' ? '/welcome?paired=1' : '/app';
-  }
+  // Already signed in? Go straight to the app.
+  api('/auth/me').then(() => location.replace(next())).catch(() => {});
 
-  async function finish() {
-    // Pass the session to the extension if it is installed, then move on.
-    try { await window.Sentinel.pairExtension(); } catch { /* extension optional */ }
-    location.href = destination();
-  }
+  /* ---------------------------------------------------------- google */
 
-  async function setupGoogle() {
-    const button = document.getElementById('google');
-    let config = { googleEnabled: false };
-    try { config = await api('/auth/config'); } catch { /* server unreachable */ }
-
-    if (!config.googleEnabled) {
-      button.disabled = true;
-      button.title = 'Google sign-in is not configured on this server yet';
-      button.insertAdjacentHTML('afterend',
-        '<p class="small muted" style="margin:8px 0 0;text-align:center">Google sign-in is not configured on this server yet &mdash; use email below.</p>');
-      return;
+  const google = $('[data-google]');
+  api('/auth/config').then((cfg) => {
+    if (cfg.googleEnabled) {
+      google.addEventListener('click', () => { location.href = `/api/v1/auth/google/start?next=${encodeURIComponent(next())}`; });
+    } else {
+      google.disabled = true;
+      google.title = 'Google sign-in is not configured on this server';
+      google.insertAdjacentHTML('afterend', '<p class="field__hint" style="text-align:center;margin-top:8px">Google sign-in isn’t set up on this server yet &mdash; use your email below.</p>');
     }
-    button.onclick = () => {
-      const next = encodeURIComponent(destination());
-      location.href = `/api/v1/auth/google/start?next=${next}`;
-    };
-  }
+  }).catch(() => {});
 
-  function init(mode) {
-    const form = document.getElementById('form');
-    const submit = document.getElementById('submit');
-    const label = submit.textContent;
+  if (params.get('error')) note('[data-note]', `Google sign-in didn’t complete (${esc(params.get('error'))}). Try again or use your email.`);
 
-    setupGoogle();
+  /* --------------------------------------------------------- password */
 
-    const error = qs('error');
-    if (error) note(`Google sign-in was cancelled or failed (<code>${esc(error)}</code>). Try again or use your email.`);
-    if (qs('from') === 'extension') {
-      note('Sign in here and the Sentinel extension will switch on automatically.', 'ok');
-    }
+  const form = $('[data-form]');
+  const pw = form.elements.password;
 
-    form.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      clearErrors();
-
-      const data = Object.fromEntries(new FormData(form).entries());
-      submit.disabled = true;
-      submit.innerHTML = '<span class="spinner"></span>' + (mode === 'signup' ? 'Creating account' : 'Signing in');
-
-      try {
-        await api(mode === 'signup' ? '/auth/signup' : '/auth/login', { method: 'POST', body: data });
-        submit.innerHTML = 'Success ✓';
-        await finish();
-      } catch (err) {
-        submit.disabled = false;
-        submit.textContent = label;
-        if (!showFieldErrors(err.errors)) note(esc(err.message));
-      }
+  if (isSignup) {
+    const meter = $('[data-strength]');
+    pw.addEventListener('input', () => {
+      const v = pw.value;
+      let score = 0;
+      if (v.length >= 10) score++;
+      if (/[a-z]/i.test(v) && /\d/.test(v)) score++;
+      if (/[^a-z0-9]/i.test(v) || /[A-Z]/.test(v) && /[a-z]/.test(v)) score++;
+      if (v.length >= 14) score++;
+      meter.dataset.score = v ? Math.max(1, score) : 0;
     });
   }
 
-  return { init };
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    clearErrors(form);
+    note('[data-note]', '');
+    const data = Object.fromEntries(new FormData(form).entries());
+    if (!isSignup) data.next = next();
+
+    await busy($('button[type=submit]', form), isSignup ? 'Creating account' : 'Signing in', async () => {
+      try {
+        const res = await api(isSignup ? '/auth/signup' : '/auth/login', { method: 'POST', body: data });
+        if (res.twoFactorRequired) return showCodeStep(res.challenge);
+        location.replace(next());
+      } catch (err) {
+        if (!showErrors(form, err.errors)) note('[data-note]', esc(err.message));
+      }
+    });
+  });
+
+  /* ------------------------------------------------------------- 2FA */
+
+  function showCodeStep(challenge) {
+    $('[data-step="password"]').hidden = true;
+    const step = $('[data-step="code"]');
+    step.hidden = false;
+    const codeForm = $('[data-code-form]');
+    codeForm.elements.code.focus();
+    codeForm.elements.code.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+      if (e.target.value.length === 6) codeForm.requestSubmit();
+    });
+    codeForm.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      note('[data-note-code]', '');
+      await busy($('button', codeForm), 'Verifying', async () => {
+        try {
+          const res = await api('/auth/login/2fa', { method: 'POST', body: { challenge, code: codeForm.elements.code.value } });
+          location.replace(res.next || next());
+        } catch (err) {
+          note('[data-note-code]', esc(err.message));
+          codeForm.elements.code.select();
+          if (err.code === 'challenge_expired') setTimeout(() => location.reload(), 1800);
+        }
+      });
+    });
+  }
+
+  if (!isSignup && params.get('mfa')) showCodeStep(params.get('mfa'));
 })();

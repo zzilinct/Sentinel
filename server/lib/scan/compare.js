@@ -26,6 +26,24 @@ const q = {
 
 /* ---------------------------------------------------------------- domain */
 
+// Pre-computed skeletons of our confirmed list, rebuilt when the list changes
+// (checked at most every 30 seconds) instead of on every scan.
+const stampStmt = db.prepare('SELECT COUNT(*) AS n, MAX(added_at) AS t FROM blocklist');
+let skeletonCache = { key: null, checkedAt: 0, rows: [] };
+function blockSkeletons() {
+  if (Date.now() - skeletonCache.checkedAt < 30_000) return skeletonCache.rows;
+  const s = stampStmt.get();
+  const key = `${s.n}|${s.t}`;
+  if (key !== skeletonCache.key) {
+    skeletonCache.rows = q.blockHosts.all()
+      .map((row) => ({ ...row, skeleton: deskin(row.host.split('.')[0]) }))
+      .filter((row) => row.skeleton.length >= 6);
+    skeletonCache.key = key;
+  }
+  skeletonCache.checkedAt = Date.now();
+  return skeletonCache.rows;
+}
+
 function compareDomain(p) {
   if (p.isIp) return { skeletonMatches: [], tokenMatches: [], nearest: null };
   const sld = p.sld;
@@ -35,10 +53,9 @@ function compareDomain(p) {
   if (skeleton.length >= 6) {
     out.skeletonMatches = q.skeleton.all(skeleton, p.registrable);
     // Our own confirmed list is small enough to compare with edit distance.
-    for (const row of q.blockHosts.all()) {
+    for (const row of blockSkeletons()) {
       if (row.host === p.registrable || row.host === p.host) continue;
-      const other = deskin(row.host.split('.')[0]);
-      if (other.length >= 6 && Math.abs(other.length - skeleton.length) <= 2 && levenshtein(other, skeleton) <= 2) {
+      if (Math.abs(row.skeleton.length - skeleton.length) <= 2 && levenshtein(row.skeleton, skeleton) <= 2) {
         out.skeletonMatches.push(row);
       }
     }
@@ -130,4 +147,4 @@ function learn(fingerprint, host, threat, label) {
   if (fingerprint) q.addFingerprint.run(fingerprint, host, threat, label || null, now());
 }
 
-module.exports = { compareDomain, compareContent, learn, simhash, hamming };
+module.exports = { compareDomain, compareContent, learn };

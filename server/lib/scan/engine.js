@@ -422,4 +422,4 @@ function record(userId, kind, target, mode, threats) {
   try { q.history.run(userId, kind, String(target).slice(0, 500), mode, lvl('scam'), lvl('virus'), lvl('malware'), now()); } catch { /* history is best-effort */ }
 }
 
-module.exports = { scanUrl, scanUrls, scanEmail, scanUpload, invalidate, THREATS, LABELS, SEVERITY, levelFor };
+module.exports = { scanUrl, scanUrls, scanEmail, scanUpload, invalidate };

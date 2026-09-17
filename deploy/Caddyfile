@@ -1,0 +1,21 @@
+# Automatic HTTPS (Let's Encrypt) for Sentinel.
+
+# The bare domain always forwards to www.
+sentinelscan.com {
+	redir https://www.sentinelscan.com{uri} permanent
+}
+
+www.sentinelscan.com {
+	encode zstd gzip
+	# Uploads to the virus & malware scanner are capped at 25 MB by the app.
+	request_body {
+		max_size 26MB
+	}
+	reverse_proxy sentinel:8787 {
+		header_up X-Forwarded-For {remote_host}
+	}
+	log {
+		output stdout
+		format console
+	}
+}

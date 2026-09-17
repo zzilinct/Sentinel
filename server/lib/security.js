@@ -223,6 +223,6 @@ function totpUri(secretB32, email) {
 }
 
 module.exports = {
-  baseHeaders, corsHeaders, allowedOrigin, assertSameOrigin, clientIp, rateLimit, audit,
-  passwordProblem, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode, base32Encode
+  baseHeaders, corsHeaders, assertSameOrigin, clientIp, rateLimit, audit,
+  passwordProblem, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode
 };

@@ -36,14 +36,26 @@
       </div>
 
       <!-- product stage -->
-      <div class="stage" data-stage aria-hidden="true">
+      <div class="stage" data-stage>
         <div class="stage__glow"></div>
+        <div class="stage__controls" data-reveal style="--d:.9s">
+          <div class="stage__chips" role="tablist" aria-label="Example searches">
+            <button class="chip-q" type="button" role="tab" aria-selected="true" data-query="paypal">PayPal locked</button>
+            <button class="chip-q" type="button" role="tab" aria-selected="false" data-query="crypto">Crypto support</button>
+            <button class="chip-q" type="button" role="tab" aria-selected="false" data-query="parcel">Parcel fee text</button>
+          </div>
+          <button class="chip-q chip-q--ghost" type="button" data-replay aria-label="Replay the scan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.7"/><path d="M4 4v4.7h4.7"/></svg>
+            Replay
+          </button>
+        </div>
+        <p class="stage__hint" data-reveal style="--d:1s">Real verdicts from Sentinel&rsquo;s engine &mdash; click any result to see why.</p>
         <div class="window">
           <div class="window__bar">
             <div class="window__dots"><i></i><i></i><i></i></div>
             <div class="window__url">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-              paypal account locked help
+              <span data-query-text>paypal account locked help</span><i class="caret" aria-hidden="true"></i>
             </div>
             <div class="window__shield"><i class="dot"></i><span>Sentinel live</span></div>
           </div>
@@ -78,20 +90,21 @@
           </div>
         </div>
 
-        <div class="float float--verdict" data-float="verdict">
+        <div class="float float--verdict" data-float="verdict" aria-live="polite">
           <div class="verdict__head">
-            <div class="verdict__icon" data-glyph="scam"></div>
-            <div>
-              <div class="verdict__title">Confirmed scam</div>
-              <div class="verdict__host">paypa1-secure-login.com</div>
+            <div class="verdict__icon" data-glyph="scam" data-v-icon></div>
+            <div style="min-width:0">
+              <div class="verdict__title" data-v-title>Confirmed scam</div>
+              <div class="verdict__host" data-v-host>paypa1-secure-login.com</div>
             </div>
           </div>
           <div class="verdict__bars">
-            <div class="bar" style="--c:var(--red)"><span>Scam</span><div class="bar__track"><div class="bar__fill" data-w="100"></div></div><b>100</b></div>
-            <div class="bar" style="--c:var(--yellow)"><span>Malware</span><div class="bar__track"><div class="bar__fill" data-w="18"></div></div><b>18</b></div>
-            <div class="bar" style="--c:var(--green)"><span>Virus</span><div class="bar__track"><div class="bar__fill" data-w="4"></div></div><b>4</b></div>
+            <div class="bar" style="--c:var(--red)" data-v-bar="scam"><span>Scam</span><div class="bar__track"><div class="bar__fill" data-w="100"></div></div><b>100</b></div>
+            <div class="bar" style="--c:var(--green)" data-v-bar="virus"><span>Virus</span><div class="bar__track"><div class="bar__fill" data-w="0"></div></div><b>0</b></div>
+            <div class="bar" style="--c:var(--green)" data-v-bar="malware"><span>Malware</span><div class="bar__track"><div class="bar__fill" data-w="0"></div></div><b>0</b></div>
           </div>
-          <div class="verdict__foot"><span>89 checks &middot; 7 failed</span><span>OpenPhish</span></div>
+          <ul class="verdict__why" data-v-why></ul>
+          <div class="verdict__foot"><span data-v-checks>89 checks</span><span data-v-source>Known threat</span></div>
         </div>
 
         <div class="float float--mail" data-float="mail">
@@ -127,7 +140,7 @@
       </div>
 
       <div class="trio" data-reveal="scale">
-        <article class="mask-card" style="--c:var(--red)" data-trio>
+        <article class="mask-card" style="--c:var(--red)" data-trio data-threat="scam">
           <div class="mask-card__glyph" data-glyph="scam"></div>
           <h3>Scam</h3>
           <p>Sites built to take your money, passwords or wallet.</p>
@@ -136,13 +149,14 @@
             <li>Fake login, parcel-fee and prize pages</li>
             <li>Crypto drainers asking for recovery phrases</li>
           </ul>
+          <div class="example" data-example hidden></div>
           <div class="severity" role="group" aria-label="Scam severity">
             <button type="button" data-sev="yellow" style="--sc:var(--yellow)" aria-pressed="false">Suspicious</button>
             <button type="button" data-sev="orange" style="--sc:var(--orange)" aria-pressed="false">Likely</button>
             <button type="button" data-sev="red" style="--sc:var(--red)" aria-pressed="true">Confirmed</button>
           </div>
         </article>
-        <article class="mask-card" style="--c:var(--orange)" data-trio>
+        <article class="mask-card" style="--c:var(--orange)" data-trio data-threat="virus">
           <div class="mask-card__glyph" data-glyph="virus"></div>
           <h3>Virus</h3>
           <p>Files that infect your computer the moment they run.</p>
@@ -151,13 +165,14 @@
             <li>Known malicious files, matched by fingerprint</li>
             <li>Archives smuggling executables</li>
           </ul>
+          <div class="example" data-example hidden></div>
           <div class="severity" role="group" aria-label="Virus severity">
             <button type="button" data-sev="yellow" style="--sc:var(--yellow)" aria-pressed="false">Possible</button>
             <button type="button" data-sev="orange" style="--sc:var(--orange)" aria-pressed="true">Likely</button>
             <button type="button" data-sev="red" style="--sc:var(--red)" aria-pressed="false">Detected</button>
           </div>
         </article>
-        <article class="mask-card" style="--c:var(--yellow)" data-trio>
+        <article class="mask-card" style="--c:var(--yellow)" data-trio data-threat="malware">
           <div class="mask-card__glyph" data-glyph="malware"></div>
           <h3>Malware</h3>
           <p>Pages and documents that attack from the inside.</p>
@@ -166,6 +181,7 @@
             <li>Hidden cryptominers and invisible frames</li>
             <li>Macro documents and download-and-run scripts</li>
           </ul>
+          <div class="example" data-example hidden></div>
           <div class="severity" role="group" aria-label="Malware severity">
             <button type="button" data-sev="yellow" style="--sc:var(--yellow)" aria-pressed="true">Possible</button>
             <button type="button" data-sev="orange" style="--sc:var(--orange)" aria-pressed="false">Likely</button>
@@ -215,6 +231,28 @@
     </div>
   </section>
 
+  <!-- ================================================================ game -->
+  <section class="section" id="game" style="padding-top:40px">
+    <div class="wrap">
+      <div class="section__head section__head--center">
+        <span class="kicker" data-reveal>Spot the scam</span>
+        <h2 data-split>Can you read <span class="serif italic">the masks?</span></h2>
+        <p data-reveal>Six real links. Decide how dangerous each one is, then see what Sentinel found.</p>
+      </div>
+
+      <div class="game" data-game data-reveal="scale">
+        <div class="game__top">
+          <div class="game__dots" data-game-dots aria-hidden="true"></div>
+          <div class="game__score mono" data-game-score>Score 0</div>
+        </div>
+
+        <div class="game__stage" data-game-stage>
+          <div class="game__loading"><span class="spinner"></span> Loading real links&hellip;</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ========================================================== everywhere -->
   <section class="section" id="everywhere">
     <div class="wrap">
@@ -229,13 +267,13 @@
           <h3>Masks before you choose</h3>
           <p>Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more. Masks appear as the page loads&nbsp;&mdash; on Max, each result is researched too.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row"><div class="grow"><div class="t">Coinbase — Buy &amp; Sell Bitcoin</div><div class="s">coinbase.com</div></div></div>
-            <div class="demo-row"><div class="grow"><div class="t">Coinbase Wallet Extension — Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span></div>
-            <div class="demo-row"><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" data-glyph="scam"></span></div>
-            <div class="demo-row"><div class="grow"><div class="t">Crypto Price Tracker — Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span></div>
-            <div class="demo-row"><div class="grow"><div class="t">Coinbase Help — Contact Support</div><div class="s">help.coinbase.com</div></div></div>
-            <div class="demo-row"><div class="grow"><div class="t">Coinbase Support Number 24/7 — Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span></div>
-            <div class="demo-row"><div class="grow"><div class="t">Crypto Tax Calculator — Free Guide 2026</div><div class="s">koinly.io/guides</div></div></div>
+            <div class="demo-row" data-why="The real Coinbase: a long-established domain on Sentinel’s verified list, so no mask."><div class="grow"><div class="t">Coinbase — Buy &amp; Sell Bitcoin</div><div class="s">coinbase.com</div></div></div>
+            <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension — Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="Listed in public phishing feeds. Brand name + “airdrop claim” on a free .tk domain."><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="A direct program download from a throwaway .site domain with no reputation, dressed up as a free tool."><div class="grow"><div class="t">Crypto Price Tracker — Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span></div>
+            <div class="demo-row" data-why="A subdomain of the verified coinbase.com, so it inherits its trust."><div class="grow"><div class="t">Coinbase Help — Contact Support</div><div class="s">help.coinbase.com</div></div></div>
+            <div class="demo-row" data-why="Crypto exchanges don’t run phone support lines on look-alike domains. Classic support-number scam pattern."><div class="grow"><div class="t">Coinbase Support Number 24/7 — Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="An established site with a normal history and nothing suspicious on the page."><div class="grow"><div class="t">Crypto Tax Calculator — Free Guide 2026</div><div class="s">koinly.io/guides</div></div></div>
           </div>
           <div class="tile__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Live scanning: 24 hours a week on Pro, 96 on Max</div>
         </article>
@@ -245,8 +283,8 @@
           <h3>Emails, unmasked</h3>
           <p>Gmail and Outlook get the same masks. Spoofed senders, mismatched links and disguised attachments are marked in the list.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row"><div class="file">DS</div><div class="grow"><div class="t">DocuSign — Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span></div>
-            <div class="demo-row"><div class="file">GH</div><div class="grow"><div class="t">GitHub — Your weekly digest</div><div class="s">noreply@github.com</div></div></div>
+            <div class="demo-row" data-why="DocuSign never sends from a free Gmail address, and the display name doesn’t match the sender."><div class="file">DS</div><div class="grow"><div class="t">DocuSign — Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="Sent from github.com with passing sender authentication."><div class="file">GH</div><div class="grow"><div class="t">GitHub — Your weekly digest</div><div class="s">noreply@github.com</div></div></div>
           </div>
         </article>
 
@@ -255,10 +293,42 @@
           <h3>Every file, inspected</h3>
           <p>The Sentinel app scans new downloads on your computer. Files never leave your device&nbsp;&mdash; only their fingerprint does.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row"><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" data-glyph="virus"></span></div>
-            <div class="demo-row"><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" data-glyph="malware"></span></div>
+            <div class="demo-row" data-why="The real extension is .exe. The “.pdf” is there to trick you into running it."><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" data-glyph="virus"></span></div>
+            <div class="demo-row" data-why=".docm files carry macros that can download and run other programs as soon as you enable editing."><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" data-glyph="malware"></span></div>
           </div>
         </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= try it -->
+  <section class="section" id="try">
+    <div class="wrap">
+      <div class="try" data-reveal="scale">
+        <div class="try__copy">
+          <span class="kicker">Try it now</span>
+          <h2 style="margin-top:16px">Got a link you&rsquo;re <span class="serif italic">not sure about?</span></h2>
+          <p>Paste it here. No account needed &mdash; you get the known-threat lookup and the full checklist. Accounts add research, history and live protection.</p>
+          <div class="try__examples" aria-label="Examples">
+            <span class="muted">Try:</span>
+            <button type="button" class="chip-q" data-try-example="paypal-account-verify.com/login">paypal-account-verify.com</button>
+            <button type="button" class="chip-q" data-try-example="https://www.wikipedia.org">wikipedia.org</button>
+            <button type="button" class="chip-q" data-try-example="https://files-share.site/Invoice.pdf.exe">Invoice.pdf.exe</button>
+          </div>
+        </div>
+        <div class="try__panel">
+          <form class="try__form" data-try-form>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link" aria-label="Link to check" required maxlength="2000">
+            <button class="btn btn--gold" type="submit">Check</button>
+          </form>
+          <div class="try__out" data-try-out aria-live="polite">
+            <div class="try__empty">
+              <div class="try__masks"><span data-glyph="scam" style="color:var(--red)"></span><span data-glyph="virus" style="color:var(--orange)"></span><span data-glyph="malware" style="color:var(--yellow)"></span></div>
+              <p>Your result will appear here, with every reason Sentinel found.</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -359,5 +429,6 @@
 <!-- @include footer -->
 <script src="/assets/js/masks.js"></script>
 <script src="/assets/js/site.js"></script>
+<script src="/assets/js/home.js"></script>
 </body>
 </html>

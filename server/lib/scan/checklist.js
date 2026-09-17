@@ -11,7 +11,10 @@
  * `extra` lets one finding contribute to a second threat.
  */
 const L = require('./lists');
+const config = require('../../config');
 const { analyze, entropy, hostWords } = require('./url');
+
+const reported = new Set();
 
 const fail = (points, detail, extra) => ({ status: 'fail', points, detail, extra });
 const warn = (points, detail, extra) => ({ status: 'warn', points, detail, extra });
@@ -90,7 +93,15 @@ const URL_CHECKS = [
     run: ({ p }) => ((p.query.match(/%[0-9a-f]{2}/gi) || []).length > 12 ? warn(8, 'Query string is heavily percent-encoded') : pass('Readable parameters')) },
 
   { id: 'U14', group: 'Downloads', threat: 'virus', title: 'Link does not download a program',
-    run: ({ p }) => (L.EXECUTABLE_EXT.has(p.ext) ? fail(30, `Downloads a .${p.ext} file, which runs code on your computer`, { malware: 12 }) : pass('Not an executable download')) },
+    run: ({ p }) => {
+      if (!L.EXECUTABLE_EXT.has(p.ext)) return pass('Not an executable download');
+      // A program served from a raw IP, a heavily abused ending or a throwaway
+      // host is far more likely to be malicious than one from an established site.
+      const shadyHost = p.isIp || Boolean(L.RISKY_TLDS[p.suffix]) || Boolean(p.hosting) || L.DYNAMIC_DNS.some((d) => p.host.endsWith('.' + d));
+      return shadyHost
+        ? fail(42, `Downloads a .${p.ext} program from ${p.isIp ? 'a bare IP address' : `a .${p.suffix} address`}`, { malware: 12 })
+        : fail(30, `Downloads a .${p.ext} file, which runs code on your computer`, { malware: 12 });
+    } },
 
   { id: 'U15', group: 'Downloads', threat: 'virus', title: 'No disguised double file extension',
     run: ({ p }) => {
@@ -217,11 +228,14 @@ const URL_CHECKS = [
     } },
 
   { id: 'U32', group: 'Wording', threat: 'scam', title: 'Not a parcel-fee or delivery lure',
-    run: ({ words, brand }) => {
+    run: ({ p, words, brand }) => {
       const hits = L.DELIVERY_WORDS.filter((w) => words.has(w));
       if (!hits.length) return pass('None found');
-      const courier = brand.inDomain && ['usps', 'dhl', 'fedex', 'ups', 'royalmail'].includes(brand.inDomain.token);
-      return courier || words.has('fee') || words.has('pay') ? fail(18, `Delivery wording: ${hits.join(', ')}`) : warn(6, `Delivery wording: ${hits.join(', ')}`);
+      const courier = brand.inDomain && ['usps', 'dhl', 'fedex', 'ups', 'royalmail', 'evri', 'canadapost', 'auspost'].includes(brand.inDomain.token);
+      if (courier || words.has('fee') || words.has('pay')) return fail(18, `Delivery wording: ${hits.join(', ')}`);
+      // Real couriers don't run parcel sites on the endings scammers buy in bulk.
+      if (L.RISKY_TLDS[p.suffix] || p.hosting) return fail(16, `Parcel-themed address (${hits.join(', ')}) on a throwaway .${p.suffix} domain`);
+      return warn(6, `Delivery wording: ${hits.join(', ')}`);
     } },
 
   { id: 'U33', group: 'Impersonation', threat: 'scam', title: 'Does not pose as a government service',
@@ -759,6 +773,10 @@ function runChecklist(ctx) {
     try {
       out = check.run(ctx) || pass('');
     } catch (err) {
+      // A broken rule must never break a scan in production - but it must be
+      // loud everywhere else, or it silently stops protecting anyone.
+      if (!config.isProd) throw new Error(`Checklist rule ${check.id} crashed: ${err.message}`);
+      if (!reported.has(check.id)) { reported.add(check.id); console.error(`[checklist] ${check.id} crashed:`, err); }
       out = skip('Check could not run');
     }
     results.push({ id: check.id, group: check.group, threat: check.threat, title: check.title, research: Boolean(check.research), ...out });
@@ -766,4 +784,4 @@ function runChecklist(ctx) {
   return results;
 }
 
-module.exports = { runChecklist, ALL_CHECKS, CREDENTIAL_WORDS, MONEY_WORDS, CRYPTO_WORDS };
+module.exports = { runChecklist, ALL_CHECKS };

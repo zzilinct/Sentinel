@@ -5,7 +5,13 @@ data/*.db-wal
 data/*.db-shm
 web/downloads/*.zip
 .env
-data/.dev-secret
-.claude/
 .DS_Store
 Thumbs.db
+
+web/downloads/*.exe
+desktop/node_modules/
+desktop/dist/
+data/.dev-secret
+.claude/
+desktop/shared/
+desktop/assets/

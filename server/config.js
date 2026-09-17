@@ -72,6 +72,5 @@ module.exports = {
   researchAllowPrivate: isTest && process.env.RESEARCH_ALLOW_PRIVATE === '1',
   trustProxy: process.env.TRUST_PROXY === '1',
   sessionTtlMs: 30 * 24 * 60 * 60 * 1000,
-  webDir: path.join(root, 'web'),
-  extensionDir: path.join(root, 'extension')
+  webDir: path.join(root, 'web')
 };

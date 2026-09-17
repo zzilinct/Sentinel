@@ -48,6 +48,23 @@ async function main() {
   const engine = require('../server/lib/scan/engine');
   const ALL = ['scam', 'virus', 'malware'];
 
+  if (process.argv.includes('--with-feeds')) {
+    // With every live feed loaded, known threats are caught by knowledge; what
+    // matters here is that legitimate sites are never caught in the crossfire.
+    console.log('Loading live threat feeds...');
+    await require('../server/lib/scan/feeds').refreshAll({ log: true });
+    const fp = [];
+    for (const host of SAFE) {
+      for (const url of [`https://${host}/`, `https://${host}/login`, `https://${host}/help`]) {
+        const v = await engine.scanUrl(url, { threats: ALL, research: false });
+        if (v.overall.badge) fp.push(`${url} -> ${v.overall.label}: ${v.reasons.map((r) => r.text).join(' | ')}`);
+      }
+    }
+    console.log(`\nLegitimate pages with live feeds loaded: false alarms ${fp.length}/${SAFE.length * 3}`);
+    fp.forEach((l) => console.log(`    ${l}`));
+    return;
+  }
+
   console.log('Downloading live phishing URLs from OpenPhish...');
   const res = await fetch('https://openphish.com/feed.txt', { signal: AbortSignal.timeout(30000) });
   const phish = [...new Set((await res.text()).split(/\r?\n/).map((s) => s.trim()).filter(Boolean))].slice(0, 300);

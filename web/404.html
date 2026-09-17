@@ -1,35 +1,27 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Page not found - Sentinel</title>
+<!-- @include head -->
+<title>Page not found · Sentinel</title>
 <meta name="robots" content="noindex">
-<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/css/sentinel.css">
 </head>
 <body>
-
-<svg style="display:none" aria-hidden="true">
-  <symbol id="mask" viewBox="0 0 64 64">
-    <path fill="currentColor" fill-rule="evenodd" d="M32 5c13.2 0 23 4.3 23 10.8 0 15.8-7.4 36.6-23 43.9C16.4 52.4 9 31.6 9 15.8 9 9.3 18.8 5 32 5Zm-9.8 20.4c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Zm19.6 0c-3 0-5.1 2-5.1 4.7s2.1 4.7 5.1 4.7 5.1-2 5.1-4.7-2.1-4.7-5.1-4.7Z"/>
-    <path fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" d="M22.5 42.2c2.7 3.6 5.9 5.4 9.5 5.4s6.8-1.8 9.5-5.4"/>
-  </symbol>
-</svg>
-
+<!-- @include nav -->
 <main>
-<section class="hero" style="padding:110px 0;min-height:80vh;display:grid;place-items:center">
-  <div class="wrap narrow center">
-    <svg viewBox="0 0 64 64" style="width:58px;height:58px;color:var(--gold)" aria-hidden="true"><use href="#mask"/></svg>
-    <h1 style="font-size:2.2rem;margin-top:18px">Nothing behind this mask</h1>
-    <p class="lede">That page doesn't exist &mdash; which, for once, is not suspicious.</p>
-    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:22px">
-      <a class="btn btn--gold" href="/">Back to the start</a>
-      <a class="btn btn--ghost" href="/app">Open Sentinel</a>
+  <section class="page-head" style="min-height:78vh;display:grid;place-items:center">
+    <div class="wrap-narrow">
+      <div class="mask-card__glyph" style="--c:var(--gold-400);margin:0 auto 20px;color:var(--gold-400)" data-glyph="scam" data-reveal="scale"></div>
+      <span class="kicker" data-reveal>404</span>
+      <h1 data-split>Nothing behind <span class="serif italic">this mask.</span></h1>
+      <p data-reveal>This page doesn’t exist &mdash; which, for once, isn’t suspicious.</p>
+      <div class="hero__cta" data-reveal style="--d:.2s">
+        <a class="btn btn--gold btn--lg" href="/">Back home</a>
+        <a class="btn btn--lg" href="/app">Open Sentinel</a>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
 </main>
-
+<script src="/assets/js/masks.js"></script>
+<script src="/assets/js/site.js"></script>
 </body>
 </html>

@@ -4,6 +4,18 @@ const A = require('../lib/auth');
 const security = require('../lib/security');
 const plans = require('../lib/plans');
 const config = require('../config');
+const crypto = require('crypto');
+const mailer = require('../lib/mailer');
+const { db } = require('../lib/db');
+
+const resets = {
+  insert: db.prepare('INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'),
+  get: db.prepare('SELECT * FROM password_resets WHERE token_hash = ?'),
+  // Using one link invalidates every outstanding link for that account.
+  use: db.prepare('UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL')
+};
+
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 function register(router) {
   router.get('/api/v1/auth/config', (req, res) => {
@@ -51,6 +63,55 @@ function register(router) {
     security.audit('login_2fa', { userId: user.id, req });
     const { token } = A.createSession(user.id, req);
     sendJson(res, 200, { user: A.publicUser(A.uq.byId.get(user.id)), next }, { 'Set-Cookie': A.sessionCookie(token) });
+  });
+
+  /* ------------------------------------------------------ password reset */
+
+  router.post('/api/v1/auth/forgot', async (req, res) => {
+    const body = await readJson(req);
+    const email = String(body.email || '').trim().toLowerCase().slice(0, 254);
+    security.rateLimit(`forgot:ip:${security.clientIp(req)}`, 10, 60 * 60 * 1000, 'Too many reset requests. Please try again later.');
+    security.rateLimit(`forgot:email:${email}`, 3, 60 * 60 * 1000, 'Too many reset requests. Please try again later.');
+
+    const user = A.uq.byEmail.get(email);
+    if (user) {
+      const token = crypto.randomBytes(32).toString('base64url');
+      resets.insert.run(A.sha256(token), user.id, Date.now(), Date.now() + 30 * 60 * 1000);
+      const link = `${config.publicOrigin}/reset?token=${token}`;
+      await mailer.send({
+        to: user.email,
+        subject: 'Reset your Sentinel password',
+        text: `Hi ${user.first_name},\n\nUse this link to choose a new Sentinel password. It expires in 30 minutes and works once:\n\n${link}\n\nIf you didn't ask for this, you can ignore this email - your password hasn't changed.`,
+        html: mailer.layout('Reset your password', `<p style="color:#b9b6ae;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(user.first_name)}, use the button below to choose a new password. The link expires in 30 minutes and works once.</p>
+          <a href="${link}" style="display:inline-block;background:#d4ae63;color:#16130b;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:11px">Choose a new password</a>
+          <p style="color:#86847e;font-size:13px;line-height:1.6;margin:24px 0 0">Didn't ask for this? Ignore this email &mdash; your password hasn't changed.</p>`)
+      });
+      security.audit('password_reset_requested', { userId: user.id, req });
+    } else {
+      // Spend similar time either way so the response can't reveal which emails have accounts.
+      await new Promise((r) => setTimeout(r, 120 + Math.random() * 120));
+    }
+    sendJson(res, 200, { ok: true, message: 'If an account exists for that email, a reset link is on its way.' });
+  });
+
+  router.post('/api/v1/auth/reset', async (req, res) => {
+    const body = await readJson(req);
+    security.rateLimit(`reset:${security.clientIp(req)}`, 20, 60 * 60 * 1000);
+    const row = resets.get.get(A.sha256(String(body.token || '')));
+    if (!row || row.used_at || row.expires_at < Date.now()) {
+      throw new HttpError(400, 'reset_invalid', 'This reset link has expired or was already used. Request a new one.');
+    }
+    const user = A.uq.byId.get(row.user_id);
+    if (!user) throw new HttpError(400, 'reset_invalid', 'This reset link is no longer valid.');
+    const problem = security.passwordProblem(body.password, { email: user.email, firstName: user.first_name });
+    if (problem) throw new HttpError(400, 'validation_failed', problem, { errors: { password: problem } });
+
+    A.uq.setPassword.run(await A.hashPassword(String(body.password)), user.id);
+    resets.use.run(Date.now(), user.id);
+    A.sq.delAllForUser.run(user.id);
+    A.uq.touch.run(user.last_login_at || Date.now(), user.id);   // clears any lockout
+    security.audit('password_reset', { userId: user.id, req });
+    sendJson(res, 200, { ok: true });
   });
 
   router.post('/api/v1/auth/logout', (req, res) => {

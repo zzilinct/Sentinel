@@ -205,7 +205,9 @@ function serveStatic(root, urlPath, req, res, status = 200) {
 
   const ext = path.extname(file).toLowerCase();
   const stat = fs.statSync(file);
-  const longCache = /^(assets|downloads)[\\/]/.test(relative) && !/sw\.js$/.test(relative);
+  // Fonts, images and downloads never change under the same name; styles and
+  // scripts do, so they always revalidate (a cheap 304 when unchanged).
+  const longCache = /^(assets|downloads)[\\/]/.test(relative) && !['.css', '.js', '.html', '.json'].includes(path.extname(file).toLowerCase());
   const headers = {
     'Content-Type': MIME[ext] || 'application/octet-stream',
     'Cache-Control': longCache ? 'public, max-age=86400' : 'no-cache',
@@ -245,4 +247,4 @@ function parseUrl(req) {
   return new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 }
 
-module.exports = { Router, parseCookies, serializeCookie, readBody, readJson, HttpError, send, sendJson, serveStatic, parseUrl, MIME };
+module.exports = { Router, parseCookies, serializeCookie, readBody, readJson, HttpError, send, sendJson, serveStatic, parseUrl };

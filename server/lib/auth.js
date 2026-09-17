@@ -328,11 +328,11 @@ async function upsertGoogleUser(claims) {
 }
 
 module.exports = {
-  COOKIE, uq, sq,
+  uq, sq,
   id, hashPassword, verifyPassword, sha256,
   encryptSecret, decryptSecret,
   validateSignup, createUser, publicUser, checkPassword,
   createChallenge, completeChallenge,
   createSession, sessionCookie, clearCookie, currentUser, requireUser, destroySession,
-  googleAuthUrl, googleExchange, upsertGoogleUser, googleRedirectUri, safeNext
+  googleAuthUrl, googleExchange, upsertGoogleUser, safeNext
 };

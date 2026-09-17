@@ -12,6 +12,9 @@ db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA synchronous = NORMAL;');
 db.exec('PRAGMA foreign_keys = ON;');
 db.exec('PRAGMA busy_timeout = 5000;');
+db.exec('PRAGMA temp_store = MEMORY;');
+db.exec('PRAGMA cache_size = -32000;');      // ~32 MB page cache for the feed tables
+db.exec('PRAGMA mmap_size = 268435456;');    // map up to 256 MB for faster reads
 
 const MIGRATIONS = [
   // 1 - original schema
@@ -140,6 +143,19 @@ const MIGRATIONS = [
   ALTER TABLE users ADD COLUMN totp_last_counter INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE sessions ADD COLUMN ip TEXT;
   ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER;
+  `,
+
+  // 4 - password resets; indexes that keep feed refreshes and token upkeep fast
+  `
+  CREATE TABLE password_resets (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER
+  );
+  CREATE INDEX idx_resets_user ON password_resets(user_id);
+  CREATE INDEX idx_feed_hosts_source ON feed_hosts(source, added_at);
+  CREATE INDEX idx_feed_urls_source ON feed_urls(source, added_at);
+  CREATE INDEX idx_scam_tokens_host ON scam_tokens(host);
   `
 ];
 
@@ -161,25 +177,13 @@ migrate();
 
 function now() { return Date.now(); }
 
-/** Run `fn` inside a transaction. */
-function transaction(fn) {
-  db.exec('BEGIN');
-  try {
-    const out = fn();
-    db.exec('COMMIT');
-    return out;
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
-}
-
 /** Drop expired rows. Cheap enough to run hourly. */
 function sweep() {
   const t = now();
   const day = 24 * 60 * 60 * 1000;
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(t);
   db.prepare('DELETE FROM oauth_states WHERE created_at < ?').run(t - 10 * 60 * 1000);
+  db.prepare('DELETE FROM password_resets WHERE expires_at < ?').run(t - day);
   db.prepare('DELETE FROM research_cache WHERE checked_at < ?').run(t - 3 * day);
   db.prepare('DELETE FROM live_minutes WHERE minute < ?').run(Math.floor((t - 21 * day) / 60000));
   db.prepare('DELETE FROM usage_counters WHERE week < ?').run(t - 35 * day);
@@ -187,4 +191,4 @@ function sweep() {
   db.prepare('DELETE FROM audit_log WHERE created_at < ?').run(t - 180 * day);
 }
 
-module.exports = { db, now, sweep, transaction };
+module.exports = { db, now, sweep };

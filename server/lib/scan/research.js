@@ -20,7 +20,6 @@ const inflight = new Map();
 // Test suite only: canned registration / DNS facts per host (never used outside NODE_ENV=test).
 const testFacts = new Map();
 function setTestFacts(host, facts) { if (config.isTest) testFacts.set(host, facts); }
-function clearTestFacts() { testFacts.clear(); }
 
 const q = {
   get: db.prepare('SELECT payload, checked_at FROM research_cache WHERE host = ?'),
@@ -177,4 +176,4 @@ function slimPage(page) {
   return { ...page, text: page.text.slice(0, 60000), htmlLower: page.htmlLower.slice(0, 200000) };
 }
 
-module.exports = { research, rdap, dnsFacts, fetchPage, setTestFacts, clearTestFacts };
+module.exports = { research, setTestFacts };
