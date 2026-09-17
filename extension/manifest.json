@@ -16,7 +16,7 @@
   ],
   "host_permissions": [
     "https://www.usesentinel.technology/*",
-    "http://localhost:8787/*",
+    "http://127.0.0.1:47821/*",
     "<all_urls>"
   ],
   "background": {
@@ -27,8 +27,7 @@
     {
       "matches": [
         "https://www.usesentinel.technology/connect*",
-        "http://localhost:8787/connect*",
-        "http://127.0.0.1:8787/connect*"
+        "http://127.0.0.1:47821/connect*"
       ],
       "js": [
         "src/content/connect.js"
@@ -116,7 +115,7 @@
   "externally_connectable": {
     "matches": [
       "https://www.usesentinel.technology/*",
-      "http://localhost:8787/*"
+      "http://127.0.0.1:47821/*"
     ]
   },
   "content_security_policy": {

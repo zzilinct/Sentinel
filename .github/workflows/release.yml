@@ -1,0 +1,62 @@
+# Builds the desktop installer and the browser companion, and publishes them
+# as a GitHub Release. GitHub's own token does the upload, so no personal
+# credentials are involved.
+#
+# To ship a version:   git tag v1.2.0 && git push origin v1.2.0
+#
+# The website's download button points at the stable asset names below, so
+# it always serves the newest release without being edited.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      # The server and site are bundled into the app; make sure they pass first.
+      - run: npm test
+
+      - name: Build the browser companion
+        run: node scripts/build-extension.js --production
+
+      - name: Build the Windows installer
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run dist:win
+
+      - name: Name the stable download assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          $exe = Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1
+          Copy-Item $exe.FullName release/$($exe.Name)
+          Copy-Item $exe.FullName release/Sentinel-Setup.exe
+          Copy-Item web/downloads/sentinel-companion-latest.zip release/sentinel-companion.zip
+          Get-FileHash release/*.exe, release/*.zip -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content release/SHA256SUMS.txt
+          Get-Content release/SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          body: |
+            **Sentinel for Windows.** Runs the whole product on your own computer: accounts, scanning and threat feeds, with nothing hosted anywhere.
+
+            The installer is not code-signed yet, so Windows SmartScreen will warn on first run. Choose *More info* then *Run anyway*, or verify the file against `SHA256SUMS.txt` first.
+
+            `sentinel-companion.zip` is the browser companion (Chrome, Edge, Brave). Load it from the app's Live protection page.

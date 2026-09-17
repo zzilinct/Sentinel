@@ -16,7 +16,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "img-src 'self' data: https://lh3.googleusercontent.com",
-  "connect-src 'self'",
+  "connect-src 'self' https://api.github.com",
   "media-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",

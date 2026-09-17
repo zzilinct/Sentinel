@@ -96,6 +96,9 @@ function rewriteLinks(html, origin, launched) {
  * in, so the static site shows genuine verdicts rather than invented ones.
  */
 async function demoSnapshot() {
+  // The examples promise known-threat verdicts, so seed the confirmed list the
+  // server would have; otherwise the output depends on the build machine's data.
+  require('../server/seed').run({ quiet: true });
   const demo = require('../server/routes/demo.routes');
   if (typeof demo.buildExamples !== 'function') return null;
   const data = await demo.buildExamples();

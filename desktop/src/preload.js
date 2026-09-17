@@ -19,5 +19,9 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
     const listener = (_event, item) => callback(item);
     ipcRenderer.on('sentinel:download-threat', listener);
     return () => ipcRenderer.removeListener('sentinel:download-threat', listener);
-  }
+  },
+  // Answered only for the app's own error page; the main process checks the caller.
+  retryServer: () => ipcRenderer.invoke('sentinel:retry-server'),
+  openLogs: () => ipcRenderer.invoke('sentinel:open-logs'),
+  quit: () => ipcRenderer.invoke('sentinel:quit')
 });

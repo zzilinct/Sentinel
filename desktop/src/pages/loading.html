@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<title>Sentinel</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #0c0d10; color: #e9e6df; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: grid; place-items: center; }
+  .box { text-align: center; }
+  .mark { width: 64px; height: 64px; margin: 0 auto 18px; color: #d6b25a; }
+  .mark svg { width: 100%; height: 100%; }
+  h1 { margin: 0; font-size: 18px; font-weight: 500; letter-spacing: -.01em; }
+  p { margin: 6px 0 0; color: #8d8a82; font-size: 13.5px; }
+  .bar { width: 160px; height: 3px; margin: 22px auto 0; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .bar i { display: block; width: 40%; height: 100%; background: #d6b25a; animation: slide 1.2s ease-in-out infinite; }
+  @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+  @media (prefers-reduced-motion: reduce) { .bar i { animation: none; width: 100%; opacity: .5; } }
+</style>
+</head>
+<body>
+  <div class="box" role="status" aria-live="polite">
+    <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 2.6 57.4 10v18.6c0 14.6-9.9 24.6-25.4 31.4C16.5 53.2 6.6 43.2 6.6 28.6V10Zm0 4.2L10.6 13v15.6c0 12.2 8 20.7 21.4 26.8 13.4-6.1 21.4-14.6 21.4-26.8V13Z"/><g transform="translate(32 30.5) scale(.70) translate(-32 -30.5)"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/></g></svg></div>
+    <h1>Starting Sentinel</h1>
+    <p>Bringing the scanner up on this computer.</p>
+    <div class="bar" aria-hidden="true"><i></i></div>
+  </div>
+</body>
+</html>

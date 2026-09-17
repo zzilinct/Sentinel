@@ -190,6 +190,18 @@ async function onNavigate(details) {
 
 /* --------------------------------------------------------------- messages */
 
+
+/**
+ * Origins this build recognises as Sentinel, taken from the manifest so the
+ * list is exactly what the build was granted (the production build strips the
+ * dev server from it).
+ */
+function sentinelOrigins() {
+  const manifest = chrome.runtime.getManifest();
+  const patterns = (manifest.externally_connectable && manifest.externally_connectable.matches) || [];
+  return new Set(patterns.map((p) => new URL(p.replace(/\*$/, '')).origin));
+}
+
 const handlers = {
   async state() {
     const settings = await getSettings();
@@ -198,12 +210,16 @@ const handlers = {
   },
   async connect() { return { account: await connect() }; },
   async 'set-token'({ token }, sender) {
-    // Only accept tokens relayed from Sentinel's own site.
-    const { apiBase } = await getSettings();
+    // Only accept tokens relayed from a Sentinel this build trusts: the hosted
+    // site, the desktop app's embedded server, or (dev builds only) the dev server.
     const from = sender.tab && sender.tab.url ? new URL(sender.tab.url).origin : null;
-    if (from !== new URL(apiBase).origin || typeof token !== 'string' || token.length > 200) {
+    if (!from || !sentinelOrigins().has(from) || typeof token !== 'string' || token.length > 200) {
       throw new ApiError('Not allowed', 403, 'forbidden');
     }
+    // Follow whichever Sentinel paired us, so pairing from the desktop app
+    // makes the companion talk to that app's own server.
+    const { apiBase } = await getSettings();
+    if (apiBase !== from) await chrome.storage.sync.set({ apiBase: from });
     await setToken(token);
     cache.clear();
     await refreshAccount(true);

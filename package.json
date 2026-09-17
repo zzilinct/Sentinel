@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test tests/detection.test.js tests/api.test.js tests/security.test.js",
+    "test": "node --test tests/detection.test.js tests/api.test.js tests/security.test.js tests/static.test.js",
     "evaluate": "node scripts/evaluate.js --research-safe",
     "feeds": "node scripts/admin.js refresh-feeds",
     "admin": "node scripts/admin.js",

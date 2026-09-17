@@ -1,26 +1,27 @@
-/* Download page: show real installer details, or fall back gracefully if none is published. */
+/* Download page: real release details from GitHub, or an honest "not published yet". */
 (() => {
   'use strict';
-  fetch('/downloads/latest.json', { cache: 'no-cache' })
+  const button = document.querySelector('[data-installer]');
+  const meta = document.querySelector('[data-installer-meta]');
+  if (!button || !meta) return;
+
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const mb = (n) => `${(n / 1048576).toFixed(0)} MB`;
+
+  fetch(`https://api.github.com/repos/${button.dataset.releases}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } })
     .then((r) => (r.ok ? r.json() : null))
-    .then((info) => {
-      const button = document.querySelector('[data-installer]');
-      const meta = document.querySelector('[data-installer-meta]');
-      if (!button || !meta) return;
-      if (info && info.desktop) {
-        button.href = info.desktop.download;
-        meta.innerHTML = `<span>Version ${info.desktop.version}</span><span>${(info.desktop.size / 1048576).toFixed(0)} MB</span><span>Windows 10 &amp; 11, 64-bit</span>`;
-      } else if (window.SENTINEL_STATIC) {
-        // No server to send people to yet: say so rather than link nowhere.
-        button.removeAttribute('href');
-        button.removeAttribute('download');
-        button.classList.add('is-soon');
-        button.lastChild.textContent = ' Windows app coming at launch';
-      } else {
-        button.href = '/app';
-        button.removeAttribute('download');
-        button.lastChild.textContent = ' Windows app coming soon — open the web app';
+    .then((release) => {
+      const asset = release && (release.assets || []).find((a) => a.name === 'Sentinel-Setup.exe');
+      if (asset) {
+        meta.innerHTML = `<span>Version ${esc(String(release.tag_name).replace(/^v/, ''))}</span><span>${mb(asset.size)}</span><span>Windows 10 &amp; 11, 64-bit</span>`;
+        return;
       }
+      // No release yet: say so rather than hand out a link that 404s.
+      button.removeAttribute('href');
+      button.classList.add('is-soon');
+      button.setAttribute('aria-disabled', 'true');
+      button.lastChild.textContent = ' Windows build not published yet';
+      meta.innerHTML = '<span>The first release is being prepared</span>';
     })
-    .catch(() => {});
+    .catch(() => { /* offline or rate-limited: the link still reaches the latest release */ });
 })();

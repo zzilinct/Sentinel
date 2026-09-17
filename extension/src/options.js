@@ -28,7 +28,7 @@
         if (key === 'apiBase') {
           try {
             const u = new URL(value);
-            if (u.protocol !== 'https:' && u.hostname !== 'localhost') throw new Error('https required');
+            if (u.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(u.hostname)) throw new Error('https required');
             value = u.origin;
           } catch {
             saved.style.color = 'var(--red)';

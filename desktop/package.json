@@ -1,8 +1,8 @@
 {
   "name": "sentinel-desktop",
   "productName": "Sentinel",
-  "version": "1.0.0",
-  "description": "Sentinel - real-time scam, virus and malware protection",
+  "version": "1.1.0",
+  "description": "Sentinel - scam, virus and malware protection that runs on your own computer",
   "main": "src/main.js",
   "author": "Sentinel",
   "license": "UNLICENSED",
@@ -22,12 +22,38 @@
   "build": {
     "appId": "com.usesentinel.desktop",
     "productName": "Sentinel",
-    "copyright": "Copyright © 2026 Sentinel",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["src/**/*", "shared/**/*", "assets/**/*", "package.json"],
-    "extraResources": [{ "from": "../extension", "to": "companion", "filter": ["**/*"] }],
+    "copyright": "Copyright \u00a9 2026 Sentinel",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "shared/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../extension",
+        "to": "companion",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "bundle",
+        "to": "sentinel",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "artifactName": "Sentinel-Setup-${version}.${ext}",
-    "win": { "target": "nsis", "icon": "assets/icon.png" },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -37,7 +63,15 @@
       "shortcutName": "Sentinel",
       "runAfterFinish": true
     },
-    "mac": { "target": "dmg", "icon": "assets/icon.png", "category": "public.app-category.utilities" },
-    "linux": { "target": "AppImage", "icon": "assets/icon.png", "category": "Utility" }
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.png",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png",
+      "category": "Utility"
+    }
   }
 }

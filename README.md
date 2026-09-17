@@ -69,21 +69,38 @@ npm run evaluate
 
 `npm run evaluate` measures detection on today's live phishing feed and false alarms on 127 popular sites. At last run: **0 false alarms** on the 127 sites checklist-only, **0/32** with live research, and **0/381** pages with all live feeds loaded; **35%** of never-before-seen live phishing URLs were flagged by the checklist alone, and feed-listed ones are confirmed red.
 
-## Build the app and companion
+## The desktop app
 
-```bash
-npm run build
-```
+The app ships the whole Sentinel server inside it and runs it privately on
+`127.0.0.1:47821` when it starts. Accounts, scanning, threat feeds and history
+all work on a computer with nothing hosted anywhere; the database and logs live
+in the user's app-data folder (`%APPDATA%\Sentinel` on Windows). Set
+`SENTINEL_ORIGIN=https://your-sentinel.example` before launching to use a hosted
+Sentinel instead, and `npm run dev` in `desktop/` to use the dev server.
+
+Pre-launch builds run billing in demo mode so every plan can be exercised.
 
 ```bash
 cd desktop && npm install && npm run dist:win
 ```
 
+That produces `desktop/dist/Sentinel-Setup-<version>.exe`, with the server,
+site and browser companion bundled in.
+
+## Releases
+
+Downloads come from GitHub Releases, built by `.github/workflows/release.yml`
+with GitHub's own token. To ship a version, bump `desktop/package.json` and:
+
 ```bash
-node scripts/publish-desktop.js
+git tag v1.2.0 && git push origin v1.2.0
 ```
 
-The installer is copied to `web/downloads/` and the download page picks it up automatically.
+The workflow runs the tests, builds the installer and the companion, and
+publishes `Sentinel-Setup.exe`, `sentinel-companion.zip` and `SHA256SUMS.txt`.
+The download page always links to the latest release and shows its real
+version and size from the GitHub API. The installer is not code-signed, so
+Windows SmartScreen warns on first run until a signing certificate is bought.
 
 ## The static site
 

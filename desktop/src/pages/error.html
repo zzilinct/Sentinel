@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Sentinel</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #0c0d10; color: #e9e6df; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: grid; place-items: center; }
+  .box { max-width: 460px; padding: 0 24px; text-align: center; }
+  .mark { width: 56px; height: 56px; margin: 0 auto 18px; color: #e5484d; }
+  .mark svg { width: 100%; height: 100%; }
+  h1 { margin: 0; font-size: 19px; font-weight: 500; letter-spacing: -.01em; }
+  p { margin: 8px 0 0; color: #a9a59b; font-size: 14px; }
+  code { display: block; margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; background: #15171b; color: #c9c5bb; font: 12.5px/1.5 ui-monospace, Consolas, monospace; text-align: left; white-space: pre-wrap; word-break: break-word; }
+  .row { display: flex; gap: 10px; justify-content: center; margin-top: 22px; }
+  button { height: 40px; padding: 0 18px; border: 0; border-radius: 8px; cursor: pointer; font: 500 14px system-ui, sans-serif; color: #e9e6df; background: #1e2126; }
+  button.primary { color: #16130b; background: #d6b25a; }
+  button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }
+  small { display: block; margin-top: 16px; color: #6f6c65; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="box" role="alert">
+    <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 2.6 57.4 10v18.6c0 14.6-9.9 24.6-25.4 31.4C16.5 53.2 6.6 43.2 6.6 28.6V10Zm0 4.2L10.6 13v15.6c0 12.2 8 20.7 21.4 26.8 13.4-6.1 21.4-14.6 21.4-26.8V13Z"/><path fill="currentColor" d="M30 18h4v18h-4zM30 40h4v4h-4z"/></svg></div>
+    <h1>Sentinel couldn't start its scanner</h1>
+    <p id="msg">The built-in server didn't come up.</p>
+    <code id="log"></code>
+    <div class="row">
+      <button class="primary" id="retry">Try again</button>
+      <button id="logs">Open log</button>
+      <button id="quit">Quit</button>
+    </div>
+    <small>If this keeps happening, send the log file to the Sentinel team.</small>
+  </div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    document.getElementById('msg').textContent = q.get('message') || document.getElementById('msg').textContent;
+    document.getElementById('log').textContent = 'Log: ' + (q.get('log') || '');
+    const d = window.sentinelDesktop || {};
+    document.getElementById('retry').addEventListener('click', () => d.retryServer && d.retryServer());
+    document.getElementById('logs').addEventListener('click', () => d.openLogs && d.openLogs());
+    document.getElementById('quit').addEventListener('click', () => d.quit && d.quit());
+  </script>
+</body>
+</html>

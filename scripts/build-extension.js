@@ -36,10 +36,12 @@ manifest.externally_connectable.matches = [originPattern, ...manifest.externally
 const connect = manifest.content_scripts.find((c) => c.js.includes('src/content/connect.js'));
 if (connect) connect.matches = [`${brand.origin}/connect*`, ...connect.matches.filter((h) => !h.startsWith('https://'))];
 if (process.argv.includes('--production')) {
-  if (connect) connect.matches = connect.matches.filter((h) => !h.includes('localhost') && !h.includes('127.0.0.1'));
-  // Store builds must not talk to a developer's localhost.
-  manifest.host_permissions = manifest.host_permissions.filter((h) => !h.includes('localhost'));
-  manifest.externally_connectable.matches = manifest.externally_connectable.matches.filter((h) => !h.includes('localhost'));
+  // Store builds must not talk to a developer's dev server. The loopback port
+  // the desktop app's embedded server uses (47821) is part of the product and stays.
+  const dev = (h) => /localhost:8787|127\.0\.0\.1:8787/.test(h);
+  if (connect) connect.matches = connect.matches.filter((h) => !dev(h));
+  manifest.host_permissions = manifest.host_permissions.filter((h) => !dev(h));
+  manifest.externally_connectable.matches = manifest.externally_connectable.matches.filter((h) => !dev(h));
 }
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 
@@ -154,18 +156,6 @@ const versioned = path.join(OUT_DIR, `sentinel-companion-${manifest.version}.zip
 const latest = path.join(OUT_DIR, 'sentinel-companion-latest.zip');
 fs.writeFileSync(versioned, zip);
 fs.writeFileSync(latest, zip);
-
-const latestPath = path.join(OUT_DIR, 'latest.json');
-const previous = fs.existsSync(latestPath) ? JSON.parse(fs.readFileSync(latestPath, 'utf8')) : {};
-fs.writeFileSync(latestPath, JSON.stringify({
-  ...previous,
-  name: manifest.name,
-  version: manifest.version,
-  size: zip.length,
-  files: files.length,
-  builtAt: new Date().toISOString(),
-  download: '/downloads/sentinel-companion-latest.zip'
-}, null, 2) + '\n');
 
 console.log(`  packed ${files.length} files -> ${(zip.length / 1024).toFixed(1)} KB`);
 console.log(`  ${path.relative(ROOT, versioned)}`);
