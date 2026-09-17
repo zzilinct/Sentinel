@@ -332,10 +332,16 @@
   }
 
   function masksFor(item) {
+    let kinds = {};
+    try { kinds = item.kinds ? JSON.parse(item.kinds) : {}; } catch { kinds = {}; }
     return ['scam', 'virus', 'malware'].map((t) => {
       const level = item[t];
       const badge = { suspicious: 'yellow', likely: 'orange', confirmed: 'red' }[level];
-      return badge ? `<span class="m m--${badge}" title="${esc(Masks.NAMES[t])}: ${esc(level)}">${Masks.svg(t)}</span>` : '';
+      if (!badge) return '';
+      const kind = kinds[t];
+      const name = kind ? kind.replace(/_/g, ' ') : '';
+      return `<span class="m m--${badge}" title="${esc(Masks.NAMES[t])}: ${esc(level)}${kind ? ` (${esc(name)})` : ''}">${Masks.svg(t)}</span>`
+        + (kind ? `<span class="kind-icon" style="--c:${Masks.COLORS[badge]}" title="${esc(name)}">${Masks.kindIcon(kind)}</span>` : '');
     }).join('');
   }
 

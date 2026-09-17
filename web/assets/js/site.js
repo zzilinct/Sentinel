@@ -20,6 +20,7 @@
   /* ------------------------------------------------------------- glyphs */
 
   $$('[data-glyph]').forEach((el) => { if (!el.firstElementChild) el.innerHTML = Masks.svg(el.dataset.glyph); });
+  $$('[data-kind]').forEach((el) => { if (!el.firstElementChild) el.innerHTML = Masks.kindIcon(el.dataset.kind); });
 
   /* ---------------------------------------------------------------- nav */
 

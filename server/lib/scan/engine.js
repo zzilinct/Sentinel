@@ -21,6 +21,7 @@ const compare = require('./compare');
 const researchMod = require('./research');
 const { runChecklist } = require('./checklist');
 const { analyze, brandInfo, hostWords } = require('./url');
+const kinds = require('./kinds');
 const { scanFile, MAX_FILE_BYTES } = require('./filescan');
 const { analyzeEmail } = require('./email');
 
@@ -36,7 +37,7 @@ const SEVERITY = { safe: 0, caution: 1, suspicious: 2, likely: 3, confirmed: 4 }
 
 const q = {
   override: db.prepare('SELECT action FROM overrides WHERE user_id = ? AND (host = ? OR host = ?)'),
-  history: db.prepare('INSERT INTO scan_history (user_id, kind, target, mode, scam, virus, malware, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+  history: db.prepare('INSERT INTO scan_history (user_id, kind, target, mode, scam, virus, malware, created_at, kinds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
 };
 
 /* ----------------------------------------------------------- core cache */
@@ -169,6 +170,9 @@ async function coreScan(p, { research }) {
     if (fileReport) for (const t of ['virus', 'malware']) if (fileReport.evidence[t] && !evidence[t]) evidence[t] = fileReport.evidence[t];
 
     const { threats, discountApplied } = score(checks, know, evidence);
+    // What sort of threat the evidence points at, for the label and the icon.
+    const kindOf = kinds.classify({ checks, know, comparison: { kits: ctx.contentCompare.kits }, threats });
+    for (const t of THREATS) Object.assign(threats[t], kinds.describe(kindOf[t]));
 
     // Learn confirmed scam pages so copies elsewhere match next time.
     if (threats.scam.level === 'confirmed' && ctx.contentCompare.fingerprint) {
@@ -250,7 +254,7 @@ function shape(core, { threats: visible, userId, mode, detail = 'full', planId }
   if (override === 'allow') {
     threats = Object.fromEntries(THREATS.map((t) => [t, threats[t] && { level: 'safe', badge: null, label: 'Trusted by you', score: 0, evidence: null }]));
   } else if (override === 'block' && threats.scam) {
-    threats.scam = { level: 'confirmed', badge: 'red', label: 'Blocked by you', score: 100, evidence: 'You blocked this site' };
+    threats.scam = { level: 'confirmed', badge: 'red', label: 'Blocked by you', score: 100, evidence: 'You blocked this site', ...kinds.describe('blocked') };
   }
 
   const shownChecks = core.checks.filter((c) => visible.includes(c.threat));
@@ -396,6 +400,8 @@ function scanUpload(buffer, name, opts = {}) {
   const known = Boolean(report.evidence.virus || report.evidence.malware);
   const { threats } = score(checks, { known, matches: known ? [{}] : [] }, { scam: null, ...report.evidence });
   delete threats.scam;
+  const kindOf = kinds.classifyFile(report, threats);
+  for (const t of ['virus', 'malware']) Object.assign(threats[t], kinds.describe(kindOf[t]));
   const worst = [threats.virus, threats.malware].sort((a, b) => SEVERITY[b.level] - SEVERITY[a.level])[0];
   if (opts.record && opts.userId) record(opts.userId, 'file', name, 'manual', { scam: null, ...threats });
   return {
@@ -419,7 +425,8 @@ function scanUpload(buffer, name, opts = {}) {
 
 function record(userId, kind, target, mode, threats) {
   const lvl = (t) => (threats[t] ? threats[t].level : null);
-  try { q.history.run(userId, kind, String(target).slice(0, 500), mode, lvl('scam'), lvl('virus'), lvl('malware'), now()); } catch { /* history is best-effort */ }
+  const kindsJson = JSON.stringify(Object.fromEntries(['scam', 'virus', 'malware'].filter((t) => threats[t] && threats[t].kind).map((t) => [t, threats[t].kind])));
+  try { q.history.run(userId, kind, String(target).slice(0, 500), mode, lvl('scam'), lvl('virus'), lvl('malware'), now(), kindsJson === '{}' ? null : kindsJson); } catch { /* history is best-effort */ }
 }
 
 module.exports = { scanUrl, scanUrls, scanEmail, scanUpload, invalidate };

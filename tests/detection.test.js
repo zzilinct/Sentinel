@@ -303,3 +303,30 @@ test('no checklist rule crashes on unusual addresses, with or without research',
     }
   }
 });
+
+test('threat kinds: results name the specific trick from the evidence, never without it', async () => {
+  const kinds = require('../server/lib/scan/kinds');
+  const cases = [
+    ['https://paypa1-secure-login.com/account', 'scam', 'phishing'],
+    ['https://usps-redelivery-fee.sbs/pay', 'scam', 'delivery'],
+    ['https://crypto-doubler-elon.live/', 'scam', 'crypto'],
+    ['https://cdn-share.site/Invoice_March.pdf.exe', 'virus', 'disguised'],
+    ['https://chrome-update-required.top/', 'malware', 'known'],
+    ['http://update-check.ddns.net:8443/i.sh', 'malware', 'drop']
+  ];
+  for (const [url, threat, kind] of cases) {
+    const v = await engine.scanUrl(url, { threats: ['scam', 'virus', 'malware'], research: false });
+    assert.equal(v.threats[threat].kind, kind, `${url} ${threat}`);
+    assert.equal(v.threats[threat].kindLabel, kinds.KINDS[kind].label);
+  }
+  // Every kind an engine can produce has an icon, and every icon has a kind.
+  const masks = require('../web/assets/js/masks.js');
+  const icons = Object.keys(globalThis.SentinelMasks.KIND_GLYPHS);
+  for (const id of Object.keys(kinds.KINDS)) assert.ok(icons.includes(id), `no icon for kind ${id}`);
+  for (const id of icons) assert.ok(kinds.KINDS[id], `icon ${id} has no kind`);
+  void masks;
+  // A clean site carries no kind at all.
+  const clean = await engine.scanUrl('https://www.wikipedia.org/', { threats: ['scam', 'virus', 'malware'], research: false });
+  assert.equal(clean.threats.scam.kind, null);
+  assert.equal(clean.threats.scam.kindLabel, null);
+});

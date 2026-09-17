@@ -55,5 +55,48 @@
     }
   }
 
-  root.SentinelMasks = { svg: svg, paint: paint, GLYPHS: GLYPHS, COLORS: COLORS, NAMES: NAMES };
+  /* ------------------------------------------------------------- kinds */
+
+  // One line icon per threat kind, so a result reads at a glance without the
+  // label: what it is, not just how bad. 24-unit grid, stroke only, so they
+  // sit beside text at any size in any colour.
+  var K = function (d) { return '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</g>'; };
+  var KIND_GLYPHS = {
+    // scam
+    phishing:      K('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/><path d="m3 3 18 18"/>'),
+    crypto:        K('<path d="M12 2.5 20 7v10l-8 4.5L4 17V7Z"/><path d="M9 9h4.5a2 2 0 0 1 0 4H9m0 0h5a2 2 0 0 1 0 4H9M11 7v2m0 8v2"/>'),
+    delivery:      K('<path d="M12 3 20 7.5v9L12 21l-8-4.5v-9Z"/><path d="M4 7.5 12 12l8-4.5M12 12v9M8 5.3l8 4.5"/>'),
+    support:       K('<path d="M4 13a8 8 0 0 1 16 0"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/><path d="M19 19v1a2 2 0 0 1-2 2h-3"/>'),
+    prize:         K('<rect x="3" y="9" width="18" height="4" rx="1"/><path d="M5 13v8h14v-8M12 9v12M12 9c-2-4-6-4-6-1s4 1 6 1Zm0 0c2-4 6-4 6-1s-4 1-6 1Z"/>'),
+    store:         K('<path d="M3 9 5 4h14l2 5"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-5h4v5"/>'),
+    government:    K('<path d="M3 21h18M4 9h16L12 4Z"/><path d="M6 9v9M10 9v9M14 9v9M18 9v9"/>'),
+    investment:    K('<path d="M3 20h18M4 16l5-5 4 3 7-7"/><path d="M15 7h5v5"/>'),
+    romance:       K('<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10Z"/><path d="m4 4 16 16"/>'),
+    impersonation: K('<circle cx="9" cy="10" r="5"/><path d="M13.5 6.5A5 5 0 1 1 15 15.8"/><path d="M2 21a7 7 0 0 1 14 0M14 21h8a6 6 0 0 0-3-5"/>'),
+    address:       K('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/><path d="M12 2v2M12 20v2"/>'),
+    blocked:       K('<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>'),
+    // virus
+    disguised:     K('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="m9 13 3 3 3-3M12 10v6"/><path d="M9 19h6"/>'),
+    macro:         K('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><circle cx="12" cy="15" r="2.5"/><path d="M12 10.5v1.2M12 18.3v1.2M8.1 12.8l1 .6M14.9 16.6l1 .6M8.1 17.2l1-.6M14.9 13.4l1-.6"/>'),
+    archive:       K('<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M10 4v3h2v2h-2v2h2v2h-2v2h2v2"/>'),
+    program:       K('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M12 11v7m0 0-3-3m3 3 3-3"/>'),
+    sample:        K('<path d="M6 12a6 6 0 0 1 12 0v3"/><path d="M9 12a3 3 0 0 1 6 0v6"/><path d="M12 12v9M4 16a8 8 0 0 0 1 4M20 19a8 8 0 0 0 .5-3"/>'),
+    // malware
+    fake_update:   K('<rect x="3" y="4" width="18" height="15" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/><path d="M12 12v5m0 0-2.5-2.5M12 17l2.5-2.5"/>'),
+    paste_command: K('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12 15h5"/>'),
+    miner:         K('<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 10h4v4h-4Z"/><path d="M4 9h3M4 12h3M4 15h3M17 9h3M17 12h3M17 15h3M9 4v3M12 4v3M15 4v3M9 17v3M12 17v3M15 17v3"/>'),
+    notification:  K('<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4Z"/><path d="M10 21a2 2 0 0 0 4 0"/><path d="M12 2v3"/>'),
+    hidden:        K('<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="m4 4 16 16"/>'),
+    drop:          K('<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/><path d="M17 7v10"/>'),
+    known:         K('<path d="M4 6h10M4 12h10M4 18h7"/><path d="m15 17 2 2 4-5"/>'),
+    stealer:       K('<circle cx="8" cy="13" r="3.5"/><path d="M11.5 13H17M15 13v3"/><path d="M14 4h6v6"/><path d="m20 4-6 6"/>')
+  };
+
+  /** Icon for a threat kind (see server/lib/scan/kinds.js). Unknown kinds get nothing. */
+  function kindIcon(kind, attrs) {
+    if (!KIND_GLYPHS[kind]) return '';
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" ' + (attrs || '') + '>' + KIND_GLYPHS[kind] + '</svg>';
+  }
+
+  root.SentinelMasks = { svg: svg, paint: paint, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

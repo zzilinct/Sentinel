@@ -96,6 +96,7 @@
             <div style="min-width:0">
               <div class="verdict__title" data-v-title>Confirmed scam</div>
               <div class="verdict__host" data-v-host>paypa1-secure-login.com</div>
+              <div class="verdict__kind" data-v-kind hidden></div>
             </div>
           </div>
           <div class="verdict__bars">
@@ -189,6 +190,79 @@
           </div>
         </article>
       </div>
+
+      <div class="kinds" data-reveal>
+        <div class="kinds__head">
+          <h3>What Sentinel tells apart</h3>
+          <p>A mask says which family and how sure Sentinel is. The result also names the specific trick, from the evidence it found, so you know what you are looking at.</p>
+        </div>
+        <div class="kinds__grid">
+        <div class="kind" data-threat="scam">
+          <span class="kind__icon" data-kind="phishing"></span>
+          <div><b>Fake login page</b><p>Asks for a password or card on a site that is not the brand.</p></div>
+        </div>
+        <div class="kind" data-threat="scam">
+          <span class="kind__icon" data-kind="impersonation"></span>
+          <div><b>Brand impersonation</b><p>Borrows a name it does not own, in the address or on the page.</p></div>
+        </div>
+        <div class="kind" data-threat="scam">
+          <span class="kind__icon" data-kind="crypto"></span>
+          <div><b>Crypto wallet drainer</b><p>Wants a recovery phrase, or promises to double what you send.</p></div>
+        </div>
+        <div class="kind" data-threat="scam">
+          <span class="kind__icon" data-kind="delivery"></span>
+          <div><b>Parcel fee lure</b><p>A held package that clears for a small fee and your card details.</p></div>
+        </div>
+        <div class="kind" data-threat="scam">
+          <span class="kind__icon" data-kind="support"></span>
+          <div><b>Tech support scam</b><p>A fake virus alert with a number to call.</p></div>
+        </div>
+        <div class="kind" data-threat="scam">
+          <span class="kind__icon" data-kind="prize"></span>
+          <div><b>Prize or giveaway bait</b><p>You have won something you never entered.</p></div>
+        </div>
+        <div class="kind" data-threat="scam">
+          <span class="kind__icon" data-kind="store"></span>
+          <div><b>Fake online store</b><p>Deep discounts, no refund policy, contact only on WhatsApp.</p></div>
+        </div>
+        <div class="kind" data-threat="scam">
+          <span class="kind__icon" data-kind="government"></span>
+          <div><b>Fake government service</b><p>Tax refunds and fines from a site the government does not run.</p></div>
+        </div>
+        <div class="kind" data-threat="virus">
+          <span class="kind__icon" data-kind="disguised"></span>
+          <div><b>Program disguised as a document</b><p>Invoice.pdf.exe is a program, whatever its icon says.</p></div>
+        </div>
+        <div class="kind" data-threat="virus">
+          <span class="kind__icon" data-kind="macro"></span>
+          <div><b>Macro-enabled document</b><p>A document that runs code the moment you enable editing.</p></div>
+        </div>
+        <div class="kind" data-threat="virus">
+          <span class="kind__icon" data-kind="archive"></span>
+          <div><b>Archive hiding a program</b><p>A zip that opens to an executable.</p></div>
+        </div>
+        <div class="kind" data-threat="virus">
+          <span class="kind__icon" data-kind="program"></span>
+          <div><b>Unexpected program download</b><p>A link or page that pushes an installer at you.</p></div>
+        </div>
+        <div class="kind" data-threat="malware">
+          <span class="kind__icon" data-kind="fake_update"></span>
+          <div><b>Fake browser update</b><p>Your browser is fine. The update is the payload.</p></div>
+        </div>
+        <div class="kind" data-threat="malware">
+          <span class="kind__icon" data-kind="paste_command"></span>
+          <div><b>Paste-this-command lure</b><p>A fake check that asks you to run a command yourself.</p></div>
+        </div>
+        <div class="kind" data-threat="malware">
+          <span class="kind__icon" data-kind="miner"></span>
+          <div><b>Hidden cryptominer</b><p>A page quietly mining with your computer.</p></div>
+        </div>
+        <div class="kind" data-threat="malware">
+          <span class="kind__icon" data-kind="hidden"></span>
+          <div><b>Hidden or obfuscated code</b><p>Invisible frames and scripts that hide what they do.</p></div>
+        </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -268,11 +342,11 @@
           <p>Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more. Masks appear as the page loads&nbsp;&mdash; on Max, each result is researched too.</p>
           <div class="tile__demo demo-list">
             <div class="demo-row" data-why="The real Coinbase: a long-established domain on Sentinel’s verified list, so no mask."><div class="grow"><div class="t">Coinbase — Buy &amp; Sell Bitcoin</div><div class="s">coinbase.com</div></div></div>
-            <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension — Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span></div>
-            <div class="demo-row" data-why="Listed in public phishing feeds. Brand name + “airdrop claim” on a free .tk domain."><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" data-glyph="scam"></span></div>
-            <div class="demo-row" data-why="A direct program download from a throwaway .site domain with no reputation, dressed up as a free tool."><div class="grow"><div class="t">Crypto Price Tracker — Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span></div>
+            <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension — Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="impersonation" title="impersonation"></span></div>
+            <div class="demo-row" data-why="Listed in public phishing feeds. Brand name + “airdrop claim” on a free .tk domain."><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--red)" data-kind="crypto" title="crypto"></span></div>
+            <div class="demo-row" data-why="A direct program download from a throwaway .site domain with no reputation, dressed up as a free tool."><div class="grow"><div class="t">Crypto Price Tracker — Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="program" title="program"></span></div>
             <div class="demo-row" data-why="A subdomain of the verified coinbase.com, so it inherits its trust."><div class="grow"><div class="t">Coinbase Help — Contact Support</div><div class="s">help.coinbase.com</div></div></div>
-            <div class="demo-row" data-why="Crypto exchanges don’t run phone support lines on look-alike domains. Classic support-number scam pattern."><div class="grow"><div class="t">Coinbase Support Number 24/7 — Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="Crypto exchanges don’t run phone support lines on look-alike domains. Classic support-number scam pattern."><div class="grow"><div class="t">Coinbase Support Number 24/7 — Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="support" title="support"></span></div>
             <div class="demo-row" data-why="An established site with a normal history and nothing suspicious on the page."><div class="grow"><div class="t">Crypto Tax Calculator — Free Guide 2026</div><div class="s">koinly.io/guides</div></div></div>
           </div>
           <div class="tile__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Live scanning: 24 hours a week on Pro, 96 on Max</div>
@@ -283,7 +357,7 @@
           <h3>Emails, unmasked</h3>
           <p>Gmail and Outlook get the same masks. Spoofed senders, mismatched links and disguised attachments are marked in the list.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row" data-why="DocuSign never sends from a free Gmail address, and the display name doesn’t match the sender."><div class="file">DS</div><div class="grow"><div class="t">DocuSign — Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="DocuSign never sends from a free Gmail address, and the display name doesn’t match the sender."><div class="file">DS</div><div class="grow"><div class="t">DocuSign — Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="impersonation" title="impersonation"></span></div>
             <div class="demo-row" data-why="Sent from github.com with passing sender authentication."><div class="file">GH</div><div class="grow"><div class="t">GitHub — Your weekly digest</div><div class="s">noreply@github.com</div></div></div>
           </div>
         </article>
@@ -293,8 +367,8 @@
           <h3>Every file, inspected</h3>
           <p>The Sentinel app scans new downloads on your computer. Files never leave your device&nbsp;&mdash; only their fingerprint does.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row" data-why="The real extension is .exe. The “.pdf” is there to trick you into running it."><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" data-glyph="virus"></span></div>
-            <div class="demo-row" data-why=".docm files carry macros that can download and run other programs as soon as you enable editing."><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" data-glyph="malware"></span></div>
+            <div class="demo-row" data-why="The real extension is .exe. The “.pdf” is there to trick you into running it."><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" data-glyph="virus"></span><span class="kind-icon" style="--c:var(--red)" data-kind="disguised" title="disguised"></span></div>
+            <div class="demo-row" data-why=".docm files carry macros that can download and run other programs as soon as you enable editing."><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" data-glyph="malware"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="macro" title="macro"></span></div>
           </div>
         </article>
       </div>

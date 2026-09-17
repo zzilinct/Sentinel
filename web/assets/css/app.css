@@ -485,3 +485,12 @@ select.input option { background: #1b1d22; color: var(--text); }
 .verify-bar b { color: var(--text); font-weight: 500; }
 .shell--guest { grid-template-columns: 1fr; }
 .shell--guest .main { max-width: 1040px; margin: 0 auto; }
+
+/* ------------------------------------------------------- threat kinds */
+
+.result__kind { display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; padding: 5px 10px 5px 8px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--text); background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent); }
+.result__kind svg { width: 16px; height: 16px; color: var(--c); }
+.threat__kind { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--text-2); }
+.threat__kind svg { width: 14px; height: 14px; flex: none; color: var(--c); }
+.kind-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: var(--c, var(--gold-300)); background: color-mix(in srgb, var(--c, var(--gold-300)) 12%, transparent); }
+.kind-icon svg { width: 13px; height: 13px; }

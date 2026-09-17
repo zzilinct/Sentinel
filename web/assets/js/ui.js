@@ -122,7 +122,7 @@ window.UI = (() => {
       malware: { yellow: 'This may contain malware', orange: 'This likely contains malware', red: 'Malware detected' }
     };
     const sub = th.evidence ? th.evidence : th.badge === 'orange' ? 'Many strong warning signs at once. Don’t enter any details.' : 'Some warning signs. Take a careful second look before continuing.';
-    return { title: titles[t][th.badge], sub, tone: th.badge, threat: t };
+    return { title: titles[t][th.badge], sub, tone: th.badge, threat: t, kind: th.kind || null, kindLabel: th.kindLabel || null };
   }
 
   function threatTiles(v, { lockedLabel = 'Pro & up' } = {}) {
@@ -135,6 +135,7 @@ window.UI = (() => {
         <div class="threat__glyph">${Masks.svg(t)}</div>
         <div class="threat__name">${Masks.NAMES[t]}</div>
         <div class="threat__level">${esc(th.badge ? th.label : 'Clear')}</div>
+        ${th.kind ? `<div class="threat__kind">${Masks.kindIcon(th.kind)}<span>${esc(th.kindLabel)}</span></div>` : ''}
         <div class="threat__meter"><i style="width:${Math.max(3, th.score)}%"></i></div>
         <div class="threat__score mono">${th.score}<span>/100</span></div>
       </div>`;
@@ -285,6 +286,7 @@ window.UI = (() => {
         <div class="result__title">
           <h2>${esc(head.title)}</h2>
           <p><span class="mono">${esc(subject)}</span></p>
+          ${head.kind ? `<p class="result__kind">${Masks.kindIcon(head.kind)}<span>${esc(head.kindLabel)}</span></p>` : ''}
           <p class="result__sub">${esc(head.sub)}</p>
         </div>
       </header>

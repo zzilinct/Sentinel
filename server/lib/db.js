@@ -172,6 +172,11 @@ const MIGRATIONS = [
     created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER
   );
   CREATE INDEX idx_verifications_user ON email_verifications(user_id);
+  `,
+
+  // 6 - threat kinds on scan history (JSON: {"scam":"phishing"}), for the icons
+  `
+  ALTER TABLE scan_history ADD COLUMN kinds TEXT;
   `
 ];
 

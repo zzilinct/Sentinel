@@ -74,7 +74,7 @@
         const th = v.threats[t];
         if (!th) return `<div class="threat locked">${Masks.svg(t, 'style="color:#555"')}<b>${Masks.NAMES[t]}</b><span>Pro &amp; up</span></div>`;
         const color = th.badge ? Masks.COLORS[th.badge] : Masks.COLORS.clear;
-        return `<div class="threat" style="color:${color}">${Masks.svg(t)}<b>${esc(th.badge ? th.label : 'Clear')}</b><span>${th.score}/100</span></div>`;
+        return `<div class="threat" style="color:${color}">${Masks.svg(t)}<b>${esc(th.badge ? th.label : 'Clear')}</b><span>${th.kindShort ? `${esc(th.kindShort)} · ` : ''}${th.score}/100</span></div>`;
       }).join('')}</div>
       <ul class="reasons">${(v.reasons || []).slice(0, 3).map((r) => `<li>${esc(r.text)}</li>`).join('') || '<li>No warning signs found</li>'}</ul>
       <p class="small" style="margin:10px 0 12px">${researched} &middot; ${v.checklist.total} checks</p>`;

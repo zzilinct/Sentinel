@@ -63,6 +63,13 @@
       v.icon.classList.toggle('is-orange', badge === 'orange');
       v.title.textContent = badge ? result.overall.label : 'No threats found';
       v.host.textContent = result.host;
+      const kind = worst && result.threats[worst].kind;
+      const kindEl = stage.querySelector('[data-v-kind]');
+      if (kindEl) {
+        kindEl.hidden = !kind;
+        kindEl.innerHTML = kind ? `${Masks.kindIcon(kind)}<span>${esc(result.threats[worst].kindLabel)}</span>` : '';
+        kindEl.style.setProperty('--c', colorOf(badge));
+      }
       for (const t of ORDER) {
         const bar = $(`[data-v-bar="${t}"]`, stage);
         const threat = result.threats[t];
@@ -226,7 +233,7 @@
         <div class="example__url">${esc(ex.url)}</div>
         <div class="example__meter"><div class="bar__track"><div class="bar__fill" style="width:0"></div></div><b>${t.score}/100</b></div>
         <ul class="example__why">${reasons.map((r) => `<li>${esc(r.text)}</li>`).join('')}</ul>
-        <span class="example__tag">${esc(t.label)} · ${ex.known ? 'known threat' : `${ex.checks.failed + ex.checks.warned} of ${ex.checks.total} checks flagged`}</span>`;
+        <span class="example__tag">${t.kind ? `${Masks.kindIcon(t.kind)} ${esc(t.kindShort)} · ` : ''}${esc(t.label)} · ${ex.known ? 'known threat' : `${ex.checks.failed + ex.checks.warned} of ${ex.checks.total} checks flagged`}</span>`;
       // Restart the entrance animation for each switch.
       slot.style.animation = 'none';
       void slot.offsetWidth;
@@ -361,8 +368,9 @@
         if (rank(ANSWERS[k].badge) === rank(truth.badge)) b.classList.add('is-truth');
       });
 
-      const heading = truth.badge
-        ? `${esc(v.threats[truth.threat].label)} <span class="muted" style="font-size:14px">&middot; ${v.threats[truth.threat].score}/100</span>`
+      const tk = truth.badge ? v.threats[truth.threat] : null;
+      const heading = tk
+        ? `${tk.kind ? `<span class="kind-icon" style="--c:${colorOf(truth.badge)}">${Masks.kindIcon(tk.kind)}</span> ${esc(tk.kindLabel)}: ` : ''}${esc(tk.label)} <span class="muted" style="font-size:14px">&middot; ${tk.score}/100</span>`
         : 'Sentinel found nothing wrong';
       const reasons = v.reasons.slice(0, 3);
       const last = round === ROUNDS - 1;

@@ -7,7 +7,7 @@ const { db } = require('../lib/db');
 const config = require('../config');
 
 const q = {
-  history: db.prepare('SELECT id, kind, target, mode, scam, virus, malware, created_at FROM scan_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'),
+  history: db.prepare('SELECT id, kind, target, mode, scam, virus, malware, kinds, created_at FROM scan_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'),
   stats: db.prepare(`SELECT
       SUM(CASE WHEN scam IN ('suspicious','likely','confirmed') OR virus IN ('suspicious','likely','confirmed') OR malware IN ('suspicious','likely','confirmed') THEN 1 ELSE 0 END) AS flagged,
       SUM(CASE WHEN scam IN ('suspicious','likely','confirmed') THEN 1 ELSE 0 END) AS scams,
