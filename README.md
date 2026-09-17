@@ -1,7 +1,7 @@
 # Sentinel
 
 **See the scam before you click.** Real-time scam, virus and malware protection for search results, email and downloads.
-Brand domain: **usesentinel.technology** (configured in [brand.json](brand.json)).
+Brand domain: **[usesentinel.technology**](url) (configured in [brand.json](brand.json)).
 
 Sentinel marks risky links with three masks, each coloured by severity:
 
