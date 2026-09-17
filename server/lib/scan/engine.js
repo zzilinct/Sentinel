@@ -84,7 +84,7 @@ function score(checks, know, evidence) {
     if (c.extra) for (const [t, pts] of Object.entries(c.extra)) totals[t] += pts;
   }
 
-  const unknown = !know.known && !know.matches.length;
+  const unknown = !know.known && !know.matches.length && !know.userContent;
   const threats = {};
   for (const t of THREATS) {
     let s = totals[t];

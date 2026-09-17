@@ -9,7 +9,7 @@
  */
 const { db } = require('../db');
 const safeBrowsing = require('./safebrowsing');
-const { urlKey } = require('./url');
+const { urlKey, isUserContent } = require('./url');
 
 const REPORTS_FOR_CONFIRMED = 3;
 
@@ -62,8 +62,10 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
   // Several distinct malicious URLs on one host usually means the host itself is
   // compromised - except on verified platforms (GitHub, Google Drive, Discord...)
   // where users upload content: there, only the exact malicious URLs count.
-  const verified = Boolean(q.allow.get(p.host, p.registrable));
-  if (!matches.length && !verified && q.feedUrlHostCount.get(p.host).n >= 3) add('urlhaus', 'malware', 'compromised_host', 'likely');
+  const userContent = isUserContent(p.host);
+  const allowed = Boolean(q.allow.get(p.host, p.registrable));
+  const verified = allowed && !userContent;
+  if (!matches.length && !allowed && !userContent && q.feedUrlHostCount.get(p.host).n >= 3) add('urlhaus', 'malware', 'compromised_host', 'likely');
 
   let reports = 0;
   for (const row of q.reports.all(p.registrable)) reports += row.n;
@@ -79,9 +81,11 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
   }
 
   const trusted = !matches.length && verified;
+  // Exposed so scoring can skip the unknown-site discount for uploaded pages.
   return {
     known: matches.some((m) => m.strength === 'confirmed'),
     trusted,
+    userContent,
     matches: dedupe(matches),
     reports,
     sources: checkedSources()

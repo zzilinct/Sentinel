@@ -234,11 +234,25 @@ function nameTokens(registrable) {
 
 /* ------------------------------------------------------------ brands */
 
-/** Where, if anywhere, a protected brand appears in this URL. */
+/**
+ * Hosts where the page at a URL was put there by a user of the platform, not
+ * by the platform: storage buckets, site builders, tunnels, "sites.google.com".
+ * The platform's good name says nothing about such a page.
+ */
+function isUserContent(host) {
+  return L.PATH_HOSTING.includes(host) || L.OBJECT_STORAGE.test(host)
+    || L.FREE_HOSTING.some((d) => host !== d && host.endsWith('.' + d));
+}
+
+/**
+ * Where, if anywhere, a protected brand appears in this URL.
+ *   owner     the brand that owns the registrable domain (so the name is not borrowed)
+ *   official  the same, unless the page is user content on that brand's platform
+ */
 function brandInfo(p) {
-  if (p.isIp) return { official: null, inDomain: null, inSubdomain: null, lookalike: null };
+  if (p.isIp) return { official: null, owner: null, inDomain: null, inSubdomain: null, lookalike: null };
   const sldFlat = deskin(p.sld);
-  let official = null;
+  let owner = null;
   let inDomain = null;
   let inSubdomain = null;
   let lookalike = null;
@@ -247,11 +261,11 @@ function brandInfo(p) {
     // A customer page on a hosting platform ("x.myshopify.com") is never the platform itself.
     const owns = (d) => (p.hosting ? p.host === d : p.registrable === d || p.host === d || p.host.endsWith('.' + d));
     if (brand.domains.some(owns)) {
-      official = brand;
+      owner = brand;
       break;
     }
   }
-  if (official) return { official, inDomain, inSubdomain, lookalike };
+  if (owner) return { official: isUserContent(p.host) ? null : owner, owner, inDomain, inSubdomain, lookalike };
 
   // Words from the name as written ("shopee0146" -> shopee) and with look-alike
   // characters undone ("paypa1-login" -> paypal, login).
@@ -283,7 +297,7 @@ function brandInfo(p) {
       }
     }
   }
-  return { official, inDomain, inSubdomain, lookalike };
+  return { official: null, owner: null, inDomain, inSubdomain, lookalike };
 }
 
 /**
@@ -291,10 +305,11 @@ function brandInfo(p) {
  * domain means HTTPS - otherwise "example.com" would be marked unencrypted.
  */
 function typedUrl(raw) {
-  const input = String(raw == null ? '' : raw).trim();
+  // A doubled scheme ("https://https://...") is a paste slip, not a host called "https".
+  const input = String(raw == null ? '' : raw).trim().replace(/^(https?:\/\/)(?:https?:\/\/)+/i, '$1');
   return /^[a-z][a-z0-9+.-]*:/i.test(input) ? input : `https://${input.replace(/^\/\//, '')}`;
 }
 
 module.exports = {
-  analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo
+  analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent
 };

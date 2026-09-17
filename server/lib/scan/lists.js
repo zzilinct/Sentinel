@@ -36,14 +36,25 @@ const HOST_KEYWORDS = {
   free: 12, gift: 14, giftcard: 18, giveaway: 18, bonus: 14, prize: 16,
   winner: 18, reward: 14, claim: 16, refund: 16, cashback: 14, lottery: 18,
   // crypto drainers
-  airdrop: 20, presale: 16, wallet: 14, walletconnect: 20,
+  airdrop: 20, presale: 16, wallet: 14, walletconnect: 24,
   restore: 12, seed: 12, staking: 12, doubler: 18, elon: 16,
   // shopping fraud
   outlet: 10, clearance: 12, liquidation: 14, closingdown: 16,
   // the same bait in the languages scam campaigns use most
   gratis: 12, premio: 16, premios: 16, ganador: 16, sorteo: 16, regalo: 14, cadeau: 14, gagnant: 16,
   gewinn: 16, gewinnspiel: 18, hadiah: 16, undian: 18, pemenang: 18, bonusan: 14, promo: 8,
-  premiado: 16, sorteio: 16, brinde: 14, resgate: 14
+  premiado: 16, sorteio: 16, brinde: 14, resgate: 14,
+  // banking and mailbox lures
+  bank: 12, banking: 12, onlinebanking: 16, webmail: 12, mailbox: 12, quota: 10, owa: 12, outlook: 8,
+  reactivate: 14, deactivate: 14, deactivation: 14, expired: 10, session: 8, urgent: 12, notice: 8, hold: 6, online: 6, required: 8, action: 8, immediately: 10, attention: 8, important: 6,
+  // payroll and HR lures
+  payroll: 14, salary: 10, benefits: 8, w2: 12, hr: 6, enrollment: 8, enroll: 8, office365: 14, o365: 12, m365: 12,
+  // document-share lures
+  docs: 8, document: 8, documents: 8, share: 6, shared: 6, fileshare: 14, sharefile: 14, sharepoint: 12, onedrive: 12, dropbox: 12,
+  // more crypto-drainer wording
+  dapp: 16, defi: 12, sync: 8, rectify: 14, mint: 10, nft: 8, swap: 8, bridge: 8, kyc: 10, ledger: 10, trezor: 12, metamask: 14, phantom: 10,
+  // single sign-on and portal wording that phishing kits copy
+  portal: 6, sso: 10, adfs: 14, authenticate: 12, authentication: 12
 };
 
 const PATH_KEYWORDS = {
@@ -66,7 +77,12 @@ const PATH_KEYWORDS = {
   'onedrive': 10,
   'sharepoint': 10,
   '/authen': 10,
-  'wp-includes/secure': 16
+  'wp-includes/secure': 16,
+  'login.php': 14, 'signin.php': 14, 'verify.php': 16, 'validate.php': 14, 'confirm.php': 14,
+  'update.php': 12, 'secure.php': 14, 'auth.php': 12, 'session.php': 12, 'identity.php': 14,
+  '/owa/': 10, '/adfs/': 12, '/sso/': 8, '/office365/': 12, '/o365/': 12, '/m365/': 12,
+  '/webmail/': 10, '/dropbox/': 10, '/wetransfer/': 10, '/docusign/': 12,
+  '/index.php?': 4
 };
 
 const TECH_SUPPORT_WORDS = ['helpline', 'tollfree', 'techsupport', 'errorcode', 'alert', 'virusalert', 'defender', 'firewall', 'infected', 'warning'];
@@ -89,11 +105,19 @@ const FREE_HOSTING = [
   'jimdosite.com', 'typedream.app', 'canva.site', 'notion.site', 'gitbook.io', 'weeblysite.com', 'framer.app',
   'bolt.host', 'webnode.page', 'carrd.co', 'glide.page', 'softr.app', 'bubbleapps.io', 'wixstudio.io', 'tilda.ws',
   'site123.me', 'yolasite.com', 'ucoz.net', 'blob.core.windows.net', 'web.core.windows.net', 'lovable.app',
-  'webcindario.com', 'wcomhost.com', 'hpage.com', 'mozello.com', 'odoo.com', 'teachable.com', 'deno.dev', 'val.run'
+  'webcindario.com', 'wcomhost.com', 'hpage.com', 'mozello.com', 'odoo.com', 'teachable.com', 'deno.dev', 'val.run',
+  'gitlab.io', 'infinityfreeapp.com', 'rf.gd', 'epizy.com', 'great-site.net', 'hostingerapp.com', 'loca.lt', 'serveo.net',
+  'amazonaws.com', 'cloudfront.net', 'digitaloceanspaces.com', 'backblazeb2.com', 'sharepoint.com', 'nyc3.cdn.digitaloceanspaces.com'
 ];
 
 // Path-based free hosting (the attacker controls the path, not a subdomain).
-const PATH_HOSTING = ['sites.google.com', 'forms.gle', 'docs.google.com', 'storage.googleapis.com', 's3.amazonaws.com', 'linktr.ee', 'ipfs.io', 'dweb.link'];
+const PATH_HOSTING = [
+  'sites.google.com', 'forms.gle', 'docs.google.com', 'drive.google.com', 'storage.googleapis.com', 'storage.cloud.google.com',
+  'firebasestorage.googleapis.com', 's3.amazonaws.com', 'dl.dropboxusercontent.com',
+  'onedrive.live.com', '1drv.ms', 'linktr.ee', 'telegra.ph', 'ipfs.io', 'dweb.link'
+];
+// Object storage: a web page served from here was uploaded by whoever owns the bucket.
+const OBJECT_STORAGE = /(^|\.)(storage\.googleapis\.com|storage\.cloud\.google\.com|firebasestorage\.googleapis\.com|s3[.-][a-z0-9-]*\.?amazonaws\.com|s3\.amazonaws\.com|blob\.core\.windows\.net|digitaloceanspaces\.com|backblazeb2\.com|r2\.dev)$/;
 
 // Dynamic DNS: throwaway hostnames that point at home or rented machines.
 const DYNAMIC_DNS = [
@@ -189,7 +213,7 @@ const SCAM_KITS = [
 
 module.exports = {
   MULTI_SUFFIXES, RISKY_TLDS, PROTECTED_BRANDS, HOST_KEYWORDS, PATH_KEYWORDS,
-  TECH_SUPPORT_WORDS, DELIVERY_WORDS, GOV_WORDS, URL_SHORTENERS, FREE_HOSTING, DYNAMIC_DNS,
+  TECH_SUPPORT_WORDS, DELIVERY_WORDS, GOV_WORDS, URL_SHORTENERS, FREE_HOSTING, DYNAMIC_DNS, OBJECT_STORAGE,
   CRYPTOMINER_HOSTS, EXECUTABLE_EXT, MACRO_DOC_EXT, ARCHIVE_EXT, DOC_EXT, FREE_MAIL_PROVIDERS,
   DEFAULT_ALLOWLIST, SEED_BLOCKLIST, SCAM_KITS, PATH_HOSTING
 };

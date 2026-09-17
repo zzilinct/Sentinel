@@ -330,3 +330,88 @@ test('threat kinds: results name the specific trick from the evidence, never wit
   assert.equal(clean.threats.scam.kind, null);
   assert.equal(clean.threats.scam.kindLabel, null);
 });
+
+/* ------------------------------------------------- generalising rules */
+
+const flagged = (v) => ['scam', 'virus', 'malware'].some((t) => v.threats[t].badge);
+const check = (v, id) => v.checklist.items.find((c) => c.id === id);
+
+test('unlisted phishing-style addresses are flagged from the address alone', async () => {
+  // None of these are in any feed or fixture; they only carry the patterns.
+  const cases = [
+    ['https://walletconnect-dapp-sync.app/', 'U27'],
+    ['https://mysecurebank-online.com/auth', 'U25'],
+    ['https://webmail-update-required.com/', 'U25'],
+    ['https://portal-hr-payroll.net/adp/login', 'U40'],
+    ['https://mybucket.s3.us-east-1.amazonaws.com/secure/index.html', 'U20'],
+    ['https://x7k29q.cloudfront.net/login.html', 'U42'],
+    ['https://gardencentre-leeds.co.uk/wp-content/uploads/verify.php', 'U41'],
+    ['https://sunnyrentals.com/.well-known/secure/index.php?email=', 'U41'],
+    ['https://a8f3k2.pages.dev/signin', 'U42'],
+    ['https://www.chase.com@evil-host.net/', 'U03'],
+    ['https://sites.google.com/view/office365-login-verify', 'U20']
+  ];
+  for (const [url, id] of cases) {
+    const v = await scan(url, { research: false });
+    assert.ok(flagged(v), `${url} should be flagged (scam ${v.threats.scam.score})`);
+    assert.equal(check(v, id).status, 'fail', `${url} should fail ${id}`);
+  }
+});
+
+test('the real sites behind those patterns stay clean', async () => {
+  for (const url of [
+    'https://walletconnect.com/', 'https://metamask.io/', 'https://www.adp.com/logins.aspx', 'https://workday.com/',
+    'https://www.chase.com/personal/online-banking', 'https://outlook.live.com/owa/', 'https://www.dropbox.com/login',
+    'https://accounts.google.com/signin', 'https://login.microsoftonline.com/', 'https://aws.amazon.com/s3/', 'https://cloud.google.com/storage'
+  ]) {
+    const v = await scan(url, { research: false });
+    assert.ok(!flagged(v), `${url} should be clean (scam ${v.threats.scam.score})`);
+  }
+});
+
+test('a brand platform is official for its own pages but not for pages users upload there', async () => {
+  const { analyze, brandInfo, isUserContent } = require('../server/lib/scan/url');
+  const own = brandInfo(analyze('https://accounts.google.com/signin'));
+  assert.equal(own.official && own.official.token, 'google');
+  assert.equal(own.owner && own.owner.token, 'google');
+
+  for (const url of ['https://sites.google.com/view/anything', 'https://storage.googleapis.com/bucket/index.html', 'https://mybucket.s3.us-east-1.amazonaws.com/x.html']) {
+    const p = analyze(url);
+    assert.ok(isUserContent(p.host), `${p.host} is user content`);
+    const b = brandInfo(p);
+    assert.equal(b.official, null, `${url} is not the brand's own page`);
+    // On a hosting suffix (amazonaws.com) the registrable name is the customer's, so no owner either.
+    if (!p.hosting) assert.ok(b.owner, `${url} still belongs to a brand, so it is not borrowing the name`);
+    assert.equal(b.inDomain, null, `${url} is not borrowing a brand name`);
+  }
+  // Not trusted by knowledge either: the bucket page still gets the checklist.
+  const v = await scan('https://storage.googleapis.com/bucket/login.html', { research: false });
+  assert.equal(v.knowledge.trusted, false);
+  assert.equal(check(v, 'U36').status, 'skip', 'no official-site credit on a bucket');
+  assert.equal(check(v, 'U20').status, 'fail');
+  assert.equal(check(v, 'U22').status, 'pass', 'the platform is not impersonating itself');
+});
+
+test('the "@" decoy names what was hidden', async () => {
+  const v = await scan('https://www.chase.com@evil-host.net/', { research: false });
+  const u03 = check(v, 'U03');
+  assert.equal(u03.status, 'fail');
+  assert.equal(u03.points, 40, 'a decoy that names a protected brand');
+  assert.match(u03.detail, /chase\.com.*evil-host\.net/);
+  assert.equal(v.host, 'evil-host.net');
+});
+
+test('kit-style pages in site folders and random hosting labels score by what is stacked', async () => {
+  const folder = check(await scan('https://oldrecipes.org/wp-includes/css/login.php', { research: false }), 'U41');
+  assert.equal(folder.status, 'fail');
+  assert.equal(folder.points, 26, 'kit file name inside a site folder');
+  const victim = check(await scan('https://sunnyrentals.com/.well-known/secure/index.php?email=', { research: false }), 'U41');
+  assert.equal(victim.points, 36, 'folder page addressed to one person');
+  const wpLogin = check(await scan('https://oldrecipes.org/wp-login.php', { research: false }), 'U41');
+  assert.equal(wpLogin.status, 'pass', 'wp-login.php is a real WordPress page');
+
+  const random = check(await scan('https://a8f3k2.pages.dev/signin', { research: false }), 'U42');
+  assert.equal(random.status, 'fail');
+  const readable = check(await scan('https://myshop2024.pages.dev/', { research: false }), 'U42');
+  assert.notEqual(readable.status, 'fail', 'a readable label with a year is not random');
+});

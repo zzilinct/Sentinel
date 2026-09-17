@@ -55,6 +55,8 @@ const BRANDS = [
   { token: 'adobe', domains: ['adobe.com', 'adobe.io', 'adobelogin.com', 'typekit.net'] },
   { token: 'dropbox', domains: ['dropbox.com', 'dropboxusercontent.com', 'db.tt'] },
   { token: 'docusign', domains: ['docusign.com', 'docusign.net'] },
+  { token: 'adp', domains: ['adp.com', 'adp.ca', 'adp.co.uk', 'adp.fr', 'adp.de', 'adp.es', 'adp.it', 'adp.com.au', 'adpinfo.com'] },
+  { token: 'workday', domains: ['workday.com', 'myworkday.com', 'workdaysuite.com'] },
   { token: 'wetransfer', domains: ['wetransfer.com', 'we.tl'] },
   { token: 'zoom', domains: ['zoom.us', 'zoom.com', 'zoomgov.com'] },
   { token: 'openai', domains: ['openai.com', 'chatgpt.com', 'oaistatic.com'] },
@@ -98,6 +100,9 @@ const BRANDS = [
   // Crypto
   { token: 'binance', domains: ['binance.com', 'binance.us', 'bnbstatic.com'] },
   { token: 'coinbase', domains: ['coinbase.com', 'cbhq.net', 'base.org'] },
+  { token: 'walletconnect', domains: ['walletconnect.com', 'walletconnect.network', 'walletconnect.org', 'reown.com'] },
+  { token: 'metamask', domains: ['metamask.io'] },
+  { token: 'trezor', domains: ['trezor.io'] },
   { token: 'kraken', domains: ['kraken.com'] },
   { token: 'metamask', domains: ['metamask.io'] },
   { token: 'trustwallet', domains: ['trustwallet.com'] },

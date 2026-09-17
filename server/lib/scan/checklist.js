@@ -21,9 +21,11 @@ const warn = (points, detail, extra) => ({ status: 'warn', points, detail, extra
 const pass = (detail, points = 0) => ({ status: 'pass', points, detail });
 const skip = (detail) => ({ status: 'skip', points: 0, detail });
 
-const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'security', 'account', 'signin', 'login', 'logon', 'auth', 'update', 'unlock', 'suspended', 'recovery', 'recover', 'confirm', 'support', 'helpdesk', 'billing', 'invoice', 'password'];
+const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'security', 'account', 'signin', 'login', 'logon', 'auth', 'update', 'unlock', 'suspended', 'recovery', 'recover', 'confirm', 'support', 'helpdesk', 'billing', 'invoice', 'password',
+  'bank', 'banking', 'onlinebanking', 'online', 'webmail', 'mailbox', 'quota', 'owa', 'reactivate', 'deactivate', 'deactivation', 'expired', 'session', 'urgent', 'notice', 'required', 'action', 'immediately', 'attention',
+  'payroll', 'salary', 'benefits', 'w2', 'enrollment', 'docs', 'document', 'documents', 'fileshare', 'sharefile', 'portal', 'sso', 'adfs', 'authenticate', 'authentication'];
 const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery'];
-const CRYPTO_WORDS = ['airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon'];
+const CRYPTO_WORDS = ['airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown'];
 
 function keywordScore(words, list, cap) {
@@ -47,7 +49,14 @@ const URL_CHECKS = [
     run: ({ p }) => (/(^|\.)xn--/.test(p.host) ? fail(30, 'Punycode domain - characters may imitate a different alphabet') : pass('Plain characters only')) },
 
   { id: 'U03', group: 'Address', threat: 'scam', title: 'Destination is not hidden behind an "@"',
-    run: ({ p }) => (p.hasUserinfo ? fail(24, 'Everything before "@" is ignored by the browser - the real destination is hidden') : pass('No hidden destination')) },
+    run: ({ p }) => {
+      if (!p.hasUserinfo) return pass('No hidden destination');
+      const before = (/^[a-z]+:\/\/([^/@]*)@/i.exec(p.url) || [])[1] || '';
+      if (!/\./.test(before)) return fail(24, 'Everything before "@" is ignored by the browser - the real destination is hidden');
+      const decoyWords = hostWords(before);
+      const decoyBrand = L.PROTECTED_BRANDS.find((b) => decoyWords.has(b.token));
+      return fail(decoyBrand ? 40 : 32, `"${before.slice(0, 40)}" is a decoy${decoyBrand ? ` posing as ${decoyBrand.domains[0]}` : ''} - everything before "@" is ignored and the real site is ${p.host}`);
+    } },
 
   { id: 'U04', group: 'Address', threat: 'scam', title: 'Reasonable subdomain depth',
     run: ({ p }) => (p.subdomains.length >= 4 ? fail(12, `${p.subdomains.length} levels of subdomains`) : pass(`${p.subdomains.length} subdomain level(s)`)) },
@@ -132,7 +141,14 @@ const URL_CHECKS = [
   { id: 'U20', group: 'Hosting', threat: 'scam', title: 'Not a free hosting or site-builder subdomain',
     run: ({ p, brand, words }) => {
       if (L.PATH_HOSTING.includes(p.host) && p.path.length > 1) {
-        return CREDENTIAL_WORDS.some((w) => p.path.toLowerCase().includes(w)) ? fail(20, `User-made page on ${p.host} using login wording`) : warn(8, `User-made page on ${p.host}`);
+        const lower = p.path.toLowerCase();
+        if (CREDENTIAL_WORDS.some((w) => lower.includes(w))) return fail(20, `User-made page on ${p.host} using login wording`);
+        if (/\.html?$/.test(lower) && L.OBJECT_STORAGE.test(p.host)) return fail(CREDENTIAL_WORDS.some((w) => lower.includes(w)) ? 32 : 22, `Web page served straight from a storage bucket on ${p.host}, where anyone can upload one`);
+        return warn(8, `User-made page on ${p.host}`);
+      }
+      if (L.OBJECT_STORAGE.test(p.host) && /\.html?$/i.test(p.path)) {
+        const login = CREDENTIAL_WORDS.some((w) => p.path.toLowerCase().includes(w));
+        return fail(login ? 32 : 22, `Web page served straight from a storage bucket (${p.host}), where anyone can upload one${login ? ', with login wording' : ''}`);
       }
       const hosted = L.FREE_HOSTING.find((d) => p.host === d || p.host.endsWith('.' + d));
       if (!hosted || p.host === hosted) return pass('Own domain');
@@ -198,7 +214,7 @@ const URL_CHECKS = [
 
   { id: 'U27', group: 'Wording', threat: 'scam', title: 'No crypto-drainer wording in the address',
     run: ({ words }) => {
-      const { hits, points } = keywordScore(words, CRYPTO_WORDS, 32);
+      const { hits, points } = keywordScore(words, CRYPTO_WORDS, 40);
       return hits.length ? fail(points, `Address uses: ${hits.slice(0, 4).join(', ')}`) : pass('None found');
     } },
 
@@ -267,6 +283,42 @@ const URL_CHECKS = [
    ====================================================================== */
 
 const KNOWLEDGE_CHECKS = [
+  { id: 'U40', group: 'Impersonation', threat: 'scam', title: 'Path does not carry a brand the site does not own',
+    run: ({ p, brand, words }) => {
+      if (brand.official) return pass('Official site');
+      const segments = p.path.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+      const hit = L.PROTECTED_BRANDS.find((b) => segments.includes(b.token) && !b.domains.includes(p.registrable));
+      if (!hit) return pass('No brand names in the path');
+      const login = CREDENTIAL_WORDS.some((w) => words.has(w) || p.path.toLowerCase().includes(w));
+      return fail(login ? 30 : 22, `Path mentions "${hit.token}" but this is not ${hit.domains[0]}${login ? ', next to login wording' : ''}`);
+    } },
+
+  { id: 'U41', group: 'Wording', threat: 'scam', title: 'Not a login page parked in a site\'s file folders',
+    run: ({ p, brand }) => {
+      if (brand.official) return pass('Official site');
+      const lower = p.path.toLowerCase();
+      const folder = /\/(wp-content|wp-includes|cgi-bin|\.well-known|includes|tmp|temp|old|backup|css|js|img|images|fonts|assets|uploads|files)\//.test(lower);
+      const kitFile = /(^|\/)(login|signin|sign-in|verify|validate|validation|confirm|update|secure|auth|session|account|identity|password)[\w-]*\.(php|html?|aspx?)(\?|$)/.test(lower) && !/wp-login\.php/.test(lower);
+      const loginWords = CREDENTIAL_WORDS.some((w) => lower.includes(w));
+      const victimParam = /[?&](email|e|user|username|login|id|u|token)=/.test(p.query.toLowerCase());
+      if (folder && (loginWords || /\.(php|html?)(\?|$)/.test(lower))) {
+        return fail(victimParam ? 36 : kitFile ? 26 : 18, `Login-style page inside a folder meant for site files (${lower.match(/\/[^/]+\//)[0]})${victimParam ? ', addressed to one person' : ''}`);
+      }
+      if (kitFile) return fail(14, `Kit-style file name ${lower.split('/').pop().split('?')[0]}`);
+      return pass('Ordinary page location');
+    } },
+
+  { id: 'U42', group: 'Address', threat: 'scam', title: 'No random-looking subdomain in front of bait wording',
+    run: ({ p, words }) => {
+      const label = p.subdomains[0] || (p.hosting ? p.sld : '');
+      if (label.length < 6 || !/\d/.test(label) || !/[a-z]/.test(label)) return pass('No random subdomain');
+      const digits = (label.match(/\d/g) || []).length;
+      const random = entropy(label) > 2.8 || (digits >= 2 && !/[aeiou]{2}/.test(label) && !/^(www|mail|api|cdn|app|m|static|img|ftp)\d*$/.test(label));
+      if (!random) return pass('Readable subdomain');
+      const bait = [...CREDENTIAL_WORDS, ...CRYPTO_WORDS, ...MONEY_WORDS].some((w) => words.has(w) || p.path.toLowerCase().includes(w));
+      return bait ? fail(14, `Random subdomain "${label}" on an address using bait wording`) : warn(4, `Random-looking subdomain "${label}"`);
+    } },
+
   { id: 'K01', group: 'Known threats', threat: 'scam', title: 'Not a known scam',
     run: ({ knowledge }) => matchCheck(knowledge, 'scam', 'scam') },
   { id: 'K02', group: 'Known threats', threat: 'malware', title: 'Not a known malware site',
@@ -300,12 +352,14 @@ function matchCheck(knowledge, threat, noun) {
 
 const COMPARE_CHECKS = [
   { id: 'C01', group: 'Compared to known scams', threat: 'scam', title: 'Name is not a variant of a known scam domain',
-    run: ({ compare }) => {
+    run: ({ compare, brand }) => {
+      if (brand.owner) return pass(`Official ${brand.owner.domains[0]}`);
       const m = compare.skeletonMatches[0];
       return m ? fail(34, `Nearly the same name as known ${String(m.category || m.threat).replace(/_/g, ' ')} site ${m.host}`) : pass('No near-duplicate');
     } },
   { id: 'C02', group: 'Compared to known scams', threat: 'scam', title: 'Name does not follow a known scam naming pattern',
-    run: ({ compare }) => {
+    run: ({ compare, brand }) => {
+      if (brand.owner) return pass(`Official ${brand.owner.domains[0]}`);
       const m = compare.tokenMatches[0];
       return m ? warn(Math.min(24, 10 + 6 * m.shared.length), `Shares "${m.shared.join('" + "')}" with known scam ${m.host}`) : pass('No shared pattern');
     } },
