@@ -244,14 +244,14 @@ p { text-wrap: pretty; }
   align-items: center;
   gap: 10px;
   padding: 6px 14px 6px 6px;
-  border-radius: 99px;
+  border-radius: var(--r-sm);
   background: rgba(255, 255, 255, .03);
   box-shadow: inset 0 0 0 1px var(--line-2);
   font-size: 13px;
   color: var(--text-2);
   margin-bottom: 28px;
 }
-.hero__pill b { font-weight: 500; color: var(--gold-200); background: rgba(212, 174, 99, .12); padding: 3px 9px; border-radius: 99px; font-size: 12px; }
+.hero__kicker { margin-bottom: 26px; }
 .hero h1 { font-size: clamp(44px, 7.4vw, 96px); line-height: .98; letter-spacing: -.035em; font-weight: 500; }
 .hero h1 .serif { font-size: 1.08em; letter-spacing: -.02em; }
 .hero__lede { margin: 28px auto 0; max-width: 620px; font-size: clamp(17px, 2vw, 19.5px); color: var(--text-2); line-height: 1.55; }
@@ -496,7 +496,7 @@ p { text-wrap: pretty; }
     linear-gradient(180deg, rgba(212, 174, 99, .5), rgba(212, 174, 99, .08) 60%) border-box;
   border: 1px solid transparent;
 }
-.plan__badge { position: absolute; top: 18px; right: 16px; font: 500 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #15130d; background: var(--gold-grad); padding: 5px 9px; border-radius: 99px; }
+.plan__badge { position: absolute; top: 18px; right: 16px; font: 500 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #15130d; background: var(--gold-grad); padding: 5px 9px; border-radius: 6px; }
 .plan__name { font-size: 15px; font-weight: 500; color: var(--text-2); }
 .plan__price { margin-top: 18px; display: flex; align-items: baseline; gap: 6px; }
 .plan__price b { font: 400 60px/1 var(--serif); letter-spacing: -.02em; }

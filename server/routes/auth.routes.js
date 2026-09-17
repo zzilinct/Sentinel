@@ -145,7 +145,7 @@ function register(router) {
         text: `Hi ${user.first_name},\n\nUse this link to choose a new Sentinel password. It expires in 30 minutes and works once:\n\n${link}\n\nIf you didn't ask for this, you can ignore this email - your password hasn't changed.`,
         html: mailer.layout('Reset your password', `<p style="color:#b9b6ae;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(user.first_name)}, use the button below to choose a new password. The link expires in 30 minutes and works once.</p>
           <a href="${link}" style="display:inline-block;background:#d4ae63;color:#16130b;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:11px">Choose a new password</a>
-          <p style="color:#86847e;font-size:13px;line-height:1.6;margin:24px 0 0">Didn't ask for this? Ignore this email &mdash; your password hasn't changed.</p>`)
+          <p style="color:#86847e;font-size:13px;line-height:1.6;margin:24px 0 0">Didn't ask for this? Ignore this email. Your password hasn't changed.</p>`)
       });
       security.audit('password_reset_requested', { userId: user.id, req });
     } else {

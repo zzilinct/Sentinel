@@ -2,7 +2,7 @@
 
 .chip-q {
   display: inline-flex; align-items: center; gap: 7px;
-  height: 34px; padding: 0 14px; border-radius: 99px; border: 0; cursor: pointer;
+  height: 34px; padding: 0 14px; border-radius: var(--r-sm); border: 0; cursor: pointer;
   font: 500 13px var(--sans); color: var(--text-2);
   background: rgba(255, 255, 255, .035); box-shadow: inset 0 0 0 1px var(--line-2);
   transition: color .2s, background .2s, box-shadow .2s, transform .15s var(--ease);
@@ -93,11 +93,11 @@
 .answer[disabled] { cursor: default; transform: none; opacity: .45; }
 .answer.is-picked { opacity: 1; box-shadow: inset 0 0 0 2px var(--c); }
 .answer.is-truth { opacity: 1; box-shadow: inset 0 0 0 2px var(--c), 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
-.answer.is-truth::after { content: "Sentinel"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font: 600 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; color: #16130b; background: var(--c); }
+.answer.is-truth::after { content: "Sentinel"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font: 600 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; color: #16130b; background: var(--c); }
 .game__reveal { margin-top: 22px; padding: 18px; border-radius: 14px; background: rgba(255, 255, 255, .025); box-shadow: inset 0 0 0 1px var(--line); animation: rise-in .45s var(--ease-out) both; }
 .game__verdict { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .game__verdict h4 { font-size: 17px; font-weight: 500; }
-.game__result { font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 4px 9px; border-radius: 99px; }
+.game__result { font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 4px 9px; border-radius: 6px; }
 .game__result.is-right { color: #0d2a1c; background: var(--green); }
 .game__result.is-close { color: #2a2206; background: var(--yellow); }
 .game__result.is-wrong { color: #fff; background: var(--red); }
@@ -166,7 +166,7 @@
 .plan { transition: transform .45s var(--ease-out), box-shadow .45s var(--ease-out), opacity .45s; }
 .pricing.has-pick .plan:not(.is-recommended) { opacity: .7; }
 .plan.is-recommended { transform: translateY(-6px); box-shadow: inset 0 0 0 1px rgba(236, 212, 153, .7), 0 40px 90px -40px rgba(212, 174, 99, .5); }
-.plan__pick { position: absolute; top: -12px; left: 24px; font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 5px 10px; border-radius: 99px; color: #16130b; background: var(--gold-grad); animation: rise-in .35s var(--ease-out) both; }
+.plan__pick { position: absolute; top: -12px; left: 24px; font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 5px 10px; border-radius: 6px; color: #16130b; background: var(--gold-grad); animation: rise-in .35s var(--ease-out) both; }
 
 /* ------------------------------------------------------- clickable demo rows */
 
@@ -186,7 +186,7 @@
 /* ------------------------------------------------------ severity cycling */
 
 .severity-cycle {
-  margin-top: 12px; height: 28px; padding: 0 11px; border: 0; border-radius: 99px; cursor: pointer;
+  margin-top: 12px; height: 28px; padding: 0 11px; border: 0; border-radius: var(--r-sm); cursor: pointer;
   font: 500 11.5px var(--mono); letter-spacing: .04em; text-transform: uppercase;
   color: var(--muted); background: rgba(255, 255, 255, .03); box-shadow: inset 0 0 0 1px var(--line);
   transition: color .2s, box-shadow .2s;

@@ -37,31 +37,31 @@ const SERP_SETS = {
   paypal: {
     query: 'paypal account locked help',
     results: [
-      { title: 'Resolve a limited account — PayPal Help Center', url: 'https://www.paypal.com/us/cshelp/limited-account', desc: 'Find out why your account may be limited and what you can do to restore access.' },
+      { title: 'Resolve a limited account | PayPal Help Center', url: 'https://www.paypal.com/us/cshelp/limited-account', desc: 'Find out why your account may be limited and what you can do to restore access.' },
       { title: 'PayPal Account Recovery Support (24/7 help)', url: 'https://paypal-recovery-help.online/unlock', desc: 'Unlock your PayPal account instantly with our recovery specialists.' },
-      { title: 'Restore PayPal Access — Secure Verification Portal', url: 'https://paypal.com.secure-verify-login.xyz/signin', desc: 'Your account has been limited. Verify your identity within 24 hours.' },
+      { title: 'Restore PayPal Access | Secure Verification Portal', url: 'https://paypal.com.secure-verify-login.xyz/signin', desc: 'Your account has been limited. Verify your identity within 24 hours.' },
       { title: 'PayPal Account Unlock Tool 2026 (Free Download)', url: 'https://unlock-tools-hub.icu/PayPalUnlock_Setup.pdf.exe', desc: 'Download the official unlock utility. Works on Windows 10 and 11.' },
-      { title: 'PayPaI — Log in to your account', url: 'https://paypa1-secure-login.com/account', desc: 'Log in to your PayPal account to review recent activity.' }
+      { title: 'PayPaI | Log in to your account', url: 'https://paypa1-secure-login.com/account', desc: 'Log in to your PayPal account to review recent activity.' }
     ]
   },
   crypto: {
     query: 'coinbase wallet support number',
     results: [
-      { title: 'Coinbase Help Center — Contact us', url: 'https://help.coinbase.com/en/contact-us', desc: 'Get help with your Coinbase account, wallet and transactions.' },
-      { title: 'Coinbase Support Desk — Call 24/7 Wallet Recovery', url: 'https://coinbase-support-desk.live/', desc: 'Locked out of your wallet? Our agents restore access in minutes.' },
-      { title: 'MetaMask — Restore Your Wallet', url: 'https://metamask-wallet-restore.cfd/', desc: 'Enter your recovery phrase to restore your wallet and claim rewards.' },
-      { title: 'Crypto Price Tracker Pro — Free Desktop App', url: 'https://tracker-apps.top/CryptoTracker_Setup.exe', desc: 'Real-time prices on your desktop. Fast, free download.' },
-      { title: 'Elon Crypto Giveaway — Double Your BTC', url: 'https://crypto-doubler-elon.live/', desc: 'Send any amount and receive double back. Limited time only.' }
+      { title: 'Coinbase Help Center | Contact us', url: 'https://help.coinbase.com/en/contact-us', desc: 'Get help with your Coinbase account, wallet and transactions.' },
+      { title: 'Coinbase Support Desk | Call 24/7 Wallet Recovery', url: 'https://coinbase-support-desk.live/', desc: 'Locked out of your wallet? Our agents restore access in minutes.' },
+      { title: 'MetaMask | Restore Your Wallet', url: 'https://metamask-wallet-restore.cfd/', desc: 'Enter your recovery phrase to restore your wallet and claim rewards.' },
+      { title: 'Crypto Price Tracker Pro | Free Desktop App', url: 'https://tracker-apps.top/CryptoTracker_Setup.exe', desc: 'Real-time prices on your desktop. Fast, free download.' },
+      { title: 'Elon Crypto Giveaway | Double Your BTC', url: 'https://crypto-doubler-elon.live/', desc: 'Send any amount and receive double back. Limited time only.' }
     ]
   },
   parcel: {
     query: 'usps package delivery fee text',
     results: [
-      { title: 'USPS Tracking® — Track packages', url: 'https://tools.usps.com/go/TrackConfirmAction', desc: 'Track the status of a package with its tracking number.' },
+      { title: 'USPS Tracking® | Track packages', url: 'https://tools.usps.com/go/TrackConfirmAction', desc: 'Track the status of a package with its tracking number.' },
       { title: 'Package Held: Pay Redelivery Fee ($1.99)', url: 'https://usps-redelivery-fee.sbs/pay', desc: 'Your package could not be delivered due to an incomplete address.' },
-      { title: 'Customs Fee Required — Parcel Awaiting Release', url: 'https://parcel-customs-release.top/track', desc: 'Pay the outstanding customs fee to release your parcel.' },
-      { title: 'Recognize USPS scam texts — USPIS', url: 'https://www.uspis.gov/news/scam-article/smishing', desc: 'How to spot and report fake delivery text messages.' },
-      { title: 'Delivery Notice — Download Shipping Label', url: 'https://shipping-label-print.site/Label_USPS.pdf.exe', desc: 'Print your shipping label to schedule redelivery.' }
+      { title: 'Customs Fee Required | Parcel Awaiting Release', url: 'https://parcel-customs-release.top/track', desc: 'Pay the outstanding customs fee to release your parcel.' },
+      { title: 'Recognize USPS scam texts | USPIS', url: 'https://www.uspis.gov/news/scam-article/smishing', desc: 'How to spot and report fake delivery text messages.' },
+      { title: 'Delivery Notice | Download Shipping Label', url: 'https://shipping-label-print.site/Label_USPS.pdf.exe', desc: 'Print your shipping label to schedule redelivery.' }
     ]
   }
 };

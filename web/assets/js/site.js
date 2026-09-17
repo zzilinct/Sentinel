@@ -164,6 +164,7 @@
         let n = Number(e.target.dataset.count);
         if (stats && e.target.dataset.live === 'threats' && stats.trackedThreats > 1000) n = stats.trackedThreats;
         if (stats && e.target.dataset.live === 'checks' && stats.checks) n = stats.checks;
+        if (stats && e.target.dataset.live === 'kinds' && stats.kinds) n = stats.kinds;
         countUp(e.target, n);
       }
     }, { threshold: 0.6 });
@@ -226,7 +227,7 @@
         pick = 'pro';
         why = `its 24 live hours a week cover your ${state.hours}, and minutes only count while Sentinel is actually checking something.`;
       }
-      answer.innerHTML = `<b>${{ free: 'Free', pro: 'Pro', max: 'Max', ultimate: 'Ultimate' }[pick]}</b> fits best &mdash; ${why}`;
+      answer.innerHTML = `<b>${{ free: 'Free', pro: 'Pro', max: 'Max', ultimate: 'Ultimate' }[pick]}</b> fits best. ${why}`;
 
       $$('[data-plan-card]', pricing).forEach((card) => {
         const on = card.dataset.planCard === pick;

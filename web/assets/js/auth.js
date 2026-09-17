@@ -49,7 +49,7 @@
     } else {
       google.disabled = true;
       google.title = 'Google sign-in is not configured on this server';
-      google.insertAdjacentHTML('afterend', '<p class="field__hint" style="text-align:center;margin-top:8px">Google sign-in isn’t set up on this server yet &mdash; use your email below.</p>');
+      google.insertAdjacentHTML('afterend', '<p class="field__hint" style="text-align:center;margin-top:8px">Google sign-in is not set up on this server yet. Use your email below.</p>');
     }
   }).catch(() => {});
 

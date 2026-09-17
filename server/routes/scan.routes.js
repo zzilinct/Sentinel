@@ -19,6 +19,9 @@ const engine = require('../lib/scan/engine');
 const feeds = require('../lib/scan/feeds');
 const { analyze, typedUrl } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
+const { KINDS } = require('../lib/scan/kinds');
+// Kinds the engine can name from evidence; "blocked" is a rule the user set, not a threat kind.
+const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
 const { ALL_CHECKS } = require('../lib/scan/checklist');
 
 const ALL = ['scam', 'virus', 'malware'];
@@ -265,6 +268,7 @@ function register(router) {
     sendJson(res, 200, {
       trackedThreats: q.threatCount.get().n,
       checks: ALL_CHECKS.length,
+      kinds: NAMED_KINDS,
       feeds: feeds.status().map((f) => ({ source: f.source, entries: f.entries, ok: Boolean(f.ok), fetchedAt: f.fetched_at }))
     }, { 'Cache-Control': 'public, max-age=600' });
   });

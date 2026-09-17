@@ -365,7 +365,7 @@
     const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
     return `<div class="usage-card${locked ? ' is-locked' : ''}">
       <div class="usage-card__top"><span class="usage-card__icon">${icon}</span><span class="mono muted" style="font-size:12px">${meta || (locked ? 'Pro & up' : `resets ${until(state.me.week.resetsAt)}`)}</span></div>
-      <div class="usage-card__n tabular">${locked ? '—' : n}<span>${locked ? '' : unit}</span></div>
+      <div class="usage-card__n tabular">${locked ? '·' : n}<span>${locked ? '' : unit}</span></div>
       <div class="usage-card__l">${label}</div>
       <div class="meter${pct >= 100 ? ' is-full' : ''}"><i style="width:${locked ? 0 : 100 - pct}%"></i></div>
     </div>`;
@@ -459,7 +459,7 @@
     const f = plan().features;
     el.innerHTML = `
       ${title('Link scan', f.research
-        ? 'Known threats, the full checklist, comparison with known scams, and research — scam, virus and malware.'
+        ? 'Known threats, the full checklist, comparison with known scams, and research, for scam, virus and malware.'
         : 'Known threats, the full checklist and comparison with known scams. Upgrade for research and virus & malware masks.')}
       <form class="scanbox" data-form>
         ${ICON.search}
@@ -544,7 +544,7 @@
       busy($('button[type=submit]', form), 'Sending', async () => {
         try {
           const r = await api('/report', { method: 'POST', body: { url: v.url, category: form.category.value, note: form.note.value } });
-          toast(r.promoted ? 'Reported. This site is now confirmed for everyone.' : `Thanks — ${r.reports} report${r.reports === 1 ? '' : 's'} so far.`, 'success');
+          toast(r.promoted ? 'Reported. This site is now confirmed for everyone.' : `Thanks. ${r.reports} report${r.reports === 1 ? '' : 's'} so far.`, 'success');
           form.hidden = true;
           report.disabled = true;
           report.textContent = 'Reported';
@@ -766,7 +766,7 @@
   /* ========================================================== site rules */
 
   async function sitesView(el) {
-    el.innerHTML = `${title('Site rules', 'Sites you trust never show a mask for you. Sites you block always show a red one — in scans, search results and email.')}
+    el.innerHTML = `${title('Site rules', 'Sites you trust never show a mask for you. Sites you block always show a red one, in scans, search results and email.')}
       <form class="panel" data-add>
         <div class="row2">
           <div class="field"><label for="site-host">Website</label><input class="input mono" id="site-host" name="host" placeholder="example.com" autocomplete="off" spellcheck="false" required></div>
@@ -840,7 +840,7 @@
     const lock = planLocked ? 'Pro & up' : needsApp ? 'Needs app' : null;
 
     el.innerHTML = `
-      ${title('Live protection', 'Sentinel watching in real time — on search results, in your inbox and on every download.')}
+      ${title('Live protection', 'Sentinel watching in real time: on search results, in your inbox and on every download.')}
       ${planLocked ? lockedCard({ tag: 'Pro & up', heading: 'Turn on live protection', body: 'Your Free plan includes manual link and file scans. Upgrade to Pro for 24 hours of live scanning a week, or Max for 96 hours with every result researched.', actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>' })
         : needsApp ? lockedCard({ tag: 'Unlocked by the Sentinel app', heading: 'Download Sentinel to switch these on', body: 'Your plan includes live protection. It runs through the Sentinel app on your computer, so it can watch downloads and add masks inside your browser.', actions: `<a class="btn btn--gold" href="/download">${ICON.download}Download Sentinel</a>` })
         : ''}
@@ -937,7 +937,7 @@
     };
     el.innerHTML = `
       ${title('Plan &amp; usage', `You’re on <b style="color:var(--gold-200);font-weight:500">${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
-      ${demo ? '<div class="banner"><div><b>Demo billing.</b> Plan changes are instant and free on this server — no payment is taken.</div></div>' : ''}
+      ${demo ? '<div class="banner"><div><b>Demo billing.</b> Plan changes are instant and free on this server. No payment is taken.</div></div>' : ''}
       <div class="grid3">
         ${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, 'link scans left', us.linkScans.used, us.linkScans.limit)}
         ${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}
@@ -1120,7 +1120,7 @@
   const chats = {};
 
   async function assistantsView(el, params) {
-    el.innerHTML = `${title('AI assistants', 'Optional. Ask ChatGPT, Claude, Gemini or DeepSeek about anything — Sentinel’s scans never depend on them.')}
+    el.innerHTML = `${title('AI assistants', 'Optional. Ask ChatGPT, Claude, Gemini or DeepSeek about anything. Sentinel’s scans never depend on them.')}
       <div data-tabs><div class="skeleton" style="height:40px;width:420px;max-width:100%"></div></div><div class="panel" data-pane><div class="skeleton" style="height:200px"></div></div>`;
     let providers;
     try { ({ providers } = await api('/ai/providers')); } catch (err) { $('[data-pane]', el).innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; return; }
@@ -1148,7 +1148,7 @@
         <li>Paste it below. Sentinel checks it with ${esc(p.vendor)} and stores it encrypted.</li>
       </ol>
       <form class="scanbox" data-connect>${ICON.lock}<input name="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ${esc(p.vendor)} API key" required><button class="btn btn--gold" type="submit">Connect</button></form>
-      <p class="muted" style="margin-top:16px;font-size:13px">Sentinel never asks for your ${esc(p.vendor)} password — a login form for another company inside our app is exactly what we warn you about.</p>`;
+      <p class="muted" style="margin-top:16px;font-size:13px">Sentinel never asks for your ${esc(p.vendor)} password. A login form for another company inside our app is exactly what we warn you about.</p>`;
     $('[data-connect]', pane).addEventListener('submit', async (ev) => {
       ev.preventDefault();
       await busy($('button', ev.target), 'Verifying', async () => {

@@ -108,7 +108,8 @@ async function demoSnapshot() {
     const { db } = require('../server/lib/db');
     const { ALL_CHECKS } = require('../server/lib/scan/checklist');
     const row = db.prepare('SELECT (SELECT COUNT(*) FROM feed_hosts) + (SELECT COUNT(*) FROM feed_urls) + (SELECT COUNT(*) FROM blocklist) AS n').get();
-    data.stats = { trackedThreats: row.n, checks: ALL_CHECKS.length };
+    const { KINDS } = require('../server/lib/scan/kinds');
+    data.stats = { trackedThreats: row.n, checks: ALL_CHECKS.length, kinds: Object.keys(KINDS).filter((k) => k !== 'blocked').length };
   } catch { /* counters fall back to the numbers written in the markup */ }
   return data;
 }

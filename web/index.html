@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <!-- @include head -->
-<title>Sentinel — See the scam before you click</title>
-<meta name="description" content="Sentinel marks scams, viruses and malware on every search result, email and download with a colour-coded mask — before you click.">
-<meta property="og:title" content="Sentinel — See the scam before you click">
+<title>Sentinel: know what a link is before you open it</title>
+<meta name="description" content="Sentinel checks search results, emails and downloads for scams, viruses and malware and marks each one with a mask, coloured by how sure it is.">
+<meta property="og:title" content="Sentinel: know what a link is before you open it">
 <meta property="og:description" content="Three masks. Scam, virus, malware. On every search result, email and download.">
 <meta property="og:url" content="https://www.usesentinel.technology/">
 </head>
@@ -17,13 +17,12 @@
   <section class="hero">
     <div class="wrap">
       <div class="hero__copy">
-        <a class="hero__pill" href="#masks" data-reveal>
-          <b>New</b> Virus &amp; malware masks, alongside scams
-        </a>
-        <h1 data-split>The internet wears masks.<br><span class="serif italic gold-text">Sentinel sees through them.</span></h1>
+        <span class="kicker hero__kicker" data-reveal>Scam, virus and malware checker</span>
+        <h1 data-split>Know what a link is<br><span class="serif italic gold-text">before you open it.</span></h1>
         <p class="hero__lede" data-reveal style="--d:.5s">
-          Real-time protection that flags scams, viruses and malware on your search results,
-          in your inbox and in your downloads&nbsp;&mdash; before a single click.
+          Sentinel checks search results, emails and downloads against live threat lists, then reads
+          the address and the page for the tricks those lists have not caught yet. Each threat gets
+          its own mask, coloured by how sure Sentinel is.
         </p>
         <div class="hero__cta" data-reveal style="--d:.65s">
           <a class="btn btn--gold btn--lg" href="/download">
@@ -32,7 +31,7 @@
           </a>
           <a class="btn btn--lg" href="/app">Open in your browser <span class="arrow">&rarr;</span></a>
         </div>
-        <p class="hero__fine" data-reveal style="--d:.8s"><span>Free plan, no card</span><span>Works with Chrome, Edge &amp; Brave</span><span>Gmail &amp; Outlook</span></p>
+        <p class="hero__fine" data-reveal style="--d:.8s"><span>Free plan, no card</span><span>Chrome, Edge and Brave</span><span>Gmail and Outlook</span></p>
       </div>
 
       <!-- product stage -->
@@ -49,7 +48,7 @@
             Replay
           </button>
         </div>
-        <p class="stage__hint" data-reveal style="--d:1s">Real verdicts from Sentinel&rsquo;s engine &mdash; click any result to see why.</p>
+        <p class="stage__hint" data-reveal style="--d:1s">Real verdicts from Sentinel&rsquo;s engine. Click any result to see why.</p>
         <div class="window">
           <div class="window__bar">
             <div class="window__dots"><i></i><i></i><i></i></div>
@@ -62,7 +61,7 @@
           <div class="serp" data-serp>
             <div class="serp__q">About 48,200,000 results</div>
             <div class="res" data-masks="">
-              <div class="res__title">Resolve a limited account — PayPal Help Center <span class="masks"></span></div>
+              <div class="res__title">Resolve a limited account | PayPal Help Center <span class="masks"></span></div>
               <div class="res__url">https://www.paypal.com/us/cshelp/limited-account</div>
               <p class="res__desc">Find out why your account may be limited and what you can do to restore access.</p>
             </div>
@@ -72,7 +71,7 @@
               <p class="res__desc">Unlock your PayPal account instantly with our recovery specialists.</p>
             </div>
             <div class="res" data-masks="scam:orange,malware:yellow">
-              <div class="res__title">Restore PayPal Access — Secure Verification Portal <span class="masks"></span></div>
+              <div class="res__title">Restore PayPal Access | Secure Verification Portal <span class="masks"></span></div>
               <div class="res__url">https://paypal.com.secure-verify-login.xyz/signin</div>
               <p class="res__desc">Your account has been limited. Verify your identity within 24 hours.</p>
             </div>
@@ -82,7 +81,7 @@
               <p class="res__desc">Download the official unlock utility. Works on Windows 10 and 11.</p>
             </div>
             <div class="res" data-masks="scam:red" data-danger>
-              <div class="res__title">PayPaI — Log in to your account <span class="masks"></span></div>
+              <div class="res__title">PayPaI | Log in to your account <span class="masks"></span></div>
               <div class="res__url">https://paypa1-secure-login.com/account</div>
               <p class="res__desc">Log in to your PayPal account to review recent activity.</p>
             </div>
@@ -125,9 +124,9 @@
   <section class="stats" aria-label="Sentinel in numbers">
     <div class="wrap stats__grid">
       <div class="stat" data-reveal><div class="stat__n tabular"><span data-count="400000" data-live="threats">400,000</span><span class="unit">+</span></div><div class="stat__l">known threats tracked from live public feeds</div></div>
-      <div class="stat" data-reveal style="--d:.08s"><div class="stat__n tabular"><span data-count="89" data-live="checks">89</span></div><div class="stat__l">individual checks behind every verdict</div></div>
-      <div class="stat" data-reveal style="--d:.16s"><div class="stat__n tabular"><span data-count="3">3</span></div><div class="stat__l">masks&nbsp;&mdash; scam, virus and malware</div></div>
-      <div class="stat" data-reveal style="--d:.24s"><div class="stat__n tabular">0<span class="unit">%</span></div><div class="stat__l">false alarms across 127 of the web&rsquo;s most visited sites</div></div>
+      <div class="stat" data-reveal style="--d:.08s"><div class="stat__n tabular"><span data-count="92" data-live="checks">92</span></div><div class="stat__l">individual checks behind every verdict</div></div>
+      <div class="stat" data-reveal style="--d:.16s"><div class="stat__n tabular"><span data-count="3">3</span></div><div class="stat__l">masks: scam, virus and malware</div></div>
+      <div class="stat" data-reveal style="--d:.24s"><div class="stat__n tabular"><span data-count="24" data-live="kinds">24</span></div><div class="stat__l">kinds of threat it can name, from a fake login to a fake browser update</div></div>
     </div>
   </section>
 
@@ -298,7 +297,7 @@
         <div class="step" data-reveal style="--d:.3s">
           <div class="step__num">04</div>
           <h3>Research</h3>
-          <p>On Pro, Max and Ultimate, Sentinel visits for you: domain age, certificate, redirects, forms and scripts&nbsp;&mdash; safely, from our servers.</p>
+          <p>On Pro, Max and Ultimate, Sentinel visits for you: domain age, certificate, redirects, forms and scripts, safely, from our servers.</p>
           <div class="step__sample">Registered <b>3 days ago</b><br>Password form posts to .ru<br><span class="bad">Sends data to a Telegram bot</span></div>
         </div>
       </div>
@@ -339,15 +338,15 @@
         <article class="tile" data-reveal>
           <div class="tile__label">Search results</div>
           <h3>Masks before you choose</h3>
-          <p>Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more. Masks appear as the page loads&nbsp;&mdash; on Max, each result is researched too.</p>
+          <p>Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more. Masks appear as the page loads. On Max, each result is researched too.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row" data-why="The real Coinbase: a long-established domain on Sentinel’s verified list, so no mask."><div class="grow"><div class="t">Coinbase — Buy &amp; Sell Bitcoin</div><div class="s">coinbase.com</div></div></div>
-            <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension — Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="impersonation" title="impersonation"></span></div>
+            <div class="demo-row" data-why="The real Coinbase: a long-established domain on Sentinel’s verified list, so no mask."><div class="grow"><div class="t">Coinbase | Buy and Sell Bitcoin</div><div class="s">coinbase.com</div></div></div>
+            <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension | Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="impersonation" title="impersonation"></span></div>
             <div class="demo-row" data-why="Listed in public phishing feeds. Brand name + “airdrop claim” on a free .tk domain."><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--red)" data-kind="crypto" title="crypto"></span></div>
-            <div class="demo-row" data-why="A direct program download from a throwaway .site domain with no reputation, dressed up as a free tool."><div class="grow"><div class="t">Crypto Price Tracker — Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="program" title="program"></span></div>
-            <div class="demo-row" data-why="A subdomain of the verified coinbase.com, so it inherits its trust."><div class="grow"><div class="t">Coinbase Help — Contact Support</div><div class="s">help.coinbase.com</div></div></div>
-            <div class="demo-row" data-why="Crypto exchanges don’t run phone support lines on look-alike domains. Classic support-number scam pattern."><div class="grow"><div class="t">Coinbase Support Number 24/7 — Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="support" title="support"></span></div>
-            <div class="demo-row" data-why="An established site with a normal history and nothing suspicious on the page."><div class="grow"><div class="t">Crypto Tax Calculator — Free Guide 2026</div><div class="s">koinly.io/guides</div></div></div>
+            <div class="demo-row" data-why="A direct program download from a throwaway .site domain with no reputation, dressed up as a free tool."><div class="grow"><div class="t">Crypto Price Tracker | Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="program" title="program"></span></div>
+            <div class="demo-row" data-why="A subdomain of the verified coinbase.com, so it inherits its trust."><div class="grow"><div class="t">Coinbase Help | Contact Support</div><div class="s">help.coinbase.com</div></div></div>
+            <div class="demo-row" data-why="Crypto exchanges don’t run phone support lines on look-alike domains. Classic support-number scam pattern."><div class="grow"><div class="t">Coinbase Support Number 24/7 | Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="support" title="support"></span></div>
+            <div class="demo-row" data-why="An established site with a normal history and nothing suspicious on the page."><div class="grow"><div class="t">Crypto Tax Calculator | Free Guide 2026</div><div class="s">koinly.io/guides</div></div></div>
           </div>
           <div class="tile__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Live scanning: 24 hours a week on Pro, 96 on Max</div>
         </article>
@@ -357,15 +356,15 @@
           <h3>Emails, unmasked</h3>
           <p>Gmail and Outlook get the same masks. Spoofed senders, mismatched links and disguised attachments are marked in the list.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row" data-why="DocuSign never sends from a free Gmail address, and the display name doesn’t match the sender."><div class="file">DS</div><div class="grow"><div class="t">DocuSign — Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="impersonation" title="impersonation"></span></div>
-            <div class="demo-row" data-why="Sent from github.com with passing sender authentication."><div class="file">GH</div><div class="grow"><div class="t">GitHub — Your weekly digest</div><div class="s">noreply@github.com</div></div></div>
+            <div class="demo-row" data-why="DocuSign never sends from a free Gmail address, and the display name doesn’t match the sender."><div class="file">DS</div><div class="grow"><div class="t">DocuSign: Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="impersonation" title="impersonation"></span></div>
+            <div class="demo-row" data-why="Sent from github.com with passing sender authentication."><div class="file">GH</div><div class="grow"><div class="t">GitHub: Your weekly digest</div><div class="s">noreply@github.com</div></div></div>
           </div>
         </article>
 
         <article class="tile" data-reveal style="--d:.2s">
           <div class="tile__label">Downloads</div>
           <h3>Every file, inspected</h3>
-          <p>The Sentinel app scans new downloads on your computer. Files never leave your device&nbsp;&mdash; only their fingerprint does.</p>
+          <p>The Sentinel app scans new downloads on your computer. Files never leave your device. Only their fingerprint does.</p>
           <div class="tile__demo demo-list">
             <div class="demo-row" data-why="The real extension is .exe. The “.pdf” is there to trick you into running it."><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" data-glyph="virus"></span><span class="kind-icon" style="--c:var(--red)" data-kind="disguised" title="disguised"></span></div>
             <div class="demo-row" data-why=".docm files carry macros that can download and run other programs as soon as you enable editing."><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" data-glyph="malware"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="macro" title="macro"></span></div>
@@ -382,7 +381,7 @@
         <div class="try__copy">
           <span class="kicker">Try it now</span>
           <h2 style="margin-top:16px">Got a link you&rsquo;re <span class="serif italic">not sure about?</span></h2>
-          <p>Paste it here. No account needed &mdash; you get the known-threat lookup and the full checklist. Accounts add research, history and live protection.</p>
+          <p>Paste it here. No account needed: you get the known-threat lookup and the full checklist. Accounts add research, history and live protection.</p>
           <div class="try__examples" aria-label="Examples">
             <span class="muted">Try:</span>
             <button type="button" class="chip-q" data-try-example="paypal-account-verify.com/login">paypal-account-verify.com</button>
@@ -436,7 +435,7 @@
           </div>
           <div class="vault__item" data-reveal style="--d:.16s">
             <div class="vault__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12h16M12 4v16"/><circle cx="12" cy="12" r="8"/></svg></div>
-            <div><h4>Research happens on our side</h4><p>Suspicious pages are opened from isolated servers that refuse to touch private networks&nbsp;&mdash; never from your computer.</p></div>
+            <div><h4>Research happens on our side</h4><p>Suspicious pages are opened from isolated servers that refuse to touch private networks, never from your computer.</p></div>
           </div>
           <div class="vault__item" data-reveal style="--d:.24s">
             <div class="vault__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h10v10H7z"/><path d="M4 4h3M17 4h3M4 20h3M17 20h3"/></svg></div>
@@ -462,11 +461,11 @@
       <div class="faq" data-reveal>
         <details>
           <summary>What&rsquo;s the difference between yellow, orange and red?<i></i></summary>
-          <div>Yellow means a few warning signs&nbsp;&mdash; worth a second look. Orange means many strong signs at once, so it&rsquo;s probably dangerous. Red is only ever shown with evidence: the site is on a live threat list, matches a known scam kit while impersonating a brand, or does something unmistakably hostile.</div>
+          <div>Yellow means a few warning signs, worth a second look. Orange means many strong signs at once, so it&rsquo;s probably dangerous. Red is only ever shown with evidence: the site is on a live threat list, matches a known scam kit while impersonating a brand, or does something unmistakably hostile.</div>
         </details>
         <details>
           <summary>Do I need to download anything?<i></i></summary>
-          <div>No. The web app works in any browser for scanning links and files. Live protection&nbsp;&mdash; masks on search results, emails and downloads&nbsp;&mdash; runs through the Sentinel app, which you download once.</div>
+          <div>No. The web app works in any browser for scanning links and files. Live protection, meaning masks on search results, emails and downloads, runs through the Sentinel app, which you download once.</div>
         </details>
         <details>
           <summary>What does &ldquo;research&rdquo; mean on Pro, Max and Ultimate?<i></i></summary>

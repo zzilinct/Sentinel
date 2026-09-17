@@ -399,7 +399,7 @@
       const line = points >= max * 0.8
         ? 'Sharp eyes. Sentinel just does this for every link, automatically.'
         : points >= max * 0.5
-          ? 'Not bad &mdash; but a couple slipped through. Scammers only need one.'
+          ? 'Not bad, but a couple slipped through. Scammers only need one.'
           : 'These are hard to spot by eye. That&rsquo;s exactly why Sentinel exists.';
       stageEl.innerHTML = `
         <div class="game__end">
@@ -448,7 +448,7 @@
       if (!url) return;
       if (window.SENTINEL_STATIC) {
         const site = window.SENTINEL_STATIC.origin;
-        out.innerHTML = `<div class="try__empty"><p>This preview can&rsquo;t reach the scanner. Check this link on the live site &mdash; no account needed.</p>`
+        out.innerHTML = `<div class="try__empty"><p>This preview can&rsquo;t reach the scanner. Check this link on the live site. No account needed.</p>`
           + `<a class="btn btn--gold btn--sm" href="${site}/#try">Open ${esc(site.replace(/^https?:\/\//, ''))}</a></div>`;
         return;
       }

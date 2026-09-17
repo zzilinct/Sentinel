@@ -29,7 +29,7 @@ body.app::before { background: radial-gradient(900px 500px at 85% -10%, rgba(212
 .side__link:hover { background: rgba(255, 255, 255, .04); color: var(--text); }
 .side__link[aria-current="page"] { background: rgba(212, 174, 99, .08); color: var(--gold-50); box-shadow: inset 0 0 0 1px rgba(212, 174, 99, .16); }
 .side__link[aria-current="page"] svg { color: var(--gold-300); opacity: 1; }
-.side__link .pill { margin-left: auto; font: 500 10px var(--mono); letter-spacing: .06em; padding: 2px 7px; border-radius: 99px; color: var(--gold-200); background: rgba(212, 174, 99, .12); }
+.side__link .pill { margin-left: auto; font: 500 10px var(--mono); letter-spacing: .06em; padding: 2px 7px; border-radius: 5px; color: var(--gold-200); background: rgba(212, 174, 99, .12); }
 .side__foot { margin-top: auto; display: grid; gap: 10px; }
 
 .usage-mini { padding: 14px; border-radius: 14px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
@@ -97,7 +97,7 @@ body.app::before { background: radial-gradient(900px 500px at 85% -10%, rgba(212
 .scan-meta a { color: var(--gold-300); }
 
 .examples { display: flex; gap: 8px; flex-wrap: wrap; }
-.chip { height: 30px; padding: 0 11px; border-radius: 99px; border: 0; cursor: pointer; font: 12.5px var(--mono); color: var(--text-2); background: rgba(255, 255, 255, .04); box-shadow: inset 0 0 0 1px var(--line); transition: all .2s; }
+.chip { height: 30px; padding: 0 11px; border-radius: var(--r-sm); border: 0; cursor: pointer; font: 12.5px var(--mono); color: var(--text-2); background: rgba(255, 255, 255, .04); box-shadow: inset 0 0 0 1px var(--line); transition: all .2s; }
 .chip:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
 
 /* ---------------------------------------------------------- progress */
@@ -404,7 +404,7 @@ kbd { font: 11px var(--mono); color: var(--muted); padding: 2px 6px; border-radi
 .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 14px 0 12px; }
 .tools__group { display: flex; gap: 6px; flex-wrap: wrap; }
 .tools__group + .tools__group { padding-left: 8px; border-left: 1px solid var(--line); }
-.fchip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 0; border-radius: 99px; cursor: pointer; font: 500 12.5px var(--sans); color: var(--muted); background: rgba(255, 255, 255, .03); box-shadow: inset 0 0 0 1px var(--line); transition: all .2s; }
+.fchip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 0; border-radius: var(--r-sm); cursor: pointer; font: 500 12.5px var(--sans); color: var(--muted); background: rgba(255, 255, 255, .03); box-shadow: inset 0 0 0 1px var(--line); transition: all .2s; }
 .fchip:hover { color: var(--text); }
 .fchip[aria-pressed="true"] { color: var(--text); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--line-2); }
 .fchip svg { width: 13px; height: 13px; }
