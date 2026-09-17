@@ -17,6 +17,7 @@
     "build:icons": "node scripts/make-icons.js",
     "build:ext": "node scripts/build-extension.js",
     "build": "node scripts/make-icons.js && node scripts/build-extension.js",
-    "build:static": "node scripts/build-static.js"
+    "build:static": "node scripts/build-static.js",
+    "publish:site": "node scripts/publish-site.js"
   }
 }

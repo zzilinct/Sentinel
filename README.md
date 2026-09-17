@@ -111,7 +111,16 @@ and bakes today's demo verdicts in, so the search demo, mask explorer and
 Spot-the-scam game still run against real scan results. Anything that needs the
 API - sign-in, live scans, the app - links back to the full site instead.
 
-`.github/workflows/pages.yml` publishes it on every push that touches `web/`.
+The public site is served from `wyattbombara/sentinel` (GitHub Pages at
+wyattbombara.github.io/sentinel). That repository only ever holds build output:
+
+```bash
+npm run publish:site
+```
+
+builds `web/` for that address and pushes one commit there, using the git
+credentials already on this machine. `.github/workflows/pages.yml` also
+publishes a copy to this repository's own Pages site on every push that touches `web/`.
 Turn it on once under **Settings -> Pages -> Source: GitHub Actions**. Keeping
 the static copy as a build output is what stops it drifting from the real site.
 
