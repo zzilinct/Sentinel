@@ -2,51 +2,121 @@
 <html lang="en">
 <head>
 <!-- @include head -->
-<title>Privacy · Sentinel</title>
-<meta name="description" content="What Sentinel collects, what it never collects, and how your data is protected.">
+<title>Privacy Policy · Sentinel</title>
+<meta name="description" content="Exactly what Sentinel collects, why, how long it keeps it, who else sees it, and what it never does.">
 </head>
 <body>
 <!-- @include nav -->
 <main>
   <section class="page-head" style="padding-bottom:40px">
     <div class="wrap-narrow">
-      <span class="kicker" data-reveal>Privacy</span>
-      <h1 data-split>Addresses, <span class="serif italic">not your life.</span></h1>
-      <p data-reveal>A protection product should collect as little as possible. Here is exactly what Sentinel sees.</p>
-      <p class="updated" data-reveal>Last updated 16 September 2026 &middot; beta</p>
+      <span class="kicker" data-reveal>Privacy Policy</span>
+      <h1 data-split>Exactly what Sentinel <span class="serif italic">sees</span></h1>
+      <p data-reveal>A protection tool should collect as little as it can and explain the rest. This page describes what the software actually does, not what a template says it should.</p>
+      <p class="updated" data-reveal>Last updated 17 September 2026 &middot; pre-launch draft, not yet reviewed by a lawyer</p>
     </div>
   </section>
 
   <section class="prose-wrap">
     <div class="wrap-narrow prose" data-reveal>
-      <h2>What Sentinel processes</h2>
+      <h2>1. Two ways to run Sentinel</h2>
+      <p>Which of these applies to you changes what this policy means in practice.</p>
       <ul>
-        <li><strong>Web addresses</strong> of search results, pages you open and links you scan, so they can be checked.</li>
-        <li><strong>Page contents</strong> of a site, fetched by our servers only when a scan includes research (Pro, Max and Ultimate). Nothing from your own browser session is sent &mdash; no cookies, no logged-in pages.</li>
-        <li><strong>Email details your mail client already shows</strong> &mdash; sender, reply-to, subject, a text excerpt, link addresses and attachment names &mdash; when email protection or a paste-in email scan is used. They are analysed in memory and not stored.</li>
-        <li><strong>Files you upload</strong> to the virus &amp; malware scanner, inspected in memory and discarded. Only the SHA-256 fingerprint may be kept.</li>
-        <li><strong>Downloads on your computer</strong> are inspected locally by the Sentinel app. Only the fingerprint is sent to check against known threats.</li>
-        <li><strong>Your account</strong>: email, name, a scrypt password hash, plan, weekly usage counters, scan history (90 days), trusted sites, reports, and a security log of sign-ins (180 days).</li>
+        <li><b>The desktop app.</b> It runs a complete copy of Sentinel on your own computer. Your account, scan history and settings live in a folder on that computer (on Windows, <span class="mono">%APPDATA%\Sentinel</span>) and are not sent to us. The app talks to the internet to download public threat lists and, during research scans, to look up domain records and fetch pages. Nothing about your account leaves the machine.</li>
+        <li><b>The hosted service.</b> When Sentinel is offered from our own servers, the data described below is stored there. The hosted service is not live yet; when it is, this page will say so and name where the servers are.</li>
+      </ul>
+      <p>The public website is served by GitHub Pages and has no accounts. Its &ldquo;try a link&rdquo; demo and guest mode are described in section 4.</p>
+
+      <h2>2. What is processed when you scan something</h2>
+      <ul>
+        <li><b>Web addresses</b> you paste in, and, with live protection on, the addresses of search results and pages you open. They are checked against threat lists and the checklist.</li>
+        <li><b>Page content</b> of a site, fetched by Sentinel&rsquo;s own servers, only when the scan includes research (Pro, Max and Ultimate). Nothing from your browser session is used: no cookies, no logged-in pages, nothing you typed.</li>
+        <li><b>Email details</b> your mail client already shows you (sender, reply-to, subject, a text excerpt, link addresses and attachment names) when email protection or a paste-in email scan is used. They are analysed in memory and not stored.</li>
+        <li><b>Files</b> you upload to the virus and malware scanner are inspected in memory and discarded. Only the file&rsquo;s SHA-256 fingerprint may be kept, so the same file can be recognised again.</li>
+        <li><b>Downloads</b> on your computer are inspected by the desktop app locally. Only the fingerprint is sent to check against known threats; the file itself never leaves your computer.</li>
       </ul>
 
-      <h2>What Sentinel never does</h2>
+      <h2>3. What an account stores</h2>
+      <table class="data-table">
+        <thead><tr><th>What</th><th>Why</th><th>Kept for</th></tr></thead>
+        <tbody>
+          <tr><td>Email address, first name, optional last name</td><td>To identify you, sign you in and contact you about your account</td><td>Until you delete the account</td></tr>
+          <tr><td>Password, stored as a scrypt hash (never the password itself)</td><td>Sign-in</td><td>Until changed or the account is deleted</td></tr>
+          <tr><td>The date you confirmed you are 18+ and accepted the Terms, and which version</td><td>Required to use Sentinel; kept as a record of consent</td><td>Until you delete the account</td></tr>
+          <tr><td>Whether your email is confirmed, and one-time confirmation and reset links (stored hashed)</td><td>Account recovery and security</td><td>Links expire within 24 hours; used links are removed after a day</td></tr>
+          <tr><td>Plan and weekly usage counters</td><td>To apply your plan&rsquo;s allowances</td><td>35 days</td></tr>
+          <tr><td>Scan history: what was checked, when, and the result</td><td>So you can see and re-run past scans</td><td>90 days</td></tr>
+          <tr><td>Sites you have trusted or blocked</td><td>To honour your rules on future scans</td><td>Until you remove them or delete the account</td></tr>
+          <tr><td>Reports you file: the site, your category and any note</td><td>To confirm threats for everyone when enough people agree</td><td>Until you delete the account</td></tr>
+          <tr><td>Signed-in devices: browser name, IP address, last activity</td><td>So you can see and revoke sessions</td><td>Until the session ends or expires (30 days)</td></tr>
+          <tr><td>Security log: sign-ins, password and 2FA changes, reports, plan changes, with IP address</td><td>To investigate misuse and unauthorised access</td><td>180 days</td></tr>
+          <tr><td>Two-factor secret, encrypted</td><td>Two-factor sign-in, if you turn it on</td><td>Until you turn it off</td></tr>
+          <tr><td>API keys for optional AI assistants, encrypted with AES-256-GCM</td><td>To send your messages to the provider you chose</td><td>Until you disconnect the assistant</td></tr>
+        </tbody>
+      </table>
+
+      <h2>4. Without an account</h2>
+      <ul>
+        <li><b>Guest mode</b> lets you scan ten links a day per connection. Sentinel uses your IP address, in memory only, to count those ten. Nothing about a guest scan is written to disk or kept after the result is shown.</li>
+        <li><b>The website&rsquo;s demo</b> shows example verdicts that were computed when the site was built. Trying a link on the website works the same way as guest mode.</li>
+      </ul>
+
+      <h2>5. Cookies and storage in your browser</h2>
+      <ul>
+        <li>One cookie, <span class="mono">sentinel_session</span>, keeps you signed in for 30 days. It is HttpOnly and SameSite, so scripts and other sites cannot read it. There are no advertising or analytics cookies, and no cookie banner because none is needed.</li>
+        <li>The web app may register a service worker that caches Sentinel&rsquo;s own fonts and scripts so pages load faster. It stores nothing about you.</li>
+        <li>The browser companion keeps its settings, your pairing token and a short-lived cache of recent verdicts in the browser&rsquo;s extension storage on your computer.</li>
+      </ul>
+
+      <h2>6. Who else sees anything</h2>
+      <p>Sentinel does not sell personal data and does not share it for advertising. The following services are involved, each only for the purpose stated.</p>
+      <ul>
+        <li><b>Public threat lists</b> (OpenPhish, URLhaus by abuse.ch, Phishing.Database) are downloaded to Sentinel. Nothing about you is sent to them.</li>
+        <li><b>Domain registries (RDAP)</b> and <b>the site being scanned</b> receive requests from Sentinel&rsquo;s servers during research scans, so they see that Sentinel looked, not who asked.</li>
+        <li><b>Google Safe Browsing</b>, only if the operator configures it, receives the web address being checked.</li>
+        <li><b>Resend</b> delivers account emails (confirmation, password reset) on the hosted service and receives your email address and the message.</li>
+        <li><b>Google</b>, only if you choose &ldquo;Continue with Google&rdquo;, tells Sentinel your email, name and profile picture, and whether the address is verified.</li>
+        <li><b>GitHub</b> hosts the public website and the app downloads. Like any web host, it logs the IP addresses of visitors under its own privacy policy. The download page also asks GitHub&rsquo;s API for the latest release version.</li>
+        <li><b>AI providers</b> (OpenAI, Anthropic, Google, DeepSeek) receive the messages you send through the optional assistants, under their terms, using your own key.</li>
+      </ul>
+
+      <h2>7. What Sentinel never does</h2>
       <ul>
         <li>Record what you type into websites, or read pages behind your logins.</li>
-        <li>Sell or share personal data for advertising.</li>
-        <li>Ask for passwords to other services. The optional AI assistants use API keys you create, stored with AES-256-GCM encryption.</li>
+        <li>Run analytics, trackers or crash reporters on the website or in the app. The desktop app writes a local log file for troubleshooting, which stays on your computer unless you choose to send it to us.</li>
+        <li>Ask for your password to any other service.</li>
+        <li>Keep the files or emails you scan.</li>
       </ul>
 
-      <h2>Where information comes from</h2>
-      <p>Threat knowledge comes from Sentinel&rsquo;s own database, community reports, and public feeds including OpenPhish, URLhaus (abuse.ch) and Phishing.Database. If configured, links are also checked against Google Safe Browsing. Registration details come from public RDAP registries.</p>
+      <h2>8. How it is protected</h2>
+      <p>On the hosted service, traffic is encrypted with TLS. Passwords are hashed with scrypt, secrets are encrypted at rest, accounts lock after repeated failed sign-ins, and two-factor authentication is available to everyone. Research requests run from isolated servers that refuse to connect to private networks. No system is perfectly secure, and if a breach affected your data we would tell you.</p>
 
-      <h2>Security</h2>
-      <p>Traffic is encrypted with TLS. Sessions use HttpOnly, SameSite cookies; passwords are hashed with scrypt; accounts lock after repeated failed sign-ins; two-factor authentication is available to everyone. Research requests run from isolated servers that refuse to connect to private networks.</p>
+      <h2>9. Your choices and rights</h2>
+      <ul>
+        <li>Delete your account at any time from Security settings. Everything in section 3 is removed immediately, except security-log entries that finish their 180 days.</li>
+        <li>Revoke any signed-in device, remove any trusted or blocked site, and disconnect any AI assistant from the app.</li>
+        <li>Ask us what we hold about you, to correct it, or to delete it, by emailing <a href="mailto:privacy@usesentinel.technology">privacy@usesentinel.technology</a>. Depending on where you live, laws such as the GDPR or the CCPA may give you further rights, including to complain to a regulator.</li>
+      </ul>
 
-      <h2>Your choices</h2>
-      <p>You can delete your account at any time from <a href="/app/security">Security settings</a>, revoke any signed-in device, and remove trusted sites. Deleting your account removes your history, reports, usage and connected keys.</p>
+      <h2>10. Children</h2>
+      <p>Sentinel is for people aged 18 and over. We do not knowingly collect information from anyone under 18, and we close accounts we learn belong to minors.</p>
 
-      <h2>Contact</h2>
-      <p>Questions about privacy: <a href="mailto:privacy@usesentinel.technology">privacy@usesentinel.technology</a>.</p>
+      <h2>11. Changes</h2>
+      <p>If this policy changes in a way that matters, we will say so in the app or by email before the change takes effect, and update the date at the top.</p>
+
+      <h2>12. Contact</h2>
+      <p><a href="mailto:privacy@usesentinel.technology">privacy@usesentinel.technology</a></p>
+
+      <div class="review-note">
+        <h3>Open items for legal review</h3>
+        <ul>
+          <li>The legal entity, its address, and a named privacy contact or data protection officer if one is required.</li>
+          <li>Where the hosted service&rsquo;s servers will be, and whether international transfer terms are needed.</li>
+          <li>The lawful basis for each processing purpose under the GDPR, and whether a CCPA &ldquo;Do Not Sell or Share&rdquo; notice is required even though nothing is sold.</li>
+          <li>Whether the 90-day history and 180-day security-log retention periods are appropriate, and any legal-hold exceptions.</li>
+          <li>Data processing agreements with Resend and any hosting provider.</li>
+        </ul>
+      </div>
     </div>
   </section>
 </main>

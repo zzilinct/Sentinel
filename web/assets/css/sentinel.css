@@ -645,3 +645,15 @@ p { text-wrap: pretty; }
 .has-prelaunch .section:first-of-type { padding-top: 40px; }
 /* Anchors with no href: present, explained, and plainly not usable yet. */
 .is-soon { opacity: .45; cursor: not-allowed; pointer-events: none; }
+
+/* --------------------------------------------------------- legal pages */
+
+.prose b { color: var(--text); font-weight: 500; }
+.data-table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 14.5px; }
+.data-table th, .data-table td { padding: 12px 12px 12px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.data-table th { font: 500 11.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.data-table td:first-child { color: var(--text); }
+@media (max-width: 640px) { .data-table thead { display: none; } .data-table tr { display: grid; padding: 10px 0; border-bottom: 1px solid var(--line); } .data-table td { padding: 2px 0; border: 0; } }
+.review-note { margin-top: 56px; padding: 22px 24px; border-radius: 14px; background: rgba(245, 197, 66, .05); box-shadow: inset 0 0 0 1px rgba(245, 197, 66, .25); font-size: 14.5px; }
+.review-note h3 { margin: 0 0 8px; font-size: 16px; }
+.review-note ul { margin-bottom: 0; }
