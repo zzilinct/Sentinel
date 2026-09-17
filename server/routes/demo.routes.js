@@ -141,6 +141,22 @@ function register(router) {
     security.rateLimit('demo-scan:global', config.isTest ? 100000 : 5000, 24 * 60 * 60 * 1000, 'The demo is busy right now. Create a free account to keep scanning.');
     sendJson(res, 200, { verdict: summarize(await scan(url)) });
   });
+
+  /**
+   * Guest mode: the same full result a signed-in Free scan gets (knowledge,
+   * checklist and comparison, never research), without an account. Limited
+   * per visitor and never recorded anywhere.
+   */
+  router.post('/api/v1/guest/scan', async (req, res) => {
+    const ip = security.clientIp(req);
+    const body = await readJson(req, 8 * 1024);
+    const url = typeof body.url === 'string' && body.url.trim() ? typedUrl(body.url) : null;
+    if (!url || !analyze(url)) throw new HttpError(400, 'bad_url', 'That doesn’t look like a web address.');
+    security.rateLimit(`guest-scan:${ip}`, config.isTest ? 1000 : 10, 24 * 60 * 60 * 1000, 'Guest scans are limited to 10 a day. Create a free account for more.');
+    security.rateLimit('guest-scan:global', config.isTest ? 100000 : 5000, 24 * 60 * 60 * 1000, 'Guest scanning is busy right now. Create a free account to keep scanning.');
+    const verdict = await engine.scanUrl(url, { threats: ['scam'], research: false, mode: 'guest' });
+    sendJson(res, 200, { verdict, guest: { limitPerDay: 10 } });
+  });
 }
 
 module.exports = { register, buildExamples };

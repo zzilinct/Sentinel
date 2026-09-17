@@ -27,6 +27,28 @@
     return;
   }
 
+  if (page === 'verify') {
+    const token = new URLSearchParams(location.search).get('token') || '';
+    history.replaceState({}, '', '/verify');
+    const status = $('[data-status]');
+    if (!token) {
+      status.textContent = 'This page needs the link from your verification email.';
+      note('You can request a new link from <a href="/app/security" style="color:var(--gold-300)">Security settings</a> once signed in.');
+      return;
+    }
+    api('/auth/verify', { method: 'POST', body: { token } })
+      .then(() => {
+        status.textContent = 'Your email address is confirmed. Thanks.';
+        $('[data-after]').hidden = false;
+      })
+      .catch((err) => {
+        status.textContent = 'That link didn’t work.';
+        note(esc(err.message));
+        $('[data-after]').hidden = false;
+      });
+    return;
+  }
+
   // Keep the one-time token out of history, logs and referrers once it's read.
   const token = new URLSearchParams(location.search).get('token') || '';
   history.replaceState({}, '', '/reset');

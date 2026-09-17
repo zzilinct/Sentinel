@@ -156,6 +156,22 @@ const MIGRATIONS = [
   CREATE INDEX idx_feed_hosts_source ON feed_hosts(source, added_at);
   CREATE INDEX idx_feed_urls_source ON feed_urls(source, added_at);
   CREATE INDEX idx_scam_tokens_host ON scam_tokens(host);
+  `,
+
+  // 5 - email verification; explicit age confirmation and terms acceptance
+  `
+  ALTER TABLE users ADD COLUMN email_verified_at INTEGER;
+  ALTER TABLE users ADD COLUMN age_confirmed_at INTEGER;
+  ALTER TABLE users ADD COLUMN terms_accepted_at INTEGER;
+  ALTER TABLE users ADD COLUMN terms_version TEXT;
+  -- Accounts that predate verification keep working; Google sign-ins arrive verified.
+  UPDATE users SET email_verified_at = created_at;
+  CREATE TABLE email_verifications (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER
+  );
+  CREATE INDEX idx_verifications_user ON email_verifications(user_id);
   `
 ];
 

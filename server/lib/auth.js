@@ -60,7 +60,10 @@ function decryptSecret(blob) {
 
 const EMAIL_RX = /^[^\s@<>()[\]\\,;:"]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i;
 
-function validateSignup({ email, password, firstName, lastName }) {
+/** Bump when the Terms change materially; accounts record the version they accepted. */
+const TERMS_VERSION = '2026-09-17';
+
+function validateSignup({ email, password, firstName, lastName, ageConfirmed, termsAccepted }) {
   const errors = {};
   email = String(email || '').trim().toLowerCase();
   firstName = String(firstName || '').trim();
@@ -74,8 +77,12 @@ function validateSignup({ email, password, firstName, lastName }) {
   const problem = security.passwordProblem(password, { email, firstName });
   if (problem) errors.password = problem;
 
+  // Both must be an explicit true from the form, never a default.
+  if (ageConfirmed !== true) errors.ageConfirmed = 'You must confirm that you are at least 18 years old';
+  if (termsAccepted !== true) errors.termsAccepted = 'You must accept the Terms and the Privacy Policy';
+
   if (Object.keys(errors).length) throw new HttpError(400, 'validation_failed', 'Please fix the highlighted fields', { errors });
-  return { email, password: String(password), firstName, lastName: lastName || null };
+  return { email, password: String(password), firstName, lastName: lastName || null, ageConfirmed: true, termsAccepted: true };
 }
 
 /* ------------------------------------------------------------------ users */
@@ -84,6 +91,8 @@ const uq = {
   byEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
   byId: db.prepare('SELECT * FROM users WHERE id = ?'),
   byGoogle: db.prepare('SELECT * FROM users WHERE google_sub = ?'),
+  markVerified: db.prepare('UPDATE users SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL'),
+  acceptTerms: db.prepare('UPDATE users SET age_confirmed_at = ?, terms_accepted_at = ?, terms_version = ? WHERE id = ?'),
   insert: db.prepare(`INSERT INTO users (id, email, password_hash, first_name, last_name, google_sub, avatar_url, created_at, last_login_at)
                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
   touch: db.prepare('UPDATE users SET last_login_at = ?, failed_logins = 0, locked_until = 0 WHERE id = ?'),
@@ -119,15 +128,25 @@ function publicUser(u) {
     hasPassword: Boolean(u.password_hash),
     googleLinked: Boolean(u.google_sub),
     twoFactorEnabled: Boolean(u.totp_enabled),
+    emailVerified: Boolean(u.email_verified_at),
+    ageConfirmedAt: u.age_confirmed_at || null,
+    termsAcceptedAt: u.terms_accepted_at || null,
+    termsVersion: u.terms_version || null,
+    // True when the account still owes the 18+ confirmation and terms acceptance
+    // for the current terms (Google sign-ups and older accounts).
+    needsTerms: !u.age_confirmed_at || !u.terms_accepted_at || u.terms_version !== TERMS_VERSION,
     createdAt: u.created_at
   };
 }
 
-async function createUser({ email, password, firstName, lastName, googleSub = null, avatarUrl = null }) {
+async function createUser({ email, password, firstName, lastName, googleSub = null, avatarUrl = null, emailVerified = false, ageConfirmed = false, termsAccepted = false }) {
   if (uq.byEmail.get(email)) throw new HttpError(409, 'email_taken', 'An account with this email already exists');
   const userId = id('usr');
   const hash = password ? await hashPassword(password) : null;
-  uq.insert.run(userId, email, hash, firstName, lastName, googleSub, avatarUrl, now(), now());
+  const t = now();
+  uq.insert.run(userId, email, hash, firstName, lastName, googleSub, avatarUrl, t, t);
+  if (emailVerified) uq.markVerified.run(t, userId);
+  if (ageConfirmed && termsAccepted) uq.acceptTerms.run(t, t, TERMS_VERSION, userId);
   return uq.byId.get(userId);
 }
 
@@ -324,14 +343,14 @@ async function upsertGoogleUser(claims) {
   }
   const first = String(claims.given_name || (claims.name || email).split(' ')[0] || 'Friend').slice(0, 60);
   const last = claims.family_name ? String(claims.family_name).slice(0, 60) : null;
-  return createUser({ email, password: null, firstName: first, lastName: last, googleSub: claims.sub, avatarUrl: claims.picture || null });
+  return createUser({ email, password: null, firstName: first, lastName: last, googleSub: claims.sub, avatarUrl: claims.picture || null, emailVerified: claims.email_verified === true });
 }
 
 module.exports = {
   uq, sq,
   id, hashPassword, verifyPassword, sha256,
   encryptSecret, decryptSecret,
-  validateSignup, createUser, publicUser, checkPassword,
+  validateSignup, createUser, publicUser, checkPassword, TERMS_VERSION,
   createChallenge, completeChallenge,
   createSession, sessionCookie, clearCookie, currentUser, requireUser, destroySession,
   googleAuthUrl, googleExchange, upsertGoogleUser, safeNext

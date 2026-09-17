@@ -15,7 +15,40 @@ const resets = {
   use: db.prepare('UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL')
 };
 
+const verifications = {
+  insert: db.prepare('INSERT INTO email_verifications (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'),
+  get: db.prepare('SELECT * FROM email_verifications WHERE token_hash = ?'),
+  use: db.prepare('UPDATE email_verifications SET used_at = ? WHERE user_id = ? AND used_at IS NULL')
+};
+
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/**
+ * Issue a 24-hour, single-use verification link and email it. Returns what
+ * happened so the client never claims a message went out when it didn't.
+ */
+async function sendVerification(user, req) {
+  if (!config.mailConfigured) return 'unavailable';
+  const token = crypto.randomBytes(32).toString('base64url');
+  verifications.insert.run(A.sha256(token), user.id, Date.now(), Date.now() + 24 * 60 * 60 * 1000);
+  const link = `${config.publicOrigin}/verify?token=${token}`;
+  const result = await mailer.send({
+    to: user.email,
+    subject: 'Confirm your Sentinel email address',
+    text: `Hi ${user.first_name},
+
+Confirm this is your email address to finish setting up Sentinel. The link works once and expires in 24 hours:
+
+${link}
+
+If you didn't create a Sentinel account, you can ignore this email.`,
+    html: mailer.layout('Confirm your email address', `<p style="color:#b9b6ae;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(user.first_name)}, confirm this is your email address to finish setting up Sentinel. The link works once and expires in 24 hours.</p>
+      <a href="${link}" style="display:inline-block;background:#d4ae63;color:#16130b;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:11px">Confirm email address</a>
+      <p style="color:#86847e;font-size:13px;line-height:1.6;margin:24px 0 0">Didn't create a Sentinel account? Ignore this email.</p>`)
+  });
+  security.audit('verification_sent', { userId: user.id, req, detail: result.ok ? 'ok' : result.reason });
+  return result.ok ? 'sent' : 'failed';
+}
 
 function register(router) {
   router.get('/api/v1/auth/config', (req, res) => {
@@ -23,6 +56,8 @@ function register(router) {
       googleEnabled: config.google.enabled,
       billingMode: config.billingMode,
       origin: config.publicOrigin,
+      verificationAvailable: config.mailConfigured,
+      termsVersion: A.TERMS_VERSION,
       plans: plans.publicPlans()
     });
   });
@@ -34,7 +69,33 @@ function register(router) {
     const user = await A.createUser(clean);
     security.audit('signup', { userId: user.id, req });
     const { token } = A.createSession(user.id, req);
-    sendJson(res, 201, { user: A.publicUser(user) }, { 'Set-Cookie': A.sessionCookie(token) });
+    // 'sent' | 'failed' | 'unavailable' - the client only says an email went out when one did.
+    const verification = await sendVerification(user, req);
+    sendJson(res, 201, { user: A.publicUser(user), verification }, { 'Set-Cookie': A.sessionCookie(token) });
+  });
+
+  /* ------------------------------------------------------ email verification */
+
+  router.post('/api/v1/auth/verify', async (req, res) => {
+    const body = await readJson(req);
+    security.rateLimit(`verify:${security.clientIp(req)}`, 30, 60 * 60 * 1000);
+    const row = verifications.get.get(A.sha256(String(body.token || '')));
+    if (!row || row.used_at || row.expires_at < Date.now()) {
+      throw new HttpError(400, 'verify_invalid', 'This verification link has expired or was already used. Request a new one from Security settings.');
+    }
+    const user = A.uq.byId.get(row.user_id);
+    if (!user) throw new HttpError(400, 'verify_invalid', 'This verification link is no longer valid.');
+    A.uq.markVerified.run(Date.now(), user.id);
+    verifications.use.run(Date.now(), user.id);
+    security.audit('email_verified', { userId: user.id, req });
+    sendJson(res, 200, { ok: true, user: A.publicUser(A.uq.byId.get(user.id)) });
+  });
+
+  router.post('/api/v1/auth/verify/resend', async (req, res) => {
+    const user = A.requireUser(req);
+    security.rateLimit(`verify-resend:${user.id}`, 3, 60 * 60 * 1000, 'You can request three verification emails an hour.');
+    if (user.email_verified_at) { sendJson(res, 200, { verification: 'already' }); return; }
+    sendJson(res, 200, { verification: await sendVerification(user, req) });
   });
 
   router.post('/api/v1/auth/login', async (req, res) => {

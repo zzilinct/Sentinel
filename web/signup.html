@@ -44,10 +44,22 @@
           <span class="field__error" data-error="password"></span>
           <span class="field__hint" data-hint>At least 10 characters, with a letter and a number.</span>
         </div>
-        <button class="btn btn--gold btn--lg btn--block" style="margin-top:22px" type="submit">Create account</button>
+        <div class="consent">
+          <label class="consent__row">
+            <input type="checkbox" name="ageConfirmed" value="yes">
+            <span>I confirm that I am at least 18 years old.</span>
+          </label>
+          <span class="field__error" data-error="ageConfirmed"></span>
+          <label class="consent__row">
+            <input type="checkbox" name="termsAccepted" value="yes">
+            <span>I have read and accept the <a href="/terms" target="_blank" rel="noopener">Terms and Conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+          </label>
+          <span class="field__error" data-error="termsAccepted"></span>
+        </div>
+        <button class="btn btn--gold btn--lg btn--block" style="margin-top:18px" type="submit">Create account</button>
       </form>
       <p class="auth__switch">Already have an account? <a href="/login" data-keep-query>Sign in</a></p>
-      <p class="auth__legal">By continuing you agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</p>
+      <p class="auth__legal">Sentinel is for adults. Accounts need a confirmed email address to keep.</p>
     </div>
   </section>
   <!-- @include auth-art -->

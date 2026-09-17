@@ -79,11 +79,17 @@
     note('[data-note]', '');
     const data = Object.fromEntries(new FormData(form).entries());
     if (!isSignup) data.next = next();
+    if (isSignup) {
+      // Unchecked boxes are absent from FormData; the server wants an explicit true or false.
+      data.ageConfirmed = form.elements.ageConfirmed.checked;
+      data.termsAccepted = form.elements.termsAccepted.checked;
+    }
 
     await busy($('button[type=submit]', form), isSignup ? 'Creating account' : 'Signing in', async () => {
       try {
         const res = await api(isSignup ? '/auth/signup' : '/auth/login', { method: 'POST', body: data });
         if (res.twoFactorRequired) return showCodeStep(res.challenge);
+        // The app shows the verification reminder itself; nothing is claimed here that didn't happen.
         location.replace(next());
       } catch (err) {
         if (!showErrors(form, err.errors)) note('[data-note]', esc(err.message));

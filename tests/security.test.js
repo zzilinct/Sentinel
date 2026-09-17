@@ -14,7 +14,7 @@ test.after(() => app.server.close());
 async function signedIn(plan = 'free') {
   const c = client(app.base);
   const email = `sec_${Math.random().toString(36).slice(2)}@example.com`;
-  const r = await c.post('/api/v1/auth/signup', { email, password: 'Correct-Horse-42', firstName: 'Sec' });
+  const r = await c.post('/api/v1/auth/signup', { email, password: 'Correct-Horse-42', firstName: 'Sec', ageConfirmed: true, termsAccepted: true });
   assert.equal(r.status, 201);
   if (plan !== 'free') await c.post('/api/v1/billing/plan', { plan });
   c.email = email;

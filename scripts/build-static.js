@@ -64,7 +64,7 @@ const ROUTES = {
 };
 
 /** Pages that only exist with a server: point them at the live site. */
-const NEEDS_SERVER = ['/app', '/login', '/signup', '/forgot', '/reset', '/connect', '/welcome'];
+const NEEDS_SERVER = ['/app', '/login', '/signup', '/forgot', '/reset', '/verify', '/connect', '/welcome', '/guest'];
 
 function rewriteLinks(html, origin, launched) {
   return html.replace(/(href|src|content)="(\/[^"]*)"/g, (whole, attr, url) => {

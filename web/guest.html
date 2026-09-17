@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- @include head -->
+<link rel="stylesheet" href="/assets/css/app.css">
+<title>Guest scan · Sentinel</title>
+<meta name="description" content="Check a link with Sentinel without an account. Ten scans a day, no history, no research.">
+</head>
+<body class="app">
+<div class="shell shell--guest">
+  <main class="main" id="main">
+    <div class="topbar-mobile" style="display:flex">
+      <a class="logo" href="/"><span class="logo__mark" data-glyph="logo"></span>Sentinel</a>
+      <span style="display:flex;gap:8px"><a class="btn btn--sm" href="/login">Sign in</a><a class="btn btn--gold btn--sm" href="/signup">Create account</a></span>
+    </div>
+    <div class="view">
+      <div class="page-title">
+        <div>
+          <h1>Guest scan <span class="status is-locked" style="display:inline-flex;vertical-align:middle;margin-left:10px">Guest mode</span></h1>
+          <p>Check a link without an account. You get the known-threat lookup, the full checklist and the comparison with known scams, and every reason behind the result.</p>
+        </div>
+      </div>
+      <div class="banner" style="margin-bottom:22px"><div><b>You're using Sentinel as a guest.</b> Ten scans a day per connection, the scam mask only, nothing is saved, and there is no research stage. A free account adds history, virus and malware masks, trusted-site rules and the paid plans' live protection.</div></div>
+
+      <form class="scanbox" data-form>
+        <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link" aria-label="Link to scan" required maxlength="2000">
+        <button class="btn btn--gold" type="submit">Scan</button>
+      </form>
+      <div class="scan-meta"><span data-left>10 guest scans a day</span><span class="examples">
+        <button class="chip" type="button" data-example="paypa1-secure-login.com/account">paypa1-secure-login.com</button>
+        <button class="chip" type="button" data-example="https://www.wikipedia.org">wikipedia.org</button>
+      </span></div>
+      <div data-out></div>
+    </div>
+  </main>
+</div>
+<script src="/assets/js/masks.js"></script>
+<script src="/assets/js/ui.js"></script>
+<script src="/assets/js/guest.js"></script>
+</body>
+</html>

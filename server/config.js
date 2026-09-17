@@ -71,6 +71,10 @@ module.exports = {
   // Research may reach private addresses only in the test suite's fixture server.
   researchAllowPrivate: isTest && process.env.RESEARCH_ALLOW_PRIVATE === '1',
   trustProxy: process.env.TRUST_PROXY === '1',
+  // Whether this server can actually deliver email. Development prints messages
+  // to the console; production needs a provider key. The self-contained desktop
+  // app has neither, and says so instead of pretending a message was sent.
+  mailConfigured: Boolean(process.env.RESEND_API_KEY) || !isProd,
   sessionTtlMs: 30 * 24 * 60 * 60 * 1000,
   webDir: path.join(root, 'web')
 };

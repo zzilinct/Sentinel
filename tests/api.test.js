@@ -21,7 +21,7 @@ let n = 0;
 async function newUser(plan = 'free') {
   const c = client(app.base);
   const email = `user${++n}_${Date.now()}@example.com`;
-  const r = await c.post('/api/v1/auth/signup', { email, password: 'Correct-Horse-42', firstName: 'Test', lastName: '' });
+  const r = await c.post('/api/v1/auth/signup', { email, password: 'Correct-Horse-42', firstName: 'Test', lastName: '', ageConfirmed: true, termsAccepted: true });
   assert.equal(r.status, 201, JSON.stringify(r.data));
   if (plan !== 'free') {
     const up = await c.post('/api/v1/billing/plan', { plan });
@@ -43,14 +43,80 @@ test('signup requires a name, valid email and a strong password; last name optio
   assert.equal(missing.status, 400);
   assert.ok(missing.data.error.errors.email && missing.data.error.errors.firstName);
 
-  const ok = await c.post('/api/v1/auth/signup', { email: 'ann@example.com', password: 'Correct-Horse-42', firstName: 'Ann' });
+  // Age and terms are required and must be an explicit true - 'on' or 1 don't count.
+  const noConsent = await c.post('/api/v1/auth/signup', { email: 'ann@example.com', password: 'Correct-Horse-42', firstName: 'Ann' });
+  assert.equal(noConsent.status, 400);
+  assert.ok(noConsent.data.error.errors.ageConfirmed && noConsent.data.error.errors.termsAccepted);
+  const sloppy = await c.post('/api/v1/auth/signup', { email: 'ann@example.com', password: 'Correct-Horse-42', firstName: 'Ann', ageConfirmed: 'on', termsAccepted: 1 });
+  assert.equal(sloppy.status, 400);
+
+  const ok = await c.post('/api/v1/auth/signup', { email: 'ann@example.com', password: 'Correct-Horse-42', firstName: 'Ann', ageConfirmed: true, termsAccepted: true });
   assert.equal(ok.status, 201);
+  assert.equal(ok.data.verification, 'sent');
+  assert.equal(ok.data.user.emailVerified, false);
+  assert.equal(ok.data.user.needsTerms, false);
+  assert.ok(ok.data.user.ageConfirmedAt && ok.data.user.termsAcceptedAt);
   assert.equal(ok.data.user.lastName, null);
   assert.equal(ok.data.user.plan, 'free');
   assert.match(ok.headers.get('set-cookie'), /HttpOnly/);
 
-  const dup = await client(app.base).post('/api/v1/auth/signup', { email: 'ann@example.com', password: 'Correct-Horse-42', firstName: 'Ann' });
+  const dup = await client(app.base).post('/api/v1/auth/signup', { email: 'ann@example.com', password: 'Correct-Horse-42', firstName: 'Ann', ageConfirmed: true, termsAccepted: true });
   assert.equal(dup.status, 409);
+});
+
+test('email verification: a real link is emailed, works once, expires, and can be resent', async () => {
+  const { outbox } = require('../server/lib/mailer');
+  const c = await newUser();
+  const mail = outbox.filter((m) => m.to === c.email && /Confirm your Sentinel email/.test(m.subject)).pop();
+  assert.ok(mail, 'a verification email was actually produced');
+  const token = /\/verify\?token=([A-Za-z0-9_-]+)/.exec(mail.text)[1];
+
+  const anon = client(app.base);
+  const bad = await anon.post('/api/v1/auth/verify', { token: 'not-a-token' });
+  assert.equal(bad.status, 400);
+  const good = await anon.post('/api/v1/auth/verify', { token });
+  assert.equal(good.status, 200, JSON.stringify(good.data));
+  assert.equal(good.data.user.emailVerified, true);
+  assert.equal((await anon.post('/api/v1/auth/verify', { token })).status, 400, 'links work once');
+  assert.equal((await c.get('/api/v1/auth/me')).data.user.emailVerified, true);
+
+  const again = await c.post('/api/v1/auth/verify/resend', {});
+  assert.equal(again.data.verification, 'already');
+
+  const d = await newUser();
+  const resent = await d.post('/api/v1/auth/verify/resend', {});
+  assert.equal(resent.data.verification, 'sent');
+  assert.equal(outbox.filter((m) => m.to === d.email).length, 2);
+});
+
+test('accounts that owe the terms (Google sign-ups, older accounts) must confirm age and accept before use', async () => {
+  const c = await newUser();
+  const { db } = require('../server/lib/db');
+  db.prepare('UPDATE users SET age_confirmed_at = NULL, terms_accepted_at = NULL, terms_version = NULL WHERE email = ?').run(c.email);
+  assert.equal((await c.get('/api/v1/auth/me')).data.user.needsTerms, true);
+
+  const partial = await c.post('/api/v1/account/accept-terms', { ageConfirmed: true, termsAccepted: false });
+  assert.equal(partial.status, 400);
+  assert.ok(partial.data.error.errors.termsAccepted);
+
+  const done = await c.post('/api/v1/account/accept-terms', { ageConfirmed: true, termsAccepted: true });
+  assert.equal(done.status, 200);
+  assert.equal(done.data.user.needsTerms, false);
+  assert.equal(done.data.user.termsVersion, require('../server/lib/auth').TERMS_VERSION);
+});
+
+test('guest scan: full result without an account, scam mask only, nothing recorded', async () => {
+  const anon = client(app.base);
+  const r = await anon.post('/api/v1/guest/scan', { url: 'paypa1-secure-login.com/account' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.guest.limitPerDay, 10);
+  assert.equal(r.data.verdict.threats.scam.badge, 'red');
+  assert.equal(r.data.verdict.threats.virus, null, 'guests get the scam mask only');
+  assert.ok(r.data.verdict.checklist.items.length > 50, 'the full checklist is returned');
+  assert.equal(r.data.verdict.researched, false);
+  assert.equal((await anon.post('/api/v1/guest/scan', { url: 'javascript:alert(1)' })).status, 400);
+  const { db } = require('../server/lib/db');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM scan_history WHERE mode = 'guest'").get().n, 0);
 });
 
 test('login works, and wrong passwords get the same answer for real and unknown accounts', async () => {

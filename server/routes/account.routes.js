@@ -138,6 +138,26 @@ function register(router) {
     sendJson(res, 200, { ok: true }, { 'Set-Cookie': A.clearCookie() });
   });
 
+  /* ------------------------------------------------------- age + terms */
+
+  /**
+   * Accounts created through Google, or before the current Terms, confirm
+   * age and accept the Terms here before using the app. Both must be an
+   * explicit true; the timestamps and terms version are what get stored.
+   */
+  router.post('/api/v1/account/accept-terms', async (req, res) => {
+    const user = A.requireUser(req);
+    const body = await readJson(req);
+    const errors = {};
+    if (body.ageConfirmed !== true) errors.ageConfirmed = 'You must confirm that you are at least 18 years old';
+    if (body.termsAccepted !== true) errors.termsAccepted = 'You must accept the Terms and the Privacy Policy';
+    if (Object.keys(errors).length) throw new HttpError(400, 'validation_failed', 'Both confirmations are required', { errors });
+    const t = Date.now();
+    A.uq.acceptTerms.run(user.age_confirmed_at || t, t, A.TERMS_VERSION, user.id);
+    security.audit('terms_accepted', { userId: user.id, req, detail: A.TERMS_VERSION });
+    sendJson(res, 200, { user: A.publicUser(A.uq.byId.get(user.id)) });
+  });
+
   /* ------------------------------------------------------------ billing */
 
   router.post('/api/v1/billing/plan', async (req, res) => {

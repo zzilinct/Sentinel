@@ -144,6 +144,11 @@
     view.innerHTML = '';
     const el = document.createElement('div');
     el.className = 'view';
+    // Accounts that still owe the age confirmation and terms acceptance see
+    // nothing else until they've given it. Google sign-ups land here.
+    if (state.me.user.needsTerms) { view.appendChild(el); termsGate(el); return; }
+    // The reminder lives beside the view, not inside it: every view replaces its own innerHTML.
+    if (state.config.verificationAvailable && !state.me.user.emailVerified) view.appendChild(verifyBar());
     view.appendChild(el);
     fn(el, new URLSearchParams(location.search));
     document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules' }[name]} · Sentinel`;
@@ -235,6 +240,55 @@
       const text = (ev.clipboardData || {}).getData ? ev.clipboardData.getData('text').trim() : '';
       if (text && text.length < 2048 && looksLikeUrl(text)) openPalette(text);
     });
+  }
+
+  /* ======================================================= consent gate */
+
+  function termsGate(el) {
+    el.innerHTML = `<form class="panel gate" data-gate>
+      <h1 style="font-size:24px">Before you continue</h1>
+      <p class="muted" style="margin-top:8px;font-size:14.5px">Sentinel is for adults, and using it means agreeing to how it works and what it does with your data. Both boxes are required.</p>
+      <div class="consent">
+        <label class="consent__row"><input type="checkbox" name="ageConfirmed"><span>I confirm that I am at least 18 years old.</span></label>
+        <span class="field__error" data-error="ageConfirmed"></span>
+        <label class="consent__row"><input type="checkbox" name="termsAccepted"><span>I have read and accept the <a href="/terms" target="_blank" rel="noopener">Terms and Conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
+        <span class="field__error" data-error="termsAccepted"></span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:22px;flex-wrap:wrap">
+        <button class="btn btn--gold" type="submit">Continue</button>
+        <button class="btn" type="button" data-gate-out>Sign out</button>
+      </div>
+    </form>`;
+    const form = $('[data-gate]', el);
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      $$('[data-error]', form).forEach((e) => { e.textContent = ''; });
+      busy($('button[type=submit]', form), 'Saving', async () => {
+        try {
+          const data = await api('/account/accept-terms', { method: 'POST', body: { ageConfirmed: form.ageConfirmed.checked, termsAccepted: form.termsAccepted.checked } });
+          state.me.user = data.user;
+          render();
+        } catch (err) {
+          for (const [k, msg] of Object.entries(err.errors || {})) { const slot = $(`[data-error="${k}"]`, form); if (slot) slot.textContent = msg; }
+          if (!Object.keys(err.errors || {}).length) toast(err.message, 'error');
+        }
+      });
+    });
+    $('[data-gate-out]', el).addEventListener('click', signOut);
+  }
+
+  function verifyBar() {
+    const bar = h(`<div class="verify-bar" role="status">
+      <span><b>Confirm your email address.</b> We sent a link to ${esc(state.me.user.email)}. Until it's confirmed you can't recover this account if you forget your password.</span>
+      <button class="btn btn--sm" type="button" data-resend>Resend email</button>
+    </div>`);
+    $('[data-resend]', bar).addEventListener('click', (ev) => busy(ev.currentTarget, 'Sending', async () => {
+      try {
+        const { verification } = await api('/auth/verify/resend', { method: 'POST', body: {} });
+        toast({ sent: 'Verification email sent.', already: 'This address is already confirmed.', failed: 'The email could not be sent right now. Try again later.', unavailable: 'This Sentinel can’t send email.' }[verification] || 'Done.', verification === 'sent' ? 'success' : 'info');
+      } catch (err) { toast(err.message, 'error'); }
+    }));
+    return bar;
   }
 
   /* ============================================================ helpers */
@@ -919,7 +973,7 @@
             <div class="field"><label for="p-first">First name</label><input class="input" id="p-first" name="firstName" value="${esc(u.firstName)}" required maxlength="60"></div>
             <div class="field"><label for="p-last">Last name <span class="opt">(optional)</span></label><input class="input" id="p-last" name="lastName" value="${esc(u.lastName || '')}" maxlength="60"></div>
           </div>
-          <div class="field"><label>Email</label><input class="input" value="${esc(u.email)}" disabled></div>
+          <div class="field"><label>Email ${u.emailVerified ? '<span class="status is-on" style="display:inline-flex;margin-left:8px">Confirmed</span>' : '<span class="status is-locked" style="display:inline-flex;margin-left:8px">Not confirmed</span>'}</label><input class="input" value="${esc(u.email)}" disabled></div>
           <button class="btn" style="margin-top:18px" type="submit">Save profile</button>
         </form>
 
