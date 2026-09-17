@@ -156,6 +156,7 @@ What was deliberately not done: no confirmed-malicious URL was fetched, no malwa
 
 - **No hosted server until launch.** The desktop app runs its own copy; the static site cannot sign people up. `brand.json` drives the origin the extension and hosted app will talk to once `www.usesentinel.technology` resolves.
 - **No payment processing yet.** Production defaults to `BILLING_MODE=disabled` (upgrade buttons explain plans are coming). Stripe or similar must be added before charging.
+- **The desktop app does not research.** Its embedded server runs with `RESEARCH_ENABLED=0`, so a person's computer never opens a suspicious page; scans say so in place of the research section. Research needs the hosted service.
 - **Email verification needs a mail provider.** Without `RESEND_API_KEY` the server records the account and tells the person verification is unavailable; it never pretends to have sent anything.
 - **A plain page in a storage bucket scores "caution", not "suspicious".** `storage.googleapis.com/x/index.html` with no login wording in the address gets 22 points from the address alone; the page has to be fetched (research on) for the form and script checks to add to that.
 - The Windows installer is unsigned, so SmartScreen will warn until it's code-signed. macOS/Linux builds are configured but untested.

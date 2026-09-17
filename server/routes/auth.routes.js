@@ -57,6 +57,7 @@ function register(router) {
       billingMode: config.billingMode,
       origin: config.publicOrigin,
       verificationAvailable: config.mailConfigured,
+      researchAvailable: config.researchEnabled,
       termsVersion: A.TERMS_VERSION,
       plans: plans.publicPlans()
     });

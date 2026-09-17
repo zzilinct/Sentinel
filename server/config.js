@@ -68,6 +68,10 @@ module.exports = {
   feedRefreshHours: Number(process.env.FEED_REFRESH_HOURS ?? (isTest ? 0 : 6)),
   // "demo" lets signed-in users switch plans without payment (development only).
   billingMode: process.env.BILLING_MODE || (isProd ? 'disabled' : 'demo'),
+  // Research opens suspicious pages, which must only ever happen from Sentinel's
+  // own servers. The desktop app's embedded server sets this to 0 so a person's
+  // computer never fetches a suspicious page on their behalf.
+  researchEnabled: process.env.RESEARCH_ENABLED !== '0',
   // Research may reach private addresses only in the test suite's fixture server.
   researchAllowPrivate: isTest && process.env.RESEARCH_ALLOW_PRIVATE === '1',
   trustProxy: process.env.TRUST_PROXY === '1',

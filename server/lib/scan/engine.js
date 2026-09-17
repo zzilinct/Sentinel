@@ -16,6 +16,7 @@
  * unambiguous hostile behaviour. Heuristics alone top out at orange.
  */
 const { db, now } = require('../db');
+const config = require('../../config');
 const knowledge = require('./knowledge');
 const compare = require('./compare');
 const researchMod = require('./research');
@@ -125,7 +126,11 @@ function evidenceFrom(checks, know, ctx) {
 /* ------------------------------------------------------------- pipeline */
 
 /** Everything that doesn't depend on who is asking. */
-async function coreScan(p, { research }) {
+const NO_RESEARCH_PLAN = 'Research is included with Pro, Max and Ultimate scans';
+const NO_RESEARCH_LOCAL = 'This copy of Sentinel runs on your computer, and suspicious pages are never opened from here. Research comes with the hosted service.';
+
+async function coreScan(p, { research: wanted }) {
+  const research = Boolean(wanted) && config.researchEnabled;
   const key = `${research ? 'r' : 'q'}|${p.url}`;
   const cached = cacheGet(key);
   if (cached) return cached;
@@ -142,7 +147,7 @@ async function coreScan(p, { research }) {
       compare: compare.compareDomain(p),
       contentCompare: { kits: [], similarPages: [], fingerprint: null },
       research: null,
-      researchSkipReason: research ? null : 'Research is included with Pro, Max and Ultimate scans',
+      researchSkipReason: research ? null : (wanted ? NO_RESEARCH_LOCAL : NO_RESEARCH_PLAN),
       finalKnowledge: null
     };
 
@@ -184,6 +189,7 @@ async function coreScan(p, { research }) {
       host: p.host,
       domain: p.registrable,
       researched: Boolean(ctx.research),
+      researchSkipReason: ctx.research ? null : ctx.researchSkipReason,
       threats,
       knowledge: {
         known: know.known,
@@ -280,6 +286,7 @@ function shape(core, { threats: visible, userId, mode, detail = 'full', planId }
     plan: planId,
     override,
     researched: core.researched,
+    researchSkipReason: core.researchSkipReason || null,
     threats,
     overall: { level: worst.level, badge: worst.badge, label: worst.label },
     reasons,

@@ -81,7 +81,9 @@ function spawn(store) {
       DB_PATH: path.join(app.getPath('userData'), 'sentinel.db'),
       SESSION_SECRET: sessionSecret(store),
       // Pre-launch builds let every plan be exercised; billing arrives with the hosted service.
-      BILLING_MODE: process.env.BILLING_MODE || 'demo'
+      BILLING_MODE: process.env.BILLING_MODE || 'demo',
+      // Never fetch a suspicious page from the person's own computer.
+      RESEARCH_ENABLED: '0'
     };
     delete env.ELECTRON_RUN_AS_NODE;
 

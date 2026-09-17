@@ -361,6 +361,13 @@
     }).join('')}</ul>`;
   }
 
+  // The self-contained desktop build runs its server on this computer, so it
+  // never opens a suspicious page (that is what research does). Say so.
+  function localNote() {
+    if (state.config.researchAvailable !== false) return '';
+    return '<div class="banner" style="margin-bottom:18px"><div><b>Running on this computer.</b> This copy of Sentinel keeps its server and database on your machine. Suspicious pages are never opened from here, so research (domain age, certificates, redirects, page content) waits for the hosted service. Everything else works.</div></div>';
+  }
+
   function usageCard(icon, n, unit, label, used, limit, locked, meta) {
     const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
     return `<div class="usage-card${locked ? ' is-locked' : ''}">
@@ -571,6 +578,7 @@
     const f = plan().features;
     const mode = params.get('mode') === 'url' ? 'url' : 'file';
     el.innerHTML = `
+      ${localNote()}
       ${title('Virus &amp; malware scan', `Check a file or download link for viruses and malware. ${f.research ? 'Links are researched and downloaded files are inspected.' : 'Files are fully inspected; links get the checklist without research.'}`,
         `<div class="segmented" role="tablist"><button role="tab" data-mode="file" aria-selected="${mode === 'file'}">File</button><button role="tab" data-mode="url" aria-selected="${mode === 'url'}">Link</button></div>`)}
       <div data-input></div>
@@ -841,6 +849,7 @@
 
     el.innerHTML = `
       ${title('Live protection', 'Sentinel watching in real time: on search results, in your inbox and on every download.')}
+      ${localNote()}
       ${planLocked ? lockedCard({ tag: 'Pro & up', heading: 'Turn on live protection', body: 'Your Free plan includes manual link and file scans. Upgrade to Pro for 24 hours of live scanning a week, or Max for 96 hours with every result researched.', actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>' })
         : needsApp ? lockedCard({ tag: 'Unlocked by the Sentinel app', heading: 'Download Sentinel to switch these on', body: 'Your plan includes live protection. It runs through the Sentinel app on your computer, so it can watch downloads and add masks inside your browser.', actions: `<a class="btn btn--gold" href="/download">${ICON.download}Download Sentinel</a>` })
         : ''}

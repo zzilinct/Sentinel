@@ -415,3 +415,19 @@ test('kit-style pages in site folders and random hosting labels score by what is
   const readable = check(await scan('https://myshop2024.pages.dev/', { research: false }), 'U42');
   assert.notEqual(readable.status, 'fail', 'a readable label with a year is not random');
 });
+
+test('a server with research switched off never fetches, and says why', async () => {
+  const config = require('../server/config');
+  const url = 'https://free-recipes-blog.site/';
+  const on = await scan(url, { research: true });
+  assert.equal(on.researched, true, 'the fixture page is researched when research is on');
+  config.researchEnabled = false;
+  try {
+    const off = await scan(`${url}?again=1`, { research: true });
+    assert.equal(off.researched, false);
+    assert.equal(off.research, null);
+    assert.match(off.researchSkipReason, /on your computer/);
+  } finally {
+    config.researchEnabled = true;
+  }
+});
