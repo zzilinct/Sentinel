@@ -34,10 +34,12 @@ const PROGRAM = /\.(exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|js|jse|wsf|hta|
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
 const SETTLE_MS = 2000;
 const PERSIST_EVERY_MS = 45 * 1000;
+const SWEEP_EVERY_MS = 8 * 1000;
 
 let opts = null;
 let watchers = [];
 let persistTimer = null;
+let sweepTimer = null;
 let state = { active: false, reason: 'Starting', supported: process.platform === 'win32' };
 const timers = new Map();
 const seen = new Map();          // sha256 -> path
@@ -91,14 +93,36 @@ async function restart() {
     } catch { /* a folder we cannot watch */ }
   }
   persistTimer = setInterval(() => checkPersistence().catch(() => {}), PERSIST_EVERY_MS);
+  sweepTimer = setInterval(sweep, SWEEP_EVERY_MS);
   checkPersistence().catch(() => {});
   setState(true, null);
+}
+
+/** Belt and braces: look for program files that appeared recently, in case a watch event was missed. */
+const sweptAt = new Map();
+function sweep() {
+  const cutoff = Date.now() - 2 * SWEEP_EVERY_MS;
+  for (const f of folders()) {
+    let names = [];
+    try { names = fs.readdirSync(f.dir); } catch { continue; }
+    for (const name of names) {
+      if (!PROGRAM.test(name) || PARTIAL.test(name)) continue;
+      const full = path.join(f.dir, name);
+      let st;
+      try { st = fs.statSync(full); } catch { continue; }
+      if (!st.isFile() || st.mtimeMs < cutoff || sweptAt.get(full) === st.mtimeMs) continue;
+      sweptAt.set(full, st.mtimeMs);
+      if (sweptAt.size > 2000) sweptAt.clear();
+      inspect(full, 'arrived').catch((err) => record({ kind: 'error', path: full, name, detail: String(err && err.message || err) }));
+    }
+  }
 }
 
 function stop(reason, silent) {
   for (const w of watchers) { try { w.close(); } catch { /* closed */ } }
   watchers = [];
   clearInterval(persistTimer);
+  clearInterval(sweepTimer);
   for (const t of timers.values()) clearTimeout(t);
   timers.clear();
   if (!silent) setState(false, reason ? `Defense: ${reason.toLowerCase()}` : 'Defense: off');
@@ -119,7 +143,7 @@ function settle(full, lastSize) {
   try { stat = fs.statSync(full); } catch { return; }
   if (!stat.isFile()) return;
   if (stat.size !== lastSize) { timers.set(full, setTimeout(() => settle(full, stat.size), SETTLE_MS)); return; }
-  inspect(full, 'arrived').catch(() => {});
+  inspect(full, 'arrived').catch((err) => record({ kind: 'error', path: full, name: path.basename(full), detail: String(err && err.message || err) }));
 }
 
 async function hashFile(full) {
@@ -155,7 +179,8 @@ async function inspect(full, how) {
   const item = { path: full, name, size: stat.size, sha256, how, at: Date.now(), badge: worst.badge, label: worst.label, threat: worst.threat, reason: worst.reason };
   if (!worst.badge) { record({ kind: 'scanned', ...item }); return item; }
 
-  const actions = await respond(item);
+  let actions;
+  try { actions = await respond(item); } catch (err) { actions = [{ did: 'response failed', detail: String(err && err.message || err) }]; }
   record({ kind: 'threat', ...item, actions });
   if (opts.onThreat) opts.onThreat({ ...item, actions });
   return item;
