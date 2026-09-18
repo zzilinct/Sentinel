@@ -339,7 +339,13 @@ const KNOWLEDGE_CHECKS = [
 function matchCheck(knowledge, threat, noun) {
   const confirmed = knowledge.matches.filter((m) => m.threat === threat && m.strength === 'confirmed' && m.source !== 'community');
   if (confirmed.length) {
-    return fail(100, `Listed as ${confirmed[0].category.replace(/_/g, ' ')} by ${[...new Set(confirmed.map((m) => m.sourceName))].join(', ')}`);
+    const wording = {
+      hosts_phishing_page: 'hosting a listed phishing page',
+      hosts_malware: 'hosting a listed malware download',
+      compromised_host: 'hosting several listed malicious files'
+    };
+    const what = wording[confirmed[0].category] || `listed as ${confirmed[0].category.replace(/_/g, ' ')}`;
+    return fail(100, `${what[0].toUpperCase()}${what.slice(1)} by ${[...new Set(confirmed.map((m) => m.sourceName))].join(', ')}`);
   }
   const likely = knowledge.matches.filter((m) => m.threat === threat && m.strength === 'likely');
   if (likely.length) return fail(45, `Several known ${noun} links are hosted here`);

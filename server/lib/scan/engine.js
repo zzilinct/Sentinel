@@ -196,10 +196,13 @@ async function coreScan(p, { research: wanted }) {
         trusted: know.trusted,
         matches: know.matches.map(({ sourceName, threat, category, strength }) => ({ source: sourceName, threat, category, strength })),
         sources: know.sources,
+        feeds: know.feeds,
         discountApplied
       },
       comparison: {
-        similarDomains: [...ctx.compare.skeletonMatches.map((m) => m.host), ...ctx.compare.tokenMatches.map((m) => m.host)].slice(0, 5),
+        similarDomains: [...new Set([...ctx.compare.skeletonMatches.map((m) => m.host), ...ctx.compare.tokenMatches.map((m) => m.host)])].slice(0, 10),
+        compared: ctx.compare.compared || 0,
+        closest: ctx.compare.closest || [],
         kits: ctx.contentCompare.kits.map(({ label, threat, strength }) => ({ label, threat, strength })),
         similarPages: ctx.contentCompare.similarPages
       },

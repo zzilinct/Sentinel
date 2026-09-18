@@ -52,8 +52,12 @@ test('imported public feeds are used as knowledge', async () => {
   await feeds.rebuildTokens();
 
   assert.equal(lvl(await scan('https://compromised-dentist-site.com/wp-content/uploads/secure/login.php'), 'scam'), 'confirmed');
-  // Same host, different (clean) page: the exact-URL feed must not condemn the whole site.
-  assert.notEqual(lvl(await scan('https://compromised-dentist-site.com/'), 'scam'), 'confirmed');
+  // The rest of that site is dangerous too while it hosts a listed phishing page.
+  const root = await scan('https://compromised-dentist-site.com/');
+  assert.equal(lvl(root, 'scam'), 'confirmed');
+  assert.ok(root.reasons.some((r) => /hosting a listed phishing page/i.test(r.text)), 'the reason says why');
+  // "www." on either side of the list makes no difference.
+  assert.equal(lvl(await scan('https://www.brand-new-phish-zone.com/'), 'scam'), 'confirmed');
   assert.equal(lvl(await scan('https://brand-new-phish-zone.com/anything'), 'scam'), 'confirmed');
   assert.equal(lvl(await scan('https://cdn-files-storage.net/payload/invoice_2026.exe'), 'virus'), 'confirmed');
   assert.equal(lvl(await scan('https://netflix-account-hold.com/'), 'scam'), 'confirmed');
@@ -430,4 +434,47 @@ test('a server with research switched off never fetches, and says why', async ()
   } finally {
     config.researchEnabled = true;
   }
+});
+
+test('feeds in every list format are read, and the file host is never trusted for them', () => {
+  const byId = (id) => feeds.FEEDS.find((f) => f.id === id);
+  assert.deepEqual(feeds.extract(byId('scamblocklist'), '# comment\n0.0.0.0 bad-shop.example\n0.0.0.0 www.bad-shop.example\nnot a hosts line\n'), ['bad-shop.example', 'www.bad-shop.example']);
+  assert.deepEqual(feeds.extract(byId('threatfox'), '#####\n127.0.0.1\tc2.example\n'), ['c2.example']);
+  assert.deepEqual(feeds.extract(byId('metamask'), JSON.stringify({ blacklist: ['drainer.example', 7], whitelist: ['fine.example'] })), ['drainer.example']);
+  assert.deepEqual(feeds.extract(byId('scamsniffer'), '["a.example","b.example"]'), ['a.example', 'b.example']);
+  assert.deepEqual(feeds.extract(byId('polkadot_phishing'), JSON.stringify({ allow: ['ok.example'], deny: ['no.example'] })), ['no.example']);
+  assert.deepEqual(feeds.extract(byId('phishtank'), 'phish_id,url,detail\n1,"https://x.example/a,b",https://phishtank.example/1\n2,https://y.example/,z\n'), ['https://x.example/a,b', 'https://y.example/']);
+  assert.deepEqual(feeds.extract(byId('certpl'), 'one.example\ntwo.example # note\n\n'), ['one.example', 'two.example']);
+  assert.deepEqual(feeds.extract(byId('urlhaus'), '# header\nhttp://1.2.3.4/bin.sh\n'), ['http://1.2.3.4/bin.sh']);
+  assert.ok(feeds.FEEDS.length >= 12, 'a dozen or more public lists');
+  for (const f of feeds.FEEDS) assert.ok(f.name && f.hours && /^https?:\/\//.test(f.url), `${f.id} is complete`);
+});
+
+test('a listed host is definite in every list that names it, and a name is always compared with 10+ known scams', async () => {
+  await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'scamsniffer'), ['wallet-drainer-airdrop.example', 'www.metamask-claim-portal.example']);
+  await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'threatfox'), ['c2-panel.example', '203.0.113.77']);
+  await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'urlhaus'), ['https://one-listed-download.example/files/setup.exe']);
+  await feeds.rebuildTokens();
+
+  for (const [url, threat] of [
+    ['https://wallet-drainer-airdrop.example/claim', 'scam'],
+    ['https://metamask-claim-portal.example/', 'scam'],
+    ['https://c2-panel.example/gate.php', 'malware'],
+    ['http://203.0.113.77/', 'malware'],
+    ['https://one-listed-download.example/files/setup.exe', 'virus'],
+    ['https://one-listed-download.example/', 'virus']
+  ]) {
+    const v = await scan(url, { research: false });
+    assert.equal(lvl(v, threat), 'confirmed', `${url} ${threat}`);
+    assert.equal(v.threats[threat].badge, 'red');
+    assert.equal(v.knowledge.known, true);
+  }
+
+  for (const url of ['https://paypal-secure-login-verify.com/', 'https://qzx-trading.biz/', 'https://john-smith-photography.com/']) {
+    const v = await scan(url, { research: false });
+    assert.ok(v.comparison.compared >= 10, `${url} compared with ${v.comparison.compared}`);
+    assert.ok(v.comparison.closest.length >= 1 && v.comparison.closest.length <= 10);
+    assert.ok(v.comparison.closest.every((c) => typeof c.host === 'string' && Number.isInteger(c.distance)));
+  }
+  assert.ok(typeof (await scan('https://example.org/', { research: false })).knowledge.feeds.total === 'number');
 });

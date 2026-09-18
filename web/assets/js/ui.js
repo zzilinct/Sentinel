@@ -260,6 +260,7 @@ window.UI = (() => {
       facts.push(['Threat sources', `${v.knowledge.sources.length} checked`]);
       facts.push(['Known record', v.knowledge.known ? 'Yes' : v.knowledge.trusted ? 'Verified site' : 'None found']);
     }
+    if (v.comparison && v.comparison.compared) facts.push(['Compared with', `${v.comparison.compared} known scam domains`]);
     if (v.research) {
       const r = v.research;
       if (r.domainAgeDays != null) facts.push(['Domain age', r.domainAgeDays < 60 ? `${r.domainAgeDays} days` : r.domainAgeDays < 730 ? `${Math.round(r.domainAgeDays / 30)} months` : `${Math.round(r.domainAgeDays / 365)} years`]);
@@ -278,7 +279,9 @@ window.UI = (() => {
     if (v.knowledge && v.knowledge.discountApplied) notes.push('No threat source has a record of this site, so Sentinel lowered its risk by 20%.');
     if (v.kind === 'url' && !v.researched) notes.push(v.researchSkipReason || 'Research wasn’t part of this scan. Pro, Max and Ultimate also check registration, certificates, redirects and page content.');
     if (v.comparison && v.comparison.kits.length) notes.push(`Page matches known scam pattern: ${v.comparison.kits.map((k) => k.label).join(', ')}.`);
-    if (v.comparison && v.comparison.similarDomains.length) notes.push(`Built like known scam domains: ${v.comparison.similarDomains.slice(0, 3).join(', ')}.`);
+    if (v.comparison && v.comparison.similarDomains.length) notes.push(`Built like known scam domains: ${v.comparison.similarDomains.slice(0, 5).join(', ')}.`);
+    else if (v.comparison && v.comparison.closest && v.comparison.closest.length) notes.push(`Not close to any known scam domain. Nearest of the ${v.comparison.compared} compared: ${v.comparison.closest.slice(0, 3).map((c) => c.host).join(', ')}.`);
+    if (v.knowledge && v.knowledge.feeds && v.knowledge.feeds.ready < v.knowledge.feeds.total) notes.push(`Threat lists are still downloading on this Sentinel (${v.knowledge.feeds.ready} of ${v.knowledge.feeds.total} ready). Scan again in a few minutes for a complete answer.`);
 
     return `<article class="result result--${head.tone}" data-result>
       <header class="result__head">

@@ -15,8 +15,13 @@ const { deskin, nameTokens, levenshtein } = require('./url');
 // Tokens that appear in so many scam domains they say nothing specific.
 const MAX_TOKEN_DF = 4000;
 
+// Every name is compared with at least this many known scam domains.
+const MIN_COMPARED = 10;
+
 const q = {
-  skeleton: db.prepare('SELECT host, threat, category FROM feed_hosts WHERE skeleton = ? AND host != ? LIMIT 3'),
+  skeleton: db.prepare('SELECT host, threat, category FROM feed_hosts WHERE skeleton = ? AND host != ? LIMIT 10'),
+  // Known hosts whose skeleton starts the same way, for the nearest-name pass.
+  skeletonNear: db.prepare("SELECT host, skeleton FROM feed_hosts WHERE skeleton >= ? AND skeleton < ? AND threat = 'scam' LIMIT 60"),
   df: db.prepare('SELECT df FROM token_df WHERE token = ?'),
   tokenHosts: db.prepare('SELECT host FROM scam_tokens WHERE token = ? LIMIT 400'),
   blockHosts: db.prepare('SELECT host, threat, category FROM blocklist'),
@@ -45,20 +50,29 @@ function blockSkeletons() {
 }
 
 function compareDomain(p) {
-  if (p.isIp) return { skeletonMatches: [], tokenMatches: [], nearest: null };
+  if (p.isIp) return { skeletonMatches: [], tokenMatches: [], nearest: null, compared: 0, closest: [] };
   const sld = p.sld;
   const skeleton = deskin(sld);
-  const out = { skeletonMatches: [], tokenMatches: [], nearest: null };
+  const out = { skeletonMatches: [], tokenMatches: [], nearest: null, compared: 0, closest: [] };
+  // Every known host this name was measured against, with its edit distance.
+  const candidates = new Map();
+  const consider = (host, hostSkeleton) => {
+    if (!host || host === p.registrable || host === p.host || candidates.has(host)) return;
+    const sk = hostSkeleton || deskin(host.split('.')[0]);
+    candidates.set(host, levenshtein(sk, skeleton));
+  };
 
   if (skeleton.length >= 6) {
     out.skeletonMatches = q.skeleton.all(skeleton, p.registrable);
     // Our own confirmed list is small enough to compare with edit distance.
     for (const row of blockSkeletons()) {
       if (row.host === p.registrable || row.host === p.host) continue;
+      consider(row.host, row.skeleton);
       if (Math.abs(row.skeleton.length - skeleton.length) <= 2 && levenshtein(row.skeleton, skeleton) <= 2) {
         out.skeletonMatches.push(row);
       }
     }
+    for (const row of out.skeletonMatches) consider(row.host, row.skeleton);
   }
 
   // Token overlap weighted by rarity: sharing "paypal" + "refund" with known
@@ -80,13 +94,26 @@ function compareDomain(p) {
         scores.set(host, entry);
       }
     }
+    for (const host of scores.keys()) consider(host);
     out.tokenMatches = [...scores.values()]
       .filter((e) => e.shared.length >= 2 && e.shared.length >= Math.ceil(informative.length * 0.66))
       .sort((a, b) => b.weight - a.weight)
-      .slice(0, 5);
+      .slice(0, 10);
   }
 
-  out.nearest = out.skeletonMatches[0] ? out.skeletonMatches[0].host : (out.tokenMatches[0] ? out.tokenMatches[0].host : null);
+  // Names with nothing distinctive in them still get measured against known
+  // scam domains that start the same way, so no comparison is ever skipped.
+  if (candidates.size < MIN_COMPARED && skeleton.length >= 3) {
+    const prefix = skeleton.slice(0, 3);
+    for (const row of q.skeletonNear.all(prefix, prefix + '\uffff')) consider(row.host, row.skeleton);
+  }
+  if (candidates.size < MIN_COMPARED) {
+    for (const row of blockSkeletons()) { if (candidates.size >= MIN_COMPARED) break; consider(row.host, row.skeleton); }
+  }
+
+  out.compared = candidates.size;
+  out.closest = [...candidates.entries()].sort((a, b) => a[1] - b[1]).slice(0, 10).map(([host, distance]) => ({ host, distance }));
+  out.nearest = out.skeletonMatches[0] ? out.skeletonMatches[0].host : (out.tokenMatches[0] ? out.tokenMatches[0].host : (out.closest[0] ? out.closest[0].host : null));
   return out;
 }
 

@@ -1,26 +1,100 @@
 'use strict';
 /**
- * Public threat-feed ingestion. Feeds are free, keyless and refreshed on a timer:
+ * Public threat-feed ingestion. Every feed is free and keyless. A site found in
+ * any of them is a confirmed threat: that is what "known" means in a verdict.
  *
- *   openphish          live phishing URLs
- *   urlhaus            live malware distribution URLs (abuse.ch)
- *   phishing_database  active phishing domains (Phishing.Database project)
+ *   Phishing and scams   OpenPhish, PhishTank, Phishing.Database, the
+ *                        malware-filter phishing list, CERT Polska's warning
+ *                        list, DurableNapkin's scam blocklist, Spam404
+ *   Crypto scams         MetaMask's phishing detector, ScamSniffer,
+ *                        the Polkadot.js phishing list
+ *   Malware              URLhaus (URLs and hosts), ThreatFox, Feodo Tracker,
+ *                        Blackbook
  *
- * Imports run in small transactions with yields in between, so a 400k-row feed
- * never stalls requests. The name-token index used by "compare to known scams"
- * is maintained incrementally - only domains that appear or disappear are
- * re-tokenised - with a full rebuild at most once a week.
+ * Each feed refreshes on its own interval. Imports run in small transactions
+ * with yields in between, so a million-row feed never stalls requests. The
+ * name-token index used by "compare to known scams" is maintained
+ * incrementally - only domains that appear or disappear are re-tokenised -
+ * with a full rebuild at most once a week.
  */
 const { db, now } = require('../db');
 const config = require('../../config');
 const L = require('./lists');
 const { analyze, urlKey, deskin, nameTokens } = require('./url');
 
+/**
+ * kind      'urls' (exact malicious addresses) or 'hosts' (whole domains / IPs)
+ * format    how the download is read: plain lines (default), 'hostsfile'
+ *           ("0.0.0.0 domain"), 'json' (an array, or the array under `pick`),
+ *           'csv' (the column at `column`, header skipped)
+ * hours     refresh interval
+ */
 const FEEDS = [
-  { id: 'openphish', kind: 'urls', threat: 'scam', category: 'phishing', url: 'https://openphish.com/feed.txt' },
-  { id: 'urlhaus', kind: 'urls', threat: 'malware', category: 'malware_distribution', url: 'https://urlhaus.abuse.ch/downloads/text_recent/' },
-  { id: 'phishing_database', kind: 'hosts', threat: 'scam', category: 'phishing', url: 'https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-domains-ACTIVE.txt' }
+  // phishing and scams
+  { id: 'openphish', name: 'OpenPhish', kind: 'urls', threat: 'scam', category: 'phishing', hours: 6,
+    url: 'https://openphish.com/feed.txt' },
+  { id: 'phishtank', name: 'PhishTank', kind: 'urls', threat: 'scam', category: 'phishing', hours: 6, format: 'csv', column: 1,
+    url: 'http://data.phishtank.com/data/online-valid.csv' },
+  { id: 'phishing_database', name: 'Phishing.Database', kind: 'hosts', threat: 'scam', category: 'phishing', hours: 24,
+    url: 'https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-domains-ACTIVE.txt' },
+  { id: 'phishing_filter', name: 'Phishing Filter (malware-filter)', kind: 'hosts', threat: 'scam', category: 'phishing', hours: 12,
+    url: 'https://malware-filter.gitlab.io/malware-filter/phishing-filter-domains.txt' },
+  { id: 'certpl', name: 'CERT Polska warning list', kind: 'hosts', threat: 'scam', category: 'phishing', hours: 12,
+    url: 'https://hole.cert.pl/domains/v2/domains.txt' },
+  { id: 'scamblocklist', name: 'DurableNapkin scam blocklist', kind: 'hosts', threat: 'scam', category: 'scam', hours: 24, format: 'hostsfile',
+    url: 'https://raw.githubusercontent.com/durablenapkin/scamblocklist/master/hosts.txt' },
+  { id: 'spam404', name: 'Spam404', kind: 'hosts', threat: 'scam', category: 'scam', hours: 24,
+    url: 'https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt' },
+  // crypto scams
+  { id: 'metamask', name: 'MetaMask phishing detector', kind: 'hosts', threat: 'scam', category: 'crypto_scam', hours: 24, format: 'json', pick: 'blacklist',
+    url: 'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/main/src/config.json' },
+  { id: 'scamsniffer', name: 'ScamSniffer', kind: 'hosts', threat: 'scam', category: 'crypto_scam', hours: 24, format: 'json',
+    url: 'https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/domains.json' },
+  { id: 'polkadot_phishing', name: 'Polkadot.js phishing list', kind: 'hosts', threat: 'scam', category: 'crypto_scam', hours: 24, format: 'json', pick: 'deny',
+    url: 'https://raw.githubusercontent.com/polkadot-js/phishing/master/all.json' },
+  // malware
+  { id: 'urlhaus', name: 'URLhaus (abuse.ch)', kind: 'urls', threat: 'malware', category: 'malware_distribution', hours: 6,
+    url: 'https://urlhaus.abuse.ch/downloads/text_online/' },
+  { id: 'urlhaus_hosts', name: 'URLhaus host list (malware-filter)', kind: 'hosts', threat: 'malware', category: 'malware_distribution', hours: 12,
+    url: 'https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-domains-online.txt' },
+  { id: 'threatfox', name: 'ThreatFox (abuse.ch)', kind: 'hosts', threat: 'malware', category: 'malware_c2', hours: 12, format: 'hostsfile',
+    url: 'https://threatfox.abuse.ch/downloads/hostfile/' },
+  { id: 'feodotracker', name: 'Feodo Tracker (abuse.ch)', kind: 'hosts', threat: 'malware', category: 'botnet_c2', hours: 12,
+    url: 'https://feodotracker.abuse.ch/downloads/ipblocklist.txt' },
+  { id: 'blackbook', name: 'Blackbook malicious domains', kind: 'hosts', threat: 'malware', category: 'malware', hours: 24,
+    url: 'https://raw.githubusercontent.com/stamparm/blackbook/master/blackbook.txt' }
 ];
+
+/** One CSV record's fields (RFC 4180 quoting), enough for the feeds above. */
+function csvFields(line) {
+  const out = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quoted) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (c === '"') quoted = false; else cur += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ',') { out.push(cur); cur = ''; } else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+/** The entries (addresses or hosts) a downloaded feed contains, whatever its format. */
+function extract(feed, text) {
+  if (feed.format === 'json') {
+    let data = JSON.parse(text);
+    if (feed.pick) data = data[feed.pick];
+    return Array.isArray(data) ? data.filter((v) => typeof v === 'string') : [];
+  }
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && l[0] !== '#' && l[0] !== '!' && l[0] !== '/');
+  if (feed.format === 'csv') return lines.slice(1).map((l) => csvFields(l)[feed.column]).filter(Boolean);
+  if (feed.format === 'hostsfile') {
+    return lines.map((l) => l.split(/\s+/)).filter((parts) => parts.length >= 2 && /^(0\.0\.0\.0|127\.0\.0\.1|::1?)$/.test(parts[0])).map((parts) => parts[1]);
+  }
+  return lines.map((l) => l.split(/\s+/)[0]);
+}
 
 const CHUNK = 4000;
 const FULL_REBUILD_MS = 7 * 24 * 60 * 60 * 1000;
@@ -56,10 +130,11 @@ async function importLines(feed, lines) {
   const rows = lines.map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
 
   const putHost = (p, threat) => {
-    if (q.hostNew.run(p.host, feed.id, threat, feed.category, deskin(p.sld), stamp).changes) {
+    const host = p.host.replace(/^www\./, '');
+    if (q.hostNew.run(host, feed.id, threat, feed.category, deskin(p.sld), stamp).changes) {
       if (threat === 'scam') added.add(p.registrable);
     } else {
-      q.hostTouch.run(stamp, threat, p.host, feed.id);
+      q.hostTouch.run(stamp, threat, host, feed.id);
     }
   };
 
@@ -131,10 +206,10 @@ function recomputeDf() {
 
 async function refreshFeed(feed) {
   try {
-    const res = await fetch(feed.url, { signal: AbortSignal.timeout(60000), headers: { 'User-Agent': 'SentinelScan/1.0 (+threat-feed-sync)' } });
+    const res = await fetch(feed.url, { signal: AbortSignal.timeout(120000), headers: { 'User-Agent': 'SentinelScan/1.0 (+threat-feed-sync)' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
-    const result = await importLines(feed, text.split(/\r?\n/));
+    const result = await importLines(feed, extract(feed, text));
     return { source: feed.id, ok: true, entries: result.count, added: result.added, removed: result.removed };
   } catch (err) {
     q.status.run(feed.id, now(), 0, 0, String(err.message).slice(0, 200));
@@ -163,14 +238,23 @@ async function rebuildTokens() {
   return hosts.length;
 }
 
+/** A feed is due when it has never loaded, last failed, or its own interval has passed. */
+function isStale(feed) {
+  const row = db.prepare('SELECT fetched_at, ok FROM feed_status WHERE source = ?').get(feed.id);
+  const hours = feed.hours || config.feedRefreshHours || 6;
+  return !row || !row.ok || now() - row.fetched_at > hours * 3600 * 1000;
+}
+
 let running = null;
-async function refreshAll({ log = false } = {}) {
+/** Refresh every feed that is due (or all of them with `force`). */
+async function refreshAll({ log = false, force = false } = {}) {
   if (running) return running;
   running = (async () => {
     const results = [];
     const added = new Set();
     const removed = new Set();
     for (const feed of FEEDS) {
+      if (!force && !isStale(feed)) continue;
       const r = await refreshFeed(feed);
       results.push({ source: r.source, ok: r.ok, entries: r.entries, error: r.error });
       if (r.ok) { r.added.forEach((h) => added.add(h)); r.removed.forEach((h) => removed.add(h)); }
@@ -190,15 +274,18 @@ async function refreshAll({ log = false } = {}) {
 
 function start() {
   if (!config.feedRefreshHours) return;
-  const stale = FEEDS.some((f) => {
-    const row = db.prepare('SELECT fetched_at, ok FROM feed_status WHERE source = ?').get(f.id);
-    return !row || !row.ok || now() - row.fetched_at > config.feedRefreshHours * 3600 * 1000;
-  });
-  if (stale) setTimeout(() => refreshAll({ log: true }).catch(() => {}), 1500).unref();
-  setInterval(() => refreshAll().catch(() => {}), config.feedRefreshHours * 3600 * 1000).unref();
+  if (FEEDS.some(isStale)) setTimeout(() => refreshAll({ log: true }).catch(() => {}), 1500).unref();
+  // Check hourly; each feed decides for itself whether it is due.
+  setInterval(() => refreshAll().catch(() => {}), 3600 * 1000).unref();
+}
+
+/** How many feeds have loaded at least once, for "still downloading" notes. */
+function readiness() {
+  const ok = new Set(q.allStatus.all().filter((r) => r.ok && !r.source.startsWith('_')).map((r) => r.source));
+  return { ready: FEEDS.filter((f) => ok.has(f.id)).length, total: FEEDS.length };
 }
 
 module.exports = {
-  FEEDS, importLines, refreshAll, rebuildTokens, start,
+  FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness,
   status: () => q.allStatus.all().filter((r) => !r.source.startsWith('_'))
 };
