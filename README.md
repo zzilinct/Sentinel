@@ -78,6 +78,21 @@ in the user's app-data folder (`%APPDATA%\Sentinel` on Windows). Set
 `SENTINEL_ORIGIN=https://your-sentinel.example` before launching to use a hosted
 Sentinel instead, and `npm run dev` in `desktop/` to use the dev server.
 
+Beyond running the product, the app protects on its own, with no browser
+add-on involved:
+
+- **Page watch (Windows).** It asks Windows which page the browser in front is
+  showing, through the same accessibility interface screen readers use, and
+  checks that address. A dangerous page gets a notification and a warning
+  window. It reads the address only, never page content or anything typed.
+  `desktop/src/watch.js`.
+- **Browser awareness.** `desktop/src/browsers.js` reports which browsers are
+  installed and which are running, so the app can say "Chrome just opened" and
+  hand that browser the right companion build.
+- **Self-updating.** `desktop/src/updater.js` checks GitHub Releases, downloads
+  a newer installer quietly and applies it when Sentinel quits, so nobody
+  downloads the app twice.
+
 Pre-launch builds run billing in demo mode so every plan can be exercised.
 
 ```bash
@@ -96,11 +111,31 @@ with GitHub's own token. To ship a version, bump `desktop/package.json` and:
 git tag v1.2.0 && git push origin v1.2.0
 ```
 
-The workflow runs the tests, builds the installer and the companion, and
-publishes `Sentinel-Setup.exe`, `sentinel-companion.zip` and `SHA256SUMS.txt`.
+The workflow runs the tests, builds the installer and both companion builds,
+and publishes `Sentinel-Setup.exe`, `sentinel-companion.zip`,
+`sentinel-companion-firefox.zip`, `latest.yml` and `SHA256SUMS.txt`.
+
+`latest.yml` is what installed copies read to update themselves, so a release
+reaches everyone who already has the app without them downloading anything.
 The download page always links to the latest release and shows its real
 version and size from the GitHub API. The installer is not code-signed, so
 Windows SmartScreen warns on first run until a signing certificate is bought.
+
+## The browser companion
+
+One codebase, two packages, built by `npm run build:ext`:
+
+| Package | Browsers | Background |
+| --- | --- | --- |
+| `sentinel-companion-latest.zip` | Chrome, Edge, Brave | service worker (`src/background.js`) |
+| `sentinel-companion-firefox-latest.zip` | Firefox 128+ | event page (`src/background.firefox.js`, generated) |
+
+Every script talks to one `ext` namespace (`browser` where it exists, otherwise
+`chrome`) and uses promises, which both browsers support. Firefox has no
+`externally_connectable`, so pairing runs entirely through the `/connect` page's
+content script, and it grants host access on request, so the popup asks for it
+the first time. Sign the Firefox build with `npx web-ext sign` before
+distributing it outside the app.
 
 ## The static site
 
@@ -142,6 +177,23 @@ Operator commands:
 node scripts/admin.js set-plan user@example.com max
 ```
 
+## Threat lists
+
+Every scan starts by looking the address up in 15 free, keyless public lists
+(`server/lib/scan/feeds.js`): OpenPhish, PhishTank, Phishing.Database, the
+malware-filter phishing and URLhaus lists, CERT Polska, DurableNapkin,
+Spam404, MetaMask, ScamSniffer, Polkadot.js, URLhaus, ThreatFox, Feodo Tracker
+and Blackbook. A hit in any of them is evidence, and evidence means a
+confirmed (red) verdict rather than a guess; a host that serves a listed
+malicious address is confirmed too, because the whole site is dangerous while
+it does. Each list refreshes on its own interval, and a verdict says how many
+of them had loaded when it was made.
+
+When nothing is listed, the name is still compared with at least ten known
+scam domains by edit distance and shared distinctive tokens
+(`server/lib/scan/compare.js`), and the result reports how many it was
+measured against.
+
 ## Testing the scanner
 
 Three layers, none of which download or run malware:
@@ -158,6 +210,11 @@ What was deliberately not done: no confirmed-malicious URL was fetched, no malwa
 - **No payment processing yet.** Production defaults to `BILLING_MODE=disabled` (upgrade buttons explain plans are coming). Stripe or similar must be added before charging.
 - **The desktop app does not research.** Its embedded server runs with `RESEARCH_ENABLED=0`, so a person's computer never opens a suspicious page; scans say so in place of the research section. Research needs the hosted service.
 - **Email verification needs a mail provider.** Without `RESEND_API_KEY` the server records the account and tells the person verification is unavailable; it never pretends to have sent anything.
+- **Page watch is Windows-only.** It uses UI Automation, which macOS and Linux
+  do not offer in the same form. Elsewhere the companion add-on does this job.
+- **The Firefox companion is unsigned.** Firefox only installs signed add-ons
+  permanently, so until it is submitted to addons.mozilla.org it loads as a
+  temporary add-on (about:debugging) and goes away when Firefox closes.
 - **A plain page in a storage bucket scores "caution", not "suspicious".** `storage.googleapis.com/x/index.html` with no login wording in the address gets 22 points from the address alone; the page has to be fetched (research on) for the form and script checks to add to that.
 - The Windows installer is unsigned, so SmartScreen will warn until it's code-signed. macOS/Linux builds are configured but untested.
 - The browser companion loads unpacked until it's published to the Chrome Web Store; Gmail/Outlook selectors may need upkeep when those apps change.

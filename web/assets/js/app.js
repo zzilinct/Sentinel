@@ -19,7 +19,8 @@
     mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
     file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></svg>',
     upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5M5 20h14"/></svg>',
-    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>'
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18"/></svg>'
   };
 
   /* ================================================================ boot */
@@ -42,6 +43,9 @@
     $$('[data-glyph]').forEach((el) => { el.innerHTML = Masks.svg(el.dataset.glyph); });
     paintAccount();
     pairDesktop();
+    if (desktop && desktop.onPageThreat) desktop.onPageThreat((item) => {
+      toast(`${item.label}: ${item.host}`, item.badge === 'red' ? 'error' : 'info', 8000);
+    });
 
     document.addEventListener('click', (ev) => {
       const a = ev.target.closest('a[href^="/app"]');
@@ -855,7 +859,8 @@
         : ''}
 
       <div class="feature-grid">
-        ${feature(Masks.svg('scam'), 'Search result masks', `Masks on Google, Bing, DuckDuckGo and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock, lock))}
+        ${feature(Masks.svg('scam'), 'Page warnings', 'Sentinel watches the address of the page your browser is showing and warns you before a dangerous one gets your details. Windows, no add-on needed.', st(!lock && desktop, lock || 'Needs app'))}
+        ${feature(ICON.search, 'Search result masks', `Masks on Google, Bing, DuckDuckGo and more, through the companion add-on.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock, lock))}
         ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: spoofed senders, bad links and dangerous attachments.', st(!lock && f.emailLive, lock || 'Pro & up'))}
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
@@ -896,33 +901,87 @@
     let recent = [];
     try { recent = await desktop.recentDownloads(); } catch { /* none */ }
 
+    const pw = info.pageWatch || { supported: false, active: false, reason: 'Not available' };
+    const browsers = (info.browsers && info.browsers.installed) || [];
+    const running = new Set((info.browsers && info.browsers.running) || []);
+    const up = info.update || { status: 'idle' };
+    const UPDATE_TEXT = {
+      checking: 'Checking for updates…',
+      downloading: `Downloading ${up.version || 'an update'}${up.progress ? ` (${up.progress}%)` : ''}…`,
+      ready: `Version ${up.version} is ready. It installs when Sentinel quits.`,
+      current: 'Sentinel is up to date.',
+      error: `Could not check for updates: ${up.error || 'unknown error'}`,
+      dev: 'Updates are off in a development run.',
+      unavailable: 'This build cannot update itself.'
+    };
+
     slot.innerHTML = `
       <div class="grid2" style="margin-top:18px">
         <div class="panel">
           <h2 style="margin-bottom:16px">This computer</h2>
+          <label class="setting"><div><b>Watch the page in front</b><span>${esc(pw.supported
+            ? (pw.active ? 'Sentinel checks the address of the page your browser is showing and warns you before it gets your details. No add-on needed.' : pw.reason || 'Off')
+            : 'Available on Windows. On other systems the companion add-on does this.')}</span></div>
+            <input class="switch" type="checkbox" data-watch ${pw.active ? 'checked' : ''} ${pw.supported ? '' : 'disabled'}></label>
           <label class="setting"><div><b>Download protection</b><span>${esc(info.downloads.active ? `Watching ${info.downloads.folder || 'Downloads'}` : info.downloads.reason || 'Off')}</span></div><input class="switch" type="checkbox" data-dl ${info.downloads.active ? 'checked' : ''}></label>
           <label class="setting"><div><b>Start with my computer</b><span>Keep protection running from the moment you sign in.</span></div><input class="switch" type="checkbox" data-login ${info.openAtLogin ? 'checked' : ''}></label>
-          <div class="setting"><div><b>Browser companion</b><span>Adds the masks inside Chrome, Edge and Brave.</span></div><button class="btn btn--sm" data-companion>Set up</button></div>
+          <div class="setting"><div><b>Sentinel ${esc(info.version)}</b><span>${esc(UPDATE_TEXT[up.status] || 'Updates install themselves.')}</span></div>
+            ${up.status === 'ready' ? '<button class="btn btn--sm btn--gold" data-install-update>Restart now</button>'
+              : up.supported ? '<button class="btn btn--sm" data-check-update>Check now</button>' : ''}</div>
         </div>
         <div class="panel">
-          <h2 style="margin-bottom:12px">Recent downloads</h2>
-          ${recent.length ? `<ul class="list">${recent.slice(0, 8).map((d) => `<li>
-            <span class="list__icon">${ICON.file}</span>
-            <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${esc(d.label)}</span></span>
-            ${d.badge && !d.quarantined ? `<button class="btn btn--sm" data-quarantine="${esc(d.id)}">Quarantine</button>` : d.quarantined ? '<span class="status">Quarantined</span>' : '<span class="status is-on">Clear</span>'}
-          </li>`).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they’re scanned.</p></div>'}
+          <h2 style="margin-bottom:6px">Your browsers</h2>
+          <p class="muted" style="font-size:13.5px;margin:0 0 4px">Sentinel sees which browsers are open by itself. The companion add-on is what draws masks inside search results and your inbox.</p>
+          ${browsers.length ? `<ul class="list">${browsers.map((b) => `<li>
+            <span class="list__icon">${ICON.globe}</span>
+            <span class="list__main"><b>${esc(b.name)}</b><span>${running.has(b.id) ? 'Open now' : 'Installed'}</span></span>
+            <button class="btn btn--sm" data-add-companion="${esc(b.id)}">Add companion</button>
+          </li>`).join('')}</ul>` : '<div class="empty"><p>No supported browser found on this computer.</p></div>'}
         </div>
+      </div>
+
+      <div class="panel" style="margin-top:18px">
+        <h2 style="margin-bottom:12px">Recent downloads</h2>
+        ${recent.length ? `<ul class="list">${recent.slice(0, 8).map((d) => `<li>
+          <span class="list__icon">${ICON.file}</span>
+          <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${esc(d.label)}</span></span>
+          ${d.badge && !d.quarantined ? `<button class="btn btn--sm" data-quarantine="${esc(d.id)}">Quarantine</button>` : d.quarantined ? '<span class="status">Quarantined</span>' : '<span class="status is-on">Clear</span>'}
+        </li>`).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they’re scanned.</p></div>'}
       </div>`;
 
+    const watchEl = $('[data-watch]', slot);
+    if (watchEl && !watchEl.disabled) watchEl.addEventListener('change', async (ev) => {
+      const s = await desktop.setPageWatch(ev.target.checked);
+      toast(s.active ? 'Sentinel is watching the page in front.' : (s.reason || 'Page watch is off.'), s.active ? 'success' : 'info');
+      renderDesktopControls(slot);
+    });
     $('[data-dl]', slot).addEventListener('change', async (ev) => {
       const s = await desktop.setDownloadProtection(ev.target.checked);
       toast(s.active ? 'Download protection is on.' : (s.reason || 'Download protection is off.'), s.active ? 'success' : 'info');
     });
     $('[data-login]', slot).addEventListener('change', (ev) => desktop.setOpenAtLogin(ev.target.checked));
-    $('[data-companion]', slot).addEventListener('click', async () => {
-      await desktop.openCompanionFolder();
-      toast('In Chrome, open chrome://extensions, turn on Developer mode, choose "Load unpacked" and select the folder that just opened.', 'info', 9000);
-    });
+
+    const check = $('[data-check-update]', slot);
+    if (check) check.addEventListener('click', () => busy(check, 'Checking', async () => {
+      const s = await desktop.checkUpdates();
+      toast(s.status === 'current' ? 'Sentinel is up to date.' : s.status === 'error' ? `Could not check: ${s.error}` : 'Checking for a newer version…', s.status === 'error' ? 'error' : 'info');
+      renderDesktopControls(slot);
+    }));
+    const install = $('[data-install-update]', slot);
+    if (install) install.addEventListener('click', () => desktop.installUpdate());
+
+    $$('[data-add-companion]', slot).forEach((b) => b.addEventListener('click', async () => {
+      const id = b.dataset.addCompanion;
+      try {
+        const { folder } = await desktop.openExtensionsPage(id);
+        toast(id === 'firefox'
+          ? `Firefox opened its add-on debugging page. Choose "Load Temporary Add-on", then pick manifest.json in the folder Sentinel copied to your clipboard (${folder}).`
+          : `The browser opened its extensions page. Turn on Developer mode, choose "Load unpacked" and pick the folder Sentinel copied to your clipboard (${folder}).`, 'info', 12000);
+      } catch (err) {
+        await desktop.openCompanionFolder(id);
+        toast(`${err.message}. The companion folder is open instead.`, 'info', 8000);
+      }
+    }));
     $$('[data-quarantine]', slot).forEach((b) => b.addEventListener('click', async () => {
       try {
         await desktop.quarantine(b.dataset.quarantine);
@@ -959,7 +1018,7 @@
           ${p.id === current ? '<span class="plan__badge">Current</span>' : ''}
           <div class="plan__name">${esc(p.name)}</div>
           <div class="plan__price"><b>$${p.price}</b><span>${p.price ? '/ month' : 'forever'}</span></div>
-          <button class="btn btn--block ${p.id !== current && p.id !== 'free' ? 'btn--gold' : ''}" data-plan="${p.id}" ${p.id === current ? 'disabled' : ''}>${p.id === current ? 'Your plan' : p.id === 'free' ? 'Switch to Free' : `Upgrade to ${esc(p.name)}`}</button>
+          <button class="btn btn--block ${p.id !== 'free' ? 'btn--gold' : ''}" data-plan="${p.id}" ${p.id === current ? 'disabled' : ''}>${p.id === current ? 'Your plan' : p.id === 'free' ? 'Switch to Free' : `Upgrade to ${esc(p.name)}`}</button>
           <ul class="plan__list">${lines[p.id].map((l) => `<li>${ICON.check}<span>${esc(l)}</span></li>`).join('')}</ul>
         </article>`).join('')}
       </div>`;

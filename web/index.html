@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <!-- @include head -->
-<title>Sentinel: know what a link is before you open it</title>
-<meta name="description" content="Sentinel checks search results, emails and downloads for scams, viruses and malware and marks each one with a mask, coloured by how sure it is.">
-<meta property="og:title" content="Sentinel: know what a link is before you open it">
+<title>Sentinel: see the scam before you click</title>
+<meta name="description" content="Sentinel marks scams, viruses and malware on every search result, email and download with a colour-coded mask, before you click.">
+<meta property="og:title" content="Sentinel: see the scam before you click">
 <meta property="og:description" content="Three masks. Scam, virus, malware. On every search result, email and download.">
 <meta property="og:url" content="https://www.usesentinel.technology/">
 </head>
@@ -17,12 +17,13 @@
   <section class="hero">
     <div class="wrap">
       <div class="hero__copy">
-        <span class="kicker hero__kicker" data-reveal>Scam, virus and malware checker</span>
-        <h1 data-split>Know what a link is<br><span class="serif italic gold-text">before you open it.</span></h1>
+        <a class="hero__pill" href="#masks" data-reveal>
+          <b>New</b> Virus &amp; malware masks, alongside scams
+        </a>
+        <h1 data-split>The internet wears masks.<br><span class="serif italic gold-text">Sentinel sees through them.</span></h1>
         <p class="hero__lede" data-reveal style="--d:.5s">
-          Sentinel checks search results, emails and downloads against live threat lists, then reads
-          the address and the page for the tricks those lists have not caught yet. Each threat gets
-          its own mask, coloured by how sure Sentinel is.
+          Real-time protection that flags scams, viruses and malware on your search results,
+          in your inbox and in your downloads, before a single click.
         </p>
         <div class="hero__cta" data-reveal style="--d:.65s">
           <a class="btn btn--gold btn--lg" href="/download">
@@ -31,7 +32,7 @@
           </a>
           <a class="btn btn--lg" href="/app">Open in your browser <span class="arrow">&rarr;</span></a>
         </div>
-        <p class="hero__fine" data-reveal style="--d:.8s"><span>Free plan, no card</span><span>Chrome, Edge and Brave</span><span>Gmail and Outlook</span></p>
+        <p class="hero__fine" data-reveal style="--d:.8s"><span>Free plan, no card</span><span>Chrome, Edge, Brave and Firefox</span><span>Gmail and Outlook</span></p>
       </div>
 
       <!-- product stage -->
@@ -338,7 +339,7 @@
         <article class="tile" data-reveal>
           <div class="tile__label">Search results</div>
           <h3>Masks before you choose</h3>
-          <p>Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more. Masks appear as the page loads. On Max, each result is researched too.</p>
+          <p>Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more, in Chrome, Edge, Brave and Firefox. Masks appear as the page loads. On Max, each result is researched too.</p>
           <div class="tile__demo demo-list">
             <div class="demo-row" data-why="The real Coinbase: a long-established domain on Sentinel’s verified list, so no mask."><div class="grow"><div class="t">Coinbase | Buy and Sell Bitcoin</div><div class="s">coinbase.com</div></div></div>
             <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension | Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="impersonation" title="impersonation"></span></div>

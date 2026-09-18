@@ -102,7 +102,7 @@ p { margin: 0; }
 
 .serif { font-family: var(--serif); font-weight: 400; letter-spacing: -.01em; }
 .italic { font-style: italic; }
-.gold-text { background: var(--gold-text); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gold-text { background: var(--gold-text); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; padding: .12em 0 .22em; margin: -.12em 0 -.22em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .mono { font-family: var(--mono); font-feature-settings: 'zero'; }
 .muted { color: var(--muted); }
 .tabular { font-variant-numeric: tabular-nums; }
@@ -251,7 +251,7 @@ p { text-wrap: pretty; }
   color: var(--text-2);
   margin-bottom: 28px;
 }
-.hero__kicker { margin-bottom: 26px; }
+.hero__pill b { font-weight: 500; color: var(--gold-200); background: rgba(212, 174, 99, .12); padding: 3px 9px; border-radius: 6px; font-size: 12px; }
 .hero h1 { font-size: clamp(44px, 7.4vw, 96px); line-height: .98; letter-spacing: -.035em; font-weight: 500; }
 .hero h1 .serif { font-size: 1.08em; letter-spacing: -.02em; }
 .hero__lede { margin: 28px auto 0; max-width: 620px; font-size: clamp(17px, 2vw, 19.5px); color: var(--text-2); line-height: 1.55; }
