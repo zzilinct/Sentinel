@@ -1,6 +1,7 @@
 /* Sentinel Companion settings. */
 (() => {
   'use strict';
+  const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
 
   const DEFAULTS = {
     apiBase: 'https://www.usesentinel.technology',
@@ -17,7 +18,8 @@
   document.getElementById('legend').innerHTML = ['scam', 'virus', 'malware']
     .map((t) => `<div style="color:${Masks.COLORS.red}">${Masks.svg(t)}<span style="color:var(--text)">${Masks.NAMES[t]}</span></div>`).join('');
 
-  chrome.storage.sync.get(DEFAULTS, (stored) => {
+  Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
+    stored = stored || {};
     for (const key of Object.keys(DEFAULTS)) {
       const el = document.getElementById(key);
       if (!el) continue;
@@ -37,19 +39,18 @@
             return;
           }
         }
-        chrome.storage.sync.set({ [key]: value }, () => {
+        Promise.resolve(ext.storage.sync.set({ [key]: value })).then(() => {
           stored[key] = value;
           saved.style.color = 'var(--green)';
           saved.textContent = 'Saved';
           setTimeout(() => { saved.textContent = ''; }, 1400);
-          chrome.runtime.sendMessage({ type: 'refresh' }, () => void chrome.runtime.lastError);
+          Promise.resolve(ext.runtime.sendMessage({ type: 'refresh' })).catch(() => {});
         });
       });
     }
   });
 
-  chrome.runtime.sendMessage({ type: 'state' }, (state) => {
-    void chrome.runtime.lastError;
+  Promise.resolve(ext.runtime.sendMessage({ type: 'state' })).catch(() => null).then((state) => {
     const acc = document.getElementById('account');
     const out = document.getElementById('signout');
     if (!state || !state.ok || !state.account || !state.account.signedIn) {
@@ -58,6 +59,6 @@
       return;
     }
     acc.textContent = `${state.account.user.email} · ${state.account.plan.name} plan`;
-    out.onclick = () => chrome.runtime.sendMessage({ type: 'sign-out' }, () => location.reload());
+    out.onclick = () => Promise.resolve(ext.runtime.sendMessage({ type: 'sign-out' })).finally(() => location.reload());
   });
 })();

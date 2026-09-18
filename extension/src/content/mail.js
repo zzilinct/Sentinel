@@ -8,6 +8,7 @@
  */
 (() => {
   'use strict';
+  const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
   if (window.__sentinelMail) return;
   window.__sentinelMail = true;
 
@@ -104,7 +105,7 @@
   function send(message) {
     return new Promise((resolve) => {
       try {
-        chrome.runtime.sendMessage(message, (res) => resolve(chrome.runtime.lastError ? { ok: false } : (res || { ok: false })));
+        Promise.resolve(ext.runtime.sendMessage(message)).then((res) => resolve(res || { ok: false }), () => resolve({ ok: false }));
       } catch { resolve({ ok: false }); }
     });
   }

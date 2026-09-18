@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Sentinel Companion",
   "short_name": "Sentinel",
-  "version": "1.0.0",
-  "description": "Live scam, virus and malware masks on search results and in your inbox. Part of the Sentinel app.",
+  "version": "1.1.0",
+  "description": "Live scam, virus and malware masks on search results and in your inbox. Part of the Sentinel app. Works in Chrome, Edge, Brave and Firefox.",
   "homepage_url": "https://www.usesentinel.technology",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -12,7 +12,8 @@
     "webNavigation",
     "alarms",
     "notifications",
-    "contextMenus"
+    "contextMenus",
+    "permissions"
   ],
   "host_permissions": [
     "https://www.usesentinel.technology/*",
@@ -105,7 +106,10 @@
       "128": "icons/icon128.png"
     }
   },
-  "options_page": "src/options.html",
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
+  },
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

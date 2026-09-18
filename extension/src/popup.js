@@ -1,6 +1,7 @@
 /* Sentinel Companion popup. */
 (() => {
   'use strict';
+  const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
 
   const Masks = window.SentinelMasks;
   const view = document.getElementById('view');
@@ -9,9 +10,9 @@
   const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const send = (message) => new Promise((resolve) => chrome.runtime.sendMessage(message, (res) => resolve(chrome.runtime.lastError ? { ok: false, error: 'Sentinel is starting up' } : (res || { ok: false }))));
+  const send = (message) => new Promise((resolve) => { try { Promise.resolve(ext.runtime.sendMessage(message)).then((res) => resolve(res || { ok: false }), () => resolve({ ok: false, error: 'Sentinel is starting up' })); } catch { resolve({ ok: false, error: 'Sentinel is starting up' }); } });
 
-  document.getElementById('settings').onclick = () => chrome.runtime.openOptionsPage();
+  document.getElementById('settings').onclick = () => ext.runtime.openOptionsPage();
 
   let state;
 
@@ -30,7 +31,22 @@
     planEl.hidden = false;
     planEl.textContent = plan.name;
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (state.siteAccess === false) {
+      view.innerHTML = `
+        <div class="card">
+          <div class="label">One more step</div>
+          <p style="margin:0 0 12px;color:#c4c8ce">Firefox asks before an add-on can see the pages you visit. Sentinel needs that to add masks to search results and warn you before a dangerous page loads.</p>
+          <button class="btn gold block" id="grant">Allow Sentinel on all websites</button>
+        </div>`;
+      document.getElementById('grant').onclick = async () => {
+        let ok = false;
+        try { ok = await ext.permissions.request({ origins: ['<all_urls>'] }); } catch { ok = false; }
+        if (ok) main();
+      };
+      return;
+    }
+
+    const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
     const url = tab && tab.url && /^https?:/i.test(tab.url) ? tab.url : null;
 
     view.innerHTML = `${pageCard(url)}${liveCard(site)}`;

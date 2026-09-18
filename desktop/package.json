@@ -1,7 +1,7 @@
 {
   "name": "sentinel-desktop",
   "productName": "Sentinel",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Sentinel - scam, virus and malware protection that runs on your own computer",
   "main": "src/main.js",
   "author": "Sentinel",
@@ -11,9 +11,9 @@
     "prepare-shared": "node scripts/sync-shared.js",
     "start": "node scripts/sync-shared.js && electron .",
     "dev": "node scripts/sync-shared.js && electron . --dev",
-    "dist:win": "node scripts/sync-shared.js && electron-builder --win nsis",
-    "dist:mac": "node scripts/sync-shared.js && electron-builder --mac dmg",
-    "dist:linux": "node scripts/sync-shared.js && electron-builder --linux AppImage"
+    "dist:win": "node scripts/sync-shared.js && electron-builder --win nsis --publish never",
+    "dist:mac": "node scripts/sync-shared.js && electron-builder --mac dmg --publish never",
+    "dist:linux": "node scripts/sync-shared.js && electron-builder --linux AppImage --publish never"
   },
   "devDependencies": {
     "electron": "^44.4.1",
@@ -22,7 +22,7 @@
   "build": {
     "appId": "com.usesentinel.desktop",
     "productName": "Sentinel",
-    "copyright": "Copyright © 2026 Sentinel",
+    "copyright": "Copyright \u00a9 2026 Sentinel",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -37,6 +37,14 @@
       {
         "from": "../extension",
         "to": "companion",
+        "filter": [
+          "**/*",
+          "!src/background.firefox.js"
+        ]
+      },
+      {
+        "from": "companion-firefox",
+        "to": "companion/firefox",
         "filter": [
           "**/*"
         ]
@@ -72,6 +80,16 @@
       "target": "AppImage",
       "icon": "assets/icon.png",
       "category": "Utility"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "zzilinct",
+        "repo": "Sentinel"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

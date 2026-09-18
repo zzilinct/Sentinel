@@ -4,6 +4,8 @@ data/*.db-journal
 data/*.db-wal
 data/*.db-shm
 web/downloads/*.zip
+# Generated from the other extension sources by scripts/build-extension.js
+extension/src/background.firefox.js
 .env
 .DS_Store
 Thumbs.db
@@ -18,3 +20,17 @@ desktop/assets/
 
 # Static export of web/ (regenerate with: npm run build:static)
 dist-static/
+
+# An installed copy of Sentinel, if someone points the installer at this folder.
+# These are the app's own runtime files, never source.
+/Sentinel.exe
+/Uninstall Sentinel.exe
+/*.dll
+/*.pak
+/*.bin
+/icudtl.dat
+/LICENSE.electron.txt
+/LICENSES.chromium.html
+/vk_swiftshader_icd.json
+/locales/
+/resources/

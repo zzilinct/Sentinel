@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Sentinel</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #0c0d10; color: #e9e6df; font: 14.5px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: grid; grid-template-rows: auto 1fr auto; padding: 22px 24px 20px; box-sizing: border-box; }
+  .head { display: flex; align-items: center; gap: 14px; }
+  .mark { width: 46px; height: 46px; flex: none; color: var(--c, #f08a24); }
+  .mark svg { width: 100%; height: 100%; }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--c, #f08a24); }
+  .host { margin: 2px 0 0; font: 13px ui-monospace, Consolas, monospace; color: #c9c5bb; word-break: break-all; }
+  .body { margin-top: 16px; }
+  .body p { margin: 0 0 10px; color: #b9b5ab; }
+  .body b { color: #e9e6df; font-weight: 500; }
+  ul { margin: 0; padding-left: 18px; color: #c9c5bb; }
+  li { margin: 4px 0; }
+  .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  button { height: 38px; padding: 0 16px; border: 0; border-radius: 8px; cursor: pointer; font: 500 13.5px system-ui, sans-serif; color: #e9e6df; background: #1e2126; }
+  button.primary { color: #16130b; background: #d6b25a; }
+  button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }
+  small { display: block; margin-top: 12px; color: #6f6c65; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="head" role="alert">
+    <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/></svg></div>
+    <div>
+      <h1 id="title">Sentinel warning</h1>
+      <p class="host" id="host"></p>
+    </div>
+  </div>
+  <div class="body">
+    <p id="lead"></p>
+    <ul id="reasons"></ul>
+    <small id="browser"></small>
+  </div>
+  <div class="row">
+    <button id="details">Open in Sentinel</button>
+    <button class="primary" id="close">Got it</button>
+  </div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const badge = q.get('badge') || 'orange';
+    const color = { red: '#e5484d', orange: '#f08a24', yellow: '#f5c542' }[badge] || '#f08a24';
+    document.documentElement.style.setProperty('--c', color);
+    document.getElementById('title').textContent = q.get('label') || 'Sentinel warning';
+    document.getElementById('host').textContent = q.get('host') || '';
+    document.getElementById('lead').innerHTML = badge === 'red'
+      ? '<b>Leave this page.</b> Sentinel has evidence this site is dangerous. Do not enter passwords, codes or card details on it.'
+      : '<b>Be careful on this page.</b> It shows many strong warning signs at once. Do not enter any details on it.';
+    const ul = document.getElementById('reasons');
+    for (const r of (q.get('reasons') || '').split('\n').filter(Boolean).slice(0, 4)) {
+      const li = document.createElement('li');
+      li.textContent = r;
+      ul.appendChild(li);
+    }
+    const b = q.get('browser');
+    document.getElementById('browser').textContent = b ? `Seen in ${b}. Sentinel watched the address of the page in front; it did not read the page.` : '';
+    document.getElementById('close').onclick = () => window.sentinelDesktop.warnAction('close');
+    document.getElementById('details').onclick = () => window.sentinelDesktop.warnAction('open', q.get('url') || '');
+  </script>
+</body>
+</html>

@@ -10,12 +10,19 @@
  * - Starts with the computer (user can turn this off).
  * - Download protection: scans every new file in the Downloads folder with
  *   Sentinel's on-device virus & malware scanner.
+ * - Knows which browsers are installed and open, and watches the address of
+ *   the page in front (Chrome, Edge, Brave, Firefox) with no add-on needed,
+ *   warning before a dangerous page gets your details.
+ * - Updates itself from GitHub Releases, so nobody downloads Sentinel twice.
  * - Unlocks the app-only features in the web app through a narrow, validated bridge.
  */
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session, clipboard } = require('electron');
 const downloads = require('./downloads');
+const browsers = require('./browsers');
+const watch = require('./watch');
+const updater = require('./updater');
 const store = require('./store');
 const server = require('./server');
 
@@ -28,6 +35,29 @@ let ORIGIN = null;
 let win = null;
 let tray = null;
 let quitting = false;
+let warnWin = null;
+let browserState = { installed: [], running: [] };
+let browserWatcher = null;
+
+/** Tell the web app (if it is open) that something on this computer changed. */
+function push(channel, payload) {
+  if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+}
+
+/** Calls the Sentinel API as this computer's paired account. */
+async function apiCall(pathname, body) {
+  const token = store.getSecret('token');
+  if (!token) throw Object.assign(new Error('Signed out'), { status: 401 });
+  const res = await fetch(`${ORIGIN}${pathname}`, {
+    method: body ? 'POST' : 'GET',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Sentinel-Client': 'desktop' },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(30000)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error((data.error && data.error.message) || `HTTP ${res.status}`), { status: res.status, code: data.error && data.error.code });
+  return data;
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -105,6 +135,32 @@ function showError(message) {
   win.show();
 }
 
+/** A small always-on-top warning for a dangerous page open in a browser. */
+function showWarning(item) {
+  const v = item.verdict;
+  const query = {
+    host: item.host,
+    url: item.url,
+    browser: { chrome: 'Chrome', msedge: 'Microsoft Edge', brave: 'Brave', firefox: 'Firefox' }[item.browser] || item.browser,
+    badge: v.overall.badge,
+    label: v.overall.label,
+    reasons: (v.reasons || []).slice(0, 4).map((r) => r.text).join('\n')
+  };
+  if (!warnWin || warnWin.isDestroyed()) {
+    warnWin = new BrowserWindow({
+      width: 480, height: 380, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
+      alwaysOnTop: true, skipTaskbar: false, show: false, backgroundColor: '#0c0d10', title: 'Sentinel', icon: ICON, autoHideMenuBar: true,
+      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false }
+    });
+    warnWin.on('closed', () => { warnWin = null; });
+    warnWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    warnWin.webContents.on('will-navigate', (e) => e.preventDefault());
+  }
+  warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
+  warnWin.once('ready-to-show', () => { if (warnWin) { warnWin.show(); warnWin.focus(); } });
+  if (warnWin.isVisible()) warnWin.focus();
+}
+
 /* --------------------------------------------------------------- tray */
 
 function buildTray() {
@@ -118,17 +174,32 @@ function buildTray() {
 function refreshTray() {
   if (!tray) return;
   const status = downloads.status();
+  const pw = watch.status();
+  const up = updater.status();
+  const open = browserState.running.map((id) => (browsers.BROWSERS.find((b) => b.id === id) || { name: id }).name);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open Sentinel', click: () => showWindow() },
     { type: 'separator' },
     { label: status.active ? 'Download protection: on' : status.reason || 'Download protection: off', enabled: false },
+    { label: pw.active ? `Page watch: on${open.length ? ` (${open.join(', ')})` : ''}` : pw.reason || 'Page watch: off', enabled: false },
     { label: 'Scan a file...', click: () => showWindow('/app/threats') },
     { type: 'separator' },
+    { label: 'Watch the page in front', type: 'checkbox', checked: store.get('pageWatch', true), enabled: pw.supported, click: (item) => setPageWatch(item.checked) },
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => setOpenAtLogin(item.checked) },
+    { type: 'separator' },
+    up.status === 'ready'
+      ? { label: `Restart to update to ${up.version}`, click: () => updater.install() }
+      : { label: up.supported ? 'Check for updates' : `Sentinel ${app.getVersion()}`, enabled: up.supported && up.status !== 'checking' && up.status !== 'downloading', click: () => updater.check() },
     { label: 'Open log folder', click: () => shell.showItemInFolder(server.logPath()) },
     { type: 'separator' },
     { label: 'Quit Sentinel', click: () => { quitting = true; app.quit(); } }
   ]));
+}
+
+function setPageWatch(enabled) {
+  store.set('pageWatch', Boolean(enabled));
+  if (enabled) watch.restart(); else watch.stop('Turned off');
+  refreshTray();
 }
 
 function setOpenAtLogin(enabled) {
@@ -159,7 +230,8 @@ function trusted(event) {
 /** The app's own loading and error pages, served from disk. */
 function trustedLocal(event) {
   try {
-    return event.senderFrame && event.senderFrame.url.startsWith(PAGES) && BrowserWindow.fromWebContents(event.sender) === win;
+    const from = BrowserWindow.fromWebContents(event.sender);
+    return event.senderFrame && event.senderFrame.url.startsWith(PAGES) && (from === win || (warnWin && from === warnWin));
   } catch {
     return false;
   }
@@ -181,8 +253,26 @@ function registerBridge() {
     openAtLogin: store.get('openAtLogin', true),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
-    companionPath: path.join(process.resourcesPath || '', 'companion')
+    pageWatch: { ...watch.status(), enabled: store.get('pageWatch', true) },
+    browsers: browserState,
+    update: updater.status(),
+    companionPath: companionFolder()
   }));
+
+  handle('sentinel:browsers', () => browserState);
+
+  handle('sentinel:open-extensions-page', async (id) => {
+    if (typeof id !== 'string' || !browsers.BROWSERS.some((b) => b.id === id)) throw new Error('Unknown browser');
+    const folder = companionFolder(id);
+    clipboard.writeText(folder);
+    await browsers.openExtensionsPage(id);
+    return { ok: true, folder };
+  });
+
+  handle('sentinel:set-page-watch', (enabled) => { setPageWatch(Boolean(enabled)); return { ...watch.status(), enabled: store.get('pageWatch', true) }; });
+
+  handle('sentinel:check-updates', () => updater.check());
+  handle('sentinel:install-update', () => updater.install());
 
   handle('sentinel:set-token', (token, userId) => {
     if (typeof token !== 'string' || token.length < 20 || token.length > 200) throw new Error('Invalid token');
@@ -190,6 +280,7 @@ function registerBridge() {
     store.setSecret('token', token);
     store.set('pairedUserId', userId);
     downloads.restart();
+    watch.restart();
     refreshTray();
     return { ok: true };
   });
@@ -198,6 +289,7 @@ function registerBridge() {
     store.setSecret('token', null);
     store.set('pairedUserId', null);
     downloads.stop('Signed out');
+    watch.stop('Signed out');
     refreshTray();
     return { ok: true };
   });
@@ -215,16 +307,30 @@ function registerBridge() {
 
   handle('sentinel:quarantine', (id) => downloads.quarantine(String(id)));
 
-  handle('sentinel:open-companion-folder', () => {
-    const folder = app.isPackaged ? path.join(process.resourcesPath, 'companion') : path.join(__dirname, '..', '..', 'extension');
+  handle('sentinel:open-companion-folder', (id) => {
+    const folder = companionFolder(typeof id === 'string' ? id : null);
     shell.openPath(folder);
     return { ok: true, folder };
   });
 
-  // Only the app's own error page may ask for these.
+  // Only the app's own local pages may ask for these.
   handle('sentinel:retry-server', () => { boot(); return { ok: true }; }, trustedLocal);
   handle('sentinel:open-logs', () => { shell.showItemInFolder(server.logPath()); return { ok: true }; }, trustedLocal);
   handle('sentinel:quit', () => { quitting = true; app.quit(); return { ok: true }; }, trustedLocal);
+  handle('sentinel:warn-action', (action, url) => {
+    if (warnWin && !warnWin.isDestroyed()) warnWin.close();
+    if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`/app/scan?url=${encodeURIComponent(url)}`);
+    return { ok: true };
+  }, trustedLocal);
+}
+
+/**
+ * The companion add-on ships inside the app: one folder for Chrome, Edge and
+ * Brave, one for Firefox (different manifest, same code).
+ */
+function companionFolder(id) {
+  const base = app.isPackaged ? path.join(process.resourcesPath, 'companion') : path.join(__dirname, '..', '..', 'extension');
+  return id === 'firefox' ? path.join(base, 'firefox') : base;
 }
 
 /* --------------------------------------------------------------- startup */
@@ -259,9 +365,47 @@ async function boot() {
     onChange: refreshTray,
     onThreat: (item) => {
       notify(`Sentinel: ${item.label}`, `${item.name}\n${item.reason}`, () => showWindow('/app/threats'));
-      if (win) win.webContents.send('sentinel:download-threat', item);
+      push('sentinel:download-threat', item);
     }
   });
+
+  watch.init({
+    origin: ORIGIN,
+    api: apiCall,
+    getToken: () => store.getSecret('token'),
+    enabled: () => store.get('pageWatch', true),
+    onChange: (s) => { refreshTray(); push('sentinel:page-watch', s); },
+    onThreat: (item) => {
+      const first = item.verdict.reasons && item.verdict.reasons[0];
+      notify(`Sentinel: ${item.verdict.overall.label}`, `${item.host}\n${first ? first.text : 'Leave this site.'}`, () => showWarning(item));
+      showWarning(item);
+      push('sentinel:page-threat', { browser: item.browser, host: item.host, url: item.url, label: item.verdict.overall.label, badge: item.verdict.overall.badge, at: Date.now() });
+    }
+  });
+
+  if (!browserWatcher) {
+    browserWatcher = browsers.watch({
+      onChange: (s) => {
+        const appeared = s.running.filter((id) => !browserState.running.includes(id));
+        browserState = s;
+        refreshTray();
+        push('sentinel:browsers', s);
+        // The first time each browser is seen open, say what Sentinel does there.
+        for (const id of appeared) {
+          const key = `browserHint:${id}`;
+          if (store.get(key)) continue;
+          store.set(key, true);
+          const b = browsers.BROWSERS.find((x) => x.id === id) || { name: id };
+          const watching = watch.status().active;
+          notify(`${b.name} is open`,
+            watching ? `Sentinel is watching the page in front. For masks inside search results and your inbox, add the companion from Live protection.`
+              : `Sentinel can warn you about dangerous pages here. Turn on page watch in Live protection.`,
+            () => showWindow('/app/protection'));
+        }
+      }
+    });
+  }
+
   refreshTray();
   openApp();
 }
@@ -274,6 +418,10 @@ app.whenReady().then(() => {
   registerBridge();
   createWindow();
   buildTray();
+  updater.init({
+    onChange: (s) => { refreshTray(); push('sentinel:update', s); },
+    onReady: (version) => notify(`Sentinel ${version} is ready`, 'It installs the next time Sentinel quits. Click to restart and update now.', () => updater.install())
+  });
 
   // Installed builds start with the computer by default; development runs never
   // touch the system's startup items.
@@ -282,7 +430,7 @@ app.whenReady().then(() => {
   boot();
 });
 
-app.on('before-quit', () => { quitting = true; server.stop(); });
+app.on('before-quit', () => { quitting = true; watch.stop(null, true); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 

@@ -6,8 +6,9 @@
  *   assets/   icons
  *   bundle/   the whole Sentinel server and website, so the app can run the
  *             product by itself with nothing hosted anywhere
+ *   companion-firefox/   the Firefox build of the companion (from build-extension)
  *
- * All three folders are build outputs and git-ignored.
+ * All four folders are build outputs and git-ignored.
  */
 const fs = require('fs');
 const path = require('path');
@@ -50,6 +51,26 @@ function copyTree(from, to, rel = '') {
     if (entry.isDirectory()) copyTree(src, dest, childRel);
     else fs.copyFileSync(src, dest);
   }
+}
+
+/* ------------------------------------------------- firefox companion */
+
+// build-extension.js writes the Firefox manifest into its archive only; lay the
+// same files out as a folder so the app can point Firefox at it.
+const FF = path.join(APP, 'companion-firefox');
+fs.rmSync(FF, { recursive: true, force: true });
+const EXT = path.join(ROOT, 'extension');
+if (!fs.existsSync(path.join(EXT, 'src', 'background.firefox.js'))) require(path.join(ROOT, 'scripts', 'build-extension.js'));
+copyTree(EXT, FF);
+fs.rmSync(path.join(FF, 'src', 'background.js'), { force: true });
+{
+  const manifest = JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
+  const brand = JSON.parse(fs.readFileSync(path.join(ROOT, 'brand.json'), 'utf8'));
+  delete manifest.minimum_chrome_version;
+  delete manifest.externally_connectable;
+  manifest.background = { scripts: ['src/background.firefox.js'] };
+  manifest.browser_specific_settings = { gecko: { id: `companion@${brand.apexDomain}`, strict_min_version: '128.0', data_collection_permissions: { required: ['browsingActivity', 'websiteContent'] } } };
+  fs.writeFileSync(path.join(FF, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 }
 
 fs.rmSync(BUNDLE, { recursive: true, force: true });

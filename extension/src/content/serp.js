@@ -7,6 +7,7 @@
  */
 (() => {
   'use strict';
+  const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
   if (window.__sentinelSerp) return;
   window.__sentinelSerp = true;
 
@@ -226,7 +227,7 @@
   function send(message) {
     return new Promise((resolve) => {
       try {
-        chrome.runtime.sendMessage(message, (res) => resolve(chrome.runtime.lastError ? { ok: false, error: 'Sentinel is restarting' } : (res || { ok: false })));
+        Promise.resolve(ext.runtime.sendMessage(message)).then((res) => resolve(res || { ok: false }), () => resolve({ ok: false, error: 'Sentinel is restarting' }));
       } catch { resolve({ ok: false }); }
     });
   }
@@ -261,13 +262,13 @@
     timer = setTimeout(collect, delay);
   }
 
-  chrome.storage.sync.get(DEFAULTS, (stored) => {
-    settings = { ...DEFAULTS, ...stored };
+  Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
+    settings = { ...DEFAULTS, ...(stored || {}) };
     if (!settings.enabled) return;
     schedule(0);
     new MutationObserver(() => schedule()).observe(document.body, { childList: true, subtree: true });
   });
-  chrome.storage.onChanged.addListener((changes, area) => {
+  ext.storage.onChanged.addListener((changes, area) => {
     if (area === 'sync') for (const [k, { newValue }] of Object.entries(changes)) settings[k] = newValue;
   });
 })();

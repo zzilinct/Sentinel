@@ -8,7 +8,7 @@
  * Max results get a second, researched pass: masks appear instantly from the
  * checklist, then upgrade once research finishes.
  */
-import { apiFetch, getSettings, setToken, siteUrl, COLORS, ApiError } from './lib/api.js';
+import { ext, apiFetch, getSettings, setToken, siteUrl, COLORS, ApiError } from './lib/api.js';
 
 const TTL = { quick: 15 * 60 * 1000, research: 60 * 60 * 1000 };
 const cache = new Map();                  // `${phase}|${url}` -> { verdict, at }
@@ -42,13 +42,13 @@ function liveBlockReason() {
 function noteLive(info) {
   if (!info) return;
   live = { ...live, usedMinutes: info.usedMinutes, limitMinutes: info.limitMinutes, resetsAt: info.resetsAt, paused: info.usedMinutes >= info.limitMinutes ? 'hours' : null };
-  chrome.storage.local.set({ live });
+  ext.storage.local.set({ live });
 }
 
 function handleApiError(err) {
   if (err.code === 'live_hours_exhausted') {
     live = { ...live, paused: 'hours', resetsAt: err.extra.resetsAt || Date.now() + 3600e3, usedMinutes: err.extra.usedMinutes, limitMinutes: err.extra.limitMinutes };
-    chrome.storage.local.set({ live });
+    ext.storage.local.set({ live });
   }
   if (err.status === 401) { account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() }; setToken(null); }
 }
@@ -87,7 +87,7 @@ async function refreshAccount(force = false) {
   } catch (err) {
     if (err.status === 401) account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() };
   }
-  await chrome.storage.local.set({ account });
+  await ext.storage.local.set({ account });
   return account;
 }
 
@@ -96,12 +96,12 @@ async function syncIntel() {
   try {
     const data = await apiFetch('/api/v1/intel');
     intel = { hosts: new Map(data.blocklist.map((r) => [r.host, r.threat])), at: Date.now() };
-    await chrome.storage.local.set({ intel: { hosts: data.blocklist, at: intel.at } });
+    await ext.storage.local.set({ intel: { hosts: data.blocklist, at: intel.at } });
   } catch { /* keep the old list */ }
 }
 
 async function restore() {
-  const stored = await chrome.storage.local.get(['account', 'live', 'intel']);
+  const stored = await ext.storage.local.get(['account', 'live', 'intel']);
   if (stored.account) account = { ...stored.account, checkedAt: 0 };
   if (stored.live) live = stored.live;
   if (stored.intel) intel = { hosts: new Map(stored.intel.hosts.map((r) => [r.host, r.threat])), at: stored.intel.at };
@@ -142,9 +142,9 @@ async function liveBatch(urls, phase) {
 async function paint(tabId, verdict) {
   const badge = verdict && verdict.overall && verdict.overall.badge;
   try {
-    await chrome.action.setBadgeText({ tabId, text: badge ? (badge === 'red' ? '!' : '?') : '' });
-    if (badge) await chrome.action.setBadgeBackgroundColor({ tabId, color: COLORS[badge] });
-    await chrome.action.setTitle({ tabId, title: badge ? `Sentinel - ${verdict.overall.label}` : 'Sentinel' });
+    await ext.action.setBadgeText({ tabId, text: badge ? (badge === 'red' ? '!' : '?') : '' });
+    if (badge) await ext.action.setBadgeBackgroundColor({ tabId, color: COLORS[badge] });
+    await ext.action.setTitle({ tabId, title: badge ? `Sentinel - ${verdict.overall.label}` : 'Sentinel' });
   } catch { /* tab closed */ }
 }
 
@@ -176,15 +176,15 @@ async function onNavigate(details) {
   warned.set(key, Date.now());
   if (warned.size > 300) warned.clear();
 
-  chrome.tabs.sendMessage(details.tabId, { type: 'sentinel:warn', verdict }).catch(() => {});
+  Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:warn', verdict })).catch(() => {});
   if (verdict.overall.badge === 'red' && settings.notifications) {
-    chrome.notifications.create(`sentinel-${Date.now()}`, {
+    Promise.resolve(ext.notifications.create(`sentinel-${Date.now()}`, {
       type: 'basic',
-      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      iconUrl: ext.runtime.getURL('icons/icon128.png'),
       title: `Sentinel: ${verdict.overall.label}`,
       message: `${verdict.host} - ${(verdict.reasons[0] && verdict.reasons[0].text) || 'Leave this site.'}`,
       priority: 2
-    }).catch(() => {});
+    })).catch(() => {});
   }
 }
 
@@ -197,16 +197,21 @@ async function onNavigate(details) {
  * dev server from it).
  */
 function sentinelOrigins() {
-  const manifest = chrome.runtime.getManifest();
-  const patterns = (manifest.externally_connectable && manifest.externally_connectable.matches) || [];
+  const manifest = ext.runtime.getManifest();
+  const connect = (manifest.content_scripts || []).find((c) => (c.js || []).some((f) => f.endsWith('connect.js')));
+  const patterns = (connect && connect.matches) || [];
   return new Set(patterns.map((p) => new URL(p.replace(/\*$/, '')).origin));
+}
+
+async function siteAccess() {
+  try { return await ext.permissions.contains({ origins: ['<all_urls>'] }); } catch { return true; }
 }
 
 const handlers = {
   async state() {
     const settings = await getSettings();
     await refreshAccount();
-    return { settings, account, live, locked: liveBlockReason(), site: settings.apiBase };
+    return { settings, account, live, locked: liveBlockReason(), site: settings.apiBase, siteAccess: await siteAccess(), browser: globalThis.browser ? 'firefox' : 'chromium' };
   },
   async connect() { return { account: await connect() }; },
   async 'set-token'({ token }, sender) {
@@ -219,7 +224,7 @@ const handlers = {
     // Follow whichever Sentinel paired us, so pairing from the desktop app
     // makes the companion talk to that app's own server.
     const { apiBase } = await getSettings();
-    if (apiBase !== from) await chrome.storage.sync.set({ apiBase: from });
+    if (apiBase !== from) await ext.storage.sync.set({ apiBase: from });
     await setToken(token);
     cache.clear();
     await refreshAccount(true);
@@ -265,7 +270,7 @@ const handlers = {
     try { await apiFetch('/api/v1/auth/logout', { method: 'POST', body: {} }); } catch { /* already signed out */ }
     await setToken(null);
     account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() };
-    await chrome.storage.local.set({ account });
+    await ext.storage.local.set({ account });
     return { ok: true };
   },
   async refresh() {
@@ -276,9 +281,9 @@ const handlers = {
   }
 };
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Only this extension's own pages and content scripts may talk to the worker.
-  if (sender.id !== chrome.runtime.id) return false;
+  if (sender.id !== ext.runtime.id) return false;
   const handler = msg && Object.prototype.hasOwnProperty.call(handlers, msg.type) ? handlers[msg.type] : null;
   if (!handler) return false;
   handler(msg, sender)
@@ -288,12 +293,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 /** The web app hands over a token right after sign-in, or pings to show "protection active". */
-chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
+if (ext.runtime.onMessageExternal) ext.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   const origin = sender.origin || (sender.url ? new URL(sender.url).origin : '');
   getSettings().then(async (settings) => {
     if (origin !== new URL(settings.apiBase).origin) { sendResponse({ ok: false }); return; }
     if (msg && msg.type === 'sentinel:ping') {
-      sendResponse({ ok: true, version: chrome.runtime.getManifest().version, signedIn: account.signedIn });
+      sendResponse({ ok: true, version: ext.runtime.getManifest().version, signedIn: account.signedIn });
       return;
     }
     if (msg && msg.type === 'sentinel:connect' && typeof msg.token === 'string' && msg.token.length < 200) {
@@ -310,26 +315,26 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
 
 /* ----------------------------------------------------------------- wiring */
 
-chrome.runtime.onInstalled.addListener(async (details) => {
-  chrome.contextMenus.create({ id: 'sentinel-check-link', title: 'Scan this link with Sentinel', contexts: ['link'] }, () => void chrome.runtime.lastError);
-  chrome.alarms.create('sentinel:intel', { periodInMinutes: 60 });
-  chrome.alarms.create('sentinel:account', { periodInMinutes: 15 });
+ext.runtime.onInstalled.addListener(async (details) => {
+  try { ext.contextMenus.create({ id: 'sentinel-check-link', title: 'Scan this link with Sentinel', contexts: ['link'] }, () => void ext.runtime.lastError); } catch { /* already there */ }
+  ext.alarms.create('sentinel:intel', { periodInMinutes: 60 });
+  ext.alarms.create('sentinel:account', { periodInMinutes: 15 });
   await restore();
   if (!account.signedIn) await connect();
   if (details.reason === 'install') {
     const { apiBase } = await getSettings();
-    chrome.tabs.create({ url: siteUrl(apiBase, '/connect') });
+    ext.tabs.create({ url: siteUrl(apiBase, '/connect') });
   }
 });
 
-chrome.runtime.onStartup.addListener(restore);
+ext.runtime.onStartup.addListener(restore);
 
-chrome.alarms.onAlarm.addListener((alarm) => {
+ext.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'sentinel:intel') syncIntel();
   if (alarm.name === 'sentinel:account') refreshAccount(true);
 });
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+ext.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== 'sentinel-check-link' || !info.linkUrl) return;
   let title;
   let message;
@@ -342,9 +347,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     title = 'Sentinel could not scan that link';
     message = err.message;
   }
-  chrome.notifications.create({ type: 'basic', iconUrl: chrome.runtime.getURL('icons/icon128.png'), title, message }).catch(() => {});
+  Promise.resolve(ext.notifications.create({ type: 'basic', iconUrl: ext.runtime.getURL('icons/icon128.png'), title, message })).catch(() => {});
 });
 
-chrome.webNavigation.onCommitted.addListener(onNavigate);
+ext.webNavigation.onCommitted.addListener(onNavigate);
 
 restore();

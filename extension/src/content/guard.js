@@ -4,6 +4,7 @@
  */
 (() => {
   'use strict';
+  const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
 
   const COLORS = { yellow: '#f5c542', orange: '#f08a24', red: '#e5484d' };
   const TITLES = {
@@ -75,15 +76,13 @@
     root.querySelector('.on').onclick = () => host.remove();
     root.querySelector('.rep').onclick = (ev) => {
       ev.target.textContent = 'Reporting...';
-      chrome.runtime.sendMessage({ type: 'report', url: v.url, category: threat === 'scam' ? 'phishing' : 'malware' }, (res) => {
-        void chrome.runtime.lastError;
-        ev.target.textContent = res && res.ok ? 'Reported - thank you' : 'Could not report';
-      });
+      Promise.resolve(ext.runtime.sendMessage({ type: 'report', url: v.url, category: threat === 'scam' ? 'phishing' : 'malware' }))
+        .then((res) => { ev.target.textContent = res && res.ok ? 'Reported - thank you' : 'Could not report'; }, () => { ev.target.textContent = 'Could not report'; });
     };
   }
 
-  chrome.runtime.onMessage.addListener((msg, sender) => {
-    if (sender.id !== chrome.runtime.id || !msg || msg.type !== 'sentinel:warn' || !msg.verdict) return;
+  ext.runtime.onMessage.addListener((msg, sender) => {
+    if (sender.id !== ext.runtime.id || !msg || msg.type !== 'sentinel:warn' || !msg.verdict) return;
     const show = () => mount(msg.verdict);
     if (document.documentElement) show();
     else document.addEventListener('DOMContentLoaded', show, { once: true });

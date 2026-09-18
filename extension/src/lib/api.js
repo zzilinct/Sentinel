@@ -1,6 +1,10 @@
 /** Sentinel API client shared by the service worker, popup and options page. */
 import { BRAND } from './brand.js';
 
+// Firefox answers through `browser` (promises); Chrome, Edge and Brave through
+// `chrome` (promises too, in Manifest V3). One name, promise style everywhere.
+export const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
+
 export const DEFAULTS = {
   apiBase: BRAND.origin,
   enabled: true,
@@ -14,17 +18,17 @@ export const DEFAULTS = {
 export const COLORS = { yellow: '#f5c542', orange: '#f08a24', red: '#e5484d' };
 
 export async function getSettings() {
-  return { ...DEFAULTS, ...(await chrome.storage.sync.get(DEFAULTS)) };
+  return { ...DEFAULTS, ...(await ext.storage.sync.get(DEFAULTS)) };
 }
 
 async function getToken() {
-  const { authToken } = await chrome.storage.local.get('authToken');
+  const { authToken } = await ext.storage.local.get('authToken');
   return authToken || null;
 }
 
 export async function setToken(token) {
-  if (token) await chrome.storage.local.set({ authToken: token });
-  else await chrome.storage.local.remove('authToken');
+  if (token) await ext.storage.local.set({ authToken: token });
+  else await ext.storage.local.remove('authToken');
 }
 
 export class ApiError extends Error {

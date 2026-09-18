@@ -47,6 +47,10 @@ jobs:
           Copy-Item $exe.FullName release/$($exe.Name)
           Copy-Item $exe.FullName release/Sentinel-Setup.exe
           Copy-Item web/downloads/sentinel-companion-latest.zip release/sentinel-companion.zip
+          Copy-Item web/downloads/sentinel-companion-firefox-latest.zip release/sentinel-companion-firefox.zip
+          # latest.yml is what installed copies read to update themselves. It
+          # names the versioned installer, so that file must keep its own name.
+          Copy-Item desktop/dist/latest.yml release/latest.yml
           Get-FileHash release/*.exe, release/*.zip -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content release/SHA256SUMS.txt
           Get-Content release/SHA256SUMS.txt
 
@@ -59,4 +63,6 @@ jobs:
 
             The installer is not code-signed yet, so Windows SmartScreen will warn on first run. Choose *More info* then *Run anyway*, or verify the file against `SHA256SUMS.txt` first.
 
-            `sentinel-companion.zip` is the browser companion (Chrome, Edge, Brave). Load it from the app's Live protection page.
+            Installed copies update themselves from this page, so nobody downloads Sentinel twice.
+
+            `sentinel-companion.zip` is the browser companion for Chrome, Edge and Brave; `sentinel-companion-firefox.zip` is the Firefox build. Both ship inside the app and can be added from its Live protection page.
