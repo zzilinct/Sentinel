@@ -204,8 +204,8 @@ async function removePersistence(target) {
       for (const line of out.split(/\r?\n/)) {
         const m = /^\s+(\S.*?)\s+REG_(?:EXPAND_)?SZ\s+(.+)$/.exec(line);
         if (m && m[2].toLowerCase().includes(lower)) {
-          const ok = await run('reg', ['delete', `${hive}\\${key}`, '/v', m[1], '/f']);
-          actions.push({ did: ok !== '' || true ? 'removed startup entry' : 'could not remove startup entry', detail: `${hive}\\...\\${key.split('\\').pop()}\\${m[1]}` });
+          const ok = /success/i.test(await run('reg', ['delete', `${hive}\\${key}`, '/v', m[1], '/f']));
+          actions.push({ did: ok ? 'removed startup entry' : `could not remove startup entry${hive === 'HKLM' ? ' (needs administrator)' : ''}`, detail: `${hive}\\...\\${key.split('\\').pop()}\\${m[1]}` });
         }
       }
     }
