@@ -209,6 +209,29 @@ function register(router) {
     sendJson(res, 200, { token, expiresAt, user: A.publicUser(user) });
   });
 
+  /**
+   * The account for this computer. Only the desktop app's embedded server
+   * offers this, only to the machine it runs on, and it always answers with
+   * the same account, so there is nothing to set up and nothing to remember.
+   */
+  router.post('/api/v1/auth/device', async (req, res) => {
+    if (!config.deviceAccounts) throw new HttpError(404, 'not_found', 'Not found');
+    const ip = security.clientIp(req);
+    if (!['127.0.0.1', '::1', 'localhost'].includes(ip)) throw new HttpError(403, 'local_only', 'Device accounts are for this computer only');
+    const email = 'this-computer@sentinel.local';
+    let user = A.uq.byEmail.get(email);
+    if (!user) {
+      user = await A.createUser({ email, password: null, firstName: 'This', lastName: 'computer', emailVerified: true, ageConfirmed: false, termsAccepted: false });
+      // Pre-launch: live protection is what the app is for, so the computer's
+      // account gets it. When billing goes live this becomes the free plan.
+      if (config.billingMode === 'demo') plans.setPlan(user.id, 'pro');
+      user = A.uq.byId.get(user.id);
+      security.audit('device_account', { userId: user.id, req });
+    }
+    const { token, expiresAt } = A.createSession(user.id, req, { kind: 'desktop' });
+    sendJson(res, 200, { token, expiresAt, user: A.publicUser(user) });
+  });
+
   router.get('/api/v1/auth/google/start', (req, res) => {
     security.rateLimit(`google:${security.clientIp(req)}`, 30, 15 * 60 * 1000);
     const next = parseUrl(req).searchParams.get('next');

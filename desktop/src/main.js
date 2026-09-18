@@ -23,6 +23,7 @@ const downloads = require('./downloads');
 const browsers = require('./browsers');
 const watch = require('./watch');
 const updater = require('./updater');
+const defense = require('./defense');
 const store = require('./store');
 const server = require('./server');
 
@@ -254,6 +255,8 @@ function registerBridge() {
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
     pageWatch: { ...watch.status(), enabled: store.get('pageWatch', true) },
+    defense: { ...defense.status(), enabled: store.get('defense', true) },
+    deviceAccount: Boolean(store.get('deviceAccount')),
     browsers: browserState,
     update: updater.status(),
     companionPath: companionFolder()
@@ -272,6 +275,9 @@ function registerBridge() {
   handle('sentinel:set-page-watch', (enabled) => { setPageWatch(Boolean(enabled)); return { ...watch.status(), enabled: store.get('pageWatch', true) }; });
 
   handle('sentinel:check-updates', () => updater.check());
+  handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
+  handle('sentinel:set-defense', (enabled) => { store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
+  handle('sentinel:defense-restore', (id) => defense.restore(String(id)));
   handle('sentinel:install-update', () => updater.install());
 
   handle('sentinel:set-token', (token, userId) => {
@@ -356,6 +362,40 @@ async function boot() {
     return;
   }
 
+  // No sign-up: the embedded server issues this computer its own account.
+  if (!remote && !store.getSecret('token')) {
+    try {
+      const res = await fetch(`${ORIGIN}/api/v1/auth/device`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: ORIGIN }, body: '{}' });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        store.setSecret('token', data.token);
+        store.set('pairedUserId', data.user.id);
+        store.set('deviceAccount', true);
+      }
+    } catch { /* the app still works; the person can sign in */ }
+  }
+  // The app window signs in as that account too.
+  if (store.get('deviceAccount') && store.getSecret('token')) {
+    try {
+      await session.defaultSession.cookies.set({ url: ORIGIN, name: 'sentinel_session', value: store.getSecret('token'), sameSite: 'lax', expirationDate: Math.floor(Date.now() / 1000) + 89 * 86400 });
+    } catch { /* cookie is a convenience */ }
+  }
+
+  defense.init({
+    api: apiCall,
+    downloads: app.getPath('downloads'),
+    quarantineDir: path.join(app.getPath('userData'), 'quarantine'),
+    dataDir: app.getPath('userData'),
+    selfDir: path.dirname(process.execPath),
+    enabled: () => store.get('defense', true),
+    onChange: () => { refreshTray(); push('sentinel:defense', defense.status()); },
+    onThreat: (item) => {
+      const did = item.actions.map((a) => a.did).filter((d, i, arr) => arr.indexOf(d) === i).join(', ');
+      notify(`Sentinel stopped ${item.label}`, `${item.name}\n${did || 'Flagged'}`, () => showWindow('/app/protection'));
+      push('sentinel:defense-threat', item);
+    }
+  });
+
   downloads.init({
     origin: ORIGIN,
     folder: app.getPath('downloads'),
@@ -375,6 +415,18 @@ async function boot() {
     getToken: () => store.getSecret('token'),
     enabled: () => store.get('pageWatch', true),
     onChange: (s) => { refreshTray(); push('sentinel:page-watch', s); },
+    onChecked: (item) => {
+      push('sentinel:page-checked', item);
+      // A short on-disk trail of what page watch checked, for the person to read.
+      try {
+        const fs = require('fs');
+        const file = path.join(app.getPath('userData'), 'logs', 'watch.log');
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.appendFileSync(file, `${new Date(item.at).toISOString()} ${item.browser} ${item.badge || 'clean'} ${item.label} ${item.url}
+`);
+        try { if (fs.statSync(file).size > 512 * 1024) fs.writeFileSync(file, ''); } catch { /* fine */ }
+      } catch { /* logging is optional */ }
+    },
     onThreat: (item) => {
       const first = item.verdict.reasons && item.verdict.reasons[0];
       notify(`Sentinel: ${item.verdict.overall.label}`, `${item.host}\n${first ? first.text : 'Leave this site.'}`, () => showWarning(item));
@@ -430,7 +482,7 @@ app.whenReady().then(() => {
   boot();
 });
 
-app.on('before-quit', () => { quitting = true; watch.stop(null, true); if (browserWatcher) browserWatcher.stop(); server.stop(); });
+app.on('before-quit', () => { quitting = true; defense.stop(null, true); watch.stop(null, true); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 

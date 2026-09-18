@@ -15,7 +15,11 @@ const BROWSERS = [
   { id: 'chrome', name: 'Google Chrome', process: 'chrome', engine: 'chromium', extensionsPage: 'chrome://extensions/' },
   { id: 'edge', name: 'Microsoft Edge', process: 'msedge', engine: 'chromium', extensionsPage: 'edge://extensions/' },
   { id: 'brave', name: 'Brave', process: 'brave', engine: 'chromium', extensionsPage: 'brave://extensions/' },
-  { id: 'firefox', name: 'Firefox', process: 'firefox', engine: 'gecko', extensionsPage: 'about:debugging#/runtime/this-firefox' }
+  { id: 'opera', name: 'Opera', process: 'opera', engine: 'chromium', extensionsPage: 'opera://extensions/' },
+  { id: 'vivaldi', name: 'Vivaldi', process: 'vivaldi', engine: 'chromium', extensionsPage: 'vivaldi://extensions/' },
+  { id: 'duckduckgo', name: 'DuckDuckGo', process: 'duckduckgo', engine: 'webview2', extensionsPage: null },
+  { id: 'firefox', name: 'Firefox', process: 'firefox', engine: 'gecko', extensionsPage: 'about:debugging#/runtime/this-firefox' },
+  { id: 'librewolf', name: 'LibreWolf', process: 'librewolf', engine: 'gecko', extensionsPage: 'about:debugging#/runtime/this-firefox' }
 ];
 
 // Where each browser's executable usually is. The Windows registry is checked
@@ -25,19 +29,31 @@ const CANDIDATES = {
     chrome: ['%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe', '%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe', '%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe'],
     edge: ['%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe', '%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe'],
     brave: ['%ProgramFiles%\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', '%LocalAppData%\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'],
-    firefox: ['%ProgramFiles%\\Mozilla Firefox\\firefox.exe', '%ProgramFiles(x86)%\\Mozilla Firefox\\firefox.exe', '%LocalAppData%\\Mozilla Firefox\\firefox.exe']
+    firefox: ['%ProgramFiles%\\Mozilla Firefox\\firefox.exe', '%ProgramFiles(x86)%\\Mozilla Firefox\\firefox.exe', '%LocalAppData%\\Mozilla Firefox\\firefox.exe'],
+    opera: ['%LocalAppData%\\Programs\\Opera\\opera.exe', '%LocalAppData%\\Programs\\Opera GX\\opera.exe', '%ProgramFiles%\\Opera\\opera.exe'],
+    vivaldi: ['%LocalAppData%\\Vivaldi\\Application\\vivaldi.exe'],
+    duckduckgo: ['%LocalAppData%\\Microsoft\\WindowsApps\\DuckDuckGo.exe', '%ProgramFiles%\\WindowsApps\\DuckDuckGo.exe'],
+    librewolf: ['%ProgramFiles%\\LibreWolf\\librewolf.exe', '%LocalAppData%\\LibreWolf\\librewolf.exe']
   },
   darwin: {
     chrome: ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'],
     edge: ['/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'],
     brave: ['/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'],
-    firefox: ['/Applications/Firefox.app/Contents/MacOS/firefox']
+    firefox: ['/Applications/Firefox.app/Contents/MacOS/firefox'],
+    opera: ['/Applications/Opera.app/Contents/MacOS/Opera'],
+    vivaldi: ['/Applications/Vivaldi.app/Contents/MacOS/Vivaldi'],
+    duckduckgo: ['/Applications/DuckDuckGo.app/Contents/MacOS/DuckDuckGo'],
+    librewolf: ['/Applications/LibreWolf.app/Contents/MacOS/librewolf']
   },
   linux: {
     chrome: ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/snap/bin/chromium', '/usr/bin/chromium', '/usr/bin/chromium-browser'],
     edge: ['/usr/bin/microsoft-edge', '/usr/bin/microsoft-edge-stable'],
     brave: ['/usr/bin/brave-browser', '/snap/bin/brave'],
-    firefox: ['/usr/bin/firefox', '/snap/bin/firefox']
+    firefox: ['/usr/bin/firefox', '/snap/bin/firefox'],
+    opera: ['/usr/bin/opera'],
+    vivaldi: ['/usr/bin/vivaldi', '/usr/bin/vivaldi-stable'],
+    duckduckgo: [],
+    librewolf: ['/usr/bin/librewolf']
   }
 };
 
@@ -101,6 +117,7 @@ async function running() {
 async function openExtensionsPage(id) {
   const b = (await installed()).find((x) => x.id === id);
   if (!b) throw new Error('That browser is not installed');
+  if (!b.extensionsPage) throw new Error(`${b.name} does not take extensions; page watch covers it`);
   return new Promise((resolve, reject) => {
     execFile(b.exe, [b.extensionsPage], { windowsHide: false, detached: true, stdio: 'ignore' }, () => {}).on('error', reject).on('spawn', () => resolve({ ok: true }));
   });

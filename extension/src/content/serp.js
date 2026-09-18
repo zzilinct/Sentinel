@@ -224,7 +224,11 @@
   }, { rootMargin: '900px 0px' });
   let flushTimer;
 
+  // Live hours are only spent while this tab is the one being looked at.
+  const inUse = () => document.visibilityState === 'visible' && document.hasFocus();
+
   function send(message) {
+    if (!inUse() && message && message.type && message.type.startsWith('live-')) return Promise.resolve({ ok: false, locked: 'inactive' });
     return new Promise((resolve) => {
       try {
         Promise.resolve(ext.runtime.sendMessage(message)).then((res) => resolve(res || { ok: false }), () => resolve({ ok: false, error: 'Sentinel is restarting' }));
@@ -255,6 +259,10 @@
       if (queue.length) setTimeout(flush, 50);
     }
   }
+
+  // Masks are filled in as soon as the tab is looked at again.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') schedule(50); });
+  window.addEventListener('focus', () => schedule(50));
 
   let timer;
   function schedule(delay = 300) {

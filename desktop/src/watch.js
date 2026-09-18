@@ -21,7 +21,7 @@
  */
 const { spawn } = require('child_process');
 
-const BROWSER_PROCESSES = ['chrome', 'msedge', 'brave', 'firefox'];
+const BROWSER_PROCESSES = ['chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf'];
 const RECHECK_MS = 10 * 60 * 1000;     // same host warned again after this long
 const SETTLE_MS = 700;                 // a page must stay in front this long before it is checked
 
@@ -35,16 +35,22 @@ using System; using System.Runtime.InteropServices;
 public static class SW {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+  [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+  public static uint IdleMs() { var i = new LASTINPUTINFO(); i.cbSize = (uint)Marshal.SizeOf(i); GetLastInputInfo(ref i); return (uint)Environment.TickCount - i.dwTime; }
 }
 "@
 $A = [System.Windows.Automation.AutomationElement]
 $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
-$browsers = @('chrome', 'msedge', 'brave', 'firefox')
+$browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
 $last = ''
 while ($true) {
   Start-Sleep -Milliseconds 900
   $h = [SW]::GetForegroundWindow()
   if ($h -eq [IntPtr]::Zero) { continue }
+  # Nobody at the keyboard, or the window is minimised: the browser is not "in use".
+  if ([SW]::IdleMs() -gt 120000 -or [SW]::IsIconic($h)) { if ($last -ne '') { $last = ''; Write-Output '{"url":null,"idle":true}' } ; continue }
   $pid2 = 0
   [void][SW]::GetWindowThreadProcessId($h, [ref]$pid2)
   $p = Get-Process -Id $pid2
@@ -137,6 +143,8 @@ function onLine(line) {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
   clearTimeout(settleTimer);
+  if (msg.idle) { state.current = null; state.idle = true; return; }
+  state.idle = false;
   if (!msg.url || !/^https?:\/\//i.test(msg.url)) { state.current = null; return; }
   // Sentinel's own pages and the app's server are not "sites".
   if (opts.origin && msg.url.startsWith(opts.origin)) { state.current = null; return; }
@@ -159,6 +167,7 @@ async function check(browser, url) {
     else if (err.code === 'live_hours_exhausted') setState(false, 'Live hours for this week are used up');
     return;
   }
+  if (opts.onChecked) opts.onChecked({ browser, url, host, badge: (verdict && verdict.overall && verdict.overall.badge) || null, label: verdict && verdict.overall ? verdict.overall.label : 'Checked', at: Date.now() });
   if (!verdict || !verdict.overall || !verdict.overall.badge) return;
   const severe = verdict.overall.badge === 'red' || verdict.overall.badge === 'orange';
   if (!severe) return;

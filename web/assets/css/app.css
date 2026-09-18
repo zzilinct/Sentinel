@@ -494,3 +494,12 @@ select.input option { background: #1b1d22; color: var(--text); }
 .threat__kind svg { width: 14px; height: 14px; flex: none; color: var(--c); }
 .kind-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: var(--c, var(--gold-300)); background: color-mix(in srgb, var(--c, var(--gold-300)) 12%, transparent); }
 .kind-icon svg { width: 13px; height: 13px; }
+
+/* ------------------------------------------------------- live feed */
+.feed { min-height: 60px; }
+.feed__item { transition: opacity .5s var(--ease-out), transform .5s var(--ease-out), background .8s; }
+.feed__item.is-new { opacity: 0; transform: translateY(-10px); background: rgba(212, 174, 99, .08); }
+.feed__empty { padding: 14px 0; font-size: 13.5px; }
+.live-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
+.live-dot.is-on { background: var(--green); animation: pulse 1.8s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .feed__item { transition: none; } .live-dot.is-on { animation: none; } }

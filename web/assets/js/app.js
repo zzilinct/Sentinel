@@ -46,6 +46,9 @@
     if (desktop && desktop.onPageThreat) desktop.onPageThreat((item) => {
       toast(`${item.label}: ${item.host}`, item.badge === 'red' ? 'error' : 'info', 8000);
     });
+    if (desktop && desktop.onDefenseThreat) desktop.onDefenseThreat((item) => {
+      toast(`Stopped ${item.label}: ${item.name}`, 'error', 9000);
+    });
 
     document.addEventListener('click', (ev) => {
       const a = ev.target.closest('a[href^="/app"]');
@@ -902,6 +905,9 @@
     try { recent = await desktop.recentDownloads(); } catch { /* none */ }
 
     const pw = info.pageWatch || { supported: false, active: false, reason: 'Not available' };
+    const df = info.defense || { supported: false, active: false, reason: 'Not available' };
+    let ledger = [];
+    try { ledger = (await desktop.defense()).ledger || []; } catch { /* none */ }
     const browsers = (info.browsers && info.browsers.installed) || [];
     const running = new Set((info.browsers && info.browsers.running) || []);
     const up = info.update || { status: 'idle' };
@@ -923,6 +929,10 @@
             ? (pw.active ? 'Sentinel checks the address of the page your browser is showing and warns you before it gets your details. No add-on needed.' : pw.reason || 'Off')
             : 'Available on Windows. On other systems the companion add-on does this.')}</span></div>
             <input class="switch" type="checkbox" data-watch ${pw.active ? 'checked' : ''} ${pw.supported ? '' : 'disabled'}></label>
+          <label class="setting"><div><b>Defense</b><span>${esc(df.supported
+            ? (df.active ? `Watching ${(df.watched || []).join(', ')} and startup entries. A dangerous program is stopped, quarantined and its startup entries removed.` : df.reason || 'Off')
+            : 'Available on Windows.')}</span></div>
+            <input class="switch" type="checkbox" data-defense ${df.active ? 'checked' : ''} ${df.supported ? '' : 'disabled'}></label>
           <label class="setting"><div><b>Download protection</b><span>${esc(info.downloads.active ? `Watching ${info.downloads.folder || 'Downloads'}` : info.downloads.reason || 'Off')}</span></div><input class="switch" type="checkbox" data-dl ${info.downloads.active ? 'checked' : ''}></label>
           <label class="setting"><div><b>Start with my computer</b><span>Keep protection running from the moment you sign in.</span></div><input class="switch" type="checkbox" data-login ${info.openAtLogin ? 'checked' : ''}></label>
           <div class="setting"><div><b>Sentinel ${esc(info.version)}</b><span>${esc(UPDATE_TEXT[up.status] || 'Updates install themselves.')}</span></div>
@@ -940,6 +950,22 @@
         </div>
       </div>
 
+      <div class="grid2" style="margin-top:18px">
+        <div class="panel">
+          <div class="panel__head" style="margin-bottom:10px"><div><h2>Live, right now</h2><p>${pw.active ? 'Every page you open in a browser shows up here as it is checked.' : 'Turn on page watch to see pages as they are checked.'}</p></div><span class="live-dot${pw.active ? ' is-on' : ''}" aria-hidden="true"></span></div>
+          <ul class="list feed" data-feed>${pw.current ? `<li class="feed__item"><span class="list__icon">${ICON.globe}</span><span class="list__main"><b>${esc(pw.current.url)}</b><span>In front now</span></span></li>` : '<li class="feed__empty muted">Nothing checked yet. Open a page in your browser.</li>'}</ul>
+        </div>
+        <div class="panel">
+          <h2 style="margin-bottom:6px">Defense log</h2>
+          <p class="muted" style="font-size:13.5px;margin:0 0 4px">What arrived, what was scanned, what was stopped.</p>
+          ${ledger.length ? `<ul class="list">${ledger.slice(0, 8).map((e) => `<li>
+            <span class="list__icon" style="${e.kind === 'threat' ? 'color:var(--red)' : e.kind === 'restored' ? 'color:var(--gold-300)' : ''}">${ICON.file}</span>
+            <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'restored' ? 'Put back' : `Clean (${esc(e.how || 'scanned')})`)}</span></span>
+            ${e.kind === 'threat' && e.quarantined && !e.restored ? `<button class="btn btn--sm" data-restore="${esc(e.id)}">Put back</button>` : ''}
+          </li>`).join('')}</ul>` : '<div class="empty"><p>Nothing has needed stopping.</p></div>'}
+        </div>
+      </div>
+
       <div class="panel" style="margin-top:18px">
         <h2 style="margin-bottom:12px">Recent downloads</h2>
         ${recent.length ? `<ul class="list">${recent.slice(0, 8).map((d) => `<li>
@@ -949,6 +975,29 @@
         </li>`).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they’re scanned.</p></div>'}
       </div>`;
 
+    const defEl = $('[data-defense]', slot);
+    if (defEl && !defEl.disabled) defEl.addEventListener('change', async (ev) => {
+      const s = await desktop.setDefense(ev.target.checked);
+      toast(s.active ? 'Defense is on.' : (s.reason || 'Defense is off.'), s.active ? 'success' : 'info');
+      renderDesktopControls(slot);
+    });
+    $$('[data-restore]', slot).forEach((b) => b.addEventListener('click', async () => {
+      try { await desktop.restoreQuarantined(b.dataset.restore); toast('File put back where it was.', 'success'); renderDesktopControls(slot); }
+      catch (err) { toast(err.message, 'error'); }
+    }));
+    // The live feed fills in as the desktop checks pages.
+    const feed = $('[data-feed]', slot);
+    if (feed && desktop.onPageChecked) {
+      const off = desktop.onPageChecked((item) => {
+        if (!feed.isConnected) { off(); return; }
+        feed.querySelector('.feed__empty')?.remove();
+        const color = item.badge ? Masks.COLORS[item.badge] : Masks.COLORS.clear;
+        const li = h(`<li class="feed__item is-new"><span class="list__icon" style="color:${color}">${item.badge ? Masks.svg('scam') : ICON.check}</span><span class="list__main"><b>${esc(item.host)}</b><span>${esc(item.label)} &middot; ${esc(item.browser)}</span></span></li>`);
+        feed.prepend(li);
+        requestAnimationFrame(() => li.classList.remove('is-new'));
+        while (feed.children.length > 8) feed.lastElementChild.remove();
+      });
+    }
     const watchEl = $('[data-watch]', slot);
     if (watchEl && !watchEl.disabled) watchEl.addEventListener('change', async (ev) => {
       const s = await desktop.setPageWatch(ev.target.checked);

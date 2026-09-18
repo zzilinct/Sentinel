@@ -72,6 +72,9 @@ module.exports = {
   // own servers. The desktop app's embedded server sets this to 0 so a person's
   // computer never fetches a suspicious page on their behalf.
   researchEnabled: process.env.RESEARCH_ENABLED !== '0',
+  // The desktop app's own server may create the account for the computer it runs
+  // on, so protection starts with no sign-up. Never on a hosted server.
+  deviceAccounts: process.env.SENTINEL_DEVICE_ACCOUNTS === '1',
   // Research may reach private addresses only in the test suite's fixture server.
   researchAllowPrivate: isTest && process.env.RESEARCH_ALLOW_PRIVATE === '1',
   trustProxy: process.env.TRUST_PROXY === '1',
