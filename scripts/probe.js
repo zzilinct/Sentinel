@@ -40,7 +40,18 @@ const bad = [
   'https://sso-adfs-authenticate.com/adfs/ls/',
   'https://sites.google.com/view/office365-login-verify',
   'https://wetransfer-shared-document.com/wetransfer/',
-  'https://m365-security-alert.com/'
+  'https://m365-security-alert.com/',
+  // round two: other scam families, not only fake logins
+  'https://microsoft-support-alert-0800.com/', 'https://your-pc-is-infected-call-now.net/', 'https://win-iphone16-claim-now.top/',
+  'https://amazon-loyalty-reward-survey.click/', 'https://dhl-parcel-fee-payment.xyz/', 'https://royalmail-redelivery-fee.co/',
+  'https://irs-tax-refund-claim.org/', 'https://hmrc-refund-portal.info/', 'https://nike-clearance-90off.shop/',
+  'https://ray-ban-outlet-sale.store/', 'https://tesla-btc-giveaway.live/', 'https://binance-airdrop-claim.app/',
+  'https://ledger-firmware-update.net/', 'https://trezor-suite-recovery.com/', 'https://steam-community-trade-offer.ru/',
+  'https://discord-nitro-free-gift.xyz/', 'https://netflix-billing-update-required.com/', 'https://spotify-premium-free-year.click/',
+  'https://facebook-security-check-appeal.com/', 'https://instagram-copyright-violation-form.net/', 'https://whatsapp-verify-your-number.info/',
+  'https://usps-tracking-update-fee.com/', 'https://fedex-package-hold-fee.net/', 'https://bankofamerica-alerts-verify.com/',
+  'https://wellsfargo-account-locked.net/', 'https://chase-secure-message-center.com/', 'https://coinbase-wallet-unlock.help/',
+  'http://192.0.2.44/login/', 'https://paypal.com-verify.me/', 'https://login-microsoftonline.com.verify-session.xyz/'
 ];
 
 const clean = [
@@ -58,7 +69,16 @@ const clean = [
   'https://docs.python.org/3/', 'https://nodejs.org/en/download', 'https://www.rust-lang.org/', 'https://www.gnu.org/software/bash/',
   'https://www.mozilla.org/en-US/firefox/', 'https://support.microsoft.com/en-us/windows', 'https://www.ikea.com/', 'https://www.etsy.com/',
   'https://www.ebay.com/', 'https://www.walmart.com/', 'https://www.target.com/', 'https://www.bestbuy.com/',
-  'https://www.hulu.com/', 'https://www.zoom.us/', 'https://slack.com/', 'https://www.notion.so/'
+  'https://www.hulu.com/', 'https://www.zoom.us/', 'https://slack.com/', 'https://www.notion.so/',
+  // round two: ordinary sites that use the same words honestly
+  'https://www.securebank.com/', 'https://www.firstbank.com/', 'https://www.banking.co.uk/', 'https://www.loginradius.com/',
+  'https://www.verify.gov/', 'https://www.support.com/', 'https://www.giveaway.com/', 'https://www.prizes.org/',
+  'https://www.refund.com/', 'https://www.rewards.com/', 'https://www.claims.co.uk/', 'https://www.alerts.com/',
+  'https://www.parcel.com/', 'https://www.delivery.com/', 'https://www.outlet.com/', 'https://www.clearance.com/',
+  'https://www.wallet.com/', 'https://www.airdrop.com/', 'https://www.update.com/', 'https://www.secure.com/',
+  'https://www.freegiftcards.com/', 'https://www.techsupport.com/', 'https://www.invoice.com/', 'https://www.password.com/',
+  'https://accounts.shopify.com/', 'https://login.salesforce.com/', 'https://secure.xero.com/', 'https://app.hubspot.com/login',
+  'https://id.atlassian.com/login', 'https://auth0.com/', 'https://www.okta.com/login', 'https://myaccount.google.com/security'
 ];
 
 (async () => {

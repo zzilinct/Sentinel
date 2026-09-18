@@ -24,13 +24,23 @@ const skip = (detail) => ({ status: 'skip', points: 0, detail });
 const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'security', 'account', 'signin', 'login', 'logon', 'auth', 'update', 'unlock', 'suspended', 'recovery', 'recover', 'confirm', 'support', 'helpdesk', 'billing', 'invoice', 'password',
   'bank', 'banking', 'onlinebanking', 'online', 'webmail', 'mailbox', 'quota', 'owa', 'reactivate', 'deactivate', 'deactivation', 'expired', 'session', 'urgent', 'notice', 'required', 'action', 'immediately', 'attention',
   'payroll', 'salary', 'benefits', 'w2', 'enrollment', 'docs', 'document', 'documents', 'fileshare', 'sharefile', 'portal', 'sso', 'adfs', 'authenticate', 'authentication'];
-const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery'];
-const CRYPTO_WORDS = ['airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
-const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown'];
+const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery', 'survey', 'loyalty', 'win'];
+const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway', 'airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
+const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
 
-function keywordScore(words, list, cap) {
+/** A domain that is one plain name: no hyphens, no digits, nothing in front of it. */
+const plainName = (p) => !p.isIp && !/[-\d]/.test(p.sld) && !p.subdomains.filter((s) => s !== 'www').length;
+
+/**
+ * Bait wording scores by how it is combined. One plain word that IS the whole
+ * domain (support.com, wallet.com, invoice.com) is a business name, not a
+ * lure, and gets a fraction; a lure is that word next to a brand, another
+ * bait word, hyphens or digits.
+ */
+function keywordScore(words, list, cap, p) {
   const hits = list.filter((w) => words.has(w));
-  const points = Math.min(cap, hits.reduce((sum, w) => sum + (L.HOST_KEYWORDS[w] || 8), 0));
+  let points = Math.min(cap, hits.reduce((sum, w) => sum + (L.HOST_KEYWORDS[w] || 8), 0));
+  if (p && plainName(p) && /^(com|org|net|co\.uk|gov|edu|io)$/.test(p.suffix)) points = Math.min(points, 10);
   return { hits, points };
 }
 
@@ -43,7 +53,11 @@ const needsResearch = (ctx) => (ctx.research ? null : skip(ctx.researchSkipReaso
 
 const URL_CHECKS = [
   { id: 'U01', group: 'Address', threat: 'scam', title: 'Uses a real domain name, not a raw IP address',
-    run: ({ p }) => (p.isIp ? fail(22, 'The link points at a bare IP address, which legitimate sites almost never do', { malware: 12 }) : pass('Uses a domain name')) },
+    run: ({ p }) => {
+      if (!p.isIp) return pass('Uses a domain name');
+      const login = CREDENTIAL_WORDS.some((w) => p.path.toLowerCase().includes(w));
+      return fail(login ? 40 : 22, login ? 'A login page on a bare IP address: no real service signs people in this way' : 'The link points at a bare IP address, which legitimate sites almost never do', { malware: 12 });
+    } },
 
   { id: 'U02', group: 'Address', threat: 'scam', title: 'No look-alike international characters (punycode)',
     run: ({ p }) => (/(^|\.)xn--/.test(p.host) ? fail(30, 'Punycode domain - characters may imitate a different alphabet') : pass('Plain characters only')) },
@@ -201,26 +215,26 @@ const URL_CHECKS = [
     } },
 
   { id: 'U25', group: 'Wording', threat: 'scam', title: 'No account-security bait in the address',
-    run: ({ words }) => {
-      const { hits, points } = keywordScore(words, CREDENTIAL_WORDS, 30);
+    run: ({ words, p }) => {
+      const { hits, points } = keywordScore(words, CREDENTIAL_WORDS, 30, p);
       return hits.length ? fail(points, `Address uses: ${hits.slice(0, 4).join(', ')}`) : pass('None found');
     } },
 
   { id: 'U26', group: 'Wording', threat: 'scam', title: 'No prize or free-money bait in the address',
-    run: ({ words }) => {
-      const { hits, points } = keywordScore(words, MONEY_WORDS, 30);
+    run: ({ words, p }) => {
+      const { hits, points } = keywordScore(words, MONEY_WORDS, 30, p);
       return hits.length ? fail(points, `Address uses: ${hits.slice(0, 4).join(', ')}`) : pass('None found');
     } },
 
   { id: 'U27', group: 'Wording', threat: 'scam', title: 'No crypto-drainer wording in the address',
-    run: ({ words }) => {
-      const { hits, points } = keywordScore(words, CRYPTO_WORDS, 40);
+    run: ({ words, p }) => {
+      const { hits, points } = keywordScore(words, CRYPTO_WORDS, 40, p);
       return hits.length ? fail(points, `Address uses: ${hits.slice(0, 4).join(', ')}`) : pass('None found');
     } },
 
   { id: 'U28', group: 'Wording', threat: 'scam', title: 'No fake-clearance-store wording',
-    run: ({ words }) => {
-      const { hits, points } = keywordScore(words, SHOP_WORDS, 20);
+    run: ({ words, p }) => {
+      const { hits, points } = keywordScore(words, SHOP_WORDS, 20, p);
       return hits.length ? warn(points, `Address uses: ${hits.join(', ')}`) : pass('None found');
     } },
 
@@ -358,15 +372,17 @@ function matchCheck(knowledge, threat, noun) {
 
 const COMPARE_CHECKS = [
   { id: 'C01', group: 'Compared to known scams', threat: 'scam', title: 'Name is not a variant of a known scam domain',
-    run: ({ compare, brand }) => {
+    run: ({ compare, brand, p }) => {
       if (brand.owner) return pass(`Official ${brand.owner.domains[0]}`);
+      if (plainName(p) && !brand.inDomain && !brand.lookalike && compare.skeletonMatches.every((m) => m.generic)) return pass('A plain name; the look-alikes borrowed a common word');
       const m = compare.skeletonMatches[0];
       return m ? fail(34, `Nearly the same name as known ${String(m.category || m.threat).replace(/_/g, ' ')} site ${m.host}`) : pass('No near-duplicate');
     } },
   { id: 'C02', group: 'Compared to known scams', threat: 'scam', title: 'Name does not follow a known scam naming pattern',
-    run: ({ compare, brand }) => {
+    run: ({ compare, brand, p }) => {
       if (brand.owner) return pass(`Official ${brand.owner.domains[0]}`);
       const m = compare.tokenMatches[0];
+      if (m && plainName(p) && !brand.inDomain && !brand.lookalike) return warn(6, `Shares "${m.shared.join('" + "')}" with known scam ${m.host}, but is one plain name`);
       return m ? warn(Math.min(24, 10 + 6 * m.shared.length), `Shares "${m.shared.join('" + "')}" with known scam ${m.host}`) : pass('No shared pattern');
     } },
   { id: 'C03', group: 'Compared to known scams', threat: 'scam', title: 'Page content does not match a known scam kit',

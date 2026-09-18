@@ -54,7 +54,8 @@ const HOST_KEYWORDS = {
   // more crypto-drainer wording
   dapp: 16, defi: 12, sync: 8, rectify: 14, mint: 10, nft: 8, swap: 8, bridge: 8, kyc: 10, ledger: 10, trezor: 12, metamask: 14, phantom: 10,
   // single sign-on and portal wording that phishing kits copy
-  portal: 6, sso: 10, adfs: 14, authenticate: 12, authentication: 12
+  portal: 6, sso: 10, adfs: 14, authenticate: 12, authentication: 12,
+  btc: 14, eth: 12, bitcoin: 14, ethereum: 12, crypto: 10, survey: 10, loyalty: 10, win: 8, sale: 8, off: 6, discount: 8, cheap: 8, wholesale: 6
 };
 
 const PATH_KEYWORDS = {

@@ -18,6 +18,12 @@ const MAX_TOKEN_DF = 4000;
 // Every name is compared with at least this many known scam domains.
 const MIN_COMPARED = 10;
 
+// A skeleton that is itself a common word (verify, secure, password...) matches
+// every honest site named after that word. Such matches are marked generic so
+// the rules can discount them.
+const GENERIC_WORDS = new Set(['password', 'verify', 'secure', 'security', 'bank', 'banking', 'support', 'wallet', 'update', 'invoice', 'delivery', 'login', 'account', 'service', 'online', 'official', 'payment', 'billing', 'portal', 'access', 'alert', 'alerts', 'notice', 'recovery', 'refund', 'reward', 'rewards', 'claim', 'claims', 'parcel', 'outlet', 'clearance', 'airdrop', 'giveaway', 'prize', 'prizes']);
+const isGeneric = (skeleton) => skeleton.length < 6 || GENERIC_WORDS.has(skeleton) || L.HOST_KEYWORDS[skeleton] !== undefined;
+
 const q = {
   skeleton: db.prepare('SELECT host, threat, category FROM feed_hosts WHERE skeleton = ? AND host != ? LIMIT 10'),
   // Known hosts whose skeleton starts the same way, for the nearest-name pass.
@@ -63,13 +69,13 @@ function compareDomain(p) {
   };
 
   if (skeleton.length >= 6) {
-    out.skeletonMatches = q.skeleton.all(skeleton, p.registrable);
+    out.skeletonMatches = q.skeleton.all(skeleton, p.registrable).map((row) => ({ ...row, generic: isGeneric(skeleton) }));
     // Our own confirmed list is small enough to compare with edit distance.
     for (const row of blockSkeletons()) {
       if (row.host === p.registrable || row.host === p.host) continue;
       consider(row.host, row.skeleton);
       if (Math.abs(row.skeleton.length - skeleton.length) <= 2 && levenshtein(row.skeleton, skeleton) <= 2) {
-        out.skeletonMatches.push(row);
+        out.skeletonMatches.push({ ...row, generic: isGeneric(row.skeleton) });
       }
     }
     for (const row of out.skeletonMatches) consider(row.host, row.skeleton);
