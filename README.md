@@ -89,6 +89,18 @@ add-on involved:
 - **Browser awareness.** `desktop/src/browsers.js` reports which browsers are
   installed and which are running, so the app can say "Chrome just opened" and
   hand that browser the right companion build.
+- **No setup.** The embedded server issues the computer its own account on
+  first start (`POST /api/v1/auth/device`, loopback only, enabled only by the
+  desktop app), so protection is on from the first minute with no sign-up.
+- **Only while browsing.** Page watch covers Chrome, Edge, Brave, Opera,
+  Vivaldi, DuckDuckGo, Firefox and LibreWolf, and spends live hours only while
+  one of them is in front, not minimised, with someone at the keyboard.
+- **Defense.** `desktop/src/defense.js` watches Downloads, Desktop, Temp and
+  Startup plus Run keys and scheduled tasks. A flagged program is quarantined
+  at once (a move, reversible), any process running from it is ended, and the
+  entries that would relaunch it are removed. No kernel driver: it runs beside
+  the system antivirus. Malware-side tests run in the `sentinel-lab`
+  VirtualBox VM, never on a developer's machine.
 - **Self-updating.** `desktop/src/updater.js` checks GitHub Releases, downloads
   a newer installer quietly and applies it when Sentinel quits, so nobody
   downloads the app twice.
