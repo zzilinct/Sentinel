@@ -23,7 +23,7 @@ const skip = (detail) => ({ status: 'skip', points: 0, detail });
 
 const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'security', 'account', 'signin', 'login', 'logon', 'auth', 'update', 'unlock', 'suspended', 'recovery', 'recover', 'confirm', 'support', 'helpdesk', 'billing', 'invoice', 'password',
   'bank', 'banking', 'onlinebanking', 'online', 'webmail', 'mailbox', 'quota', 'owa', 'reactivate', 'deactivate', 'deactivation', 'expired', 'session', 'urgent', 'notice', 'required', 'action', 'immediately', 'attention',
-  'payroll', 'salary', 'benefits', 'w2', 'enrollment', 'docs', 'document', 'documents', 'fileshare', 'sharefile', 'portal', 'sso', 'adfs', 'authenticate', 'authentication'];
+  'payroll', 'salary', 'benefits', 'w2', 'enrollment', 'hr', 'docs', 'document', 'documents', 'fileshare', 'sharefile', 'portal', 'sso', 'adfs', 'authenticate', 'authentication'];
 const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery', 'survey', 'loyalty', 'win'];
 const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway', 'airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
@@ -331,6 +331,22 @@ const KNOWLEDGE_CHECKS = [
       if (!random) return pass('Readable subdomain');
       const bait = [...CREDENTIAL_WORDS, ...CRYPTO_WORDS, ...MONEY_WORDS].some((w) => words.has(w) || p.path.toLowerCase().includes(w));
       return bait ? fail(14, `Random subdomain "${label}" on an address using bait wording`) : warn(4, `Random-looking subdomain "${label}"`);
+    } },
+
+  { id: 'U43', group: 'Wording', threat: 'scam', title: 'Address is not a stack of bait words',
+    run: ({ p, words, brand }) => {
+      if (brand.owner || p.isIp) return pass('Not applicable');
+      // One bait word is a business name. Three or more, hyphenated together
+      // ("account-verify-center", "your-pc-is-infected-call-now"), is a lure built to be clicked.
+      const PRESSURE = ['call', 'now', 'urgent', 'locked', 'suspended', 'virus', 'm365', 'o365', 'office365'];
+      const BAIT = [...CREDENTIAL_WORDS, ...MONEY_WORDS, ...CRYPTO_WORDS, ...SHOP_WORDS, ...L.TECH_SUPPORT_WORDS, ...L.DELIVERY_WORDS, ...PRESSURE];
+      const parts = p.sld.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+      const inName = [...new Set(parts.filter((w) => BAIT.includes(w)))];
+      // Needs a name of three or more hyphenated parts, at least two of them bait.
+      if (parts.length < 3 || inName.length < 2) return pass('No stacked bait wording');
+      const inPath = p.path.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && BAIT.includes(w));
+      const all = [...new Set([...inName, ...inPath])];
+      return fail(all.length >= 4 ? 20 : 14, `Built from bait words: ${all.slice(0, 5).join(', ')}`);
     } },
 
   { id: 'K01', group: 'Known threats', threat: 'scam', title: 'Not a known scam',
