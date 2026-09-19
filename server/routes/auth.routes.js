@@ -233,6 +233,10 @@ function register(router) {
       security.audit('device_account', { userId: user.id, req });
     }
     const { token, expiresAt } = A.createSession(user.id, req, { kind: 'desktop' });
+    // The app asks once and keeps its token; anything beyond a handful is left over
+    // from reinstalls and test runs. Keep the newest few.
+    A.db.prepare(`DELETE FROM sessions WHERE user_id = ? AND token_hash NOT IN
+      (SELECT token_hash FROM sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 5)`).run(user.id, user.id);
     sendJson(res, 200, { token, expiresAt, user: A.publicUser(user) });
   });
 

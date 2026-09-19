@@ -390,6 +390,7 @@ async function upsertGoogleUser(claims) {
 }
 
 module.exports = {
+  db,
   uq, sq,
   id, hashPassword, verifyPassword, sha256,
   encryptSecret, decryptSecret,

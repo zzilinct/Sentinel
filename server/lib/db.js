@@ -83,7 +83,6 @@ function openAccounts() {
     const version = d.prepare('PRAGMA user_version').get().user_version;
     if (existed && version >= 6 && dropLegacyFeedTables(d)) {
       note('moved the threat lists out of the accounts file (they download again into their own file)');
-      try { d.exec('VACUUM'); } catch { /* shrinking is a nicety */ }
     }
     if (!healthy(d)) {
       note('integrity check FAILED on the accounts file; rebuilding its indexes');
@@ -111,6 +110,16 @@ function openAccounts() {
       note(`the accounts file was damaged and no backup could be used; started a new one (damaged copy kept at ${path.basename(aside)})`);
     }
   }
+
+  // Hand back the space the threat lists used to take. This has to come after the
+  // repair: VACUUM refuses to run on a file whose indexes are damaged.
+  try {
+    const free = d.prepare('PRAGMA freelist_count').get().freelist_count * d.prepare('PRAGMA page_size').get().page_size;
+    if (free > 32 * 1024 * 1024) {
+      d.exec('VACUUM');
+      note(`reclaimed ${Math.round(free / 1048576)} MB of empty space in the accounts file`);
+    }
+  } catch { /* shrinking is a nicety, never a reason not to start */ }
 
   // Rows that point at a user who no longer exists (left behind by past damage) cannot be honoured.
   try {
