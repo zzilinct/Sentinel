@@ -66,8 +66,10 @@ function register(router) {
     A.uq.setPassword.run(await A.hashPassword(String(body.newPassword)), user.id);
     A.sq.delAllForUser.run(user.id);              // sign out everywhere else
     security.audit('password_changed', { userId: user.id, req });
-    const { token } = A.createSession(user.id, req);
-    sendJson(res, 200, { ok: true }, { 'Set-Cookie': A.sessionCookie(token) });
+    // The replacement session keeps the choice made at sign-in.
+    const stay = req._session ? req._session.persistent : false;
+    const { token, persistent } = A.createSession(user.id, req, { staySignedIn: stay });
+    sendJson(res, 200, { ok: true }, { 'Set-Cookie': A.sessionCookie(token, { persistent }) });
   });
 
   /* ---------------------------------------------------------------- 2FA */
@@ -110,8 +112,12 @@ function register(router) {
 
   router.get('/api/v1/account/sessions', (req, res) => {
     const user = A.requireUser(req);
-    const sessions = A.sq.list.all(user.id).map((s) => ({
+    const sessions = A.sq.list.all(user.id, Date.now()).map((s) => ({
+      // A handle for "sign this one out". It is a hash of the token, never the token.
+      id: s.token_hash,
       current: s.token_hash === req._sessionHash,
+      staySignedIn: s.persistent !== 0,
+      expiresAt: s.expires_at,
       kind: s.kind,
       createdAt: s.created_at,
       lastSeenAt: s.last_seen_at,
@@ -119,6 +125,18 @@ function register(router) {
       ip: s.ip ? s.ip.replace(/(\d+\.\d+)\.\d+\.\d+$/, '$1.x.x') : null
     }));
     sendJson(res, 200, { sessions });
+  });
+
+  /** Sign out exactly one session. Every other session of the account is untouched. */
+  router.post('/api/v1/account/sessions/revoke', async (req, res) => {
+    const user = A.requireUser(req);
+    const { id } = await readJson(req);
+    if (typeof id !== 'string' || !/^[a-f0-9]{64}$/.test(id)) throw new HttpError(400, 'bad_session', 'Unknown session');
+    const removed = A.sq.delOne.run(user.id, id).changes;
+    if (!removed) throw new HttpError(404, 'bad_session', 'That session has already ended');
+    security.audit('session_revoked', { userId: user.id, req });
+    const self = id === req._sessionHash;
+    sendJson(res, 200, { ok: true, signedOut: self }, self ? { 'Set-Cookie': A.clearCookie() } : undefined);
   });
 
   router.post('/api/v1/account/sessions/revoke-others', (req, res) => {

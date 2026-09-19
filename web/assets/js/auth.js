@@ -45,7 +45,10 @@
   const google = $('[data-google]');
   api('/auth/config').then((cfg) => {
     if (cfg.googleEnabled) {
-      google.addEventListener('click', () => { location.href = `/api/v1/auth/google/start?next=${encodeURIComponent(next())}`; });
+      google.addEventListener('click', () => {
+        const stay = !isSignup && form.elements.staySignedIn && form.elements.staySignedIn.checked;
+        location.href = `/api/v1/auth/google/start?next=${encodeURIComponent(next())}${stay ? '&stay=1' : ''}`;
+      });
     } else {
       google.disabled = true;
       google.title = 'Google sign-in is not configured on this server';
@@ -59,6 +62,22 @@
 
   const form = $('[data-form]');
   const pw = form.elements.password;
+
+  if (!isSignup) {
+    // Arriving from sign-up: the account exists, this is where it is used.
+    if (!params.get('created') && params.get('email') && form.elements.email) form.elements.email.value = params.get('email');
+    if (params.get('created')) {
+      note('[data-note]', '<b>Account created.</b> Sign in to start using it.', 'ok');
+      const email = params.get('email');
+      if (email && form.elements.email) { form.elements.email.value = email; pw.focus(); }
+    }
+    // On your own computer the box starts ticked; in a browser it is a choice you make.
+    const stay = form.elements.staySignedIn;
+    try {
+      const remembered = localStorage.getItem('sentinel:stay');
+      stay.checked = remembered === null ? Boolean(window.sentinelDesktop) : remembered === '1';
+    } catch { stay.checked = Boolean(window.sentinelDesktop); }
+  }
 
   if (isSignup) {
     const meter = $('[data-strength]');
@@ -78,7 +97,12 @@
     clearErrors(form);
     note('[data-note]', '');
     const data = Object.fromEntries(new FormData(form).entries());
-    if (!isSignup) data.next = next();
+    if (!isSignup) {
+      data.next = next();
+      // The server wants an explicit boolean, never "on".
+      data.staySignedIn = form.elements.staySignedIn.checked;
+      try { localStorage.setItem('sentinel:stay', data.staySignedIn ? '1' : '0'); } catch { /* private window */ }
+    }
     if (isSignup) {
       // Unchecked boxes are absent from FormData; the server wants an explicit true or false.
       data.ageConfirmed = form.elements.ageConfirmed.checked;
@@ -89,10 +113,21 @@
       try {
         const res = await api(isSignup ? '/auth/signup' : '/auth/login', { method: 'POST', body: data });
         if (res.twoFactorRequired) return showCodeStep(res.challenge);
-        // The app shows the verification reminder itself; nothing is claimed here that didn't happen.
+        if (isSignup) {
+          // The account is saved. Signing in is a separate, deliberate step.
+          const q = new URLSearchParams({ created: '1', email: data.email || '' });
+          const n = params.get('next');
+          if (n) q.set('next', n);
+          if (params.get('plan')) q.set('plan', params.get('plan'));
+          location.replace(`/login?${q}`);
+          return;
+        }
         location.replace(next());
       } catch (err) {
-        if (!showErrors(form, err.errors)) note('[data-note]', esc(err.message));
+        if (err.code === 'email_taken') {
+          const q = new URLSearchParams({ email: data.email || '' });
+          note('[data-note]', `That email is already registered. <a href="/login?${esc(q.toString())}" style="color:var(--gold-300)">Sign in instead</a>, or use <a href="/forgot" style="color:var(--gold-300)">Forgot password</a> if you cannot get in.`);
+        } else if (!showErrors(form, err.errors)) note('[data-note]', esc(err.message));
       }
     });
   });

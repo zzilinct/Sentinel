@@ -16,6 +16,7 @@ async function signedIn(plan = 'free') {
   const email = `sec_${Math.random().toString(36).slice(2)}@example.com`;
   const r = await c.post('/api/v1/auth/signup', { email, password: 'Correct-Horse-42', firstName: 'Sec', ageConfirmed: true, termsAccepted: true });
   assert.equal(r.status, 201);
+  assert.equal((await c.post('/api/v1/auth/login', { email, password: 'Correct-Horse-42' })).status, 200);
   if (plan !== 'free') await c.post('/api/v1/billing/plan', { plan });
   c.email = email;
   return c;

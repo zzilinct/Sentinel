@@ -106,13 +106,14 @@ const uq = {
 };
 
 const sq = {
-  insert: db.prepare('INSERT INTO sessions (token_hash, user_id, kind, created_at, expires_at, user_agent, ip, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
+  insert: db.prepare('INSERT INTO sessions (token_hash, user_id, kind, created_at, expires_at, user_agent, ip, last_seen_at, idle_ms, persistent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'),
   get: db.prepare('SELECT * FROM sessions WHERE token_hash = ?'),
-  seen: db.prepare('UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?'),
+  seen: db.prepare('UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE token_hash = ?'),
+  delOne: db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash = ?'),
   del: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
   delAllForUser: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
   delOthers: db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?'),
-  list: db.prepare('SELECT token_hash, kind, created_at, last_seen_at, user_agent, ip FROM sessions WHERE user_id = ? ORDER BY COALESCE(last_seen_at, created_at) DESC')
+  list: db.prepare('SELECT token_hash, kind, created_at, last_seen_at, expires_at, persistent, user_agent, ip FROM sessions WHERE user_id = ? AND expires_at >= ? ORDER BY COALESCE(last_seen_at, created_at) DESC')
 };
 
 function publicUser(u) {
@@ -181,9 +182,9 @@ async function checkPassword(email, password, req) {
 
 const challenges = new Map(); // hash -> { userId, expires, next, attempts }
 
-function createChallenge(userId, next = '/app') {
+function createChallenge(userId, next = '/app', { staySignedIn = false } = {}) {
   const token = crypto.randomBytes(24).toString('base64url');
-  challenges.set(sha256(token), { userId, expires: now() + 5 * 60 * 1000, next, attempts: 0 });
+  challenges.set(sha256(token), { userId, expires: now() + 5 * 60 * 1000, next, attempts: 0, staySignedIn: Boolean(staySignedIn) });
   return token;
 }
 
@@ -203,7 +204,7 @@ function completeChallenge(token, code) {
   }
   challenges.delete(key);
   uq.totpUsed.run(counter, user.id);
-  return { user, next: ch.next };
+  return { user, next: ch.next, staySignedIn: ch.staySignedIn };
 }
 
 setInterval(() => {
@@ -213,17 +214,44 @@ setInterval(() => {
 
 /* --------------------------------------------------------------- sessions */
 
-function createSession(userId, req, { kind = 'web' } = {}) {
+/**
+ * How long a session may sit unused before it ends. Expiry is ROLLING: every
+ * authenticated request pushes it forward, so "30 days" means 30 days of not
+ * using Sentinel, never 30 days since signing in.
+ *
+ *   stay signed in    30 days idle, persistent cookie (survives closing the browser)
+ *   not ticked        12 hours idle, session cookie (gone when the browser closes)
+ *   app / companion   90 days idle (a paired device, revocable from Security)
+ */
+const IDLE = {
+  persistent: config.sessionTtlMs,                 // 30 days
+  brief: 12 * 60 * 60 * 1000,
+  client: 90 * 24 * 60 * 60 * 1000
+};
+// last_seen is written at most this often, so a busy page is not a write per request.
+const TOUCH_EVERY_MS = 60 * 1000;
+
+function createSession(userId, req, { kind = 'web', staySignedIn = true } = {}) {
   const token = crypto.randomBytes(32).toString('base64url');
-  const ttl = kind === 'web' ? config.sessionTtlMs : 90 * 24 * 60 * 60 * 1000;
-  const expires = now() + ttl;
-  sq.insert.run(sha256(token), userId, kind, now(), expires, String((req && req.headers['user-agent']) || '').slice(0, 300), req ? security.clientIp(req) : null, now());
+  const persistent = kind !== 'web' || Boolean(staySignedIn);
+  const idle = kind !== 'web' ? IDLE.client : persistent ? IDLE.persistent : IDLE.brief;
+  const expires = now() + idle;
+  sq.insert.run(sha256(token), userId, kind, now(), expires, String((req && req.headers['user-agent']) || '').slice(0, 300), req ? security.clientIp(req) : null, now(), idle, persistent ? 1 : 0);
   uq.touch.run(now(), userId);
-  return { token, expiresAt: expires };
+  return { token, expiresAt: expires, persistent };
 }
 
-function sessionCookie(token) {
-  return serializeCookie(COOKIE, token, { maxAge: config.sessionTtlMs / 1000, secure: config.secureCookies, sameSite: 'Lax' });
+/** `persistent` false = a session cookie: no Max-Age, so the browser drops it when it closes. */
+function sessionCookie(token, { persistent = true } = {}) {
+  return serializeCookie(COOKIE, token, { maxAge: persistent ? IDLE.persistent / 1000 : null, secure: config.secureCookies, sameSite: 'Lax' });
+}
+
+/** Re-issue a persistent cookie so the browser's own 30-day clock slides with the server's. */
+function refreshedCookie(req) {
+  if (!req._session || !req._session.persistent || req._session.kind !== 'web') return null;
+  if ((req.headers.authorization || '').startsWith('Bearer ')) return null;
+  const token = parseCookies(req)[COOKIE];
+  return token ? sessionCookie(token, { persistent: true }) : null;
 }
 
 function clearCookie() {
@@ -246,10 +274,19 @@ function currentUser(req) {
   const hash = sha256(token);
   const row = sq.get.get(hash);
   if (!row) return null;
-  if (row.expires_at < now()) { sq.del.run(hash); return null; }
-  if (!row.last_seen_at || now() - row.last_seen_at > 5 * 60 * 1000) sq.seen.run(now(), hash);
+  const t = now();
+  // Idle too long: the session is over, however recently the cookie was issued.
+  if (row.expires_at < t) { sq.del.run(hash); return null; }
+  const user = uq.byId.get(row.user_id);
+  if (!user) { sq.del.run(hash); return null; }
+  // In use: slide the window forward.
+  if (!row.last_seen_at || t - row.last_seen_at >= TOUCH_EVERY_MS) {
+    const idle = row.idle_ms || (row.kind === 'web' ? IDLE.persistent : IDLE.client);
+    sq.seen.run(t, t + idle, hash);
+  }
   req._sessionHash = hash;
-  req._user = uq.byId.get(row.user_id) || null;
+  req._session = { kind: row.kind, persistent: row.persistent !== 0 };
+  req._user = user;
   return req._user;
 }
 
@@ -281,10 +318,14 @@ function safeNext(next) {
   return n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') ? n.slice(0, 200) : '/app';
 }
 
-function googleAuthUrl(nextUrl) {
+// The OAuth state row carries the return path and, after this separator, the
+// "stay signed in" choice made on the sign-in page.
+const STAY_MARK = 'stay';
+
+function googleAuthUrl(nextUrl, { staySignedIn = false } = {}) {
   if (!config.google.enabled) throw new HttpError(503, 'google_not_configured', 'Google sign-in is not configured on this server yet');
   const state = crypto.randomBytes(24).toString('base64url');
-  oq.insert.run(state, now(), safeNext(nextUrl));
+  oq.insert.run(state, now(), safeNext(nextUrl) + (staySignedIn ? STAY_MARK : ''));
   const params = new URLSearchParams({
     client_id: config.google.clientId,
     redirect_uri: googleRedirectUri(),
@@ -325,7 +366,9 @@ async function googleExchange(code, state) {
   if (claims.email_verified === false) throw new HttpError(401, 'google_unverified', 'Verify your Google email address first');
   if (claims.exp && claims.exp * 1000 < now()) throw new HttpError(401, 'google_expired', 'Google sign-in expired');
 
-  return { claims, nextUrl: row.next_url || '/app' };
+  const stored = String(row.next_url || '/app');
+  const staySignedIn = stored.endsWith(STAY_MARK);
+  return { claims, nextUrl: staySignedIn ? stored.slice(0, -STAY_MARK.length) : stored, staySignedIn };
 }
 
 function decodeIdToken(jwt) {
@@ -352,6 +395,6 @@ module.exports = {
   encryptSecret, decryptSecret,
   validateSignup, createUser, publicUser, checkPassword, TERMS_VERSION,
   createChallenge, completeChallenge,
-  createSession, sessionCookie, clearCookie, currentUser, requireUser, destroySession,
+  createSession, sessionCookie, refreshedCookie, IDLE, clearCookie, currentUser, requireUser, destroySession,
   googleAuthUrl, googleExchange, upsertGoogleUser, safeNext
 };

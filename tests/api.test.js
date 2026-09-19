@@ -23,6 +23,9 @@ async function newUser(plan = 'free') {
   const email = `user${++n}_${Date.now()}@example.com`;
   const r = await c.post('/api/v1/auth/signup', { email, password: 'Correct-Horse-42', firstName: 'Test', lastName: '', ageConfirmed: true, termsAccepted: true });
   assert.equal(r.status, 201, JSON.stringify(r.data));
+  // Creating an account signs nobody in; signing in is its own step.
+  const s = await c.post('/api/v1/auth/login', { email, password: 'Correct-Horse-42' });
+  assert.equal(s.status, 200, JSON.stringify(s.data));
   if (plan !== 'free') {
     const up = await c.post('/api/v1/billing/plan', { plan });
     assert.equal(up.status, 200, JSON.stringify(up.data));
@@ -58,7 +61,10 @@ test('signup requires a name, valid email and a strong password; last name optio
   assert.ok(ok.data.user.ageConfirmedAt && ok.data.user.termsAcceptedAt);
   assert.equal(ok.data.user.lastName, null);
   assert.equal(ok.data.user.plan, 'free');
-  assert.match(ok.headers.get('set-cookie'), /HttpOnly/);
+  assert.equal(ok.headers.get('set-cookie'), null, 'sign-up creates the account and signs nobody in');
+  assert.equal(ok.data.next, '/login');
+  const signedIn = await c.post('/api/v1/auth/login', { email: 'ann@example.com', password: 'Correct-Horse-42' });
+  assert.match(signedIn.headers.get('set-cookie'), /HttpOnly/);
 
   const dup = await client(app.base).post('/api/v1/auth/signup', { email: 'ann@example.com', password: 'Correct-Horse-42', firstName: 'Ann', ageConfirmed: true, termsAccepted: true });
   assert.equal(dup.status, 409);

@@ -69,10 +69,11 @@ function register(router) {
     const clean = A.validateSignup(await readJson(req));
     const user = await A.createUser(clean);
     security.audit('signup', { userId: user.id, req });
-    const { token } = A.createSession(user.id, req);
     // 'sent' | 'failed' | 'unavailable' - the client only says an email went out when one did.
     const verification = await sendVerification(user, req);
-    sendJson(res, 201, { user: A.publicUser(user), verification }, { 'Set-Cookie': A.sessionCookie(token) });
+    // Creating an account does not sign anyone in. The account is on disk; the
+    // next step is the sign-in page, where "stay signed in" is the person's choice.
+    sendJson(res, 201, { user: A.publicUser(user), verification, next: '/login' });
   });
 
   /* ------------------------------------------------------ email verification */
@@ -107,24 +108,26 @@ function register(router) {
     security.rateLimit(`login:email:${email}`, 12, 15 * 60 * 1000, 'Too many sign-in attempts. Please wait a few minutes.');
 
     const user = await A.checkPassword(email, String(body.password || ''), req);
+    // Only an explicit true keeps the session after the browser closes.
+    const staySignedIn = body.staySignedIn === true;
 
     if (user.totp_enabled) {
-      const challenge = A.createChallenge(user.id, A.safeNext(body.next));
+      const challenge = A.createChallenge(user.id, A.safeNext(body.next), { staySignedIn });
       sendJson(res, 200, { twoFactorRequired: true, challenge });
       return;
     }
-    security.audit('login', { userId: user.id, req });
-    const { token } = A.createSession(user.id, req);
-    sendJson(res, 200, { user: A.publicUser(A.uq.byId.get(user.id)) }, { 'Set-Cookie': A.sessionCookie(token) });
+    security.audit('login', { userId: user.id, req, detail: staySignedIn ? 'stay signed in' : 'this browser session' });
+    const { token, persistent } = A.createSession(user.id, req, { staySignedIn });
+    sendJson(res, 200, { user: A.publicUser(A.uq.byId.get(user.id)), staySignedIn: persistent }, { 'Set-Cookie': A.sessionCookie(token, { persistent }) });
   });
 
   router.post('/api/v1/auth/login/2fa', async (req, res) => {
     const body = await readJson(req);
     security.rateLimit(`2fa:${security.clientIp(req)}`, 20, 15 * 60 * 1000);
-    const { user, next } = A.completeChallenge(body.challenge, body.code);
+    const { user, next, staySignedIn } = A.completeChallenge(body.challenge, body.code);
     security.audit('login_2fa', { userId: user.id, req });
-    const { token } = A.createSession(user.id, req);
-    sendJson(res, 200, { user: A.publicUser(A.uq.byId.get(user.id)), next }, { 'Set-Cookie': A.sessionCookie(token) });
+    const { token, persistent } = A.createSession(user.id, req, { staySignedIn });
+    sendJson(res, 200, { user: A.publicUser(A.uq.byId.get(user.id)), next, staySignedIn: persistent }, { 'Set-Cookie': A.sessionCookie(token, { persistent }) });
   });
 
   /* ------------------------------------------------------ password reset */
@@ -189,7 +192,8 @@ function register(router) {
       sendJson(res, 401, { error: { code: 'unauthenticated', message: 'Not signed in' } });
       return;
     }
-    sendJson(res, 200, { user: A.publicUser(user), ...plans.usageSummary(user) });
+    const cookie = A.refreshedCookie(req);
+    sendJson(res, 200, { user: A.publicUser(user), ...plans.usageSummary(user) }, cookie ? { 'Set-Cookie': cookie } : undefined);
   });
 
   /**
@@ -234,8 +238,9 @@ function register(router) {
 
   router.get('/api/v1/auth/google/start', (req, res) => {
     security.rateLimit(`google:${security.clientIp(req)}`, 30, 15 * 60 * 1000);
-    const next = parseUrl(req).searchParams.get('next');
-    send(res, 302, null, { Location: A.googleAuthUrl(next) });
+    const q = parseUrl(req).searchParams;
+    // The sign-in page's "stay signed in" box travels with the OAuth state.
+    send(res, 302, null, { Location: A.googleAuthUrl(q.get('next'), { staySignedIn: q.get('stay') === '1' }) });
   });
 
   router.get('/api/v1/auth/google/callback', async (req, res) => {
@@ -248,16 +253,16 @@ function register(router) {
     const state = params.get('state');
     if (!code || !state) throw new HttpError(400, 'missing_code', 'Google sign-in did not complete');
 
-    const { claims, nextUrl } = await A.googleExchange(code, state);
+    const { claims, nextUrl, staySignedIn } = await A.googleExchange(code, state);
     const user = await A.upsertGoogleUser(claims);
     if (user.totp_enabled) {
-      const challenge = A.createChallenge(user.id, nextUrl);
+      const challenge = A.createChallenge(user.id, nextUrl, { staySignedIn });
       send(res, 302, null, { Location: `/login?mfa=${encodeURIComponent(challenge)}` });
       return;
     }
     security.audit('login_google', { userId: user.id, req });
-    const { token } = A.createSession(user.id, req);
-    send(res, 302, null, { Location: A.safeNext(nextUrl), 'Set-Cookie': A.sessionCookie(token) });
+    const { token, persistent } = A.createSession(user.id, req, { staySignedIn });
+    send(res, 302, null, { Location: A.safeNext(nextUrl), 'Set-Cookie': A.sessionCookie(token, { persistent }) });
   });
 }
 

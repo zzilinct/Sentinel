@@ -30,6 +30,10 @@
           <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
           <span class="field__error" data-error="password"></span>
         </div>
+        <label class="consent__row" style="margin-top:18px">
+          <input type="checkbox" name="staySignedIn" data-stay>
+          <span>Stay signed in<br><small class="muted" data-stay-hint>You stay signed in on this device until you have not used Sentinel for 30 days. Leave it unticked on a shared computer: you are signed out when the browser closes, or after 12 hours away.</small></span>
+        </label>
         <button class="btn btn--gold btn--lg btn--block" style="margin-top:22px" type="submit">Sign in</button>
       </form>
       <p class="auth__switch">New to Sentinel? <a href="/signup" data-keep-query>Create an account</a></p>
