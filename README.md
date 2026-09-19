@@ -189,7 +189,9 @@ watch), but cannot put masks beside search results.
 | Chrome | yes | yes | `verify-companion.js`, Chrome 153: 10 of 10 results marked, overlay seen |
 | Edge | yes | yes | same, Edge 153 |
 | Firefox | yes (temporary add-on until signed) | yes | `verify-companion-firefox.js`, Firefox 156: 10 of 10 marked, overlay seen |
-| Brave, Opera, Vivaldi | yes, the Chromium package | yes | not installed on the development machine, so not run; they take the same package through the same engine as Chrome and Edge |
+| Brave | yes, the Chromium package | yes | `verify-companion.js` in a Windows 11 virtual machine, Brave 153: 10 of 10 marked, overlay seen |
+| Opera | yes, the Chromium package | yes | same, Opera (Chromium 152): 10 of 10 marked, overlay seen |
+| Vivaldi | yes, the Chromium package | yes | not run; it takes the same package through the same engine |
 | LibreWolf | yes, the Firefox package | yes | not run; same engine and package as Firefox |
 | DuckDuckGo browser | **no** | yes (Windows) | it has no extension support at all, on any platform |
 
@@ -256,7 +258,9 @@ Before that: point DNS for `usesentinel.technology` and `www.usesentinel.technol
   point at accounts which no longer exist are removed, and a file that cannot
   be repaired is set aside (never deleted) while the last verified backup is
   restored. Backups are taken at start and every six hours. One server per
-  database: a second one refuses to start rather than share the file.
+  database: a second one refuses to start rather than share the file. A file
+  left far larger than what it holds (the threat lists used to live in it, and
+  the desktop app stops its server without a clean close) is shrunk on start.
 - The desktop app's device account only powers background protection. It never
   signs the window in and never replaces a person's session.
 
@@ -277,9 +281,20 @@ Every scan starts by looking the address up in 15 free, keyless public lists
 malware-filter phishing and URLhaus lists, CERT Polska, DurableNapkin,
 Spam404, MetaMask, ScamSniffer, Polkadot.js, URLhaus, ThreatFox, Feodo Tracker
 and Blackbook. A hit in any of them is evidence, and evidence means a
-confirmed (red) verdict rather than a guess; a host that serves a listed
-malicious address is confirmed too, because the whole site is dangerous while
-it does. Each list refreshes on its own interval, and a verdict says how many
+confirmed (red) verdict rather than a guess. A hit is: the exact address is
+listed, the domain is listed, or the site's own front page is listed.
+
+A *different* page on a host that serves a listed address is an inference, not
+a listing, and it is treated as one: the verdict is "Likely" (orange) and says
+so in words ("Another page on this site is listed by PhishTank; this address
+is not"). It becomes red only when the address also fails checks of its own,
+which is what separates a throwaway host from a large service where one tenant
+misbehaved. Before 1.4.3 any such page was red, and with the lists loaded that
+made `app.hubspot.com/login` a confirmed scam because of one PhishTank entry
+elsewhere on the host. Services that carry other people's pages (form
+builders, site builders, mail-tracking links, document shares; the lists
+themselves show which: `new.express.adobe.com` alone has over a thousand
+listed pages) are judged page by page. Each list refreshes on its own interval, and a verdict says how many
 of them had loaded when it was made.
 
 When nothing is listed, the name is still compared with at least ten known
@@ -292,8 +307,8 @@ measured against.
 Three layers, none of which download or run malware:
 
 - `npm test` runs the fixture suite (`tests/`): a local fixture server serves fake scam kits, disguised files and an `EICAR`-style known-bad sample, so every rule is exercised against pages that never leave this machine.
-- `npm run probe` checks that the address rules generalise: 58 made-up scam-style addresses that appear in no feed (fake logins, parcel fees, tech-support alerts, prize bait, crypto giveaways, clearance stores) (`walletconnect-dapp-sync.app`, `portal-hr-payroll.net/adp/login`, `x7k29q.cloudfront.net/login.html`, a login page under `/.well-known/`...) against 87 real sites that use the same words legitimately (support.com, wallet.com, verify.gov, password.com among them) (`walletconnect.com`, `www.adp.com/logins.aspx`, `outlook.live.com/owa/`, `www.dropbox.com/login`...). Research is off, so nothing is fetched. Last run, with the threat lists empty (the worst case, a fresh install): 57 of 58 flagged, 0 of 87 false alarms; the one miss is the bucket case listed under Known limits.
-- `npm run evaluate` downloads the current OpenPhish list (addresses only; no phishing page is opened) and judges each address by the checklist alone, with no list lookup and no research. Last run: 133 of 300 flagged (44.3%: 93 yellow, 40 orange, 0 red), 0 of 127 legitimate sites flagged, 0 of 32 when researched. In normal use every one of those 300 is on a list and comes back red; this is what the address rules manage unaided.
+- `npm run probe` checks that the address rules generalise: 58 made-up scam-style addresses that appear in no feed (fake logins, parcel fees, tech-support alerts, prize bait, crypto giveaways, clearance stores) (`walletconnect-dapp-sync.app`, `portal-hr-payroll.net/adp/login`, `x7k29q.cloudfront.net/login.html`, a login page under `/.well-known/`...) against 87 real sites that use the same words legitimately (support.com, wallet.com, verify.gov, password.com among them) (`walletconnect.com`, `www.adp.com/logins.aspx`, `outlook.live.com/owa/`, `www.dropbox.com/login`...). Research is off, so nothing is fetched. Last run: 57 of 58 flagged, 0 of 87 false alarms, both with the threat lists empty (the worst case, a fresh install) and with them loaded (about 430,000 listed hosts and addresses); the one miss is the bucket case listed under Known limits. Run it both ways: the loaded run is the one that caught the false red described under Threat lists.
+- `npm run evaluate` downloads the current OpenPhish list (addresses only; no phishing page is opened) and judges each address by the checklist alone, with no list lookup and no research. Last run: 138 of 300 flagged (46.0%: 94 yellow, 44 orange, 0 red), 0 of 127 legitimate sites flagged, 0 of 32 when researched. In normal use every one of those 300 is on a list and comes back red; this is what the address rules manage unaided.
 - `tests/auth.test.js` proves accounts are durable: sign-in after the server process is killed and restarted, the 30-day rolling window, the session-only cookie, expiry after 30 idle days, duplicate email refused, per-session revoke, and the database repairing itself.
 - `npm run verify:companion` drives real browsers (see Browser support).
 
@@ -315,5 +330,6 @@ What was deliberately not done: no confirmed-malicious URL was fetched, no malwa
   temporary add-on (about:debugging) and goes away when Firefox closes.
 - **A plain page in a storage bucket scores "caution", not "suspicious".** `storage.googleapis.com/x/index.html` with no login wording in the address gets 22 points from the address alone; the page has to be fetched (research on) for the form and script checks to add to that.
 - The Windows installer is unsigned, so SmartScreen will warn until it's code-signed. macOS/Linux builds are configured but untested.
+- **A page on a listed host that is not itself listed is "Likely", not "Confirmed".** That is deliberate (see Threat lists). An ordinary-looking address on a throwaway host therefore shows orange until a list names it or its domain.
 - **Accounts lost before 1.4.0 cannot be brought back.** The damaged database had already lost those rows; 1.4.0 repairs the file, keeps what survived and stops it happening again, but anyone affected has to register once more.
 - The browser companion loads unpacked until it's published to the Chrome Web Store; Gmail/Outlook selectors may need upkeep when those apps change.
