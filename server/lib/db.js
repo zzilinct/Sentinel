@@ -1,20 +1,127 @@
 'use strict';
-/** SQLite persistence on Node's built-in `node:sqlite`, with versioned migrations. */
+/**
+ * SQLite persistence on Node's built-in `node:sqlite`, with versioned migrations.
+ *
+ * Two files, on purpose:
+ *
+ *   sentinel.db        accounts, sessions, history, settings. Small, rarely
+ *                      written, and the one thing that must never be lost.
+ *   sentinel-feeds.db  the public threat lists and the index built from them.
+ *                      More than a million rows rewritten every few hours. It is
+ *                      a cache: if it is ever damaged it is deleted and downloaded
+ *                      again, and no account is anywhere near it.
+ *
+ * They used to be one file. A copy of that file was found with rows missing
+ * from its indexes and sessions whose users had vanished, after two server
+ * processes shared it and one was killed mid-import. So: the accounts file is
+ * checked on every start and repaired or restored from a verified backup, only
+ * one server may hold it at a time, and memory-mapped I/O is off.
+ */
 const path = require('path');
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const config = require('../config');
 
-if (config.dbPath !== ':memory:') fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
-const db = new DatabaseSync(config.dbPath);
+const IN_MEMORY = config.dbPath === ':memory:';
+const FEEDS_PATH = IN_MEMORY ? ':memory:' : `${config.dbPath.replace(/\.db$/i, '')}-feeds.db`;
+const BACKUP_PATH = `${config.dbPath}.backup`;
+const LOCK_PATH = `${config.dbPath}.lock`;
+const LEGACY_FEED_TABLES = ['feed_hosts', 'feed_urls', 'scam_tokens', 'token_df', 'feed_status'];
+const note = (msg) => { if (!config.isTest) console.log(`  database  ${msg}`); };
 
-db.exec('PRAGMA journal_mode = WAL;');
-db.exec('PRAGMA synchronous = NORMAL;');
-db.exec('PRAGMA foreign_keys = ON;');
-db.exec('PRAGMA busy_timeout = 5000;');
-db.exec('PRAGMA temp_store = MEMORY;');
-db.exec('PRAGMA cache_size = -32000;');      // ~32 MB page cache for the feed tables
-db.exec('PRAGMA mmap_size = 268435456;');    // map up to 256 MB for faster reads
+function open(file) {
+  const d = new DatabaseSync(file);
+  try {
+    d.exec('PRAGMA journal_mode = WAL;');
+    d.exec('PRAGMA synchronous = FULL;');       // accounts: every commit reaches the disk
+    d.exec('PRAGMA foreign_keys = ON;');
+    d.exec('PRAGMA busy_timeout = 5000;');
+    d.exec('PRAGMA temp_store = MEMORY;');
+    d.exec('PRAGMA mmap_size = 0;');            // no memory-mapped I/O: one less way for two processes to hurt a file
+  } catch (err) {
+    // Not a database at all. Let go of the file so it can be moved aside.
+    try { d.close(); } catch { /* never opened properly */ }
+    throw err;
+  }
+  return d;
+}
+
+function healthy(d, schema = 'main') {
+  try {
+    const rows = d.prepare(`PRAGMA ${schema}.quick_check`).all();
+    return rows.length === 1 && rows[0].quick_check === 'ok';
+  } catch {
+    return false;
+  }
+}
+
+/** The old single-file layout kept the threat lists in the accounts file. They are a cache: drop them. */
+function dropLegacyFeedTables(d) {
+  let dropped = 0;
+  for (const name of LEGACY_FEED_TABLES) {
+    try {
+      if (d.prepare("SELECT 1 FROM main.sqlite_master WHERE type = 'table' AND name = ?").get(name)) {
+        d.exec(`DROP TABLE main.${name}`);
+        dropped++;
+      }
+    } catch { /* a damaged table is handled by the integrity check below */ }
+  }
+  return dropped;
+}
+
+/** Open the accounts file; repair it, restore it from the verified backup, or as a last resort start fresh. */
+function openAccounts() {
+  if (IN_MEMORY) return open(':memory:');
+  fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
+
+  let d = null;
+  try { d = open(config.dbPath); } catch { d = null; }
+
+  if (d) {
+    const existed = d.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'users'").get();
+    // Only once every migration that touches those tables has already run.
+    const version = d.prepare('PRAGMA user_version').get().user_version;
+    if (existed && version >= 6 && dropLegacyFeedTables(d)) {
+      note('moved the threat lists out of the accounts file (they download again into their own file)');
+      try { d.exec('VACUUM'); } catch { /* shrinking is a nicety */ }
+    }
+    if (!healthy(d)) {
+      note('integrity check FAILED on the accounts file; rebuilding its indexes');
+      try { d.exec('REINDEX'); } catch { /* checked again below */ }
+      if (healthy(d)) note('indexes rebuilt; the accounts file passes its integrity check');
+      else { try { d.close(); } catch { /* already unusable */ } d = null; }
+    }
+  }
+
+  if (!d) {
+    const aside = `${config.dbPath}.damaged-${Date.now()}`;
+    for (const suffix of ['', '-wal', '-shm']) {
+      try { if (fs.existsSync(config.dbPath + suffix)) fs.renameSync(config.dbPath + suffix, aside + suffix); } catch { /* keep going */ }
+    }
+    if (fs.existsSync(BACKUP_PATH)) {
+      try {
+        fs.copyFileSync(BACKUP_PATH, config.dbPath);
+        d = open(config.dbPath);
+        if (healthy(d)) note(`the accounts file was damaged; restored the last verified backup (damaged copy kept at ${path.basename(aside)})`);
+        else { d.close(); d = null; fs.unlinkSync(config.dbPath); }
+      } catch { d = null; }
+    }
+    if (!d) {
+      d = open(config.dbPath);
+      note(`the accounts file was damaged and no backup could be used; started a new one (damaged copy kept at ${path.basename(aside)})`);
+    }
+  }
+
+  // Rows that point at a user who no longer exists (left behind by past damage) cannot be honoured.
+  try {
+    const orphans = d.prepare('PRAGMA foreign_key_check').all();
+    for (const o of orphans) d.prepare(`DELETE FROM "${String(o.table).replace(/"/g, '')}" WHERE rowid = ?`).run(o.rowid);
+    if (orphans.length) note(`removed ${orphans.length} row(s) that belonged to accounts which no longer exist`);
+  } catch { /* a brand-new file has nothing to check */ }
+  return d;
+}
+
+const db = openAccounts();
 
 const MIGRATIONS = [
   // 1 - original schema
@@ -177,16 +284,28 @@ const MIGRATIONS = [
   // 6 - threat kinds on scan history (JSON: {"scam":"phishing"}), for the icons
   `
   ALTER TABLE scan_history ADD COLUMN kinds TEXT;
+  `,
+
+  // 7 - rolling session expiry ("stay signed in" = 30 days of inactivity), and
+  //     the threat lists move to their own file (see the top of this module)
+  `
+  ALTER TABLE sessions ADD COLUMN idle_ms INTEGER;
+  ALTER TABLE sessions ADD COLUMN persistent INTEGER NOT NULL DEFAULT 1;
+  DROP TABLE IF EXISTS main.feed_hosts;
+  DROP TABLE IF EXISTS main.feed_urls;
+  DROP TABLE IF EXISTS main.scam_tokens;
+  DROP TABLE IF EXISTS main.token_df;
+  DROP TABLE IF EXISTS main.feed_status;
   `
 ];
 
 function migrate() {
-  const current = db.prepare('PRAGMA user_version').get().user_version;
+  const current = db.prepare('PRAGMA main.user_version').get().user_version;
   for (let v = current; v < MIGRATIONS.length; v++) {
     db.exec('BEGIN');
     try {
       db.exec(MIGRATIONS[v]);
-      db.exec(`PRAGMA user_version = ${v + 1}`);
+      db.exec(`PRAGMA main.user_version = ${v + 1}`);
       db.exec('COMMIT');
     } catch (err) {
       db.exec('ROLLBACK');
@@ -196,12 +315,124 @@ function migrate() {
 }
 migrate();
 
+/* ------------------------------------------------------ the threat-list cache */
+
+const FEEDS_SCHEMA = `
+  -- Hosts that exist only to scam / spread malware (domain-level feeds).
+  CREATE TABLE IF NOT EXISTS feeds.feed_hosts (
+    host TEXT NOT NULL, source TEXT NOT NULL, threat TEXT NOT NULL, category TEXT,
+    skeleton TEXT, added_at INTEGER NOT NULL,
+    PRIMARY KEY (host, source)
+  );
+  CREATE INDEX IF NOT EXISTS feeds.idx_feed_hosts_skeleton ON feed_hosts(skeleton);
+  CREATE INDEX IF NOT EXISTS feeds.idx_feed_hosts_source ON feed_hosts(source, added_at);
+
+  -- Exact malicious URLs (these often live on otherwise-legitimate hosts).
+  CREATE TABLE IF NOT EXISTS feeds.feed_urls (
+    url_key TEXT NOT NULL, host TEXT NOT NULL, source TEXT NOT NULL, threat TEXT NOT NULL,
+    category TEXT, added_at INTEGER NOT NULL,
+    PRIMARY KEY (url_key, source)
+  );
+  CREATE INDEX IF NOT EXISTS feeds.idx_feed_urls_host ON feed_urls(host);
+  CREATE INDEX IF NOT EXISTS feeds.idx_feed_urls_source ON feed_urls(source, added_at);
+
+  -- Distinctive name tokens of known scam domains, for "looks like a known scam" matching.
+  CREATE TABLE IF NOT EXISTS feeds.scam_tokens (token TEXT NOT NULL, host TEXT NOT NULL, PRIMARY KEY (token, host));
+  CREATE INDEX IF NOT EXISTS feeds.idx_scam_tokens_host ON scam_tokens(host);
+  CREATE TABLE IF NOT EXISTS feeds.token_df (token TEXT PRIMARY KEY, df INTEGER NOT NULL);
+
+  CREATE TABLE IF NOT EXISTS feeds.feed_status (
+    source TEXT PRIMARY KEY, fetched_at INTEGER, entries INTEGER, ok INTEGER, error TEXT
+  );
+`;
+
+function attachFeeds() {
+  const attach = () => {
+    db.exec(`ATTACH DATABASE '${FEEDS_PATH.replace(/'/g, "''")}' AS feeds`);
+    if (!IN_MEMORY) {
+      db.exec('PRAGMA feeds.journal_mode = WAL;');
+      db.exec('PRAGMA feeds.synchronous = NORMAL;');   // a cache: speed over durability
+    }
+    db.exec(FEEDS_SCHEMA);
+    db.prepare('SELECT COUNT(*) AS n FROM feeds.feed_status').get();
+  };
+  try {
+    attach();
+  } catch (err) {
+    resetFeeds(`could not be opened (${err.message})`, attach);
+  }
+}
+
+/** Throw the cache away and start it again. Nothing in it is irreplaceable. */
+function resetFeeds(why, attach) {
+  try { db.exec('DETACH DATABASE feeds'); } catch { /* was never attached */ }
+  if (!IN_MEMORY) for (const suffix of ['', '-wal', '-shm']) { try { fs.unlinkSync(FEEDS_PATH + suffix); } catch { /* not there */ } }
+  (attach || attachFeeds)();
+  note(`the threat-list cache ${why}; it was reset and will download again`);
+}
+attachFeeds();
+
+/** After an unclean shutdown the cache is checked in full; the accounts file is checked on every start. */
+function verifyFeeds() {
+  if (IN_MEMORY || healthy(db, 'feeds')) return true;
+  resetFeeds('failed its integrity check');
+  return false;
+}
+
+/* ------------------------------------------------------------ single owner */
+
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (err) { return err.code === 'EPERM'; } };
+
+/**
+ * Only one server may hold the database. Two heavy writers on one SQLite file,
+ * one of them killed mid-import, is how the old single file was damaged.
+ * Returns { unclean } - true when the previous owner never released the lock.
+ */
+function acquireLock() {
+  if (IN_MEMORY) return { unclean: false };
+  let unclean = false;
+  try {
+    const pid = Number(fs.readFileSync(LOCK_PATH, 'utf8').trim());
+    if (pid && pid !== process.pid && alive(pid)) {
+      throw Object.assign(new Error(`Another Sentinel (process ${pid}) is already using ${path.basename(config.dbPath)}. Close it first, or point DB_PATH somewhere else.`), { code: 'DB_LOCKED' });
+    }
+    unclean = Boolean(pid) && pid !== process.pid;
+  } catch (err) {
+    if (err.code === 'DB_LOCKED') throw err;
+  }
+  fs.writeFileSync(LOCK_PATH, String(process.pid));
+  const release = () => { try { if (Number(fs.readFileSync(LOCK_PATH, 'utf8')) === process.pid) fs.unlinkSync(LOCK_PATH); } catch { /* gone */ } };
+  process.once('exit', release);
+  if (unclean) { note('the last run did not shut down cleanly; checking the threat-list cache'); verifyFeeds(); }
+  return { unclean };
+}
+
+/* ------------------------------------------------------------------ backup */
+
+/** A verified copy of the accounts file. Small, so it is cheap to take often. */
+function backupAccounts() {
+  if (IN_MEMORY) return false;
+  const tmp = `${BACKUP_PATH}.tmp`;
+  try {
+    if (!healthy(db)) return false;                      // never overwrite a good backup with a bad file
+    try { fs.unlinkSync(tmp); } catch { /* none */ }
+    db.exec(`VACUUM main INTO '${tmp.replace(/'/g, "''")}'`);
+    fs.renameSync(tmp, BACKUP_PATH);
+    return true;
+  } catch {
+    try { fs.unlinkSync(tmp); } catch { /* none */ }
+    return false;
+  }
+}
+
 function now() { return Date.now(); }
 
 /** Drop expired rows. Cheap enough to run hourly. */
 function sweep() {
   const t = now();
   const day = 24 * 60 * 60 * 1000;
+  // A session ends when nobody has used it for its idle window (30 days when
+  // "stay signed in" was ticked); expires_at is pushed forward on every use.
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(t);
   db.prepare('DELETE FROM oauth_states WHERE created_at < ?').run(t - 10 * 60 * 1000);
   db.prepare('DELETE FROM password_resets WHERE expires_at < ?').run(t - day);
@@ -212,4 +443,4 @@ function sweep() {
   db.prepare('DELETE FROM audit_log WHERE created_at < ?').run(t - 180 * day);
 }
 
-module.exports = { db, now, sweep };
+module.exports = { db, now, sweep, acquireLock, backupAccounts, verifyFeeds, FEEDS_PATH, BACKUP_PATH };

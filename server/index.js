@@ -8,7 +8,7 @@ const path = require('path');
 const config = require('./config');
 const { Router, sendJson, send, serveStatic, HttpError, parseUrl } = require('./lib/http');
 const security = require('./lib/security');
-const { sweep } = require('./lib/db');
+const { sweep, acquireLock, backupAccounts } = require('./lib/db');
 const seed = require('./seed');
 const feeds = require('./lib/scan/feeds');
 
@@ -90,6 +90,12 @@ function createServer() {
 }
 
 function start() {
+  // One server per database, and a verified copy of the accounts file before
+  // anything else happens to it.
+  acquireLock();
+  backupAccounts();
+  setInterval(backupAccounts, 6 * 60 * 60 * 1000).unref();
+
   seed.run();
   sweep();
   setInterval(sweep, 60 * 60 * 1000).unref();
