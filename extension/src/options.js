@@ -10,7 +10,9 @@
     badgeStyle: 'mask',
     warnOnNavigate: true,
     notifications: true,
-    minimumBadge: 'yellow'
+    minimumBadge: 'yellow',
+    markSafe: true,
+    scanOverlay: true
   };
   const Masks = window.SentinelMasks;
   const saved = document.getElementById('saved');

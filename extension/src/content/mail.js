@@ -12,7 +12,7 @@
   if (window.__sentinelMail) return;
   window.__sentinelMail = true;
 
-  const Masks = window.SentinelMasks;
+  const Masks = (globalThis.SentinelMasks || window.SentinelMasks);
   const THREATS = ['scam', 'virus', 'malware'];
   const RANK = { yellow: 1, orange: 2, red: 3 };
   const done = new Map();                   // key -> verdict

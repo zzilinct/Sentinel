@@ -8,7 +8,8 @@
   vertical-align: middle;
   cursor: pointer;
   line-height: 1 !important;
-  animation: sentinel-in .28s cubic-bezier(.2, .8, .2, 1) both;
+  animation: sentinel-in .36s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: var(--sentinel-delay, 0ms);
 }
 
 .sentinel-masks--mail { margin-left: 6px; cursor: help; }
@@ -31,11 +32,17 @@
 
 .sentinel-mask--emoji { font-size: 13px; }
 
+/* Checked, nothing found. Deliberately quiet, and never a threat colour. */
+.sentinel-mask--clear { color: #2f8f63 !important; width: 18px; height: 18px; border-radius: 6px; background: transparent; box-shadow: none; opacity: .55; }
+.sentinel-mask--clear svg { width: 14px; height: 14px; }
+.sentinel-masks--clear:hover .sentinel-mask--clear { opacity: 1; background: color-mix(in srgb, currentColor 14%, transparent); }
+
 .sentinel-mask--yellow { color: #a87a00 !important; }
 .sentinel-mask--orange { color: #c4570b !important; }
 .sentinel-mask--red    { color: #c9302c !important; }
 
 @media (prefers-color-scheme: dark) {
+  .sentinel-mask--clear { color: #4cb782 !important; }
   .sentinel-mask--yellow { color: #f5c542 !important; }
   .sentinel-mask--orange { color: #f08a24 !important; }
   .sentinel-mask--red    { color: #ff6b6b !important; }

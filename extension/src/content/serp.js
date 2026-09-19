@@ -11,10 +11,11 @@
   if (window.__sentinelSerp) return;
   window.__sentinelSerp = true;
 
-  const Masks = window.SentinelMasks;
+  const Masks = (globalThis.SentinelMasks || window.SentinelMasks);
   const RANK = { yellow: 1, orange: 2, red: 3 };
   const THREATS = ['scam', 'virus', 'malware'];
-  const DEFAULTS = { enabled: true, badgeStyle: 'mask', minimumBadge: 'yellow' };
+  const DEFAULTS = { enabled: true, badgeStyle: 'mask', minimumBadge: 'yellow', markSafe: true, scanOverlay: true };
+  const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v6c0 4.4 3 8 7 9 4-1 7-4.6 7-9V6Z"/><path d="m9 12 2.2 2.2L15 10.5"/></svg>';
 
   let settings = DEFAULTS;
   const seen = new WeakSet();
@@ -83,12 +84,27 @@
     if (old) old.remove();
 
     const shown = THREATS.filter((t) => verdict.threats[t] && verdict.threats[t].badge && RANK[verdict.threats[t].badge] >= RANK[settings.minimumBadge]);
-    if (!shown.length) return;
+    // Nothing found (or nothing at the level this person asked to see): a quiet
+    // tick, so every result visibly has a verdict. It is never coloured like a threat.
+    if (!shown.length && !settings.markSafe) return;
 
     const group = document.createElement('span');
     group.className = 'sentinel-masks';
     group.dataset.researched = verdict.researched ? '1' : '0';
-    for (const t of shown) group.appendChild(badgeFor(t, verdict.threats[t]));
+    if (shown.length) {
+      for (const t of shown) group.appendChild(badgeFor(t, verdict.threats[t]));
+    } else {
+      const ok = document.createElement('span');
+      ok.className = 'sentinel-mask sentinel-mask--clear';
+      ok.setAttribute('role', 'button');
+      ok.setAttribute('tabindex', '0');
+      const label = verdict.knowledge && verdict.knowledge.trusted ? 'a verified site' : 'no warning signs found';
+      ok.setAttribute('aria-label', `Sentinel: ${label}`);
+      ok.title = `Sentinel: ${label}`;
+      ok.innerHTML = CHECK;
+      group.classList.add('sentinel-masks--clear');
+      group.appendChild(ok);
+    }
     const open = (ev) => { ev.preventDefault(); ev.stopPropagation(); showPopover(group, verdict); };
     group.addEventListener('click', open);
     group.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') open(ev); });
@@ -99,6 +115,87 @@
   }
 
   /* ---------------------------------------------------------- popover */
+
+
+  /* ---------------------------------------------------------- live overlay */
+
+  // What the site shows is what happens here: while results are being checked a
+  // golden line sweeps down the page under a faint golden tint, and when the
+  // verdicts arrive every result gets its mark. The overlay lives in a closed
+  // shadow root so the page's CSS cannot touch it and it cannot touch the page;
+  // it never takes a click (pointer-events: none).
+  let overlay = null;
+  let scanning = 0;
+  let shownAt = 0;
+  let hideTimer = null;
+  let checkedTotal = 0;
+
+  function ensureOverlay() {
+    if (overlay) return overlay;
+    const host = document.createElement('div');
+    host.setAttribute('data-sentinel-overlay', '');
+    host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483646;pointer-events:none;';
+    const root = host.attachShadow({ mode: 'closed' });
+    root.innerHTML = `<style>
+      :host{all:initial}
+      .veil{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .45s ease}
+      .veil.on{opacity:1}
+      .tint{position:absolute;inset:0;background:
+        radial-gradient(120% 80% at 50% 0%, rgba(212,174,99,.10), rgba(212,174,99,.035) 55%, rgba(212,174,99,.02)),
+        linear-gradient(180deg, rgba(212,174,99,.05), rgba(212,174,99,.015))}
+      .line{position:absolute;left:0;right:0;top:0;height:2px;
+        background:linear-gradient(90deg, transparent, rgba(236,212,153,.0) 4%, #ecd499 30%, #fff3cf 50%, #ecd499 70%, rgba(236,212,153,.0) 96%, transparent);
+        box-shadow:0 0 14px 2px rgba(212,174,99,.55), 0 0 46px 10px rgba(212,174,99,.22);
+        transform:translateY(-4px);will-change:transform}
+      .line::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:120px;
+        background:linear-gradient(180deg, transparent, rgba(212,174,99,.10));}
+      .veil.on .line{animation:sweep 1.7s cubic-bezier(.45,.05,.35,1) infinite}
+      @keyframes sweep{0%{transform:translateY(-4px);opacity:0}8%{opacity:1}92%{opacity:1}100%{transform:translateY(100vh);opacity:0}}
+      .chip{position:fixed;right:18px;bottom:18px;display:flex;align-items:center;gap:9px;padding:9px 13px 9px 10px;border-radius:10px;
+        background:rgba(18,19,22,.92);color:#ecebe7;font:500 12.5px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+        box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(212,174,99,.35);
+        opacity:0;transform:translateY(8px);transition:opacity .3s ease, transform .3s ease}
+      .chip.on{opacity:1;transform:none}
+      .chip svg{width:16px;height:16px;color:#d4ae63;flex:none}
+      .dot{width:7px;height:7px;border-radius:50%;background:#d4ae63;box-shadow:0 0 0 0 rgba(212,174,99,.6);animation:pulse 1.4s ease-out infinite}
+      .chip.done .dot{animation:none;background:#4cb782}
+      @keyframes pulse{70%{box-shadow:0 0 0 7px rgba(212,174,99,0)}100%{box-shadow:0 0 0 0 rgba(212,174,99,0)}}
+      @media (prefers-reduced-motion: reduce){.veil.on .line{animation:none;opacity:0}.dot{animation:none}.veil,.chip{transition:none}}
+    </style>
+    <div class="veil" part="veil"><div class="tint"></div><div class="line"></div></div>
+    <div class="chip" role="status" aria-live="polite"><span class="dot"></span>${Masks.svg('logo')}<span class="txt">Sentinel is checking these results</span></div>`;
+    (document.body || document.documentElement).appendChild(host);
+    overlay = { host, veil: root.querySelector('.veil'), chip: root.querySelector('.chip'), txt: root.querySelector('.txt') };
+    return overlay;
+  }
+
+  function scanStarted(count) {
+    const o = ensureOverlay();
+    scanning++;
+    clearTimeout(hideTimer);
+    if (!o.veil.classList.contains('on')) shownAt = Date.now();
+    o.chip.classList.remove('done');
+    o.txt.textContent = `Sentinel is checking ${count} result${count === 1 ? '' : 's'}`;
+    o.veil.classList.add('on');
+    o.chip.classList.add('on');
+  }
+
+  function scanFinished(checked, flagged, locked) {
+    if (!overlay) return;
+    scanning = Math.max(0, scanning - 1);
+    checkedTotal += checked;
+    if (scanning) return;
+    // Long enough to be seen as a sweep, never so long it is in the way.
+    const wait = Math.max(0, 900 - (Date.now() - shownAt));
+    hideTimer = setTimeout(() => {
+      overlay.veil.classList.remove('on');
+      overlay.chip.classList.add('done');
+      overlay.txt.textContent = locked
+        ? 'Sentinel is paused'
+        : flagged ? `${checkedTotal} checked, ${flagged} flagged` : `${checkedTotal} result${checkedTotal === 1 ? '' : 's'} checked, nothing flagged`;
+      hideTimer = setTimeout(() => overlay.chip.classList.remove('on'), locked ? 600 : 2600);
+    }, wait);
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -237,9 +334,17 @@
   }
 
   function apply(verdicts) {
+    const todo = [];
     for (const [url, verdict] of Object.entries(verdicts || {})) {
-      for (const a of byUrl.get(url) || []) if (a.isConnected) attach(a, verdict);
+      for (const a of byUrl.get(url) || []) if (a.isConnected) todo.push([a, verdict]);
     }
+    todo.sort((x, y) => x[0].getBoundingClientRect().top - y[0].getBoundingClientRect().top);
+    todo.forEach(([a, verdict], i) => {
+      attach(a, verdict);
+      const heading = a.closest('h1, h2, h3') || a.querySelector('h1, h2, h3') || a;
+      const group = heading.querySelector(':scope > .sentinel-masks');
+      if (group) group.style.setProperty('--sentinel-delay', `${Math.min(i, 14) * 55}ms`);
+    });
   }
 
   let queue = [];
@@ -248,13 +353,21 @@
     if (busy || !queue.length || !settings.enabled) return;
     busy = true;
     const urls = queue.splice(0, 30);
+    // Hidden or unfocused tab: send() refuses, nothing is scanned, no hours are spent, no overlay.
+    const show = settings.scanOverlay && inUse();
+    if (show) scanStarted(urls.length);
+    let flagged = 0;
+    let checked = 0;
+    let locked = false;
     try {
       const quick = await send({ type: 'live-batch', urls, phase: 'quick' });
-      if (quick.locked) { queue = []; return; }
+      if (quick.locked) { queue = []; locked = true; return; }
       apply(quick.verdicts);
+      for (const v of Object.values(quick.verdicts || {})) { if (v && v.ok) { checked++; if (v.overall && v.overall.badge) flagged++; } }
       // Max: follow up with researched verdicts, which may raise or clear masks.
       send({ type: 'live-batch', urls, phase: 'research' }).then((r) => { if (r.ok && !r.locked) apply(r.verdicts); });
     } finally {
+      if (show) scanFinished(checked, flagged, locked);
       busy = false;
       if (queue.length) setTimeout(flush, 50);
     }

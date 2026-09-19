@@ -12,7 +12,9 @@ export const DEFAULTS = {
   badgeStyle: 'mask',        // 'mask' = the three Sentinel masks, 'emoji' = 🎭 in a coloured ring
   warnOnNavigate: true,
   notifications: true,
-  minimumBadge: 'yellow'
+  minimumBadge: 'yellow',
+  markSafe: true,          // a quiet tick beside results that came back clean
+  scanOverlay: true        // the golden line and tint while results are being checked
 };
 
 export const COLORS = { yellow: '#f5c542', orange: '#f08a24', red: '#e5484d' };

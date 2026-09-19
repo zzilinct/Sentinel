@@ -10,9 +10,10 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test tests/detection.test.js tests/api.test.js tests/auth.test.js tests/security.test.js tests/static.test.js",
+    "test": "node --test tests/detection.test.js tests/api.test.js tests/auth.test.js tests/security.test.js tests/static.test.js tests/extension.test.js",
     "evaluate": "node scripts/evaluate.js --research-safe",
     "probe": "node scripts/probe.js",
+    "verify:companion": "node scripts/verify-companion.js --browser chrome && node scripts/verify-companion.js --browser edge && node scripts/verify-companion-firefox.js",
     "feeds": "node scripts/admin.js refresh-feeds",
     "admin": "node scripts/admin.js",
     "build:icons": "node scripts/make-icons.js",

@@ -58,7 +58,7 @@
       </style>
       <div class="wrap" role="alertdialog" aria-modal="true" aria-labelledby="t">
         <div class="panel">
-          <div class="ring">${window.SentinelMasks ? window.SentinelMasks.svg(threat) : ''}</div>
+          <div class="ring">${(globalThis.SentinelMasks || window.SentinelMasks) ? (globalThis.SentinelMasks || window.SentinelMasks).svg(threat) : ''}</div>
           <h1 id="t">${esc(title)}</h1>
           <div class="host">${esc(v.host)}</div>
           <ul>${(v.reasons || []).slice(0, 4).map((r) => `<li>${esc(r.text)}</li>`).join('')}</ul>
