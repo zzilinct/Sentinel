@@ -139,7 +139,10 @@ async function main() {
   const result = { browser: BROWSER, exe };
   try {
     const browser = cdpPipe(child);
-    const version = await Promise.race([browser.send('Browser.getVersion'), sleep(20000).then(() => { throw new Error('the browser did not answer on its DevTools pipe'); })]);
+    // A browser's very first launch after an install can take a minute on a slow machine.
+    let exited = null;
+    child.once('exit', (code, signal) => { exited = `it exited first (code ${code}${signal ? `, ${signal}` : ''})`; });
+    const version = await Promise.race([browser.send('Browser.getVersion'), sleep(90000).then(() => { throw new Error(`the browser did not answer on its DevTools pipe; ${exited || 'it was still running after 90 s'}`); })]);
     result.version = version.product;
 
     let loaded;
@@ -166,7 +169,13 @@ async function main() {
     // (where the extension APIs live), then ask the worker to sign in.
     const opt = await browser.send('Target.createTarget', { url: `chrome-extension://${result.extensionId}/src/options.html` });
     const optSession = (await browser.send('Target.attachToTarget', { targetId: opt.targetId, flatten: true })).sessionId;
-    await sleep(1200);
+    // Wait for the page itself, not for a fixed time: a first launch on a slow machine takes a while.
+    let apisReady = false;
+    for (let i = 0; i < 120 && !apisReady; i++) {
+      apisReady = await evalIn(optSession, "location.protocol === 'chrome-extension:' && typeof chrome !== 'undefined' && Boolean(chrome.storage && chrome.runtime && chrome.runtime.id)").catch(() => false);
+      if (!apisReady) await sleep(250);
+    }
+    if (!apisReady) throw new Error('the extension\'s options page never got its extension APIs (the browser may block extension pages in this mode)');
     const paired = await evalIn(optSession, `(async () => {
       await chrome.storage.local.set({ authToken: ${JSON.stringify(token)} });
       await chrome.storage.sync.set({ apiBase: ${JSON.stringify(SERVER)} });
