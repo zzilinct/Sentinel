@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Sentinel Companion",
   "short_name": "Sentinel",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Live scam, virus and malware masks on search results and in your inbox. Part of the Sentinel app. Works in Chrome, Edge, Brave and Firefox.",
   "homepage_url": "https://www.usesentinel.technology",
   "minimum_chrome_version": "116",

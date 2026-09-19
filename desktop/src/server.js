@@ -18,7 +18,7 @@ const crypto = require('crypto');
 // Fixed by default so the browser companion can be granted this origin; the
 // rest are fallbacks for the rare machine where the first is taken.
 const PORTS = [47821, 47822, 47823, 47824, 47825];
-const START_TIMEOUT_MS = 30000;
+const START_TIMEOUT_MS = 90000;   // a busy machine at login can be slow; an honest failure is reported sooner by the child itself
 const MAX_RESTARTS = 3;        // within RESTART_WINDOW_MS before giving up
 const RESTART_WINDOW_MS = 2 * 60 * 1000;
 const LOG_MAX_BYTES = 2 * 1024 * 1024;
@@ -100,6 +100,8 @@ function spawn(store) {
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
+      // Do not leave a half-started scanner behind to fight the next attempt for the port.
+      try { if (child) child.kill(); } catch { /* already gone */ }
       reject(new Error(`The server did not start within ${START_TIMEOUT_MS / 1000} seconds`));
     }, START_TIMEOUT_MS);
 

@@ -37,8 +37,32 @@ let win = null;
 let tray = null;
 let quitting = false;
 let warnWin = null;
+let booting = false;
+let retryTimer = null;
+let retryCount = 0;
 let browserState = { installed: [], running: [] };
 let browserWatcher = null;
+
+/**
+ * The app's own log (logs/app.log, beside the server's). Every startup stage
+ * and every error lands here, so a start that goes wrong always leaves a trace.
+ */
+function appLog(text) {
+  try {
+    const fs = require('fs');
+    const file = path.join(app.getPath('userData'), 'logs', 'app.log');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    try { if (fs.statSync(file).size > 1024 * 1024) fs.renameSync(file, file.replace(/\.log$/, '.previous.log')); } catch { /* no log yet */ }
+    fs.appendFileSync(file, `[${new Date().toISOString()}] ${text}\n`);
+  } catch { /* logging must never break the app */ }
+}
+process.on('uncaughtException', (err) => appLog(`uncaught exception: ${err && err.stack || err}`));
+process.on('unhandledRejection', (err) => appLog(`unhandled rejection: ${err && err.stack || err}`));
+
+/** Run one startup step; a failure is logged and never stops the steps after it. */
+function step(name, fn) {
+  try { return fn(); } catch (err) { appLog(`startup step "${name}" failed: ${err && err.stack || err}`); return undefined; }
+}
 
 /** Tell the web app (if it is open) that something on this computer changed. */
 function push(channel, payload) {
@@ -63,7 +87,7 @@ async function apiCall(pathname, body) {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => showWindow());
+  app.on('second-instance', () => { showWindow(); if (!ORIGIN && !booting) boot(); });
 }
 
 app.setAppUserModelId('com.usesentinel.desktop');
@@ -131,9 +155,17 @@ function showWindow(route) {
 }
 
 function showError(message) {
+  appLog(`scanner did not start: ${message}`);
+  ORIGIN = null;
+  // Try again without being asked: 15 s, 30 s, 60 s, then every two minutes.
+  const wait = [15, 30, 60][retryCount] || 120;
+  retryCount++;
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => boot(), wait * 1000);
   if (!win) createWindow();
-  win.loadFile(path.join(__dirname, 'pages', 'error.html'), { query: { message, log: server.logPath() } });
-  win.show();
+  win.loadFile(path.join(__dirname, 'pages', 'error.html'), { query: { message, log: server.logPath(), retryIn: String(wait) } });
+  // A start that fails while Sentinel is tucked away in the tray should not jump in front of the person.
+  if (!process.argv.includes('--hidden') || win.isVisible()) win.show();
 }
 
 /** A small always-on-top warning for a dangerous page open in a browser. */
@@ -320,7 +352,7 @@ function registerBridge() {
   });
 
   // Only the app's own local pages may ask for these.
-  handle('sentinel:retry-server', () => { boot(); return { ok: true }; }, trustedLocal);
+  handle('sentinel:retry-server', () => { retryCount = 0; boot(); return { ok: true }; }, trustedLocal);
   handle('sentinel:open-logs', () => { shell.showItemInFolder(server.logPath()); return { ok: true }; }, trustedLocal);
   handle('sentinel:quit', () => { quitting = true; app.quit(); return { ok: true }; }, trustedLocal);
   handle('sentinel:warn-action', (action, url) => {
@@ -347,8 +379,12 @@ function companionFolder(id) {
  * used as-is; otherwise the bundled server is started on this computer.
  */
 async function boot() {
+  if (booting) return;
+  booting = true;
+  clearTimeout(retryTimer);
   const remote = process.env.SENTINEL_ORIGIN || (DEV ? 'http://localhost:8787' : store.get('serverOrigin', null));
   if (win) win.loadFile(path.join(__dirname, 'pages', 'loading.html'));
+  appLog(`boot: ${remote ? `using ${remote}` : 'starting the embedded scanner'} (app ${app.getVersion()})`);
 
   try {
     ORIGIN = remote
@@ -358,9 +394,13 @@ async function boot() {
         onRestart: (origin) => { ORIGIN = origin; if (win && win.isVisible()) openApp(); }
       });
   } catch (err) {
+    booting = false;
     showError(err.message);
     return;
   }
+  booting = false;
+  retryCount = 0;
+  appLog(`boot: scanner ready at ${ORIGIN}`);
 
   // No sign-up: the embedded server issues this computer its own account.
   if (!remote && !store.getSecret('token')) {
@@ -467,7 +507,7 @@ async function boot() {
     });
   }
 
-  refreshTray();
+  step('tray refresh', () => refreshTray());
   openApp();
 }
 
@@ -475,20 +515,24 @@ app.whenReady().then(() => {
   // Deny every browser permission request (camera, notifications, etc.) from web content.
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => callback(false));
 
+  appLog(`starting Sentinel ${app.getVersion()}${process.argv.includes('--hidden') ? ' (hidden)' : ''}`);
   store.init(app.getPath('userData'), safeStorage);
-  registerBridge();
-  createWindow();
-  buildTray();
-  updater.init({
+  step('bridge', () => registerBridge());
+  step('window', () => createWindow());
+  // The scanner starts before anything decorative, and nothing below can stop it.
+  boot().catch((err) => { booting = false; showError(String(err && err.message || err)); });
+
+  step('tray', () => buildTray());
+  step('updater', () => updater.init({
     onChange: (s) => { refreshTray(); push('sentinel:update', s); },
     onReady: (version) => notify(`Sentinel ${version} is ready`, 'It installs the next time Sentinel quits. Click to restart and update now.', () => updater.install())
-  });
+  }));
 
   // Installed builds start with the computer by default; development runs never
   // touch the system's startup items.
-  if (app.isPackaged && store.get('openAtLogin') === undefined) setOpenAtLogin(true);
-
-  boot();
+  // Re-registered on every start, so the entry always points at the copy that is
+  // actually installed (an update or a move must not leave it aimed at an old one).
+  step('login item', () => { if (app.isPackaged) setOpenAtLogin(store.get('openAtLogin', true)); });
 });
 
 app.on('before-quit', () => { quitting = true; defense.stop(null, true); watch.stop(null, true); if (browserWatcher) browserWatcher.stop(); server.stop(); });

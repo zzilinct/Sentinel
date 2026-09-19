@@ -45,10 +45,15 @@ $A = [System.Windows.Automation.AutomationElement]
 $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
 $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
 $last = ''
+$lastFront = ''
 while ($true) {
   Start-Sleep -Milliseconds 900
   $h = [SW]::GetForegroundWindow()
   if ($h -eq [IntPtr]::Zero) { continue }
+  $fp = 0
+  [void][SW]::GetWindowThreadProcessId($h, [ref]$fp)
+  $fname = (Get-Process -Id $fp).ProcessName
+  if ($fname -and $fname -ne $lastFront) { $lastFront = $fname; Write-Output (@{ front = $fname; isBrowser = ($browsers -contains $fname) } | ConvertTo-Json -Compress) }
   # Nobody at the keyboard, or the window is minimised: the browser is not "in use".
   if ([SW]::IdleMs() -gt 120000 -or [SW]::IsIconic($h)) { if ($last -ne '') { $last = ''; Write-Output '{"url":null,"idle":true}' } ; continue }
   $pid2 = 0
@@ -148,6 +153,7 @@ function stop(reason, silent) {
 function onLine(line) {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
+  if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); return; }
   clearTimeout(settleTimer);
   if (msg.idle) { if (!state.idle) log('nobody at the keyboard or window minimised: paused'); state.current = null; state.idle = true; return; }
   if (state.idle) log('in use again');

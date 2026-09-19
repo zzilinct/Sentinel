@@ -31,6 +31,7 @@
       <button id="logs">Open log</button>
       <button id="quit">Quit</button>
     </div>
+    <small id="auto"></small>
     <small>If this keeps happening, send the log file to the Sentinel team.</small>
   </div>
   <script>
@@ -38,6 +39,10 @@
     document.getElementById('msg').textContent = q.get('message') || document.getElementById('msg').textContent;
     document.getElementById('log').textContent = 'Log: ' + (q.get('log') || '');
     const d = window.sentinelDesktop || {};
+    let left = Number(q.get('retryIn')) || 0;
+    const auto = document.getElementById('auto');
+    const tick = () => { auto.textContent = left > 0 ? `Trying again by itself in ${left} s.` : 'Trying again now.'; if (left-- > 0) setTimeout(tick, 1000); };
+    if (left) tick();
     document.getElementById('retry').addEventListener('click', () => d.retryServer && d.retryServer());
     document.getElementById('logs').addEventListener('click', () => d.openLogs && d.openLogs());
     document.getElementById('quit').addEventListener('click', () => d.quit && d.quit());
