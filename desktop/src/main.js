@@ -69,9 +69,14 @@ function push(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
-/** Calls the Sentinel API as this computer's paired account. */
+/** The signed-in person's pairing if there is one, otherwise this computer's own account. */
+function activeToken() {
+  return store.getSecret('token') || store.getSecret('deviceToken') || null;
+}
+
+/** Calls the Sentinel API for the background services. */
 async function apiCall(pathname, body) {
-  const token = store.getSecret('token');
+  const token = activeToken();
   if (!token) throw Object.assign(new Error('Signed out'), { status: 401 });
   const res = await fetch(`${ORIGIN}${pathname}`, {
     method: body ? 'POST' : 'GET',
@@ -288,7 +293,7 @@ function registerBridge() {
     downloads: downloads.status(),
     pageWatch: { ...watch.status(), enabled: store.get('pageWatch', true) },
     defense: { ...defense.status(), enabled: store.get('defense', true) },
-    deviceAccount: Boolean(store.get('deviceAccount')),
+    deviceProtection: Boolean(store.getSecret('deviceToken')) && !store.getSecret('token'),
     browsers: browserState,
     update: updater.status(),
     companionPath: companionFolder()
@@ -326,8 +331,9 @@ function registerBridge() {
   handle('sentinel:clear-token', () => {
     store.setSecret('token', null);
     store.set('pairedUserId', null);
-    downloads.stop('Signed out');
-    watch.stop('Signed out');
+    // Protection carries on under this computer's own account.
+    downloads.restart();
+    watch.restart();
     refreshTray();
     return { ok: true };
   });
@@ -402,23 +408,37 @@ async function boot() {
   retryCount = 0;
   appLog(`boot: scanner ready at ${ORIGIN}`);
 
-  // No sign-up: the embedded server issues this computer its own account.
-  if (!remote && !store.getSecret('token')) {
+  // Background protection needs an identity even before anyone has an account, so
+  // the embedded server issues this computer its own. That token is ONLY for the
+  // background services. It never signs the app window in and never replaces a
+  // person's session: whoever signs in here stays signed in as themselves.
+  if (!remote) {
+    // Older builds kept the device token where the person's pairing belongs.
+    if (store.get('deviceAccount')) {
+      try {
+        const me = await apiCall('/api/v1/auth/me');
+        if (me.user && me.user.email === 'this-computer@sentinel.local') {
+          store.setSecret('deviceToken', store.getSecret('token'));
+          store.setSecret('token', null);
+          store.set('pairedUserId', null);
+        }
+      } catch { /* that token is dead; a fresh device token is issued below */ }
+      store.set('deviceAccount', undefined);
+    }
+    if (!store.getSecret('deviceToken')) {
+      try {
+        const res = await fetch(`${ORIGIN}/api/v1/auth/device`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: ORIGIN }, body: '{}' });
+        const data = await res.json();
+        if (res.ok && data.token) { store.setSecret('deviceToken', data.token); appLog('device account ready (background protection only)'); }
+      } catch { /* protection starts once someone signs in */ }
+    }
+    // An older build also put the device token in the window's cookie jar. Take it out.
     try {
-      const res = await fetch(`${ORIGIN}/api/v1/auth/device`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: ORIGIN }, body: '{}' });
-      const data = await res.json();
-      if (res.ok && data.token) {
-        store.setSecret('token', data.token);
-        store.set('pairedUserId', data.user.id);
-        store.set('deviceAccount', true);
+      const jar = session.defaultSession.cookies;
+      for (const c of await jar.get({ url: ORIGIN, name: 'sentinel_session' })) {
+        if (c.value === store.getSecret('deviceToken')) await jar.remove(ORIGIN, 'sentinel_session');
       }
-    } catch { /* the app still works; the person can sign in */ }
-  }
-  // The app window signs in as that account too.
-  if (store.get('deviceAccount') && store.getSecret('token')) {
-    try {
-      await session.defaultSession.cookies.set({ url: ORIGIN, name: 'sentinel_session', value: store.getSecret('token'), sameSite: 'lax', expirationDate: Math.floor(Date.now() / 1000) + 89 * 86400 });
-    } catch { /* cookie is a convenience */ }
+    } catch { /* nothing to clean */ }
   }
 
   defense.init({
@@ -440,7 +460,7 @@ async function boot() {
     origin: ORIGIN,
     folder: app.getPath('downloads'),
     quarantineDir: path.join(app.getPath('userData'), 'quarantine'),
-    getToken: () => store.getSecret('token'),
+    getToken: () => activeToken(),
     enabled: () => store.get('downloadProtection', true),
     onChange: refreshTray,
     onThreat: (item) => {
@@ -452,7 +472,7 @@ async function boot() {
   watch.init({
     origin: ORIGIN,
     api: apiCall,
-    getToken: () => store.getSecret('token'),
+    getToken: () => activeToken(),
     enabled: () => store.get('pageWatch', true),
     onChange: (s) => { refreshTray(); push('sentinel:page-watch', s); },
     onLog: (text) => {

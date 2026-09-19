@@ -23,7 +23,7 @@ function get(key, fallback) {
 }
 
 function set(key, value) {
-  data[key] = value;
+  if (value === undefined) delete data[key]; else data[key] = value;
   save();
 }
 
