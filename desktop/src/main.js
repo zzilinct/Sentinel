@@ -415,6 +415,15 @@ async function boot() {
     getToken: () => store.getSecret('token'),
     enabled: () => store.get('pageWatch', true),
     onChange: (s) => { refreshTray(); push('sentinel:page-watch', s); },
+    onLog: (text) => {
+      try {
+        const fs = require('fs');
+        const file = path.join(app.getPath('userData'), 'logs', 'watch.log');
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.appendFileSync(file, `${new Date().toISOString()} # ${text}
+`);
+      } catch { /* logging is optional */ }
+    },
     onChecked: (item) => {
       push('sentinel:page-checked', item);
       // A short on-disk trail of what page watch checked, for the person to read.

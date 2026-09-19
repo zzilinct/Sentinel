@@ -26,7 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const { scanFile, MAX_FILE_BYTES } = require('../shared/filescan');
 const { summarize } = require('./downloads');
 
@@ -200,18 +200,27 @@ async function inspect(full, how) {
   seen.set(sha256, full);
   if (seen.size > 3000) seen.clear();
 
+  // The on-device scan decides first: it needs nothing but the file. The
+  // known-hash lookup is a second opinion with a short leash, because on a
+  // fresh install the server is busy loading its threat lists.
   let known = null;
-  try {
-    const r = await opts.api('/api/v1/live/file-hash', { sha256 });
-    if (r.known) known = { threat: r.threat, name: r.name || 'Known malicious file', source: 'sentinel' };
-  } catch { /* offline: local analysis still runs */ }
-
-  const report = buf ? scanFile(buf, name, { lookupHash: () => known }) : null;
-  const worst = summarize(report, known);
+  let report = buf ? scanFile(buf, name, { lookupHash: () => null }) : null;
+  let worst = summarize(report, null);
+  if (!worst.badge) {
+    try {
+      const r = await Promise.race([
+        opts.api('/api/v1/live/file-hash', { sha256 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), 6000))
+      ]);
+      if (r && r.known) known = { threat: r.threat, name: r.name || 'Known malicious file', source: 'sentinel' };
+    } catch { /* offline or busy: the local verdict stands */ }
+    if (known) { report = buf ? scanFile(buf, name, { lookupHash: () => known }) : null; worst = summarize(report, known); }
+  }
   const item = { path: full, name, size: stat.size, sha256, how, at: Date.now(), badge: worst.badge, label: worst.label, threat: worst.threat, reason: worst.reason };
   if (!worst.badge) { cleanCount++; return item; }
 
   const entryId = record({ kind: 'threat', ...item, actions: [{ did: 'detected', detail: 'responding' }] });
+  item.entryId = entryId;
   let actions;
   try { actions = await respond(item); } catch (err) { actions = [{ did: 'response failed', detail: String(err && err.message || err) }]; }
   amend(entryId, { actions, quarantined: item.quarantined || null });
@@ -221,20 +230,25 @@ async function inspect(full, how) {
 
 /* ----------------------------------------------------------- response */
 
+/**
+ * Response order is "stop the harm first": end the process and quarantine the
+ * file within a second or two, then clean up what would have relaunched it.
+ * PowerShell is slow to start, so there is one PowerShell process for the
+ * whole response, and its output is read as it arrives: the moment it reports
+ * that the processes are gone, the file is moved, while the same script carries
+ * on with shortcuts and scheduled tasks.
+ */
 async function respond(item) {
   const actions = [];
-
-  // Run keys first: reg.exe answers in milliseconds.
-  actions.push(...await removeRunKeys(item.path));
-
-  // Everything that needs PowerShell happens in ONE process, because starting
-  // PowerShell is the slow part: end whatever runs from the file, delete
-  // Startup shortcuts that point at it, unregister scheduled tasks that launch it.
+  const wantQuarantine = item.badge === 'red' || item.badge === 'orange';
   const startup = folders().find((f) => f.label === 'Startup');
+  const base = path.basename(item.path).replace(/\.[^.]+$/, '');
   const script = `
 $ErrorActionPreference = 'SilentlyContinue'
 $target = ${psq(item.path)}
-Get-Process | Where-Object { $_.Path -eq $target } | ForEach-Object { $id = $_.Id; Stop-Process -Id $id -Force; "KILLED $id" }
+$moved = ${psq('__MOVED__')}
+Get-Process | Where-Object { $_.Path -and (($_.Path -eq $target) -or ($moved -and $_.Path -eq $moved)) } | ForEach-Object { $id = $_.Id; Stop-Process -Id $id -Force; "KILLED $id" }
+'STOPPED'
 $dir = ${psq(startup ? startup.dir : '')}
 if ($dir -and (Test-Path $dir)) {
   $ws = New-Object -ComObject WScript.Shell
@@ -251,21 +265,15 @@ Get-ScheduledTask | ForEach-Object {
   }
 }
 'DONE'`;
-  const out = await ps(script, 120000);
-  for (const line of out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)) {
-    if (line.startsWith('KILLED ')) actions.push({ did: 'ended process', detail: `PID ${line.slice(7)}` });
-    else if (line.startsWith('LNK ')) actions.push({ did: 'removed Startup shortcut', detail: line.slice(4) });
-    else if (line.startsWith('TASKFAIL ')) actions.push({ did: 'could not remove scheduled task (needs administrator)', detail: line.slice(9) });
-    else if (line.startsWith('TASK ')) actions.push({ did: 'removed scheduled task', detail: line.slice(5) });
-  }
-  if (!out.includes('DONE')) actions.push({ did: 'cleanup did not finish', detail: 'PowerShell did not answer in time; the file is still quarantined below' });
 
-  // Quarantine the file (a move, reversible). A just-ended process can hold
-  // its file for a moment, so try a few times.
-  if (item.badge === 'red' || item.badge === 'orange') {
+  let quarantined = false;
+  const quarantine = async () => {
+    if (quarantined || !wantQuarantine) return;
+    quarantined = true;
     let moved = null;
     let lastErr = null;
-    for (let attempt = 0; attempt < 6 && !moved; attempt++) {
+    // A just-ended process can hold its file for a moment, so try a few times.
+    for (let attempt = 0; attempt < 8 && !moved; attempt++) {
       try {
         fs.mkdirSync(opts.quarantineDir, { recursive: true });
         const target = path.join(opts.quarantineDir, `${Date.now()}-${item.name}.quarantined`);
@@ -274,14 +282,66 @@ Get-ScheduledTask | ForEach-Object {
         moved = target;
       } catch (err) {
         lastErr = err;
-        await new Promise((r) => setTimeout(r, 700));
+        await new Promise((r) => setTimeout(r, 500));
       }
     }
     if (moved) { item.quarantined = moved; actions.push({ did: 'quarantined', detail: moved }); }
     else actions.push({ did: 'could not quarantine', detail: lastErr ? lastErr.message : 'unknown' });
-  } else {
-    actions.push({ did: 'left in place', detail: 'Only a few warning signs; nothing was moved' });
+    if (item.entryId) amend(item.entryId, { actions: [...actions], quarantined: item.quarantined || null });
+  };
+
+  // If nothing runs from the file, it can be moved right now, before PowerShell has even started.
+  if (wantQuarantine) {
+    try {
+      fs.mkdirSync(opts.quarantineDir, { recursive: true });
+      const target = path.join(opts.quarantineDir, `${Date.now()}-${item.name}.quarantined`);
+      fs.renameSync(item.path, target);
+      fs.writeFileSync(`${target}.json`, JSON.stringify({ from: item.path, sha256: item.sha256, label: item.label, at: Date.now() }, null, 2));
+      item.quarantined = target;
+      quarantined = true;
+      actions.push({ did: 'quarantined', detail: target });
+      if (item.entryId) amend(item.entryId, { actions: [...actions], quarantined: target });
+    } catch { /* in use: PowerShell ends the process first */ }
   }
+
+  // Run keys: reg.exe answers in milliseconds.
+  actions.push(...await removeRunKeys(item.path));
+  if (item.entryId) amend(item.entryId, { actions: [...actions] });
+
+  // A running program can be renamed on Windows, so the early move may have
+  // succeeded while it still runs: end it by either path.
+  const finalScript = script.replace("'__MOVED__'", psq(item.quarantined || ''));
+
+  let finished = false;
+  await new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(finalScript, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch { resolve(); return; }
+    const timer = setTimeout(() => { try { child.kill(); } catch { /* gone */ } }, 180000);
+    let buf = '';
+    const pending = [];
+    child.stdout.on('data', (chunk) => {
+      buf += chunk.toString('utf8');
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (line.startsWith('KILLED ')) actions.push({ did: 'ended process', detail: `PID ${line.slice(7)}` });
+        else if (line === 'STOPPED') pending.push(quarantine());
+        else if (line.startsWith('LNK ')) actions.push({ did: 'removed Startup shortcut', detail: line.slice(4) });
+        else if (line.startsWith('TASKFAIL ')) actions.push({ did: 'could not remove scheduled task (needs administrator)', detail: line.slice(9) });
+        else if (line.startsWith('TASK ')) actions.push({ did: 'removed scheduled task', detail: line.slice(5) });
+        else if (line === 'DONE') finished = true;
+      }
+    });
+    const end = () => { clearTimeout(timer); Promise.all(pending).then(resolve, resolve); };
+    child.on('exit', end);
+    child.on('error', end);
+  });
+  await quarantine();
+  if (!finished) actions.push({ did: 'cleanup did not finish', detail: 'PowerShell did not answer in time' });
+  if (!wantQuarantine) actions.push({ did: 'left in place', detail: 'Only a few warning signs; nothing was moved' });
   return actions;
 }
 
@@ -356,4 +416,4 @@ function restore(id) {
   return { ok: true };
 }
 
-module.exports = { init, restart, stop, status, inspect, restore, ledger: () => ledger.slice(0, 50) };
+module.exports = { init, restart, stop, status, inspect, restore, ledger: () => ledger.slice(0, 50), _test: { removeRunKeys } };

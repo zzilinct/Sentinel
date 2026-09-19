@@ -78,6 +78,7 @@ let settleTimer = null;
 let restartTimer = null;
 
 function status() { return { ...state }; }
+function log(text) { if (opts && opts.onLog) opts.onLog(text); }
 
 function setState(active, reason) {
   state = { ...state, active, reason };
@@ -107,10 +108,14 @@ function start() {
   const encoded = Buffer.from(SCRIPT, 'utf16le').toString('base64');
   try {
     child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded],
-      { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+      { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (err) {
+    log(`could not start the reader: ${err.message}`);
     return setState(false, `Page watch could not start (${err.message})`);
   }
+  log('reader started');
+  let errText = '';
+  child.stderr.on('data', (c) => { if (errText.length < 600) { errText += c.toString('utf8'); } });
   let buf = '';
   child.stdout.on('data', (chunk) => {
     buf += chunk.toString('utf8');
@@ -121,7 +126,8 @@ function start() {
       if (line) onLine(line);
     }
   });
-  child.on('exit', () => {
+  child.on('exit', (code) => {
+    log(`reader exited (${code})${errText ? `: ${errText.replace(/\s+/g, ' ').slice(0, 300)}` : ''}`);
     child = null;
     if (!state.active) return;
     // Keep watching: the reader is cheap to bring back.
@@ -143,7 +149,8 @@ function onLine(line) {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
   clearTimeout(settleTimer);
-  if (msg.idle) { state.current = null; state.idle = true; return; }
+  if (msg.idle) { if (!state.idle) log('nobody at the keyboard or window minimised: paused'); state.current = null; state.idle = true; return; }
+  if (state.idle) log('in use again');
   state.idle = false;
   if (!msg.url || !/^https?:\/\//i.test(msg.url)) { state.current = null; return; }
   // Sentinel's own pages and the app's server are not "sites".
@@ -162,6 +169,7 @@ async function check(browser, url) {
   try {
     ({ verdict } = await opts.api('/api/v1/live/visit', { url }));
   } catch (err) {
+    log(`check failed for ${host}: ${err.status || ''} ${err.code || err.message}`);
     if (err.status === 401) setState(false, 'Sign in to turn on page watch');
     else if (err.status === 403) setState(false, 'Page watch needs Pro or Max');
     else if (err.code === 'live_hours_exhausted') setState(false, 'Live hours for this week are used up');
