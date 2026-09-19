@@ -349,6 +349,23 @@ const KNOWLEDGE_CHECKS = [
       return fail(all.length >= 4 ? 20 : 14, `Built from bait words: ${all.slice(0, 5).join(', ')}`);
     } },
 
+  { id: 'U44', group: 'Address', threat: 'scam', title: 'Name does not imitate a country ending',
+    run: ({ p, brand }) => {
+      if (brand.owner || p.isIp || !p.subdomains || !p.subdomains.length) return pass('Not applicable');
+      // "allegrolokalnie.pl-65445.lol" is read as "allegrolokalnie.pl". The real name is "pl-65445".
+      const m = /^(pl|de|fr|uk|us|it|es|nl|br|ru|cn|jp|au|ca|in|se|no|dk|fi|ch|at|be|cz|pt|gr|tr|mx|ar|co|com|net|org|gov)-[a-z0-9-]{3,}$/.exec(p.sld.toLowerCase());
+      if (!m) return pass('No imitation ending');
+      const shown = `${p.subdomains[p.subdomains.length - 1]}.${m[1]}`;
+      return fail(30, `Made to be read as "${shown}"; the real site is ${p.registrable}`);
+    } },
+
+  { id: 'U45', group: 'Address', threat: 'scam', title: 'Name is more than a long number',
+    run: ({ p, brand }) => {
+      if (brand.owner || p.isIp) return pass('Not applicable');
+      // Short numeric names are ordinary in some countries (163.com, 12306.cn). Seven digits and up is a serial number.
+      return /^\d{7,}$/.test(p.sld) ? fail(24, 'The name is only a long number, the mark of domains registered in bulk') : pass('Not a bare number');
+    } },
+
   { id: 'K01', group: 'Known threats', threat: 'scam', title: 'Not a known scam',
     run: ({ knowledge }) => matchCheck(knowledge, 'scam', 'scam') },
   { id: 'K02', group: 'Known threats', threat: 'malware', title: 'Not a known malware site',
@@ -376,6 +393,17 @@ function matchCheck(knowledge, threat, noun) {
     };
     const what = wording[confirmed[0].category] || `listed as ${confirmed[0].category.replace(/_/g, ' ')}`;
     return fail(100, `${what[0].toUpperCase()}${what.slice(1)} by ${[...new Set(confirmed.map((m) => m.sourceName))].join(', ')}`);
+  }
+  // Other pages on this host are listed, this address is not. Worth weight, and the
+  // engine turns it into evidence when the address also fails checks of its own.
+  const inferred = knowledge.matches.filter((m) => m.threat === threat && m.strength === 'inferred');
+  if (inferred.length) {
+    const n = Math.max(...inferred.map((m) => m.listed || 1));
+    const who = [...new Set(inferred.map((m) => m.sourceName))].join(', ');
+    // "Likely", not "confirmed": nobody has listed this address, but the odds are poor.
+    return fail(55, n >= 3
+      ? `${n} other addresses on this site are listed by ${who}; this one is not`
+      : `Another page on this site is listed by ${who}; this address is not`);
   }
   const likely = knowledge.matches.filter((m) => m.threat === threat && m.strength === 'likely');
   if (likely.length) return fail(45, `Several known ${noun} links are hosted here`);

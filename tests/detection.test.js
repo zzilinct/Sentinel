@@ -52,10 +52,12 @@ test('imported public feeds are used as knowledge', async () => {
   await feeds.rebuildTokens();
 
   assert.equal(lvl(await scan('https://compromised-dentist-site.com/wp-content/uploads/secure/login.php'), 'scam'), 'confirmed');
-  // The rest of that site is dangerous too while it hosts a listed phishing page.
+  // The rest of that site is likely dangerous while it hosts a listed page, and the reason says
+  // exactly what is known. It is not "confirmed": nobody has listed this address.
   const root = await scan('https://compromised-dentist-site.com/');
-  assert.equal(lvl(root, 'scam'), 'confirmed');
-  assert.ok(root.reasons.some((r) => /hosting a listed phishing page/i.test(r.text)), 'the reason says why');
+  assert.equal(lvl(root, 'scam'), 'likely');
+  assert.equal(root.threats.scam.badge, 'orange');
+  assert.ok(root.reasons.some((r) => /another page on this site is listed by OpenPhish; this address is not/i.test(r.text)), 'the reason says why');
   // "www." on either side of the list makes no difference.
   assert.equal(lvl(await scan('https://www.brand-new-phish-zone.com/'), 'scam'), 'confirmed');
   assert.equal(lvl(await scan('https://brand-new-phish-zone.com/anything'), 'scam'), 'confirmed');
@@ -461,8 +463,7 @@ test('a listed host is definite in every list that names it, and a name is alway
     ['https://metamask-claim-portal.example/', 'scam'],
     ['https://c2-panel.example/gate.php', 'malware'],
     ['http://203.0.113.77/', 'malware'],
-    ['https://one-listed-download.example/files/setup.exe', 'virus'],
-    ['https://one-listed-download.example/', 'virus']
+    ['https://one-listed-download.example/files/setup.exe', 'virus']
   ]) {
     const v = await scan(url, { research: false });
     assert.equal(lvl(v, threat), 'confirmed', `${url} ${threat}`);
@@ -477,4 +478,47 @@ test('a listed host is definite in every list that names it, and a name is alway
     assert.ok(v.comparison.closest.every((c) => typeof c.host === 'string' && Number.isInteger(c.distance)));
   }
   assert.ok(typeof (await scan('https://example.org/', { research: false })).knowledge.feeds.total === 'number');
+});
+
+test('another page on a listed host is an inference: red only when the address fails checks of its own', async () => {
+  const phishtank = feeds.FEEDS.find((f) => f.id === 'phishtank') || feeds.FEEDS.find((f) => f.id === 'openphish');
+  await feeds.importLines(phishtank, [
+    'https://crm.big-unknown-service.example/forms/share/9f3a/login.html',
+    'https://allegrolokalnie.pl-65445.lol/oferta/84731',
+    'https://front-page-listed.example/'
+  ]);
+
+  // The exact listed address is definite.
+  const exact = await scan('https://crm.big-unknown-service.example/forms/share/9f3a/login.html', { research: false });
+  assert.equal(exact.threats.scam.badge, 'red');
+
+  // A different, ordinary-looking page on that host is not listed. It is flagged, truthfully, but never red.
+  const other = await scan('https://crm.big-unknown-service.example/login', { research: false });
+  assert.equal(other.threats.scam.badge, 'orange', JSON.stringify(other.threats.scam));
+  assert.equal(other.threats.scam.evidence, null);
+  assert.equal(other.knowledge.known, false);
+
+  // The same inference on an address that is wrong by itself (it imitates "allegrolokalnie.pl") is definite.
+  const disposable = await scan('https://allegrolokalnie.pl-65445.lol/kup-teraz', { research: false });
+  assert.equal(disposable.threats.scam.badge, 'red');
+  assert.match(disposable.threats.scam.evidence, /fails checks of its own/);
+
+  // When the site's own front page is listed, the site is listed: every page on it is definite.
+  const inside = await scan('https://front-page-listed.example/account/settings', { research: false });
+  assert.equal(inside.threats.scam.badge, 'red');
+
+  // A service known to carry other people's pages is judged page by page.
+  await feeds.importLines(phishtank, ['https://app.hubspot.com/documents/1234/view/5678']);
+  const platform = await scan('https://app.hubspot.com/login', { research: false });
+  assert.equal(platform.threats.scam.badge, null, JSON.stringify(platform.threats.scam));
+});
+
+test('a name that imitates a country ending, or is only a long number, is caught from the address', async () => {
+  const fake = await scan('https://allegro.pl-99120.click/', { research: false });
+  assert.ok(fake.threats.scam.score >= 30, String(fake.threats.scam.score));
+  const serial = await scan('https://08491749145.lat/', { research: false });
+  assert.ok(serial.threats.scam.badge, 'a bare serial number on a throwaway ending is flagged');
+  for (const url of ['https://www.12306.cn/', 'https://www.163.com/', 'https://pl-tech.com/']) {
+    assert.equal((await scan(url, { research: false })).threats.scam.badge, null, url);
+  }
 });

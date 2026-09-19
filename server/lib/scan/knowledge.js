@@ -70,9 +70,21 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
   const userContent = isUserContent(p.host);
   const allowed = Boolean(q.allow.get(p.host, p.registrable, bare, www));
   const verified = allowed && !userContent;
+  //
+  // That is an inference about this address, not a listing of it, and one bad
+  // page on a large service nobody told us about (a single form on a CRM, a
+  // single link on a shortener) must not turn the whole service red. So:
+  //   the site's front page is listed  -> the site itself is listed: confirmed
+  //   only other pages are listed      -> 'inferred'; the engine makes it
+  //                                       evidence only when the address also
+  //                                       looks wrong on its own checks
   if (!allowed && !userContent) {
+    const frontKeys = [...new Set([p.host, bare, www])].map((h) => urlKey(`http://${h}/`)).filter(Boolean);
+    const frontListed = frontKeys.some((k) => q.feedUrl.all(k).length > 0);
     for (const row of q.feedUrlHost.all(p.host, bare, www)) {
-      add(row.source, row.threat, row.n >= 3 ? 'compromised_host' : row.threat === 'scam' ? 'hosts_phishing_page' : 'hosts_malware');
+      const category = row.n >= 3 ? 'compromised_host' : row.threat === 'scam' ? 'hosts_phishing_page' : 'hosts_malware';
+      add(row.source, row.threat, category, frontListed ? 'confirmed' : 'inferred');
+      matches[matches.length - 1].listed = row.n;
     }
   }
 

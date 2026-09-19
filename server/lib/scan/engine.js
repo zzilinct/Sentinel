@@ -35,6 +35,9 @@ const LABELS = {
   malware: { safe: 'No malware signs', caution: 'Nothing conclusive', suspicious: 'Possible malware', likely: 'Likely malware', confirmed: 'Malware detected' }
 };
 const SEVERITY = { safe: 0, caution: 1, suspicious: 2, likely: 3, confirmed: 4 };
+// Points an address must collect from its own checks before "another page on this
+// host is listed" is allowed to make it red. The "nothing conclusive" line.
+const INFERENCE_NEEDS = 15;
 
 const q = {
   override: db.prepare('SELECT action FROM overrides WHERE user_id = ? AND (host = ? OR host = ?)'),
@@ -105,6 +108,16 @@ function evidenceFrom(checks, know, ctx) {
   }
   const byId = Object.fromEntries(checks.map((c) => [c.id, c]));
   const failed = (id) => byId[id] && byId[id].status === 'fail';
+
+  // Another page on this host is listed, this address is not (knowledge.js). On a
+  // throwaway host that is as good as a listing; on a large service it says nothing
+  // about this page. The address's own checks tell the two apart: what the lists
+  // say does not count towards it.
+  for (const m of know.matches) {
+    if (m.strength !== 'inferred' || ev[m.threat]) continue;
+    const own = checks.reduce((sum, c) => sum + (c.status !== 'skip' && c.threat === m.threat && !/^K\d/.test(c.id) ? c.points : 0), 0);
+    if (own >= INFERENCE_NEEDS) ev[m.threat] = `${m.sourceName}: ${m.category.replace(/_/g, ' ')}, and this address fails checks of its own`;
+  }
 
   if (failed('R11') && ctx.finalKnowledge) {
     const m = ctx.finalKnowledge.matches.find((x) => x.strength === 'confirmed');

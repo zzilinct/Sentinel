@@ -19,7 +19,9 @@ const RISKY_TLDS = {
   work: 18, country: 20, kim: 18, loan: 22, download: 22, review: 16,
   shop: 12, store: 12, online: 14, site: 14, website: 14, space: 16,
   fit: 16, monster: 20, bar: 16, autos: 18, boats: 16, christmas: 16,
-  lol: 16, mom: 16, pics: 16, wiki: 12, su: 20, cc: 12, pw: 20, am: 12
+  lol: 16, mom: 16, pics: 16, wiki: 12, su: 20, cc: 12, pw: 20, am: 12,
+  // Added by counting listed hosts per ending in the threat lists (each has more than most endings above).
+  vip: 16, help: 16, lat: 16, bond: 18, qpon: 18, skin: 16, hair: 16, ink: 14, casa: 12, club: 12
 };
 
 // Brands most often impersonated, with every domain they really own.
@@ -108,14 +110,28 @@ const FREE_HOSTING = [
   'site123.me', 'yolasite.com', 'ucoz.net', 'blob.core.windows.net', 'web.core.windows.net', 'lovable.app',
   'webcindario.com', 'wcomhost.com', 'hpage.com', 'mozello.com', 'odoo.com', 'teachable.com', 'deno.dev', 'val.run',
   'gitlab.io', 'infinityfreeapp.com', 'rf.gd', 'epizy.com', 'great-site.net', 'hostingerapp.com', 'loca.lt', 'serveo.net',
-  'amazonaws.com', 'cloudfront.net', 'digitaloceanspaces.com', 'backblazeb2.com', 'sharepoint.com', 'nyc3.cdn.digitaloceanspaces.com'
+  'amazonaws.com', 'cloudfront.net', 'digitaloceanspaces.com', 'backblazeb2.com', 'sharepoint.com', 'nyc3.cdn.digitaloceanspaces.com',
+  // Found by counting the threat lists: each of these carries dozens to thousands of unrelated tenants.
+  'wixstudio.com', 'ukit.me', 'start.page', 'webwave.dev', 'myportfolio.com', 'hsforms.com', 'hubspotdocuments.com', 'w3spaces.com',
+  'm-pages.com', 'zapier.app', 'teemill.com', 'edgeone.dev', 'framer.media', 'framer.ai', 'framer.wiki', 'ghost.io', 'boxmode.io',
+  'wasmer.app', 'replit.dev', 'translate.goog', 'plutio.com', 'mybluehost.me', 'forms.app', 'systeme.io', 'daftpage.com',
+  'myclickfunnels.com', 'pory.app', 'twil.io', 'mytemp.website', 'wpenginepowered.com', 'cloudwaysapps.com', 'plesk.page',
+  'webadorsite.com', 'craftum.io', 'onepage.me', 'activehosted.com', 'railway.app', 'mystagingwebsite.com', 'typeform.com',
+  'csb.app', 'created.app', 'myfreesites.net', 'temporary.site', 'sibforms.com', 'durablesites.com', 'myqcloud.com',
+  'formstack.com', 'zeabur.app', 'paperform.co', 'squarespace.com', 'mdbgo.io', 'ondigitalocean.app', 'liveblog365.com',
+  'run.app', 'company.site', 'formaloo.co', 'surveysparrow.com', 'ac-page.com', 'jotform.com', 'studio.site', 'kobotoolbox.org',
+  'eu.cc', 'us.cc', 'iceiy.com', 'zya.me', 'hstn.me', 'free.nf', 'xo.je', 'fwh.is', 'campaign-archive.com', 'list-manage.com',
+  'rs6.net', 'sendgrid.net', 'awstrack.me', 'app.link', 'mockplus.com'
 ];
 
 // Path-based free hosting (the attacker controls the path, not a subdomain).
 const PATH_HOSTING = [
   'sites.google.com', 'forms.gle', 'docs.google.com', 'drive.google.com', 'storage.googleapis.com', 'storage.cloud.google.com',
   'firebasestorage.googleapis.com', 's3.amazonaws.com', 'dl.dropboxusercontent.com',
-  'onedrive.live.com', '1drv.ms', 'linktr.ee', 'telegra.ph', 'ipfs.io', 'dweb.link'
+  'onedrive.live.com', '1drv.ms', 'linktr.ee', 'telegra.ph', 'ipfs.io', 'dweb.link',
+  'new.express.adobe.com', 'express.adobe.com', 'indd.adobe.com', 'acrobat.adobe.com', 'app.hubspot.com', 'forms.office.com',
+  'teams.live.com', 'app.box.com', 'airtable.com', 'padlet.com', 't.me', 'vk.com', 'away.vk.com', 'script.google.com',
+  'lookerstudio.google.com'
 ];
 // Object storage: a web page served from here was uploaded by whoever owns the bucket.
 const OBJECT_STORAGE = /(^|\.)(storage\.googleapis\.com|storage\.cloud\.google\.com|firebasestorage\.googleapis\.com|s3[.-][a-z0-9-]*\.?amazonaws\.com|s3\.amazonaws\.com|blob\.core\.windows\.net|digitaloceanspaces\.com|backblazeb2\.com|r2\.dev)$/;
