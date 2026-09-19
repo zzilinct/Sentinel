@@ -189,7 +189,7 @@ watch), but cannot put masks beside search results.
 | Chrome | yes | yes | `verify-companion.js`, Chrome 153: 10 of 10 results marked, overlay seen |
 | Edge | yes | yes | same, Edge 153 |
 | Firefox | yes (temporary add-on until signed) | yes | `verify-companion-firefox.js`, Firefox 156: 10 of 10 marked, overlay seen |
-| Brave, Opera, Vivaldi | yes, the Chromium package | yes | BROWSERS_VM |
+| Brave, Opera, Vivaldi | yes, the Chromium package | yes | not installed on the development machine, so not run; they take the same package through the same engine as Chrome and Edge |
 | LibreWolf | yes, the Firefox package | yes | not run; same engine and package as Firefox |
 | DuckDuckGo browser | **no** | yes (Windows) | it has no extension support at all, on any platform |
 
