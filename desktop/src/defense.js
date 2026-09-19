@@ -43,7 +43,9 @@ let sweepTimer = null;
 let state = { active: false, reason: 'Starting', supported: process.platform === 'win32' };
 const timers = new Map();
 const seen = new Map();          // sha256 -> path
+const blockedSeen = new Set();   // files the system antivirus would not let us open
 let ledger = [];                 // newest first, persisted
+let cleanCount = 0;              // files scanned and found clean since start
 
 function run(cmd, args, timeout = 15000) {
   return new Promise((resolve) => execFile(cmd, args, { timeout, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => resolve(err ? '' : String(stdout))));
@@ -52,16 +54,26 @@ function ps(script, timeout = 20000) {
   return run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], timeout);
 }
 
-function status() { return { ...state, watched: folders().map((f) => f.label) }; }
+function status() { return { ...state, watched: folders().map((f) => f.label), cleanCount }; }
 function setState(active, reason) { state = { ...state, active, reason }; if (opts && opts.onChange) opts.onChange(); }
 
 function ledgerPath() { return path.join(opts.dataDir, 'defense.json'); }
 function loadLedger() { try { ledger = JSON.parse(fs.readFileSync(ledgerPath(), 'utf8')); } catch { ledger = []; } }
-function record(entry) {
-  ledger.unshift({ id: crypto.randomBytes(6).toString('hex'), at: Date.now(), ...entry });
-  ledger = ledger.slice(0, 200);
+function persist() {
   try { fs.mkdirSync(opts.dataDir, { recursive: true }); fs.writeFileSync(ledgerPath(), JSON.stringify(ledger, null, 2)); } catch { /* best effort */ }
   if (opts.onChange) opts.onChange();
+}
+function record(entry) {
+  const id = crypto.randomBytes(6).toString('hex');
+  ledger.unshift({ id, at: Date.now(), ...entry });
+  ledger = ledger.slice(0, 200);
+  persist();
+  return id;
+}
+function amend(id, patch) {
+  const entry = ledger.find((e) => e.id === id);
+  if (entry) Object.assign(entry, patch);
+  persist();
 }
 
 function folders() {
@@ -162,8 +174,28 @@ async function inspect(full, how) {
   if (full.startsWith(opts.quarantineDir) || (opts.selfDir && full.startsWith(opts.selfDir))) return null;
 
   const name = path.basename(full);
-  const buf = stat.size <= MAX_FILE_BYTES ? fs.readFileSync(full) : null;
-  const sha256 = buf ? crypto.createHash('sha256').update(buf).digest('hex') : await hashFile(full);
+  let buf = null;
+  let sha256;
+  try {
+    buf = stat.size <= MAX_FILE_BYTES ? fs.readFileSync(full) : null;
+    sha256 = buf ? crypto.createHash('sha256').update(buf).digest('hex') : await hashFile(full);
+  } catch (err) {
+    // Windows answers "this file contains a virus" (error 225, which Node
+    // reports as UNKNOWN) when the system antivirus has already condemned a
+    // file. It cannot be read, but what would relaunch it can still be removed.
+    if (err && err.code === 'UNKNOWN') {
+      if (blockedSeen.has(full)) return null;
+      blockedSeen.add(full);
+      const actions = await removePersistence(full).catch(() => []);
+      actions.unshift({ did: 'already blocked by the system antivirus', detail: 'Windows would not let the file be opened' });
+      const item = { path: full, name, size: stat.size, how, at: Date.now(), badge: 'red', label: 'Blocked by the system antivirus', threat: 'virus', reason: 'Windows refused to open this file because its antivirus flagged it' };
+      record({ kind: 'threat', ...item, actions });
+      if (opts.onThreat) opts.onThreat({ ...item, actions });
+      return item;
+    }
+    if (err && (err.code === 'EBUSY' || err.code === 'EPERM' || err.code === 'EACCES')) return null;   // still being written, or not ours to read
+    throw err;
+  }
   if (seen.get(sha256) === full) return null;
   seen.set(sha256, full);
   if (seen.size > 3000) seen.clear();
@@ -177,11 +209,12 @@ async function inspect(full, how) {
   const report = buf ? scanFile(buf, name, { lookupHash: () => known }) : null;
   const worst = summarize(report, known);
   const item = { path: full, name, size: stat.size, sha256, how, at: Date.now(), badge: worst.badge, label: worst.label, threat: worst.threat, reason: worst.reason };
-  if (!worst.badge) { record({ kind: 'scanned', ...item }); return item; }
+  if (!worst.badge) { cleanCount++; return item; }
 
+  const entryId = record({ kind: 'threat', ...item, actions: [{ did: 'detected', detail: 'responding' }] });
   let actions;
   try { actions = await respond(item); } catch (err) { actions = [{ did: 'response failed', detail: String(err && err.message || err) }]; }
-  record({ kind: 'threat', ...item, actions });
+  amend(entryId, { actions, quarantined: item.quarantined || null });
   if (opts.onThreat) opts.onThreat({ ...item, actions });
   return item;
 }
@@ -190,25 +223,62 @@ async function inspect(full, how) {
 
 async function respond(item) {
   const actions = [];
-  // 1. End anything running from that file.
-  const killed = await ps(`Get-Process | Where-Object { $_.Path -eq ${psq(item.path)} } | ForEach-Object { $id = $_.Id; Stop-Process -Id $id -Force -ErrorAction SilentlyContinue; $id }`);
-  for (const pid of killed.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)) actions.push({ did: 'ended process', detail: `PID ${pid}` });
 
-  // 2. Remove every way it would come back.
-  actions.push(...await removePersistence(item.path));
+  // Run keys first: reg.exe answers in milliseconds.
+  actions.push(...await removeRunKeys(item.path));
 
-  // 3. Quarantine the file (a move, reversible).
-  if (item.badge === 'red' || item.badge === 'orange') {
-    try {
-      fs.mkdirSync(opts.quarantineDir, { recursive: true });
-      const target = path.join(opts.quarantineDir, `${Date.now()}-${item.name}.quarantined`);
-      fs.renameSync(item.path, target);
-      fs.writeFileSync(`${target}.json`, JSON.stringify({ from: item.path, sha256: item.sha256, label: item.label, at: Date.now() }, null, 2));
-      item.quarantined = target;
-      actions.push({ did: 'quarantined', detail: target });
-    } catch (err) {
-      actions.push({ did: 'could not quarantine', detail: err.message });
+  // Everything that needs PowerShell happens in ONE process, because starting
+  // PowerShell is the slow part: end whatever runs from the file, delete
+  // Startup shortcuts that point at it, unregister scheduled tasks that launch it.
+  const startup = folders().find((f) => f.label === 'Startup');
+  const script = `
+$ErrorActionPreference = 'SilentlyContinue'
+$target = ${psq(item.path)}
+Get-Process | Where-Object { $_.Path -eq $target } | ForEach-Object { $id = $_.Id; Stop-Process -Id $id -Force; "KILLED $id" }
+$dir = ${psq(startup ? startup.dir : '')}
+if ($dir -and (Test-Path $dir)) {
+  $ws = New-Object -ComObject WScript.Shell
+  Get-ChildItem -Path $dir -Filter *.lnk | ForEach-Object { if ($ws.CreateShortcut($_.FullName).TargetPath -eq $target) { Remove-Item $_.FullName -Force; "LNK $($_.Name)" } }
+}
+Get-ScheduledTask | ForEach-Object {
+  $t = $_
+  foreach ($a in $t.Actions) {
+    if ($a.Execute -and (($a.Execute + ' ' + $a.Arguments).ToLower().Contains($target.ToLower()))) {
+      Unregister-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -Confirm:$false
+      if (Get-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName) { "TASKFAIL $($t.TaskPath)$($t.TaskName)" } else { "TASK $($t.TaskPath)$($t.TaskName)" }
+      break
     }
+  }
+}
+'DONE'`;
+  const out = await ps(script, 120000);
+  for (const line of out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)) {
+    if (line.startsWith('KILLED ')) actions.push({ did: 'ended process', detail: `PID ${line.slice(7)}` });
+    else if (line.startsWith('LNK ')) actions.push({ did: 'removed Startup shortcut', detail: line.slice(4) });
+    else if (line.startsWith('TASKFAIL ')) actions.push({ did: 'could not remove scheduled task (needs administrator)', detail: line.slice(9) });
+    else if (line.startsWith('TASK ')) actions.push({ did: 'removed scheduled task', detail: line.slice(5) });
+  }
+  if (!out.includes('DONE')) actions.push({ did: 'cleanup did not finish', detail: 'PowerShell did not answer in time; the file is still quarantined below' });
+
+  // Quarantine the file (a move, reversible). A just-ended process can hold
+  // its file for a moment, so try a few times.
+  if (item.badge === 'red' || item.badge === 'orange') {
+    let moved = null;
+    let lastErr = null;
+    for (let attempt = 0; attempt < 6 && !moved; attempt++) {
+      try {
+        fs.mkdirSync(opts.quarantineDir, { recursive: true });
+        const target = path.join(opts.quarantineDir, `${Date.now()}-${item.name}.quarantined`);
+        fs.renameSync(item.path, target);
+        fs.writeFileSync(`${target}.json`, JSON.stringify({ from: item.path, sha256: item.sha256, label: item.label, at: Date.now() }, null, 2));
+        moved = target;
+      } catch (err) {
+        lastErr = err;
+        await new Promise((r) => setTimeout(r, 700));
+      }
+    }
+    if (moved) { item.quarantined = moved; actions.push({ did: 'quarantined', detail: moved }); }
+    else actions.push({ did: 'could not quarantine', detail: lastErr ? lastErr.message : 'unknown' });
   } else {
     actions.push({ did: 'left in place', detail: 'Only a few warning signs; nothing was moved' });
   }
@@ -217,12 +287,10 @@ async function respond(item) {
 
 const psq = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
-/** Delete Run keys, Startup shortcuts and scheduled tasks that launch `target`. */
-async function removePersistence(target) {
+/** Delete Run / RunOnce values that launch `target`. */
+async function removeRunKeys(target) {
   const actions = [];
   const lower = target.toLowerCase();
-
-  // Run keys
   for (const hive of ['HKCU', 'HKLM']) {
     for (const key of ['Software\\Microsoft\\Windows\\CurrentVersion\\Run', 'Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce']) {
       const out = await run('reg', ['query', `${hive}\\${key}`]);
@@ -235,29 +303,13 @@ async function removePersistence(target) {
       }
     }
   }
-
-  // Startup folder shortcuts
-  const startup = folders().find((f) => f.label === 'Startup');
-  if (startup) {
-    for (const name of fs.readdirSync(startup.dir)) {
-      const full = path.join(startup.dir, name);
-      if (/\.lnk$/i.test(name)) {
-        const t = (await ps(`(New-Object -ComObject WScript.Shell).CreateShortcut(${psq(full)}).TargetPath`)).trim().toLowerCase();
-        if (t && t === lower) { try { fs.unlinkSync(full); actions.push({ did: 'removed Startup shortcut', detail: name }); } catch { /* locked */ } }
-      } else if (full.toLowerCase() === lower) {
-        // the file itself sits in Startup; quarantine handles it
-      }
-    }
-  }
-
-  // Scheduled tasks
-  const tasks = await ps(`Get-ScheduledTask | ForEach-Object { $t = $_; foreach ($a in $t.Actions) { if ($a.Execute -and (($a.Execute + ' ' + $a.Arguments).ToLower().Contains(${psq(lower)}))) { $t.TaskPath + $t.TaskName } } }`);
-  for (const full of tasks.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)) {
-    const i = full.lastIndexOf('\\');
-    const out = await ps(`Unregister-ScheduledTask -TaskPath ${psq(full.slice(0, i + 1))} -TaskName ${psq(full.slice(i + 1))} -Confirm:$false; 'ok'`);
-    actions.push({ did: out.includes('ok') ? 'removed scheduled task' : 'could not remove scheduled task', detail: full });
-  }
   return actions;
+}
+
+/** Everything that would relaunch `target`, for a file that cannot be quarantined (already blocked). */
+async function removePersistence(target) {
+  const actions = await respond({ path: target, name: path.basename(target), badge: null });
+  return actions.filter((a) => a.did !== 'left in place');
 }
 
 /* -------------------------------------------------------- persistence */
