@@ -120,7 +120,7 @@ Downloads come from GitHub Releases, built by `.github/workflows/release.yml`
 with GitHub's own token. To ship a version, bump `desktop/package.json` and:
 
 ```bash
-git tag v1.2.0 && git push origin v1.2.0
+git tag v1.5.0 && git push origin v1.5.0
 ```
 
 The workflow runs the tests, builds the installer and both companion builds,
@@ -139,15 +139,66 @@ One codebase, two packages, built by `npm run build:ext`:
 
 | Package | Browsers | Background |
 | --- | --- | --- |
-| `sentinel-companion-latest.zip` | Chrome, Edge, Brave | service worker (`src/background.js`) |
-| `sentinel-companion-firefox-latest.zip` | Firefox 128+ | event page (`src/background.firefox.js`, generated) |
+| `sentinel-companion-latest.zip` | Chrome, Edge, Brave, Opera, Vivaldi | service worker (`src/background.js`) |
+| `sentinel-companion-firefox-latest.zip` | Firefox 128+, LibreWolf | event page (`src/background.firefox.js`, generated) |
 
 Every script talks to one `ext` namespace (`browser` where it exists, otherwise
-`chrome`) and uses promises, which both browsers support. Firefox has no
+`chrome`) and uses promises, which both engines support; `tests/extension.test.js`
+fails the build on a bare `chrome.*` call or a callback. Firefox has no
 `externally_connectable`, so pairing runs entirely through the `/connect` page's
 content script, and it grants host access on request, so the popup asks for it
-the first time. Sign the Firefox build with `npx web-ext sign` before
-distributing it outside the app.
+the first time. Firefox also runs content scripts in a sandbox where
+`globalThis` is not `window`, so shared objects are read from `globalThis`.
+Sign the Firefox build with `npx web-ext sign` before distributing it outside
+the app.
+
+### What live scanning looks like
+
+On a search results page (Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia,
+Startpage, Mojeek, Yandex), while Sentinel checks the results that are on
+screen:
+
+1. a golden line sweeps down the page under a faint golden tint, with a small
+   status chip ("Sentinel is checking 10 results");
+2. as verdicts arrive, every result gets its mark, top to bottom: a yellow,
+   orange or red mask (scam, virus with spores, malware with horns) exactly as
+   the engine returned it, or a quiet tick when nothing was found;
+3. the chip sums up ("10 checked, 4 flagged") and fades.
+
+The overlay lives in a closed shadow root with `pointer-events: none`, so it
+cannot fight the page's CSS or take a click, and it respects reduced motion.
+The content script only renders; verdicts come from the background worker.
+Red is only ever shown with evidence, and nothing in the page script can
+assign it. The line, the tint and the tick can each be turned off in the
+companion's options.
+
+Live hours are spent only when Sentinel actually checks something, and only
+for a tab that is in use: visible, focused, in a browser that is in front and
+not minimised, with someone at the keyboard. A background tab asks for
+nothing. On Max and Ultimate every result is researched as a second pass; the
+plan gate is `server/lib/plans.js`, not the extension.
+
+This needs the companion. A desktop program cannot draw inside a browser's
+page, so without it Sentinel still warns you about the page you open (page
+watch), but cannot put masks beside search results.
+
+### Browser support
+
+| Browser | Masks and overlay (companion) | Page warnings with no add-on (Windows app) | How it was checked |
+| --- | --- | --- | --- |
+| Chrome | yes | yes | `verify-companion.js`, Chrome 153: 10 of 10 results marked, overlay seen |
+| Edge | yes | yes | same, Edge 153 |
+| Firefox | yes (temporary add-on until signed) | yes | `verify-companion-firefox.js`, Firefox 156: 10 of 10 marked, overlay seen |
+| Brave, Opera, Vivaldi | yes, the Chromium package | yes | BROWSERS_VM |
+| LibreWolf | yes, the Firefox package | yes | not run; same engine and package as Firefox |
+| DuckDuckGo browser | **no** | yes (Windows) | it has no extension support at all, on any platform |
+
+`npm run verify:companion` loads the built packages into real browsers,
+headless, in throwaway profiles (DevTools pipe and `Extensions.loadUnpacked`
+for Chromium, Marionette for Firefox), pairs them with the running desktop app,
+and checks a results page end to end. The page is served locally at the search
+engine's address; its links are honest sites and made-up scam-style addresses,
+and none of them is ever opened.
 
 ## The static site
 
@@ -179,9 +230,39 @@ cd deploy && docker compose up -d --build
 
 Before that: point DNS for `usesentinel.technology` and `www.usesentinel.technology` at the server, copy `.env.example` to `.env`, and set `SESSION_SECRET`. Optional: `GOOGLE_CLIENT_ID/SECRET`, `SAFE_BROWSING_API_KEY`, `RESEND_API_KEY` (password-reset emails).
 
+## Accounts and sessions
+
+- **Creating an account does not sign you in.** Sign-up writes the account and
+  sends you to the sign-in page. An email registers once: a second sign-up
+  with the same address gets a clear "already registered" (409) and the first
+  account is untouched. Email is the sign-in identifier, so two accounts on
+  one address would make sign-in and password reset ambiguous.
+- **Stay signed in** is a box on the sign-in page. Ticked: a persistent cookie,
+  and the session ends after **30 days of not using Sentinel**. Expiry is
+  rolling: any authenticated request pushes it forward (`last_seen` is written
+  at most once a minute), `/auth/me` re-issues the cookie so the browser's
+  30 days slide too, and an hourly sweep plus a check on use end sessions that
+  have sat idle. Not ticked: a session cookie with no lifetime, dropped when
+  the browser closes, and a 12-hour idle limit on the server. Only an explicit
+  `true` counts. The paired app and companion use their own tokens, which end
+  after 90 idle days.
+- **Every session is listed** under Security with how it ends, and each can be
+  signed out by itself; the others are not touched.
+- **The accounts file is separate and looked after.** `sentinel.db` holds
+  accounts, sessions, history and settings. The threat lists, more than a
+  million rows rewritten every few hours, live in `sentinel-feeds.db`, a cache
+  that is deleted and downloaded again if it is ever damaged. The accounts file
+  gets an integrity check on every start: damaged indexes are rebuilt, rows that
+  point at accounts which no longer exist are removed, and a file that cannot
+  be repaired is set aside (never deleted) while the last verified backup is
+  restored. Backups are taken at start and every six hours. One server per
+  database: a second one refuses to start rather than share the file.
+- The desktop app's device account only powers background protection. It never
+  signs the window in and never replaces a person's session.
+
 ## Security
 
-scrypt password hashing · account lockout · TOTP two-factor with replay protection · session list and revoke · password reset with single-use expiring links · HttpOnly/`__Host-` cookies · CSRF origin checks + JSON-only bodies · strict CSP, HSTS, COOP/CORP, frame denial · per-IP and per-account rate limits · SSRF-safe research fetcher (private/metadata IPs blocked, DNS pinned per hop) · path-traversal-safe static server · AES-256-GCM for stored secrets · audit log · no admin HTTP surface (`npm run admin`) · extension message-origin validation · desktop IPC origin checks, sandboxed renderer.
+scrypt password hashing · account lockout · TOTP two-factor with replay protection · session list with per-session revoke · rolling session expiry · password reset with single-use expiring links · HttpOnly/`__Host-` cookies · CSRF origin checks + JSON-only bodies · strict CSP, HSTS, COOP/CORP, frame denial · per-IP and per-account rate limits · SSRF-safe research fetcher (private/metadata IPs blocked, DNS pinned per hop) · path-traversal-safe static server · AES-256-GCM for stored secrets · audit log · no admin HTTP surface (`npm run admin`) · extension message-origin validation · desktop IPC origin checks, sandboxed renderer.
 
 Operator commands:
 
@@ -211,8 +292,10 @@ measured against.
 Three layers, none of which download or run malware:
 
 - `npm test` runs the fixture suite (`tests/`): a local fixture server serves fake scam kits, disguised files and an `EICAR`-style known-bad sample, so every rule is exercised against pages that never leave this machine.
-- `npm run probe` checks that the address rules generalise: 58 made-up scam-style addresses that appear in no feed (fake logins, parcel fees, tech-support alerts, prize bait, crypto giveaways, clearance stores) (`walletconnect-dapp-sync.app`, `portal-hr-payroll.net/adp/login`, `x7k29q.cloudfront.net/login.html`, a login page under `/.well-known/`...) against 87 real sites that use the same words legitimately (support.com, wallet.com, verify.gov, password.com among them) (`walletconnect.com`, `www.adp.com/logins.aspx`, `outlook.live.com/owa/`, `www.dropbox.com/login`...). Research is off, so nothing is fetched. Last run: 57 of 58 flagged, 0 of 87 false alarms; the one miss is the bucket case listed under Known limits.
-- `npm run evaluate` scores the seeded examples end to end (`--research-safe` keeps fetches to the local fixtures).
+- `npm run probe` checks that the address rules generalise: 58 made-up scam-style addresses that appear in no feed (fake logins, parcel fees, tech-support alerts, prize bait, crypto giveaways, clearance stores) (`walletconnect-dapp-sync.app`, `portal-hr-payroll.net/adp/login`, `x7k29q.cloudfront.net/login.html`, a login page under `/.well-known/`...) against 87 real sites that use the same words legitimately (support.com, wallet.com, verify.gov, password.com among them) (`walletconnect.com`, `www.adp.com/logins.aspx`, `outlook.live.com/owa/`, `www.dropbox.com/login`...). Research is off, so nothing is fetched. Last run, with the threat lists empty (the worst case, a fresh install): 57 of 58 flagged, 0 of 87 false alarms; the one miss is the bucket case listed under Known limits.
+- `npm run evaluate` downloads the current OpenPhish list (addresses only; no phishing page is opened) and judges each address by the checklist alone, with no list lookup and no research. Last run: 133 of 300 flagged (44.3%: 93 yellow, 40 orange, 0 red), 0 of 127 legitimate sites flagged, 0 of 32 when researched. In normal use every one of those 300 is on a list and comes back red; this is what the address rules manage unaided.
+- `tests/auth.test.js` proves accounts are durable: sign-in after the server process is killed and restarted, the 30-day rolling window, the session-only cookie, expiry after 30 idle days, duplicate email refused, per-session revoke, and the database repairing itself.
+- `npm run verify:companion` drives real browsers (see Browser support).
 
 What was deliberately not done: no confirmed-malicious URL was fetched, no malware sample was downloaded or placed on disk, and no protection was disabled to make a test pass.
 
@@ -222,6 +305,9 @@ What was deliberately not done: no confirmed-malicious URL was fetched, no malwa
 - **No payment processing yet.** Production defaults to `BILLING_MODE=disabled` (upgrade buttons explain plans are coming). Stripe or similar must be added before charging.
 - **The desktop app does not research.** Its embedded server runs with `RESEARCH_ENABLED=0`, so a person's computer never opens a suspicious page; scans say so in place of the research section. Research needs the hosted service.
 - **Email verification needs a mail provider.** Without `RESEND_API_KEY` the server records the account and tells the person verification is unavailable; it never pretends to have sent anything.
+- **Masks beside search results need the companion.** No desktop program can draw inside a browser's page. Without it, page watch still warns about the page you open.
+- **The DuckDuckGo browser cannot run the companion.** It supports no extensions on any platform, so it gets page warnings from the Windows app and nothing else. (DuckDuckGo *search* in any other browser is fully supported.)
+- **Chrome no longer loads extensions from the command line.** `--load-extension` is ignored by branded Chrome, so the app opens `chrome://extensions` for "Load unpacked" instead, and the test harness uses the DevTools pipe.
 - **Page watch is Windows-only.** It uses UI Automation, which macOS and Linux
   do not offer in the same form. Elsewhere the companion add-on does this job.
 - **The Firefox companion is unsigned.** Firefox only installs signed add-ons
@@ -229,4 +315,5 @@ What was deliberately not done: no confirmed-malicious URL was fetched, no malwa
   temporary add-on (about:debugging) and goes away when Firefox closes.
 - **A plain page in a storage bucket scores "caution", not "suspicious".** `storage.googleapis.com/x/index.html` with no login wording in the address gets 22 points from the address alone; the page has to be fetched (research on) for the form and script checks to add to that.
 - The Windows installer is unsigned, so SmartScreen will warn until it's code-signed. macOS/Linux builds are configured but untested.
+- **Accounts lost before 1.4.0 cannot be brought back.** The damaged database had already lost those rows; 1.4.0 repairs the file, keeps what survived and stops it happening again, but anyone affected has to register once more.
 - The browser companion loads unpacked until it's published to the Chrome Web Store; Gmail/Outlook selectors may need upkeep when those apps change.
