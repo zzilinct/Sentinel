@@ -40,6 +40,7 @@ let warnWin = null;
 let booting = false;
 let retryTimer = null;
 let retryCount = 0;
+let lastUpdateStatus = null;
 let browserState = { installed: [], running: [] };
 let browserWatcher = null;
 
@@ -544,7 +545,11 @@ app.whenReady().then(() => {
 
   step('tray', () => buildTray());
   step('updater', () => updater.init({
-    onChange: (s) => { refreshTray(); push('sentinel:update', s); },
+    onChange: (s) => {
+      // One line per change of state, so an update that never arrives can be explained.
+      if (s.status !== lastUpdateStatus) { lastUpdateStatus = s.status; appLog(`updater: ${s.status}${s.version ? ` ${s.version}` : ''}${s.error ? ` (${s.error})` : ''}`); }
+      refreshTray(); push('sentinel:update', s);
+    },
     onReady: (version) => notify(`Sentinel ${version} is ready`, 'It installs the next time Sentinel quits. Click to restart and update now.', () => updater.install())
   }));
 
