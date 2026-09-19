@@ -357,3 +357,37 @@ test('damage is repaired on start: orphaned rows go, a ruined file is replaced f
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('an accounts file left bloated by a killed server is shrunk on the next start, with its accounts intact', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-db-'));
+  const dbPath = path.join(dir, 'sentinel.db');
+  try {
+    // An account, then 40 MB of rows that are dropped and vacuumed away. The process
+    // is killed rather than closed, so the smaller file only exists in the log.
+    runWithDb(dbPath, `
+      const { db } = require('./server/lib/db');
+      db.prepare("INSERT INTO users (id, email, first_name, created_at) VALUES ('usr_keep', 'keep@example.com', 'Keep', 1)").run();
+      db.exec('CREATE TABLE ballast (x BLOB)');
+      const put = db.prepare('INSERT INTO ballast VALUES (zeroblob(1048576))');
+      db.exec('BEGIN'); for (let i = 0; i < 40; i++) put.run(); db.exec('COMMIT');
+      db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').all();
+      db.exec('DROP TABLE ballast');
+      db.exec('VACUUM');
+      process.reallyExit(0);
+    `);
+    assert.ok(fs.statSync(dbPath).size > 36 * 1024 * 1024, 'the setup must leave the file bloated, or this test proves nothing');
+
+    const out = runWithDb(dbPath, `
+      const { db } = require('./server/lib/db');
+      console.log(JSON.stringify({ size: require('fs').statSync(process.env.DB_PATH).size, users: db.prepare('SELECT email FROM users').all().map((u) => u.email), check: db.prepare('PRAGMA quick_check').get().quick_check }));
+    `);
+    const lines = out.trim().split('\n');
+    const result = JSON.parse(lines.pop());
+    assert.ok(result.size < 4 * 1024 * 1024, `the file is still ${result.size} bytes`);
+    assert.deepEqual(result.users, ['keep@example.com']);
+    assert.equal(result.check, 'ok');
+    assert.match(lines.join('\n'), /reclaimed \d+ MB/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

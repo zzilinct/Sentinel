@@ -113,13 +113,27 @@ function openAccounts() {
 
   // Hand back the space the threat lists used to take. This has to come after the
   // repair: VACUUM refuses to run on a file whose indexes are damaged.
+  // In WAL mode a VACUUM lands in the log first; the file itself only shrinks once
+  // the log is folded back in, and a server that is killed rather than closed
+  // never gets to do that. So fold it in here whenever the file on disk is far
+  // bigger than what it holds.
   try {
-    const free = d.prepare('PRAGMA freelist_count').get().freelist_count * d.prepare('PRAGMA page_size').get().page_size;
-    if (free > 32 * 1024 * 1024) {
-      d.exec('VACUUM');
-      note(`reclaimed ${Math.round(free / 1048576)} MB of empty space in the accounts file`);
+    const SLACK = 32 * 1024 * 1024;
+    const pageSize = d.prepare('PRAGMA page_size').get().page_size;
+    const onDisk = () => fs.statSync(config.dbPath).size;
+    const before = onDisk();
+    if (d.prepare('PRAGMA freelist_count').get().freelist_count * pageSize > SLACK) d.exec('VACUUM');
+    if (before - d.prepare('PRAGMA page_count').get().page_count * pageSize > SLACK) {
+      d.prepare('PRAGMA wal_checkpoint(TRUNCATE)').all();
+      const saved = before - onDisk();
+      note(saved > SLACK
+        ? `reclaimed ${Math.round(saved / 1048576)} MB of empty space in the accounts file`
+        : 'the accounts file is larger than what it holds, and could not be shrunk this time');
     }
-  } catch { /* shrinking is a nicety, never a reason not to start */ }
+  } catch (err) {
+    // Shrinking is a nicety, never a reason not to start. Say why it did not happen.
+    note(`could not shrink the accounts file: ${String(err && err.message || err).slice(0, 120)}`);
+  }
 
   // Rows that point at a user who no longer exists (left behind by past damage) cannot be honoured.
   try {
