@@ -19,6 +19,22 @@ const crypto = require('crypto');
 // rest are fallbacks for the rare machine where the first is taken.
 const PORTS = [47821, 47822, 47823, 47824, 47825];
 const START_TIMEOUT_MS = 90000;   // a busy machine at login can be slow; an honest failure is reported sooner by the child itself
+const START_TIMEOUT_MAX_MS = 20 * 60 * 1000;
+
+/**
+ * How long this start may take. A database that has to be migrated or tidied is
+ * read end to end before the server listens: a 400 MB file on a slow disk took
+ * minutes in the lab, the fixed 90 seconds cut it off half way, and every retry
+ * was cut off the same way. So the limit grows with the size of what is on disk.
+ */
+function startTimeout() {
+  let bytes = 0;
+  for (const name of ['sentinel.db', 'sentinel.db-wal']) {
+    try { bytes += fs.statSync(path.join(app.getPath('userData'), name)).size; } catch { /* not there yet */ }
+  }
+  const extra = Math.max(0, bytes / 1048576 - 20) * 3000;   // 3 s for every MB beyond the first 20
+  return Math.min(START_TIMEOUT_MAX_MS, Math.round(START_TIMEOUT_MS + extra));
+}
 const MAX_RESTARTS = 3;        // within RESTART_WINDOW_MS before giving up
 const RESTART_WINDOW_MS = 2 * 60 * 1000;
 const LOG_MAX_BYTES = 2 * 1024 * 1024;
@@ -70,7 +86,23 @@ function sessionSecret(store) {
   return secret;
 }
 
-function spawn(store) {
+/** A server from an earlier attempt must be gone before the next one touches the port and the database. */
+function previousGone() {
+  const old = child;
+  if (!old) return Promise.resolve();
+  return new Promise((resolve) => {
+    const giveUp = setTimeout(resolve, 10000);
+    old.once('exit', () => { clearTimeout(giveUp); resolve(); });
+    try { old.kill(); } catch { clearTimeout(giveUp); resolve(); }
+  });
+}
+
+async function spawn(store) {
+  await previousGone();
+  return spawnNow(store);
+}
+
+function spawnNow(store) {
   return new Promise((resolve, reject) => {
     const preferred = port ? [port, ...PORTS.filter((p) => p !== port)] : PORTS;
     const env = {
@@ -93,22 +125,32 @@ function spawn(store) {
       stdio: 'pipe',
       serviceName: 'Sentinel server'
     });
+    const me = child;
     child.stdout.on('data', (chunk) => log && log.write(chunk));
     child.stderr.on('data', (chunk) => log && log.write(chunk));
 
     let settled = false;
+    let ready = false;   // it reached 'listening': only then is an exit something to restart from
+    const limit = startTimeout();
+    if (limit > START_TIMEOUT_MS) log.write(`the database is large; allowing ${Math.round(limit / 1000)} s for this start\n`);
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      // Do not leave a half-started scanner behind to fight the next attempt for the port.
-      try { if (child) child.kill(); } catch { /* already gone */ }
-      reject(new Error(`The server did not start within ${START_TIMEOUT_MS / 1000} seconds`));
-    }, START_TIMEOUT_MS);
+      // Do not leave a half-started scanner behind to fight the next attempt for the
+      // port and the database: end it, and only report once it is really gone.
+      const failed = new Error(`The server did not start within ${Math.round(limit / 1000)} seconds`);
+      const dying = child;
+      if (!dying) { reject(failed); return; }
+      const giveUp = setTimeout(() => reject(failed), 15000);
+      dying.once('exit', () => { clearTimeout(giveUp); reject(failed); });
+      try { dying.kill(); } catch { clearTimeout(giveUp); reject(failed); }
+    }, limit);
 
     child.on('message', (msg) => {
       if (!msg || settled) return;
       if (msg.type === 'listening') {
         settled = true;
+        ready = true;
         clearTimeout(timer);
         port = msg.port;
         log.write(`listening on http://127.0.0.1:${port}\n`);
@@ -122,8 +164,8 @@ function spawn(store) {
     });
 
     child.on('exit', (code) => {
-      log.write(`[${new Date().toISOString()}] server exited with code ${code}\n`);
-      child = null;
+      if (log) log.write(`[${new Date().toISOString()}] server exited with code ${code}\n`);
+      if (child === me) child = null;   // a later server may already have taken its place
       if (stopping) return;
       if (!settled) {
         settled = true;
@@ -131,6 +173,9 @@ function spawn(store) {
         reject(new Error(`The server exited with code ${code} before it was ready`));
         return;
       }
+      // A start that failed or timed out has already been reported to the caller, which retries.
+      // Restarting here as well would put two servers on one database.
+      if (!ready) return;
       scheduleRestart(store, code);
     });
   });
