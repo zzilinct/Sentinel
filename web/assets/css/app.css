@@ -508,6 +508,9 @@ select.input option { background: #1b1d22; color: var(--text); }
 .side__glyph { width: 18px; height: 18px; flex: none; display: inline-grid; place-items: center; }
 .side__glyph svg { width: 18px; height: 18px; }
 
+/* Holds the place of the desktop panels until the app has answered. */
+.desktop-skeleton { height: 560px; margin-top: 18px; border-radius: 20px; }
+
 /* ---------- Live scanning: one switch ---------- */
 .live { position: relative; overflow: hidden; }
 .live::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: linear-gradient(90deg, transparent, var(--line-gold), transparent); }

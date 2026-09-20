@@ -888,7 +888,7 @@
         <div class="meter${uncapped(us.liveMinutes.limit) ? ' is-uncapped' : ''}"><i style="width:${uncapped(us.liveMinutes.limit) ? 100 : Math.min(100, (us.liveMinutes.used / us.liveMinutes.limit) * 100)}%"></i></div>
       </div>` : ''}
 
-      <div data-desktop></div>
+      <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
       <div class="panel" style="margin-top:18px" data-intel>
         <div class="panel__head"><div><h2>Threat intelligence</h2><p>The public feeds every scan is checked against, refreshed automatically.</p></div></div>
         <div class="skeleton" style="height:90px"></div>
@@ -938,6 +938,9 @@
 
     (slot._off || []).forEach((off) => off());
     slot._off = [];
+    const active = slot.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = active ? ['liveToggle', 'scanWith', 'defense', 'dl', 'login', 'watch', 'checkUpdate', 'restore', 'quarantine'].find((k) => k in active.dataset) : null;
+    const focusValue = focusKey ? active.dataset[focusKey] : null;
     const liveText = !live.supported ? 'Live scanning is available on Windows.'
       : live.active ? (live.window ? `Watching the browser in front. Look for the gold mask in its bottom right corner.${live.lastResults ? ` Last search: ${live.lastResults.count} results marked.` : ''}` : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
         : live.enabled ? (live.reason || 'Starting') : 'Off. One click, and every browser you use is covered.';
@@ -1004,6 +1007,10 @@
         </li>`).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they’re scanned.</p></div>'}
       </div>`;
 
+    if (focusKey) {
+      const again = $(`[data-${focusKey.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}]`, slot).find((el2) => el2.dataset[focusKey] === focusValue);
+      if (again) again.focus({ preventScroll: true });
+    }
     const defEl = $('[data-defense]', slot);
     if (defEl && !defEl.disabled) defEl.addEventListener('change', async (ev) => {
       try {
