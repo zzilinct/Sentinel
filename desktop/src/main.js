@@ -75,10 +75,19 @@ function activeToken() {
   return store.getSecret('token') || store.getSecret('deviceToken') || null;
 }
 
-/** Calls the Sentinel API for the background services. */
-async function apiCall(pathname, body) {
-  const token = activeToken();
-  if (!token) throw Object.assign(new Error('Signed out'), { status: 401 });
+/** This computer's own account on the embedded server. Only the embedded server issues one. */
+let embedded = false;
+async function requestDeviceToken() {
+  if (!embedded || !ORIGIN) return null;
+  try {
+    const res = await fetch(`${ORIGIN}/api/v1/auth/device`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: ORIGIN }, body: '{}', signal: AbortSignal.timeout(15000) });
+    const data = await res.json();
+    if (res.ok && data.token) { store.setSecret('deviceToken', data.token); appLog('device account ready (background protection only)'); return data.token; }
+  } catch { /* protection starts once someone signs in */ }
+  return null;
+}
+
+async function apiOnce(token, pathname, body) {
   const res = await fetch(`${ORIGIN}${pathname}`, {
     method: body ? 'POST' : 'GET',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Sentinel-Client': 'desktop' },
@@ -88,6 +97,35 @@ async function apiCall(pathname, body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error((data.error && data.error.message) || `HTTP ${res.status}`), { status: res.status, code: data.error && data.error.code });
   return data;
+}
+
+/**
+ * Calls the Sentinel API for the background services.
+ *
+ * A token the server refuses must not switch protection off. A person's pairing
+ * can lapse (90 idle days) or their account can be gone; the computer's own token
+ * can be lost with a rebuilt database. Either way protection carries on: under the
+ * computer's own account, with a fresh token if the old one is refused too.
+ */
+async function apiCall(pathname, body) {
+  const personal = store.getSecret('token');
+  if (personal) {
+    try { return await apiOnce(personal, pathname, body); } catch (err) {
+      if (err.status !== 401 || !embedded) throw err;
+      appLog("the paired account was refused by the server; protection continues under this computer's own account");
+      store.setSecret('token', null);
+      store.set('pairedUserId', null);
+    }
+  }
+  let device = store.getSecret('deviceToken') || await requestDeviceToken();
+  if (!device) throw Object.assign(new Error('Signed out'), { status: 401 });
+  try { return await apiOnce(device, pathname, body); } catch (err) {
+    if (err.status !== 401 || !embedded) throw err;
+    store.setSecret('deviceToken', null);
+    device = await requestDeviceToken();
+    if (!device) throw err;
+    return apiOnce(device, pathname, body);
+  }
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -413,6 +451,7 @@ async function boot() {
   // the embedded server issues this computer its own. That token is ONLY for the
   // background services. It never signs the app window in and never replaces a
   // person's session: whoever signs in here stays signed in as themselves.
+  embedded = !remote;
   if (!remote) {
     // Older builds kept the device token where the person's pairing belongs.
     if (store.get('deviceAccount')) {
@@ -426,13 +465,7 @@ async function boot() {
       } catch { /* that token is dead; a fresh device token is issued below */ }
       store.set('deviceAccount', undefined);
     }
-    if (!store.getSecret('deviceToken')) {
-      try {
-        const res = await fetch(`${ORIGIN}/api/v1/auth/device`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: ORIGIN }, body: '{}' });
-        const data = await res.json();
-        if (res.ok && data.token) { store.setSecret('deviceToken', data.token); appLog('device account ready (background protection only)'); }
-      } catch { /* protection starts once someone signs in */ }
-    }
+    if (!store.getSecret('deviceToken')) await requestDeviceToken();
     // An older build also put the device token in the window's cookie jar. Take it out.
     try {
       const jar = session.defaultSession.cookies;
@@ -459,6 +492,7 @@ async function boot() {
 
   downloads.init({
     origin: ORIGIN,
+    api: apiCall,
     folder: app.getPath('downloads'),
     quarantineDir: path.join(app.getPath('userData'), 'quarantine'),
     getToken: () => activeToken(),

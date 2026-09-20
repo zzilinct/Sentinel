@@ -86,6 +86,8 @@ function status() { return { ...state }; }
 function log(text) { if (opts && opts.onLog) opts.onLog(text); }
 
 function setState(active, reason) {
+  // Why page watch is off belongs in the log: "nothing was checked" must always have a reason on file.
+  if (!active && reason && reason !== state.reason) log(`not watching: ${reason}`);
   state = { ...state, active, reason };
   if (opts && opts.onChange) opts.onChange(status());
 }
@@ -104,7 +106,10 @@ async function restart() {
     const me = await opts.api('/api/v1/auth/me');
     if (!me.plan.features.liveScanning) return setState(false, 'Page watch needs Pro or Max');
   } catch (err) {
-    return setState(false, err.status === 401 ? 'Sign in to turn on page watch' : 'Sentinel is offline - will retry');
+    if (err.status === 401) return setState(false, 'Sign in to turn on page watch');
+    // "Will retry" has to be true: a scanner that is still starting answers a minute later.
+    restartTimer = setTimeout(() => restart(), 30000);
+    return setState(false, 'Sentinel is offline - will retry');
   }
   start();
 }

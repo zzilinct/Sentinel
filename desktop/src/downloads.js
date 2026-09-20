@@ -33,6 +33,8 @@ function init(options) {
 }
 
 async function api(pathname, body) {
+  // The app's own caller survives a refused token (it falls back to this computer's account).
+  if (opts.api) return opts.api(pathname, body);
   const token = opts.getToken();
   if (!token) throw Object.assign(new Error('Signed out'), { status: 401 });
   const res = await fetch(`${opts.origin}${pathname}`, {
@@ -54,7 +56,10 @@ async function restart() {
     const me = await api('/api/v1/auth/me');
     if (!me.plan.features.liveScanning) return setState(false, 'Download protection needs Pro or Max');
   } catch (err) {
-    return setState(false, err.status === 401 ? 'Sign in to turn on download protection' : 'Sentinel is offline - will retry');
+    if (err.status === 401) return setState(false, 'Sign in to turn on download protection');
+    // "Will retry" has to be true: a scanner that is still starting answers a minute later.
+    retryTimer = setTimeout(() => restart(), 30000);
+    return setState(false, 'Sentinel is offline - will retry');
   }
   try {
     watcher = fs.watch(opts.folder, { persistent: true }, (event, filename) => filename && schedule(filename));
@@ -65,7 +70,9 @@ async function restart() {
   }
 }
 
+let retryTimer = null;
 function stop(reason, silent) {
+  clearTimeout(retryTimer);
   if (watcher) { watcher.close(); watcher = null; }
   for (const t of timers.values()) clearTimeout(t);
   timers.clear();
