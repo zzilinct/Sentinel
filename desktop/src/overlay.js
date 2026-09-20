@@ -21,8 +21,10 @@ let area = null;         // the browser's page area, in physical screen pixels
 let scale = 1;           // physical pixels per overlay pixel
 let readyTimer = null;
 let showingReady = false;
+let dryRun = null;       // development only: compute everything, show nothing, and say what would have been drawn
 
 function send(channel, payload) {
+  if (dryRun && channel !== 'overlay:marks') dryRun(`${channel} ${JSON.stringify(payload || {})}`);
   if (!win || win.isDestroyed()) return;
   if (!ready) { queue.push([channel, payload]); return; }
   win.webContents.send(channel, payload);
@@ -75,6 +77,7 @@ function placeOver(rect) {
   const dip = screen.screenToDipRect(null, { x: rect.x, y: rect.y, width: rect.w, height: rect.h });
   scale = dip.width > 0 ? rect.w / dip.width : 1;
   w.setBounds({ x: Math.round(dip.x), y: Math.round(dip.y), width: Math.max(1, Math.round(dip.width)), height: Math.max(1, Math.round(dip.height)) });
+  if (dryRun) { dryRun(`placed over ${rect.browser}: ${Math.round(dip.width)}x${Math.round(dip.height)} at ${Math.round(dip.x)},${Math.round(dip.y)} (scale ${scale.toFixed(2)})`); return; }
   if (!w.isVisible()) w.showInactive();
 }
 
@@ -92,7 +95,11 @@ function setWindow(rect) {
   area = rect;
   placeOver(rect);
   if (moved) send('overlay:marks', { marks: [] });   // the page moved: old positions are wrong until the next read
-  send('overlay:watching', { private: Boolean(rect.private), browser: rect.browser, appeared });
+  // A page area that fills its whole display is a video or a presentation in fullscreen.
+  const display = screen.getDisplayMatching(win.getBounds());
+  const b = win.getBounds();
+  const fullscreen = b.width >= display.bounds.width && b.height >= display.bounds.height;
+  send('overlay:watching', { private: Boolean(rect.private), browser: rect.browser, appeared, fullscreen });
 }
 
 /** The gold line and tint over the page in front. */
@@ -107,7 +114,7 @@ function readySweep(nearWindow) {
   const w = ensure();
   showingReady = true;
   w.setBounds(display.bounds);
-  if (!w.isVisible()) w.showInactive();
+  if (!dryRun && !w.isVisible()) w.showInactive();
   send('overlay:clear');
   send('overlay:sweep', { kind: 'ready' });
   clearTimeout(readyTimer);
@@ -136,6 +143,10 @@ function setMarks({ marks, checking }) {
     reason: m.reason || '',
     pending: Boolean(m.pending)
   }));
+  if (dryRun && local.length) {
+    const inside = local.filter((m) => m.x >= 0 && m.y >= 0 && m.x <= area.w / scale && m.y <= area.h / scale).length;
+    dryRun(`marks: ${local.length} (${local.filter((m) => m.badge).length} flagged, ${local.filter((m) => m.pending).length} waiting), ${inside} inside the page area; first at ${Math.round(local[0].x)},${Math.round(local[0].y)}`);
+  }
   send('overlay:marks', { marks: local, checking: checking || 0 });
 }
 
@@ -147,4 +158,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { setWindow, sweep, readySweep, setVerdict, setMarks, destroy };
+module.exports = { setWindow, sweep, readySweep, setVerdict, setMarks, destroy, setDryRun: (logger) => { dryRun = logger || null; } };

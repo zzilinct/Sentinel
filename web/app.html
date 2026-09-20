@@ -25,6 +25,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1Z"/></svg>
         Overview
       </a>
+      <a class="side__link" href="/app/protection" data-route="protection">
+        <span class="side__glyph" data-glyph="scam" aria-hidden="true"></span>
+        Live protection
+      </a>
       <a class="side__link" href="/app/scan" data-route="scan">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>
         Link scan
@@ -48,10 +52,6 @@
       </a>
 
       <div class="side__label">Account</div>
-      <a class="side__link is-secondary" href="/app/protection" data-route="protection">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
-        Live protection
-      </a>
       <a class="side__link is-secondary" href="/app/plan" data-route="plan">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.4 6.7 19.1l1-5.8L3.5 9.2l5.9-.9Z"/></svg>
         Plan &amp; usage
@@ -70,7 +70,7 @@
       <div class="usage-mini" data-usage-mini>
         <div class="skeleton" style="height:64px"></div>
       </div>
-      <button class="me" type="button" data-signout title="Sign out">
+      <button class="me" type="button" data-signout title="Sign out" aria-label="Sign out">
         <span class="avatar" data-avatar></span>
         <span class="me__text"><span class="me__name" data-name>&nbsp;</span><span class="me__plan" data-plan>&nbsp;</span></span>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--faint)"><path d="M15 12H4m0 0 4-4m-4 4 4 4M13 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/></svg>
@@ -83,7 +83,7 @@
       <a class="logo" href="/"><span class="logo__mark" data-glyph="logo"></span>Sentinel</a>
       <span style="display:flex;gap:8px"><button class="btn btn--sm" type="button" data-palette aria-label="Search or scan"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button><a class="btn btn--sm" href="/app/security" aria-label="Account"><span class="avatar" data-avatar style="width:24px;height:24px;font-size:10px"></span></a></span>
     </div>
-    <div id="view" aria-live="polite"></div>
+    <div id="view"></div>
   </main>
 </div>
 

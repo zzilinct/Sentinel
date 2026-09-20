@@ -132,8 +132,8 @@ add-on involved:
 - **It keeps going.** A token the server refuses never switches protection
   off: background calls fall back to the computer's own account and ask for a
   fresh token if that is refused too. When the scanner is still starting,
-  page watch and download protection try again every 30 seconds. Why page
-  watch is not watching is always written to `logs/watch.log`.
+  live scanning and download protection try again every 30 seconds. Why live
+  scanning is not watching is always written to `logs/watch.log`.
 - **Slow machines and big databases.** The time allowed for the scanner to
   start grows with the size of the database it has to work through, a start
   that failed is never restarted twice, and a new server waits for the old
@@ -356,7 +356,7 @@ What was deliberately not done: no confirmed-malicious URL was fetched, no malwa
 - **Live scanning marks search results, not every link on every page.** Every page you open is checked; links inside ordinary pages are not marked.
 - **The DuckDuckGo browser cannot run the companion.** It supports no extensions on any platform, so it gets page warnings from the Windows app and nothing else. (DuckDuckGo *search* in any other browser is fully supported.)
 - **Chrome no longer loads extensions from the command line.** `--load-extension` is ignored by branded Chrome, so the app opens `chrome://extensions` for "Load unpacked" instead, and the test harness uses the DevTools pipe.
-- **Page watch is Windows-only.** It uses UI Automation, which macOS and Linux
+- **Live scanning is Windows-only.** It uses UI Automation, which macOS and Linux
   do not offer in the same form. Elsewhere the companion add-on does this job.
 - **The Firefox companion is unsigned.** Firefox only installs signed add-ons
   permanently, so until it is submitted to addons.mozilla.org it loads as a

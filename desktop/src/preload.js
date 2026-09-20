@@ -21,7 +21,6 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   setOpenAtLogin: (enabled) => ipcRenderer.invoke('sentinel:set-open-at-login', Boolean(enabled)),
   recentDownloads: () => ipcRenderer.invoke('sentinel:recent-downloads'),
   quarantine: (id) => ipcRenderer.invoke('sentinel:quarantine', String(id)),
-  browsers: () => ipcRenderer.invoke('sentinel:browsers'),
   // Live scanning: one switch, and "Scan with <browser>".
   liveStart: () => ipcRenderer.invoke('sentinel:live-start'),
   liveStop: () => ipcRenderer.invoke('sentinel:live-stop'),

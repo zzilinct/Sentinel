@@ -504,6 +504,10 @@ select.input option { background: #1b1d22; color: var(--text); }
 .live-dot.is-on { background: var(--green); animation: pulse 1.8s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .feed__item { transition: none; } .live-dot.is-on { animation: none; } }
 
+/* The mask as a navigation icon, sized like the stroke icons beside it. */
+.side__glyph { width: 18px; height: 18px; flex: none; display: inline-grid; place-items: center; }
+.side__glyph svg { width: 18px; height: 18px; }
+
 /* ---------- Live scanning: one switch ---------- */
 .live { position: relative; overflow: hidden; }
 .live::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: linear-gradient(90deg, transparent, var(--line-gold), transparent); }
@@ -515,6 +519,7 @@ select.input option { background: #1b1d22; color: var(--text); }
 .live__text { flex: 1; min-width: 0; }
 .live__text h2 { margin: 0 0 4px; }
 .live__text p { margin: 0; color: var(--muted); font-size: 14px; }
+.live__text .live__counts { margin-top: 6px; font-size: 12.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .live__button { flex: none; min-width: 150px; }
 .live__facts { margin: 20px 0 0; padding: 16px 0 0; list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
   border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.5; }

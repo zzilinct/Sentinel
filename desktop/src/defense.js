@@ -261,7 +261,6 @@ async function respond(item) {
   const actions = [];
   const wantQuarantine = item.badge === 'red' || item.badge === 'orange';
   const startup = folders().find((f) => f.label === 'Startup');
-  const base = path.basename(item.path).replace(/\.[^.]+$/, '');
   const script = `
 $ErrorActionPreference = 'SilentlyContinue'
 $target = ${psq(item.path)}

@@ -61,6 +61,23 @@ function appLog(text) {
 process.on('uncaughtException', (err) => appLog(`uncaught exception: ${err && err.stack || err}`));
 process.on('unhandledRejection', (err) => appLog(`unhandled rejection: ${err && err.stack || err}`));
 
+/** Append one line to a file in logs/. `capBytes` empties a file that has grown past it. Logging never throws. */
+function appendLog(name, line, capBytes) {
+  try {
+    const fs = require('fs');
+    const file = path.join(app.getPath('userData'), 'logs', name);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${line}\n`);
+    if (capBytes && fs.statSync(file).size > capBytes) fs.writeFileSync(file, '');
+  } catch { /* logging is optional */ }
+}
+
+/** "msedge" is a process name; people know it as Microsoft Edge. */
+function browserName(processName) {
+  const b = browsers.BROWSERS.find((x) => x.process === processName);
+  return b ? b.name : processName;
+}
+
 /** Run one startup step; a failure is logged and never stops the steps after it. */
 function step(name, fn) {
   try { return fn(); } catch (err) { appLog(`startup step "${name}" failed: ${err && err.stack || err}`); return undefined; }
@@ -231,11 +248,11 @@ function showWarning(item) {
       webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false }
     });
     warnWin.on('closed', () => { warnWin = null; });
+    warnWin.once('ready-to-show', () => { if (warnWin) { warnWin.show(); warnWin.focus(); } });
     warnWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     warnWin.webContents.on('will-navigate', (e) => e.preventDefault());
   }
   warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
-  warnWin.once('ready-to-show', () => { if (warnWin) { warnWin.show(); warnWin.focus(); } });
   if (warnWin.isVisible()) warnWin.focus();
 }
 
@@ -262,6 +279,7 @@ function refreshTray() {
     { label: 'Scan a file...', click: () => showWindow('/app/threats') },
     { type: 'separator' },
     { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => setLiveScanning(!store.get('liveScanning', false), { sweep: true }) },
+    ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => setOpenAtLogin(item.checked) },
     { type: 'separator' },
     up.status === 'ready'
@@ -279,13 +297,15 @@ function refreshTray() {
  * `sweep` plays the gold line down the screen: "scanning is ready".
  */
 let sweepOnNextWindow = false;
+let sweepExpiry = null;
+let watchingWindow = false;
 async function setLiveScanning(enabled, { sweep = false } = {}) {
   store.set('liveScanning', Boolean(enabled));
   if (enabled) {
     await watch.restart();
     if (sweep && watch.status().active) overlay.readySweep(win);
   } else {
-    watch.stop('Turned off');
+    watch.stop();
     overlay.setWindow(null);
   }
   refreshTray();
@@ -297,7 +317,8 @@ async function scanWith(id) {
   const status = await setLiveScanning(true);
   if (!status.active) return { ok: false, reason: status.reason || 'Live scanning could not start', ...status };
   sweepOnNextWindow = true;
-  setTimeout(() => { sweepOnNextWindow = false; }, 20000);
+  clearTimeout(sweepExpiry);   // an earlier click's timer must not cancel this one's sweep
+  sweepExpiry = setTimeout(() => { sweepOnNextWindow = false; }, 20000);
   const raised = await browsers.bringForward(id);
   return { ok: true, ...raised, ...status };
 }
@@ -347,7 +368,6 @@ function handle(channel, fn, check = trusted) {
 function registerBridge() {
   handle('sentinel:info', () => ({
     version: app.getVersion(),
-    platform: process.platform,
     origin: ORIGIN,
     embeddedServer: Boolean(server.port),
     openAtLogin: store.get('openAtLogin', true),
@@ -361,7 +381,6 @@ function registerBridge() {
     platform: process.platform
   }));
 
-  handle('sentinel:browsers', () => browserState);
 
   handle('sentinel:live-start', () => setLiveScanning(true, { sweep: true }));
   handle('sentinel:live-stop', () => setLiveScanning(false));
@@ -508,17 +527,26 @@ async function boot() {
     }
   });
 
+  if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) overlay.setDryRun((text) => appLog(`overlay (dry run): ${text}`));
+
   watch.init({
     origin: ORIGIN,
     api: apiCall,
     getToken: () => activeToken(),
     enabled: () => store.get('liveScanning', false),
+    // Development runs only: never honoured by an installed build.
+    testProcess: app.isPackaged ? null : process.env.SENTINEL_TEST_PROCESS,
     onChange: (s) => { refreshTray(); push('sentinel:live', { ...s, enabled: store.get('liveScanning', false) }); },
     // The browser in front (or none): the overlay follows it, and leaves with it.
     onWindow: (rect) => {
       overlay.setWindow(rect);
       if (rect && sweepOnNextWindow) { sweepOnNextWindow = false; overlay.sweep('start'); }
-      refreshTray();
+      // Tell the tray and the app only when a browser arrives or leaves, not every time its window moves.
+      if (Boolean(rect) !== watchingWindow) {
+        watchingWindow = Boolean(rect);
+        refreshTray();
+        push('sentinel:live', { ...watch.status(), enabled: store.get('liveScanning', false) });
+      }
     },
     // A new page: last page's verdict and marks are gone; a search gets the gold line.
     onPage: (page) => {
@@ -528,32 +556,19 @@ async function boot() {
     },
     onVerdict: (v) => overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind }),
     onMarks: (m) => overlay.setMarks(m),
-    onLog: (text) => {
-      try {
-        const fs = require('fs');
-        const file = path.join(app.getPath('userData'), 'logs', 'watch.log');
-        fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.appendFileSync(file, `${new Date().toISOString()} # ${text}
-`);
-      } catch { /* logging is optional */ }
-    },
+    onLog: (text) => appendLog('watch.log', `${new Date().toISOString()} # ${text}`),
+    // A short on-disk trail of what live scanning checked, for the person to read. Private windows never reach here.
     onChecked: (item) => {
-      push('sentinel:page-checked', item);
-      // A short on-disk trail of what page watch checked, for the person to read.
-      try {
-        const fs = require('fs');
-        const file = path.join(app.getPath('userData'), 'logs', 'watch.log');
-        fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.appendFileSync(file, `${new Date(item.at).toISOString()} ${item.browser} ${item.badge || 'clean'} ${item.label} ${item.url}
-`);
-        try { if (fs.statSync(file).size > 512 * 1024) fs.writeFileSync(file, ''); } catch { /* fine */ }
-      } catch { /* logging is optional */ }
+      push('sentinel:page-checked', { ...item, browser: browserName(item.browser) });
+      appendLog('watch.log', `${new Date(item.at).toISOString()} ${item.browser} ${item.badge || 'clean'} ${item.label} ${item.url}`, 512 * 1024);
     },
     onThreat: (item) => {
       const first = item.verdict.reasons && item.verdict.reasons[0];
-      notify(`Sentinel: ${item.verdict.overall.label}`, `${item.host}\n${first ? first.text : 'Leave this site.'}`, () => showWarning(item));
+      // A private window is warned like any other, and nothing about it is kept: the notification (which
+      // Windows stores in its notification centre) names no site, and the app's lists are not told.
+      notify(`Sentinel: ${item.verdict.overall.label}`, `${item.private ? 'The page in your private window' : item.host}\n${first ? first.text : 'Leave this site.'}`, () => showWarning(item));
       showWarning(item);
-      push('sentinel:page-threat', { browser: item.browser, host: item.host, url: item.url, label: item.verdict.overall.label, badge: item.verdict.overall.badge, at: Date.now() });
+      if (!item.private) push('sentinel:page-threat', { browser: browserName(item.browser), host: item.host, url: item.url, label: item.verdict.overall.label, badge: item.verdict.overall.badge, at: Date.now() });
     }
   });
 
@@ -561,7 +576,7 @@ async function boot() {
     browserWatcher = browsers.watch({
       // Which browsers are open is shown in the app. It is never a notification:
       // a browser running somewhere in the background is not an event.
-      onChange: (s) => { browserState = s; push('sentinel:browsers', s); }
+      onChange: (s) => { browserState = s; refreshTray(); push('sentinel:browsers', s); }
     });
   }
 

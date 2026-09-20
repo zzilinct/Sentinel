@@ -162,3 +162,18 @@ test('defense: whatever it removes can be put back', async () => {
     fs.rmSync(box.dir, { recursive: true, force: true });
   }
 });
+
+test('a dangerous page in a private window is warned about without naming it anywhere that is kept', () => {
+  const m = read('desktop/src/main.js');
+  assert.match(m, /item\.private \? 'The page in your private window' : item\.host/, 'the Windows notification (which the notification centre keeps) names no site');
+  assert.match(m, /if \(!item\.private\) push\('sentinel:page-threat'/, 'and the app\'s own lists are not told');
+});
+
+test('overlapping restarts cannot leave a second reader running, and a refusal stops the reader', () => {
+  const w = read('desktop/src/watch.js');
+  assert.match(w, /const mine = \+\+generation;[\s\S]*if \(mine !== generation\) return;\n  start\(\);/);
+  assert.match(w, /if \(err\.status === 401\) stop\('Sign in to start live scanning'\)/);
+  assert.match(w, /live_hours_exhausted'\) stop\('Live hours for this week are used up'\)/);
+  // The test hook that reads a named browser instead of the window in front is for development runs only.
+  assert.match(read('desktop/src/main.js'), /testProcess: app\.isPackaged \? null : process\.env\.SENTINEL_TEST_PROCESS/);
+});

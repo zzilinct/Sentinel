@@ -26,6 +26,8 @@
   .corner { position: absolute; right: 18px; bottom: 18px; display: flex; align-items: center; gap: 10px; flex-direction: row-reverse;
     opacity: 0; transform: translateY(8px); transition: opacity .35s ease, transform .35s ease; pointer-events: none; }
   .corner.is-on { opacity: 1; transform: none; }
+  /* Fullscreen video: out of the way, unless the page is dangerous. */
+  .corner.is-on.is-quiet:not(.is-flagged) { opacity: 0; }
   .corner__mask { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 12px; color: var(--c, #d6b25a);
     background: rgba(12, 13, 16, .88); border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 55%, transparent);
     box-shadow: 0 6px 22px rgba(0, 0, 0, .35), 0 0 0 0 rgba(214, 178, 90, .0); animation: breathe 3.6s ease-in-out infinite; }
@@ -59,6 +61,7 @@
     body.sweeping .tint { animation: tint 1.2s ease-out forwards; }
     .corner__mask { animation: none; }
     .mark.is-in { animation: none; opacity: 1; transform: none; }
+    .mark.is-pending { animation: none; opacity: .5; }
   }
 </style>
 </head>
@@ -187,6 +190,7 @@
   var api = window.sentinelOverlay;
   api.on('overlay:watching', function (s) {
     corner.classList.add('is-on');
+    corner.classList.toggle('is-quiet', Boolean(s.fullscreen));
     if (!flagged) setCorner('scam', GOLD);
     if (s.private) say('<b>Private window.</b> Protected, and nothing is kept.', '#e2c47f');
     else if (s.appeared) say('<b>Sentinel is scanning</b> this browser.', '#e2c47f');
@@ -197,6 +201,7 @@
   });
   api.on('overlay:verdict', function (v) {
     flagged = Boolean(v && (v.badge === 'red' || v.badge === 'orange' || v.badge === 'yellow'));
+    corner.classList.toggle('is-flagged', flagged);
     if (flagged) {
       var color = M.COLORS[v.badge];
       setCorner(v.kind, color);

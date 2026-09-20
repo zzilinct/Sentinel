@@ -32,24 +32,13 @@ function init(options) {
   restart();
 }
 
-async function api(pathname, body) {
-  // The app's own caller survives a refused token (it falls back to this computer's account).
-  if (opts.api) return opts.api(pathname, body);
-  const token = opts.getToken();
-  if (!token) throw Object.assign(new Error('Signed out'), { status: 401 });
-  const res = await fetch(`${opts.origin}${pathname}`, {
-    method: body ? 'POST' : 'GET',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Sentinel-Client': 'desktop' },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(15000)
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error((data.error && data.error.message) || `HTTP ${res.status}`), { status: res.status, code: data.error && data.error.code });
-  return data;
-}
+/** The app's own caller: it survives a refused token by falling back to this computer's account. */
+const api = (pathname, body) => opts.api(pathname, body);
 
+let generation = 0;
 async function restart() {
   stop(null, true);
+  const mine = ++generation;   // overlapping restarts: only the newest may open a watcher
   if (!opts.enabled()) return setState(false, 'Download protection: off');
   if (!opts.getToken()) return setState(false, 'Sign in to turn on download protection');
   try {
@@ -61,6 +50,7 @@ async function restart() {
     retryTimer = setTimeout(() => restart(), 30000);
     return setState(false, 'Sentinel is offline - will retry');
   }
+  if (mine !== generation) return;
   try {
     watcher = fs.watch(opts.folder, { persistent: true }, (event, filename) => filename && schedule(filename));
     watcher.on('error', () => setState(false, 'Cannot watch the Downloads folder'));

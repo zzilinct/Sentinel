@@ -42,6 +42,9 @@
 
     $$('[data-glyph]').forEach((el) => { el.innerHTML = Masks.svg(el.dataset.glyph); });
     paintAccount();
+    // The first screen depends on what the desktop says (is live scanning on?), so ask before drawing it.
+    // Pairing itself can finish afterwards.
+    if (desktop) { try { state.desktopInfo = await desktop.info(); } catch { /* bridge optional */ } }
     pairDesktop();
     if (desktop && desktop.onPageThreat) desktop.onPageThreat((item) => {
       toast(`${item.label}: ${item.host}`, item.badge === 'red' ? 'error' : 'info', 8000);
@@ -443,6 +446,11 @@
         const row = ev.target.closest('[data-rescan]');
         if (row) navigate(`/app/scan?url=${encodeURIComponent(row.dataset.rescan)}`);
       });
+      // The rows say they are buttons, so Enter and Space must work on them too.
+      slot.addEventListener('keydown', (ev) => {
+        const row = ev.target.closest('[data-rescan]');
+        if (row && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); row.click(); }
+      });
     } catch { /* optional */ }
   }
 
@@ -464,7 +472,13 @@
         actions: `<a class="btn btn--gold" href="/download">${ICON.download}Download Sentinel</a><a class="btn" href="/app/protection">Learn more</a>`
       });
     }
-    return `<div class="panel"><div class="panel__head"><div><h2>Live protection is on</h2><p>Sentinel is protecting this computer.</p></div><a class="btn btn--sm" href="/app/protection">Manage</a></div></div>`;
+    const live = (state.desktopInfo && state.desktopInfo.live) || {};
+    if (live.supported && !live.enabled) {
+      return `<div class="panel live"><div class="live__main"><span class="live__mask" aria-hidden="true">${Masks.svg('scam')}</span>
+        <div class="live__text"><h2>Live scanning is off</h2><p>One click. Sentinel then watches whichever browser is in front of you, and rests when none is.</p></div>
+        <a class="btn btn--gold live__button" href="/app/protection">Start scanning</a></div></div>`;
+    }
+    return `<div class="panel"><div class="panel__head"><div><h2>${live.enabled ? 'Live scanning is on' : 'Protection is on'}</h2><p>${live.enabled ? 'Look for the gold mask in the corner of your browser. Downloads and new programs are watched too.' : 'Downloads and new programs on this computer are being watched.'}</p></div><a class="btn btn--sm" href="/app/protection">Manage</a></div></div>`;
   }
 
   /* ============================================================ link scan */
@@ -686,7 +700,7 @@
       $$('[data-emode]', el).forEach((x) => x.setAttribute('aria-selected', String(x.dataset.emode === 'fields')));
       pasteBox.hidden = true;
       toast(m.from ? `Found sender ${m.from}. Check the fields, then scan.` : 'No headers found - the text went into the message field.', 'info', 5000);
-      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     });
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
@@ -858,13 +872,13 @@
       ${title('Live protection', 'Sentinel watching in real time: on search results, in your inbox and on every download.')}
       ${localNote()}
       ${planLocked ? lockedCard({ tag: 'Pro & up', heading: 'Turn on live protection', body: 'Your Free plan includes manual link and file scans. Upgrade to Pro for 24 hours of live scanning a week, or Max for 96 hours with every result researched.', actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>' })
-        : needsApp ? lockedCard({ tag: 'Unlocked by the Sentinel app', heading: 'Download Sentinel to switch these on', body: 'Your plan includes live protection. It runs through the Sentinel app on your computer, so it can watch downloads and add masks inside your browser.', actions: `<a class="btn btn--gold" href="/download">${ICON.download}Download Sentinel</a>` })
+        : needsApp ? lockedCard({ tag: 'Unlocked by the Sentinel app', heading: 'Download Sentinel to switch these on', body: 'Your plan includes live protection. It runs through the Sentinel app on your computer, so it can watch downloads and draw its masks over your browser.', actions: `<a class="btn btn--gold" href="/download">${ICON.download}Download Sentinel</a>` })
         : ''}
 
       <div class="feature-grid">
         ${feature(Masks.svg('scam'), 'Page warnings', 'While a browser is in front, Sentinel checks the address of the page it shows and warns you before a dangerous one gets your details. No add-on.', st(!lock && desktop, lock || 'Needs app'))}
         ${feature(ICON.search, 'Search result masks', `A gold line crosses the page when you search, then a mask appears beside every result. Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock && desktop, lock || 'Needs app'))}
-        ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: spoofed senders, bad links and dangerous attachments.', st(!lock && f.emailLive, lock || 'Pro & up'))}
+        ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: spoofed senders, bad links and dangerous attachments. This one needs the optional browser add-on; the app does not read your mail.', f.emailLive && !planLocked ? '<span class="status">Optional add-on</span>' : st(false, 'Pro & up'))}
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
 
@@ -901,6 +915,7 @@
   async function renderDesktopControls(slot) {
     let info;
     try { info = await desktop.info(); } catch { return; }
+    state.desktopInfo = info;
     let recent = [];
     try { recent = await desktop.recentDownloads(); } catch { /* none */ }
 
@@ -921,14 +936,16 @@
       unavailable: 'This build cannot update itself.'
     };
 
+    (slot._off || []).forEach((off) => off());
+    slot._off = [];
     const liveText = !live.supported ? 'Live scanning is available on Windows.'
-      : live.active ? (live.window ? 'Watching the browser in front. Look for the gold mask in its bottom right corner.' : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
+      : live.active ? (live.window ? `Watching the browser in front. Look for the gold mask in its bottom right corner.${live.lastResults ? ` Last search: ${live.lastResults.count} results marked.` : ''}` : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
         : live.enabled ? (live.reason || 'Starting') : 'Off. One click, and every browser you use is covered.';
     slot.innerHTML = `
       <div class="panel live" style="margin-top:18px">
         <div class="live__main">
           <span class="live__mask${live.active ? ' is-on' : ''}" aria-hidden="true">${Masks.svg('scam')}</span>
-          <div class="live__text"><h2>Live scanning</h2><p data-live-text>${esc(liveText)}</p></div>
+          <div class="live__text"><h2>Live scanning</h2><p data-live-text>${esc(liveText)}</p>${live.counts && live.counts.checked ? `<p class="live__counts" data-live-counts>${live.counts.checked.toLocaleString()} checked since Sentinel started, ${live.counts.flagged.toLocaleString()} flagged. Private windows are not counted.</p>` : '<p class="live__counts" data-live-counts hidden></p>'}</div>
           <button class="btn ${live.enabled ? '' : 'btn--gold'} live__button" data-live-toggle ${live.supported ? '' : 'disabled'}>${live.enabled ? 'Stop scanning' : 'Start scanning'}</button>
         </div>
         <ul class="live__facts">
@@ -989,8 +1006,10 @@
 
     const defEl = $('[data-defense]', slot);
     if (defEl && !defEl.disabled) defEl.addEventListener('change', async (ev) => {
-      const s = await desktop.setDefense(ev.target.checked);
-      toast(s.active ? 'Defense is on.' : (s.reason || 'Defense is off.'), s.active ? 'success' : 'info');
+      try {
+        const s = await desktop.setDefense(ev.target.checked);
+        toast(s.active ? 'Defense is on.' : (s.reason || 'Defense is off.'), s.active ? 'success' : 'info');
+      } catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, 'error'); }
       renderDesktopControls(slot);
     });
     $$('[data-restore]', slot).forEach((b) => b.addEventListener('click', async () => {
@@ -1001,7 +1020,7 @@
     const feed = $('[data-feed]', slot);
     if (feed && desktop.onPageChecked) {
       const off = desktop.onPageChecked((item) => {
-        if (!feed.isConnected) { off(); return; }
+        if (!feed.isConnected) return;
         feed.querySelector('.feed__empty')?.remove();
         const color = item.badge ? Masks.COLORS[item.badge] : Masks.COLORS.clear;
         const li = h(`<li class="feed__item is-new"><span class="list__icon" style="color:${color}">${item.badge ? Masks.svg('scam') : ICON.check}</span><span class="list__main"><b>${esc(item.host)}</b><span>${esc(item.label)} &middot; ${esc(item.browser)}</span></span></li>`);
@@ -1012,8 +1031,10 @@
     }
     const toggle = $('[data-live-toggle]', slot);
     if (toggle && !toggle.disabled) toggle.addEventListener('click', () => busy(toggle, live.enabled ? 'Stopping' : 'Starting', async () => {
-      const s2 = live.enabled ? await desktop.liveStop() : await desktop.liveStart();
-      if (!live.enabled && !s2.active) toast(s2.reason || 'Live scanning could not start.', 'error');
+      try {
+        const s2 = live.enabled ? await desktop.liveStop() : await desktop.liveStart();
+        if (!live.enabled && !s2.active) toast(s2.reason || 'Live scanning could not start.', 'error');
+      } catch (err) { toast(err.message, 'error'); }
       renderDesktopControls(slot);
     }));
     $$('[data-scan-with]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Opening', async () => {
@@ -1025,32 +1046,42 @@
       renderDesktopControls(slot);
     })));
     if (desktop.onLive) {
-      const offLive = desktop.onLive((s2) => {
-        if (!slot.isConnected) { offLive(); return; }
+      slot._off.push(desktop.onLive((s2) => {
+        if (!slot.isConnected) return;
+        if (state.desktopInfo) state.desktopInfo.live = s2;
         // Only the words and the mask change while it runs; a full redraw would steal focus from the buttons.
         const text = $('[data-live-text]', slot);
         const mask = $('.live__mask', slot);
         if (mask) mask.classList.toggle('is-on', Boolean(s2.active));
+        const counts = $('[data-live-counts]', slot);
+        if (counts && s2.counts && s2.counts.checked) { counts.hidden = false; counts.textContent = `${s2.counts.checked.toLocaleString()} checked since Sentinel started, ${s2.counts.flagged.toLocaleString()} flagged. Private windows are not counted.`; }
         if (text && s2.active) text.textContent = s2.window ? 'Watching the browser in front. Look for the gold mask in its bottom right corner.' : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.';
         else if (text && s2.reason) text.textContent = s2.reason;
-      });
+      }));
     }
     if (desktop.onBrowsers) {
-      const offBrowsers = desktop.onBrowsers((b2) => {
-        if (!slot.isConnected) { offBrowsers(); return; }
+      slot._off.push(desktop.onBrowsers((b2) => {
+        if (!slot.isConnected) return;
         const open = new Set(b2.running || []);
-        $$('[data-browser-state]', slot).forEach((el2) => { el2.textContent = open.has(el2.dataset.browserState) ? 'Open now' : 'Installed'; });
-      });
+        $('[data-browser-state]', slot).forEach((el2) => { el2.textContent = open.has(el2.dataset.browserState) ? 'Open now' : 'Installed'; });
+      }));
+    }
+    // The defense row, the update row and the downloads list redraw when the desktop says something changed.
+    for (const name of ['onDefense', 'onUpdate', 'onDownloadThreat']) {
+      if (desktop[name]) slot._off.push(desktop[name](() => { if (slot.isConnected) renderDesktopControls(slot); }));
     }
     $('[data-dl]', slot).addEventListener('change', async (ev) => {
-      const s = await desktop.setDownloadProtection(ev.target.checked);
-      toast(s.active ? 'Download protection is on.' : (s.reason || 'Download protection is off.'), s.active ? 'success' : 'info');
+      try {
+        const s = await desktop.setDownloadProtection(ev.target.checked);
+        toast(s.active ? 'Download protection is on.' : (s.reason || 'Download protection is off.'), s.active ? 'success' : 'info');
+      } catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, 'error'); }
     });
     $('[data-login]', slot).addEventListener('change', (ev) => desktop.setOpenAtLogin(ev.target.checked));
 
     const check = $('[data-check-update]', slot);
     if (check) check.addEventListener('click', () => busy(check, 'Checking', async () => {
-      const s = await desktop.checkUpdates();
+      let s;
+      try { s = await desktop.checkUpdates(); } catch (err) { toast(err.message, 'error'); return; }
       toast(s.status === 'current' ? 'Sentinel is up to date.' : s.status === 'error' ? `Could not check: ${s.error}` : 'Checking for a newer version…', s.status === 'error' ? 'error' : 'info');
       renderDesktopControls(slot);
     }));

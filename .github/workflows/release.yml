@@ -65,4 +65,4 @@ jobs:
 
             Installed copies update themselves from this page, so nobody downloads Sentinel twice.
 
-            `sentinel-companion.zip` is the browser companion for Chrome, Edge and Brave; `sentinel-companion-firefox.zip` is the Firefox build. Both ship inside the app and can be added from its Live protection page.
+            The app needs no browser add-on: press Start scanning. `sentinel-companion.zip` (Chrome, Edge, Brave) and `sentinel-companion-firefox.zip` are the optional add-on for people who are not on the Windows app.

@@ -70,6 +70,10 @@ while ($true) {
   Start-Sleep -Milliseconds $pause
   $pause = 450
   $h = [SW]::GetForegroundWindow()
+  # Development builds only (see start()): look at a named browser wherever it is, so the whole chain can be
+  # exercised against a window nobody is looking at. In a released build this name is always empty.
+  $testName = '__TEST_PROCESS__'
+  if ($testName) { $tp = Get-Process -Name $testName | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1; if ($tp) { $h = $tp.MainWindowHandle } }
   if ($h -eq [IntPtr]::Zero) { continue }
   $fp = 0
   [void][SW]::GetWindowThreadProcessId($h, [ref]$fp)
@@ -79,7 +83,7 @@ while ($true) {
   # Behind another program, minimised, or nobody at the keyboard: the browser is not "in use".
   if (-not $p -or ($browsers -notcontains $fname)) { Off 'not in front'; continue }
   if ([SW]::IsIconic($h)) { Off 'minimised'; continue }
-  if ([SW]::IdleMs() -gt 120000) { if (-not $wasIdle) { $wasIdle = $true; Write-Output '{"idle":true}' }; Off 'idle'; continue }
+  if (-not $testName -and [SW]::IdleMs() -gt 120000) { if (-not $wasIdle) { $wasIdle = $true; Write-Output '{"idle":true}' }; Off 'idle'; continue }
   if ($wasIdle) { $wasIdle = $false; Write-Output '{"awake":true}' }
 
   $url = $null; $r = $null; $doc = $null
@@ -142,7 +146,7 @@ while ($true) {
 
 let child = null;
 let opts = null;
-let state = { active: false, reason: 'Starting', supported: process.platform === 'win32', current: null, window: null };
+let state = { active: false, reason: 'Starting', supported: process.platform === 'win32', current: null, window: null, counts: { checked: 0, flagged: 0 } };
 const warned = new Map();
 const verdicts = new Map();   // url -> { at, mark }
 let settleTimer = null;
@@ -165,8 +169,12 @@ function init(options) {
   restart();
 }
 
+let generation = 0;
 async function restart() {
   stop(null, true);
+  // Two restarts can overlap (the tray and the app, or two clicks). Only the newest may start a reader,
+  // or the older reader would be orphaned: never stopped, and still feeding this module.
+  const mine = ++generation;
   if (!state.supported) return setState(false, 'Live scanning is available on Windows');
   if (!opts.enabled()) return setState(false, 'Live scanning is off');
   if (!opts.getToken()) return setState(false, 'Sign in to start live scanning');
@@ -179,11 +187,14 @@ async function restart() {
     restartTimer = setTimeout(() => restart(), 30000);
     return setState(false, 'Sentinel is offline - will retry');
   }
+  if (mine !== generation) return;
   start();
 }
 
 function start() {
-  const encoded = Buffer.from(SCRIPT, 'utf16le').toString('base64');
+  const testProcess = opts.testProcess && /^[a-z]{2,20}$/.test(opts.testProcess) ? opts.testProcess : '';
+  if (testProcess) log(`TEST MODE: reading ${testProcess} wherever it is, not the window in front`);
+  const encoded = Buffer.from(SCRIPT.replace('__TEST_PROCESS__', testProcess), 'utf16le').toString('base64');
   try {
     child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded],
       { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -227,10 +238,15 @@ function stop(reason, silent) {
   state.current = null;
   latestLinks = null;
   setWindow(null);
-  if (!silent) setState(false, reason ? `Live scanning: ${reason.toLowerCase()}` : 'Live scanning is off');
+  generation++;
+  if (!silent) setState(false, reason || 'Live scanning is off');
 }
 
 function setWindow(win) {
+  // One line when a browser starts or stops being watched (never for a private window), so the log can answer "is it working?".
+  const was = state.window;
+  if (win && !win.private && (!was || was.browser !== win.browser)) log(`watching ${win.browser}: page area ${win.w}x${win.h} at ${win.x},${win.y}`);
+  if (!win && was && !was.private) log('no browser in front: resting');
   state.window = win;
   if (opts && opts.onWindow) opts.onWindow(win);
 }
@@ -273,14 +289,17 @@ async function check(page) {
     ({ verdict } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private }));
   } catch (err) {
     log(`check failed${page.private ? '' : ` for ${host}`}: ${err.status || ''} ${err.code || err.message}`);
-    if (err.status === 401) setState(false, 'Sign in to start live scanning');
-    else if (err.status === 403) setState(false, 'Live scanning needs Pro or above');
-    else if (err.code === 'live_hours_exhausted') setState(false, 'Live hours for this week are used up');
+    // Refused, not a hiccup: stop reading the browser altogether. A reader left running would keep asking, and the
+    // gold mask would keep saying "scanning" while nothing is checked.
+    if (err.status === 401) stop('Sign in to start live scanning');
+    else if (err.status === 403) stop('Live scanning needs Pro or above');
+    else if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
     return;
   }
   const badge = (verdict && verdict.overall && verdict.overall.badge) || null;
   const label = verdict && verdict.overall ? verdict.overall.label : 'Checked';
   if (opts.onVerdict) opts.onVerdict({ page, badge, label, kind: worstKind(verdict) });
+  count(page.private, badge);
   if (opts.onChecked && !page.private) opts.onChecked({ browser: page.browser, url: page.url, host, badge, label, at: Date.now() });
   if (badge !== 'red' && badge !== 'orange') return;
   const last = warned.get(host);
@@ -288,6 +307,15 @@ async function check(page) {
   warned.set(host, Date.now());
   if (warned.size > 500) warned.clear();
   opts.onThreat({ browser: page.browser, url: page.url, host, verdict, private: page.private });
+}
+
+/** A running total for the app's Live panel. Numbers only, and a private window adds nothing to them. */
+let countTimer = null;
+function count(isPrivate, badge) {
+  if (isPrivate) return;
+  state.counts = { checked: state.counts.checked + 1, flagged: state.counts.flagged + (badge ? 1 : 0) };
+  if (countTimer) return;
+  countTimer = setTimeout(() => { countTimer = null; if (opts && opts.onChange) opts.onChange(status()); }, 1500);
 }
 
 /** Which mask a verdict wears: the threat with the worst badge. */
@@ -343,7 +371,10 @@ async function onLinks(msg) {
   const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for);
   const fresh = !latestLinks || latestLinks.for !== msg.for;
   latestLinks = { for: msg.for, links };
-  if (fresh && opts.onResults) opts.onResults({ count: links.length, ms: msg.ms });
+  if (fresh && !page.private) {
+    log(`results page: ${links.length} results on screen, read in ${msg.ms} ms`);
+    state.lastResults = { count: links.length, ms: msg.ms, at: Date.now() };
+  }
   publishMarks();   // positions first: marks already known move at once
 
   const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
@@ -356,11 +387,12 @@ async function onLinks(msg) {
       const badge = (v && v.overall && v.overall.badge) || null;
       const first = v && v.reasons && v.reasons[0];
       verdicts.set(u, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v && v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      count(page.private, badge);
     }
     if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
   } catch (err) {
     log(`results check failed: ${err.status || ''} ${err.code || err.message}`);
-    if (err.code === 'live_hours_exhausted') setState(false, 'Live hours for this week are used up');
+    if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
   } finally {
     missing.forEach((u) => pending.delete(u));
   }
