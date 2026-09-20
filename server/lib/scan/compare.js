@@ -10,7 +10,7 @@
 const crypto = require('crypto');
 const { db, now } = require('../db');
 const L = require('./lists');
-const { deskin, nameTokens, levenshtein } = require('./url');
+const { analyze, deskin, nameTokens, levenshtein } = require('./url');
 
 // Tokens that appear in so many scam domains they say nothing specific.
 const MAX_TOKEN_DF = 4000;
@@ -69,7 +69,12 @@ function compareDomain(p) {
   };
 
   if (skeleton.length >= 6) {
-    out.skeletonMatches = q.skeleton.all(skeleton, p.registrable).map((row) => ({ ...row, generic: isGeneric(skeleton) }));
+    // A stored name is only as good as the hosting list was on the day it was stored:
+    // a tenant of a service we had not yet recognised was filed under the service's own
+    // name ("myportfolio"), which then matched every innocent "my-portfolio". Check it
+    // against how the host reads today.
+    const current = (row) => { const known = analyze(`http://${row.host}/`); return Boolean(known) && deskin(known.sld) === skeleton; };
+    out.skeletonMatches = q.skeleton.all(skeleton, p.registrable).filter(current).map((row) => ({ ...row, generic: isGeneric(skeleton) }));
     // Our own confirmed list is small enough to compare with edit distance.
     for (const row of blockSkeletons()) {
       if (row.host === p.registrable || row.host === p.host) continue;

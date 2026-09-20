@@ -51,7 +51,13 @@ const bad = [
   'https://facebook-security-check-appeal.com/', 'https://instagram-copyright-violation-form.net/', 'https://whatsapp-verify-your-number.info/',
   'https://usps-tracking-update-fee.com/', 'https://fedex-package-hold-fee.net/', 'https://bankofamerica-alerts-verify.com/',
   'https://wellsfargo-account-locked.net/', 'https://chase-secure-message-center.com/', 'https://coinbase-wallet-unlock.help/',
-  'http://192.0.2.44/login/', 'https://paypal.com-verify.me/', 'https://login-microsoftonline.com.verify-session.xyz/'
+  'http://192.0.2.44/login/', 'https://paypal.com-verify.me/', 'https://login-microsoftonline.com.verify-session.xyz/',
+  // round three: shapes taken from what the rules used to miss on live lists (the names themselves are made up)
+  'https://customer-helpcenter4471.netlify.app/', 'https://verifiedbadge-review.vercel.app/meta-verified-for-business',
+  'https://mail-loggin-portal.gitbook.io/us', 'https://wallet-recover-desk.pages.dev/',
+  'https://508113.xyz/', 'https://77120945.top/', 'https://marketplace.pl-48213.click/oferta',
+  'http://shop.item.co.uk.login.secures-k2.example-hotel-site.com/', 'https://bank.com.br.acesso.cliente-seguro.net/',
+  'https://qxwkls.cfd/ACS_page', 'https://bdfkrt.sbs/cy'
 ];
 
 const clean = [
@@ -78,7 +84,12 @@ const clean = [
   'https://www.wallet.com/', 'https://www.airdrop.com/', 'https://www.update.com/', 'https://www.secure.com/',
   'https://www.freegiftcards.com/', 'https://www.techsupport.com/', 'https://www.invoice.com/', 'https://www.password.com/',
   'https://accounts.shopify.com/', 'https://login.salesforce.com/', 'https://secure.xero.com/', 'https://app.hubspot.com/login',
-  'https://id.atlassian.com/login', 'https://auth0.com/', 'https://www.okta.com/login', 'https://myaccount.google.com/security'
+  'https://id.atlassian.com/login', 'https://auth0.com/', 'https://www.okta.com/login', 'https://myaccount.google.com/security',
+  // round three: honest sites that sit next to the newest rules
+  'https://my-portfolio.vercel.app/', 'https://anna-photography.github.io/', 'https://johns-bakery.netlify.app/',
+  'https://someproject.github.io/login', 'https://vuejs.github.io/', 'https://abc.xyz/', 'https://www.12306.cn/',
+  'https://www.163.com/', 'https://www.co.washington.or.us/', 'https://uk.news.yahoo.com/', 'https://www.nightclub.com/',
+  'https://pl-tech.com/', 'https://new.express.adobe.com/', 'https://form.jotform.com/', 'https://www.squarespace.com/'
 ];
 
 (async () => {

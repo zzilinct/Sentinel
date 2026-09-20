@@ -363,7 +363,48 @@ const KNOWLEDGE_CHECKS = [
     run: ({ p, brand }) => {
       if (brand.owner || p.isIp) return pass('Not applicable');
       // Short numeric names are ordinary in some countries (163.com, 12306.cn). Seven digits and up is a serial number.
-      return /^\d{7,}$/.test(p.sld) ? fail(24, 'The name is only a long number, the mark of domains registered in bulk') : pass('Not a bare number');
+      if (/^\d{7,}$/.test(p.sld)) return fail(24, 'The name is only a long number, the mark of domains registered in bulk');
+      // A shorter number is only telling on an ending that is sold in bulk for next to nothing.
+      if (/^\d{4,6}$/.test(p.sld) && L.RISKY_TLDS[p.suffix]) return fail(24, `A bare number on .${p.suffix}, the mark of domains registered in bulk`);
+      return pass('Not a bare number');
+    } },
+
+  { id: 'U46', group: 'Address', threat: 'scam', title: 'Not a help desk, sign-in or wallet page on free hosting',
+    run: ({ p, brand }) => {
+      if (!p.hosting || brand.owner) return pass('Not applicable');
+      // Whoever made the page chose this name. No real company keeps its sign-in
+      // page, help centre or wallet on a free subdomain of somebody else's service.
+      const STEMS = ['helpcenter', 'helpcentre', 'helpdesk', 'support', 'verif', 'login', 'loggin', 'logon', 'signin', 'secure', 'account',
+        'recover', 'appeal', 'wallet', 'billing', 'confirm', 'unlock', 'badge', 'copyright', 'suspend', 'restrict', 'webmail', 'password'];
+      const first = (p.path.split('/').filter(Boolean)[0] || '').toLowerCase();
+      const clean = (text) => text.toLowerCase().replace(/[^a-z]+/g, '');
+      const inName = STEMS.filter((s) => clean(p.sld).includes(s));
+      const inPath = STEMS.filter((s) => clean(first).includes(s));
+      // One such word in a folder name is documentation ("/login-guide"). In the site's own name it is a claim.
+      const hits = [...new Set(inName.length || inPath.length >= 2 ? [...inName, ...inPath] : [])];
+      if (!hits.length) return pass('An ordinary name');
+      const lure = hits.length >= 2 || brand.inDomain || brand.inSubdomain || brand.lookalike;
+      return fail(lure ? 40 : 28, `A free ${p.hosting} page that calls itself "${hits.slice(0, 3).join('", "')}"`);
+    } },
+
+  { id: 'U47', group: 'Address', threat: 'scam', title: 'No domain ending buried inside the subdomains',
+    run: ({ p, brand }) => {
+      if (brand.owner || p.isIp || p.subdomains.length < 2) return pass('Not applicable');
+      // "ebay.item.co.uk.login.example.com": the eye stops at ".co.uk". The site is example.com.
+      // Only whole endings count (".com", ".co.uk", ".com.br"): a lone "co" or "us" is how
+      // American county and state sites are really named (www.co.washington.or.us).
+      const m = /^((?:[a-z0-9-]+\.)*?[a-z0-9-]+\.(?:com|net|org|gov|edu|co\.[a-z]{2}|com\.[a-z]{2}))(?:\.|$)/.exec(p.subdomains.join('.').toLowerCase());
+      if (!m) return pass('No buried ending');
+      return fail(30, `Made to be read as "${m[1]}"; the real site is ${p.registrable}`);
+    } },
+
+  { id: 'U48', group: 'Address', threat: 'scam', title: 'Name on a cheap ending can be pronounced',
+    run: ({ p, brand }) => {
+      if (brand.owner || p.isIp || !L.RISKY_TLDS[p.suffix] || p.hosting) return pass('Not applicable');
+      if (p.sld.length < 5 || p.sld.length > 11 || /[-\d]/.test(p.sld)) return pass('Not applicable');
+      return /[bcdfghjklmnpqrstvwxz]{4,}/.test(p.sld.toLowerCase())
+        ? fail(18, `"${p.sld}" is a string of letters rather than a name, on an ending sold in bulk`)
+        : pass('Readable name');
     } },
 
   { id: 'K01', group: 'Known threats', threat: 'scam', title: 'Not a known scam',

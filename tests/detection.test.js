@@ -522,3 +522,34 @@ test('a name that imitates a country ending, or is only a long number, is caught
     assert.equal((await scan(url, { research: false })).threats.scam.badge, null, url);
   }
 });
+
+test('free-hosted help desks, buried endings and letter-string names are caught; their honest neighbours are not', async () => {
+  const badge = async (url) => (await scan(url, { research: false })).threats.scam.badge;
+  for (const url of [
+    'https://customer-helpcenter4471.netlify.app/',
+    'https://verifiedbadge-review.vercel.app/meta-verified-for-business',
+    'http://shop.item.co.uk.login.secures-k2.example-hotel-site.com/',
+    'https://508113.xyz/',
+    'https://qxwkls.cfd/ACS_page'
+  ]) assert.ok(await badge(url), `${url} should be flagged`);
+
+  for (const url of [
+    'https://someproject.github.io/login', // one word in a folder name is documentation
+    'https://anna-photography.github.io/',
+    'https://www.co.washington.or.us/', // a lone "co" is how American county sites are named
+    'https://uk.news.yahoo.com/',
+    'https://www.nightclub.com/', // four consonants in a row, on an ordinary ending
+    'https://abc.xyz/'
+  ]) assert.equal(await badge(url), null, `${url} should stay clean`);
+
+  const buried = await scan('http://shop.item.co.uk.login.secures-k2.example-hotel-site.com/', { research: false });
+  assert.ok(buried.reasons.some((r) => /read as "shop\.item\.co\.uk"; the real site is example-hotel-site\.com/.test(r.text)), 'the reason names the real site');
+});
+
+test('a tenant filed under its service\'s name before the service was recognised does not condemn innocent look-alikes', async () => {
+  const { db } = require('../server/lib/db');
+  // As an older version would have stored it: the tenant under the platform's own name.
+  db.prepare("INSERT OR REPLACE INTO feed_hosts (host, source, threat, category, skeleton, added_at) VALUES ('havtech.myportfolio.com', 'openphish', 'scam', 'phishing', 'myportfolio', ?)").run(Date.now());
+  const v = await scan('https://my-portfolio.vercel.app/', { research: false });
+  assert.equal(v.threats.scam.badge, null, JSON.stringify(v.threats.scam));
+});
