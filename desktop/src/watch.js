@@ -46,6 +46,8 @@ $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTyp
 $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
 $last = ''
 $lastFront = ''
+$wasIdle = $false
+$noDoc = ''
 while ($true) {
   Start-Sleep -Milliseconds 900
   $h = [SW]::GetForegroundWindow()
@@ -55,7 +57,8 @@ while ($true) {
   $fname = (Get-Process -Id $fp).ProcessName
   if ($fname -and $fname -ne $lastFront) { $lastFront = $fname; Write-Output (@{ front = $fname; isBrowser = ($browsers -contains $fname) } | ConvertTo-Json -Compress) }
   # Nobody at the keyboard, or the window is minimised: the browser is not "in use".
-  if ([SW]::IdleMs() -gt 120000 -or [SW]::IsIconic($h)) { if ($last -ne '') { $last = ''; Write-Output '{"url":null,"idle":true}' } ; continue }
+  if ([SW]::IdleMs() -gt 120000 -or [SW]::IsIconic($h)) { if (-not $wasIdle) { $wasIdle = $true; $last = ''; Write-Output '{"url":null,"idle":true}' } ; continue }
+  if ($wasIdle) { $wasIdle = $false; Write-Output '{"url":null,"awake":true}' }
   $pid2 = 0
   [void][SW]::GetWindowThreadProcessId($h, [ref]$pid2)
   $p = Get-Process -Id $pid2
@@ -66,7 +69,9 @@ while ($true) {
     $doc = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $docCond)
     if ($doc) { $url = $doc.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value }
   } catch { $url = $null }
-  if (-not $url) { continue }
+  # Say so once when a browser is in front and Windows hands over no address, so "nothing was checked" has a reason.
+  if (-not $url) { if ($noDoc -ne $p.ProcessName) { $noDoc = $p.ProcessName; Write-Output (@{ browser = $p.ProcessName; nodoc = $true } | ConvertTo-Json -Compress) } ; continue }
+  $noDoc = ''
   $key = $p.ProcessName + '|' + $url
   if ($key -eq $last) { continue }
   $last = $key
@@ -159,6 +164,8 @@ function onLine(line) {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
   if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); return; }
+  if (msg.nodoc) { log(`${msg.browser} is in front, but Windows gave no page address (a start page, a dialog over the page, or the browser's accessibility is off)`); return; }
+  if (msg.awake) { if (state.idle) log('in use again'); state.idle = false; return; }
   clearTimeout(settleTimer);
   if (msg.idle) { if (!state.idle) log('nobody at the keyboard or window minimised: paused'); state.current = null; state.idle = true; return; }
   if (state.idle) log('in use again');
