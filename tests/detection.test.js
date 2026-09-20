@@ -553,3 +553,26 @@ test('a tenant filed under its service\'s name before the service was recognised
   const v = await scan('https://my-portfolio.vercel.app/', { research: false });
   assert.equal(v.threats.scam.badge, null, JSON.stringify(v.threats.scam));
 });
+
+test('glued brand names, dressed-up paths and kit file names are caught; archives and honest names are not', async () => {
+  const v = (url) => scan(url, { research: false });
+  const flagged = ['https://applesoporte.services/isignesp.php', 'https://appleidmapa.com/', 'https://wwapplecloud.help/',
+    'https://short.example/roblox-com-users-9694397261-profile', 'https://tokenim.date/download'];
+  for (const url of flagged) assert.ok((await v(url)).threats.scam.badge, `${url} should be flagged`);
+
+  const glued = await v('https://applesoporte.services/');
+  assert.ok(glued.reasons.some((r) => /"apple" glued to "soporte"/.test(r.text)), 'the reason says which name was borrowed');
+  const kit = await v('https://some-small-site.example/wp/isignesp.php');
+  assert.ok(kit.reasons.some((r) => /file name phishing kits reuse|phishing kit.s file/.test(r.text)));
+
+  for (const url of ['https://www.applebees.com/', 'https://www.pineapple.com/', 'https://www.amazonpay.com/',
+    'https://web.archive.org/', 'https://web.archive.org/web/2020/https://www.paypal.com/', 'https://example.org/captcha.php']) {
+    assert.equal((await v(url)).threats.scam.badge, null, `${url} should stay clean`);
+  }
+});
+
+test('a listed host on the same domain is not a "look-alike" of it', async () => {
+  await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'phishing_database'), ['ia601403.us.bigarchive-example.org']);
+  const v = await scan('https://web.bigarchive-example.org/', { research: false });
+  assert.ok(!v.reasons.some((r) => /Nearly the same name/.test(r.text)), JSON.stringify(v.reasons.map((r) => r.text)));
+});

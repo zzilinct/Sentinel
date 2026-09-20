@@ -49,7 +49,7 @@ const BRANDS = [
   { token: 'google', domains: [...cc('google', GOOGLE_CC), 'googleapis.com', 'gstatic.com', 'googleusercontent.com', 'googlevideo.com', 'withgoogle.com', 'goo.gl', 'g.co', 'gmail.com', 'youtube.com', 'google'] },
   { token: 'gmail', domains: ['gmail.com', 'google.com'] },
   { token: 'youtube', domains: ['youtube.com', 'youtu.be', 'ytimg.com', 'youtube-nocookie.com'] },
-  { token: 'amazon', domains: [...cc('amazon', AMAZON_CC), 'amazonaws.com', 'amazon.dev', 'a2z.com', 'amzn.to', 'media-amazon.com', 'primevideo.com', 'aboutamazon.com'] },
+  { token: 'amazon', domains: [...cc('amazon', AMAZON_CC), 'amazonaws.com', 'amazon.dev', 'a2z.com', 'amzn.to', 'media-amazon.com', 'primevideo.com', 'aboutamazon.com', 'amazonpay.com', 'amazon.jobs', 'amazon.science'] },
   { token: 'netflix', domains: ['netflix.com', 'nflxext.com', 'nflximg.net', 'netflix.net'] },
   { token: 'spotify', domains: ['spotify.com', 'spotify.link', 'scdn.co', 'spoti.fi'] },
   { token: 'adobe', domains: ['adobe.com', 'adobe.io', 'adobelogin.com', 'typekit.net'] },
@@ -126,6 +126,9 @@ const BRANDS = [
   { token: 'steam', domains: ['steampowered.com', 'steamcommunity.com', 'steamstatic.com', 'steam-chat.com'] },
   { token: 'steamcommunity', domains: ['steamcommunity.com'] },
   { token: 'roblox', domains: ['roblox.com', 'rbxcdn.com', 'rbx.com'] },
+  // imToken's real site is token.im, so its fakes are written both ways round.
+  { token: 'imtoken', domains: ['token.im'] },
+  { token: 'tokenim', domains: ['token.im'] },
   { token: 'epicgames', domains: ['epicgames.com', 'unrealengine.com'] },
   { token: 'playstation', domains: ['playstation.com', 'playstation.net', 'sonyentertainmentnetwork.com'] },
   { token: 'nintendo', domains: ['nintendo.com', 'nintendo.net', 'nintendo.co.jp', 'nintendo.co.uk'] },

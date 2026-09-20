@@ -73,12 +73,16 @@ function compareDomain(p) {
     // a tenant of a service we had not yet recognised was filed under the service's own
     // name ("myportfolio"), which then matched every innocent "my-portfolio". Check it
     // against how the host reads today.
-    const current = (row) => { const known = analyze(`http://${row.host}/`); return Boolean(known) && deskin(known.sld) === skeleton; };
+    // And a listed host on the very same domain is not a look-alike of it: web.archive.org is not an
+    // imitation of ia601403.us.archive.org, it is the same site.
+    const current = (row) => { const known = analyze(`http://${row.host}/`); return Boolean(known) && deskin(known.sld) === skeleton && known.registrable !== p.registrable; };
     out.skeletonMatches = q.skeleton.all(skeleton, p.registrable).filter(current).map((row) => ({ ...row, generic: isGeneric(skeleton) }));
     // Our own confirmed list is small enough to compare with edit distance.
     for (const row of blockSkeletons()) {
       if (row.host === p.registrable || row.host === p.host) continue;
       consider(row.host, row.skeleton);
+      const other = analyze(`http://${row.host}/`);
+      if (other && other.registrable === p.registrable) continue;
       if (Math.abs(row.skeleton.length - skeleton.length) <= 2 && levenshtein(row.skeleton, skeleton) <= 2) {
         out.skeletonMatches.push({ ...row, generic: isGeneric(row.skeleton) });
       }

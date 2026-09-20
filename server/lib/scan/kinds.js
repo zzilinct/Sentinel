@@ -59,7 +59,7 @@ const RULES = {
     { kind: 'government',    checks: ['U33'], kits: /government|tax|refund|irs|hmrc/i },
     { kind: 'investment',    categories: ['investment_scam'], kits: /invest|trading|forex/i },
     { kind: 'romance',       categories: ['romance_scam'] },
-    { kind: 'phishing',      checks: ['P02', 'P03', 'P04', 'P05', 'P20', 'P22', 'U30', 'U25', 'U37', 'U41', 'U43', 'U44', 'U46', 'U47'], categories: ['phishing'], kits: /login|sign.?in|verify|account|password|credential/i },
+    { kind: 'phishing',      checks: ['P02', 'P03', 'P04', 'P05', 'P20', 'P22', 'U30', 'U25', 'U37', 'U41', 'U43', 'U44', 'U46', 'U47', 'U49', 'U50', 'U51'], categories: ['phishing'], kits: /login|sign.?in|verify|account|password|credential/i },
     { kind: 'impersonation', checks: ['U22', 'U23', 'U24', 'U40', 'P01', 'P21', 'C01', 'C02', 'C05'], categories: ['impersonation'] },
     { kind: 'address',       checks: ['U01', 'U02', 'U03', 'U04', 'U05', 'U06', 'U07', 'U10', 'U12', 'U13', 'U18', 'U19', 'U20', 'U29', 'U38', 'U42', 'R01', 'R02', 'R08', 'R09', 'R10'] }
   ],

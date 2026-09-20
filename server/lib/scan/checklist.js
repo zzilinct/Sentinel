@@ -300,6 +300,8 @@ const KNOWLEDGE_CHECKS = [
   { id: 'U40', group: 'Impersonation', threat: 'scam', title: 'Path does not carry a brand the site does not own',
     run: ({ p, brand, words }) => {
       if (brand.official) return pass('Official site');
+      // An archive's path IS another site's address (web.archive.org/web/2020/https://www.paypal.com/). That is a copy, not a costume.
+      if (p.path.includes('://') && L.ARCHIVES.includes(p.host)) return pass('An archived copy of another site');
       const segments = p.path.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
       const hit = L.PROTECTED_BRANDS.find((b) => segments.includes(b.token) && !b.domains.includes(p.registrable));
       if (!hit) return pass('No brand names in the path');
@@ -407,6 +409,61 @@ const KNOWLEDGE_CHECKS = [
         : pass('Readable name');
     } },
 
+  { id: 'U49', group: 'Address', threat: 'scam', title: 'No brand name glued to a lure word',
+    run: ({ p, brand }) => {
+      if (brand.owner || brand.inDomain || p.isIp) return pass('Not applicable');
+      // Short brand names only count as whole words ("apple" is also in "pineapple"). But glued to nothing
+      // except lure words, in any of the languages the lists are full of, the name is borrowed:
+      // "applesoporte", "appleidmapa", "wwapplecloud".
+      const LURE = ['support', 'soporte', 'suporte', 'suport', 'service', 'servicio', 'secure', 'security', 'seguro', 'login', 'signin', 'verify', 'verif', 'account',
+        'cuenta', 'conta', 'cloud', 'mapa', 'maps', 'map', 'find', 'fmi', 'locate', 'wallet', 'pay', 'bank', 'update', 'help', 'ayuda', 'center', 'centre',
+        'online', 'id', 'app', 'care', 'team', 'alert', 'billing', 'recover', 'unlock'];
+      const FILLER = ['www', 'ww', 'my', 'the', 'get', 'go', 'e', 'i'];
+      const madeOf = (text, words) => {
+        if (!text) return true;
+        return words.some((w) => text.startsWith(w) && madeOf(text.slice(w.length), words));
+      };
+      for (const part of p.sld.toLowerCase().split(/[-_]/)) {
+        for (const b of L.PROTECTED_BRANDS) {
+          const t = b.token;
+          if (t.length < 4 || t.length > 7 || part === t) continue;
+          const at = part.indexOf(t);
+          if (at < 0) continue;
+          const before = part.slice(0, at);
+          const after = part.slice(at + t.length);
+          if (!before && !after) continue;
+          if (madeOf(before, FILLER) && after && madeOf(after, LURE)) return fail(38, `"${t}" glued to "${after}": the name is borrowed; the real site is ${b.domains[0]}`);
+          if (before && madeOf(before, LURE) && !after) return fail(38, `"${t}" glued to "${before}": the name is borrowed; the real site is ${b.domains[0]}`);
+        }
+      }
+      return pass('No glued brand name');
+    } },
+
+  { id: 'U50', group: 'Address', threat: 'scam', title: 'Path is not dressed up as another site\'s address',
+    run: ({ p, brand }) => {
+      if (brand.owner || !p.path || p.path.includes('://')) return pass('Not applicable');
+      // "s4w.in/roblox-com-users-...-profile", "gurl.pro/wwwrobloxcom-users-...": the eye reads roblox.com. The site is s4w.in.
+      const path = p.path.toLowerCase();
+      for (const b of L.PROTECTED_BRANDS) {
+        if (b.token.length < 4) continue;
+        const re = new RegExp(`(^|[/._-])(www[._-]?)?${b.token}[._-]?com([/._-]|$)`);
+        if (re.test(path)) return fail(38, `The path is written to look like ${b.domains[0]}; the real site is ${p.registrable}`);
+      }
+      return pass('Ordinary path');
+    } },
+
+  { id: 'U51', group: 'Address', threat: 'scam', title: 'Page is not a known phishing kit\'s file',
+    run: ({ p, brand }) => {
+      if (brand.owner) return pass('Not applicable');
+      // File names counted across the public phishing lists: each recurs on many unrelated domains, which is
+      // what a kit copied from site to site looks like. The second group are ordinary names that kits also use.
+      const name = (p.path.split('/').filter(Boolean).pop() || '').toLowerCase();
+      if (L.KIT_FILES.signature.includes(name)) return fail(38, `"${name}" is a phishing kit's file: the same name sits on many unrelated sites on the phishing lists`);
+      if (L.KIT_FILES.strong.includes(name)) return fail(22, `"${name}" is a file name phishing kits reuse across many sites`);
+      if (L.KIT_FILES.weak.includes(name)) return warn(10, `"${name}" is a file name often seen in phishing kits`);
+      return pass('Not a kit file name');
+    } },
+
   { id: 'K01', group: 'Known threats', threat: 'scam', title: 'Not a known scam',
     run: ({ knowledge }) => matchCheck(knowledge, 'scam', 'scam') },
   { id: 'K02', group: 'Known threats', threat: 'malware', title: 'Not a known malware site',
@@ -457,8 +514,11 @@ function matchCheck(knowledge, threat, noun) {
 
 const COMPARE_CHECKS = [
   { id: 'C01', group: 'Compared to known scams', threat: 'scam', title: 'Name is not a variant of a known scam domain',
-    run: ({ compare, brand, p }) => {
+    run: ({ compare, brand, p, knowledge }) => {
       if (brand.owner) return pass(`Official ${brand.owner.domains[0]}`);
+      // A service Sentinel knows by name, where people's content lives in the path (web.archive.org,
+      // docs.google.com): the domain is the service's own, whatever scam borrowed the same word.
+      if (knowledge && knowledge.userContent && !p.hosting) return pass('A known service; its pages are judged one by one');
       if (plainName(p) && !brand.inDomain && !brand.lookalike && compare.skeletonMatches.every((m) => m.generic)) return pass('A plain name; the look-alikes borrowed a common word');
       const m = compare.skeletonMatches[0];
       return m ? fail(34, `Nearly the same name as known ${String(m.category || m.threat).replace(/_/g, ' ')} site ${m.host}`) : pass('No near-duplicate');

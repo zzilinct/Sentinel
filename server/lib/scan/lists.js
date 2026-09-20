@@ -24,6 +24,19 @@ const RISKY_TLDS = {
   vip: 16, help: 16, lat: 16, bond: 18, qpon: 18, skin: 16, hair: 16, ink: 14, casa: 12, club: 12
 };
 
+// Page file names that recur across many unrelated domains in the public phishing lists (counted 2026-09-20 over
+// about 77,000 listed addresses; the number of distinct domains is in the comment). A kit is copied from host to host
+// with its file names intact.
+const KIT_FILES = {
+  // fingerprint 31, authen 27, isignesp 15, login-check 11, login-code 10, corr 7, the rest 4 to 5
+  // Names nothing else uses: enough to flag a page by themselves.
+  signature: ['isignesp.php', 'areautenti_lang.php', 'acesso-seguro.php', 'infospage.php', 'buykorea.html', 'login-check.html', 'login-code.html', 'capcha.php'],
+  // Distinctive, but a real application could have one.
+  strong: ['fingerprint.php', 'authen.php', 'corr.php'],
+  // captcha 185, loading 65, as 41, card 11, connexion 8, roundcube 6, owa/webm/gate 4 to 5: common in kits, and not unknown elsewhere
+  weak: ['captcha.php', 'loading.php', 'as.php', 'card.php', 'connexion.php', 'roundcube.html', 'owa.html', 'webm.html', 'gate.php']
+};
+
 // Brands most often impersonated, with every domain they really own.
 const PROTECTED_BRANDS = require('./brands').BRANDS;
 
@@ -124,6 +137,9 @@ const FREE_HOSTING = [
   'rs6.net', 'sendgrid.net', 'awstrack.me', 'app.link', 'mockplus.com'
 ];
 
+// Web archives. Their paths are other sites' addresses, and they hold copies of pages that are on the lists.
+const ARCHIVES = ['web.archive.org', 'archive.org', 'archive.ph', 'archive.is', 'archive.today', 'webcache.googleusercontent.com'];
+
 // Path-based free hosting (the attacker controls the path, not a subdomain).
 const PATH_HOSTING = [
   'sites.google.com', 'forms.gle', 'docs.google.com', 'drive.google.com', 'storage.googleapis.com', 'storage.cloud.google.com',
@@ -131,7 +147,9 @@ const PATH_HOSTING = [
   'onedrive.live.com', '1drv.ms', 'linktr.ee', 'telegra.ph', 'ipfs.io', 'dweb.link',
   'new.express.adobe.com', 'express.adobe.com', 'indd.adobe.com', 'acrobat.adobe.com', 'app.hubspot.com', 'forms.office.com',
   'teams.live.com', 'app.box.com', 'airtable.com', 'padlet.com', 't.me', 'vk.com', 'away.vk.com', 'script.google.com',
-  'lookerstudio.google.com'
+  'lookerstudio.google.com',
+  // Archives hold copies of pages that are on the lists. The archive is not the scam; only the exact archived address counts.
+  ...ARCHIVES
 ];
 // Object storage: a web page served from here was uploaded by whoever owns the bucket.
 const OBJECT_STORAGE = /(^|\.)(storage\.googleapis\.com|storage\.cloud\.google\.com|firebasestorage\.googleapis\.com|s3[.-][a-z0-9-]*\.?amazonaws\.com|s3\.amazonaws\.com|blob\.core\.windows\.net|digitaloceanspaces\.com|backblazeb2\.com|r2\.dev)$/;
@@ -229,7 +247,7 @@ const SCAM_KITS = [
 ];
 
 module.exports = {
-  MULTI_SUFFIXES, RISKY_TLDS, PROTECTED_BRANDS, HOST_KEYWORDS, PATH_KEYWORDS,
+  MULTI_SUFFIXES, RISKY_TLDS, KIT_FILES, ARCHIVES, PROTECTED_BRANDS, HOST_KEYWORDS, PATH_KEYWORDS,
   TECH_SUPPORT_WORDS, DELIVERY_WORDS, GOV_WORDS, URL_SHORTENERS, FREE_HOSTING, DYNAMIC_DNS, OBJECT_STORAGE,
   CRYPTOMINER_HOSTS, EXECUTABLE_EXT, MACRO_DOC_EXT, ARCHIVE_EXT, DOC_EXT, FREE_MAIL_PROVIDERS,
   DEFAULT_ALLOWLIST, SEED_BLOCKLIST, SCAM_KITS, PATH_HOSTING

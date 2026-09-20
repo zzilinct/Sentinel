@@ -57,7 +57,10 @@ const bad = [
   'https://mail-loggin-portal.gitbook.io/us', 'https://wallet-recover-desk.pages.dev/',
   'https://508113.xyz/', 'https://77120945.top/', 'https://marketplace.pl-48213.click/oferta',
   'http://shop.item.co.uk.login.secures-k2.example-hotel-site.com/', 'https://bank.com.br.acesso.cliente-seguro.net/',
-  'https://qxwkls.cfd/ACS_page', 'https://bdfkrt.sbs/cy'
+  'https://qxwkls.cfd/ACS_page', 'https://bdfkrt.sbs/cy',
+  // round four: borrowed names glued to lure words, paths dressed as another site, kit file names
+  'https://applesoporte.services/', 'https://paypalsecure-centre.com/', 'https://wwnetflixbilling.help/', 'https://short.example/roblox-com-users-1234567-profile',
+  'https://lnk.example/wwwpaypalcom-signin', 'https://small-site.example/store/isignesp.php', 'https://another-site.example/a/areautenti_lang.php'
 ];
 
 const clean = [
@@ -89,7 +92,10 @@ const clean = [
   'https://my-portfolio.vercel.app/', 'https://anna-photography.github.io/', 'https://johns-bakery.netlify.app/',
   'https://someproject.github.io/login', 'https://vuejs.github.io/', 'https://abc.xyz/', 'https://www.12306.cn/',
   'https://www.163.com/', 'https://www.co.washington.or.us/', 'https://uk.news.yahoo.com/', 'https://www.nightclub.com/',
-  'https://pl-tech.com/', 'https://new.express.adobe.com/', 'https://form.jotform.com/', 'https://www.squarespace.com/'
+  'https://pl-tech.com/', 'https://new.express.adobe.com/', 'https://form.jotform.com/', 'https://www.squarespace.com/',
+  // round four: honest neighbours of the newest rules
+  'https://www.applebees.com/', 'https://www.pineapple.com/', 'https://www.amazonpay.com/', 'https://web.archive.org/',
+  'https://web.archive.org/web/2020/https://www.paypal.com/', 'https://example.org/captcha.php', 'https://www.snapple.com/', 'https://purchase.example.com/'
 ];
 
 (async () => {
