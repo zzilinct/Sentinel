@@ -13,7 +13,7 @@
       <span class="kicker" data-reveal>Privacy Policy</span>
       <h1 data-split>Exactly what Sentinel <span class="serif italic">sees</span></h1>
       <p data-reveal>A protection tool should collect as little as it can and explain the rest. This page describes what the software actually does, not what a template says it should.</p>
-      <p class="updated" data-reveal>Last updated 17 September 2026 &middot; pre-launch draft, not yet reviewed by a lawyer</p>
+      <p class="updated" data-reveal>Last updated 20 September 2026 &middot; pre-launch draft, not yet reviewed by a lawyer</p>
     </div>
   </section>
 
@@ -35,7 +35,9 @@
         <li><b>Files</b> you upload to the virus and malware scanner are inspected in memory and discarded. Only the file&rsquo;s SHA-256 fingerprint may be kept, so the same file can be recognised again.</li>
         <li><b>Downloads</b> on your computer are inspected by the desktop app locally. Only the fingerprint is sent to check against known threats; the file itself never leaves your computer.</li>
         <li><b>Programs that arrive on your computer</b>, if defense is on in the Windows app. New program files in Downloads, Desktop, the temporary folder and the Startup folder are inspected on your computer, and the list of programs that start with Windows is read to look for new entries. Only a file&rsquo;s fingerprint is ever sent for a known-threat check. A log of what was scanned, stopped and quarantined is kept on your computer only.</li>
-        <li><b>The address of the page in front</b>, if you leave page watch on in the Windows app. The app asks Windows which page your browser is showing and checks that address the same way a pasted link is checked. It only does this while a browser is actually in use (in front, not minimised, with someone at the keyboard), in Chrome, Edge, Brave, Opera, Vivaldi, DuckDuckGo, Firefox and LibreWolf. It never reads the page itself, what you type, or anything behind a login. Nothing about which browsers you have or what you visit is stored on a server by this feature; the check is the same request a link scan makes.</li>
+        <li><b>Live scanning in the Windows app.</b> It is off until you press Start scanning, and it stays on until you press Stop. While it is on, and only while a browser is the window in front, not minimised, with someone at the keyboard, the app asks Windows (through the accessibility interface screen readers use) for three things: the address of the page the browser is showing, where that page sits on your screen, and, on a search results page, the addresses of the links on screen and where they are. The addresses are checked the same way a pasted link is checked. The positions are used only to draw Sentinel&rsquo;s gold line, its mask in the corner of the browser and the marks beside results, in a transparent window of Sentinel&rsquo;s own that sits over the page; nothing is added to the page or the browser, and clicks and keys pass straight through. Sentinel does not read what a page says, what you type, passwords, cookies or anything behind a login, and it takes no screenshots. It works in Chrome, Edge, Brave, Opera, Vivaldi, DuckDuckGo, Firefox and LibreWolf. A browser that is minimised, behind another program, closed, or left alone for two minutes is not read at all.</li>
+        <li><b>Private windows.</b> InPrivate, Incognito and Private Browsing windows are protected in the same way, so a dangerous page still gets a warning. Nothing about them is kept: no entry in your scan history even when a result is flagged, no line in the app&rsquo;s local log, no entry in the app&rsquo;s live list, and the address is not held in memory after the check. Sentinel recognises a private window by the words the browser puts in its title; if your browser uses wording Sentinel does not know, the window is treated as an ordinary one, so say so and we will add it.</li>
+        <li><b>What live scanning keeps for ordinary windows.</b> On your computer only: a short rolling log of checked addresses (<span class="mono">logs\watch.log</span>, emptied when it passes half a megabyte) and the live list in the app, which holds the last few pages until the app is closed. Flagged search results are added to your scan history, like any flagged scan.</li>
       </ul>
 
       <h2>3. What an account stores</h2>
@@ -85,6 +87,9 @@
       <h2>7. What Sentinel never does</h2>
       <ul>
         <li>Record what you type into websites, or read pages behind your logins.</li>
+        <li>Take screenshots, record your screen, or change anything inside your browser. The marks live scanning draws are in Sentinel&rsquo;s own window, on top of the page.</li>
+        <li>Read a browser that is not the window in front, or keep anything about a private window.</li>
+        <li>Act against a program because of a guess when Windows can vouch for its publisher. Defense ends, quarantines or removes something only for a known malicious file or strong evidence, never for &ldquo;possible&rdquo;, and whatever it removes can be put back from the defense log.</li>
         <li>Run analytics, trackers or crash reporters on the website or in the app. The desktop app writes a local log file for troubleshooting, which stays on your computer unless you choose to send it to us.</li>
         <li>Ask for your password to any other service.</li>
         <li>Keep the files or emails you scan.</li>
@@ -117,6 +122,7 @@
           <li>The lawful basis for each processing purpose under the GDPR, and whether a CCPA &ldquo;Do Not Sell or Share&rdquo; notice is required even though nothing is sold.</li>
           <li>Whether the 90-day history and 180-day security-log retention periods are appropriate, and any legal-hold exceptions.</li>
           <li>Data processing agreements with Resend and any hosting provider.</li>
+          <li>Whether reading page and link addresses through the operating system&rsquo;s accessibility interface needs its own consent wording in any market, beyond the Start scanning button and this page.</li>
         </ul>
       </div>
     </div>
