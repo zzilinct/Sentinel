@@ -81,20 +81,36 @@ Sentinel instead, and `npm run dev` in `desktop/` to use the dev server.
 Beyond running the product, the app protects on its own, with no browser
 add-on involved:
 
-- **Page watch (Windows).** It asks Windows which page the browser in front is
-  showing, through the same accessibility interface screen readers use, and
-  checks that address. A dangerous page gets a notification and a warning
-  window. It reads the address only, never page content or anything typed.
-  `desktop/src/watch.js`.
-- **Browser awareness.** `desktop/src/browsers.js` reports which browsers are
-  installed and which are running, so the app can say "Chrome just opened" and
-  hand that browser the right companion build.
-- **No setup.** The embedded server issues the computer its own account on
+- **Live scanning, one button (Windows).** Press **Start scanning**, or **Scan
+  with Chrome / Edge / Firefox...** beside a browser in *Your browsers* (it opens
+  the browser if it is closed, brings it to the front maximised if it is
+  minimised or behind something, and starts). A gold line crosses the screen,
+  and when the tint fades Sentinel is ready. It stays on until Stop. There is no
+  add-on to install and nothing to pair. `desktop/src/watch.js` asks Windows,
+  through the accessibility interface screen readers use, for the address of
+  the page in front, where that page is on screen, and on a results page the
+  addresses of the links on screen and where they are. It reads addresses only:
+  never page text, form fields or anything typed, and it takes no screenshots.
+- **What you see.** `desktop/src/overlay.js` is one transparent window laid
+  exactly over the page area of the browser in front. It draws the gold line and
+  tint when scanning starts and whenever a search comes back, the gold Sentinel
+  mask in the bottom right corner for as long as that browser is being watched
+  (it turns the verdict's colour, with a line of words, on a dangerous page),
+  and a mark beside every search result: a yellow, orange or red mask, or a
+  quiet tick. A mark explains itself on hover. The window cannot take focus,
+  and every click and key goes straight through it to the browser.
+- **Only while browsing.** Chrome, Edge, Brave, Opera, Vivaldi, DuckDuckGo,
+  Firefox and LibreWolf, and only while one of them is the window in front, not
+  minimised, with someone at the keyboard in the last two minutes. Otherwise
+  nothing is read, nothing is checked, no live time is spent and the overlay is
+  gone. An open browser is never a notification.
+- **Private windows.** InPrivate, Incognito and Private Browsing windows
+  (recognised by their title) are protected the same way and nothing about them
+  is kept: no history entry even for a flagged result, no log line, no entry in
+  the app's live list, no address held in memory after the check.
+- **No sign-up.** The embedded server issues the computer its own account on
   first start (`POST /api/v1/auth/device`, loopback only, enabled only by the
-  desktop app), so protection is on from the first minute with no sign-up.
-- **Only while browsing.** Page watch covers Chrome, Edge, Brave, Opera,
-  Vivaldi, DuckDuckGo, Firefox and LibreWolf, and spends live hours only while
-  one of them is in front, not minimised, with someone at the keyboard.
+  desktop app), so download protection and defense are on from the first minute.
 - **Defense.** `desktop/src/defense.js` watches Downloads, Desktop, Temp and
   Startup plus Run keys and scheduled tasks. A flagged program is quarantined
   at once (a move, reversible), any process running from it is ended, and the
@@ -105,6 +121,14 @@ add-on involved:
   a Run key, a Startup shortcut and a scheduled task): process ended, file
   quarantined, and all three ways back removed; an EICAR file was left to the
   system antivirus and its Run key removed.
+- **Defense leaves trusted programs alone.** What the on-device scan finds in a
+  file is a guess from its contents. A guess never outranks a valid publisher
+  signature: Discord's updater contains "DownloadFile" because downloading is
+  its job, and 1.4.x removed its startup entry over that. Now a program Windows
+  can vouch for is only ever condemned by a known-malicious file hash; "possible"
+  (yellow) findings are written down and nothing else (no notification, nothing
+  ended, nothing removed); and every startup entry defense removes is recorded
+  in full, so **Put back** in the defense log restores it exactly.
 - **It keeps going.** A token the server refuses never switches protection
   off: background calls fall back to the computer's own account and ask for a
   fresh token if that is refused too. When the scanner is still starting,
@@ -146,7 +170,13 @@ The download page always links to the latest release and shows its real
 version and size from the GitHub API. The installer is not code-signed, so
 Windows SmartScreen warns on first run until a signing certificate is bought.
 
-## The browser companion
+## The browser companion (optional)
+
+On Windows the app needs no add-on: live scanning above does the search marks,
+the page warnings and the overlay by itself, in every browser including private
+windows and the DuckDuckGo browser. The companion remains for people who are not
+on the Windows app. It is no longer bundled with the installer or offered in the
+app.
 
 One codebase, two packages, built by `npm run build:ext`:
 
@@ -165,39 +195,22 @@ the first time. Firefox also runs content scripts in a sandbox where
 Sign the Firefox build with `npx web-ext sign` before distributing it outside
 the app.
 
-### What live scanning looks like
+### What the companion's live scanning looks like
 
-On a search results page (Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia,
-Startpage, Mojeek, Yandex), while Sentinel checks the results that are on
-screen:
-
-1. a golden line sweeps down the page under a faint golden tint, with a small
-   status chip ("Sentinel is checking 10 results");
-2. as verdicts arrive, every result gets its mark, top to bottom: a yellow,
-   orange or red mask (scam, virus with spores, malware with horns) exactly as
-   the engine returned it, or a quiet tick when nothing was found;
-3. the chip sums up ("10 checked, 4 flagged") and fades.
-
-The overlay lives in a closed shadow root with `pointer-events: none`, so it
-cannot fight the page's CSS or take a click, and it respects reduced motion.
-The content script only renders; verdicts come from the background worker.
-Red is only ever shown with evidence, and nothing in the page script can
-assign it. The line, the tint and the tick can each be turned off in the
-companion's options.
+Inside the browser, the companion draws the same thing the app draws from
+outside: a golden line under a faint golden tint while results are checked,
+then a mark on every result (a yellow, orange or red mask exactly as the engine
+returned it, or a quiet tick). Its overlay lives in a closed shadow root with
+`pointer-events: none`, respects reduced motion, and only renders: verdicts
+come from the background worker, and nothing in the page script can assign red.
 
 Live hours are spent only when Sentinel actually checks something, and only
-for a tab that is in use: visible, focused, in a browser that is in front and
-not minimised, with someone at the keyboard. A background tab asks for
-nothing. On Max and Ultimate every result is researched as a second pass; the
-plan gate is `server/lib/plans.js`, not the extension.
-
-This needs the companion. A desktop program cannot draw inside a browser's
-page, so without it Sentinel still warns you about the page you open (page
-watch), but cannot put masks beside search results.
+for a tab that is in use. On Max and Ultimate every result is researched as a
+second pass; the plan gate is `server/lib/plans.js`.
 
 ### Browser support
 
-| Browser | Masks and overlay (companion) | Page warnings with no add-on (Windows app) | How it was checked |
+| Browser | Companion add-on | Live scanning with no add-on (Windows app) | How the companion was checked |
 | --- | --- | --- | --- |
 | Chrome | yes | yes | `verify-companion.js`, Chrome 153: 10 of 10 results marked, overlay seen |
 | Edge | yes | yes | same, Edge 153 |
@@ -338,7 +351,9 @@ What was deliberately not done: no confirmed-malicious URL was fetched, no malwa
 - **No payment processing yet.** Production defaults to `BILLING_MODE=disabled` (upgrade buttons explain plans are coming). Stripe or similar must be added before charging.
 - **The desktop app does not research.** Its embedded server runs with `RESEARCH_ENABLED=0`, so a person's computer never opens a suspicious page; scans say so in place of the research section. Research needs the hosted service.
 - **Email verification needs a mail provider.** Without `RESEND_API_KEY` the server records the account and tells the person verification is unavailable; it never pretends to have sent anything.
-- **Masks beside search results need the companion.** No desktop program can draw inside a browser's page. Without it, page watch still warns about the page you open.
+- **The app draws over the browser, not in it.** Marks are placed from what Windows reports about where links are, about twice a second, so while a page is scrolling they trail it by a fraction of a second and come back in beside their links when it settles. They sit beside the link text, not inside the page layout.
+- **Private windows are recognised by their title.** English, German, French, Spanish and Portuguese wording is known. A browser in another language is treated as an ordinary window until its wording is added.
+- **Live scanning marks search results, not every link on every page.** Every page you open is checked; links inside ordinary pages are not marked.
 - **The DuckDuckGo browser cannot run the companion.** It supports no extensions on any platform, so it gets page warnings from the Windows app and nothing else. (DuckDuckGo *search* in any other browser is fully supported.)
 - **Chrome no longer loads extensions from the command line.** `--load-extension` is ignored by branded Chrome, so the app opens `chrome://extensions` for "Load unpacked" instead, and the test harness uses the DevTools pipe.
 - **Page watch is Windows-only.** It uses UI Automation, which macOS and Linux

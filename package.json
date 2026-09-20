@@ -1,6 +1,6 @@
 {
   "name": "sentinel",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "private": true,
   "description": "Sentinel - real-time scam, virus and malware protection",
   "type": "commonjs",
@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test tests/detection.test.js tests/api.test.js tests/auth.test.js tests/security.test.js tests/static.test.js tests/extension.test.js",
+    "test": "node --test tests/detection.test.js tests/api.test.js tests/auth.test.js tests/security.test.js tests/static.test.js tests/extension.test.js tests/desktop.test.js",
     "evaluate": "node scripts/evaluate.js --research-safe",
     "probe": "node scripts/probe.js",
     "verify:companion": "node scripts/verify-companion.js --browser chrome && node scripts/verify-companion.js --browser edge && node scripts/verify-companion-firefox.js",
