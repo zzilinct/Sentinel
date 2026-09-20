@@ -100,7 +100,20 @@ add-on involved:
   at once (a move, reversible), any process running from it is ended, and the
   entries that would relaunch it are removed. No kernel driver: it runs beside
   the system antivirus. Malware-side tests run in the `sentinel-lab`
-  VirtualBox VM, never on a developer's machine.
+  VirtualBox VM, never on a developer's machine. Last run there (1.4.4, a
+  harmless program carrying the test suite's inert marker, started and given
+  a Run key, a Startup shortcut and a scheduled task): process ended, file
+  quarantined, and all three ways back removed; an EICAR file was left to the
+  system antivirus and its Run key removed.
+- **It keeps going.** A token the server refuses never switches protection
+  off: background calls fall back to the computer's own account and ask for a
+  fresh token if that is refused too. When the scanner is still starting,
+  page watch and download protection try again every 30 seconds. Why page
+  watch is not watching is always written to `logs/watch.log`.
+- **Slow machines and big databases.** The time allowed for the scanner to
+  start grows with the size of the database it has to work through, a start
+  that failed is never restarted twice, and a new server waits for the old
+  one to be gone.
 - **Self-updating.** `desktop/src/updater.js` checks GitHub Releases, downloads
   a newer installer quietly and applies it when Sentinel quits, so nobody
   downloads the app twice.
@@ -258,7 +271,12 @@ Before that: point DNS for `usesentinel.technology` and `www.usesentinel.technol
   point at accounts which no longer exist are removed, and a file that cannot
   be repaired is set aside (never deleted) while the last verified backup is
   restored. Backups are taken at start and every six hours. One server per
-  database: a second one refuses to start rather than share the file. A file
+  database: a second one refuses to start rather than share the file. The
+  claim (`server/lib/dblock.js`) is taken before the file is opened and
+  records when its process and the computer started, so a claim left by a
+  killed server is recognised as stale even when Windows has since given its
+  process number to another program. A bare process number got that wrong and
+  could stop the scanner from ever starting again after a restart. A file
   left far larger than what it holds (the threat lists used to live in it, and
   the desktop app stops its server without a clean close) is shrunk on start.
 - The desktop app's device account only powers background protection. It never
