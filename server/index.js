@@ -6,6 +6,8 @@
 const http = require('http');
 const path = require('path');
 const config = require('./config');
+// Before anything opens the database: opening it can mean minutes of migration, and that must be covered too.
+require('./lib/dblock').claim();
 const { Router, sendJson, send, serveStatic, HttpError, parseUrl } = require('./lib/http');
 const security = require('./lib/security');
 const { sweep, acquireLock, backupAccounts } = require('./lib/db');

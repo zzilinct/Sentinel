@@ -25,7 +25,6 @@ const config = require('../config');
 const IN_MEMORY = config.dbPath === ':memory:';
 const FEEDS_PATH = IN_MEMORY ? ':memory:' : `${config.dbPath.replace(/\.db$/i, '')}-feeds.db`;
 const BACKUP_PATH = `${config.dbPath}.backup`;
-const LOCK_PATH = `${config.dbPath}.lock`;
 const LEGACY_FEED_TABLES = ['feed_hosts', 'feed_urls', 'scam_tokens', 'token_df', 'feed_status'];
 const note = (msg) => { if (!config.isTest) console.log(`  database  ${msg}`); };
 
@@ -404,30 +403,21 @@ function verifyFeeds() {
 
 /* ------------------------------------------------------------ single owner */
 
-const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (err) { return err.code === 'EPERM'; } };
-
 /**
- * Only one server may hold the database. Two heavy writers on one SQLite file,
- * one of them killed mid-import, is how the old single file was damaged.
- * Returns { unclean } - true when the previous owner never released the lock.
+ * Only one server may hold the database (see dblock.js, which server/index.js
+ * calls before this file is even loaded, so that a long migration is covered).
+ * A claim left behind by a killed server means the threat-list cache may have
+ * been cut off mid-write, so it is checked.
  */
 function acquireLock() {
   if (IN_MEMORY) return { unclean: false };
-  let unclean = false;
-  try {
-    const pid = Number(fs.readFileSync(LOCK_PATH, 'utf8').trim());
-    if (pid && pid !== process.pid && alive(pid)) {
-      throw Object.assign(new Error(`Another Sentinel (process ${pid}) is already using ${path.basename(config.dbPath)}. Close it first, or point DB_PATH somewhere else.`), { code: 'DB_LOCKED' });
-    }
-    unclean = Boolean(pid) && pid !== process.pid;
-  } catch (err) {
-    if (err.code === 'DB_LOCKED') throw err;
+  const claimed = require('./dblock').claim();
+  if (claimed.unclean && !claimed.checked) {
+    claimed.checked = true;
+    note('the last run did not shut down cleanly; checking the threat-list cache');
+    verifyFeeds();
   }
-  fs.writeFileSync(LOCK_PATH, String(process.pid));
-  const release = () => { try { if (Number(fs.readFileSync(LOCK_PATH, 'utf8')) === process.pid) fs.unlinkSync(LOCK_PATH); } catch { /* gone */ } };
-  process.once('exit', release);
-  if (unclean) { note('the last run did not shut down cleanly; checking the threat-list cache'); verifyFeeds(); }
-  return { unclean };
+  return { unclean: claimed.unclean };
 }
 
 /* ------------------------------------------------------------------ backup */

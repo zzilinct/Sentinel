@@ -391,3 +391,41 @@ test('an accounts file left bloated by a killed server is shrunk on the next sta
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+/* --------------------------------------------------- one server per database */
+
+test('a claim on the database is judged, not just found: a reused process number or an earlier boot never blocks a start', () => {
+  const lock = require('../server/lib/dblock');
+  const boot = 1_000_000_000_000;
+  const probe = (over = {}) => ({ alive: () => true, startedAt: () => boot + 60_000, bootTime: () => boot, ...over });
+
+  // The claimant itself: alive, and started when the claim says it did.
+  assert.equal(lock.held({ pid: 4242, started: boot + 61_000, boot }, probe()), true);
+  // The same number now belongs to a program that started at another time (Windows hands numbers out again).
+  assert.equal(lock.held({ pid: 4242, started: boot + 3_600_000, boot }, probe()), false);
+  // Written before the computer was last restarted: whoever has that number now is not the claimant.
+  assert.equal(lock.held({ pid: 264, started: boot - 86_400_000, boot: boot - 86_400_000 }, probe()), false);
+  // The process is gone.
+  assert.equal(lock.held({ pid: 4242, started: boot + 61_000, boot }, probe({ alive: () => false })), false);
+  // When the system cannot say, believe the claim: refusing to start is recoverable, two writers are not.
+  assert.equal(lock.held({ pid: 4242, started: boot + 61_000, boot }, probe({ startedAt: () => null })), true);
+  // Our own number is never somebody else.
+  assert.equal(lock.held({ pid: process.pid, started: 1, boot }, probe()), false);
+});
+
+test('a server starts over a stale claim whose process number belongs to something else now', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-lock-'));
+  const dbPath = path.join(dir, 'sentinel.db');
+  try {
+    // This test runner is alive and is not a Sentinel server that started an hour from now.
+    fs.writeFileSync(`${dbPath}.lock`, JSON.stringify({ pid: process.pid, started: Date.now() + 3_600_000, boot: Math.round(Date.now() - os.uptime() * 1000) }));
+    const server = startServerProcess(dbPath, await freePort());
+    await server.ready;
+    const claim = JSON.parse(fs.readFileSync(`${dbPath}.lock`, 'utf8'));
+    assert.notEqual(claim.pid, process.pid, 'the new server took the claim over');
+    assert.ok(claim.started && claim.boot, 'and recorded when it and the computer started');
+    await server.stop();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
