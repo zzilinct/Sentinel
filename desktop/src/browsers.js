@@ -3,23 +3,22 @@
  * Which browsers this computer has, and which are running right now.
  *
  * Sentinel does not need a browser add-on to know a browser is open: it looks
- * at the installed applications and the running processes. The companion
- * add-on is still what draws masks inside pages; this module is what lets the
- * app say "Chrome just opened" and offer the companion for exactly that browser.
+ * at the installed applications and the running processes. This module is what
+ * lets the app list "Your browsers" and open or raise one for "Scan with ...".
  */
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 
 const BROWSERS = [
-  { id: 'chrome', name: 'Google Chrome', process: 'chrome', engine: 'chromium', extensionsPage: 'chrome://extensions/' },
-  { id: 'edge', name: 'Microsoft Edge', process: 'msedge', engine: 'chromium', extensionsPage: 'edge://extensions/' },
-  { id: 'brave', name: 'Brave', process: 'brave', engine: 'chromium', extensionsPage: 'brave://extensions/' },
-  { id: 'opera', name: 'Opera', process: 'opera', engine: 'chromium', extensionsPage: 'opera://extensions/' },
-  { id: 'vivaldi', name: 'Vivaldi', process: 'vivaldi', engine: 'chromium', extensionsPage: 'vivaldi://extensions/' },
-  { id: 'duckduckgo', name: 'DuckDuckGo', process: 'duckduckgo', engine: 'webview2', extensionsPage: null },
-  { id: 'firefox', name: 'Firefox', process: 'firefox', engine: 'gecko', extensionsPage: 'about:debugging#/runtime/this-firefox' },
-  { id: 'librewolf', name: 'LibreWolf', process: 'librewolf', engine: 'gecko', extensionsPage: 'about:debugging#/runtime/this-firefox' }
+  { id: 'chrome', name: 'Google Chrome', process: 'chrome', engine: 'chromium' },
+  { id: 'edge', name: 'Microsoft Edge', process: 'msedge', engine: 'chromium' },
+  { id: 'brave', name: 'Brave', process: 'brave', engine: 'chromium' },
+  { id: 'opera', name: 'Opera', process: 'opera', engine: 'chromium' },
+  { id: 'vivaldi', name: 'Vivaldi', process: 'vivaldi', engine: 'chromium' },
+  { id: 'duckduckgo', name: 'DuckDuckGo', process: 'duckduckgo', engine: 'webview2' },
+  { id: 'firefox', name: 'Firefox', process: 'firefox', engine: 'gecko' },
+  { id: 'librewolf', name: 'LibreWolf', process: 'librewolf', engine: 'gecko' }
 ];
 
 // Where each browser's executable usually is. The Windows registry is checked
@@ -110,17 +109,47 @@ async function running() {
   return BROWSERS.filter((b) => names.has(b.process)).map((b) => b.id);
 }
 
+// Put a browser's window in front and maximised: restore it if it is minimised,
+// raise it if it is behind something. Windows only lets the program in front hand
+// the foreground to another, so a tap of Alt is sent first (the documented way to
+// be allowed). Prints FRONT when a window was raised, NONE when there is none.
+const RAISE = String.raw`
+$ErrorActionPreference = 'SilentlyContinue'
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public static class FW {
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+}
+"@
+$p = Get-Process -Name '__NAME__' | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+if (-not $p) { 'NONE'; exit }
+[FW]::ShowWindow($p.MainWindowHandle, 3) | Out-Null
+[FW]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [FW]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+[FW]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
+'FRONT'
+`;
+
 /**
- * Open a browser's own extensions page (browsers refuse those addresses from
- * other programs, so the browser is started with the address as an argument).
+ * "Scan with <browser>": open it if it is closed, and bring it to the front,
+ * maximised, if it is minimised or behind something.
  */
-async function openExtensionsPage(id) {
+async function bringForward(id) {
   const b = (await installed()).find((x) => x.id === id);
   if (!b) throw new Error('That browser is not installed');
-  if (!b.extensionsPage) throw new Error(`${b.name} does not take extensions; page watch covers it`);
-  return new Promise((resolve, reject) => {
-    execFile(b.exe, [b.extensionsPage], { windowsHide: false, detached: true, stdio: 'ignore' }, () => {}).on('error', reject).on('spawn', () => resolve({ ok: true }));
+  if (process.platform === 'win32') {
+    const encoded = Buffer.from(RAISE.replace('__NAME__', b.process), 'utf16le').toString('base64');
+    const out = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded], 15000);
+    if (/FRONT/.test(out)) return { ok: true, launched: false, name: b.name };
+  }
+  await new Promise((resolve, reject) => {
+    const args = b.engine === 'chromium' ? ['--start-maximized'] : [];
+    const child = execFile(b.exe, args, { windowsHide: false }, () => {});
+    child.on('error', reject);
+    child.on('spawn', () => { child.unref(); resolve(); });
   });
+  return { ok: true, launched: true, name: b.name };
 }
 
 /**
@@ -145,4 +174,4 @@ function watch({ onChange, everyMs = 5000 }) {
   return { stop() { stopped = true; clearTimeout(timer); } };
 }
 
-module.exports = { BROWSERS, installed, running, openExtensionsPage, watch };
+module.exports = { BROWSERS, installed, running, bringForward, watch };

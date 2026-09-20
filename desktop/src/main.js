@@ -10,18 +10,19 @@
  * - Starts with the computer (user can turn this off).
  * - Download protection: scans every new file in the Downloads folder with
  *   Sentinel's on-device virus & malware scanner.
- * - Knows which browsers are installed and open, and watches the address of
- *   the page in front (Chrome, Edge, Brave, Firefox) with no add-on needed,
- *   warning before a dangerous page gets your details.
+ * - Live scanning with no add-on: one button, then the browser in front is
+ *   watched (page warnings, a mask beside every search result, the gold line),
+ *   only while it is really in use. See watch.js and overlay.js.
  * - Updates itself from GitHub Releases, so nobody downloads Sentinel twice.
  * - Unlocks the app-only features in the web app through a narrow, validated bridge.
  */
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session, clipboard } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session } = require('electron');
 const downloads = require('./downloads');
 const browsers = require('./browsers');
 const watch = require('./watch');
+const overlay = require('./overlay');
 const updater = require('./updater');
 const defense = require('./defense');
 const store = require('./store');
@@ -253,15 +254,14 @@ function refreshTray() {
   const status = downloads.status();
   const pw = watch.status();
   const up = updater.status();
-  const open = browserState.running.map((id) => (browsers.BROWSERS.find((b) => b.id === id) || { name: id }).name);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open Sentinel', click: () => showWindow() },
     { type: 'separator' },
     { label: status.active ? 'Download protection: on' : status.reason || 'Download protection: off', enabled: false },
-    { label: pw.active ? `Page watch: on${open.length ? ` (${open.join(', ')})` : ''}` : pw.reason || 'Page watch: off', enabled: false },
+    { label: pw.active ? (pw.window ? 'Live scanning: watching the browser in front' : 'Live scanning: ready') : pw.reason || 'Live scanning is off', enabled: false },
     { label: 'Scan a file...', click: () => showWindow('/app/threats') },
     { type: 'separator' },
-    { label: 'Watch the page in front', type: 'checkbox', checked: store.get('pageWatch', true), enabled: pw.supported, click: (item) => setPageWatch(item.checked) },
+    { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => setLiveScanning(!store.get('liveScanning', false), { sweep: true }) },
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => setOpenAtLogin(item.checked) },
     { type: 'separator' },
     up.status === 'ready'
@@ -273,10 +273,33 @@ function refreshTray() {
   ]));
 }
 
-function setPageWatch(enabled) {
-  store.set('pageWatch', Boolean(enabled));
-  if (enabled) watch.restart(); else watch.stop('Turned off');
+/**
+ * Live scanning is one switch. On: whenever a browser is the window in front and
+ * in use, Sentinel watches it. It stays on across restarts until it is stopped.
+ * `sweep` plays the gold line down the screen: "scanning is ready".
+ */
+let sweepOnNextWindow = false;
+async function setLiveScanning(enabled, { sweep = false } = {}) {
+  store.set('liveScanning', Boolean(enabled));
+  if (enabled) {
+    await watch.restart();
+    if (sweep && watch.status().active) overlay.readySweep(win);
+  } else {
+    watch.stop('Turned off');
+    overlay.setWindow(null);
+  }
   refreshTray();
+  return { ...watch.status(), enabled: store.get('liveScanning', false) };
+}
+
+/** "Scan with <browser>": scanning on, that browser open, in front and maximised, the gold line over it. */
+async function scanWith(id) {
+  const status = await setLiveScanning(true);
+  if (!status.active) return { ok: false, reason: status.reason || 'Live scanning could not start', ...status };
+  sweepOnNextWindow = true;
+  setTimeout(() => { sweepOnNextWindow = false; }, 20000);
+  const raised = await browsers.bringForward(id);
+  return { ok: true, ...raised, ...status };
 }
 
 function setOpenAtLogin(enabled) {
@@ -330,25 +353,22 @@ function registerBridge() {
     openAtLogin: store.get('openAtLogin', true),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
-    pageWatch: { ...watch.status(), enabled: store.get('pageWatch', true) },
+    live: { ...watch.status(), enabled: store.get('liveScanning', false) },
     defense: { ...defense.status(), enabled: store.get('defense', true) },
     deviceProtection: Boolean(store.getSecret('deviceToken')) && !store.getSecret('token'),
     browsers: browserState,
     update: updater.status(),
-    companionPath: companionFolder()
+    platform: process.platform
   }));
 
   handle('sentinel:browsers', () => browserState);
 
-  handle('sentinel:open-extensions-page', async (id) => {
+  handle('sentinel:live-start', () => setLiveScanning(true, { sweep: true }));
+  handle('sentinel:live-stop', () => setLiveScanning(false));
+  handle('sentinel:scan-with', (id) => {
     if (typeof id !== 'string' || !browsers.BROWSERS.some((b) => b.id === id)) throw new Error('Unknown browser');
-    const folder = companionFolder(id);
-    clipboard.writeText(folder);
-    await browsers.openExtensionsPage(id);
-    return { ok: true, folder };
+    return scanWith(id);
   });
-
-  handle('sentinel:set-page-watch', (enabled) => { setPageWatch(Boolean(enabled)); return { ...watch.status(), enabled: store.get('pageWatch', true) }; });
 
   handle('sentinel:check-updates', () => updater.check());
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
@@ -390,13 +410,6 @@ function registerBridge() {
 
   handle('sentinel:quarantine', (id) => downloads.quarantine(String(id)));
 
-  handle('sentinel:open-companion-folder', (id) => {
-    const folder = companionFolder(typeof id === 'string' ? id : null);
-    shell.openPath(folder);
-    return { ok: true, folder };
-  });
-
-  // Only the app's own local pages may ask for these.
   handle('sentinel:retry-server', () => { retryCount = 0; boot(); return { ok: true }; }, trustedLocal);
   handle('sentinel:open-logs', () => { shell.showItemInFolder(server.logPath()); return { ok: true }; }, trustedLocal);
   handle('sentinel:quit', () => { quitting = true; app.quit(); return { ok: true }; }, trustedLocal);
@@ -405,15 +418,6 @@ function registerBridge() {
     if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`/app/scan?url=${encodeURIComponent(url)}`);
     return { ok: true };
   }, trustedLocal);
-}
-
-/**
- * The companion add-on ships inside the app: one folder for Chrome, Edge and
- * Brave, one for Firefox (different manifest, same code).
- */
-function companionFolder(id) {
-  const base = app.isPackaged ? path.join(process.resourcesPath, 'companion') : path.join(__dirname, '..', '..', 'extension');
-  return id === 'firefox' ? path.join(base, 'firefox') : base;
 }
 
 /* --------------------------------------------------------------- startup */
@@ -508,8 +512,22 @@ async function boot() {
     origin: ORIGIN,
     api: apiCall,
     getToken: () => activeToken(),
-    enabled: () => store.get('pageWatch', true),
-    onChange: (s) => { refreshTray(); push('sentinel:page-watch', s); },
+    enabled: () => store.get('liveScanning', false),
+    onChange: (s) => { refreshTray(); push('sentinel:live', { ...s, enabled: store.get('liveScanning', false) }); },
+    // The browser in front (or none): the overlay follows it, and leaves with it.
+    onWindow: (rect) => {
+      overlay.setWindow(rect);
+      if (rect && sweepOnNextWindow) { sweepOnNextWindow = false; overlay.sweep('start'); }
+      refreshTray();
+    },
+    // A new page: last page's verdict and marks are gone; a search gets the gold line.
+    onPage: (page) => {
+      overlay.setVerdict(null);
+      overlay.setMarks({ marks: [] });
+      if (page && page.search) overlay.sweep('search');
+    },
+    onVerdict: (v) => overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind }),
+    onMarks: (m) => overlay.setMarks(m),
     onLog: (text) => {
       try {
         const fs = require('fs');
@@ -541,24 +559,9 @@ async function boot() {
 
   if (!browserWatcher) {
     browserWatcher = browsers.watch({
-      onChange: (s) => {
-        const appeared = s.running.filter((id) => !browserState.running.includes(id));
-        browserState = s;
-        refreshTray();
-        push('sentinel:browsers', s);
-        // The first time each browser is seen open, say what Sentinel does there.
-        for (const id of appeared) {
-          const key = `browserHint:${id}`;
-          if (store.get(key)) continue;
-          store.set(key, true);
-          const b = browsers.BROWSERS.find((x) => x.id === id) || { name: id };
-          const watching = watch.status().active;
-          notify(`${b.name} is open`,
-            watching ? `Sentinel is watching the page in front. For masks inside search results and your inbox, add the companion from Live protection.`
-              : `Sentinel can warn you about dangerous pages here. Turn on page watch in Live protection.`,
-            () => showWindow('/app/protection'));
-        }
-      }
+      // Which browsers are open is shown in the app. It is never a notification:
+      // a browser running somewhere in the background is not an event.
+      onChange: (s) => { browserState = s; push('sentinel:browsers', s); }
     });
   }
 
@@ -594,7 +597,7 @@ app.whenReady().then(() => {
   step('login item', () => { if (app.isPackaged) setOpenAtLogin(store.get('openAtLogin', true)); });
 });
 
-app.on('before-quit', () => { quitting = true; defense.stop(null, true); watch.stop(null, true); if (browserWatcher) browserWatcher.stop(); server.stop(); });
+app.on('before-quit', () => { quitting = true; defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 

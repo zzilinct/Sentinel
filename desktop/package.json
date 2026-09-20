@@ -1,7 +1,7 @@
 {
   "name": "sentinel-desktop",
   "productName": "Sentinel",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "description": "Sentinel - scam, virus and malware protection that runs on your own computer",
   "main": "src/main.js",
   "author": "Sentinel",
@@ -34,21 +34,6 @@
       "package.json"
     ],
     "extraResources": [
-      {
-        "from": "../extension",
-        "to": "companion",
-        "filter": [
-          "**/*",
-          "!src/background.firefox.js"
-        ]
-      },
-      {
-        "from": "companion-firefox",
-        "to": "companion/firefox",
-        "filter": [
-          "**/*"
-        ]
-      },
       {
         "from": "bundle",
         "to": "sentinel",

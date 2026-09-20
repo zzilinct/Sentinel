@@ -1,97 +1,160 @@
 'use strict';
 /**
- * Page watch: protection with no browser add-on at all.
+ * Live scanning: protection inside any browser with no add-on at all.
  *
  * Windows exposes every browser's current page through UI Automation, the
- * same accessibility layer screen readers use. Sentinel asks it, about once a
- * second, which page the browser in front is showing, and checks that address
- * with the scanner. A dangerous page gets a notification and a warning window.
+ * same accessibility layer screen readers use. While live scanning is on and a
+ * browser is the window in front, Sentinel asks it, about twice a second:
+ *
+ *   - which page is showing          -> the address is checked; a dangerous page
+ *                                       gets a warning
+ *   - where the page sits on screen  -> so the overlay (overlay.js) can put the
+ *                                       gold line, the corner mask and the marks
+ *                                       exactly over it
+ *   - on a search results page, which links are on screen and where
+ *                                    -> each one is checked and gets its mark
  *
  * What this can and cannot do:
- *   - It sees the address of the page in the browser window you are looking at,
- *     in Chrome, Edge, Brave and Firefox. It never reads page content, form
- *     fields or anything you type.
- *   - It cannot draw masks inside search results or your inbox; only the
- *     companion add-on can do that.
+ *   - It reads addresses: of the page, and of the links on a results page. It
+ *     never reads page text, form fields or anything typed.
+ *   - It only works on the window in front. A browser that is minimised, behind
+ *     another program, or left alone for two minutes is not "in use": nothing is
+ *     read, nothing is checked, and no live time is spent.
+ *   - Private windows (InPrivate, Incognito, Private Browsing) are protected the
+ *     same way, and nothing about them is kept: no history, no log line, no
+ *     entry in the app's live feed.
  *   - Windows only for now. Other platforms report "not available".
  *
  * The reader is a small PowerShell loop, started hidden and handed the script
- * inline, so nothing is written to disk. It prints one JSON line whenever the
- * page in front changes; this module does the rest.
+ * inline, so nothing is written to disk. It prints one JSON line when something
+ * changes; this module does the rest.
  */
 const { spawn } = require('child_process');
 
-const BROWSER_PROCESSES = ['chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf'];
 const RECHECK_MS = 10 * 60 * 1000;     // same host warned again after this long
-const SETTLE_MS = 700;                 // a page must stay in front this long before it is checked
+const SETTLE_MS = 600;                 // a page must stay in front this long before it is checked
+const VERDICT_TTL_MS = 10 * 60 * 1000; // a link's verdict is reused this long (scrolling re-reads the same links)
+const MAX_LINKS = 40;
 
-// Foreground window -> owning process -> the page's document element -> its URL.
+// Foreground window -> owning process -> the page's document element -> its URL, its rectangle, its links.
 const SCRIPT = String.raw`
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type @"
-using System; using System.Runtime.InteropServices;
+using System; using System.Text; using System.Runtime.InteropServices;
 public static class SW {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
   public static uint IdleMs() { var i = new LASTINPUTINFO(); i.cbSize = (uint)Marshal.SizeOf(i); GetLastInputInfo(ref i); return (uint)Environment.TickCount - i.dwTime; }
+  public static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
 }
 "@
 $A = [System.Windows.Automation.AutomationElement]
+$VP = [System.Windows.Automation.ValuePattern]
 $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
+$linkCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Hyperlink)
+$cache = New-Object System.Windows.Automation.CacheRequest
+$cache.Add($A::BoundingRectangleProperty); $cache.Add($A::IsOffscreenProperty); $cache.Add($VP::ValueProperty)
+$cache.AutomationElementMode = [System.Windows.Automation.AutomationElementMode]::None
 $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
-$last = ''
-$lastFront = ''
-$wasIdle = $false
-$noDoc = ''
+$private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
+$search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
+$last = ''; $lastFront = ''; $lastWin = ''; $lastLinks = ''; $wasIdle = $false; $noDoc = ''; $pause = 450
+function Off($why) { if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
-  Start-Sleep -Milliseconds 900
+  Start-Sleep -Milliseconds $pause
+  $pause = 450
   $h = [SW]::GetForegroundWindow()
   if ($h -eq [IntPtr]::Zero) { continue }
   $fp = 0
   [void][SW]::GetWindowThreadProcessId($h, [ref]$fp)
-  $fname = (Get-Process -Id $fp).ProcessName
+  $p = Get-Process -Id $fp
+  $fname = $p.ProcessName
   if ($fname -and $fname -ne $lastFront) { $lastFront = $fname; Write-Output (@{ front = $fname; isBrowser = ($browsers -contains $fname) } | ConvertTo-Json -Compress) }
-  # Nobody at the keyboard, or the window is minimised: the browser is not "in use".
-  if ([SW]::IdleMs() -gt 120000 -or [SW]::IsIconic($h)) { if (-not $wasIdle) { $wasIdle = $true; $last = ''; Write-Output '{"url":null,"idle":true}' } ; continue }
-  if ($wasIdle) { $wasIdle = $false; Write-Output '{"url":null,"awake":true}' }
-  $pid2 = 0
-  [void][SW]::GetWindowThreadProcessId($h, [ref]$pid2)
-  $p = Get-Process -Id $pid2
-  if (-not $p -or ($browsers -notcontains $p.ProcessName)) { if ($last -ne '') { $last = ''; Write-Output '{"url":null}' } ; continue }
-  $url = $null
+  # Behind another program, minimised, or nobody at the keyboard: the browser is not "in use".
+  if (-not $p -or ($browsers -notcontains $fname)) { Off 'not in front'; continue }
+  if ([SW]::IsIconic($h)) { Off 'minimised'; continue }
+  if ([SW]::IdleMs() -gt 120000) { if (-not $wasIdle) { $wasIdle = $true; Write-Output '{"idle":true}' }; Off 'idle'; continue }
+  if ($wasIdle) { $wasIdle = $false; Write-Output '{"awake":true}' }
+
+  $url = $null; $r = $null; $doc = $null
   try {
     $root = $A::FromHandle($h)
     $doc = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $docCond)
-    if ($doc) { $url = $doc.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value }
+    if ($doc) { $url = $doc.GetCurrentPattern($VP::Pattern).Current.Value; $r = $doc.Current.BoundingRectangle }
   } catch { $url = $null }
-  # Say so once when a browser is in front and Windows hands over no address, so "nothing was checked" has a reason.
-  if (-not $url) { if ($noDoc -ne $p.ProcessName) { $noDoc = $p.ProcessName; Write-Output (@{ browser = $p.ProcessName; nodoc = $true } | ConvertTo-Json -Compress) } ; continue }
+  if (-not $url -or -not $r -or [double]::IsInfinity($r.Width) -or $r.Width -lt 200) {
+    if ($noDoc -ne $fname) { $noDoc = $fname; Write-Output (@{ browser = $fname; nodoc = $true } | ConvertTo-Json -Compress) }
+    Off 'no page'; continue
+  }
   $noDoc = ''
-  $key = $p.ProcessName + '|' + $url
-  if ($key -eq $last) { continue }
-  $last = $key
-  $o = @{ browser = $p.ProcessName; url = $url } | ConvertTo-Json -Compress
-  Write-Output $o
+  $isPrivate = [SW]::Title($h) -match $private
+
+  $winKey = "$h|$([int]$r.X)|$([int]$r.Y)|$([int]$r.Width)|$([int]$r.Height)|$isPrivate"
+  if ($winKey -ne $lastWin) {
+    $lastWin = $winKey
+    Write-Output (@{ win = @{ browser = $fname; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; private = [bool]$isPrivate } } | ConvertTo-Json -Compress)
+  }
+
+  $key = $fname + '|' + $url
+  if ($key -ne $last) {
+    $last = $key; $lastLinks = ''
+    Write-Output (@{ browser = $fname; url = $url; private = [bool]$isPrivate; search = [bool]($url -match $search) } | ConvertTo-Json -Compress)
+  }
+
+  # On a results page: every link on screen, with where it is. Addresses and rectangles only.
+  if ($url -match $search) {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $found = $null
+    $scope = $cache.Activate()
+    try { $found = $doc.FindAll([System.Windows.Automation.TreeScope]::Descendants, $linkCond) } catch { $found = $null } finally { $scope.Dispose() }
+    $list = New-Object System.Collections.ArrayList
+    if ($found) {
+      foreach ($l in $found) {
+        if ($list.Count -ge 60) { break }
+        $u = $l.GetCachedPropertyValue($VP::ValueProperty)
+        if (-not ($u -is [string]) -or $u -notmatch '^https?://') { continue }
+        if ($l.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }
+        $b = $l.GetCachedPropertyValue($A::BoundingRectangleProperty)
+        if ([double]::IsInfinity($b.Width) -or $b.Width -lt 40 -or $b.Height -lt 10) { continue }
+        if ($b.Bottom -lt $r.Top -or $b.Top -gt $r.Bottom) { continue }
+        [void]$list.Add(@{ u = $u; x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height })
+      }
+    }
+    $sw.Stop()
+    $sig = ($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)" }) -join ';'
+    if ($sig -ne $lastLinks) {
+      $lastLinks = $sig
+      Write-Output (@{ links = @($list); for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
+    }
+    # A heavy page must not make the reader spin: rest at least twice as long as the read took.
+    if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
+    # A light page is read more often, so marks keep up with scrolling.
+    elseif ($sw.ElapsedMilliseconds -lt 70) { $pause = 220 }
+  }
 }
 `;
 
 let child = null;
 let opts = null;
-let state = { active: false, reason: 'Starting', supported: process.platform === 'win32', current: null };
+let state = { active: false, reason: 'Starting', supported: process.platform === 'win32', current: null, window: null };
 const warned = new Map();
+const verdicts = new Map();   // url -> { at, mark }
 let settleTimer = null;
 let restartTimer = null;
+let latestLinks = null;       // the last list of on-screen links, so late verdicts land where the links are now
+let pending = new Set();
 
 function status() { return { ...state }; }
 function log(text) { if (opts && opts.onLog) opts.onLog(text); }
 
 function setState(active, reason) {
-  // Why page watch is off belongs in the log: "nothing was checked" must always have a reason on file.
+  // Why live scanning is off belongs in the log: "nothing was checked" must always have a reason on file.
   if (!active && reason && reason !== state.reason) log(`not watching: ${reason}`);
   state = { ...state, active, reason };
   if (opts && opts.onChange) opts.onChange(status());
@@ -104,14 +167,14 @@ function init(options) {
 
 async function restart() {
   stop(null, true);
-  if (!state.supported) return setState(false, 'Page watch is available on Windows');
-  if (!opts.enabled()) return setState(false, 'Page watch: off');
-  if (!opts.getToken()) return setState(false, 'Sign in to turn on page watch');
+  if (!state.supported) return setState(false, 'Live scanning is available on Windows');
+  if (!opts.enabled()) return setState(false, 'Live scanning is off');
+  if (!opts.getToken()) return setState(false, 'Sign in to start live scanning');
   try {
     const me = await opts.api('/api/v1/auth/me');
-    if (!me.plan.features.liveScanning) return setState(false, 'Page watch needs Pro or Max');
+    if (!me.plan.features.liveScanning) return setState(false, 'Live scanning needs Pro or above');
   } catch (err) {
-    if (err.status === 401) return setState(false, 'Sign in to turn on page watch');
+    if (err.status === 401) return setState(false, 'Sign in to start live scanning');
     // "Will retry" has to be true: a scanner that is still starting answers a minute later.
     restartTimer = setTimeout(() => restart(), 30000);
     return setState(false, 'Sentinel is offline - will retry');
@@ -126,9 +189,10 @@ function start() {
       { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (err) {
     log(`could not start the reader: ${err.message}`);
-    return setState(false, `Page watch could not start (${err.message})`);
+    return setState(false, `Live scanning could not start (${err.message})`);
   }
   log('reader started');
+  const mine = child;
   let errText = '';
   child.stderr.on('data', (c) => { if (errText.length < 600) { errText += c.toString('utf8'); } });
   let buf = '';
@@ -142,11 +206,13 @@ function start() {
     }
   });
   child.on('exit', (code) => {
+    if (child !== mine) return;   // stopped on purpose, or already replaced
     log(`reader exited (${code})${errText ? `: ${errText.replace(/\s+/g, ' ').slice(0, 300)}` : ''}`);
     child = null;
+    setWindow(null);
     if (!state.active) return;
     // Keep watching: the reader is cheap to bring back.
-    setState(false, 'Page watch stopped - restarting');
+    setState(false, 'Live scanning stopped - restarting');
     restartTimer = setTimeout(() => restart(), 3000);
   });
   setState(true, null);
@@ -155,9 +221,18 @@ function start() {
 function stop(reason, silent) {
   clearTimeout(settleTimer);
   clearTimeout(restartTimer);
-  if (child) { try { child.kill(); } catch { /* gone */ } child = null; }
+  const old = child;
+  child = null;
+  if (old) { try { old.kill(); } catch { /* gone */ } }
   state.current = null;
-  if (!silent) setState(false, reason ? `Page watch: ${reason.toLowerCase()}` : 'Page watch: off');
+  latestLinks = null;
+  setWindow(null);
+  if (!silent) setState(false, reason ? `Live scanning: ${reason.toLowerCase()}` : 'Live scanning is off');
+}
+
+function setWindow(win) {
+  state.window = win;
+  if (opts && opts.onWindow) opts.onWindow(win);
 }
 
 function onLine(line) {
@@ -165,41 +240,131 @@ function onLine(line) {
   try { msg = JSON.parse(line); } catch { return; }
   if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); return; }
   if (msg.nodoc) { log(`${msg.browser} is in front, but Windows gave no page address (a start page, a dialog over the page, or the browser's accessibility is off)`); return; }
-  if (msg.awake) { if (state.idle) log('in use again'); state.idle = false; return; }
+  if (msg.idle) { log('nobody at the keyboard: paused'); return; }
+  if (msg.awake) { log('in use again'); return; }
+  if ('win' in msg) {
+    if (!msg.win) { clearTimeout(settleTimer); state.current = null; latestLinks = null; }
+    setWindow(msg.win || null);
+    return;
+  }
+  if (msg.links) return onLinks(msg);
+  if (!msg.url) return;
+
   clearTimeout(settleTimer);
-  if (msg.idle) { if (!state.idle) log('nobody at the keyboard or window minimised: paused'); state.current = null; state.idle = true; return; }
-  if (state.idle) log('in use again');
-  state.idle = false;
-  if (!msg.url || !/^https?:\/\//i.test(msg.url)) { state.current = null; return; }
+  latestLinks = null;
+  if (!/^https?:\/\//i.test(msg.url)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
   // Sentinel's own pages and the app's server are not "sites".
-  if (opts.origin && msg.url.startsWith(opts.origin)) { state.current = null; return; }
-  state.current = { browser: msg.browser, url: msg.url, at: Date.now() };
-  settleTimer = setTimeout(() => check(msg.browser, msg.url).catch(() => {}), SETTLE_MS);
+  if (opts.origin && msg.url.startsWith(opts.origin)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
+  const page = { browser: msg.browser, url: msg.url, private: Boolean(msg.private), search: Boolean(msg.search), at: Date.now() };
+  // What a private window shows is never kept, not even in memory the app's window can read.
+  state.current = page.private ? { browser: page.browser, url: null, private: true, at: page.at } : page;
+  if (opts.onPage) opts.onPage(page);
+  settleTimer = setTimeout(() => check(page).catch(() => {}), SETTLE_MS);
 }
 
-async function check(browser, url) {
+async function check(page) {
   let host;
-  try { host = new URL(url).hostname; } catch { return; }
-  const last = warned.get(host);
-  if (last && Date.now() - last < RECHECK_MS) return;
+  try { host = new URL(page.url).hostname; } catch { return; }
+  // A results page is the search engine's own; its links are what matter, and they are checked one by one.
+  if (page.search) { if (opts.onVerdict) opts.onVerdict({ page, badge: null, label: 'Search results' }); return; }
 
   let verdict;
   try {
-    ({ verdict } = await opts.api('/api/v1/live/visit', { url }));
+    ({ verdict } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private }));
   } catch (err) {
-    log(`check failed for ${host}: ${err.status || ''} ${err.code || err.message}`);
-    if (err.status === 401) setState(false, 'Sign in to turn on page watch');
-    else if (err.status === 403) setState(false, 'Page watch needs Pro or Max');
+    log(`check failed${page.private ? '' : ` for ${host}`}: ${err.status || ''} ${err.code || err.message}`);
+    if (err.status === 401) setState(false, 'Sign in to start live scanning');
+    else if (err.status === 403) setState(false, 'Live scanning needs Pro or above');
     else if (err.code === 'live_hours_exhausted') setState(false, 'Live hours for this week are used up');
     return;
   }
-  if (opts.onChecked) opts.onChecked({ browser, url, host, badge: (verdict && verdict.overall && verdict.overall.badge) || null, label: verdict && verdict.overall ? verdict.overall.label : 'Checked', at: Date.now() });
-  if (!verdict || !verdict.overall || !verdict.overall.badge) return;
-  const severe = verdict.overall.badge === 'red' || verdict.overall.badge === 'orange';
-  if (!severe) return;
+  const badge = (verdict && verdict.overall && verdict.overall.badge) || null;
+  const label = verdict && verdict.overall ? verdict.overall.label : 'Checked';
+  if (opts.onVerdict) opts.onVerdict({ page, badge, label, kind: worstKind(verdict) });
+  if (opts.onChecked && !page.private) opts.onChecked({ browser: page.browser, url: page.url, host, badge, label, at: Date.now() });
+  if (badge !== 'red' && badge !== 'orange') return;
+  const last = warned.get(host);
+  if (last && Date.now() - last < RECHECK_MS) return;
   warned.set(host, Date.now());
   if (warned.size > 500) warned.clear();
-  opts.onThreat({ browser, url, host, verdict });
+  opts.onThreat({ browser: page.browser, url: page.url, host, verdict, private: page.private });
 }
 
-module.exports = { init, restart, stop, status };
+/** Which mask a verdict wears: the threat with the worst badge. */
+function worstKind(verdict) {
+  const rank = { red: 3, orange: 2, yellow: 1 };
+  let best = 'scam';
+  let top = 0;
+  for (const [kind, t] of Object.entries((verdict && verdict.threats) || {})) {
+    const r = rank[t && t.badge] || 0;
+    if (r > top) { top = r; best = kind; }
+  }
+  return best;
+}
+
+const ENGINE_HOSTS = /(^|\.)(google\.[a-z.]+|gstatic\.com|googleusercontent\.com|youtube\.com|bing\.com|microsoft\.com|msn\.com|live\.com|duckduckgo\.com|brave\.com|yahoo\.com|ecosia\.org|startpage\.com|yandex\.[a-z.]+|mojeek\.com)$/i;
+
+/** One entry per result: the first on-screen link to each outside address. */
+function resultLinks(links, pageUrl) {
+  let pageHost = '';
+  try { pageHost = new URL(pageUrl).hostname; } catch { /* keep all */ }
+  const seen = new Set();
+  const out = [];
+  for (const l of links) {
+    let u;
+    try { u = new URL(l.u); } catch { continue }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+    if (u.hostname === pageHost || ENGINE_HOSTS.test(u.hostname)) continue;
+    const key = `${u.hostname}${u.pathname}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...l, u: u.href });
+    if (out.length >= MAX_LINKS) break;
+  }
+  return out;
+}
+
+function markFor(url) {
+  const hit = verdicts.get(url);
+  return hit && Date.now() - hit.at < VERDICT_TTL_MS ? hit.mark : null;
+}
+
+function publishMarks() {
+  if (!latestLinks || !opts.onMarks) return;
+  opts.onMarks({
+    for: latestLinks.for,
+    checking: latestLinks.links.filter((l) => !markFor(l.u)).length,
+    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, ...(markFor(l.u) || { pending: true }) }))
+  });
+}
+
+async function onLinks(msg) {
+  const page = state.window ? { private: Boolean(state.window.private) } : { private: false };
+  const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for);
+  const fresh = !latestLinks || latestLinks.for !== msg.for;
+  latestLinks = { for: msg.for, links };
+  if (fresh && opts.onResults) opts.onResults({ count: links.length, ms: msg.ms });
+  publishMarks();   // positions first: marks already known move at once
+
+  const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
+  if (!missing.length) return;
+  missing.forEach((u) => pending.add(u));
+  try {
+    const { byUrl } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private });
+    for (const u of missing) {
+      const v = byUrl && byUrl[u];
+      const badge = (v && v.overall && v.overall.badge) || null;
+      const first = v && v.reasons && v.reasons[0];
+      verdicts.set(u, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v && v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+    }
+    if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
+  } catch (err) {
+    log(`results check failed: ${err.status || ''} ${err.code || err.message}`);
+    if (err.code === 'live_hours_exhausted') setState(false, 'Live hours for this week are used up');
+  } finally {
+    missing.forEach((u) => pending.delete(u));
+  }
+  publishMarks();
+}
+
+module.exports = { init, restart, stop, status, _test: { resultLinks, worstKind, SCRIPT } };

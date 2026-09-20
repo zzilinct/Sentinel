@@ -165,8 +165,10 @@ function register(router) {
     security.rateLimit(`live:${user.id}`, 240, 60 * 1000);
 
     const research = Boolean(body.research) && plan.features.liveResearch;
+    // A private window is protected like any other, and nothing about it is kept:
+    // flagged results normally go into the person's history, these do not.
     const verdicts = await engine.scanUrls(urls, {
-      userId: user.id, planId: plan.id, research, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: true
+      userId: user.id, planId: plan.id, research, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: body.private !== true
     });
     const byUrl = {};
     for (const v of verdicts) byUrl[v.requested] = v;

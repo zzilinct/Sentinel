@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' file:">
+<title>Sentinel live scanning</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #e9e6df; }
+  * { box-sizing: border-box; }
+  body { position: relative; }
+
+  /* The tint and the line */
+  .tint { position: absolute; inset: 0; opacity: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(214, 178, 90, .17), rgba(214, 178, 90, .07) 60%, rgba(214, 178, 90, .04)); }
+  .line { position: absolute; left: 0; right: 0; top: 0; height: 3px; opacity: 0; pointer-events: none; will-change: transform;
+    background: linear-gradient(90deg, rgba(233, 207, 138, 0), #e2c47f 18%, #fff4d2 50%, #e2c47f 82%, rgba(233, 207, 138, 0));
+    box-shadow: 0 0 22px 5px rgba(214, 178, 90, .5), 0 0 3px 1px rgba(255, 244, 210, .8); }
+  .line::before { content: ""; position: absolute; left: 0; right: 0; bottom: 3px; height: 140px;
+    background: linear-gradient(0deg, rgba(214, 178, 90, .16), rgba(214, 178, 90, 0)); }
+  body.sweeping .tint { animation: tint var(--tint, 2.9s) ease-out forwards; }
+  body.sweeping .line { animation: line var(--line, 1.35s) cubic-bezier(.45, .05, .25, 1) forwards; }
+  @keyframes tint { 0% { opacity: 0; } 12% { opacity: 1; } 55% { opacity: .85; } 100% { opacity: 0; } }
+  @keyframes line { 0% { transform: translateY(-6px); opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { transform: translateY(100vh); opacity: 0; } }
+
+  /* The corner mask: Sentinel is watching this browser */
+  .corner { position: absolute; right: 18px; bottom: 18px; display: flex; align-items: center; gap: 10px; flex-direction: row-reverse;
+    opacity: 0; transform: translateY(8px); transition: opacity .35s ease, transform .35s ease; pointer-events: none; }
+  .corner.is-on { opacity: 1; transform: none; }
+  .corner__mask { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 12px; color: var(--c, #d6b25a);
+    background: rgba(12, 13, 16, .88); border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 55%, transparent);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, .35), 0 0 0 0 rgba(214, 178, 90, .0); animation: breathe 3.6s ease-in-out infinite; }
+  .corner__mask svg { width: 30px; height: 30px; display: block; }
+  .corner__label { max-width: 320px; padding: 8px 12px; border-radius: 9px; background: rgba(12, 13, 16, .9); border: 1px solid rgba(255, 255, 255, .08);
+    color: #e9e6df; font-size: 12.5px; opacity: 0; transform: translateX(6px); transition: opacity .3s ease, transform .3s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .corner__label.is-on { opacity: 1; transform: none; }
+  .corner__label b { font-weight: 600; color: var(--c, #e2c47f); }
+  @keyframes breathe { 0%, 100% { box-shadow: 0 6px 22px rgba(0, 0, 0, .35), 0 0 0 0 rgba(214, 178, 90, 0); } 50% { box-shadow: 0 6px 22px rgba(0, 0, 0, .35), 0 0 16px 2px rgba(214, 178, 90, .28); } }
+
+  /* A mask beside every result */
+  .mark { position: absolute; width: 28px; height: 28px; margin: 0; display: grid; place-items: center; border-radius: 8px; pointer-events: none;
+    background: rgba(12, 13, 16, .88); box-shadow: 0 2px 10px rgba(0, 0, 0, .28), 0 0 12px -2px color-mix(in srgb, var(--c, #8f8a7a) 55%, transparent); border: 1px solid color-mix(in srgb, var(--c, #8f8a7a) 50%, transparent); color: var(--c, #8f8a7a);
+    opacity: 0; transform: scale(.6); will-change: transform, opacity; }
+  .mark svg { width: 20px; height: 20px; display: block; }
+  .mark.is-clear { width: 20px; height: 20px; border-radius: 6px; background: rgba(12, 13, 16, .8); box-shadow: 0 1px 6px rgba(0, 0, 0, .2); }
+  .mark.is-clear svg { width: 12px; height: 12px; }
+  .mark.is-pending { width: 10px; height: 10px; border-radius: 3px; border: 0; box-shadow: none; background: #d6b25a; opacity: .0; animation: wait 1s ease-in-out infinite; }
+  .mark.is-in { animation: pop .34s cubic-bezier(.2, 1.4, .4, 1) var(--d, 0ms) forwards; }
+  @keyframes pop { 0% { opacity: 0; transform: scale(.55); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes wait { 0%, 100% { opacity: .25; } 50% { opacity: .8; } }
+
+  .tip { position: absolute; max-width: 300px; padding: 9px 12px; border-radius: 9px; background: rgba(12, 13, 16, .95); border: 1px solid rgba(255, 255, 255, .1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .45); opacity: 0; transition: opacity .15s ease; pointer-events: none; z-index: 5; }
+  .tip.is-on { opacity: 1; }
+  .tip b { display: block; font-weight: 600; color: var(--c, #e9e6df); margin-bottom: 2px; }
+  .tip span { color: #b9b5ab; font-size: 12.5px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    body.sweeping .line { animation: none; }
+    body.sweeping .tint { animation: tint 1.2s ease-out forwards; }
+    .corner__mask { animation: none; }
+    .mark.is-in { animation: none; opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="tint"></div>
+  <div class="line"></div>
+  <div id="marks"></div>
+  <div class="tip" id="tip"><b></b><span></span></div>
+  <div class="corner" id="corner">
+    <div class="corner__mask" id="cornerMask"></div>
+    <div class="corner__label" id="cornerLabel"></div>
+  </div>
+<script src="../../shared/masks.js"></script>
+<script>
+(function () {
+  'use strict';
+  var M = window.SentinelMasks;
+  var GOLD = '#d6b25a';
+  var TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg>';
+  var corner = document.getElementById('corner');
+  var cornerMask = document.getElementById('cornerMask');
+  var cornerLabel = document.getElementById('cornerLabel');
+  var marksEl = document.getElementById('marks');
+  var tip = document.getElementById('tip');
+  var nodes = [];
+  var current = [];
+  var labelTimer = null;
+  var sweepTimer = null;
+  var flagged = false;
+  var sticky = false;
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  /** Words beside the corner mask. They leave by themselves unless `keep` (a warning stays while its page does). */
+  function say(html, color, keep) {
+    clearTimeout(labelTimer);
+    cornerLabel.style.setProperty('--c', color || '#e2c47f');
+    cornerLabel.innerHTML = html;
+    cornerLabel.classList.add('is-on');
+    sticky = Boolean(keep);
+    if (!keep) labelTimer = setTimeout(function () { cornerLabel.classList.remove('is-on'); }, 4200);
+  }
+
+  function setCorner(kind, color) {
+    cornerMask.style.setProperty('--c', color || GOLD);
+    cornerMask.innerHTML = M.svg(kind || 'scam');
+  }
+
+  function sweep(kind) {
+    clearTimeout(sweepTimer);
+    document.body.classList.remove('sweeping');
+    document.body.style.setProperty('--line', kind === 'ready' ? '1.9s' : '1.35s');
+    document.body.style.setProperty('--tint', kind === 'ready' ? '3.6s' : '2.7s');
+    void document.body.offsetWidth;   // restart the animation
+    document.body.classList.add('sweeping');
+    sweepTimer = setTimeout(function () { document.body.classList.remove('sweeping'); }, kind === 'ready' ? 3700 : 2800);
+  }
+
+  function clearMarks() {
+    nodes.forEach(function (n) { n.remove(); });
+    nodes = [];
+    current = [];
+    tip.classList.remove('is-on');
+  }
+
+  function place(list) {
+    current = list;
+    while (nodes.length > list.length) nodes.pop().remove();
+    var W = window.innerWidth;
+    var H = window.innerHeight;
+    list.forEach(function (m, i) {
+      var n = nodes[i];
+      if (!n) { n = document.createElement('div'); n.className = 'mark'; marksEl.appendChild(n); nodes[i] = n; }
+      var state = m.pending ? 'pending' : (m.badge ? m.badge + ':' + m.kind : 'clear');
+      var size = m.pending ? 10 : m.badge ? 28 : 20;
+      // To the right of the link, level with its first line; to its left when there is no room.
+      var x = m.x + m.w + 8;
+      if (x + size > W - 6) x = Math.max(4, m.x - size - 8);
+      var y = m.y + Math.min(m.h, 26) / 2 - size / 2;
+      var visible = y > 2 && y < H - size - 2;
+      n.style.left = Math.round(x) + 'px';
+      n.style.top = Math.round(y) + 'px';
+      n.style.display = visible ? '' : 'none';
+      m._cx = x + size / 2; m._cy = y + size / 2;
+      // The page scrolled: a mark does not slide after its link, it comes back in beside it.
+      var pos = Math.round(x) + ',' + Math.round(y);
+      var moved = n.dataset.pos && n.dataset.pos !== pos;
+      n.dataset.pos = pos;
+      if (n.dataset.state === state) {
+        if (moved && !m.pending) { n.style.setProperty('--d', '0ms'); n.classList.remove('is-in'); void n.offsetWidth; n.classList.add('is-in'); }
+        return;
+      }
+      n.dataset.state = state;
+      n.className = 'mark' + (m.pending ? ' is-pending' : m.badge ? '' : ' is-clear');
+      if (m.pending) { n.innerHTML = ''; return; }
+      n.style.setProperty('--c', m.badge ? M.COLORS[m.badge] : M.COLORS.clear);
+      n.style.setProperty('--d', Math.min(i, 14) * 45 + 'ms');
+      n.innerHTML = m.badge ? M.svg(m.kind) : TICK;
+      void n.offsetWidth;
+      n.classList.add('is-in');
+    });
+  }
+
+  // A mark explains itself when the pointer is over it. Clicks still go to the browser.
+  window.addEventListener('mousemove', function (ev) {
+    var hit = null;
+    for (var i = 0; i < current.length; i++) {
+      var m = current[i];
+      if (m.pending || m._cx == null) continue;
+      if (Math.abs(ev.clientX - m._cx) <= 15 && Math.abs(ev.clientY - m._cy) <= 15) { hit = m; break; }
+    }
+    if (!hit) { tip.classList.remove('is-on'); return; }
+    var color = hit.badge ? M.COLORS[hit.badge] : M.COLORS.clear;
+    tip.style.setProperty('--c', color);
+    tip.querySelector('b').textContent = hit.badge ? hit.label : 'Nothing found';
+    tip.querySelector('span').textContent = hit.badge ? (hit.reason || 'Open it with care.') : 'Sentinel checked this address and found no warning signs.';
+    var left = Math.min(window.innerWidth - 312, Math.max(8, hit._cx - 150));
+    var top = hit._cy + 20;
+    if (top + 90 > window.innerHeight) top = hit._cy - 84;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+    tip.classList.add('is-on');
+  });
+  window.addEventListener('mouseleave', function () { tip.classList.remove('is-on'); });
+
+  var api = window.sentinelOverlay;
+  api.on('overlay:watching', function (s) {
+    corner.classList.add('is-on');
+    if (!flagged) setCorner('scam', GOLD);
+    if (s.private) say('<b>Private window.</b> Protected, and nothing is kept.', '#e2c47f');
+    else if (s.appeared) say('<b>Sentinel is scanning</b> this browser.', '#e2c47f');
+  });
+  api.on('overlay:sweep', function (s) {
+    sweep(s && s.kind);
+    if (s && s.kind === 'ready') { corner.classList.remove('is-on'); }
+  });
+  api.on('overlay:verdict', function (v) {
+    flagged = Boolean(v && (v.badge === 'red' || v.badge === 'orange' || v.badge === 'yellow'));
+    if (flagged) {
+      var color = M.COLORS[v.badge];
+      setCorner(v.kind, color);
+      say('<b>' + esc(v.label) + '.</b> ' + (v.badge === 'yellow' ? 'Take care on this page.' : 'Do not enter anything here.'), color, v.badge !== 'yellow');
+    } else {
+      setCorner('scam', GOLD);
+      // A warning about the last page must not hang over this one.
+      if (sticky) { sticky = false; cornerLabel.classList.remove('is-on'); }
+    }
+  });
+  api.on('overlay:marks', function (p) { place((p && p.marks) || []); });
+  api.on('overlay:clear', function () { clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
+})();
+</script>
+</body>
+</html>
