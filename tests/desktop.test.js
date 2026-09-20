@@ -22,7 +22,8 @@ const defense = require('../desktop/src/defense.js');
 const { fakeStealerExe } = require('./fixtures');
 
 const ROOT = path.join(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+// Line endings differ between checkouts (a Windows runner gets CRLF); the rules checked here do not.
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 
 test('the reader only works on a browser that is in front and in use, and reads addresses, not pages', () => {
   const s = watch._test.SCRIPT;
