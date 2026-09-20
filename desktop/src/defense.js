@@ -219,6 +219,25 @@ async function inspect(full, how) {
   const item = { path: full, name, size: stat.size, sha256, how, at: Date.now(), badge: worst.badge, label: worst.label, threat: worst.threat, reason: worst.reason };
   if (!worst.badge) { cleanCount++; return item; }
 
+  // What the on-device scan finds in a file is a guess from its contents. A guess is
+  // never enough against a program whose publisher Windows can vouch for: Discord's
+  // updater contains "DownloadFile", because downloading files is its job. Only a
+  // known malicious file (a hash on a list) outranks a valid signature.
+  if (!known) {
+    const publisher = await signer(full);
+    if (publisher) {
+      cleanCount++;
+      record({ kind: 'clean', path: full, name, how: `signed by ${publisher}` });
+      return { ...item, badge: null, label: `Signed by ${publisher}`, threat: null, reason: null, trusted: true };
+    }
+  }
+  // "Possible" means a few warning signs and nothing more. It is written down, and
+  // that is all: no notification, nothing ended, nothing removed.
+  if (worst.badge === 'yellow') {
+    record({ kind: 'noted', ...item, actions: [{ did: 'noted', detail: 'A few warning signs; nothing was touched' }] });
+    return item;
+  }
+
   const entryId = record({ kind: 'threat', ...item, actions: [{ did: 'detected', detail: 'responding' }] });
   item.entryId = entryId;
   let actions;
@@ -347,6 +366,21 @@ Get-ScheduledTask | ForEach-Object {
 
 const psq = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
+const signatures = new Map();
+let signer = (full) => signedBy(full);   // replaceable in tests, which have no signed malware-shaped file to hand
+/** The publisher of a program with a valid Authenticode signature, or null. */
+async function signedBy(full) {
+  if (process.platform !== 'win32') return null;
+  let key = full;
+  try { const st = fs.statSync(full); key = `${full}|${st.size}|${st.mtimeMs}`; } catch { return null; }
+  if (signatures.has(key)) return signatures.get(key);
+  const out = await ps(`$s = Get-AuthenticodeSignature -LiteralPath ${psq(full)}; if ($s.Status -eq 'Valid') { $s.SignerCertificate.GetNameInfo('SimpleName', $false) }`, 30000);
+  const publisher = String(out || '').split(/[\r\n]+/).map((x) => x.trim()).filter(Boolean)[0] || null;
+  if (signatures.size > 500) signatures.clear();
+  signatures.set(key, publisher);
+  return publisher;
+}
+
 /** Delete Run / RunOnce values that launch `target`. */
 async function removeRunKeys(target) {
   const actions = [];
@@ -358,7 +392,10 @@ async function removeRunKeys(target) {
         const m = /^\s+(\S.*?)\s+REG_(?:EXPAND_)?SZ\s+(.+)$/.exec(line);
         if (m && m[2].toLowerCase().includes(lower)) {
           const ok = /success/i.test(await run('reg', ['delete', `${hive}\\${key}`, '/v', m[1], '/f']));
-          actions.push({ did: ok ? 'removed startup entry' : `could not remove startup entry${hive === 'HKLM' ? ' (needs administrator)' : ''}`, detail: `${hive}\\...\\${key.split('\\').pop()}\\${m[1]}` });
+          const action = { did: ok ? 'removed startup entry' : `could not remove startup entry${hive === 'HKLM' ? ' (needs administrator)' : ''}`, detail: `${hive}\\...\\${key.split('\\').pop()}\\${m[1]}` };
+          // Everything needed to put it back exactly as it was.
+          if (ok) action.undo = { hive, key, name: m[1], data: m[2].trim(), type: /REG_EXPAND_SZ/.test(line) ? 'REG_EXPAND_SZ' : 'REG_SZ' };
+          actions.push(action);
         }
       }
     }
@@ -404,16 +441,27 @@ function firstPath(cmd) {
   return p ? p.replace(/%([^%]+)%/g, (x, n) => process.env[n] || x) : null;
 }
 
-/** Put a quarantined file back where it was. */
-function restore(id) {
-  const entry = ledger.find((e) => e.id === id && e.quarantined);
+/** Put a quarantined file back where it was, and the startup entries that were removed with it. */
+async function restore(id) {
+  const entry = ledger.find((e) => e.id === id && !e.restored && (e.quarantined || (e.actions || []).some((a) => a.undo)));
   if (!entry) throw new Error('Nothing to restore');
-  fs.mkdirSync(path.dirname(entry.path), { recursive: true });
-  fs.renameSync(entry.quarantined, entry.path);
-  try { fs.unlinkSync(`${entry.quarantined}.json`); } catch { /* fine */ }
+  if (entry.quarantined) {
+    fs.mkdirSync(path.dirname(entry.path), { recursive: true });
+    fs.renameSync(entry.quarantined, entry.path);
+    try { fs.unlinkSync(`${entry.quarantined}.json`); } catch { /* fine */ }
+  }
+  for (const a of entry.actions || []) {
+    if (a.undo) await run('reg', ['add', `${a.undo.hive}\\${a.undo.key}`, '/v', a.undo.name, '/t', a.undo.type, '/d', a.undo.data, '/f']);
+  }
+  // The person has vouched for this file: do not judge it again.
+  if (entry.sha256) seen.set(entry.sha256, entry.path);
   entry.restored = Date.now();
   record({ kind: 'restored', path: entry.path, name: entry.name });
   return { ok: true };
 }
 
-module.exports = { init, restart, stop, status, inspect, restore, ledger: () => ledger.slice(0, 50), _test: { removeRunKeys } };
+module.exports = {
+  init, restart, stop, status, inspect, restore, ledger: () => ledger.slice(0, 50),
+  // For tests: set the options without starting any watcher, and stand in for the signature check.
+  _test: { removeRunKeys, signedBy, configure: (options) => { opts = options; ledger = []; }, setSigner: (fn) => { signer = fn || ((full) => signedBy(full)); } }
+};
