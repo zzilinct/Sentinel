@@ -51,7 +51,7 @@ function sniff(buf) {
   if (hex.startsWith('504b0304') || hex.startsWith('504b0506')) return 'zip';
   if (hex.startsWith('d0cf11e0a1b11ae1')) return 'ole';
   if (ascii.startsWith('%PDF')) return 'pdf';
-  if (hex.startsWith('4c0000000114020000000000')) return 'lnk';
+  if (buf.length >= 76 && buf.subarray(0, 20).toString('hex') === '4c0000000114020000000000c000000000000046') return 'lnk';
   if (hex.startsWith('526172211a07')) return 'rar';
   if (hex.startsWith('377abcaf271c')) return '7z';
   if (hex.startsWith('1f8b')) return 'gzip';
@@ -144,7 +144,14 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
   const exts = extOf(name);
   const ext = exts[exts.length - 1] || '';
   const latin = buf.length <= MAX_INFLATE ? buf.toString('latin1') : buf.subarray(0, MAX_INFLATE).toString('latin1');
-  const lower = latin.toLowerCase();
+  // Windows scripts and shortcut strings are commonly stored as UTF-16.
+  const sample = buf.subarray(0, MAX_INFLATE);
+  let text = latin;
+  if (sample[0] === 0xff && sample[1] === 0xfe) text = sample.subarray(2).toString('utf16le');
+  else if (sample[0] === 0xfe && sample[1] === 0xff) {
+    text = Buffer.from(sample.subarray(2, sample.length - sample.length % 2)).swap16().toString('utf16le');
+  } else if (type === 'lnk') text += '\n' + sample.toString('utf16le');
+  const lower = text.toLowerCase();
   const evidence = { virus: null, malware: null };
   const checks = [];
   const add = (id, threat, title, result) => checks.push({ id, threat, group: 'File analysis', title, ...result });

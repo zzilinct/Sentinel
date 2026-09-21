@@ -4,10 +4,11 @@
  * who registered it and when (RDAP), whether it resolves and receives mail (DNS),
  * its certificate, where it redirects, and what the page actually contains.
  *
- * Results are cached per host and concurrent requests for the same host share
- * one in-flight lookup, so a results page full of links costs one round of I/O.
+ * Full research is cached per request URL; registry/DNS-only research is per
+ * host. Concurrent requests with the same key share one in-flight lookup.
  */
 const dns = require('dns').promises;
+const crypto = require('crypto');
 const { db, now } = require('../db');
 const { safeFetch, isPublicAddress } = require('./netguard');
 const content = require('./content');
@@ -177,8 +178,10 @@ const within = (promise, ms, fallback) => (ms ? Promise.race([promise, new Promi
  * `budgetMs` live scanning's promise: whatever has not answered by then is reported as not available.
  */
 async function research(p, { lite = false, budgetMs = 0 } = {}) {
-  // Registration and DNS are per host, but page content differs per path.
-  const key = (lite ? `lite:${p.host}` : `${p.host}${p.path}`).slice(0, 512);
+  // Page content can differ by scheme, port, path and query; fragments are local.
+  const requestUrl = new URL(p.url);
+  requestUrl.hash = '';
+  const key = lite ? `lite:${p.host}` : `url-v2:${crypto.createHash('sha256').update(requestUrl.href).digest('hex')}`;
   const cached = q.get.get(key);
   if (cached && now() - cached.checked_at < CACHE_MS && !p.ext) {
     return { ...JSON.parse(cached.payload), cached: true };
@@ -196,7 +199,11 @@ async function research(p, { lite = false, budgetMs = 0 } = {}) {
     // A lookup that ran out of time is not a fact about the site: do not remember it for a day.
     if (registration.reason === 'not answered in time' || http.error === 'not answered in time') return facts;
     const { download, ...cacheable } = http;
-    q.set.run(key, JSON.stringify({ ...facts, http: { ...cacheable, page: cacheable.page ? slimPage(cacheable.page) : null } }), now());
+    // Downloads must be fetched again so a cache hit cannot skip their hash scan.
+    // Failed and partial responses must not become twelve-hour clean results either.
+    if (lite || (http.ok && http.status >= 200 && http.status < 300 && http.page && !http.truncated)) {
+      q.set.run(key, JSON.stringify({ ...facts, http: { ...cacheable, page: cacheable.page ? slimPage(cacheable.page) : null } }), now());
+    }
     return facts;
   })();
 

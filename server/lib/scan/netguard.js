@@ -38,16 +38,23 @@ function isPrivateV4(ip) {
 }
 
 function isPrivateV6(ip) {
-  const lower = ip.toLowerCase();
-  if (lower === '::' || lower === '::1') return true;
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
-  if (mapped) return isPrivateV4(mapped[1]);
-  const first = parseInt(lower.split(':')[0] || '0', 16);
-  if ((first & 0xfe00) === 0xfc00) return true;   // fc00::/7 unique local
-  if ((first & 0xffc0) === 0xfe80) return true;   // fe80::/10 link local
-  if ((first & 0xff00) === 0xff00) return true;   // ff00::/8 multicast
-  if (lower.startsWith('2001:db8')) return true;   // documentation
-  if (lower.startsWith('64:ff9b')) return true;    // NAT64 can reach v4 internals
+  if (ip.includes('%')) return true; // interface-scoped addresses are not public research targets
+  // URL canonicalization also converts dotted IPv4 tails to hexadecimal.
+  // Compare numeric words so compressed, expanded and mapped spellings agree.
+  const canonical = new URL(`http://[${ip}]/`).hostname.slice(1, -1);
+  const halves = canonical.split('::');
+  const left = halves[0] ? halves[0].split(':') : [];
+  const right = halves[1] ? halves[1].split(':') : [];
+  const words = [...left, ...Array(8 - left.length - right.length).fill('0'), ...right].map(s => parseInt(s, 16));
+  if (words.slice(0, 5).every(n => n === 0) && words[5] === 0xffff) {
+    return isPrivateV4([words[6] >> 8, words[6] & 255, words[7] >> 8, words[7] & 255].join('.'));
+  }
+  // Only ordinary global unicast; exclude local, NAT64, multicast and reserved space.
+  if ((words[0] & 0xe000) !== 0x2000) return true;
+  if (words[0] === 0x2001 && words[1] < 0x200) return true; // special-purpose /23, including Teredo
+  if (words[0] === 0x2001 && words[1] === 0xdb8) return true; // documentation
+  if (words[0] === 0x2002) return true; // 6to4 can embed private IPv4 destinations
+  if (words[0] === 0x3fff && words[1] < 0x1000) return true; // documentation /20
   return false;
 }
 
@@ -163,8 +170,18 @@ function requestOnce(url, { method = 'GET', headers = {} } = {}) {
         });
       };
       stream.on('end', finish);
-      stream.on('close', finish);
-      stream.on('error', (err) => (chunks.length ? finish() : reject(err)));
+      const incomplete = (err) => {
+        if (done) return;
+        truncated = true;
+        if (chunks.length) finish();
+        else { done = true; reject(err || new Error('Response ended before its body was read')); }
+        res.destroy();
+        stream.destroy();
+      };
+      stream.on('close', () => { if (!done) incomplete(); });
+      stream.on('error', incomplete);
+      // A compressed response can abort before its decoder receives an end event.
+      if (stream !== res) res.on('error', incomplete);
     });
     req.on('timeout', () => req.destroy(Object.assign(new Error('Research request timed out'), { code: 'timeout' })));
     req.on('error', reject);

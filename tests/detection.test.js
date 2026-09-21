@@ -281,6 +281,104 @@ function zipOf(files) {
   return Buffer.concat([...locals, cd, end]);
 }
 
+test('research caches the complete request URL, not just its host and path', async () => {
+  const { research } = require('../server/lib/scan/research');
+  const { analyze } = require('../server/lib/scan/url');
+  const first = await research(analyze('https://query-sensitive.example/view?version=clean'));
+  const other = await research(analyze('https://query-sensitive.example/view?version=other'));
+  assert.equal(first.http.page.title, 'Clean page');
+  assert.equal(other.http.page.title, 'Different page');
+  assert.equal(other.cached, undefined);
+  const repeated = await research(analyze('https://query-sensitive.example/view?version=clean'));
+  assert.equal(repeated.cached, true);
+  const http = await research(analyze('http://query-sensitive.example/view?version=clean'));
+  assert.equal(http.http.finalUrl, 'http://query-sensitive.example/view?version=clean');
+  const lite = await research(analyze('https://query-sensitive.example/'), { lite: true });
+  const repeatedLite = await research(analyze('https://query-sensitive.example/another'), { lite: true });
+  assert.equal(lite.http.ok, false);
+  assert.equal(repeatedLite.cached, true);
+  assert.equal(repeatedLite.lite, true);
+});
+
+test('feed updates invalidate previous verdicts without waiting for the cache TTL', async () => {
+  const url = 'https://fresh-feed-review.example/';
+  const feed = { id: 'cache-regression', kind: 'hosts', threat: 'scam', category: 'phishing' };
+  assert.equal(lvl(await scan(url, { research: false }), 'scam'), 'safe');
+  await feeds.importLines(feed, ['fresh-feed-review.example']);
+  assert.equal(lvl(await scan(url, { research: false }), 'scam'), 'confirmed');
+});
+
+test('extensionless downloads remain hash-scanned after the core cache is invalidated', async () => {
+  const url = 'https://known-sample-host.net/download';
+  assert.equal(lvl(await scan(url, { research: true }), 'virus'), 'confirmed');
+  engine.invalidate('known-sample-host.net');
+  const again = await scan(url, { research: true });
+  assert.equal(lvl(again, 'virus'), 'confirmed');
+  assert.equal(again.file.sha256, sha256(knownBadSample()));
+});
+
+test('file signatures recognize shortcuts regardless of filename and UTF-16 dropper text', () => {
+  const header = Buffer.alloc(76);
+  Buffer.from('4c0000000114020000000000c000000000000046', 'hex').copy(header);
+  const shortcut = engine.scanUpload(Buffer.concat([header, Buffer.from('inert reference: powershell.exe', 'utf16le')]), 'photo.dat');
+  assert.equal(shortcut.file.type, 'lnk');
+  assert.equal(shortcut.checklist.items.find(c => c.id === 'F13').status, 'fail');
+  const script = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('inert sample: WScript.Shell DownloadString Invoke-Expression', 'utf16le')]);
+  assert.equal(engine.scanUpload(script, 'update.vbs').threats.malware.level, 'likely');
+  const bigEndian = Buffer.from(script).swap16();
+  assert.equal(engine.scanUpload(bigEndian, 'update.vbs').threats.malware.level, 'likely');
+  const clean = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('Shopping list: milk and eggs', 'utf16le')]);
+  assert.equal(engine.scanUpload(clean, 'notes.txt').threats.malware.badge, null);
+});
+
+test('pasted email text and links beyond the first 25 are actually scanned', async () => {
+  const body = 'Please see (https://paypa1-secure-login.com/account).';
+  assert.equal((await engine.scanEmail({ body })).threats.scam.level, 'confirmed');
+  const links = Array.from({ length: 30 }, (_, i) => ({ href: `https://ordinary-news.org/?item=${i}` }));
+  links.push({ href: 'https://paypa1-secure-login.com/account' });
+  assert.equal((await engine.scanEmail({ body: 'Documents', links })).threats.scam.level, 'confirmed');
+});
+
+test('same-host redirect hops are checked without inventing a scam verdict for malware', async () => {
+  const { db } = require('../server/lib/db');
+  const { urlKey } = require('../server/lib/scan/url');
+  db.prepare('INSERT OR REPLACE INTO feed_urls (url_key, host, source, threat, category, added_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(urlKey('https://docs.google.com/redirect-fixture/listed'), 'docs.google.com', 'urlhaus', 'malware', 'malware', Date.now());
+  const v = await scan('https://docs.google.com/redirect-fixture/start', { research: true });
+  assert.equal(lvl(v, 'malware'), 'confirmed');
+  assert.notEqual(lvl(v, 'scam'), 'confirmed');
+  assert.equal(v.threats.scam.badge, null);
+});
+
+test('interrupted downloads are marked incomplete and never hashed as whole files', async () => {
+  const { safeFetch } = require('../server/lib/scan/netguard');
+  const response = await safeFetch('https://partial-download.example/file');
+  assert.equal(response.truncated, true);
+  const v = await scan('https://partial-download.example/file', { research: true });
+  assert.equal(v.file, null);
+  assert.equal(v.checklist.items.find(c => c.id === 'D-limit').status, 'warn');
+});
+
+test('email reports incomplete coverage when links exceed the cap or fail to scan', async () => {
+  const links = Array.from({ length: 61 }, (_, i) => ({ href: `https://www.wikipedia.org/?news=${i}` }));
+  const capped = await engine.scanEmail({ links });
+  assert.equal(capped.coverage.complete, false);
+  assert.equal(capped.coverage.checked, 60);
+  assert.equal(capped.overall.label, 'Scan incomplete');
+  const knowledge = require('../server/lib/scan/knowledge');
+  const lookup = knowledge.lookup;
+  knowledge.lookup = async p => {
+    if (p.host === 'failed-email-check.example') throw new Error('fixture lookup failed');
+    return lookup(p);
+  };
+  try {
+    const failed = await engine.scanEmail({ links: [{ href: 'https://failed-email-check.example/' }] });
+    assert.equal(failed.coverage.failed, 1);
+    assert.equal(failed.overall.label, 'Scan incomplete');
+    assert.ok(failed.checklist.items.filter(c => c.id.startsWith('EL-')).every(c => c.status === 'skip'));
+  } finally { knowledge.lookup = lookup; }
+});
+
 test('malicious uploads on a verified platform flag only that exact URL', async () => {
   await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'urlhaus'), [
     'https://github.com/evil-user/tools/releases/download/v1/stealer.exe',

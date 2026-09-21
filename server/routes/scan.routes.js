@@ -73,7 +73,8 @@ function cleanMail(body) {
     subject: String(m.subject || '').slice(0, 500),
     body: String(m.body || '').slice(0, 20000),
     links: (Array.isArray(m.links) ? m.links : []).slice(0, 60).map((l) => ({ href: String((l && l.href) || '').slice(0, 2048), text: String((l && l.text) || '').slice(0, 300) })),
-    attachments: (Array.isArray(m.attachments) ? m.attachments : []).slice(0, 30).map((a) => String(a).slice(0, 255))
+    attachments: (Array.isArray(m.attachments) ? m.attachments : []).slice(0, 30).map((a) => String(a).slice(0, 255)),
+    linksTruncated: Array.isArray(m.links) && m.links.length > 60
   };
 }
 

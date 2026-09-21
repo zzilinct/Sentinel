@@ -655,13 +655,16 @@ const INFRA_CHECKS = [
       return pass(chain.length > 1 ? 'Redirects within the same site' : 'No redirects');
     } },
 
-  { id: 'R11', group: 'Redirects', threat: 'scam', title: 'Final destination is not a known threat', research: true,
+  { id: 'R11', group: 'Redirects', threat: 'scam', title: 'Redirect chain contains no known threats', research: true,
     run: (ctx) => {
       const r = needsResearch(ctx); if (r) return r;
       const fk = ctx.finalKnowledge;
       if (!fk) return pass('Lands on the same site');
-      const m = fk.matches.find((x) => x.strength === 'confirmed');
-      return m ? fail(90, `Redirects to known ${m.category.replace(/_/g, ' ')} site`, m.threat !== 'scam' ? { [m.threat]: 90 } : undefined) : pass('Destination has no threat record');
+      const matches = fk.matches.filter((x) => x.strength === 'confirmed');
+      if (!matches.length) return pass('Redirect destinations have no threat record');
+      const threats = new Set(matches.map(m => m.threat));
+      const extra = Object.fromEntries([...threats].filter(t => t !== 'scam').map(t => [t, 90]));
+      return fail(threats.has('scam') ? 90 : 0, `Redirect chain includes a known ${[...threats].join(' / ')} address`, extra);
     } },
 
   { id: 'R12', group: 'Network', threat: 'scam', title: 'Site responds normally', research: true,

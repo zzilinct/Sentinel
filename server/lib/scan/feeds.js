@@ -121,6 +121,7 @@ const q = {
 
 const tick = () => new Promise((r) => setImmediate(r));
 const isNever = (p) => NEVER_LIST.has(p.registrable) || NEVER_LIST.has(p.host);
+let revision = 0;
 
 /** Import already-downloaded feed lines. Returns counts and the scam hosts that changed. */
 async function importLines(feed, lines) {
@@ -170,6 +171,7 @@ async function importLines(feed, lines) {
   q.pruneHosts.run(feed.id, stamp);
   q.pruneUrls.run(feed.id, stamp);
   q.status.run(feed.id, stamp, count, 1, null);
+  revision++;
   return { count, added, removed };
 }
 
@@ -295,7 +297,7 @@ function refreshInBackground(options = {}) {
     w.once('message', (msg) => { resolve(msg); w.terminate().catch(() => {}); });
     w.once('error', (err) => resolve({ ok: false, error: String(err && err.message || err) }));
     w.once('exit', () => resolve({ ok: false, error: 'stopped' }));
-  }).finally(() => { worker = null; });
+  }).finally(() => { revision++; worker = null; });
   return worker;
 }
 
@@ -314,6 +316,7 @@ function readiness() {
 }
 
 module.exports = {
+  revision: () => revision,
   refreshInBackground,
   REFRESH_MARKER,
   FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness,

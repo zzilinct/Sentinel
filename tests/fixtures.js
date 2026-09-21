@@ -81,7 +81,17 @@ const PAGES = {
     '/setup.exe': { body: fakeStealerExe(), type: 'application/x-msdownload', disposition: 'attachment; filename="setup.exe"' }
   },
   'known-sample-host.net': {
-    '/sample.bin': { body: knownBadSample(), type: 'application/octet-stream', disposition: 'attachment; filename="sample.bin"' }
+    '/sample.bin': { body: knownBadSample(), type: 'application/octet-stream', disposition: 'attachment; filename="sample.bin"' },
+    '/download': { body: knownBadSample(), type: 'application/octet-stream', disposition: 'attachment; filename="sample.bin"' }
+  },
+  'query-sensitive.example': {
+    '/view?version=clean': '<html><title>Clean page</title><p>Ordinary content</p></html>',
+    '/view?version=other': '<html><title>Different page</title><p>Different content</p></html>'
+  },
+  'docs.google.com': {
+    '/redirect-fixture/start': { redirect: '/redirect-fixture/listed' },
+    '/redirect-fixture/listed': { redirect: '/redirect-fixture/clean' },
+    '/redirect-fixture/clean': '<html><title>Nothing here</title><p>Ordinary content</p></html>'
   }
 };
 
@@ -103,7 +113,14 @@ const FACTS = {
 function startFixtureServer() {
   const server = http.createServer((req, res) => {
     const host = String(req.headers.host || '').split(':')[0];
-    const page = PAGES[host] && PAGES[host][req.url.split('?')[0]];
+    if (host === 'partial-download.example') {
+      const body = knownBadSample();
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': body.length + 100 });
+      res.write(body);
+      setTimeout(() => res.destroy(), 20);
+      return;
+    }
+    const page = PAGES[host] && (PAGES[host][req.url] || PAGES[host][req.url.split('?')[0]]);
     if (!page) { res.writeHead(404, { 'Content-Type': 'text/html' }); res.end('<h1>Not found</h1>'); return; }
     if (typeof page === 'string') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(page); return; }
     if (page.redirect) { res.writeHead(302, { Location: page.redirect }); res.end(); return; }

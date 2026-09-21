@@ -18,6 +18,7 @@
 const { db, now } = require('../db');
 const config = require('../../config');
 const knowledge = require('./knowledge');
+const feeds = require('./feeds');
 const compare = require('./compare');
 const researchMod = require('./research');
 const { runChecklist } = require('./checklist');
@@ -120,8 +121,9 @@ function evidenceFrom(checks, know, ctx) {
   }
 
   if (failed('R11') && ctx.finalKnowledge) {
-    const m = ctx.finalKnowledge.matches.find((x) => x.strength === 'confirmed');
-    if (m && !ev[m.threat]) ev[m.threat] = `Redirects to a known ${m.threat} site`;
+    for (const m of ctx.finalKnowledge.matches.filter((x) => x.strength === 'confirmed')) {
+      if (!ev[m.threat]) ev[m.threat] = `Redirect chain includes a known ${m.threat} address`;
+    }
   }
 
   // A known scam kit on a page that impersonates a brand or collects credentials.
@@ -146,7 +148,9 @@ async function coreScan(p, { research: wanted, budgetMs }) {
   // Full research where pages may be opened (the hosted service); registry and DNS only where they may not (the desktop app).
   const lite = Boolean(wanted) && !config.researchEnabled && config.researchLite;
   const research = Boolean(wanted) && (config.researchEnabled || lite);
-  const key = `${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}`;
+  // Results computed before a feed import (including in-flight scans) cannot
+  // satisfy a lookup after that import has completed.
+  const key = `${feeds.revision()}|${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}`;
   const cached = cacheGet(key);
   if (cached) return cached;
   if (coreInflight.has(key)) return coreInflight.get(key);
@@ -173,11 +177,15 @@ async function coreScan(p, { research: wanted, budgetMs }) {
       if (http.ok && http.page) {
         ctx.contentCompare = compare.compareContent(http.page.text, http.page.htmlLower, p.host);
       }
-      if (http.ok && http.finalUrl) {
-        const final = analyze(http.finalUrl);
-        if (final && final.registrable !== p.registrable) ctx.finalKnowledge = await knowledge.lookup(final);
+      if (http.chain && http.chain.length > 1) {
+        const destinations = [...new Set(http.chain.slice(1).map(hop => hop.url))];
+        const knownHops = await Promise.all(destinations.map(url => {
+          const parsed = analyze(url);
+          return parsed ? knowledge.lookup(parsed) : { matches: [] };
+        }));
+        ctx.finalKnowledge = { matches: knownHops.flatMap(k => k.matches) };
       }
-      if (http.ok && http.download && http.download.length && http.download.length <= MAX_FILE_BYTES) {
+      if (http.ok && !http.truncated && http.download && http.download.length && http.download.length <= MAX_FILE_BYTES) {
         const name = (/filename\*?=(?:utf-8'')?"?([^";]+)/i.exec(http.disposition || '') || [])[1] || p.file || 'download';
         fileReport = scanFile(http.download, name);
       }
@@ -185,6 +193,9 @@ async function coreScan(p, { research: wanted, budgetMs }) {
 
     let checks = know.trusted ? trustedChecks(ctx) : runChecklist(ctx);
     if (fileReport) checks = checks.concat(fileReport.checks.map((c) => ({ ...c, id: `D-${c.id}`, group: 'Downloaded file', research: true })));
+    if (ctx.research && ctx.research.http.truncated) checks.push({ id: 'D-limit', group: 'Downloaded content', threat: 'virus', research: true,
+      title: 'Downloaded content was fully inspected', status: 'warn', points: 0,
+      detail: 'Only part of the response could be read; a complete file hash and full content scan are unavailable' });
 
     const evidence = evidenceFrom(checks, know, ctx);
     if (fileReport) for (const t of ['virus', 'malware']) if (fileReport.evidence[t] && !evidence[t]) evidence[t] = fileReport.evidence[t];
@@ -225,7 +236,10 @@ async function coreScan(p, { research: wanted, budgetMs }) {
       file: fileReport ? { name: fileReport.name, sha256: fileReport.sha256, size: fileReport.size, type: fileReport.type } : null,
       checks
     };
-    cacheSet(key, result);
+    const facts = ctx.research;
+    const complete = !facts || (facts.registration.reason !== 'not answered in time' &&
+      (facts.lite || (facts.http.ok && facts.http.status >= 200 && facts.http.status < 300 && !facts.http.truncated)));
+    if (complete) cacheSet(key, result);
     return result;
   })();
 
@@ -365,9 +379,13 @@ async function scanEmail(mail, opts = {}) {
   const analysis = analyzeEmail(mail);
 
   // Every link and the sender's own domain go through the URL pipeline.
-  const targets = [...analysis.links];
-  if (analysis.senderUrl) targets.push(analysis.senderUrl);
-  const linkVerdicts = await scanUrls(targets, { ...opts, detail: 'compact', mode: opts.mode || 'manual', threats: THREATS });
+  const options = { ...opts, detail: 'compact', mode: opts.mode || 'manual', threats: THREATS };
+  const linkVerdicts = await scanUrls(analysis.links, options);
+  if (analysis.senderUrl && !analysis.links.includes(analysis.senderUrl)) {
+    linkVerdicts.push(...await scanUrls([analysis.senderUrl], options));
+  }
+  const failedLinks = linkVerdicts.filter(v => !v.ok).length;
+  const incomplete = failedLinks > 0 || analysis.linksTruncated;
 
   const checks = [...analysis.checks];
   const evidence = { scam: null, virus: null, malware: null };
@@ -382,7 +400,9 @@ async function scanEmail(mail, opts = {}) {
   }
   const linkCheck = (t, title) => {
     const w = worstLink[t];
-    if (!w || SEVERITY[w.threat.level] < SEVERITY.suspicious) return { id: `EL-${t}`, group: 'Email links', threat: t, title, status: 'pass', points: 0, detail: `${linkVerdicts.length} address(es) checked` };
+    if (!w || SEVERITY[w.threat.level] < SEVERITY.suspicious) return { id: `EL-${t}`, group: 'Email links', threat: t, title,
+      status: incomplete || !linkVerdicts.length ? 'skip' : 'pass', points: 0,
+      detail: incomplete ? `${linkVerdicts.length - failedLinks} address(es) checked; ${failedLinks} failed${analysis.linksTruncated ? '; additional links exceed the 60-link limit' : ''}` : `${linkVerdicts.length} address(es) checked` };
     if (w.threat.level === 'confirmed') evidence[t] = `${w.v.host}: ${w.threat.evidence || w.threat.label}`;
     return { id: `EL-${t}`, group: 'Email links', threat: t, title, status: 'fail', points: Math.round(w.threat.score * 0.8), detail: `${w.v.host} - ${w.threat.label}` };
   };
@@ -391,7 +411,7 @@ async function scanEmail(mail, opts = {}) {
   checks.push(linkCheck('virus', 'Links do not download viruses'));
 
   const known = linkVerdicts.some((v) => v.ok && v.knowledge.known);
-  const { threats } = score(checks, { known, matches: known ? [{}] : [] }, evidence);
+  const { threats } = score(checks, { known, matches: known ? [{}] : [], userContent: incomplete }, evidence);
   const shown = Object.fromEntries(THREATS.map((t) => [t, visible.includes(t) ? threats[t] : null]));
   const worst = Object.values(shown).filter(Boolean).sort((a, b) => SEVERITY[b.level] - SEVERITY[a.level])[0];
   const items = checks.filter((c) => visible.includes(c.threat));
@@ -404,7 +424,8 @@ async function scanEmail(mail, opts = {}) {
     mode: opts.mode || 'manual',
     sender: analysis.sender,
     threats: shown,
-    overall: { level: worst.level, badge: worst.badge, label: worst.label },
+    overall: { level: worst.level, badge: worst.badge, label: incomplete && !worst.badge ? 'Scan incomplete' : worst.label },
+    coverage: { complete: !incomplete, checked: linkVerdicts.length - failedLinks, failed: failedLinks, linksTruncated: analysis.linksTruncated },
     reasons: items.filter((c) => c.status === 'fail' || c.status === 'warn').sort((a, b) => b.points - a.points).slice(0, 6).map((c) => ({ id: c.id, threat: c.threat, text: c.detail, title: c.title })),
     links: linkVerdicts.filter((v) => v.ok).map((v) => ({ url: v.url, host: v.host, overall: v.overall })),
     checklist: {

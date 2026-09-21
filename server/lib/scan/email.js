@@ -44,7 +44,16 @@ function analyzeEmail(mail) {
   const replyTo = mail.replyTo ? parseAddress(mail.replyTo) : null;
   const subject = String(mail.subject || '').slice(0, 500);
   const body = String(mail.body || '').slice(0, 20000);
-  const links = (Array.isArray(mail.links) ? mail.links : []).slice(0, 60);
+  const links = (Array.isArray(mail.links) ? mail.links : []).slice(0, 60).filter(l => l && typeof l === 'object');
+  // The API and mailbox previews may provide plain text without parsed anchors.
+  for (let href of body.match(/https?:\/\/[^\s<>"']+/gi) || []) {
+    href = href.replace(/[.,;!?]+$/, '');
+    for (const [open, close] of [['(', ')'], ['[', ']']]) {
+      while (href.endsWith(close) && href.split(close).length > href.split(open).length) href = href.slice(0, -1);
+    }
+    links.push({ href, text: '' });
+  }
+  const targets = [...new Set(links.map(l => analyze(String(l.href || ''))?.url).filter(Boolean))];
   const attachments = (Array.isArray(mail.attachments) ? mail.attachments : []).map(String).slice(0, 30);
   const checks = [];
   const add = (id, threat, title, result) => checks.push({ id, threat, group: 'Email', title, ...result });
@@ -128,7 +137,8 @@ function analyzeEmail(mail) {
   return {
     checks,
     sender: { name: from.name, address: from.address, domain: from.domain },
-    links: [...new Set(links.map((l) => String(l.href || '')).filter((h) => /^https?:/i.test(h)))].slice(0, 25),
+    links: targets.slice(0, 60),
+    linksTruncated: targets.length > 60 || (Array.isArray(mail.links) && mail.links.length > 60) || mail.linksTruncated === true,
     senderUrl: senderUrl ? senderUrl.url : null
   };
 }
