@@ -18,7 +18,7 @@ Red is only ever shown with **evidence** (a threat-feed match, a known scam kit 
 1. **Knowledge**: Sentinel's own threat database, community reports (3 independent reports make a site confirmed), 15 live public lists (see Threat lists: about 430,000 listed hosts and addresses, each refreshed on its own interval) and optional Google Safe Browsing. **No record anywhere lowers the risk** (scam −20%, virus/malware −15%).
 2. **Checklist**: 101 named checks (look-alikes, typosquats, combosquats, abused TLDs, free-hosting throwaways, disguised downloads, bait wording in several languages...). Every check explains itself in the UI.
 3. **Compare**: domain skeleton and name-pattern matching against known scam domains; page content against 11 known scam/malware kit families and copies of confirmed scam pages.
-4. **Research** (Pro/Max): RDAP registration age and status, DNS, TLS certificate, redirect chain, page forms, scripts, hidden frames, miners, ClickFix lures, forced downloads, and full file analysis of anything the link downloads.
+4. **Research** (Pro and up): RDAP registration age and status (asked of the registry IANA lists for the ending, with a User-Agent: rdap.org refuses clients without one, and until 1.6.0 that silently cost every verdict its domain age), DNS, TLS certificate, redirect chain, page forms, scripts, hidden frames, miners, ClickFix lures, forced downloads, and full file analysis of anything the link downloads.
 
 ## Plans (enforced server-side, reset Mondays 00:00 UTC)
 
@@ -27,12 +27,13 @@ Red is only ever shown with **evidence** (a threat-feed match, a known scam kit 
 | Price / month | $0 | $15 | $40 | $100 |
 | Link scans / week | 10 (no research, scam mask only) | 40 (researched, all masks) | 100 (researched, all masks) | 500 (researched, all masks) |
 | Virus & malware scans / week | 5 | 40 | 100 | 500 |
-| Live scanning / week | — | 24 h (checklist, no research) | 96 h (every result researched) | 24/7, no weekly cap (every result researched) |
+| Fast live scanning / week | 15 min | 24 h | unlimited | unlimited |
+| Delicate live scanning / week (every result researched) | — | 4 h | 24 h | 96 h |
 | Email masks (Gmail/Outlook) | — | ✓ | ✓ | ✓ |
 | Paste-in email scans | — | — | ✓ (counts as a link scan) | ✓ (counts as a link scan) |
 | Download protection (app) | — | ✓ | ✓ | ✓ |
 
-Prices and entitlements live in [server/lib/plans.js](server/lib/plans.js) and are enforced there — the client only renders what the server returns. Ultimate's live allowance is stored as `null`, meaning uncapped.
+Prices and entitlements live in [server/lib/plans.js](server/lib/plans.js) and are enforced there — the client only renders what the server returns. An uncapped allowance is stored as `null`.
 
 ## What's in the repo
 
@@ -91,6 +92,26 @@ add-on involved:
   the page in front, where that page is on screen, and on a results page the
   addresses of the links on screen and where they are. It reads addresses only:
   never page text, form fields or anything typed, and it takes no screenshots.
+- **Two speeds.** *Fast* is the threat lists, the checklist and the comparison
+  with known scams: about a millisecond an address, so marks appear about a
+  second after a search (most of that second is the browser finishing the page).
+  *Delicate* adds research on every result inside a hard 4.5 second budget;
+  whatever has not answered by then is left out of that verdict and not cached.
+  In the desktop app that research is the domain's age at its registry and its
+  DNS, never a request to the site. When delicate is not in the plan or is used
+  up for the week, scanning carries on as fast and says so. Measured with
+  `npm run evaluate:modes` (every public list loaded except the one the test
+  addresses come from): fast flagged 291 of 300 phishing addresses (97.0%) and
+  left 127 of 127 legitimate sites alone, 97.9% right overall, median 41 ms an
+  address; delicate flagged 97 of 100 where fast flagged 96, with no false
+  alarms in 50, 98.0% right overall, median 162 ms. Neither is 99.9%: the
+  misses are addresses with nothing wrong in the name, on no list, with an
+  unremarkable registration, and only opening the page would tell.
+- **Why it used to feel slow.** The scanner was never the slow part (20 ms for a
+  page of 20 results). Refreshing the threat lists rewrote 1.2 million rows on
+  the same thread that answers scans, so on a fresh install every answer queued
+  behind it for minutes. Refreshes now run on their own thread: while all 15
+  lists imported, a page of 12 results was answered in a median of 26 ms.
 - **What you see.** `desktop/src/overlay.js` is one transparent window laid
   exactly over the page area of the browser in front. It draws the gold line and
   tint when scanning starts and whenever a search comes back, the gold Sentinel
@@ -129,6 +150,12 @@ add-on involved:
   (yellow) findings are written down and nothing else (no notification, nothing
   ended, nothing removed); and every startup entry defense removes is recorded
   in full, so **Put back** in the defense log restores it exactly.
+- **A quiet start.** The list cache is only re-verified when a refresh was really
+  cut off; startup programs found clean are remembered instead of re-read on
+  every start; defense waits 75 seconds before its first look at startup
+  entries; the live-scanning reader keeps its compiled helper and runs below
+  normal priority. "Scan with" raises an open browser through the reader that
+  is already running, so it is immediate.
 - **It keeps going.** A token the server refuses never switches protection
   off: background calls fall back to the computer's own account and ask for a
   fresh token if that is refused too. When the scanner is still starting,
