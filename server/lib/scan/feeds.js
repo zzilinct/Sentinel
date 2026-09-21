@@ -247,9 +247,15 @@ function isStale(feed) {
 
 let running = null;
 /** Refresh every feed that is due (or all of them with `force`). */
+// While a refresh is writing, this file exists. Found at start, it means the last refresh was cut off part way
+// (the computer was switched off, the app was killed), and only then is the whole cache worth re-checking.
+const REFRESH_MARKER = config.dbPath === ':memory:' ? null : `${config.dbPath.replace(/\.db$/i, '')}-feeds.refreshing`;
+const mark = (on) => { if (!REFRESH_MARKER) return; try { if (on) require('fs').writeFileSync(REFRESH_MARKER, String(process.pid)); else require('fs').unlinkSync(REFRESH_MARKER); } catch { /* best effort */ } };
+
 async function refreshAll({ log = false, force = false } = {}) {
   if (running) return running;
   running = (async () => {
+    if (force || FEEDS.some(isStale)) mark(true);
     const results = [];
     const added = new Set();
     const removed = new Set();
@@ -269,6 +275,7 @@ async function refreshAll({ log = false, force = false } = {}) {
     return await running;
   } finally {
     running = null;
+    mark(false);
   }
 }
 
@@ -308,6 +315,7 @@ function readiness() {
 
 module.exports = {
   refreshInBackground,
+  REFRESH_MARKER,
   FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness,
   status: () => q.allStatus.all().filter((r) => !r.source.startsWith('_'))
 };

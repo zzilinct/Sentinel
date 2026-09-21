@@ -421,10 +421,15 @@ function verifyFeeds() {
 function acquireLock() {
   if (IN_MEMORY) return { unclean: false };
   const claimed = require('./dblock').claim();
-  if (claimed.unclean && !claimed.checked) {
+  // The desktop app always stops its server by ending it, so every start looks "unclean". Reading the whole
+  // list cache (hundreds of megabytes) on every start made the computer lag for nothing: check it only when a
+  // refresh was really cut off while writing.
+  const marker = `${config.dbPath.replace(/\.db$/i, '')}-feeds.refreshing`;
+  if (claimed.unclean && !claimed.checked && fs.existsSync(marker)) {
     claimed.checked = true;
-    note('the last run did not shut down cleanly; checking the threat-list cache');
+    note('the last threat-list refresh was cut off; checking the cache');
     verifyFeeds();
+    try { fs.unlinkSync(marker); } catch { /* gone */ }
   }
   return { unclean: claimed.unclean };
 }

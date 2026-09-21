@@ -19,14 +19,21 @@ const SHARED = path.join(APP, 'shared');
 const ASSETS = path.join(APP, 'assets');
 const BUNDLE = path.join(APP, 'bundle');
 
+// Rewriting a file that has not changed is not harmless: another process may be in the middle of loading it
+// (the test files run side by side), and would read it half written.
+function copyIfChanged(from, to) {
+  try { if (fs.readFileSync(from).equals(fs.readFileSync(to))) return; } catch { /* not there yet */ }
+  fs.copyFileSync(from, to);
+}
+
 fs.mkdirSync(SHARED, { recursive: true });
 fs.mkdirSync(ASSETS, { recursive: true });
 
 for (const file of ['filescan.js', 'lists.js', 'brands.js']) {
-  fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', file), path.join(SHARED, file));
+  copyIfChanged(path.join(ROOT, 'server', 'lib', 'scan', file), path.join(SHARED, file));
 }
-fs.copyFileSync(path.join(ROOT, 'brand.json'), path.join(SHARED, 'brand.json'));
-fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SHARED, 'masks.js'));
+copyIfChanged(path.join(ROOT, 'brand.json'), path.join(SHARED, 'brand.json'));
+copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SHARED, 'masks.js'));
 
 for (const size of [16, 32, 48, 128, 256, 512]) {
   const src = path.join(ROOT, 'extension', 'icons', `icon${size}.png`);

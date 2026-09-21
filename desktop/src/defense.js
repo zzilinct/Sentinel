@@ -33,12 +33,14 @@ const { summarize } = require('./downloads');
 const PROGRAM = /\.(exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|js|jse|wsf|hta|jar|dll|cpl|lnk|reg)$/i;
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
 const SETTLE_MS = 2000;
-const PERSIST_EVERY_MS = 45 * 1000;
-const SWEEP_EVERY_MS = 8 * 1000;
+const PERSIST_EVERY_MS = 60 * 1000;
+const SWEEP_EVERY_MS = 20 * 1000;
+const FIRST_PERSIST_MS = 75 * 1000;   // not while the computer is still starting up
 
 let opts = null;
 let watchers = [];
 let persistTimer = null;
+let firstPersistTimer = null;
 let sweepTimer = null;
 let state = { active: false, reason: 'Starting', supported: process.platform === 'win32' };
 const timers = new Map();
@@ -106,7 +108,7 @@ async function restart() {
   }
   persistTimer = setInterval(() => checkPersistence().catch(() => {}), PERSIST_EVERY_MS);
   sweepTimer = setInterval(sweep, SWEEP_EVERY_MS);
-  checkPersistence().catch(() => {});
+  firstPersistTimer = setTimeout(() => checkPersistence().catch(() => {}), FIRST_PERSIST_MS);
   setState(true, null);
 }
 
@@ -135,6 +137,7 @@ function stop(reason, silent) {
   watchers = [];
   clearInterval(persistTimer);
   clearInterval(sweepTimer);
+  clearTimeout(firstPersistTimer);
   for (const t of timers.values()) clearTimeout(t);
   timers.clear();
   if (!silent) setState(false, reason ? `Defense: ${reason.toLowerCase()}` : 'Defense: off');
@@ -411,6 +414,25 @@ async function removePersistence(target) {
 /* -------------------------------------------------------- persistence */
 
 const knownEntries = new Set();
+
+// Startup programs that were read and found clean, remembered across restarts by path, size and date. Without this
+// every start of Sentinel read every startup program again in full (tens of megabytes each), just as the
+// computer was busiest.
+let vetted = null;
+function vettedPath() { return path.join(opts.dataDir, 'defense-vetted.json'); }
+function vettedKey(exe) { try { const st = fs.statSync(exe); return `${exe.toLowerCase()}|${st.size}|${Math.round(st.mtimeMs)}`; } catch { return null; } }
+function isVetted(exe) {
+  if (!vetted) { try { vetted = new Set(JSON.parse(fs.readFileSync(vettedPath(), 'utf8'))); } catch { vetted = new Set(); } }
+  const key = vettedKey(exe);
+  return Boolean(key) && vetted.has(key);
+}
+function rememberVetted(exe) {
+  const key = vettedKey(exe);
+  if (!key || !vetted || vetted.has(key)) return;
+  vetted.add(key);
+  if (vetted.size > 400) vetted = new Set([...vetted].slice(-300));
+  try { fs.mkdirSync(opts.dataDir, { recursive: true }); fs.writeFileSync(vettedPath(), JSON.stringify([...vetted])); } catch { /* best effort */ }
+}
 /** Scan the program behind every new startup entry. */
 async function checkPersistence() {
   if (!state.active) return;
@@ -430,7 +452,9 @@ async function checkPersistence() {
     if (knownEntries.has(key)) continue;
     knownEntries.add(key);
     const exe = firstPath(l.cmd);
-    if (exe && PROGRAM.test(exe) && !/\\windows\\|\\program files/i.test(exe)) await inspect(exe, `startup entry ${l.where}`).catch(() => {});
+    if (!exe || !PROGRAM.test(exe) || /\\windows\\|\\program files/i.test(exe) || isVetted(exe)) continue;
+    const item = await inspect(exe, `startup entry ${l.where}`).catch(() => null);
+    if (item && !item.badge) rememberVetted(exe);
   }
 }
 

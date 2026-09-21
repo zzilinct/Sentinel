@@ -167,7 +167,7 @@ async function launch(b) {
  * Polls the running browsers and reports when one appears or goes away.
  * `onChange(state)` gets { installed: [...], running: [...] }.
  */
-function watch({ onChange, everyMs = 5000 }) {
+function watch({ onChange, everyMs = 15000 }) {
   let last = '';
   let timer = null;
   let stopped = false;

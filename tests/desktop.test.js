@@ -15,7 +15,13 @@ const path = require('path');
 {
   const shared = path.join(__dirname, '..', 'desktop', 'shared');
   fs.mkdirSync(shared, { recursive: true });
-  for (const file of ['filescan.js', 'lists.js', 'brands.js']) fs.copyFileSync(path.join(__dirname, '..', 'server', 'lib', 'scan', file), path.join(shared, file));
+  for (const file of ['filescan.js', 'lists.js', 'brands.js']) {
+    const from = path.join(__dirname, '..', 'server', 'lib', 'scan', file);
+    const to = path.join(shared, file);
+    let same = false;
+    try { same = fs.readFileSync(from).equals(fs.readFileSync(to)); } catch { /* not there yet */ }
+    if (!same) fs.copyFileSync(from, to);
+  }
 }
 const watch = require('../desktop/src/watch.js');
 const defense = require('../desktop/src/defense.js');

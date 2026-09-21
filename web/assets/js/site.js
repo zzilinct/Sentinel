@@ -215,17 +215,15 @@
       if (!state.live && !state.email) {
         pick = 'free';
         why = '10 link scans and 5 virus &amp; malware scans a week cover the odd link you&rsquo;re unsure about.';
-      } else if (state.hours > 96) {
-        pick = 'ultimate';
-        why = `at around ${state.hours} hours a week you&rsquo;d run past Max&rsquo;s 96, and Ultimate lifts the weekly cap entirely.`;
       } else if (state.email || state.hours > 24) {
+        // Fast live scanning has no weekly limit from Max up; Pro's is 24 hours.
         pick = 'max';
         why = state.email
-          ? 'pasting emails in for a full scan is part of Max, and it researches every live result too.'
-          : `at around ${state.hours} hours a week you&rsquo;d outgrow Pro&rsquo;s 24; Max gives you 96, with research on every result.`;
+          ? 'pasting emails in for a full scan is part of Max, fast live scanning has no weekly limit, and 24 hours a week of delicate scanning research every result.'
+          : `at around ${state.hours} hours a week you&rsquo;d outgrow Pro&rsquo;s 24 hours of fast scanning. Max has no weekly limit on it, and 24 hours of delicate scanning. Ultimate raises delicate to 96.`;
       } else {
         pick = 'pro';
-        why = `its 24 live hours a week cover your ${state.hours}, and minutes only count while Sentinel is actually checking something.`;
+        why = `its 24 hours a week of fast live scanning cover your ${state.hours}, with 4 hours of delicate scanning for the searches that matter. Minutes only count while Sentinel is actually checking something.`;
       }
       answer.innerHTML = `<b>${{ free: 'Free', pro: 'Pro', max: 'Max', ultimate: 'Ultimate' }[pick]}</b> fits best. ${why}`;
 

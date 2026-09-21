@@ -35,6 +35,11 @@ function ensure() {
   ready = false;
   win = new BrowserWindow({
     show: false,
+    // A tool window: never a taskbar button, never in Alt+Tab. Without this the overlay showed up in the taskbar
+    // as a second, icon-less program whenever scanning was on.
+    type: 'toolbar',
+    icon: path.join(__dirname, '..', 'assets', 'icon256.png'),
+    title: 'Sentinel',
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -59,6 +64,7 @@ function ensure() {
   win.setAlwaysOnTop(true, 'screen-saver');
   // Every click and key goes through to the browser. Moves are forwarded so a mark can explain itself on hover.
   win.setIgnoreMouseEvents(true, { forward: true });
+  win.setSkipTaskbar(true);
   win.setMenu(null);
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
