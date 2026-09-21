@@ -378,6 +378,17 @@
     return '<div class="banner" style="margin-bottom:18px"><div><b>Running on this computer.</b> This copy of Sentinel keeps its server and database on your machine. Suspicious pages are never opened from here, so research (domain age, certificates, redirects, page content) waits for the hosted service. Everything else works.</div></div>';
   }
 
+  /** The live allowance that can run out: delicate where the plan has it, fast otherwise. */
+  function liveCard(us, f) {
+    const m = f.liveScanning ? us.liveMinutes : us.fastMinutes;
+    const name = f.liveScanning ? 'delicate scanning left' : 'fast scanning left';
+    if (!m || uncapped(m.limit)) return usageCard(ICON.clock, 'No limit', '', 'fast live scanning', 0, null, false, 'never resets');
+    const left = Math.max(0, m.limit - m.used);
+    return m.limit < 60
+      ? usageCard(ICON.clock, String(left), `min / ${m.limit} min`, name, m.used, m.limit)
+      : usageCard(ICON.clock, (left / 60).toFixed(left < 600 ? 1 : 0), `h / ${m.limit / 60}h`, name, m.used, m.limit);
+  }
+
   function usageCard(icon, n, unit, label, used, limit, locked, meta) {
     const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
     return `<div class="usage-card${locked ? ' is-locked' : ''}">
@@ -419,9 +430,7 @@
       <div class="grid3" style="margin-top:28px">
         <a class="usage-link" href="/app/scan" aria-label="Link scan">${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, `link scans left${f.research ? ', researched' : ''}`, us.linkScans.used, us.linkScans.limit)}</a>
         <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
-        <a class="usage-link" href="/app/protection" aria-label="Live protection">${uncapped(us.liveMinutes.limit)
-          ? usageCard(ICON.clock, '24/7', '', 'live scanning, no weekly cap', 0, null, false, 'never resets')
-          : usageCard(ICON.clock, ((us.liveMinutes.limit - us.liveMinutes.used) / 60).toFixed(us.liveMinutes.limit - us.liveMinutes.used < 600 ? 1 : 0), `h / ${us.liveMinutes.limit / 60}h`, 'live scanning left', us.liveMinutes.used, us.liveMinutes.limit, !f.liveScanning)}</a>
+        <a class="usage-link" href="/app/protection" aria-label="Live protection">${liveCard(us, f)}</a>
       </div>
 
       <div style="margin-top:18px">${protectionTeaser()}</div>
@@ -460,7 +469,7 @@
       return lockedCard({
         tag: 'Pro & up',
         heading: 'Masks on every search result, email and download',
-        body: 'Upgrade to turn on live protection. Pro includes 24 hours of live scanning a week; Max includes 96 hours and researches every result.',
+        body: 'Upgrade for delicate live scanning, which researches every result: 4 hours a week on Pro, 24 on Max, 96 on Ultimate, with fast scanning beside it.',
         actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>'
       });
     }
@@ -858,7 +867,7 @@
   async function protectionView(el) {
     const f = plan().features;
     const us = usage();
-    const planLocked = !f.liveScanning;
+    const planLocked = !f.liveScanning && !f.liveFast;
 
     const feature = (icon, name, body, status) => `<div class="feature">
       <div class="feature__top"><span class="feature__icon">${icon}</span>${status}</div>
@@ -871,7 +880,7 @@
     el.innerHTML = `
       ${title('Live protection', 'Sentinel watching in real time: on search results, in your inbox and on every download.')}
       ${localNote()}
-      ${planLocked ? lockedCard({ tag: 'Pro & up', heading: 'Turn on live protection', body: 'Your Free plan includes manual link and file scans. Upgrade to Pro for 24 hours of live scanning a week, or Max for 96 hours with every result researched.', actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>' })
+      ${planLocked ? lockedCard({ tag: 'Not in this plan', heading: 'Turn on live protection', body: 'Live scanning is not part of this plan.', actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>' })
         : needsApp ? lockedCard({ tag: 'Unlocked by the Sentinel app', heading: 'Download Sentinel to switch these on', body: 'Your plan includes live protection. It runs through the Sentinel app on your computer, so it can watch downloads and draw its masks over your browser.', actions: `<a class="btn btn--gold" href="/download">${ICON.download}Download Sentinel</a>` })
         : ''}
 
@@ -883,9 +892,11 @@
       </div>
 
       ${!planLocked ? `<div class="panel" style="margin-top:18px">
-        <div class="panel__head"><div><h2>Live scanning this week</h2><p>Minutes only count when Sentinel actually checks something. Resets ${until(state.me.week.resetsAt)}.</p></div>
-        <span class="mono tabular" style="font-size:20px">${hours(us.liveMinutes.used)}<span class="muted" style="font-size:14px"> / ${uncapped(us.liveMinutes.limit) ? '24&#47;7' : `${us.liveMinutes.limit / 60}h`}</span></span></div>
-        <div class="meter${uncapped(us.liveMinutes.limit) ? ' is-uncapped' : ''}"><i style="width:${uncapped(us.liveMinutes.limit) ? 100 : Math.min(100, (us.liveMinutes.used / us.liveMinutes.limit) * 100)}%"></i></div>
+        <div class="panel__head"><div><h2>Live scanning this week</h2><p>Minutes only count when Sentinel actually checks something. Resets ${until(state.me.week.resetsAt)}.</p></div></div>
+        <div class="meters">
+          ${liveMeter('Fast', 'Answers in about a second. Threat lists, the checklist and comparison with known scams.', us.fastMinutes)}
+          ${liveMeter('Delicate', 'Answers in about five seconds. Everything fast does, plus research on every result.', us.liveMinutes)}
+        </div>
       </div>` : ''}
 
       <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
@@ -896,6 +907,18 @@
 
     if (desktop && !planLocked) renderDesktopControls($('[data-desktop]', el));
     renderIntel($('[data-intel]', el));
+  }
+
+  /** One weekly allowance: used of limit, or "no weekly limit", or "not in this plan". */
+  function liveMeter(name, what, m) {
+    const none = !m || m.limit === 0;
+    const free = m && uncapped(m.limit);
+    const limit = none ? '' : free ? 'no weekly limit' : m.limit >= 60 ? `${m.limit / 60} h` : `${m.limit} min`;
+    const used = none ? '' : m.limit !== null && m.limit < 60 ? `${m.used} min` : `${hours(m.used)} h`;
+    return `<div class="meters__item${none ? ' is-off' : ''}">
+      <div class="meters__head"><b>${name}</b><span class="mono tabular">${none ? 'Pro and up' : `${used} <span class="muted">/ ${limit}</span>`}</span></div>
+      <div class="meter${free ? ' is-uncapped' : ''}"><i style="width:${none ? 0 : free ? 100 : Math.min(100, (m.used / m.limit) * 100)}%"></i></div>
+      <p>${what}</p></div>`;
   }
 
   async function renderIntel(slot) {
@@ -939,19 +962,27 @@
     (slot._off || []).forEach((off) => off());
     slot._off = [];
     const active = slot.contains(document.activeElement) ? document.activeElement : null;
-    const focusKey = active ? ['liveToggle', 'scanWith', 'defense', 'dl', 'login', 'watch', 'checkUpdate', 'restore', 'quarantine'].find((k) => k in active.dataset) : null;
+    const focusKey = active ? ['liveToggle', 'liveMode', 'scanWith', 'defense', 'dl', 'login', 'watch', 'checkUpdate', 'restore', 'quarantine'].find((k) => k in active.dataset) : null;
     const focusValue = focusKey ? active.dataset[focusKey] : null;
+    const canDelicate = Boolean(plan().features.liveScanning);
+    const mode = info.liveMode === 'delicate' && canDelicate ? 'delicate' : 'fast';
+    const fellBack = live.fellBack === 'delicate_hours_used' ? ' Delicate hours for this week are used up, so results are coming from fast scanning.' : '';
     const liveText = !live.supported ? 'Live scanning is available on Windows.'
-      : live.active ? (live.window ? `Watching the browser in front. Look for the gold mask in its bottom right corner.${live.lastResults ? ` Last search: ${live.lastResults.count} results marked.` : ''}` : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
+      : live.active ? (live.window ? `Watching the browser in front. Look for the gold mask in its bottom right corner.${live.lastResults ? ` Last search: ${live.lastResults.count} results marked.` : ''}${fellBack}` : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
         : live.enabled ? (live.reason || 'Starting') : 'Off. One click, and every browser you use is covered.';
     slot.innerHTML = `
       <div class="panel live" style="margin-top:18px">
         <div class="live__main">
           <span class="live__mask${live.active ? ' is-on' : ''}" aria-hidden="true">${Masks.svg('scam')}</span>
           <div class="live__text"><h2>Live scanning</h2><p data-live-text>${esc(liveText)}</p>${live.counts && live.counts.checked ? `<p class="live__counts" data-live-counts>${live.counts.checked.toLocaleString()} checked since Sentinel started, ${live.counts.flagged.toLocaleString()} flagged. Private windows are not counted.</p>` : '<p class="live__counts" data-live-counts hidden></p>'}</div>
+          <div class="seg" role="group" aria-label="Scanning mode">
+            <button type="button" class="seg__btn${mode === 'fast' ? ' is-on' : ''}" data-live-mode="fast" aria-pressed="${mode === 'fast'}">Fast</button>
+            <button type="button" class="seg__btn${mode === 'delicate' ? ' is-on' : ''}" data-live-mode="delicate" aria-pressed="${mode === 'delicate'}" ${canDelicate ? '' : 'disabled title="Delicate scanning comes with Pro, Max and Ultimate"'}>Delicate</button>
+          </div>
           <button class="btn ${live.enabled ? '' : 'btn--gold'} live__button" data-live-toggle ${live.supported ? '' : 'disabled'}>${live.enabled ? 'Stop scanning' : 'Start scanning'}</button>
         </div>
         <ul class="live__facts">
+          <li><b>Fast</b> marks results about a second after you search. <b>Delicate</b> also looks up how old each site is and whether it resolves, and takes about five seconds. Neither opens a suspicious page from this computer.</li>
           <li>Only the browser in front, and only while you are using it. Minimised, in the background or closed: nothing is read and no live time is spent.</li>
           <li>Private windows are protected the same way, and nothing about them is kept: no history, no log, no entry below.</li>
           <li>Sentinel reads addresses, never what a page says or what you type.</li>
@@ -1036,6 +1067,11 @@
         while (feed.children.length > 8) feed.lastElementChild.remove();
       });
     }
+    $$('[data-live-mode]', slot).forEach((b) => b.addEventListener('click', async () => {
+      if (b.disabled || b.classList.contains('is-on')) return;
+      try { await desktop.setLiveMode(b.dataset.liveMode); } catch (err) { toast(err.message, 'error'); }
+      renderDesktopControls(slot);
+    }));
     const toggle = $('[data-live-toggle]', slot);
     if (toggle && !toggle.disabled) toggle.addEventListener('click', () => busy(toggle, live.enabled ? 'Stopping' : 'Starting', async () => {
       try {
@@ -1112,9 +1148,9 @@
     const demo = state.config.billingMode === 'demo';
     const lines = {
       free: ['10 link scans a week', '5 virus & malware scans a week', 'Known threats + full checklist', 'Scam mask on link scans'],
-      pro: ['24 hours of live scanning a week', '40 researched link scans', '40 virus & malware scans', 'All three masks', 'Email & download protection'],
-      max: ['96 hours of live scanning a week', 'Research on every live result', '100 researched link scans', '100 virus & malware scans', 'Paste-in email scans'],
-      ultimate: ['24/7 live scanning, no weekly hour cap', 'Research on every live result', '500 researched link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max']
+      pro: ['24 hours of fast live scanning a week', '4 hours of delicate live scanning a week', '40 researched link scans', '40 virus & malware scans', 'All three masks', 'Email & download protection'],
+      max: ['Unlimited fast live scanning', '24 hours of delicate live scanning a week', '100 researched link scans', '100 virus & malware scans', 'Paste-in email scans'],
+      ultimate: ['Unlimited fast live scanning', '96 hours of delicate live scanning a week', '500 researched link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max']
     };
     el.innerHTML = `
       ${title('Plan &amp; usage', `You’re on <b style="color:var(--gold-200);font-weight:500">${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
@@ -1122,9 +1158,7 @@
       <div class="grid3">
         ${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, 'link scans left', us.linkScans.used, us.linkScans.limit)}
         ${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}
-        ${uncapped(us.liveMinutes.limit)
-          ? usageCard(ICON.clock, '24/7', '', 'live scanning, no weekly cap', 0, null, false, 'never resets')
-          : usageCard(ICON.clock, ((us.liveMinutes.limit - us.liveMinutes.used) / 60).toFixed(1), `h / ${us.liveMinutes.limit / 60}h`, 'live scanning left', us.liveMinutes.used, us.liveMinutes.limit, !plan().features.liveScanning)}
+        ${liveCard(us, plan().features)}
       </div>
       <div class="plans" style="margin-top:28px">${state.plans.map((p) => `
         <article class="plan${p.id === 'pro' ? ' plan--featured' : ''}${p.id === current ? ' is-current' : ''}">

@@ -314,12 +314,15 @@ async function setLiveScanning(enabled, { sweep = false } = {}) {
 
 /** "Scan with <browser>": scanning on, that browser open, in front and maximised, the gold line over it. */
 async function scanWith(id) {
-  const status = await setLiveScanning(true);
+  // Already scanning: nothing to restart. Restarting would stop the reader that is about to raise the browser.
+  const status = watch.status().active && store.get('liveScanning', false)
+    ? { ...watch.status(), enabled: true }
+    : await setLiveScanning(true);
   if (!status.active) return { ok: false, reason: status.reason || 'Live scanning could not start', ...status };
   sweepOnNextWindow = true;
   clearTimeout(sweepExpiry);   // an earlier click's timer must not cancel this one's sweep
   sweepExpiry = setTimeout(() => { sweepOnNextWindow = false; }, 20000);
-  const raised = await browsers.bringForward(id);
+  const raised = await browsers.bringForward(id, { raise: watch.raise });
   return { ok: true, ...raised, ...status };
 }
 
@@ -374,6 +377,7 @@ function registerBridge() {
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
+    liveMode: store.get('liveMode', 'fast'),
     defense: { ...defense.status(), enabled: store.get('defense', true) },
     deviceProtection: Boolean(store.getSecret('deviceToken')) && !store.getSecret('token'),
     browsers: browserState,
@@ -384,6 +388,11 @@ function registerBridge() {
 
   handle('sentinel:live-start', () => setLiveScanning(true, { sweep: true }));
   handle('sentinel:live-stop', () => setLiveScanning(false));
+  handle('sentinel:live-mode', (mode) => {
+    store.set('liveMode', mode === 'delicate' ? 'delicate' : 'fast');
+    refreshTray();
+    return { ...watch.status(), enabled: store.get('liveScanning', false) };
+  });
   handle('sentinel:scan-with', (id) => {
     if (typeof id !== 'string' || !browsers.BROWSERS.some((b) => b.id === id)) throw new Error('Unknown browser');
     return scanWith(id);
@@ -534,6 +543,9 @@ async function boot() {
     api: apiCall,
     getToken: () => activeToken(),
     enabled: () => store.get('liveScanning', false),
+    mode: () => store.get('liveMode', 'fast'),
+    // The reader's helper types are compiled once into here and loaded from then on.
+    helperDll: path.join(app.getPath('userData'), 'reader-helper-2.dll'),
     // Development runs only: never honoured by an installed build.
     testProcess: app.isPackaged ? null : process.env.SENTINEL_TEST_PROCESS,
     onChange: (s) => { refreshTray(); push('sentinel:live', { ...s, enabled: store.get('liveScanning', false) }); },

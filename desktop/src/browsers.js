@@ -135,14 +135,25 @@ if (-not $p) { 'NONE'; exit }
  * "Scan with <browser>": open it if it is closed, and bring it to the front,
  * maximised, if it is minimised or behind something.
  */
-async function bringForward(id) {
+async function bringForward(id, { raise } = {}) {
   const b = (await installed()).find((x) => x.id === id);
   if (!b) throw new Error('That browser is not installed');
+  // The live-scanning reader is already running and already has the Windows calls loaded: ask it. That is instant,
+  // where starting a PowerShell of our own takes a second or more (several, on a busy computer).
+  if (raise) {
+    const raised = await raise(b.process);
+    if (raised === true) return { ok: true, launched: false, name: b.name };
+    if (raised === false) return launch(b);   // no window: the browser is closed (or only in the background)
+  }
   if (process.platform === 'win32') {
     const encoded = Buffer.from(RAISE.replace('__NAME__', b.process), 'utf16le').toString('base64');
     const out = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded], 15000);
     if (/FRONT/.test(out)) return { ok: true, launched: false, name: b.name };
   }
+  return launch(b);
+}
+
+async function launch(b) {
   await new Promise((resolve, reject) => {
     const args = b.engine === 'chromium' ? ['--start-maximized'] : [];
     const child = execFile(b.exe, args, { windowsHide: false }, () => {});

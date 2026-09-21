@@ -116,6 +116,8 @@ function spawnNow(store) {
       BILLING_MODE: process.env.BILLING_MODE || 'demo',
       // Never fetch a suspicious page from the person's own computer.
       RESEARCH_ENABLED: '0',
+      // Delicate live scanning may still ask the public registry how old a domain is, and whether it resolves.
+      RESEARCH_LITE: '1',
       SENTINEL_DEVICE_ACCOUNTS: '1'
     };
     delete env.ELECTRON_RUN_AS_NODE;

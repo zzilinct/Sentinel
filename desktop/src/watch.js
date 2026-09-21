@@ -41,7 +41,9 @@ const SCRIPT = String.raw`
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
-Add-Type @"
+# Compiling this takes a second or more of CPU on every start. Compile it once into the app's data folder and load it from there afterwards.
+$dll = '__HELPER_DLL__'
+$src = @"
 using System; using System.Text; using System.Runtime.InteropServices;
 public static class SW {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -52,8 +54,21 @@ public static class SW {
   [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
   public static uint IdleMs() { var i = new LASTINPUTINFO(); i.cbSize = (uint)Marshal.SizeOf(i); GetLastInputInfo(ref i); return (uint)Environment.TickCount - i.dwTime; }
   public static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+  // Restore if minimised, maximise, and bring to the front. Windows only lets the program in front hand over the
+  // foreground, so Alt is tapped first (the documented way to be allowed).
+  public static void Raise(IntPtr h) { ShowWindow(h, 3); keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); SetForegroundWindow(h); }
 }
 "@
+$loaded = $false
+if ($dll -and (Test-Path $dll)) { try { Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
+if (-not $loaded) {
+  if ($dll) { try { Add-Type -TypeDefinition $src -OutputAssembly $dll; Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
+  if (-not $loaded) { Add-Type -TypeDefinition $src }
+}
+Write-Output '{"ready":true}'
 $A = [System.Windows.Automation.AutomationElement]
 $VP = [System.Windows.Automation.ValuePattern]
 $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
@@ -65,10 +80,22 @@ $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'fi
 $private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
 $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
 $last = ''; $lastFront = ''; $lastWin = ''; $lastLinks = ''; $wasIdle = $false; $noDoc = ''; $pause = 450
+$stdin = [Console]::In
+$pendingLine = $stdin.ReadLineAsync()
 function Off($why) { if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
-  Start-Sleep -Milliseconds $pause
-  $pause = 450
+  # Wait for the next look, but wake at once for a command.
+  if ($pendingLine.Wait($pause)) {
+    $cmd = $pendingLine.Result
+    if ($null -eq $cmd) { exit }   # the app closed the pipe: it is gone
+    $pendingLine = $stdin.ReadLineAsync()
+    if ($cmd -match '^raise ([a-z]{2,20})$') {
+      $rp = Get-Process -Name $Matches[1] | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+      if ($rp) { [SW]::Raise($rp.MainWindowHandle); Write-Output ('{"raised":"' + $Matches[1] + '"}') } else { Write-Output ('{"noWindow":"' + $Matches[1] + '"}') }
+    }
+    continue
+  }
+  $pause = 300
   $h = [SW]::GetForegroundWindow()
   # Development builds only (see start()): look at a named browser wherever it is, so the whole chain can be
   # exercised against a window nobody is looking at. In a released build this name is always empty.
@@ -138,8 +165,8 @@ while ($true) {
     }
     # A heavy page must not make the reader spin: rest at least twice as long as the read took.
     if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
-    # A light page is read more often, so marks keep up with scrolling.
-    elseif ($sw.ElapsedMilliseconds -lt 70) { $pause = 220 }
+    # A light page is read more often, so marks arrive sooner and keep up with scrolling.
+    elseif ($sw.ElapsedMilliseconds -lt 70) { $pause = 180 }
   }
 }
 `;
@@ -154,7 +181,32 @@ let restartTimer = null;
 let latestLinks = null;       // the last list of on-screen links, so late verdicts land where the links are now
 let pending = new Set();
 
-function status() { return { ...state }; }
+let readerReady = false;
+const queued = [];
+const raiseWaiters = [];
+function send(line) {
+  if (!child || !child.stdin || child.stdin.destroyed) return false;
+  if (!readerReady) { queued.push(line); return true; }
+  try { child.stdin.write(`${line}\n`); return true; } catch { return false; }
+}
+
+/**
+ * Bring a browser's window to the front, maximised, using the reader that is already running: no second
+ * PowerShell to start, so it happens at once. Resolves true when a window was raised, false when that browser has
+ * no window (the caller then opens it), null when there is no reader to ask.
+ */
+function raise(processName) {
+  if (!child || !/^[a-z]{2,20}$/.test(processName)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { const i = raiseWaiters.indexOf(done); if (i >= 0) raiseWaiters.splice(i, 1); resolve(null); }, 6000);
+    const done = (ok) => { clearTimeout(timer); resolve(ok); };
+    raiseWaiters.push(done);
+    if (!send(`raise ${processName}`)) { raiseWaiters.pop(); clearTimeout(timer); resolve(null); }
+  });
+}
+
+function status() { return { ...state, mode: currentMode() }; }
+function currentMode() { return opts && opts.mode && opts.mode() === 'delicate' ? 'delicate' : 'fast'; }
 function log(text) { if (opts && opts.onLog) opts.onLog(text); }
 
 function setState(active, reason) {
@@ -180,7 +232,7 @@ async function restart() {
   if (!opts.getToken()) return setState(false, 'Sign in to start live scanning');
   try {
     const me = await opts.api('/api/v1/auth/me');
-    if (!me.plan.features.liveScanning) return setState(false, 'Live scanning needs Pro or above');
+    if (!me.plan.features.liveScanning && !me.plan.features.liveFast) return setState(false, 'Live scanning is not part of this plan');
   } catch (err) {
     if (err.status === 401) return setState(false, 'Sign in to start live scanning');
     // "Will retry" has to be true: a scanner that is still starting answers a minute later.
@@ -194,10 +246,13 @@ async function restart() {
 function start() {
   const testProcess = opts.testProcess && /^[a-z]{2,20}$/.test(opts.testProcess) ? opts.testProcess : '';
   if (testProcess) log(`TEST MODE: reading ${testProcess} wherever it is, not the window in front`);
-  const encoded = Buffer.from(SCRIPT.replace('__TEST_PROCESS__', testProcess), 'utf16le').toString('base64');
+  const helper = opts.helperDll ? String(opts.helperDll).replace(/'/g, "''") : '';
+  const encoded = Buffer.from(SCRIPT.replace('__TEST_PROCESS__', testProcess).replace('__HELPER_DLL__', helper), 'utf16le').toString('base64');
   try {
     child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded],
-      { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    // Below normal priority: reading the browser must never compete with the browser.
+    try { require('os').setPriority(child.pid, require('os').constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* best effort */ }
   } catch (err) {
     log(`could not start the reader: ${err.message}`);
     return setState(false, `Live scanning could not start (${err.message})`);
@@ -234,6 +289,9 @@ function stop(reason, silent) {
   clearTimeout(restartTimer);
   const old = child;
   child = null;
+  readerReady = false;
+  queued.length = 0;
+  for (const r of raiseWaiters.splice(0)) r(null);
   if (old) { try { old.kill(); } catch { /* gone */ } }
   state.current = null;
   latestLinks = null;
@@ -254,6 +312,8 @@ function setWindow(win) {
 function onLine(line) {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
+  if (msg.ready) { readerReady = true; for (const line of queued.splice(0)) send(line); return; }
+  if (msg.raised || msg.noWindow) { const r = raiseWaiters.shift(); if (r) r(Boolean(msg.raised)); return; }
   if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); return; }
   if (msg.nodoc) { log(`${msg.browser} is in front, but Windows gave no page address (a start page, a dialog over the page, or the browser's accessibility is off)`); return; }
   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
@@ -286,7 +346,9 @@ async function check(page) {
 
   let verdict;
   try {
-    ({ verdict } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private }));
+    let answer;
+    ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode() }));
+    noteMode(answer);
   } catch (err) {
     log(`check failed${page.private ? '' : ` for ${host}`}: ${err.status || ''} ${err.code || err.message}`);
     // Refused, not a hiccup: stop reading the browser altogether. A reader left running would keep asking, and the
@@ -307,6 +369,16 @@ async function check(page) {
   warned.set(host, Date.now());
   if (warned.size > 500) warned.clear();
   opts.onThreat({ browser: page.browser, url: page.url, host, verdict, private: page.private });
+}
+
+/** What the server actually used. Delicate that is used up (or not in the plan) carries on as fast, and the person is told once. */
+function noteMode(answer) {
+  const used = answer && answer.mode;
+  const fellBack = (answer && answer.fellBack) || null;
+  if (!used || (state.usedMode === used && state.fellBack === fellBack)) return;
+  state = { ...state, usedMode: used, fellBack, live: answer.live || state.live };
+  if (fellBack) log(`delicate scanning is not available (${fellBack}); carrying on in fast mode`);
+  if (opts.onChange) opts.onChange(status());
 }
 
 /** A running total for the app's Live panel. Numbers only, and a private window adds nothing to them. */
@@ -381,7 +453,10 @@ async function onLinks(msg) {
   if (!missing.length) return;
   missing.forEach((u) => pending.add(u));
   try {
-    const { byUrl } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private });
+    const started = Date.now();
+    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode: currentMode() });
+    noteMode(answer);
+    if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
     for (const u of missing) {
       const v = byUrl && byUrl[u];
       const badge = (v && v.overall && v.overall.badge) || null;
@@ -399,4 +474,4 @@ async function onLinks(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, _test: { resultLinks, worstKind, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, _test: { resultLinks, worstKind, SCRIPT } };

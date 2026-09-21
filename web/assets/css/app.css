@@ -533,3 +533,16 @@ select.input option { background: #1b1d22; color: var(--text); }
   .live__button { width: 100%; }
   .live__facts { grid-template-columns: 1fr; gap: 10px; }
 }
+
+/* ---------- Fast / Delicate ---------- */
+.seg { display: inline-flex; flex: none; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; }
+.seg__btn { height: 38px; padding: 0 14px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer; }
+.seg__btn + .seg__btn { border-left: 1px solid var(--line-2); }
+.seg__btn.is-on { background: var(--gold-500); color: #16130b; font-weight: 600; }
+.seg__btn:disabled { opacity: .45; cursor: not-allowed; }
+.seg__btn:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
+.meters { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.meters__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.meters__item p { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.meters__item.is-off { opacity: .6; }
+@media (max-width: 860px) { .meters { grid-template-columns: 1fr; } }
