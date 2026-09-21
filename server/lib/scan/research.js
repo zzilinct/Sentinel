@@ -31,6 +31,34 @@ const q = {
 
 const rdapCache = new Map();
 
+// Registries refuse anonymous clients: without a User-Agent, rdap.org answers 403 to everything. (It did, from the
+// first version of this file until 1.6.0: domain age never reached a verdict.)
+const RDAP_HEADERS = { Accept: 'application/rdap+json', 'User-Agent': `Sentinel/${config.version || '1'} (link safety checker)` };
+
+// IANA publishes which RDAP server answers for each ending. Asking that registry directly is quicker than going
+// through a redirector, and no single middleman sees every lookup. rdap.org remains the fallback.
+let bootstrap = { at: 0, byTld: null, loading: null };
+async function rdapBase(registrable) {
+  const fresh = bootstrap.byTld && now() - bootstrap.at < 24 * 60 * 60 * 1000;
+  if (!fresh && !bootstrap.loading) {
+    bootstrap.loading = (async () => {
+      try {
+        const res = await fetch('https://data.iana.org/rdap/dns.json', { headers: RDAP_HEADERS, signal: AbortSignal.timeout(4000) });
+        const data = await res.json();
+        const map = new Map();
+        for (const [tlds, urls] of data.services || []) {
+          const url = (urls || []).find((u) => /^https:/.test(u));
+          if (url) for (const tld of tlds) map.set(String(tld).toLowerCase(), url.endsWith('/') ? url : `${url}/`);
+        }
+        if (map.size) bootstrap = { at: now(), byTld: map, loading: null };
+      } catch { /* keep whatever we had */ } finally { bootstrap.loading = null; }
+    })();
+  }
+  if (!bootstrap.byTld && bootstrap.loading) await bootstrap.loading;
+  const tld = registrable.slice(registrable.lastIndexOf('.') + 1).toLowerCase();
+  return (bootstrap.byTld && bootstrap.byTld.get(tld)) || 'https://rdap.org/';
+}
+
 async function rdap(registrable) {
   if (config.isTest) return (testFacts.get(registrable) || {}).registration || { available: false, reason: 'offline in tests' };
   const hit = rdapCache.get(registrable);
@@ -38,8 +66,8 @@ async function rdap(registrable) {
 
   let value;
   try {
-    const res = await fetch(`https://rdap.org/domain/${encodeURIComponent(registrable)}`, {
-      headers: { Accept: 'application/rdap+json' },
+    const res = await fetch(`${await rdapBase(registrable)}domain/${encodeURIComponent(registrable)}`, {
+      headers: RDAP_HEADERS,
       redirect: 'follow',
       signal: AbortSignal.timeout(RDAP_TIMEOUT)
     });
