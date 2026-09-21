@@ -272,11 +272,32 @@ async function refreshAll({ log = false, force = false } = {}) {
   }
 }
 
+let worker = null;
+/**
+ * Refresh on a thread of its own (see feed-worker.js), so the server keeps answering while a million rows are
+ * rewritten. An in-memory database cannot be shared with another thread, so tests refresh in place.
+ */
+function refreshInBackground(options = {}) {
+  if (config.dbPath === ':memory:') return refreshAll(options);
+  if (worker) return worker;
+  const { Worker } = require('worker_threads');
+  worker = new Promise((resolve) => {
+    let w;
+    try { w = new Worker(require('path').join(__dirname, 'feed-worker.js'), { workerData: options }); } catch (err) { resolve({ ok: false, error: String(err.message || err) }); return; }
+    w.unref();
+    w.once('message', (msg) => { resolve(msg); w.terminate().catch(() => {}); });
+    w.once('error', (err) => resolve({ ok: false, error: String(err && err.message || err) }));
+    w.once('exit', () => resolve({ ok: false, error: 'stopped' }));
+  }).finally(() => { worker = null; });
+  return worker;
+}
+
 function start() {
   if (!config.feedRefreshHours) return;
-  if (FEEDS.some(isStale)) setTimeout(() => refreshAll({ log: true }).catch(() => {}), 1500).unref();
+  // Not in the first seconds: the app is starting, and the person is waiting for it.
+  if (FEEDS.some(isStale)) setTimeout(() => refreshInBackground({ log: true }).catch(() => {}), 20000).unref();
   // Check hourly; each feed decides for itself whether it is due.
-  setInterval(() => refreshAll().catch(() => {}), 3600 * 1000).unref();
+  setInterval(() => refreshInBackground().catch(() => {}), 3600 * 1000).unref();
 }
 
 /** How many feeds have loaded at least once, for "still downloading" notes. */
@@ -286,6 +307,7 @@ function readiness() {
 }
 
 module.exports = {
+  refreshInBackground,
   FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness,
   status: () => q.allStatus.all().filter((r) => !r.source.startsWith('_'))
 };
