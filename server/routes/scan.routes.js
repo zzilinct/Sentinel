@@ -156,40 +156,49 @@ function register(router) {
 
   /* --------------------------------------------------------- live scanning */
 
+  // Delicate live scanning researches every result, and still has to answer while the person is looking at the
+  // results page. Whatever research has not come back inside this budget is left out of that verdict (and is
+  // not cached), so the answer is always on time.
+  const DELICATE_BUDGET_MS = 4500;
+
   router.post('/api/v1/live/batch', async (req, res) => {
     const user = A.requireUser(req);
-    const plan = plans.trackLive(user);
     const body = await readJson(req);
+    const { plan, mode, fellBack } = plans.trackLive(user, body.mode);
     const urls = Array.isArray(body.urls) ? body.urls.map(String).filter((u) => u.length < 4096).slice(0, 60) : [];
     if (!urls.length) throw new HttpError(400, 'missing_urls', 'Provide urls: string[]');
     security.rateLimit(`live:${user.id}`, 240, 60 * 1000);
 
-    const research = Boolean(body.research) && plan.features.liveResearch;
-    // A private window is protected like any other, and nothing about it is kept:
-    // flagged results normally go into the person's history, these do not.
+    // A private window is protected like any other, and nothing about it is kept: flagged results normally go
+    // into the person's history, these do not. Nor are its addresses sent to a registry: it gets the fast checks.
+    const isPrivate = body.private === true;
+    const research = mode === 'delicate' && plan.features.liveResearch && !isPrivate;
+    const started = Date.now();
     const verdicts = await engine.scanUrls(urls, {
-      userId: user.id, planId: plan.id, research, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: body.private !== true
+      userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: !isPrivate
     });
     const byUrl = {};
     for (const v of verdicts) byUrl[v.requested] = v;
-    sendJson(res, 200, { byUrl, researched: research, live: liveUsage(user, plan) });
+    sendJson(res, 200, { byUrl, mode, fellBack, researched: research, tookMs: Date.now() - started, live: liveUsage(user, plan) });
   });
 
   router.post('/api/v1/live/visit', async (req, res) => {
     const user = A.requireUser(req);
-    const plan = plans.trackLive(user);
-    const { url } = await readJson(req);
+    const body = await readJson(req);
+    const { plan, mode, fellBack } = plans.trackLive(user, body.mode);
+    const { url } = body;
     if (!url || !analyze(String(url))) throw new HttpError(400, 'bad_url', 'Not a web address');
     security.rateLimit(`visit:${user.id}`, 120, 60 * 1000);
+    const research = mode === 'delicate' && plan.features.liveResearch && body.private !== true;
     const verdict = await engine.scanUrl(String(url), {
-      userId: user.id, planId: plan.id, research: plan.features.liveResearch, threats: ALL, mode: 'live', detail: 'compact'
+      userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact'
     });
-    sendJson(res, 200, { verdict, live: liveUsage(user, plan) });
+    sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan) });
   });
 
   router.post('/api/v1/live/email', async (req, res) => {
     const user = A.requireUser(req);
-    const plan = plans.trackLive(user);
+    const { plan } = plans.trackLive(user);
     if (!plan.features.emailLive) throw new HttpError(403, 'plan_required', 'Email protection is part of Sentinel Pro, Max and Ultimate.', { needs: 'pro' });
     security.rateLimit(`live-email:${user.id}`, 120, 60 * 1000);
     const body = await readJson(req, 512 * 1024);
@@ -277,7 +286,11 @@ function register(router) {
 }
 
 function liveUsage(user, plan) {
-  return { usedMinutes: plans.liveMinutesUsed(user.id), limitMinutes: plan.limits.liveMinutes, resetsAt: plans.weekResetsAt() };
+  return {
+    usedMinutes: plans.liveMinutesUsed(user.id), limitMinutes: plan.limits.liveMinutes,
+    fast: { usedMinutes: plans.fastMinutesUsed(user.id), limitMinutes: plan.limits.fastMinutes },
+    resetsAt: plans.weekResetsAt()
+  };
 }
 
 module.exports = { register };

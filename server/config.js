@@ -72,6 +72,9 @@ module.exports = {
   // own servers. The desktop app's embedded server sets this to 0 so a person's
   // computer never fetches a suspicious page on their behalf.
   researchEnabled: process.env.RESEARCH_ENABLED !== '0',
+  // The desktop app never opens a suspicious page from the person's computer (RESEARCH_ENABLED=0), but it may still
+  // ask the public registry how old a domain is and whether it resolves: nothing is requested from the site itself.
+  researchLite: process.env.RESEARCH_LITE === '1',
   // The desktop app's own server may create the account for the computer it runs
   // on, so protection starts with no sign-up. Never on a hosted server.
   deviceAccounts: process.env.SENTINEL_DEVICE_ACCOUNTS === '1',

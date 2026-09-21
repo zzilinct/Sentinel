@@ -11,9 +11,11 @@ const PLANS = {
     id: 'free',
     name: 'Free',
     price: 0,
-    limits: { linkScans: 10, fileScans: 5, liveMinutes: 0 },
+    // fastMinutes: fast live scanning (lists, checklist, comparison). liveMinutes: delicate live scanning (the same plus research).
+    limits: { linkScans: 10, fileScans: 5, liveMinutes: 0, fastMinutes: 15 },
     features: {
       research: false,          // manual scans: knowledge + checklist + compare only
+      liveFast: true,
       liveScanning: false,
       liveResearch: false,
       virusMalwareOnLinks: false,
@@ -25,11 +27,12 @@ const PLANS = {
     id: 'pro',
     name: 'Pro',
     price: 15,
-    limits: { linkScans: 40, fileScans: 40, liveMinutes: 24 * 60 },
+    limits: { linkScans: 40, fileScans: 40, liveMinutes: 4 * 60, fastMinutes: 24 * 60 },
     features: {
       research: true,
+      liveFast: true,
       liveScanning: true,
-      liveResearch: false,      // live results: knowledge + checklist + compare, no research
+      liveResearch: true,       // delicate live scanning researches every result, inside a time budget
       virusMalwareOnLinks: true,
       emailLive: true,
       emailManual: false
@@ -39,9 +42,10 @@ const PLANS = {
     id: 'max',
     name: 'Max',
     price: 40,
-    limits: { linkScans: 100, fileScans: 100, liveMinutes: 96 * 60 },
+    limits: { linkScans: 100, fileScans: 100, liveMinutes: 24 * 60, fastMinutes: null },
     features: {
       research: true,
+      liveFast: true,
       liveScanning: true,
       liveResearch: true,       // every live result is researched
       virusMalwareOnLinks: true,
@@ -53,10 +57,11 @@ const PLANS = {
     id: 'ultimate',
     name: 'Ultimate',
     price: 100,
-    // liveMinutes null = uncapped: round-the-clock scanning with no weekly ceiling.
-    limits: { linkScans: 500, fileScans: 500, liveMinutes: null },
+    // null = uncapped. Fast scanning has no weekly ceiling here; delicate has 96 hours.
+    limits: { linkScans: 500, fileScans: 500, liveMinutes: 96 * 60, fastMinutes: null },
     features: {
       research: true,
+      liveFast: true,
       liveScanning: true,
       liveResearch: true,
       virusMalwareOnLinks: true,
@@ -96,6 +101,8 @@ const q = {
   refund: db.prepare('UPDATE usage_counters SET used = MAX(0, used - 1) WHERE user_id = ? AND week = ? AND metric = ?'),
   minute: db.prepare('INSERT OR IGNORE INTO live_minutes (user_id, minute) VALUES (?, ?)'),
   minutes: db.prepare('SELECT COUNT(*) AS n FROM live_minutes WHERE user_id = ? AND minute >= ?'),
+  fastMinute: db.prepare('INSERT OR IGNORE INTO fast_minutes (user_id, minute) VALUES (?, ?)'),
+  fastMinutes: db.prepare('SELECT COUNT(*) AS n FROM fast_minutes WHERE user_id = ? AND minute >= ?'),
   setPlan: db.prepare('UPDATE users SET plan = ? WHERE id = ?')
 };
 
@@ -131,24 +138,55 @@ function consume(user, key) {
 const minuteCache = new Map(); // `${userId}` -> last minute bucket recorded
 
 /** Record live-scanning activity and enforce the weekly live-hours allowance. */
-function trackLive(user) {
+const MODES = {
+  fast: { limit: 'fastMinutes', feature: 'liveFast', name: 'fast scanning', used: (id) => fastMinutesUsed(id), put: (id, m) => q.fastMinute.run(id, m), cache: new Map() },
+  delicate: { limit: 'liveMinutes', feature: 'liveScanning', name: 'delicate scanning', used: (id) => liveMinutesUsed(id), put: (id, m) => q.minute.run(id, m), cache: minuteCache }
+};
+
+/** Does this plan have time left in this mode right now? (A minute already paid for is still usable.) */
+function hasTime(user, plan, mode) {
+  const m = MODES[mode];
+  if (!plan.features[m.feature]) return false;
+  const limit = plan.limits[m.limit];
+  if (uncapped(limit)) return true;
+  return m.used(user.id) < limit || m.cache.get(user.id) === Math.floor(now() / 60000);
+}
+
+/**
+ * Count this minute of live scanning, in the mode asked for.
+ * Delicate that is not in the plan, or is used up for the week, falls back to fast while fast has time left:
+ * someone who runs out keeps their protection and is told why it changed. Returns the plan and the mode used.
+ */
+function trackLive(user, wanted) {
   const plan = planFor(user);
-  if (!plan.features.liveScanning) {
-    throw new HttpError(403, 'plan_required', 'Live scanning is included with Sentinel Pro, Max and Ultimate.', { plan: plan.id, needs: 'pro' });
+  // Clients from before there were two modes ask for nothing: give them the best their plan has.
+  let mode = wanted === 'fast' || wanted === 'delicate' ? wanted : (plan.features.liveScanning ? 'delicate' : 'fast');
+  let fellBack = null;
+  if (mode === 'delicate' && !hasTime(user, plan, 'delicate') && hasTime(user, plan, 'fast')) {
+    fellBack = plan.features.liveScanning ? 'delicate_hours_used' : 'delicate_needs_pro';
+    mode = 'fast';
+  }
+  const m = MODES[mode];
+  if (!plan.features[m.feature]) {
+    throw new HttpError(403, 'plan_required', 'Delicate live scanning is included with Sentinel Pro, Max and Ultimate.', { plan: plan.id, needs: 'pro' });
+  }
+  if (!hasTime(user, plan, mode)) {
+    const limit = plan.limits[m.limit];
+    throw new HttpError(429, 'live_hours_exhausted',
+      `You have used all ${limit >= 60 ? `${limit / 60} hours` : `${limit} minutes`} of ${m.name} this week.`,
+      { mode, limitMinutes: limit, usedMinutes: m.used(user.id), resetsAt: weekResetsAt(), plan: plan.id });
   }
   const minute = Math.floor(now() / 60000);
-  const usedMinutes = liveMinutesUsed(user.id);
-  if (!uncapped(plan.limits.liveMinutes) && usedMinutes >= plan.limits.liveMinutes && minuteCache.get(user.id) !== minute) {
-    throw new HttpError(429, 'live_hours_exhausted',
-      `You have used all ${plan.limits.liveMinutes / 60} hours of live scanning this week.`,
-      { limitMinutes: plan.limits.liveMinutes, usedMinutes, resetsAt: weekResetsAt(), plan: plan.id });
+  if (m.cache.get(user.id) !== minute) {
+    m.put(user.id, minute);
+    m.cache.set(user.id, minute);
+    if (m.cache.size > 50000) m.cache.clear();
   }
-  if (minuteCache.get(user.id) !== minute) {
-    q.minute.run(user.id, minute);
-    minuteCache.set(user.id, minute);
-    if (minuteCache.size > 50000) minuteCache.clear();
-  }
-  return plan;
+  return { plan, mode, fellBack };
+}
+
+function fastMinutesUsed(userId) {
+  return q.fastMinutes.get(userId, Math.floor(weekStart() / 60000)).n;
 }
 
 function liveMinutesUsed(userId) {
@@ -163,7 +201,8 @@ function usageSummary(user) {
     usage: {
       linkScans: { used: used(user.id, 'linkScans'), limit: plan.limits.linkScans },
       fileScans: { used: used(user.id, 'fileScans'), limit: plan.limits.fileScans },
-      liveMinutes: { used: liveMinutesUsed(user.id), limit: plan.limits.liveMinutes }
+      liveMinutes: { used: liveMinutesUsed(user.id), limit: plan.limits.liveMinutes },
+      fastMinutes: { used: fastMinutesUsed(user.id), limit: plan.limits.fastMinutes }
     }
   };
 }
@@ -177,4 +216,4 @@ function publicPlans() {
   return Object.values(PLANS).map(({ id, name, price, limits, features }) => ({ id, name, price, limits, features }));
 }
 
-module.exports = { planFor, consume, trackLive, usageSummary, setPlan, publicPlans, weekStart, weekResetsAt, liveMinutesUsed };
+module.exports = { planFor, consume, trackLive, usageSummary, setPlan, publicPlans, weekStart, weekResetsAt, liveMinutesUsed, fastMinutesUsed };

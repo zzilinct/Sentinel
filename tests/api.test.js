@@ -163,7 +163,7 @@ test('free plan: 10 link scans a week, scam mask only, no research', async () =>
   assert.ok(blocked.data.error.resetsAt > Date.now());
 });
 
-test('free plan: virus & malware scanner has 5 uses; no live scanning or email scanning', async () => {
+test('free plan: virus & malware scanner has 5 uses; fast live scanning only (15 minutes a week); no email scanning', async () => {
   const c = await newUser('free');
   for (let i = 0; i < 5; i++) {
     const r = await c.raw('POST', '/api/v1/scan/file', { raw: Buffer.from(`hello ${i}`), headers: { 'X-File-Name': 'note.txt', 'Content-Type': 'application/octet-stream' } });
@@ -172,11 +172,20 @@ test('free plan: virus & malware scanner has 5 uses; no live scanning or email s
   const sixth = await c.raw('POST', '/api/v1/scan/file', { raw: Buffer.from('x'), headers: { 'X-File-Name': 'note.txt', 'Content-Type': 'application/octet-stream' } });
   assert.equal(sixth.status, 429);
 
-  assert.equal((await c.post('/api/v1/live/batch', { urls: ['https://example.com/'] })).data.error.code, 'plan_required');
+  // Free has fast live scanning. Asking for delicate gets fast, and says why.
+  const live = await c.post('/api/v1/live/batch', { urls: ['https://paypa1-secure-login.com/'], mode: 'delicate' });
+  assert.equal(live.status, 200, JSON.stringify(live.data));
+  assert.equal(live.data.mode, 'fast');
+  assert.equal(live.data.fellBack, 'delicate_needs_pro');
+  assert.equal(live.data.researched, false);
+  assert.equal(live.data.byUrl['https://paypa1-secure-login.com/'].threats.scam.badge, 'red', 'a listed site is red in fast mode too');
+  assert.equal(live.data.live.fast.limitMinutes, 15);
+  assert.equal(live.data.live.fast.usedMinutes, 1);
+  assert.equal(live.data.live.limitMinutes, 0);
   assert.equal((await c.post('/api/v1/scan/email', { from: 'a@b.com', subject: 'hi', body: 'hi' })).data.error.code, 'plan_required');
 });
 
-test('pro plan: research + virus & malware on link scans, 40/week, live scanning without research', async () => {
+test('pro plan: research + virus & malware on link scans, 40/week, 4 h delicate and 24 h fast live scanning', async () => {
   const c = await newUser('pro');
   const r = await c.post('/api/v1/scan/link', { url: 'https://browser-update-center.top/' });
   assert.equal(r.status, 200);
@@ -184,11 +193,22 @@ test('pro plan: research + virus & malware on link scans, 40/week, live scanning
   assert.equal(r.data.verdict.threats.malware.level, 'confirmed');
   assert.equal(r.data.usage.linkScans.limit, 40);
   assert.equal(r.data.usage.fileScans.limit, 40);
-  assert.equal(r.data.usage.liveMinutes.limit, 24 * 60);
+  assert.equal(r.data.usage.liveMinutes.limit, 4 * 60);
+  assert.equal(r.data.usage.fastMinutes.limit, 24 * 60);
 
-  const live = await c.post('/api/v1/live/batch', { urls: ['https://paypa1-secure-login.com/', 'https://github.com/'], research: true });
+  const live = await c.post('/api/v1/live/batch', { urls: ['https://paypa1-secure-login.com/', 'https://github.com/'], mode: 'delicate' });
   assert.equal(live.status, 200);
-  assert.equal(live.data.researched, false, 'Pro live results are not researched');
+  assert.equal(live.data.mode, 'delicate');
+  assert.equal(live.data.researched, true, 'delicate researches every result');
+  assert.ok(live.data.tookMs < 5000, `delicate answers inside its budget (${live.data.tookMs} ms)`);
+  const quick = await c.post('/api/v1/live/batch', { urls: ['https://paypa1-secure-login.com/', 'https://github.com/'], mode: 'fast' });
+  assert.equal(quick.data.mode, 'fast');
+  assert.equal(quick.data.researched, false);
+  assert.ok(quick.data.tookMs < 1000, `fast answers in well under a second (${quick.data.tookMs} ms)`);
+  assert.equal(quick.data.live.fast.usedMinutes, 1, 'and is counted against its own allowance');
+  // A private window gets the fast checks whatever was asked for: its addresses are not sent to a registry.
+  const priv = await c.post('/api/v1/live/batch', { urls: ['https://example.org/'], mode: 'delicate', private: true });
+  assert.equal(priv.data.researched, false);
   assert.equal(live.data.byUrl['https://paypa1-secure-login.com/'].threats.scam.badge, 'red');
   assert.equal(live.data.live.usedMinutes, 1);
 
@@ -199,12 +219,13 @@ test('pro plan: research + virus & malware on link scans, 40/week, live scanning
   assert.equal((await c.post('/api/v1/scan/email', { from: 'a@b.com', body: 'hi' })).data.error.code, 'plan_required');
 });
 
-test('max plan: 100/week, researched live scanning, manual email scans', async () => {
+test('max plan: 100/week, 24 h delicate, unlimited fast, manual email scans', async () => {
   const c = await newUser('max');
   const me = await c.get('/api/v1/auth/me');
   assert.equal(me.data.usage.linkScans.limit, 100);
   assert.equal(me.data.usage.fileScans.limit, 100);
-  assert.equal(me.data.usage.liveMinutes.limit, 96 * 60);
+  assert.equal(me.data.usage.liveMinutes.limit, 24 * 60);
+  assert.equal(me.data.usage.fastMinutes.limit, null, 'fast is uncapped');
 
   const live = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'], research: true });
   assert.equal(live.data.researched, true);
@@ -222,37 +243,58 @@ test('max plan: 100/week, researched live scanning, manual email scans', async (
   assert.equal(mail.data.usage.linkScans.used, 1, 'manual email scans count toward the weekly scans');
 });
 
-test('ultimate plan: 500/week, uncapped live scanning, everything Max has', async () => {
+test('ultimate plan: 500/week, 96 h delicate, unlimited fast, everything Max has', async () => {
   const c = await newUser('ultimate');
   const me = await c.get('/api/v1/auth/me');
   assert.equal(me.data.plan.price, 100);
   assert.equal(me.data.usage.linkScans.limit, 500);
   assert.equal(me.data.usage.fileScans.limit, 500);
-  assert.equal(me.data.usage.liveMinutes.limit, null, 'live minutes are uncapped, not a number');
+  assert.equal(me.data.usage.liveMinutes.limit, 96 * 60);
+  assert.equal(me.data.usage.fastMinutes.limit, null, 'fast minutes are uncapped, not a number');
   assert.equal(me.data.plan.features.liveResearch, true);
   assert.equal(me.data.plan.features.emailManual, true);
 
-  // An uncapped allowance must never trip the weekly live-hours limit.
+  // An uncapped allowance must never trip the weekly limit.
   for (let i = 0; i < 3; i++) {
-    const live = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'], research: true });
+    const live = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'], mode: 'fast' });
     assert.equal(live.status, 200, JSON.stringify(live.data));
-    assert.equal(live.data.live.limitMinutes, null);
+    assert.equal(live.data.live.fast.limitMinutes, null);
   }
 });
 
-test('live hours run out and reset weekly', async () => {
+test('delicate hours run out: protection carries on in fast mode and says so; fast runs out for good', async () => {
   const c = await newUser('pro');
   const me = await c.get('/api/v1/auth/me');
   const { db } = require('../server/lib/db');
   const plans = require('../server/lib/plans');
   const start = Math.floor(plans.weekStart() / 60000);
-  const ins = db.prepare('INSERT OR IGNORE INTO live_minutes (user_id, minute) VALUES (?, ?)');
+  const fill = (table, minutes) => {
+    const ins = db.prepare(`INSERT OR IGNORE INTO ${table} (user_id, minute) VALUES (?, ?)`);
+    db.exec('BEGIN');
+    for (let i = 0; i < minutes; i++) ins.run(me.data.user.id, start + i);
+    db.exec('COMMIT');
+  };
+  fill('live_minutes', 4 * 60);
+  const r = await c.post('/api/v1/live/batch', { urls: ['https://example.com/'], mode: 'delicate' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.mode, 'fast');
+  assert.equal(r.data.fellBack, 'delicate_hours_used');
+
+  fill('fast_minutes', 24 * 60);
+  const out = await c.post('/api/v1/live/batch', { urls: ['https://example.com/'], mode: 'fast' });
+  // The minute already being counted stays usable; a fresh account with nothing left is refused.
+  const d = await newUser('pro');
+  const meD = await d.get('/api/v1/auth/me');
+  const ins = db.prepare('INSERT OR IGNORE INTO fast_minutes (user_id, minute) VALUES (?, ?)');
+  const insL = db.prepare('INSERT OR IGNORE INTO live_minutes (user_id, minute) VALUES (?, ?)');
   db.exec('BEGIN');
-  for (let i = 0; i < 24 * 60; i++) ins.run(me.data.user.id, start + i);
+  for (let i = 0; i < 24 * 60; i++) ins.run(meD.data.user.id, start + i);
+  for (let i = 0; i < 4 * 60; i++) insL.run(meD.data.user.id, start + i);
   db.exec('COMMIT');
-  const r = await c.post('/api/v1/live/batch', { urls: ['https://example.com/'] });
-  assert.equal(r.status, 429);
-  assert.equal(r.data.error.code, 'live_hours_exhausted');
+  const none = await d.post('/api/v1/live/batch', { urls: ['https://example.com/'], mode: 'delicate' });
+  assert.ok(out.status === 200 || out.status === 429);
+  assert.equal(none.status, 429, JSON.stringify(none.data));
+  assert.equal(none.data.error.code, 'live_hours_exhausted');
 });
 
 test('file scanner through the API flags a known malicious sample', async () => {

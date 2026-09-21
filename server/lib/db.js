@@ -318,6 +318,15 @@ const MIGRATIONS = [
   DROP TABLE IF EXISTS main.scam_tokens;
   DROP TABLE IF EXISTS main.token_df;
   DROP TABLE IF EXISTS main.feed_status;
+  `,
+
+  // 8 - fast live scanning has its own weekly allowance, counted the same way as delicate's (live_minutes)
+  `
+  CREATE TABLE IF NOT EXISTS fast_minutes (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    minute INTEGER NOT NULL,
+    PRIMARY KEY (user_id, minute)
+  );
   `
 ];
 
@@ -451,6 +460,7 @@ function sweep() {
   db.prepare('DELETE FROM password_resets WHERE expires_at < ?').run(t - day);
   db.prepare('DELETE FROM research_cache WHERE checked_at < ?').run(t - 3 * day);
   db.prepare('DELETE FROM live_minutes WHERE minute < ?').run(Math.floor((t - 21 * day) / 60000));
+  db.prepare('DELETE FROM fast_minutes WHERE minute < ?').run(Math.floor((t - 21 * day) / 60000));
   db.prepare('DELETE FROM usage_counters WHERE week < ?').run(t - 35 * day);
   db.prepare('DELETE FROM scan_history WHERE created_at < ?').run(t - 90 * day);
   db.prepare('DELETE FROM audit_log WHERE created_at < ?').run(t - 180 * day);

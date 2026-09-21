@@ -70,7 +70,7 @@ test('private windows leave nothing behind: not in history, not in the log, not 
   assert.match(w, /if \(opts\.onChecked && !page\.private\) opts\.onChecked/, 'the log and the live list are fed only by ordinary windows');
   assert.match(w, /state\.current = page\.private \? \{ browser: page\.browser, url: null, private: true/, 'the address is not kept where the app window can read it');
   assert.match(w, /live\/batch', \{ urls: missing, private: page\.private \}/);
-  assert.match(read('server/routes/scan.routes.js'), /recordFlagged: body\.private !== true/, 'flagged private results are not written to history');
+  assert.match(read('server/routes/scan.routes.js'), /const isPrivate = body\.private === true;[\s\S]*recordFlagged: !isPrivate/, 'flagged private results are not written to history');
 });
 
 test('the overlay can never take a click, a key or the focus, and is told nothing but marks', () => {

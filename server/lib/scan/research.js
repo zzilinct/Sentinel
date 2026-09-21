@@ -141,9 +141,16 @@ function pickHeaders(h) {
  * @param {object} p parsed URL
  * @returns {Promise<object>} research facts (download buffers are never cached)
  */
-async function research(p) {
+/** Resolve with `fallback` if `promise` has not settled within `ms`. */
+const within = (promise, ms, fallback) => (ms ? Promise.race([promise, new Promise((r) => setTimeout(() => r(fallback), ms).unref())]) : promise);
+
+/**
+ * `lite`     registration and DNS only: the site itself is never contacted.
+ * `budgetMs` live scanning's promise: whatever has not answered by then is reported as not available.
+ */
+async function research(p, { lite = false, budgetMs = 0 } = {}) {
   // Registration and DNS are per host, but page content differs per path.
-  const key = `${p.host}${p.path}`.slice(0, 512);
+  const key = (lite ? `lite:${p.host}` : `${p.host}${p.path}`).slice(0, 512);
   const cached = q.get.get(key);
   if (cached && now() - cached.checked_at < CACHE_MS && !p.ext) {
     return { ...JSON.parse(cached.payload), cached: true };
@@ -152,12 +159,14 @@ async function research(p) {
 
   const job = (async () => {
     const [registration, dnsInfo, http] = await Promise.all([
-      p.isIp ? Promise.resolve({ available: false, reason: 'ip_address' }) : rdap(p.registrable),
+      p.isIp ? Promise.resolve({ available: false, reason: 'ip_address' }) : within(rdap(p.registrable), budgetMs, { available: false, reason: 'not answered in time' }),
       p.isIp ? Promise.resolve({ resolves: true, addresses: [p.host], privateAddress: !isPublicAddress(p.host.replace(/^\[|\]$/g, '')), mx: false, nameservers: [] }) : dnsFacts(p.host, p.registrable),
-      fetchPage(p.url)
+      lite ? Promise.resolve({ ok: false, error: 'the page is not opened during live scanning on this computer', chain: [], tls: null, disposition: '', contentType: '' }) : within(fetchPage(p.url), budgetMs, { ok: false, error: 'not answered in time', chain: [], tls: null, disposition: '', contentType: '' })
     ]);
 
-    const facts = { performed: true, checkedAt: now(), registration, dns: dnsInfo, http };
+    const facts = { performed: true, lite, checkedAt: now(), registration, dns: dnsInfo, http };
+    // A lookup that ran out of time is not a fact about the site: do not remember it for a day.
+    if (registration.reason === 'not answered in time' || http.error === 'not answered in time') return facts;
     const { download, ...cacheable } = http;
     q.set.run(key, JSON.stringify({ ...facts, http: { ...cacheable, page: cacheable.page ? slimPage(cacheable.page) : null } }), now());
     return facts;

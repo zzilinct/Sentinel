@@ -142,9 +142,11 @@ function evidenceFrom(checks, know, ctx) {
 const NO_RESEARCH_PLAN = 'Research is included with Pro, Max and Ultimate scans';
 const NO_RESEARCH_LOCAL = 'This copy of Sentinel runs on your computer, and suspicious pages are never opened from here. Research comes with the hosted service.';
 
-async function coreScan(p, { research: wanted }) {
-  const research = Boolean(wanted) && config.researchEnabled;
-  const key = `${research ? 'r' : 'q'}|${p.url}`;
+async function coreScan(p, { research: wanted, budgetMs }) {
+  // Full research where pages may be opened (the hosted service); registry and DNS only where they may not (the desktop app).
+  const lite = Boolean(wanted) && !config.researchEnabled && config.researchLite;
+  const research = Boolean(wanted) && (config.researchEnabled || lite);
+  const key = `${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}`;
   const cached = cacheGet(key);
   if (cached) return cached;
   if (coreInflight.has(key)) return coreInflight.get(key);
@@ -166,7 +168,7 @@ async function coreScan(p, { research: wanted }) {
 
     let fileReport = null;
     if (research && !know.trusted) {
-      ctx.research = await researchMod.research(p);
+      ctx.research = await researchMod.research(p, { lite, budgetMs });
       const http = ctx.research.http;
       if (http.ok && http.page) {
         ctx.contentCompare = compare.compareContent(http.page.text, http.page.htmlLower, p.host);
@@ -330,7 +332,7 @@ async function scanUrl(raw, opts = {}) {
   if (!p) {
     return { ok: false, kind: 'url', url: raw, error: 'not_a_web_link', message: 'That is not a web address Sentinel can check' };
   }
-  const core = await coreScan(p, { research: Boolean(opts.research) });
+  const core = await coreScan(p, { research: Boolean(opts.research), budgetMs: opts.budgetMs });
   const verdict = shape(core, { threats: visible, userId: opts.userId, mode: opts.mode || 'manual', detail: opts.detail, planId: opts.planId });
   if (opts.record && opts.userId) record(opts.userId, 'url', p.url, verdict.mode, verdict.threats);
   return verdict;
