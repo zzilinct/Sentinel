@@ -215,15 +215,20 @@ function collectTls(socket, hostname) {
 async function safeFetch(url, options = {}) {
   const chain = [];
   let current = url;
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const res = await requestOnce(current, options);
-    chain.push({ url: res.url, status: res.status });
-    const location = res.headers.location;
-    if (res.status >= 300 && res.status < 400 && location) {
-      current = new URL(location, res.url).href;
-      continue;
+  try {
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      const res = await requestOnce(current, options);
+      chain.push({ url: res.url, status: res.status });
+      const location = res.headers.location;
+      if (res.status >= 300 && res.status < 400 && location) {
+        current = new URL(location, res.url).href;
+        continue;
+      }
+      return { ...res, chain, finalUrl: res.url };
     }
-    return { ...res, chain, finalUrl: res.url };
+  } catch (err) {
+    err.chain = chain;
+    throw err;
   }
   throw Object.assign(new Error('Too many redirects'), { code: 'too_many_redirects', chain });
 }

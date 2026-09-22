@@ -22,7 +22,7 @@ const q = {
   feedHost: db.prepare('SELECT host, source, threat, category FROM feed_hosts WHERE host IN (?, ?, ?, ?)'),
   feedUrl: db.prepare('SELECT source, threat, category FROM feed_urls WHERE url_key = ?'),
   feedUrlHost: db.prepare('SELECT source, threat, COUNT(*) AS n FROM feed_urls WHERE host IN (?, ?, ?) GROUP BY source, threat ORDER BY n DESC'),
-  reports: db.prepare('SELECT category, COUNT(*) AS n FROM reports WHERE host = ? GROUP BY category'),
+  reports: db.prepare("SELECT CASE WHEN category = 'malware' THEN 'malware' ELSE 'scam' END AS threat, COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ? GROUP BY threat"),
   sources: db.prepare("SELECT source, entries FROM feed_status WHERE ok = 1 AND substr(source, 1, 1) != '_'")
 };
 
@@ -80,18 +80,22 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
   //                                       looks wrong on its own checks
   if (!allowed && !userContent) {
     const frontKeys = [...new Set([p.host, bare, www])].map((h) => urlKey(`http://${h}/`)).filter(Boolean);
-    const frontListed = frontKeys.some((k) => q.feedUrl.all(k).length > 0);
+    const frontListings = new Set(frontKeys.flatMap(k => q.feedUrl.all(k).map(row => `${row.source}:${row.threat}`)));
     for (const row of q.feedUrlHost.all(p.host, bare, www)) {
       const category = row.n >= 3 ? 'compromised_host' : row.threat === 'scam' ? 'hosts_phishing_page' : 'hosts_malware';
-      add(row.source, row.threat, category, frontListed ? 'confirmed' : 'inferred');
+      add(row.source, row.threat, category, frontListings.has(`${row.source}:${row.threat}`) ? 'confirmed' : 'inferred');
       matches[matches.length - 1].listed = row.n;
     }
   }
 
   let reports = 0;
-  for (const row of q.reports.all(p.registrable)) reports += row.n;
-  if (reports >= REPORTS_FOR_CONFIRMED) add('community', 'scam', 'community_confirmed');
-  else if (reports > 0) add('community', 'scam', 'community_reported', 'reported');
+  const reportCounts = { scam: 0, malware: 0 };
+  for (const row of q.reports.all(p.registrable)) {
+    reports += row.n;
+    reportCounts[row.threat] = row.n;
+    if (row.n >= REPORTS_FOR_CONFIRMED) add('community', row.threat, 'community_confirmed');
+    else if (row.n > 0) add('community', row.threat, 'community_reported', 'reported');
+  }
 
   if (useSafeBrowsing) {
     const gsb = await safeBrowsing.lookup(p.url);
@@ -109,6 +113,7 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
     userContent,
     matches: dedupe(matches),
     reports,
+    reportCounts,
     sources: checkedSources(),
     feeds: feeds.readiness()
   };

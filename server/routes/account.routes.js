@@ -7,7 +7,7 @@ const { db } = require('../lib/db');
 const config = require('../config');
 
 const q = {
-  history: db.prepare('SELECT id, kind, target, mode, scam, virus, malware, kinds, created_at FROM scan_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'),
+  history: db.prepare('SELECT id, kind, target, mode, scam, virus, malware, kinds, created_at FROM scan_history WHERE user_id = ? AND created_at > ? ORDER BY created_at DESC LIMIT ?'),
   stats: db.prepare(`SELECT
       SUM(CASE WHEN scam IN ('suspicious','likely','confirmed') OR virus IN ('suspicious','likely','confirmed') OR malware IN ('suspicious','likely','confirmed') THEN 1 ELSE 0 END) AS flagged,
       SUM(CASE WHEN scam IN ('suspicious','likely','confirmed') THEN 1 ELSE 0 END) AS scams,
@@ -40,7 +40,7 @@ function register(router) {
     const s = q.stats.get(user.id, since);
     sendJson(res, 200, {
       stats: { total: s.total || 0, flagged: s.flagged || 0, scams: s.scams || 0, viruses: s.viruses || 0, malware: s.malware || 0 },
-      items: q.history.all(user.id, 200)
+      items: q.history.all(user.id, since, 200)
     });
   });
 

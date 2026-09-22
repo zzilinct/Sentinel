@@ -91,7 +91,7 @@ function weekResetsAt(t = now()) {
 }
 
 function planFor(user) {
-  return PLANS[user && user.plan] || PLANS.free;
+  return user && typeof user.plan === 'string' && Object.hasOwn(PLANS, user.plan) ? PLANS[user.plan] : PLANS.free;
 }
 
 const q = {
@@ -100,8 +100,10 @@ const q = {
                     ON CONFLICT(user_id, week, metric) DO UPDATE SET used = used + excluded.used`),
   refund: db.prepare('UPDATE usage_counters SET used = MAX(0, used - 1) WHERE user_id = ? AND week = ? AND metric = ?'),
   minute: db.prepare('INSERT OR IGNORE INTO live_minutes (user_id, minute) VALUES (?, ?)'),
+  minutePaid: db.prepare('SELECT 1 FROM live_minutes WHERE user_id = ? AND minute = ?'),
   minutes: db.prepare('SELECT COUNT(*) AS n FROM live_minutes WHERE user_id = ? AND minute >= ?'),
   fastMinute: db.prepare('INSERT OR IGNORE INTO fast_minutes (user_id, minute) VALUES (?, ?)'),
+  fastMinutePaid: db.prepare('SELECT 1 FROM fast_minutes WHERE user_id = ? AND minute = ?'),
   fastMinutes: db.prepare('SELECT COUNT(*) AS n FROM fast_minutes WHERE user_id = ? AND minute >= ?'),
   setPlan: db.prepare('UPDATE users SET plan = ? WHERE id = ?')
 };
@@ -139,8 +141,8 @@ const minuteCache = new Map(); // `${userId}` -> last minute bucket recorded
 
 /** Record live-scanning activity and enforce the weekly live-hours allowance. */
 const MODES = {
-  fast: { limit: 'fastMinutes', feature: 'liveFast', name: 'fast scanning', used: (id) => fastMinutesUsed(id), put: (id, m) => q.fastMinute.run(id, m), cache: new Map() },
-  delicate: { limit: 'liveMinutes', feature: 'liveScanning', name: 'delicate scanning', used: (id) => liveMinutesUsed(id), put: (id, m) => q.minute.run(id, m), cache: minuteCache }
+  fast: { limit: 'fastMinutes', feature: 'liveFast', name: 'fast scanning', used: (id) => fastMinutesUsed(id), put: (id, m) => q.fastMinute.run(id, m), paid: (id, m) => q.fastMinutePaid.get(id, m), cache: new Map() },
+  delicate: { limit: 'liveMinutes', feature: 'liveScanning', name: 'delicate scanning', used: (id) => liveMinutesUsed(id), put: (id, m) => q.minute.run(id, m), paid: (id, m) => q.minutePaid.get(id, m), cache: minuteCache }
 };
 
 /** Does this plan have time left in this mode right now? (A minute already paid for is still usable.) */
@@ -149,7 +151,8 @@ function hasTime(user, plan, mode) {
   if (!plan.features[m.feature]) return false;
   const limit = plan.limits[m.limit];
   if (uncapped(limit)) return true;
-  return m.used(user.id) < limit || m.cache.get(user.id) === Math.floor(now() / 60000);
+  const minute = Math.floor(now() / 60000);
+  return m.used(user.id) < limit || m.cache.get(user.id) === minute || Boolean(m.paid(user.id, minute));
 }
 
 /**
@@ -208,7 +211,7 @@ function usageSummary(user) {
 }
 
 function setPlan(userId, planId) {
-  if (!PLANS[planId]) throw new HttpError(400, 'bad_plan', 'Unknown plan');
+  if (typeof planId !== 'string' || !Object.hasOwn(PLANS, planId)) throw new HttpError(400, 'bad_plan', 'Unknown plan');
   q.setPlan.run(planId, userId);
 }
 

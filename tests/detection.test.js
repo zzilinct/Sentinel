@@ -350,6 +350,28 @@ test('same-host redirect hops are checked without inventing a scam verdict for m
   assert.equal(v.threats.scam.badge, null);
 });
 
+test('a blocked redirect does not discard known threats in earlier hops', async () => {
+  const { db } = require('../server/lib/db');
+  const { urlKey } = require('../server/lib/scan/url');
+  db.prepare('INSERT INTO feed_urls (url_key, host, source, threat, category, added_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(urlKey('https://docs.google.com/redirect-failure/listed'), 'docs.google.com', 'urlhaus', 'malware', 'malware', Date.now());
+  const v = await scan('https://docs.google.com/redirect-failure/start', { research: true });
+  assert.equal(v.threats.malware.level, 'confirmed');
+  assert.equal(v.research.reachable, false);
+});
+
+test('a front-page listing does not confirm unrelated threats from another feed', async () => {
+  const { db } = require('../server/lib/db');
+  const { urlKey, analyze } = require('../server/lib/scan/url');
+  const insert = db.prepare('INSERT INTO feed_urls (url_key, host, source, threat, category, added_at) VALUES (?, ?, ?, ?, ?, ?)');
+  const host = 'ordinary-feed-review.example';
+  insert.run(urlKey(`https://${host}/`), host, 'openphish', 'scam', 'phishing', Date.now());
+  insert.run(urlKey(`https://${host}/one-page`), host, 'urlhaus', 'malware', 'malware', Date.now());
+  const known = await require('../server/lib/scan/knowledge').lookup(analyze(`https://${host}/another-page`));
+  assert.equal(known.matches.find(m => m.source === 'urlhaus').strength, 'inferred');
+  assert.equal(known.matches.find(m => m.source === 'openphish').strength, 'confirmed');
+});
+
 test('interrupted downloads are marked incomplete and never hashed as whole files', async () => {
   const { safeFetch } = require('../server/lib/scan/netguard');
   const response = await safeFetch('https://partial-download.example/file');

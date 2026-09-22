@@ -1,4 +1,19 @@
-# Sentinel code review — September 21, 2026
+# Sentinel code reviews
+
+## September 22, 2026 — version 1.6.2
+
+Audited the latest source at `8fcf221` after fetching `origin/main`. Six new regression cases reproduced bugs before the fixes:
+
+1. `plans.js` accepted inherited object-property names as plan IDs, stored them, and caused account/usage requests to fail. Validate own plan keys and safely handle existing invalid stored values.
+2. Live-scanning quota checks only remembered the current paid minute in memory. Consult persisted minute records too, so a restart cannot cut off the last minute already charged.
+3. `account.routes.js` returned older history entries alongside totals limited to 30 days. Apply the same cutoff to both queries.
+4. Community reports counted all categories as scam evidence and promoted the third report's type even if earlier reports concerned another threat. Count distinct reporting accounts by threat consistently in promotion, reputation lookup and checklist scoring. The existing three-account threshold remains; independent moderation is still recommended.
+5. A root-page listing upgraded every threat/source on that host to confirmed. Match the root listing's source and threat before changing an inference to confirmation.
+6. A failed or blocked redirect discarded earlier successful hops, hiding known threat evidence from the scan. Preserve the observed chain on failures.
+
+Validation: 119 automated tests pass, including six new regression tests. This is a targeted code audit, not a claim that every bug or detection gap has been eliminated. The remaining improvements below still apply, except for the community category-label bug corrected here. No new archive scanning, hosted service, or moderation system was added.
+
+## September 21, 2026 — version 1.6.1
 
 Reviewed version 1.6.0 at `f678646`, focusing on scanning, network research, email handling, feed updates, and the surrounding API, desktop and release code. Only bug fixes were implemented. Broader changes below remain suggestions.
 

@@ -35,6 +35,7 @@ const q = {
   insertReport: db.prepare('INSERT INTO reports (id, host, url, user_id, category, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
   myReportFor: db.prepare('SELECT 1 FROM reports WHERE host = ? AND user_id = ?'),
   countReports: db.prepare('SELECT COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ?'),
+  countThreatReports: db.prepare("SELECT COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ? AND (CASE WHEN category = 'malware' THEN 'malware' ELSE 'scam' END) = ?"),
   promote: db.prepare(`INSERT INTO blocklist (host, category, source, note, threat, added_at) VALUES (?, ?, 'community', ?, ?, ?)
                        ON CONFLICT(host) DO NOTHING`),
   setOverride: db.prepare(`INSERT INTO overrides (user_id, host, action, created_at) VALUES (?, ?, ?, ?)
@@ -242,10 +243,11 @@ function register(router) {
     // Reports from distinct accounts only - one person cannot condemn a site alone.
     const total = q.countReports.get(host).n;
     const threat = category === 'malware' ? 'malware' : 'scam';
-    if (total >= 3) q.promote.run(host, category, `Promoted after ${total} community reports`, threat, now());
+    const agreeing = q.countThreatReports.get(host, threat).n;
+    if (agreeing >= 3) q.promote.run(host, category, `Promoted after ${agreeing} ${threat} reports`, threat, now());
     engine.invalidate(host);
     security.audit('report', { userId: user.id, req, detail: host });
-    sendJson(res, 201, { ok: true, host, reports: total, promoted: total >= 3 });
+    sendJson(res, 201, { ok: true, host, reports: total, promoted: agreeing >= 3 });
   });
 
   router.post('/api/v1/sites/override', async (req, res) => {

@@ -473,9 +473,10 @@ const KNOWLEDGE_CHECKS = [
   { id: 'K04', group: 'Known threats', threat: 'scam', title: 'Not reported by the Sentinel community',
     run: ({ knowledge }) => {
       if (!knowledge.reports) return pass('No reports');
-      return knowledge.reports >= 3
-        ? fail(100, `Confirmed by ${knowledge.reports} independent Sentinel user reports`)
-        : warn(16 * knowledge.reports, `${knowledge.reports} Sentinel user report(s)`);
+      const counts = knowledge.reportCounts || { scam: knowledge.reports, malware: 0 };
+      const points = n => n >= 3 ? 100 : 16 * n;
+      const detail = `${counts.scam} scam and ${counts.malware} malware report(s) from Sentinel accounts`;
+      return (counts.scam >= 3 || counts.malware >= 3 ? fail : warn)(points(counts.scam), detail, { malware: points(counts.malware) });
     } },
   { id: 'K05', group: 'Known threats', threat: 'scam', title: 'Checked against every threat source',
     run: ({ knowledge }) => pass(`${knowledge.sources.length} sources: ${knowledge.sources.join(', ')}`) }

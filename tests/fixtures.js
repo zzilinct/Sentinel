@@ -89,6 +89,8 @@ const PAGES = {
     '/view?version=other': '<html><title>Different page</title><p>Different content</p></html>'
   },
   'docs.google.com': {
+    '/redirect-failure/start': { redirect: '/redirect-failure/listed' },
+    '/redirect-failure/listed': { redirect: 'file:///not-fetched' },
     '/redirect-fixture/start': { redirect: '/redirect-fixture/listed' },
     '/redirect-fixture/listed': { redirect: '/redirect-fixture/clean' },
     '/redirect-fixture/clean': '<html><title>Nothing here</title><p>Ordinary content</p></html>'
