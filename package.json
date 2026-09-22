@@ -1,6 +1,6 @@
 {
   "name": "sentinel",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "private": true,
   "description": "Sentinel - real-time scam, virus and malware protection",
   "type": "commonjs",
@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test tests/detection.test.js tests/api.test.js tests/api-regressions.test.js tests/auth.test.js tests/security.test.js tests/static.test.js tests/extension.test.js tests/desktop.test.js",
+    "test": "node --test tests/detection.test.js tests/api.test.js tests/api-regressions.test.js tests/auth.test.js tests/security.test.js tests/static.test.js tests/extension.test.js tests/desktop.test.js tests/filescan.test.js tests/compare-performance.test.js tests/research-performance.test.js",
+    "benchmark:scans": "node scripts/benchmark-filescan.js && node scripts/benchmark-comparison.js && node scripts/benchmark-research.js",
     "evaluate": "node scripts/evaluate.js --research-safe",
     "evaluate:modes": "node scripts/evaluate-modes.js",
     "probe": "node scripts/probe.js",

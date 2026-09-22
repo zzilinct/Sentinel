@@ -71,7 +71,8 @@ function entropy(buf) {
   if (!buf.length) return 0;
   const counts = new Array(256).fill(0);
   const sample = buf.length > 4 * 1024 * 1024 ? buf.subarray(0, 4 * 1024 * 1024) : buf;
-  for (const b of sample) counts[b]++;
+  // Indexed reads avoid iterator overhead across a multi-megabyte sample.
+  for (let i = 0; i < sample.length; i++) counts[sample[i]]++;
   let e = 0;
   for (const n of counts) {
     if (!n) continue;
@@ -237,8 +238,8 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
     const vba = readZipEntry(buf, entries.find((e) => /vbaproject\.bin$/i.test(e.name)));
     if (vba) macroText = vba.toString('latin1');
   }
-  const autoRun = /auto_?open|document_open|workbook_open|autoexec|auto_close/i.test(macroText);
   if (ooxmlMacro || oleMacro) {
+    const autoRun = /auto_?open|document_open|workbook_open|autoexec|auto_close/i.test(macroText);
     add('F09', 'malware', 'Document has no auto-running macros', autoRun
       ? fail(55, 'Contains macros set to run as soon as the document opens')
       : fail(36, 'Contains VBA macros - only enable them for documents you expected'));

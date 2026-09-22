@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.3 — scan performance
+
+- File analysis counts byte frequencies more efficiently and avoids macro-text searches for files with no macros. File-size limits, sampled bytes and detection rules are unchanged.
+- Page-fingerprint comparison counts differing bits in larger chunks while preserving exact distances and confirmation thresholds.
+- Related URLs share pending registry and DNS lookups. Successful DNS facts are reused for 30 seconds; socket connections still perform their own fresh, pinned address validation. Each page retains its separate content check.
+- Temporary registry failures no longer populate the day-long registry cache; they can be retried on the next uncached research request.
+- Added repeatable offline benchmarks and eight regression tests. The full suite passes 127 tests.
+
+Local synthetic benchmarks measured 44–60% less time for executable-shaped file fixtures and 55% less time comparing a page against 5,000 fingerprints. A simulated 60-link batch on one host made 4 DNS requests instead of 240 and 1 registry request instead of 6, while retaining all 60 page checks. These measure specific stages, not a promised end-to-end speedup. Network latency and workload still affect scan time. See [benchmark details](PERFORMANCE.md).
+
 ## 1.6.2 — account and verdict corrections
 
 - Invalid plan names now return a validation error instead of breaking account and usage responses. Existing invalid stored plans fall back to Free.

@@ -31,6 +31,7 @@ const q = {
 /* ------------------------------------------------------------------ rdap */
 
 const rdapCache = new Map();
+const rdapInflight = new Map();
 
 // Registries refuse anonymous clients: without a User-Agent, rdap.org answers 403 to everything. (It did, from the
 // first version of this file until 1.6.0: domain age never reached a verdict.)
@@ -64,7 +65,18 @@ async function rdap(registrable) {
   if (config.isTest) return (testFacts.get(registrable) || {}).registration || { available: false, reason: 'offline in tests' };
   const hit = rdapCache.get(registrable);
   if (hit && now() - hit.at < 24 * 60 * 60 * 1000) return hit.value;
+  if (rdapInflight.has(registrable)) return rdapInflight.get(registrable);
 
+  const job = fetchRdap(registrable);
+  rdapInflight.set(registrable, job);
+  try {
+    return await job;
+  } finally {
+    rdapInflight.delete(registrable);
+  }
+}
+
+async function fetchRdap(registrable) {
   let value;
   try {
     const res = await fetch(`${await rdapBase(registrable)}domain/${encodeURIComponent(registrable)}`, {
@@ -100,21 +112,47 @@ async function rdap(registrable) {
   } catch (err) {
     value = { available: false, reason: err.name === 'TimeoutError' ? 'rdap_timeout' : 'rdap_unreachable' };
   }
-  rdapCache.set(registrable, { value, at: now() });
-  if (rdapCache.size > 5000) rdapCache.clear();
+  // An upstream outage is not a domain fact; retry it on the next uncached scan.
+  if (value.available) {
+    rdapCache.set(registrable, { value, at: now() });
+    if (rdapCache.size > 5000) rdapCache.delete(rdapCache.keys().next().value);
+  }
   return value;
 }
 
 /* ------------------------------------------------------------------- dns */
 
+// Multiple links often share a host, and subdomains share MX/NS records.
+// These facts never replace the fresh, pinned DNS checks in netguard.
+const DNS_CACHE_MS = 30_000;
+const dnsCache = new Map();
+const dnsInflight = new Map();
+
+async function dnsRecord(method, host) {
+  const key = `${method}:${host}`;
+  const cached = dnsCache.get(key);
+  if (cached && now() - cached.at < DNS_CACHE_MS) return cached.value;
+  if (dnsInflight.has(key)) return dnsInflight.get(key);
+  const job = dns[method](host).then(value => {
+    dnsCache.set(key, { value, at: now() });
+    if (dnsCache.size > 5000) dnsCache.delete(dnsCache.keys().next().value);
+    return value;
+  }, () => null);
+  dnsInflight.set(key, job);
+  try {
+    return await job;
+  } finally {
+    dnsInflight.delete(key);
+  }
+}
+
 async function dnsFacts(host, registrable) {
   if (config.isTest) return (testFacts.get(registrable) || {}).dns || { resolves: true, addresses: ['203.0.113.10'], privateAddress: false, mx: false, nameservers: [] };
-  const settle = (p) => p.then((v) => v, () => null);
   const [v4, v6, mx, ns] = await Promise.all([
-    settle(dns.resolve4(host)),
-    settle(dns.resolve6(host)),
-    settle(dns.resolveMx(registrable)),
-    settle(dns.resolveNs(registrable))
+    dnsRecord('resolve4', host),
+    dnsRecord('resolve6', host),
+    dnsRecord('resolveMx', registrable),
+    dnsRecord('resolveNs', registrable)
   ]);
   const addresses = [...(v4 || []), ...(v6 || [])];
   return {

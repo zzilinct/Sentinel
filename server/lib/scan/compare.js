@@ -152,7 +152,16 @@ function simhash(text) {
 function hamming(a, b) {
   let x = BigInt('0x' + a) ^ BigInt('0x' + b);
   let n = 0;
-  while (x) { n += Number(x & 1n); x >>= 1n; }
+  // Count a whole 32-bit word at a time. Keeping the XOR as a BigInt preserves
+  // every fingerprint bit, including the high bits that JS bitwise operators
+  // would otherwise truncate. Unsigned shifts handle words with bit 31 set.
+  while (x) {
+    let word = Number(x & 0xffffffffn);
+    word -= (word >>> 1) & 0x55555555;
+    word = (word & 0x33333333) + ((word >>> 2) & 0x33333333);
+    n += (((word + (word >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+    x >>= 32n;
+  }
   return n;
 }
 
