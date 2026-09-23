@@ -10,7 +10,7 @@ const config = require('./config');
 require('./lib/dblock').claim();
 const { Router, sendJson, send, serveStatic, HttpError, parseUrl } = require('./lib/http');
 const security = require('./lib/security');
-const { sweep, acquireLock, backupAccounts } = require('./lib/db');
+const { sweep, acquireLock, backupAccounts, resetFeeds } = require('./lib/db');
 const seed = require('./seed');
 const feeds = require('./lib/scan/feeds');
 
@@ -98,7 +98,16 @@ function start() {
   backupAccounts();
   setInterval(backupAccounts, 6 * 60 * 60 * 1000).unref();
 
-  seed.run();
+  try {
+    seed.run();
+  } catch (err) {
+    // The accounts file was checked when it was opened; damage found now is in the threat-list cache, which is
+    // only a cache. A damaged cache found without a cut-off refresh behind it used to stop every start here,
+    // for good: throw it away, let it download again, and seed once more.
+    if (!/malformed|not a database|SQLITE_CORRUPT|SQLITE_NOTADB/i.test(`${err && err.code} ${err && err.message}`)) throw err;
+    resetFeeds(`was damaged (${err.message})`);
+    seed.run();
+  }
   sweep();
   setInterval(sweep, 60 * 60 * 1000).unref();
   feeds.start();

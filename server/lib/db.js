@@ -471,4 +471,4 @@ function sweep() {
   db.prepare('DELETE FROM audit_log WHERE created_at < ?').run(t - 180 * day);
 }
 
-module.exports = { db, now, sweep, acquireLock, backupAccounts, verifyFeeds, FEEDS_PATH, BACKUP_PATH };
+module.exports = { db, now, sweep, acquireLock, backupAccounts, verifyFeeds, resetFeeds, FEEDS_PATH, BACKUP_PATH };
