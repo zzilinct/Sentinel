@@ -112,6 +112,13 @@ add-on involved:
   the same thread that answers scans, so on a fresh install every answer queued
   behind it for minutes. Refreshes now run on their own thread: while all 15
   lists imported, a page of 12 results was answered in a median of 26 ms.
+- **Tabs, scrolling, inboxes.** The page Sentinel follows is the one on screen,
+  not the first tab in the window. Between full reads the reader follows one
+  result's position about 60 times a second and the overlay moves every mark
+  with it in the same frame, so marks travel with the page while it scrolls. In
+  Gmail and Outlook on the web (Pro and up) the message rows on screen, as the
+  inbox shows them, are checked and marked before they are opened; nothing is
+  opened, clicked or kept.
 - **What you see.** `desktop/src/overlay.js` is one transparent window laid
   exactly over the page area of the browser in front. It draws the gold line and
   tint when scanning starts and whenever a search comes back, the gold Sentinel
@@ -165,9 +172,15 @@ add-on involved:
   start grows with the size of the database it has to work through, a start
   that failed is never restarted twice, and a new server waits for the old
   one to be gone.
-- **Self-updating.** `desktop/src/updater.js` checks GitHub Releases, downloads
-  a newer installer quietly and applies it when Sentinel quits, so nobody
-  downloads the app twice.
+- **Self-updating.** `desktop/src/updater.js` checks GitHub Releases and downloads a
+  newer installer quietly (checked against the SHA-512 in `latest.yml`). Sentinel
+  runs that exact file itself, checked again just before it runs, into the folder
+  the running copy lives in (`/D=`). Until 1.6.5 electron-updater ran whatever its
+  cached record named, which on one computer was still the 1.5.0 installer after
+  1.6.4 had downloaded, so every "Restart to update" reinstalled 1.5.0. After an
+  update Sentinel checks it took; if not, it downloads again and says why in
+  `logs/app.log`. The uninstall step removes only Sentinel's own files
+  (`desktop/build/installer.nsh`), never the whole folder.
 
 Pre-launch builds run billing in demo mode so every plan can be exercised.
 
