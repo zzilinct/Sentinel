@@ -216,3 +216,16 @@ test('the updater installs the file it downloaded, into its own folder, and noti
   assert.match(read('desktop/build/installer.nsh'), /!macro customRemoveFiles/, 'uninstall removes only Sentinel\'s own files');
   assert.doesNotMatch(read('desktop/build/installer.nsh'), /RMDir \/r "\$INSTDIR"(\s|$)/, 'never the whole install folder');
 });
+
+test('the reader starts from a file: its command line stays far under the Windows limit, and a changed file is refused', () => {
+  const { readerLaunch, SCRIPT } = watch._test;
+  const body = SCRIPT.replace('__TEST_PROCESS__', () => '').replace('__HELPER_DLL__', () => "C:\Users\o'brien\AppData\Roaming\Sentinel\helper.dll");
+  const { file, args } = readerLaunch(body, "C:\Users\o'brien\AppData\Roaming\Sentinel");
+  // 1.6.5 first shipped the whole script as -EncodedCommand: 35,716 characters, and spawn failed with ENAMETOOLONG.
+  assert.ok(args.join(' ').length < 4000, `command line is ${args.join(' ').length} characters`);
+  const loader = Buffer.from(args[args.length - 1], 'base64').toString('utf16le');
+  const hash = require('crypto').createHash('sha256').update(Buffer.from(body, 'utf8')).digest('hex').toUpperCase();
+  assert.ok(loader.includes(`-ne '${hash}'`), 'the loader checks the file against its own hash');
+  assert.ok(loader.includes("o''brien"), 'quotes in the path are escaped');
+  assert.ok(file.endsWith('.ps1'));
+});

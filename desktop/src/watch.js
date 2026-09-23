@@ -30,6 +30,10 @@
  * changes; this module does the rest.
  */
 const { spawn } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
 
 const RECHECK_MS = 10 * 60 * 1000;     // same host warned again after this long
 const SETTLE_MS = 350;                 // a page must stay in front this long before it is checked (long enough to skip pages flicked past)
@@ -324,14 +328,36 @@ async function restart() {
   start();
 }
 
+/**
+ * The reader is too long for a command line (Windows allows 32,767 characters, and -EncodedCommand more than
+ * doubles its size), so it is written to a file and a short loader runs it. The loader carries the file's SHA-256
+ * and refuses to run a file that changed after it was written.
+ */
+function readerLaunch(body, dir) {
+  const hash = crypto.createHash('sha256').update(Buffer.from(body, 'utf8')).digest('hex').toUpperCase();
+  const file = path.join(dir, `sentinel-reader-${hash.slice(0, 12)}.ps1`);
+  const q = (t) => t.replace(/'/g, "''");
+  const loader = [
+    `$f = '${q(file)}'`,
+    '$s = [IO.File]::ReadAllText($f, [Text.Encoding]::UTF8)',
+    '$h = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($s))).Replace(\'-\', \'\')',
+    `if ($h -ne '${hash}') { [Console]::Error.WriteLine('the reader file changed after it was written'); exit 3 }`,
+    'Invoke-Expression $s'
+  ].join('\n');
+  const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(loader, 'utf16le').toString('base64')];
+  return { file, args };
+}
+
 function start() {
   const testProcess = opts.testProcess && /^[a-z]{2,20}$/.test(opts.testProcess) ? opts.testProcess : '';
   if (testProcess) log(`TEST MODE: reading ${testProcess} wherever it is, not the window in front`);
   const helper = opts.helperDll ? String(opts.helperDll).replace(/'/g, "''") : '';
-  const encoded = Buffer.from(SCRIPT.replace('__TEST_PROCESS__', () => testProcess).replace('__HELPER_DLL__', () => helper), 'utf16le').toString('base64');
+  const body = SCRIPT.replace('__TEST_PROCESS__', () => testProcess).replace('__HELPER_DLL__', () => helper);
   try {
-    child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded],
-      { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    const { file, args } = readerLaunch(body, opts.helperDll ? path.dirname(String(opts.helperDll)) : os.tmpdir());
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, body, 'utf8');
+    child = spawn('powershell.exe', args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     // Below normal priority: reading the browser must never compete with the browser.
     try { require('os').setPriority(child.pid, require('os').constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* best effort */ }
   } catch (err) {
@@ -623,4 +649,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, _test: { resultLinks, worstKind, mailFromRow, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, _test: { resultLinks, worstKind, mailFromRow, readerLaunch, SCRIPT } };
