@@ -32,7 +32,7 @@
 const { spawn } = require('child_process');
 
 const RECHECK_MS = 10 * 60 * 1000;     // same host warned again after this long
-const SETTLE_MS = 600;                 // a page must stay in front this long before it is checked
+const SETTLE_MS = 350;                 // a page must stay in front this long before it is checked (long enough to skip pages flicked past)
 const VERDICT_TTL_MS = 10 * 60 * 1000; // a link's verdict is reused this long (scrolling re-reads the same links)
 const MAX_LINKS = 40;
 
@@ -452,18 +452,31 @@ async function onLinks(msg) {
   const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
   if (!missing.length) return;
   missing.forEach((u) => pending.add(u));
-  try {
-    const started = Date.now();
-    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode: currentMode() });
-    noteMode(answer);
-    if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
+  const store = (byUrl, final) => {
     for (const u of missing) {
       const v = byUrl && byUrl[u];
-      const badge = (v && v.overall && v.overall.badge) || null;
-      const first = v && v.reasons && v.reasons[0];
-      verdicts.set(u, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v && v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
-      count(page.private, badge);
+      if (!v) continue;
+      const badge = (v.overall && v.overall.badge) || null;
+      const first = v.reasons && v.reasons[0];
+      verdicts.set(u, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      if (final) count(page.private, badge);
     }
+  };
+  try {
+    const started = Date.now();
+    const mode = currentMode();
+    // Delicate is shown in two steps: the quick answer (lists and checklist, a few ms) goes on screen at once, and
+    // the researched answer replaces it when it lands. Nobody waits five seconds for a mark.
+    if (mode === 'delicate' && !page.private) {
+      const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true });
+      store(quick.byUrl, false);
+      publishMarks();
+      log(`results marked: ${missing.length} in ${Date.now() - started} ms (quick pass)`);
+    }
+    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode });
+    noteMode(answer);
+    if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
+    store(byUrl, true);
     if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
   } catch (err) {
     log(`results check failed: ${err.status || ''} ${err.code || err.message}`);

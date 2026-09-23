@@ -696,3 +696,13 @@ test('a listed host on the same domain is not a "look-alike" of it', async () =>
   const v = await scan('https://web.bigarchive-example.org/', { research: false });
   assert.ok(!v.reasons.some((r) => /Nearly the same name/.test(r.text)), JSON.stringify(v.reasons.map((r) => r.text)));
 });
+
+test('lure pages in a hijacked hosting account, and pages on service-record host names, are caught', async () => {
+  const badge = async (url) => (await scan(url, { research: false })).threats.scam.badge;
+  for (const url of ['http://small-business-site.example/~acct3/admin', 'http://_dc-mx.1a2b3c.company-site.example/~acct3/admin', 'http://design-studio.example/~client/tax/index.html']) {
+    assert.ok(await badge(url), `${url} should be flagged`);
+  }
+  for (const url of ['https://www.cs.stanford.edu/~knuth/', 'https://people.example.com/~alice/photos/']) {
+    assert.equal(await badge(url), null, `${url} should stay clean`);
+  }
+});

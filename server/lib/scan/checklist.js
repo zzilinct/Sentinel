@@ -464,6 +464,28 @@ const KNOWLEDGE_CHECKS = [
       return pass('Not a kit file name');
     } },
 
+  { id: 'U52', group: 'Address', threat: 'scam', title: "Not a lure page in a hosting account's home folder",
+    run: ({ p, brand }) => {
+      if (brand.owner || p.isIp) return pass('Not applicable');
+      // "/~account/admin", "/~account/tax/index.html": a page served from a shared-hosting account's personal folder.
+      // Universities still use these for home pages; a sign-in or payment page in one is a hijacked account.
+      const m = /^\/~([a-z0-9_.-]+)\/(.*)$/i.exec(p.path);
+      if (!m) return pass('Not a home-folder page');
+      if (/\.(edu|ac\.[a-z]{2})$/.test(p.registrable)) return pass('A university home page');
+      const rest = m[2].toLowerCase();
+      const LURE = /(^|[/._-])(admin|login|log-in|signin|sign-in|verify|verification|webmail|mail|owa|tax|refund|invoice|payment|pay|billing|bank|secure|account|update|wallet|docs?|share|office|outlook)([/._-]|$)/;
+      return LURE.test(rest) ? fail(34, `A "${rest.split('/')[0] || rest}" page inside the hosting account "~${m[1]}": the account is almost certainly hijacked`) : warn(8, "Served from a hosting account's home folder");
+    } },
+
+  { id: 'U53', group: 'Address', threat: 'scam', title: 'Host name is a real website name',
+    run: ({ p }) => {
+      if (p.isIp) return pass('Not applicable');
+      // An underscore is not allowed in a website's host name. Labels like "_dc-mx" belong to mail and service
+      // records; a page served from one is using a record that was never meant to be visited.
+      const bad = p.subdomains.find((l) => l.includes('_'));
+      return bad ? fail(28, `"${bad}" is a service record's name, not a website's`) : pass('Ordinary host name');
+    } },
+
   { id: 'K01', group: 'Known threats', threat: 'scam', title: 'Not a known scam',
     run: ({ knowledge }) => matchCheck(knowledge, 'scam', 'scam') },
   { id: 'K02', group: 'Known threats', threat: 'malware', title: 'Not a known malware site',

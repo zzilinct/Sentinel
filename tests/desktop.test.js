@@ -75,7 +75,8 @@ test('private windows leave nothing behind: not in history, not in the log, not 
   const w = read('desktop/src/watch.js');
   assert.match(w, /if \(opts\.onChecked && !page\.private\) opts\.onChecked/, 'the log and the live list are fed only by ordinary windows');
   assert.match(w, /state\.current = page\.private \? \{ browser: page\.browser, url: null, private: true/, 'the address is not kept where the app window can read it');
-  assert.ok(w.includes("live/batch', { urls: missing, private: page.private, mode: currentMode() }"), 'the server is told the window is private');
+  assert.ok(w.includes("live/batch', { urls: missing, private: page.private, mode }"), 'the server is told the window is private');
+  assert.ok(w.includes("if (mode === 'delicate' && !page.private) {"), 'a private window gets no quick-then-research pass');
   assert.match(read('server/routes/scan.routes.js'), /const isPrivate = body\.private === true;[\s\S]*recordFlagged: !isPrivate/, 'flagged private results are not written to history');
 });
 

@@ -201,6 +201,11 @@ test('pro plan: research + virus & malware on link scans, 40/week, 4 h delicate 
   assert.equal(live.data.mode, 'delicate');
   assert.equal(live.data.researched, true, 'delicate researches every result');
   assert.ok(live.data.tookMs < 5000, `delicate answers inside its budget (${live.data.tookMs} ms)`);
+  // Delicate's quick pass: the same minute, no research, answered at once.
+  const first = await c.post('/api/v1/live/batch', { urls: ['https://paypa1-secure-login.com/'], mode: 'delicate', quick: true });
+  assert.equal(first.data.mode, 'delicate');
+  assert.equal(first.data.researched, false);
+  assert.equal(first.data.byUrl['https://paypa1-secure-login.com/'].threats.scam.badge, 'red');
   const quick = await c.post('/api/v1/live/batch', { urls: ['https://paypa1-secure-login.com/', 'https://github.com/'], mode: 'fast' });
   assert.equal(quick.data.mode, 'fast');
   assert.equal(quick.data.researched, false);

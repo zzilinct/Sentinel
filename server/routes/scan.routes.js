@@ -174,7 +174,9 @@ function register(router) {
     // A private window is protected like any other, and nothing about it is kept: flagged results normally go
     // into the person's history, these do not. Nor are its addresses sent to a registry: it gets the fast checks.
     const isPrivate = body.private === true;
-    const research = mode === 'delicate' && plan.features.liveResearch && !isPrivate;
+    // `quick`: the first pass of a delicate scan. It is answered from the lists and the checklist alone (a few ms),
+    // so marks appear at once; the researched pass follows and refines them. Both count as the same delicate minute.
+    const research = mode === 'delicate' && plan.features.liveResearch && !isPrivate && body.quick !== true;
     const started = Date.now();
     const verdicts = await engine.scanUrls(urls, {
       userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: !isPrivate
