@@ -225,7 +225,7 @@
         pick = 'pro';
         why = `its 24 hours a week of fast live scanning cover your ${state.hours}, with 4 hours of delicate scanning for the searches that matter. Minutes only count while Sentinel is actually checking something.`;
       }
-      answer.innerHTML = `<b>${{ free: 'Free', pro: 'Pro', max: 'Max', ultimate: 'Ultimate' }[pick]}</b> fits best. ${why}`;
+      answer.innerHTML = `<b>${{ free: 'Free', pro: 'Pro', max: 'Max', ultimate: 'Ultimate' }[pick]}</b> fits best. ${why.charAt(0).toUpperCase()}${why.slice(1)}`;
 
       $$('[data-plan-card]', pricing).forEach((card) => {
         const on = card.dataset.planCard === pick;

@@ -401,10 +401,10 @@
 
   function friendlyError(err) {
     if (err.code === 'weekly_limit_reached') {
-      return `<div class="banner"><div><b>You’ve used this week’s scans.</b> Your ${esc(err.extra.plan)} plan resets ${until(err.extra.resetsAt)}. <a href="/app/plan" style="color:var(--gold-300)">See plans</a></div></div>`;
+      return `<div class="banner"><div><b>You’ve used this week’s scans.</b> Your ${esc(err.extra.plan)} plan resets ${until(err.extra.resetsAt)}. <a href="/app/plan" class="u-gold">See plans</a></div></div>`;
     }
     if (err.code === 'plan_required') {
-      return `<div class="banner"><div><b>${esc(err.message)}</b> <a href="/app/plan" style="color:var(--gold-300)">Compare plans</a></div></div>`;
+      return `<div class="banner"><div><b>${esc(err.message)}</b> <a href="/app/plan" class="u-gold">Compare plans</a></div></div>`;
     }
     return `<div class="banner banner--error"><div><b>Scan failed.</b> ${esc(err.message)}</div></div>`;
   }
@@ -427,17 +427,17 @@
       </form>
       <div class="scan-meta"><span>${left('linkScans')} of ${us.linkScans.limit} link scans left this week</span><a href="/app/threats">Scan a file instead &rarr;</a></div>
 
-      <div class="grid3" style="margin-top:28px">
+      <div class="grid3 u-mt-lg" >
         <a class="usage-link" href="/app/scan" aria-label="Link scan">${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, `link scans left${f.research ? ', researched' : ''}`, us.linkScans.used, us.linkScans.limit)}</a>
         <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
         <a class="usage-link" href="/app/protection" aria-label="Live protection">${liveCard(us, f)}</a>
       </div>
 
-      <div style="margin-top:18px">${protectionTeaser()}</div>
+      <div class="u-mt">${protectionTeaser()}</div>
 
-      <div class="panel" style="margin-top:18px">
+      <div class="panel u-mt" >
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
-        <div data-recent><div class="skeleton" style="height:120px"></div></div>
+        <div data-recent><div class="skeleton u-h-md" ></div></div>
       </div>`;
 
     $('[data-quick]', el).addEventListener('submit', (ev) => {
@@ -754,8 +754,8 @@
 
   async function historyView(el, params) {
     el.innerHTML = `${title('History', 'Everything Sentinel checked for you in the last 30 days. Click a link to scan it again.')}
-      <div class="grid3" data-stats><div class="skeleton" style="height:110px"></div><div class="skeleton" style="height:110px"></div><div class="skeleton" style="height:110px"></div></div>
-      <div class="panel" style="margin-top:18px" data-list><div class="skeleton" style="height:240px"></div></div>`;
+      <div class="grid3" data-stats><div class="skeleton u-h-sm" ></div><div class="skeleton u-h-sm" ></div><div class="skeleton u-h-sm" ></div></div>
+      <div class="panel u-mt"  data-list><div class="skeleton" style="height:240px"></div></div>`;
     let data;
     try { data = await api('/account/history'); }
     catch (err) { $('[data-list]', el).innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; return; }
@@ -812,9 +812,9 @@
         </div>
         <div class="report__foot"><span class="muted">Rules apply to the whole site, including its subdomains. Only your account is affected.</span><button class="btn btn--gold" type="submit">Add rule</button></div>
       </form>
-      <div class="grid2" style="margin-top:18px">
-        <div class="panel" data-allow><div class="skeleton" style="height:120px"></div></div>
-        <div class="panel" data-block><div class="skeleton" style="height:120px"></div></div>
+      <div class="grid2 u-mt" >
+        <div class="panel" data-allow><div class="skeleton u-h-md" ></div></div>
+        <div class="panel" data-block><div class="skeleton u-h-md" ></div></div>
       </div>`;
 
     let rule = 'allow';
@@ -891,7 +891,7 @@
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
 
-      ${!planLocked ? `<div class="panel" style="margin-top:18px">
+      ${!planLocked ? `<div class="panel u-mt" >
         <div class="panel__head"><div><h2>Live scanning this week</h2><p>Minutes only count when Sentinel actually checks something. Resets ${until(state.me.week.resetsAt)}.</p></div></div>
         <div class="meters">
           ${liveMeter('Fast', 'Answers in about a second. Threat lists, the checklist and comparison with known scams.', us.fastMinutes)}
@@ -900,7 +900,7 @@
       </div>` : ''}
 
       <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
-      <div class="panel" style="margin-top:18px" data-intel>
+      <div class="panel u-mt"  data-intel>
         <div class="panel__head"><div><h2>Threat intelligence</h2><p>The public feeds every scan is checked against, refreshed automatically.</p></div></div>
         <div class="skeleton" style="height:90px"></div>
       </div>`;
@@ -971,7 +971,7 @@
       : live.active ? (live.window ? `Watching the browser in front. Look for the gold mask in its bottom right corner.${live.lastResults ? ` Last search: ${live.lastResults.count} results marked.` : ''}${fellBack}` : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
         : live.enabled ? (live.reason || 'Starting') : 'Off. One click, and every browser you use is covered.';
     slot.innerHTML = `
-      <div class="panel live" style="margin-top:18px">
+      <div class="panel live u-mt" >
         <div class="live__main">
           <span class="live__mask${live.active ? ' is-on' : ''}" aria-hidden="true">${Masks.svg('scam')}</span>
           <div class="live__text"><h2>Live scanning</h2><p data-live-text>${esc(liveText)}</p>${live.counts && live.counts.checked ? `<p class="live__counts" data-live-counts>${live.counts.checked.toLocaleString()} checked since Sentinel started, ${live.counts.flagged.toLocaleString()} flagged. Private windows are not counted.</p>` : '<p class="live__counts" data-live-counts hidden></p>'}</div>
@@ -989,9 +989,9 @@
         </ul>
       </div>
 
-      <div class="grid2" style="margin-top:18px">
+      <div class="grid2 u-mt" >
         <div class="panel">
-          <h2 style="margin-bottom:6px">Your browsers</h2>
+          <h2 class="u-mb-xs">Your browsers</h2>
           <p class="muted" style="font-size:13.5px;margin:0 0 4px">Pick one. Sentinel opens it if it is closed, brings it to the front, and starts scanning.</p>
           ${browsers.length ? `<ul class="list">${browsers.map((b) => `<li>
             <span class="list__icon">${ICON.globe}</span>
@@ -1000,7 +1000,7 @@
           </li>`).join('')}</ul>` : '<div class="empty"><p>No supported browser found on this computer.</p></div>'}
         </div>
         <div class="panel">
-          <h2 style="margin-bottom:16px">This computer</h2>
+          <h2 class="u-mb">This computer</h2>
           <label class="setting"><div><b>Defense</b><span>${esc(df.supported
             ? (df.active ? `Watching ${(df.watched || []).join(', ')} and startup entries. A dangerous program is stopped, quarantined and its startup entries removed.` : df.reason || 'Off')
             : 'Available on Windows.')}</span></div>
@@ -1013,13 +1013,13 @@
         </div>
       </div>
 
-      <div class="grid2" style="margin-top:18px">
+      <div class="grid2 u-mt" >
         <div class="panel">
           <div class="panel__head" style="margin-bottom:10px"><div><h2>Live, right now</h2><p>${live.active ? 'Pages show up here as they are checked. Private windows never do.' : 'Start scanning to see pages as they are checked.'}</p></div><span class="live-dot${live.active ? ' is-on' : ''}" aria-hidden="true"></span></div>
           <ul class="list feed" data-feed>${live.current && live.current.url ? `<li class="feed__item"><span class="list__icon">${ICON.globe}</span><span class="list__main"><b>${esc(live.current.url)}</b><span>In front now</span></span></li>` : '<li class="feed__empty muted">Nothing checked yet. Open a page in your browser.</li>'}</ul>
         </div>
         <div class="panel">
-          <h2 style="margin-bottom:6px">Defense log</h2>
+          <h2 class="u-mb-xs">Defense log</h2>
           <p class="muted" style="font-size:13.5px;margin:0 0 4px">What arrived, what was scanned, what was stopped.</p>
           ${ledger.length ? `<ul class="list">${ledger.slice(0, 8).map((e) => `<li>
             <span class="list__icon" style="${e.kind === 'threat' ? 'color:var(--red)' : e.kind === 'restored' ? 'color:var(--gold-300)' : ''}">${ICON.file}</span>
@@ -1029,7 +1029,7 @@
         </div>
       </div>
 
-      <div class="panel" style="margin-top:18px">
+      <div class="panel u-mt" >
         <h2 style="margin-bottom:12px">Recent downloads</h2>
         ${recent.length ? `<ul class="list">${recent.slice(0, 8).map((d) => `<li>
           <span class="list__icon">${ICON.file}</span>
@@ -1160,7 +1160,7 @@
         ${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}
         ${liveCard(us, plan().features)}
       </div>
-      <div class="plans" style="margin-top:28px">${state.plans.map((p) => `
+      <div class="plans u-mt-lg" >${state.plans.map((p) => `
         <article class="plan${p.id === 'pro' ? ' plan--featured' : ''}${p.id === current ? ' is-current' : ''}">
           ${p.id === current ? '<span class="plan__badge">Current</span>' : ''}
           <div class="plan__name">${esc(p.name)}</div>
@@ -1189,28 +1189,28 @@
       ${title('Security', 'Protect your Sentinel account the way Sentinel protects you.')}
       <div class="grid2">
         <form class="panel" data-name-form>
-          <h2 style="margin-bottom:16px">Profile</h2>
+          <h2 class="u-mb">Profile</h2>
           <div class="row2">
             <div class="field"><label for="p-first">First name</label><input class="input" id="p-first" name="firstName" value="${esc(u.firstName)}" required maxlength="60"></div>
             <div class="field"><label for="p-last">Last name <span class="opt">(optional)</span></label><input class="input" id="p-last" name="lastName" value="${esc(u.lastName || '')}" maxlength="60"></div>
           </div>
           <div class="field"><label>Email ${u.emailVerified ? '<span class="status is-on" style="display:inline-flex;margin-left:8px">Confirmed</span>' : '<span class="status is-locked" style="display:inline-flex;margin-left:8px">Not confirmed</span>'}</label><input class="input" value="${esc(u.email)}" disabled></div>
-          <button class="btn" style="margin-top:18px" type="submit">Save profile</button>
+          <button class="btn u-mt"  type="submit">Save profile</button>
         </form>
 
         <div class="panel" data-2fa></div>
       </div>
 
       ${u.hasPassword ? `<form class="panel" data-pw-form>
-        <h2 style="margin-bottom:16px">Change password</h2>
+        <h2 class="u-mb">Change password</h2>
         <div class="row2">
           <div class="field"><label for="pw-cur">Current password</label><input class="input" id="pw-cur" type="password" name="currentPassword" autocomplete="current-password" required></div>
           <div class="field"><label for="pw-new">New password</label><input class="input" id="pw-new" type="password" name="newPassword" autocomplete="new-password" required minlength="10"><span class="field__hint">10+ characters with a letter and a number. You’ll be signed out everywhere else.</span></div>
         </div>
-        <button class="btn" style="margin-top:18px" type="submit">Update password</button>
+        <button class="btn u-mt"  type="submit">Update password</button>
       </form>` : ''}
 
-      <div class="panel" data-sessions><div class="skeleton" style="height:120px"></div></div>
+      <div class="panel" data-sessions><div class="skeleton u-h-md" ></div></div>
 
       <form class="panel" data-delete style="box-shadow:inset 0 0 0 1px rgba(229,72,77,.25)">
         <h2>Delete account</h2>
@@ -1294,7 +1294,7 @@
     slot.innerHTML = `<h2>Two-factor authentication</h2>
       <p class="muted" style="margin:6px 0 18px;font-size:14px">${on ? 'On. Signing in needs a code from your authenticator app.' : 'Add a second step to sign-in with Google Authenticator, 1Password, Authy or any authenticator app.'}</p>
       <div data-2fa-body>${on
-        ? '<form data-disable><div class="field"><label for="tfa-off">Enter a current code to turn it off</label><input class="input code-input" id="tfa-off" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div><button class="btn" style="margin-top:14px" type="submit">Turn off two-factor</button></form>'
+        ? '<form data-disable><div class="field"><label for="tfa-off">Enter a current code to turn it off</label><input class="input code-input" id="tfa-off" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div><button class="btn u-mt-sm"  type="submit">Turn off two-factor</button></form>'
         : '<button class="btn btn--gold" data-setup>Set up two-factor</button>'}</div>`;
 
     const setup = $('[data-setup]', slot);
@@ -1303,11 +1303,11 @@
         const { secret, uri } = await api('/account/2fa/setup', { method: 'POST', body: {} });
         $('[data-2fa-body]', slot).innerHTML = `
           <ol style="padding-left:18px;color:var(--text-2);font-size:14px;display:grid;gap:10px;margin:0 0 16px">
-            <li>Open your authenticator app and add an account with this key${/Mobi/.test(navigator.userAgent) ? `, or <a href="${esc(uri)}" style="color:var(--gold-300)">tap here</a>` : ''}:</li>
+            <li>Open your authenticator app and add an account with this key${/Mobi/.test(navigator.userAgent) ? `, or <a href="${esc(uri)}" class="u-gold">tap here</a>` : ''}:</li>
           </ol>
           <div class="secret"><span>${esc(secret.match(/.{1,4}/g).join(' '))}</span><button class="btn btn--sm" type="button" data-copy>Copy</button></div>
           <form data-enable style="margin-top:16px"><div class="field"><label for="tfa-on">Then enter the 6-digit code it shows</label><input class="input code-input" id="tfa-on" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div>
-          <button class="btn btn--gold" style="margin-top:14px" type="submit">Turn on</button></form>`;
+          <button class="btn btn--gold u-mt-sm"  type="submit">Turn on</button></form>`;
         $('[data-copy]', slot).addEventListener('click', async () => { await navigator.clipboard.writeText(secret); toast('Key copied.', 'success'); });
         $('[data-enable]', slot).addEventListener('submit', async (ev) => {
           ev.preventDefault();
@@ -1366,7 +1366,7 @@
       <div style="display:flex;gap:14px;align-items:center"><span class="ai-tab__mark" style="width:44px;height:44px;border-radius:13px;font-size:14px;--accent:${p.accent}">${MARKS[p.id]}</span>
         <div><h2>Connect ${esc(p.name)}</h2><p class="muted" style="font-size:14px">Uses ${esc(p.vendor)}’s official API with a key from your own account &middot; <span class="mono">${esc(p.model)}</span></p></div></div>
       <ol style="margin:22px 0;padding-left:20px;display:grid;gap:8px;color:var(--text-2);font-size:14.5px">
-        <li>Open <a href="${esc(p.keyUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--gold-300)">${esc(new URL(p.keyUrl).host)}</a> and sign in to ${esc(p.vendor)} there.</li>
+        <li>Open <a href="${esc(p.keyUrl)}" target="_blank" rel="noopener noreferrer" class="u-gold">${esc(new URL(p.keyUrl).host)}</a> and sign in to ${esc(p.vendor)} there.</li>
         <li>Create an API key and copy it.</li>
         <li>Paste it below. Sentinel checks it with ${esc(p.vendor)} and stores it encrypted.</li>
       </ol>
