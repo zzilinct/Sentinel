@@ -53,37 +53,7 @@ const RESULTS = [
   ['https://usps-tracking-update-fee.com/', 'USPS: Pay Your Redelivery Fee']
 ];
 
-/** A tiny Chrome DevTools Protocol client over Node's built-in WebSocket. */
-function cdp(wsUrl) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(wsUrl);
-    let id = 0;
-    const waiting = new Map();
-    const listeners = [];
-    ws.addEventListener('open', () => resolve({
-      on(method, fn) { listeners.push({ method, fn }); },
-      send(method, params = {}, sessionId) {
-        return new Promise((res, rej) => {
-          const n = ++id;
-          waiting.set(n, { res, rej });
-          ws.send(JSON.stringify({ id: n, method, params, ...(sessionId ? { sessionId } : {}) }));
-        });
-      },
-      close: () => ws.close()
-    }));
-    ws.addEventListener('error', () => reject(new Error('could not reach the browser over DevTools')));
-    ws.addEventListener('message', (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (!msg.id) { for (const l of listeners) if (l.method === msg.method) l.fn(msg.params, msg.sessionId); return; }
-      const w = waiting.get(msg.id);
-      if (!w) return;
-      waiting.delete(msg.id);
-      if (msg.error) w.rej(new Error(msg.error.message)); else w.res(msg.result);
-    });
-  });
-}
-
-/** The same client over the DevTools pipe, which is what allows Extensions.loadUnpacked. */
+/** A Chrome DevTools Protocol client over the DevTools pipe, which is what allows Extensions.loadUnpacked. */
 function cdpPipe(child) {
   let id = 0;
   const waiting = new Map();

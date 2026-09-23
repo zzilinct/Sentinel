@@ -74,7 +74,7 @@
         const bar = $(`[data-v-bar="${t}"]`, stage);
         const threat = result.threats[t];
         bar.style.setProperty('--c', colorOf(threat.badge));
-        $('.bar__fill', bar).style.width = `${Math.max(threat.score, 2)}%`;
+        $('.bar__fill', bar).style.setProperty('--w', Math.max(threat.score, 2));
         $('b', bar).textContent = threat.score;
         bar.title = threat.label;
       }
@@ -192,7 +192,7 @@
             $('.masks', row).insertAdjacentHTML('beforeend', `<span class="m m--${color} is-on">${Masks.svg(threat)}</span>`);
           }));
           verdictFloat.classList.add('is-on');
-          $$('.bar__fill', stage).forEach((b) => { b.style.width = `${b.dataset.w}%`; });
+          $$('.bar__fill', stage).forEach((b) => { b.style.setProperty('--w', Number(b.dataset.w) || 0); });
           $('.stage__controls', stage).hidden = true;
           $('.stage__hint', stage).hidden = true;
           return;
@@ -231,14 +231,14 @@
       slot.innerHTML = `
         <div class="example__context">${esc(ex.context)}</div>
         <div class="example__url">${esc(ex.url)}</div>
-        <div class="example__meter"><div class="bar__track"><div class="bar__fill" style="width:0"></div></div><b>${t.score}/100</b></div>
+        <div class="example__meter"><div class="bar__track"><div class="bar__fill"></div></div><b>${t.score}/100</b></div>
         <ul class="example__why">${reasons.map((r) => `<li>${esc(r.text)}</li>`).join('')}</ul>
         <span class="example__tag">${t.kind ? `${Masks.kindIcon(t.kind)} ${esc(t.kindShort)} · ` : ''}${esc(t.label)} · ${ex.known ? 'known threat' : `${ex.checks.failed + ex.checks.warned} of ${ex.checks.total} checks flagged`}</span>`;
       // Restart the entrance animation for each switch.
       slot.style.animation = 'none';
       void slot.offsetWidth;
       slot.style.animation = '';
-      requestAnimationFrame(() => { $('.bar__fill', slot).style.width = `${Math.max(t.score, 2)}%`; });
+      requestAnimationFrame(() => { $('.bar__fill', slot).style.setProperty('--w', Math.max(t.score, 2)); });
     };
 
     // Each card walks its own severities so all three can be read at a glance;
@@ -249,10 +249,11 @@
     const name = $('h3', card).textContent;
     let timer = null;
 
-    const stop = () => {
+    // A stop the reader asked for is 'paused', so scrolling back into view does not restart it.
+    const stop = (byUser = false) => {
       clearInterval(timer);
       timer = null;
-      card.dataset.cycling = 'false';
+      card.dataset.cycling = byUser ? 'paused' : 'false';
       cycle.textContent = 'Play stages';
       cycle.setAttribute('aria-label', `Play ${name} severity stages`);
     };
@@ -267,17 +268,17 @@
         choose(buttons[(at + 1) % buttons.length]);
       }, 3200);
     };
-    cycle.addEventListener('click', () => (timer ? stop() : start()));
+    cycle.addEventListener('click', () => (timer ? stop(true) : start()));
     card.appendChild(cycle);
     stop();
 
     buttons.forEach((b, i) => {
       b.tabIndex = b.getAttribute('aria-pressed') === 'true' ? 0 : -1;
-      b.addEventListener('click', () => { stop(); choose(b); });
+      b.addEventListener('click', () => { stop(true); choose(b); });
       b.addEventListener('keydown', (ev) => {
         if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
         ev.preventDefault();
-        stop();
+        stop(true);
         choose(buttons[(i + (ev.key === 'ArrowRight' ? 1 : buttons.length - 1)) % buttons.length], true);
       });
     });
@@ -401,6 +402,9 @@
         : points >= max * 0.5
           ? 'Not bad, but a couple slipped through. Scammers only need one.'
           : 'These are hard to spot by eye. That&rsquo;s exactly why Sentinel exists.';
+      // The static export has no /signup; before launch the download page is the honest next step.
+      const st = window.SENTINEL_STATIC;
+      const getHref = !st ? '/signup' : st.launched ? `${st.origin}/signup` : 'download.html';
       stageEl.innerHTML = `
         <div class="game__end">
           <div class="kicker">You scored</div>
@@ -408,7 +412,7 @@
           <p>${right} of ${ROUNDS} exactly right. ${line}</p>
           <div class="hero__cta" style="justify-content:center">
             <button type="button" class="btn btn--lg" data-again>Play again</button>
-            <a class="btn btn--gold btn--lg" href="/signup">Get Sentinel free</a>
+            <a class="btn btn--gold btn--lg" href="${getHref}">Get Sentinel free</a>
           </div>
         </div>`;
       $('[data-again]', stageEl).addEventListener('click', () => examples.then((d) => {
@@ -488,7 +492,7 @@
           <ul class="try__why">${v.reasons.length ? v.reasons.map((r) => `<li>${esc(r.text)}</li>`).join('') : `<li>${v.discounted ? 'No record in any threat feed and nothing in the checklist raised a concern' : 'Nothing in the checklist raised a concern'}</li>`}</ul>
           <div class="try__foot">
             <span>${v.known ? 'Known threat' : `${v.checks.total} checks &middot; ${v.checks.failed + v.checks.warned} flagged &middot; no research`}</span>
-            <a href="/signup?next=${encodeURIComponent(`/app/scan?url=${encodeURIComponent(v.url)}`)}">Research it with a free account &rarr;</a>
+            <a href="/signup?next=${encodeURIComponent(`/app/scan?url=${encodeURIComponent(v.url)}`)}">Research it with Sentinel Pro &rarr;</a>
           </div>
         </div>`;
     }

@@ -307,6 +307,8 @@ function brandInfo(p) {
 function typedUrl(raw) {
   // A doubled scheme ("https://https://...") is a paste slip, not a host called "https".
   const input = String(raw == null ? '' : raw).trim().replace(/^(https?:\/\/)(?:https?:\/\/)+/i, '$1');
+  // "example.com:8443/login" is a host and a port, not a scheme called "example.com".
+  if (/^[a-z0-9.-]+:\d{1,5}(?:[/?#]|$)/i.test(input)) return `https://${input}`;
   return /^[a-z][a-z0-9+.-]*:/i.test(input) ? input : `https://${input.replace(/^\/\//, '')}`;
 }
 

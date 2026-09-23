@@ -66,8 +66,10 @@
   }
 
   function navigate(href) {
-    if (href === location.pathname + location.search) return;
-    history.pushState({}, '', href);
+    // The page already open, asked for again ("Scan again" on the link just scanned): run it again, without a new
+    // history entry.
+    if (href === location.pathname + location.search) history.replaceState({}, '', href);
+    else history.pushState({}, '', href);
     render();
     scrollTo({ top: 0, behavior: 'instant' });
   }
@@ -102,12 +104,19 @@
       return `<div class="usage-mini__row"><span>${label}</span><b class="tabular">${limit ? `${Math.max(0, limit - used)}${unit} left` : 'Locked'}</b></div>
               <div class="meter${pct >= 100 ? ' is-full' : ''}"><i style="width:${limit ? 100 - pct : 0}%"></i></div>`;
     };
+    // Both live allowances, each in the unit it is sold in: Free has 15 minutes of fast scanning, not "Locked".
+    const liveRow = (label, m) => {
+      if (!m) return '';
+      if (uncapped(m.limit)) return `<div class="usage-mini__row"><span>${label}</span><b class="tabular">Unlimited</b></div><div class="meter is-uncapped"><i style="width:100%"></i></div>`;
+      if (m.limit < 120) return row(label, Math.round(m.used), m.limit, ' min');
+      const leftH = Math.max(0, m.limit - m.used) / 60;
+      return row(label, m.used / 60, m.limit / 60, 'h').replace(/>[\d.]+h left</, () => `>${leftH.toFixed(leftH < 10 && leftH % 1 ? 1 : 0)}h left<`);
+    };
     $('[data-usage-mini]').innerHTML =
       row('Link scans', us.linkScans.used, us.linkScans.limit) +
       row('Virus scans', us.fileScans.used, us.fileScans.limit) +
-      (uncapped(us.liveMinutes.limit)
-        ? `<div class="usage-mini__row"><span>Live hours</span><b class="tabular">Unlimited</b></div><div class="meter is-uncapped"><i style="width:100%"></i></div>`
-        : row('Live hours', us.liveMinutes.used / 60, us.liveMinutes.limit / 60, 'h').replace(/(\d+\.\d)\d+h/, '$1h'));
+      liveRow('Fast live', us.fastMinutes) +
+      liveRow('Delicate live', us.liveMinutes);
   }
 
   async function pairDesktop() {
@@ -151,6 +160,7 @@
       if (a.dataset.route === name) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     });
+    $$('[data-desktop]', view).forEach((slot) => { (slot._off || []).forEach((off) => off()); slot._off = []; });
     view.innerHTML = '';
     const el = document.createElement('div');
     el.className = 'view';
@@ -468,8 +478,8 @@
     if (!f.liveScanning) {
       return lockedCard({
         tag: 'Pro & up',
-        heading: 'Masks on every search result, email and download',
-        body: 'Upgrade for delicate live scanning, which researches every result: 4 hours a week on Pro, 24 on Max, 96 on Ultimate, with fast scanning beside it.',
+        heading: 'Research every result, and protect email and downloads',
+        body: 'Your plan includes 15 minutes a week of fast live scanning. Pro and up add delicate live scanning, which researches every result (4 hours a week on Pro, 24 on Max, 96 on Ultimate), and mark emails and downloads too.',
         actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>'
       });
     }
@@ -519,7 +529,8 @@
       ev.preventDefault();
       const url = form.url.value.trim();
       if (!url) return;
-      history.replaceState({}, '', `/app/scan?url=${encodeURIComponent(url)}`);
+      // Remembered in the history entry, so Back and reload show the address without spending another scan.
+      history.replaceState({ scanned: url }, '', `/app/scan?url=${encodeURIComponent(url)}`);
       const button = $('button[type=submit]', form);
       out.innerHTML = stagesView(f.research);
       const stop = runStages(out, f.research);
@@ -536,7 +547,10 @@
     });
 
     const preset = params.get('url');
-    if (preset) { form.url.value = preset; form.requestSubmit(); }
+    if (preset) {
+      form.url.value = preset;
+      if (!history.state || history.state.scanned !== preset) form.requestSubmit();
+    }
   }
 
   const REPORT_CATEGORIES = [
@@ -1023,7 +1037,7 @@
           <p class="muted" style="font-size:13.5px;margin:0 0 4px">What arrived, what was scanned, what was stopped.</p>
           ${ledger.length ? `<ul class="list">${ledger.slice(0, 8).map((e) => `<li>
             <span class="list__icon" style="${e.kind === 'threat' ? 'color:var(--red)' : e.kind === 'restored' ? 'color:var(--gold-300)' : ''}">${ICON.file}</span>
-            <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'restored' ? 'Put back' : e.kind === 'noted' ? `${e.label}: noted, nothing touched` : `Clean (${esc(e.how || 'scanned')})`)}</span></span>
+            <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'restored' ? 'Put back' : e.kind === 'noted' ? `${e.label}: noted, nothing touched` : `Clean (${e.how || 'scanned'})`)}</span></span>
             ${e.kind === 'threat' && !e.restored && (e.quarantined || (e.actions || []).some((a) => a.undo)) ? `<button class="btn btn--sm" data-restore="${esc(e.id)}">Put back</button>` : ''}
           </li>`).join('')}</ul>` : '<div class="empty"><p>Nothing has needed stopping.</p></div>'}
         </div>
@@ -1039,7 +1053,7 @@
       </div>`;
 
     if (focusKey) {
-      const again = $(`[data-${focusKey.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}]`, slot).find((el2) => el2.dataset[focusKey] === focusValue);
+      const again = $$(`[data-${focusKey.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}]`, slot).find((el2) => el2.dataset[focusKey] === focusValue);
       if (again) again.focus({ preventScroll: true });
     }
     const defEl = $('[data-defense]', slot);
@@ -1057,7 +1071,7 @@
     // The live feed fills in as the desktop checks pages.
     const feed = $('[data-feed]', slot);
     if (feed && desktop.onPageChecked) {
-      const off = desktop.onPageChecked((item) => {
+      slot._off.push(desktop.onPageChecked((item) => {
         if (!feed.isConnected) return;
         feed.querySelector('.feed__empty')?.remove();
         const color = item.badge ? Masks.COLORS[item.badge] : Masks.COLORS.clear;
@@ -1065,7 +1079,7 @@
         feed.prepend(li);
         requestAnimationFrame(() => li.classList.remove('is-new'));
         while (feed.children.length > 8) feed.lastElementChild.remove();
-      });
+      }));
     }
     $$('[data-live-mode]', slot).forEach((b) => b.addEventListener('click', async () => {
       if (b.disabled || b.classList.contains('is-on')) return;
@@ -1106,7 +1120,7 @@
       slot._off.push(desktop.onBrowsers((b2) => {
         if (!slot.isConnected) return;
         const open = new Set(b2.running || []);
-        $('[data-browser-state]', slot).forEach((el2) => { el2.textContent = open.has(el2.dataset.browserState) ? 'Open now' : 'Installed'; });
+        $$('[data-browser-state]', slot).forEach((el2) => { el2.textContent = open.has(el2.dataset.browserState) ? 'Open now' : 'Installed'; });
       }));
     }
     // The defense row, the update row and the downloads list redraw when the desktop says something changed.
@@ -1165,7 +1179,7 @@
           ${p.id === current ? '<span class="plan__badge">Current</span>' : ''}
           <div class="plan__name">${esc(p.name)}</div>
           <div class="plan__price"><b>$${p.price}</b><span>${p.price ? '/ month' : 'forever'}</span></div>
-          <button class="btn btn--block ${p.id !== 'free' ? 'btn--gold' : ''}" data-plan="${p.id}" ${p.id === current ? 'disabled' : ''}>${p.id === current ? 'Your plan' : p.id === 'free' ? 'Switch to Free' : `Upgrade to ${esc(p.name)}`}</button>
+          <button class="btn btn--block ${p.id !== 'free' ? 'btn--gold' : ''}" data-plan="${p.id}" ${p.id === current ? 'disabled' : ''}>${p.id === current ? 'Your plan' : p.price < (state.plans.find((x) => x.id === current) || { price: 0 }).price ? `Switch to ${esc(p.name)}` : `Upgrade to ${esc(p.name)}`}</button>
           <ul class="plan__list">${lines[p.id].map((l) => `<li>${ICON.check}<span>${esc(l)}</span></li>`).join('')}</ul>
         </article>`).join('')}
       </div>`;

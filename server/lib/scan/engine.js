@@ -153,7 +153,8 @@ async function coreScan(p, { research: wanted, budgetMs }) {
   const key = `${feeds.revision()}|${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}`;
   const cached = cacheGet(key);
   if (cached) return cached;
-  if (coreInflight.has(key)) return coreInflight.get(key);
+  const flightKey = budgetMs ? `${key}|b` : key;
+  if (coreInflight.has(flightKey)) return coreInflight.get(flightKey);
 
   const job = (async () => {
     const know = await knowledge.lookup(p);
@@ -237,17 +238,17 @@ async function coreScan(p, { research: wanted, budgetMs }) {
       checks
     };
     const facts = ctx.research;
-    const complete = !facts || (facts.registration.reason !== 'not answered in time' &&
+    const complete = !facts || (facts.registration.reason !== 'not answered in time' && !facts.dns.unavailable &&
       (facts.lite || (facts.http.ok && facts.http.status >= 200 && facts.http.status < 300 && !facts.http.truncated)));
     if (complete) cacheSet(key, result);
     return result;
   })();
 
-  coreInflight.set(key, job);
+  coreInflight.set(flightKey, job);
   try {
     return await job;
   } finally {
-    coreInflight.delete(key);
+    coreInflight.delete(flightKey);
   }
 }
 
@@ -265,8 +266,8 @@ function summarizeResearch(r) {
     domainAgeDays: reg.createdAt ? Math.floor((now() - reg.createdAt) / 86400000) : null,
     registeredAt: reg.createdAt || null,
     registrar: reg.registrar || null,
-    resolves: r.dns ? r.dns.resolves : null,
-    hasMail: r.dns ? r.dns.mx : null,
+    resolves: r.dns && !r.dns.unavailable ? r.dns.resolves : null,
+    hasMail: r.dns && !r.dns.unavailable ? r.dns.mx : null,
     reachable: Boolean(http.ok),
     status: http.status || null,
     finalUrl: http.finalUrl || null,

@@ -43,7 +43,7 @@ async function restart() {
   if (!opts.getToken()) return setState(false, 'Sign in to turn on download protection');
   try {
     const me = await api('/api/v1/auth/me');
-    if (!me.plan.features.liveScanning) return setState(false, 'Download protection needs Pro or Max');
+    if (!me.plan.features.liveScanning) return setState(false, 'Download protection is part of Pro, Max and Ultimate');
   } catch (err) {
     if (err.status === 401) return setState(false, 'Sign in to turn on download protection');
     // "Will retry" has to be true: a scanner that is still starting answers a minute later.
@@ -172,13 +172,22 @@ function summarize(report, known) {
   };
 }
 
+/** Move a file, also across drives: a rename cannot leave its drive (EXDEV), so the file is copied and then removed. */
+function moveFile(from, to) {
+  try { fs.renameSync(from, to); } catch (err) {
+    if (err.code !== 'EXDEV') throw err;
+    fs.copyFileSync(from, to);
+    try { fs.unlinkSync(from); } catch (e) { try { fs.unlinkSync(to); } catch { /* keep going */ } throw e; }
+  }
+}
+
 function quarantine(id) {
   const item = recent.find((r) => r.id === id);
   if (!item) throw new Error('That file is no longer in the recent list');
   if (!item.badge) throw new Error('Only flagged files can be quarantined');
   fs.mkdirSync(opts.quarantineDir, { recursive: true });
   const target = path.join(opts.quarantineDir, `${Date.now()}-${path.basename(item.path)}.quarantined`);
-  fs.renameSync(item.path, target);
+  moveFile(item.path, target);
   item.quarantined = target;
   return { ok: true, movedTo: target };
 }

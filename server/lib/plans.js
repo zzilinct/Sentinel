@@ -165,7 +165,9 @@ function trackLive(user, wanted) {
   // Clients from before there were two modes ask for nothing: give them the best their plan has.
   let mode = wanted === 'fast' || wanted === 'delicate' ? wanted : (plan.features.liveScanning ? 'delicate' : 'fast');
   let fellBack = null;
-  if (mode === 'delicate' && !hasTime(user, plan, 'delicate') && hasTime(user, plan, 'fast')) {
+  // A plan without delicate carries on as fast even once its fast time is gone, so it hears "used up" (429), not
+  // "not in your plan" (403), which would switch live scanning off for good.
+  if (mode === 'delicate' && plan.features.liveFast && (!plan.features.liveScanning || (!hasTime(user, plan, 'delicate') && hasTime(user, plan, 'fast')))) {
     fellBack = plan.features.liveScanning ? 'delicate_hours_used' : 'delicate_needs_pro';
     mode = 'fast';
   }

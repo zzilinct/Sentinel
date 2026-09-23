@@ -627,6 +627,7 @@ const INFRA_CHECKS = [
   { id: 'R05', group: 'Network', threat: 'scam', title: 'Domain resolves to a server', research: true,
     run: (ctx) => {
       const r = needsResearch(ctx); if (r) return r;
+      if (ctx.research.dns.unavailable) return skip('DNS did not answer in time');
       return ctx.research.dns.resolves ? pass(`Resolves to ${ctx.research.dns.addresses[0]}`) : warn(10, 'Does not resolve - possibly taken down after abuse reports');
     } },
 
@@ -641,6 +642,7 @@ const INFRA_CHECKS = [
       const r = needsResearch(ctx); if (r) return r;
       const brandish = ctx.brand.inDomain || ctx.brand.lookalike;
       if (!brandish) return skip('Only checked for brand-style domains');
+      if (ctx.research.dns.unavailable) return skip('DNS did not answer in time');
       return ctx.research.dns.mx ? pass('Has mail servers') : warn(6, 'No mail servers - a real company domain would have them');
     } },
 

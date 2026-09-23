@@ -297,7 +297,12 @@ function refreshInBackground(options = {}) {
     w.once('message', (msg) => { resolve(msg); w.terminate().catch(() => {}); });
     w.once('error', (err) => resolve({ ok: false, error: String(err && err.message || err) }));
     w.once('exit', () => resolve({ ok: false, error: 'stopped' }));
-  }).finally(() => { revision++; worker = null; });
+  }).then((msg) => {
+    // A refresh that loaded nothing new (every feed failed, or none was due) leaves cached results valid.
+    const unchanged = msg && msg.ok && (msg.results || []).every((r) => !r.ok);
+    if (!unchanged) revision++;
+    return msg;
+  }).finally(() => { worker = null; });
   return worker;
 }
 

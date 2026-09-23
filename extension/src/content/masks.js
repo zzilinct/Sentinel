@@ -46,15 +46,6 @@
     return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" ' + extra + '>' + (GLYPHS[threat] || GLYPHS.scam) + '</svg>';
   }
 
-  /** Fill every [data-glyph] element under `scope` (no-op once painted). */
-  function paint(scope) {
-    var root = scope || document;
-    var nodes = root.querySelectorAll('[data-glyph]');
-    for (var i = 0; i < nodes.length; i++) {
-      if (!nodes[i].firstElementChild) nodes[i].innerHTML = svg(nodes[i].dataset.glyph);
-    }
-  }
-
   /* ------------------------------------------------------------- kinds */
 
   // One line icon per threat kind, so a result reads at a glance without the
@@ -98,5 +89,5 @@
     return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" ' + (attrs || '') + '>' + KIND_GLYPHS[kind] + '</svg>';
   }
 
-  root.SentinelMasks = { svg: svg, paint: paint, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES };
+  root.SentinelMasks = { svg: svg, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

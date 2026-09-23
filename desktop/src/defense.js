@@ -298,7 +298,7 @@ Get-ScheduledTask | ForEach-Object {
       try {
         fs.mkdirSync(opts.quarantineDir, { recursive: true });
         const target = path.join(opts.quarantineDir, `${Date.now()}-${item.name}.quarantined`);
-        fs.renameSync(item.path, target);
+        moveFile(item.path, target);
         fs.writeFileSync(`${target}.json`, JSON.stringify({ from: item.path, sha256: item.sha256, label: item.label, at: Date.now() }, null, 2));
         moved = target;
       } catch (err) {
@@ -316,7 +316,7 @@ Get-ScheduledTask | ForEach-Object {
     try {
       fs.mkdirSync(opts.quarantineDir, { recursive: true });
       const target = path.join(opts.quarantineDir, `${Date.now()}-${item.name}.quarantined`);
-      fs.renameSync(item.path, target);
+      moveFile(item.path, target);
       fs.writeFileSync(`${target}.json`, JSON.stringify({ from: item.path, sha256: item.sha256, label: item.label, at: Date.now() }, null, 2));
       item.quarantined = target;
       quarantined = true;
@@ -331,7 +331,7 @@ Get-ScheduledTask | ForEach-Object {
 
   // A running program can be renamed on Windows, so the early move may have
   // succeeded while it still runs: end it by either path.
-  const finalScript = script.replace("'__MOVED__'", psq(item.quarantined || ''));
+  const finalScript = script.replace("'__MOVED__'", () => psq(item.quarantined || ''));
 
   let finished = false;
   await new Promise((resolve) => {
@@ -464,13 +464,22 @@ function firstPath(cmd) {
   return p ? p.replace(/%([^%]+)%/g, (x, n) => process.env[n] || x) : null;
 }
 
+/** Move a file, also across drives: a rename cannot leave its drive (EXDEV), so the file is copied and then removed. */
+function moveFile(from, to) {
+  try { fs.renameSync(from, to); } catch (err) {
+    if (err.code !== 'EXDEV') throw err;
+    fs.copyFileSync(from, to);
+    try { fs.unlinkSync(from); } catch (e) { try { fs.unlinkSync(to); } catch { /* keep going */ } throw e; }
+  }
+}
+
 /** Put a quarantined file back where it was, and the startup entries that were removed with it. */
 async function restore(id) {
   const entry = ledger.find((e) => e.id === id && !e.restored && (e.quarantined || (e.actions || []).some((a) => a.undo)));
   if (!entry) throw new Error('Nothing to restore');
   if (entry.quarantined) {
     fs.mkdirSync(path.dirname(entry.path), { recursive: true });
-    fs.renameSync(entry.quarantined, entry.path);
+    moveFile(entry.quarantined, entry.path);
     try { fs.unlinkSync(`${entry.quarantined}.json`); } catch { /* fine */ }
   }
   for (const a of entry.actions || []) {

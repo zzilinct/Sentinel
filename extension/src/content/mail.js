@@ -1,5 +1,5 @@
 /**
- * Sentinel Companion - email protection (Pro and Max).
+ * Sentinel Companion - email protection (Pro and up).
  *
  * Marks inbox rows and open messages in Gmail and Outlook on the web with the
  * scam, virus and malware masks. Only what the mail client already shows is

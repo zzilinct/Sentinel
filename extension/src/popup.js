@@ -96,33 +96,43 @@
       <p class="small" style="margin:10px 0 12px">${researched} &middot; ${v.checklist.total} checks</p>`;
   }
 
+  /** "1.5 of 4 hours" or "12 of 15 minutes": short allowances read better in minutes. */
+  function timeLeftText(used, limit) {
+    if (limit === null) return 'No weekly limit';
+    if (limit < 60) return `${Math.max(0, limit - used)} of ${limit} minutes left`;
+    const hoursLeft = Math.max(0, (limit - used) / 60);
+    return `${hoursLeft.toFixed(hoursLeft < 10 ? 1 : 0)} of ${limit / 60} hours left`;
+  }
+
   function liveCard(site) {
     const f = state.account.plan.features;
-    if (!f.liveScanning) {
+    if (!f.liveScanning && !f.liveFast) {
       return `
         <div class="card">
           <div class="label">Live protection</div>
           <div class="lock">${LOCK}<div>
-            <p>Masks on every search result and email come with <b>Pro</b> (24 hours a week) and <b>Max</b> (96 hours, with research).</p>
+            <p>Live masks on search results come with every plan: <b>15 minutes</b> a week on Free, <b>24 hours</b> on Pro and no limit from Max. Delicate scanning, which researches each result, starts at Pro.</p>
             <a class="btn gold" href="${esc(site)}/pricing" target="_blank" rel="noopener">See plans</a>
           </div></div>
         </div>`;
     }
-    const used = state.live.usedMinutes || 0;
-    const limit = state.live.limitMinutes || state.account.plan.limits.liveMinutes;
-    const hoursLeft = Math.max(0, (limit - used) / 60);
+    // Plans with delicate scanning show its allowance; Free shows its fast minutes.
+    const limits = state.account.plan.limits;
+    const used = (f.liveScanning ? state.live.usedMinutes : state.live.fastUsedMinutes) || 0;
+    const known = f.liveScanning ? state.live.limitMinutes : state.live.fastLimitMinutes;
+    const limit = known !== undefined && known !== 0 ? known : (f.liveScanning ? limits.liveMinutes : limits.fastMinutes);
     const paused = state.locked === 'hours';
     const reset = new Date(state.live.resetsAt || state.account.week.resetsAt);
     return `
       <div class="card">
         <div class="row"><div class="label" style="margin:0">Live protection</div>
           <span class="small" style="color:${paused ? 'var(--orange)' : 'var(--green)'}">${paused ? 'Paused' : state.settings.enabled ? 'On' : 'Off'}</span></div>
-        <div class="meter"><i style="width:${Math.min(100, (used / limit) * 100)}%"></i></div>
+        <div class="meter"><i style="--p:${limit ? Math.min(100, (used / limit) * 100) : 0}"></i></div>
         <div class="row small">
-          <span>${hoursLeft.toFixed(hoursLeft < 10 ? 1 : 0)} of ${limit / 60} hours left</span>
+          <span>${f.liveScanning ? 'Delicate: ' : ''}${timeLeftText(used, limit)}</span>
           <span>Resets ${reset.toLocaleDateString(undefined, { weekday: 'short' })}</span>
         </div>
-        <p class="small" style="margin:8px 0 0">${f.liveResearch ? 'Every result is researched.' : 'Results are checked instantly; research is included with Max.'}${f.emailLive && state.settings.emailProtection ? ' Email protection is on.' : ''}</p>
+        <p class="small" style="margin:8px 0 0">${f.liveResearch ? 'Delicate scanning researches every result.' : 'Results are checked instantly. Delicate scanning, which researches each result, comes with Pro.'}${f.emailLive && state.settings.emailProtection ? ' Email protection is on.' : ''}</p>
       </div>`;
   }
 

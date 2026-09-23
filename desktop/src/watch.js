@@ -253,7 +253,7 @@ let child = null;
 let opts = null;
 let state = { active: false, reason: 'Starting', supported: process.platform === 'win32', current: null, window: null, counts: { checked: 0, flagged: 0 } };
 const warned = new Map();
-const verdicts = new Map();   // url -> { at, mark }
+const verdicts = new Map();   // url -> { at, fast, mark }
 let settleTimer = null;
 let restartTimer = null;
 let latestLinks = null;       // the last list of on-screen links, so late verdicts land where the links are now
@@ -311,8 +311,10 @@ async function restart() {
   if (!opts.getToken()) return setState(false, 'Sign in to start live scanning');
   try {
     const me = await opts.api('/api/v1/auth/me');
+    if (mine !== generation) return;
     if (!me.plan.features.liveScanning && !me.plan.features.liveFast) return setState(false, 'Live scanning is not part of this plan');
   } catch (err) {
+    if (mine !== generation) return;
     if (err.status === 401) return setState(false, 'Sign in to start live scanning');
     // "Will retry" has to be true: a scanner that is still starting answers a minute later.
     restartTimer = setTimeout(() => restart(), 30000);
@@ -326,7 +328,7 @@ function start() {
   const testProcess = opts.testProcess && /^[a-z]{2,20}$/.test(opts.testProcess) ? opts.testProcess : '';
   if (testProcess) log(`TEST MODE: reading ${testProcess} wherever it is, not the window in front`);
   const helper = opts.helperDll ? String(opts.helperDll).replace(/'/g, "''") : '';
-  const encoded = Buffer.from(SCRIPT.replace('__TEST_PROCESS__', testProcess).replace('__HELPER_DLL__', helper), 'utf16le').toString('base64');
+  const encoded = Buffer.from(SCRIPT.replace('__TEST_PROCESS__', () => testProcess).replace('__HELPER_DLL__', () => helper), 'utf16le').toString('base64');
   try {
     child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded],
       { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -339,6 +341,11 @@ function start() {
   log('reader started');
   const mine = child;
   let errText = '';
+  child.on('error', (err) => {
+    if (child !== mine) return;
+    log(`reader failed: ${err.message}`);
+  });
+  child.stdin.on('error', () => { /* the reader exited; its exit handler takes it from here */ });
   child.stderr.on('data', (c) => { if (errText.length < 600) { errText += c.toString('utf8'); } });
   let buf = '';
   child.stdout.on('data', (chunk) => {
@@ -435,13 +442,14 @@ async function check(page) {
     // Refused, not a hiccup: stop reading the browser altogether. A reader left running would keep asking, and the
     // gold mask would keep saying "scanning" while nothing is checked.
     if (err.status === 401) stop('Sign in to start live scanning');
-    else if (err.status === 403) stop('Live scanning needs Pro or above');
+    else if (err.status === 403) stop('Live scanning is not part of this plan');
     else if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
     return;
   }
   const badge = (verdict && verdict.overall && verdict.overall.badge) || null;
   const label = verdict && verdict.overall ? verdict.overall.label : 'Checked';
-  if (opts.onVerdict) opts.onVerdict({ page, badge, label, kind: worstKind(verdict) });
+  const stillThere = Boolean(state.current) && state.current.at === page.at;
+  if (opts.onVerdict && stillThere) opts.onVerdict({ page, badge, label, kind: worstKind(verdict) });
   count(page.private, badge);
   if (opts.onChecked && !page.private) opts.onChecked({ browser: page.browser, url: page.url, host, badge, label, at: Date.now() });
   if (badge !== 'red' && badge !== 'orange') return;
@@ -507,7 +515,10 @@ function resultLinks(links, pageUrl) {
 
 function markFor(url) {
   const hit = verdicts.get(url);
-  return hit && Date.now() - hit.at < VERDICT_TTL_MS ? hit.mark : null;
+  if (!hit || Date.now() - hit.at >= VERDICT_TTL_MS) return null;
+  // Delicate that fell back to fast (used up, or not in the plan) takes fast answers; otherwise they are asked again.
+  if (hit.fast && currentMode() === 'delicate' && !state.fellBack) return null;
+  return hit.mark;
 }
 
 function publishMarks() {
@@ -534,13 +545,13 @@ async function onLinks(msg) {
   const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
   if (!missing.length) return;
   missing.forEach((u) => pending.add(u));
-  const store = (byUrl, final) => {
+  const store = (byUrl, final, fast) => {
     for (const u of missing) {
       const v = byUrl && byUrl[u];
       if (!v) continue;
       const badge = (v.overall && v.overall.badge) || null;
       const first = v.reasons && v.reasons[0];
-      verdicts.set(u, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      verdicts.set(u, { at: Date.now(), fast, mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
       if (final) count(page.private, badge);
     }
   };
@@ -551,14 +562,14 @@ async function onLinks(msg) {
     // the researched answer replaces it when it lands. Nobody waits five seconds for a mark.
     if (mode === 'delicate' && !page.private) {
       const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true });
-      store(quick.byUrl, false);
+      store(quick.byUrl, false, false);   // shown until the researched answer replaces it
       publishMarks();
       log(`results marked: ${missing.length} in ${Date.now() - started} ms (quick pass)`);
     }
     const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode });
     noteMode(answer);
     if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
-    store(byUrl, true);
+    store(byUrl, true, (answer.mode || mode) !== 'delicate');
     if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
   } catch (err) {
     log(`results check failed: ${err.status || ''} ${err.code || err.message}`);

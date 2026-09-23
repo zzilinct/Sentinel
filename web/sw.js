@@ -35,7 +35,8 @@ self.addEventListener('fetch', (event) => {
 
   if (/\.(woff2|png|svg|jpg|webp)$/.test(url.pathname)) {
     event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      if (res.ok) caches.open(VERSION).then((c) => c.put(req, res.clone()));
+      // Clone now: by the time caches.open resolves, the page may have read the body.
+      if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
       return res;
     })));
     return;

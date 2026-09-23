@@ -195,3 +195,28 @@ test('password change signs out every other session', async () => {
   assert.equal(old.status, 401);
   assert.equal((await c.get('/api/v1/auth/me')).status, 200, 'the session that changed the password stays signed in');
 });
+
+test('the lock resets the count: after it runs out, one more typo does not lock the account again', async () => {
+  const { db } = require('../server/lib/auth');
+  const c = await signedIn();
+  await c.post('/api/v1/auth/logout', {});
+  for (let i = 0; i < 9; i++) await client(app.base).post('/api/v1/auth/login', { email: c.email, password: `wrong-${i}` });
+  db.prepare('UPDATE users SET locked_until = 0 WHERE email = ?').run(c.email);   // the fifteen minutes pass
+  const typo = await client(app.base).post('/api/v1/auth/login', { email: c.email, password: 'Correct-Horse-41' });
+  assert.equal(typo.status, 401, 'a single wrong try after the lock is a plain "incorrect", not another lock');
+});
+
+test('sign-in only returns to a path on this site: tab, newline and backslash tricks go to /app', () => {
+  const { safeNext } = require('../server/lib/auth');
+  assert.equal(safeNext('/app/scan?url=x#y'), '/app/scan?url=x#y');
+  for (const bad of ['//evil.com', '/\\evil.com', '/\t/evil.com', '/\n/evil.com', '/\r//evil.com', 'https://evil.com', 'evil.com', '', null]) {
+    assert.equal(safeNext(bad), '/app', JSON.stringify(bad));
+  }
+});
+
+test('a typed host with a port is a web address, not a scheme', () => {
+  const { typedUrl } = require('../server/lib/scan/url');
+  assert.equal(typedUrl('example.com:8443/login'), 'https://example.com:8443/login');
+  assert.equal(typedUrl('localhost:3000'), 'https://localhost:3000');
+  assert.equal(typedUrl('mailto:a@b.co'), 'mailto:a@b.co');
+});

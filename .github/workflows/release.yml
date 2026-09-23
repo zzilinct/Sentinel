@@ -2,7 +2,9 @@
 # as a GitHub Release. GitHub's own token does the upload, so no personal
 # credentials are involved.
 #
-# To ship a version:   git tag v1.2.0 && git push origin v1.2.0
+# To ship a version:   set "version" in package.json and desktop/package.json,
+#                      then git tag v1.2.0 && git push origin v1.2.0
+# A tag that does not match both versions fails before anything is built.
 #
 # The website's download button points at the stable asset names below, so
 # it always serves the newest release without being edited.
@@ -11,7 +13,6 @@ name: Release
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,6 +22,21 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      # The installer and latest.yml take their version from desktop/package.json and the server reports
+      # package.json, so a tag that disagrees with either would publish a release labelled wrongly.
+      - name: Check the tag matches both package.json versions
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          root="$(node -p "require('./package.json').version")"
+          desktop="$(node -p "require('./desktop/package.json').version")"
+          echo "tag $tag, package.json $root, desktop/package.json $desktop"
+          if [ "$tag" != "$root" ] || [ "$tag" != "$desktop" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json ($root) and desktop/package.json ($desktop)."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

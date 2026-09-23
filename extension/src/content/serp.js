@@ -2,8 +2,8 @@
  * Sentinel Companion - search results.
  *
  * Adds up to three masks after each risky result title: scam, virus, malware,
- * each coloured by severity. Safe results are left untouched. On Max, masks
- * appear from the checklist first and are upgraded when research completes.
+ * each coloured by severity. Safe results are left untouched. With delicate
+ * scanning (Pro and up), masks appear from the checklist first and are upgraded when research completes.
  */
 (() => {
   'use strict';
@@ -364,7 +364,7 @@
       if (quick.locked) { queue = []; locked = true; return; }
       apply(quick.verdicts);
       for (const v of Object.values(quick.verdicts || {})) { if (v && v.ok) { checked++; if (v.overall && v.overall.badge) flagged++; } }
-      // Max: follow up with researched verdicts, which may raise or clear masks.
+      // Delicate scanning (Pro and up): follow up with researched verdicts, which may raise or clear masks.
       send({ type: 'live-batch', urls, phase: 'research' }).then((r) => { if (r.ok && !r.locked) apply(r.verdicts); });
     } finally {
       if (show) scanFinished(checked, flagged, locked);

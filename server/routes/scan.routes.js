@@ -166,10 +166,11 @@ function register(router) {
   router.post('/api/v1/live/batch', async (req, res) => {
     const user = A.requireUser(req);
     const body = await readJson(req);
-    const { plan, mode, fellBack } = plans.trackLive(user, body.mode);
     const urls = Array.isArray(body.urls) ? body.urls.map(String).filter((u) => u.length < 4096).slice(0, 60) : [];
     if (!urls.length) throw new HttpError(400, 'missing_urls', 'Provide urls: string[]');
     security.rateLimit(`live:${user.id}`, 240, 60 * 1000);
+    // Only a request that will be answered counts as a minute of live scanning.
+    const { plan, mode, fellBack } = plans.trackLive(user, body.mode);
 
     // A private window is protected like any other, and nothing about it is kept: flagged results normally go
     // into the person's history, these do not. Nor are its addresses sent to a registry: it gets the fast checks.
@@ -189,10 +190,10 @@ function register(router) {
   router.post('/api/v1/live/visit', async (req, res) => {
     const user = A.requireUser(req);
     const body = await readJson(req);
-    const { plan, mode, fellBack } = plans.trackLive(user, body.mode);
     const { url } = body;
     if (!url || !analyze(String(url))) throw new HttpError(400, 'bad_url', 'Not a web address');
     security.rateLimit(`visit:${user.id}`, 120, 60 * 1000);
+    const { plan, mode, fellBack } = plans.trackLive(user, body.mode);
     const research = mode === 'delicate' && plan.features.liveResearch && body.private !== true;
     const verdict = await engine.scanUrl(String(url), {
       userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact'
@@ -202,10 +203,11 @@ function register(router) {
 
   router.post('/api/v1/live/email', async (req, res) => {
     const user = A.requireUser(req);
-    const { plan } = plans.trackLive(user);
-    if (!plan.features.emailLive) throw new HttpError(403, 'plan_required', 'Email protection is part of Sentinel Pro, Max and Ultimate.', { needs: 'pro' });
+    if (!plans.planFor(user).features.emailLive) throw new HttpError(403, 'plan_required', 'Email protection is part of Sentinel Pro, Max and Ultimate.', { needs: 'pro' });
     security.rateLimit(`live-email:${user.id}`, 120, 60 * 1000);
     const body = await readJson(req, 512 * 1024);
+    // Inbox rows get the quick checks (no research), so they count against fast time, never delicate hours.
+    const { plan } = plans.trackLive(user, 'fast');
     const list = Array.isArray(body.emails) ? body.emails.slice(0, 50) : [body];
     const results = [];
     for (const item of list) {

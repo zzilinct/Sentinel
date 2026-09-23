@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - 'web/**'
+      - 'server/**'
       - 'brand.json'
       - 'scripts/build-static.js'
       - '.github/workflows/pages.yml'
@@ -31,6 +32,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      # Nothing is published unless the suite passes (the demo verdicts come from server/).
+      - run: npm test
       # Resolved first so the build can use the real published URL.
       - uses: actions/configure-pages@v5
         id: pages

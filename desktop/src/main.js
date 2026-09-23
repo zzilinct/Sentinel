@@ -229,13 +229,15 @@ function showError(message) {
   ORIGIN = null;
   // Try again without being asked: 15 s, 30 s, 60 s, then every two minutes.
   const wait = [15, 30, 60][retryCount] || 120;
+  const first = retryCount === 0;
   retryCount++;
   clearTimeout(retryTimer);
   retryTimer = setTimeout(() => boot(), wait * 1000);
   if (!win) createWindow();
   win.loadFile(path.join(__dirname, 'pages', 'error.html'), { query: { message, log: server.logPath(), retryIn: String(wait) } });
-  // A start that fails while Sentinel is tucked away in the tray should not jump in front of the person.
-  if (!process.argv.includes('--hidden') || win.isVisible()) win.show();
+  // A start that fails while Sentinel is tucked away in the tray should not jump in front of the person, and neither
+  // should each retry: the window is shown once, for the first failure of a start the person asked for.
+  if (first && !win.isVisible() && !process.argv.includes('--hidden')) win.show();
 }
 
 /** A small always-on-top warning for a dangerous page open in a browser. */
@@ -256,12 +258,13 @@ function showWarning(item) {
       webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false }
     });
     warnWin.on('closed', () => { warnWin = null; });
-    warnWin.once('ready-to-show', () => { if (warnWin) { warnWin.show(); warnWin.focus(); } });
+    // On top, but without taking the keyboard: whatever the person is typing does not land in the warning.
+    warnWin.once('ready-to-show', () => { if (warnWin) warnWin.showInactive(); });
     warnWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     warnWin.webContents.on('will-navigate', (e) => e.preventDefault());
   }
   warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
-  if (warnWin.isVisible()) warnWin.focus();
+  if (warnWin.isVisible()) warnWin.moveTop();
 }
 
 /* --------------------------------------------------------------- tray */

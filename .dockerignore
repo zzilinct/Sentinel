@@ -8,3 +8,4 @@ data
 .claude
 .env
 *.md
+web/downloads

@@ -1,12 +1,13 @@
 /**
  * Sentinel Companion - service worker.
  *
- * Live protection for Pro and Max: masks search results, checks pages as they
- * load and marks emails. The server enforces plans and weekly live hours; this
- * worker mirrors that state so the UI can explain what's happening.
+ * Live protection: masks search results, checks pages as they load and marks
+ * emails. Every plan has fast live scanning (Free has 15 minutes a week); the
+ * server enforces plans and weekly live hours, and this worker mirrors that
+ * state so the UI can explain what's happening.
  *
- * Max results get a second, researched pass: masks appear instantly from the
- * checklist, then upgrade once research finishes.
+ * Plans with delicate scanning (Pro and up) get a second, researched pass: masks
+ * appear instantly from the checklist, then upgrade once research finishes.
  */
 import { ext, apiFetch, getSettings, setToken, siteUrl, COLORS, ApiError } from './lib/api.js';
 
@@ -31,17 +32,30 @@ function cacheSet(phase, url, verdict) {
 }
 
 const features = () => (account.plan && account.plan.features) || {};
+/** Fast live scanning is on every plan; delicate (liveScanning) from Pro up. */
+const hasLive = () => Boolean(features().liveScanning || features().liveFast);
 
 function liveBlockReason() {
   if (!account.signedIn) return 'signed_out';
-  if (!features().liveScanning) return 'plan';
+  if (!hasLive()) return 'plan';
   if (live.paused === 'hours' && Date.now() < live.resetsAt) return 'hours';
   return null;
 }
 
+/** A null limit is uncapped; a limit of 0 means the mode is not in the plan. */
+const timeLeft = (used, limit) => limit === null || (typeof limit === 'number' && (used || 0) < limit);
+
 function noteLive(info) {
   if (!info) return;
-  live = { ...live, usedMinutes: info.usedMinutes, limitMinutes: info.limitMinutes, resetsAt: info.resetsAt, paused: info.usedMinutes >= info.limitMinutes ? 'hours' : null };
+  const fast = info.fast || null;
+  // When delicate runs out the server falls back to fast, so live is only paused once both are used up.
+  const left = timeLeft(info.usedMinutes, info.limitMinutes) || Boolean(fast && timeLeft(fast.usedMinutes, fast.limitMinutes));
+  live = {
+    ...live,
+    usedMinutes: info.usedMinutes, limitMinutes: info.limitMinutes,
+    fastUsedMinutes: fast ? fast.usedMinutes : 0, fastLimitMinutes: fast ? fast.limitMinutes : 0,
+    resetsAt: info.resetsAt, paused: left ? null : 'hours'
+  };
   ext.storage.local.set({ live });
 }
 
@@ -83,7 +97,12 @@ async function refreshAccount(force = false) {
   try {
     const data = await apiFetch('/api/v1/auth/me');
     account = { signedIn: true, user: data.user, plan: data.plan, usage: data.usage, week: data.week, checkedAt: Date.now() };
-    noteLive({ usedMinutes: data.usage.liveMinutes.used, limitMinutes: data.usage.liveMinutes.limit, resetsAt: data.week.resetsAt });
+    const fast = data.usage.fastMinutes;
+    noteLive({
+      usedMinutes: data.usage.liveMinutes.used, limitMinutes: data.usage.liveMinutes.limit,
+      fast: fast ? { usedMinutes: fast.used, limitMinutes: fast.limit } : null,
+      resetsAt: data.week.resetsAt
+    });
   } catch (err) {
     if (err.status === 401) account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() };
   }
@@ -92,7 +111,7 @@ async function refreshAccount(force = false) {
 }
 
 async function syncIntel() {
-  if (!features().liveScanning) return;
+  if (!hasLive()) return;
   try {
     const data = await apiFetch('/api/v1/intel');
     intel = { hosts: new Map(data.blocklist.map((r) => [r.host, r.threat])), at: Date.now() };
@@ -125,7 +144,10 @@ async function liveBatch(urls, phase) {
   }
   if (pending.length) {
     try {
-      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, research: phase === 'research' }, timeout: phase === 'research' ? 90000 : 20000 });
+      // Plans without delicate ask for fast outright: once Free's fast minutes are used up, a
+      // delicate request would come back as plan_required instead of live_hours_exhausted.
+      const mode = features().liveScanning ? 'delicate' : 'fast';
+      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research' }, timeout: phase === 'research' ? 90000 : 20000 });
       noteLive(data.live);
       for (const [url, verdict] of Object.entries(data.byUrl)) {
         out[url] = verdict;

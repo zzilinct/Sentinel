@@ -128,6 +128,9 @@ const DNS_CACHE_MS = 30_000;
 const dnsCache = new Map();
 const dnsInflight = new Map();
 
+// A lookup that failed for a reason other than "no such record" (timeout, no network): unknown, never cached.
+const DNS_FAILED = Symbol('dns failed');
+
 async function dnsRecord(method, host) {
   const key = `${method}:${host}`;
   const cached = dnsCache.get(key);
@@ -137,7 +140,7 @@ async function dnsRecord(method, host) {
     dnsCache.set(key, { value, at: now() });
     if (dnsCache.size > 5000) dnsCache.delete(dnsCache.keys().next().value);
     return value;
-  }, () => null);
+  }, (err) => (err && (err.code === 'ENOTFOUND' || err.code === 'ENODATA') ? null : DNS_FAILED));
   dnsInflight.set(key, job);
   try {
     return await job;
@@ -154,15 +157,20 @@ async function dnsFacts(host, registrable) {
     dnsRecord('resolveMx', registrable),
     dnsRecord('resolveNs', registrable)
   ]);
-  const addresses = [...(v4 || []), ...(v6 || [])];
+  if (v4 === DNS_FAILED && v6 === DNS_FAILED) return { ...DNS_UNKNOWN };
+  const list = (v) => (Array.isArray(v) ? v : []);
+  const addresses = [...list(v4), ...list(v6)];
   return {
     resolves: addresses.length > 0,
     addresses: addresses.slice(0, 6),
     privateAddress: addresses.some((a) => !isPublicAddress(a)),
-    mx: Boolean(mx && mx.length),
-    nameservers: (ns || []).slice(0, 4)
+    mx: Boolean(list(mx).length),
+    nameservers: list(ns).slice(0, 4)
   };
 }
+
+/** What is reported when DNS did not answer: the checks that read it stand aside instead of guessing. */
+const DNS_UNKNOWN = { unavailable: true, resolves: true, addresses: [], privateAddress: false, mx: true, nameservers: [] };
 
 /* ------------------------------------------------------------ page fetch */
 
@@ -224,18 +232,20 @@ async function research(p, { lite = false, budgetMs = 0 } = {}) {
   if (cached && now() - cached.checked_at < CACHE_MS && !p.ext) {
     return { ...JSON.parse(cached.payload), cached: true };
   }
-  if (inflight.has(key)) return inflight.get(key);
+  // A live scan (with a budget) never joins a full scan's job, which may take far longer than it promised.
+  const flightKey = budgetMs ? `${key}|b` : key;
+  if (inflight.has(flightKey)) return inflight.get(flightKey);
 
   const job = (async () => {
     const [registration, dnsInfo, http] = await Promise.all([
       p.isIp ? Promise.resolve({ available: false, reason: 'ip_address' }) : within(rdap(p.registrable), budgetMs, { available: false, reason: 'not answered in time' }),
-      p.isIp ? Promise.resolve({ resolves: true, addresses: [p.host], privateAddress: !isPublicAddress(p.host.replace(/^\[|\]$/g, '')), mx: false, nameservers: [] }) : dnsFacts(p.host, p.registrable),
+      p.isIp ? Promise.resolve({ resolves: true, addresses: [p.host], privateAddress: !isPublicAddress(p.host.replace(/^\[|\]$/g, '')), mx: false, nameservers: [] }) : within(dnsFacts(p.host, p.registrable), budgetMs, { ...DNS_UNKNOWN }),
       lite ? Promise.resolve({ ok: false, error: 'the page is not opened during live scanning on this computer', chain: [], tls: null, disposition: '', contentType: '' }) : within(fetchPage(p.url), budgetMs, { ok: false, error: 'not answered in time', chain: [], tls: null, disposition: '', contentType: '' })
     ]);
 
     const facts = { performed: true, lite, checkedAt: now(), registration, dns: dnsInfo, http };
     // A lookup that ran out of time is not a fact about the site: do not remember it for a day.
-    if (registration.reason === 'not answered in time' || http.error === 'not answered in time') return facts;
+    if (registration.reason === 'not answered in time' || http.error === 'not answered in time' || dnsInfo.unavailable) return facts;
     const { download, ...cacheable } = http;
     // Downloads must be fetched again so a cache hit cannot skip their hash scan.
     // Failed and partial responses must not become twelve-hour clean results either.
@@ -245,11 +255,11 @@ async function research(p, { lite = false, budgetMs = 0 } = {}) {
     return facts;
   })();
 
-  inflight.set(key, job);
+  inflight.set(flightKey, job);
   try {
     return await job;
   } finally {
-    inflight.delete(key);
+    inflight.delete(flightKey);
   }
 }
 

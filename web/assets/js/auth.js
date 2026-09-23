@@ -12,7 +12,13 @@
 
   const next = () => {
     const n = params.get('next') || '';
-    if (n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\')) return n;
+    // Same rule as the server's safeNext: a path on this site, with no tab, newline or backslash tricks.
+    if (n.startsWith('/') && !/[\u0000-\u001f\u007f\\]/.test(n)) {
+      try {
+        const u = new URL(n, location.origin);
+        if (u.origin === location.origin) return u.pathname + u.search + u.hash;
+      } catch { /* not a path */ }
+    }
     return params.get('plan') ? '/app/plan' : '/app';
   };
 

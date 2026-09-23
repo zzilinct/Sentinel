@@ -1,7 +1,7 @@
 <div class="finder" data-finder data-reveal>
   <div class="finder__q">
     <span class="finder__label">Masks while you browse and read email?</span>
-    <div class="seg" role="radiogroup" aria-label="Live protection">
+    <div class="seg-toggle" role="radiogroup" aria-label="Live protection">
       <button type="button" role="radio" aria-checked="false" data-f-live="no">Not needed</button>
       <button type="button" role="radio" aria-checked="true" data-f-live="yes">Yes please</button>
     </div>
@@ -12,7 +12,7 @@
   </div>
   <div class="finder__q">
     <span class="finder__label">Paste suspicious emails in for a check?</span>
-    <div class="seg" role="radiogroup" aria-label="Email scans">
+    <div class="seg-toggle" role="radiogroup" aria-label="Email scans">
       <button type="button" role="radio" aria-checked="true" data-f-email="no">No</button>
       <button type="button" role="radio" aria-checked="false" data-f-email="yes">Yes</button>
     </div>
@@ -43,7 +43,7 @@
     <a class="btn btn--gold btn--block" href="/signup?plan=pro" data-plan-cta="pro">Get Pro</a>
     <ul class="plan__list">
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>24 hours</b> of fast live scanning a week</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>4 hours</b> of delicate live scanning a week</span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>4 hours</b> of delicate live scanning a week, every result researched</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>40</b> researched link scans a week</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>40</b> virus &amp; malware scans a week</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span>All three masks: scam, virus, malware</span></li>
@@ -55,12 +55,11 @@
   <article class="plan" data-plan-card="max" data-reveal style="--d:.16s">
     <div class="plan__name">Max</div>
     <div class="plan__price"><b>$40</b><span>/ month</span></div>
-    <p class="plan__desc">Every result researched. Every email checkable.</p>
+    <p class="plan__desc">More delicate scanning. Every email checkable.</p>
     <a class="btn btn--gold btn--block" href="/signup?plan=max" data-plan-cta="max">Get Max</a>
     <ul class="plan__list">
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>Unlimited</b> fast live scanning</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>24 hours</b> of delicate live scanning a week</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>Research on every live result</b></span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>24 hours</b> of delicate live scanning a week, every result researched</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>100</b> researched link scans a week</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>100</b> virus &amp; malware scans a week</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span>Paste any email in for a full scan</span></li>
@@ -76,10 +75,9 @@
     <a class="btn btn--gold btn--block" href="/signup?plan=ultimate" data-plan-cta="ultimate">Get Ultimate</a>
     <ul class="plan__list">
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>Unlimited</b> fast live scanning</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>96 hours</b> of delicate live scanning a week</span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>96 hours</b> of delicate live scanning a week, every result researched</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>500</b> researched link scans a week</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span><b>500</b> virus &amp; malware scans a week</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span>Research on every live result</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span>Full email scans &amp; download protection</span></li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 12 5 5 9-10"/></svg><span>Everything in Max</span></li>
     </ul>

@@ -96,7 +96,8 @@ const uq = {
   insert: db.prepare(`INSERT INTO users (id, email, password_hash, first_name, last_name, google_sub, avatar_url, created_at, last_login_at)
                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
   touch: db.prepare('UPDATE users SET last_login_at = ?, failed_logins = 0, locked_until = 0 WHERE id = ?'),
-  failed: db.prepare('UPDATE users SET failed_logins = failed_logins + 1, locked_until = CASE WHEN failed_logins + 1 >= ? THEN ? ELSE locked_until END WHERE id = ?'),
+  // The count starts again when a lock is applied: once the lock runs out, one more typo must not lock the account again.
+  failed: db.prepare('UPDATE users SET failed_logins = CASE WHEN failed_logins + 1 >= ? THEN 0 ELSE failed_logins + 1 END, locked_until = CASE WHEN failed_logins + 1 >= ? THEN ? ELSE locked_until END WHERE id = ?'),
   linkGoogle: db.prepare('UPDATE users SET google_sub = ?, avatar_url = COALESCE(avatar_url, ?) WHERE id = ?'),
   setPassword: db.prepare('UPDATE users SET password_hash = ? WHERE id = ?'),
   updateName: db.prepare('UPDATE users SET first_name = ?, last_name = ? WHERE id = ?'),
@@ -167,7 +168,7 @@ async function checkPassword(email, password, req) {
   const ok = await verifyPassword(password, user && user.password_hash ? user.password_hash : DUMMY_HASH);
   if (!user || !ok) {
     if (user && user.password_hash) {
-      uq.failed.run(LOCK_AFTER, now() + 15 * 60 * 1000, user.id);
+      uq.failed.run(LOCK_AFTER, LOCK_AFTER, now() + 15 * 60 * 1000, user.id);
       security.audit('login_failed', { userId: user.id, req });
     }
     if (user && !user.password_hash) {
@@ -313,9 +314,18 @@ function googleRedirectUri() {
   return `${config.publicOrigin}/api/v1/auth/google/callback`;
 }
 
+/**
+ * A path on this site, and nothing else. Browsers drop tabs and newlines inside a URL and read a backslash as a
+ * slash, so "/<tab>/evil.com" and "/\evil.com" lead to other sites: anything containing those is refused, and what
+ * is left must still resolve to this origin.
+ */
 function safeNext(next) {
-  const n = String(next || '');
-  return n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') ? n.slice(0, 200) : '/app';
+  const n = String(next || '').slice(0, 200);
+  if (!n.startsWith('/') || /[\u0000-\u001f\u007f\\]/.test(n)) return '/app';
+  try {
+    const u = new URL(n, 'https://sentinel.invalid');
+    return u.origin === 'https://sentinel.invalid' ? u.pathname + u.search + u.hash : '/app';
+  } catch { return '/app'; }
 }
 
 // The OAuth state row carries the return path and, after this separator, the
@@ -363,7 +373,8 @@ async function googleExchange(code, state) {
   if (claims.aud !== config.google.clientId || !['accounts.google.com', 'https://accounts.google.com'].includes(claims.iss)) {
     throw new HttpError(401, 'google_bad_token', 'Google sign-in could not be verified');
   }
-  if (claims.email_verified === false) throw new HttpError(401, 'google_unverified', 'Verify your Google email address first');
+  // Only an address Google has verified may sign in: an unverified one could otherwise claim someone else's account.
+  if (claims.email_verified !== true && claims.email_verified !== 'true') throw new HttpError(401, 'google_unverified', 'Verify your Google email address first');
   if (claims.exp && claims.exp * 1000 < now()) throw new HttpError(401, 'google_expired', 'Google sign-in expired');
 
   const stored = String(row.next_url || '/app');
@@ -381,6 +392,8 @@ async function upsertGoogleUser(claims) {
   const email = String(claims.email).toLowerCase();
   const existing = uq.byGoogle.get(claims.sub) || uq.byEmail.get(email);
   if (existing) {
+    // An account already tied to one Google account is not taken over by another with the same address.
+    if (existing.google_sub && existing.google_sub !== claims.sub) throw new HttpError(409, 'google_other_account', 'This email is linked to a different Google account');
     if (!existing.google_sub) uq.linkGoogle.run(claims.sub, claims.picture || null, existing.id);
     return uq.byId.get(existing.id);
   }

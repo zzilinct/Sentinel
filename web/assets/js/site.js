@@ -36,7 +36,10 @@
       toggle && toggle.setAttribute('aria-expanded', 'false');
     }));
     document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape' && nav.classList.contains('is-open')) { nav.classList.remove('is-open'); toggle && toggle.focus(); }
+      if (ev.key === 'Escape' && nav.classList.contains('is-open')) {
+        nav.classList.remove('is-open');
+        if (toggle) { toggle.setAttribute('aria-expanded', 'false'); toggle.focus(); }
+      }
     });
     document.addEventListener('click', (ev) => {
       if (!nav.contains(ev.target) && nav.classList.contains('is-open')) {
@@ -241,6 +244,8 @@
 
   /* ---------------------------------------------------- download picker */
 
-  const os = /Mac/i.test(navigator.platform) ? 'mac' : /Linux/i.test(navigator.platform) && !/Android/i.test(navigator.userAgent) ? 'linux' : 'windows';
-  $$('[data-os-label]').forEach((el) => { el.textContent = { windows: 'Windows', mac: 'macOS', linux: 'Linux' }[os]; });
+  // Only Windows has a download today, so only a Windows visitor gets a personal heading;
+  // everyone else keeps the neutral one rather than "Sentinel for macOS" over a Windows button.
+  const windows = /Win/i.test(navigator.platform) || /Windows/i.test(navigator.userAgent);
+  if (windows) $$('[data-os-label]').forEach((el) => { el.textContent = 'Windows'; });
 })();
