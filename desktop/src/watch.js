@@ -25,9 +25,10 @@
  *     entry in the app's live feed.
  *   - Windows only for now. Other platforms report "not available".
  *
- * The reader is a small PowerShell loop, started hidden and handed the script
- * inline, so nothing is written to disk. It prints one JSON line when something
- * changes; this module does the rest.
+ * The reader is a small PowerShell loop, started hidden. Its script is written
+ * to the app's data folder and run by a short loader that checks its SHA-256
+ * (see readerLaunch). It prints one JSON line when something changes; this
+ * module does the rest.
  */
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -96,7 +97,10 @@ $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'fi
 $private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
 $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
 $last = ''; $lastFront = ''; $lastWin = ''; $lastLinks = ''; $wasIdle = $false; $noDoc = ''; $pause = 450
-$stdin = [Console]::In
+# Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
+# so the loop would stop at the first read until the app sent a command. A plain reader over the raw stream is
+# truly asynchronous.
+$stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
 $pendingLine = $stdin.ReadLineAsync()
 function Off($why) { $script:anchor = $null; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {

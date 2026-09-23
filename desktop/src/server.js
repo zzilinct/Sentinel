@@ -128,25 +128,36 @@ function spawnNow(store) {
       serviceName: 'Sentinel server'
     });
     const me = child;
-    child.stdout.on('data', (chunk) => log && log.write(chunk));
-    child.stderr.on('data', (chunk) => log && log.write(chunk));
+    // A server that is still reporting progress (checking the list cache after an interrupted refresh, say) is
+    // working, not stuck: the limit is extended for it, up to START_TIMEOUT_MAX_MS.
+    let lastOutputAt = Date.now();
+    child.stdout.on('data', (chunk) => { lastOutputAt = Date.now(); if (log) log.write(chunk); });
+    child.stderr.on('data', (chunk) => { lastOutputAt = Date.now(); if (log) log.write(chunk); });
 
     let settled = false;
     let ready = false;   // it reached 'listening': only then is an exit something to restart from
     const limit = startTimeout();
     if (limit > START_TIMEOUT_MS) log.write(`the database is large; allowing ${Math.round(limit / 1000)} s for this start\n`);
-    const timer = setTimeout(() => {
+    const startedAt = Date.now();
+    let timer = null;
+    const expire = () => {
       if (settled) return;
+      if (Date.now() - lastOutputAt < 60000 && Date.now() - startedAt < START_TIMEOUT_MAX_MS) {
+        log.write('still starting; allowing another 60 s\n');
+        timer = setTimeout(expire, 60000);
+        return;
+      }
       settled = true;
       // Do not leave a half-started scanner behind to fight the next attempt for the
       // port and the database: end it, and only report once it is really gone.
-      const failed = new Error(`The server did not start within ${Math.round(limit / 1000)} seconds`);
+      const failed = new Error(`The server did not start within ${Math.round((Date.now() - startedAt) / 1000)} seconds`);
       const dying = child;
       if (!dying) { reject(failed); return; }
       const giveUp = setTimeout(() => reject(failed), 15000);
       dying.once('exit', () => { clearTimeout(giveUp); reject(failed); });
       try { dying.kill(); } catch { clearTimeout(giveUp); reject(failed); }
-    }, limit);
+    };
+    timer = setTimeout(expire, limit);
 
     child.on('message', (msg) => {
       if (!msg || settled) return;

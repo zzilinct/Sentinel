@@ -229,3 +229,10 @@ test('the reader starts from a file: its command line stays far under the Window
   assert.ok(loader.includes("o''brien"), 'quotes in the path are escaped');
   assert.ok(file.endsWith('.ps1'));
 });
+
+test('the reader reads commands without blocking its own loop', () => {
+  const { SCRIPT } = watch._test;
+  // [Console]::In is synchronized in Windows PowerShell: its ReadLineAsync blocks, and the reader froze until a command came.
+  assert.doesNotMatch(SCRIPT, /\[Console\]::In\b/);
+  assert.match(SCRIPT, /New-Object System\.IO\.StreamReader\(\[Console\]::OpenStandardInput\(\)\)/);
+});
