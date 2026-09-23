@@ -2,7 +2,7 @@
 /** The overlay page only listens. It can ask the main process for nothing. */
 const { contextBridge, ipcRenderer } = require('electron');
 
-const CHANNELS = ['overlay:watching', 'overlay:sweep', 'overlay:verdict', 'overlay:marks', 'overlay:clear'];
+const CHANNELS = ['overlay:watching', 'overlay:sweep', 'overlay:verdict', 'overlay:marks', 'overlay:shift', 'overlay:clear'];
 
 contextBridge.exposeInMainWorld('sentinelOverlay', {
   on(channel, callback) {

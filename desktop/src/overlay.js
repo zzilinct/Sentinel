@@ -136,7 +136,7 @@ function readySweep(nearWindow) {
 function setVerdict(v) { send('overlay:verdict', v || { badge: null }); }
 
 /** Marks beside results. Positions arrive in screen pixels and leave relative to the overlay. */
-function setMarks({ marks, checking }) {
+function setMarks({ marks, checking, epoch }) {
   if (!area || showingReady) return;
   const local = marks.map((m) => ({
     x: (m.x - area.x) / scale,
@@ -147,13 +147,20 @@ function setMarks({ marks, checking }) {
     kind: m.kind || 'scam',
     label: m.label || '',
     reason: m.reason || '',
-    pending: Boolean(m.pending)
+    pending: Boolean(m.pending),
+    row: Boolean(m.row)
   }));
   if (dryRun && local.length) {
     const inside = local.filter((m) => m.x >= 0 && m.y >= 0 && m.x <= area.w / scale && m.y <= area.h / scale).length;
     dryRun(`marks: ${local.length} (${local.filter((m) => m.badge).length} flagged, ${local.filter((m) => m.pending).length} waiting), ${inside} inside the page area; first at ${Math.round(local[0].x)},${Math.round(local[0].y)}`);
   }
-  send('overlay:marks', { marks: local, checking: checking || 0 });
+  send('overlay:marks', { marks: local, checking: checking || 0, epoch: epoch || 0 });
+}
+
+/** The page moved by (dx, dy) screen pixels since the marks of `epoch` were placed. Sent straight through, every frame. */
+function shift({ epoch, dx, dy }) {
+  if (!area || showingReady || dryRun) return;
+  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:shift', { epoch, dx: dx / scale, dy: dy / scale });
 }
 
 function destroy() {
@@ -164,4 +171,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { setWindow, sweep, readySweep, setVerdict, setMarks, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { setWindow, sweep, readySweep, setVerdict, setMarks, shift, destroy, setDryRun: (logger) => { dryRun = logger || null; } };

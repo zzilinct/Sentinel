@@ -73,19 +73,49 @@ $A = [System.Windows.Automation.AutomationElement]
 $VP = [System.Windows.Automation.ValuePattern]
 $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
 $linkCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Hyperlink)
+# Message rows in a webmail inbox: Gmail lists them as table rows (DataItem), Outlook on the web as list items.
+$rowCond = New-Object System.Windows.Automation.OrCondition(
+  (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::DataItem)),
+  (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)))
+$rowCache = New-Object System.Windows.Automation.CacheRequest
+$rowCache.Add($A::BoundingRectangleProperty); $rowCache.Add($A::IsOffscreenProperty); $rowCache.Add($A::NameProperty)
+$rowCache.AutomationElementMode = [System.Windows.Automation.AutomationElementMode]::Full
+$mail = '^https://(mail\.google\.com/mail/|outlook\.live\.com/mail/|outlook\.office(365)?\.com/mail/)'
 $cache = New-Object System.Windows.Automation.CacheRequest
 $cache.Add($A::BoundingRectangleProperty); $cache.Add($A::IsOffscreenProperty); $cache.Add($VP::ValueProperty)
-$cache.AutomationElementMode = [System.Windows.Automation.AutomationElementMode]::None
+$cache.AutomationElementMode = [System.Windows.Automation.AutomationElementMode]::Full
+$docCache = New-Object System.Windows.Automation.CacheRequest
+$docCache.Add($A::BoundingRectangleProperty); $docCache.Add($A::IsOffscreenProperty)
+# The anchor: one result link whose position is followed between full reads, so marks move WITH the page.
+$anchor = $null; $anchorX = 0; $anchorY = 0; $lastDx = 0; $lastDy = 0; $moved = $false
 $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
 $private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
 $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
 $last = ''; $lastFront = ''; $lastWin = ''; $lastLinks = ''; $wasIdle = $false; $noDoc = ''; $pause = 450
 $stdin = [Console]::In
 $pendingLine = $stdin.ReadLineAsync()
-function Off($why) { if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
+function Off($why) { $script:anchor = $null; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
-  # Wait for the next look, but wake at once for a command.
-  if ($pendingLine.Wait($pause)) {
+  # Between full looks: follow the anchor about 60 times a second and report how far the page has moved, so the
+  # marks move while the page scrolls instead of jumping after it. Wake at once for a command.
+  $gotCmd = $false
+  $until = [Environment]::TickCount + $pause
+  $moved = $false
+  while ([Environment]::TickCount -lt $until) {
+    if ($pendingLine.Wait(15)) { $gotCmd = $true; break }
+    if ($anchor) {
+      try {
+        $ar = $anchor.Current.BoundingRectangle
+        if (-not [double]::IsInfinity($ar.Y)) {
+          $dx = [int]$ar.X - $anchorX; $dy = [int]$ar.Y - $anchorY
+          if ($dx -ne $lastDx -or $dy -ne $lastDy) { $lastDx = $dx; $lastDy = $dy; $moved = $true; Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + '}}') }
+        }
+      } catch { $anchor = $null }
+    }
+  }
+  # After movement, look again soon: the full read puts every mark exactly where its link now is.
+  if ($moved) { $pause = 120 }
+  if ($gotCmd) {
     $cmd = $pendingLine.Result
     if ($null -eq $cmd) { exit }   # the app closed the pipe: it is gone
     $pendingLine = $stdin.ReadLineAsync()
@@ -116,7 +146,19 @@ while ($true) {
   $url = $null; $r = $null; $doc = $null
   try {
     $root = $A::FromHandle($h)
-    $doc = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $docCond)
+    # A browser keeps a page for every tab. The one in front is the document that is on screen, with the largest
+    # area: the first one found is often a background tab, which kept Sentinel on the first tab.
+    $best = $null; $bestArea = 0
+    $dscope = $docCache.Activate()
+    try { $docs = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $docCond) } finally { $dscope.Dispose() }
+    foreach ($d in $docs) {
+      if ($d.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }
+      $dr = $d.GetCachedPropertyValue($A::BoundingRectangleProperty)
+      if ([double]::IsInfinity($dr.Width) -or $dr.Width -lt 1) { continue }
+      $area = $dr.Width * $dr.Height
+      if ($area -gt $bestArea) { $bestArea = $area; $best = $d }
+    }
+    $doc = $best
     if ($doc) { $url = $doc.GetCurrentPattern($VP::Pattern).Current.Value; $r = $doc.Current.BoundingRectangle }
   } catch { $url = $null }
   if (-not $url -or -not $r -or [double]::IsInfinity($r.Width) -or $r.Width -lt 200) {
@@ -145,6 +187,7 @@ while ($true) {
     $scope = $cache.Activate()
     try { $found = $doc.FindAll([System.Windows.Automation.TreeScope]::Descendants, $linkCond) } catch { $found = $null } finally { $scope.Dispose() }
     $list = New-Object System.Collections.ArrayList
+    $firstEl = $null
     if ($found) {
       foreach ($l in $found) {
         if ($list.Count -ge 60) { break }
@@ -154,6 +197,7 @@ while ($true) {
         $b = $l.GetCachedPropertyValue($A::BoundingRectangleProperty)
         if ([double]::IsInfinity($b.Width) -or $b.Width -lt 40 -or $b.Height -lt 10) { continue }
         if ($b.Bottom -lt $r.Top -or $b.Top -gt $r.Bottom) { continue }
+        if (-not $firstEl) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
         [void]$list.Add(@{ u = $u; x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height })
       }
     }
@@ -162,11 +206,45 @@ while ($true) {
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
       Write-Output (@{ links = @($list); for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
+      # New positions: the anchor starts again from here, and the marks from zero movement.
+      $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0
     }
     # A heavy page must not make the reader spin: rest at least twice as long as the read took.
     if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
     # A light page is read more often, so marks arrive sooner and keep up with scrolling.
     elseif ($sw.ElapsedMilliseconds -lt 70) { $pause = 180 }
+  }
+
+  # In a webmail inbox: the message rows on screen, as the inbox shows them (sender, subject, preview) and where
+  # they are. The words are what the inbox already displays; nothing is opened, clicked or marked as read.
+  if ($url -match $mail) {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $rows = $null
+    $scope = $rowCache.Activate()
+    try { $rows = $doc.FindAll([System.Windows.Automation.TreeScope]::Descendants, $rowCond) } catch { $rows = $null } finally { $scope.Dispose() }
+    $list = New-Object System.Collections.ArrayList
+    $firstEl = $null
+    if ($rows) {
+      foreach ($row in $rows) {
+        if ($list.Count -ge 40) { break }
+        if ($row.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }
+        $t = [string]$row.GetCachedPropertyValue($A::NameProperty)
+        if ($t.Length -lt 20) { continue }
+        $b = $row.GetCachedPropertyValue($A::BoundingRectangleProperty)
+        if ([double]::IsInfinity($b.Width) -or $b.Width -lt 300 -or $b.Height -lt 16 -or $b.Height -gt 220) { continue }
+        if ($b.Bottom -lt $r.Top -or $b.Top -gt $r.Bottom) { continue }
+        if (-not $firstEl) { $firstEl = $row; $fx = [int]$b.X; $fy = [int]$b.Y }
+        [void]$list.Add(@{ t = $t.Substring(0, [Math]::Min(600, $t.Length)); x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height })
+      }
+    }
+    $sw.Stop()
+    $sig = ($list | ForEach-Object { "$($_.t.Length)|$($_.x)|$($_.y)" }) -join ';'
+    if ($sig -ne $lastLinks) {
+      $lastLinks = $sig
+      Write-Output (@{ mail = @($list); for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
+      $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0
+    }
+    if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
   }
 }
 `;
@@ -180,6 +258,7 @@ let settleTimer = null;
 let restartTimer = null;
 let latestLinks = null;       // the last list of on-screen links, so late verdicts land where the links are now
 let pending = new Set();
+let linkEpoch = 0;          // one per full read of the links; page movement is reported relative to it
 
 let readerReady = false;
 const queued = [];
@@ -323,7 +402,9 @@ function onLine(line) {
     setWindow(msg.win || null);
     return;
   }
+  if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy }); return; }
   if (msg.links) return onLinks(msg);
+  if (msg.mail) return onMail(msg);
   if (!msg.url) return;
 
   clearTimeout(settleTimer);
@@ -433,8 +514,9 @@ function publishMarks() {
   if (!latestLinks || !opts.onMarks) return;
   opts.onMarks({
     for: latestLinks.for,
+    epoch: latestLinks.epoch,
     checking: latestLinks.links.filter((l) => !markFor(l.u)).length,
-    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, ...(markFor(l.u) || { pending: true }) }))
+    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, row: l.u.startsWith('mail:'), ...(markFor(l.u) || { pending: true }) }))
   });
 }
 
@@ -442,7 +524,7 @@ async function onLinks(msg) {
   const page = state.window ? { private: Boolean(state.window.private) } : { private: false };
   const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for);
   const fresh = !latestLinks || latestLinks.for !== msg.for;
-  latestLinks = { for: msg.for, links };
+  latestLinks = { for: msg.for, links, epoch: ++linkEpoch };
   if (fresh && !page.private) {
     log(`results page: ${links.length} results on screen, read in ${msg.ms} ms`);
     state.lastResults = { count: links.length, ms: msg.ms, at: Date.now() };
@@ -487,4 +569,47 @@ async function onLinks(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, _test: { resultLinks, worstKind, SCRIPT } };
+/**
+ * One inbox row as the inbox shows it: "unread, PayPal, Your account is limited, 3:45 PM, Dear customer...".
+ * The first short part is usually the sender, the next the subject; everything goes in the body as well, so the
+ * checks that read wording see all of it.
+ */
+function mailFromRow(text) {
+  const parts = String(text).split(/,\s+/).map((p) => p.trim()).filter((p) => p && !/^(unread|read|starred|important|has attachment|flagged|pinned)$/i.test(p));
+  const from = (parts[0] || '').slice(0, 120);
+  const subject = (parts[1] || '').slice(0, 300);
+  return { from, fromName: from, subject, body: parts.slice(2).join(' ').slice(0, 1500) };
+}
+
+const rowKey = (text) => `mail:${require('crypto').createHash('sha1').update(String(text)).digest('hex').slice(0, 20)}`;
+
+async function onMail(msg) {
+  const isPrivate = Boolean(state.window && state.window.private);
+  const rows = (Array.isArray(msg.mail) ? msg.mail : []).map((r) => ({ u: rowKey(r.t), x: r.x, y: r.y, w: r.w, h: r.h, text: r.t }));
+  const fresh = !latestLinks || latestLinks.for !== msg.for;
+  latestLinks = { for: msg.for, links: rows, epoch: ++linkEpoch };
+  if (fresh && !isPrivate) log(`inbox: ${rows.length} messages on screen, read in ${msg.ms} ms`);
+  publishMarks();
+  const missing = rows.filter((r) => !markFor(r.u) && !pending.has(r.u));
+  if (!missing.length) return;
+  missing.forEach((r) => pending.add(r.u));
+  try {
+    const { results } = await opts.api('/api/v1/live/email', { emails: missing.map((r) => ({ key: r.u, ...mailFromRow(r.text) })) });
+    for (const item of results || []) {
+      const v = item.verdict;
+      if (!v || !item.key) continue;
+      const badge = (v.overall && v.overall.badge) || null;
+      const first = v.reasons && v.reasons[0];
+      verdicts.set(item.key, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      count(isPrivate, badge);
+    }
+  } catch (err) {
+    // Email checks are part of Pro and up: on another plan the inbox is simply left unmarked.
+    if (err.status !== 403) log(`inbox check failed: ${err.status || ''} ${err.code || err.message}`);
+  } finally {
+    missing.forEach((r) => pending.delete(r.u));
+  }
+  publishMarks();
+}
+
+module.exports = { init, restart, stop, status, raise, _test: { resultLinks, worstKind, mailFromRow, SCRIPT } };

@@ -186,6 +186,14 @@ function createWindow() {
     if (!ORIGIN || new URL(url).origin !== ORIGIN) {
       event.preventDefault();
       if (/^https:\/\//.test(url)) shell.openExternal(url);
+      return;
+    }
+    // The app window is the app. The website's front page ("Download Sentinel") has no place in it: any link
+    // there (a logo on the sign-in page, a "home" link) lands on the app instead.
+    const { pathname } = new URL(url);
+    if (pathname === '/' || /^\/index(\.html)?$/.test(pathname)) {
+      event.preventDefault();
+      win.loadURL(`${ORIGIN}/app`);
     }
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -568,6 +576,7 @@ async function boot() {
     },
     onVerdict: (v) => overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind }),
     onMarks: (m) => overlay.setMarks(m),
+    onShift: (s) => overlay.shift(s),
     onLog: (text) => appendLog('watch.log', `${new Date().toISOString()} # ${text}`),
     // A short on-disk trail of what live scanning checked, for the person to read. Private windows never reach here.
     onChecked: (item) => {
@@ -609,12 +618,14 @@ app.whenReady().then(() => {
 
   step('tray', () => buildTray());
   step('updater', () => updater.init({
+    store,
+    log: appLog,
     onChange: (s) => {
       // One line per change of state, so an update that never arrives can be explained.
       if (s.status !== lastUpdateStatus) { lastUpdateStatus = s.status; appLog(`updater: ${s.status}${s.version ? ` ${s.version}` : ''}${s.error ? ` (${s.error})` : ''}`); }
       refreshTray(); push('sentinel:update', s);
     },
-    onReady: (version) => notify(`Sentinel ${version} is ready`, 'It installs the next time Sentinel quits. Click to restart and update now.', () => updater.install())
+    onReady: (version) => notify(`Sentinel ${version} is ready`, 'It installs the next time Sentinel quits. Click to restart and update now.', () => { updater.install().catch(() => {}); })
   }));
 
   // Installed builds start with the computer by default; development runs never

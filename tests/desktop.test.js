@@ -41,7 +41,12 @@ test('the reader only works on a browser that is in front and in use, and reads 
   const gates = s.indexOf("Off 'idle'");
   assert.ok(gates > 0 && gates < s.indexOf('FromHandle'), 'every gate comes before the first look inside the window');
   // What it asks Windows for: the address (Value), rectangles, and whether a link is on screen. Never text.
-  assert.ok(!/TextPattern|NameProperty|HelpText|LegacyIAccessible|Clipboard|CopyFromScreen|Screenshot/i.test(s), 'no page text, no clipboard, no screenshots');
+  assert.ok(!/TextPattern|HelpText|LegacyIAccessible|Clipboard|CopyFromScreen|Screenshot/i.test(s), 'no page text, no clipboard, no screenshots');
+  // Names are read in one place only: the message rows of a webmail inbox, which the inbox itself displays.
+  const mailBlock = s.indexOf('if ($url -match $mail)');
+  const names = [...s.matchAll(/NameProperty/g)].map((m) => m.index);
+  assert.ok(names.length >= 1 && mailBlock > 0);
+  assert.ok(names.every((i) => i > mailBlock || s.slice(Math.max(0, i - 60), i).includes('rowCache')), 'row names are read only for a webmail inbox');
   assert.ok(s.includes('InPrivate|Incognito|Private Browsing'), 'private windows are recognised by their title');
   for (const b of ['chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf']) assert.ok(s.includes(`'${b}'`), b);
 });
@@ -184,4 +189,30 @@ test('overlapping restarts cannot leave a second reader running, and a refusal s
   assert.match(w, /live_hours_exhausted'\) stop\('Live hours for this week are used up'\)/);
   // The test hook that reads a named browser instead of the window in front is for development runs only.
   assert.match(read('desktop/src/main.js'), /testProcess: app\.isPackaged \? null : process\.env\.SENTINEL_TEST_PROCESS/);
+});
+
+test('an inbox row is split into sender, subject and preview; its state words are dropped', () => {
+  const m = watch._test.mailFromRow('unread, PayPal Service, Your account has been limited, 3:45 PM, Verify within 24 hours');
+  assert.equal(m.from, 'PayPal Service');
+  assert.equal(m.subject, 'Your account has been limited');
+  assert.match(m.body, /Verify within 24 hours/);
+});
+
+test('the reader follows the tab in front and moves marks with the page between reads', () => {
+  const s = watch._test.SCRIPT;
+  assert.ok(s.includes('$docs = $root.FindAll('), 'every document is considered, not just the first');
+  assert.ok(s.includes('if ($d.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }'), 'background tabs are skipped');
+  assert.ok(s.includes("Write-Output ('{\"shift\":{\"dx\":'"), 'page movement is reported between full reads');
+  assert.ok(s.includes('$pendingLine.Wait(15)'), 'about 60 looks a second while waiting');
+});
+
+test('the updater installs the file it downloaded, into its own folder, and notices an update that did not take', () => {
+  const src = read('desktop/src/updater.js');
+  assert.match(src, /autoInstallOnAppQuit = false/);
+  assert.match(src, /const file = info\.downloadedFile;/);
+  assert.match(src, /args\.push\(`\/D=\$\{path\.dirname\(process\.execPath\)\}`\)/);
+  assert.match(src, /if \(actual !== expected\)/, 'the checksum is checked again just before running it');
+  assert.match(src, /did not take/);
+  assert.match(read('desktop/build/installer.nsh'), /!macro customRemoveFiles/, 'uninstall removes only Sentinel\'s own files');
+  assert.doesNotMatch(read('desktop/build/installer.nsh'), /RMDir \/r "\$INSTDIR"(\s|$)/, 'never the whole install folder');
 });

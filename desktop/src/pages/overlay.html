@@ -38,16 +38,17 @@
   .corner__label b { font-weight: 600; color: var(--c, #e2c47f); }
   @keyframes breathe { 0%, 100% { box-shadow: 0 6px 22px rgba(0, 0, 0, .35), 0 0 0 0 rgba(214, 178, 90, 0); } 50% { box-shadow: 0 6px 22px rgba(0, 0, 0, .35), 0 0 16px 2px rgba(214, 178, 90, .28); } }
 
-  /* A mask beside every result */
-  .mark { position: absolute; width: 28px; height: 28px; margin: 0; display: grid; place-items: center; border-radius: 8px; pointer-events: none;
+  /* A mask beside every result. The layer moves with the page between reads (see overlay:shift). */
+  #marks { position: absolute; inset: 0; will-change: transform; }
+  .mark { position: absolute; left: 0; top: 0; width: 28px; height: 28px; margin: 0; display: grid; place-items: center; border-radius: 8px; pointer-events: none;
     background: rgba(12, 13, 16, .88); box-shadow: 0 2px 10px rgba(0, 0, 0, .28), 0 0 12px -2px color-mix(in srgb, var(--c, #8f8a7a) 55%, transparent); border: 1px solid color-mix(in srgb, var(--c, #8f8a7a) 50%, transparent); color: var(--c, #8f8a7a);
-    opacity: 0; transform: scale(.6); will-change: transform, opacity; }
+    opacity: 0; scale: .6; will-change: transform; }
   .mark svg { width: 20px; height: 20px; display: block; }
   .mark.is-clear { width: 20px; height: 20px; border-radius: 6px; background: rgba(12, 13, 16, .8); box-shadow: 0 1px 6px rgba(0, 0, 0, .2); }
   .mark.is-clear svg { width: 12px; height: 12px; }
   .mark.is-pending { width: 10px; height: 10px; border-radius: 3px; border: 0; box-shadow: none; background: #d6b25a; opacity: .0; animation: wait 1s ease-in-out infinite; }
   .mark.is-in { animation: pop .34s cubic-bezier(.2, 1.4, .4, 1) var(--d, 0ms) forwards; }
-  @keyframes pop { 0% { opacity: 0; transform: scale(.55); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes pop { 0% { opacity: 0; scale: .55; } 100% { opacity: 1; scale: 1; } }
   @keyframes wait { 0%, 100% { opacity: .25; } 50% { opacity: .8; } }
 
   .tip { position: absolute; max-width: 300px; padding: 9px 12px; border-radius: 9px; background: rgba(12, 13, 16, .95); border: 1px solid rgba(255, 255, 255, .1);
@@ -60,7 +61,7 @@
     body.sweeping .line { animation: none; }
     body.sweeping .tint { animation: tint 1.2s ease-out forwards; }
     .corner__mask { animation: none; }
-    .mark.is-in { animation: none; opacity: 1; transform: none; }
+    .mark.is-in { animation: none; opacity: 1; scale: 1; }
     .mark.is-pending { animation: none; opacity: .5; }
   }
 </style>
@@ -131,7 +132,6 @@
     current = list;
     while (nodes.length > list.length) nodes.pop().remove();
     var W = window.innerWidth;
-    var H = window.innerHeight;
     list.forEach(function (m, i) {
       var n = nodes[i];
       if (!n) { n = document.createElement('div'); n.className = 'mark'; marksEl.appendChild(n); nodes[i] = n; }
@@ -139,21 +139,16 @@
       var size = m.pending ? 10 : m.badge ? 28 : 20;
       // To the right of the link, level with its first line; to its left when there is no room.
       var x = m.x + m.w + 8;
-      if (x + size > W - 6) x = Math.max(4, m.x - size - 8);
+      // Inbox rows span the page: their mark sits inside the row, near its right end.
+      if (m.row) x = m.x + m.w - size - 64;
+      else if (x + size > W - 6) x = Math.max(4, m.x - size - 8);
       var y = m.y + Math.min(m.h, 26) / 2 - size / 2;
-      var visible = y > 2 && y < H - size - 2;
-      n.style.left = Math.round(x) + 'px';
-      n.style.top = Math.round(y) + 'px';
-      n.style.display = visible ? '' : 'none';
+      // Placed with a transform, never with left/top: moving it then costs the compositor nothing, and the whole
+      // layer can follow the page (see overlay:shift) without any mark being laid out again. Marks outside the
+      // page area are simply clipped by the window.
+      n.style.transform = 'translate3d(' + Math.round(x) + 'px,' + Math.round(y) + 'px,0)';
       m._cx = x + size / 2; m._cy = y + size / 2;
-      // The page scrolled: a mark does not slide after its link, it comes back in beside it.
-      var pos = Math.round(x) + ',' + Math.round(y);
-      var moved = n.dataset.pos && n.dataset.pos !== pos;
-      n.dataset.pos = pos;
-      if (n.dataset.state === state) {
-        if (moved && !m.pending) { n.style.setProperty('--d', '0ms'); n.classList.remove('is-in'); void n.offsetWidth; n.classList.add('is-in'); }
-        return;
-      }
+      if (n.dataset.state === state) return;
       n.dataset.state = state;
       n.className = 'mark' + (m.pending ? ' is-pending' : m.badge ? '' : ' is-clear');
       if (m.pending) { n.innerHTML = ''; return; }
@@ -171,16 +166,18 @@
     for (var i = 0; i < current.length; i++) {
       var m = current[i];
       if (m.pending || m._cx == null) continue;
-      if (Math.abs(ev.clientX - m._cx) <= 15 && Math.abs(ev.clientY - m._cy) <= 15) { hit = m; break; }
+      if (Math.abs(ev.clientX - (m._cx + shiftX)) <= 15 && Math.abs(ev.clientY - (m._cy + shiftY)) <= 15) { hit = m; break; }
     }
     if (!hit) { tip.classList.remove('is-on'); return; }
     var color = hit.badge ? M.COLORS[hit.badge] : M.COLORS.clear;
     tip.style.setProperty('--c', color);
     tip.querySelector('b').textContent = hit.badge ? hit.label : 'Nothing found';
     tip.querySelector('span').textContent = hit.badge ? (hit.reason || 'Open it with care.') : 'Sentinel checked this address and found no warning signs.';
-    var left = Math.min(window.innerWidth - 312, Math.max(8, hit._cx - 150));
-    var top = hit._cy + 20;
-    if (top + 90 > window.innerHeight) top = hit._cy - 84;
+    var cx = hit._cx + shiftX;
+    var cy = hit._cy + shiftY;
+    var left = Math.min(window.innerWidth - 312, Math.max(8, cx - 150));
+    var top = cy + 20;
+    if (top + 90 > window.innerHeight) top = cy - 84;
     tip.style.left = left + 'px';
     tip.style.top = top + 'px';
     tip.classList.add('is-on');
@@ -212,7 +209,17 @@
       if (sticky) { sticky = false; cornerLabel.classList.remove('is-on'); }
     }
   });
-  api.on('overlay:marks', function (p) { place((p && p.marks) || []); });
+  // The page moved since these marks were placed: move the whole layer with it, in this frame. A new set of
+  // positions (a new epoch) starts from zero again.
+  var epoch = 0;
+  var shiftX = 0;
+  var shiftY = 0;
+  function setShift(dx, dy) { shiftX = dx; shiftY = dy; marksEl.style.transform = 'translate3d(' + dx + 'px,' + dy + 'px,0)'; }
+  api.on('overlay:marks', function (p) {
+    if (!p || p.epoch !== epoch) { epoch = p ? p.epoch : 0; setShift(0, 0); }
+    place((p && p.marks) || []);
+  });
+  api.on('overlay:shift', function (p) { if (p && p.epoch === epoch) setShift(p.dx, p.dy); });
   api.on('overlay:clear', function () { clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
 })();
 </script>
