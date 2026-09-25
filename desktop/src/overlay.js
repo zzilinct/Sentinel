@@ -148,7 +148,8 @@ function setMarks({ marks, checking, epoch }) {
     label: m.label || '',
     reason: m.reason || '',
     pending: Boolean(m.pending),
-    row: Boolean(m.row)
+    row: Boolean(m.row),
+    k: String(m.k || '').slice(0, 24)
   }));
   if (dryRun && local.length) {
     const inside = local.filter((m) => m.x >= 0 && m.y >= 0 && m.x <= area.w / scale && m.y <= area.h / scale).length;

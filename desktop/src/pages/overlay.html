@@ -87,7 +87,9 @@
   var cornerLabel = document.getElementById('cornerLabel');
   var marksEl = document.getElementById('marks');
   var tip = document.getElementById('tip');
-  var nodes = [];
+  // One element per result, kept by the result's key: when scrolling brings new results in and takes others out,
+  // the marks that stay are the same elements, untouched, and only newcomers pop in.
+  var nodes = new Map();
   var current = [];
   var labelTimer = null;
   var sweepTimer = null;
@@ -123,18 +125,21 @@
 
   function clearMarks() {
     nodes.forEach(function (n) { n.remove(); });
-    nodes = [];
+    nodes.clear();
     current = [];
     tip.classList.remove('is-on');
   }
 
   function place(list) {
     current = list;
-    while (nodes.length > list.length) nodes.pop().remove();
+    var seen = {};
+    var popped = 0;
     var W = window.innerWidth;
     list.forEach(function (m, i) {
-      var n = nodes[i];
-      if (!n) { n = document.createElement('div'); n.className = 'mark'; marksEl.appendChild(n); nodes[i] = n; }
+      var key = m.k || ('#' + i);
+      seen[key] = true;
+      var n = nodes.get(key);
+      if (!n) { n = document.createElement('div'); n.className = 'mark'; marksEl.appendChild(n); nodes.set(key, n); }
       var state = m.pending ? 'pending' : (m.badge ? m.badge + ':' + m.kind : 'clear');
       var size = m.pending ? 10 : m.badge ? 28 : 20;
       // To the right of the link, level with its first line; to its left when there is no room.
@@ -153,11 +158,13 @@
       n.className = 'mark' + (m.pending ? ' is-pending' : m.badge ? '' : ' is-clear');
       if (m.pending) { n.innerHTML = ''; return; }
       n.style.setProperty('--c', m.badge ? M.COLORS[m.badge] : M.COLORS.clear);
-      n.style.setProperty('--d', Math.min(i, 14) * 45 + 'ms');
+      // A batch arriving together ripples in; a single newcomer during a scroll appears at once.
+      n.style.setProperty('--d', Math.min(popped++, 14) * 45 + 'ms');
       n.innerHTML = m.badge ? M.svg(m.kind) : TICK;
       void n.offsetWidth;
       n.classList.add('is-in');
     });
+    nodes.forEach(function (n, key) { if (!seen[key]) { n.remove(); nodes.delete(key); } });
   }
 
   // A mark explains itself when the pointer is over it. Clicks still go to the browser.

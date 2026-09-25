@@ -30,6 +30,8 @@ process.env.NODE_ENV = 'development';
 
 const arg = (name, fallback) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : fallback; };
 const SAMPLE = Number(arg('--sample', '120'));
+// --misses <file>: write the phishing addresses fast mode left unflagged (text only; nothing is opened), to study.
+const MISSES = arg('--misses', '');
 const ALL = ['scam', 'virus', 'malware'];
 const pct = (n, d) => (d ? `${((n / d) * 100).toFixed(1)}%` : 'n/a');
 
@@ -82,6 +84,11 @@ async function main() {
   const fastP = await run('fast', phish, { research: false }, 16);
   const fastL = await run('fast', legit, { research: false }, 16);
   report(`FAST (all ${phish.length} held-out phishing addresses, ${legit.length} legitimate sites)`, fastP, fastL);
+  if (MISSES) {
+    const missed = phish.filter((u, i) => fastP.verdicts[i] && !fastP.verdicts[i].overall.badge);
+    fs.writeFileSync(MISSES, missed.join('\n') + '\n');
+    console.log(`  ${missed.length} missed addresses written to ${MISSES}\n`);
+  }
 
   const sampleP = phish.filter((_, i) => i % Math.max(1, Math.floor(phish.length / SAMPLE)) === 0).slice(0, SAMPLE);
   const sampleL = legit.slice(0, Math.min(legit.length, Math.round(SAMPLE / 2)));

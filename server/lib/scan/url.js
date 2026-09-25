@@ -104,6 +104,11 @@ const HOMOGLYPHS = [
 ];
 
 /** Collapse look-alike characters so "paypa1" and "paypal" compare equal. */
+/** Runs of one letter as one ("trezoorr" -> "trezor"): doubled letters are a look-alike the eye skips over. */
+function squash(s) {
+  return String(s).replace(/(.)\1+/g, '$1');
+}
+
 function deskin(s) {
   let out = String(s).toLowerCase();
   for (const [rx, to] of HOMOGLYPHS) out = out.replace(rx, to);
@@ -278,22 +283,37 @@ function brandInfo(p) {
   const subWords = p.subdomains.map((s) => ({ words: labelWords(s), flat: deskin(s) }));
   const hyphenParts = p.sld.split(/[-_]/).map(deskin).filter((s) => s.length >= 4);
 
+  // On a free hosting platform the name in front ("xfinitymaillog.weebly.com") is chosen by whoever made the page,
+  // and run-on names are the norm there: a brand of six letters or more inside it counts, not only eight or more.
+  const substringMin = p.hosting ? 6 : 8;
   for (const brand of L.PROTECTED_BRANDS) {
     const t = brand.token;
     // Short or common-word brands ("chase", "apple", "ups") only count as whole
     // words; long distinctive ones ("coinbase", "microsoft") also as substrings.
-    const inside = (flat, set) => set.has(t) || (t.length >= 8 && flat.includes(t));
+    const inside = (flat, set) => set.has(t) || (t.length >= substringMin && flat.includes(t));
     if (!inDomain && inside(sldFlat, words)) inDomain = brand;
     if (!inSubdomain && subWords.some((s) => inside(s.flat, s.words))) inSubdomain = brand;
 
     if (!lookalike && t.length >= 5) {
       const maxDist = t.length >= 8 ? 2 : 1;
+      const tSquashed = squash(t);
       for (const part of [sldFlat, ...hyphenParts]) {
-        if (part === t) continue;
+        if (part === t || L.NOT_LOOKALIKES.has(part)) continue;
         const whole = levenshtein(part, t);
-        // A misspelled brand glued to another word: "coinbseextension", "ladgerstart".
-        const prefix = t.length >= 7 && part.length > t.length ? levenshtein(part.slice(0, t.length), t) : 99;
-        if ((whole > 0 && whole <= maxDist) || (prefix > 0 && prefix <= 1)) { lookalike = brand; break; }
+        // Doubled letters ("trezoorr", "logiin"): the same word to the eye, however many edits apart.
+        // Six letters or more: shorter brands collide with real words ("chasse" is French, not "chase").
+        const doubled = t.length >= 6 && squash(part) === tSquashed;
+        // A misspelled brand glued to another word: "coinbseextension", "ladgerstart", and with a letter left out
+        // or added before the rest ("m3tamsklgn" = metamsk + lgn), so the front is compared one letter shorter
+        // and longer as well.
+        let prefix = 99;
+        if (t.length >= 7 && part.length > t.length) {
+          for (const n of [t.length - 1, t.length, t.length + 1]) {
+            if (L.NOT_LOOKALIKES.has(part.slice(0, n))) continue;   // "mobileshop" starts with a word, not with T-Mobile
+            prefix = Math.min(prefix, levenshtein(part.slice(0, n), t));
+          }
+        }
+        if ((whole > 0 && whole <= maxDist) || doubled || (prefix > 0 && prefix <= 1)) { lookalike = brand; break; }
       }
     }
   }

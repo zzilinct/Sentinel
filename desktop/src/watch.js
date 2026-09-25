@@ -551,13 +551,17 @@ function markFor(url) {
   return hit.mark;
 }
 
+const markKey = (u) => crypto.createHash('sha1').update(u).digest('base64url').slice(0, 12);
+
 function publishMarks() {
   if (!latestLinks || !opts.onMarks) return;
   opts.onMarks({
     for: latestLinks.for,
     epoch: latestLinks.epoch,
     checking: latestLinks.links.filter((l) => !markFor(l.u)).length,
-    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, row: l.u.startsWith('mail:'), ...(markFor(l.u) || { pending: true }) }))
+    // `k` keeps each mark on its own element in the overlay while results scroll in and out. A hash, so no address
+    // reaches the overlay window.
+    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, k: markKey(l.u), row: l.u.startsWith('mail:'), ...(markFor(l.u) || { pending: true }) }))
   });
 }
 

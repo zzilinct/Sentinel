@@ -236,3 +236,13 @@ test('the reader reads commands without blocking its own loop', () => {
   assert.doesNotMatch(SCRIPT, /\[Console\]::In\b/);
   assert.match(SCRIPT, /New-Object System\.IO\.StreamReader\(\[Console\]::OpenStandardInput\(\)\)/);
 });
+
+test('scrolling keeps each mark on its own element: marks are keyed by result, never by position', () => {
+  const html = read('desktop/src/pages/overlay.html');
+  assert.match(html, /var nodes = new Map\(\)/);
+  assert.match(html, /nodes\.get\(key\)/);
+  const w = read('desktop/src/watch.js');
+  // The key is a hash: no address reaches the overlay window.
+  assert.match(w, /k: markKey\(l\.u\)/);
+  assert.match(w, /const markKey = \(u\) => crypto\.createHash\('sha1'\)/);
+});

@@ -105,6 +105,22 @@ const TECH_SUPPORT_WORDS = ['helpline', 'tollfree', 'techsupport', 'errorcode', 
 const DELIVERY_WORDS = ['parcel', 'redelivery', 'delivery', 'shipment', 'customs', 'tracking', 'package', 'postage'];
 const GOV_WORDS = ['irs', 'hmrc', 'taxrefund', 'gov', 'medicare', 'socialsecurity', 'dmv', 'tolls', 'ezpass', 'fastrak'];
 
+/**
+ * Everyday words one or two letters away from a brand. Spelled like this, they are the word, not a disguised
+ * brand: "cloud-hosting.com" is not iCloud, "family-trust.org" is not Truist, "codebase.io" is not Coinbase. Each
+ * used to earn the look-alike check's full weight, and any second small signal then marked a real site.
+ * (A domain that uses the brand itself is still caught by the brand-name checks.)
+ */
+const NOT_LOOKALIKES = new Set([
+  'cloud', 'clouds', 'mobile', 'mobiles', 'email', 'emails', 'mail', 'mails', 'trust', 'trusts', 'trusty',
+  'interact', 'interacts', 'revolt', 'revolts', 'revolute', 'codebase', 'discard', 'discards', 'team', 'teams',
+  'stream', 'streams', 'steal', 'steel', 'steak', 'steep', 'steer', 'stem', 'seam', 'stead', 'belle', 'welle',
+  'celle', 'paypay', 'goggle', 'goggles', 'googly', 'strike', 'strip', 'stripes', 'striped', 'phase', 'phases',
+  'chaste', 'chasse', 'chaser', 'chose', 'case', 'chased', 'chases', 'apply', 'ample', 'appel', 'apples', 'adore',
+  'amazons', 'lloyd', 'floyds', 'token', 'tokens', 'leger', 'ledgers', 'phantoms', 'upholds', 'workdays',
+  'outlooks', 'shoppe', 'discords', 'amazin', 'infinity', 'horizon', 'venom', 'adobo'
+]);
+
 const URL_SHORTENERS = new Set([
   'bit.ly', 'tinyurl.com', 'goo.gl', 't.co', 'ow.ly', 'is.gd', 'buff.ly', 'cutt.ly',
   'rb.gy', 'shorturl.at', 'rebrand.ly', 'tiny.cc', 'bl.ink', 'lnkd.in', 't.ly', 's.id',
@@ -247,7 +263,7 @@ const SCAM_KITS = [
 ];
 
 module.exports = {
-  MULTI_SUFFIXES, RISKY_TLDS, KIT_FILES, ARCHIVES, PROTECTED_BRANDS, HOST_KEYWORDS, PATH_KEYWORDS,
+  MULTI_SUFFIXES, RISKY_TLDS, KIT_FILES, ARCHIVES, PROTECTED_BRANDS, HOST_KEYWORDS, PATH_KEYWORDS, NOT_LOOKALIKES,
   TECH_SUPPORT_WORDS, DELIVERY_WORDS, GOV_WORDS, URL_SHORTENERS, FREE_HOSTING, DYNAMIC_DNS, OBJECT_STORAGE,
   CRYPTOMINER_HOSTS, EXECUTABLE_EXT, MACRO_DOC_EXT, ARCHIVE_EXT, DOC_EXT, FREE_MAIL_PROVIDERS,
   DEFAULT_ALLOWLIST, SEED_BLOCKLIST, SCAM_KITS, PATH_HOSTING

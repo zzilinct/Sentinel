@@ -706,3 +706,32 @@ test('lure pages in a hijacked hosting account, and pages on service-record host
     assert.equal(await badge(url), null, `${url} should stay clean`);
   }
 });
+
+test('look-alike brands the eye skips over: doubled letters, a letter dropped before more words, run-on names on free hosting', () => {
+  const { analyze, brandInfo } = require('../server/lib/scan/url');
+  const look = (u) => { const b = brandInfo(analyze(u)); const hit = b.lookalike || b.inDomain || b.inSubdomain; return hit ? hit.token : null; };
+  assert.equal(look('https://trezoorr--thego.gitbook.io/'), 'trezor');          // doubled letters
+  assert.equal(look('https://m3tamsklgn.gitbook.io/'), 'metamask');            // metamsk + lgn
+  assert.equal(look('http://www.xfinitymaillog.weebly.com/'), 'xfinity');      // run-on name on free hosting
+  assert.equal(look('https://kucoinlogenac.gitbook.io/'), 'kucoin');
+  // Not look-alikes: a French word that squashes to a five-letter brand, a real word that starts like one, and a
+  // six-letter brand inside a run-on name on an ordinary domain (only free hosting gets the shorter substring rule).
+  assert.equal(look('https://chasse-peche.fr/'), null);
+  assert.equal(look('https://www.targetedmarketingpros.com/'), null);
+  assert.equal(look('https://www.stargazing.com/'), null);
+});
+
+test('everyday words near a brand are the word, not a disguised brand', () => {
+  const { analyze, brandInfo } = require('../server/lib/scan/url');
+  const look = (u) => { const b = brandInfo(analyze(u)); return b.lookalike ? b.lookalike.token : null; };
+  for (const u of ['https://cloud-hosting.com/', 'https://mobile-shop.com/', 'https://email-marketing.com/', 'https://family-trust.org/',
+    'https://codebase.io/', 'https://discard-pile.com/', 'https://live-stream.tv/', 'https://apply-now-jobs.com/', 'https://phase-one.com/',
+    'https://interact.com/', 'https://revolt.tv/', 'https://strike-force.com/', 'https://belle-maison.fr/']) {
+    assert.equal(look(u), null, u);
+  }
+  // Misspellings are still look-alikes.
+  for (const [u, t] of [['https://paypai.com/', 'paypal'], ['https://nettflix.com/', 'netflix'], ['https://coinbasse.com/', 'coinbase'],
+    ['https://tmobiile.com/', 'tmobile'], ['https://discorrd-nitro.com/', 'discord']]) {
+    assert.equal(look(u), t, u);
+  }
+});

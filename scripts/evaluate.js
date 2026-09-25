@@ -49,9 +49,19 @@ async function main() {
     return;
   }
 
-  console.log('Downloading live phishing URLs from OpenPhish...');
-  const res = await fetch('https://openphish.com/feed.txt', { signal: AbortSignal.timeout(30000) });
-  const phish = [...new Set((await res.text()).split(/\r?\n/).map((s) => s.trim()).filter(Boolean))].slice(0, 300);
+  // --urls <file>: a saved list instead of today's feed, so a change can be compared before and after on the same
+  // addresses (the live feed changes by the hour). --save <file> keeps today's list for that.
+  const argv = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : null; };
+  let text;
+  if (argv('--urls')) {
+    text = fs.readFileSync(argv('--urls'), 'utf8');
+  } else {
+    console.log('Downloading live phishing URLs from OpenPhish...');
+    const res = await fetch('https://openphish.com/feed.txt', { signal: AbortSignal.timeout(30000) });
+    text = await res.text();
+    if (argv('--save')) fs.writeFileSync(argv('--save'), text);
+  }
+  const phish = [...new Set(text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean))].slice(0, 300);
   console.log(`  ${phish.length} live phishing URLs\n`);
 
   const bucket = { none: 0, yellow: 0, orange: 0, red: 0 };
@@ -64,6 +74,9 @@ async function main() {
     if (badge === 'none') missed.push(`${v.threats.scam.score.toString().padStart(3)}  ${url.slice(0, 100)}`);
   }
   const flagged = bucket.yellow + bucket.orange + bucket.red;
+  // --misses <file>: the unflagged addresses with their scam score (text only; nothing is opened), to study.
+  const mi = process.argv.indexOf('--misses');
+  if (mi > 0) fs.writeFileSync(process.argv[mi + 1], missed.join('\n') + '\n');
   console.log('Live phishing, checklist only (no known-scam data, no research):');
   console.log(`  flagged ${flagged}/${phish.length} = ${pct(flagged, phish.length)}   (yellow ${bucket.yellow}, orange ${bucket.orange}, red ${bucket.red})`);
 
