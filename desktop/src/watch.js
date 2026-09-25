@@ -523,6 +523,36 @@ function worstKind(verdict) {
 
 const ENGINE_HOSTS = /(^|\.)(google\.[a-z.]+|gstatic\.com|googleusercontent\.com|youtube\.com|bing\.com|microsoft\.com|msn\.com|live\.com|duckduckgo\.com|brave\.com|yahoo\.com|ecosia\.org|startpage\.com|yandex\.[a-z.]+|mojeek\.com)$/i;
 
+/**
+ * Where a search engine's own redirect link really goes. Bing wraps every result in Edge ("bing.com/ck/a?...&u=a1"
+ * + the address in base64), Google sometimes ("/url?q="), DuckDuckGo's plain pages too ("/l/?uddg="), Yahoo always
+ * (".../RU=<address>/RK="). Unwrapped, the result is checked like any other; left wrapped, it was skipped as the
+ * engine's own link, and a Bing results page got no marks at all. Ads ("bing.com/aclk") cannot be unwrapped: they
+ * are only a redirect on Bing's side.
+ */
+function unwrapResult(u) {
+  const host = u.hostname;
+  let target = null;
+  try {
+    if (/(^|\.)bing\.com$/.test(host) && u.pathname === '/ck/a') {
+      const v = u.searchParams.get('u') || '';
+      if (v.startsWith('a1')) target = Buffer.from(v.slice(2), 'base64url').toString('utf8');
+    } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
+      target = u.searchParams.get('q') || u.searchParams.get('url');
+    } else if (/(^|\.)duckduckgo\.com$/.test(host) && u.pathname.startsWith('/l/')) {
+      target = u.searchParams.get('uddg');
+    } else if (/(^|\.)search\.yahoo\.com$/.test(host)) {
+      const m = /\/RU=([^/]+)\//.exec(u.pathname);
+      if (m) target = decodeURIComponent(m[1]);
+    }
+    if (!target) return null;
+    const t = new URL(target);
+    return t.protocol === 'http:' || t.protocol === 'https:' ? t : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One entry per result: the first on-screen link to each outside address. */
 function resultLinks(links, pageUrl) {
   let pageHost = '';
@@ -533,7 +563,11 @@ function resultLinks(links, pageUrl) {
     let u;
     try { u = new URL(l.u); } catch { continue }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
-    if (u.hostname === pageHost || ENGINE_HOSTS.test(u.hostname)) continue;
+    if (u.hostname === pageHost || ENGINE_HOSTS.test(u.hostname)) {
+      // The engine's own link, unless it is a redirect to a result.
+      u = unwrapResult(u);
+      if (!u || u.hostname === pageHost || ENGINE_HOSTS.test(u.hostname)) continue;
+    }
     const key = `${u.hostname}${u.pathname}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -569,8 +603,11 @@ async function onLinks(msg) {
   const page = state.window ? { private: Boolean(state.window.private) } : { private: false };
   const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for);
   const fresh = !latestLinks || latestLinks.for !== msg.for;
+  // A page read while it was still loading has no results yet: say so again when they arrive, or the log reads
+  // "0 results" for a page that is fully marked.
+  const arrived = !fresh && latestLinks.links.length === 0 && links.length > 0;
   latestLinks = { for: msg.for, links, epoch: ++linkEpoch };
-  if (fresh && !page.private) {
+  if ((fresh || arrived) && !page.private) {
     log(`results page: ${links.length} results on screen, read in ${msg.ms} ms`);
     state.lastResults = { count: links.length, ms: msg.ms, at: Date.now() };
   }
@@ -657,4 +694,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, _test: { resultLinks, worstKind, mailFromRow, readerLaunch, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, readerLaunch, SCRIPT } };

@@ -246,3 +246,19 @@ test('scrolling keeps each mark on its own element: marks are keyed by result, n
   assert.match(w, /k: markKey\(l\.u\)/);
   assert.match(w, /const markKey = \(u\) => crypto\.createHash\('sha1'\)/);
 });
+
+test('search engines\' redirect links are unwrapped to the result they lead to (Bing wraps every result)', () => {
+  const { resultLinks } = watch._test;
+  const b64 = (s) => Buffer.from(s).toString('base64url');
+  const links = [
+    { u: `https://www.bing.com/ck/a?!&&p=85641a7c&ptn=3&ver=2&hsh=4&fclid=1f&u=a1${b64('https://www.backmarket.com/en-us/l/airpods/1')}&ntb=1`, x: 22, y: 324, w: 636, h: 29 },
+    { u: 'https://www.bing.com/aclk?ld=e8grfr3bFWCl', x: 22, y: 481, w: 465, h: 24 },                       // an ad: cannot be unwrapped
+    { u: 'https://www.bing.com/fd/auth/signin/v2?action=interactive', x: 868, y: 319, w: 260, h: 38 },       // the engine's own page
+    { u: `https://www.google.com/url?q=${encodeURIComponent('https://example.org/deal')}&sa=U`, x: 20, y: 600, w: 300, h: 20 },
+    { u: `https://duckduckgo.com/l/?uddg=${encodeURIComponent('https://shop.example.net/x')}&rut=abc`, x: 20, y: 640, w: 300, h: 20 },
+    { u: `https://r.search.yahoo.com/_ylt=A/RV=2/RE=1/RO=10/RU=${encodeURIComponent('https://news.example.com/a')}/RK=2/RS=x-`, x: 20, y: 680, w: 300, h: 20 },
+    { u: `https://www.bing.com/ck/a?u=a1${b64('javascript:alert(1)')}`, x: 20, y: 720, w: 300, h: 20 }     // never anything but http(s)
+  ];
+  const out = resultLinks(links, 'https://www.bing.com/search?q=cheap+airpods+pro+outlet').map((l) => l.u);
+  assert.deepEqual(out, ['https://www.backmarket.com/en-us/l/airpods/1', 'https://example.org/deal', 'https://shop.example.net/x', 'https://news.example.com/a']);
+});
