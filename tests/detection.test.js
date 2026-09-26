@@ -735,3 +735,12 @@ test('everyday words near a brand are the word, not a disguised brand', () => {
     assert.equal(look(u), t, u);
   }
 });
+
+test('a live batch keeps its time budget as a whole: addresses reached after it is spent get the quick answer', async () => {
+  const urls = ['https://budget-one.example/', 'https://budget-two.example/login', 'https://budget-three.example/verify'];
+  const started = Date.now();
+  const out = await engine.scanUrls(urls, { research: true, budgetMs: 1, threats: ['scam', 'virus', 'malware'], mode: 'live', detail: 'compact' });
+  assert.ok(Date.now() - started < 3000, 'no address waited on research');
+  assert.equal(out.length, 3);
+  for (const v of out) { assert.equal(v.ok, true); assert.equal(v.researched, false, v.url); }
+});

@@ -357,11 +357,20 @@ async function scanUrls(urls, opts = {}) {
   const unique = [...new Set(urls.map(String))].slice(0, 60);
   const out = new Array(unique.length);
   let next = 0;
-  const workers = Array.from({ length: Math.min(opts.research ? 6 : 16, unique.length) }, async () => {
+  // `budgetMs` is a promise about the whole batch, not each address: 40 results researched six at a time, each
+  // allowed the full budget, could take half a minute. Every address gets what is left of the batch's time, and one
+  // started too late for research gets the quick answer instead. "Lite" research (registry and DNS, never the
+  // page) is light enough to run twelve at a time.
+  const deadline = opts.budgetMs ? Date.now() + opts.budgetMs : 0;
+  const lite = opts.research && !config.researchEnabled && config.researchLite;
+  const width = opts.research ? (lite ? 12 : 6) : 16;
+  const workers = Array.from({ length: Math.min(width, unique.length) }, async () => {
     while (next < unique.length) {
       const i = next++;
       try {
-        out[i] = await scanUrl(unique[i], { ...opts, record: false });
+        const left = deadline ? deadline - Date.now() : 0;
+        const each = deadline ? { research: opts.research && left > 400, budgetMs: Math.max(1, left) } : {};
+        out[i] = await scanUrl(unique[i], { ...opts, ...each, record: false });
       } catch {
         out[i] = { ok: false, kind: 'url', url: unique[i], error: 'scan_failed' };
       }
