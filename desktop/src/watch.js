@@ -40,6 +40,7 @@ const RECHECK_MS = 10 * 60 * 1000;     // same host warned again after this long
 const SETTLE_MS = 350;                 // a page must stay in front this long before it is checked (long enough to skip pages flicked past)
 const VERDICT_TTL_MS = 10 * 60 * 1000; // a link's verdict is reused this long (scrolling re-reads the same links)
 const MAX_LINKS = 40;
+const RETRY_MS = 5000;                 // a failed results check is tried again after this long
 
 // Foreground window -> owning process -> the page's document element -> its URL, its rectangle, its links.
 const SCRIPT = String.raw`
@@ -97,6 +98,8 @@ $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'fi
 $private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
 $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
 $last = ''; $lastFront = ''; $lastWin = ''; $lastLinks = ''; $wasIdle = $false; $noDoc = ''; $pause = 450
+$lastPid = 0; $lastProc = $null; $cachedDoc = $null; $cachedFor = [IntPtr]::Zero; $cachedTitle = ''; $cachedAt = 0
+$forceRead = $true; $readAt = 0; $lastCount = 0
 # Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
 # so the loop would stop at the first read until the app sent a command. A plain reader over the raw stream is
 # truly asynchronous.
@@ -114,7 +117,10 @@ while ($true) {
     if ($anchor) {
       try {
         $ar = $anchor.Current.BoundingRectangle
-        if (-not [double]::IsInfinity($ar.Y)) {
+        # A link that went away reports an empty rectangle: following it would throw every mark to the top corner.
+        # Let it go; the next full read places the marks again.
+        if ([double]::IsInfinity($ar.Y) -or $ar.Width -lt 1 -or $ar.Height -lt 1) { $anchor = $null }
+        else {
           $dx = [int]$ar.X - $anchorX; $dy = [int]$ar.Y - $anchorY
           if ($dx -ne $lastDx -or $dy -ne $lastDy) { $lastDx = $dx; $lastDy = $dy; $moved = $true; Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + '}}') }
         }
@@ -142,7 +148,9 @@ while ($true) {
   if ($h -eq [IntPtr]::Zero) { continue }
   $fp = 0
   [void][SW]::GetWindowThreadProcessId($h, [ref]$fp)
-  $p = Get-Process -Id $fp
+  # The same window belongs to the same process: look it up once, not on every pass.
+  if ($fp -ne $lastPid) { $lastPid = $fp; $lastProc = Get-Process -Id $fp }
+  $p = $lastProc
   $fname = $p.ProcessName
   if ($fname -and $fname -ne $lastFront) { $lastFront = $fname; Write-Output (@{ front = $fname; isBrowser = ($browsers -contains $fname) } | ConvertTo-Json -Compress) }
   # Behind another program, minimised, or nobody at the keyboard: the browser is not "in use".
@@ -152,44 +160,61 @@ while ($true) {
   if ($wasIdle) { $wasIdle = $false; Write-Output '{"awake":true}' }
 
   $url = $null; $r = $null; $doc = $null
+  # Finding the page means walking the whole browser window, page included. The page in front only changes with
+  # the tab or the title (or on navigation, when the old element stops answering), so the last one is reused for a
+  # few seconds when neither changed.
+  $title = [SW]::Title($h)
+  $tick = [Environment]::TickCount
+  $reuse = $cachedDoc -and $h -eq $cachedFor -and $title -eq $cachedTitle -and ($tick - $cachedAt) -lt 3000
+  if ($reuse) { try { if ($cachedDoc.Current.IsOffscreen) { $reuse = $false } } catch { $reuse = $false } }
+  if ($reuse) { $doc = $cachedDoc }
   try {
-    $root = $A::FromHandle($h)
-    # A browser keeps a page for every tab. The one in front is the document that is on screen, with the largest
-    # area: the first one found is often a background tab, which kept Sentinel on the first tab.
-    $best = $null; $bestArea = 0
-    $dscope = $docCache.Activate()
-    try { $docs = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $docCond) } finally { $dscope.Dispose() }
-    foreach ($d in $docs) {
-      if ($d.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }
-      $dr = $d.GetCachedPropertyValue($A::BoundingRectangleProperty)
-      if ([double]::IsInfinity($dr.Width) -or $dr.Width -lt 1) { continue }
-      $area = $dr.Width * $dr.Height
-      if ($area -gt $bestArea) { $bestArea = $area; $best = $d }
+    if (-not $reuse) {
+      $root = $A::FromHandle($h)
+      # A browser keeps a page for every tab. The one in front is the document that is on screen, with the largest
+      # area: the first one found is often a background tab, which kept Sentinel on the first tab.
+      $best = $null; $bestArea = 0
+      $dscope = $docCache.Activate()
+      try { $docs = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $docCond) } finally { $dscope.Dispose() }
+      foreach ($d in $docs) {
+        if ($d.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }
+        $dr = $d.GetCachedPropertyValue($A::BoundingRectangleProperty)
+        if ([double]::IsInfinity($dr.Width) -or $dr.Width -lt 1) { continue }
+        $area = $dr.Width * $dr.Height
+        if ($area -gt $bestArea) { $bestArea = $area; $best = $d }
+      }
+      $doc = $best
+      $cachedDoc = $best; $cachedFor = $h; $cachedTitle = $title; $cachedAt = $tick
     }
-    $doc = $best
     if ($doc) { $url = $doc.GetCurrentPattern($VP::Pattern).Current.Value; $r = $doc.Current.BoundingRectangle }
-  } catch { $url = $null }
+  } catch { $url = $null; $cachedDoc = $null }
   if (-not $url -or -not $r -or [double]::IsInfinity($r.Width) -or $r.Width -lt 200) {
     if ($noDoc -ne $fname) { $noDoc = $fname; Write-Output (@{ browser = $fname; nodoc = $true } | ConvertTo-Json -Compress) }
     Off 'no page'; continue
   }
   $noDoc = ''
-  $isPrivate = [SW]::Title($h) -match $private
+  $isPrivate = $title -match $private
 
   $winKey = "$h|$([int]$r.X)|$([int]$r.Y)|$([int]$r.Width)|$([int]$r.Height)|$isPrivate"
   if ($winKey -ne $lastWin) {
-    $lastWin = $winKey
+    $lastWin = $winKey; $forceRead = $true
     Write-Output (@{ win = @{ browser = $fname; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; private = [bool]$isPrivate } } | ConvertTo-Json -Compress)
   }
 
   $key = $fname + '|' + $url
   if ($key -ne $last) {
-    $last = $key; $lastLinks = ''
+    $last = $key; $lastLinks = ''; $anchor = $null; $forceRead = $true
     Write-Output (@{ browser = $fname; url = $url; private = [bool]$isPrivate; search = [bool]($url -match $search) } | ConvertTo-Json -Compress)
   }
 
+  # Reading every link on a page is the expensive part (hundreds of milliseconds on a slow machine). Read again only
+  # when something can have changed: a new page or window position, the page moved, the last read found nothing
+  # (still loading), nothing to follow the page by, or a few seconds passed (results that load in as you scroll).
+  $needRead = $forceRead -or $moved -or -not $anchor -or $lastCount -eq 0 -or ($tick - $readAt) -gt 2500
+  if ($needRead -and ($url -match $search -or $url -match $mail)) { $forceRead = $false; $readAt = $tick }
+
   # On a results page: every link on screen, with where it is. Addresses and rectangles only.
-  if ($url -match $search) {
+  if ($needRead -and $url -match $search) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $found = $null
     $scope = $cache.Activate()
@@ -210,6 +235,7 @@ while ($true) {
       }
     }
     $sw.Stop()
+    $lastCount = $list.Count
     $sig = ($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)" }) -join ';'
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
@@ -225,7 +251,7 @@ while ($true) {
 
   # In a webmail inbox: the message rows on screen, as the inbox shows them (sender, subject, preview) and where
   # they are. The words are what the inbox already displays; nothing is opened, clicked or marked as read.
-  if ($url -match $mail) {
+  if ($needRead -and $url -match $mail) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $rows = $null
     $scope = $rowCache.Activate()
@@ -246,6 +272,7 @@ while ($true) {
       }
     }
     $sw.Stop()
+    $lastCount = $list.Count
     $sig = ($list | ForEach-Object { "$($_.t.Length)|$($_.x)|$($_.y)" }) -join ';'
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
@@ -264,6 +291,7 @@ const warned = new Map();
 const verdicts = new Map();   // url -> { at, fast, mark }
 let settleTimer = null;
 let restartTimer = null;
+let retryTimer = null;        // a failed results check, tried again (see checkLinks)
 let latestLinks = null;       // the last list of on-screen links, so late verdicts land where the links are now
 let pending = new Set();
 let linkEpoch = 0;          // one per full read of the links; page movement is reported relative to it
@@ -402,6 +430,7 @@ function start() {
 
 function stop(reason, silent) {
   clearTimeout(settleTimer);
+  clearTimeout(retryTimer);
   clearTimeout(restartTimer);
   const old = child;
   child = null;
@@ -612,7 +641,16 @@ async function onLinks(msg) {
     state.lastResults = { count: links.length, ms: msg.ms, at: Date.now() };
   }
   publishMarks();   // positions first: marks already known move at once
+  await checkLinks(links, page, msg.for);
+}
 
+/**
+ * Check the results on screen that have no mark yet. A check that fails (the network dropped, the scanner is
+ * restarting) is tried again a few seconds later: a results page left still would otherwise never be marked,
+ * because nothing on it changes to cause another read.
+ */
+async function checkLinks(links, page, forUrl) {
+  clearTimeout(retryTimer);
   const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
   if (!missing.length) return;
   missing.forEach((u) => pending.add(u));
@@ -645,6 +683,11 @@ async function onLinks(msg) {
   } catch (err) {
     log(`results check failed: ${err.status || ''} ${err.code || err.message}`);
     if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
+    else if (err.status !== 401 && err.status !== 403) {
+      retryTimer = setTimeout(() => {
+        if (child && latestLinks && latestLinks.for === forUrl) checkLinks(latestLinks.links, page, forUrl).catch(() => {});
+      }, RETRY_MS);
+    }
   } finally {
     missing.forEach((u) => pending.delete(u));
   }

@@ -43,7 +43,7 @@ test('the reader only works on a browser that is in front and in use, and reads 
   // What it asks Windows for: the address (Value), rectangles, and whether a link is on screen. Never text.
   assert.ok(!/TextPattern|HelpText|LegacyIAccessible|Clipboard|CopyFromScreen|Screenshot/i.test(s), 'no page text, no clipboard, no screenshots');
   // Names are read in one place only: the message rows of a webmail inbox, which the inbox itself displays.
-  const mailBlock = s.indexOf('if ($url -match $mail)');
+  const mailBlock = s.indexOf('if ($needRead -and $url -match $mail)');
   const names = [...s.matchAll(/NameProperty/g)].map((m) => m.index);
   assert.ok(names.length >= 1 && mailBlock > 0);
   assert.ok(names.every((i) => i > mailBlock || s.slice(Math.max(0, i - 60), i).includes('rowCache')), 'row names are read only for a webmail inbox');
@@ -261,4 +261,30 @@ test('search engines\' redirect links are unwrapped to the result they lead to (
   ];
   const out = resultLinks(links, 'https://www.bing.com/search?q=cheap+airpods+pro+outlet').map((l) => l.u);
   assert.deepEqual(out, ['https://www.backmarket.com/en-us/l/airpods/1', 'https://example.org/deal', 'https://shop.example.net/x', 'https://news.example.com/a']);
+});
+
+test('the reader script is valid PowerShell (a syntax slip there silently ends live scanning)', { skip: process.platform !== 'win32' }, () => {
+  const { spawnSync } = require('child_process');
+  const { SCRIPT } = watch._test;
+  const file = path.join(os.tmpdir(), `sentinel-reader-parse-${process.pid}.ps1`);
+  fs.writeFileSync(file, SCRIPT.replace('__TEST_PROCESS__', () => '').replace('__HELPER_DLL__', () => ''), 'utf8');
+  try {
+    // Parsed, never run.
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      `$e = $null; $t = $null; [void][System.Management.Automation.Language.Parser]::ParseFile('${file.replace(/'/g, "''")}', [ref]$t, [ref]$e); $e | ForEach-Object { $_.Message + ' @ line ' + $_.Extent.StartLineNumber }`],
+    { encoding: 'utf8', windowsHide: true, timeout: 60000 });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout.trim(), '', `parse errors:\n${r.stdout}`);
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+});
+
+test('the reader reads links only when something can have changed, and reuses the page between passes', () => {
+  const { SCRIPT } = watch._test;
+  assert.match(SCRIPT, /\$needRead = \$forceRead -or \$moved -or -not \$anchor -or \$lastCount -eq 0 -or \(\$tick - \$readAt\) -gt 2500/);
+  assert.match(SCRIPT, /if \(\$needRead -and \$url -match \$search\)/);
+  assert.match(SCRIPT, /\$reuse = \$cachedDoc -and \$h -eq \$cachedFor -and \$title -eq \$cachedTitle/);
+  // A lost anchor is let go, never followed to an empty rectangle.
+  assert.match(SCRIPT, /\$ar\.Width -lt 1 -or \$ar\.Height -lt 1\) \{ \$anchor = \$null \}/);
 });
