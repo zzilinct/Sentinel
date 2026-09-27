@@ -1,0 +1,24 @@
+# Screenshots of every page of the site and the web app, at a desktop and a phone size, for a human-eye review.
+# Runs only on demand (gh workflow run review-shots.yml --ref <branch>), on GitHub's machines.
+name: Review screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shots:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/review-shots.js --out shots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-shots
+          path: shots/
+          retention-days: 7
