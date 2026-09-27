@@ -1,9 +1,11 @@
 # Screenshots of every page of the site and the web app, at a desktop and a phone size, for a human-eye review.
-# Runs only on demand (gh workflow run review-shots.yml --ref <branch>), on GitHub's machines.
+# Runs on work/* branches and on demand, on GitHub's machines.
 name: Review screenshots
 
 on:
   workflow_dispatch:
+  push:
+    branches: ['work/**']
 
 permissions:
   contents: read
