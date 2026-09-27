@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   liveStart: () => ipcRenderer.invoke('sentinel:live-start'),
   liveStop: () => ipcRenderer.invoke('sentinel:live-stop'),
   setLiveMode: (mode) => ipcRenderer.invoke('sentinel:live-mode', mode === 'delicate' ? 'delicate' : 'fast'),
+  setAutoScan: (enabled) => ipcRenderer.invoke('sentinel:auto-scan', Boolean(enabled)),
   scanWith: (browser) => ipcRenderer.invoke('sentinel:scan-with', String(browser)),
   checkUpdates: () => ipcRenderer.invoke('sentinel:check-updates'),
   installUpdate: () => ipcRenderer.invoke('sentinel:install-update'),

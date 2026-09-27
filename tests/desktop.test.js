@@ -306,3 +306,64 @@ test('Sentinel stays out of the way: below-normal priority, no Temp folder scann
   assert.match(SCRIPT, /if \(-not \$anchor\) \{ if \(\$pendingLine\.Wait/);
   assert.match(SCRIPT, /Off 'not in front'; \$pause = 1000; continue/);
 });
+
+test('one mark per website, on its main link: sitelinks and AI-answer citations do not each get a mark', () => {
+  const { resultLinks } = watch._test;
+  const links = [
+    { u: 'https://www.paypal.com/us/home', x: 20, y: 100, w: 420, h: 58 },            // the result: site name + title
+    { u: 'https://www.paypal.com/signin', x: 40, y: 170, w: 60, h: 18 },              // sitelinks
+    { u: 'https://www.paypal.com/us/webapps/mpp/account-selection', x: 40, y: 200, w: 110, h: 18 },
+    { u: 'https://en.wikipedia.org/wiki/PayPal', x: 480, y: 60, w: 70, h: 20 },         // a citation chip in an AI answer
+    { u: 'https://en.wikipedia.org/wiki/PayPal', x: 20, y: 700, w: 300, h: 58 },       // and the Wikipedia result itself
+    { u: 'https://sites.google.com/view/one', x: 20, y: 800, w: 300, h: 40 },           // shared host: one per page
+    { u: 'https://sites.google.com/view/two', x: 20, y: 860, w: 300, h: 40 }
+  ];
+  const out = resultLinks(links, 'https://www.google.com/search?q=paypal');
+  assert.deepEqual(out.map((l) => [l.u, l.y]), [
+    ['https://www.paypal.com/us/home', 100],
+    ['https://en.wikipedia.org/wiki/PayPal', 700],
+    ['https://sites.google.com/view/one', 800],
+    ['https://sites.google.com/view/two', 860]
+  ]);
+});
+
+test('an inbox message exposed twice (row and list item) gets one mark', () => {
+  const { distinctRows } = watch._test;
+  const rows = [{ u: 'mail:a', x: 0, y: 100, w: 900, h: 40 }, { u: 'mail:a2', x: 220, y: 104, w: 520, h: 30 }, { u: 'mail:b', x: 0, y: 140, w: 900, h: 40 }];
+  assert.deepEqual(distinctRows(rows).map((r) => r.u), ['mail:a', 'mail:b']);
+});
+
+test('Start scanning brings the person\'s browser forward first; the gold line never crosses the desktop or a game', () => {
+  const main = read('desktop/src/main.js');
+  assert.match(main, /async function startScanning\(\)/);
+  assert.match(main, /browsers\.preferred\(store\.get\('liveBrowser', null\)\)/);
+  assert.match(main, /handle\('sentinel:live-start', \(\) => \{ setAutoSession\(false\); return startScanning\(\); \}\)/);
+  assert.doesNotMatch(main + read('desktop/src/overlay.js'), /readySweep/);
+  const browsers = read('desktop/src/browsers.js');
+  assert.match(browsers, /UrlAssociations\\\\https\\\\UserChoice/);
+});
+
+test('updates install themselves only when nobody is browsing, and Sentinel comes back in the tray', () => {
+  const main = read('desktop/src/main.js');
+  assert.match(main, /async function autoInstallSoon\(\)/);
+  assert.match(main, /idleSeconds >= 5 \* 60/);
+  assert.match(main, /hidden: !\(win && !win\.isDestroyed\(\) && win\.isVisible\(\)\)/);
+  assert.match(read('desktop/src/updater.js'), /function hiddenMarker\(\)/);
+  assert.match(main, /const startHidden = /);
+});
+
+test('auto scanning follows the browsers: on when one opens, off when the last one closes (only if it started it)', () => {
+  const main = read('desktop/src/main.js');
+  assert.match(main, /async function autoScanFollow\(running\)/);
+  assert.match(main, /else if \(!running\.length && on && autoSession\)/);
+  assert.match(main, /mode: \(\) => \(autoSession \? 'fast' : store\.get\('liveMode', 'fast'\)\)/);
+  assert.match(read('desktop/src/preload.js'), /setAutoScan:/);
+});
+
+test('the Windows icon is a real multi-size .ico', () => {
+  const ico = fs.readFileSync(path.join(ROOT, 'desktop', 'build', 'icon.ico'));
+  assert.equal(ico.readUInt16LE(0), 0);
+  assert.equal(ico.readUInt16LE(2), 1, 'icon type');
+  assert.ok(ico.readUInt16LE(4) >= 5, 'several sizes');
+  assert.match(read('desktop/package.json'), /"icon": "build\/icon\.ico"/);
+});

@@ -217,3 +217,25 @@ function renderBanner(width, height) {
 }
 fs.writeFileSync(path.join(WEB_DIR, 'og.png'), renderBanner(1200, 630));
 console.log('Web app icons and link preview written to web/assets/img/');
+
+// The Windows app icon: one .ico holding every size Windows asks for (taskbar, title bar, Alt+Tab, Start). With a
+// single large PNG, Windows had to scale on its own, and a copy that could not resolve it showed a blank page.
+function encodeIco(images) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); header.writeUInt16LE(1, 2); header.writeUInt16LE(images.length, 4);
+  const entries = [];
+  let offset = 6 + 16 * images.length;
+  for (const { size, png } of images) {
+    const e = Buffer.alloc(16);
+    e.writeUInt8(size >= 256 ? 0 : size, 0); e.writeUInt8(size >= 256 ? 0 : size, 1);
+    e.writeUInt8(0, 2); e.writeUInt8(0, 3); e.writeUInt16LE(1, 4); e.writeUInt16LE(32, 6);
+    e.writeUInt32LE(png.length, 8); e.writeUInt32LE(offset, 12);
+    offset += png.length;
+    entries.push(e);
+  }
+  return Buffer.concat([header, ...entries, ...images.map((i) => i.png)]);
+}
+const DESKTOP_BUILD = path.join(__dirname, '..', 'desktop', 'build');
+fs.mkdirSync(DESKTOP_BUILD, { recursive: true });
+fs.writeFileSync(path.join(DESKTOP_BUILD, 'icon.ico'), encodeIco([16, 24, 32, 48, 64, 128, 256].map((size) => ({ size, png: render(size) }))));
+console.log('Windows app icon written to desktop/build/icon.ico');

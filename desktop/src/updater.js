@@ -29,7 +29,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 
-const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
+const CHECK_EVERY_MS = 2 * 60 * 60 * 1000;   // an update is downloaded within two hours of its release
 
 let autoUpdater = null;
 let hooks = {};
@@ -147,7 +147,14 @@ async function check() {
  * Run the downloaded installer and quit. `relaunch` starts the new version afterwards ("Restart now"); a plain
  * quit installs without starting it again.
  */
-async function install({ relaunch = true } = {}) {
+/**
+ * The installer's own restart (--force-run) starts Sentinel without arguments, so it would open its window. An
+ * update installed while the person was away must bring Sentinel back where it was: in the tray. This file says so
+ * to the next start (see startHidden in main.js), and is removed there.
+ */
+function hiddenMarker() { return path.join(app.getPath('userData'), 'start-hidden'); }
+
+async function install({ relaunch = true, hidden = false } = {}) {
   if (!downloaded || installing) return { ok: false, error: 'No update is ready' };
   installing = true;
   const { version, file, sha512: expected } = downloaded;
@@ -169,6 +176,7 @@ async function install({ relaunch = true } = {}) {
   // Silent, into this copy's own folder. /D= must be the last argument and must not be quoted.
   const args = ['--updated', '/S'];
   if (relaunch) args.push('--force-run');
+  if (relaunch && hidden) { try { fs.writeFileSync(hiddenMarker(), String(Date.now())); } catch { /* shown instead: harmless */ } }
   args.push(`/D=${path.dirname(process.execPath)}`);
   try {
     const child = spawn(file, args, { detached: true, stdio: 'ignore', windowsHide: true });
@@ -186,4 +194,4 @@ async function install({ relaunch = true } = {}) {
   return { ok: true };
 }
 
-module.exports = { init, check, install, status, _test: { newer } };
+module.exports = { init, check, install, status, hiddenMarker, _test: { newer } };

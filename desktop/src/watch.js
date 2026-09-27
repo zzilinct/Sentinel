@@ -114,8 +114,13 @@ while ($true) {
   $moved = $false
   # Nothing to follow (no results page in front, or a game): one quiet wait, not a loop that wakes 60 times a second.
   if (-not $anchor) { if ($pendingLine.Wait([Math]::Max(1, $until - [Environment]::TickCount))) { $gotCmd = $true } }
+  # While the page moves it is followed as fast as the browser answers (every 15 ms when it is still), and the
+  # full read waits until it has been still for 150 ms. A full read takes a few hundred milliseconds; done in the
+  # middle of a scroll it recorded links at different moments, and the marks jumped back and forth.
+  $stillAt = 0; $loopStart = [Environment]::TickCount
   while ($anchor -and -not $gotCmd -and [Environment]::TickCount -lt $until) {
-    if ($pendingLine.Wait(15)) { $gotCmd = $true; break }
+    $wait = if ([Environment]::TickCount -lt $stillAt) { 1 } else { 15 }
+    if ($pendingLine.Wait($wait)) { $gotCmd = $true; break }
     if ($anchor) {
       try {
         $ar = $anchor.Current.BoundingRectangle
@@ -124,13 +129,19 @@ while ($true) {
         if ([double]::IsInfinity($ar.Y) -or $ar.Width -lt 1 -or $ar.Height -lt 1) { $anchor = $null }
         else {
           $dx = [int]$ar.X - $anchorX; $dy = [int]$ar.Y - $anchorY
-          if ($dx -ne $lastDx -or $dy -ne $lastDy) { $lastDx = $dx; $lastDy = $dy; $moved = $true; Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + '}}') }
+          if ($dx -ne $lastDx -or $dy -ne $lastDy) {
+            $lastDx = $dx; $lastDy = $dy; $moved = $true
+            Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + '}}')
+            $stillAt = [Environment]::TickCount + 150
+            # Never more than 5 s between full reads, even on a page that keeps moving by itself.
+            if ($until -lt $stillAt -and $stillAt - $loopStart -lt 5000) { $until = $stillAt }
+          }
         }
       } catch { $anchor = $null }
     }
   }
-  # After movement, look again soon: the full read puts every mark exactly where its link now is.
-  if ($moved) { $pause = 120 }
+  # The page has settled: the full read now puts every mark exactly where its link is.
+  if ($moved) { $pause = 60 }
   if ($gotCmd) {
     $cmd = $pendingLine.Result
     if ($null -eq $cmd) { exit }   # the app closed the pipe: it is gone
@@ -278,7 +289,12 @@ while ($true) {
     $sig = ($list | ForEach-Object { "$($_.t.Length)|$($_.x)|$($_.y)" }) -join ';'
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
-      Write-Output (@{ mail = @($list); for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
+      # The part of the page where the message list shows: rows scrolled out of it are hidden by the inbox (and
+      # reported off screen), so the visible rows span it. Marks outside it are clipped by the overlay.
+      $clipTop = [int]::MaxValue; $clipBottom = 0
+      foreach ($it in $list) { if ($it.y -lt $clipTop) { $clipTop = $it.y }; if ($it.y + $it.h -gt $clipBottom) { $clipBottom = $it.y + $it.h } }
+      $clip = if ($list.Count) { @{ top = $clipTop; bottom = $clipBottom } } else { $null }
+      Write-Output (@{ mail = @($list); clip = $clip; for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0
     }
     if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
@@ -584,28 +600,42 @@ function unwrapResult(u) {
   }
 }
 
-/** One entry per result: the first on-screen link to each outside address. */
+// Pages anyone can publish on the search engines' own domains: checked like any result, never skipped as the
+// engine's own links (phishing on Google Sites, Docs and Forms is common).
+const USER_PAGES_ON_ENGINES = /^((sites|docs|drive|forms)\.google\.com|forms\.gle|storage\.googleapis\.com|[a-z0-9-]+\.blogspot\.com)$/i;
+
+// Hosts where every page belongs to someone different: one mark per page there, not one per host.
+const SHARED_HOSTS = /(^|\.)(sites\.google\.com|docs\.google\.com|drive\.google\.com|forms\.gle|dropbox\.com|onedrive\.live\.com|1drv\.ms|notion\.site|linktr\.ee|medium\.com|substack\.com|reddit\.com|facebook\.com|instagram\.com|x\.com|twitter\.com|tiktok\.com|linkedin\.com|youtube\.com|github\.com|gitlab\.com|t\.me|wixsite\.com|weebly\.com|blogspot\.com)$/i;
+
+/**
+ * One mark per website on the screen, beside its main link. A result's sitelinks (PayPal: Login, Sign up, Contact
+ * us...) and the citation chips of an AI answer each used to get a mark of their own, which crowded the page and put
+ * marks in the middle of sentences. The largest link of a site (its title) carries the mark. On shared hosts, each
+ * page is its own.
+ */
 function resultLinks(links, pageUrl) {
   let pageHost = '';
   try { pageHost = new URL(pageUrl).hostname; } catch { /* keep all */ }
-  const seen = new Set();
-  const out = [];
+  const bySite = new Map();
   for (const l of links) {
     let u;
     try { u = new URL(l.u); } catch { continue }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
-    if (u.hostname === pageHost || ENGINE_HOSTS.test(u.hostname)) {
+    const engines = (h) => (h === pageHost || ENGINE_HOSTS.test(h)) && !USER_PAGES_ON_ENGINES.test(h);
+    if (engines(u.hostname)) {
       // The engine's own link, unless it is a redirect to a result.
       u = unwrapResult(u);
-      if (!u || u.hostname === pageHost || ENGINE_HOSTS.test(u.hostname)) continue;
+      if (!u || engines(u.hostname)) continue;
     }
-    const key = `${u.hostname}${u.pathname}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ ...l, u: u.href });
-    if (out.length >= MAX_LINKS) break;
+    const host = u.hostname.replace(/^www\./, '');
+    const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : host;
+    const area = (l.w || 0) * (l.h || 0);
+    const had = bySite.get(key);
+    if (!had) bySite.set(key, { ...l, u: u.href, area });
+    else if (area > had.area) bySite.set(key, { ...l, u: u.href, area });
   }
-  return out;
+  // In reading order (top to bottom), at most MAX_LINKS.
+  return [...bySite.values()].sort((a, b) => a.y - b.y || a.x - b.x).slice(0, MAX_LINKS).map(({ area, ...l }) => l);
 }
 
 function markFor(url) {
@@ -623,6 +653,7 @@ function publishMarks() {
   opts.onMarks({
     for: latestLinks.for,
     epoch: latestLinks.epoch,
+    clip: latestLinks.clip || null,
     checking: latestLinks.links.filter((l) => !markFor(l.u)).length,
     // `k` keeps each mark on its own element in the overlay while results scroll in and out. A hash, so no address
     // reaches the overlay window.
@@ -710,18 +741,33 @@ function mailFromRow(text) {
 
 const rowKey = (text) => `mail:${require('crypto').createHash('sha1').update(String(text)).digest('hex').slice(0, 20)}`;
 
+/**
+ * One entry per message. An inbox can expose a message twice (the row, and a list item inside it): each was checked
+ * on its own and got a mark of its own, so one email showed a tick and a mask side by side. Of rows that overlap on
+ * screen, the widest (the whole message row) is kept.
+ */
+function distinctRows(rows) {
+  const kept = [];
+  for (const r of [...rows].sort((a, b) => b.w - a.w)) {
+    const clash = kept.some((k) => Math.min(k.y + k.h, r.y + r.h) - Math.max(k.y, r.y) > Math.min(k.h, r.h) / 2);
+    if (!clash) kept.push(r);
+  }
+  return kept.sort((a, b) => a.y - b.y);
+}
+
 async function onMail(msg) {
   const isPrivate = Boolean(state.window && state.window.private);
-  const rows = (Array.isArray(msg.mail) ? msg.mail : []).map((r) => ({ u: rowKey(r.t), x: r.x, y: r.y, w: r.w, h: r.h, text: r.t }));
+  const rows = distinctRows((Array.isArray(msg.mail) ? msg.mail : []).map((r) => ({ u: rowKey(r.t), x: r.x, y: r.y, w: r.w, h: r.h, text: r.t })));
   const fresh = !latestLinks || latestLinks.for !== msg.for;
-  latestLinks = { for: msg.for, links: rows, epoch: ++linkEpoch };
+  const clip = msg.clip && Number.isFinite(msg.clip.top) && Number.isFinite(msg.clip.bottom) ? { top: msg.clip.top, bottom: msg.clip.bottom } : null;
+  latestLinks = { for: msg.for, links: rows, clip, epoch: ++linkEpoch };
   if (fresh && !isPrivate) log(`inbox: ${rows.length} messages on screen, read in ${msg.ms} ms`);
   publishMarks();
   const missing = rows.filter((r) => !markFor(r.u) && !pending.has(r.u));
   if (!missing.length) return;
   missing.forEach((r) => pending.add(r.u));
   try {
-    const { results } = await opts.api('/api/v1/live/email', { emails: missing.map((r) => ({ key: r.u, ...mailFromRow(r.text) })) });
+    const { results } = await opts.api('/api/v1/live/email', { preview: true, emails: missing.map((r) => ({ key: r.u, ...mailFromRow(r.text) })) });
     for (const item of results || []) {
       const v = item.verdict;
       if (!v || !item.key) continue;
@@ -739,4 +785,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, readerLaunch, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, SCRIPT } };

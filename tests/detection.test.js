@@ -744,3 +744,28 @@ test('a live batch keeps its time budget as a whole: addresses reached after it 
   assert.equal(out.length, 3);
   for (const v of out) { assert.equal(v.ok, true); assert.equal(v.researched, false, v.url); }
 });
+
+test('email: real mail from Google, Canva, a church or a store is never marked for its wording; scams with evidence are', async () => {
+  const { mailFromRow } = require('../desktop/src/watch.js')._test;
+  const T = ['scam', 'virus', 'malware'];
+  const check = async (mail, preview) => engine.scanEmail(mail, { threats: T, mode: 'live', detail: 'compact', research: false, preview });
+  const clear = [
+    'unread, Google, Your Google Account will be deleted due to inactivity, 3:45 PM, Sign in to keep your account. If you do not sign in by October 30, your account and its content will be deleted.',
+    'Google, Security alert, 9:12 AM, A new sign-in on Windows. If this was you, you don\'t need to do anything.',
+    'Canva, Verify your email address, Sep 20, Confirm your account by entering this code: 482913.',
+    'unread, Grace Community Church, Sunday potluck cancelled - nor\'easter, 7:02 AM, Due to the nor\'easter the building will be closed on Sunday.',
+    'Coinbase, Bitcoin is up 5% today, 8:00 AM, See how the market moved this week.',
+    'State Farm, Update your beneficiary, Sep 2, Review the beneficiaries on your life policy in the app.',
+    'Amazon, Your gift card order has shipped, Aug 30, Your order of a $25 gift card is on its way.'
+  ];
+  for (const row of clear) assert.equal((await check(mailFromRow(row), true)).overall.badge, null, row);
+  assert.equal((await check({ from: 'Google <no-reply@accounts.google.com>', subject: 'Security alert', body: 'If this was not you, confirm your account and secure it.' }, false)).overall.badge, null);
+
+  const scams = [
+    [mailFromRow('Customer Rewards, You have won a $500 gift card, 2:11 PM, To release your prize pay the processing fee with gift cards today.'), true],
+    [mailFromRow('Crypto Support, Your wallet is locked, 1:02 PM, Send 0.05 bitcoin to unlock your crypto wallet.'), true],
+    [{ from: 'PayPal Service <paypal.security.team@gmail.com>', subject: 'Action required: account suspended', body: 'Your account will be suspended. Verify your account now.' }, false],
+    [{ from: 'Invoices <billing@quickpay-invoices.biz>', subject: 'Invoice overdue', body: 'Open the attached invoice.', attachments: ['invoice.pdf.exe'] }, false]
+  ];
+  for (const [mail, preview] of scams) assert.ok((await check(mail, preview)).overall.badge, JSON.stringify(mail).slice(0, 80));
+});

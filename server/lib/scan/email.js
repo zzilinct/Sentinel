@@ -14,9 +14,11 @@ const skip = (detail) => ({ status: 'skip', points: 0, detail });
 
 const URGENT_SUBJECT = /(urgent|immediately|action required|final notice|suspended|locked|verify|unusual (sign-?in|activity)|payment (failed|declined)|overdue|expires? today|last chance|security alert|confirm your)/i;
 const CREDENTIAL_ASK = /(verify your (account|identity)|confirm your (password|account|details)|update your (payment|billing)|log ?in to (restore|avoid|keep)|re-?enter your|validate your (account|mailbox)|mailbox (is )?(full|quota))/i;
-const MONEY_ASK = /(gift cards?|wire transfer|bitcoin|usdt|crypto(currency)? wallet|western union|moneygram|processing fee|release (the|your) funds|inheritance|beneficiary|lottery)/i;
+// A request to pay in a way that cannot be undone, not the words alone: a Coinbase price alert says "bitcoin", an
+// insurance letter says "beneficiary", a store sells gift cards.
+const MONEY_ASK = /((pay|send|buy|purchase|deposit|transfer|get)\b.{0,40}\b(gift ?cards?|bitcoin|btc|usdt|ethereum|crypto(currency)?|western union|moneygram|wire transfer)|gift ?cards?\b.{0,40}\b(codes?|pins?|scratch|photos?|pictures?)|(processing|release|clearance|unlock|handling) fee|release (the|your) funds|inheritance (funds|claim|transfer)|next of kin|lottery (win|winner|prize)|you have won)/i;
 const GENERIC_GREETING = /^(\s*)(dear (customer|user|client|member|account holder|valued customer|sir\/madam|friend)|hello (customer|user)|dear [a-z0-9._%+-]+@)/i;
-const THREAT = /(legal action|arrest|police|lawsuit|will be (closed|terminated|deleted)|permanently (disabled|deleted)|report you)/i;
+const THREAT = /(legal action against you|arrest warrant|lawsuit against you|report you to|(account|mailbox|profile|card|subscription|access)\b.{0,60}\b(will be|to be|is being) (closed|terminated|suspended|deleted|disabled|locked)|permanently (disabled|deleted|locked))/i;
 const QR = /(scan (the|this) qr|qr code (below|attached))/i;
 const ARCHIVE_PASSWORD = /(password|pwd|pass)\s*[:=]\s*\S{3,}/i;
 
@@ -37,9 +39,11 @@ function brandIn(text) {
 
 /**
  * @param {object} mail
+ * @param {{preview?: boolean}} [how] preview: what an inbox list shows (sender name, subject, a line of text), with
+ *   no sender address and no links. Checks that need those are skipped, not guessed.
  * @returns {{checks: object[], links: string[], sender: object}}
  */
-function analyzeEmail(mail) {
+function analyzeEmail(mail, how = {}) {
   const from = parseAddress(mail.from || (mail.fromName ? `${mail.fromName} <${mail.fromAddress || ''}>` : mail.fromAddress));
   const replyTo = mail.replyTo ? parseAddress(mail.replyTo) : null;
   const subject = String(mail.subject || '').slice(0, 500);
@@ -89,11 +93,20 @@ function analyzeEmail(mail) {
       ? fail(26, `"${from.name}" writing from a free ${from.domain} address`) : pass('Personal mailbox');
   })());
 
-  add('E05', 'scam', 'Subject is not built to rush you', URGENT_SUBJECT.test(subject) ? warn(10, `"${subject.slice(0, 80)}"`) : pass('Calm subject'));
-  add('E06', 'scam', 'Does not ask you to confirm login or payment details', CREDENTIAL_ASK.test(body) ? fail(24, 'Asks you to verify or re-enter account details') : pass('No credential request'));
-  add('E07', 'scam', 'Does not ask for untraceable payment', MONEY_ASK.test(body) || MONEY_ASK.test(subject) ? fail(26, 'Mentions gift cards, crypto, wire transfers or release fees') : pass('No payment demand'));
-  add('E08', 'scam', 'Addresses you personally', GENERIC_GREETING.test(body) ? warn(6, 'Generic greeting') : pass('No generic greeting'));
-  add('E09', 'scam', 'No threats of closure or legal action', THREAT.test(body) ? warn(12, 'Threatens consequences if you do not act') : pass('No threats'));
+  // Sent from the brand's own domain (as the mail provider delivered it): "verify", "security alert", "confirm
+  // your account" are how Google, Canva or a bank write to their own users. Those words say nothing more there.
+  const fromOfficial = Boolean(from.domain && (senderBrand.official || (claimed && claimed.domains.some((d) => from.domain === d || from.domain.endsWith('.' + d)))));
+  const wording = (check) => (fromOfficial && check.status !== 'pass' ? pass(`Sent from ${from.domain}: ${check.detail}`) : check);
+  add('E05', 'scam', 'Subject is not built to rush you', wording(URGENT_SUBJECT.test(subject) ? warn(10, `"${subject.slice(0, 80)}"`) : pass('Calm subject')));
+  add('E06', 'scam', 'Does not ask you to confirm login or payment details', wording(CREDENTIAL_ASK.test(subject + ' ' + body)
+    // A preview has no sender address to hold the request against: noted, never decisive on its own.
+    ? (how.preview ? warn(12, 'Asks you to verify or re-enter account details') : fail(24, 'Asks you to verify or re-enter account details'))
+    : pass('No credential request')));
+  // Gift cards, crypto, wire transfers, "release fees": the one request a real company never makes by email. Weighted to
+  // mark on its own, even in an inbox preview.
+  add('E07', 'scam', 'Does not ask for untraceable payment', MONEY_ASK.test(body) || MONEY_ASK.test(subject) ? fail(44, 'Asks for payment in gift cards, crypto, a wire transfer or a release fee') : pass('No payment demand'));
+  add('E08', 'scam', 'Addresses you personally', wording(GENERIC_GREETING.test(body) ? warn(6, 'Generic greeting') : pass('No generic greeting')));
+  add('E09', 'scam', 'No threats of closure or legal action', wording(THREAT.test(subject + ' ' + body) ? warn(12, 'Threatens your account or legal consequences if you do not act') : pass('No threats')));
 
   const mismatched = links.filter((l) => {
     const shown = /(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}/i.exec(String(l.text || ''));

@@ -163,9 +163,37 @@ async function launch(b) {
   return { ok: true, launched: true, name: b.name };
 }
 
+// What Windows opens web links with, by the ProgId it records for https.
+const PROG_IDS = [
+  [/^ChromeHTML/i, 'chrome'], [/^MSEdgeHTM/i, 'edge'], [/^BraveHTML/i, 'brave'], [/^Firefox/i, 'firefox'],
+  [/^Opera/i, 'opera'], [/^VivaldiHTM/i, 'vivaldi'], [/^DuckDuckGo/i, 'duckduckgo'], [/^LibreWolf/i, 'librewolf']
+];
+
+/** The browser Windows opens links with, or null. */
+async function defaultBrowser() {
+  if (process.platform !== 'win32') return null;
+  const out = await run('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\UserChoice', '/v', 'ProgId']);
+  const m = /ProgId\s+REG_SZ\s+(\S+)/.exec(out);
+  const hit = m && PROG_IDS.find(([rx]) => rx.test(m[1]));
+  return hit ? hit[1] : null;
+}
+
+/**
+ * The browser "Start scanning" works with: the one chosen in Sentinel, else the computer's default browser, else
+ * one that is open, else any installed. null when the computer has no browser Sentinel knows.
+ */
+async function preferred(chosen) {
+  const have = (await installed()).map((b) => b.id);
+  if (chosen && have.includes(chosen)) return chosen;
+  const def = await defaultBrowser().catch(() => null);
+  if (def && have.includes(def)) return def;
+  const open = (await running().catch(() => [])).find((id) => have.includes(id));
+  return open || have[0] || null;
+}
+
 /**
  * Polls the running browsers and reports when one appears or goes away.
- * `onChange(state)` gets { installed: [...], running: [...] }.
+ * `onChange(state)` gets { installed: [...], running: [...] }. `everyMs` may be a function, asked before each wait.
  */
 function watch({ onChange, everyMs = 15000 }) {
   let last = '';
@@ -179,10 +207,11 @@ function watch({ onChange, everyMs = 15000 }) {
       const key = JSON.stringify(state.running);
       if (key !== last) { last = key; onChange(state); }
     } catch { /* keep polling */ }
-    if (!stopped) timer = setTimeout(tick, everyMs);
+    if (!stopped) timer = setTimeout(tick, typeof everyMs === 'function' ? everyMs() : everyMs);
   };
   tick();
   return { stop() { stopped = true; clearTimeout(timer); } };
 }
 
-module.exports = { BROWSERS, installed, running, bringForward, watch };
+module.exports = {
+  defaultBrowser, preferred, BROWSERS, installed, running, bringForward, watch };

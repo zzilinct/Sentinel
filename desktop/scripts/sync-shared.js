@@ -40,6 +40,9 @@ for (const size of [16, 32, 48, 128, 256, 512]) {
 }
 const big = path.join(ASSETS, 'icon512.png');
 if (fs.existsSync(big)) fs.copyFileSync(big, path.join(ASSETS, 'icon.png'));
+// Windows: every size in one .ico (made by scripts/make-icons.js), for the taskbar, title bar and Alt+Tab.
+const ico = path.join(APP, 'build', 'icon.ico');
+if (fs.existsSync(ico)) fs.copyFileSync(ico, path.join(ASSETS, 'icon.ico'));
 
 /* ------------------------------------------------ the embedded server */
 

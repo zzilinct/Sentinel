@@ -18,7 +18,7 @@
  */
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session, powerMonitor } = require('electron');
 const downloads = require('./downloads');
 const browsers = require('./browsers');
 const watch = require('./watch');
@@ -29,7 +29,8 @@ const store = require('./store');
 const server = require('./server');
 
 const DEV = process.argv.includes('--dev');
-const ICON = path.join(__dirname, '..', 'assets', 'icon256.png');
+// Windows gets the .ico (every size, so the taskbar and Alt+Tab never show a blank page); elsewhere the PNG.
+const ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon256.png');
 const PAGES = pathToFileURL(path.join(__dirname, 'pages') + path.sep).href;
 
 /** Where the Sentinel web app is served from. Set once the server is up. */
@@ -44,6 +45,18 @@ let retryCount = 0;
 let lastUpdateStatus = null;
 let browserState = { installed: [], running: [] };
 let browserWatcher = null;
+
+/** Started without a window: from the startup entry, or brought back in the tray after an automatic update. */
+const startHidden = (() => {
+  if (process.argv.includes('--hidden')) return true;
+  try {
+    const fsx = require('fs');
+    const marker = updater.hiddenMarker();
+    const at = Number(fsx.readFileSync(marker, 'utf8'));
+    fsx.unlinkSync(marker);
+    return Date.now() - at < 10 * 60 * 1000;
+  } catch { return false; }
+})();
 
 /**
  * The app's own log (logs/app.log, beside the server's). Every startup stage
@@ -179,7 +192,7 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, 'pages', 'loading.html'));
-  win.once('ready-to-show', () => { if (!process.argv.includes('--hidden')) win.show(); });
+  win.once('ready-to-show', () => { if (!startHidden) win.show(); });
 
   // Only Sentinel itself may load inside the app window.
   win.webContents.on('will-navigate', (event, url) => {
@@ -237,7 +250,7 @@ function showError(message) {
   win.loadFile(path.join(__dirname, 'pages', 'error.html'), { query: { message, log: server.logPath(), retryIn: String(wait) } });
   // A start that fails while Sentinel is tucked away in the tray should not jump in front of the person, and neither
   // should each retry: the window is shown once, for the first failure of a start the person asked for.
-  if (first && !win.isVisible() && !process.argv.includes('--hidden')) win.show();
+  if (first && !win.isVisible() && !startHidden) win.show();
 }
 
 /** A small always-on-top warning for a dangerous page open in a browser. */
@@ -289,7 +302,7 @@ function refreshTray() {
     { label: pw.active ? (pw.window ? 'Live scanning: watching the browser in front' : 'Live scanning: ready') : pw.reason || 'Live scanning is off', enabled: false },
     { label: 'Scan a file...', click: () => showWindow('/app/threats') },
     { type: 'separator' },
-    { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => setLiveScanning(!store.get('liveScanning', false), { sweep: true }) },
+    { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
     ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => setOpenAtLogin(item.checked) },
     { type: 'separator' },
@@ -310,17 +323,90 @@ function refreshTray() {
 let sweepOnNextWindow = false;
 let sweepExpiry = null;
 let watchingWindow = false;
-async function setLiveScanning(enabled, { sweep = false } = {}) {
+async function setLiveScanning(enabled, { byPerson = false } = {}) {
+  if (byPerson) setAutoSession(false);
   store.set('liveScanning', Boolean(enabled));
   if (enabled) {
     await watch.restart();
-    if (sweep && watch.status().active) overlay.readySweep(win);
   } else {
     watch.stop();
     overlay.setWindow(null);
   }
   refreshTray();
   return { ...watch.status(), enabled: store.get('liveScanning', false) };
+}
+
+/**
+ * "Start scanning": the browser the person uses is brought to the front and maximised (opened if it is closed), and
+ * the gold line crosses it once it is there. It used to sweep the whole screen at once, over the desktop or a game,
+ * whether or not a browser was open.
+ */
+async function startScanning() {
+  const id = await browsers.preferred(store.get('liveBrowser', null)).catch(() => null);
+  if (id) return scanWith(id);
+  // No browser on this computer: scanning is on, and waits quietly for one.
+  return setLiveScanning(true);
+}
+
+/**
+ * Install a downloaded update without being asked, when it cannot interrupt anything: no browser open at all, or
+ * none in front and nobody at the keyboard or mouse for five minutes (and Sentinel's own window not in use). A
+ * browser coming to the front first simply means "not now": it is tried again a minute later. Sentinel comes back
+ * in the tray afterwards, with live scanning as it was.
+ */
+let autoInstalling = false;
+
+/**
+ * Auto scanning (a switch in Live protection): fast live scanning starts by itself when a browser is opened, and
+ * switches off when the last browser is closed. A minimised browser is not being used: the reader rests, nothing is
+ * checked and no time is counted, as always. `autoSession` marks scanning that auto scanning started, so closing
+ * the browsers never switches off scanning the person started themselves.
+ */
+// Kept across restarts: an automatic update restarts Sentinel in the middle of an auto session.
+let autoSession = false;
+function setAutoSession(v) {
+  autoSession = Boolean(v);
+  if (store.get('autoSession', false) !== autoSession) store.set('autoSession', autoSession);
+}
+async function autoScanFollow(running) {
+  if (!store.get('autoScan', false)) return;
+  const on = store.get('liveScanning', false);
+  if (running.length && !on) {
+    setAutoSession(true);
+    await setLiveScanning(true);
+    // The gold line crosses the browser as soon as it is in front.
+    sweepOnNextWindow = true;
+    clearTimeout(sweepExpiry);
+    sweepExpiry = setTimeout(() => { sweepOnNextWindow = false; }, 60000);
+    appLog('auto scanning: a browser opened, fast scanning on');
+  } else if (!running.length && on && autoSession) {
+    setAutoSession(false);
+    await setLiveScanning(false);
+    appLog('auto scanning: every browser closed, scanning off');
+  }
+}
+
+async function setAutoScan(enabled) {
+  store.set('autoScan', Boolean(enabled));
+  if (enabled) await autoScanFollow(browserState.running || []);
+  else if (autoSession) { setAutoSession(false); await setLiveScanning(false); }
+  refreshTray();
+  return { autoScan: Boolean(enabled), live: { ...watch.status(), enabled: store.get('liveScanning', false) } };
+}
+async function autoInstallSoon() {
+  if (autoInstalling || updater.status().status !== 'ready') return;
+  const idleSeconds = powerMonitor.getSystemIdleTime();
+  const browserInFront = Boolean(watch.status().window);
+  const usingSentinel = Boolean(win && !win.isDestroyed() && win.isVisible() && win.isFocused());
+  const open = await browsers.running().catch(() => ['unknown']);
+  const away = !browserInFront && idleSeconds >= 5 * 60 && !usingSentinel;
+  if (open.length && !away) return;
+  if (usingSentinel && idleSeconds < 5 * 60) return;
+  autoInstalling = true;
+  const version = updater.status().version;
+  appLog(`updating to ${version} by itself (${open.length ? `idle ${Math.round(idleSeconds / 60)} min` : 'no browser open'})`);
+  const r = await updater.install({ relaunch: true, hidden: !(win && !win.isDestroyed() && win.isVisible()) }).catch((err) => ({ ok: false, error: err.message }));
+  if (!r.ok) { autoInstalling = false; appLog(`automatic update did not start: ${r.error || 'unknown'}`); }
 }
 
 /** "Scan with <browser>": scanning on, that browser open, in front and maximised, the gold line over it. */
@@ -334,6 +420,10 @@ async function scanWith(id) {
   clearTimeout(sweepExpiry);   // an earlier click's timer must not cancel this one's sweep
   sweepExpiry = setTimeout(() => { sweepOnNextWindow = false; }, 20000);
   const raised = await browsers.bringForward(id, { raise: watch.raise });
+  // Already in front and watched: no new window will arrive to trigger the line, so it crosses the browser now.
+  if (!raised.launched && watch.status().window) {
+    setTimeout(() => { if (sweepOnNextWindow && watch.status().window) { sweepOnNextWindow = false; overlay.sweep('start'); } }, 400);
+  }
   return { ok: true, ...raised, ...status };
 }
 
@@ -424,6 +514,7 @@ function registerBridge() {
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
     liveMode: store.get('liveMode', 'fast'),
+    autoScan: store.get('autoScan', false),
     defense: { ...defense.status(), enabled: store.get('defense', true) },
     deviceProtection: Boolean(store.getSecret('deviceToken')) && !store.getSecret('token'),
     browsers: browserState,
@@ -432,8 +523,9 @@ function registerBridge() {
   }));
 
 
-  handle('sentinel:live-start', () => setLiveScanning(true, { sweep: true }));
-  handle('sentinel:live-stop', () => setLiveScanning(false));
+  handle('sentinel:live-start', () => { setAutoSession(false); return startScanning(); });
+  handle('sentinel:live-stop', () => setLiveScanning(false, { byPerson: true }));
+  handle('sentinel:auto-scan', (enabled) => setAutoScan(Boolean(enabled)));
   handle('sentinel:live-mode', (mode) => {
     store.set('liveMode', mode === 'delicate' ? 'delicate' : 'fast');
     refreshTray();
@@ -589,7 +681,8 @@ async function boot() {
     api: apiCall,
     getToken: () => activeToken(),
     enabled: () => store.get('liveScanning', false),
-    mode: () => store.get('liveMode', 'fast'),
+    // Auto scanning starts fast scanning; scanning the person started uses the mode they chose.
+    mode: () => (autoSession ? 'fast' : store.get('liveMode', 'fast')),
     // The reader's helper types are compiled once into here and loaded from then on.
     helperDll: path.join(app.getPath('userData'), 'reader-helper-2.dll'),
     // Development runs only: never honoured by an installed build.
@@ -635,7 +728,9 @@ async function boot() {
     browserWatcher = browsers.watch({
       // Which browsers are open is shown in the app. It is never a notification:
       // a browser running somewhere in the background is not an event.
-      onChange: (s) => { browserState = s; refreshTray(); push('sentinel:browsers', s); }
+      onChange: (s) => { browserState = s; refreshTray(); push('sentinel:browsers', s); autoScanFollow(s.running).catch(() => {}); },
+      // With auto scanning on, a browser that opens is noticed within a few seconds.
+      everyMs: () => (store.get('autoScan', false) ? 4000 : 15000)
     });
   }
 
@@ -647,8 +742,10 @@ app.whenReady().then(() => {
   // Deny every browser permission request (camera, notifications, etc.) from web content.
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => callback(false));
 
-  appLog(`starting Sentinel ${app.getVersion()}${process.argv.includes('--hidden') ? ' (hidden)' : ''}`);
+  appLog(`starting Sentinel ${app.getVersion()}${startHidden ? ' (hidden)' : ''}`);
   store.init(app.getPath('userData'), safeStorage);
+  // Scanning that auto scanning had started before a restart is still its to switch off.
+  autoSession = Boolean(store.get('autoScan', false) && store.get('autoSession', false));
   step('bridge', () => registerBridge());
   step('window', () => createWindow());
   // The scanner starts before anything decorative, and nothing below can stop it.
@@ -663,8 +760,13 @@ app.whenReady().then(() => {
       if (s.status !== lastUpdateStatus) { lastUpdateStatus = s.status; appLog(`updater: ${s.status}${s.version ? ` ${s.version}` : ''}${s.error ? ` (${s.error})` : ''}`); }
       refreshTray(); push('sentinel:update', s);
     },
-    onReady: (version) => notify(`Sentinel ${version} is ready`, 'It installs the next time Sentinel quits. Click to restart and update now.', () => { updater.install().catch(() => {}); })
+    onReady: (version) => {
+      notify(`Sentinel ${version} is ready`, 'It installs by itself while you are not browsing. Click to update now.', () => { updater.install().catch(() => {}); });
+      autoInstallSoon();
+    }
   }));
+  // Updates install themselves (see autoInstallSoon): checked every minute while one is waiting.
+  setInterval(() => autoInstallSoon(), 60 * 1000).unref();
 
   // Installed builds start with the computer by default; development runs never
   // touch the system's startup items.

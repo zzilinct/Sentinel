@@ -212,7 +212,9 @@ function register(router) {
     const results = [];
     for (const item of list) {
       const mail = cleanMail(item);
-      const verdict = await engine.scanEmail(mail, { userId: user.id, planId: plan.id, research: false, mode: 'live', detail: 'compact' });
+      // An inbox row is a preview (sender name, subject, a line of text): no address, no links. Desktop clients say
+      // so; anything that sends a whole message is checked as one.
+      const verdict = await engine.scanEmail(mail, { userId: user.id, planId: plan.id, research: false, mode: 'live', detail: 'compact', preview: body.preview === true || (item && item.preview === true) });
       results.push({ key: String((item && item.key) || '').slice(0, 200), verdict });
     }
     sendJson(res, 200, { results, live: liveUsage(user, plan) });

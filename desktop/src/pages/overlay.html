@@ -17,8 +17,8 @@
     box-shadow: 0 0 22px 5px rgba(214, 178, 90, .5), 0 0 3px 1px rgba(255, 244, 210, .8); }
   .line::before { content: ""; position: absolute; left: 0; right: 0; bottom: 3px; height: 140px;
     background: linear-gradient(0deg, rgba(214, 178, 90, .16), rgba(214, 178, 90, 0)); }
-  body.sweeping .tint { animation: tint var(--tint, 2.9s) ease-out forwards; }
-  body.sweeping .line { animation: line var(--line, 1.35s) cubic-bezier(.45, .05, .25, 1) forwards; }
+  body.sweeping .tint { animation: tint 2.7s ease-out forwards; }
+  body.sweeping .line { animation: line 1.35s cubic-bezier(.45, .05, .25, 1) forwards; }
   @keyframes tint { 0% { opacity: 0; } 12% { opacity: 1; } 55% { opacity: .85; } 100% { opacity: 0; } }
   @keyframes line { 0% { transform: translateY(-6px); opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { transform: translateY(100vh); opacity: 0; } }
 
@@ -39,10 +39,13 @@
   @keyframes breathe { 0%, 100% { box-shadow: 0 6px 22px rgba(0, 0, 0, .35), 0 0 0 0 rgba(214, 178, 90, 0); } 50% { box-shadow: 0 6px 22px rgba(0, 0, 0, .35), 0 0 16px 2px rgba(214, 178, 90, .28); } }
 
   /* A mask beside every result. The layer moves with the page between reads (see overlay:shift). */
+  /* The clip stays where the message list is; the marks inside it move with the page. */
+  #clip { position: absolute; inset: 0; }
   #marks { position: absolute; inset: 0; will-change: transform; }
   .mark { position: absolute; left: 0; top: 0; width: 28px; height: 28px; margin: 0; display: grid; place-items: center; border-radius: 8px; pointer-events: none;
     background: rgba(12, 13, 16, .88); box-shadow: 0 2px 10px rgba(0, 0, 0, .28), 0 0 12px -2px color-mix(in srgb, var(--c, #8f8a7a) 55%, transparent); border: 1px solid color-mix(in srgb, var(--c, #8f8a7a) 50%, transparent); color: var(--c, #8f8a7a);
-    opacity: 0; scale: .6; will-change: transform; }
+    opacity: 0; scale: .6; will-change: transform; transition: transform .18s cubic-bezier(.2, .8, .2, 1); }
+  .mark.is-still { transition: none; }
   .mark svg { width: 20px; height: 20px; display: block; }
   .mark.is-clear { width: 20px; height: 20px; border-radius: 6px; background: rgba(12, 13, 16, .8); box-shadow: 0 1px 6px rgba(0, 0, 0, .2); }
   .mark.is-clear svg { width: 12px; height: 12px; }
@@ -62,6 +65,7 @@
     body.sweeping .tint { animation: tint 1.2s ease-out forwards; }
     .corner__mask { animation: none; }
     .mark.is-in { animation: none; opacity: 1; scale: 1; }
+    .mark { transition: none; }
     .mark.is-pending { animation: none; opacity: .5; }
   }
 </style>
@@ -69,7 +73,7 @@
 <body>
   <div class="tint"></div>
   <div class="line"></div>
-  <div id="marks"></div>
+  <div id="clip"><div id="marks"></div></div>
   <div class="tip" id="tip"><b></b><span></span></div>
   <div class="corner" id="corner">
     <div class="corner__mask" id="cornerMask"></div>
@@ -113,14 +117,12 @@
     cornerMask.innerHTML = M.svg(kind || 'scam');
   }
 
-  function sweep(kind) {
+  function sweep() {
     clearTimeout(sweepTimer);
     document.body.classList.remove('sweeping');
-    document.body.style.setProperty('--line', kind === 'ready' ? '1.9s' : '1.35s');
-    document.body.style.setProperty('--tint', kind === 'ready' ? '3.6s' : '2.7s');
     void document.body.offsetWidth;   // restart the animation
     document.body.classList.add('sweeping');
-    sweepTimer = setTimeout(function () { document.body.classList.remove('sweeping'); }, kind === 'ready' ? 3700 : 2800);
+    sweepTimer = setTimeout(function () { document.body.classList.remove('sweeping'); }, 2800);
   }
 
   function clearMarks() {
@@ -130,32 +132,54 @@
     tip.classList.remove('is-on');
   }
 
-  function place(list) {
+  // Where a mark goes for one result. A link covering several lines (Google now puts the site name and address
+  // above the title, inside the same link) gets its mark level with the last line, which is the title, not beside
+  // the small address line at the top.
+  function spot(m, size, W) {
+    var x = m.x + m.w + 8;
+    var y = m.y + Math.min(m.h, 26) / 2 - size / 2;
+    if (m.row) {
+      // Inbox rows span the page: the mark sits inside the row, near its right end, centred on it.
+      x = m.x + m.w - size - 64;
+      y = m.y + m.h / 2 - size / 2;
+    } else {
+      if (m.h > 40) y = m.y + m.h - 15 - size / 2;
+      if (x + size > W - 6) x = Math.max(4, m.x - size - 8);
+    }
+    return { x: Math.round(x), y: Math.round(y) };
+  }
+
+  function moveTo(n, x, y) { n.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)'; n._x = x; n._y = y; }
+
+  // rebase: how far the whole layer had moved when these positions were read (a new read after a scroll). Marks that
+  // stay are first put where they are on screen right now, on the new footing, and then glide the last few pixels
+  // to where the fresh read says their result is. Without this they jumped back and forth after every scroll.
+  function place(list, rebase) {
     current = list;
     var seen = {};
     var popped = 0;
     var W = window.innerWidth;
+    var glide = [];
     list.forEach(function (m, i) {
       var key = m.k || ('#' + i);
       seen[key] = true;
-      var n = nodes.get(key);
-      if (!n) { n = document.createElement('div'); n.className = 'mark'; marksEl.appendChild(n); nodes.set(key, n); }
       var state = m.pending ? 'pending' : (m.badge ? m.badge + ':' + m.kind : 'clear');
       var size = m.pending ? 10 : m.badge ? 28 : 20;
-      // To the right of the link, level with its first line; to its left when there is no room.
-      var x = m.x + m.w + 8;
-      // Inbox rows span the page: their mark sits inside the row, near its right end.
-      if (m.row) x = m.x + m.w - size - 64;
-      else if (x + size > W - 6) x = Math.max(4, m.x - size - 8);
-      var y = m.y + Math.min(m.h, 26) / 2 - size / 2;
-      // Placed with a transform, never with left/top: moving it then costs the compositor nothing, and the whole
-      // layer can follow the page (see overlay:shift) without any mark being laid out again. Marks outside the
-      // page area are simply clipped by the window.
-      n.style.transform = 'translate3d(' + Math.round(x) + 'px,' + Math.round(y) + 'px,0)';
-      m._cx = x + size / 2; m._cy = y + size / 2;
+      var to = spot(m, size, W);
+      m._cx = to.x + size / 2; m._cy = to.y + size / 2;
+      var n = nodes.get(key);
+      if (!n) {
+        // A newcomer appears where it belongs, never flying in from the corner.
+        n = document.createElement('div'); n.className = 'mark is-still';
+        moveTo(n, to.x, to.y);
+        marksEl.appendChild(n); nodes.set(key, n);
+      } else if (n._x !== to.x || n._y !== to.y) {
+        if (rebase && (rebase.dx || rebase.dy)) { n.classList.add('is-still'); moveTo(n, n._x + rebase.dx, n._y + rebase.dy); }
+        glide.push([n, to.x, to.y]);
+      }
       if (n.dataset.state === state) return;
       n.dataset.state = state;
-      n.className = 'mark' + (m.pending ? ' is-pending' : m.badge ? '' : ' is-clear');
+      n.className = 'mark is-still' + (m.pending ? ' is-pending' : m.badge ? '' : ' is-clear');
       if (m.pending) { n.innerHTML = ''; return; }
       n.style.setProperty('--c', m.badge ? M.COLORS[m.badge] : M.COLORS.clear);
       // A batch arriving together ripples in; a single newcomer during a scroll appears at once.
@@ -165,6 +189,10 @@
       n.classList.add('is-in');
     });
     nodes.forEach(function (n, key) { if (!seen[key]) { n.remove(); nodes.delete(key); } });
+    // One layout for all of them, then every mark that moved glides to its new place.
+    void marksEl.offsetWidth;
+    nodes.forEach(function (n) { n.classList.remove('is-still'); });
+    glide.forEach(function (g) { moveTo(g[0], g[1], g[2]); });
   }
 
   // A mark explains itself when the pointer is over it. Clicks still go to the browser.
@@ -199,10 +227,7 @@
     if (s.private) say('<b>Private window.</b> Protected, and nothing is kept.', '#e2c47f');
     else if (s.appeared) say('<b>Sentinel is scanning</b> this browser.', '#e2c47f');
   });
-  api.on('overlay:sweep', function (s) {
-    sweep(s && s.kind);
-    if (s && s.kind === 'ready') { corner.classList.remove('is-on'); }
-  });
+  api.on('overlay:sweep', function () { sweep(); });
   api.on('overlay:verdict', function (v) {
     flagged = Boolean(v && (v.badge === 'red' || v.badge === 'orange' || v.badge === 'yellow'));
     corner.classList.toggle('is-flagged', flagged);
@@ -222,9 +247,16 @@
   var shiftX = 0;
   var shiftY = 0;
   function setShift(dx, dy) { shiftX = dx; shiftY = dy; marksEl.style.transform = 'translate3d(' + dx + 'px,' + dy + 'px,0)'; }
+  var clipEl = document.getElementById('clip');
+  function setClip(c) {
+    // A little room above and below, so a mark on the first or last row is not cut in half.
+    clipEl.style.clipPath = c ? 'inset(' + Math.max(0, Math.round(c.top - 6)) + 'px 0 ' + Math.max(0, Math.round(window.innerHeight - c.bottom - 6)) + 'px 0)' : '';
+  }
   api.on('overlay:marks', function (p) {
-    if (!p || p.epoch !== epoch) { epoch = p ? p.epoch : 0; setShift(0, 0); }
-    place((p && p.marks) || []);
+    setClip(p && p.clip);
+    var rebase = null;
+    if (!p || p.epoch !== epoch) { rebase = { dx: shiftX, dy: shiftY }; epoch = p ? p.epoch : 0; setShift(0, 0); }
+    place((p && p.marks) || [], rebase);
   });
   api.on('overlay:shift', function (p) { if (p && p.epoch === epoch) setShift(p.dx, p.dy); });
   api.on('overlay:clear', function () { clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });

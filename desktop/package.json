@@ -45,7 +45,7 @@
     "artifactName": "Sentinel-Setup-${version}.${ext}",
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.png"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,

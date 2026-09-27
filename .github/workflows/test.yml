@@ -1,4 +1,5 @@
-# Runs the test suite on every push and pull request to main. The desktop
+# Runs the test suite on every push and pull request to main, and on work/* branches (so changes are tested on
+# GitHub's machines, never on a developer's own computer, before they reach main). The desktop
 # installer is not built here; release.yml does that for tagged versions.
 name: Test
 

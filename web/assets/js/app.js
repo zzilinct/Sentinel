@@ -976,7 +976,7 @@
     (slot._off || []).forEach((off) => off());
     slot._off = [];
     const active = slot.contains(document.activeElement) ? document.activeElement : null;
-    const focusKey = active ? ['liveToggle', 'liveMode', 'scanWith', 'defense', 'dl', 'login', 'watch', 'checkUpdate', 'restore', 'quarantine'].find((k) => k in active.dataset) : null;
+    const focusKey = active ? ['liveToggle', 'liveMode', 'autoScan', 'scanWith', 'defense', 'dl', 'login', 'watch', 'checkUpdate', 'restore', 'quarantine'].find((k) => k in active.dataset) : null;
     const focusValue = focusKey ? active.dataset[focusKey] : null;
     const canDelicate = Boolean(plan().features.liveScanning);
     const mode = info.liveMode === 'delicate' && canDelicate ? 'delicate' : 'fast';
@@ -995,6 +995,7 @@
           </div>
           <button class="btn ${live.enabled ? '' : 'btn--gold'} live__button" data-live-toggle ${live.supported ? '' : 'disabled'}>${live.enabled ? 'Stop scanning' : 'Start scanning'}</button>
         </div>
+        ${live.supported && desktop.setAutoScan ? `<label class="setting live__auto"><div><b>Auto scanning</b><span>Starts fast scanning by itself whenever you open a browser, and switches off when every browser is closed.</span></div><input class="switch" type="checkbox" data-auto-scan ${info.autoScan ? 'checked' : ''}></label>` : ''}
         <ul class="live__facts">
           <li><b>Fast</b> marks results about a second after you search. <b>Delicate</b> also looks up how old each site is and whether it resolves, and takes about five seconds. Neither opens a suspicious page from this computer.</li>
           <li>Only the browser in front, and only while you are using it. Minimised, in the background or closed: nothing is read and no live time is spent.</li>
@@ -1086,6 +1087,14 @@
       try { await desktop.setLiveMode(b.dataset.liveMode); } catch (err) { toast(err.message, 'error'); }
       renderDesktopControls(slot);
     }));
+    const auto = $('[data-auto-scan]', slot);
+    if (auto) auto.addEventListener('change', async () => {
+      try {
+        await desktop.setAutoScan(auto.checked);
+        toast(auto.checked ? 'Auto scanning is on. Open a browser and Sentinel starts scanning it.' : 'Auto scanning is off.', 'success');
+      } catch (err) { auto.checked = !auto.checked; toast(err.message, 'error'); }
+      renderDesktopControls(slot);
+    });
     const toggle = $('[data-live-toggle]', slot);
     if (toggle && !toggle.disabled) toggle.addEventListener('click', () => busy(toggle, live.enabled ? 'Stopping' : 'Starting', async () => {
       try {

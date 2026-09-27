@@ -19,8 +19,6 @@ let ready = false;
 let queue = [];
 let area = null;         // the browser's page area, in physical screen pixels
 let scale = 1;           // physical pixels per overlay pixel
-let readyTimer = null;
-let showingReady = false;
 let dryRun = null;       // development only: compute everything, show nothing, and say what would have been drawn
 
 function send(channel, payload) {
@@ -89,7 +87,6 @@ function placeOver(rect) {
 
 /** The browser in front, or null when there is none: `{ x, y, w, h, private, browser }` in screen pixels. */
 function setWindow(rect) {
-  if (showingReady) { area = rect; return; }   // the "ready" sweep owns the screen for a few seconds
   if (!rect) {
     area = null;
     if (win && !win.isDestroyed() && win.isVisible()) win.hide();
@@ -110,34 +107,16 @@ function setWindow(rect) {
 
 /** The gold line and tint over the page in front. */
 function sweep(kind) {
-  if (!area || showingReady) return;
+  if (!area) return;
   send('overlay:sweep', { kind: kind || 'search' });
-}
-
-/** "Scanning is ready": the gold line down the whole screen, the tint fading after it. */
-function readySweep(nearWindow) {
-  const display = nearWindow && !nearWindow.isDestroyed() ? screen.getDisplayMatching(nearWindow.getBounds()) : screen.getPrimaryDisplay();
-  const w = ensure();
-  showingReady = true;
-  w.setBounds(display.bounds);
-  if (!dryRun && !w.isVisible()) w.showInactive();
-  send('overlay:clear');
-  send('overlay:sweep', { kind: 'ready' });
-  clearTimeout(readyTimer);
-  readyTimer = setTimeout(() => {
-    showingReady = false;
-    const rect = area;
-    area = null;
-    if (rect) setWindow(rect); else if (win && !win.isDestroyed()) win.hide();
-  }, 3800);
 }
 
 /** The verdict on the page in front, shown by the corner mask. */
 function setVerdict(v) { send('overlay:verdict', v || { badge: null }); }
 
 /** Marks beside results. Positions arrive in screen pixels and leave relative to the overlay. */
-function setMarks({ marks, checking, epoch }) {
-  if (!area || showingReady) return;
+function setMarks({ marks, checking, epoch, clip }) {
+  if (!area) return;
   const local = marks.map((m) => ({
     x: (m.x - area.x) / scale,
     y: (m.y - area.y) / scale,
@@ -155,21 +134,20 @@ function setMarks({ marks, checking, epoch }) {
     const inside = local.filter((m) => m.x >= 0 && m.y >= 0 && m.x <= area.w / scale && m.y <= area.h / scale).length;
     dryRun(`marks: ${local.length} (${local.filter((m) => m.badge).length} flagged, ${local.filter((m) => m.pending).length} waiting), ${inside} inside the page area; first at ${Math.round(local[0].x)},${Math.round(local[0].y)}`);
   }
-  send('overlay:marks', { marks: local, checking: checking || 0, epoch: epoch || 0 });
+  const band = clip ? { top: (clip.top - area.y) / scale, bottom: (clip.bottom - area.y) / scale } : null;
+  send('overlay:marks', { marks: local, checking: checking || 0, epoch: epoch || 0, clip: band });
 }
 
 /** The page moved by (dx, dy) screen pixels since the marks of `epoch` were placed. Sent straight through, every frame. */
 function shift({ epoch, dx, dy }) {
-  if (!area || showingReady || dryRun) return;
+  if (!area || dryRun) return;
   if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:shift', { epoch, dx: dx / scale, dy: dy / scale });
 }
 
 function destroy() {
-  clearTimeout(readyTimer);
-  showingReady = false;
   area = null;
   if (win && !win.isDestroyed()) win.destroy();
   win = null;
 }
 
-module.exports = { setWindow, sweep, readySweep, setVerdict, setMarks, shift, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { setWindow, sweep, setVerdict, setMarks, shift, destroy, setDryRun: (logger) => { dryRun = logger || null; } };

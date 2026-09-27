@@ -386,7 +386,7 @@ async function scanUrls(urls, opts = {}) {
 
 async function scanEmail(mail, opts = {}) {
   const visible = opts.threats || THREATS;
-  const analysis = analyzeEmail(mail);
+  const analysis = analyzeEmail(mail, { preview: opts.preview === true });
 
   // Every link and the sender's own domain go through the URL pipeline.
   const options = { ...opts, detail: 'compact', mode: opts.mode || 'manual', threats: THREATS };
@@ -422,6 +422,16 @@ async function scanEmail(mail, opts = {}) {
 
   const known = linkVerdicts.some((v) => v.ok && v.knowledge.known);
   const { threats } = score(checks, { known, matches: known ? [{}] : [], userContent: incomplete }, evidence);
+  // Wording is never enough on its own. "Security alert", "verify", "will be deleted", a cancelled event: real
+  // mail from Google, Canva, a church or a school says all of this, and a warning on it teaches people to ignore
+  // Sentinel. A mask needs evidence: a sender that is not who it claims, a look-alike domain, a payment demand, a
+  // dangerous attachment or a bad link.
+  for (const t of THREATS) {
+    const evidenced = checks.some((c) => c.threat === t && c.status === 'fail');
+    if (!evidenced && SEVERITY[threats[t].level] >= SEVERITY.suspicious) {
+      threats[t] = { ...threats[t], level: 'caution', badge: null, label: LABELS[t].caution, score: Math.min(threats[t].score, 29) };
+    }
+  }
   const shown = Object.fromEntries(THREATS.map((t) => [t, visible.includes(t) ? threats[t] : null]));
   const worst = Object.values(shown).filter(Boolean).sort((a, b) => SEVERITY[b.level] - SEVERITY[a.level])[0];
   const items = checks.filter((c) => visible.includes(c.threat));
