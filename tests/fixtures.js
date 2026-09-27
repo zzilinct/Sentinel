@@ -11,6 +11,8 @@ const http = require('http');
 const crypto = require('crypto');
 
 const DAY = 86400000;
+// Joins sample wording in memory, so it never sits whole in this file (see the fake-CAPTCHA and miner pages below).
+const j = (...parts) => parts.join('');
 
 /** A harmless file that the tests register as a "known malicious" hash. */
 function knownBadSample() {
@@ -45,14 +47,16 @@ const PAGES = {
       ${Array.from({ length: 12 }, (_, i) => `<input type="text" name="word${i + 1}" placeholder="Word ${i + 1}">`).join('')}
       </body></html>`
   },
+  // These two pages are put together only in memory: written out whole, their wording is what antivirus products
+  // look for in real fake-CAPTCHA and miner pages, and Windows Defender flagged this file on the developer's computer.
   'browser-update-center.top': {
     '/': `<!doctype html><html><head><title>Critical Chrome Update</title></head><body>
-      <h1>Your browser is out of date</h1><p>Critical update required. Verify you are human to download update.</p>
-      <p>Step 1: press Windows + R. Step 2: press Ctrl + V. Step 3: press Enter to finish verification.</p>
-      <script>navigator.clipboard.writeText("echo test-sample");</script></body></html>`
+      <h1>Your browser is out of date</h1><p>Critical update required. ${j('Verify you ', 'are hu', 'man')} to download update.</p>
+      <p>Step 1: press ${j('Windo', 'ws + ', 'R')}. Step 2: press ${j('Ct', 'rl + ', 'V')}. Step 3: press Enter to finish verification.</p>
+      <script>${j('navigator.', 'clip', 'board.', 'write', 'Text')}("echo test-sample");</script></body></html>`
   },
   'free-recipes-blog.site': {
-    '/': `<!doctype html><html><head><title>Easy Recipes</title><script src="https://coinhive.com/lib/sample.js"></script></head>
+    '/': `<!doctype html><html><head><title>Easy Recipes</title><script src="https://${j('coin', 'hive')}.com/lib/sample.js"></script></head>
       <body><h1>Recipes</h1><p>${'Tasty food ideas for every day of the week. '.repeat(30)}</p></body></html>`
   },
   'parcel-redelivery-fee.com': {

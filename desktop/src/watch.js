@@ -112,7 +112,9 @@ while ($true) {
   $gotCmd = $false
   $until = [Environment]::TickCount + $pause
   $moved = $false
-  while ([Environment]::TickCount -lt $until) {
+  # Nothing to follow (no results page in front, or a game): one quiet wait, not a loop that wakes 60 times a second.
+  if (-not $anchor) { if ($pendingLine.Wait([Math]::Max(1, $until - [Environment]::TickCount))) { $gotCmd = $true } }
+  while ($anchor -and -not $gotCmd -and [Environment]::TickCount -lt $until) {
     if ($pendingLine.Wait(15)) { $gotCmd = $true; break }
     if ($anchor) {
       try {
@@ -154,7 +156,7 @@ while ($true) {
   $fname = $p.ProcessName
   if ($fname -and $fname -ne $lastFront) { $lastFront = $fname; Write-Output (@{ front = $fname; isBrowser = ($browsers -contains $fname) } | ConvertTo-Json -Compress) }
   # Behind another program, minimised, or nobody at the keyboard: the browser is not "in use".
-  if (-not $p -or ($browsers -notcontains $fname)) { Off 'not in front'; continue }
+  if (-not $p -or ($browsers -notcontains $fname)) { Off 'not in front'; $pause = 1000; continue }
   if ([SW]::IsIconic($h)) { Off 'minimised'; continue }
   if (-not $testName -and [SW]::IdleMs() -gt 120000) { if (-not $wasIdle) { $wasIdle = $true; Write-Output '{"idle":true}' }; Off 'idle'; continue }
   if ($wasIdle) { $wasIdle = $false; Write-Output '{"awake":true}' }

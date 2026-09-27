@@ -35,7 +35,7 @@ test('the reader only works on a browser that is in front and in use, and reads 
   const s = watch._test.SCRIPT;
   // Not in front, minimised, or nobody at the keyboard: the loop goes round without reading anything.
   // (includes, not match: a failure should not print the whole script)
-  assert.ok(s.includes("($browsers -notcontains $fname)) { Off 'not in front'; continue }"), 'behind another program: nothing is read');
+  assert.ok(s.includes("($browsers -notcontains $fname)) { Off 'not in front'; $pause = 1000; continue }"), 'behind another program: nothing is read');
   assert.ok(s.includes("IsIconic($h)) { Off 'minimised'; continue }"), 'minimised: nothing is read');
   assert.ok(s.includes('IdleMs() -gt 120000'), 'nobody at the keyboard: nothing is read');
   const gates = s.indexOf("Off 'idle'");
@@ -287,4 +287,22 @@ test('the reader reads links only when something can have changed, and reuses th
   assert.match(SCRIPT, /\$reuse = \$cachedDoc -and \$h -eq \$cachedFor -and \$title -eq \$cachedTitle/);
   // A lost anchor is let go, never followed to an empty rectangle.
   assert.match(SCRIPT, /\$ar\.Width -lt 1 -or \$ar\.Height -lt 1\) \{ \$anchor = \$null \}/);
+});
+
+test('Sentinel stays out of the way: below-normal priority, no Temp folder scanning, one startup entry owner', () => {
+  const main = read('desktop/src/main.js');
+  assert.match(main, /function stayInBackground\(\)/);
+  assert.match(main, /PRIORITY_BELOW_NORMAL/);
+  assert.match(main, /setInterval\(stayInBackground, 30000\)/);
+  // Only the copy Windows has on record as installed may point the startup entry at itself.
+  assert.match(main, /not the installed copy/);
+  assert.match(main, /InstallLocation/);
+  // Defense does not watch or sweep the Temp folder (thousands of launcher and browser files, read every 20 s).
+  const defense = read('desktop/src/defense.js');
+  const folders = defense.slice(defense.indexOf('function folders()'), defense.indexOf('function init('));
+  assert.doesNotMatch(folders, /tmpdir|'Temp'/);
+  // The reader waits quietly when nothing is followed, and looks only once a second when no browser is in front.
+  const { SCRIPT } = watch._test;
+  assert.match(SCRIPT, /if \(-not \$anchor\) \{ if \(\$pendingLine\.Wait/);
+  assert.match(SCRIPT, /Off 'not in front'; \$pause = 1000; continue/);
 });

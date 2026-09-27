@@ -78,12 +78,14 @@ function amend(id, patch) {
   persist();
 }
 
+// Not the Temp folder: games, launchers, browsers and Discord write thousands of programs and libraries there
+// (6,000 on the computer this was found on), and reading each of them, plus a full re-read every 20 seconds, made
+// games stutter. What runs at login from there is still caught by the startup-entry check.
 function folders() {
   const home = os.homedir();
   const list = [
     { label: 'Downloads', dir: opts.downloads },
     { label: 'Desktop', dir: path.join(home, 'Desktop') },
-    { label: 'Temp', dir: os.tmpdir() },
     { label: 'Startup', dir: path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup') }
   ];
   return list.filter((f) => f.dir && fs.existsSync(f.dir));

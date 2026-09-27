@@ -337,10 +337,45 @@ async function scanWith(id) {
   return { ok: true, ...raised, ...status };
 }
 
+/**
+ * Where the installer put Sentinel, as Windows has it on record. A second copy somewhere else (an old one, or one
+ * started from a download) must not take over the startup entry: two copies used to rewrite it in turn, and the
+ * older one then started with the computer.
+ */
+function installedDir() {
+  if (process.platform !== 'win32') return null;
+  try {
+    const out = require('child_process').execFileSync('reg', ['query', 'HKCU\\Software\\6c1efe81-ac4e-5850-af10-e878d40485b6', '/v', 'InstallLocation'], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
+    const m = /InstallLocation\s+REG_\w+\s+(.+)/.exec(out);
+    return m ? m[1].trim() : null;
+  } catch { return null; }
+}
+
 function setOpenAtLogin(enabled) {
   store.set('openAtLogin', enabled);
-  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
+  if (app.isPackaged) {
+    const installed = installedDir();
+    const here = path.dirname(process.execPath);
+    if (installed && path.resolve(installed).toLowerCase() !== path.resolve(here).toLowerCase()) {
+      appLog(`not the installed copy (installed in ${installed}); leaving the startup entry alone`);
+    } else {
+      app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
+    }
+  }
   refreshTray();
+}
+
+/**
+ * Sentinel works in the background and must never compete with what the person is doing (a game, above all):
+ * every one of its processes runs below normal priority. Chromium starts its helpers at normal (the graphics
+ * process even above), so they are lowered as they appear.
+ */
+function stayInBackground() {
+  const os = require('os');
+  const low = os.constants.priority.PRIORITY_BELOW_NORMAL;
+  const pids = new Set([process.pid]);
+  try { for (const m of app.getAppMetrics()) pids.add(m.pid); } catch { /* not ready */ }
+  for (const pid of pids) { try { if (os.getPriority(pid) < low) os.setPriority(pid, low); } catch { /* gone */ } }
 }
 
 function notify(title, body, onClick) {
@@ -636,6 +671,12 @@ app.whenReady().then(() => {
   // Re-registered on every start, so the entry always points at the copy that is
   // actually installed (an update or a move must not leave it aimed at an old one).
   step('login item', () => { if (app.isPackaged) setOpenAtLogin(store.get('openAtLogin', true)); });
+  step('background priority', () => {
+    stayInBackground();
+    // Helpers (the scanner, a window's renderer) start later and restart: lower them too.
+    setInterval(stayInBackground, 30000).unref();
+    app.on('child-process-gone', () => setTimeout(stayInBackground, 2000));
+  });
 });
 
 app.on('before-quit', () => { quitting = true; defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
