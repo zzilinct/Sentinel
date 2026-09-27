@@ -81,14 +81,27 @@ async function startServer() {
   throw new Error(`server did not start:\n${out}`);
 }
 
+const PASSWORD = 'Review-Sentinel-2026!';
+/** A test account on the throwaway server, on the Max plan (demo billing), so every page shows its full self. */
 async function signUp() {
   const email = `review-${Date.now()}@example.com`;
   const post = (p, body, cookie) => fetch(`${BASE}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: BASE, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) });
-  const r = await post('/api/v1/auth/signup', { email, password: 'Review-Sentinel-2026!', firstName: 'Alex', ageConfirmed: true, termsAccepted: true });
-  const cookies = (r.headers.getSetCookie ? r.headers.getSetCookie() : [r.headers.get('set-cookie')]).filter(Boolean).map((c) => c.split(';')[0]);
-  const cookie = cookies.join('; ');
+  const r = await post('/api/v1/auth/signup', { email, password: PASSWORD, firstName: 'Alex', ageConfirmed: true, termsAccepted: true });
+  const cookie = (r.headers.getSetCookie ? r.headers.getSetCookie() : [r.headers.get('set-cookie')]).filter(Boolean).map((c) => c.split(';')[0]).join('; ');
   await post('/api/v1/billing/plan', { plan: 'max' }, cookie);
-  return cookies.map((c) => { const i = c.indexOf('='); return { name: c.slice(0, i), value: c.slice(i + 1) }; });
+  return email;
+}
+
+/** Sign in through the real form, as a person would, so the browser holds a real session. */
+async function signIn(send, email) {
+  const { targetId } = await send('Target.createTarget', { url: BASE + '/login' });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  await sleep(2500);
+  await send('Runtime.evaluate', { expression: `(() => { const f = document.querySelector('[data-form]'); f.email.value = ${JSON.stringify(email)}; f.password.value = ${JSON.stringify(PASSWORD)}; f.requestSubmit(); })()` }, sessionId);
+  await sleep(3500);
+  const { result } = await send('Runtime.evaluate', { expression: 'location.pathname' }, sessionId);
+  await send('Target.closeTarget', { targetId });
+  if (!String(result.value).startsWith('/app')) throw new Error(`sign-in did not reach the app (at ${result.value})`);
 }
 
 async function main() {
@@ -101,20 +114,32 @@ async function main() {
     { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], windowsHide: true });
   const send = cdpPipe(browser);
   try {
-    const cookies = await signUp();
+    await signIn(send, await signUp());
+    // Signed-out pages are photographed in a separate, empty browser context.
+    const { browserContextId: anonymous } = await send('Target.createBrowserContext', {});
     for (const [size, width, height, mobile] of SIZES) {
       for (const [name, url, opt = {}] of PAGES) {
-        const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+        const { targetId } = await send('Target.createTarget', { url: 'about:blank', ...(opt.anonymous ? { browserContextId: anonymous } : {}) });
         const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
         await send('Page.enable', {}, sessionId);
         await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, sessionId);
-        if (!opt.anonymous) for (const c of cookies) await send('Network.setCookie', { name: c.name, value: c.value, url: BASE }, sessionId);
-        else await send('Network.clearBrowserCookies', {}, sessionId);
         await send('Page.navigate', { url: BASE + url }, sessionId);
         await sleep(opt.wait || 2500);
         // The whole page, top to bottom, as someone scrolling it would see it (capped for very long pages).
+        // Scroll-triggered reveals are shown, and an app page whose content scrolls inside its own panel is laid out
+        // at full height, so the photograph holds what someone scrolling would see.
+        const { result: inner } = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+          document.querySelectorAll('[data-reveal], [data-split], [data-pipeline]').forEach((el) => el.classList.add('is-in', 'is-visible'));
+          let tallest = document.documentElement.scrollHeight;
+          for (const el of document.querySelectorAll('main, .main, .app__main, [data-view], .view')) {
+            if (el.scrollHeight > el.clientHeight + 20) { el.style.overflow = 'visible'; el.style.height = 'auto'; el.style.maxHeight = 'none'; tallest = Math.max(tallest, el.scrollHeight + el.getBoundingClientRect().top); }
+          }
+          document.documentElement.style.height = 'auto'; document.body.style.height = 'auto'; document.body.style.overflow = 'visible';
+          return tallest;
+        })()` }, sessionId);
+        await sleep(600);
         const { cssContentSize } = await send('Page.getLayoutMetrics', {}, sessionId);
-        const full = Math.min(Math.ceil(cssContentSize.height), 9000);
+        const full = Math.min(Math.ceil(Math.max(cssContentSize.height, Number(inner.value) || 0)), 9000);
         const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: Math.max(height, full), scale: 1 } }, sessionId);
         fs.writeFileSync(path.join(OUT, `${size}-${name}.png`), Buffer.from(shot.data, 'base64'));
         console.log(`${size}-${name}.png  ${width}x${Math.max(height, full)}`);
