@@ -252,6 +252,60 @@ window.UI = (() => {
   }
 
   /** The full result view used by link, threat, file and email scans. */
+
+  /**
+   * What to do now, in plain words, for the kind of threat that was found. A red result used to end at "confirmed
+   * scam"; the first thing a frightened person asks is "I already typed my password, what now?". No phone numbers
+   * of our own: where a call is right, it is to the number on the person's card or the company's own site.
+   */
+  const LOGIN = [
+    'Do not type anything on this page.',
+    'Already entered a password? Change it now on the real site (type its address yourself), and anywhere else you use it.',
+    'Turn on two-step sign-in for that account.',
+    'Entered card details? Call the number on the back of your card and ask for a new one.'
+  ];
+  const FILE = [
+    'Do not open the file. Delete it, or let Sentinel Defense quarantine it.',
+    'Already opened it? Disconnect from the internet and run a full scan in Windows Security.',
+    'Then change important passwords (email, bank) from another device.'
+  ];
+  const NEXT_STEPS = {
+    phishing: LOGIN, impersonation: LOGIN, address: LOGIN, blocked: LOGIN,
+    crypto: [
+      'Never type a recovery phrase into a website: no real wallet or exchange will ever ask for it.',
+      'Already did? Create a new wallet with a new phrase and move your funds there right away. The old one is not safe any more.',
+      'Signed a transaction or approval on this site? Revoke it in your wallet as soon as you can.'
+    ],
+    delivery: [
+      'Carriers do not collect fees through links in texts or emails.',
+      'Check your parcel on the carrier\'s own site by typing its address yourself.',
+      'Already paid? Call your bank or card issuer, using the number on your card, and report the charge.'
+    ],
+    support: [
+      'Close the page. Real companies never put a phone number in a warning like this.',
+      'Do not call the number, and do not let anyone connect to your computer.',
+      'Already let someone in? Disconnect from the internet, run a full scan, and change passwords from another device.'
+    ],
+    prize: ['You did not win anything you never entered. Close the page.', 'Never pay a "fee" or give card details to claim a prize.'],
+    store: ['Do not buy here: prices this low with no real contact details are how fake stores work.', 'Already paid? Ask your card issuer for a chargeback, using the number on your card.'],
+    government: ['Government services never ask for payment through a link like this.', 'Go to the official site by typing its address yourself, or call the number printed on your letters.'],
+    investment: ['Guaranteed or very high returns are the sign of an investment scam. Do not send money.', 'Already sent some? Report it to your bank and to your local fraud reporting service.'],
+    romance: ['Someone you have not met asking for money or gift cards is almost always a scam.', 'Do not send money, and talk it over with someone you trust.'],
+    disguised: FILE, macro: [...FILE.slice(0, 1), 'Never click "Enable editing" or "Enable content" on a document you did not expect.', ...FILE.slice(1)],
+    archive: FILE, program: FILE, sample: FILE, stealer: FILE, drop: FILE, known: FILE,
+    fake_update: ['Your browser updates itself from its own settings, never from a web page. Close this page.', ...FILE.slice(1)],
+    paste_command: ['Do not paste anything into Run, PowerShell or Terminal: that is how this page would install malware.', 'Already did? Restart the computer, run a full scan in Windows Security, and change passwords from another device.'],
+    miner: ['Close the page: it uses your computer to mine cryptocurrency.'],
+    notification: ['Do not click "Allow". If you already did, remove the site from your browser\'s notification settings.'],
+    hidden: ['Close the page. It hides what it does, which is how drive-by attacks start.']
+  };
+  function nextSteps(head) {
+    if (!head || (head.tone !== 'red' && head.tone !== 'orange' && head.tone !== 'yellow')) return '';
+    const steps = NEXT_STEPS[head.kind] || (head.threat === 'scam' ? LOGIN : FILE);
+    const title = head.tone === 'yellow' ? 'If you are not sure' : 'What to do now';
+    return `<div class="next-steps next-steps--${head.tone}"><h3>${title}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></div>`;
+  }
+
   function verdict(v, { lockedLabel } = {}) {
     const head = headline(v);
     const subject = v.kind === 'file' ? v.file.name : v.kind === 'email' ? (v.sender.address || 'Email') : v.host;
@@ -276,11 +330,11 @@ window.UI = (() => {
     }
 
     const notes = [];
-    if (v.knowledge && v.knowledge.discountApplied) notes.push('No threat source has a record of this site, so Sentinel lowered its risk by 20%.');
+    // Not on a verified site: "no threat source has a record" beside "Known record: Verified site" read as a contradiction.
+    if (v.knowledge && v.knowledge.discountApplied && !v.knowledge.trusted) notes.push('No threat list has a record of this site, so its risk was lowered by 20%.');
     if (v.kind === 'url' && !v.researched) notes.push(v.researchSkipReason || 'Research wasn’t part of this scan. Pro, Max and Ultimate also check registration, certificates, redirects and page content.');
     if (v.comparison && v.comparison.kits.length) notes.push(`Page matches known scam pattern: ${v.comparison.kits.map((k) => k.label).join(', ')}.`);
     if (v.comparison && v.comparison.similarDomains.length) notes.push(`Built like known scam domains: ${v.comparison.similarDomains.slice(0, 5).join(', ')}.`);
-    else if (v.comparison && v.comparison.closest && v.comparison.closest.length) notes.push(`Not close to any known scam domain. Nearest of the ${v.comparison.compared} compared: ${v.comparison.closest.slice(0, 3).map((c) => c.host).join(', ')}.`);
     if (v.knowledge && v.knowledge.feeds && v.knowledge.feeds.ready < v.knowledge.feeds.total) notes.push(`Threat lists are still downloading on this Sentinel (${v.knowledge.feeds.ready} of ${v.knowledge.feeds.total} ready). Scan again in a few minutes for a complete answer.`);
 
     return `<article class="result result--${head.tone}" data-result>
@@ -294,6 +348,7 @@ window.UI = (() => {
         </div>
       </header>
       ${threatTiles(v, { lockedLabel })}
+      ${nextSteps(head)}
       ${v.reasons && v.reasons.length ? `<div class="reasons"><h3>Why</h3><ul>${v.reasons.map((r) => `<li><span class="dot" style="--c:${color(v.threats[r.threat] && v.threats[r.threat].badge)}"></span>${esc(r.text)}</li>`).join('')}</ul></div>` : ''}
       ${facts.length ? `<dl class="facts">${facts.map(([k, val]) => `<div><dt>${esc(k)}</dt><dd>${esc(val)}</dd></div>`).join('')}</dl>` : ''}
       ${notes.length ? `<div class="notes">${notes.map((n) => `<p>${esc(n)}</p>`).join('')}</div>` : ''}

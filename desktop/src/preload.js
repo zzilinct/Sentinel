@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   clearToken: () => ipcRenderer.invoke('sentinel:clear-token'),
   setDownloadProtection: (enabled) => ipcRenderer.invoke('sentinel:set-download-protection', Boolean(enabled)),
   setOpenAtLogin: (enabled) => ipcRenderer.invoke('sentinel:set-open-at-login', Boolean(enabled)),
+  setClipboardCheck: (enabled) => ipcRenderer.invoke('sentinel:set-clipboard-check', Boolean(enabled)),
   recentDownloads: () => ipcRenderer.invoke('sentinel:recent-downloads'),
   quarantine: (id) => ipcRenderer.invoke('sentinel:quarantine', String(id)),
   // Live scanning: one switch, and "Scan with <browser>".

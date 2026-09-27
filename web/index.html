@@ -105,7 +105,7 @@
             <div class="bar" style="--c:var(--green)" data-v-bar="malware"><span>Malware</span><div class="bar__track"><div class="bar__fill" data-w="0"></div></div><b>0</b></div>
           </div>
           <ul class="verdict__why" data-v-why></ul>
-          <div class="verdict__foot"><span data-v-checks>101 checks</span><span data-v-source>Known threat</span></div>
+          <div class="verdict__foot"><span data-v-checks>103 checks</span><span data-v-source>Known threat</span></div>
         </div>
 
         <div class="float float--mail" data-float="mail">
@@ -124,8 +124,8 @@
   <!-- =============================================================== stats -->
   <section class="stats" aria-label="Sentinel in numbers">
     <div class="wrap stats__grid">
-      <div class="stat" data-reveal><div class="stat__n tabular"><span data-count="400000" data-live="threats">400,000</span><span class="unit">+</span></div><div class="stat__l">known threats tracked from live public feeds</div></div>
-      <div class="stat" data-reveal style="--d:.08s"><div class="stat__n tabular"><span data-count="101" data-live="checks">101</span></div><div class="stat__l">individual checks behind every verdict</div></div>
+      <div class="stat" data-reveal><div class="stat__n tabular"><span data-count="1200000" data-live="threats">1,200,000</span><span class="unit">+</span></div><div class="stat__l">known threats tracked from live public feeds</div></div>
+      <div class="stat" data-reveal style="--d:.08s"><div class="stat__n tabular"><span data-count="103" data-live="checks">103</span></div><div class="stat__l">checks in Sentinel&rsquo;s checklist, from look-alike names to hidden downloads</div></div>
       <div class="stat" data-reveal style="--d:.16s"><div class="stat__n tabular"><span data-count="3">3</span></div><div class="stat__l">masks: scam, virus and malware</div></div>
       <div class="stat" data-reveal style="--d:.24s"><div class="stat__n tabular"><span data-count="24" data-live="kinds">24</span></div><div class="stat__l">kinds of threat it can name, from a fake login to a fake browser update</div></div>
     </div>
@@ -341,13 +341,13 @@
           <h3>Masks before you choose</h3>
           <p>Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more, in Chrome, Edge, Brave and Firefox. Masks appear as the page loads. With delicate scanning, from Pro up, each result is researched too.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row" data-why="The real Coinbase: a long-established domain on Sentinel’s verified list, so no mask."><div class="grow"><div class="t">Coinbase | Buy and Sell Bitcoin</div><div class="s">coinbase.com</div></div></div>
-            <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension | Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="impersonation" title="impersonation"></span></div>
-            <div class="demo-row" data-why="Listed in public phishing feeds. Brand name + “airdrop claim” on a free .tk domain."><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--red)" data-kind="crypto" title="crypto"></span></div>
-            <div class="demo-row" data-why="A direct program download from a throwaway .site domain with no reputation, dressed up as a free tool."><div class="grow"><div class="t">Crypto Price Tracker | Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="program" title="program"></span></div>
-            <div class="demo-row" data-why="A subdomain of the verified coinbase.com, so it inherits its trust."><div class="grow"><div class="t">Coinbase Help | Contact Support</div><div class="s">help.coinbase.com</div></div></div>
-            <div class="demo-row" data-why="Crypto exchanges don’t run phone support lines on look-alike domains. Classic support-number scam pattern."><div class="grow"><div class="t">Coinbase Support Number 24/7 | Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="support" title="support"></span></div>
-            <div class="demo-row" data-why="An established site with a normal history and nothing suspicious on the page."><div class="grow"><div class="t">Crypto Tax Calculator | Free Guide 2026</div><div class="s">koinly.io/guides</div></div></div>
+            <div class="demo-row" data-why="The real Coinbase: a long-established domain on Sentinel’s verified list, so it gets a tick."><div class="grow"><div class="t">Coinbase | Buy and Sell Bitcoin</div><div class="s">coinbase.com</div></div><span class="m m--clear" role="img" aria-label="No threats found"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg></span></div>
+            <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension | Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="Listed in public phishing feeds. Brand name + “airdrop claim” on a free .tk domain."><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="A direct program download from a throwaway .site domain with no reputation, dressed up as a free tool."><div class="grow"><div class="t">Crypto Price Tracker | Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span></div>
+            <div class="demo-row" data-why="A subdomain of the verified coinbase.com, so it inherits its trust."><div class="grow"><div class="t">Coinbase Help | Contact Support</div><div class="s">help.coinbase.com</div></div><span class="m m--clear" role="img" aria-label="No threats found"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg></span></div>
+            <div class="demo-row" data-why="Crypto exchanges don’t run phone support lines on look-alike domains. Classic support-number scam pattern."><div class="grow"><div class="t">Coinbase Support Number 24/7 | Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="An established site with a normal history and nothing suspicious on the page."><div class="grow"><div class="t">Crypto Tax Calculator | Free Guide 2026</div><div class="s">koinly.io/guides</div></div><span class="m m--clear" role="img" aria-label="No threats found"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg></span></div>
           </div>
           <div class="tile__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Live scanning: 15 minutes a week free, 24 hours on Pro, unlimited on Max</div>
         </article>
@@ -355,10 +355,10 @@
         <article class="tile" data-reveal style="--d:.1s">
           <div class="tile__label">Inbox</div>
           <h3>Emails, unmasked</h3>
-          <p>Gmail and Outlook get the same masks through the optional browser add-on. Spoofed senders, mismatched links and disguised attachments are marked in the list.</p>
+          <p>In Gmail and Outlook on the web, the Sentinel app marks the messages in your inbox list before you open them: a tick when nothing is wrong, a mask when there is evidence of a scam. It reads only what the list already shows.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row" data-why="DocuSign never sends from a free Gmail address, and the display name doesn’t match the sender."><div class="file">DS</div><div class="grow"><div class="t">DocuSign: Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="impersonation" title="impersonation"></span></div>
-            <div class="demo-row" data-why="Sent from github.com with passing sender authentication."><div class="file">GH</div><div class="grow"><div class="t">GitHub: Your weekly digest</div><div class="s">noreply@github.com</div></div></div>
+            <div class="demo-row" data-why="DocuSign never sends from a free Gmail address, and the display name doesn’t match the sender."><div class="file">DS</div><div class="grow"><div class="t">DocuSign: Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="Sent from github.com with passing sender authentication."><div class="file">GH</div><div class="grow"><div class="t">GitHub: Your weekly digest</div><div class="s">noreply@github.com</div></div><span class="m m--clear" role="img" aria-label="No threats found"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg></span></div>
           </div>
         </article>
 
@@ -367,8 +367,8 @@
           <h3>Every file, inspected</h3>
           <p>The Sentinel app scans new downloads on your computer. Files never leave your device. Only their fingerprint does.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row" data-why="The real extension is .exe. The “.pdf” is there to trick you into running it."><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" data-glyph="virus"></span><span class="kind-icon" style="--c:var(--red)" data-kind="disguised" title="disguised"></span></div>
-            <div class="demo-row" data-why=".docm files carry macros that can download and run other programs as soon as you enable editing."><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" data-glyph="malware"></span><span class="kind-icon" style="--c:var(--orange)" data-kind="macro" title="macro"></span></div>
+            <div class="demo-row" data-why="The real extension is .exe. The “.pdf” is there to trick you into running it."><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" data-glyph="virus"></span></div>
+            <div class="demo-row" data-why=".docm files carry macros that can download and run other programs as soon as you enable editing."><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" data-glyph="malware"></span></div>
           </div>
         </article>
       </div>

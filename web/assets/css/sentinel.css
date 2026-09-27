@@ -298,6 +298,9 @@ p { text-wrap: pretty; }
 .m svg { width: 17px; height: 17px; }
 .m.is-on { transform: scale(1); opacity: 1; }
 .m--yellow { --c: var(--yellow); } .m--orange { --c: var(--orange); } .m--red { --c: var(--red); }
+/* Nothing found: a small tick, quieter than a mask, as in the app. */
+.m--clear { --c: var(--green); width: 22px; height: 22px; background: transparent; }
+.m--clear svg { width: 13px; height: 13px; }
 
 .scanline {
   position: absolute; left: 0; right: 0; top: 0; height: 120px;

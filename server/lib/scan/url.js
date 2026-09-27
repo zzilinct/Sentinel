@@ -294,6 +294,11 @@ function brandInfo(p) {
     if (!inDomain && inside(sldFlat, words)) inDomain = brand;
     if (!inSubdomain && subWords.some((s) => inside(s.flat, s.words))) inSubdomain = brand;
 
+    // Characters swapped for look-alikes ("paypa1", "g00gle", "micr0soft"): the name as written is not the brand, but
+    // reads as it. That is a misspelling of the brand, and it was reported as "not a misspelling" because the
+    // comparison below only ever saw the name with the swaps undone.
+    if (!lookalike && t.length >= 4 && [p.sld, ...p.sld.split(/[-_]/)].some((raw) => raw !== t && raw.length === t.length && /\d/.test(raw) && deskin(raw) === t)) lookalike = brand;
+
     if (!lookalike && t.length >= 5) {
       const maxDist = t.length >= 8 ? 2 : 1;
       const tSquashed = squash(t);

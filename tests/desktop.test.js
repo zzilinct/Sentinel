@@ -368,3 +368,23 @@ test('the Windows icon is a real multi-size .ico', () => {
   assert.ok(ico.readUInt16LE(4) >= 5, 'several sizes');
   assert.match(read('desktop/package.json'), /"icon": "build\/icon\.ico"/);
 });
+
+test('"Check links I copy" acts on a single web link only: other clipboard text and file names are left alone', () => {
+  const { linkIn } = require('../desktop/src/clipwatch.js')._test;
+  assert.equal(linkIn('https://bit.ly/3xYz'), 'https://bit.ly/3xYz');
+  assert.equal(linkIn('paypa1-login.com/verify'), 'https://paypa1-login.com/verify');
+  assert.equal(linkIn('  https://example.com/a?b=c  '), 'https://example.com/a?b=c');
+  for (const t of ['hello world', 'Hi, check https://x.com', 'report.pdf', 'notes.txt', 'invoice.pdf.exe', '192.168.1.1', 'javascript:alert(1)', 'call 555 0100', '']) {
+    assert.equal(linkIn(t), null, t);
+  }
+  const main = read('desktop/src/main.js');
+  assert.match(main, /store\.get\('clipboardCheck', false\)/, 'off until the person turns it on');
+  assert.doesNotMatch(read('desktop/src/clipwatch.js'), /log\(`[^`]*\$\{url\}/, 'the log never holds the copied link');
+});
+
+test('a dangerous result says what to do now, in plain steps for its kind of threat', () => {
+  const ui = read('web/assets/js/ui.js');
+  assert.match(ui, /function nextSteps\(head\)/);
+  assert.match(ui, /\$\{nextSteps\(head\)\}/);
+  for (const kind of ['phishing', 'crypto', 'delivery', 'support', 'paste_command', 'fake_update']) assert.match(ui, new RegExp(`\b${kind}:`), kind);
+});

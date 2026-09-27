@@ -24,6 +24,7 @@ const browsers = require('./browsers');
 const watch = require('./watch');
 const overlay = require('./overlay');
 const updater = require('./updater');
+const clipwatch = require('./clipwatch');
 const defense = require('./defense');
 const store = require('./store');
 const server = require('./server');
@@ -468,6 +469,21 @@ function stayInBackground() {
   for (const pid of pids) { try { if (os.getPriority(pid) < low) os.setPriority(pid, low); } catch { /* gone */ } }
 }
 
+/** "Check links I copy": started and stopped with its switch; see clipwatch.js for what it reads. */
+function setClipboardCheck(enabled) {
+  store.set('clipboardCheck', Boolean(enabled));
+  if (enabled && ORIGIN) {
+    clipwatch.start({
+      api: apiCall,
+      log: appLog,
+      onDanger: (d) => notify(`Careful: the link you copied is a ${d.label.toLowerCase()}`, `${d.host}${d.reason ? ` - ${d.reason}` : ''}. Click to see why.`, () => showWindow(`/app/scan?url=${encodeURIComponent(d.url)}`))
+    });
+  } else {
+    clipwatch.stop();
+  }
+  return { clipboardCheck: Boolean(enabled) };
+}
+
 function notify(title, body, onClick) {
   if (!Notification.isSupported()) return;
   const n = new Notification({ title, body, icon: ICON });
@@ -510,6 +526,7 @@ function registerBridge() {
     origin: ORIGIN,
     embeddedServer: Boolean(server.port),
     openAtLogin: store.get('openAtLogin', true),
+    clipboardCheck: store.get('clipboardCheck', false),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
@@ -538,6 +555,7 @@ function registerBridge() {
 
   handle('sentinel:check-updates', () => updater.check());
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
+  handle('sentinel:set-clipboard-check', (enabled) => setClipboardCheck(Boolean(enabled)));
   handle('sentinel:set-defense', (enabled) => { store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
   handle('sentinel:defense-restore', (id) => defense.restore(String(id)));
   handle('sentinel:install-update', () => updater.install());
@@ -734,6 +752,7 @@ async function boot() {
     });
   }
 
+  step('copied links', () => { if (store.get('clipboardCheck', false)) setClipboardCheck(true); });
   step('tray refresh', () => refreshTray());
   openApp();
 }
@@ -781,7 +800,7 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => { quitting = true; defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
+app.on('before-quit', () => { quitting = true; clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 

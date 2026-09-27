@@ -901,7 +901,7 @@
       <div class="feature-grid">
         ${feature(Masks.svg('scam'), 'Page warnings', 'While a browser is in front, Sentinel checks the address of the page it shows and warns you before a dangerous one gets your details. No add-on.', st(!lock && desktop, lock || 'Needs app'))}
         ${feature(ICON.search, 'Search result masks', `A gold line crosses the page when you search, then a mask appears beside every result. Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock && desktop, lock || 'Needs app'))}
-        ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: spoofed senders, bad links and dangerous attachments. This one needs the optional browser add-on; the app does not read your mail.', f.emailLive && !planLocked ? '<span class="status">Optional add-on</span>' : st(false, 'Pro & up'))}
+        ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: the messages in your inbox list get a tick or a mask before you open them. Sentinel reads only what the list shows (sender, subject, first line) and never opens a message.', f.emailLive && !planLocked ? '<span class="status">Optional add-on</span>' : st(false, 'Pro & up'))}
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
 
@@ -1021,6 +1021,7 @@
             : 'Available on Windows.')}</span></div>
             <input class="switch" type="checkbox" data-defense ${df.active ? 'checked' : ''} ${df.supported ? '' : 'disabled'}></label>
           <label class="setting"><div><b>Download protection</b><span>${esc(info.downloads.active ? `Watching ${info.downloads.folder || 'Downloads'}` : info.downloads.reason || 'Off')}</span></div><input class="switch" type="checkbox" data-dl ${info.downloads.active ? 'checked' : ''}></label>
+          ${desktop.setClipboardCheck ? `<label class="setting"><div><b>Check links I copy</b><span>Copy a link from a text message, a chat or a PDF and Sentinel checks it, and warns you only if it is dangerous. Only copied web links are read; nothing else on your clipboard is sent or kept.</span></div><input class="switch" type="checkbox" data-clip ${info.clipboardCheck ? 'checked' : ''}></label>` : ''}
           <label class="setting"><div><b>Start with my computer</b><span>Keep protection running from the moment you sign in.</span></div><input class="switch" type="checkbox" data-login ${info.openAtLogin ? 'checked' : ''}></label>
           <div class="setting"><div><b>Sentinel ${esc(info.version)}</b><span>${esc(UPDATE_TEXT[up.status] || 'Updates install themselves.')}</span></div>
             ${up.status === 'ready' ? '<button class="btn btn--sm btn--gold" data-install-update>Restart now</button>'
@@ -1143,6 +1144,13 @@
       } catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, 'error'); }
     });
     $('[data-login]', slot).addEventListener('change', (ev) => desktop.setOpenAtLogin(ev.target.checked));
+    const clip = $('[data-clip]', slot);
+    if (clip) clip.addEventListener('change', async () => {
+      try {
+        await desktop.setClipboardCheck(clip.checked);
+        toast(clip.checked ? 'Sentinel will check links you copy.' : 'Copied links are no longer checked.', 'success');
+      } catch (err) { clip.checked = !clip.checked; toast(err.message, 'error'); }
+    });
 
     const check = $('[data-check-update]', slot);
     if (check) check.addEventListener('click', () => busy(check, 'Checking', async () => {
