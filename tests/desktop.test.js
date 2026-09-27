@@ -203,7 +203,8 @@ test('the reader follows the tab in front and moves marks with the page between 
   assert.ok(s.includes('$docs = $root.FindAll('), 'every document is considered, not just the first');
   assert.ok(s.includes('if ($d.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }'), 'background tabs are skipped');
   assert.ok(s.includes("Write-Output ('{\"shift\":{\"dx\":'"), 'page movement is reported between full reads');
-  assert.ok(s.includes('$pendingLine.Wait(15)'), 'about 60 looks a second while waiting');
+  assert.ok(s.includes('$wait = if ([Environment]::TickCount -lt $stillAt) { 1 } else { 15 }'), 'followed as fast as the browser answers while it moves, 60 times a second when still');
+  assert.ok(s.includes('$stillAt = [Environment]::TickCount + 150'), 'the full read waits until the page has been still for 150 ms');
 });
 
 test('the updater installs the file it downloaded, into its own folder, and notices an update that did not take', () => {
@@ -219,8 +220,8 @@ test('the updater installs the file it downloaded, into its own folder, and noti
 
 test('the reader starts from a file: its command line stays far under the Windows limit, and a changed file is refused', () => {
   const { readerLaunch, SCRIPT } = watch._test;
-  const body = SCRIPT.replace('__TEST_PROCESS__', () => '').replace('__HELPER_DLL__', () => "C:\Users\o'brien\AppData\Roaming\Sentinel\helper.dll");
-  const { file, args } = readerLaunch(body, "C:\Users\o'brien\AppData\Roaming\Sentinel");
+  const body = SCRIPT.replace('__TEST_PROCESS__', () => '').replace('__HELPER_DLL__', () => "C:\\Users\\o'brien\\AppData\\Roaming\\Sentinel\\helper.dll");
+  const { file, args } = readerLaunch(body, "C:\\Users\\o'brien\\AppData\\Roaming\\Sentinel");
   // A 1.6.5 build (caught before release) passed the whole script as -EncodedCommand: 35,716 characters, and spawn failed with ENAMETOOLONG.
   assert.ok(args.join(' ').length < 4000, `command line is ${args.join(' ').length} characters`);
   const loader = Buffer.from(args[args.length - 1], 'base64').toString('utf16le');
