@@ -5,7 +5,8 @@ name: Test
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'work/**']
+  workflow_dispatch:
   pull_request:
     branches: [main]
 
