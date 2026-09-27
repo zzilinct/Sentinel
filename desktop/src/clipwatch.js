@@ -8,7 +8,8 @@
  * turns it on). Only a single web link is ever acted on; any other text is left alone, never sent, never kept. The
  * log records that a copied link was checked and how it came out, never the link itself.
  */
-const { clipboard } = require('electron');
+// Loaded when the check starts, so the link rules can be tested without Electron.
+const clipboard = () => require('electron').clipboard;
 
 const EVERY_MS = 1500;
 const MAX_LENGTH = 2000;
@@ -34,7 +35,7 @@ function linkIn(text) {
 
 async function tick() {
   let text = '';
-  try { text = clipboard.readText(); } catch { return; }
+  try { text = clipboard().readText(); } catch { return; }
   if (text === last) return;
   last = text;
   const url = linkIn(text);
@@ -54,7 +55,7 @@ function start(options) {
   opts = options;
   stop();
   // Whatever is on the clipboard when this starts was copied before: it is not checked.
-  try { last = clipboard.readText(); } catch { last = ''; }
+  try { last = clipboard().readText(); } catch { last = ''; }
   timer = setInterval(() => { tick().catch(() => {}); }, EVERY_MS);
   timer.unref();
 }

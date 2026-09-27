@@ -386,5 +386,5 @@ test('a dangerous result says what to do now, in plain steps for its kind of thr
   const ui = read('web/assets/js/ui.js');
   assert.match(ui, /function nextSteps\(head\)/);
   assert.match(ui, /\$\{nextSteps\(head\)\}/);
-  for (const kind of ['phishing', 'crypto', 'delivery', 'support', 'paste_command', 'fake_update']) assert.match(ui, new RegExp(`\b${kind}:`), kind);
+  for (const kind of ['phishing', 'crypto', 'delivery', 'support', 'paste_command', 'fake_update']) assert.match(ui, new RegExp(`\\b${kind}:`), kind);
 });
