@@ -1,0 +1,30 @@
+# Live scanning end to end on a GitHub-hosted Windows desktop: the released app, a real browser, real scrolling,
+# screenshots along the way (scripts/live-e2e.ps1). Never runs on a person's computer.
+name: Live scanning end to end
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Sentinel version to test (empty: the latest release)'
+        required: false
+  push:
+    branches: ['work/e2e**']
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - shell: powershell
+        run: ./scripts/live-e2e.ps1 -Version "${{ github.event.inputs.version }}" -Out e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-e2e
+          path: e2e/
+          retention-days: 7
