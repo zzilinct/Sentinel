@@ -1,7 +1,8 @@
 # Live scanning, end to end, on a real Windows desktop (a GitHub-hosted runner, never a person's computer):
-# install the released Sentinel, switch live scanning on, search in Edge, scroll in small steps and photograph the
-# whole screen along the way. Screenshots and Sentinel's logs go to $Out for review.
-param([string]$Version = '', [string]$Out = 'e2e')
+# install Sentinel (-Installer: a build of this commit; otherwise the released -Version, or the latest release),
+# switch live scanning on, search in Edge, scroll and photograph the whole screen along the way. Screenshots and
+# Sentinel's logs go to $Out for review.
+param([string]$Version = '', [string]$Installer = '', [string]$Out = 'e2e')
 $ErrorActionPreference = 'Continue'
 New-Item -ItemType Directory -Force $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
@@ -31,10 +32,13 @@ function Shot($name) {
 }
 
 Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
-# 1. The released installer, exactly what people get.
-$tag = if ($Version) { "v$Version" } else { (Invoke-RestMethod 'https://api.github.com/repos/zzilinct/Sentinel/releases/latest').tag_name }
-$setup = "$env:RUNNER_TEMP\Sentinel-Setup.exe"
-Invoke-WebRequest "https://github.com/zzilinct/Sentinel/releases/download/$tag/Sentinel-Setup.exe" -OutFile $setup -UseBasicParsing
+# 1. The installer: built from this commit, or a released one exactly as people get it.
+if ($Installer) { $setup = $Installer; $tag = 'this commit' }
+else {
+  $tag = if ($Version) { "v$Version" } else { (Invoke-RestMethod 'https://api.github.com/repos/zzilinct/Sentinel/releases/latest').tag_name }
+  $setup = "$env:RUNNER_TEMP\Sentinel-Setup.exe"
+  Invoke-WebRequest "https://github.com/zzilinct/Sentinel/releases/download/$tag/Sentinel-Setup.exe" -OutFile $setup -UseBasicParsing
+}
 Start-Process $setup -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"
 Say "installed $tag -> $((Get-Item $exe).VersionInfo.ProductVersion)"

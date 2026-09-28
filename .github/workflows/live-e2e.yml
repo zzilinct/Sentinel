@@ -1,12 +1,12 @@
-# Live scanning end to end on a GitHub-hosted Windows desktop: the released app, a real browser, real scrolling,
-# screenshots along the way (scripts/live-e2e.ps1). Never runs on a person's computer.
+# Live scanning end to end on a GitHub-hosted Windows desktop: the app built from this commit (or a released version),
+# a real browser, real scrolling, screenshots along the way (scripts/live-e2e.ps1). Never runs on a person's computer.
 name: Live scanning end to end
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Sentinel version to test (empty: the latest release)'
+        description: 'Released version to test instead of building this commit (empty: build this commit)'
         required: false
   push:
     branches: ['work/e2e**']
@@ -17,11 +17,24 @@ permissions:
 jobs:
   e2e:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Build the Windows installer from this commit
+        if: ${{ !github.event.inputs.version }}
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run dist:win
       - shell: powershell
-        run: ./scripts/live-e2e.ps1 -Version "${{ github.event.inputs.version }}" -Out e2e
+        run: |
+          $installer = if ("${{ github.event.inputs.version }}") { '' } else { (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName }
+          ./scripts/live-e2e.ps1 -Version "${{ github.event.inputs.version }}" -Installer $installer -Out e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with:
