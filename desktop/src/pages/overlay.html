@@ -85,6 +85,8 @@
   'use strict';
   var M = window.SentinelMasks;
   var GOLD = '#d6b25a';
+  var tracing = /[?&]trace=1\b/.test(location.search);   // end-to-end runs only (see overlay.js)
+  var reduceMotion =window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg>';
   var corner = document.getElementById('corner');
   var cornerMask = document.getElementById('cornerMask');
@@ -247,6 +249,51 @@
   var shiftX = 0;
   var shiftY = 0;
   function setShift(dx, dy) { shiftX = dx; shiftY = dy; marksEl.style.transform = 'translate3d(' + dx + 'px,' + dy + 'px,0)'; }
+
+  // The reader reports how far the page has moved whenever it gets an answer from the browser: at uneven moments,
+  // not once per frame. Jumping to each report is what made scrolling look choppy. Instead every frame eases the
+  // marks toward the page, and a little ahead of the last report by the page's speed (the report is already a few
+  // milliseconds old when it arrives). The look-ahead fades as soon as reports stop, so marks never overshoot a
+  // page that has stopped.
+  var LEAD_MS = 22;        // how far ahead of the last report, at most
+  var EASE_MS = 26;        // how quickly the marks close the gap (time constant)
+  var goal = { x: 0, y: 0, t: 0 };
+  var vel = { x: 0, y: 0 };
+  var clockGap = null;     // this page's clock minus the reader's clock (their difference, plus the shortest delay seen)
+  var frameAt = 0;
+  var raf = 0;
+  function readerNow() { return performance.now() - (clockGap || 0); }
+  function follow(p) {
+    var now = performance.now();
+    var t = typeof p.t === 'number' ? p.t : now - (clockGap || 0);
+    var gap = now - t;
+    if (clockGap === null || gap < clockGap || gap - clockGap > 2000) clockGap = gap;
+    var dt = t - goal.t;
+    if (goal.t && dt > 0 && dt < 150) {
+      // Speed in pixels per millisecond, smoothed over the last few reports.
+      vel.x = vel.x * 0.5 + ((p.dx - goal.x) / dt) * 0.5;
+      vel.y = vel.y * 0.5 + ((p.dy - goal.y) / dt) * 0.5;
+    } else { vel.x = 0; vel.y = 0; }
+    goal = { x: p.dx, y: p.dy, t: t };
+    if (tracing) console.log('R ' + now.toFixed(1) + ' ' + t + ' ' + p.dy.toFixed(1));
+    if (!raf) { frameAt = performance.now(); raf = requestAnimationFrame(frame); }
+  }
+  function frame(ts) {
+    var since = readerNow() - goal.t;
+    // Ahead by up to LEAD_MS while reports keep coming; no look-ahead once they have stopped for a moment.
+    var lead = since < 60 ? Math.min(Math.max(since, 0), LEAD_MS) * Math.max(0, 1 - Math.max(0, since - 30) / 30) : 0;
+    var tx = goal.x + vel.x * lead;
+    var ty = goal.y + vel.y * lead;
+    var step = Math.min(Math.max(ts - frameAt, 0), 50); frameAt = ts;
+    var k = 1 - Math.exp(-step / EASE_MS);
+    var nx = shiftX + (tx - shiftX) * k;
+    var ny = shiftY + (ty - shiftY) * k;
+    if (lead === 0 && Math.abs(goal.x - nx) < 0.4 && Math.abs(goal.y - ny) < 0.4) { setShift(goal.x, goal.y); raf = 0; return; }
+    setShift(nx, ny);
+    if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + ny.toFixed(1) + ' ' + goal.y.toFixed(1));
+    raf = requestAnimationFrame(frame);
+  }
+  function stopFollowing() { if (raf) cancelAnimationFrame(raf); raf = 0; goal = { x: 0, y: 0, t: 0 }; vel = { x: 0, y: 0 }; }
   var clipEl = document.getElementById('clip');
   function setClip(c) {
     // A little room above and below, so a mark on the first or last row is not cut in half.
@@ -255,11 +302,15 @@
   api.on('overlay:marks', function (p) {
     setClip(p && p.clip);
     var rebase = null;
-    if (!p || p.epoch !== epoch) { rebase = { dx: shiftX, dy: shiftY }; epoch = p ? p.epoch : 0; setShift(0, 0); }
+    if (!p || p.epoch !== epoch) { rebase = { dx: shiftX, dy: shiftY }; epoch = p ? p.epoch : 0; stopFollowing(); setShift(0, 0); }
     place((p && p.marks) || [], rebase);
   });
-  api.on('overlay:shift', function (p) { if (p && p.epoch === epoch) setShift(p.dx, p.dy); });
-  api.on('overlay:clear', function () { clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
+  api.on('overlay:shift', function (p) {
+    if (!p || p.epoch !== epoch) return;
+    if (reduceMotion) { setShift(p.dx, p.dy); return; }
+    follow(p);
+  });
+  api.on('overlay:clear', function () { stopFollowing(); setShift(0, 0); clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
 })();
 </script>
 </body>

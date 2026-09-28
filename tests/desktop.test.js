@@ -277,6 +277,48 @@ test('the reader reads commands without blocking its own loop', () => {
   assert.match(SCRIPT, /New-Object System\.IO\.StreamReader\(\[Console\]::OpenStandardInput\(\)\)/);
 });
 
+test('the overlay sits just above the browser, never above everything: menus and other windows cover it', () => {
+  const o = read('desktop/src/overlay.js');
+  assert.doesNotMatch(o, /setAlwaysOnTop\(true/);
+  assert.match(o, /alwaysOnTop: false/);
+  assert.match(read('desktop/src/main.js'), /if \(rect\) watch\.keepAbove\(overlay\.handle\(\)\)/);
+  const { SCRIPT } = watch._test;
+  assert.ok(SCRIPT.includes('public static bool Above(IntPtr overlay, IntPtr browser)'));
+  assert.ok(SCRIPT.includes('[void][SW]::Above($overlayH, $h)'), 'kept above the browser on every look');
+  assert.ok(SCRIPT.includes('$h = [SW]::Owner([SW]::GetForegroundWindow())'), 'a browser menu in front still means the browser');
+});
+
+test('results covered by something the page drew over them (Google\'s apps grid, a sticky bar) get no mark', () => {
+  const { SCRIPT } = watch._test;
+  assert.ok(SCRIPT.includes('(Covered $l $b)'));
+  assert.ok(SCRIPT.includes('$hit.Current.ProcessId -ne $fp'), 'the overlay itself never counts as covering');
+  assert.ok(SCRIPT.includes('$recheckAt = $tick + 450'), 'looked at again when focus moves and once its panel has opened');
+});
+
+test('marks ease along with the page every frame instead of jumping at each report', () => {
+  const html = read('desktop/src/pages/overlay.html');
+  assert.match(html, /raf = requestAnimationFrame\(frame\)/);
+  assert.match(html, /api\.on\('overlay:shift', function \(p\) \{\s+if \(!p \|\| p\.epoch !== epoch\) return;/);
+  assert.ok(watch._test.SCRIPT.includes(`',"t":' + [Environment]::TickCount`), 'each report says when it was measured');
+});
+
+test('the reader\'s C# helper compiles (a compile error would stop live scanning entirely)', { skip: process.platform !== 'win32' }, () => {
+  const src = /\$src = @"([\s\S]*?)"@/.exec(watch._test.SCRIPT)[1];
+  const file = path.join(os.tmpdir(), `sentinel-helper-check-${process.pid}.cs`);
+  fs.writeFileSync(file, src, 'utf8');
+  try {
+    const r = require('child_process').spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      `Add-Type -TypeDefinition ([IO.File]::ReadAllText('${file.replace(/'/g, "''")}')); [SW]::Above([IntPtr]::Zero, [IntPtr]::Zero)`], { encoding: 'utf8', timeout: 60000 });
+    assert.equal(r.status, 0, r.stderr || r.stdout);
+    assert.match(r.stdout, /False/);
+  } finally { fs.rmSync(file, { force: true }); }
+});
+
+test('the reader\'s compiled helper is named after its source, so a new version never loads an old one', () => {
+  const w = read('desktop/src/watch.js');
+  assert.match(w, /reader-helper-\$\{crypto\.createHash\('sha256'\)\.update\(src\)/);
+});
+
 test('scrolling keeps each mark on its own element: marks are keyed by result, never by position', () => {
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /var nodes = new Map\(\)/);

@@ -709,6 +709,7 @@ async function boot() {
     // The browser in front (or none): the overlay follows it, and leaves with it.
     onWindow: (rect) => {
       overlay.setWindow(rect);
+      if (rect) watch.keepAbove(overlay.handle());
       if (rect && sweepOnNextWindow) { sweepOnNextWindow = false; overlay.sweep('start'); }
       // Tell the tray and the app only when a browser arrives or leaves, not every time its window moves.
       if (Boolean(rect) !== watchingWindow) {

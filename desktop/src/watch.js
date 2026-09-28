@@ -66,6 +66,23 @@ public static class SW {
   // Restore if minimised, maximise, and bring to the front. Windows only lets the program in front hand over the
   // foreground, so Alt is tapped first (the documented way to be allowed).
   public static void Raise(IntPtr h) { ShowWindow(h, 3); keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); SetForegroundWindow(h); }
+  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);
+  [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int index);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+  // The browser's own window, not a menu or popup it opened (those are owned by it).
+  public static IntPtr Owner(IntPtr h) { IntPtr r = GetAncestor(h, 3); return r == IntPtr.Zero ? h : r; }
+  // Put the overlay directly above the browser, and no higher: whatever is already above the browser (its menus,
+  // another program's window, a notification) stays above the overlay. Does nothing when it is already above.
+  public static bool Above(IntPtr overlay, IntPtr browser) {
+    if (overlay == IntPtr.Zero || browser == IntPtr.Zero) return false;
+    IntPtr w = GetWindow(browser, 3);
+    for (int n = 0; w != IntPtr.Zero && n < 400; n++) { if (w == overlay) return false; w = GetWindow(w, 3); }
+    IntPtr prev = GetWindow(browser, 3);
+    // Below a topmost window would make the overlay topmost too: then it goes to the top of the ordinary windows.
+    IntPtr after = (prev == IntPtr.Zero || (GetWindowLong(prev, -20) & 0x8) != 0) ? IntPtr.Zero : prev;
+    return SetWindowPos(overlay, after, 0, 0, 0, 0, 0x1 | 0x2 | 0x10 | 0x200);
+  }
 }
 "@
 $loaded = $false
@@ -100,11 +117,37 @@ $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search
 $last = ''; $lastFront = ''; $lastWin = ''; $lastLinks = ''; $wasIdle = $false; $noDoc = ''; $pause = 450
 $lastPid = 0; $lastProc = $null; $cachedDoc = $null; $cachedFor = [IntPtr]::Zero; $cachedTitle = ''; $cachedAt = 0
 $forceRead = $true; $readAt = 0; $lastCount = 0
+# The overlay's window (sent by the app once it exists) and the browser it belongs over.
+$overlayH = [IntPtr]::Zero; $browserH = [IntPtr]::Zero
+$lastFocus = ''; $recheckAt = 0
 # Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
 # so the loop would stop at the first read until the app sent a command. A plain reader over the raw stream is
 # truly asynchronous.
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
 $pendingLine = $stdin.ReadLineAsync()
+# Is something drawn over this link, where its mark goes (a menu the page opened, like Google's apps grid, or a bar
+# that stays at the top while the page scrolls under it)? Asks what is at the link's title line: the link itself (or
+# its text) means it shows. Something containing the link might be its own container (the point fell in a gap) or a
+# panel over it; only a panel that is not one of the link's ancestors covers it.
+$walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
+function Covered($el, $b) {
+  $px = [int]($b.X + [Math]::Min(8, $b.Width / 2))
+  $py = if ($b.Height -gt 40) { [int]($b.Bottom - 12) } else { [int]($b.Y + $b.Height / 2) }
+  try {
+    $hit = $A::FromPoint((New-Object System.Windows.Point($px, $py)))
+    # Only the browser's own things count: another program's window (Sentinel's overlay included) is not the page.
+    if (-not $hit -or $hit.Current.ProcessId -ne $fp) { return $false }
+    $hr = $hit.Current.BoundingRectangle
+    if ([double]::IsInfinity($hr.Width)) { return $false }
+    $inside = $hr.X -ge $b.X - 2 -and $hr.Y -ge $b.Y - 2 -and $hr.Right -le $b.Right + 2 -and $hr.Bottom -le $b.Bottom + 2
+    if ($inside) { return $false }
+    $around = $hr.X -le $b.X + 2 -and $hr.Y -le $b.Y + 2 -and $hr.Right -ge $b.Right - 2 -and $hr.Bottom -ge $b.Bottom - 2
+    if (-not $around) { return $true }
+    $p = $walker.GetParent($el)
+    for ($i = 0; $p -and $i -lt 12; $i++) { if ([System.Windows.Automation.Automation]::Compare($p, $hit)) { return $false }; $p = $walker.GetParent($p) }
+    return $true
+  } catch { return $false }
+}
 function Off($why) { $script:anchor = $null; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
   # Between full looks: follow the anchor about 60 times a second and report how far the page has moved, so the
@@ -131,7 +174,7 @@ while ($true) {
           $dx = [int]$ar.X - $anchorX; $dy = [int]$ar.Y - $anchorY
           if ($dx -ne $lastDx -or $dy -ne $lastDy) {
             $lastDx = $dx; $lastDy = $dy; $moved = $true
-            Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + '}}')
+            Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + ',"t":' + [Environment]::TickCount + '}}')
             $stillAt = [Environment]::TickCount + 150
             # Never more than 5 s between full reads, even on a page that keeps moving by itself.
             if ($until -lt $stillAt -and $stillAt - $loopStart -lt 5000) { $until = $stillAt }
@@ -146,6 +189,10 @@ while ($true) {
     $cmd = $pendingLine.Result
     if ($null -eq $cmd) { exit }   # the app closed the pipe: it is gone
     $pendingLine = $stdin.ReadLineAsync()
+    if ($cmd -match '^above (\d{1,20})$') {
+      $overlayH = [IntPtr][long]$Matches[1]
+      if ($browserH -ne [IntPtr]::Zero) { [void][SW]::Above($overlayH, $browserH) }
+    }
     if ($cmd -match '^raise ([a-z]{2,20})$') {
       $rp = Get-Process -Name $Matches[1] | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
       if ($rp) { [SW]::Raise($rp.MainWindowHandle); Write-Output ('{"raised":"' + $Matches[1] + '"}') } else { Write-Output ('{"noWindow":"' + $Matches[1] + '"}') }
@@ -153,7 +200,8 @@ while ($true) {
     continue
   }
   $pause = 300
-  $h = [SW]::GetForegroundWindow()
+  # A menu or popup the browser opened is in front of the browser's own window, which is the one that holds the page.
+  $h = [SW]::Owner([SW]::GetForegroundWindow())
   # Development builds only (see start()): look at a named browser wherever it is, so the whole chain can be
   # exercised against a window nobody is looking at. In a released build this name is always empty.
   $testName = '__TEST_PROCESS__'
@@ -207,6 +255,9 @@ while ($true) {
   }
   $noDoc = ''
   $isPrivate = $title -match $private
+  # Over this browser, and only just: anything opened on top of it stays on top of the marks.
+  $browserH = $h
+  if ($overlayH -ne [IntPtr]::Zero) { [void][SW]::Above($overlayH, $h) }
 
   $winKey = "$h|$([int]$r.X)|$([int]$r.Y)|$([int]$r.Width)|$([int]$r.Height)|$isPrivate"
   if ($winKey -ne $lastWin) {
@@ -223,6 +274,12 @@ while ($true) {
   # Reading every link on a page is the expensive part (hundreds of milliseconds on a slow machine). Read again only
   # when something can have changed: a new page or window position, the page moved, the last read found nothing
   # (still loading), nothing to follow the page by, or a few seconds passed (results that load in as you scroll).
+  # Keyboard focus moving (a menu or panel opening in the page, or closing) can cover or uncover results: look again
+  # at once, and once more when its opening animation has finished.
+  $focusKey = ''
+  try { $fe = $A::FocusedElement; if ($fe) { $focusKey = ($fe.GetRuntimeId() -join '.') } } catch { $focusKey = '' }
+  if ($focusKey -ne $lastFocus) { $lastFocus = $focusKey; $forceRead = $true; $recheckAt = $tick + 450 }
+  if ($recheckAt -and $tick -ge $recheckAt) { $recheckAt = 0; $forceRead = $true }
   $needRead = $forceRead -or $moved -or -not $anchor -or $lastCount -eq 0 -or ($tick - $readAt) -gt 2500
   if ($needRead -and ($url -match $search -or $url -match $mail)) { $forceRead = $false; $readAt = $tick }
 
@@ -233,7 +290,7 @@ while ($true) {
     $scope = $cache.Activate()
     try { $found = $doc.FindAll([System.Windows.Automation.TreeScope]::Descendants, $linkCond) } catch { $found = $null } finally { $scope.Dispose() }
     $list = New-Object System.Collections.ArrayList
-    $firstEl = $null
+    $firstEl = $null; $covered = 0; $hitBudget = $sw.ElapsedMilliseconds + 150
     if ($found) {
       foreach ($l in $found) {
         if ($list.Count -ge 60) { break }
@@ -243,6 +300,7 @@ while ($true) {
         $b = $l.GetCachedPropertyValue($A::BoundingRectangleProperty)
         if ([double]::IsInfinity($b.Width) -or $b.Width -lt 40 -or $b.Height -lt 10) { continue }
         if ($b.Bottom -lt $r.Top -or $b.Top -gt $r.Bottom) { continue }
+        if ($sw.ElapsedMilliseconds -lt $hitBudget -and (Covered $l $b)) { $covered++; continue }
         if (-not $firstEl) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
         [void]$list.Add(@{ u = $u; x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height })
       }
@@ -252,7 +310,7 @@ while ($true) {
     $sig = ($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)" }) -join ';'
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
-      Write-Output (@{ links = @($list); for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
+      Write-Output (@{ links = @($list); covered = $covered; for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
       # New positions: the anchor starts again from here, and the marks from zero movement.
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0
     }
@@ -316,6 +374,7 @@ let pending = new Set();
 let linkEpoch = 0;          // one per full read of the links; page movement is reported relative to it
 
 let readerReady = false;
+let overlayHandle = '';     // the overlay's window, kept just above the browser by the reader
 const queued = [];
 const raiseWaiters = [];
 function send(line) {
@@ -337,6 +396,14 @@ function raise(processName) {
     raiseWaiters.push(done);
     if (!send(`raise ${processName}`)) { raiseWaiters.pop(); clearTimeout(timer); resolve(null); }
   });
+}
+
+/** The overlay's window handle (a decimal string): the reader keeps it directly above the browser, never above
+ * everything, so the browser's menus and other programs' windows cover it the way they cover the browser. */
+function keepAbove(handle) {
+  if (!/^\d{1,20}$/.test(String(handle || ''))) return;
+  overlayHandle = String(handle);
+  if (readerReady) send(`above ${overlayHandle}`);
 }
 
 function status() { return { ...state, mode: currentMode() }; }
@@ -402,12 +469,22 @@ function readerLaunch(body, dir) {
 function start() {
   const testProcess = opts.testProcess && /^[a-z]{2,20}$/.test(opts.testProcess) ? opts.testProcess : '';
   if (testProcess) log(`TEST MODE: reading ${testProcess} wherever it is, not the window in front`);
-  const helper = opts.helperDll ? String(opts.helperDll).replace(/'/g, "''") : '';
+  const src = /\$src = @"([\s\S]*?)"@/.exec(SCRIPT)[1];
+  const dll = opts.helperDll ? path.join(path.dirname(String(opts.helperDll)), `reader-helper-${crypto.createHash('sha256').update(src).digest('hex').slice(0, 12)}.dll`) : '';
+  const helper = dll.replace(/'/g, "''");
   const body = SCRIPT.replace('__TEST_PROCESS__', () => testProcess).replace('__HELPER_DLL__', () => helper);
   try {
     const { file, args } = readerLaunch(body, opts.helperDll ? path.dirname(String(opts.helperDll)) : os.tmpdir());
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, body, 'utf8');
+    // Readers and helpers from earlier versions are never used again.
+    try {
+      for (const name of fs.readdirSync(path.dirname(file))) {
+        const old = (/^sentinel-reader-[0-9A-F]{12}\.ps1$/.test(name) && name !== path.basename(file))
+          || (/^reader-helper-[\w-]+\.dll$/.test(name) && dll && name !== path.basename(dll));
+        if (old) try { fs.unlinkSync(path.join(path.dirname(file), name)); } catch { /* still in use: next time */ }
+      }
+    } catch { /* best effort */ }
     child = spawn('powershell.exe', args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     // Below normal priority: reading the browser must never compete with the browser.
     try { require('os').setPriority(child.pid, require('os').constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* best effort */ }
@@ -476,7 +553,12 @@ function setWindow(win) {
 function onLine(line) {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
-  if (msg.ready) { readerReady = true; for (const line of queued.splice(0)) send(line); return; }
+  if (msg.ready) {
+    readerReady = true;
+    for (const line of queued.splice(0)) send(line);
+    if (overlayHandle) send(`above ${overlayHandle}`);   // a restarted reader learns where the overlay is again
+    return;
+  }
   if (msg.raised || msg.noWindow) { const r = raiseWaiters.shift(); if (r) r(Boolean(msg.raised)); return; }
   if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); return; }
   if (msg.nodoc) { log(`${msg.browser} is in front, but Windows gave no page address (a start page, a dialog over the page, or the browser's accessibility is off)`); return; }
@@ -487,7 +569,7 @@ function onLine(line) {
     setWindow(msg.win || null);
     return;
   }
-  if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy }); return; }
+  if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t }); return; }
   if (msg.links) return onLinks(msg);
   if (msg.mail) return onMail(msg);
   if (!msg.url) return;
@@ -842,4 +924,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, SCRIPT } };

@@ -18,6 +18,8 @@ public static class K {
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, int data, UIntPtr extra);
   // One notch of the mouse wheel: what a person scrolling a results page does, smooth-scrolled by the browser.
   public static void Wheel(int notches) { mouse_event(0x0800, 0, 0, -120 * notches, UIntPtr.Zero); }
+  public static void Combo(byte mod, byte vk) { keybd_event(mod, 0, 0, UIntPtr.Zero); Tap(vk); keybd_event(mod, 0, 2, UIntPtr.Zero); }
+  public static void Click(int x, int y) { SetCursorPos(x, y); mouse_event(0x2, 0, 0, 0, UIntPtr.Zero); mouse_event(0x4, 0, 0, 0, UIntPtr.Zero); }
   public static void Tap(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
 }
 "@
@@ -47,6 +49,7 @@ Say "installed $tag -> $((Get-Item $exe).VersionInfo.ProductVersion)"
 $data = "$env:APPDATA\Sentinel"; New-Item -ItemType Directory -Force $data | Out-Null
 [IO.File]::WriteAllText("$data\settings.json", '{"liveScanning":true,"autoScan":true,"openAtLogin":false}')
 $env:SENTINEL_LINK_DUMP = "$Out\links.jsonl"   # what the reader saw on each results page, for review
+$env:SENTINEL_OVERLAY_TRACE = "$Out\frames.txt" # every frame of the marks moving, to measure smoothness
 Start-Process $exe -ArgumentList '--hidden'
 $up = $false
 for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }
@@ -54,7 +57,7 @@ Say "scanner up: $up"
 Start-Sleep 20
 
 # 3. A search in Edge, maximised.
-function Search($url, $name) {
+function Search($url, $name, $menuAt) {
   Start-Process msedge -ArgumentList '--no-first-run', '--start-maximized', '--hide-crash-restore-bubble', $url
   Start-Sleep 12
   $p = Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
@@ -68,9 +71,20 @@ function Search($url, $name) {
   Start-Sleep 3; Shot "$name-settled"
   for ($s = 1; $s -le 3; $s++) { [K]::Tap(0x22); Start-Sleep -Milliseconds 150; Shot "$name-page$s" }
   Start-Sleep 3; Shot "$name-page-settled"
+  # One long, smooth scroll with nothing else going on (no screenshots in the middle): frames.txt records how the
+  # marks followed it.
+  [K]::Tap(0x24); Start-Sleep 4; Shot "$name-top"
+  Add-Content "$Out\frames.txt" "# $name long scroll"
+  for ($s = 1; $s -le 14; $s++) { [K]::Wheel(1); Start-Sleep -Milliseconds 45 }
+  Start-Sleep 3; Shot "$name-long-scroll-settled"
+  # The browser's own menu opens over the page: it must cover the marks, not the other way round.
+  [K]::Combo(0x12, 0x46); Start-Sleep 2; Shot "$name-edge-menu"; [K]::Tap(0x1B); Start-Sleep 1
+  # A menu the page itself opens (DuckDuckGo's, like Google's apps grid): marks under it go away while it is open.
+  if ($menuAt) { [K]::Click($menuAt[0], $menuAt[1]); Start-Sleep 2; Shot "$name-page-menu"; [K]::Tap(0x1B); Start-Sleep 2; Shot "$name-page-menu-closed" }
 }
-Search 'https://duckduckgo.com/?q=paypal+login+help' 'ddg'
+Search 'https://duckduckgo.com/?q=paypal+login+help' 'ddg' @(978, 119)
 Search 'https://www.bing.com/search?q=cheap+airpods+pro+outlet' 'bing'
+Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google'
 
 # 4. What Sentinel saw.
 Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue

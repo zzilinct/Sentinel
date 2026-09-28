@@ -50,7 +50,9 @@ function ensure() {
     skipTaskbar: true,
     hasShadow: false,
     roundedCorners: false,
-    alwaysOnTop: true,
+    // Not always on top: the reader keeps this window directly above the browser (watch.keepAbove), so the
+    // browser's menus and anything opened over the browser cover the marks, the way they cover the page.
+    alwaysOnTop: false,
     webPreferences: {
       preload: path.join(__dirname, 'overlay-preload.js'),
       contextIsolation: true,
@@ -59,7 +61,6 @@ function ensure() {
       backgroundThrottling: false
     }
   });
-  win.setAlwaysOnTop(true, 'screen-saver');
   // Every click and key goes through to the browser. Moves are forwarded so a mark can explain itself on hover.
   win.setIgnoreMouseEvents(true, { forward: true });
   win.setSkipTaskbar(true);
@@ -72,7 +73,16 @@ function ensure() {
     queue = [];
   });
   win.on('closed', () => { win = null; ready = false; queue = []; });
-  win.loadFile(path.join(__dirname, 'pages', 'overlay.html'));
+  // The end-to-end run on a GitHub desktop (scripts/live-e2e.ps1) asks for a frame-by-frame trace of how the marks
+  // moved, to measure smoothness; nobody else sets this.
+  const trace = process.env.SENTINEL_OVERLAY_TRACE;
+  if (trace) {
+    win.webContents.on('console-message', (...args) => {
+      const message = typeof args[0] === 'object' && args[0] && 'message' in args[0] ? args[0].message : args[2];
+      if (/^[FR] /.test(String(message))) { try { require('fs').appendFileSync(trace, `${message}\n`); } catch { /* best effort */ } }
+    });
+  }
+  win.loadFile(path.join(__dirname, 'pages', 'overlay.html'), trace ? { query: { trace: '1' } } : undefined);
   return win;
 }
 
@@ -139,9 +149,16 @@ function setMarks({ marks, checking, epoch, clip }) {
 }
 
 /** The page moved by (dx, dy) screen pixels since the marks of `epoch` were placed. Sent straight through, every frame. */
-function shift({ epoch, dx, dy }) {
+function shift({ epoch, dx, dy, t }) {
   if (!area || dryRun) return;
-  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:shift', { epoch, dx: dx / scale, dy: dy / scale });
+  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:shift', { epoch, dx: dx / scale, dy: dy / scale, t: typeof t === 'number' ? t : null });
+}
+
+/** The overlay window's handle, as a decimal string, or '' when there is none. */
+function handle() {
+  if (!win || win.isDestroyed()) return '';
+  const b = win.getNativeWindowHandle();
+  return b.length >= 8 ? b.readBigUInt64LE(0).toString() : String(b.readUInt32LE(0));
 }
 
 function destroy() {
@@ -150,4 +167,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { setWindow, sweep, setVerdict, setMarks, shift, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { handle, setWindow, sweep, setVerdict, setMarks, shift, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
