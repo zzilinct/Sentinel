@@ -45,6 +45,9 @@ const RETRY_MS = 5000;                 // a failed results check is tried again 
 // Foreground window -> owning process -> the page's document element -> its URL, its rectangle, its links.
 const SCRIPT = String.raw`
 $ErrorActionPreference = 'SilentlyContinue'
+# UTF-8 out, as the app reads it: in the console's own code page every letter outside English (an address in
+# another alphabet, an accented name) arrived damaged.
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 # Compiling this takes a second or more of CPU on every start. Compile it once into the app's data folder and load it from there afterwards.
@@ -157,12 +160,14 @@ while ($true) {
   $moved = $false
   # Nothing to follow (no results page in front, or a game): one quiet wait, not a loop that wakes 60 times a second.
   if (-not $anchor) { if ($pendingLine.Wait([Math]::Max(1, $until - [Environment]::TickCount))) { $gotCmd = $true } }
-  # While the page moves it is followed as fast as the browser answers (every 15 ms when it is still), and the
-  # full read waits until it has been still for 150 ms. A full read takes a few hundred milliseconds; done in the
-  # middle of a scroll it recorded links at different moments, and the marks jumped back and forth.
+  # While the page moves it is followed every 8 ms (every 15 ms when it is still; faster only burns CPU, since a
+  # browser updates link positions only every 150-300 ms while it scrolls). The full read waits until the page has
+  # been still for 350 ms, so a pause between two of those updates is not taken for the end of a scroll. A full read
+  # takes a few hundred milliseconds; done in the middle of a scroll it recorded links at different moments, and the
+  # marks jumped back and forth.
   $stillAt = 0; $loopStart = [Environment]::TickCount
   while ($anchor -and -not $gotCmd -and [Environment]::TickCount -lt $until) {
-    $wait = if ([Environment]::TickCount -lt $stillAt) { 1 } else { 15 }
+    $wait = if ([Environment]::TickCount -lt $stillAt) { 8 } else { 15 }
     if ($pendingLine.Wait($wait)) { $gotCmd = $true; break }
     if ($anchor) {
       try {
@@ -175,7 +180,7 @@ while ($true) {
           if ($dx -ne $lastDx -or $dy -ne $lastDy) {
             $lastDx = $dx; $lastDy = $dy; $moved = $true
             Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + ',"t":' + [Environment]::TickCount + '}}')
-            $stillAt = [Environment]::TickCount + 150
+            $stillAt = [Environment]::TickCount + 350
             # Never more than 5 s between full reads, even on a page that keeps moving by itself.
             if ($until -lt $stillAt -and $stillAt - $loopStart -lt 5000) { $until = $stillAt }
           }
@@ -300,9 +305,10 @@ while ($true) {
         $b = $l.GetCachedPropertyValue($A::BoundingRectangleProperty)
         if ([double]::IsInfinity($b.Width) -or $b.Width -lt 40 -or $b.Height -lt 10) { continue }
         if ($b.Bottom -lt $r.Top -or $b.Top -gt $r.Bottom) { continue }
-        if ($sw.ElapsedMilliseconds -lt $hitBudget -and (Covered $l $b)) { $covered++; continue }
-        if (-not $firstEl) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
         $item = @{ u = $u; x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height }
+        # A covered link still says which result its neighbours belong to; the app leaves that result without a mark.
+        if ($sw.ElapsedMilliseconds -lt $hitBudget -and (Covered $l $b)) { $covered++; $item.c = 1 }
+        elseif (-not $firstEl) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
         # Google's own redirect (/goto?url=...) hides where a result leads. The address it shows under the result's
         # title is part of the link's name, so the name goes along for those links only.
         if ($u -match '^https://www\.google\.[a-z.]{2,6}/goto\?') { $n = [string]$l.GetCachedPropertyValue($A::NameProperty); $item.n = $n.Substring(0, [Math]::Min(400, $n.Length)) }
@@ -311,7 +317,7 @@ while ($true) {
     }
     $sw.Stop()
     $lastCount = $list.Count
-    $sig = ($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)" }) -join ';'
+    $sig = ($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)|$($_.c)" }) -join ';'
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
       Write-Output (@{ links = @($list); covered = $covered; for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
@@ -669,11 +675,11 @@ const ENGINE_HOSTS = /(^|\.)(google\.[a-z.]+|gstatic\.com|googleusercontent\.com
 // Google writes that one, from where the link really goes. Shortened parts ("help_login_...") are left out.
 function citedAddress(name) {
   const text = String(name || '');
-  const cite = /(?:^|\s)(https?:\/\/(?:[a-z0-9-]+\.)+[a-z]{2,63})((?:\s›\s[^\s›]+)*)/gi;
+  const cite = /(?:^|\s)(https?:\/\/(?:[a-z0-9-]+\.)+[a-z]{2,63})((?:\s[›>]\s[^\s›>]+)*)/gi;
   let last = null;
   for (let m; (m = cite.exec(text));) last = m;
   if (!last) return null;
-  const parts = last[2].split(' › ').map((p) => p.trim()).filter(Boolean);
+  const parts = last[2].split(/\s[›>]\s/).map((p) => p.trim()).filter(Boolean);
   const kept = [];
   for (const p of parts) { if (/\.\.\.|…/.test(p)) break; kept.push(encodeURIComponent(p)); }
   return `${last[1]}/${kept.join('/')}`;
@@ -731,6 +737,8 @@ const SHARED_HOSTS = /(^|\.)(sites\.google\.com|docs\.google\.com|drive\.google\
  * each keep their own mark: one marked and one not looked like a mistake. On shared hosts, each page is its own.
  */
 const SAME_RESULT_PX = 150;   // links of one site this close together (vertically) belong to one result
+const SAME_PAGE_PX = 40;      // a second link to the same page this close under the first is the same result (further
+                              // down, it is another result that happens to lead to the same page)
 // The site an address belongs to: its last two labels (three under a country's own co., com., org. ...), so a
 // result's sitelink on another of its site's hosts (securepayments.paypal.com under paypal.com) joins it.
 function siteOf(host) {
@@ -769,7 +777,7 @@ function resultLinks(links, pageUrl, seen = new Map()) {
     // nothing: DuckDuckGo's sitelinks carry their description and are as tall as a title.
     const x = l.x || 0, w = l.w || 0;
     const near = groups.find((g) => g.key === key && l.y >= g.top && l.y < g.bottom + SAME_RESULT_PX
-      && (g.page === page || (!(Math.abs(x - g.head) < 4 && w >= 0.5 * g.headW) && (x >= g.left + 4 || w < 0.75 * g.wide))));
+      && ((g.page === page && l.y <= g.bottom + SAME_PAGE_PX) || (!(Math.abs(x - g.head) < 4 && w >= 0.5 * g.headW) && (x >= g.left + 4 || w < 0.75 * g.wide))));
     if (!near) {
       const g = { key, page, head: x, headW: w, link, left: x, wide: w, top: l.y, bottom: l.y + (l.h || 0) };
       groups.push(g); members.push([page, g]); continue;
@@ -790,8 +798,9 @@ function resultLinks(links, pageUrl, seen = new Map()) {
   for (const [page, g] of members) if (groups.includes(g) && page !== g.page) seen.set(page, g.page);
   // A small link with no bigger link of its site on screen is a result of its own.
   for (const c of chips) if (!groups.some((g) => g.key === c.key)) groups.push({ key: c.key, link: c.link, top: c.link.y, bottom: c.link.y + (c.link.h || 0) });
-  // In reading order (top to bottom), at most MAX_LINKS.
-  return groups.map((g) => g.link).sort((a, b) => a.y - b.y || a.x - b.x).slice(0, MAX_LINKS);
+  // A result whose title is covered (by a menu the page opened, or a bar at the top) gets no mark at all: not one
+  // moved onto its sitelinks. In reading order (top to bottom), at most MAX_LINKS.
+  return groups.filter((g) => !g.link.c).map((g) => g.link).sort((a, b) => a.y - b.y || a.x - b.x).slice(0, MAX_LINKS);
 }
 
 function markFor(url) {

@@ -42,11 +42,15 @@ test('the reader only works on a browser that is in front and in use, and reads 
   assert.ok(gates > 0 && gates < s.indexOf('FromHandle'), 'every gate comes before the first look inside the window');
   // What it asks Windows for: the address (Value), rectangles, and whether a link is on screen. Never text.
   assert.ok(!/TextPattern|HelpText|LegacyIAccessible|Clipboard|CopyFromScreen|Screenshot/i.test(s), 'no page text, no clipboard, no screenshots');
-  // Names are read in one place only: the message rows of a webmail inbox, which the inbox itself displays.
+  // Names are read in two places only: the message rows of a webmail inbox, which the inbox itself displays, and
+  // Google's own /goto links, whose name carries the address Google shows under the result.
   const mailBlock = s.indexOf('if ($needRead -and $url -match $mail)');
+  const googleLine = s.indexOf("if ($u -match '^https://www\\.google\\.[a-z.]{2,6}/goto\\?') { $n = [string]$l.GetCachedPropertyValue($A::NameProperty)");
   const names = [...s.matchAll(/NameProperty/g)].map((m) => m.index);
-  assert.ok(names.length >= 1 && mailBlock > 0);
-  assert.ok(names.every((i) => i > mailBlock || s.slice(Math.max(0, i - 60), i).includes('rowCache')), 'row names are read only for a webmail inbox');
+  assert.ok(names.length >= 1 && mailBlock > 0 && googleLine > 0);
+  const allowed = (i) => i > mailBlock || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);')
+    || (i > googleLine && i < googleLine + 200);
+  assert.ok(names.every(allowed), 'names are read only for a webmail inbox and Google\'s /goto links');
   assert.ok(s.includes('InPrivate|Incognito|Private Browsing'), 'private windows are recognised by their title');
   for (const b of ['chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf']) assert.ok(s.includes(`'${b}'`), b);
 });
@@ -100,6 +104,11 @@ test('Google results behind its opaque /goto redirect are checked by the address
   const out = resultLinks([{ u: 'https://www.google.com/goto?url=X', n: 'Contact Us PayPal https://www.paypal.com › cshelp › contact-us', x: 66, y: 248, w: 282, h: 71 }], 'https://www.google.com/search?q=x');
   assert.deepEqual(out.map((l) => l.u), ['https://www.paypal.com/cshelp/contact-us']);
   assert.equal(out[0].n, undefined, 'the name is not passed on');
+  // Three results from one site, as Google lays them out (the reader may deliver ">" for "›"): three marks.
+  const three = [248, 396, 544].map((y, i) => ({ u: `https://www.google.com/goto?url=X${i}`, n: `Title ${i} PayPal https://www.paypal.com > cshelp > page${i}`, x: 66, y, w: 300, h: 71 }));
+  assert.deepEqual(resultLinks(three, 'https://www.google.com/search?q=x').map((l) => l.u), [0, 1, 2].map((i) => `https://www.paypal.com/cshelp/page${i}`));
+  const same = three.map((l) => ({ ...l, n: 'PayPal https://www.paypal.com' }));
+  assert.equal(resultLinks(same, 'https://www.google.com/search?q=x').length, 3, 'results far apart stay apart even when they lead to the same page');
   assert.ok(watch._test.SCRIPT.includes("if ($u -match '^https://www\\.google\\.[a-z.]{2,6}/goto\\?')"), 'the reader sends the name for those links only');
 });
 
@@ -116,7 +125,7 @@ test('ads are checked too: Bing and Google ad links lead to the advertiser', () 
   assert.equal(watch._test.unwrapResult(new URL(ddg('https://www.bing.com/aclick?ld=x'))).href, 'https://cheap-pods.example/');
   // An ad's sitelinks line up with its title but are much narrower: still one ad, one mark.
   const ad = [
-    { u: ddg(bing), x: 45, y: 239, w: 375, h: 33 }, { u: ddg(bing), x: 45, y: 321, w: 614, h: 38 },
+    { u: ddg(bing), x: 45, y: 239, w: 375, h: 33 }, { u: ddg(bing), x: 45, y: 285, w: 471, h: 26 }, { u: ddg(bing), x: 45, y: 321, w: 614, h: 38 },
     { u: ddg('https://www.bing.com/aclick?ld=y', '&x=1'), x: 45, y: 392, w: 153, h: 17 },
     { u: ddg('https://www.bing.com/aclick?ld=z', '&x=2'), x: 215, y: 392, w: 153, h: 17 }
   ];
@@ -256,8 +265,8 @@ test('the reader follows the tab in front and moves marks with the page between 
   assert.ok(s.includes('$docs = $root.FindAll('), 'every document is considered, not just the first');
   assert.ok(s.includes('if ($d.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }'), 'background tabs are skipped');
   assert.ok(s.includes("Write-Output ('{\"shift\":{\"dx\":'"), 'page movement is reported between full reads');
-  assert.ok(s.includes('$wait = if ([Environment]::TickCount -lt $stillAt) { 1 } else { 15 }'), 'followed as fast as the browser answers while it moves, 60 times a second when still');
-  assert.ok(s.includes('$stillAt = [Environment]::TickCount + 150'), 'the full read waits until the page has been still for 150 ms');
+  assert.ok(s.includes('$wait = if ([Environment]::TickCount -lt $stillAt) { 8 } else { 15 }'), 'every 8 ms while it moves (the browser updates positions far less often), every 15 ms when still');
+  assert.ok(s.includes('$stillAt = [Environment]::TickCount + 350'), 'the full read waits until the page has been still for 350 ms');
 });
 
 test('the updater installs the file it downloaded, into its own folder, and notices an update that did not take', () => {
@@ -316,6 +325,14 @@ test('marks ease along with the page every frame instead of jumping at each repo
   assert.match(handler, /follow\(p\)/);
   assert.doesNotMatch(handler, /setShift\(p\.dx/, 'never a jump straight to a report, not even with Windows animations off');
   assert.ok(watch._test.SCRIPT.includes(`',"t":' + [Environment]::TickCount`), 'each report says when it was measured');
+});
+
+test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
+  const html = read('desktop/src/pages/overlay.html');
+  assert.match(html, /#marks\.is-moving \{ opacity: 0;/);
+  assert.match(html, /if \(moving \|\| Math\.abs\(p\.dx\) \+ Math\.abs\(p\.dy\) > MOVING_PX\) setMoving\(true\)/);
+  assert.match(html, /backTimer = setTimeout\(function \(\) \{ setMoving\(false\); \}, BACK_MS\)/, 'back even if no new positions ever come');
+  assert.match(html, /place\(\(p && p\.marks\) \|\| \[\], null, true\);\s+setMoving\(false\);/, 'fresh positions: straight there, then shown');
 });
 
 test('the reader\'s C# helper compiles (a compile error would stop live scanning entirely)', { skip: process.platform !== 'win32' }, () => {

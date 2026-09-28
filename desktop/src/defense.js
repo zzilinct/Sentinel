@@ -268,6 +268,9 @@ async function respond(item) {
   const startup = folders().find((f) => f.label === 'Startup');
   const script = `
 $ErrorActionPreference = 'SilentlyContinue'
+# UTF-8 out, as the app reads it: in the console's own code page every letter outside English (an address in
+# another alphabet, an accented name) arrived damaged.
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
 $target = ${psq(item.path)}
 $moved = ${psq('__MOVED__')}
 Get-Process | Where-Object { $_.Path -and (($_.Path -eq $target) -or ($moved -and $_.Path -eq $moved)) } | ForEach-Object { $id = $_.Id; Stop-Process -Id $id -Force; "KILLED $id" }

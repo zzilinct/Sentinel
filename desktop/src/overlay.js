@@ -79,7 +79,7 @@ function ensure() {
   if (trace) {
     win.webContents.on('console-message', (...args) => {
       const message = typeof args[0] === 'object' && args[0] && 'message' in args[0] ? args[0].message : args[2];
-      if (/^[FR] /.test(String(message))) { try { require('fs').appendFileSync(trace, `${message}\n`); } catch { /* best effort */ } }
+      if (/^[FRM] /.test(String(message))) { try { require('fs').appendFileSync(trace, `${message}\n`); } catch { /* best effort */ } }
     });
   }
   win.loadFile(path.join(__dirname, 'pages', 'overlay.html'), trace ? { query: { trace: '1' } } : undefined);

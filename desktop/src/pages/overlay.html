@@ -42,7 +42,9 @@
   /* A mask beside every result. The layer moves with the page between reads (see overlay:shift). */
   /* The clip stays where the message list is; the marks inside it move with the page. */
   #clip { position: absolute; inset: 0; }
-  #marks { position: absolute; inset: 0; will-change: transform; }
+  #marks { position: absolute; inset: 0; will-change: transform, opacity; transition: opacity .16s ease; }
+  /* While the page is really moving the marks step aside (see overlay:shift), and come back in place once it stops. */
+  #marks.is-moving { opacity: 0; transition: opacity .09s ease; }
   .mark { position: absolute; left: 0; top: 0; width: 28px; height: 28px; margin: 0; display: grid; place-items: center; border-radius: 8px; pointer-events: none;
     background: rgba(12, 13, 16, .88); box-shadow: 0 2px 10px rgba(0, 0, 0, .28), 0 0 12px -2px color-mix(in srgb, var(--c, #8f8a7a) 55%, transparent); border: 1px solid color-mix(in srgb, var(--c, #8f8a7a) 50%, transparent); color: var(--c, #8f8a7a);
     opacity: 0; scale: .6; will-change: transform; transition: transform .18s cubic-bezier(.2, .8, .2, 1); }
@@ -155,7 +157,7 @@
   // rebase: how far the whole layer had moved when these positions were read (a new read after a scroll). Marks that
   // stay are first put where they are on screen right now, on the new footing, and then glide the last few pixels
   // to where the fresh read says their result is. Without this they jumped back and forth after every scroll.
-  function place(list, rebase) {
+  function place(list, rebase, instant) {
     current = list;
     var seen = {};
     var popped = 0;
@@ -174,6 +176,8 @@
         n = document.createElement('div'); n.className = 'mark is-still';
         moveTo(n, to.x, to.y);
         marksEl.appendChild(n); nodes.set(key, n);
+      } else if (instant) {
+        n.classList.add('is-still'); moveTo(n, to.x, to.y);
       } else if (n._x !== to.x || n._y !== to.y) {
         if (rebase && (rebase.dx || rebase.dy)) { n.classList.add('is-still'); moveTo(n, n._x + rebase.dx, n._y + rebase.dy); }
         glide.push([n, to.x, to.y]);
@@ -254,11 +258,25 @@
   var shiftY = 0;
   function setShift(dx, dy) { shiftX = dx; shiftY = dy; marksEl.style.transform = 'translate3d(' + dx + 'px,' + dy + 'px,0)'; }
 
-  // The reader reports how far the page has moved whenever it gets an answer from the browser: at uneven moments,
-  // not once per frame. Jumping to each report is what made scrolling look choppy. Instead every frame eases the
-  // marks toward the page, and a little ahead of the last report by the page's speed (the report is already a few
-  // milliseconds old when it arrives). The look-ahead fades as soon as reports stop, so marks never overshoot a
-  // page that has stopped.
+  // The reader reports how far the page has moved whenever the browser updates where its links are. Measured on a
+  // real desktop (scripts/live-e2e.ps1, frames.txt), a browser does that only every 150-300 ms while it scrolls, in
+  // steps of hundreds of pixels: no marks can follow that smoothly, and jumping to each report is what looked
+  // choppy. So once the page has really moved, the marks fade out, and they fade back in exactly on their results
+  // when it stops (the next full read). Small movements are followed: every frame eases the marks toward the page,
+  // a little ahead of the last report by the page's speed; the look-ahead fades as soon as reports stop, so marks
+  // never overshoot a page that has stopped.
+  var MOVING_PX = 24;      // further than this from where the marks were placed: they step aside
+  var BACK_MS = 700;       // back again this long after the last report even if no new positions come
+  var moving = false;
+  var backTimer = null;
+  function setMoving(on) {
+    clearTimeout(backTimer);
+    if (on) backTimer = setTimeout(function () { setMoving(false); }, BACK_MS);
+    if (on === moving) return;
+    moving = on;
+    marksEl.classList.toggle('is-moving', on);
+    if (on) tip.classList.remove('is-on');
+  }
   var LEAD_MS = 22;        // how far ahead of the last report, at most
   var EASE_MS = 26;        // how quickly the marks close the gap (time constant)
   var goal = { x: 0, y: 0, t: 0 };
@@ -279,6 +297,7 @@
       vel.y = vel.y * 0.5 + ((p.dy - goal.y) / dt) * 0.5;
     } else { vel.x = 0; vel.y = 0; }
     goal = { x: p.dx, y: p.dy, t: t };
+    if (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX) setMoving(true);
     if (tracing) console.log('R ' + now.toFixed(1) + ' ' + t + ' ' + p.dy.toFixed(1));
     if (!raf) { frameAt = performance.now(); raf = requestAnimationFrame(frame); }
   }
@@ -306,8 +325,14 @@
   api.on('overlay:marks', function (p) {
     setClip(p && p.clip);
     var rebase = null;
-    if (!p || p.epoch !== epoch) { rebase = { dx: shiftX, dy: shiftY }; epoch = p ? p.epoch : 0; stopFollowing(); setShift(0, 0); }
-    place((p && p.marks) || [], rebase);
+    var fresh = !p || p.epoch !== epoch;
+    if (fresh) { rebase = { dx: shiftX, dy: shiftY }; epoch = p ? p.epoch : 0; stopFollowing(); setShift(0, 0); }
+    if (fresh && moving) {
+      // Out of sight while the page moved: straight to their new places, then back in view.
+      place((p && p.marks) || [], null, true);
+      setMoving(false);
+    } else place((p && p.marks) || [], rebase);
+    if (tracing) console.log('M ' + performance.now().toFixed(1) + ' marks ' + ((p && p.marks) || []).length + (fresh ? ' fresh' : ''));
   });
   api.on('overlay:shift', function (p) {
     // Always eased, even when Windows' animation effects are off (common on gaming PCs): following the page is
@@ -315,7 +340,7 @@
     if (!p || p.epoch !== epoch) return;
     follow(p);
   });
-  api.on('overlay:clear', function () { stopFollowing(); setShift(0, 0); clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
+  api.on('overlay:clear', function () { stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
 })();
 </script>
 </body>
