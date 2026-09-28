@@ -617,7 +617,7 @@ const SAME_RESULT_PX = 150;   // links of one site this close together (vertical
 function resultLinks(links, pageUrl) {
   let pageHost = '';
   try { pageHost = new URL(pageUrl).hostname; } catch { /* keep all */ }
-  const groups = [];   // { key, link (the biggest so far), top, bottom }
+  const groups = [];   // { key, link (the result's first link), top, bottom }
   const chips = [];
   for (const l of links) {
     let u;
@@ -633,16 +633,17 @@ function resultLinks(links, pageUrl) {
     const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : host;
     const link = { ...l, u: u.href };
     if ((l.w || 0) < 100 && (l.h || 0) < 24) { chips.push({ key, link }); continue; }
-    const area = (l.w || 0) * (l.h || 0);
-    // A tall link (site name, address and title together) is a result of its own; single-line links near one are its sitelinks.
-    const near = (l.h || 0) >= 40 ? null : groups.find((g) => g.key === key && l.y < g.bottom + SAME_RESULT_PX && l.y + (l.h || 0) > g.top - SAME_RESULT_PX);
-    if (!near) { groups.push({ key, link, area, top: l.y, bottom: l.y + (l.h || 0) }); continue; }
-    near.top = Math.min(near.top, l.y);
+    // A sitelink sits just under its result, indented or clearly narrower than the result's first link. A separate
+    // result from the same site lines up with the one before it. (Height says nothing: DuckDuckGo's sitelinks carry
+    // their description and are as tall as a title.)
+    const near = groups.find((g) => g.key === key && l.y >= g.top && l.y < g.bottom + SAME_RESULT_PX
+      && ((l.x || 0) >= (g.link.x || 0) + 4 || (l.w || 0) < 0.75 * (g.link.w || 0)));
+    if (!near) { groups.push({ key, link, top: l.y, bottom: l.y + (l.h || 0) }); continue; }
+    // The mark stays on the result's first link: its title.
     near.bottom = Math.max(near.bottom, l.y + (l.h || 0));
-    if (area > near.area) { near.link = link; near.area = area; }
   }
   // A small link with no bigger link of its site on screen is a result of its own.
-  for (const c of chips) if (!groups.some((g) => g.key === c.key)) groups.push({ key: c.key, link: c.link, area: 0, top: c.link.y, bottom: c.link.y + (c.link.h || 0) });
+  for (const c of chips) if (!groups.some((g) => g.key === c.key)) groups.push({ key: c.key, link: c.link, top: c.link.y, bottom: c.link.y + (c.link.h || 0) });
   // In reading order (top to bottom), at most MAX_LINKS.
   return groups.map((g) => g.link).sort((a, b) => a.y - b.y || a.x - b.x).slice(0, MAX_LINKS);
 }
