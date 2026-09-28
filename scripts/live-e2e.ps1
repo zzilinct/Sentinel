@@ -46,6 +46,7 @@ Say "installed $tag -> $((Get-Item $exe).VersionInfo.ProductVersion)"
 # 2. Live scanning on, auto scanning on, before the first start.
 $data = "$env:APPDATA\Sentinel"; New-Item -ItemType Directory -Force $data | Out-Null
 [IO.File]::WriteAllText("$data\settings.json", '{"liveScanning":true,"autoScan":true,"openAtLogin":false}')
+$env:SENTINEL_LINK_DUMP = "$Out\links.jsonl"   # what the reader saw on each results page, for review
 Start-Process $exe -ArgumentList '--hidden'
 $up = $false
 for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }

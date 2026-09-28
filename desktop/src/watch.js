@@ -676,6 +676,10 @@ function publishMarks() {
 async function onLinks(msg) {
   const page = state.window ? { private: Boolean(state.window.private) } : { private: false };
   const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for);
+  // The end-to-end run on a GitHub desktop (scripts/live-e2e.ps1) asks for what the reader saw; nobody else sets this.
+  if (process.env.SENTINEL_LINK_DUMP && !page.private) {
+    try { fs.appendFileSync(process.env.SENTINEL_LINK_DUMP, JSON.stringify({ for: msg.for, raw: msg.links, marked: links.map((l) => l.u) }) + '\n'); } catch { /* best effort */ }
+  }
   const fresh = !latestLinks || latestLinks.for !== msg.for;
   // A page read while it was still loading has no results yet: say so again when they arrive, or the log reads
   // "0 results" for a page that is fully marked.
