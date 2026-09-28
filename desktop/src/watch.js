@@ -608,15 +608,17 @@ const USER_PAGES_ON_ENGINES = /^((sites|docs|drive|forms)\.google\.com|forms\.gl
 const SHARED_HOSTS = /(^|\.)(sites\.google\.com|docs\.google\.com|drive\.google\.com|forms\.gle|dropbox\.com|onedrive\.live\.com|1drv\.ms|notion\.site|linktr\.ee|medium\.com|substack\.com|reddit\.com|facebook\.com|instagram\.com|x\.com|twitter\.com|tiktok\.com|linkedin\.com|youtube\.com|github\.com|gitlab\.com|t\.me|wixsite\.com|weebly\.com|blogspot\.com)$/i;
 
 /**
- * One mark per website on the screen, beside its main link. A result's sitelinks (PayPal: Login, Sign up, Contact
- * us...) and the citation chips of an AI answer each used to get a mark of their own, which crowded the page and put
- * marks in the middle of sentences. The largest link of a site (its title) carries the mark. On shared hosts, each
- * page is its own.
+ * One mark per search result, beside its main link. A result's sitelinks (PayPal: Login, Sign up, Contact us...)
+ * sit close under its title and share its site: they join that result's mark. A citation chip in an AI answer (a
+ * small link) joins its site's main link wherever that is. Two separate results from the same site, further apart,
+ * each keep their own mark: one marked and one not looked like a mistake. On shared hosts, each page is its own.
  */
+const SAME_RESULT_PX = 150;   // links of one site this close together (vertically) belong to one result
 function resultLinks(links, pageUrl) {
   let pageHost = '';
   try { pageHost = new URL(pageUrl).hostname; } catch { /* keep all */ }
-  const bySite = new Map();
+  const groups = [];   // { key, link (the biggest so far), top, bottom }
+  const chips = [];
   for (const l of links) {
     let u;
     try { u = new URL(l.u); } catch { continue }
@@ -629,13 +631,20 @@ function resultLinks(links, pageUrl) {
     }
     const host = u.hostname.replace(/^www\./, '');
     const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : host;
+    const link = { ...l, u: u.href };
+    if ((l.w || 0) < 100 && (l.h || 0) < 24) { chips.push({ key, link }); continue; }
     const area = (l.w || 0) * (l.h || 0);
-    const had = bySite.get(key);
-    if (!had) bySite.set(key, { ...l, u: u.href, area });
-    else if (area > had.area) bySite.set(key, { ...l, u: u.href, area });
+    // A tall link (site name, address and title together) is a result of its own; single-line links near one are its sitelinks.
+    const near = (l.h || 0) >= 40 ? null : groups.find((g) => g.key === key && l.y < g.bottom + SAME_RESULT_PX && l.y + (l.h || 0) > g.top - SAME_RESULT_PX);
+    if (!near) { groups.push({ key, link, area, top: l.y, bottom: l.y + (l.h || 0) }); continue; }
+    near.top = Math.min(near.top, l.y);
+    near.bottom = Math.max(near.bottom, l.y + (l.h || 0));
+    if (area > near.area) { near.link = link; near.area = area; }
   }
+  // A small link with no bigger link of its site on screen is a result of its own.
+  for (const c of chips) if (!groups.some((g) => g.key === c.key)) groups.push({ key: c.key, link: c.link, area: 0, top: c.link.y, bottom: c.link.y + (c.link.h || 0) });
   // In reading order (top to bottom), at most MAX_LINKS.
-  return [...bySite.values()].sort((a, b) => a.y - b.y || a.x - b.x).slice(0, MAX_LINKS).map(({ area, ...l }) => l);
+  return groups.map((g) => g.link).sort((a, b) => a.y - b.y || a.x - b.x).slice(0, MAX_LINKS);
 }
 
 function markFor(url) {

@@ -388,3 +388,15 @@ test('a dangerous result says what to do now, in plain steps for its kind of thr
   assert.match(ui, /\$\{nextSteps\(head\)\}/);
   for (const kind of ['phishing', 'crypto', 'delivery', 'support', 'paste_command', 'fake_update']) assert.match(ui, new RegExp(`\\b${kind}:`), kind);
 });
+
+test('two separate results from one site each keep their mark; only a result\'s own sitelinks share it', () => {
+  const { resultLinks } = watch._test;
+  const links = [
+    { u: 'https://www.paypal.com/us/cshelp/contact-us', x: 22, y: 130, w: 420, h: 58 },
+    { u: 'https://www.paypal.com/tc', x: 30, y: 200, w: 90, h: 18 },
+    { u: 'https://www.paypal.com/help', x: 30, y: 240, w: 160, h: 18 },
+    { u: 'https://www.paypal.com/', x: 22, y: 560, w: 640, h: 58 },
+    { u: 'https://www.paypal.com/us/cshelp/article/x', x: 22, y: 720, w: 600, h: 58 }
+  ];
+  assert.deepEqual(resultLinks(links, 'https://duckduckgo.com/?q=paypal').map((l) => l.y), [130, 560, 720]);
+});

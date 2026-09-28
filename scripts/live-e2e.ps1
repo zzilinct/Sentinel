@@ -13,6 +13,10 @@ public static class K {
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, int data, UIntPtr extra);
+  // One notch of the mouse wheel: what a person scrolling a results page does, smooth-scrolled by the browser.
+  public static void Wheel(int notches) { mouse_event(0x0800, 0, 0, -120 * notches, UIntPtr.Zero); }
   public static void Tap(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
 }
 "@
@@ -50,10 +54,12 @@ function Search($url, $name) {
   Start-Sleep 12
   $p = Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
   if ($p) { [K]::ShowWindow($p.MainWindowHandle, 3) | Out-Null; [K]::SetForegroundWindow($p.MainWindowHandle) | Out-Null }
+  # Someone is at the keyboard (a runner has had no input for minutes, and Sentinel rests when nobody is there).
+  [K]::Tap(0x11); [K]::SetCursorPos(500, 420) | Out-Null
   Start-Sleep 10
   Shot "$name-results"
   # Scroll in small steps, photographing between them: marks should travel with their results.
-  for ($s = 1; $s -le 8; $s++) { [K]::Tap(0x28); Start-Sleep -Milliseconds 90; Shot "$name-scroll$s" }
+  for ($s = 1; $s -le 10; $s++) { if ($s -le 4) { [K]::Wheel(1) }; Start-Sleep -Milliseconds 70; Shot "$name-wheel$s" }
   Start-Sleep 3; Shot "$name-settled"
   for ($s = 1; $s -le 3; $s++) { [K]::Tap(0x22); Start-Sleep -Milliseconds 150; Shot "$name-page$s" }
   Start-Sleep 3; Shot "$name-page-settled"
