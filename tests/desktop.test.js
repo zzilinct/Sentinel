@@ -112,6 +112,15 @@ test('Google results behind its opaque /goto redirect are checked by the address
   assert.ok(watch._test.SCRIPT.includes("if ($u -match '^https://www\\.google\\.[a-z.]{2,6}/goto\\?')"), 'the reader sends the name for those links only');
 });
 
+test('the search engine\'s own menu (its app, its AI chat) gets no marks; other apps in a store still do', () => {
+  const links = [
+    { u: 'https://apps.apple.com/app/duckduckgo-private-browser/id663592361', x: 767, y: 352, w: 80, h: 20 },
+    { u: 'https://duck.ai/', x: 767, y: 700, w: 60, h: 20 },
+    { u: 'https://apps.apple.com/us/app/totally-real-wallet/id1', x: 45, y: 300, w: 500, h: 26 }
+  ];
+  assert.deepEqual(watch._test.resultLinks(links, 'https://duckduckgo.com/?q=x').map((l) => l.u), ['https://apps.apple.com/us/app/totally-real-wallet/id1']);
+});
+
 test('ads are checked too: Bing and Google ad links lead to the advertiser', () => {
   const dest = 'https://cheap-pods.example/products/pro?currency=USD';
   const bing = `https://www.bing.com/aclk?ld=e8abc&u=${Buffer.from(encodeURIComponent(dest)).toString('base64url')}&rlid=1`;

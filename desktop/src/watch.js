@@ -661,7 +661,7 @@ function worstKind(verdict) {
   return best;
 }
 
-const ENGINE_HOSTS = /(^|\.)(google\.[a-z.]+|gstatic\.com|googleusercontent\.com|youtube\.com|bing\.com|microsoft\.com|msn\.com|live\.com|duckduckgo\.com|brave\.com|yahoo\.com|ecosia\.org|startpage\.com|yandex\.[a-z.]+|mojeek\.com)$/i;
+const ENGINE_HOSTS = /(^|\.)(google\.[a-z.]+|gstatic\.com|googleusercontent\.com|youtube\.com|bing\.com|microsoft\.com|msn\.com|live\.com|duckduckgo\.com|duck\.ai|brave\.com|yahoo\.com|ecosia\.org|startpage\.com|yandex\.[a-z.]+|mojeek\.com)$/i;
 
 /**
  * Where a search engine's own redirect link really goes. Bing wraps every result in Edge ("bing.com/ck/a?...&u=a1"
@@ -727,6 +727,8 @@ function unwrapResult(u, name) {
 // engine's own links (phishing on Google Sites, Docs and Forms is common).
 const USER_PAGES_ON_ENGINES = /^((sites|docs|drive|forms)\.google\.com|forms\.gle|storage\.googleapis\.com|[a-z0-9-]+\.blogspot\.com)$/i;
 
+const APP_STORES = /^(apps\.apple\.com|play\.google\.com|apps\.microsoft\.com|chromewebstore\.google\.com|microsoftedge\.microsoft\.com|addons\.mozilla\.org)$/i;
+
 // Hosts where every page belongs to someone different: one mark per page there, not one per host.
 const SHARED_HOSTS = /(^|\.)(sites\.google\.com|docs\.google\.com|drive\.google\.com|forms\.gle|dropbox\.com|onedrive\.live\.com|1drv\.ms|notion\.site|linktr\.ee|medium\.com|substack\.com|reddit\.com|facebook\.com|instagram\.com|x\.com|twitter\.com|tiktok\.com|linkedin\.com|youtube\.com|github\.com|gitlab\.com|t\.me|wixsite\.com|weebly\.com|blogspot\.com)$/i;
 
@@ -751,6 +753,7 @@ function siteOf(host) {
 function resultLinks(links, pageUrl, seen = new Map()) {
   let pageHost = '';
   try { pageHost = new URL(pageUrl).hostname; } catch { /* keep all */ }
+  const brand = pageHost.split('.').slice(-2, -1)[0] || '';   // duckduckgo, bing, google
   const groups = [];   // { key, page, head (x of its first link), link (where the mark goes), left, wide, top, bottom }
   const chips = [];
   const members = [];   // [the link's page, its group]
@@ -764,6 +767,8 @@ function resultLinks(links, pageUrl, seen = new Map()) {
       u = unwrapResult(u, l.n);
       if (!u || engines(u.hostname)) continue;
     }
+    // The engine's own app in an app store ("Get the DuckDuckGo browser" in its menu) is its own link too.
+    if (APP_STORES.test(u.hostname) && brand && u.href.toLowerCase().includes(brand)) continue;
     const host = u.hostname.replace(/^www\./, '');
     const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : siteOf(host);
     const { n: _name, ...box } = l;   // the name was only needed to find the address
