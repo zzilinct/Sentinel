@@ -585,7 +585,7 @@ function unwrapResult(u) {
     if (/(^|\.)bing\.com$/.test(host) && u.pathname === '/ck/a') {
       const v = u.searchParams.get('u') || '';
       if (v.startsWith('a1')) target = Buffer.from(v.slice(2), 'base64url').toString('utf8');
-    } else if (/(^|\.)bing\.com$/.test(host) && u.pathname === '/aclk') {
+    } else if (/(^|\.)bing\.com$/.test(host) && /^\/(aclk|aclick)$/.test(u.pathname)) {
       // An ad: the advertiser's address, percent-encoded, then base64.
       const v = u.searchParams.get('u') || '';
       if (v) target = decodeURIComponent(Buffer.from(v, 'base64url').toString('utf8'));
@@ -595,6 +595,13 @@ function unwrapResult(u) {
       target = u.searchParams.get('adurl');
     } else if (/(^|\.)duckduckgo\.com$/.test(host) && u.pathname.startsWith('/l/')) {
       target = u.searchParams.get('uddg');
+    } else if (/(^|\.)duckduckgo\.com$/.test(host) && u.pathname === '/y.js') {
+      // An ad: the ad network's own link (u3, unwrapped in turn), or at least the advertiser's site.
+      let inner = null;
+      try { inner = unwrapResult(new URL(u.searchParams.get('u3'))); } catch { /* none */ }
+      if (inner) return inner;
+      const site = u.searchParams.get('ad_domain');
+      if (site && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(site)) target = `https://${site}/`;
     } else if (/(^|\.)search\.yahoo\.com$/.test(host)) {
       const m = /\/RU=([^/]+)\//.exec(u.pathname);
       if (m) target = decodeURIComponent(m[1]);
@@ -653,13 +660,14 @@ function resultLinks(links, pageUrl, seen = new Map()) {
     if ((l.w || 0) < 100 && (l.h || 0) < 24) { chips.push({ key, link }); continue; }
     // A second link to the same page (or a part of it) is the same result. A sitelink sits just under its result,
     // indented or clearly narrower than the result's title. A separate result from the same site starts where the
-    // one before it started (DuckDuckGo opens each result with a small site-name link, then the title further
-    // left). Height says nothing: DuckDuckGo's sitelinks carry their description and are as tall as a title.
+    // one before it started, with a link about as wide (DuckDuckGo opens each result with a small site-name link,
+    // then the title further left; its ads' sitelinks line up with the ad but are much narrower). Height says
+    // nothing: DuckDuckGo's sitelinks carry their description and are as tall as a title.
     const x = l.x || 0, w = l.w || 0;
     const near = groups.find((g) => g.key === key && l.y >= g.top && l.y < g.bottom + SAME_RESULT_PX
-      && (g.page === page || (Math.abs(x - g.head) >= 4 && (x >= g.left + 4 || w < 0.75 * g.wide))));
+      && (g.page === page || (!(Math.abs(x - g.head) < 4 && w >= 0.5 * g.headW) && (x >= g.left + 4 || w < 0.75 * g.wide))));
     if (!near) {
-      const g = { key, page, head: x, link, left: x, wide: w, top: l.y, bottom: l.y + (l.h || 0) };
+      const g = { key, page, head: x, headW: w, link, left: x, wide: w, top: l.y, bottom: l.y + (l.h || 0) };
       groups.push(g); members.push([page, g]); continue;
     }
     members.push([page, near]);

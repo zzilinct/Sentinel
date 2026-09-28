@@ -96,6 +96,17 @@ test('ads are checked too: Bing and Google ad links lead to the advertiser', () 
   assert.equal(watch._test.unwrapResult(new URL(`https://www.google.com/aclk?sa=l&adurl=${encodeURIComponent(dest)}`)).href, dest);
   const out = watch._test.resultLinks([{ u: bing, x: 22, y: 300, w: 529, h: 29 }], 'https://www.bing.com/search?q=pods');
   assert.deepEqual(out.map((l) => l.u), [dest]);
+  // DuckDuckGo's ads wrap Bing's; with nothing to unwrap, the advertiser's site is still checked.
+  const ddg = (u3, extra = '') => `https://duckduckgo.com/y.js?ad_domain=cheap-pods.example&ad_provider=bingv7aa${extra}&u3=${encodeURIComponent(u3)}`;
+  assert.equal(watch._test.unwrapResult(new URL(ddg(bing.replace('/aclk', '/aclick')))).href, dest);
+  assert.equal(watch._test.unwrapResult(new URL(ddg('https://www.bing.com/aclick?ld=x'))).href, 'https://cheap-pods.example/');
+  // An ad's sitelinks line up with its title but are much narrower: still one ad, one mark.
+  const ad = [
+    { u: ddg(bing), x: 45, y: 239, w: 375, h: 33 }, { u: ddg(bing), x: 45, y: 321, w: 614, h: 38 },
+    { u: ddg('https://www.bing.com/aclick?ld=y', '&x=1'), x: 45, y: 392, w: 153, h: 17 },
+    { u: ddg('https://www.bing.com/aclick?ld=z', '&x=2'), x: 215, y: 392, w: 153, h: 17 }
+  ];
+  assert.equal(watch._test.resultLinks(ad, 'https://duckduckgo.com/?q=pods').length, 1);
 });
 
 test('a verdict wears the mask of its worst threat', () => {
