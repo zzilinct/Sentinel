@@ -632,13 +632,15 @@ function resultLinks(links, pageUrl) {
     const host = u.hostname.replace(/^www\./, '');
     const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : host;
     const link = { ...l, u: u.href };
+    const page = host + u.pathname.replace(//+$/, '') + u.search;
     if ((l.w || 0) < 100 && (l.h || 0) < 24) { chips.push({ key, link }); continue; }
     // A sitelink sits just under its result, indented or clearly narrower than the result's first link. A separate
-    // result from the same site lines up with the one before it. (Height says nothing: DuckDuckGo's sitelinks carry
+    // result from the same site lines up with the one before it, and goes to another page (a second link to the same
+    // page, or to a part of it, is the same result). (Height says nothing: DuckDuckGo's sitelinks carry
     // their description and are as tall as a title.)
     const near = groups.find((g) => g.key === key && l.y >= g.top && l.y < g.bottom + SAME_RESULT_PX
-      && ((l.x || 0) >= (g.link.x || 0) + 4 || (l.w || 0) < 0.75 * (g.link.w || 0)));
-    if (!near) { groups.push({ key, link, top: l.y, bottom: l.y + (l.h || 0) }); continue; }
+      && (g.page === page || (l.x || 0) >= (g.link.x || 0) + 4 || (l.w || 0) < 0.75 * (g.link.w || 0)));
+    if (!near) { groups.push({ key, page, link, top: l.y, bottom: l.y + (l.h || 0) }); continue; }
     // The mark stays on the result's first link: its title.
     near.bottom = Math.max(near.bottom, l.y + (l.h || 0));
   }

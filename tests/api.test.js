@@ -273,10 +273,13 @@ test('delicate hours run out: protection carries on in fast mode and says so; fa
   const { db } = require('../server/lib/db');
   const plans = require('../server/lib/plans');
   const start = Math.floor(plans.weekStart() / 60000);
-  const fill = (table, minutes) => {
+  // Used minutes earlier this week, never the current one (that minute stays usable), whatever day the tests run.
+  const current = Math.floor(Date.now() / 60000);
+  const past = (n) => { const out = []; for (let m = start; out.length < n; m++) if (m !== current) out.push(m); return out; };
+  const fill = (table, minutes, id = me.data.user.id) => {
     const ins = db.prepare(`INSERT OR IGNORE INTO ${table} (user_id, minute) VALUES (?, ?)`);
     db.exec('BEGIN');
-    for (let i = 0; i < minutes; i++) ins.run(me.data.user.id, start + i);
+    for (const m of past(minutes)) ins.run(id, m);
     db.exec('COMMIT');
   };
   fill('live_minutes', 4 * 60);
@@ -290,12 +293,8 @@ test('delicate hours run out: protection carries on in fast mode and says so; fa
   // The minute already being counted stays usable; a fresh account with nothing left is refused.
   const d = await newUser('pro');
   const meD = await d.get('/api/v1/auth/me');
-  const ins = db.prepare('INSERT OR IGNORE INTO fast_minutes (user_id, minute) VALUES (?, ?)');
-  const insL = db.prepare('INSERT OR IGNORE INTO live_minutes (user_id, minute) VALUES (?, ?)');
-  db.exec('BEGIN');
-  for (let i = 0; i < 24 * 60; i++) ins.run(meD.data.user.id, start + i);
-  for (let i = 0; i < 4 * 60; i++) insL.run(meD.data.user.id, start + i);
-  db.exec('COMMIT');
+  fill('fast_minutes', 24 * 60, meD.data.user.id);
+  fill('live_minutes', 4 * 60, meD.data.user.id);
   const none = await d.post('/api/v1/live/batch', { urls: ['https://example.com/'], mode: 'delicate' });
   assert.ok(out.status === 200 || out.status === 429);
   assert.equal(none.status, 429, JSON.stringify(none.data));
