@@ -142,12 +142,17 @@ function Covered($el, $b) {
     if (-not $hit -or $hit.Current.ProcessId -ne $fp) { return $false }
     $hr = $hit.Current.BoundingRectangle
     if ([double]::IsInfinity($hr.Width)) { return $false }
+    # Quick answer: something inside the link's box is (almost always) the link's own text.
     $inside = $hr.X -ge $b.X - 2 -and $hr.Y -ge $b.Y - 2 -and $hr.Right -le $b.Right + 2 -and $hr.Bottom -le $b.Bottom + 2
     if ($inside) { return $false }
-    $around = $hr.X -le $b.X + 2 -and $hr.Y -le $b.Y + 2 -and $hr.Right -ge $b.Right - 2 -and $hr.Bottom -ge $b.Bottom - 2
-    if (-not $around) { return $true }
+    # Part of the link (its text can stick out of the link's box a little)?
+    $p = $hit
+    for ($i = 0; $p -and $i -lt 6; $i++) { if ([System.Windows.Automation.Automation]::Compare($p, $el)) { return $false }; $p = $walker.GetParent($p) }
+    # One of the link's own containers (the point fell in a gap inside it)?
     $p = $walker.GetParent($el)
     for ($i = 0; $p -and $i -lt 12; $i++) { if ([System.Windows.Automation.Automation]::Compare($p, $hit)) { return $false }; $p = $walker.GetParent($p) }
+    # Something else is there. What it is (its kind and box, never its words) goes along for the end-to-end review.
+    $script:coverHit = "$($hit.Current.ControlType.ProgrammaticName) $($hit.Current.ClassName) $([int]$hr.X),$([int]$hr.Y),$([int]$hr.Width)x$([int]$hr.Height)"
     return $true
   } catch { return $false }
 }
@@ -307,7 +312,7 @@ while ($true) {
         if ($b.Bottom -lt $r.Top -or $b.Top -gt $r.Bottom) { continue }
         $item = @{ u = $u; x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height }
         # A covered link still says which result its neighbours belong to; the app leaves that result without a mark.
-        if ($sw.ElapsedMilliseconds -lt $hitBudget -and (Covered $l $b)) { $covered++; $item.c = 1 }
+        if ($sw.ElapsedMilliseconds -lt $hitBudget -and (Covered $l $b)) { $covered++; $item.c = 1; $item.by = $coverHit }
         elseif (-not $firstEl) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
         # Google's own redirect (/goto?url=...) hides where a result leads. The address it shows under the result's
         # title is part of the link's name, so the name goes along for those links only.
@@ -771,7 +776,7 @@ function resultLinks(links, pageUrl, seen = new Map()) {
     if (APP_STORES.test(u.hostname) && brand && u.href.toLowerCase().includes(brand)) continue;
     const host = u.hostname.replace(/^www\./, '');
     const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : siteOf(host);
-    const { n: _name, ...box } = l;   // the name was only needed to find the address
+    const { n: _name, by: _by, ...box } = l;   // the name was only needed to find the address; by is for review
     const link = { ...box, u: u.href };
     const page = host + u.pathname.replace(/\/+$/, '') + u.search;
     if ((l.w || 0) < 100 && (l.h || 0) < 24) { chips.push({ key, link }); continue; }
