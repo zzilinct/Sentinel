@@ -70,6 +70,34 @@ test('a results page gets one mark per outside result; the search engine\'s own 
   assert.equal(watch._test.resultLinks(many, 'https://duckduckgo.com/?q=x').length, 40, 'capped');
 });
 
+test('DuckDuckGo: site-name link, title and a grid of sitelinks are one result; the next result from that site is its own', () => {
+  // Link boxes as the reader saw them on a real DuckDuckGo page (live e2e run).
+  const r = (u, x, y, w, h) => ({ u: `https://${u}`, x, y, w, h });
+  const links = [
+    r('www.shop.example/help/contact', 85, 253, 298, 19), r('www.shop.example/help/contact', 45, 283, 628, 27),
+    r('secure.shop.example/help/article', 60, 362, 255, 63), r('www.shop.example/signin', 360, 362, 255, 63),
+    r('www.shop.example/help/personal', 60, 432, 255, 64), r('www.shop.example/help/technical', 360, 432, 255, 64),
+    r('www.shop.example/verify', 85, 612, 192, 19), r('www.shop.example/verify', 45, 642, 628, 27)
+  ];
+  const seen = new Map();
+  const out = watch._test.resultLinks(links, 'https://duckduckgo.com/?q=x', seen);
+  assert.deepEqual(out.map((l) => [l.u, l.x, l.y]), [['https://www.shop.example/help/contact', 45, 283], ['https://www.shop.example/verify', 45, 642]], 'marks beside the titles');
+  // Scrolled: the first title is gone, its sitelinks are still on screen. They went with it; no marks of their own.
+  const later = links.slice(4).map((l) => ({ ...l, y: l.y - 420 }));
+  assert.deepEqual(watch._test.resultLinks(later, 'https://duckduckgo.com/?q=x', seen).map((l) => l.u), ['https://www.shop.example/verify']);
+  // A page never seen with its title still gets its mark.
+  assert.equal(watch._test.resultLinks(later, 'https://duckduckgo.com/?q=x').length, 2);
+});
+
+test('ads are checked too: Bing and Google ad links lead to the advertiser', () => {
+  const dest = 'https://cheap-pods.example/products/pro?currency=USD';
+  const bing = `https://www.bing.com/aclk?ld=e8abc&u=${Buffer.from(encodeURIComponent(dest)).toString('base64url')}&rlid=1`;
+  assert.equal(watch._test.unwrapResult(new URL(bing)).href, dest);
+  assert.equal(watch._test.unwrapResult(new URL(`https://www.google.com/aclk?sa=l&adurl=${encodeURIComponent(dest)}`)).href, dest);
+  const out = watch._test.resultLinks([{ u: bing, x: 22, y: 300, w: 529, h: 29 }], 'https://www.bing.com/search?q=pods');
+  assert.deepEqual(out.map((l) => l.u), [dest]);
+});
+
 test('a verdict wears the mask of its worst threat', () => {
   assert.equal(watch._test.worstKind({ threats: { scam: { badge: 'yellow' }, malware: { badge: 'red' }, virus: { badge: null } } }), 'malware');
   assert.equal(watch._test.worstKind({ threats: { scam: { badge: null } } }), 'scam');

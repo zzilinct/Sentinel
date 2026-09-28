@@ -311,6 +311,7 @@ let settleTimer = null;
 let restartTimer = null;
 let retryTimer = null;        // a failed results check, tried again (see checkLinks)
 let latestLinks = null;       // the last list of on-screen links, so late verdicts land where the links are now
+let seenResults = { for: null, map: new Map() };   // which result each sitelink on this results page belongs to
 let pending = new Set();
 let linkEpoch = 0;          // one per full read of the links; page movement is reported relative to it
 
@@ -584,8 +585,14 @@ function unwrapResult(u) {
     if (/(^|\.)bing\.com$/.test(host) && u.pathname === '/ck/a') {
       const v = u.searchParams.get('u') || '';
       if (v.startsWith('a1')) target = Buffer.from(v.slice(2), 'base64url').toString('utf8');
+    } else if (/(^|\.)bing\.com$/.test(host) && u.pathname === '/aclk') {
+      // An ad: the advertiser's address, percent-encoded, then base64.
+      const v = u.searchParams.get('u') || '';
+      if (v) target = decodeURIComponent(Buffer.from(v, 'base64url').toString('utf8'));
     } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
       target = u.searchParams.get('q') || u.searchParams.get('url');
+    } else if (/(^|\.)google\.[a-z.]+$/.test(host) && /^\/(pagead\/)?aclk$/.test(u.pathname)) {
+      target = u.searchParams.get('adurl');
     } else if (/(^|\.)duckduckgo\.com$/.test(host) && u.pathname.startsWith('/l/')) {
       target = u.searchParams.get('uddg');
     } else if (/(^|\.)search\.yahoo\.com$/.test(host)) {
@@ -614,11 +621,21 @@ const SHARED_HOSTS = /(^|\.)(sites\.google\.com|docs\.google\.com|drive\.google\
  * each keep their own mark: one marked and one not looked like a mistake. On shared hosts, each page is its own.
  */
 const SAME_RESULT_PX = 150;   // links of one site this close together (vertically) belong to one result
-function resultLinks(links, pageUrl) {
+// The site an address belongs to: its last two labels (three under a country's own co., com., org. ...), so a
+// result's sitelink on another of its site's hosts (securepayments.paypal.com under paypal.com) joins it.
+function siteOf(host) {
+  const parts = host.split('.');
+  const n = parts.length >= 3 && /^[a-z]{2}$/.test(parts[parts.length - 1]) && /^(co|com|org|net|gov|edu|ac|or|ne|go)$/.test(parts[parts.length - 2]) ? 3 : 2;
+  return parts.slice(-n).join('.');
+}
+// seen: what this results page showed before (a sitelink's page -> its result's page), so a result's sitelinks left on
+// screen after its title scrolled away don't each become a result of their own.
+function resultLinks(links, pageUrl, seen = new Map()) {
   let pageHost = '';
   try { pageHost = new URL(pageUrl).hostname; } catch { /* keep all */ }
-  const groups = [];   // { key, link (the result's first link), top, bottom }
+  const groups = [];   // { key, page, head (x of its first link), link (where the mark goes), left, wide, top, bottom }
   const chips = [];
+  const members = [];   // [the link's page, its group]
   for (const l of links) {
     let u;
     try { u = new URL(l.u); } catch { continue }
@@ -630,20 +647,35 @@ function resultLinks(links, pageUrl) {
       if (!u || engines(u.hostname)) continue;
     }
     const host = u.hostname.replace(/^www\./, '');
-    const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : host;
+    const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : siteOf(host);
     const link = { ...l, u: u.href };
     const page = host + u.pathname.replace(/\/+$/, '') + u.search;
     if ((l.w || 0) < 100 && (l.h || 0) < 24) { chips.push({ key, link }); continue; }
-    // A sitelink sits just under its result, indented or clearly narrower than the result's first link. A separate
-    // result from the same site lines up with the one before it, and goes to another page (a second link to the same
-    // page, or to a part of it, is the same result). Height says nothing: DuckDuckGo's sitelinks carry their
-    // description and are as tall as a title.
+    // A second link to the same page (or a part of it) is the same result. A sitelink sits just under its result,
+    // indented or clearly narrower than the result's title. A separate result from the same site starts where the
+    // one before it started (DuckDuckGo opens each result with a small site-name link, then the title further
+    // left). Height says nothing: DuckDuckGo's sitelinks carry their description and are as tall as a title.
+    const x = l.x || 0, w = l.w || 0;
     const near = groups.find((g) => g.key === key && l.y >= g.top && l.y < g.bottom + SAME_RESULT_PX
-      && (g.page === page || (l.x || 0) >= (g.link.x || 0) + 4 || (l.w || 0) < 0.75 * (g.link.w || 0)));
-    if (!near) { groups.push({ key, page, link, top: l.y, bottom: l.y + (l.h || 0) }); continue; }
-    // The mark stays on the result's first link: its title.
+      && (g.page === page || (Math.abs(x - g.head) >= 4 && (x >= g.left + 4 || w < 0.75 * g.wide))));
+    if (!near) {
+      const g = { key, page, head: x, link, left: x, wide: w, top: l.y, bottom: l.y + (l.h || 0) };
+      groups.push(g); members.push([page, g]); continue;
+    }
+    members.push([page, near]);
+    // The mark goes beside the title: the widest link to the result's own page.
+    if (near.page === page && w > (near.link.w || 0)) near.link = link;
+    near.left = Math.min(near.left, x);
+    near.wide = Math.max(near.wide, w);
     near.bottom = Math.max(near.bottom, l.y + (l.h || 0));
   }
+  // A group that was part of another result last time, whose title is now off screen, went with that title.
+  const heads = new Set(groups.map((g) => g.page));
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const was = seen.get(groups[i].page);
+    if (was && was !== groups[i].page && !heads.has(was)) groups.splice(i, 1);
+  }
+  for (const [page, g] of members) if (groups.includes(g) && page !== g.page) seen.set(page, g.page);
   // A small link with no bigger link of its site on screen is a result of its own.
   for (const c of chips) if (!groups.some((g) => g.key === c.key)) groups.push({ key: c.key, link: c.link, top: c.link.y, bottom: c.link.y + (c.link.h || 0) });
   // In reading order (top to bottom), at most MAX_LINKS.
@@ -675,7 +707,8 @@ function publishMarks() {
 
 async function onLinks(msg) {
   const page = state.window ? { private: Boolean(state.window.private) } : { private: false };
-  const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for);
+  if (seenResults.for !== msg.for) seenResults = { for: msg.for, map: new Map() };
+  const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for, seenResults.map);
   // The end-to-end run on a GitHub desktop (scripts/live-e2e.ps1) asks for what the reader saw; nobody else sets this.
   if (process.env.SENTINEL_LINK_DUMP && !page.private) {
     try { fs.appendFileSync(process.env.SENTINEL_LINK_DUMP, JSON.stringify({ for: msg.for, raw: msg.links, marked: links.map((l) => l.u) }) + '\n'); } catch { /* best effort */ }
