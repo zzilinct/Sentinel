@@ -710,6 +710,9 @@ async function boot() {
     onWindow: (rect) => {
       overlay.setWindow(rect);
       if (rect) watch.keepAbove(overlay.handle());
+      // A warning about a dangerous page stays on top only while a browser is in front: switch to a game or any other
+      // program and it waits behind it like an ordinary window, instead of floating over everything.
+      if (warnWin && !warnWin.isDestroyed()) warnWin.setAlwaysOnTop(Boolean(rect));
       if (rect && sweepOnNextWindow) { sweepOnNextWindow = false; overlay.sweep('start'); }
       // Tell the tray and the app only when a browser arrives or leaves, not every time its window moves.
       if (Boolean(rect) !== watchingWindow) {

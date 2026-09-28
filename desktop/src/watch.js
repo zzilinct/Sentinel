@@ -134,6 +134,11 @@ $pendingLine = $stdin.ReadLineAsync()
 # panel over it; only a panel that is not one of the link's ancestors covers it.
 $walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
 function Covered($el, $b) {
+  # The page must be where it was read: if the link has moved since (the page was still scrolling), what is at its
+  # old place says nothing. Measured on a real desktop, nearly every "covered" link was one of those. Judge nothing
+  # and read again shortly.
+  try { $lb = $el.Current.BoundingRectangle } catch { return $false }
+  if ([Math]::Abs($lb.Y - $b.Y) -gt 3 -or [Math]::Abs($lb.X - $b.X) -gt 3) { $script:staleRead = $true; return $false }
   $px = [int]($b.X + [Math]::Min(8, $b.Width / 2))
   $py = if ($b.Height -gt 40) { [int]($b.Bottom - 12) } else { [int]($b.Y + $b.Height / 2) }
   try {
@@ -300,7 +305,7 @@ while ($true) {
     $scope = $cache.Activate()
     try { $found = $doc.FindAll([System.Windows.Automation.TreeScope]::Descendants, $linkCond) } catch { $found = $null } finally { $scope.Dispose() }
     $list = New-Object System.Collections.ArrayList
-    $firstEl = $null; $covered = 0; $hitBudget = $sw.ElapsedMilliseconds + 150
+    $firstEl = $null; $covered = 0; $staleRead = $false; $hitBudget = $sw.ElapsedMilliseconds + 150
     if ($found) {
       foreach ($l in $found) {
         if ($list.Count -ge 60) { break }
@@ -333,6 +338,8 @@ while ($true) {
     if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
     # A light page is read more often, so marks arrive sooner and keep up with scrolling.
     elseif ($sw.ElapsedMilliseconds -lt 70) { $pause = 180 }
+    # The page was still moving while it was read: read it again soon, once it has settled.
+    if ($staleRead) { $forceRead = $true; $pause = [Math]::Min($pause, 150) }
   }
 
   # In a webmail inbox: the message rows on screen, as the inbox shows them (sender, subject, preview) and where
@@ -732,7 +739,24 @@ function unwrapResult(u, name) {
 // engine's own links (phishing on Google Sites, Docs and Forms is common).
 const USER_PAGES_ON_ENGINES = /^((sites|docs|drive|forms)\.google\.com|forms\.gle|storage\.googleapis\.com|[a-z0-9-]+\.blogspot\.com)$/i;
 
-const APP_STORES = /^(apps\.apple\.com|play\.google\.com|apps\.microsoft\.com|chromewebstore\.google\.com|microsoftedge\.microsoft\.com|addons\.mozilla\.org)$/i;
+// Ad-click trackers an ad goes through before the shop: the shop's address rides along in a parameter, sometimes not
+// even encoded (DoubleClick Search puts it last, raw, so everything after "ds_dest_url=" is the address).
+const TRACKERS = /(^|\.)(clickserve\.dartsearch\.net|ad\.doubleclick\.net|googleadservices\.com|pixel\.everesttech\.net|click\.linksynergy\.com|go\.redirectingat\.com|[a-z0-9-]*\.?genieshopping\.com|ad\.atdmt\.com|clk\.tradedoubler\.com)$/i;
+function trackerTarget(u) {
+  if (!TRACKERS.test(u.hostname)) return null;
+  const raw = /[?&]ds_dest_url=(https?:\/\/.+)$/i.exec(u.href);
+  const candidates = raw ? [raw[1]] : [];
+  for (const k of ['adurl', 'url', 'murl', 'u', 'dest', 'destination', 'targeturl', 'redirect', 'r']) {
+    const v = u.searchParams.get(k);
+    if (v) candidates.push(v);
+  }
+  for (const c of candidates) {
+    try { const t = new URL(/^https?%3a/i.test(c) ? decodeURIComponent(c) : c); if (t.protocol === 'https:' || t.protocol === 'http:') return t; } catch { /* next */ }
+  }
+  return null;
+}
+
+const APP_STORES =/^(apps\.apple\.com|play\.google\.com|apps\.microsoft\.com|chromewebstore\.google\.com|microsoftedge\.microsoft\.com|addons\.mozilla\.org)$/i;
 
 // Hosts where every page belongs to someone different: one mark per page there, not one per host.
 const SHARED_HOSTS = /(^|\.)(sites\.google\.com|docs\.google\.com|drive\.google\.com|forms\.gle|dropbox\.com|onedrive\.live\.com|1drv\.ms|notion\.site|linktr\.ee|medium\.com|substack\.com|reddit\.com|facebook\.com|instagram\.com|x\.com|twitter\.com|tiktok\.com|linkedin\.com|youtube\.com|github\.com|gitlab\.com|t\.me|wixsite\.com|weebly\.com|blogspot\.com)$/i;
@@ -772,6 +796,8 @@ function resultLinks(links, pageUrl, seen = new Map()) {
       u = unwrapResult(u, l.n);
       if (!u || engines(u.hostname)) continue;
     }
+    const behind = trackerTarget(u);
+    if (behind) u = behind;
     // The engine's own app in an app store ("Get the DuckDuckGo browser" in its menu) is its own link too.
     if (APP_STORES.test(u.hostname) && brand && u.href.toLowerCase().includes(brand)) continue;
     const host = u.hostname.replace(/^www\./, '');

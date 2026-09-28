@@ -128,6 +128,10 @@ test('ads are checked too: Bing and Google ad links lead to the advertiser', () 
   assert.equal(watch._test.unwrapResult(new URL(`https://www.google.com/aclk?sa=l&adurl=${encodeURIComponent(dest)}`)).href, dest);
   const out = watch._test.resultLinks([{ u: bing, x: 22, y: 300, w: 529, h: 29 }], 'https://www.bing.com/search?q=pods');
   assert.deepEqual(out.map((l) => l.u), [dest]);
+  // Through an ad-click tracker to the shop: the shop is what gets checked.
+  const tracker = 'https://clickserve.dartsearch.net/link/click?&&ds_e_adid=1&ds_url_v=2&ds_dest_url=https://shop.example/ip/pods?a=1&wl0=e&wl1=o';
+  const viaTracker = `https://www.bing.com/aclk?ld=e8x&u=${Buffer.from(encodeURIComponent(tracker)).toString('base64url')}`;
+  assert.deepEqual(watch._test.resultLinks([{ u: viaTracker, x: 22, y: 300, w: 529, h: 29 }], 'https://www.bing.com/search?q=pods').map((l) => new URL(l.u).hostname), ['shop.example']);
   // DuckDuckGo's ads wrap Bing's; with nothing to unwrap, the advertiser's site is still checked.
   const ddg = (u3, extra = '') => `https://duckduckgo.com/y.js?ad_domain=cheap-pods.example&ad_provider=bingv7aa${extra}&u3=${encodeURIComponent(u3)}`;
   assert.equal(watch._test.unwrapResult(new URL(ddg(bing.replace('/aclk', '/aclick')))).href, dest);
