@@ -28,6 +28,7 @@
   .corner.is-on { opacity: 1; transform: none; }
   /* Fullscreen video: out of the way, unless the page is dangerous. */
   .corner.is-on.is-quiet:not(.is-flagged) { opacity: 0; }
+  .corner.is-on.is-shy { opacity: .12; transition-duration: .18s; }
   .corner__mask { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 12px; color: var(--c, #d6b25a);
     background: rgba(12, 13, 16, .88); border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 55%, transparent);
     box-shadow: 0 6px 22px rgba(0, 0, 0, .35), 0 0 0 0 rgba(214, 178, 90, .0); animation: breathe 3.6s ease-in-out infinite; }
@@ -65,7 +66,6 @@
     body.sweeping .tint { animation: tint 1.2s ease-out forwards; }
     .corner__mask { animation: none; }
     .mark.is-in { animation: none; opacity: 1; scale: 1; }
-    .mark { transition: none; }
     .mark.is-pending { animation: none; opacity: .5; }
   }
 </style>
@@ -86,7 +86,6 @@
   var M = window.SentinelMasks;
   var GOLD = '#d6b25a';
   var tracing = /[?&]trace=1\b/.test(location.search);   // end-to-end runs only (see overlay.js)
-  var reduceMotion =window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg>';
   var corner = document.getElementById('corner');
   var cornerMask = document.getElementById('cornerMask');
@@ -199,6 +198,11 @@
 
   // A mark explains itself when the pointer is over it. Clicks still go to the browser.
   window.addEventListener('mousemove', function (ev) {
+    // The corner mask sits over the page's own corner (a chat button, "back to top", "Share feedback"): it steps
+    // aside while the pointer is near, so whatever is under it can be seen and clicked.
+    var cr = corner.getBoundingClientRect();
+    var near = ev.clientX > cr.left - 60 && ev.clientY > cr.top - 60;
+    corner.classList.toggle('is-shy', near);
     var hit = null;
     for (var i = 0; i < current.length; i++) {
       var m = current[i];
@@ -219,7 +223,7 @@
     tip.style.top = top + 'px';
     tip.classList.add('is-on');
   });
-  window.addEventListener('mouseleave', function () { tip.classList.remove('is-on'); });
+  window.addEventListener('mouseleave', function () { tip.classList.remove('is-on'); corner.classList.remove('is-shy'); });
 
   var api = window.sentinelOverlay;
   api.on('overlay:watching', function (s) {
@@ -306,8 +310,9 @@
     place((p && p.marks) || [], rebase);
   });
   api.on('overlay:shift', function (p) {
+    // Always eased, even when Windows' animation effects are off (common on gaming PCs): following the page is
+    // keeping marks on their results, not a decorative animation, and jumping is what looks broken.
     if (!p || p.epoch !== epoch) return;
-    if (reduceMotion) { setShift(p.dx, p.dy); return; }
     follow(p);
   });
   api.on('overlay:clear', function () { stopFollowing(); setShift(0, 0); clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });

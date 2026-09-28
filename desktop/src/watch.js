@@ -105,7 +105,7 @@ $rowCache.Add($A::BoundingRectangleProperty); $rowCache.Add($A::IsOffscreenPrope
 $rowCache.AutomationElementMode = [System.Windows.Automation.AutomationElementMode]::Full
 $mail = '^https://(mail\.google\.com/mail/|outlook\.live\.com/mail/|outlook\.office(365)?\.com/mail/)'
 $cache = New-Object System.Windows.Automation.CacheRequest
-$cache.Add($A::BoundingRectangleProperty); $cache.Add($A::IsOffscreenProperty); $cache.Add($VP::ValueProperty)
+$cache.Add($A::BoundingRectangleProperty); $cache.Add($A::IsOffscreenProperty); $cache.Add($VP::ValueProperty); $cache.Add($A::NameProperty)
 $cache.AutomationElementMode = [System.Windows.Automation.AutomationElementMode]::Full
 $docCache = New-Object System.Windows.Automation.CacheRequest
 $docCache.Add($A::BoundingRectangleProperty); $docCache.Add($A::IsOffscreenProperty)
@@ -302,7 +302,11 @@ while ($true) {
         if ($b.Bottom -lt $r.Top -or $b.Top -gt $r.Bottom) { continue }
         if ($sw.ElapsedMilliseconds -lt $hitBudget -and (Covered $l $b)) { $covered++; continue }
         if (-not $firstEl) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
-        [void]$list.Add(@{ u = $u; x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height })
+        $item = @{ u = $u; x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height }
+        # Google's own redirect (/goto?url=...) hides where a result leads. The address it shows under the result's
+        # title is part of the link's name, so the name goes along for those links only.
+        if ($u -match '^https://www\.google\.[a-z.]{2,6}/goto\?') { $n = [string]$l.GetCachedPropertyValue($A::NameProperty); $item.n = $n.Substring(0, [Math]::Min(400, $n.Length)) }
+        [void]$list.Add($item)
       }
     }
     $sw.Stop()
@@ -660,10 +664,27 @@ const ENGINE_HOSTS = /(^|\.)(google\.[a-z.]+|gstatic\.com|googleusercontent\.com
  * engine's own link, and a Bing results page got no marks at all. Ads ("bing.com/aclk") cannot be unwrapped: they
  * are only a redirect on Bing's side.
  */
-function unwrapResult(u) {
+// The address Google shows under a result's title ("https://www.paypal.com › cshelp › contact-us"), from the link's
+// name. The title before it is the website's own words and could imitate an address, so the last one is taken:
+// Google writes that one, from where the link really goes. Shortened parts ("help_login_...") are left out.
+function citedAddress(name) {
+  const text = String(name || '');
+  const cite = /(?:^|\s)(https?:\/\/(?:[a-z0-9-]+\.)+[a-z]{2,63})((?:\s›\s[^\s›]+)*)/gi;
+  let last = null;
+  for (let m; (m = cite.exec(text));) last = m;
+  if (!last) return null;
+  const parts = last[2].split(' › ').map((p) => p.trim()).filter(Boolean);
+  const kept = [];
+  for (const p of parts) { if (/\.\.\.|…/.test(p)) break; kept.push(encodeURIComponent(p)); }
+  return `${last[1]}/${kept.join('/')}`;
+}
+
+function unwrapResult(u, name) {
   const host = u.hostname;
   let target = null;
   try {
+    if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/goto') target = citedAddress(name);
+    else
     if (/(^|\.)bing\.com$/.test(host) && u.pathname === '/ck/a') {
       const v = u.searchParams.get('u') || '';
       if (v.startsWith('a1')) target = Buffer.from(v.slice(2), 'base64url').toString('utf8');
@@ -732,12 +753,13 @@ function resultLinks(links, pageUrl, seen = new Map()) {
     const engines = (h) => (h === pageHost || ENGINE_HOSTS.test(h)) && !USER_PAGES_ON_ENGINES.test(h);
     if (engines(u.hostname)) {
       // The engine's own link, unless it is a redirect to a result.
-      u = unwrapResult(u);
+      u = unwrapResult(u, l.n);
       if (!u || engines(u.hostname)) continue;
     }
     const host = u.hostname.replace(/^www\./, '');
     const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : siteOf(host);
-    const link = { ...l, u: u.href };
+    const { n: _name, ...box } = l;   // the name was only needed to find the address
+    const link = { ...box, u: u.href };
     const page = host + u.pathname.replace(/\/+$/, '') + u.search;
     if ((l.w || 0) < 100 && (l.h || 0) < 24) { chips.push({ key, link }); continue; }
     // A second link to the same page (or a part of it) is the same result. A sitelink sits just under its result,
@@ -801,7 +823,7 @@ async function onLinks(msg) {
   const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for, seenResults.map);
   // The end-to-end run on a GitHub desktop (scripts/live-e2e.ps1) asks for what the reader saw; nobody else sets this.
   if (process.env.SENTINEL_LINK_DUMP && !page.private) {
-    try { fs.appendFileSync(process.env.SENTINEL_LINK_DUMP, JSON.stringify({ for: msg.for, raw: msg.links, marked: links.map((l) => l.u) }) + '\n'); } catch { /* best effort */ }
+    try { fs.appendFileSync(process.env.SENTINEL_LINK_DUMP, JSON.stringify({ for: msg.for, covered: msg.covered || 0, raw: msg.links, marked: links.map((l) => l.u) }) + '\n'); } catch { /* best effort */ }
   }
   const fresh = !latestLinks || latestLinks.for !== msg.for;
   // A page read while it was still loading has no results yet: say so again when they arrive, or the log reads

@@ -80,11 +80,11 @@ function Search($url, $name, $menuAt) {
   # The browser's own menu opens over the page: it must cover the marks, not the other way round.
   [K]::Combo(0x12, 0x46); Start-Sleep 2; Shot "$name-edge-menu"; [K]::Tap(0x1B); Start-Sleep 1
   # A menu the page itself opens (DuckDuckGo's, like Google's apps grid): marks under it go away while it is open.
-  if ($menuAt) { [K]::Click($menuAt[0], $menuAt[1]); Start-Sleep 2; Shot "$name-page-menu"; [K]::Tap(0x1B); Start-Sleep 2; Shot "$name-page-menu-closed" }
+  if ($menuAt) { [K]::Tap(0x24); Start-Sleep 3; [K]::Click($menuAt[0], $menuAt[1]); Start-Sleep 2; Shot "$name-page-menu"; [K]::Tap(0x1B); Start-Sleep 2; Shot "$name-page-menu-closed" }
 }
 Search 'https://duckduckgo.com/?q=paypal+login+help' 'ddg' @(978, 119)
 Search 'https://www.bing.com/search?q=cheap+airpods+pro+outlet' 'bing'
-Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google'
+Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871, 131)
 
 # 4. What Sentinel saw.
 Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue

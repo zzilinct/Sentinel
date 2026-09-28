@@ -151,7 +151,8 @@ function setMarks({ marks, checking, epoch, clip }) {
 /** The page moved by (dx, dy) screen pixels since the marks of `epoch` were placed. Sent straight through, every frame. */
 function shift({ epoch, dx, dy, t }) {
   if (!area || dryRun) return;
-  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:shift', { epoch, dx: dx / scale, dy: dy / scale, t: typeof t === 'number' ? t : null });
+  if (process.env.SENTINEL_OVERLAY_TRACE) { try { require('fs').appendFileSync(process.env.SENTINEL_OVERLAY_TRACE, `S ${Date.now()} ${t} ${dy}\n`); } catch { /* best effort */ } }
+  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:shift',{ epoch, dx: dx / scale, dy: dy / scale, t: typeof t === 'number' ? t : null });
 }
 
 /** The overlay window's handle, as a decimal string, or '' when there is none. */

@@ -89,6 +89,20 @@ test('DuckDuckGo: site-name link, title and a grid of sitelinks are one result; 
   assert.equal(watch._test.resultLinks(later, 'https://duckduckgo.com/?q=x').length, 2);
 });
 
+test('Google results behind its opaque /goto redirect are checked by the address Google shows under the title', () => {
+  const { unwrapResult, resultLinks } = watch._test;
+  const g = (n) => unwrapResult(new URL('https://www.google.com/goto?url=CAESYwHrOzAV'), n);
+  assert.equal(g('Contact Us PayPal https://www.paypal.com › cshelp › contact-us').href, 'https://www.paypal.com/cshelp/contact-us');
+  assert.equal(g('Login & Security PayPal https://www.paypal.com › cshelp › topic › help_login_...').href, 'https://www.paypal.com/cshelp/topic', 'shortened parts are left out');
+  // The title is the website's own words: an address written in it never wins over the one Google shows.
+  assert.equal(g('https://www.paypal.com › signin Deals https://cheap-pods.example › offers').href, 'https://cheap-pods.example/offers');
+  assert.equal(g('Read more'), null, 'no address shown: nothing is guessed');
+  const out = resultLinks([{ u: 'https://www.google.com/goto?url=X', n: 'Contact Us PayPal https://www.paypal.com › cshelp › contact-us', x: 66, y: 248, w: 282, h: 71 }], 'https://www.google.com/search?q=x');
+  assert.deepEqual(out.map((l) => l.u), ['https://www.paypal.com/cshelp/contact-us']);
+  assert.equal(out[0].n, undefined, 'the name is not passed on');
+  assert.ok(watch._test.SCRIPT.includes("if ($u -match '^https://www\\.google\\.[a-z.]{2,6}/goto\\?')"), 'the reader sends the name for those links only');
+});
+
 test('ads are checked too: Bing and Google ad links lead to the advertiser', () => {
   const dest = 'https://cheap-pods.example/products/pro?currency=USD';
   const bing = `https://www.bing.com/aclk?ld=e8abc&u=${Buffer.from(encodeURIComponent(dest)).toString('base64url')}&rlid=1`;
@@ -298,7 +312,9 @@ test('results covered by something the page drew over them (Google\'s apps grid,
 test('marks ease along with the page every frame instead of jumping at each report', () => {
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /raf = requestAnimationFrame\(frame\)/);
-  assert.match(html, /api\.on\('overlay:shift', function \(p\) \{\s+if \(!p \|\| p\.epoch !== epoch\) return;/);
+  const handler = /api\.on\('overlay:shift', function \(p\) \{([\s\S]*?)\n\s*\}\);/.exec(html)[1];
+  assert.match(handler, /follow\(p\)/);
+  assert.doesNotMatch(handler, /setShift\(p\.dx/, 'never a jump straight to a report, not even with Windows animations off');
   assert.ok(watch._test.SCRIPT.includes(`',"t":' + [Environment]::TickCount`), 'each report says when it was measured');
 });
 
