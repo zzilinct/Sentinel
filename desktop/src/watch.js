@@ -147,6 +147,9 @@ function Covered($el, $b) {
     if (-not $hit -or $hit.Current.ProcessId -ne $fp) { return $false }
     $hr = $hit.Current.BoundingRectangle
     if ([double]::IsInfinity($hr.Width)) { return $false }
+    # An answer that is not even at the point (the browser's hit test and its positions out of step, seen on real
+    # pages) says nothing. A menu or panel over the link always is.
+    if ($px -lt $hr.Left - 2 -or $px -gt $hr.Right + 2 -or $py -lt $hr.Top - 2 -or $py -gt $hr.Bottom + 2) { $script:staleRead = $true; return $false }
     # Quick answer: something inside the link's box is (almost always) the link's own text.
     $inside = $hr.X -ge $b.X - 2 -and $hr.Y -ge $b.Y - 2 -and $hr.Right -le $b.Right + 2 -and $hr.Bottom -le $b.Bottom + 2
     if ($inside) { return $false }

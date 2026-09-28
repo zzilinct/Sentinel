@@ -329,6 +329,8 @@ test('results covered by something the page drew over them (Google\'s apps grid,
   assert.ok(SCRIPT.includes('(Covered $l $b)'));
   assert.ok(SCRIPT.includes('$hit.Current.ProcessId -ne $fp'), 'the overlay itself never counts as covering');
   assert.ok(SCRIPT.includes('$recheckAt = $tick + 450'), 'looked at again when focus moves and once its panel has opened');
+  assert.ok(SCRIPT.includes('if ([Math]::Abs($lb.Y - $b.Y) -gt 3'), 'a page still moving is never judged');
+  assert.ok(SCRIPT.includes('if ($px -lt $hr.Left - 2 -or $px -gt $hr.Right + 2'), 'an answer that is not at the point is not believed');
 });
 
 test('marks ease along with the page every frame instead of jumping at each report', () => {
