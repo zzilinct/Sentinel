@@ -149,7 +149,7 @@ function Covered($el, $b) {
     if (-not $hit -or $hit.Current.ProcessId -ne $fp) { return $false }
     # The browser's own interface over the page (its menus, the link preview at the bottom, the address bar) is a
     # window above the page, and the overlay already sits under it (see Above). Only the page's own panels count.
-    if ($hit.Current.ClassName -cmatch '^(Label|[A-Z][A-Za-z]*Views?|MenuSeparator)$') { return $false }
+    if ($hit.Current.ClassName -cmatch '^(Label|[A-Z][A-Za-z]*Views?|MenuSeparator|Chrome_WidgetWin_\d+)$') { return $false }
     $hr = $hit.Current.BoundingRectangle
     if ([double]::IsInfinity($hr.Width)) { return $false }
     # An answer that is not even at the point (the browser's hit test and its positions out of step, seen on real

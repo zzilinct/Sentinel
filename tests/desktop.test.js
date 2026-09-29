@@ -331,7 +331,7 @@ test('results covered by something the page drew over them (Google\'s apps grid,
   assert.ok(SCRIPT.includes('$recheckAt = $tick + 450'), 'looked at again when focus moves and once its panel has opened');
   assert.ok(SCRIPT.includes('if ([Math]::Abs($lb.Y - $b.Y) -gt 3'), 'a page still moving is never judged');
   assert.ok(SCRIPT.includes('if ($px -lt $hr.Left - 2 -or $px -gt $hr.Right + 2'), 'an answer that is not at the point is not believed');
-  assert.ok(SCRIPT.includes("if ($hit.Current.ClassName -cmatch '^(Label|[A-Z][A-Za-z]*Views?|MenuSeparator)$') { return $false }"), 'the browser\'s own menus and link preview are left to the window order');
+  assert.ok(SCRIPT.includes("if ($hit.Current.ClassName -cmatch '^(Label|[A-Z][A-Za-z]*Views?|MenuSeparator|Chrome_WidgetWin_\\d+)$') { return $false }"),'the browser\'s own menus and link preview are left to the window order');
 });
 
 test('marks ease along with the page every frame instead of jumping at each report', () => {
