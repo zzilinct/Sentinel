@@ -484,6 +484,17 @@ function setClipboardCheck(enabled) {
   return { clipboardCheck: Boolean(enabled) };
 }
 
+// A file in Downloads is checked by download protection and by Defense: one notification about it, not two.
+const notifiedFiles = new Map();
+function notifyAboutFile(file, title, body, onClick) {
+  const key = String(file || '').toLowerCase();
+  const now = Date.now();
+  for (const [k, at] of notifiedFiles) if (now - at > 60000) notifiedFiles.delete(k);
+  if (key && notifiedFiles.has(key)) return;
+  if (key) notifiedFiles.set(key, now);
+  notify(title, body, onClick);
+}
+
 function notify(title, body, onClick) {
   if (!Notification.isSupported()) return;
   const n = new Notification({ title, body, icon: ICON });
@@ -675,7 +686,7 @@ async function boot() {
     onThreat: (item) => {
       const did = item.actions.map((a) => a.did).filter((d, i, arr) => arr.indexOf(d) === i).join(', ');
       if (item.suspect) notify('Sentinel: a startup program looks suspicious', `${item.name}\nNothing was changed. Open Sentinel to quarantine it if you do not recognise it.`, () => showWindow('/app/protection'));
-      else notify(`Sentinel stopped ${item.label}`, `${item.name}\n${did || 'Flagged'}`, () => showWindow('/app/protection'));
+      else notifyAboutFile(item.path, `Sentinel stopped ${item.label}`, `${item.name}\n${did || 'Flagged'}`, () => showWindow('/app/protection'));
       push('sentinel:defense-threat', item);
     }
   });
@@ -691,7 +702,7 @@ async function boot() {
     onChange: refreshTray,
     onThreat: (item) => {
       // To the list of recent downloads, where the file's Quarantine button is (not the file scanner's drop zone).
-      notify(`Sentinel: ${item.label}`, `${item.name}\n${item.reason}`, () => showWindow('/app/protection#downloads'));
+      notifyAboutFile(item.path, `Sentinel: ${item.label}`, `${item.name}\n${item.reason}`, () => showWindow('/app/protection#downloads'));
       push('sentinel:download-threat', item);
     }
   });
