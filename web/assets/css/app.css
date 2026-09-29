@@ -175,6 +175,11 @@ body.app::before { background: var(--bg); }
 .group__count { margin-left: auto; font: 12px var(--mono); color: var(--faint); }
 .group__count.is-bad { color: var(--orange); }
 .checks { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 2px; }
+/* A group with concerns opens on them alone; the rest is one click away (ui.js checklist). */
+.group--focus .check--pass, .group--focus .check--skip { display: none; }
+.group__rest { display: none; margin: -6px 0 14px 44px; padding: 4px 0; border: 0; background: none; color: var(--muted); font: 13px var(--sans); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.group__rest:hover { color: var(--text); }
+.group--focus .group__rest { display: inline-block; }
 .check { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: start; padding: 9px 10px; border-radius: 6px; }
 .check:hover { background: rgba(255, 255, 255, .025); }
 .check__icon { width: 22px; height: 22px; border-radius: 4px; display: grid; place-items: center; }

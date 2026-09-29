@@ -160,15 +160,23 @@ window.UI = (() => {
       const passed = list.filter((c) => c.status === 'pass').length;
       const open = bad > 0 ? ' open' : '';
       const label = bad ? `${bad} concern${bad === 1 ? '' : 's'}` : passed ? `${passed} passed${passed < list.length ? `, ${list.length - passed} skipped` : ''}` : 'not run';
-      return `<details class="group"${open}>
+      // A group with concerns opens on its concerns alone; the checks it passed are one click away.
+      const rest = bad ? list.length - bad : 0;
+      // Check names say what a safe address is ("Not a known scam"). On a concern, what was found leads, so a red
+      // cross never sits beside "Not a known scam" on a page that is one.
+      const body = (c) => ((c.status === 'fail' || c.status === 'warn') && c.detail
+        ? `<b>${esc(c.detail)}</b><span>Check: ${esc(c.title)}</span>`
+        : `<b>${esc(c.title)}</b>${c.detail ? `<span>${esc(c.detail)}</span>` : ''}`);
+      return `<details class="group${rest ? ' group--focus' : ''}"${open}>
         <summary><span>${esc(group)}</span><span class="group__count ${bad ? 'is-bad' : ''}">${label}</span><i></i></summary>
         <ul class="checks">${list.map((c) => `
           <li class="check check--${c.status}" data-status="${c.status}" data-threat="${c.threat}">
             <span class="check__icon">${STATUS_ICON[c.status]}</span>
-            <span class="check__body"><b>${esc(c.title)}</b>${c.detail ? `<span>${esc(c.detail)}</span>` : ''}</span>
+            <span class="check__body">${body(c)}</span>
             <span class="check__tag">${esc(Masks.NAMES[c.threat])}</span>
           </li>`).join('')}
         </ul>
+        ${rest ? `<button type="button" class="group__rest" data-show-rest>Show the other ${rest} check${rest === 1 ? '' : 's'}</button>` : ''}
       </details>`;
     }).join('');
   }
@@ -184,7 +192,11 @@ window.UI = (() => {
     let status = 'all';
     const threats = new Set(THREATS);
 
+    // Filtering, searching or expanding means the person wants the whole list: groups stop hiding their passes.
+    const showAll = () => groups.forEach((g) => g.classList.remove('group--focus'));
+    $$('[data-show-rest]', root).forEach((b) => b.addEventListener('click', () => b.closest('details').classList.remove('group--focus')));
     const apply = () => {
+      showAll();
       const q = search.value.trim().toLowerCase();
       let shown = 0;
       for (const li of checks) {
@@ -222,6 +234,7 @@ window.UI = (() => {
     expand.addEventListener('click', () => {
       const anyClosed = groups.some((g) => !g.hidden && !g.open);
       groups.forEach((g) => { g.open = anyClosed; });
+      if (anyClosed) showAll();
       expand.textContent = anyClosed ? 'Collapse all' : 'Expand all';
     });
   }
@@ -233,7 +246,7 @@ window.UI = (() => {
     for (const t of THREATS) if (v.threats[t]) lines.push(`${Masks.NAMES[t]}: ${v.threats[t].label} (${v.threats[t].score}/100)`);
     if (v.reasons && v.reasons.length) { lines.push('', 'Why:'); v.reasons.forEach((r) => lines.push(`- ${r.text}`)); }
     const concerns = v.checklist.items.filter((c) => c.status === 'fail' || c.status === 'warn');
-    if (concerns.length) { lines.push('', `Checklist (${concerns.length} of ${v.checklist.total} raised a concern):`); concerns.forEach((c) => lines.push(`- ${c.title}${c.detail ? ` - ${c.detail}` : ''}`)); }
+    if (concerns.length) { lines.push('', `Checklist (${concerns.length} of ${v.checklist.total} raised a concern):`); concerns.forEach((c) => lines.push(c.detail ? `- ${c.detail} (check: ${c.title})` : `- ${c.title}`)); }
     lines.push('', `Scanned ${new Date().toLocaleString()} with Sentinel`);
     return lines.join('\n');
   }
