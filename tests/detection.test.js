@@ -107,6 +107,15 @@ test('today\'s phishing shapes are flagged from the address alone; customers\' s
   assert.ok(!(await scan('https://www.google.com/recaptcha/admin')).checklist.items.some((c) => c.id === 'U55' && c.status === 'fail'));
 });
 
+test('the website\'s numbers are the real ones (checks in the checklist, kinds of threat named)', async () => {
+  const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'web', 'index.html'), 'utf8');
+  const total = (await scan('https://example.com/', { detail: 'full' })).checklist.total;
+  assert.ok(html.includes(`<span data-count="${total}" data-live="checks">${total}</span>`), `the site should say ${total} checks`);
+  assert.ok(html.includes(`<span data-v-checks>${total} checks</span>`), `the demo should say ${total} checks`);
+  const kinds = Object.keys(require('../server/lib/scan/kinds').KINDS).length;
+  assert.ok(html.includes(`<span data-count="${kinds}" data-live="kinds">${kinds}</span>`), `the site should say ${kinds} kinds of threat`);
+});
+
 test('no knowledge-base record lowers the risk score', async () => {
   const v = await scan('https://secure-account-update.online/');
   assert.equal(v.knowledge.known, false);
