@@ -291,6 +291,18 @@ function buildTray() {
   refreshTray();
 }
 
+/** The tray's update line: what is happening, not just a button that goes grey. */
+function updateItem(up) {
+  const v = app.getVersion();
+  if (!up.supported) return { label: `Sentinel ${v}`, enabled: false };
+  if (up.status === 'ready') return { label: `Restart to update to ${up.version}`, click: () => updater.install() };
+  if (up.status === 'downloading') return { label: `Downloading update${up.version ? ` ${up.version}` : ''}${Number.isFinite(up.progress) ? ` (${up.progress}%)` : ''}...`, enabled: false };
+  if (up.status === 'checking') return { label: 'Checking for updates...', enabled: false };
+  if (up.status === 'current') return { label: `Sentinel ${v} is up to date (check again)`, click: () => updater.check() };
+  if (up.status === 'error') return { label: `Check for updates (the last check did not finish)`, click: () => updater.check() };
+  return { label: `Check for updates (Sentinel ${v})`, click: () => updater.check() };
+}
+
 function refreshTray() {
   if (!tray) return;
   const status = downloads.status();
@@ -305,11 +317,10 @@ function refreshTray() {
     { type: 'separator' },
     { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
     ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
+    ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => setAutoScan(item.checked).catch(() => {}) }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => setOpenAtLogin(item.checked) },
     { type: 'separator' },
-    up.status === 'ready'
-      ? { label: `Restart to update to ${up.version}`, click: () => updater.install() }
-      : { label: up.supported ? 'Check for updates' : `Sentinel ${app.getVersion()}`, enabled: up.supported && up.status !== 'checking' && up.status !== 'downloading', click: () => updater.check() },
+    updateItem(up),
     { label: 'Open log folder', click: () => shell.showItemInFolder(server.logPath()) },
     { type: 'separator' },
     { label: 'Quit Sentinel', click: () => { quitting = true; app.quit(); } }
