@@ -109,7 +109,17 @@ $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Forc
 Copy-Item "$env:WINDIR\System32\notepad.exe" (Join-Path $dl 'notepad-copy.exe')
 Set-Content -Path (Join-Path $dl 'shopping-list.txt') -Value 'eggs, milk, bread' -Encoding ascii
 Compress-Archive -Path (Join-Path $dl 'shopping-list.txt') -DestinationPath (Join-Path $dl 'list.zip') -Force
-Start-Sleep 25
+# Real installers people download every day: none of them may be flagged (best effort: a moved link is skipped).
+$popular = @(
+  'https://www.7-zip.org/a/7z2409-x64.exe',
+  'https://the.earth.li/~sgtatham/putty/latest/w64/putty.exe',
+  'https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.7/npp.8.7.Installer.x64.exe',
+  'https://www.python.org/ftp/python/3.12.7/python-3.12.7-embed-amd64.zip'
+)
+foreach ($u in $popular) {
+  try { Invoke-WebRequest $u -OutFile (Join-Path $dl ([IO.Path]::GetFileName($u))) -UseBasicParsing -TimeoutSec 60; Say "downloaded $u" } catch { Say "could not download $u" }
+}
+Start-Sleep 30
 
 # 6. What Sentinel saw.
 Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue
