@@ -305,7 +305,7 @@ test('the reader follows the tab in front and moves marks with the page between 
   assert.ok(s.includes('$docs = $root.FindAll('), 'every document is considered, not just the first');
   assert.ok(s.includes('if ($d.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }'), 'background tabs are skipped');
   assert.ok(s.includes("Write-Output ('{\"shift\":{\"dx\":'"), 'page movement is reported between full reads');
-  assert.ok(s.includes('$wait = if ([Environment]::TickCount -lt $stillAt) { 8 } else { 15 }'), 'every 8 ms while it moves (the browser updates positions far less often), every 15 ms when still');
+  assert.ok(s.includes('$wait = if ([Environment]::TickCount -lt $stillAt) { 8 } elseif ($sinceMove -lt 1500) { 15 } elseif ($sinceMove -lt 10000) { 40 } else { 90 }'), 'every 8 ms while it moves, then less and less often while the page is being read');
   assert.ok(s.includes('$stillAt = [Environment]::TickCount + 350'), 'the full read waits until the page has been still for 350 ms');
 });
 

@@ -122,7 +122,7 @@ $lastPid = 0; $lastProc = $null; $cachedDoc = $null; $cachedFor = [IntPtr]::Zero
 $forceRead = $true; $readAt = 0; $lastCount = 0
 # The overlay's window (sent by the app once it exists) and the browser it belongs over.
 $overlayH = [IntPtr]::Zero; $browserH = [IntPtr]::Zero
-$lastFocus = ''; $recheckAt = 0# Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
+$lastFocus = ''; $recheckAt = 0; $lastMoveAt = 0# Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
 # so the loop would stop at the first read until the app sent a command. A plain reader over the raw stream is
 # truly asynchronous.
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
@@ -184,7 +184,10 @@ while ($true) {
   # marks jumped back and forth.
   $stillAt = 0; $loopStart = [Environment]::TickCount
   while ($anchor -and -not $gotCmd -and [Environment]::TickCount -lt $until) {
-    $wait = if ([Environment]::TickCount -lt $stillAt) { 8 } else { 15 }
+    # A page someone is reading, not scrolling, is looked at less and less often: every call costs the browser too.
+    # Marks step aside while a page moves anyway, so a scroll noticed a few dozen milliseconds later looks the same.
+    $sinceMove = [Environment]::TickCount - $lastMoveAt
+    $wait = if ([Environment]::TickCount -lt $stillAt) { 8 } elseif ($sinceMove -lt 1500) { 15 } elseif ($sinceMove -lt 10000) { 40 } else { 90 }
     if ($pendingLine.Wait($wait)) { $gotCmd = $true; break }
     if ($anchor) {
       try {
@@ -197,7 +200,7 @@ while ($true) {
           if ($dx -ne $lastDx -or $dy -ne $lastDy) {
             $lastDx = $dx; $lastDy = $dy; $moved = $true
             Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + ',"t":' + [Environment]::TickCount + '}}')
-            $stillAt = [Environment]::TickCount + 350
+            $stillAt = [Environment]::TickCount + 350; $lastMoveAt = [Environment]::TickCount
             # Never more than 5 s between full reads, even on a page that keeps moving by itself.
             if ($until -lt $stillAt -and $stillAt - $loopStart -lt 5000) { $until = $stillAt }
           }
