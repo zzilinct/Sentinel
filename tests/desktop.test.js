@@ -343,6 +343,27 @@ test('marks ease along with the page every frame instead of jumping at each repo
   assert.ok(watch._test.SCRIPT.includes(`',"t":' + [Environment]::TickCount`), 'each report says when it was measured');
 });
 
+test('download analysis runs on a worker thread and reports what an in-place scan would', async () => {
+  const { Worker } = require('worker_threads');
+  const { scanFile } = require('../desktop/shared/filescan');
+  const file = path.join(os.tmpdir(), `sentinel-worker-check-${process.pid}.txt`);
+  fs.writeFileSync(file, 'Grocery list: eggs, milk, bread.\n');
+  try {
+    const got = await new Promise((resolve, reject) => {
+      const w = new Worker(path.join(__dirname, '..', 'desktop', 'src', 'filescan-worker.js'), { workerData: { file, name: 'list.txt', known: null } });
+      w.once('message', (m) => { w.terminate(); resolve(m); });
+      w.once('error', reject);
+    });
+    assert.equal(got.error, undefined, got.error);
+    const direct = scanFile(fs.readFileSync(file), 'list.txt', { lookupHash: () => null });
+    assert.equal(got.report.sha256, direct.sha256);
+    assert.deepEqual(got.report.checks.map((c) => [c.id, c.status]), direct.checks.map((c) => [c.id, c.status]));
+  } finally { fs.rmSync(file, { force: true }); }
+  const d = read('desktop/src/downloads.js');
+  assert.match(d, /queue = queue\.then\(\(\) => scan\(full, stat\)\)/, 'one download at a time');
+  assert.doesNotMatch(d, /buf = fs\.readFileSync\(full\)/, 'the main thread never reads a whole download');
+});
+
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /#marks\.is-moving \{ opacity: 0;/);

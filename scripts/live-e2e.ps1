@@ -58,6 +58,15 @@ $up = $false
 for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }
 Say "scanner up: $up"
 Start-Sleep 20
+# Pro for this test desktop's account (inbox and download protection are Pro features), then a fresh start so
+# download protection sees the plan.
+Say (node (Join-Path $PSScriptRoot 'e2e-pro.js') "$data\sentinel.db")
+Stop-Process -Name Sentinel -Force -ErrorAction SilentlyContinue; Start-Sleep 3
+Start-Process $exe -ArgumentList '--hidden'
+$up = $false
+for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }
+Say "scanner up again: $up"
+Start-Sleep 15
 
 # 3. A search in Edge, maximised.
 function Search($url, $name, $menuAt) {
@@ -89,13 +98,20 @@ Search 'https://duckduckgo.com/?q=paypal+login+help' 'ddg' @(978, 119)
 Search 'https://www.bing.com/search?q=cheap+airpods+pro+outlet' 'bing'
 Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871, 131)
 
-# 4. An inbox (a Pro feature: this test desktop's accounts get Pro first). Everyday mail and scams side by side:
-# the scams should get a mask, the rest a tick, and marks must stay inside the message list while it scrolls.
-Say (node (Join-Path $PSScriptRoot 'e2e-pro.js') "$data\sentinel.db")
+# 4. An inbox (a Pro feature, given above). Everyday mail and scams side by side: the scams should get a mask, the
+# rest a tick, and marks must stay inside the message list while it scrolls.
 Search 'http://127.0.0.1:47900/mail/' 'inbox'
 if ($inboxServer) { Stop-Process -Id $inboxServer.Id -Force -ErrorAction SilentlyContinue }
 
-# 5. What Sentinel saw.
+# 5. Download protection: everyday files arrive in Downloads (a program, a text file, an archive). Each should be
+# scanned (app.log says "download scanned"), and none of them flagged.
+$dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null
+Copy-Item "$env:WINDIR\System32\notepad.exe" (Join-Path $dl 'notepad-copy.exe')
+Set-Content -Path (Join-Path $dl 'shopping-list.txt') -Value 'eggs, milk, bread' -Encoding ascii
+Compress-Archive -Path (Join-Path $dl 'shopping-list.txt') -DestinationPath (Join-Path $dl 'list.zip') -Force
+Start-Sleep 25
+
+# 6. What Sentinel saw.
 Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue
 Say '--- watch.log'; Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-Object -Last 40 | ForEach-Object { Say "  $_" }
-Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 15 | ForEach-Object { Say "  $_" }
+Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 30 | ForEach-Object { Say "  $_" }

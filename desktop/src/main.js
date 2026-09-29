@@ -685,6 +685,7 @@ async function boot() {
     quarantineDir: path.join(app.getPath('userData'), 'quarantine'),
     getToken: () => activeToken(),
     enabled: () => store.get('downloadProtection', true),
+    log: appLog,
     onChange: refreshTray,
     onThreat: (item) => {
       notify(`Sentinel: ${item.label}`, `${item.name}\n${item.reason}`, () => showWindow('/app/threats'));

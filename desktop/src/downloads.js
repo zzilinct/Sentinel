@@ -13,6 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { Worker } = require('worker_threads');
 const { scanFile, MAX_FILE_BYTES } = require('../shared/filescan');
 
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
@@ -91,21 +92,45 @@ function settle(full, lastSize) {
     timers.set(full, setTimeout(() => settle(full, stat.size), SETTLE_MS));
     return;
   }
-  scan(full, stat).catch(() => { /* file vanished or unreadable */ });
+  // One file at a time: unpacking hundreds of files into Downloads must not start hundreds of scans at once.
+  queue = queue.then(() => scan(full, stat)).catch(() => { /* file vanished or unreadable */ });
 }
+let queue = Promise.resolve();
+
+/**
+ * The file's analysis, on a worker thread. Falls back to this thread only if a worker cannot start (and says so in
+ * the log): the check itself matters more than where it runs.
+ */
+let workerBroken = false;
+function analyze(file, name, known) {
+  if (!workerBroken) {
+    return new Promise((resolve, reject) => {
+      let worker;
+      try {
+        worker = new Worker(path.join(__dirname, 'filescan-worker.js'), { workerData: { file, name, known }, resourceLimits: { maxOldGenerationSizeMb: 256 } });
+      } catch (err) {
+        workerBroken = true;
+        log(`download scan worker could not start (${err.message}); scanning on the main thread`);
+        resolve(analyze(file, name, known));
+        return;
+      }
+      const timer = setTimeout(() => { worker.terminate(); reject(new Error('the scan took too long')); }, 60000);
+      worker.once('message', (m) => { clearTimeout(timer); worker.terminate(); if (m.error) reject(new Error(m.error)); else resolve(m.report); });
+      worker.once('error', (err) => { clearTimeout(timer); reject(err); });
+    });
+  }
+  return Promise.resolve(scanFile(fs.readFileSync(file), name, { lookupHash: () => known }));
+}
+
+function log(text) { if (opts && opts.log) opts.log(text); }
 
 async function scan(full, stat) {
   const name = path.basename(full);
   if (stat.size === 0) return;
+  const started = Date.now();
 
-  let buf;
-  if (stat.size > MAX_FILE_BYTES) {
-    // Large files: hash only.
-    buf = null;
-  } else {
-    buf = fs.readFileSync(full);
-  }
-  const sha256 = buf ? crypto.createHash('sha256').update(buf).digest('hex') : await hashStream(full);
+  // Hashed as a stream: the main thread never holds a whole download.
+  const sha256 = await hashStream(full);
   if (seenHashes.get(sha256) === full) return;
   seenHashes.set(sha256, full);
   if (seenHashes.size > 2000) seenHashes.clear();
@@ -116,8 +141,13 @@ async function scan(full, stat) {
     if (r.known) known = { threat: r.threat, name: r.name || 'Known malicious file', source: 'sentinel' };
   } catch { /* offline: local analysis still runs */ }
 
-  const report = buf ? scanFile(buf, name, { lookupHash: () => known }) : null;
+  // Large files: the hash lookup only.
+  let report = null;
+  if (stat.size <= MAX_FILE_BYTES) {
+    try { report = await analyze(full, name, known); } catch (err) { log(`download scan of ${name} failed: ${err.message}`); }
+  }
   const threats = summarize(report, known);
+  log(`download scanned: ${name} (${Math.round(stat.size / 1024)} KB) - ${threats.label}${threats.reason ? ` (${threats.reason})` : ''}, ${Date.now() - started} ms`);
   const item = {
     id: crypto.randomBytes(8).toString('hex'),
     name,
