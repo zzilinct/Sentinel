@@ -16,14 +16,26 @@ const URGENT_SUBJECT = /(urgent|immediately|action required|final notice|suspend
 const CREDENTIAL_ASK = /(verify your (account|identity)|confirm your (password|account|details)|update your (payment|billing)|log ?in to (restore|avoid|keep)|re-?enter your|validate your (account|mailbox)|mailbox (is )?(full|quota))/i;
 // A request to pay in a way that cannot be undone, not the words alone: a Coinbase price alert says "bitcoin", an
 // insurance letter says "beneficiary", a store sells gift cards.
-const MONEY_ASK = /((pay|send|buy|purchase|deposit|transfer|get)\b.{0,40}\b(gift ?cards?|bitcoin|btc|usdt|ethereum|crypto(currency)?|western union|moneygram|wire transfer)|gift ?cards?\b.{0,40}\b(codes?|pins?|scratch|photos?|pictures?)|(processing|release|clearance|unlock|handling) fee|release (the|your) funds|inheritance (funds|claim|transfer)|next of kin|lottery (win|winner|prize)|you have won)/i;
+// Not a receipt ("your purchase of an Apple Gift Card") or a gift someone sent ("redeem your gift card code").
+const MONEY_ASK = /((pay|send|buy|deposit|transfer)\b.{0,40}\b(gift ?cards?|bitcoin|btc|usdt|ethereum|crypto(currency)?|western union|moneygram|wire transfer)|gift ?cards?\b.{0,40}\b(scratch|photos?|pictures?)|\b(send|share|text|email|read)\b[^.]{0,40}\b(gift ?card|card) (codes?|pins?|numbers?)|(processing|release|clearance|unlock|handling) fee|release (the|your) funds|inheritance (funds|claim|transfer)|next of kin|lottery (win|winner|prize)|you have won)/i;
 const GENERIC_GREETING = /^(\s*)(dear (customer|user|client|member|account holder|valued customer|sir\/madam|friend)|hello (customer|user)|dear [a-z0-9._%+-]+@)/i;
 const THREAT = /(legal action against you|arrest warrant|lawsuit against you|report you to|(account|mailbox|profile|card|subscription|access)\b.{0,60}\b(will be|to be|is being) (closed|terminated|suspended|deleted|disabled|locked)|permanently (disabled|deleted|locked))/i;
 const QR = /(scan (the|this) qr|qr code (below|attached))/i;
+// Told to pay WITH gift cards, crypto or a wire transfer (not a receipt for buying a gift card): "pay the $299 fee with
+// Google Play gift cards", "send 0.1 BTC", "send us the codes".
+const PAY_UNTRACEABLY = /\b(pay|send|transfer|deposit)\b[^.!?]{0,60}\b(with|in|using|via|by)\b[^.!?]{0,30}\b(gift ?cards?|google play|itunes|steam cards?|bitcoin|btc|ethereum|crypto(currency)?|usdt|wire transfer|western union|moneygram)\b|\bsend\b[^!?]{0,15}?\b\d+(\.\d+)?\s*(btc|eth|usdt|bitcoin)\b|\b(send|share|give)\b[^.!?]{0,30}\b(card )?(codes|pins)\b/i;
+// A sender presenting as a company, an agency, support or a prize desk.
+const AUTHORITY = /\b(irs|internal revenue|tax (refund|office|department)|social security|medicare|government|federal|police|sheriff|court|customs|support( team)?|security (team|department|center)|help ?desk|billing (team|department)|account (team|services)|lottery|giveaway|prize|claims? department)\b/i;
+// A fee to release a parcel. USPS never emails or texts asking for one; other couriers do bill customs duties.
+const PARCEL_FEE = /\b(re-?delivery|redeliver|delivery|shipping|postage|customs|parcel|package)\b[^.!?]{0,60}\b(fee|charge)\b|\b(fee|charge)\b[^.!?]{0,60}\b(parcel|package|redelivery|delivery)\b/i;
+const COURIER = /\b(ups|fedex|dhl|royal mail|canada post|auspost|evri|hermes|courier|postal|post office|delivery)\b/i;
 const ARCHIVE_PASSWORD = /(password|pwd|pass)\s*[:=]\s*\S{3,}/i;
 
 function parseAddress(raw) {
   const s = String(raw || '').trim();
+  // Only a name, no address (what an inbox list shows: "PayPal Support Team"). It used to be taken for an address,
+  // leaving the name empty, so a preview's sender never counted as claiming a brand.
+  if (!s.includes('@') && !s.includes('<')) return { name: s.replace(/^["'\s]+|["'\s]+$/g, ''), address: '', domain: '' };
   const m = /^(.*?)<\s*([^>]+)\s*>$/.exec(s);
   const name = (m ? m[1] : '').replace(/^["'\s]+|["'\s]+$/g, '');
   const address = (m ? m[2] : s).toLowerCase();
@@ -142,6 +154,21 @@ function analyzeEmail(mail, how = {}) {
   add('E17', 'scam', 'Invoice lure does not pair with a risky attachment',
     /invoice|receipt|payment advice|remittance|purchase order/i.test(subject + ' ' + body) && (risky.length || macro.length || html.length || archived)
       ? fail(20, 'Invoice-themed message with a risky attachment') : pass('No invoice lure'));
+
+  // What no real company or agency does: an inbox preview has no sender address, but "Apple Support" or "IRS Tax
+  // Refund Department" telling you to pay in gift cards or crypto needs none.
+  const presentsAs = claimed ? `${claimed.token} (as "${from.name || subject.slice(0, 40)}")` : (AUTHORITY.test(from.name) || AUTHORITY.test(subject)) ? `"${from.name || subject.slice(0, 40)}"` : null;
+  add('E19', 'scam', 'Nobody official asks for untraceable payment', wording(PAY_UNTRACEABLY.test(subject + ' ' + body) && presentsAs
+    ? fail(40, `Presents as ${presentsAs} and asks to be paid in gift cards, crypto or a wire transfer: no real company or agency does`)
+    : pass('No official-looking payment demand')));
+
+  add('E20', 'scam', 'No fee to release a parcel', wording((() => {
+    const text = subject + ' ' + body;
+    if (!PARCEL_FEE.test(text) || !/\b(pay|settle|payment|required|due)\b/i.test(text)) return pass('No parcel fee');
+    const usps = (claimed && claimed.token === 'usps') || /\b(usps|postal service)\b/i.test(from.name + ' ' + subject);
+    if (usps) return fail(70, 'Claims to be USPS and asks for a delivery fee: USPS never emails or texts to charge one');
+    return COURIER.test(from.name + ' ' + subject) ? warn(18, 'Asks for a fee to release a parcel') : pass('No courier fee');
+  })()));
 
   add('E18', 'scam', 'Sender domain is not freshly invented',
     senderUrl && hostWords(senderUrl.sld).size >= 3 && /-/.test(senderUrl.sld) && !senderBrand.official

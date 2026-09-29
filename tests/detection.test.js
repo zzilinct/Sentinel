@@ -769,3 +769,30 @@ test('email: real mail from Google, Canva, a church or a store is never marked f
   ];
   for (const [mail, preview] of scams) assert.ok((await check(mail, preview)).overall.badge, JSON.stringify(mail).slice(0, 80));
 });
+
+test('inbox previews: the sender\'s name counts, and a company or agency asking for gift cards, crypto or a parcel fee is a likely scam', async () => {
+  const { mailFromRow } = require('../desktop/src/watch.js')._test;
+  const T = ['scam', 'virus', 'malware'];
+  const check = async (row) => engine.scanEmail(mailFromRow(row), { threats: T, mode: 'live', detail: 'compact', research: false, preview: true });
+  // The rows of the end-to-end run's stand-in inbox (scripts/e2e-inbox), as an inbox list shows them.
+  const likely = [
+    'unread, PayPal Support Team, Your account has been limited, 9:03 AM, We noticed unusual activity. Verify your identity within 24 hours or your account will be permanently suspended. Pay the $499 security fee with Google Play gift cards and send us the codes.',
+    'unread, Elon Musk Giveaway, Double your Bitcoin today only, 7:55 AM, Send 0.1 BTC to the wallet below and receive 0.2 BTC back instantly.',
+    'USPS Delivery, Your parcel is on hold: redelivery fee required, Sep 27, Pay the $1.99 redelivery fee now or your package will be returned to the sender.',
+    'IRS Tax Refund Department, Final notice: unclaimed tax refund of $3,457.20, Sep 25, To receive it, confirm your bank account and pay the processing fee in Bitcoin within 48 hours.',
+    'Apple Support, Your Apple ID has been locked for security reasons, Sep 23, A technician will unlock it after you pay the $299 support fee with gift cards.',
+    'Lottery International, Congratulations! You won $1,500,000, Sep 21, To claim your prize, pay the $750 release fee by wire transfer today.'
+  ];
+  for (const row of likely) {
+    const v = await check(row);
+    assert.ok(v.overall.badge === 'orange' || v.overall.badge === 'red', `${v.overall.badge}: ${row.slice(0, 60)}`);
+  }
+  const clear = [
+    'Apple, Your receipt from Apple, Sep 22, Thank you for your purchase of an Apple Gift Card for $50. Send it to a friend by email.',
+    'Amazon Gift Cards, You received an Amazon gift card, Sep 21, Alex sent you a $25 gift card. Redeem your gift card code at checkout.',
+    'DHL Express, Duties and taxes due for your shipment, Sep 20, Your shipment is held at customs. Pay the customs charge online to release your package.',
+    'Venmo, You paid Alex $12.00, Sep 22, Pizza night. Your payment is complete.',
+    'Microsoft account team, Microsoft account security code, Sep 26, Please use the following security code for the Microsoft account.'
+  ];
+  for (const row of clear) assert.equal((await check(row)).overall.badge, null, row);
+});
