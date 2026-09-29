@@ -4,8 +4,10 @@ name: Automatic update end to end
 
 on:
   workflow_dispatch:
-  release:
-    types: [published]
+  # After every release is built and published (a release made by a workflow cannot trigger this one directly).
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
   push:
     branches: ['work/e2e**']
     paths: ['scripts/update-e2e.ps1', '.github/workflows/update-e2e.yml', 'desktop/src/updater.js']
