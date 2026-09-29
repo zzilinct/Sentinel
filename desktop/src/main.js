@@ -688,7 +688,8 @@ async function boot() {
     log: appLog,
     onChange: refreshTray,
     onThreat: (item) => {
-      notify(`Sentinel: ${item.label}`, `${item.name}\n${item.reason}`, () => showWindow('/app/threats'));
+      // To the list of recent downloads, where the file's Quarantine button is (not the file scanner's drop zone).
+      notify(`Sentinel: ${item.label}`, `${item.name}\n${item.reason}`, () => showWindow('/app/protection#downloads'));
       push('sentinel:download-threat', item);
     }
   });

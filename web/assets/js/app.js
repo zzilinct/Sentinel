@@ -1045,11 +1045,11 @@
         </div>
       </div>
 
-      <div class="panel u-mt" >
-        <h2 style="margin-bottom:12px">Recent downloads</h2>
-        ${recent.length ? `<ul class="list">${recent.slice(0, 8).map((d) => `<li>
+      <div class="panel u-mt" id="downloads">
+        <h2 class="u-mb">Recent downloads</h2>
+        ${recent.length ? `<ul class="list">${[...recent].sort((a, b) => Number(Boolean(b.badge && !b.quarantined)) - Number(Boolean(a.badge && !a.quarantined))).slice(0, 8).map((d) => `<li>
           <span class="list__icon">${ICON.file}</span>
-          <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${esc(d.label)}</span></span>
+          <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${esc(d.label)}${d.badge && d.reason ? ` &middot; ${esc(d.reason)}` : ''}</span></span>
           ${d.badge && !d.quarantined ? `<button class="btn btn--sm" data-quarantine="${esc(d.id)}">Quarantine</button>` : d.quarantined ? '<span class="status">Quarantined</span>' : '<span class="status is-on">Clear</span>'}
         </li>`).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they’re scanned.</p></div>'}
       </div>`;
@@ -1057,6 +1057,12 @@
     if (focusKey) {
       const again = $$(`[data-${focusKey.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}]`, slot).find((el2) => el2.dataset[focusKey] === focusValue);
       if (again) again.focus({ preventScroll: true });
+    }
+    // Opened from a "dangerous download" notification: straight to the file and its Quarantine button, once.
+    if (location.hash === '#downloads' && !state.scrolledToDownloads) {
+      state.scrolledToDownloads = true;
+      const dl = $('#downloads', slot);
+      if (dl) dl.scrollIntoView({ block: 'start' });
     }
     const defEl = $('[data-defense]', slot);
     if (defEl && !defEl.disabled) defEl.addEventListener('change', async (ev) => {

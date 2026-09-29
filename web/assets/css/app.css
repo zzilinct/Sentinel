@@ -561,6 +561,7 @@ select.input option { background: #1b1d22; color: var(--text); }
 
 /* ---------- Spacing utilities (in place of inline styles) ---------- */
 .u-mt { margin-top: 18px; }
+.u-mb { margin-bottom: 12px; }
 .u-mt-sm { margin-top: 14px; }
 .u-mt-lg { margin-top: 28px; }
 .u-mb { margin-bottom: 16px; }
