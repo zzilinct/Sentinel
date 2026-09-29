@@ -20,6 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/update-e2e.ps1 -Out update-e2e
       - uses: actions/upload-artifact@v4
         if: always()

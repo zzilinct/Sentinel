@@ -7,8 +7,12 @@ New-Item -ItemType Directory -Force $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
 function Say($s) { $line = "$(Get-Date -Format HH:mm:ss) $s"; Write-Output $line; Add-Content -Path "$Out\run.txt" -Value $line -Encoding utf8 }
 
-$releases = Invoke-RestMethod 'https://api.github.com/repos/zzilinct/Sentinel/releases?per_page=10'
+# Authenticated with the workflow's own token when there is one: anonymous calls from a shared runner hit the limit.
+$headers = @{}
+if ($env:GITHUB_TOKEN) { $headers.Authorization = "Bearer $env:GITHUB_TOKEN" }
+$releases = @(Invoke-RestMethod 'https://api.github.com/repos/zzilinct/Sentinel/releases?per_page=10' -Headers $headers) | ForEach-Object { $_ }
 $stable = @($releases | Where-Object { -not $_.draft -and -not $_.prerelease })
+if ($stable.Count -lt 2) { Say 'could not list the releases'; exit 1 }
 $latest = $stable[0].tag_name; $previous = $stable[1].tag_name
 Say "latest $latest, installing the one before it: $previous"
 $setup = "$env:RUNNER_TEMP\Sentinel-Setup-old.exe"
