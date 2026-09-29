@@ -5,7 +5,7 @@ param([string]$Out = 'update-e2e', [int]$Minutes = 15)
 $ErrorActionPreference = 'Continue'
 New-Item -ItemType Directory -Force $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
-function Say($s) { "$(Get-Date -Format HH:mm:ss) $s" | Tee-Object -FilePath "$Out\run.txt" -Append }
+function Say($s) { $line = "$(Get-Date -Format HH:mm:ss) $s"; Write-Output $line; Add-Content -Path "$Out\run.txt" -Value $line -Encoding utf8 }
 
 $releases = Invoke-RestMethod 'https://api.github.com/repos/zzilinct/Sentinel/releases?per_page=10'
 $stable = @($releases | Where-Object { -not $_.draft -and -not $_.prerelease })
@@ -29,7 +29,8 @@ while ((Get-Date) -lt $deadline -and -not $updated) {
   $v = (Get-Item $exe -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
   $running = @(Get-Process Sentinel -ErrorAction SilentlyContinue).Count
   Say "installed $v, Sentinel processes: $running"
-  if ($v -eq $want -and $running -gt 0) { $updated = $true }
+  # Windows reports four parts ("1.6.14.0").
+  if ($v -and ($v -eq $want -or $v -eq "$want.0") -and $running -gt 0) { $updated = $true }
 }
 Start-Sleep 10
 $windows = @(Get-Process Sentinel -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle }).Count
