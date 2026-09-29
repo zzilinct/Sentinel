@@ -12,7 +12,9 @@
  */
 const L = require('./lists');
 const config = require('../../config');
-const { analyze, entropy, hostWords } = require('./url');
+const { analyze, entropy, hostWords, levenshtein } = require('./url');
+// Words that make an address look trustworthy, long enough that one letter off is never an ordinary word (U54).
+const TRUST_WORDS = ['support', 'account', 'security', 'service', 'billing', 'customer', 'recovery', 'password', 'verification', 'helpdesk'];
 
 const reported = new Set();
 
@@ -486,6 +488,41 @@ const KNOWLEDGE_CHECKS = [
       const rest = m[2].toLowerCase();
       const LURE = /(^|[/._-])(admin|login|log-in|signin|sign-in|verify|verification|webmail|mail|owa|tax|refund|invoice|payment|pay|billing|bank|secure|account|update|wallet|docs?|share|office|outlook)([/._-]|$)/;
       return LURE.test(rest) ? fail(34, `A "${rest.split('/')[0] || rest}" page inside the hosting account "~${m[1]}": the account is almost certainly hijacked`) : warn(8, "Served from a hosting account's home folder");
+    } },
+
+  { id: 'U54', group: 'Wording', threat: 'scam', title: 'Trust words in the name are spelled right',
+    run: ({ p, brand }) => {
+      if (brand.official) return pass('Official site');
+      // "sopport-cloud", "suportcloud", "acount-verify": a kit family registers its domains with the trust word
+      // misspelled (the right spelling is taken, or blocked). A real company does not misspell its own name. Long
+      // words only: short ones sit one letter from ordinary words ("logic" and "login", "verity" and "verify").
+      // Other languages' words sit one letter from these: Spanish "servicio", Italian "servizio", Latin "securitas",
+      // Portuguese "suporte". Those are spelled right.
+      const foreign = /servici|servizi|servico|securit[aeé]|suporte|soporte|seguri|konto|accueil/;
+      const parts = [p.sld, ...p.sld.split(/[-_]/), ...p.subdomains].filter((s) => s && s.length >= 6 && !foreign.test(s));
+      for (const w of TRUST_WORDS) {
+        for (const part of parts) {
+          if (part.includes(w)) continue;
+          for (const n of [w.length - 1, w.length, w.length + 1]) {
+            for (let i = 0; i + n <= part.length; i++) {
+              const piece = part.slice(i, i + n);
+              if (levenshtein(piece, w) === 1 && !L.NOT_LOOKALIKES.has(piece)) return fail(22, `"${piece}" is "${w}" misspelled`);
+            }
+          }
+        }
+      }
+      return pass('Spelled right');
+    } },
+
+  { id: 'U55', group: 'Wording', threat: 'scam', title: 'Not a fake "I am not a robot" page',
+    run: ({ p }) => {
+      // A page named after a CAPTCHA service on a site that is not that service: the fake check that tells people to
+      // paste a command into Windows ("ClickFix"), or a gate in front of a phishing page.
+      const seg = p.path.toLowerCase().split('/').filter(Boolean)[0] || '';
+      const real = /(^|\.)(google\.com|recaptcha\.net|hcaptcha\.com|cloudflare\.com|challenges\.cloudflare\.com)$/.test(p.host);
+      return !real && /^(h?captcha|recaptcha|re-captcha|verify-?human|human-?verif\w*|cf-?(verify|challenge)|cloudflare-?verif\w*|im-?not-?a-?robot|not-?a-?robot)\b/.test(seg)
+        ? fail(26, `The page is called "${seg.slice(0, 30)}" on a site that is not a CAPTCHA service`)
+        : pass('No fake robot check');
     } },
 
   { id: 'U53', group: 'Address', threat: 'scam', title: 'Host name is a real website name',

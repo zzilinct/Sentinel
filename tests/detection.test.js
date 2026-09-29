@@ -92,6 +92,19 @@ test('today\'s phishing shapes are flagged from the address alone; customers\' s
   }
   const path = await scan('https://sopport-cloud.us/icloud2022-esp.php/');
   assert.ok(path.checklist.items.some((c) => c.id === 'U40' && c.status === 'fail'), 'icloud in "icloud2022-esp.php" counts as a brand in the path');
+  // A kit family: "support" misspelled in the domain, iCloud in the path.
+  for (const url of ['https://sopports-net.us/icloud-archivos/x.php', 'https://suportcloud.com/icloud-archivos/x.php', 'https://paypal-suport.com/']) {
+    assert.ok((await scan(url)).overall.badge, url);
+  }
+  // Spelled right, or another language's word: nothing counted against them.
+  for (const url of ['https://www.servicios.com/', 'https://www.securitas.com/', 'https://suporte.itau.com.br/', 'https://www.accountingtoday.com/',
+    'https://supportive-care.org/', 'https://billings-montana.com/', 'https://www.sportsaccount.com/']) {
+    const v = await scan(url);
+    assert.ok(!v.checklist.items.some((c) => c.id === 'U54' && c.status === 'fail'), url);
+  }
+  // A page named after a CAPTCHA service on a site that is not one (the "paste this into Windows" trick).
+  assert.ok((await scan('https://odufps-fudyfuy.com/hcaptcha')).checklist.items.some((c) => c.id === 'U55' && c.status === 'fail'));
+  assert.ok(!(await scan('https://www.google.com/recaptcha/admin')).checklist.items.some((c) => c.id === 'U55' && c.status === 'fail'));
 });
 
 test('no knowledge-base record lowers the risk score', async () => {
