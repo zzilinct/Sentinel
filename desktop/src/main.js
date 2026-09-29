@@ -480,6 +480,33 @@ function stayInBackground() {
   for (const pid of pids) { try { if (os.getPriority(pid) < low) os.setPriority(pid, low); } catch { /* gone */ } }
 }
 
+/**
+ * The end-to-end run on a GitHub desktop (scripts/live-e2e.ps1) measures what Sentinel costs at rest. When it sets
+ * SENTINEL_CPU_PROFILE to a file and later creates that file, the main process records sixty seconds of where its
+ * processor time goes, next to it (<file>.cpuprofile). Nobody else sets this; nothing runs without it.
+ */
+function cpuProfileOnRequest() {
+  const trigger = process.env.SENTINEL_CPU_PROFILE;
+  if (!trigger) return;
+  const fsx = require('fs');
+  let started = false;
+  const begin = () => {
+    if (started || !fsx.existsSync(trigger)) return;
+    started = true;
+    const inspector = require('inspector');
+    const s = new inspector.Session();
+    s.connect();
+    s.post('Profiler.enable', () => s.post('Profiler.start', () => {
+      appLog('cpu profile: recording 60 s');
+      setTimeout(() => s.post('Profiler.stop', (err, res) => {
+        try { fsx.writeFileSync(`${trigger}.cpuprofile`, JSON.stringify(res.profile)); appLog('cpu profile: written'); } catch (e) { appLog(`cpu profile: ${e.message}`); }
+        s.disconnect();
+      }), 60000);
+    }));
+  };
+  try { fsx.watch(require('path').dirname(trigger), () => begin()); } catch { /* no folder */ }
+}
+
 /** "Check links I copy": started and stopped with its switch; see clipwatch.js for what it reads. */
 function setClipboardCheck(enabled) {
   store.set('clipboardCheck', Boolean(enabled));
@@ -792,6 +819,7 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => callback(false));
 
   appLog(`starting Sentinel ${app.getVersion()}${startHidden ? ' (hidden)' : ''}`);
+  cpuProfileOnRequest();
   store.init(app.getPath('userData'), safeStorage);
   // Scanning that auto scanning had started before a restart is still its to switch off.
   autoSession = Boolean(store.get('autoScan', false) && store.get('autoSession', false));

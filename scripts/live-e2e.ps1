@@ -52,6 +52,9 @@ $env:SENTINEL_LINK_DUMP = "$Out\links.jsonl"   # what the reader saw on each res
 $env:SENTINEL_OVERLAY_TRACE = "$Out\frames.txt" # every frame of the marks moving, to measure smoothness
 # A stand-in webmail inbox served on this desktop (it cannot sign in to real webmail): scripts/e2e-inbox/mail/.
 $env:SENTINEL_TEST_INBOX = '47900'
+# Where Sentinel's main process writes a CPU profile of the idle minute, once the trigger file appears (see main.js).
+New-Item -ItemType Directory -Force "$Out\profile" | Out-Null
+$env:SENTINEL_CPU_PROFILE = "$Out\profile\idle"
 $inboxServer = Start-Process python -ArgumentList '-m', 'http.server', '47900', '--bind', '127.0.0.1', '--directory', (Join-Path $PSScriptRoot 'e2e-inbox') -PassThru -WindowStyle Hidden
 Start-Process $exe -ArgumentList '--hidden'
 $up = $false
@@ -153,11 +156,14 @@ for ($i = 0; $i -lt 18; $i++) {
   Say ("settling: {0:N1} s of processor time in 20 s" -f ($b - $a))
   if (($b - $a) -lt 0.6) { break }
 }
+Set-Content -Path "$Out\profile\idle" -Value 'now'
 $before = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
 Start-Sleep 60
 $after = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
 Say ("idle minute: Sentinel used {0:N1} s of processor time in 60 s ({1:N1}% of one core)" -f ($after - $before), (($after - $before) / 60 * 100))
 Footprint 'after an idle minute'
+Start-Sleep 5
+Say "cpu profile written: $(Test-Path "$Out\profile\idle.cpuprofile")"
 
 # 6. What Sentinel saw.
 Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue
