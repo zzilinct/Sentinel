@@ -1,0 +1,29 @@
+# Automatic updates end to end on a GitHub-hosted Windows desktop: the release before the latest installs itself
+# up to the latest, untouched, and comes back in the tray (scripts/update-e2e.ps1). Never runs on a person's computer.
+name: Automatic update end to end
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches: ['work/e2e**']
+    paths: ['scripts/update-e2e.ps1', '.github/workflows/update-e2e.yml', 'desktop/src/updater.js']
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - shell: powershell
+        run: ./scripts/update-e2e.ps1 -Out update-e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: update-e2e
+          path: update-e2e/
+          retention-days: 7
