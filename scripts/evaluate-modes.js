@@ -76,6 +76,11 @@ async function main() {
     const success = caught + (okL.length - falseAlarms.length);
     console.log(`${name}`);
     console.log(`  phishing flagged      ${caught}/${okP.length} = ${pct(caught, okP.length)}   (${red} of them red, by a list)`);
+    // One campaign can put a hundred subdomains of one domain on a feed: per domain (its first address), each counts once.
+    const firstPerDomain = new Map();
+    for (const v of okP) if (v.domain && !firstPerDomain.has(v.domain)) firstPerDomain.set(v.domain, v);
+    const domCaught = [...firstPerDomain.values()].filter((v) => v.overall.badge).length;
+    console.log(`  by domain             ${domCaught}/${firstPerDomain.size} = ${pct(domCaught, firstPerDomain.size)}   (one address per domain)`);
     console.log(`  legitimate left alone ${okL.length - falseAlarms.length}/${okL.length} = ${pct(okL.length - falseAlarms.length, okL.length)}${falseAlarms.length ? `   false alarms: ${falseAlarms.map((v) => v.host).join(', ')}` : ''}`);
     console.log(`  right overall         ${success}/${okP.length + okL.length} = ${pct(success, okP.length + okL.length)}`);
     console.log(`  time per address      median ${p.median} ms, 95th percentile ${p.p95} ms\n`);
