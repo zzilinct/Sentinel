@@ -19,7 +19,8 @@ $setup = "$env:RUNNER_TEMP\Sentinel-Setup-old.exe"
 Invoke-WebRequest "https://github.com/zzilinct/Sentinel/releases/download/$previous/Sentinel-Setup.exe" -OutFile $setup -UseBasicParsing
 Start-Process $setup -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"
-Say "installed: $((Get-Item $exe).VersionInfo.ProductVersion)"
+$from = (Get-Item $exe).VersionInfo.ProductVersion
+Say "installed: $from"
 
 $data = "$env:APPDATA\Sentinel"; New-Item -ItemType Directory -Force $data | Out-Null
 [IO.File]::WriteAllText("$data\settings.json", '{"openAtLogin":false}')
@@ -33,8 +34,8 @@ while ((Get-Date) -lt $deadline -and -not $updated) {
   $v = (Get-Item $exe -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
   $running = @(Get-Process Sentinel -ErrorAction SilentlyContinue).Count
   Say "installed $v, Sentinel processes: $running"
-  # Windows reports four parts ("1.6.14.0").
-  if ($v -and ($v -eq $want -or $v -eq "$want.0") -and $running -gt 0) { $updated = $true }
+  # Any newer version counts: a release published while this runs is the one the app should take.
+  if ($v -and [version]$v -gt [version]$from -and [version]$v -ge [version]$want -and $running -gt 0) { $updated = $true; $want = $v }
 }
 Start-Sleep 10
 $windows = @(Get-Process Sentinel -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle }).Count
