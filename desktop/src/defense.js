@@ -243,6 +243,20 @@ async function inspect(full, how) {
     return item;
   }
 
+  // Red is evidence: a known malicious file, or a pattern only malware carries. Orange is a strong suspicion from the
+  // file's contents alone. Plenty of honest programs are unsigned (a game mod, an AutoHotkey script, a tool someone
+  // built with Python), and ending one of those, or deleting how it starts with Windows, broke things people rely
+  // on. So without evidence nothing that already runs at startup is touched: the person is told and decides. A new
+  // file that just arrived is moved to quarantine (it can be put back) and nothing else is done.
+  const evidence = worst.badge === 'red';
+  if (!evidence && /^startup entry/.test(how || '')) {
+    const actions = [{ did: 'left as it was', detail: 'Warning signs but no proof: nothing was ended or removed. Quarantine it from Sentinel if you do not recognise it.' }];
+    const id = record({ kind: 'suspect', ...item, actions });
+    if (opts.onThreat) opts.onThreat({ ...item, entryId: id, suspect: true, actions });
+    return item;
+  }
+  item.gentle = !evidence;
+
   const entryId = record({ kind: 'threat', ...item, actions: [{ did: 'detected', detail: 'responding' }] });
   item.entryId = entryId;
   let actions;
@@ -328,6 +342,13 @@ Get-ScheduledTask | ForEach-Object {
       actions.push({ did: 'quarantined', detail: target });
       if (item.entryId) amend(item.entryId, { actions: [...actions], quarantined: target });
     } catch { /* in use: PowerShell ends the process first */ }
+  }
+
+  // Only suspicion (see inspect): the file is moved if it is free, and nothing else is done: no program is ended,
+  // no startup entry or task removed.
+  if (item.gentle) {
+    if (!item.quarantined) actions.push({ did: 'left in place', detail: 'In use, and only warning signs: nothing was ended' });
+    return actions;
   }
 
   // Run keys: reg.exe answers in milliseconds.
@@ -497,8 +518,18 @@ async function restore(id) {
   return { ok: true };
 }
 
+/** The person decided: quarantine a startup program that was only suspected (and left alone), with the full response. */
+async function act(id) {
+  const entry = ledger.find((e) => e.id === id && e.kind === 'suspect');
+  if (!entry) throw new Error('That entry can no longer be acted on');
+  const item = { path: entry.path, name: entry.name, sha256: entry.sha256, badge: entry.badge, label: entry.label, entryId: entry.id };
+  const actions = await respond(item);
+  amend(entry.id, { kind: 'threat', actions: [{ did: 'quarantined at your request' }, ...actions], quarantined: item.quarantined || null });
+  return { ok: true };
+}
+
 module.exports = {
-  init, restart, stop, status, inspect, restore, ledger: () => ledger.slice(0, 50),
+  init, restart, stop, status, inspect, restore, act, ledger: () => ledger.slice(0, 50),
   // For tests: set the options without starting any watcher, and stand in for the signature check.
   _test: { removeRunKeys, signedBy, configure: (options) => { opts = options; ledger = []; }, setSigner: (fn) => { signer = fn || ((full) => signedBy(full)); } }
 };

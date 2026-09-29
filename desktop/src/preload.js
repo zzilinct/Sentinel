@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   defense: () => ipcRenderer.invoke('sentinel:defense'),
   setDefense: (enabled) => ipcRenderer.invoke('sentinel:set-defense', Boolean(enabled)),
   restoreQuarantined: (id) => ipcRenderer.invoke('sentinel:defense-restore', String(id)),
+  quarantineSuspect: (id) => ipcRenderer.invoke('sentinel:defense-act', String(id)),
   onDefense: (callback) => on('sentinel:defense', callback),
   onDefenseThreat: (callback) => on('sentinel:defense-threat', callback),
   onPageChecked: (callback) => on('sentinel:page-checked', callback),

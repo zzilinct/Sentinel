@@ -231,6 +231,33 @@ test('defense: an unsigned program with strong evidence is still stopped, and "p
   }
 });
 
+test('defense: a startup program with warning signs but no proof is left running, and the person decides', async () => {
+  const box = sandbox();
+  try {
+    defense._test.setSigner(async () => null);
+    const exe = box.file('MyMacros.exe', fakeStealerExe());
+    const item = await defense.inspect(exe, 'startup entry HKCU Run\\MyMacros');
+    assert.equal(item.badge, 'orange', 'signs, not proof');
+    assert.ok(fs.existsSync(exe), 'not moved');
+    const entry = defense.ledger().find((e) => e.name === 'MyMacros.exe');
+    assert.equal(entry.kind, 'suspect');
+    assert.equal(box.threats.length, 1);
+    assert.equal(box.threats[0].suspect, true, 'told, as a suspicion');
+    assert.ok(!entry.actions.some((a) => /ended|removed|quarantined/.test(a.did)), 'nothing ended, removed or moved');
+    // Then the person chooses to quarantine it.
+    await defense.act(entry.id);
+    assert.ok(!fs.existsSync(exe), 'quarantined at their request');
+    const after = defense.ledger().find((e) => e.id === entry.id);
+    assert.equal(after.kind, 'threat');
+    assert.ok(after.quarantined);
+    // Without proof, a response to a new file never ends a program or removes a startup entry.
+    assert.match(read('desktop/src/defense.js'), /if \(item\.gentle\) \{[\s\S]{0,200}return actions;/);
+  } finally {
+    defense._test.setSigner(null);
+    fs.rmSync(box.dir, { recursive: true, force: true });
+  }
+});
+
 test('defense: whatever it removes can be put back', async () => {
   const box = sandbox();
   try {

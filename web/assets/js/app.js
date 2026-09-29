@@ -1038,9 +1038,10 @@
           <h2 class="u-mb-xs">Defense log</h2>
           <p class="muted" style="font-size:13.5px;margin:0 0 4px">What arrived, what was scanned, what was stopped.</p>
           ${ledger.length ? `<ul class="list">${ledger.slice(0, 8).map((e) => `<li>
-            <span class="list__icon" style="${e.kind === 'threat' ? 'color:var(--red)' : e.kind === 'restored' ? 'color:var(--gold-300)' : ''}">${ICON.file}</span>
-            <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'restored' ? 'Put back' : e.kind === 'noted' ? `${e.label}: noted, nothing touched` : `Clean (${e.how || 'scanned'})`)}</span></span>
+            <span class="list__icon" style="${e.kind === 'threat' ? 'color:var(--red)' : e.kind === 'suspect' ? 'color:var(--orange)' : e.kind === 'restored' ? 'color:var(--gold-300)' : ''}">${ICON.file}</span>
+            <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'suspect' ? `${e.label}: runs at startup; nothing was changed. Quarantine it if you do not recognise it.` : e.kind === 'restored' ? 'Put back' : e.kind === 'noted' ? `${e.label}: noted, nothing touched` : `Clean (${e.how || 'scanned'})`)}</span></span>
             ${e.kind === 'threat' && !e.restored && (e.quarantined || (e.actions || []).some((a) => a.undo)) ? `<button class="btn btn--sm" data-restore="${esc(e.id)}">Put back</button>` : ''}
+            ${e.kind === 'suspect' ? `<button class="btn btn--sm" data-suspect="${esc(e.id)}">Quarantine</button>` : ''}
           </li>`).join('')}</ul>` : '<div class="empty"><p>Nothing has needed stopping.</p></div>'}
         </div>
       </div>
@@ -1072,6 +1073,11 @@
       } catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, 'error'); }
       renderDesktopControls(slot);
     });
+    $$('[data-suspect]', slot).forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await desktop.quarantineSuspect(b.dataset.suspect); toast('Quarantined. You can put it back from here.', 'success'); renderDesktopControls(slot); }
+      catch (err) { b.disabled = false; toast(err.message, 'error'); }
+    }));
     $$('[data-restore]', slot).forEach((b) => b.addEventListener('click', async () => {
       try { await desktop.restoreQuarantined(b.dataset.restore); toast('Put back as it was.', 'success'); renderDesktopControls(slot); }
       catch (err) { toast(err.message, 'error'); }

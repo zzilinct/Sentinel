@@ -558,6 +558,7 @@ function registerBridge() {
   handle('sentinel:set-clipboard-check', (enabled) => setClipboardCheck(Boolean(enabled)));
   handle('sentinel:set-defense', (enabled) => { store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
   handle('sentinel:defense-restore', (id) => defense.restore(String(id)));
+  handle('sentinel:defense-act', (id) => defense.act(String(id)));
   handle('sentinel:install-update', () => updater.install());
 
   handle('sentinel:set-token', (token, userId) => {
@@ -673,7 +674,8 @@ async function boot() {
     onChange: () => { refreshTray(); push('sentinel:defense', defense.status()); },
     onThreat: (item) => {
       const did = item.actions.map((a) => a.did).filter((d, i, arr) => arr.indexOf(d) === i).join(', ');
-      notify(`Sentinel stopped ${item.label}`, `${item.name}\n${did || 'Flagged'}`, () => showWindow('/app/protection'));
+      if (item.suspect) notify('Sentinel: a startup program looks suspicious', `${item.name}\nNothing was changed. Open Sentinel to quarantine it if you do not recognise it.`, () => showWindow('/app/protection'));
+      else notify(`Sentinel stopped ${item.label}`, `${item.name}\n${did || 'Flagged'}`, () => showWindow('/app/protection'));
       push('sentinel:defense-threat', item);
     }
   });
