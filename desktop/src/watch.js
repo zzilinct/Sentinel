@@ -140,11 +140,16 @@ function Covered($el, $b) {
   try { $lb = $el.Current.BoundingRectangle } catch { return $false }
   if ([Math]::Abs($lb.Y - $b.Y) -gt 3 -or [Math]::Abs($lb.X - $b.X) -gt 3) { $script:staleRead = $true; return $false }
   $px = [int]($b.X + [Math]::Min(8, $b.Width / 2))
-  $py = if ($b.Height -gt 40) { [int]($b.Bottom - 12) } else { [int]($b.Y + $b.Height / 2) }
+  # Where its mark goes: the title line, which is the last line of a Google result link and the first of anything
+  # taller (a whole ad card).
+  $py = if ($b.Height -gt 40 -and $b.Height -le 90) { [int]($b.Bottom - 12) } elseif ($b.Height -gt 90) { [int]($b.Y + 12) } else { [int]($b.Y + $b.Height / 2) }
   try {
     $hit = $A::FromPoint((New-Object System.Windows.Point($px, $py)))
     # Only the browser's own things count: another program's window (Sentinel's overlay included) is not the page.
     if (-not $hit -or $hit.Current.ProcessId -ne $fp) { return $false }
+    # The browser's own interface over the page (its menus, the link preview at the bottom, the address bar) is a
+    # window above the page, and the overlay already sits under it (see Above). Only the page's own panels count.
+    if ($hit.Current.ClassName -cmatch '^(Label|[A-Z][A-Za-z]*Views?|MenuSeparator)$') { return $false }
     $hr = $hit.Current.BoundingRectangle
     if ([double]::IsInfinity($hr.Width)) { return $false }
     # An answer that is not even at the point (the browser's hit test and its positions out of step, seen on real

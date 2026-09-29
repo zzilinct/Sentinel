@@ -146,7 +146,9 @@
       x = m.x + m.w - size - 64;
       y = m.y + m.h / 2 - size / 2;
     } else {
-      if (m.h > 40) y = m.y + m.h - 15 - size / 2;
+      // Up to about three lines (Google: site name, address, title). A taller link is a whole card (a Bing ad with
+      // its sitelinks inside): its title is at the top.
+      if (m.h > 40 && m.h <= 90) y = m.y + m.h - 15 - size / 2;
       if (x + size > W - 6) x = Math.max(4, m.x - size - 8);
     }
     return { x: Math.round(x), y: Math.round(y) };
