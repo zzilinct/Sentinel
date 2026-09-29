@@ -81,7 +81,13 @@ function Footprint($when) {
   $priv = [math]::Round((($ps | Measure-Object PrivateMemorySize64 -Sum).Sum) / 1MB)
   $cpu = [math]::Round((($ps | Measure-Object CPU -Sum).Sum), 1)
   Say "footprint ${when}: $($ps.Count) processes, $mb MB in memory ($priv MB private), $cpu s of processor time so far"
-  foreach ($p in $ps) { Say ("  {0,-11} {1,6} MB  {2,7} s  {3}" -f $p.ProcessName, [math]::Round($p.WorkingSet64 / 1MB), [math]::Round($p.CPU, 1), $p.PriorityClass) }
+  $cmd = @{}
+  Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(Sentinel|powershell)\.exe$' } | ForEach-Object { $cmd[[int]$_.ProcessId] = [string]$_.CommandLine }
+  foreach ($p in $ps) {
+    $c = $cmd[[int]$p.Id]
+    $role = if ($p.ProcessName -eq 'powershell') { 'reader' } elseif ($c -match '--type=([a-z-]+)') { $Matches[1] + $(if ($c -match '--utility-sub-type=([^\s]+)') { " ($($Matches[1]))" } else { '' }) } elseif ($c -match 'ELECTRON_RUN_AS_NODE|server') { 'server' } else { 'main' }
+    Say ("  {0,-34} {1,6} MB  {2,7} s  {3}" -f $role, [math]::Round($p.WorkingSet64 / 1MB), [math]::Round($p.CPU, 1), $p.PriorityClass)
+  }
 }
 Footprint 'after start'
 
