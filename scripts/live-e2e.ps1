@@ -68,8 +68,15 @@ for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke
 Say "scanner up again: $up"
 Start-Sleep 15
 # What Sentinel costs the computer: every process it runs, its memory and the processor time it has used so far.
+function SentinelProcesses {
+  # Sentinel's own processes, and the PowerShell helpers it started (the live scanning reader), not this script's.
+  $mine = @(Get-Process Sentinel -ErrorAction SilentlyContinue)
+  $ids = @($mine | ForEach-Object { $_.Id })
+  $kids = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.ParentProcessId } | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue })
+  return @($mine + $kids)
+}
 function Footprint($when) {
-  $ps = @(Get-Process Sentinel, powershell -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -eq 'Sentinel' -or ($_.CommandLine -and $_.CommandLine -match 'EncodedCommand') })
+  $ps = SentinelProcesses
   $mb = [math]::Round((($ps | Measure-Object WorkingSet64 -Sum).Sum) / 1MB)
   $priv = [math]::Round((($ps | Measure-Object PrivateMemorySize64 -Sum).Sum) / 1MB)
   $cpu = [math]::Round((($ps | Measure-Object CPU -Sum).Sum), 1)
@@ -134,9 +141,9 @@ Start-Sleep 30
 Footprint 'after browsing'
 # A minute with nothing in front but the desktop: what Sentinel uses while someone plays a game or works.
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-$before = @(Get-Process Sentinel, powershell -ErrorAction SilentlyContinue | Measure-Object CPU -Sum).Sum
+$before = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
 Start-Sleep 60
-$after = @(Get-Process Sentinel, powershell -ErrorAction SilentlyContinue | Measure-Object CPU -Sum).Sum
+$after = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
 Say ("idle minute: Sentinel used {0:N1} s of processor time in 60 s ({1:N1}% of one core)" -f ($after - $before), (($after - $before) / 60 * 100))
 Footprint 'after an idle minute'
 
