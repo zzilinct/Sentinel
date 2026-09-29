@@ -1,0 +1,32 @@
+# Detection accuracy on today's phishing (OpenPhish held out) and on legitimate sites: scripts/evaluate-modes.js.
+# The phishing addresses are text; nothing on them is opened. Runs on GitHub's machines, never a person's computer.
+name: Evaluate detection
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['work/e2e**']
+    paths: ['server/lib/scan/**', 'scripts/evaluate*', '.github/workflows/evaluate.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts || npm install --ignore-scripts
+      - run: node scripts/evaluate-modes.js --sample 200 --misses misses.txt | tee evaluation.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation
+          path: |
+            evaluation.txt
+            misses.txt
+          retention-days: 7
