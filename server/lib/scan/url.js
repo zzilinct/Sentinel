@@ -293,6 +293,12 @@ function brandInfo(p) {
     const inside = (flat, set) => set.has(t) || (t.length >= substringMin && flat.includes(t));
     if (!inDomain && inside(sldFlat, words)) inDomain = brand;
     if (!inSubdomain && subWords.some((s) => inside(s.flat, s.words))) inSubdomain = brand;
+    // A hyphen put inside the brand's name ("tik-tokbusiness", "pay-pal-help"): the name only appears once the
+    // hyphens are gone. Nobody splits a brand in two by accident.
+    // Six letters or more: a shorter brand is made by ordinary words meeting at a hyphen ("my-app-lessons" is not Apple).
+    const split = (label) => t.length >= 6 && /[-_]/.test(label) && !label.split(/[-_]/).some((part) => deskin(part).includes(t)) && deskin(label.replace(/[-_]/g, '')).includes(t);
+    if (!inDomain && split(p.sld)) inDomain = brand;
+    if (!inSubdomain && p.subdomains.some(split)) inSubdomain = brand;
 
     // Characters swapped for look-alikes ("paypa1", "g00gle", "micr0soft"): the name as written is not the brand, but
     // reads as it. That is a misspelling of the brand, and it was reported as "not a misspelling" because the

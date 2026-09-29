@@ -201,7 +201,13 @@ const URL_CHECKS = [
     run: ({ brand }) => (brand.inDomain ? fail(38, `Uses "${brand.inDomain.token}" but is not ${brand.inDomain.domains[0]}`) : pass('No borrowed brand in the domain')) },
 
   { id: 'U23', group: 'Impersonation', threat: 'scam', title: 'No brand name planted in a subdomain',
-    run: ({ brand }) => (brand.inSubdomain && !brand.inDomain ? fail(34, `Puts "${brand.inSubdomain.token}" in front of an unrelated domain`) : pass('No planted brand')) },
+    run: ({ brand, p }) => {
+      if (!brand.inSubdomain || brand.inDomain) return pass('No planted brand');
+      // On a platform where every customer gets a subdomain ("paypal.zendesk.com", "acme.okta.com"), a company's name
+      // in front is how the platform works.
+      if (L.TENANT_PLATFORMS.includes(p.registrable)) return pass(`A customer's own space on ${p.registrable}`);
+      return fail(42, `Puts "${brand.inSubdomain.token}" in front of an unrelated domain`);
+    } },
 
   { id: 'U24', group: 'Impersonation', threat: 'scam', title: 'Not a misspelling of a well-known brand',
     run: ({ brand }) => {
@@ -302,8 +308,13 @@ const KNOWLEDGE_CHECKS = [
       if (brand.official) return pass('Official site');
       // An archive's path IS another site's address (web.archive.org/web/2020/https://www.paypal.com/). That is a copy, not a costume.
       if (p.path.includes('://') && L.ARCHIVES.includes(p.host)) return pass('An archived copy of another site');
-      const segments = p.path.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
-      const hit = L.PROTECTED_BRANDS.find((b) => segments.includes(b.token) && !b.domains.includes(p.registrable));
+      const lower = p.path.toLowerCase();
+      // Words as written ("paypal"), without the digits stuck to them ("icloud2022"), and two words joined where a
+      // hyphen split a name ("axis-bank").
+      const segments = new Set(lower.split(/[^a-z0-9]+/).filter((t) => t.length >= 3));
+      for (const t of lower.split(/[^a-z]+/)) if (t.length >= 3) segments.add(t);
+      for (const seg of lower.split(/[^a-z0-9_-]+/)) if (/[-_]/.test(seg)) segments.add(seg.replace(/[-_0-9]/g, ''));
+      const hit = L.PROTECTED_BRANDS.find((b) => segments.has(b.token) && !b.domains.includes(p.registrable));
       if (!hit) return pass('No brand names in the path');
       const login = CREDENTIAL_WORDS.some((w) => words.has(w) || p.path.toLowerCase().includes(w));
       return fail(login ? 30 : 22, `Path mentions "${hit.token}" but this is not ${hit.domains[0]}${login ? ', next to login wording' : ''}`);

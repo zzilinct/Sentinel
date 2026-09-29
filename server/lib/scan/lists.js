@@ -201,6 +201,17 @@ const FREE_MAIL_PROVIDERS = new Set([
 ]);
 
 // Sites the badge never appears on: search engines, top destinations, infrastructure.
+// Business platforms that give every customer company its own subdomain (sign-in, help desk, intranet): a brand's
+// name in front of these is that brand's own space, not a costume.
+const TENANT_PLATFORMS = [
+  'okta.com', 'oktapreview.com', 'onelogin.com', 'auth0.com', 'zendesk.com', 'freshdesk.com', 'atlassian.net',
+  'service-now.com', 'servicenowservices.com', 'my.salesforce.com', 'force.com', 'salesforce.com', 'my.site.com',
+  'slack.com', 'zoom.us', 'webex.com', 'box.com', 'sharepoint.com', 'workday.com', 'myworkdayjobs.com',
+  'greenhouse.io', 'lever.co', 'bamboohr.com', 'status.io', 'statuspage.io', 'helpscoutdocs.com', 'intercom.help',
+  'gitbook.io', 'readme.io', 'docebosaas.com', 'thinkific.com', 'teachable.com', 'kajabi.com', 'ukg.net',
+  'successfactors.com', 'sapsf.com', 'oraclecloud.com', 'custhelp.com', 'desk.com', 'hubspotpagebuilder.com'
+];
+
 const DEFAULT_ALLOWLIST = [
   'google.com', 'bing.com', 'duckduckgo.com', 'yahoo.com', 'search.brave.com',
   'ecosia.org', 'startpage.com', 'baidu.com', 'yandex.com',
@@ -266,5 +277,5 @@ module.exports = {
   MULTI_SUFFIXES, RISKY_TLDS, KIT_FILES, ARCHIVES, PROTECTED_BRANDS, HOST_KEYWORDS, PATH_KEYWORDS, NOT_LOOKALIKES,
   TECH_SUPPORT_WORDS, DELIVERY_WORDS, GOV_WORDS, URL_SHORTENERS, FREE_HOSTING, DYNAMIC_DNS, OBJECT_STORAGE,
   CRYPTOMINER_HOSTS, EXECUTABLE_EXT, MACRO_DOC_EXT, ARCHIVE_EXT, DOC_EXT, FREE_MAIL_PROVIDERS,
-  DEFAULT_ALLOWLIST, SEED_BLOCKLIST, SCAM_KITS, PATH_HOSTING
+  DEFAULT_ALLOWLIST, SEED_BLOCKLIST, SCAM_KITS, PATH_HOSTING, TENANT_PLATFORMS
 };

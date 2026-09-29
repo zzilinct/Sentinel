@@ -134,7 +134,25 @@ const BRANDS = [
   // Government and tax
   { token: 'irs', domains: ['irs.gov'] },
   { token: 'hmrc', domains: ['gov.uk'] },
-  { token: 'medicare', domains: ['medicare.gov', 'cms.gov'] }
+  { token: 'medicare', domains: ['medicare.gov', 'cms.gov'] },
+
+  // Asia and enterprise sign-in: today's phishing feeds are full of them (naver.<something>.ltd, rakutenid.<...>)
+  { token: 'naver', domains: ['naver.com', 'naver.net', 'navercorp.com'] },
+  { token: 'kakao', domains: ['kakao.com', 'kakaocorp.com', 'daum.net', 'kakaobank.com'] },
+  { token: 'rakuten', domains: ['rakuten.co.jp', 'rakuten.com', 'rakuten.ne.jp', 'rakuten-card.co.jp', 'rakuten-bank.co.jp', 'rakuten-sec.co.jp', 'rakuten.fr', 'rakuten.de', 'rakuten.tv'] },
+  { token: 'okta', domains: ['okta.com', 'oktacdn.com', 'okta-emea.com', 'oktapreview.com', 'okta.dev'] },
+  { token: 'aliyun', domains: ['aliyun.com', 'alibabacloud.com'] },
+  { token: 'alibaba', domains: ['alibaba.com', 'alibabacloud.com', 'alibaba-inc.com', 'alibabagroup.com', '1688.com'] },
+  { token: 'taobao', domains: ['taobao.com', 'tmall.com'] },
+  { token: 'douyin', domains: ['douyin.com'] },
+  { token: 'netease', domains: ['netease.com', '163.com', '126.com', 'yeah.net'] },
+  { token: 'dingtalk', domains: ['dingtalk.com'] },
+  { token: 'wechat', domains: ['wechat.com', 'qq.com', 'weixin.qq.com'] },
+  { token: 'yahoo', domains: ['yahoo.com', 'yahoo.co.jp', 'yahoo.net', 'yimg.com', 'yahoo.co.uk', 'ymail.com'] },
+  { token: 'docomo', domains: ['docomo.ne.jp', 'nttdocomo.co.jp', 'docomo.jp'] },
+  { token: 'mercari', domains: ['mercari.com', 'mercari.jp', 'merpay.com'] },
+  { token: 'autoscout24', domains: cc('autoscout24', ['com', 'de', 'be', 'it', 'fr', 'nl', 'at', 'ch', 'es', 'lu', 'pl', 'se', 'ro', 'bg', 'hr', 'cz', 'hu', 'ru', 'com.tr', 'ua']) },
+  { token: 'axisbank', domains: ['axisbank.com', 'axisbank.co.in', 'axis.bank.in'] }
 
 ];
 

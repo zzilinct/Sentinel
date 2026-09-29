@@ -78,6 +78,22 @@ test('well-known and ordinary sites stay clean', async () => {
   }
 });
 
+test('today\'s phishing shapes are flagged from the address alone; customers\' spaces on business platforms are not', async () => {
+  // From a live phishing feed (addresses only, nothing opened): a brand planted in front of an unrelated domain,
+  // Asian and sign-in brands, a hyphen put inside a brand's name, a brand in the path with the digits stuck on.
+  const flagged = ['https://naver.evergreenfin.ltd/', 'https://rakutenid.evergreenfin.ltd/', 'https://okta.evergreenfin.ltd/',
+    'https://chase.phntm.com/', 'https://facebook.sioll.net/', 'https://sell.tik-tokbusiness.com/login', 'https://coin-base.help/'];
+  for (const url of flagged) assert.ok((await scan(url)).overall.badge, url);
+  const clear = ['https://acme.zendesk.com/', 'https://paypal.okta.com/', 'https://naver.com/', 'https://www.rakuten.co.jp/',
+    'https://login.yahoo.com/', 'https://my-app-lessons.com/', 'https://check-in.com/'];
+  for (const url of clear) {
+    const v = await scan(url);
+    assert.equal(v.overall.badge, null, `${url} ${v.threats.scam.score}`);
+  }
+  const path = await scan('https://sopport-cloud.us/icloud2022-esp.php/');
+  assert.ok(path.checklist.items.some((c) => c.id === 'U40' && c.status === 'fail'), 'icloud in "icloud2022-esp.php" counts as a brand in the path');
+});
+
 test('no knowledge-base record lowers the risk score', async () => {
   const v = await scan('https://secure-account-update.online/');
   assert.equal(v.knowledge.known, false);
