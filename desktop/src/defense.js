@@ -27,8 +27,8 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
-const { scanFile, MAX_FILE_BYTES } = require('../shared/filescan');
-const { summarize } = require('./downloads');
+const { MAX_FILE_BYTES } = require('../shared/filescan');
+const { summarize, analyze } = require('./downloads');
 
 const PROGRAM = /\.(exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|js|jse|wsf|hta|jar|dll|cpl|lnk|reg)$/i;
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
@@ -179,11 +179,12 @@ async function inspect(full, how) {
   if (full.startsWith(opts.quarantineDir) || (opts.selfDir && full.startsWith(opts.selfDir))) return null;
 
   const name = path.basename(full);
-  let buf = null;
+  // Hashed as a stream and analysed on a worker thread (downloads.analyze): the main thread, which also draws live
+  // scanning's marks, never holds or reads through a whole file.
+  const small = stat.size <= MAX_FILE_BYTES;
   let sha256;
   try {
-    buf = stat.size <= MAX_FILE_BYTES ? fs.readFileSync(full) : null;
-    sha256 = buf ? crypto.createHash('sha256').update(buf).digest('hex') : await hashFile(full);
+    sha256 = await hashFile(full);
   } catch (err) {
     // Windows answers "this file contains a virus" (error 225, which Node
     // reports as UNKNOWN) when the system antivirus has already condemned a
@@ -209,7 +210,8 @@ async function inspect(full, how) {
   // known-hash lookup is a second opinion with a short leash, because on a
   // fresh install the server is busy loading its threat lists.
   let known = null;
-  let report = buf ? scanFile(buf, name, { lookupHash: () => null }) : null;
+  const look = (known) => (small ? analyze(full, name, known).catch(() => null) : Promise.resolve(null));
+  let report = await look(null);
   let worst = summarize(report, null);
   if (!worst.badge) {
     try {
@@ -219,7 +221,7 @@ async function inspect(full, how) {
       ]);
       if (r && r.known) known = { threat: r.threat, name: r.name || 'Known malicious file', source: 'sentinel' };
     } catch { /* offline or busy: the local verdict stands */ }
-    if (known) { report = buf ? scanFile(buf, name, { lookupHash: () => known }) : null; worst = summarize(report, known); }
+    if (known) { report = await look(known); worst = summarize(report, known); }
   }
   const item = { path: full, name, size: stat.size, sha256, how, at: Date.now(), badge: worst.badge, label: worst.label, threat: worst.threat, reason: worst.reason };
   if (!worst.badge) { cleanCount++; return item; }
