@@ -123,6 +123,7 @@ $forceRead = $true; $readAt = 0; $lastCount = 0
 # The overlay's window (sent by the app once it exists) and the browser it belongs over.
 $overlayH = [IntPtr]::Zero; $browserH = [IntPtr]::Zero
 $lastFocus = ''; $recheckAt = 0
+$trace = '__TRACE__' -eq '1'; $scrollP = $null; $lastSp = -1
 # Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
 # so the loop would stop at the first read until the app sent a command. A plain reader over the raw stream is
 # truly asynchronous.
@@ -204,6 +205,14 @@ while ($true) {
           }
         }
       } catch { $anchor = $null }
+    }
+    # End-to-end runs only (never in a released build's normal use): how the page's own scroll position moves, next
+    # to the link positions above, to learn whether it is reported more often.
+    if ($trace -and $scrollP) {
+      try {
+        $v = $scrollP.Current.VerticalScrollPercent
+        if ($v -ne $lastSp) { $lastSp = $v; Write-Output ('{"sp":' + $v.ToString([Globalization.CultureInfo]::InvariantCulture) + ',"t":' + [Environment]::TickCount + '}') }
+      } catch { $scrollP = $null }
     }
   }
   # The page has settled: the full read now puts every mark exactly where its link is.
@@ -341,6 +350,7 @@ while ($true) {
       Write-Output (@{ links = @($list); covered = $covered; for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
       # New positions: the anchor starts again from here, and the marks from zero movement.
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0
+      if ($trace) { try { $scrollP = $doc.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern); Write-Output ('{"sp":-2,"view":' + $scrollP.Current.VerticalViewSize.ToString([Globalization.CultureInfo]::InvariantCulture) + ',"t":' + [Environment]::TickCount + '}') } catch { $scrollP = $null; Write-Output '{"sp":-1,"t":0}' } }
     }
     # A heavy page must not make the reader spin: rest at least twice as long as the read took.
     if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
@@ -502,7 +512,8 @@ function start() {
   const src = /\$src = @"([\s\S]*?)"@/.exec(SCRIPT)[1];
   const dll = opts.helperDll ? path.join(path.dirname(String(opts.helperDll)), `reader-helper-${crypto.createHash('sha256').update(src).digest('hex').slice(0, 12)}.dll`) : '';
   const helper = dll.replace(/'/g, "''");
-  const body = SCRIPT.replace('__TEST_PROCESS__', () => testProcess).replace('__HELPER_DLL__', () => helper);
+  const body = SCRIPT.replace('__TEST_PROCESS__', () => testProcess).replace('__HELPER_DLL__', () => helper)
+    .replace('__TRACE__', () => (process.env.SENTINEL_OVERLAY_TRACE ? '1' : ''));
   try {
     const { file, args } = readerLaunch(body, opts.helperDll ? path.dirname(String(opts.helperDll)) : os.tmpdir());
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -597,6 +608,11 @@ function onLine(line) {
   if ('win' in msg) {
     if (!msg.win) { clearTimeout(settleTimer); state.current = null; latestLinks = null; }
     setWindow(msg.win || null);
+    return;
+  }
+  if (typeof msg.sp === 'number') {
+    const trace = process.env.SENTINEL_OVERLAY_TRACE;
+    if (trace) { try { fs.appendFileSync(trace, `P ${msg.t} ${msg.sp}${msg.view != null ? ` view ${msg.view}` : ''}\n`); } catch { /* best effort */ } }
     return;
   }
   if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t }); return; }
