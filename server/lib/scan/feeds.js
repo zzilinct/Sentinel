@@ -116,6 +116,7 @@ const q = {
   status: db.prepare(`INSERT INTO feed_status (source, fetched_at, entries, ok, error) VALUES (?, ?, ?, ?, ?)
                       ON CONFLICT(source) DO UPDATE SET fetched_at = excluded.fetched_at, entries = excluded.entries, ok = excluded.ok, error = excluded.error`),
   allStatus: db.prepare('SELECT * FROM feed_status ORDER BY source'),
+  oneStatus: db.prepare('SELECT * FROM feed_status WHERE source = ?'),
   meta: db.prepare("SELECT fetched_at FROM feed_status WHERE source = '_token_rebuild'")
 };
 
@@ -211,7 +212,17 @@ async function refreshFeed(feed) {
     const res = await fetch(feed.url, { signal: AbortSignal.timeout(120000), headers: { 'User-Agent': 'SentinelScan/1.0 (+threat-feed-sync)' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
+    // A list that has not changed since the last import is not imported again: importing rewrites every one of its
+    // rows (hundreds of thousands, for the largest), which is minutes of work in the background for nothing.
+    const digest = require('crypto').createHash('sha1').update(text).digest('hex');
+    const before = q.oneStatus.get(feed.id);
+    const last = q.oneStatus.get(`_digest:${feed.id}`);
+    if (before && before.ok && last && last.error === digest) {
+      q.status.run(feed.id, now(), before.entries, 1, null);
+      return { source: feed.id, ok: true, entries: before.entries, unchanged: true, added: new Set(), removed: new Set() };
+    }
     const result = await importLines(feed, extract(feed, text));
+    q.status.run(`_digest:${feed.id}`, now(), result.count, 1, digest);
     return { source: feed.id, ok: true, entries: result.count, added: result.added, removed: result.removed };
   } catch (err) {
     q.status.run(feed.id, now(), 0, 0, String(err.message).slice(0, 200));
@@ -264,9 +275,9 @@ async function refreshAll({ log = false, force = false } = {}) {
     for (const feed of FEEDS) {
       if (!force && !isStale(feed)) continue;
       const r = await refreshFeed(feed);
-      results.push({ source: r.source, ok: r.ok, entries: r.entries, error: r.error });
+      results.push({ source: r.source, ok: r.ok, entries: r.entries, error: r.error, unchanged: Boolean(r.unchanged) });
       if (r.ok) { r.added.forEach((h) => added.add(h)); r.removed.forEach((h) => removed.add(h)); }
-      if (log) console.log(`  feed      ${feed.id}: ${r.ok ? `${r.entries.toLocaleString()} entries` : `failed (${r.error})`}`);
+      if (log) console.log(`  feed      ${feed.id}: ${r.ok ? `${r.entries.toLocaleString()} entries${r.unchanged ? ' (unchanged, not imported again)' : ''}` : `failed (${r.error})`}`);
     }
     const last = q.meta.get();
     if (!last || now() - last.fetched_at > FULL_REBUILD_MS) await rebuildTokens();
@@ -299,7 +310,7 @@ function refreshInBackground(options = {}) {
     w.once('exit', () => resolve({ ok: false, error: 'stopped' }));
   }).then((msg) => {
     // A refresh that loaded nothing new (every feed failed, or none was due) leaves cached results valid.
-    const unchanged = msg && msg.ok && (msg.results || []).every((r) => !r.ok);
+    const unchanged = msg && msg.ok && (msg.results || []).every((r) => !r.ok || r.unchanged);
     if (!unchanged) revision++;
     return msg;
   }).finally(() => { worker = null; });
@@ -324,6 +335,6 @@ module.exports = {
   revision: () => revision,
   refreshInBackground,
   REFRESH_MARKER,
-  FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness,
+  FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness, _test: { refreshFeed },
   status: () => q.allStatus.all().filter((r) => !r.source.startsWith('_'))
 };

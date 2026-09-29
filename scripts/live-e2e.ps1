@@ -147,6 +147,12 @@ Start-Sleep 30
 Footprint 'after browsing'
 # A minute with nothing in front but the desktop: what Sentinel uses while someone plays a game or works.
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# Background work first (a threat-list import after the restart above), up to six minutes: at rest is what counts.
+for ($i = 0; $i -lt 18; $i++) {
+  $a = @(SentinelProcesses | Measure-Object CPU -Sum).Sum; Start-Sleep 20; $b = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
+  Say ("settling: {0:N1} s of processor time in 20 s" -f ($b - $a))
+  if (($b - $a) -lt 0.6) { break }
+}
 $before = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
 Start-Sleep 60
 $after = @(SentinelProcesses | Measure-Object CPU -Sum).Sum

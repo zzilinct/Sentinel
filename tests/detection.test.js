@@ -39,6 +39,23 @@ test('known malware and virus hosts light the right mask', async () => {
   assert.equal(lvl(await scan('https://free-crack-downloads.icu/'), 'virus'), 'confirmed');
 });
 
+test('a threat list that has not changed since the last download is not imported again', async () => {
+  const http = require('http');
+  const body = 'unchanged-list-one.example\nunchanged-list-two.example\n';
+  const server = http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end(body); });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    const feed = { ...feeds.FEEDS.find((f) => f.id === 'phishing_database'), id: 'test_unchanged', url: `http://127.0.0.1:${server.address().port}/list.txt` };
+    const first = await feeds._test.refreshFeed(feed);
+    assert.equal(first.ok, true);
+    assert.ok(!first.unchanged, 'the first download is imported');
+    const second = await feeds._test.refreshFeed(feed);
+    assert.equal(second.ok, true);
+    assert.equal(second.unchanged, true, 'the same list again is not');
+    assert.equal(second.entries, first.entries);
+  } finally { server.close(); }
+});
+
 test('imported public feeds are used as knowledge', async () => {
   await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'openphish'), [
     'https://compromised-dentist-site.com/wp-content/uploads/secure/login.php',
