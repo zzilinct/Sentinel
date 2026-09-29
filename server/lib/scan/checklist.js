@@ -669,6 +669,9 @@ const INFRA_CHECKS = [
     run: (ctx) => {
       const r = needsResearch(ctx); if (r) return r;
       const reg = ctx.research.registration;
+      // Some registries (.edu among them) answer "not found" for domains they do hold. A domain that resolves to a
+      // server is owned by someone, whatever its registry says.
+      if (reg.available && reg.registered === false && ctx.research.dns && ctx.research.dns.resolves) return pass('Resolves to a server (its registry did not answer for it)');
       return reg.available && reg.registered === false ? fail(20, 'Nobody owns this domain - the link is fake or already taken down') : pass(reg.available ? 'Registered' : 'Registry not reachable');
     } },
 
