@@ -67,6 +67,16 @@ $up = $false
 for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }
 Say "scanner up again: $up"
 Start-Sleep 15
+# What Sentinel costs the computer: every process it runs, its memory and the processor time it has used so far.
+function Footprint($when) {
+  $ps = @(Get-Process Sentinel, powershell -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -eq 'Sentinel' -or ($_.CommandLine -and $_.CommandLine -match 'EncodedCommand') })
+  $mb = [math]::Round((($ps | Measure-Object WorkingSet64 -Sum).Sum) / 1MB)
+  $priv = [math]::Round((($ps | Measure-Object PrivateMemorySize64 -Sum).Sum) / 1MB)
+  $cpu = [math]::Round((($ps | Measure-Object CPU -Sum).Sum), 1)
+  Say "footprint ${when}: $($ps.Count) processes, $mb MB in memory ($priv MB private), $cpu s of processor time so far"
+  foreach ($p in $ps) { Say ("  {0,-11} {1,6} MB  {2,7} s  {3}" -f $p.ProcessName, [math]::Round($p.WorkingSet64 / 1MB), [math]::Round($p.CPU, 1), $p.PriorityClass) }
+}
+Footprint 'after start'
 
 # 3. A search in Edge, maximised.
 function Search($url, $name, $menuAt) {
@@ -120,6 +130,15 @@ foreach ($u in $popular) {
   try { Invoke-WebRequest $u -OutFile (Join-Path $dl ([IO.Path]::GetFileName($u))) -UseBasicParsing -TimeoutSec 60; Say "downloaded $u" } catch { Say "could not download $u" }
 }
 Start-Sleep 30
+
+Footprint 'after browsing'
+# A minute with nothing in front but the desktop: what Sentinel uses while someone plays a game or works.
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+$before = @(Get-Process Sentinel, powershell -ErrorAction SilentlyContinue | Measure-Object CPU -Sum).Sum
+Start-Sleep 60
+$after = @(Get-Process Sentinel, powershell -ErrorAction SilentlyContinue | Measure-Object CPU -Sum).Sum
+Say ("idle minute: Sentinel used {0:N1} s of processor time in 60 s ({1:N1}% of one core)" -f ($after - $before), (($after - $before) / 60 * 100))
+Footprint 'after an idle minute'
 
 # 6. What Sentinel saw.
 Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue
