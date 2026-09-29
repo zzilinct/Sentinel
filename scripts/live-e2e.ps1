@@ -50,6 +50,9 @@ $data = "$env:APPDATA\Sentinel"; New-Item -ItemType Directory -Force $data | Out
 [IO.File]::WriteAllText("$data\settings.json", '{"liveScanning":true,"autoScan":true,"openAtLogin":false}')
 $env:SENTINEL_LINK_DUMP = "$Out\links.jsonl"   # what the reader saw on each results page, for review
 $env:SENTINEL_OVERLAY_TRACE = "$Out\frames.txt" # every frame of the marks moving, to measure smoothness
+# A stand-in webmail inbox served on this desktop (it cannot sign in to real webmail): scripts/e2e-inbox/mail/.
+$env:SENTINEL_TEST_INBOX = '47900'
+$inboxServer = Start-Process python -ArgumentList '-m', 'http.server', '47900', '--bind', '127.0.0.1', '--directory', (Join-Path $PSScriptRoot 'e2e-inbox') -PassThru -WindowStyle Hidden
 Start-Process $exe -ArgumentList '--hidden'
 $up = $false
 for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }
@@ -86,7 +89,13 @@ Search 'https://duckduckgo.com/?q=paypal+login+help' 'ddg' @(978, 119)
 Search 'https://www.bing.com/search?q=cheap+airpods+pro+outlet' 'bing'
 Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871, 131)
 
-# 4. What Sentinel saw.
+# 4. An inbox (a Pro feature: this test desktop's accounts get Pro first). Everyday mail and scams side by side:
+# the scams should get a mask, the rest a tick, and marks must stay inside the message list while it scrolls.
+Say (node (Join-Path $PSScriptRoot 'e2e-pro.js') "$data\sentinel.db")
+Search 'http://127.0.0.1:47900/mail/' 'inbox'
+if ($inboxServer) { Stop-Process -Id $inboxServer.Id -Force -ErrorAction SilentlyContinue }
+
+# 5. What Sentinel saw.
 Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue
 Say '--- watch.log'; Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-Object -Last 40 | ForEach-Object { Say "  $_" }
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 15 | ForEach-Object { Say "  $_" }

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Inbox - test@example.com - Mail</title>
+<!-- A stand-in webmail inbox for scripts/live-e2e.ps1 (a test desktop cannot sign in to real webmail). Laid out like
+     Gmail: a fixed bar on top, then a message list that scrolls inside the page, each message a grid row that says
+     what the inbox shows (sender, subject, time, first line). Real everyday mail and scams side by side. -->
+<style>
+  body { margin: 0; font: 14px/1.4 "Segoe UI", system-ui, sans-serif; color: #202124; background: #f6f8fc; }
+  header { position: fixed; top: 0; left: 0; right: 0; height: 64px; display: flex; align-items: center; gap: 16px; padding: 0 20px; background: #f6f8fc; z-index: 2; }
+  header b { font-size: 22px; font-weight: 500; }
+  header input { flex: 1; max-width: 720px; height: 44px; border: 0; border-radius: 8px; background: #e9eef6; padding: 0 16px; font: inherit; }
+  main { position: fixed; top: 64px; bottom: 12px; left: 180px; right: 16px; background: #fff; border-radius: 16px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  tr { height: 40px; border-bottom: 1px solid #f1f3f4; cursor: pointer; }
+  tr:hover { box-shadow: inset 1px 0 0 #dadce0, inset -1px 0 0 #dadce0, 0 1px 2px rgba(60,64,67,.3); }
+  td { padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  td.from { width: 190px; font-weight: 600; }
+  td.when { width: 80px; text-align: right; color: #5f6368; font-size: 12px; }
+  .preview { color: #5f6368; }
+  nav { position: fixed; top: 64px; left: 0; width: 180px; padding: 8px 0; }
+  nav a { display: block; padding: 6px 24px; color: #202124; text-decoration: none; border-radius: 0 16px 16px 0; }
+  nav a.on { background: #d3e3fd; font-weight: 600; }
+</style>
+</head>
+<body>
+<header><b>Mail</b><input placeholder="Search mail" aria-label="Search mail"></header>
+<nav><a class="on" href="#">Inbox</a><a href="#">Starred</a><a href="#">Sent</a><a href="#">Drafts</a></nav>
+<main>
+  <table role="grid" aria-label="Messages"><tbody id="rows"></tbody></table>
+</main>
+<script>
+  // [sender, subject, time, first line]
+  var mail = [
+    ['Google', 'Security alert', '9:12 AM', 'A new sign-in on Windows. If this was you, you don’t need to do anything. If not, we’ll help you secure your account.'],
+    ['PayPal Support Team', 'Your account has been limited', '9:03 AM', 'We noticed unusual activity. Verify your identity within 24 hours or your account will be permanently suspended. Pay the $499 security fee with Google Play gift cards and send us the codes.'],
+    ['Canva', 'Your Canva verification code is 482913', '8:40 AM', 'Use this code to finish signing in. It expires in 10 minutes.'],
+    ['Grace Community Church', 'Wednesday night dinner is cancelled', '8:15 AM', 'Because of the storm we are cancelling dinner this week. See everyone on Sunday!'],
+    ['Elon Musk Giveaway', 'Double your Bitcoin today only', '7:55 AM', 'Send 0.1 BTC to the wallet below and receive 0.2 BTC back instantly. Limited to the first 1,000 people.'],
+    ['Amazon.com', 'Your package was delivered', 'Yesterday', 'Your package was left near the front door or porch.'],
+    ['Mom', 'Dinner Sunday?', 'Yesterday', 'Are you coming over for dinner on Sunday? Bring the salad bowl back please.'],
+    ['USPS Delivery', 'Your parcel is on hold: redelivery fee required', 'Sep 27', 'Pay the $1.99 redelivery fee now or your package will be returned to the sender.'],
+    ['Spotify', 'Your weekly mixtape is ready', 'Sep 27', 'Discover Weekly is fresh. 30 new songs picked for you.'],
+    ['Coach Rivera', 'Practice moved to 5:30', 'Sep 26', 'Field 3 is closed, so we are meeting at field 1 instead.'],
+    ['Microsoft account team', 'Microsoft account security code', 'Sep 26', 'Please use the following security code for the Microsoft account.'],
+    ['IRS Tax Refund Department', 'Final notice: unclaimed tax refund of $3,457.20', 'Sep 25', 'You are eligible for a refund. To receive it, confirm your bank account and pay the processing fee in Bitcoin within 48 hours or it will be forfeited.'],
+    ['GitHub', '[GitHub] A new SSH key was added to your account', 'Sep 25', 'If you did not add this key, remove it and change your password.'],
+    ['Library', 'Your hold is ready for pickup', 'Sep 24', 'The book you requested is waiting at the front desk for 7 days.'],
+    ['Netflix', 'New sign-in to your account', 'Sep 24', 'We noticed a new sign-in with your account on a TV in your home.'],
+    ['Apple Support', 'Your Apple ID has been locked for security reasons', 'Sep 23', 'Your Apple ID was locked. Call +1 (888) 555-0147 now and a technician will unlock it after you pay the $299 support fee with gift cards.'],
+    ['School District', 'Picture day is Thursday', 'Sep 23', 'Order forms are due Wednesday. Retakes are in October.'],
+    ['Walgreens', 'Your prescription is ready', 'Sep 22', 'Your prescription is ready for pickup at your store.'],
+    ['Venmo', 'You paid Alex $12.00', 'Sep 22', 'Pizza night. Your payment is complete.'],
+    ['Dropbox', 'Someone shared a folder with you', 'Sep 21', 'Jamie shared the folder Trip photos with you.'],
+    ['Lottery International', 'Congratulations! You won $1,500,000', 'Sep 21', 'Your email was selected. To claim your prize, pay the $750 release fee by wire transfer today.'],
+    ['Costco', 'Your weekly savings', 'Sep 20', 'Save on groceries, tires and more this week.'],
+    ['Dentist Office', 'Appointment reminder', 'Sep 20', 'This is a reminder of your cleaning on Oct 3 at 10:00 AM.'],
+    ['LinkedIn', 'You appeared in 12 searches this week', 'Sep 19', 'See who is looking at your profile.']
+  ];
+  var tbody = document.getElementById('rows');
+  mail.forEach(function (m, i) {
+    var tr = document.createElement('tr');
+    tr.setAttribute('role', 'row');
+    tr.setAttribute('aria-label', (i < 5 ? 'unread, ' : '') + m[0] + ', ' + m[1] + ', ' + m[2] + ', ' + m[3]);
+    tr.innerHTML = '<td class="from"></td><td><span class="subject"></span> <span class="preview"></span></td><td class="when"></td>';
+    tr.children[0].textContent = m[0];
+    tr.querySelector('.subject').textContent = m[1];
+    tr.querySelector('.preview').textContent = '- ' + m[3];
+    tr.children[2].textContent = m[2];
+    tbody.appendChild(tr);
+  });
+</script>
+</body>
+</html>
