@@ -416,8 +416,16 @@ async function autoInstallSoon() {
   const away = !browserInFront && idleSeconds >= 5 * 60 && !usingSentinel;
   if (open.length && !away) return;
   if (usingSentinel && idleSeconds < 5 * 60) return;
-  autoInstalling = true;
+  // Never in the middle of something: someone typing or moving the mouse, or a game or video fullscreen (a game
+  // played with a controller leaves the keyboard and mouse idle, so fullscreen is asked of Windows itself).
+  if (idleSeconds < 2 * 60 || await fullscreenInFront()) return;
   const version = updater.status().version;
+  // An update that failed to install twice is left for the person to install: trying again and again would
+  // restart Sentinel over and over.
+  const tries = store.get('autoInstallTries', {});
+  if ((tries[version] || 0) >= 2) return;
+  store.set('autoInstallTries', { [version]: (tries[version] || 0) + 1 });
+  autoInstalling = true;
   appLog(`updating to ${version} by itself (${open.length ? `idle ${Math.round(idleSeconds / 60)} min` : 'no browser open'})`);
   const r = await updater.install({ relaunch: true, hidden: !(win && !win.isDestroyed() && win.isVisible()) }).catch((err) => ({ ok: false, error: err.message }));
   if (!r.ok) { autoInstalling = false; appLog(`automatic update did not start: ${r.error || 'unknown'}`); }
