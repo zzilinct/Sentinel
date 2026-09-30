@@ -227,6 +227,9 @@ async function research(p, { lite = false, budgetMs = 0 } = {}) {
   // Page content can differ by scheme, port, path and query; fragments are local.
   const requestUrl = new URL(p.url);
   requestUrl.hash = '';
+  // Live scanning looks at pages nobody asked it to open: its query can be a one-time sign-in or reset link, which
+  // Sentinel's visit would use up. It opens the page without it. A link someone pastes to scan is opened as given.
+  if (budgetMs) requestUrl.search = '';
   const key = lite ? `lite:${p.host}` : `url-v2:${crypto.createHash('sha256').update(requestUrl.href).digest('hex')}`;
   const cached = q.get.get(key);
   if (cached && now() - cached.checked_at < CACHE_MS && !p.ext) {
