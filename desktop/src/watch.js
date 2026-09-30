@@ -390,7 +390,10 @@ while ($true) {
         $item = @{ u = $u; x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height }
         # A covered link still says which result its neighbours belong to; the app leaves that result without a mark.
         if ($sw.ElapsedMilliseconds -lt $hitBudget -and (Covered $l $b)) { $covered++; $item.c = 1; $item.by = $coverHit }
-        elseif (-not $firstEl) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
+        # The anchor the page's movement is measured by: the link nearest the middle of the page. The first one was
+        # often a header link (DuckDuckGo's logo) in a bar that hides and comes back while scrolling, so the anchor
+        # moved by itself and threw every mark off.
+        elseif (-not $firstEl -or [Math]::Abs($b.Y - $midY) -lt [Math]::Abs($fy - $midY)) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
         # Google's own redirect (/goto?url=...) hides where a result leads. The address it shows under the result's
         # title is part of the link's name, so the name goes along for those links only.
         # What the results page shows for the link (its title, and on Google the address under it): the page's own
