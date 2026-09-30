@@ -27,6 +27,11 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
 // One source of truth for the mask glyphs: the web app's copy.
 fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SRC, 'src', 'content', 'masks.js'));
+// And for the typeface the popup shares with the website, with its licence.
+fs.mkdirSync(path.join(SRC, 'src', 'fonts'), { recursive: true });
+for (const file of ['atkinson-hyperlegible-next-normal-400-700.woff2', 'atkinson-hyperlegible-next-OFL.txt']) {
+  fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'fonts', file), path.join(SRC, 'src', 'fonts', file));
+}
 
 fs.writeFileSync(path.join(SRC, 'src', 'lib', 'brand.js'),
   '// Generated from brand.json by scripts/build-extension.js - edit brand.json instead.\n' +
