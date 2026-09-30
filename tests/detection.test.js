@@ -83,12 +83,16 @@ test('imported public feeds are used as knowledge', async () => {
   await feeds.rebuildTokens();
 
   assert.equal(lvl(await scan('https://compromised-dentist-site.com/wp-content/uploads/secure/login.php'), 'scam'), 'confirmed');
-  // The rest of that site is likely dangerous while it hosts a listed page, and the reason says
+  // Other pages of that site are likely dangerous while it hosts a listed page, and the reason says
   // exactly what is known. It is not "confirmed": nobody has listed this address.
+  const deep = await scan('https://compromised-dentist-site.com/wp-content/uploads/other/index.php');
+  assert.equal(lvl(deep, 'scam'), 'likely');
+  assert.equal(deep.threats.scam.badge, 'orange');
+  assert.ok(deep.reasons.some((r) => /another page on this site is listed by OpenPhish; this address is not/i.test(r.text)), 'the reason says why');
+  // The front page is not the listed page (paypay.ne.jp has one listed page too): a note, not a warning.
   const root = await scan('https://compromised-dentist-site.com/');
-  assert.equal(lvl(root, 'scam'), 'likely');
-  assert.equal(root.threats.scam.badge, 'orange');
-  assert.ok(root.reasons.some((r) => /another page on this site is listed by OpenPhish; this address is not/i.test(r.text)), 'the reason says why');
+  assert.equal(lvl(root, 'scam'), 'caution');
+  assert.ok(root.reasons.some((r) => /another page on this site is listed by OpenPhish; this is not one of them/i.test(r.text)), 'the note says why');
   // "www." on either side of the list makes no difference.
   assert.equal(lvl(await scan('https://www.brand-new-phish-zone.com/'), 'scam'), 'confirmed');
   assert.equal(lvl(await scan('https://brand-new-phish-zone.com/anything'), 'scam'), 'confirmed');
