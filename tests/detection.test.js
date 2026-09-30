@@ -910,3 +910,14 @@ test('real pages deep inside real sites are left alone (shared documents, site b
   assert.deepEqual(flagged, []);
   assert.ok((await scan('https://sites.google.com/view/paypal-login-verify/home', { research: false })).overall.badge, 'a brand login page on a site builder still is not');
 });
+
+test('email: real mail from real companies is left alone, and today\'s scams are flagged, links or not', async () => {
+  const { legit, scam } = require('../scripts/evaluate-emails.json');
+  const flag = async (m) => Boolean((await engine.scanEmail(m, { research: false, mode: 'live', detail: 'compact' })).overall.badge);
+  const alarms = [];
+  for (const m of legit) if (await flag(m)) alarms.push(m.name);
+  assert.deepEqual(alarms, [], 'no real email is flagged');
+  let caught = 0;
+  for (const m of scam) if (await flag(m)) caught++;
+  assert.ok(caught >= scam.length - 2, `only ${caught}/${scam.length} scams flagged`);
+});

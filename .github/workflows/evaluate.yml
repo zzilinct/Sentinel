@@ -22,6 +22,7 @@ jobs:
           node-version: '24'
       - run: npm ci --ignore-scripts || npm install --ignore-scripts
       - run: node scripts/evaluate-modes.js --sample 200 --misses misses.txt | tee evaluation.txt
+      - run: node scripts/evaluate-emails.js | tee -a evaluation.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
