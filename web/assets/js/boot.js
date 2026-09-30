@@ -66,8 +66,10 @@ if (!('IntersectionObserver' in window)) document.documentElement.classList.add(
       if (!saved) continue;
       for (const el of form.elements) {
         if (skip(el) || !(el.name in saved)) continue;
+        // Only a field still as the page drew it takes the draft back: never one the person has typed in since. A
+        // field the app filled from the account (a name) counts as untouched, so an unsent edit to it comes back.
         if (el.type === 'checkbox') el.checked = Boolean(saved[el.name]);
-        else if (!el.value) el.value = saved[el.name];
+        else if (el.value === el.defaultValue) el.value = saved[el.name];
       }
     }
   }
@@ -85,6 +87,8 @@ if (!('IntersectionObserver' in window)) document.documentElement.classList.add(
   });
   document.addEventListener('DOMContentLoaded', restore);
   addEventListener('pageshow', (ev) => { if (ev.persisted) restore(); });
+  // The web app draws its forms after the page has loaded, and calls this once each view is on screen.
+  window.sentinelDrafts = { restore };
 })();
 
 // Installable web app. Service workers need HTTPS (or localhost in development).
