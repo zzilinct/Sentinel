@@ -219,7 +219,13 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
   // F08 - script droppers (text, scripts, HTA, shortcuts, documents)
   const droppers = [...new Set((lower.match(SCRIPT_DROPPER) || []).map((s) => s.trim().slice(0, 40)))];
   const scriptFile = ['js', 'jse', 'vbs', 'vbe', 'ps1', 'bat', 'cmd', 'hta', 'wsf', 'lnk'].includes(ext);
-  if (droppers.length >= 2 || (droppers.length && scriptFile)) {
+  // A dropper fetches something and runs it. Running code on its own (wscript.shell, invoke-expression) is what
+  // Windows' own admin scripts do all day, and marked 12 of 6,000 real Windows files: it needs a fetch beside it.
+  // Encoded PowerShell and mshta/regsvr32 pointed at a web address fetch and run in one command.
+  const fetches = droppers.some((d) => /downloadstring|downloadfile|net\.webclient|start-bitstransfer|certutil|bitsadmin|mshta|regsvr32|-(e|enc|encodedcommand)\b/.test(d));
+  if (!fetches && droppers.length) {
+    add('F08', 'malware', 'Does not download and run hidden code', warn(scriptFile ? 12 : 8, `Runs commands (${droppers.slice(0, 2).join(', ')}), but fetches nothing`));
+  } else if (droppers.length >= 2 || (droppers.length && scriptFile)) {
     const points = droppers.length >= 2 && scriptFile ? 65 : 50;
     add('F08', 'malware', 'Does not download and run hidden code', fail(points, `Download-and-execute commands: ${droppers.slice(0, 3).join(', ')}`));
   } else if (droppers.length) {
