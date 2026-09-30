@@ -309,7 +309,7 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
 
   // F14 - HTML attachments (phishing pages and smuggled payloads)
   if (type === 'html') {
-    const smuggle = /new\s+blob\s*\(/i.test(latin) && /createobjecturl|mssaveoropenblob/i.test(latin) && /[A-Za-z0-9+/]{2000,}={0,2}/.test(latin);
+    const smuggle = /new\s+blob\s*\(/i.test(latin) && /createobjecturl|mssaveoropenblob/i.test(latin) && /(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{2000}/.test(latin);
     const phish = /type\s*=\s*["']?password/i.test(latin);
     add('F14', 'malware', 'Not an HTML file carrying a payload or login form', smuggle
       ? fail(45, 'HTML file that assembles and downloads a hidden file')

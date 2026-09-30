@@ -90,14 +90,14 @@ const URL_CHECKS = [
 
   { id: 'U06', group: 'Address', threat: 'scam', title: 'Domain is not stuffed with hyphens',
     run: ({ p }) => {
-      const n = (p.sld.match(/-/g) || []).length;
+      const n = (shownName(p).match(/-/g) || []).length;
       if (n >= 3) return fail(12, `${n} hyphens in the domain name`);
       if (n === 2) return warn(5, 'Two hyphens in the domain name');
       return pass('Few or no hyphens');
     } },
 
   { id: 'U07', group: 'Address', threat: 'scam', title: 'No digits disguised inside words',
-    run: ({ p }) => (!p.isIp && /[a-z]\d|\d[a-z]/.test(p.sld) && !/^[a-z]{1,4}\d{1,3}$/.test(p.sld) ? warn(6, 'Digits mixed into the name (e.g. "0" for "o")') : pass('No mixed digits')) },
+    run: ({ p }) => (!p.isIp && /[a-z]\d|\d[a-z]/.test(shownName(p)) && !/^[a-z]{1,4}\d{1,3}$/.test(shownName(p)) ? warn(6, 'Digits mixed into the name (e.g. "0" for "o")') : pass('No mixed digits')) },
 
   { id: 'U08', group: 'Address', threat: 'scam', title: 'Served on a standard port',
     run: ({ p }) => (p.port && !['80', '443'].includes(p.port) ? fail(8, `Uses port ${p.port}`, { malware: 8 }) : pass('Standard port')) },
@@ -947,7 +947,7 @@ const CONTENT_CHECKS = [
       if (/eval\s*\(\s*(atob|unescape|decodeuricomponent|function\s*\(p,a,c,k,e)/i.test(js)) signals += 2;
       if ((js.match(/string\.fromcharcode/gi) || []).length > 5) signals += 1;
       if ((js.match(/\\x[0-9a-f]{2}/gi) || []).length > 200) signals += 1;
-      if (/[A-Za-z0-9+/]{600,}={0,2}/.test(js)) signals += 1;
+      if (/(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{600}/.test(js)) signals += 1;
       if (/_0x[0-9a-f]{4,}/.test(js)) signals += 1;
       if (signals >= 3) return fail(30, 'Heavily obfuscated inline scripts');
       if (signals >= 2) return warn(14, 'Obfuscated inline scripts');
@@ -1017,7 +1017,7 @@ const CONTENT_CHECKS = [
       if (!pg) return skip('No page content');
       const js = pg.inlineJs;
       const blob = /new\s+blob\s*\(/i.test(js) && /createobjecturl|mssaveoropenblob/i.test(js) && /\.download\s*=/.test(js);
-      const payload = /[A-Za-z0-9+/]{2000,}={0,2}/.test(js);
+      const payload = /(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{2000}/.test(js);
       return blob && payload ? fail(40, 'Builds a file inside the page and forces it to download') : pass('No smuggling pattern');
     } },
 
