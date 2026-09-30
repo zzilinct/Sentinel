@@ -890,3 +890,14 @@ test('inbox previews: the sender\'s name counts, and a company or agency asking 
   ];
   for (const row of clear) assert.equal((await check(row)).overall.badge, null, row);
 });
+
+test('pages hidden behind generated names are suspected; ordinary names, even odd real words, are not', async () => {
+  for (const url of ['http://doctorpizzaband.example/wp-content/uploads/aynqxts/wsdqmoc/dpgqmbx/clickon/pasific.html',
+    'http://sites.google.com/view/yvgfnnhfjw02/accueil', 'http://website-e86d3b7f.zhp.tyc.mybluehost.me/']) {
+    assert.ok(['suspicious', 'likely', 'confirmed'].includes(lvl(await scan(url, { research: false }), 'scam')), url);
+  }
+  for (const url of ['https://sites.google.com/view/strengths-club/home', 'https://www.nytimes.com/2026/09/30/rhythms/lyrics.html',
+    'https://example.com/wp-content/uploads/2024/05/brochure.pdf', 'https://en.wikipedia.org/wiki/Przemy%C5%9Bl']) {
+    assert.equal((await scan(url, { research: false })).checklist.items.find((c) => c.id === 'U56').status, 'pass', url);
+  }
+});
