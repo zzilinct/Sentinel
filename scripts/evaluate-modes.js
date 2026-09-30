@@ -94,7 +94,12 @@ async function main() {
   const pages = require('./evaluate-pages.json');
   const deep = await run('fast', pages, { research: false }, 16);
   const deepAlarms = pages.filter((u, i) => deep.verdicts[i] && deep.verdicts[i].overall.badge);
-  console.log(`  real pages left alone ${pages.length - deepAlarms.length}/${pages.length} = ${pct(pages.length - deepAlarms.length, pages.length)}${deepAlarms.length ? `   false alarms: ${deepAlarms.join(' ')}` : ''}\n`);
+  console.log(`  real pages left alone ${pages.length - deepAlarms.length}/${pages.length} = ${pct(pages.length - deepAlarms.length, pages.length)}${deepAlarms.length ? `   false alarms: ${deepAlarms.join(' ')}` : ''}`);
+  // Real, safe sites named like big companies (netlify and netflix, shopify and spotify, paypay and paypal).
+  const alike = require('./evaluate-lookalikes.json').map((x) => x.url);
+  const al = await run('fast', alike, { research: false }, 16);
+  const alAlarms = alike.filter((u, i) => al.verdicts[i] && al.verdicts[i].overall.badge);
+  console.log(`  look-alike names left alone ${alike.length - alAlarms.length}/${alike.length} = ${pct(alike.length - alAlarms.length, alike.length)}${alAlarms.length ? `   false alarms: ${alAlarms.join(' ')}` : ''}\n`);
   if (MISSES) {
     const missed = phish.filter((u, i) => fastP.verdicts[i] && !fastP.verdicts[i].overall.badge);
     fs.writeFileSync(MISSES, missed.join('\n') + '\n');
