@@ -26,7 +26,8 @@
 .res.is-selected { background: rgb(var(--gold-rgb) / .06); box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .25); }
 .res:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; }
 .res.is-entering { animation: rise-in .5s var(--ease-out) both; animation-delay: var(--d, 0s); }
-@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* New content settles a few pixels into place; it is never faded in. */
+@keyframes rise-in { from { transform: translateY(6px); } }
 
 .verdict__icon { transition: color .3s, background .3s, box-shadow .3s; }
 .verdict__icon.is-clear { color: var(--green); background: rgba(76, 183, 130, .12); box-shadow: inset 0 0 0 1px rgba(76, 183, 130, .4); }
@@ -76,7 +77,7 @@
 .game__loading { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 260px; color: var(--muted); }
 .game__round { animation: rise-in .45s var(--ease-out) both; }
 .game__context { font-size: 15px; color: var(--text-2); }
-.game__link { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 16px 18px; border-radius: 6px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-2); font: 15px var(--mono); color: #a9c1ff; word-break: break-all; }
+.game__link { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 16px 18px; border-radius: 6px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-2); font: 15px var(--mono); color: var(--link); word-break: break-all; }
 .game__link svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
 .game__q { margin-top: 22px; font-size: 14px; color: var(--muted); }
 .game__answers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
@@ -93,14 +94,14 @@
 .answer[disabled] { cursor: default; transform: none; opacity: .45; }
 .answer.is-picked { opacity: 1; box-shadow: inset 0 0 0 2px var(--c); }
 .answer.is-truth { opacity: 1; box-shadow: inset 0 0 0 2px var(--c), 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
-.answer.is-truth::after { content: "Sentinel"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font: 600 10px var(--sans); letter-spacing: .01em; text-transform: none; padding: 2px 7px; border-radius: 4px; color: #16130b; background: var(--c); }
+.answer.is-truth::after { content: "Sentinel"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font: 600 10px var(--sans); letter-spacing: .01em; text-transform: none; padding: 2px 7px; border-radius: 4px; color: var(--on-status); background: var(--c); }
 .game__reveal { margin-top: 22px; padding: 18px; border-radius: 6px; background: rgb(var(--ink) / .025); box-shadow: inset 0 0 0 1px var(--line); animation: rise-in .45s var(--ease-out) both; }
 .game__verdict { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .game__verdict h4 { font-size: 17px; font-weight: 500; }
 .game__result { font: 600 12px var(--sans); letter-spacing: .01em; text-transform: none; padding: 4px 9px; border-radius: 4px; }
-.game__result.is-right { color: #0d2a1c; background: var(--green); }
-.game__result.is-close { color: #2a2206; background: var(--yellow); }
-.game__result.is-wrong { color: #fff; background: var(--red); }
+.game__result.is-right { color: var(--on-status); background: var(--green); }
+.game__result.is-close { color: var(--on-status); background: var(--yellow); }
+.game__result.is-wrong { color: var(--on-status); background: var(--red); }
 .game__why { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 7px; }
 .game__why li { position: relative; padding-left: 14px; font-size: 14px; color: var(--text-2); }
 .game__why li::before { content: ""; position: absolute; left: 0; top: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--gold-400); }
@@ -152,7 +153,7 @@
 .finder__q.is-muted { opacity: .4; }
 .finder__label { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--text-2); }
 .finder__label b { color: var(--gold-200); font-weight: 500; }
-.finder__answer { grid-column: 1 / -1; padding: 16px 22px; background: #121210; font-size: 14.5px; color: var(--text-2); }
+.finder__answer { grid-column: 1 / -1; padding: 16px 22px; background: var(--surface); font-size: 14.5px; color: var(--text-2); }
 .finder__answer b { color: var(--gold-200); font-weight: 500; }
 .seg-toggle { display: inline-flex; padding: 4px; border-radius: 6px; background: rgb(var(--ink) / .03); box-shadow: inset 0 0 0 1px var(--line); }
 .seg-toggle button { flex: 1; height: 34px; padding: 0 14px; border: 0; border-radius: 4px; background: none; cursor: pointer; color: var(--muted); font: 500 13.5px var(--sans); transition: background .2s var(--ease), color .2s var(--ease), box-shadow .2s var(--ease); }
