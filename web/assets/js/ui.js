@@ -33,7 +33,11 @@ window.UI = (() => {
     try { data = await res.json(); } catch { /* empty */ }
     if (!res.ok) {
       const e = (data && data.error) || {};
-      throw new ApiError(e.message || `Something went wrong (${res.status})`, res.status, e);
+      // A server fault never shows its own text: people get a plain sentence, the code stays in the response.
+      const message = res.status === 429 ? (e.message || 'Too many tries in a short time. Wait a minute, then try again.')
+        : res.status >= 500 || !e.message ? 'Sentinel had a problem on its side. Try again in a moment.'
+        : e.message;
+      throw new ApiError(message, res.status, e);
     }
     return data;
   }
@@ -90,7 +94,12 @@ window.UI = (() => {
 
   /* ----------------------------------------------------------- busy */
 
+  // A second press while the first is still working does nothing, so a double tap never submits twice.
   async function busy(button, label, fn) {
+    if (button.dataset.busy) return undefined;
+    button.dataset.busy = '1';
+    const wasDisabled = button.disabled;
+    button.disabled = true;
     const original = button.innerHTML;
     button.classList.add('is-busy');
     button.setAttribute('aria-busy', 'true');
@@ -101,6 +110,8 @@ window.UI = (() => {
       button.classList.remove('is-busy');
       button.removeAttribute('aria-busy');
       button.innerHTML = original;
+      button.disabled = wasDisabled;
+      delete button.dataset.busy;
     }
   }
 

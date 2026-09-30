@@ -53,7 +53,7 @@
           <tr><td>Plan and weekly usage counters</td><td>To apply your plan&rsquo;s allowances</td><td>35 days</td></tr>
           <tr><td>Scan history: what was checked, when, and the result</td><td>So you can see and re-run past scans</td><td>90 days</td></tr>
           <tr><td>Sites you have trusted or blocked</td><td>To honour your rules on future scans</td><td>Until you remove them or delete the account</td></tr>
-          <tr><td>Reports you file: the site, your category and any note</td><td>To confirm threats for everyone when enough people agree</td><td>Until you delete the account</td></tr>
+          <tr><td>Reports you file: the site, your category and any note</td><td>To confirm threats for everyone when enough people agree</td><td>Linked to you until you delete the account. After that the report stays, with no link to you, so a confirmed threat stays confirmed for everyone</td></tr>
           <tr><td>Signed-in devices: browser name, IP address, last activity</td><td>So you can see and revoke sessions</td><td>Until the session ends or expires (30 days)</td></tr>
           <tr><td>Security log: sign-ins, password and 2FA changes, reports, plan changes, with IP address</td><td>To investigate misuse and unauthorised access</td><td>180 days</td></tr>
           <tr><td>Two-factor secret, encrypted</td><td>Two-factor sign-in, if you turn it on</td><td>Until you turn it off</td></tr>
@@ -64,12 +64,13 @@
       <h2>4. Without an account</h2>
       <ul>
         <li><b>Guest mode</b> lets you scan ten links a day per connection. Sentinel uses your IP address, in memory only, to count those ten. Nothing about a guest scan is written to disk or kept after the result is shown.</li>
-        <li><b>The website&rsquo;s demo</b> shows example verdicts that were computed when the site was built. Trying a link on the website works the same way as guest mode.</li>
+        <li><b>The website&rsquo;s demo</b> shows example verdicts that were computed when the site was built. Trying a link on the website is limited to five a day per connection, counted the same way as guest mode, in memory only.</li>
       </ul>
 
       <h2>5. Cookies and storage in your browser</h2>
       <ul>
         <li>One cookie, <span class="mono">sentinel_session</span>, keeps you signed in for 30 days. It is HttpOnly and SameSite, so scripts and other sites cannot read it. There are no advertising or analytics cookies, and no cookie banner because none is needed.</li>
+        <li>Two small settings are kept in your browser&rsquo;s local storage, never sent anywhere: <span class="mono">sentinel:theme</span> remembers whether you chose the light or dark theme, and <span class="mono">sentinel:stay</span> remembers whether you asked to stay signed in on this browser.</li>
         <li>The web app may register a service worker that caches Sentinel&rsquo;s own fonts and scripts so pages load faster. It stores nothing about you.</li>
         <li>The browser companion keeps its settings, your pairing token and a short-lived cache of recent verdicts in the browser&rsquo;s extension storage on your computer.</li>
       </ul>
@@ -102,7 +103,7 @@
 
       <h2>9. Your choices and rights</h2>
       <ul>
-        <li>Delete your account at any time from Security settings. Everything in section 3 is removed immediately, except security-log entries that finish their 180 days.</li>
+        <li>Delete your account at any time from Security settings. Everything in section 3 is removed immediately, except security-log entries that finish their 180 days and the reports you filed, which stay with no link to you.</li>
         <li>Revoke any signed-in device, remove any trusted or blocked site, and disconnect any AI assistant from the app.</li>
         <li>Ask us what we hold about you, to correct it, or to delete it, by emailing <a href="mailto:privacy@usesentinel.technology">privacy@usesentinel.technology</a>. Depending on where you live, laws such as the GDPR or the CCPA may give you further rights, including to complain to a regulator.</li>
       </ul>

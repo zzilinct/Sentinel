@@ -167,7 +167,8 @@ test('the website\'s numbers are the real ones (checks in the checklist, kinds o
   const total = (await scan('https://example.com/', { detail: 'full' })).checklist.total;
   assert.ok(html.includes(`<span data-count="${total}" data-live="checks">${total}</span>`), `the site should say ${total} checks`);
   assert.ok(html.includes(`<span data-v-checks>${total} checks</span>`), `the demo should say ${total} checks`);
-  const kinds = Object.keys(require('../server/lib/scan/kinds').KINDS).length;
+  // As the site's live count reports them: 'blocked' is a rule the person set, not a kind of threat.
+  const kinds = Object.keys(require('../server/lib/scan/kinds').KINDS).filter((k) => k !== 'blocked').length;
   assert.ok(html.includes(`<span data-count="${kinds}" data-live="kinds">${kinds}</span>`), `the site should say ${kinds} kinds of threat`);
 });
 

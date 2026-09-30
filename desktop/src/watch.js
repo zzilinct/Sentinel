@@ -98,13 +98,18 @@ public class Wheel : System.Windows.Forms.NativeWindow {
   [DllImport("user32.dll")] static extern uint GetRawInputData(IntPtr raw, uint command, IntPtr data, ref uint size, uint headerSize);
   public static volatile bool Enabled;
   public static volatile bool Registered;   // Windows accepted the request (for the log)
-  public static int Seen;                   // wheel turns seen, sent or not (for the log)
+  public static int Seen;                   // raw input messages seen, sent or not (for the log)
+  public static int Msgs;                   // any message at all: tells a dead window from a quiet mouse
   static bool started;
+  // Held here for the life of the process, so the window cannot be collected once the thread is inside
+  // Application.Run and nothing else refers to it.
+  static Wheel instance;
   public static void Start() {
     if (started) return;
     started = true;
     var t = new System.Threading.Thread(() => {
       var w = new Wheel();
+      instance = w;
       var cp = new System.Windows.Forms.CreateParams();
       cp.Parent = new IntPtr(-3);   // a message-only window: never shown
       w.CreateHandle(cp);
@@ -118,6 +123,7 @@ public class Wheel : System.Windows.Forms.NativeWindow {
     t.Start();
   }
   protected override void WndProc(ref System.Windows.Forms.Message m) {
+    System.Threading.Interlocked.Increment(ref Msgs);
     if (m.Msg == 0x00FF) System.Threading.Interlocked.Increment(ref Seen);
     if (m.Msg == 0x00FF && Enabled) {
       uint header = (uint)(8 + 2 * IntPtr.Size);
@@ -400,7 +406,7 @@ while ($true) {
     $sig = ($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)|$($_.c)" }) -join ';'
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
-      Write-Output (@{ links = @($list); covered = $covered; for = $url; ms = [int]$sw.ElapsedMilliseconds; wheel = "$([Wheel]::Registered)/$([Wheel]::Seen)/$([Wheel]::Enabled)" } | ConvertTo-Json -Compress -Depth 4)
+      Write-Output (@{ links = @($list); covered = $covered; for = $url; ms = [int]$sw.ElapsedMilliseconds; wheel = "$([Wheel]::Registered)/$([Wheel]::Seen)/$([Wheel]::Enabled)/$([Wheel]::Msgs)" } | ConvertTo-Json -Compress -Depth 4)
       # New positions: the anchor starts again from here, and the marks from zero movement.
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0    }
     # A heavy page must not make the reader spin: rest at least twice as long as the read took.

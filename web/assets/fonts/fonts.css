@@ -1,32 +1,24 @@
 /* Self-hosted, SIL Open Font License */
 @font-face {
-  font-family: 'Geist';
+  font-family: 'Atkinson Hyperlegible Next';
   font-style: normal;
-  font-weight: 300 700;
+  font-weight: 400 700;
   font-display: swap;
-  src: url('/assets/fonts/geist-normal-300-700.woff2') format('woff2');
+  src: url('/assets/fonts/atkinson-hyperlegible-next-normal-400-700.woff2') format('woff2');
 }
 
 @font-face {
-  font-family: 'Geist Mono';
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/assets/fonts/bricolage-grotesque-normal-400-800.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url('/assets/fonts/geist-mono-normal-400-600.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Instrument Serif';
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/assets/fonts/instrument-serif-italic-400.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Instrument Serif';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/assets/fonts/instrument-serif-normal-400.woff2') format('woff2');
+  src: url('/assets/fonts/jetbrains-mono-normal-400-600.woff2') format('woff2');
 }
