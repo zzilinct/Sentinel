@@ -5,12 +5,13 @@
  *   CSS & scripts    network first, cache only as an offline fallback
  *   pages & API      never touched - always live
  */
-const VERSION = 'sentinel-v3';
+const VERSION = 'sentinel-v4';
 const PRECACHE = [
   '/assets/fonts/fonts.css',
-  '/assets/fonts/atkinson-hyperlegible-next-normal-400-700.woff2',
-  '/assets/fonts/bricolage-grotesque-normal-400-800.woff2',
-  '/assets/fonts/jetbrains-mono-normal-400-600.woff2',
+  '/assets/fonts/geist-normal-300-700.woff2',
+  '/assets/fonts/geist-mono-normal-400-600.woff2',
+  '/assets/fonts/instrument-serif-normal-400.woff2',
+  '/assets/fonts/instrument-serif-italic-400.woff2',
   '/assets/img/favicon.svg',
   '/assets/img/icon-192.png'
 ];
