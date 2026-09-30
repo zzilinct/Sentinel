@@ -33,6 +33,60 @@ document.documentElement.classList.add('js');
 })();
 if (!('IntersectionObserver' in window)) document.documentElement.classList.add('no-io');
 
+/*
+ * On a phone the keyboard shrinks the visible part of the page: the field being typed in is brought back into view
+ * above it, so people can see what they type.
+ */
+(function () {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const typing = (el) => el && el.matches && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea, [contenteditable]');
+  vv.addEventListener('resize', () => {
+    const el = document.activeElement;
+    if (!typing(el)) return;
+    const r = el.getBoundingClientRect();
+    if (r.bottom > vv.height - 12 || r.top < 0) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+})();
+
+/*
+ * The back button never loses what someone typed. Text in a form marked data-draft is kept for this tab only
+ * (session storage, gone when the tab closes) and put back when the page is shown again. Passwords, codes, boxes and
+ * anything marked data-no-draft are never kept.
+ */
+(function () {
+  // Checkboxes are left alone: a consent box is only ever ticked by the person, never put back for them.
+  const skip = (el) => !el.name || el.type === 'password' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'hidden' || el.type === 'file' || el.autocomplete === 'one-time-code' || el.closest('[data-no-draft]');
+  const key = (form) => `sentinel:draft:${location.pathname}:${form.dataset.draft || form.id || 'form'}`;
+  const forms = () => document.querySelectorAll('form[data-draft]');
+  function restore() {
+    for (const form of forms()) {
+      let saved = null;
+      try { saved = JSON.parse(sessionStorage.getItem(key(form)) || 'null'); } catch { saved = null; }
+      if (!saved) continue;
+      for (const el of form.elements) {
+        if (skip(el) || !(el.name in saved)) continue;
+        if (el.type === 'checkbox') el.checked = Boolean(saved[el.name]);
+        else if (!el.value) el.value = saved[el.name];
+      }
+    }
+  }
+  document.addEventListener('input', (ev) => {
+    const form = ev.target.closest && ev.target.closest('form[data-draft]');
+    if (!form) return;
+    const out = {};
+    for (const el of form.elements) if (!skip(el)) out[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+    try { sessionStorage.setItem(key(form), JSON.stringify(out)); } catch { /* private window */ }
+  });
+  // A form that was sent has nothing left to keep.
+  document.addEventListener('submit', (ev) => {
+    const form = ev.target.closest && ev.target.closest('form[data-draft]');
+    if (form) setTimeout(() => { if (!form.querySelector('[aria-invalid="true"], .is-invalid')) { try { sessionStorage.removeItem(key(form)); } catch { /* ignore */ } } }, 1500);
+  });
+  document.addEventListener('DOMContentLoaded', restore);
+  addEventListener('pageshow', (ev) => { if (ev.persisted) restore(); });
+})();
+
 // Installable web app. Service workers need HTTPS (or localhost in development).
 const secureContext = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
 // A static export ships no service worker, and may live under a subpath.

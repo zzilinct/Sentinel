@@ -3,13 +3,13 @@
 body.app { overflow-x: hidden; }
 body.app::before { background: var(--bg); }
 
-.shell { display: grid; grid-template-columns: 256px 1fr; min-height: 100vh; }
+.shell { display: grid; grid-template-columns: 256px 1fr; min-height: 100vh; min-height: 100dvh; }
 @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } }
 
 /* ---------------------------------------------------------------- sidebar */
 
 .side {
-  position: sticky; top: 0; height: 100vh;
+  position: sticky; top: 0; height: 100vh; height: 100dvh;
   display: flex; flex-direction: column;
   padding: 20px 14px;
   border-right: 1px solid var(--line);
@@ -353,7 +353,7 @@ body.app::before { background: var(--bg); }
 
 /* ------------------------------------------------------------ auth pages */
 
-.auth { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
+.auth { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-columns: 1fr 1fr; }
 @media (max-width: 980px) { .auth { grid-template-columns: 1fr; } .auth__art { display: none; } }
 .auth__form { display: flex; flex-direction: column; padding: 32px clamp(24px, 6vw, 80px); }
 .auth__inner { width: 100%; max-width: 400px; margin: auto; padding: 40px 0; }
