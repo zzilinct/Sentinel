@@ -249,7 +249,8 @@ function register(router) {
     security.rateLimit(`google:${security.clientIp(req)}`, 30, 15 * 60 * 1000);
     const q = parseUrl(req).searchParams;
     // The sign-in page's "stay signed in" box travels with the OAuth state.
-    send(res, 302, null, { Location: A.googleAuthUrl(q.get('next'), { staySignedIn: q.get('stay') === '1' }) });
+    const { url, cookie } = A.googleAuthUrl(q.get('next'), { staySignedIn: q.get('stay') === '1' });
+    send(res, 302, null, { Location: url, 'Set-Cookie': cookie });
   });
 
   router.get('/api/v1/auth/google/callback', async (req, res) => {
