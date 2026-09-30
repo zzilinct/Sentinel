@@ -411,6 +411,23 @@ test('the reader\'s C# helper compiles (a compile error would stop live scanning
   } finally { fs.rmSync(file, { force: true }); }
 });
 
+test('the running-browsers helper answers without starting a process each time, and ends when Sentinel does', { skip: process.platform !== 'win32' }, async () => {
+  const browsers = require('../desktop/src/browsers.js');
+  const script = browsers._test.WATCH_SCRIPT.replace('__NAMES__', "'notepad','chrome'");
+  const child = require('child_process').spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+  const first = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('no answer in 30 s')), 30000);
+    child.stdout.once('data', (d) => { clearTimeout(timer); resolve(String(d)); });
+  });
+  assert.match(first, /^running:/);
+  const exited = new Promise((resolve) => child.once('exit', resolve));
+  child.stdin.end();   // Sentinel is gone
+  const code = await Promise.race([exited, new Promise((r) => setTimeout(() => r('still running'), 10000))]);
+  if (code === 'still running') child.kill();
+  assert.notEqual(code, 'still running', 'it ends by itself when its input closes');
+  assert.doesNotMatch(read('desktop/src/browsers.js').split('function watch(')[1], /run\('tasklist'/, 'the watcher does not start tasklist on a timer');
+});
+
 test('the reader\'s compiled helper is named after its source, so a new version never loads an old one', () => {
   const w = read('desktop/src/watch.js');
   assert.match(w, /reader-helper-\$\{crypto\.createHash\('sha256'\)\.update\(src\)/);

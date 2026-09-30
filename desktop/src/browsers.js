@@ -90,8 +90,58 @@ async function installed() {
   return out;
 }
 
+/**
+ * Windows: one small PowerShell that stays running and looks at the process list itself every three seconds,
+ * printing the browsers only when they change. Starting tasklist every four seconds cost a new process (and its
+ * console host) fifteen times a minute, the one thing Sentinel's main process did while nothing else was going on.
+ * It ends by itself when Sentinel does: its standard input closes.
+ */
+const WATCH_SCRIPT = `
+$ErrorActionPreference = 'SilentlyContinue'
+$names = @(__NAMES__)
+$stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
+$pending = $stdin.ReadLineAsync()
+$last = $null
+while ($true) {
+  $now = (@(Get-Process -Name $names | ForEach-Object { $_.ProcessName.ToLower() }) | Sort-Object -Unique) -join ','
+  if ($now -ne $last) { $last = $now; [Console]::Out.WriteLine('running:' + $now); [Console]::Out.Flush() }
+  if ($pending.Wait(3000)) { if ($null -eq $pending.Result) { exit }; $pending = $stdin.ReadLineAsync() }
+}`;
+let watcherChild = null;
+let watcherRunning = null;   // the helper's latest answer: process names, or null before it has one
+
+function startProcessWatcher(onNames) {
+  if (process.platform !== 'win32' || watcherChild) return;
+  const { spawn } = require('child_process');
+  const names = BROWSERS.map((b) => `'${b.process}'`).join(',');
+  const script = WATCH_SCRIPT.replace('__NAMES__', names);
+  try {
+    watcherChild = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+  } catch { watcherChild = null; return; }
+  try { require('os').setPriority(watcherChild.pid, require('os').constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* best effort */ }
+  let buf = '';
+  watcherChild.stdout.on('data', (chunk) => {
+    buf += chunk.toString('utf8');
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (line.startsWith('running:')) { watcherRunning = new Set(line.slice(8).split(',').filter(Boolean)); onNames(); }
+    }
+  });
+  const gone = () => { watcherChild = null; watcherRunning = null; };
+  watcherChild.on('exit', gone);
+  watcherChild.on('error', gone);
+}
+function stopProcessWatcher() {
+  if (watcherChild) { try { watcherChild.stdin.end(); watcherChild.kill(); } catch { /* gone */ } }
+  watcherChild = null; watcherRunning = null;
+}
+
 /** Ids of the browsers running right now. */
 async function running() {
+  // The helper's answer when it is running: no process started to ask.
+  if (watcherRunning) return BROWSERS.filter((b) => watcherRunning.has(b.process)).map((b) => b.id);
   let names = new Set();
   if (process.platform === 'win32') {
     const out = await run('tasklist', ['/FO', 'CSV', '/NH']);
@@ -199,19 +249,26 @@ function watch({ onChange, everyMs = 15000 }) {
   let last = '';
   let timer = null;
   let stopped = false;
-  const tick = async () => {
-    if (stopped) return;
+  const report = async () => {
     try {
       const [inst, run] = await Promise.all([installed(), running()]);
       const state = { installed: inst.map(({ exe, ...rest }) => rest), running: run };
       const key = JSON.stringify(state.running);
       if (key !== last) { last = key; onChange(state); }
-    } catch { /* keep polling */ }
-    if (!stopped) timer = setTimeout(tick, typeof everyMs === 'function' ? everyMs() : everyMs);
+    } catch { /* keep going */ }
+  };
+  // Windows: the helper says when something changes. Elsewhere, or while the helper is not running, poll.
+  startProcessWatcher(() => { if (!stopped) report(); });
+  const tick = async () => {
+    if (stopped) return;
+    if (!watcherChild) await report();
+    // With the helper running this only looks after it: starts it again if it ended.
+    if (process.platform === 'win32' && !watcherChild) startProcessWatcher(() => { if (!stopped) report(); });
+    if (!stopped) timer = setTimeout(tick, watcherChild ? 60000 : (typeof everyMs === 'function' ? everyMs() : everyMs));
   };
   tick();
-  return { stop() { stopped = true; clearTimeout(timer); } };
+  return { stop() { stopped = true; clearTimeout(timer); stopProcessWatcher(); } };
 }
 
 module.exports = {
-  defaultBrowser, preferred, BROWSERS, installed, running, bringForward, watch };
+  defaultBrowser, preferred, BROWSERS, installed, running, bringForward, watch, _test: { WATCH_SCRIPT } };
