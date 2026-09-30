@@ -73,7 +73,7 @@ function withUsage(user, payload) {
 }
 
 function cleanMail(body) {
-  const m = body && typeof body.email === 'object' && body.email ? body.email : body;
+  const m = (body && typeof body.email === 'object' && body.email) || body || {};
   return {
     from: String(m.from || '').slice(0, 320),
     fromName: String(m.fromName || '').slice(0, 200),
