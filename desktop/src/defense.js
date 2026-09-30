@@ -197,9 +197,13 @@ async function inspect(full, how) {
     // Windows answers "this file contains a virus" (error 225, which Node
     // reports as UNKNOWN) when the system antivirus has already condemned a
     // file. It cannot be read, but what would relaunch it can still be removed.
+    // Node reports other errors it has no name for as UNKNOWN too (a OneDrive
+    // file while OneDrive is paused), so nothing is removed unless Defender
+    // itself says it caught this file.
     if (err && err.code === 'UNKNOWN') {
       if (blockedSeen.has(full)) return null;
       blockedSeen.add(full);
+      if (!(await defenderCaught(full))) return null;
       const actions = await removePersistence(full).catch(() => []);
       actions.unshift({ did: 'already blocked by the system antivirus', detail: 'Windows would not let the file be opened' });
       const item = { path: full, name, size: stat.size, how, at: Date.now(), badge: 'red', label: 'Blocked by the system antivirus', threat: 'virus', reason: 'Windows refused to open this file because its antivirus flagged it' };
@@ -442,6 +446,14 @@ async function removeRunKeys(target) {
 }
 
 /** Everything that would relaunch `target`, for a file that cannot be quarantined (already blocked). */
+/** Has Microsoft Defender recorded a detection for this very file? */
+async function defenderCaught(file) {
+  const p = file.replace(/'/g, "''");
+  const out = await ps(`$p = '${p}'
+foreach ($d in @(Get-MpThreatDetection -ErrorAction SilentlyContinue)) { foreach ($r in @($d.Resources)) { if ([string]$r -and ([string]$r).IndexOf($p, [StringComparison]::OrdinalIgnoreCase) -ge 0) { 'caught'; exit } } }`, 15000);
+  return out.includes('caught');
+}
+
 async function removePersistence(target) {
   const actions = await respond({ path: target, name: path.basename(target), badge: null });
   return actions.filter((a) => a.did !== 'left in place');
