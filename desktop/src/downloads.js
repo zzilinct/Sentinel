@@ -49,7 +49,7 @@ async function restart() {
     if (err.status === 401) return setState(false, 'Sign in to turn on download protection');
     // "Will retry" has to be true: a scanner that is still starting answers a minute later.
     retryTimer = setTimeout(() => restart(), 30000);
-    return setState(false, 'Sentinel is offline - will retry');
+    return setState(false, 'Sentinel is offline. Trying again shortly.');
   }
   if (mine !== generation) return;
   try {

@@ -155,7 +155,7 @@ function passwordProblem(password, { email = '', firstName = '' } = {}) {
   if (pw.length < 10) return 'Password must be at least 10 characters';
   if (pw.length > 200) return 'Password is too long';
   if (!/[a-zA-Z]/.test(pw) || !/[0-9]/.test(pw)) return 'Include at least one letter and one number';
-  if (COMMON_PASSWORDS.has(pw.toLowerCase())) return 'That password is too common - choose something less predictable';
+  if (COMMON_PASSWORDS.has(pw.toLowerCase())) return 'That password is too common: choose something less predictable';
   const local = String(email).split('@')[0].toLowerCase();
   if (local.length >= 4 && pw.toLowerCase().includes(local)) return 'Password should not contain your email address';
   if (firstName && firstName.length >= 3 && pw.toLowerCase().includes(firstName.toLowerCase())) return 'Password should not contain your name';

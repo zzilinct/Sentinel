@@ -133,7 +133,7 @@ function analyzeEmail(mail, how = {}) {
 
   const shortLinks = links.filter((l) => { const a = analyze(String(l.href || '')); return a && L.URL_SHORTENERS.has(a.registrable); });
   add('E11', 'scam', 'Links are not disguised with shorteners', shortLinks.length ? warn(12, `${shortLinks.length} shortened link(s)`) : pass('None'));
-  add('E12', 'scam', 'No QR code phishing lure', QR.test(body) ? warn(14, 'Asks you to scan a QR code - a way to move you off a protected computer') : pass('None'));
+  add('E12', 'scam', 'No QR code phishing lure', QR.test(body) ? warn(14, 'Asks you to scan a QR code: a way to move you off a protected computer') : pass('None'));
 
   const risky = attachments.filter((n) => { const x = n.toLowerCase().split('.'); return x.length > 1 && (L.EXECUTABLE_EXT.has(x.pop()) ); });
   add('E13', 'virus', 'No program attachments', risky.length ? fail(45, `Attached program: ${risky[0]}`) : pass(attachments.length ? `${attachments.length} attachment(s), none programs` : 'No attachments'));
@@ -145,11 +145,11 @@ function analyzeEmail(mail, how = {}) {
   const html = attachments.filter((n) => /\.(html?|shtml|svg)$/i.test(n));
   add('E15', 'malware', 'No macro documents or HTML attachments', macro.length
     ? fail(34, `Macro-enabled document: ${macro[0]}`)
-    : html.length ? fail(30, `HTML/SVG attachment ${html[0]} - often a hidden login page`) : pass('None'));
+    : html.length ? fail(30, `HTML/SVG attachment ${html[0]}: often a hidden login page`) : pass('None'));
 
   const archived = attachments.some((n) => L.ARCHIVE_EXT.has(n.toLowerCase().split('.').pop()));
   add('E16', 'malware', 'No password-protected archive trick', archived && ARCHIVE_PASSWORD.test(body)
-    ? fail(40, 'Sends an archive together with its password - used to hide malware from scanners') : pass('None'));
+    ? fail(40, 'Sends an archive together with its password: used to hide malware from scanners') : pass('None'));
 
   add('E17', 'scam', 'Invoice lure does not pair with a risky attachment',
     /invoice|receipt|payment advice|remittance|purchase order/i.test(subject + ' ' + body) && (risky.length || macro.length || html.length || archived)
