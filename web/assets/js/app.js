@@ -187,6 +187,8 @@
     if (state.config.verificationAvailable && !state.me.user.emailVerified) view.appendChild(verifyBar());
     view.appendChild(el);
     fn(el, new URLSearchParams(location.search));
+    // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
+    restoreDrafts();
     document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules' }[name]} · Sentinel`;
   }
 
@@ -195,6 +197,20 @@
     out.innerHTML = verdict(v, opts) + actionsFor(v);
     wireVerdict(out, v);
     wireActions(out, v);
+    restoreDrafts();
+  }
+
+  // The views are drawn after the page loads, so boot.js cannot put drafts back by itself: each view asks it to.
+  function restoreDrafts() {
+    if (window.sentinelDrafts) window.sentinelDrafts.restore();
+  }
+
+  // The desktop app's errors arrive wrapped by Electron ("Error invoking remote method 'x': Error: ..."). People get
+  // the sentence underneath, or a plain one when what is left is a system code, a file path or a stack trace.
+  function desktopError(err) {
+    const text = String((err && err.message) || '').replace(/^Error invoking remote method '[^']*':\s*/, '').replace(/^(\w*Error:\s*)+/, '').trim();
+    const technical = !text || /\bE[A-Z]{3,}\b|[A-Za-z]:\\|\/[\w.-]+\/|\bat\s+\S+\s*\(|\n\s*at\s/.test(text);
+    return technical ? 'That did not work. Try again, or choose Open log folder from the Sentinel icon in the system tray.' : text;
   }
 
   /* ========================================================== shortcuts */
@@ -282,15 +298,15 @@
 
   function termsGate(el) {
     el.innerHTML = `<form class="panel gate" data-gate>
-      <h1 style="font-size:24px">Before you continue</h1>
-      <p class="muted" style="margin-top:8px;font-size:14.5px">Sentinel is for adults, and using it means agreeing to how it works and what it does with your data. Both boxes are required.</p>
+      <h1>Before you continue</h1>
+      <p class="panel-lede">Sentinel is for adults, and using it means agreeing to how it works and what it does with your data. Both boxes are required.</p>
       <div class="consent">
         <label class="consent__row"><input type="checkbox" name="ageConfirmed"><span>I confirm that I am at least 18 years old.</span></label>
         <span class="field__error" data-error="ageConfirmed"></span>
         <label class="consent__row"><input type="checkbox" name="termsAccepted"><span>I have read and accept the <a href="/terms" target="_blank" rel="noopener">Terms and Conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
         <span class="field__error" data-error="termsAccepted"></span>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:22px;flex-wrap:wrap">
+      <div class="btn-row">
         <button class="btn btn--gold" type="submit">Continue</button>
         <button class="btn" type="button" data-gate-out>Sign out</button>
       </div>
@@ -401,7 +417,7 @@
   // never opens a suspicious page (that is what research does). Say so.
   function localNote() {
     if (state.config.researchAvailable !== false) return '';
-    return '<div class="banner" style="margin-bottom:18px"><div><b>Running on this computer.</b> This copy of Sentinel keeps its server and database on your machine. Suspicious pages are never opened from here, so research (domain age, certificates, redirects, page content) waits for the hosted service. Everything else works.</div></div>';
+    return '<div class="banner"><div><b>Running on this computer.</b> This copy of Sentinel keeps its server and database on your machine. Suspicious pages are never opened from here, so research (domain age, certificates, redirects, page content) waits for the hosted service. Everything else works.</div></div>';
   }
 
   /** The live allowance that can run out: delicate where the plan has it, fast otherwise. */
@@ -417,10 +433,10 @@
 
   function usageCard(icon, n, unit, label, used, limit, locked, meta) {
     const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
-    return `<div class="usage-card${locked ? ' is-locked' : ''}">
-      <div class="usage-card__top"><span class="usage-card__icon">${icon}</span><span class="mono muted" style="font-size:12px">${meta || (locked ? 'Pro & up' : `resets ${until(state.me.week.resetsAt)}`)}</span></div>
-      <div class="usage-card__n tabular">${locked ? '·' : n}<span>${locked ? '' : unit}</span></div>
-      <div class="usage-card__l">${label}</div>
+    return `<div class="usage-row${locked ? ' is-locked' : ''}">
+      <span class="usage-row__icon">${icon}</span>
+      <span class="usage-row__l">${label}<small>${meta || (locked ? 'Pro & up' : `resets ${until(state.me.week.resetsAt)}`)}</small></span>
+      <b class="usage-row__n tabular">${locked ? '·' : n}<span>${locked ? '' : unit}</span></b>
       <div class="meter${pct >= 100 ? ' is-full' : ''}"><i style="width:${locked ? 0 : 100 - pct}%"></i></div>
     </div>`;
   }
@@ -445,7 +461,7 @@
     const greet = hour < 5 ? 'Up late' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
     el.innerHTML = `
-      ${title(`${greet}, <span class="serif italic">${esc(u.firstName)}</span>`, 'Paste anything you’re unsure about. Sentinel will tell you exactly what it finds.')}
+      ${title(`${greet}, ${esc(u.firstName)}`,'Paste anything you’re unsure about. Sentinel will tell you exactly what it finds.')}
       <form class="scanbox" data-quick>
         ${ICON.search}
         <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link from a message, email or search result" aria-label="Link to scan">
@@ -453,7 +469,7 @@
       </form>
       <div class="scan-meta"><span>${left('linkScans')} of ${us.linkScans.limit} link scans left this week</span><a href="/app/threats">Scan a file instead &rarr;</a></div>
 
-      <div class="grid3 u-mt-lg" >
+      <div class="usage-list u-mt-lg">
         <a class="usage-link" href="/app/scan" aria-label="Link scan">${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, `link scans left${f.research ? ', researched' : ''}`, us.linkScans.used, us.linkScans.limit)}</a>
         <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
         <a class="usage-link" href="/app/protection" aria-label="Live protection">${liveCard(us, f)}</a>
@@ -461,7 +477,7 @@
 
       <div class="u-mt">${protectionTeaser()}</div>
 
-      <div class="panel u-mt" >
+      <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
         <div data-recent><div class="skeleton u-h-md" ></div></div>
       </div>`;
@@ -587,7 +603,7 @@
         <button class="btn btn--sm" data-act="${trusted ? 'clear' : 'allow'}">${trusted ? 'Stop trusting' : 'Trust this site'}</button>
         <button class="btn btn--sm" data-act="${blocked ? 'clear' : 'block'}">${blocked ? 'Unblock' : 'Block this site'}</button>
       </span>
-      <form class="report" data-report-form hidden>
+      <form class="report" data-report-form data-draft="report:${esc(v.url)}" hidden>
         <div class="row2">
           <div class="field"><label for="rp-cat">What kind of site is it?</label><select class="input" id="rp-cat" name="category">${REPORT_CATEGORIES.map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></div>
           <div class="field"><label for="rp-note">Anything else? <span class="opt">(optional)</span></label><input class="input" id="rp-note" name="note" maxlength="500" placeholder="How did you come across it?"></div>
@@ -670,14 +686,14 @@
 
     input.innerHTML = `<label class="drop" data-drop>
       <input type="file" data-file aria-label="Choose a file to scan">
-      <div><div class="drop__icon" style="margin-inline:auto">${ICON.upload}</div><h3>Drop a file here, or click to choose</h3><p>Programs, documents, archives, scripts, installers</p></div>
+      <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a file here, or click to choose</h3><p>Programs, documents, archives, scripts, installers</p></div>
     </label>`;
     const drop = $('[data-drop]', input);
     const fileInput = $('[data-file]', input);
     const scanFile = async (file) => {
       if (!file) return;
       if (file.size > 25 * 1024 * 1024) { toast('Files up to 25 MB can be scanned.', 'error'); return; }
-      out.innerHTML = `<div class="panel scanning"><div class="scanning__rings">${Masks.svg('virus')}</div><h3>Inspecting ${esc(file.name)}</h3><p class="muted" style="margin-top:6px">${bytes(file.size)} &middot; checking signatures, disguises, macros and scripts</p></div>`;
+      out.innerHTML = `<div class="panel scanning"><div class="scanning__rings">${Masks.svg('virus')}</div><h3>Inspecting ${esc(file.name)}</h3><p class="muted u-mt-xs">${bytes(file.size)} &middot; checking signatures, disguises, macros and scripts</p></div>`;
       try {
         const data = await api('/scan/file', { method: 'POST', raw: file, headers: { 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' } });
         applyUsage(data.usage);
@@ -704,11 +720,11 @@
     el.innerHTML = `
       ${title('Email scan', 'Paste what you see in your inbox. Every link and the sender’s domain go through the full link pipeline too.',
         '<div class="segmented" role="tablist"><button role="tab" data-emode="fields" aria-selected="true">Fill in</button><button role="tab" data-emode="paste" aria-selected="false">Paste whole email</button></div>')}
-      <div class="panel" data-paste hidden>
-        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check.</span></div>
+      <form class="panel" data-paste data-draft="email-paste" hidden>
+        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" name="raw" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check.</span></div>
         <div class="report__foot"><span></span><button class="btn btn--gold" type="button" data-parse>Read this email</button></div>
-      </div>
-      <form class="panel" data-form>
+      </form>
+      <form class="panel" data-form data-draft="email-scan">
         <div class="row2">
           <div class="field"><label for="e-from">From</label><input class="input" id="e-from" name="from" placeholder="PayPal Security &lt;alerts@example.com&gt;" autocomplete="off"></div>
           <div class="field"><label for="e-reply">Reply-to <span class="opt">(optional)</span></label><input class="input" id="e-reply" name="replyTo" autocomplete="off"></div>
@@ -716,8 +732,8 @@
         <div class="field"><label for="e-subject">Subject</label><input class="input" id="e-subject" name="subject" autocomplete="off"></div>
         <div class="field"><label for="e-body">Message</label><textarea class="textarea" id="e-body" name="body" placeholder="Paste the message text, including any links"></textarea></div>
         <div class="field"><label for="e-att">Attachment names <span class="opt">(optional, comma separated)</span></label><input class="input" id="e-att" name="attachments" placeholder="Invoice_2026.pdf.exe, statement.zip" autocomplete="off"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap">
-          <span class="muted" style="font-size:13px">Uses 1 of your ${left('linkScans')} remaining link scans. Nothing is stored.</span>
+        <div class="report__foot">
+          <span class="muted">Uses 1 of your ${left('linkScans')} remaining link scans. Nothing is stored.</span>
           <button class="btn btn--gold" type="submit">Scan email</button>
         </div>
       </form>
@@ -738,7 +754,9 @@
       form.from.value = m.from; form.replyTo.value = m.replyTo; form.subject.value = m.subject; form.body.value = m.body; form.attachments.value = m.attachments.join(', ');
       $$('[data-emode]', el).forEach((x) => x.setAttribute('aria-selected', String(x.dataset.emode === 'fields')));
       pasteBox.hidden = true;
-      toast(m.from ? `Found sender ${m.from}. Check the fields, then scan.` : 'No headers found - the text went into the message field.', 'info', 5000);
+      // Filled in by script, which raises no input event: say so, so the draft keeps what was filled in.
+      form.dispatchEvent(new Event('input', { bubbles: true }));
+      toast(m.from ? `Found sender ${m.from}. Check the fields, then scan.` : 'No headers found, so the text went into the message field.', 'info', 5000);
       form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     });
     form.addEventListener('submit', async (ev) => {
@@ -784,14 +802,14 @@
 
   async function historyView(el, params) {
     el.innerHTML = `${title('History', 'Everything Sentinel checked for you in the last 30 days. Click a link to scan it again.')}
-      <div class="grid3" data-stats><div class="skeleton u-h-sm" ></div><div class="skeleton u-h-sm" ></div><div class="skeleton u-h-sm" ></div></div>
-      <div class="panel u-mt"  data-list><div class="skeleton" style="height:240px"></div></div>`;
+      <div class="usage-list" data-stats><div class="skeleton u-h-sm"></div></div>
+      <div class="panel u-mt" data-list><div class="skeleton u-h-lg"></div></div>`;
     let data;
     try { data = await api('/account/history'); }
     catch (err) { $('[data-list]', el).innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; return; }
 
     const s = data.stats;
-    const stat = (glyph, n, label, color, filter) => `<button type="button" class="usage-card usage-card--btn" data-stat="${filter}"><div class="usage-card__top"><span class="usage-card__icon" style="color:${color}">${Masks.svg(glyph)}</span></div><div class="usage-card__n tabular">${n}</div><div class="usage-card__l">${label}</div></button>`;
+    const stat = (glyph, n, label, color, filter) => `<button type="button" class="usage-row" data-stat="${filter}" aria-pressed="false"><span class="usage-row__icon" style="color:${color}">${Masks.svg(glyph)}</span><span class="usage-row__l">${label}</span><b class="usage-row__n tabular">${n}</b></button>`;
     $('[data-stats]', el).innerHTML = stat('scam', s.scams, 'scams caught', 'var(--red)', 'scam') + stat('virus', s.viruses, 'viruses caught', 'var(--orange)', 'virus') + stat('malware', s.malware, 'malware caught', 'var(--yellow)', 'malware');
 
     const FILTERS = [['all', 'All'], ['flagged', 'Flagged'], ['clear', 'Clear'], ['scam', 'Scam'], ['virus', 'Virus'], ['malware', 'Malware'], ['live', 'Live'], ['manual', 'Manual']];
@@ -815,7 +833,10 @@
       $('[data-rows]', list).innerHTML = items.length ? historyList(items, { clickable: true })
         : `<div class="empty">${Masks.svg('scam')}<p>${data.items.length ? 'Nothing matches that filter.' : 'No scans yet. Paste a link on the Overview page to run your first one.'}</p></div>`;
       $$('[data-filter]', list).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === hs.filter)));
-      $$('[data-stat]', el).forEach((b) => b.classList.toggle('is-active', b.dataset.stat === hs.filter));
+      $$('[data-stat]', el).forEach((b) => {
+        b.classList.toggle('is-active', b.dataset.stat === hs.filter);
+        b.setAttribute('aria-pressed', String(b.dataset.stat === hs.filter));
+      });
     };
     $$('[data-filter]', list).forEach((b) => b.addEventListener('click', () => { hs.filter = b.dataset.filter; paint(); }));
     $$('[data-stat]', el).forEach((b) => b.addEventListener('click', () => { hs.filter = hs.filter === b.dataset.stat ? 'all' : b.dataset.stat; paint(); }));
@@ -835,14 +856,14 @@
 
   async function sitesView(el) {
     el.innerHTML = `${title('Site rules', 'Sites you trust never show a mask for you. Sites you block always show a red one, in scans, search results and email.')}
-      <form class="panel" data-add>
+      <form class="panel" data-add data-draft="site-rule">
         <div class="row2">
           <div class="field"><label for="site-host">Website</label><input class="input mono" id="site-host" name="host" placeholder="example.com" autocomplete="off" spellcheck="false" required></div>
-          <div class="field"><label>Rule</label><div class="segmented" role="radiogroup"><button type="button" role="radio" aria-checked="true" data-rule="allow">Trust</button><button type="button" role="radio" aria-checked="false" data-rule="block">Block</button></div></div>
+          <div class="field"><label>Rule</label><div class="segmented" role="radiogroup" aria-label="Rule"><button type="button" role="radio" aria-checked="true" data-rule="allow">Trust</button><button type="button" role="radio" aria-checked="false" data-rule="block">Block</button></div></div>
         </div>
         <div class="report__foot"><span class="muted">Rules apply to the whole site, including its subdomains. Only your account is affected.</span><button class="btn btn--gold" type="submit">Add rule</button></div>
       </form>
-      <div class="grid2 u-mt" >
+      <div class="grid2 u-mt">
         <div class="panel" data-allow><div class="skeleton u-h-md" ></div></div>
         <div class="panel" data-block><div class="skeleton u-h-md" ></div></div>
       </div>`;
@@ -921,7 +942,7 @@
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
 
-      ${!planLocked ? `<div class="panel u-mt" >
+      ${!planLocked ? `<div class="panel u-mt">
         <div class="panel__head"><div><h2>Live scanning this week</h2><p>Minutes only count when Sentinel actually checks something. Resets ${until(state.me.week.resetsAt)}.</p></div></div>
         <div class="meters">
           ${liveMeter('Fast', 'Answers in about a second. Threat lists, the checklist and comparison with known scams.', us.fastMinutes)}
@@ -930,9 +951,9 @@
       </div>` : ''}
 
       <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
-      <div class="panel u-mt"  data-intel>
+      <div class="panel u-mt" data-intel>
         <div class="panel__head"><div><h2>Threat intelligence</h2><p>The public feeds every scan is checked against, refreshed automatically.</p></div></div>
-        <div class="skeleton" style="height:90px"></div>
+        <div class="skeleton u-h-sm"></div>
       </div>`;
 
     if (desktop && !planLocked) renderDesktopControls($('[data-desktop]', el));
@@ -984,7 +1005,8 @@
       downloading: `Downloading ${up.version || 'an update'}${up.progress ? ` (${up.progress}%)` : ''}…`,
       ready: `Version ${up.version} is ready. It installs when Sentinel quits.`,
       current: 'Sentinel is up to date.',
-      error: `Could not check for updates: ${up.error || 'unknown error'}`,
+      // The updater's own error text is technical; the log keeps it.
+      error: 'Could not check for updates. Sentinel tries again by itself later.',
       dev: 'Updates are off in a development run.',
       unavailable: 'This build cannot update itself.'
     };
@@ -1001,7 +1023,7 @@
       : live.active ? (live.window ? `Watching the browser in front. Look for the gold mask in its bottom right corner.${live.lastResults ? ` Last search: ${live.lastResults.count} results marked.` : ''}${fellBack}` : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
         : live.enabled ? (live.reason || 'Starting') : 'Off. One click, and every browser you use is covered.';
     slot.innerHTML = `
-      <div class="panel live u-mt" >
+      <div class="panel live u-mt">
         <div class="live__main">
           <span class="live__mask${live.active ? ' is-on' : ''}" aria-hidden="true">${Masks.svg('scam')}</span>
           <div class="live__text"><h2>Live scanning</h2><p data-live-text>${esc(liveText)}</p>${live.counts && live.counts.checked ? `<p class="live__counts" data-live-counts>${live.counts.checked.toLocaleString()} checked since Sentinel started, ${live.counts.flagged.toLocaleString()} flagged. Private windows are not counted.</p>` : '<p class="live__counts" data-live-counts hidden></p>'}</div>
