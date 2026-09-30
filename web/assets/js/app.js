@@ -1000,6 +1000,8 @@
     const df = info.defense || { supported: false, active: false, reason: 'Not available' };
     let ledger = [];
     try { ledger = (await desktop.defense()).ledger || []; } catch { /* none */ }
+    // Left the page while waiting: subscribing now would leave listeners behind that nothing ever removes.
+    if (!slot.isConnected) return;
     const browsers = (info.browsers && info.browsers.installed) || [];
     const running = new Set((info.browsers && info.browsers.running) || []);
     const up = info.update || { status: 'idle' };
