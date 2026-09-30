@@ -34,7 +34,10 @@ const COURIER = /\b(ups|fedex|dhl|royal mail|canada post|auspost|evri|hermes|cou
 const PHONE = /(\+?1[\s.-]?)?\(?\b[2-9]\d{2}\)?[\s.-]\d{3}[\s.-]\d{4}\b/;
 const CALLBACK_REASON = /\b(refund|cancel|renew(al|ed)?|auto-?renew|charged|unauthori[sz]ed|dispute|infected|virus|trojan|spyware|hacked|disconnect(ed|ion)?|shut ?off|suspend(ed)?|locked)\b/i;
 // "Reply with your Social Security number and bank account": nobody legitimate asks for these in a reply.
-const SENSITIVE_REPLY = /\b(reply|send|email|text)\b[^.!?]{0,40}\b(social security|ssn|bank (details|account|information)|account number|routing number|copy of your (id|passport|driver'?s licen[cs]e)|passport|password|pin)\b/i;
+// Asked of you ("reply with your…", "send us your…"), never a promise ("we will never send you an email asking for
+// your password") or a code sent to you ("we'll text you a PIN").
+const SENSITIVE_REPLY = /\b(reply|respond)\b[^.!?]{0,15}\b(with|including)\b[^.!?]{0,40}\b(social security|ssn|bank (details|account|information)|account number|routing number|copy of your (id|passport|driver'?s licen[cs]e)|passport|password|pin)\b|\b(send|email|text)\b (us|me|back)\b[^.!?]{0,30}\byour\b[^.!?]{0,20}\b(social security|ssn|bank (details|account|information)|account number|routing number|id|passport|driver'?s licen[cs]e|password|pin)\b/i;
+const NEVER_ASK = /\b(never|will not|won'?t|do not|don'?t)\b[^.!?]{0,40}\b(ask|request|send)/i;
 // The boss who is "in a meeting" and needs gift cards bought, or a confidential wire sent today (business email compromise).
 const FAVOR = /\b(gift ?cards?)\b[\s\S]{0,160}\b(client|asap|meeting|can'?t talk|quick(ly)?|favou?r|today|how many)\b|\b(wire|bank) transfer\b[\s\S]{0,160}\b(confidential|don'?t discuss|new vendor|today|urgent(ly)?|bank details)\b/i;
 // Money for a stranger's journey, or a fortune waiting to be claimed.
