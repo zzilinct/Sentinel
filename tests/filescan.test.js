@@ -17,6 +17,7 @@ test('a script that only runs commands is not a dropper; one that fetches and ru
   assert.equal(f08('admin.ps1', `${iex} $cmd`).status, 'warn');
   assert.equal(f08('get.ps1', `(New-Object ${fetch} | ${iex}`).status, 'fail');
   assert.equal(f08('run.bat', j('power', 'shell -', 'enc SQBFAFgA')).status, 'fail', 'encoded PowerShell fetches and runs in one');
+  assert.equal(f08('run.bat', j('power', 'shell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -', 'enc SQBFAFgA')).status, 'fail', 'even after a long preamble');
 });
 
 test('a library named with dots is not a disguised document; a program behind a document name is', () => {
