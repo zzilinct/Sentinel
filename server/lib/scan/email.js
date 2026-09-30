@@ -43,10 +43,19 @@ function parseAddress(raw) {
   return { name, address, domain };
 }
 
-function brandIn(text) {
-  const lower = String(text || '').toLowerCase();
-  const words = new Set(lower.split(/[^a-z0-9]+/));
-  return L.PROTECTED_BRANDS.find((b) => (b.token.length >= 5 ? lower.includes(b.token) : words.has(b.token))) || null;
+/**
+ * A brand named in a sender name or subject: as a word, or at the start of one ("PayPalSupport"), never inside
+ * another word ("purchase" is not Chase, "pineapple" is not Apple). In a subject the name must also be written as a
+ * name, capitalised: "Weekly market outlook" is about markets, "Your Outlook storage is full" is about Outlook.
+ */
+function brandIn(text, { asName = false } = {}) {
+  const raw = String(text || '');
+  const words = raw.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  return L.PROTECTED_BRANDS.find((b) => words.some((w) => {
+    const lower = w.toLowerCase();
+    const hit = lower === b.token || (b.token.length >= 5 && lower.startsWith(b.token));
+    return hit && (!asName || /^[A-Z0-9]/.test(w));
+  })) || null;
 }
 
 /**
@@ -76,7 +85,7 @@ function analyzeEmail(mail, how = {}) {
 
   const senderUrl = from.domain ? analyze(`https://${from.domain}`) : null;
   const senderBrand = senderUrl ? brandInfo(senderUrl) : { official: null };
-  const claimed = brandIn(from.name) || brandIn(subject);
+  const claimed = brandIn(from.name) || brandIn(subject, { asName: true });
 
   add('E01', 'scam', 'Sender name matches the sending domain', (() => {
     if (!claimed) return pass('Sender does not claim a brand');
@@ -96,7 +105,9 @@ function analyzeEmail(mail, how = {}) {
 
   add('E03', 'scam', 'Replies go back to the sender', (() => {
     if (!replyTo || !replyTo.domain) return skip('No separate reply-to');
-    return replyTo.domain !== from.domain ? fail(22, `Replies are redirected to ${replyTo.address}`) : pass('Same domain');
+    // The same company's own addresses (news@email.nytimes.com replying to help@nytimes.com) are one sender.
+    const site = (d) => (analyze(`https://${d}`) || {}).registrable || d;
+    return site(replyTo.domain) !== site(from.domain) ? fail(22, `Replies are redirected to ${replyTo.address}`) : pass('Same organisation');
   })());
 
   add('E04', 'scam', 'A company is not writing from a free mailbox', (() => {
