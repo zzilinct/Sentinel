@@ -616,3 +616,91 @@ test('two separate results from one site each keep their mark; only a result\'s 
   ];
   assert.deepEqual(resultLinks(links, 'https://duckduckgo.com/?q=paypal').map((l) => l.y), [130, 560, 720]);
 });
+
+/**
+ * The overlay's own script, run in a sandbox with a stand-in page: time, frames and the browser's reports are driven
+ * by the test. Returns the layer's vertical shift after each frame.
+ */
+function overlaySandbox() {
+  const vm = require('vm');
+  const html = read('desktop/src/pages/overlay.html');
+  const code = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
+  const el = () => ({ style: { setProperty() {}, transform: '' }, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+    dataset: {}, appendChild() {}, remove() {}, querySelector: () => el(), getBoundingClientRect: () => ({ left: 0, top: 0 }), offsetWidth: 0, innerHTML: '' });
+  const els = {};
+  const handlers = {};
+  let now = 0;
+  let queued = [];
+  const ctx = {
+    performance: { now: () => now },
+    requestAnimationFrame: (f) => { queued.push(f); return queued.length; },
+    cancelAnimationFrame: () => { queued = []; },
+    setTimeout: () => 0, clearTimeout: () => {},
+    localStorage: { getItem: () => null, setItem() {} },
+    location: { search: '' },
+    Map, Math, Number, String, Boolean, console,
+    document: { getElementById: (id) => (els[id] = els[id] || el()), createElement: el, body: el() },
+  };
+  ctx.window = Object.assign(ctx, { innerWidth: 1000, innerHeight: 700, addEventListener() {},
+    SentinelMasks: { COLORS: {}, svg: () => '' }, sentinelOverlay: { on: (n, f) => { handlers[n] = f; } } });
+  vm.runInNewContext(code, ctx);
+  const shift = () => Number(/,(-?[\d.]+)px,0\)/.exec(els.marks.style.transform || 'translate3d(0px,0px,0)')[1]);
+  return {
+    send: (name, p) => handlers[name](p),
+    // Runs 16 ms frames up to `until`, calling at(t) before each for the events due then.
+    run(until, at) {
+      const seen = [];
+      for (; now <= until; now += 16) {
+        if (at) at(now);
+        const due = queued; queued = [];
+        due.forEach((f) => f(now));
+        seen.push(shift());
+      }
+      return seen;
+    },
+  };
+}
+
+test('a wheel turned where the page cannot move (its end, an inner list) keeps the marks in place', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [] });
+  // As the live-e2e inbox recorded it: twelve notches 46 ms apart, and the browser saying the list moved by 1 px.
+  const wheels = Array.from({ length: 12 }, (_, i) => 10 + i * 46);
+  const ys = o.run(1600, (t) => {
+    for (const w of wheels) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 });
+    if (t >= 90 && t < 106) o.send('overlay:shift', { epoch: 1, dx: 0, dy: -1, t });
+  });
+  assert.ok(Math.min(...ys) >= -201, `ran ${Math.min(...ys).toFixed(0)} px ahead of a page that never moved`);
+  // Having found the end, more notches that way do not move the marks at all.
+  const again = o.run(2400, (t) => { if (t >= 1700 && t < 1716) o.send('overlay:wheel', { epoch: 1, delta: -120 }); });
+  assert.ok(Math.min(...again) >= -2, `moved ${Math.min(...again).toFixed(0)} px past the end`);
+});
+
+test('once the browser confirms the page is moving, the marks catch up with the wheel smoothly', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [] });
+  // Four quick notches; the browser's reports trail the real scroll (100 px a notch) by about 200 ms.
+  const wheels = [10, 60, 110, 160];
+  const reports = [[210, -100], [360, -300], [520, -400]];
+  const ys = o.run(1400, (t) => {
+    for (const w of wheels) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 });
+    for (const [at, dy] of reports) if (t >= at && t < at + 16) o.send('overlay:shift', { epoch: 1, dx: 0, dy, t });
+  });
+  const steps = ys.slice(1).map((y, i) => Math.abs(y - ys[i]));
+  assert.ok(Math.max(...steps) <= 45, `a ${Math.max(...steps).toFixed(0)} px jump in one frame`);
+  assert.ok(Math.abs(ys[ys.length - 1] + 400) < 2, `settled at ${ys[ys.length - 1]}, not with the page at -400`);
+});
+
+test('a page that says it has room is followed at full speed, and one at its end not at all', () => {
+  const flick = (ends) => {
+    const o = overlaySandbox();
+    o.send('overlay:marks', { epoch: 1, marks: [], ends });
+    return o.run(400, (t) => { for (const w of [10, 60, 110, 160]) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 }); });
+  };
+  const room = flick('11');
+  assert.ok(room[13] < -300, `only at ${room[13].toFixed(0)} px 210 ms into a four-notch flick`);
+  const end = flick('10');
+  assert.ok(Math.min(...end) >= -1, 'at its end, the marks stay on their results');
+  const top = flick('01');
+  assert.ok(top[13] < -300, 'at the top, scrolling down is followed at full speed');
+});
