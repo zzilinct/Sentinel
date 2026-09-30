@@ -29,7 +29,18 @@ const AUTHORITY = /\b(irs|internal revenue|tax (refund|office|department)|social
 // A fee to release a parcel. USPS never emails or texts asking for one; other couriers do bill customs duties.
 const PARCEL_FEE = /\b(re-?delivery|redeliver|delivery|shipping|postage|customs|parcel|package)\b[^.!?]{0,60}\b(fee|charge)\b|\b(fee|charge)\b[^.!?]{0,60}\b(parcel|package|redelivery|delivery)\b/i;
 const COURIER = /\b(ups|fedex|dhl|royal mail|canada post|auspost|evri|hermes|courier|postal|post office|delivery)\b/i;
-const ARCHIVE_PASSWORD = /(password|pwd|pass)\s*[:=]\s*\S{3,}/i;
+// A number to call about a charge, a refund, a virus or a cut-off: the callback scam ("your Norton renewal of $399 was
+// charged, call +1-8xx to cancel"). Real companies send you to your account, not to a phone number, for these.
+const PHONE = /(\+?1[\s.-]?)?\(?\b[2-9]\d{2}\)?[\s.-]\d{3}[\s.-]\d{4}\b/;
+const CALLBACK_REASON = /\b(refund|cancel|renew(al|ed)?|auto-?renew|charged|unauthori[sz]ed|dispute|infected|virus|trojan|spyware|hacked|disconnect(ed|ion)?|shut ?off|suspend(ed)?|locked)\b/i;
+// "Reply with your Social Security number and bank account": nobody legitimate asks for these in a reply.
+const SENSITIVE_REPLY = /\b(reply|send|email|text)\b[^.!?]{0,40}\b(social security|ssn|bank (details|account|information)|account number|routing number|copy of your (id|passport|driver'?s licen[cs]e)|passport|password|pin)\b/i;
+// The boss who is "in a meeting" and needs gift cards bought, or a confidential wire sent today (business email compromise).
+const FAVOR = /\b(gift ?cards?)\b[\s\S]{0,160}\b(client|asap|meeting|can'?t talk|quick(ly)?|favou?r|today|how many)\b|\b(wire|bank) transfer\b[\s\S]{0,160}\b(confidential|don'?t discuss|new vendor|today|urgent(ly)?|bank details)\b/i;
+// Money for a stranger's journey, or a fortune waiting to be claimed.
+const STRANGER_MONEY = /\b(help|lend|send|need)\b[^.!?]{0,40}\b(small amount|money|funds)\b[^.!?]{0,40}\b(flight|ticket|visa|hospital|customs|travel)\b|\b(estate|inheritance|fund)\b[^.!?]{0,80}\b(unclaimed|sum of|million)\b/i;
+const OFFICIAL_NAME = /\b(bank|support|security|billing|invoice|account|hr|human resources|recruit(ment|er|ing)?|careers?|payroll|windows|defender|microsoft|apple|amazon|irs|revenue|power|utility|electric|water|gas company|dept|department|office|police|court|customs)\b/i;
+const ARCHIVE_PASSWORD =/(password|pwd|pass)\s*[:=]\s*\S{3,}/i;
 
 function parseAddress(raw) {
   const s = String(raw || '').trim();
