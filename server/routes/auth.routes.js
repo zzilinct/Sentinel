@@ -249,7 +249,8 @@ function register(router) {
     security.rateLimit(`google:${security.clientIp(req)}`, 30, 15 * 60 * 1000);
     const q = parseUrl(req).searchParams;
     // The sign-in page's "stay signed in" box travels with the OAuth state.
-    send(res, 302, null, { Location: A.googleAuthUrl(q.get('next'), { staySignedIn: q.get('stay') === '1' }) });
+    const { url, cookie } = A.googleAuthUrl(q.get('next'), { staySignedIn: q.get('stay') === '1' });
+    send(res, 302, null, { Location: url, 'Set-Cookie': cookie });
   });
 
   router.get('/api/v1/auth/google/callback', async (req, res) => {
@@ -262,16 +263,17 @@ function register(router) {
     const state = params.get('state');
     if (!code || !state) throw new HttpError(400, 'missing_code', 'Google sign-in did not complete');
 
-    const { claims, nextUrl, staySignedIn } = await A.googleExchange(code, state);
+    const { claims, nextUrl, staySignedIn } = await A.googleExchange(code, state, req);
     const user = await A.upsertGoogleUser(claims);
+    const done = A.googleStateCookie('');
     if (user.totp_enabled) {
       const challenge = A.createChallenge(user.id, nextUrl, { staySignedIn });
-      send(res, 302, null, { Location: `/login?mfa=${encodeURIComponent(challenge)}` });
+      send(res, 302, null, { Location: `/login?mfa=${encodeURIComponent(challenge)}`, 'Set-Cookie': done });
       return;
     }
     security.audit('login_google', { userId: user.id, req });
     const { token, persistent } = A.createSession(user.id, req, { staySignedIn });
-    send(res, 302, null, { Location: A.safeNext(nextUrl), 'Set-Cookie': A.sessionCookie(token, { persistent }) });
+    send(res, 302, null, { Location: A.safeNext(nextUrl), 'Set-Cookie': [A.sessionCookie(token, { persistent }), done] });
   });
 }
 
