@@ -1,9 +1,9 @@
 /* The website's own type and colours (web/assets/css/sentinel.css), so the companion looks like the same product. */
 @font-face {
-  font-family: 'Atkinson Hyperlegible Next';
+  font-family: 'Geist';
   font-style: normal;
-  font-weight: 400 700;
-  src: url('fonts/atkinson-hyperlegible-next-normal-400-700.woff2') format('woff2');
+  font-weight: 300 700;
+  src: url('fonts/geist-normal-300-700.woff2') format('woff2');
 }
 :root {
   --bg: #0a0b0d;
@@ -36,7 +36,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 13px/1.5 'Atkinson Hyperlegible Next', system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 13px/1.5 'Geist', system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
