@@ -187,6 +187,8 @@
     if (state.config.verificationAvailable && !state.me.user.emailVerified) view.appendChild(verifyBar());
     view.appendChild(el);
     fn(el, new URLSearchParams(location.search));
+    // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
+    restoreDrafts();
     document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules' }[name]} · Sentinel`;
   }
 
@@ -195,6 +197,20 @@
     out.innerHTML = verdict(v, opts) + actionsFor(v);
     wireVerdict(out, v);
     wireActions(out, v);
+    restoreDrafts();
+  }
+
+  // The views are drawn after the page loads, so boot.js cannot put drafts back by itself: each view asks it to.
+  function restoreDrafts() {
+    if (window.sentinelDrafts) window.sentinelDrafts.restore();
+  }
+
+  // The desktop app's errors arrive wrapped by Electron ("Error invoking remote method 'x': Error: ..."). People get
+  // the sentence underneath, or a plain one when what is left is a system code, a file path or a stack trace.
+  function desktopError(err) {
+    const text = String((err && err.message) || '').replace(/^Error invoking remote method '[^']*':\s*/, '').replace(/^(\w*Error:\s*)+/, '').trim();
+    const technical = !text || /\bE[A-Z]{3,}\b|[A-Za-z]:\\|\/[\w.-]+\/|\bat\s+\S+\s*\(|\n\s*at\s/.test(text);
+    return technical ? 'That did not work. Try again, or open the log from Settings.' : text;
   }
 
   /* ========================================================== shortcuts */
