@@ -17,8 +17,18 @@ const q = {
     FROM scan_history WHERE user_id = ? AND created_at > ?`)
 };
 
-async function requireRecentPassword(user, password) {
-  if (!user.password_hash) return;
+/**
+ * Proof that the person, not just a borrowed session, is asking. An account with no password (Google only) must
+ * have signed in within the last few minutes instead: a stolen session alone never sets a password, turns on 2FA
+ * or deletes the account.
+ */
+const RECENT_SIGN_IN_MS = 10 * 60 * 1000;
+async function requireRecentPassword(user, password, req) {
+  if (!user.password_hash) {
+    const at = req && req._session ? req._session.createdAt : 0;
+    if (!at || Date.now() - at > RECENT_SIGN_IN_MS) throw new HttpError(401, 'reauth_required', 'For your safety, sign out and sign in again with Google, then try once more.');
+    return;
+  }
   if (!(await A.verifyPassword(String(password || ''), user.password_hash))) {
     throw new HttpError(401, 'bad_credentials', 'Your current password is incorrect');
   }
