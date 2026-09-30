@@ -541,7 +541,7 @@ async function restart() {
     if (err.status === 401) return setState(false, 'Sign in to start live scanning');
     // "Will retry" has to be true: a scanner that is still starting answers a minute later.
     restartTimer = setTimeout(() => restart(), 30000);
-    return setState(false, 'Sentinel is offline - will retry');
+    return setState(false, 'Sentinel is offline. Trying again shortly.');
   }
   if (mine !== generation) return;
   start();
@@ -623,7 +623,7 @@ function start() {
     setWindow(null);
     if (!state.active) return;
     // Keep watching: the reader is cheap to bring back.
-    setState(false, 'Live scanning stopped - restarting');
+    setState(false, 'Live scanning stopped. Starting it again.');
     restartTimer = setTimeout(() => restart(), 3000);
   });
   setState(true, null);

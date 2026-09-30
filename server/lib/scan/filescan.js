@@ -185,7 +185,7 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
     add('F03', 'virus', 'File is what its name says it is', pass(`Detected type: ${type}`));
   }
   add('F04', 'virus', 'Not a program file', executable
-    ? warn(18, `${type.toUpperCase()} executable - only run programs from publishers you trust`)
+    ? warn(18, `${type.toUpperCase()} executable: only run programs from publishers you trust`)
     : pass('Not an executable'));
 
   // F05 - double extension
@@ -198,7 +198,7 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
   // F06 - packed executable
   if (executable) {
     const e = entropy(buf);
-    add('F06', 'malware', 'Program is not packed to hide its code', e > 7.3 ? warn(14, `Very high entropy (${e.toFixed(2)} bits/byte) - packed or encrypted`) : pass(`Entropy ${e.toFixed(2)}`));
+    add('F06', 'malware', 'Program is not packed to hide its code', e > 7.3 ? warn(14, `Very high entropy (${e.toFixed(2)} bits/byte): packed or encrypted`) : pass(`Entropy ${e.toFixed(2)}`));
   } else {
     add('F06', 'malware', 'Program is not packed to hide its code', skip('Not an executable'));
   }
@@ -242,7 +242,7 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
     const autoRun = /auto_?open|document_open|workbook_open|autoexec|auto_close/i.test(macroText);
     add('F09', 'malware', 'Document has no auto-running macros', autoRun
       ? fail(55, 'Contains macros set to run as soon as the document opens')
-      : fail(36, 'Contains VBA macros - only enable them for documents you expected'));
+      : fail(36, 'Contains VBA macros: only enable them for documents you expected'));
   } else {
     add('F09', 'malware', 'Document has no auto-running macros', ['zip', 'ole'].includes(type) ? pass('No macros') : skip('Not an Office document'));
   }
@@ -278,7 +278,7 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
     } else if (!isOffice && !isApk && risky.length) {
       add('F11', 'virus', 'Archive holds no programs', fail(encrypted ? 45 : 32, `Contains ${risky.slice(0, 3).map((e) => e.name).join(', ')}${encrypted ? ' in a password-protected archive' : ''}`));
     } else if (encrypted) {
-      add('F11', 'virus', 'Archive holds no programs', warn(20, 'Password-protected archive - a common trick to get past email scanners'));
+      add('F11', 'virus', 'Archive holds no programs', warn(20, 'Password-protected archive: a common trick to get past email scanners'));
     } else {
       add('F11', 'virus', 'Archive holds no programs', pass(`${entries.length} entries, none executable`));
     }
@@ -289,11 +289,11 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
       const text = manifest ? manifest.toString('utf16le') + manifest.toString('latin1') : '';
       const perms = ['BIND_ACCESSIBILITY_SERVICE', 'RECEIVE_SMS', 'READ_SMS', 'SYSTEM_ALERT_WINDOW', 'BIND_DEVICE_ADMIN', 'REQUEST_INSTALL_PACKAGES'].filter((perm) => text.includes(perm));
       add('F12', 'malware', 'Android app does not request takeover permissions', perms.length >= 3
-        ? fail(45, `Requests ${perms.join(', ')} - the banking-trojan combination`)
+        ? fail(45, `Requests ${perms.join(', ')}: the banking-trojan combination`)
         : perms.length ? warn(12, `Requests ${perms.join(', ')}`) : pass('Ordinary permissions'));
     }
   } else {
-    add('F11', 'virus', 'Archive holds no programs', ['rar', '7z', 'gzip'].includes(type) ? warn(8, `${type.toUpperCase()} archive contents cannot be listed - open with care`) : skip('Not an archive'));
+    add('F11', 'virus', 'Archive holds no programs', ['rar', '7z', 'gzip'].includes(type) ? warn(8, `${type.toUpperCase()} archive contents cannot be listed: open with care`) : skip('Not an archive'));
   }
 
   // F13 - shortcut and disk-image delivery tricks
