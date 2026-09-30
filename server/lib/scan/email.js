@@ -29,7 +29,18 @@ const AUTHORITY = /\b(irs|internal revenue|tax (refund|office|department)|social
 // A fee to release a parcel. USPS never emails or texts asking for one; other couriers do bill customs duties.
 const PARCEL_FEE = /\b(re-?delivery|redeliver|delivery|shipping|postage|customs|parcel|package)\b[^.!?]{0,60}\b(fee|charge)\b|\b(fee|charge)\b[^.!?]{0,60}\b(parcel|package|redelivery|delivery)\b/i;
 const COURIER = /\b(ups|fedex|dhl|royal mail|canada post|auspost|evri|hermes|courier|postal|post office|delivery)\b/i;
-const ARCHIVE_PASSWORD = /(password|pwd|pass)\s*[:=]\s*\S{3,}/i;
+// A number to call about a charge, a refund, a virus or a cut-off: the callback scam ("your Norton renewal of $399 was
+// charged, call +1-8xx to cancel"). Real companies send you to your account, not to a phone number, for these.
+const PHONE = /(\+?1[\s.-]?)?\(?\b[2-9]\d{2}\)?[\s.-]\d{3}[\s.-]\d{4}\b/;
+const CALLBACK_REASON = /\b(refund|cancel|renew(al|ed)?|auto-?renew|charged|unauthori[sz]ed|dispute|infected|virus|trojan|spyware|hacked|disconnect(ed|ion)?|shut ?off|suspend(ed)?|locked)\b/i;
+// "Reply with your Social Security number and bank account": nobody legitimate asks for these in a reply.
+const SENSITIVE_REPLY = /\b(reply|send|email|text)\b[^.!?]{0,40}\b(social security|ssn|bank (details|account|information)|account number|routing number|copy of your (id|passport|driver'?s licen[cs]e)|passport|password|pin)\b/i;
+// The boss who is "in a meeting" and needs gift cards bought, or a confidential wire sent today (business email compromise).
+const FAVOR = /\b(gift ?cards?)\b[\s\S]{0,160}\b(client|asap|meeting|can'?t talk|quick(ly)?|favou?r|today|how many)\b|\b(wire|bank) transfer\b[\s\S]{0,160}\b(confidential|don'?t discuss|new vendor|today|urgent(ly)?|bank details)\b/i;
+// Money for a stranger's journey, or a fortune waiting to be claimed.
+const STRANGER_MONEY = /\b(help|lend|send|need)\b[^.!?]{0,40}\b(small amount|money|funds)\b[^.!?]{0,40}\b(flight|ticket|visa|hospital|customs|travel)\b|\b(estate|inheritance|fund)\b[^.!?]{0,80}\b(unclaimed|sum of|million)\b/i;
+const OFFICIAL_NAME = /\b(bank|support|security|billing|invoice|account|hr|human resources|recruit(ment|er|ing)?|careers?|payroll|windows|defender|microsoft|apple|amazon|irs|revenue|power|utility|electric|water|gas company|dept|department|office|police|court|customs)\b/i;
+const ARCHIVE_PASSWORD =/(password|pwd|pass)\s*[:=]\s*\S{3,}/i;
 
 function parseAddress(raw) {
   const s = String(raw || '').trim();
@@ -85,7 +96,9 @@ function analyzeEmail(mail, how = {}) {
 
   const senderUrl = from.domain ? analyze(`https://${from.domain}`) : null;
   const senderBrand = senderUrl ? brandInfo(senderUrl) : { official: null };
-  const claimed = brandIn(from.name) || brandIn(subject, { asName: true });
+  // A company's own address naming another company in the subject ("Receipt for your payment to Spotify" from
+  // paypal.com) is not claiming to be it: only the sender's name counts then.
+  const claimed = brandIn(from.name) || (senderBrand.official ? null : brandIn(subject, { asName: true }));
 
   add('E01', 'scam', 'Sender name matches the sending domain', (() => {
     if (!claimed) return pass('Sender does not claim a brand');
@@ -112,7 +125,7 @@ function analyzeEmail(mail, how = {}) {
 
   add('E04', 'scam', 'A company is not writing from a free mailbox', (() => {
     if (!L.FREE_MAIL_PROVIDERS.has(from.domain)) return pass('Not a free mailbox');
-    return claimed || /bank|support|security|billing|invoice|account/i.test(from.name)
+    return claimed || OFFICIAL_NAME.test(from.name) || AUTHORITY.test(from.name)
       ? fail(26, `"${from.name}" writing from a free ${from.domain} address`) : pass('Personal mailbox');
   })());
 
@@ -154,9 +167,9 @@ function analyzeEmail(mail, how = {}) {
 
   const macro = attachments.filter((n) => L.MACRO_DOC_EXT.has(n.toLowerCase().split('.').pop()));
   const html = attachments.filter((n) => /\.(html?|shtml|svg)$/i.test(n));
-  add('E15', 'malware', 'No macro documents or HTML attachments', macro.length
-    ? fail(34, `Macro-enabled document: ${macro[0]}`)
-    : html.length ? fail(30, `HTML/SVG attachment ${html[0]}: often a hidden login page`) : pass('None'));
+  add('E15', 'malware', 'No macro-enabled documents', macro.length ? fail(34, `Macro-enabled document: ${macro[0]}`) : pass('None'));
+  // A web page sent as a file opens a sign-in form from your own computer, where no address bar can give it away.
+  add('E27', 'scam', 'No web page sent as an attachment', html.length ? fail(34, `HTML/SVG attachment ${html[0]}: often a hidden login page`) : pass('None'));
 
   const archived = attachments.some((n) => L.ARCHIVE_EXT.has(n.toLowerCase().split('.').pop()));
   add('E16', 'malware', 'No password-protected archive trick', archived && ARCHIVE_PASSWORD.test(body)
@@ -164,7 +177,19 @@ function analyzeEmail(mail, how = {}) {
 
   add('E17', 'scam', 'Invoice lure does not pair with a risky attachment',
     /invoice|receipt|payment advice|remittance|purchase order/i.test(subject + ' ' + body) && (risky.length || macro.length || html.length || archived)
-      ? fail(20, 'Invoice-themed message with a risky attachment') : pass('No invoice lure'));
+      ? fail(30, 'Invoice-themed message with a risky attachment') : pass('No invoice lure'));
+
+  // What the message asks you to do, whoever sent it: a scam needs no link when it can get you to call, reply or pay.
+  // Not softened for a company's own address: scammers send real PayPal invoices that carry their phone number.
+  const text = `${subject} ${body}`;
+  add('E21', 'scam', 'Does not push you to call a number about a charge', PHONE.test(text) && /\bcall\b|\bphone\b|toll.?free/i.test(text) && CALLBACK_REASON.test(text)
+    ? fail(36, 'Asks you to phone a number about a charge, refund, virus or cut-off: the callback scam') : pass('No callback request'));
+  add('E22', 'scam', 'Does not ask for private details by reply', SENSITIVE_REPLY.test(text)
+    ? fail(40, 'Asks you to send your ID, bank details, Social Security number or password') : pass('No request for private details'));
+  add('E23', 'scam', 'Not an urgent favour with gift cards or a wire', FAVOR.test(text)
+    ? fail(38, 'An urgent, private favour involving gift cards or a wire transfer: how impostors of a boss or colleague work') : pass('No favour request'));
+  add('E24', 'scam', 'No stranger asking for money or offering a fortune', STRANGER_MONEY.test(text)
+    ? fail(36, 'Asks for money for travel, or offers an unclaimed fortune') : pass('None'));
 
   // What no real company or agency does: an inbox preview has no sender address, but "Apple Support" or "IRS Tax
   // Refund Department" telling you to pay in gift cards or crypto needs none.
