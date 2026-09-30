@@ -155,13 +155,13 @@ function upstreamError(provider, result) {
 
 function register(router) {
   router.get('/api/v1/ai/providers', (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const connections = new Map(q.all.all(user.id).map((c) => [c.provider, c]));
     sendJson(res, 200, { providers: Object.values(PROVIDERS).map((p) => publicProvider(p, connections.get(p.id))) });
   });
 
   router.post('/api/v1/ai/connect', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const provider = pick(body.provider);
     const key = String(body.apiKey || '').trim();
@@ -184,7 +184,7 @@ function register(router) {
   });
 
   router.post('/api/v1/ai/disconnect', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const provider = pick(body.provider);
     q.del.run(user.id, provider.id);
@@ -192,7 +192,7 @@ function register(router) {
   });
 
   router.post('/api/v1/ai/chat', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const provider = pick(body.provider);
 

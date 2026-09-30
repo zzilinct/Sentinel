@@ -656,3 +656,7 @@ p { text-wrap: pretty; }
 .review-note { margin-top: 56px; padding: 22px 24px; border-radius: 6px; background: var(--surface); border-left: 3px solid var(--gold-500); font-size: 14.5px; }
 .review-note h3 { margin: 0 0 8px; font-size: 16px; }
 .review-note ul { margin-bottom: 0; }
+
+/* Keyboard users jump past the navigation; the link shows only when it has focus. */
+.skip-link { position: absolute; left: 12px; top: -60px; z-index: 200; padding: 10px 14px; border-radius: var(--r); background: var(--surface); color: var(--text); box-shadow: 0 0 0 2px var(--gold-400); transition: top .15s var(--ease); }
+.skip-link:focus { top: 12px; }

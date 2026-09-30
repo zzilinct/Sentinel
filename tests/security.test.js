@@ -61,6 +61,8 @@ test('CORS only opens up to the extension, never to arbitrary sites', async () =
   assert.equal(evil.headers.get('access-control-allow-origin'), null);
   const ext = await fetch(`${app.base}/api/v1/auth/me`, { headers: { Origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' } });
   assert.equal(ext.headers.get('access-control-allow-origin'), 'chrome-extension://abcdefghijklmnopabcdefghijklmnop');
+  // Never with the sign-in cookie: any extension has an extension origin.
+  assert.equal(ext.headers.get('access-control-allow-credentials'), null);
 });
 
 /* ------------------------------------------------------------ static files */
@@ -182,6 +184,9 @@ test('client tokens are only issued to a browser session, not to another token',
     body: '{}'
   });
   assert.equal(chained.status, 403);
+  // An extension asking with the cookie could be any extension: it pairs through the connect page instead.
+  const fromExtension = await c.raw('POST', '/api/v1/auth/client-token', { raw: '{}', headers: { 'Content-Type': 'application/json' }, origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' });
+  assert.equal(fromExtension.status, 403);
   const me = await fetch(`${app.base}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${tok.data.token}` } });
   assert.equal(me.status, 200);
 });

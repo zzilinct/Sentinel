@@ -100,6 +100,10 @@ test('accounts that owe the terms (Google sign-ups, older accounts) must confirm
   const { db } = require('../server/lib/db');
   db.prepare('UPDATE users SET age_confirmed_at = NULL, terms_accepted_at = NULL, terms_version = NULL WHERE email = ?').run(c.email);
   assert.equal((await c.get('/api/v1/auth/me')).data.user.needsTerms, true);
+  // The server holds the line, not only the page: no scanning until the terms are accepted.
+  const early = await c.post('/api/v1/scan/link', { url: 'https://example.com' });
+  assert.equal(early.status, 403);
+  assert.equal(early.data.error.code, 'terms_required');
 
   const partial = await c.post('/api/v1/account/accept-terms', { ageConfirmed: true, termsAccepted: false });
   assert.equal(partial.status, 400);

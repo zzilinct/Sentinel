@@ -406,6 +406,10 @@ test('marks move with the wheel the moment it turns, and only while there are ma
   assert.match(html, /api\.on\('overlay:wheel', function \(p\) \{ if \(p && p\.epoch === epoch\) onWheel\(p\); \}\);/);
   assert.match(html, /perNotch = perNotch \* 0\.5 \+ measured \* 0\.5/, 'how far a notch moves this browser is learned from its reports');
   assert.match(html, /if \(!gesture\.moved && now - gesture\.steps\[0\]\.at > SETTLE_MS\)/, 'a page that did not move lets go at once');
+  // New positions read mid-scroll already include what the browser had reported: only the rest carries over, and the
+  // scroll goes on instead of starting again (starting again applied the next report twice, off the page).
+  assert.match(html, /var carryX = shiftX - report\.x, carryY = shiftY - report\.y;/);
+  assert.match(html, /if \(gesture\) \{ gesture\.base -= report\.y; gesture\.start -= report\.y; \}/);
 });
 
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {

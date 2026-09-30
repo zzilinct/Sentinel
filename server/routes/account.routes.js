@@ -151,7 +151,9 @@ function register(router) {
     const body = await readJson(req);
     await requireRecentPassword(user, body.password);
     if (String(body.confirm || '') !== 'DELETE') throw new HttpError(400, 'confirm_required', 'Type DELETE to confirm');
-    security.audit('account_deleted', { userId: user.id, req, detail: user.email });
+    // A deleted account leaves no address behind: only a fingerprint that matches it if the same person writes in.
+    const fingerprint = require('crypto').createHash('sha256').update(String(user.email).toLowerCase()).digest('hex').slice(0, 16);
+    security.audit('account_deleted', { userId: user.id, req, detail: `email sha256 ${fingerprint}` });
     A.uq.remove.run(user.id);
     sendJson(res, 200, { ok: true }, { 'Set-Cookie': A.clearCookie() });
   });

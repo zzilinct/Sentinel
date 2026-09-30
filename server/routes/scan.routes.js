@@ -83,7 +83,7 @@ function register(router) {
   /* ---------------------------------------------------- manual link scan */
 
   router.post('/api/v1/scan/link', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     if (!body.url || typeof body.url !== 'string') throw new HttpError(400, 'missing_url', 'Paste a link to check');
     const url = typedUrl(body.url);
@@ -104,7 +104,7 @@ function register(router) {
   /* ------------------------------------------ virus & malware scanner (URL) */
 
   router.post('/api/v1/scan/threat', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const url = body.url && typedUrl(body.url);
     if (!url || !analyze(url)) throw new HttpError(400, 'bad_url', 'Paste a download link or web address to scan');
@@ -124,7 +124,7 @@ function register(router) {
   /* ----------------------------------------- virus & malware scanner (file) */
 
   router.post('/api/v1/scan/file', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     // A custom header makes this a non-simple request, so browsers preflight it.
     const rawName = req.headers['x-file-name'];
     if (!rawName) throw new HttpError(400, 'missing_name', 'Missing X-File-Name header');
@@ -145,7 +145,7 @@ function register(router) {
   /* ------------------------------------------------- manual email scan (Max) */
 
   router.post('/api/v1/scan/email', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const plan = plans.planFor(user);
     if (!plan.features.emailManual) {
       throw new HttpError(403, 'plan_required', 'Pasting emails in for a scan is part of Sentinel Max.', { needs: 'max', plan: plan.id });
@@ -164,7 +164,7 @@ function register(router) {
   const DELICATE_BUDGET_MS = 4500;
 
   router.post('/api/v1/live/batch', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const urls = Array.isArray(body.urls) ? body.urls.map(String).filter((u) => u.length < 4096).slice(0, 60) : [];
     if (!urls.length) throw new HttpError(400, 'missing_urls', 'Provide urls: string[]');
@@ -196,7 +196,7 @@ function register(router) {
   });
 
   router.post('/api/v1/live/visit', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const { url } = body;
     if (!url || !analyze(String(url))) throw new HttpError(400, 'bad_url', 'Not a web address');
@@ -210,7 +210,7 @@ function register(router) {
   });
 
   router.post('/api/v1/live/email', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     if (!plans.planFor(user).features.emailLive) throw new HttpError(403, 'plan_required', 'Email protection is part of Sentinel Pro, Max and Ultimate.', { needs: 'pro' });
     security.rateLimit(`live-email:${user.id}`, 120, 60 * 1000);
     const body = await readJson(req, 512 * 1024);
@@ -230,7 +230,7 @@ function register(router) {
 
   /** Desktop download protection: is this file hash a known threat? (Pro/Max, not metered) */
   router.post('/api/v1/live/file-hash', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const plan = plans.planFor(user);
     if (!plan.features.liveScanning) throw new HttpError(403, 'plan_required', 'Download protection is part of Sentinel Pro, Max and Ultimate.', { needs: 'pro' });
     security.rateLimit(`file-hash:${user.id}`, 300, 60 * 60 * 1000);
@@ -243,7 +243,7 @@ function register(router) {
   /* ------------------------------------------------ reports and overrides */
 
   router.post('/api/v1/report', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     security.rateLimit(`report:${user.id}`, 30, 60 * 60 * 1000);
     const body = await readJson(req);
     const parsed = analyze(String(body.url || ''));
@@ -265,7 +265,7 @@ function register(router) {
   });
 
   router.post('/api/v1/sites/override', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const parsed = analyze(String(body.url || body.host || ''));
     if (!parsed) throw new HttpError(400, 'bad_url', 'That does not look like a web address');
@@ -276,7 +276,7 @@ function register(router) {
   });
 
   router.get('/api/v1/sites/overrides', (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     sendJson(res, 200, { overrides: q.listOverrides.all(user.id) });
   });
 

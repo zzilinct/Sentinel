@@ -375,7 +375,20 @@
     setClip(p && p.clip);
     var rebase = null;
     var fresh = !p || p.epoch !== epoch;
-    if (fresh) { rebase = { dx: shiftX, dy: shiftY }; epoch = p ? p.epoch : 0; stopFollowing(); setShift(0, 0); }
+    if (fresh && p && p.epoch && (gesture || raf)) {
+      // New positions in the middle of a scroll. They were read from the browser, so they already include the
+      // movement it had reported (report); what the marks had moved beyond that (the wheel running ahead of the
+      // browser's word) carries over, and the scroll in progress goes on from there instead of starting again.
+      // Starting again is what threw marks off the page mid-scroll: the next report was applied a second time.
+      var carryX = shiftX - report.x, carryY = shiftY - report.y;
+      rebase = { dx: report.x, dy: report.y };
+      if (gesture) { gesture.base -= report.y; gesture.start -= report.y; }
+      goal = { x: goal.x - report.x, y: goal.y - report.y };
+      report = { x: 0, y: 0, at: report.at };
+      epoch = p.epoch;
+      setShift(carryX, carryY);
+      kick();
+    } else if (fresh) { rebase = { dx: shiftX, dy: shiftY }; epoch = p ? p.epoch : 0; stopFollowing(); setShift(0, 0); }
     if (fresh && moving) {
       // Out of sight while the page moved: straight to their new places, then back in view.
       place((p && p.marks) || [], null, true);

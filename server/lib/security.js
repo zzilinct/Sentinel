@@ -59,9 +59,12 @@ function allowedOrigin(origin) {
 function corsHeaders(req) {
   const origin = req.headers.origin;
   if (!allowedOrigin(origin) || origin === config.publicOrigin) return {};
+  // Any installed extension has an extension origin, so none of them is allowed to read answers sent with the
+  // person's sign-in cookie: an extension signs in with its own bearer token. (Sentinel's companion has host access
+  // to the site, so it does not depend on these headers at all.)
   return {
     'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Credentials': 'true',
+    ...(isExtensionOrigin(origin) ? {} : { 'Access-Control-Allow-Credentials': 'true' }),
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-File-Name, X-Sentinel-Client',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Max-Age': '600',
@@ -223,6 +226,6 @@ function totpUri(secretB32, email) {
 }
 
 module.exports = {
-  baseHeaders, corsHeaders, assertSameOrigin, clientIp, rateLimit, audit,
+  baseHeaders, corsHeaders, assertSameOrigin, isExtensionOrigin, clientIp, rateLimit, audit,
   passwordProblem, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode
 };

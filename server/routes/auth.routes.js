@@ -205,6 +205,11 @@ function register(router) {
     if ((req.headers.authorization || '').startsWith('Bearer ')) {
       throw new HttpError(403, 'session_required', 'Client tokens can only be issued from a signed-in browser session');
     }
+    // From Sentinel's own pages only (the connect page hands the token to the companion). An extension asking with
+    // the person's cookie could be any extension, so it is told to use the connect page instead.
+    if (security.isExtensionOrigin(req.headers.origin || '')) {
+      throw new HttpError(403, 'use_connect_page', 'Open the Sentinel connect page to pair this add-on');
+    }
     const body = await readJson(req);
     const kind = body.client === 'desktop' ? 'desktop' : 'extension';
     security.rateLimit(`client-token:${user.id}`, 20, 60 * 60 * 1000);

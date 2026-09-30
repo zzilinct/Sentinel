@@ -297,6 +297,20 @@ function requireUser(req) {
   return u;
 }
 
+/**
+ * A signed-in person who has not yet confirmed their age and accepted the current terms (a Google sign-up, or an
+ * account from before a terms update) may see their account and accept, but not scan. Checked here, not only in the
+ * page. The desktop app's own account for the computer is set up without a sign-up form and is exempt.
+ */
+const DEVICE_EMAIL = 'this-computer@sentinel.local';
+function requireAgreedUser(req) {
+  const u = requireUser(req);
+  if (u.email !== DEVICE_EMAIL && (!u.age_confirmed_at || !u.terms_accepted_at || u.terms_version !== TERMS_VERSION)) {
+    throw new HttpError(403, 'terms_required', 'Confirm your age and accept the Terms to continue');
+  }
+  return u;
+}
+
 function destroySession(req) {
   const token = tokenFrom(req);
   if (token) sq.del.run(sha256(token));
@@ -407,7 +421,7 @@ module.exports = {
   uq, sq,
   id, hashPassword, verifyPassword, sha256,
   encryptSecret, decryptSecret,
-  validateSignup, createUser, publicUser, checkPassword, TERMS_VERSION,
+  validateSignup, createUser, publicUser, checkPassword, TERMS_VERSION, requireAgreedUser,
   createChallenge, completeChallenge,
   createSession, sessionCookie, refreshedCookie, IDLE, clearCookie, currentUser, requireUser, destroySession,
   googleAuthUrl, googleExchange, upsertGoogleUser, safeNext

@@ -131,7 +131,23 @@
     } catch { /* desktop bridge optional */ }
   }
 
-  async function signOut() {
+  // The account button asks first: one press says what a second press will do, so a stray tap never signs you out.
+  let signOutArmed = 0;
+  async function signOut(ev) {
+    const button = ev && ev.currentTarget;
+    if (button && Date.now() - signOutArmed > 4000) {
+      signOutArmed = Date.now();
+      const plan = $('[data-plan]', button);
+      const was = plan ? plan.textContent : '';
+      if (plan) plan.textContent = 'Press again to sign out';
+      button.setAttribute('aria-label', 'Press again to sign out');
+      setTimeout(() => {
+        if (Date.now() - signOutArmed < 3900) return;
+        if (plan && plan.textContent === 'Press again to sign out') plan.textContent = was;
+        button.setAttribute('aria-label', 'Sign out');
+      }, 4050);
+      return;
+    }
     try { await api('/auth/logout', { method: 'POST', body: {} }); } catch { /* ignore */ }
     if (desktop) { try { await desktop.clearToken(); } catch { /* ignore */ } }
     location.href = '/';
