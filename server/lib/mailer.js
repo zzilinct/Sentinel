@@ -16,7 +16,7 @@ async function send({ to, subject, text, html }) {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     if (config.isProd) {
-      console.error(`[mail] RESEND_API_KEY is not set - could not send "${subject}" to ${to}`);
+      console.error(`[mail] RESEND_API_KEY is not set, so this was not sent: "${subject}" to ${to}`);
       return { ok: false, reason: 'not_configured' };
     }
     console.log(`\n[mail] To: ${to}\n[mail] Subject: ${subject}\n${text}\n`);
