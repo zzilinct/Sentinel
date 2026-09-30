@@ -56,6 +56,20 @@ test('a threat list that has not changed since the last download is not imported
   } finally { server.close(); }
 });
 
+test('a host list is imported as a difference: only what vanished is removed, only what is new is added', async () => {
+  const feed = { ...feeds.FEEDS.find((f) => f.id === 'phishing_database'), id: 'test_diff' };
+  const first = await feeds.importLines(feed, ['diff-one.example', 'diff-two.example', 'WWW.Diff-Three.example.', 'www.paypal.com']);
+  assert.equal(first.count, 3, 'paypal.com is never listed');
+  assert.deepEqual([...first.added].sort(), ['diff-one.example', 'diff-three.example', 'diff-two.example']);
+  const second = await feeds.importLines(feed, ['diff-two.example', 'diff-three.example', 'diff-four.example']);
+  assert.equal(second.count, 3);
+  assert.deepEqual([...second.added], ['diff-four.example'], 'only the new host is added');
+  assert.deepEqual([...second.removed], ['diff-one.example'], 'only the vanished host is removed');
+  const { db } = require('../server/lib/db');
+  const stored = db.prepare('SELECT host FROM feed_hosts WHERE source = ? ORDER BY host').all('test_diff').map((r) => r.host);
+  assert.deepEqual(stored, ['diff-four.example', 'diff-three.example', 'diff-two.example']);
+});
+
 test('imported public feeds are used as knowledge', async () => {
   await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'openphish'), [
     'https://compromised-dentist-site.com/wp-content/uploads/secure/login.php',

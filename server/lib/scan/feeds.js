@@ -117,6 +117,8 @@ const q = {
                       ON CONFLICT(source) DO UPDATE SET fetched_at = excluded.fetched_at, entries = excluded.entries, ok = excluded.ok, error = excluded.error`),
   allStatus: db.prepare('SELECT * FROM feed_status ORDER BY source'),
   oneStatus: db.prepare('SELECT * FROM feed_status WHERE source = ?'),
+  sourceHosts: db.prepare('SELECT host FROM feed_hosts WHERE source = ?'),
+  deleteHost: db.prepare('DELETE FROM feed_hosts WHERE host = ? AND source = ?'),
   meta: db.prepare("SELECT fetched_at FROM feed_status WHERE source = '_token_rebuild'")
 };
 
@@ -124,12 +126,60 @@ const tick = () => new Promise((r) => setImmediate(r));
 const isNever = (p) => NEVER_LIST.has(p.registrable) || NEVER_LIST.has(p.host);
 let revision = 0;
 
+/**
+ * A list of hosts, imported as a difference: the hosts it already had are recognised by name alone (no parsing, no
+ * database write), new ones are added and vanished ones removed. Rewriting every row each day (392,000 for the
+ * largest list, to change a few thousand) was most of Sentinel's background work.
+ */
+async function importHosts(feed, rows) {
+  const stamp = now();
+  const existing = new Set(q.sourceHosts.all(feed.id).map((r) => r.host));
+  const seen = new Set();
+  const added = new Set();
+  // Never listed, even if an older version stored it: any of the name's parent domains on the never-list.
+  const never = (host) => { const parts = host.split('.'); for (let i = 0; i < parts.length - 1; i++) if (NEVER_LIST.has(parts.slice(i).join('.'))) return true; return false; };
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    db.exec('BEGIN');
+    try {
+      for (const line of rows.slice(i, i + CHUNK)) {
+        const quick = line.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+        if (existing.has(quick) && !never(quick)) { seen.add(quick); continue; }
+        const p = analyze(`http://${line}`);
+        if (!p || isNever(p)) continue;
+        const host = p.host.replace(/^www\./, '');
+        seen.add(host);
+        if (existing.has(host)) continue;
+        if (q.hostNew.run(host, feed.id, feed.threat, feed.category, deskin(p.sld), stamp).changes && feed.threat === 'scam') added.add(p.registrable);
+      }
+      db.exec('COMMIT');
+    } catch (err) { db.exec('ROLLBACK'); throw err; }
+    await tick();
+  }
+  const gone = [...existing].filter((h) => !seen.has(h));
+  const removed = new Set();
+  for (let i = 0; i < gone.length; i += CHUNK) {
+    db.exec('BEGIN');
+    try {
+      for (const host of gone.slice(i, i + CHUNK)) {
+        q.deleteHost.run(host, feed.id);
+        if (feed.threat === 'scam') removed.add((analyze(`http://${host}`) || { registrable: host }).registrable);
+      }
+      db.exec('COMMIT');
+    } catch (err) { db.exec('ROLLBACK'); throw err; }
+    await tick();
+  }
+  q.status.run(feed.id, stamp, seen.size, 1, null);
+  revision++;
+  return { count: seen.size, added, removed };
+}
+
 /** Import already-downloaded feed lines. Returns counts and the scam hosts that changed. */
 async function importLines(feed, lines) {
   const stamp = now();
   let count = 0;
   const added = new Set();
   const rows = lines.map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  if (feed.kind === 'hosts') return importHosts(feed, rows);
 
   const putHost = (p, threat) => {
     const host = p.host.replace(/^www\./, '');
