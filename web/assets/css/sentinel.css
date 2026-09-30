@@ -37,6 +37,9 @@
   --orange: #f08a24;
   --red: #e5484d;
   --green: #4cb782;
+  --on-status: #15130d;  /* text on a filled status colour */
+  --link: #a9c1ff;       /* result titles, as a search page shows them */
+  --error-text: #ff8d90;
 
   /* Headings in Bricolage Grotesque, text in Atkinson Hyperlegible Next (made to be read easily), addresses and code
      in JetBrains Mono. All SIL Open Font License, self-hosted; licences in /assets/fonts. */
@@ -57,7 +60,8 @@
 }
 
 /* Light: warm paper and ink, gold deepened so it still reads as text. Follows the system unless the person chose
-   (data-theme on <html>, set by the theme switch and remembered). */
+   (data-theme on <html>, set by the theme switch and remembered). The status colours are darkened too, so they pass
+   4.5:1 as text on paper and carry white text when they fill a label. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f6f4ef; --bg-2: #efece5; --surface: #ffffff; --surface-2: #faf8f4; --surface-3: #f1eee8;
@@ -65,6 +69,7 @@
     --text: #16171a; --text-2: #3b3a36; --muted: #57554f; --faint: #66645d;
     --gold-50: #3d2c0c; --gold-200: #6f5217; --gold-300: #7d5c1c; --gold-400: #8a6420; --gold-500: #9c7229; --gold-600: #b08433;
     --gold-grad: #8a6420; --gold-hover: #74531a; --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
+    --yellow: #8a6100; --orange: #b04a00; --green: #1e7a3c; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
     --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
     color-scheme: light;
   }
@@ -75,6 +80,7 @@
   --text: #16171a; --text-2: #3b3a36; --muted: #57554f; --faint: #66645d;
   --gold-50: #3d2c0c; --gold-200: #6f5217; --gold-300: #7d5c1c; --gold-400: #8a6420; --gold-500: #9c7229; --gold-600: #b08433;
   --gold-grad: #8a6420; --gold-hover: #74531a; --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
+  --yellow: #8a6100; --orange: #b04a00; --green: #1e7a3c; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
   --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
   color-scheme: light;
 }
@@ -242,19 +248,6 @@ h1 .serif, h2 .serif { color: var(--text-2); }
 .hero__copy { text-align: center; max-width: 1160px; margin: 0 auto; }
 h1, h2, h3 { text-wrap: balance; }
 p { text-wrap: pretty; }
-.hero__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 14px 6px 6px;
-  border-radius: var(--r-sm);
-  background: rgb(var(--ink) / .03);
-  box-shadow: inset 0 0 0 1px var(--line-2);
-  font-size: 13px;
-  color: var(--text-2);
-  margin-bottom: 28px;
-}
-.hero__pill b { font-weight: 500; color: var(--gold-200); background: rgb(var(--gold-rgb) / .12); padding: 3px 9px; border-radius: 4px; font-size: 12px; }
 .hero h1 { font-size: clamp(44px, 7.4vw, 96px); line-height: .98; letter-spacing: -.035em; font-weight: 500; }
 .hero h1 .serif { font-size: 1.08em; letter-spacing: -.02em; }
 .hero__lede { margin: 28px auto 0; max-width: 620px; font-size: clamp(17px, 2vw, 19.5px); color: var(--text-2); line-height: 1.55; }
@@ -280,7 +273,7 @@ p { text-wrap: pretty; }
 .stage.is-in .window { transform: rotateX(0) translateY(0); }
 .window__bar { display: flex; align-items: center; gap: 14px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
 .window__dots { display: flex; gap: 7px; }
-.window__dots i { width: 11px; height: 11px; border-radius: 50%; background: #2a2c31; }
+.window__dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--line-2); }
 .window__url {
   flex: 1; max-width: 520px; margin: 0 auto;
   display: flex; align-items: center; gap: 9px;
@@ -297,7 +290,7 @@ p { text-wrap: pretty; }
 @media (max-width: 640px) { .serp { padding: 18px; } .window__url { font-size: 11.5px; } .window__shield span { display: none; } }
 .serp__q { font: 13px var(--mono); color: var(--muted); margin-bottom: -6px; }
 .res { position: relative; transition: opacity .5s var(--ease); }
-.res__title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 18px; color: #a9c1ff; font-weight: 450; }
+.res__title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 18px; color: var(--link); font-weight: 450; }
 .res__url { font: 12.5px var(--mono); color: var(--muted); margin: 3px 0 5px; }
 .res__desc { font-size: 14px; color: var(--faint); max-width: 640px; }
 .res.is-danger { opacity: .5; }
