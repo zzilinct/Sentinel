@@ -37,6 +37,9 @@
   --orange: #f08a24;
   --red: #e5484d;
   --green: #4cb782;
+  --on-status: #15130d;  /* text on a filled status colour */
+  --link: #a9c1ff;       /* result titles, as a search page shows them */
+  --error-text: #ff8d90;
 
   /* Headings in Bricolage Grotesque, text in Atkinson Hyperlegible Next (made to be read easily), addresses and code
      in JetBrains Mono. All SIL Open Font License, self-hosted; licences in /assets/fonts. */
