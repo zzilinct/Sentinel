@@ -31,11 +31,18 @@ const REPORT_CATEGORIES = new Set([
   'romance_scam', 'malware', 'impersonation', 'other'
 ]);
 
+const REPORTER_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 const q = {
   insertReport: db.prepare('INSERT INTO reports (id, host, url, user_id, category, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
   myReportFor: db.prepare('SELECT 1 FROM reports WHERE host = ? AND user_id = ?'),
   countReports: db.prepare('SELECT COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ?'),
-  countThreatReports: db.prepare("SELECT COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ? AND (CASE WHEN category = 'malware' THEN 'malware' ELSE 'scam' END) = ?"),
+  // Only accounts that confirmed their email and are at least a week old count toward condemning a site for everyone:
+  // three accounts made in a minute must not be able to paint a competitor red.
+  countThreatReports: db.prepare(`SELECT COUNT(DISTINCT r.user_id) AS n FROM reports r JOIN users u ON u.id = r.user_id
+    WHERE r.host = ? AND (CASE WHEN r.category = 'malware' THEN 'malware' ELSE 'scam' END) = ?
+      AND u.email_verified_at IS NOT NULL AND u.created_at <= ?`),
+  allowlisted: db.prepare('SELECT 1 FROM allowlist WHERE host = ?'),
   promote: db.prepare(`INSERT INTO blocklist (host, category, source, note, threat, added_at) VALUES (?, ?, 'community', ?, ?, ?)
                        ON CONFLICT(host) DO NOTHING`),
   setOverride: db.prepare(`INSERT INTO overrides (user_id, host, action, created_at) VALUES (?, ?, ?, ?)
@@ -257,11 +264,13 @@ function register(router) {
     // Reports from distinct accounts only - one person cannot condemn a site alone.
     const total = q.countReports.get(host).n;
     const threat = category === 'malware' ? 'malware' : 'scam';
-    const agreeing = q.countThreatReports.get(host, threat).n;
-    if (agreeing >= 3) q.promote.run(host, category, `Promoted after ${agreeing} ${threat} reports`, threat, now());
+    const agreeing = q.countThreatReports.get(host, threat, now() - REPORTER_MIN_AGE_MS).n;
+    // A well-known site is never condemned by reports alone.
+    const promoted = agreeing >= 3 && !q.allowlisted.get(host);
+    if (promoted) q.promote.run(host, category, `Promoted after ${agreeing} ${threat} reports`, threat, now());
     engine.invalidate(host);
     security.audit('report', { userId: user.id, req, detail: host });
-    sendJson(res, 201, { ok: true, host, reports: total, promoted: agreeing >= 3 });
+    sendJson(res, 201, { ok: true, host, reports: total, promoted });
   });
 
   router.post('/api/v1/sites/override', async (req, res) => {
