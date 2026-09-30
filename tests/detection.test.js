@@ -921,3 +921,13 @@ test('email: real mail from real companies is left alone, and today\'s scams are
   for (const m of scam) if (await flag(m)) caught++;
   assert.ok(caught >= scam.length - 2, `only ${caught}/${scam.length} scams flagged`);
 });
+
+test('real sites whose names resemble big companies are left alone; brand names joined to bait are not', async () => {
+  const list = require('../scripts/evaluate-lookalikes.json');
+  const flagged = [];
+  for (const { url } of list) if ((await scan(url, { research: false })).overall.badge) flagged.push(url);
+  assert.ok(flagged.length <= 1, `flagged: ${flagged.join(' ')}`);
+  for (const url of ['https://paypalresolution.com/', 'https://amazonrefunds.com/', 'https://netflixaccount.net/', 'https://roblox-free-robux.fandom.com/']) {
+    assert.ok((await scan(url, { research: false })).overall.badge, url);
+  }
+});

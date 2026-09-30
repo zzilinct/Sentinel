@@ -331,6 +331,10 @@ function brandInfo(p) {
     // words; long distinctive ones ("coinbase", "microsoft") also as substrings.
     const inside = (flat, set) => set.has(t) || (t.length >= substringMin && flat.includes(t));
     if (!inDomain && inside(sldFlat, words)) inDomain = brand;
+    // The brand at the start or end, joined to a real word the small built-in list does not know ("paypalresolution",
+    // "applebees"): found here, and judged by the word it is joined to (see U22).
+    const rest = sldFlat.startsWith(t) ? sldFlat.slice(t.length) : sldFlat.endsWith(t) ? sldFlat.slice(0, -t.length) : '';
+    if (!inDomain && t.length >= 4 && rest.length >= 4 && isRealWords(rest)) inDomain = brand;
     if (!inSubdomain && subWords.some((s) => inside(s.flat, s.words))) inSubdomain = brand;
     // A hyphen put inside the brand's name ("tik-tokbusiness", "pay-pal-help"): the name only appears once the
     // hyphens are gone. Nobody splits a brand in two by accident.
