@@ -313,8 +313,11 @@ test('file scanner through the API flags a known malicious sample', async () => 
   assert.equal(r.data.usage.fileScans.used, 1);
 });
 
-test('history and reports: three distinct users promote a site to confirmed', async () => {
+test('history and reports: three distinct established users promote a site to confirmed', async () => {
   const users = [await newUser(), await newUser(), await newUser()];
+  // Accounts made a minute ago, with unconfirmed addresses, condemn nothing for everyone.
+  for (const u of users) assert.equal((await u.post('/api/v1/report', { url: 'https://fresh-accounts-target.biz/', category: 'fake_store' })).data.promoted, false);
+  established(users);
   for (const u of users) {
     const r = await u.post('/api/v1/report', { url: 'https://brand-new-shop-scam.biz/', category: 'fake_store' });
     assert.equal(r.status, 201);
