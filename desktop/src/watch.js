@@ -97,13 +97,14 @@ public class Wheel : System.Windows.Forms.NativeWindow {
   [DllImport("user32.dll")] static extern bool RegisterRawInputDevices(RAWINPUTDEVICE[] devices, uint count, uint size);
   [DllImport("user32.dll")] static extern uint GetRawInputData(IntPtr raw, uint command, IntPtr data, ref uint size, uint headerSize);
   public static volatile bool Enabled;
-  public static volatile bool Registered;   // Windows accepted the request (for the log)
+  public static volatile bool Registered;   // Windows is sending the mouse now (only while Enabled)
   public static int Seen;                   // raw input messages seen, sent or not (for the log)
   public static int Msgs;                   // any message at all: tells a dead window from a quiet mouse
   static bool started;
   // Held here for the life of the process, so the window cannot be collected once the thread is inside
   // Application.Run and nothing else refers to it.
   static Wheel instance;
+  static System.Windows.Forms.Timer sync;
   public static void Start() {
     if (started) return;
     started = true;
@@ -113,14 +114,25 @@ public class Wheel : System.Windows.Forms.NativeWindow {
       var cp = new System.Windows.Forms.CreateParams();
       cp.Parent = new IntPtr(-3);   // a message-only window: never shown
       w.CreateHandle(cp);
-      var d = new RAWINPUTDEVICE[1];
-      d[0].UsagePage = 1; d[0].Usage = 2; d[0].Flags = 0x100; d[0].Target = w.Handle;   // the mouse, even when not in front
-      Registered = RegisterRawInputDevices(d, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)));
+      // Windows is asked for the mouse only while marks are on screen, and told to stop the moment they are not: a
+      // gaming mouse reports thousands of times a second, and every report would wake this process during a game.
+      sync = new System.Windows.Forms.Timer();
+      sync.Interval = 200;
+      sync.Tick += (s, e) => w.Sync();
+      sync.Start();
       System.Windows.Forms.Application.Run();
     });
     t.IsBackground = true;
     t.SetApartmentState(System.Threading.ApartmentState.STA);
     t.Start();
+  }
+  void Sync() {
+    if (Enabled == Registered) return;
+    var d = new RAWINPUTDEVICE[1];
+    d[0].UsagePage = 1; d[0].Usage = 2;
+    // On: the mouse, even when this window is not in front (RIDEV_INPUTSINK). Off: RIDEV_REMOVE, no window.
+    if (Enabled) { d[0].Flags = 0x100; d[0].Target = Handle; } else { d[0].Flags = 0x1; d[0].Target = IntPtr.Zero; }
+    if (RegisterRawInputDevices(d, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)))) Registered = Enabled;
   }
   protected override void WndProc(ref System.Windows.Forms.Message m) {
     System.Threading.Interlocked.Increment(ref Msgs);
@@ -471,6 +483,9 @@ const warned = new Map();
 const verdicts = new Map();   // url -> { at, fast, mark }
 let settleTimer = null;
 let restartTimer = null;
+// A reader that keeps failing is brought back more and more slowly (3 s doubling up to 5 min), so a machine where it
+// cannot run is not made to start PowerShell every few seconds all day. A minute of running resets the pace.
+let quickExits = 0;
 let retryTimer = null;        // a failed results check, tried again (see checkLinks)
 let latestLinks = null;       // the last list of on-screen links, so late verdicts land where the links are now
 let seenResults = { for: null, map: new Map() };   // which result each sitelink on this results page belongs to
@@ -602,6 +617,7 @@ function start() {
   }
   log('reader started');
   const mine = child;
+  const startedAt = Date.now();
   let errText = '';
   child.on('error', (err) => {
     if (child !== mine) return;
@@ -627,7 +643,8 @@ function start() {
     if (!state.active) return;
     // Keep watching: the reader is cheap to bring back.
     setState(false, 'Live scanning stopped. Starting it again.');
-    restartTimer = setTimeout(() => restart(), 3000);
+    quickExits = Date.now() - startedAt > 60000 ? 0 : quickExits + 1;
+    restartTimer = setTimeout(() => restart(), Math.min(300000, 3000 * 2 ** Math.max(0, quickExits - 1)));
   });
   setState(true, null);
 }
@@ -1087,6 +1104,7 @@ async function onMail(msg) {
       const badge = (v.overall && v.overall.badge) || null;
       const first = v.reasons && v.reasons[0];
       verdicts.set(item.key, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
       count(isPrivate, badge);
     }
   } catch (err) {
