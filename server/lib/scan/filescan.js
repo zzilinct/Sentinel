@@ -221,17 +221,19 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
   // F08 - script droppers (text, scripts, HTA, shortcuts, documents)
   const droppers = [...new Set((lower.match(SCRIPT_DROPPER) || []).map((s) => s.trim().slice(0, 40)))];
   const scriptFile = ['js', 'jse', 'vbs', 'vbe', 'ps1', 'bat', 'cmd', 'hta', 'wsf', 'lnk'].includes(ext);
-  // A dropper fetches something and runs it. Running code on its own (wscript.shell, invoke-expression) is what
-  // Windows' own admin scripts do all day, and marked 12 of 6,000 real Windows files: it needs a fetch beside it.
-  // Encoded PowerShell and mshta/regsvr32 pointed at a web address fetch and run in one command.
-  const fetches = droppers.some((d) => /downloadstring|downloadfile|net\.webclient|start-bitstransfer|certutil|bitsadmin|mshta|regsvr32|-(e|enc|encodedcommand)\b/.test(d));
-  if (!fetches && droppers.length) {
-    add('F08', 'malware', 'Does not download and run hidden code', warn(scriptFile ? 12 : 8, `Runs commands (${droppers.slice(0, 2).join(', ')}), but fetches nothing`));
-  } else if (droppers.length >= 2 || (droppers.length && scriptFile)) {
-    const points = droppers.length >= 2 && scriptFile ? 65 : 50;
-    add('F08', 'malware', 'Does not download and run hidden code', fail(points, `Download-and-execute commands: ${droppers.slice(0, 3).join(', ')}`));
+  // A dropper fetches something and runs it. Measured on real software (scripts/evaluate-files.js): Windows' own
+  // admin scripts run commands or fetch pages on their own all day, and every .NET program names WebClient and
+  // DownloadString, so only a script that does both is marked, or one command that does both at once (encoded
+  // PowerShell, mshta or regsvr32 on a web address, certutil or bitsadmin downloads). Programs have their own checks.
+  const oneCommand = droppers.some((d) => /mshta|regsvr32|certutil|bitsadmin|-(e|enc|encodedcommand)\b/.test(d));
+  const fetches = droppers.some((d) => /downloadstring|downloadfile|net\.webclient|start-bitstransfer/.test(d));
+  const runs = droppers.some((d) => /invoke-expression|iex|wscript\.shell|activexobject|frombase64string/.test(d));
+  if (executable) {
+    add('F08', 'malware', 'Does not download and run hidden code', skip('A program: judged by the checks for programs'));
+  } else if (oneCommand || (fetches && runs)) {
+    add('F08', 'malware', 'Does not download and run hidden code', fail(scriptFile ? 65 : 50, `Download-and-execute commands: ${droppers.slice(0, 3).join(', ')}`));
   } else if (droppers.length) {
-    add('F08', 'malware', 'Does not download and run hidden code', warn(18, `Suspicious command: ${droppers[0]}`));
+    add('F08', 'malware', 'Does not download and run hidden code', warn(scriptFile ? 12 : 8, `${fetches ? 'Fetches' : 'Runs commands'} (${droppers.slice(0, 2).join(', ')}), but does not do both`));
   } else {
     add('F08', 'malware', 'Does not download and run hidden code', pass('No dropper commands'));
   }
