@@ -45,6 +45,10 @@ function hintWords(text) {
 const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'security', 'account', 'signin', 'login', 'logon', 'auth', 'update', 'unlock', 'suspended', 'recovery', 'recover', 'confirm', 'support', 'helpdesk', 'billing', 'invoice', 'password',
   'bank', 'banking', 'onlinebanking', 'online', 'webmail', 'mailbox', 'quota', 'owa', 'reactivate', 'deactivate', 'deactivation', 'expired', 'session', 'urgent', 'notice', 'required', 'action', 'immediately', 'attention',
   'payroll', 'salary', 'benefits', 'w2', 'enrollment', 'hr', 'docs', 'document', 'documents', 'fileshare', 'sharefile', 'portal', 'sso', 'adfs', 'authenticate', 'authentication'];
+// Section names shared platforms put in their own addresses (docs.google.com/document/..., drive/file): the platform
+// chose them, not whoever made the page, so they say nothing about the page.
+const PLATFORM_WORDS = new Set(['docs', 'document', 'documents', 'drive', 'file', 'forms', 'sites', 'view', 'edit']);
+const authorWords = (p, words) => (L.PATH_HOSTING.includes(p.host) ? new Set([...words].filter((w) => !PLATFORM_WORDS.has(w))) : words);
 const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery', 'survey', 'loyalty', 'win'];
 const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway', 'airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
@@ -177,7 +181,7 @@ const URL_CHECKS = [
     run: ({ p, brand, words }) => {
       if (L.PATH_HOSTING.includes(p.host) && p.path.length > 1) {
         const lower = p.path.toLowerCase();
-        if (CREDENTIAL_WORDS.some((w) => lower.includes(w))) return fail(20, `User-made page on ${p.host} using login wording`);
+        if (CREDENTIAL_WORDS.some((w) => !PLATFORM_WORDS.has(w) && lower.includes(w))) return fail(20, `User-made page on ${p.host} using login wording`);
         if (/\.html?$/.test(lower) && L.OBJECT_STORAGE.test(p.host)) return fail(CREDENTIAL_WORDS.some((w) => lower.includes(w)) ? 32 : 22, `Web page served straight from a storage bucket on ${p.host}, where anyone can upload one`);
         return warn(8, `User-made page on ${p.host}`);
       }
@@ -254,7 +258,7 @@ const URL_CHECKS = [
 
   { id: 'U25', group: 'Wording', threat: 'scam', title: 'No account-security bait in the address',
     run: ({ words, p }) => {
-      const { hits, points } = keywordScore(words, CREDENTIAL_WORDS, 30, p);
+      const { hits, points } = keywordScore(authorWords(p, words), CREDENTIAL_WORDS, 30, p);
       return hits.length ? fail(points, `Address uses: ${hits.slice(0, 4).join(', ')}`) : pass('None found');
     } },
 
@@ -372,7 +376,7 @@ const KNOWLEDGE_CHECKS = [
       if (brand.official) return pass('Official site');
       // Hosting's temporary address (website-e86d3b7f.….mybluehost.me): what a site is reached by before it has a
       // name of its own. Nobody sends customers there; throwaway pages live there.
-      if (p.host.endsWith('.mybluehost.me') && /^website-[0-9a-f]{6,}\./.test(p.host)) return fail(24, 'A hosting company\'s temporary address, not a site\'s own name');
+      if (p.host.endsWith('.mybluehost.me') && /^(www\.)?website-[0-9a-f]{6,}\./.test(p.host)) return fail(24, 'A hosting company\'s temporary address, not a site\'s own name');
       // Folder and page names nobody would type ("aynqxts/wsdqmoc/dpgqmbx"): phishing kits unpack into generated
       // folders on hacked sites, and shared site builders give throwaway pages generated names.
       const parts = p.path.split('/').filter(Boolean).map((s) => s.replace(/\.[a-z0-9]+$/i, ''));

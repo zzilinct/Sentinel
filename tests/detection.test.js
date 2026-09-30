@@ -902,3 +902,11 @@ test('pages hidden behind generated names are suspected; ordinary names, even od
     assert.ok(!(await scan(url, { research: false })).checklist.items.some((c) => c.id === 'U56' && c.status === 'fail'), url);
   }
 });
+
+test('real pages deep inside real sites are left alone (shared documents, site builders, sign-in pages)', async () => {
+  const pages = require('../scripts/evaluate-pages.json');
+  const flagged = [];
+  for (const url of pages) if ((await scan(url, { research: false })).overall.badge) flagged.push(url);
+  assert.deepEqual(flagged, []);
+  assert.ok((await scan('https://sites.google.com/view/paypal-login-verify/home', { research: false })).overall.badge, 'a brand login page on a site builder still is not');
+});
