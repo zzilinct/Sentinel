@@ -13,7 +13,7 @@ const cc = (name, list) => list.map((suffix) => `${name}.${suffix}`);
 
 const BRANDS = [
   // Payments and banks
-  { token: 'paypal', domains: ['paypal.com', 'paypal.me', 'paypalobjects.com', 'paypal-community.com', ...cc('paypal', ['co.uk', 'de', 'fr', 'it', 'es', 'nl', 'ca', 'com.au'])] },
+  { token: 'paypal', domains: ['paypal.com', 'paypal.me', 'paypalobjects.com', 'paypal-community.com', 'paypalhere.com', ...cc('paypal', ['co.uk', 'de', 'fr', 'it', 'es', 'nl', 'ca', 'com.au'])] },
   { token: 'venmo', domains: ['venmo.com'] },
   { token: 'zelle', domains: ['zellepay.com', 'zelle.com'] },
   { token: 'cashapp', domains: ['cash.app', 'square.com', 'squareup.com'] },
