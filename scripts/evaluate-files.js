@@ -11,12 +11,12 @@
 const fs = require('fs');
 const path = require('path');
 
-// The desktop app scans with its own copy of the scanner; make sure that copy exists, as the tests do.
+// The desktop app scans with its own copy of the scanner: refreshed from the server's, so the current one is measured.
 const shared = path.join(__dirname, '..', 'desktop', 'shared');
 fs.mkdirSync(shared, { recursive: true });
 for (const file of ['filescan.js', 'lists.js', 'brands.js']) {
   const to = path.join(shared, file);
-  if (!fs.existsSync(to)) fs.copyFileSync(path.join(__dirname, '..', 'server', 'lib', 'scan', file), to);
+  fs.copyFileSync(path.join(__dirname, '..', 'server', 'lib', 'scan', file), to);
 }
 const { scanFile, MAX_FILE_BYTES } = require('../desktop/shared/filescan');
 const { summarize } = require('../desktop/src/downloads');

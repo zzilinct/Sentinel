@@ -225,9 +225,11 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
   // admin scripts run commands or fetch pages on their own all day, and every .NET program names WebClient and
   // DownloadString, so only a script that does both is marked, or one command that does both at once (encoded
   // PowerShell, mshta or regsvr32 on a web address, certutil or bitsadmin downloads). Programs have their own checks.
-  const oneCommand = droppers.some((d) => /mshta|regsvr32|certutil|bitsadmin|-(e|enc|encodedcommand)\b/.test(d));
-  const fetches = droppers.some((d) => /downloadstring|downloadfile|net\.webclient|start-bitstransfer/.test(d));
-  const runs = droppers.some((d) => /invoke-expression|iex|wscript\.shell|activexobject|frombase64string/.test(d));
+  // Judged on the whole commands: the shortened ones are only for display, and cut "-enc" off a long preamble.
+  const whole = lower.match(SCRIPT_DROPPER) || [];
+  const oneCommand = whole.some((d) => /mshta|regsvr32|certutil|bitsadmin|-(e|enc|encodedcommand)\b/.test(d));
+  const fetches = whole.some((d) => /downloadstring|downloadfile|net\.webclient|start-bitstransfer/.test(d));
+  const runs = whole.some((d) => /invoke-expression|iex|wscript\.shell|activexobject|frombase64string/.test(d));
   if (executable) {
     add('F08', 'malware', 'Does not download and run hidden code', skip('A program: judged by the checks for programs'));
   } else if (oneCommand || (fetches && runs)) {

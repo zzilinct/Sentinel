@@ -17,8 +17,19 @@ function save() {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   // Written beside it and then swapped in: a crash or power cut mid-write never leaves half a file, which would
   // start Sentinel with every setting and the sign-in gone.
-  fs.writeFileSync(`${file}.tmp`, JSON.stringify(data, null, 2), { mode: 0o600 });
-  fs.renameSync(`${file}.tmp`, file);
+  const text = JSON.stringify(data, null, 2);
+  fs.writeFileSync(`${file}.tmp`, text, { mode: 0o600 });
+  // Antivirus, the search indexer or OneDrive can hold the file for a moment, and Windows then refuses the swap.
+  for (let i = 0; i < 5; i++) {
+    try { fs.renameSync(`${file}.tmp`, file); return; } catch (err) {
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes(err.code)) throw err;
+      const until = Date.now() + 20 * (i + 1);
+      while (Date.now() < until) { /* a few milliseconds: settings are small and saved rarely */ }
+    }
+  }
+  // Still held: write it in place rather than lose the change.
+  fs.writeFileSync(file, text, { mode: 0o600 });
+  try { fs.unlinkSync(`${file}.tmp`); } catch { /* left for next time */ }
 }
 
 function get(key, fallback) {
