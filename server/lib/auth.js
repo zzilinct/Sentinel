@@ -358,11 +358,16 @@ function googleAuthUrl(nextUrl, { staySignedIn = false } = {}) {
     state,
     prompt: 'select_account'
   });
-  return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, cookie: googleStateCookie(state) };
 }
 
-async function googleExchange(code, state) {
-  const row = oq.take.get(String(state));
+async function googleExchange(code, state, req) {
+  const mine = String(parseCookies(req)[OAUTH_COOKIE] || '');
+  const theirs = String(state || '');
+  if (!mine || !crypto.timingSafeEqual(crypto.createHash('sha256').update(mine).digest(), crypto.createHash('sha256').update(theirs).digest())) {
+    throw new HttpError(400, 'bad_state', 'Sign-in link expired. Please try again.');
+  }
+  const row = oq.take.get(theirs);
   if (!row || now() - row.created_at > 10 * 60 * 1000) throw new HttpError(400, 'bad_state', 'Sign-in link expired. Please try again.');
   oq.del.run(row.state);
 
