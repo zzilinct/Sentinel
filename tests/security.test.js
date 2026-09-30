@@ -109,8 +109,11 @@ test('two-factor authentication: setup, login challenge, replay protection', asy
   const secret = security.base32Decode(setup.data.secret);
   const codeAt = (t) => security.hotp(secret, Math.floor(t / 30000));
 
-  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: '000000' })).status, 400);
-  const enable = await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now() - 30000) });
+  // A session alone cannot turn it on (it signs every other device out): the password is asked for too.
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now()) })).status, 401);
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now()), password: 'wrong-password' })).status, 401);
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: '000000', password: 'Correct-Horse-42' })).status, 400);
+  const enable = await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now() - 30000), password: 'Correct-Horse-42' });
   assert.equal(enable.status, 200, JSON.stringify(enable.data));
   assert.equal(enable.data.user.twoFactorEnabled, true);
 
@@ -224,4 +227,16 @@ test('a typed host with a port is a web address, not a scheme', () => {
   assert.equal(typedUrl('example.com:8443/login'), 'https://example.com:8443/login');
   assert.equal(typedUrl('localhost:3000'), 'https://localhost:3000');
   assert.equal(typedUrl('mailto:a@b.co'), 'mailto:a@b.co');
+});
+
+test('a page that points its own name at this computer (DNS rebinding) gets no answer', async () => {
+  const http = require('http');
+  const u = new URL(app.base);
+  const get = (host) => new Promise((resolve, reject) => {
+    http.get({ host: u.hostname, port: u.port, path: '/api/v1/auth/config', headers: { Host: host } }, (res) => { res.resume(); resolve(res.statusCode); }).on('error', reject);
+  });
+  assert.equal(await get(`attacker.example:${u.port}`), 421);
+  assert.equal(await get('127.0.0.1'), 421, 'the port is part of the name');
+  assert.equal(await get(`127.0.0.1:${u.port}`), 200);
+  assert.equal(await get(`localhost:${u.port}`), 200);
 });
