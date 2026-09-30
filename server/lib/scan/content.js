@@ -30,6 +30,25 @@ function hostOf(href, base) {
 }
 
 /**
+ * Every tag in the page, in one pass. The pattern cannot backtrack (a tag is a "<", anything but "<" and ">", then
+ * ">"), so a page built to be slow to read costs the same as any other. The earlier per-tag patterns with lazy or
+ * overlapping parts took seconds to minutes on crafted markup, and the whole server waited for them.
+ */
+function tagsOf(source) {
+  const out = [];
+  const rx = /<([a-zA-Z][a-zA-Z0-9-]*)[^<>]*>/g;
+  let m;
+  while ((m = rx.exec(source)) && out.length < 20000) out.push({ name: m[1].toLowerCase(), at: m.index, end: m.index + m[0].length, raw: m[0] });
+  return out;
+}
+
+/** Where the element opened by `tag` ends: its closing tag, or the end of the page. */
+function closeOf(lower, tag) {
+  const i = lower.indexOf(`</${tag.name}`, tag.end);
+  return i < 0 ? lower.length : i;
+}
+
+/**
  * @param {string} html
  * @param {string} pageUrl final URL after redirects
  */
@@ -38,47 +57,57 @@ function parse(html, pageUrl) {
   const lower = source.toLowerCase();
   const page = analyze(pageUrl);
   const pageReg = page ? page.registrable : '';
+  const tags = tagsOf(source);
+  const named = (...names) => tags.filter((t) => names.includes(t.name));
 
-  const title = decodeEntities(((/<title[^>]*>([\s\S]*?)<\/title>/i.exec(source) || [])[1] || '').replace(/\s+/g, ' ').trim()).slice(0, 300);
+  const titleTag = named('title')[0];
+  const title = titleTag ? decodeEntities(source.slice(titleTag.end, closeOf(lower, titleTag)).replace(/s+/g, ' ').trim()).slice(0, 300) : '';
 
   // Visible-ish text: drop scripts, styles and tags.
-  const text = decodeEntities(
-    source
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-  ).replace(/\s+/g, ' ').trim().toLowerCase();
+  let visible = '';
+  let from = 0;
+  for (const t of named('script', 'style', 'noscript')) {
+    if (t.at < from) continue;
+    visible += source.slice(from, t.at) + ' ';
+    const close = closeOf(lower, t);
+    const after = lower.indexOf('>', close);
+    from = after < 0 ? source.length : after + 1;
+  }
+  visible += source.slice(from);
+  const text = decodeEntities(visible.replace(/<[^<>]*>/g, ' ')).replace(/s+/g, ' ').trim().toLowerCase();
 
-  const forms = [];
-  const formRx = /<form\b[^>]*>([\s\S]*?)(<\/form>|$)/gi;
-  let fm;
-  while ((fm = formRx.exec(source)) && forms.length < 20) {
-    const a = attrs(fm[0].slice(0, fm[0].indexOf('>') + 1));
-    const inner = fm[1];
-    const inputs = [...inner.matchAll(/<(input|textarea|select)\b[^>]*>/gi)].map((m) => attrs(m[0]));
+  const fields = (t) => attrs(t.raw);
+  const inputInfo = (i) => ({ type: (i.type || 'text').toLowerCase(), name: (i.name || i.id || '').toLowerCase(), placeholder: (i.placeholder || '').toLowerCase(), autocomplete: (i.autocomplete || '').toLowerCase() });
+  const inputTags = named('input', 'textarea', 'select');
+
+  const forms = named('form').slice(0, 20).map((t) => {
+    const a = fields(t);
+    const close = closeOf(lower, t);
+    const inputs = inputTags.filter((i) => i.at >= t.end && i.at < close).map(fields);
     const action = a.action || '';
     const actionHost = action ? hostOf(action, pageUrl) : null;
-    forms.push({
+    return {
       action,
       method: (a.method || 'get').toLowerCase(),
       actionHost,
       external: Boolean(actionHost && page && analyze(`http://${actionHost}`)?.registrable !== pageReg),
-      inputs: inputs.map((i) => ({ type: (i.type || 'text').toLowerCase(), name: (i.name || i.id || '').toLowerCase(), placeholder: (i.placeholder || '').toLowerCase(), autocomplete: (i.autocomplete || '').toLowerCase() }))
-    });
-  }
-  // Inputs outside <form> tags (common in JS-driven kits).
-  const looseInputs = [...source.matchAll(/<input\b[^>]*>/gi)].map((m) => attrs(m[0]));
-
-  const scripts = [...source.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].map((m) => {
-    const a = attrs(`<script ${m[1]}>`);
-    return { src: a.src || '', host: a.src ? hostOf(a.src, pageUrl) : null, inline: m[2] || '' };
+      inputs: inputs.map(inputInfo)
+    };
   });
-  const inlineJs = scripts.map((s) => s.inline).join('\n');
+  // Inputs outside <form> tags (common in JS-driven kits).
+  const looseInputs = named('input').map(fields);
 
-  const iframes = [...source.matchAll(/<iframe\b[^>]*>/gi)].map((m) => {
-    const a = attrs(m[0]);
-    const style = (a.style || '').replace(/\s/g, '').toLowerCase();
+  const scripts = named('script').map((t) => {
+    const a = fields(t);
+    const close = lower.indexOf('</script', t.end);
+    return { src: a.src || '', host: a.src ? hostOf(a.src, pageUrl) : null, inline: close < 0 ? '' : source.slice(t.end, close) };
+  });
+  const inlineJs = scripts.map((s) => s.inline).join('
+');
+
+  const iframes = named('iframe').map((t) => {
+    const a = fields(t);
+    const style = (a.style || '').replace(/s/g, '').toLowerCase();
     return {
       src: a.src || '',
       hidden: a.width === '0' || a.height === '0' || a.width === '1' || a.height === '1'
@@ -86,17 +115,18 @@ function parse(html, pageUrl) {
     };
   });
 
-  const links = [...source.matchAll(/<a\b[^>]*href\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi)]
-    .slice(0, 400)
-    .map((m) => (m[2] ?? m[3] ?? m[4] ?? '').trim());
+  const links = named('a').map(fields).filter((a) => 'href' in a).slice(0, 400).map((a) => a.href);
 
-  const resources = [...source.matchAll(/<(img|link)\b[^>]*(src|href)\s*=\s*["']([^"']+)["'][^>]*>/gi)]
+  const resources = named('img', 'link')
+    .map((t) => { const a = fields(t); return t.name === 'img' ? a.src : a.href; })
+    .filter(Boolean)
     .slice(0, 300)
-    .map((m) => hostOf(m[3], pageUrl))
+    .map((u) => hostOf(u, pageUrl))
     .filter(Boolean);
 
-  const metaRefresh = (/<meta[^>]+http-equiv\s*=\s*["']?refresh["']?[^>]*content\s*=\s*["']([^"']+)["']/i.exec(source) || [])[1] || '';
-  const robots = (/<meta[^>]+name\s*=\s*["']robots["'][^>]*content\s*=\s*["']([^"']+)["']/i.exec(source) || [])[1] || '';
+  const metas = named('meta').map(fields);
+  const metaRefresh = (metas.find((a) => (a['http-equiv'] || '').toLowerCase() === 'refresh' && a.content) || {}).content || '';
+  const robots = (metas.find((a) => (a.name || '').toLowerCase() === 'robots' && a.content) || {}).content || '';
 
   return {
     title,
@@ -105,7 +135,7 @@ function parse(html, pageUrl) {
     htmlLower: lower,
     words: text ? text.split(' ').length : 0,
     forms,
-    inputs: [...forms.flatMap((f) => f.inputs), ...looseInputs.map((i) => ({ type: (i.type || 'text').toLowerCase(), name: (i.name || i.id || '').toLowerCase(), placeholder: (i.placeholder || '').toLowerCase(), autocomplete: (i.autocomplete || '').toLowerCase() }))],
+    inputs: [...forms.flatMap((f) => f.inputs), ...looseInputs.map(inputInfo)],
     scripts: scripts.map(({ src, host }) => ({ src, host })),
     inlineJs,
     inlineJsBytes: inlineJs.length,
