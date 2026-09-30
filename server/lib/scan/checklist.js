@@ -70,16 +70,16 @@ const URL_CHECKS = [
     } },
 
   { id: 'U02', group: 'Address', threat: 'scam', title: 'No look-alike international characters (punycode)',
-    run: ({ p }) => (/(^|\.)xn--/.test(p.host) ? fail(30, 'Punycode domain - characters may imitate a different alphabet') : pass('Plain characters only')) },
+    run: ({ p }) => (/(^|\.)xn--/.test(p.host) ? fail(30, 'Punycode domain: characters may imitate a different alphabet') : pass('Plain characters only')) },
 
   { id: 'U03', group: 'Address', threat: 'scam', title: 'Destination is not hidden behind an "@"',
     run: ({ p }) => {
       if (!p.hasUserinfo) return pass('No hidden destination');
       const before = (/^[a-z]+:\/\/([^/@]*)@/i.exec(p.url) || [])[1] || '';
-      if (!/\./.test(before)) return fail(24, 'Everything before "@" is ignored by the browser - the real destination is hidden');
+      if (!/\./.test(before)) return fail(24, 'Everything before "@" is ignored by the browser: the real destination is hidden');
       const decoyWords = hostWords(before);
       const decoyBrand = L.PROTECTED_BRANDS.find((b) => decoyWords.has(b.token));
-      return fail(decoyBrand ? 40 : 32, `"${before.slice(0, 40)}" is a decoy${decoyBrand ? ` posing as ${decoyBrand.domains[0]}` : ''} - everything before "@" is ignored and the real site is ${p.host}`);
+      return fail(decoyBrand ? 40 : 32, `"${before.slice(0, 40)}" is a decoy${decoyBrand ? ` posing as ${decoyBrand.domains[0]}` : ''}: everything before "@" is ignored and the real site is ${p.host}`);
     } },
 
   { id: 'U04', group: 'Address', threat: 'scam', title: 'Reasonable subdomain depth',
@@ -103,7 +103,7 @@ const URL_CHECKS = [
     run: ({ p }) => (p.port && !['80', '443'].includes(p.port) ? fail(8, `Uses port ${p.port}`, { malware: 8 }) : pass('Standard port')) },
 
   { id: 'U09', group: 'Address', threat: 'scam', title: 'Uses an encrypted (HTTPS) connection',
-    run: ({ p }) => (p.scheme === 'http' ? warn(8, 'Unencrypted HTTP - anything you type can be read in transit') : pass('HTTPS')) },
+    run: ({ p }) => (p.scheme === 'http' ? warn(8, 'Unencrypted HTTP: anything you type can be read in transit') : pass('HTTPS')) },
 
   { id: 'U10', group: 'Address', threat: 'scam', title: 'Top-level domain is not heavily abused',
     run: ({ p }) => {
@@ -152,7 +152,7 @@ const URL_CHECKS = [
     run: ({ p }) => (L.ARCHIVE_EXT.has(p.ext) ? warn(6, `.${p.ext} archives are a common way to smuggle malware past filters`) : pass('Not an archive')) },
 
   { id: 'U18', group: 'Address', threat: 'scam', title: 'Real destination is visible (not a URL shortener)',
-    run: ({ p }) => (L.URL_SHORTENERS.has(p.registrable) || L.URL_SHORTENERS.has(p.host) ? warn(14, 'Shortened link - the destination is hidden until you click') : pass('Not shortened')) },
+    run: ({ p }) => (L.URL_SHORTENERS.has(p.registrable) || L.URL_SHORTENERS.has(p.host) ? warn(14, 'Shortened link: the destination is hidden until you click') : pass('Not shortened')) },
 
   { id: 'U19', group: 'Address', threat: 'scam', title: 'Does not bounce you to another site through a parameter',
     run: ({ p }) => {
@@ -197,7 +197,7 @@ const URL_CHECKS = [
       const segs = p.path.split('/').filter(Boolean);
       const token = segs.find((s) => s.length >= 12 && /^[A-Za-z0-9_-]+={0,2}$/.test(s) && /[A-Z]/.test(s) && /[a-z]/.test(s) && /\d|[A-Z].*[A-Z].*[A-Z]/.test(s) && !/\.(html?|php|aspx?)$/.test(s));
       const emailInUrl = /[?&=/][^?&=/]*%40|[?&=][a-z0-9._%+-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(p.path + p.query);
-      if (emailInUrl) return fail(14, 'The link contains an email address - it was generated for one victim');
+      if (emailInUrl) return fail(14, 'The link contains an email address: it was generated for one victim');
       return token ? warn(6, 'Link carries an encoded per-recipient token') : pass('No per-recipient token');
     } },
 
@@ -312,7 +312,7 @@ const URL_CHECKS = [
     run: ({ brand, words }) => {
       const b = brand.inDomain || brand.inSubdomain || brand.lookalike;
       const hits = CREDENTIAL_WORDS.filter((w) => words.has(w));
-      return b && hits.length ? fail(12, `"${b.token}" combined with "${hits[0]}" - a classic combosquatting pattern`) : pass('No brand + security combination');
+      return b && hits.length ? fail(12, `"${b.token}" combined with "${hits[0]}": a classic combosquatting pattern`) : pass('No brand + security combination');
     } },
 
   { id: 'U36', group: 'Trust', threat: 'scam', title: 'Official domain of a well-known brand',
@@ -704,14 +704,14 @@ const INFRA_CHECKS = [
       // Some registries (.edu among them) answer "not found" for domains they do hold. A domain that resolves to a
       // server is owned by someone, whatever its registry says.
       if (reg.available && reg.registered === false && ctx.research.dns && ctx.research.dns.resolves) return pass('Resolves to a server (its registry did not answer for it)');
-      return reg.available && reg.registered === false ? fail(20, 'Nobody owns this domain - the link is fake or already taken down') : pass(reg.available ? 'Registered' : 'Registry not reachable');
+      return reg.available && reg.registered === false ? fail(20, 'Nobody owns this domain: the link is fake or already taken down') : pass(reg.available ? 'Registered' : 'Registry not reachable');
     } },
 
   { id: 'R05', group: 'Network', threat: 'scam', title: 'Domain resolves to a server', research: true,
     run: (ctx) => {
       const r = needsResearch(ctx); if (r) return r;
       if (ctx.research.dns.unavailable) return skip('DNS did not answer in time');
-      return ctx.research.dns.resolves ? pass(`Resolves to ${ctx.research.dns.addresses[0]}`) : warn(10, 'Does not resolve - possibly taken down after abuse reports');
+      return ctx.research.dns.resolves ? pass(`Resolves to ${ctx.research.dns.addresses[0]}`) : warn(10, 'Does not resolve: possibly taken down after abuse reports');
     } },
 
   { id: 'R06', group: 'Network', threat: 'malware', title: 'Does not point at a private network address', research: true,
@@ -726,7 +726,7 @@ const INFRA_CHECKS = [
       const brandish = ctx.brand.inDomain || ctx.brand.lookalike;
       if (!brandish) return skip('Only checked for brand-style domains');
       if (ctx.research.dns.unavailable) return skip('DNS did not answer in time');
-      return ctx.research.dns.mx ? pass('Has mail servers') : warn(6, 'No mail servers - a real company domain would have them');
+      return ctx.research.dns.mx ? pass('Has mail servers') : warn(6, 'No mail servers: a real company domain would have them');
     } },
 
   { id: 'R08', group: 'Certificate', threat: 'scam', title: 'Valid, trusted HTTPS certificate', research: true,
@@ -854,7 +854,7 @@ const CONTENT_CHECKS = [
       const r = needsResearch(ctx); if (r) return r;
       const pg = page(ctx);
       if (!pg) return skip('No page content');
-      if (pg.htmlLower.includes('api.telegram.org/bot')) return fail(45, 'Sends form data to a Telegram bot - a phishing-kit hallmark');
+      if (pg.htmlLower.includes('api.telegram.org/bot')) return fail(45, 'Sends form data to a Telegram bot: a phishing-kit hallmark');
       if (pg.forms.some((f) => /^mailto:/i.test(f.action))) return fail(20, 'Form emails your details to someone');
       return pass('No exfiltration endpoints');
     } },
@@ -877,7 +877,7 @@ const CONTENT_CHECKS = [
       const phraseText = /(recovery|seed|secret|mnemonic) phrase|private key|12[- ]word|24[- ]word/.test(pg.text);
       const wordInputs = pg.inputs.filter((i) => /word\s*\d+|phrase|mnemonic/.test(`${i.name} ${i.placeholder}`)).length;
       return phraseText && (wordInputs >= 1 || pg.inputs.some((i) => i.type === 'text' || i.type === 'password'))
-        ? fail(55, 'Asks you to type a wallet recovery phrase - no legitimate site ever does')
+        ? fail(55, 'Asks you to type a wallet recovery phrase: no legitimate site ever does')
         : pass('No seed-phrase request');
     } },
 
@@ -1071,7 +1071,7 @@ const CONTENT_CHECKS = [
       const r = needsResearch(ctx); if (r) return r;
       const pg = page(ctx);
       if (!pg) return skip('No page content');
-      return PAY_ODDLY.test(pg.text) ? fail(30, 'Demands payment by crypto, gift cards or wire transfer - none of which can be reversed') : pass('No unusual payment demands');
+      return PAY_ODDLY.test(pg.text) ? fail(30, 'Demands payment by crypto, gift cards or wire transfer: none of which can be reversed') : pass('No unusual payment demands');
     } },
 
   { id: 'P26', group: 'Shopping', threat: 'scam', title: 'Contact is not limited to WhatsApp or Telegram', research: true,
