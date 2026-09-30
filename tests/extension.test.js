@@ -95,6 +95,36 @@ test('pairing works without externally_connectable, and Firefox is asked for sit
   assert.match(popup, /permissions\.request\(\{ origins: \['<all_urls>'\] \}\)/, 'the popup asks for site access the first time');
 });
 
+test('the companion unwraps search engines\' links the way the desktop app does (Bing, Google /goto, ads, trackers)', () => {
+  const vm = require('vm');
+  const src = fs.readFileSync(path.join(SRC, 'content', 'serp.js'), 'utf8');
+  const start = src.indexOf('function fromBase64');
+  const end = src.indexOf('function isResult');
+  assert.ok(start > 0 && end > start);
+  const ctx = { URL, TextDecoder, atob: (s) => Buffer.from(s, 'base64').toString('latin1'), location: { href: 'https://www.bing.com/search?q=x', hostname: 'www.bing.com' },
+    SEARCH_HOSTS: /(^|\.)(google|bing|duckduckgo|yahoo|brave|ecosia|startpage|mojeek|yandex|googleusercontent|gstatic)\.[a-z.]+$/ };
+  vm.createContext(ctx);
+  vm.runInContext(`${src.slice(start, end)}; this.realUrl = realUrl;`, ctx);
+  const b64 = (s) => Buffer.from(s).toString('base64url');
+  const dest = 'https://cheap-pods.example/products/pro?currency=USD';
+  const tracker = 'https://clickserve.dartsearch.net/link/click?&&ds_e_adid=1&ds_dest_url=https://shop.example/ip/pods?a=1&wl0=e';
+  const cases = [
+    [`https://www.bing.com/ck/a?!&&p=85&u=a1${b64('https://www.backmarket.com/en-us/l/airpods/1')}&ntb=1`, null, 'https://www.backmarket.com/en-us/l/airpods/1'],
+    [`https://www.bing.com/aclk?ld=e8&u=${b64(encodeURIComponent(dest))}`, null, dest],
+    [`https://www.bing.com/aclk?ld=e8&u=${b64(encodeURIComponent(tracker))}`, null, 'https://shop.example/ip/pods?a=1&wl0=e'],
+    ['https://www.google.com/goto?url=CAESYwHrOzAV', { innerText: 'Contact Us PayPal https://www.paypal.com › cshelp › contact-us' }, 'https://www.paypal.com/cshelp/contact-us'],
+    ['https://www.google.com/goto?url=X', { innerText: 'https://www.paypal.com › signin Deals https://cheap-pods.example › offers' }, 'https://cheap-pods.example/offers'],
+    [`https://www.google.com/aclk?sa=l&adurl=${encodeURIComponent(dest)}`, null, dest],
+    [`https://duckduckgo.com/l/?uddg=${encodeURIComponent('https://shop.example.net/x')}&rut=abc`, null, 'https://shop.example.net/x'],
+    [`https://duckduckgo.com/y.js?ad_domain=cheap-pods.example&u3=${encodeURIComponent('https://www.bing.com/aclick?ld=x')}`, null, 'https://cheap-pods.example/']
+  ];
+  for (const [href, anchor, want] of cases) assert.equal(ctx.realUrl(href, anchor), want, href.slice(0, 60));
+  // The same answers as the desktop app's own unwrapping.
+  const watch = require('../desktop/src/watch.js')._test;
+  assert.equal(watch.unwrapResult(new URL(cases[0][0])).href, cases[0][2]);
+  assert.equal(watch.unwrapResult(new URL(cases[3][0]), cases[3][1].innerText).href, cases[3][2]);
+});
+
 test('the search overlay is a shadow-root overlay that never takes a click, and live hours are only spent on a tab in use', () => {
   const serp = strip(fs.readFileSync(path.join(SRC, 'content', 'serp.js'), 'utf8'));
   assert.match(serp, /attachShadow\(\{ mode: 'closed' \}\)/);

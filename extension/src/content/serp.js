@@ -23,8 +23,9 @@
   let popover = null;
 
   const ENGINES = [
-    { test: /(^|\.)google\./, titles: '#search h3, #rso h3, #botstuff h3' },
-    { test: /(^|\.)bing\./, titles: '#b_results li.b_algo h2' },
+    // Ads too (#tads, li.b_ad): fake shops and fake support numbers buy them.
+    { test: /(^|\.)google\./, titles: '#search h3, #rso h3, #botstuff h3, #tads [role="heading"], #bottomads [role="heading"]' },
+    { test: /(^|\.)bing\./, titles: '#b_results li.b_algo h2, #b_results li.b_ad h2, #b_results .b_adTop h2' },
     { test: /duckduckgo\./, titles: '[data-testid="result-title-a"], a.result__a, .result-link' },
     { test: /search\.yahoo\./, titles: '#web h3' },
     { test: /search\.brave\./, titles: '#results .snippet .title, #results a .title' },
@@ -39,15 +40,87 @@
 
   /* ------------------------------------------------------------- urls */
 
-  function realUrl(href) {
+  // The same rules as the desktop app (desktop/src/watch.js unwrapResult, citedAddress, trackerTarget), for a page.
+  function fromBase64(s) {
+    let t = String(s).replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    const bin = atob(t);
+    return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  }
+
+  // The address Google shows under a result ("https://www.paypal.com › cshelp › contact-us"): its /goto links hide
+  // the destination. The last one in the link's text is Google's; a title could imitate one.
+  function citedAddress(text) {
+    const cite = /(?:^|\s)(https?:\/\/(?:[a-z0-9-]+\.)+[a-z]{2,63})((?:\s[›>]\s[^\s›>]+)*)/gi;
+    let last = null;
+    for (let m; (m = cite.exec(String(text || '')));) last = m;
+    if (!last) return null;
+    const kept = [];
+    for (const part of last[2].split(/\s[›>]\s/).map((p) => p.trim()).filter(Boolean)) { if (/\.\.\.|…/.test(part)) break; kept.push(encodeURIComponent(part)); }
+    return `${last[1]}/${kept.join('/')}`;
+  }
+
+  function unwrap(u, anchor) {
+    const host = u.hostname;
+    let target = null;
+    try {
+      if (/(^|\.)bing\.com$/.test(host) && u.pathname === '/ck/a') {
+        const v = u.searchParams.get('u') || '';
+        if (v.startsWith('a1')) target = fromBase64(v.slice(2));
+      } else if (/(^|\.)bing\.com$/.test(host) && /^\/(aclk|aclick)$/.test(u.pathname)) {
+        const v = u.searchParams.get('u') || '';
+        if (v) target = decodeURIComponent(fromBase64(v));
+      } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/goto') {
+        target = citedAddress(anchor ? anchor.innerText || anchor.textContent : '');
+      } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
+        target = u.searchParams.get('q') || u.searchParams.get('url');
+      } else if (/(^|\.)google\.[a-z.]+$/.test(host) && /^\/(pagead\/)?aclk$/.test(u.pathname)) {
+        target = u.searchParams.get('adurl');
+      } else if (/(^|\.)duckduckgo\.com$/.test(host) && u.pathname.startsWith('/l/')) {
+        target = u.searchParams.get('uddg');
+      } else if (/(^|\.)duckduckgo\.com$/.test(host) && u.pathname === '/y.js') {
+        let inner = null;
+        try { inner = unwrap(new URL(u.searchParams.get('u3')), null); } catch { /* none */ }
+        if (inner) return inner;
+        const site = u.searchParams.get('ad_domain');
+        if (site && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(site)) target = `https://${site}/`;
+      } else if (/(^|\.)search\.yahoo\.com$/.test(host)) {
+        const m = /\/RU=([^/]+)\//.exec(u.pathname);
+        if (m) target = decodeURIComponent(m[1]);
+      }
+      if (!target) return null;
+      const t = new URL(target);
+      return /^https?:$/.test(t.protocol) ? t : null;
+    } catch { return null; }
+  }
+
+  // Ad-click trackers an ad goes through: the shop's address rides along.
+  const TRACKERS = /(^|\.)(clickserve\.dartsearch\.net|ad\.doubleclick\.net|googleadservices\.com|pixel\.everesttech\.net|click\.linksynergy\.com|go\.redirectingat\.com|[a-z0-9-]*\.?genieshopping\.com|ad\.atdmt\.com|clk\.tradedoubler\.com)$/i;
+  function trackerTarget(u) {
+    if (!TRACKERS.test(u.hostname)) return null;
+    const raw = /[?&]ds_dest_url=(https?:\/\/.+)$/i.exec(u.href);
+    const candidates = raw ? [raw[1]] : [];
+    for (const k of ['adurl', 'url', 'murl', 'u', 'dest', 'destination', 'targeturl', 'redirect', 'r']) { const v = u.searchParams.get(k); if (v) candidates.push(v); }
+    for (const c of candidates) {
+      try { const t = new URL(/^https?%3a/i.test(c) ? decodeURIComponent(c) : c); if (/^https?:$/.test(t.protocol)) return t; } catch { /* next */ }
+    }
+    return null;
+  }
+
+  function realUrl(href, anchor) {
     let u;
     try { u = new URL(href, location.href); } catch { return null; }
     if (!/^https?:$/.test(u.protocol)) return null;
-    const wrapped = u.searchParams.get('uddg') || u.searchParams.get('q') || u.searchParams.get('url') || u.searchParams.get('u');
-    if (wrapped && /^https?:\/\//i.test(wrapped) && (SEARCH_HOSTS.test(u.hostname) || /\/(url|l)\/?$/.test(u.pathname))) {
-      try { return new URL(wrapped).href; } catch { /* fall through */ }
+    if (SEARCH_HOSTS.test(u.hostname) || /\/(url|l)\/?$/.test(u.pathname)) {
+      const inner = unwrap(u, anchor);
+      if (inner) u = inner;
+      else {
+        const wrapped = u.searchParams.get('uddg') || u.searchParams.get('q') || u.searchParams.get('url') || u.searchParams.get('u');
+        if (wrapped && /^https?:\/\//i.test(wrapped)) { try { u = new URL(wrapped); } catch { /* keep */ } }
+      }
     }
-    return u.href;
+    const behind = trackerTarget(u);
+    return (behind || u).href;
   }
 
   function isResult(anchor, url) {
@@ -293,7 +366,7 @@
     for (const a of anchors) {
       if (!a || seen.has(a)) continue;
       seen.add(a);
-      const url = realUrl(a.getAttribute('href'));
+      const url = realUrl(a.getAttribute('href'), a);
       if (!isResult(a, url)) continue;
       if (!byUrl.has(url)) byUrl.set(url, []);
       byUrl.get(url).push(a);
