@@ -232,8 +232,10 @@ function openApp(route = '/app') {
 }
 
 function showWindow(route) {
-  if (!win) createWindow();
-  if (route && ORIGIN) win.loadURL(`${ORIGIN}${route}`);
+  // Started in the tray, the window is only made the first time it is opened: then it needs its page.
+  const fresh = !win;
+  if (fresh) createWindow();
+  if (ORIGIN && (route || fresh)) win.loadURL(`${ORIGIN}${route || '/app'}`);
   win.show();
   win.focus();
 }
@@ -811,7 +813,8 @@ async function boot() {
 
   step('copied links', () => { if (store.get('clipboardCheck', false)) setClipboardCheck(true); });
   step('tray refresh', () => refreshTray());
-  openApp();
+  // In the tray (started with Windows, or after an update) there is no window until someone opens one.
+  if (win) openApp();
 }
 
 app.whenReady().then(() => {
@@ -824,7 +827,9 @@ app.whenReady().then(() => {
   // Scanning that auto scanning had started before a restart is still its to switch off.
   autoSession = Boolean(store.get('autoScan', false) && store.get('autoSession', false));
   step('bridge', () => registerBridge());
-  step('window', () => createWindow());
+  // Started in the tray, no window is made: a hidden window still loaded the whole app and kept a process for it
+  // all day, for someone who may never open it.
+  step('window', () => { if (!startHidden) createWindow(); });
   // The scanner starts before anything decorative, and nothing below can stop it.
   boot().catch((err) => { booting = false; showError(String(err && err.message || err)); });
 
