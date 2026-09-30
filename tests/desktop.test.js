@@ -704,3 +704,14 @@ test('a page that says it has room is followed at full speed, and one at its end
   const top = flick('01');
   assert.ok(top[13] < -300, 'at the top, scrolling down is followed at full speed');
 });
+
+test('a browser slow to report during a long scroll does not throw the marks back to the top', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [], ends: '01' });
+  // Fourteen notches 46 ms apart and no word from the browser for almost three seconds (seen on DuckDuckGo).
+  const wheels = Array.from({ length: 14 }, (_, i) => 10 + i * 46);
+  const ys = o.run(1500, (t) => { for (const w of wheels) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 }); });
+  const lowest = Math.min(...ys);
+  assert.ok(lowest < -1300, `followed only to ${lowest.toFixed(0)} px`);
+  assert.ok(ys[ys.length - 1] < -1300, `went back to ${ys[ys.length - 1].toFixed(0)} px while the page stayed down`);
+});
