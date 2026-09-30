@@ -129,6 +129,27 @@ Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871,
 Search 'http://127.0.0.1:47900/mail/' 'inbox'
 if ($inboxServer) { Stop-Process -Id $inboxServer.Id -Force -ErrorAction SilentlyContinue }
 
+# 4b. Other browsers people use: the same search in Chrome and Firefox (links.jsonl says whether each page was read).
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+function OtherBrowser($exe, $proc, $argList, $name) {
+  $path = (Get-Command $exe -ErrorAction SilentlyContinue).Source
+  if (-not $path) { foreach ($c in @("$env:ProgramFiles\Google\Chrome\Application\$exe.exe", "$env:ProgramFiles\Mozilla Firefox\$exe.exe")) { if (Test-Path $c) { $path = $c } } }
+  if (-not $path) { Say "${name}: not installed"; return }
+  Start-Process $path -ArgumentList $argList
+  Start-Sleep 15
+  $p = Get-Process $proc -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  if ($p) { [K]::ShowWindow($p.MainWindowHandle, 3) | Out-Null; [K]::SetForegroundWindow($p.MainWindowHandle) | Out-Null }
+  [K]::Tap(0x11); [K]::SetCursorPos(500, 420) | Out-Null
+  Start-Sleep 10; Shot "$name-results"
+  for ($s = 1; $s -le 4; $s++) { [K]::Wheel(1); Start-Sleep -Milliseconds 80 }
+  Start-Sleep 4; Shot "$name-settled"
+  Get-Process $proc -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep 2
+}
+$ddg = 'https://duckduckgo.com/?q=paypal+login+help'
+OtherBrowser 'chrome' 'chrome' @('--no-first-run', '--no-default-browser-check', '--start-maximized', $ddg) 'chrome'
+OtherBrowser 'firefox' 'firefox' @('-new-window', $ddg) 'firefox'
+
 # 5. Download protection: everyday files arrive in Downloads (a program, a text file, an archive). Each should be
 # scanned (app.log says "download scanned"), and none of them flagged.
 $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null
