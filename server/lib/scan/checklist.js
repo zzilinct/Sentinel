@@ -947,7 +947,7 @@ const CONTENT_CHECKS = [
       if (/eval\s*\(\s*(atob|unescape|decodeuricomponent|function\s*\(p,a,c,k,e)/i.test(js)) signals += 2;
       if ((js.match(/string\.fromcharcode/gi) || []).length > 5) signals += 1;
       if ((js.match(/\\x[0-9a-f]{2}/gi) || []).length > 200) signals += 1;
-      if (/[A-Za-z0-9+/]{600,}={0,2}/.test(js)) signals += 1;
+      if (/(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{600}/.test(js)) signals += 1;
       if (/_0x[0-9a-f]{4,}/.test(js)) signals += 1;
       if (signals >= 3) return fail(30, 'Heavily obfuscated inline scripts');
       if (signals >= 2) return warn(14, 'Obfuscated inline scripts');
@@ -1017,7 +1017,7 @@ const CONTENT_CHECKS = [
       if (!pg) return skip('No page content');
       const js = pg.inlineJs;
       const blob = /new\s+blob\s*\(/i.test(js) && /createobjecturl|mssaveoropenblob/i.test(js) && /\.download\s*=/.test(js);
-      const payload = /[A-Za-z0-9+/]{2000,}={0,2}/.test(js);
+      const payload = /(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{2000}/.test(js);
       return blob && payload ? fail(40, 'Builds a file inside the page and forces it to download') : pass('No smuggling pattern');
     } },
 
