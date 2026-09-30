@@ -125,7 +125,7 @@ function sweep(kind) {
 function setVerdict(v) { send('overlay:verdict', v || { badge: null }); }
 
 /** Marks beside results. Positions arrive in screen pixels and leave relative to the overlay. */
-function setMarks({ marks, checking, epoch, clip }) {
+function setMarks({ marks, checking, epoch, clip, ends }) {
   if (!area) return;
   const local = marks.map((m) => ({
     x: (m.x - area.x) / scale,
