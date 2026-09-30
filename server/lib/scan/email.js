@@ -34,7 +34,10 @@ const COURIER = /\b(ups|fedex|dhl|royal mail|canada post|auspost|evri|hermes|cou
 const PHONE = /(\+?1[\s.-]?)?\(?\b[2-9]\d{2}\)?[\s.-]\d{3}[\s.-]\d{4}\b/;
 const CALLBACK_REASON = /\b(refund|cancel|renew(al|ed)?|auto-?renew|charged|unauthori[sz]ed|dispute|infected|virus|trojan|spyware|hacked|disconnect(ed|ion)?|shut ?off|suspend(ed)?|locked)\b/i;
 // "Reply with your Social Security number and bank account": nobody legitimate asks for these in a reply.
-const SENSITIVE_REPLY = /\b(reply|send|email|text)\b[^.!?]{0,40}\b(social security|ssn|bank (details|account|information)|account number|routing number|copy of your (id|passport|driver'?s licen[cs]e)|passport|password|pin)\b/i;
+// Asked of you ("reply with your…", "send us your…"), never a promise ("we will never send you an email asking for
+// your password") or a code sent to you ("we'll text you a PIN").
+const SENSITIVE_REPLY = /\b(reply|respond)\b[^.!?]{0,15}\b(with|including)\b[^.!?]{0,40}\b(social security|ssn|bank (details|account|information)|account number|routing number|copy of your (id|passport|driver'?s licen[cs]e)|passport|password|pin)\b|\b(send|email|text)\b (us|me|back)\b[^.!?]{0,30}\byour\b[^.!?]{0,20}\b(social security|ssn|bank (details|account|information)|account number|routing number|id|passport|driver'?s licen[cs]e|password|pin)\b/i;
+const NEVER_ASK = /\b(never|will not|won'?t|do not|don'?t)\b[^.!?]{0,40}\b(ask|request|send)/i;
 // The boss who is "in a meeting" and needs gift cards bought, or a confidential wire sent today (business email compromise).
 const FAVOR = /\b(gift ?cards?)\b[\s\S]{0,160}\b(client|asap|meeting|can'?t talk|quick(ly)?|favou?r|today|how many)\b|\b(wire|bank) transfer\b[\s\S]{0,160}\b(confidential|don'?t discuss|new vendor|today|urgent(ly)?|bank details)\b/i;
 // Money for a stranger's journey, or a fortune waiting to be claimed.
@@ -65,9 +68,10 @@ function brandIn(text, { asName = false } = {}) {
   const raw = String(text || '');
   const single = raw.split(/[^A-Za-z0-9]+/).filter(Boolean);
   // Names written as several words ("Bank of America", "Wells Fargo") are compared joined up, as the brand is listed.
-  const words = [...single];
-  for (let i = 0; i < single.length; i++) for (let n = 2; n <= 3 && i + n <= single.length; n++) words.push(single.slice(i, i + n).join(''));
-  return L.PROTECTED_BRANDS.find((b) => words.some((w) => {
+  // Joined runs must equal the brand exactly: "App Leader" joined is "appleader", which starts with "apple".
+  const joined = [];
+  for (let i = 0; i < single.length; i++) for (let n = 2; n <= 3 && i + n <= single.length; n++) joined.push(single.slice(i, i + n));
+  return L.PROTECTED_BRANDS.find((b) => joined.some((run) => run.join('').toLowerCase() === b.token && (!asName || /^[A-Z0-9]/.test(run[0]))) || single.some((w) => {
     const lower = w.toLowerCase();
     const hit = lower === b.token || (b.token.length >= 5 && lower.startsWith(b.token));
     return hit && (!asName || /^[A-Z0-9]/.test(w));
@@ -198,12 +202,12 @@ function analyzeEmail(mail, how = {}) {
     if (how.preview) return warn(14, 'Asks you to phone a number about a charge or refund');
     return fail(44, 'Asks you to phone a number about a charge, refund or cut-off: the callback scam');
   })());
-  add('E22', 'scam', 'Does not ask for private details by reply', SENSITIVE_REPLY.test(text)
-    ? fail(44, 'Asks you to send your ID, bank details, Social Security number or password') : pass('No request for private details'));
+  add('E22', 'scam', 'Does not ask for private details by reply', wording(SENSITIVE_REPLY.test(text) && !NEVER_ASK.test(text.match(SENSITIVE_REPLY)[0])
+    ? fail(44, 'Asks you to send your ID, bank details, Social Security number or password') : pass('No request for private details')));
   add('E23', 'scam', 'Not an urgent favour with gift cards or a wire', FAVOR.test(text)
     ? fail(44, 'An urgent, private favour involving gift cards or a wire transfer: how impostors of a boss or colleague work') : pass('No favour request'));
   add('E25', 'scam', 'No toll or fine demanded from an unofficial address', (() => {
-    if (!TOLL_FINE.test(text) || !/\bpay|payment|settle\b/i.test(text)) return pass('No toll or fine demand');
+    if (!TOLL_FINE.test(text) || !/\b(pay(ment|ing)?|settle(ment)?)\b/i.test(text)) return pass('No toll or fine demand');
     const gov = /\.gov(\.[a-z]{2})?$|\.us$/.test(from.domain || '');
     if (fromOfficial || gov) return pass(`Sent from ${from.domain}`);
     return fail(44, `Demands an unpaid toll or fine, but writes from ${from.domain || 'an unknown address'}: toll agencies and courts use their own addresses`);
