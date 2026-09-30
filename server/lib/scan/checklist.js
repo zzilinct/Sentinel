@@ -224,7 +224,18 @@ const URL_CHECKS = [
     } },
 
   { id: 'U22', group: 'Impersonation', threat: 'scam', title: 'Does not borrow a brand name it does not own',
-    run: ({ brand }) => (brand.inDomain ? fail(38, `Uses "${brand.inDomain.token}" but is not ${brand.inDomain.domains[0]}`) : pass('No borrowed brand in the domain')) },
+    run: ({ brand, p }) => {
+      if (!brand.inDomain) return pass('No borrowed brand in the domain');
+      const token = brand.inDomain.token;
+      // A brand joined to one ordinary word that asks nothing of you ("zoominfo", "chasecenter", the arena) is a name
+      // of its own, the way people read it. A small note, which only counts next to other signs. Joined to a bait
+      // word ("chaseonline", "paypalsupport"), with a hyphen or digits, it stays a warning.
+      const sld = p.sld.toLowerCase();
+      const rest = sld.startsWith(token) ? sld.slice(token.length) : sld.endsWith(token) ? sld.slice(0, -token.length) : '';
+      const bait = new Set([...CREDENTIAL_WORDS, ...TRUST_WORDS, ...MONEY_WORDS, ...CRYPTO_WORDS, ...SHOP_WORDS, 'help', 'care', 'team', 'app', 'apps', 'pay', 'card', 'cards', 'wallet', 'mail', 'alert', 'alerts', 'official', 'store', 'shop', 'id', 'web', 'net', 'my', 'get', 'go']);
+      if (rest.length >= 4 && !/[-\d]/.test(sld) && isRealWords(rest) && !bait.has(rest)) return warn(12, `${sld} is "${token}" joined to the ordinary word "${rest}": a different name unless other signs say otherwise`);
+      return fail(38, `Uses "${token}" but is not ${brand.inDomain.domains[0]}`);
+    } },
 
   { id: 'U23', group: 'Impersonation', threat: 'scam', title: 'No brand name planted in a subdomain',
     run: ({ brand, p }) => {
