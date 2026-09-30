@@ -279,6 +279,7 @@
   var SCROLL_MS = 190;     // one notch's smooth scroll in a Chromium browser, roughly
   var SETTLE_MS = 450;     // after the last notch, the scroll has run its course and the reports have caught up
   var EASE_MS = 60;        // a correction onto the reported position eases in over about this long
+  var RELEASE_MS = 260;    // the wheel's lead held back until the browser confirmed the scroll catches up over this long
   var moving = false;
   var backTimer = null;
   function setMoving(on) {
@@ -291,22 +292,40 @@
   }
   var perNotch = 100;      // overlay pixels one wheel notch moves the page in this browser (learned in settleGesture)
   try { var saved = Number(localStorage.getItem('sentinel.perNotch')); if (saved >= 30 && saved <= 400) perNotch = saved; } catch (e) { /* not stored */ }
-  var gesture = null;      // a run of wheel notches: { base, steps: [{ at, px }], start, notches, lastWheel, moved }
+  var gesture = null;      // a run of wheel notches: { base, steps: [{ at, px }], start, notches, lastWheel, moved, dir, held, freedAt }
   var report = { x: 0, y: 0, at: 0 };   // the browser's latest word (time on this page's clock)
   var goal = { x: 0, y: 0 };
   var frameAt = 0;
   var raf = 0;
+  // The page did not move for the wheel last time in this direction (its end, or the pointer over something that
+  // does not scroll): until the browser says otherwise, notches that way are not predicted at all.
+  var stuckDir = 0;
+  var ends = '';           // from the last read: can the page scroll up, and down ('1'/'0' each; '' unknown)
   function ease(u) { u = Math.min(1, Math.max(0, u)); return 1 - Math.pow(1 - u, 3); }
   function gestureY(now) {
-    var y = gesture.base;
+    var y = 0;
     for (var i = 0; i < gesture.steps.length; i++) y += gesture.steps[i].px * ease((now - gesture.steps[i].at) / SCROLL_MS);
-    return y;
+    // The page said at its last read whether it can scroll this way ('1'), or not ('0'), or nothing (an inner list).
+    var room = ends.charAt(gesture.dir < 0 ? 1 : 0);
+    if (!gesture.moved && (room !== '1' || gesture.dir === stuckDir)) {
+      // Until the browser confirms the page is moving, the marks run at most about two notches ahead of it, leveling
+      // off gently (a flat stop and a lurch on confirmation is what looked choppy). Without this, a wheel turned at
+      // the end of a page carried them hundreds of pixels away and back.
+      var cap = room === '0' || gesture.dir === stuckDir ? 0 : 2 * perNotch;
+      var held = cap ? cap * Math.tanh(y / cap) : 0;
+      gesture.held = y - held;
+      return gesture.base + held;
+    }
+    // Confirmed (or the page says there is room): what was held back is let out smoothly, never in one jump.
+    if (!gesture.freedAt) gesture.freedAt = now;
+    var u = Math.min(1, (now - gesture.freedAt) / RELEASE_MS);
+    return gesture.base + y - gesture.held * (1 - u * u * (3 - 2 * u));
   }
   function kick() { if (!raf) { frameAt = performance.now(); raf = requestAnimationFrame(frame); } }
   function onWheel(p) {
     var now = performance.now();
     var notches = p.delta / 120;
-    if (!gesture) gesture = { base: shiftY, steps: [], start: report.y, notches: 0, lastWheel: now, moved: false };
+    if (!gesture) gesture = { base: shiftY, steps: [], start: report.y, notches: 0, lastWheel: now, moved: false, dir: Math.sign(notches), held: 0, freedAt: 0 };
     gesture.steps.push({ at: now, px: notches * perNotch });
     gesture.notches += notches;
     gesture.lastWheel = now;
@@ -316,8 +335,9 @@
   }
   function follow(p) {
     var now = performance.now();
+    if (Math.abs(p.dy - report.y) > 2) stuckDir = 0;
     report = { x: p.dx, y: p.dy, at: now };
-    if (gesture) { if (Math.abs(p.dy - gesture.start) > 2) gesture.moved = true; }
+    if (gesture) { if (!gesture.moved && Math.abs(p.dy - gesture.start) > 2) gesture.moved = true; }
     else {
       goal = { x: p.dx, y: p.dy };
       if (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX) setMoving(true);
@@ -347,6 +367,7 @@
     if (gesture) {
       if (!gesture.moved && now - gesture.steps[0].at > SETTLE_MS) {
         // The page did not move at all (its end, or the wheel was over something else): let go at once.
+        stuckDir = gesture.dir;
         gesture = null; goal = { x: report.x, y: report.y };
       } else if (now - gesture.lastWheel > SETTLE_MS) {
         settleGesture();
@@ -365,7 +386,7 @@
     if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + ny.toFixed(1) + ' ' + goal.y.toFixed(1));
     raf = requestAnimationFrame(frame);
   }
-  function stopFollowing() { if (raf) cancelAnimationFrame(raf); raf = 0; gesture = null; goal = { x: 0, y: 0 }; report = { x: 0, y: 0, at: 0 }; }
+  function stopFollowing() { if (raf) cancelAnimationFrame(raf); raf = 0; gesture = null; stuckDir = 0; goal = { x: 0, y: 0 }; report = { x: 0, y: 0, at: 0 }; }
   var clipEl = document.getElementById('clip');
   function setClip(c) {
     // A little room above and below, so a mark on the first or last row is not cut in half.
@@ -373,6 +394,7 @@
   }
   api.on('overlay:marks', function (p) {
     setClip(p && p.clip);
+    ends = (p && p.ends) || '';
     var rebase = null;
     var fresh = !p || p.epoch !== epoch;
     if (fresh && p && p.epoch && (gesture || raf)) {
