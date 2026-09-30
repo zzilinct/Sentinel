@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.3 — scan performance
+## 1.6.3: scan performance
 
 - File analysis counts byte frequencies more efficiently and avoids macro-text searches for files with no macros. File-size limits, sampled bytes and detection rules are unchanged.
 - Page-fingerprint comparison counts differing bits in larger chunks while preserving exact distances and confirmation thresholds.
@@ -10,7 +10,7 @@
 
 Local synthetic benchmarks measured 44–60% less time for executable-shaped file fixtures and 55% less time comparing a page against 5,000 fingerprints. A simulated 60-link batch on one host made 4 DNS requests instead of 240 and 1 registry request instead of 6, while retaining all 60 page checks. These measure specific stages, not a promised end-to-end speedup. Network latency and workload still affect scan time. See [benchmark details](PERFORMANCE.md).
 
-## 1.6.2 — account and verdict corrections
+## 1.6.2: account and verdict corrections
 
 - Invalid plan names now return a validation error instead of breaking account and usage responses. Existing invalid stored plans fall back to Free.
 - Live scanning honors a minute already recorded in the database after the server restarts or its memory cache is cleared.
@@ -21,7 +21,7 @@ Local synthetic benchmarks measured 44–60% less time for executable-shaped fil
 
 Validation: all six new regression cases failed before their fixes. The full suite passes 119 tests. Broader scanning features and moderation-policy redesigns are not part of this maintenance release.
 
-## 1.6.1 — scanning reliability
+## 1.6.1: scanning reliability
 
 - Fresh threat-feed imports now invalidate old scan verdicts.
 - Research results stay separate for URLs with different query strings or protocols.
