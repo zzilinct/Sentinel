@@ -99,7 +99,14 @@ async function main() {
   const alike = require('./evaluate-lookalikes.json').map((x) => x.url);
   const al = await run('fast', alike, { research: false }, 16);
   const alAlarms = alike.filter((u, i) => al.verdicts[i] && al.verdicts[i].overall.badge);
-  console.log(`  look-alike names left alone ${alike.length - alAlarms.length}/${alike.length} = ${pct(alike.length - alAlarms.length, alike.length)}${alAlarms.length ? `   false alarms: ${alAlarms.join(' ')}` : ''}\n`);
+  console.log(`  look-alike names left alone ${alike.length - alAlarms.length}/${alike.length} = ${pct(alike.length - alAlarms.length, alike.length)}${alAlarms.length ? `   false alarms: ${alAlarms.join(' ')}` : ''}`);
+  // Why, for each false alarm: the checks that fired, so a fix can aim at the cause.
+  for (const [i, u] of alike.entries()) {
+    const v = al.verdicts[i];
+    if (!v || !v.overall.badge) continue;
+    console.log(`    ${u}: ${v.checklist.items.filter((c) => c.status === 'fail' || c.status === 'warn').map((c) => `${c.id} ${c.points} ${String(c.detail || '').slice(0, 70)}`).join(' | ')}`);
+  }
+  console.log('');
   if (MISSES) {
     const missed = phish.filter((u, i) => fastP.verdicts[i] && !fastP.verdicts[i].overall.badge);
     fs.writeFileSync(MISSES, missed.join('\n') + '\n');
