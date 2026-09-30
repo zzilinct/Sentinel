@@ -40,9 +40,12 @@ let scanned = 0;
 const marked = [];
 const byType = {};
 const started = Date.now();
-outer: for (const folder of folders) {
+// Each folder gets its share, so Windows' own thousands of libraries do not crowd out the programs people install.
+const share = Math.ceil(MAX / folders.length);
+for (const folder of folders) {
+  let here = 0;
   for (const file of walk(folder)) {
-    if (scanned >= MAX) break outer;
+    if (here >= share) break;
     let buf;
     try {
       const st = fs.statSync(file);
@@ -50,6 +53,7 @@ outer: for (const folder of folders) {
       buf = fs.readFileSync(file);
     } catch { continue; }
     scanned++;
+    here++;
     const ext = path.extname(file).toLowerCase();
     byType[ext] = (byType[ext] || 0) + 1;
     let report;
