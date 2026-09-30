@@ -372,7 +372,7 @@ const KNOWLEDGE_CHECKS = [
       if (brand.official) return pass('Official site');
       // Hosting's temporary address (website-e86d3b7f.….mybluehost.me): what a site is reached by before it has a
       // name of its own. Nobody sends customers there; throwaway pages live there.
-      if (p.host.endsWith('.mybluehost.me') && /^website-[0-9a-f]{6,}\./.test(p.host)) return fail(24, 'A hosting company\'s temporary address, not a site\'s own name');
+      if (p.host.endsWith('.mybluehost.me') && /^(www\.)?website-[0-9a-f]{6,}\./.test(p.host)) return fail(24, 'A hosting company\'s temporary address, not a site\'s own name');
       // Folder and page names nobody would type ("aynqxts/wsdqmoc/dpgqmbx"): phishing kits unpack into generated
       // folders on hacked sites, and shared site builders give throwaway pages generated names.
       const parts = p.path.split('/').filter(Boolean).map((s) => s.replace(/\.[a-z0-9]+$/i, ''));
