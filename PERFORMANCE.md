@@ -1,4 +1,4 @@
-# Scan performance — 1.6.3
+# Scan performance: 1.6.3
 
 Measured locally on Node 24 using inert, offline fixtures against version 1.6.2 (`2acd5d5`). Timing varies with CPU and system load; these are stage-level measurements, not field detection or complete-scan latency guarantees.
 

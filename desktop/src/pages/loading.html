@@ -16,6 +16,13 @@
   .bar i { display: block; width: 40%; height: 100%; background: #d6b25a; animation: slide 1.2s ease-in-out infinite; }
   @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
   @media (prefers-reduced-motion: reduce) { .bar i { animation: none; width: 100%; opacity: .5; } }
+  @media (prefers-color-scheme: light) {
+    html, body { background: #f6f4ef; color: #1c1b18; }
+    .mark { color: #9c7229; }
+    .bar i { background: #9c7229; }
+    p { color: #5f5c55; }
+    .bar { background: rgba(0,0,0,.08); }
+  }
 </style>
 </head>
 <body>
