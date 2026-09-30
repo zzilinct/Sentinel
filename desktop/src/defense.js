@@ -197,9 +197,13 @@ async function inspect(full, how) {
     // Windows answers "this file contains a virus" (error 225, which Node
     // reports as UNKNOWN) when the system antivirus has already condemned a
     // file. It cannot be read, but what would relaunch it can still be removed.
+    // Node reports other errors it has no name for as UNKNOWN too (a OneDrive
+    // file while OneDrive is paused), so nothing is removed unless Defender
+    // itself says it caught this file.
     if (err && err.code === 'UNKNOWN') {
       if (blockedSeen.has(full)) return null;
       blockedSeen.add(full);
+      if (!(await defenderCaught(full))) return null;
       const actions = await removePersistence(full).catch(() => []);
       actions.unshift({ did: 'already blocked by the system antivirus', detail: 'Windows would not let the file be opened' });
       const item = { path: full, name, size: stat.size, how, at: Date.now(), badge: 'red', label: 'Blocked by the system antivirus', threat: 'virus', reason: 'Windows refused to open this file because its antivirus flagged it' };
@@ -299,17 +303,27 @@ $target = ${psq(item.path)}
 $moved = ${psq('__MOVED__')}
 Get-Process | Where-Object { $_.Path -and (($_.Path -eq $target) -or ($moved -and $_.Path -eq $moved)) } | ForEach-Object { $id = $_.Id; Stop-Process -Id $id -Force; "KILLED $id" }
 'STOPPED'
+# Shortcuts and tasks are kept in the quarantine folder before they go, so Restore can put them back.
+$q = ${psq(opts.quarantineDir)}
+New-Item -ItemType Directory -Force -Path $q | Out-Null
 $dir = ${psq(startup ? startup.dir : '')}
 if ($dir -and (Test-Path $dir)) {
   $ws = New-Object -ComObject WScript.Shell
-  Get-ChildItem -Path $dir -Filter *.lnk | ForEach-Object { if ($ws.CreateShortcut($_.FullName).TargetPath -eq $target) { Remove-Item $_.FullName -Force; "LNK $($_.Name)" } }
+  Get-ChildItem -Path $dir -Filter *.lnk | ForEach-Object { if ($ws.CreateShortcut($_.FullName).TargetPath -eq $target) {
+    $bak = Join-Path $q ('lnk-' + [DateTime]::Now.Ticks + '-' + $_.Name)
+    Copy-Item -LiteralPath $_.FullName -Destination $bak -Force
+    Remove-Item -LiteralPath $_.FullName -Force
+    "LNK $($_.Name)\`t$($_.FullName)\`t$bak"
+  } }
 }
 Get-ScheduledTask | ForEach-Object {
   $t = $_
   foreach ($a in $t.Actions) {
     if ($a.Execute -and (($a.Execute + ' ' + $a.Arguments).ToLower().Contains($target.ToLower()))) {
+      $bak = Join-Path $q ('task-' + [DateTime]::Now.Ticks + '.xml')
+      Export-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName | Set-Content -LiteralPath $bak -Encoding Unicode
       Unregister-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -Confirm:$false
-      if (Get-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName) { "TASKFAIL $($t.TaskPath)$($t.TaskName)" } else { "TASK $($t.TaskPath)$($t.TaskName)" }
+      if (Get-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName) { "TASKFAIL $($t.TaskPath)$($t.TaskName)" } else { "TASK $($t.TaskPath)$($t.TaskName)\`t$($t.TaskPath)\`t$($t.TaskName)\`t$bak" }
       break
     }
   }
@@ -386,9 +400,14 @@ Get-ScheduledTask | ForEach-Object {
         buf = buf.slice(i + 1);
         if (line.startsWith('KILLED ')) actions.push({ did: 'ended process', detail: `PID ${line.slice(7)}` });
         else if (line === 'STOPPED') pending.push(quarantine());
-        else if (line.startsWith('LNK ')) actions.push({ did: 'removed Startup shortcut', detail: line.slice(4) });
-        else if (line.startsWith('TASKFAIL ')) actions.push({ did: 'could not remove scheduled task (needs administrator)', detail: line.slice(9) });
-        else if (line.startsWith('TASK ')) actions.push({ did: 'removed scheduled task', detail: line.slice(5) });
+        else if (line.startsWith('LNK ')) {
+          const [name, to, lnk] = line.slice(4).split('\t');
+          actions.push({ did: 'removed Startup shortcut', detail: name, ...(lnk ? { undo: { lnk, to } } : {}) });
+        } else if (line.startsWith('TASKFAIL ')) actions.push({ did: 'could not remove scheduled task (needs administrator)', detail: line.slice(9) });
+        else if (line.startsWith('TASK ')) {
+          const [name, taskPath, taskName, task] = line.slice(5).split('\t');
+          actions.push({ did: 'removed scheduled task', detail: name, ...(task ? { undo: { task, taskPath, taskName } } : {}) });
+        }
         else if (line === 'DONE') finished = true;
       }
     });
@@ -442,6 +461,14 @@ async function removeRunKeys(target) {
 }
 
 /** Everything that would relaunch `target`, for a file that cannot be quarantined (already blocked). */
+/** Has Microsoft Defender recorded a detection for this very file? */
+async function defenderCaught(file) {
+  const p = file.replace(/'/g, "''");
+  const out = await ps(`$p = '${p}'
+foreach ($d in @(Get-MpThreatDetection -ErrorAction SilentlyContinue)) { foreach ($r in @($d.Resources)) { if ([string]$r -and ([string]$r).IndexOf($p, [StringComparison]::OrdinalIgnoreCase) -ge 0) { 'caught'; exit } } }`, 15000);
+  return out.includes('caught');
+}
+
 async function removePersistence(target) {
   const actions = await respond({ path: target, name: path.basename(target), badge: null });
   return actions.filter((a) => a.did !== 'left in place');
@@ -513,25 +540,36 @@ function moveFile(from, to) {
 async function restore(id) {
   const entry = ledger.find((e) => e.id === id && !e.restored && (e.quarantined || (e.actions || []).some((a) => a.undo)));
   if (!entry) throw new Error('Nothing to restore');
+  let dest = entry.path;
   if (entry.quarantined) {
     fs.mkdirSync(path.dirname(entry.path), { recursive: true });
-    moveFile(entry.quarantined, entry.path);
+    // Something new saved at the old place since is never overwritten: the file comes back beside it.
+    if (fs.existsSync(dest)) {
+      const ext = path.extname(dest);
+      dest = path.join(path.dirname(dest), `${path.basename(dest, ext)} (restored)${ext}`);
+    }
+    moveFile(entry.quarantined, dest);
     try { fs.unlinkSync(`${entry.quarantined}.json`); } catch { /* fine */ }
   }
   for (const a of entry.actions || []) {
     if (a.undo) await run('reg', ['add', `${a.undo.hive}\\${a.undo.key}`, '/v', a.undo.name, '/t', a.undo.type, '/d', a.undo.data, '/f']);
   }
-  // The person has vouched for this file: do not judge it again.
-  if (entry.sha256) seen.set(entry.sha256, entry.path);
+  // The person has vouched for this file: do not judge it again, now or after a restart, while it is unchanged.
+  if (entry.sha256) seen.set(entry.sha256, dest);
+  isVetted(dest);
+  rememberVetted(dest);
   entry.restored = Date.now();
-  record({ kind: 'restored', path: entry.path, name: entry.name });
-  return { ok: true };
+  record({ kind: 'restored', path: dest, name: path.basename(dest) });
+  return { ok: true, path: dest };
 }
 
 /** The person decided: quarantine a startup program that was only suspected (and left alone), with the full response. */
 async function act(id) {
   const entry = ledger.find((e) => e.id === id && e.kind === 'suspect');
   if (!entry) throw new Error('That entry can no longer be acted on');
+  // Only the file that was checked: a different one saved at the same place since is left alone.
+  const now = await hashFile(entry.path).catch(() => null);
+  if (!now || (entry.sha256 && now !== entry.sha256)) throw new Error('That file has changed or gone since Sentinel checked it, so it was left alone.');
   const item = { path: entry.path, name: entry.name, sha256: entry.sha256, badge: entry.badge, label: entry.label, entryId: entry.id };
   const actions = await respond(item);
   amend(entry.id, { kind: 'threat', actions: [{ did: 'quarantined at your request' }, ...actions], quarantined: item.quarantined || null });
