@@ -125,7 +125,7 @@ function sweep(kind) {
 function setVerdict(v) { send('overlay:verdict', v || { badge: null }); }
 
 /** Marks beside results. Positions arrive in screen pixels and leave relative to the overlay. */
-function setMarks({ marks, checking, epoch, clip }) {
+function setMarks({ marks, checking, epoch, clip, ends }) {
   if (!area) return;
   const local = marks.map((m) => ({
     x: (m.x - area.x) / scale,
@@ -145,7 +145,7 @@ function setMarks({ marks, checking, epoch, clip }) {
     dryRun(`marks: ${local.length} (${local.filter((m) => m.badge).length} flagged, ${local.filter((m) => m.pending).length} waiting), ${inside} inside the page area; first at ${Math.round(local[0].x)},${Math.round(local[0].y)}`);
   }
   const band = clip ? { top: (clip.top - area.y) / scale, bottom: (clip.bottom - area.y) / scale } : null;
-  send('overlay:marks', { marks: local, checking: checking || 0, epoch: epoch || 0, clip: band });
+  send('overlay:marks', { marks: local, checking: checking || 0, epoch: epoch || 0, clip: band, ends: /^[01]{2}$/.test(ends) ? ends : '' });
 }
 
 /** The page moved by (dx, dy) screen pixels since the marks of `epoch` were placed. Sent straight through, every frame. */
