@@ -197,9 +197,13 @@ async function inspect(full, how) {
     // Windows answers "this file contains a virus" (error 225, which Node
     // reports as UNKNOWN) when the system antivirus has already condemned a
     // file. It cannot be read, but what would relaunch it can still be removed.
+    // Node reports other errors it has no name for as UNKNOWN too (a OneDrive
+    // file while OneDrive is paused), so nothing is removed unless Defender
+    // itself says it caught this file.
     if (err && err.code === 'UNKNOWN') {
       if (blockedSeen.has(full)) return null;
       blockedSeen.add(full);
+      if (!(await defenderCaught(full))) return null;
       const actions = await removePersistence(full).catch(() => []);
       actions.unshift({ did: 'already blocked by the system antivirus', detail: 'Windows would not let the file be opened' });
       const item = { path: full, name, size: stat.size, how, at: Date.now(), badge: 'red', label: 'Blocked by the system antivirus', threat: 'virus', reason: 'Windows refused to open this file because its antivirus flagged it' };
