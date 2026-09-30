@@ -15,7 +15,10 @@ function init(dir, safeStorage) {
 
 function save() {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), { mode: 0o600 });
+  // Written beside it and then swapped in: a crash or power cut mid-write never leaves half a file, which would
+  // start Sentinel with every setting and the sign-in gone.
+  fs.writeFileSync(`${file}.tmp`, JSON.stringify(data, null, 2), { mode: 0o600 });
+  fs.renameSync(`${file}.tmp`, file);
 }
 
 function get(key, fallback) {
