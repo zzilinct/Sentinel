@@ -38,7 +38,8 @@ const PAGES = [
   ['app-files', '/app/threats'], ['app-email', '/app/email'], ['app-history', '/app/history'], ['app-sites', '/app/sites'],
   ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-security', '/app/security'], ['app-assistants', '/app/assistants']
 ];
-const SIZES = [['desktop', 1366, 900, false], ['phone', 390, 844, true]];
+// Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.
+const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light']];
 
 function cdpPipe(child) {
   let id = 0;
@@ -98,8 +99,12 @@ async function signIn(send, email) {
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
   await sleep(2500);
   await send('Runtime.evaluate', { expression: `(() => { const f = document.querySelector('[data-form]'); f.email.value = ${JSON.stringify(email)}; f.password.value = ${JSON.stringify(PASSWORD)}; f.requestSubmit(); })()` }, sessionId);
-  await sleep(3500);
-  const { result } = await send('Runtime.evaluate', { expression: 'location.pathname' }, sessionId);
+  // A slow runner can take a while to answer: wait for the app rather than a fixed time.
+  let result = { value: '' };
+  for (let i = 0; i < 30 && !String(result.value).startsWith('/app'); i++) {
+    await sleep(500);
+    ({ result } = await send('Runtime.evaluate', { expression: 'location.pathname' }, sessionId));
+  }
   await send('Target.closeTarget', { targetId });
   if (!String(result.value).startsWith('/app')) throw new Error(`sign-in did not reach the app (at ${result.value})`);
 }
@@ -117,12 +122,13 @@ async function main() {
     await signIn(send, await signUp());
     // Signed-out pages are photographed in a separate, empty browser context.
     const { browserContextId: anonymous } = await send('Target.createBrowserContext', {});
-    for (const [size, width, height, mobile] of SIZES) {
+    for (const [size, width, height, mobile, scheme] of SIZES) {
       for (const [name, url, opt = {}] of PAGES) {
         const { targetId } = await send('Target.createTarget', { url: 'about:blank', ...(opt.anonymous ? { browserContextId: anonymous } : {}) });
         const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
         await send('Page.enable', {}, sessionId);
         await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+        await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, sessionId);
         await send('Page.navigate', { url: BASE + url }, sessionId);
         await sleep(opt.wait || 2500);
         // The whole page, top to bottom, as someone scrolling it would see it (capped for very long pages).
