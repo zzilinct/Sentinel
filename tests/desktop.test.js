@@ -751,3 +751,16 @@ test('defense never acts on a guess: unreadable files need Defender to say so, a
   assert.ok(read('desktop/src/downloads.js').includes('if (!now || now !== item.sha256) throw'));
   assert.match(read('desktop/src/main.js'), /if \(idleSeconds < 2 \* 60 \|\| await fullscreenInFront\(\)\) return;/, 'no update over a fullscreen game');
 });
+
+test('a wheel turned over something that does not scroll: the reader\'s confirmation puts the marks back', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [], ends: '11' });
+  const ys = o.run(1600, (t) => {
+    for (const w of [10, 60, 110]) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 });
+    // Half a second after the last notch the reader says where the page is: it never moved.
+    if (t >= 640 && t < 656) o.send('overlay:shift', { epoch: 1, dx: 0, dy: 0, t });
+  });
+  assert.ok(Math.min(...ys) < -200, 'the wheel was followed at once');
+  assert.ok(Math.abs(ys[ys.length - 1]) < 1, `left at ${ys[ys.length - 1].toFixed(0)} px instead of on the results`);
+  assert.ok(watch._test.SCRIPT.includes('if ($lw -ne $confirmedWheel -and [Environment]::TickCount - $lw -gt 500)'));
+});

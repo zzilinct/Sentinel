@@ -37,7 +37,9 @@ function hostOf(href, base) {
 function tagsOf(source) {
   const out = [];
   // The lookahead keeps the name from giving letters back to the rest, which would make a long unclosed tag slow.
-  const rx = /<([a-zA-Z][a-zA-Z0-9-]*)(?![a-zA-Z0-9-])[^<>]*>/g;
+  // Quoted values may hold "<" or ">" (onsubmit="return a.length<9", common in phishing kits); the three kinds of run
+  // never overlap, so this still cannot backtrack.
+  const rx = /<([a-zA-Z][a-zA-Z0-9-]*)(?![a-zA-Z0-9-])(?:[^<>"']|"[^"]*"|'[^']*')*>/g;
   let m;
   while ((m = rx.exec(source)) && out.length < 20000) out.push({ name: m[1].toLowerCase(), at: m.index, end: m.index + m[0].length, raw: m[0] });
   return out;
@@ -62,7 +64,9 @@ function parse(html, pageUrl) {
   const named = (...names) => tags.filter((t) => names.includes(t.name));
 
   const titleTag = named('title')[0];
-  const title = titleTag ? decodeEntities(source.slice(titleTag.end, closeOf(lower, titleTag)).replace(/\s+/g, ' ').trim()).slice(0, 300) : '';
+  // A title never closed is no title: the rest of the page is not it.
+  const titleEnd = titleTag ? lower.indexOf('</title', titleTag.end) : -1;
+  const title = titleEnd >= 0 ? decodeEntities(source.slice(titleTag.end, titleEnd).replace(/\s+/g, ' ').trim()).slice(0, 300) : '';
 
   // Visible-ish text: drop scripts, styles and tags.
   let visible = '';
