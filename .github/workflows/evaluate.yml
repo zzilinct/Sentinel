@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: ['work/e2e**']
-    paths: ['server/lib/scan/**', 'scripts/evaluate*', '.github/workflows/evaluate.yml']
+    paths: ['server/lib/scan/**', 'desktop/src/downloads.js', 'scripts/evaluate*', '.github/workflows/evaluate.yml']
 
 permissions:
   contents: read
@@ -30,4 +30,22 @@ jobs:
           path: |
             evaluation.txt
             misses.txt
+          retention-days: 7
+
+  # False alarms on real software: Windows itself and the programs installed on a GitHub Windows machine are all
+  # legitimate, so every file the desktop app would mark is a false alarm (scripts/evaluate-files.js).
+  files:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node scripts/evaluate-files.js --max 6000 "$env:SystemRoot\System32" "$env:ProgramFiles" "${env:ProgramFiles(x86)}" "$env:LOCALAPPDATA\Programs" | Tee-Object files.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: files-evaluation
+          path: files.txt
           retention-days: 7
