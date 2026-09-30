@@ -211,10 +211,13 @@ function moveFile(from, to) {
   }
 }
 
-function quarantine(id) {
+async function quarantine(id) {
   const item = recent.find((r) => r.id === id);
   if (!item) throw new Error('That file is no longer in the recent list');
   if (!item.badge) throw new Error('Only flagged files can be quarantined');
+  // Only the file that was checked: a clean one downloaded to the same name since is never moved.
+  const now = await hashStream(item.path).catch(() => null);
+  if (!now || now !== item.sha256) throw new Error('That file has changed or gone since Sentinel checked it, so it was left alone.');
   fs.mkdirSync(opts.quarantineDir, { recursive: true });
   const target = path.join(opts.quarantineDir, `${Date.now()}-${path.basename(item.path)}.quarantined`);
   moveFile(item.path, target);
