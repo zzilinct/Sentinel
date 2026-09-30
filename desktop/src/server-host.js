@@ -16,6 +16,26 @@ const path = require('path');
 
 const post = (message) => { if (process.parentPort) process.parentPort.postMessage(message); };
 
+// The end-to-end run on a GitHub desktop only (see cpuProfileOnRequest in main.js): sixty seconds of where this
+// process's time goes, once the trigger file appears, written next to it as <file>.server.cpuprofile.
+if (process.env.SENTINEL_CPU_PROFILE) {
+  const fs = require('fs');
+  const trigger = process.env.SENTINEL_CPU_PROFILE;
+  let started = false;
+  try {
+    fs.watch(path.dirname(trigger), () => {
+      if (started || !fs.existsSync(trigger)) return;
+      started = true;
+      const s = new (require('inspector').Session)();
+      s.connect();
+      s.post('Profiler.enable', () => s.post('Profiler.start', () => setTimeout(() => s.post('Profiler.stop', (err, res) => {
+        try { fs.writeFileSync(`${trigger}.server.cpuprofile`, JSON.stringify(res.profile)); } catch { /* best effort */ }
+        s.disconnect();
+      }), 60000)));
+    });
+  } catch { /* no folder */ }
+}
+
 /** True when nothing is listening on this loopback port. */
 function isFree(port) {
   return new Promise((resolve) => {
