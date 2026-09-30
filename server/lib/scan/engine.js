@@ -144,13 +144,15 @@ function evidenceFrom(checks, know, ctx) {
 const NO_RESEARCH_PLAN = 'Research is included with Pro, Max and Ultimate scans';
 const NO_RESEARCH_LOCAL = 'This copy of Sentinel runs on your computer, and suspicious pages are never opened from here. Research comes with the hosted service.';
 
-async function coreScan(p, { research: wanted, budgetMs }) {
+async function coreScan(p, { research: wanted, budgetMs, hint }) {
   // Full research where pages may be opened (the hosted service); registry and DNS only where they may not (the desktop app).
   const lite = Boolean(wanted) && !config.researchEnabled && config.researchLite;
   const research = Boolean(wanted) && (config.researchEnabled || lite);
   // Results computed before a feed import (including in-flight scans) cannot
   // satisfy a lookup after that import has completed.
-  const key = `${feeds.revision()}|${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}`;
+  // What the search result says about the page (its title, what was searched) changes the answer: part of the key.
+  const hintKey = hint ? `|h:${require('crypto').createHash('sha1').update(`${hint.title}|${hint.query}`).digest('hex').slice(0, 12)}` : '';
+  const key = `${feeds.revision()}|${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}${hintKey}`;
   const cached = cacheGet(key);
   if (cached) return cached;
   const flightKey = budgetMs ? `${key}|b` : key;
@@ -168,7 +170,10 @@ async function coreScan(p, { research: wanted, budgetMs }) {
       contentCompare: { kits: [], similarPages: [], fingerprint: null },
       research: null,
       researchSkipReason: research ? null : (wanted ? NO_RESEARCH_LOCAL : NO_RESEARCH_PLAN),
-      finalKnowledge: null
+      finalKnowledge: null,
+      // What the search engine showed about this result, when it was found on a results page: the page's own title
+      // (the site's words about itself) and what the person searched for. Read without opening the page.
+      hint: hint || null
     };
 
     let fileReport = null;
@@ -341,13 +346,21 @@ function shape(core, { threats: visible, userId, mode, detail = 'full', planId }
  * @param {string} raw
  * @param {{userId?: string, planId?: string, research?: boolean, threats?: string[], mode?: string, detail?: string, record?: boolean}} opts
  */
+/** A result's title and the search it came from, trimmed; null when there is neither. */
+function cleanHint(h) {
+  if (!h || typeof h !== 'object') return null;
+  const title = String(h.title || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  const query = String(h.query || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  return title || query ? { title, query } : null;
+}
+
 async function scanUrl(raw, opts = {}) {
   const p = analyze(String(raw || ''));
   const visible = opts.threats || THREATS;
   if (!p) {
     return { ok: false, kind: 'url', url: raw, error: 'not_a_web_link', message: 'That is not a web address Sentinel can check' };
   }
-  const core = await coreScan(p, { research: Boolean(opts.research), budgetMs: opts.budgetMs });
+  const core = await coreScan(p, { research: Boolean(opts.research), budgetMs: opts.budgetMs, hint: cleanHint(opts.hint) });
   const verdict = shape(core, { threats: visible, userId: opts.userId, mode: opts.mode || 'manual', detail: opts.detail, planId: opts.planId });
   if (opts.record && opts.userId) record(opts.userId, 'url', p.url, verdict.mode, verdict.threats);
   return verdict;
@@ -370,7 +383,8 @@ async function scanUrls(urls, opts = {}) {
       try {
         const left = deadline ? deadline - Date.now() : 0;
         const each = deadline ? { research: opts.research && left > 400, budgetMs: Math.max(1, left) } : {};
-        out[i] = await scanUrl(unique[i], { ...opts, ...each, record: false });
+        const hint = opts.hints && Object.prototype.hasOwnProperty.call(opts.hints, unique[i]) ? opts.hints[unique[i]] : null;
+        out[i] = await scanUrl(unique[i], { ...opts, ...each, hint, record: false });
       } catch {
         out[i] = { ok: false, kind: 'url', url: unique[i], error: 'scan_failed' };
       }

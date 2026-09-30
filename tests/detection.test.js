@@ -138,6 +138,30 @@ test('today\'s phishing shapes are flagged from the address alone; customers\' s
   assert.ok(!(await scan('https://www.google.com/recaptcha/admin')).checklist.items.some((c) => c.id === 'U55' && c.status === 'fail'));
 });
 
+test('names are read like words: overdrive is not onedrive misspelled, but onedrlve, 0nedrive and onedriive are', async () => {
+  const { isRealWords } = require('../server/lib/scan/url');
+  assert.ok(isRealWords('overdrive') && isRealWords('over-drive'));
+  for (const w of ['onedrlve', 'netfliks', 'coinbse', 'linkedln', 'microsofy', 'facebok', 'paypai']) assert.ok(!isRealWords(w), w);
+  const od = await scan('https://www.overdrive.com/');
+  assert.equal(od.overall.badge, null, `overdrive.com ${od.threats.scam.score}`);
+  for (const url of ['https://0nedrive.com/', 'https://onedrlve.com/', 'https://onedriive-login.com/', 'https://www.linkedln.com/', 'https://coinbse.com/']) {
+    assert.ok((await scan(url)).overall.badge, url);
+  }
+  // A real word near a brand still counts next to other warning signs.
+  assert.ok((await scan('https://overdrive-login-verify.xyz/')).overall.badge);
+});
+
+test('what the search result says about a site is read without opening it: a title claiming the brand the address imitates', async () => {
+  const run = (url, hint) => engine.scanUrls([url], { threats: ['scam', 'virus', 'malware'], mode: 'live', detail: 'full', hints: { [url]: hint } }).then((r) => r[0]);
+  const claim = await run('https://onedrlve.com/login', { title: 'Microsoft OneDrive - Sign in', query: 'onedrive login' });
+  assert.ok(claim.checklist.items.some((c) => c.id === 'X01' && c.status === 'fail'), 'the disguise in its own words');
+  const own = await run('https://www.overdrive.com/', { title: 'OverDrive: Free ebooks, audiobooks & more', query: 'overdrive libby' });
+  assert.equal(own.threats.scam.score, 0, 'shown under its own name, searched for by name: nothing against it');
+  const article = await run('https://www.wikihow.com/Contact-PayPal', { title: 'How to Contact PayPal - wikiHow', query: 'contact paypal' });
+  assert.ok(!article.checklist.items.some((c) => c.id === 'X01' && c.status === 'fail'), 'a title that only mentions a brand is fine');
+  assert.equal((await run('https://www.paypal.com/signin', { title: 'Log in to your PayPal account', query: 'paypal' })).overall.badge, null);
+});
+
 test('the website\'s numbers are the real ones (checks in the checklist, kinds of threat named)', async () => {
   const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'web', 'index.html'), 'utf8');
   const total = (await scan('https://example.com/', { detail: 'full' })).checklist.total;

@@ -42,15 +42,14 @@ test('the reader only works on a browser that is in front and in use, and reads 
   assert.ok(gates > 0 && gates < s.indexOf('FromHandle'), 'every gate comes before the first look inside the window');
   // What it asks Windows for: the address (Value), rectangles, and whether a link is on screen. Never text.
   assert.ok(!/TextPattern|HelpText|LegacyIAccessible|Clipboard|CopyFromScreen|Screenshot/i.test(s), 'no page text, no clipboard, no screenshots');
-  // Names are read in two places only: the message rows of a webmail inbox, which the inbox itself displays, and
-  // Google's own /goto links, whose name carries the address Google shows under the result.
+  // Names are read in two places only: the message rows of a webmail inbox, which the inbox itself displays, and the
+  // links of a search results page (the titles the search engine shows), inside the results-page block.
   const mailBlock = s.indexOf('if ($needRead -and $url -match $mail)');
-  const googleLine = s.indexOf("if ($u -match '^https://www\\.google\\.[a-z.]{2,6}/goto\\?') { $n = [string]$l.GetCachedPropertyValue($A::NameProperty)");
+  const searchBlock = s.indexOf('if ($needRead -and $url -match $search)');
   const names = [...s.matchAll(/NameProperty/g)].map((m) => m.index);
-  assert.ok(names.length >= 1 && mailBlock > 0 && googleLine > 0);
-  const allowed = (i) => i > mailBlock || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);')
-    || (i > googleLine && i < googleLine + 200);
-  assert.ok(names.every(allowed), 'names are read only for a webmail inbox and Google\'s /goto links');
+  assert.ok(names.length >= 1 && mailBlock > 0 && searchBlock > 0 && searchBlock < mailBlock);
+  const allowed = (i) => i > mailBlock || (i > searchBlock && i < mailBlock) || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);');
+  assert.ok(names.every(allowed), 'names are read only for a webmail inbox and a results page\'s links');
   assert.ok(s.includes('InPrivate|Incognito|Private Browsing'), 'private windows are recognised by their title');
   for (const b of ['chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf']) assert.ok(s.includes(`'${b}'`), b);
 });
@@ -103,13 +102,17 @@ test('Google results behind its opaque /goto redirect are checked by the address
   assert.equal(g('Read more'), null, 'no address shown: nothing is guessed');
   const out = resultLinks([{ u: 'https://www.google.com/goto?url=X', n: 'Contact Us PayPal https://www.paypal.com › cshelp › contact-us', x: 66, y: 248, w: 282, h: 71 }], 'https://www.google.com/search?q=x');
   assert.deepEqual(out.map((l) => l.u), ['https://www.paypal.com/cshelp/contact-us']);
-  assert.equal(out[0].n, undefined, 'the name is not passed on');
+  assert.equal(out[0].n, undefined, 'the raw name is not passed on');
+  assert.equal(out[0].title, 'Contact Us PayPal https://www.paypal.com › cshelp › contact-us', 'the title the results page shows goes along');
   // Three results from one site, as Google lays them out (the reader may deliver ">" for "›"): three marks.
   const three = [248, 396, 544].map((y, i) => ({ u: `https://www.google.com/goto?url=X${i}`, n: `Title ${i} PayPal https://www.paypal.com > cshelp > page${i}`, x: 66, y, w: 300, h: 71 }));
   assert.deepEqual(resultLinks(three, 'https://www.google.com/search?q=x').map((l) => l.u), [0, 1, 2].map((i) => `https://www.paypal.com/cshelp/page${i}`));
   const same = three.map((l) => ({ ...l, n: 'PayPal https://www.paypal.com' }));
   assert.equal(resultLinks(same, 'https://www.google.com/search?q=x').length, 3, 'results far apart stay apart even when they lead to the same page');
-  assert.ok(watch._test.SCRIPT.includes("if ($u -match '^https://www\\.google\\.[a-z.]{2,6}/goto\\?')"), 'the reader sends the name for those links only');
+  // What the scanner is told about each result: its title and the search, never for a private window.
+  const hints = watch._test.hintsFor([{ u: 'https://www.overdrive.com/', title: 'OverDrive: Free ebooks' }], ['https://www.overdrive.com/'], 'https://duckduckgo.com/?q=overdrive+libby');
+  assert.deepEqual(hints, { 'https://www.overdrive.com/': { title: 'OverDrive: Free ebooks', query: 'overdrive libby' } });
+  assert.match(read('desktop/src/watch.js'), /hints: page\.private \? undefined : hintsFor\(/);
 });
 
 test('the search engine\'s own menu (its app, its AI chat) gets no marks; other apps in a store still do', () => {

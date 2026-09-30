@@ -331,7 +331,11 @@ while ($true) {
         elseif (-not $firstEl) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
         # Google's own redirect (/goto?url=...) hides where a result leads. The address it shows under the result's
         # title is part of the link's name, so the name goes along for those links only.
-        if ($u -match '^https://www\.google\.[a-z.]{2,6}/goto\?') { $n = [string]$l.GetCachedPropertyValue($A::NameProperty); $item.n = $n.Substring(0, [Math]::Min(400, $n.Length)) }
+        # What the results page shows for the link (its title, and on Google the address under it): the page's own
+        # words about itself, as the search engine displays them. Google's /goto links hide where they lead; this
+        # text is also how that is found (the address Google shows).
+        $n = [string]$l.GetCachedPropertyValue($A::NameProperty)
+        if ($n) { $item.n = $n.Substring(0, [Math]::Min(400, $n.Length)) }
         [void]$list.Add($item)
       }
     }
@@ -815,8 +819,9 @@ function resultLinks(links, pageUrl, seen = new Map()) {
     if (APP_STORES.test(u.hostname) && brand && u.href.toLowerCase().includes(brand)) continue;
     const host = u.hostname.replace(/^www\./, '');
     const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : siteOf(host);
-    const { n: _name, by: _by, ...box } = l;   // the name was only needed to find the address; by is for review
-    const link = { ...box, u: u.href };
+    const { n: name, by: _by, ...box } = l;   // by is for review only
+    // The result's title, as the search engine shows it: what the page says it is (see the scanner's X01 and U24).
+    const link = { ...box, u: u.href, ...(name ? { title: String(name).slice(0, 200) } : {}) };
     const page = host + u.pathname.replace(/\/+$/, '') + u.search;
     if ((l.w || 0) < 100 && (l.h || 0) < 24) { chips.push({ key, link }); continue; }
     // A second link to the same page (or a part of it) is the same result. A sitelink sits just under its result,
@@ -901,6 +906,23 @@ async function onLinks(msg) {
  * restarting) is tried again a few seconds later: a results page left still would otherwise never be marked,
  * because nothing on it changes to cause another read.
  */
+/**
+ * What the results page says about each result, for the scanner to read without opening anything: the title the
+ * search engine shows, and what was searched for ("q" on Google, Bing and DuckDuckGo, "p" on Yahoo).
+ */
+function searchQuery(forUrl) {
+  try { const s = new URL(forUrl).searchParams; return String(s.get('q') || s.get('p') || s.get('query') || '').slice(0, 200); } catch { return ''; }
+}
+function hintsFor(links, urls, forUrl) {
+  const query = searchQuery(forUrl);
+  const hints = {};
+  for (const u of urls) {
+    const l = links.find((x) => x.u === u);
+    if ((l && l.title) || query) hints[u] = { title: (l && l.title) || '', query };
+  }
+  return hints;
+}
+
 async function checkLinks(links, page, forUrl) {
   clearTimeout(retryTimer);
   const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
@@ -922,12 +944,12 @@ async function checkLinks(links, page, forUrl) {
     // Delicate is shown in two steps: the quick answer (lists and checklist, a few ms) goes on screen at once, and
     // the researched answer replaces it when it lands. Nobody waits five seconds for a mark.
     if (mode === 'delicate' && !page.private) {
-      const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true });
+      const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true, hints: hintsFor(links, missing, forUrl) });
       store(quick.byUrl, false, false);   // shown until the researched answer replaces it
       publishMarks();
       log(`results marked: ${missing.length} in ${Date.now() - started} ms (quick pass)`);
     }
-    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode });
+    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode, hints: page.private ? undefined : hintsFor(links, missing, forUrl) });
     noteMode(answer);
     if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
     store(byUrl, true, (answer.mode || mode) !== 'delicate');
@@ -1009,4 +1031,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, SCRIPT } };

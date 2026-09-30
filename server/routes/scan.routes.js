@@ -179,8 +179,16 @@ function register(router) {
     // so marks appear at once; the researched pass follows and refines them. Both count as the same delicate minute.
     const research = mode === 'delicate' && plan.features.liveResearch && !isPrivate && body.quick !== true;
     const started = Date.now();
+    // What the results page showed for each address (its title, the search): read, never kept, never for a private window.
+    const hints = {};
+    if (!isPrivate && body.hints && typeof body.hints === 'object') {
+      for (const u of urls) {
+        const h = Object.prototype.hasOwnProperty.call(body.hints, u) ? body.hints[u] : null;
+        if (h && typeof h === 'object') hints[u] = { title: String(h.title || '').slice(0, 200), query: String(h.query || '').slice(0, 200) };
+      }
+    }
     const verdicts = await engine.scanUrls(urls, {
-      userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: !isPrivate
+      userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: !isPrivate, hints
     });
     const byUrl = {};
     for (const v of verdicts) byUrl[v.requested] = v;

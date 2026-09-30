@@ -23,6 +23,14 @@ const warn = (points, detail, extra) => ({ status: 'warn', points, detail, extra
 const pass = (detail, points = 0) => ({ status: 'pass', points, detail });
 const skip = (detail) => ({ status: 'skip', points: 0, detail });
 
+// The words of a search result's title or query (ctx.hint), and neighbouring words joined ("One Drive" -> onedrive).
+function hintWords(text) {
+  const w = String(text || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const set = new Set(w);
+  for (let i = 0; i + 1 < w.length; i++) set.add(w[i] + w[i + 1]);
+  return set;
+}
+
 const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'security', 'account', 'signin', 'login', 'logon', 'auth', 'update', 'unlock', 'suspended', 'recovery', 'recover', 'confirm', 'support', 'helpdesk', 'billing', 'invoice', 'password',
   'bank', 'banking', 'onlinebanking', 'online', 'webmail', 'mailbox', 'quota', 'owa', 'reactivate', 'deactivate', 'deactivation', 'expired', 'session', 'urgent', 'notice', 'required', 'action', 'immediately', 'attention',
   'payroll', 'salary', 'benefits', 'w2', 'enrollment', 'hr', 'docs', 'document', 'documents', 'fileshare', 'sharefile', 'portal', 'sso', 'adfs', 'authenticate', 'authentication'];
@@ -212,7 +220,18 @@ const URL_CHECKS = [
     } },
 
   { id: 'U24', group: 'Impersonation', threat: 'scam', title: 'Not a misspelling of a well-known brand',
-    run: ({ brand }) => {
+    run: ({ brand, p, hint }) => {
+      // Close in spelling but ordinary words ("overdrive" and "onedrive"): a different name, the way a person reads
+      // it. A small note, which only matters next to other warning signs; none at all when the search result shows
+      // the site under its own name (and not the brand's), or the person searched for it by name.
+      if (!brand.lookalike && brand.wordLike) {
+        if (hint) {
+          const own = p.sld.toLowerCase().replace(/[-_]/g, '');
+          const tw = hintWords(hint.title);
+          if ((tw.has(own) || hintWords(hint.query).has(own)) && !tw.has(brand.wordLike.brand.token)) return pass(`Shown as "${p.sld}", its own name, not as ${brand.wordLike.brand.domains[0]}`);
+        }
+        return warn(12, `"${brand.wordLike.word}" is spelled like ${brand.wordLike.brand.domains[0]}, but is an ordinary word`);
+      }
       if (!brand.lookalike) return pass('No typosquatting');
       // Nobody accidentally registers a one-letter-off "steamcommunity"; a word
       // one letter off "apple" is far more often innocent.
@@ -488,6 +507,19 @@ const KNOWLEDGE_CHECKS = [
       const rest = m[2].toLowerCase();
       const LURE = /(^|[/._-])(admin|login|log-in|signin|sign-in|verify|verification|webmail|mail|owa|tax|refund|invoice|payment|pay|billing|bank|secure|account|update|wallet|docs?|share|office|outlook)([/._-]|$)/;
       return LURE.test(rest) ? fail(34, `A "${rest.split('/')[0] || rest}" page inside the hosting account "~${m[1]}": the account is almost certainly hijacked`) : warn(8, "Served from a hosting account's home folder");
+    } },
+
+  { id: 'X01', group: 'Impersonation', threat: 'scam', title: 'Its search result does not claim a brand its name only resembles',
+    run: ({ brand, hint }) => {
+      // The title a search engine shows is the page's own title: the site's words about itself, read without opening
+      // it. A title that names the very brand the address imitates ("OneDrive - Sign in" on onedrlve.com) is the
+      // disguise in the site's own words. A title that merely mentions a brand ("How to contact PayPal") is not.
+      if (!hint || !hint.title) return skip('Not found through a search');
+      if (brand.official) return pass('Official site');
+      const tw = hintWords(hint.title);
+      const resembled = [brand.lookalike, brand.inDomain, brand.inSubdomain, brand.wordLike && brand.wordLike.brand].filter(Boolean);
+      const claimed = resembled.find((b) => tw.has(b.token));
+      return claimed ? fail(40, `Its title says "${claimed.token}" and its address looks like ${claimed.domains[0]}, but it is not ${claimed.domains[0]}`) : pass('Its title fits its address');
     } },
 
   { id: 'U54', group: 'Wording', threat: 'scam', title: 'Trust words in the name are spelled right',
