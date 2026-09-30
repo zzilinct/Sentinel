@@ -17,8 +17,18 @@ const q = {
     FROM scan_history WHERE user_id = ? AND created_at > ?`)
 };
 
-async function requireRecentPassword(user, password) {
-  if (!user.password_hash) return;
+/**
+ * Proof that the person, not just a borrowed session, is asking. An account with no password (Google only) must
+ * have signed in within the last few minutes instead: a stolen session alone never sets a password, turns on 2FA
+ * or deletes the account.
+ */
+const RECENT_SIGN_IN_MS = 10 * 60 * 1000;
+async function requireRecentPassword(user, password, req) {
+  if (!user.password_hash) {
+    const at = req && req._session ? req._session.createdAt : 0;
+    if (!at || Date.now() - at > RECENT_SIGN_IN_MS) throw new HttpError(401, 'reauth_required', 'For your safety, sign out and sign in again with Google, then try once more.');
+    return;
+  }
   if (!(await A.verifyPassword(String(password || ''), user.password_hash))) {
     throw new HttpError(401, 'bad_credentials', 'Your current password is incorrect');
   }
@@ -59,7 +69,7 @@ function register(router) {
     const user = A.requireUser(req);
     const body = await readJson(req);
     security.rateLimit(`pwchange:${user.id}`, 10, 60 * 60 * 1000);
-    await requireRecentPassword(user, body.currentPassword);
+    await requireRecentPassword(user, body.currentPassword, req);
     const problem = security.passwordProblem(body.newPassword, { email: user.email, firstName: user.first_name });
     if (problem) throw new HttpError(400, 'validation_failed', problem, { errors: { newPassword: problem } });
 
@@ -87,6 +97,8 @@ function register(router) {
     const body = await readJson(req);
     security.rateLimit(`2fa-enable:${user.id}`, 10, 15 * 60 * 1000);
     if (!user.totp_secret || user.totp_enabled) throw new HttpError(400, 'no_setup', 'Start two-factor setup first');
+    // Turning 2FA on signs every other device out: a stolen session must not be able to lock the owner out with it.
+    await requireRecentPassword(user, body.password, req);
     const counter = security.verifyTotp(A.decryptSecret(user.totp_secret), body.code, 0);
     if (counter === null) throw new HttpError(400, 'bad_code', 'That code is not correct - check your authenticator app\'s clock');
     A.uq.setTotp.run(user.totp_secret, 1, user.id);
@@ -149,7 +161,7 @@ function register(router) {
   router.post('/api/v1/account/delete', async (req, res) => {
     const user = A.requireUser(req);
     const body = await readJson(req);
-    await requireRecentPassword(user, body.password);
+    await requireRecentPassword(user, body.password, req);
     if (String(body.confirm || '') !== 'DELETE') throw new HttpError(400, 'confirm_required', 'Type DELETE to confirm');
     // A deleted account leaves no address behind: only a fingerprint that matches it if the same person writes in.
     const fingerprint = require('crypto').createHash('sha256').update(String(user.email).toLowerCase()).digest('hex').slice(0, 16);
