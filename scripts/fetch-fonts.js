@@ -9,10 +9,10 @@ const fs = require('fs');
 const path = require('path');
 
 const OUT = path.join(__dirname, '..', 'web', 'assets', 'fonts');
-// Bricolage Grotesque for headings, Atkinson Hyperlegible Next (made by the Braille Institute to be read easily) for
-// text, JetBrains Mono for addresses and code. All SIL Open Font License; each licence is saved next to the fonts.
-const CSS_URL = 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Atkinson+Hyperlegible+Next:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap';
-const LICENCES = { 'bricolage-grotesque': 'ofl/bricolagegrotesque/OFL.txt', 'atkinson-hyperlegible-next': 'ofl/atkinsonhyperlegiblenext/OFL.txt', 'jetbrains-mono': 'ofl/jetbrainsmono/OFL.txt' };
+// Instrument Serif for headings (upright and italic), Geist for text and Geist Mono for addresses and code. All SIL
+// Open Font License; each licence is saved next to the fonts.
+const CSS_URL = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap';
+const LICENCES = { 'instrument-serif': 'ofl/instrumentserif/OFL.txt', geist: 'ofl/geist/OFL.txt', 'geist-mono': 'ofl/geistmono/OFL.txt' };
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36';
 
 (async () => {
