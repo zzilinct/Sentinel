@@ -429,3 +429,44 @@ test('a server starts over a stale claim whose process number belongs to somethi
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Google sign-in finishes only in the browser that started it, and takes no unverified account over', async () => {
+  const config = require('../server/config');
+  const A = require('../server/lib/auth');
+  const saved = { id: config.google.clientId, secret: config.google.clientSecret };
+  const realFetch = global.fetch;
+  config.google.clientId = 'test-client';
+  config.google.clientSecret = 'test-secret';
+  try {
+    // Someone signs up with another person's address and a password, never confirming it, and stays signed in.
+    const email = freshEmail();
+    const squatter = client(app.base);
+    assert.equal((await signup(squatter, email)).status, 201);
+    assert.equal((await login(squatter, email)).status, 200);
+
+    const { url, cookie } = A.googleAuthUrl('/app');
+    const state = new URL(url).searchParams.get('state');
+    assert.match(cookie, /Max-Age=600/);
+    const claims = { sub: `g-${email}`, email, email_verified: true, aud: 'test-client', iss: 'https://accounts.google.com', exp: Date.now() / 1000 + 600 };
+    global.fetch = async () => new Response(JSON.stringify({ id_token: `h.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.s` }));
+
+    // A link to that half-finished sign-in, opened in another browser, signs nobody in.
+    await assert.rejects(A.googleExchange('code', state, { headers: {} }), /expired/);
+    await assert.rejects(A.googleExchange('code', state, { headers: { cookie: `${cookie.split(';')[0]}x` } }), /expired/);
+    // The browser that started it finishes it.
+    const done = await A.googleExchange('code', state, { headers: { cookie: cookie.split(';')[0] } });
+    assert.equal(done.claims.email, email);
+    global.fetch = realFetch;
+
+    // The address's real owner arrives through Google: the squatter's password and session are gone.
+    const user = await A.upsertGoogleUser(done.claims);
+    assert.equal(user.password_hash, null);
+    assert.ok(user.email_verified_at);
+    assert.equal((await squatter.get('/api/v1/auth/me')).status, 401, 'the earlier session is signed out');
+    assert.notEqual((await login(client(app.base), email)).status, 200, 'the password no longer signs in');
+  } finally {
+    global.fetch = realFetch;
+    config.google.clientId = saved.id;
+    config.google.clientSecret = saved.secret;
+  }
+});
