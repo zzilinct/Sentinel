@@ -19,7 +19,7 @@
       <!-- @include google-button -->
       <div class="divider">or</div>
 
-      <form data-form novalidate>
+      <form data-form method="post" novalidate>
         <div class="field">
           <label for="email">Email</label>
           <input class="input" id="email" name="email" type="email" autocomplete="email" required>
@@ -44,7 +44,7 @@
       <h1>Two-factor check</h1>
       <p>Enter the 6-digit code from your authenticator app.</p>
       <div data-note-code></div>
-      <form data-code-form novalidate style="margin-top:28px">
+      <form data-code-form method="post" novalidate style="margin-top:28px">
         <div class="field">
           <label for="code">Authentication code</label>
           <input class="input code-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>

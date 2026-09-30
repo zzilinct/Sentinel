@@ -105,8 +105,13 @@ async function signIn(send, email) {
     await sleep(500);
     ({ result } = await send('Runtime.evaluate', { expression: 'location.pathname' }, sessionId));
   }
+  if (!String(result.value).startsWith('/app')) {
+    // Say what the page said, so a failed run explains itself.
+    const { result: why } = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify({ url: location.href, note: (document.querySelector('[data-note]') || {}).textContent || '', toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '), ready: document.readyState })` }, sessionId);
+    await send('Target.closeTarget', { targetId });
+    throw new Error(`sign-in did not reach the app: ${why.value}`);
+  }
   await send('Target.closeTarget', { targetId });
-  if (!String(result.value).startsWith('/app')) throw new Error(`sign-in did not reach the app (at ${result.value})`);
 }
 
 async function main() {
