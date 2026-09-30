@@ -16,7 +16,7 @@
     "dist:linux": "node scripts/sync-shared.js && electron-builder --linux AppImage --publish never"
   },
   "devDependencies": {
-    "electron": "^44.4.1",
+    "electron": "^44.5.1",
     "electron-builder": "^26.0.0"
   },
   "build": {
