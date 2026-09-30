@@ -18,6 +18,13 @@ test.before(async () => {
 test.after(() => { app.server.close(); fixture.close(); });
 
 let n = 0;
+/** Accounts whose owners confirmed their email a week ago or more: only their reports count for everyone. */
+function established(users) {
+  const { db } = require('../server/lib/db');
+  const weekAgo = Date.now() - 8 * 24 * 60 * 60 * 1000;
+  for (const u of users) db.prepare('UPDATE users SET created_at = ?, email_verified_at = ? WHERE email = ?').run(weekAgo, weekAgo, u.email);
+}
+
 async function newUser(plan = 'free') {
   const c = client(app.base);
   const email = `user${++n}_${Date.now()}@example.com`;
@@ -313,8 +320,11 @@ test('file scanner through the API flags a known malicious sample', async () => 
   assert.equal(r.data.usage.fileScans.used, 1);
 });
 
-test('history and reports: three distinct users promote a site to confirmed', async () => {
+test('history and reports: three distinct established users promote a site to confirmed', async () => {
   const users = [await newUser(), await newUser(), await newUser()];
+  // Accounts made a minute ago, with unconfirmed addresses, condemn nothing for everyone.
+  for (const u of users) assert.equal((await u.post('/api/v1/report', { url: 'https://fresh-accounts-target.biz/', category: 'fake_store' })).data.promoted, false);
+  established(users);
   for (const u of users) {
     const r = await u.post('/api/v1/report', { url: 'https://brand-new-shop-scam.biz/', category: 'fake_store' });
     assert.equal(r.status, 201);
