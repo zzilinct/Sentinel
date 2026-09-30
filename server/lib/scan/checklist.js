@@ -12,11 +12,18 @@
  */
 const L = require('./lists');
 const config = require('../../config');
-const { analyze, entropy, hostWords, levenshtein } = require('./url');
+const { analyze, entropy, hostWords, levenshtein, isRealWords } = require('./url');
 // Words that make an address look trustworthy, long enough that one letter off is never an ordinary word (U54).
 const TRUST_WORDS = ['support', 'account', 'security', 'service', 'billing', 'customer', 'recovery', 'password', 'verification', 'helpdesk'];
 
 const reported = new Set();
+
+// A name nobody would type: letters with almost no vowels that make no words ("wsdqmoc", "yvgfnnhfjw02").
+function mash(seg) {
+  const s = String(seg).toLowerCase().replace(/\d+/g, '');
+  if (!/^[a-z]{5,16}$/.test(s)) return false;
+  return (s.match(/[aeiou]/g) || []).length / s.length < 0.2 && !isRealWords(s);
+}
 
 // The name as people see it: an international name (xn--mnchen-3ya is münchen) is judged by its letters, not by the
 // hyphens and digits of its encoding. U02 already weighs the encoding itself.
@@ -358,6 +365,21 @@ const KNOWLEDGE_CHECKS = [
       }
       if (kitFile) return fail(14, `Kit-style file name ${lower.split('/').pop().split('?')[0]}`);
       return pass('Ordinary page location');
+    } },
+
+  { id: 'U56', group: 'Address', threat: 'scam', title: 'Page is not hidden behind generated names',
+    run: ({ p, brand }) => {
+      if (brand.official) return pass('Official site');
+      // Hosting's temporary address (website-e86d3b7f.….mybluehost.me): what a site is reached by before it has a
+      // name of its own. Nobody sends customers there; throwaway pages live there.
+      if (p.registrable === 'mybluehost.me' && /(^|\.)website-[0-9a-f]{6,}\./.test(`${p.host}.`)) return fail(24, 'A hosting company\'s temporary address, not a site\'s own name');
+      // Folder and page names nobody would type ("aynqxts/wsdqmoc/dpgqmbx"): phishing kits unpack into generated
+      // folders on hacked sites, and shared site builders give throwaway pages generated names.
+      const parts = p.path.split('/').filter(Boolean).map((s) => s.replace(/\.[a-z0-9]+$/i, ''));
+      const random = parts.filter(mash);
+      if (random.length >= 2) return fail(26, `Page hidden behind generated folder names (${random.slice(0, 3).join('/')})`);
+      if (random.length === 1 && p.userContent) return fail(18, `A throwaway page name on a shared site builder ("${random[0]}")`);
+      return pass('Ordinary names');
     } },
 
   { id: 'U42', group: 'Address', threat: 'scam', title: 'No random-looking subdomain in front of bait wording',
