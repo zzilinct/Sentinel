@@ -224,14 +224,29 @@ const URL_CHECKS = [
     } },
 
   { id: 'U22', group: 'Impersonation', threat: 'scam', title: 'Does not borrow a brand name it does not own',
-    run: ({ brand }) => (brand.inDomain ? fail(38, `Uses "${brand.inDomain.token}" but is not ${brand.inDomain.domains[0]}`) : pass('No borrowed brand in the domain')) },
+    run: ({ brand, p }) => {
+      if (!brand.inDomain) return pass('No borrowed brand in the domain');
+      const token = brand.inDomain.token;
+      // A brand joined to one ordinary word that asks nothing of you ("zoominfo", "chasecenter", the arena) is a name
+      // of its own, the way people read it. A small note, which only counts next to other signs. Joined to a bait
+      // word ("chaseonline", "paypalsupport"), with a hyphen or digits, it stays a warning.
+      const sld = p.sld.toLowerCase();
+      const rest = sld.startsWith(token) ? sld.slice(token.length) : sld.endsWith(token) ? sld.slice(0, -token.length) : '';
+      const bait = new Set([...CREDENTIAL_WORDS, ...TRUST_WORDS, ...MONEY_WORDS, ...CRYPTO_WORDS, ...SHOP_WORDS, 'help', 'care', 'team', 'app', 'apps', 'pay', 'card', 'cards', 'wallet', 'mail', 'alert', 'alerts', 'official', 'store', 'shop', 'id', 'web', 'net', 'my', 'get', 'go', 'resolution', 'dispute', 'disputes', 'case', 'claim', 'claims', 'limited', 'restore', 'unlock', 'review']);
+      if (rest.length >= 4 && !/[-\d]/.test(sld) && isRealWords(rest) && !bait.has(rest)) return warn(12, `${sld} is "${token}" joined to the ordinary word "${rest}": a different name unless other signs say otherwise`);
+      return fail(38, `Uses "${token}" but is not ${brand.inDomain.domains[0]}`);
+    } },
 
   { id: 'U23', group: 'Impersonation', threat: 'scam', title: 'No brand name planted in a subdomain',
     run: ({ brand, p }) => {
       if (!brand.inSubdomain || brand.inDomain) return pass('No planted brand');
       // On a platform where every customer gets a subdomain ("paypal.zendesk.com", "acme.okta.com"), a company's name
       // in front is how the platform works.
-      if (L.TENANT_PLATFORMS.includes(p.registrable)) return pass(`A customer's own space on ${p.registrable}`);
+      // Not when the name in front is bait ("roblox-free-robux.fandom.com"): a platform's customers do not name
+      // themselves that way.
+      const label = p.subdomains.join('.');
+      const lured = [...CREDENTIAL_WORDS, ...MONEY_WORDS, ...CRYPTO_WORDS].some((w) => hostWords(label).has(w)) || /robux|vbucks|v-bucks|free/.test(label);
+      if (L.TENANT_PLATFORMS.includes(p.registrable) && !lured) return pass(`A customer's own space on ${p.registrable}`);
       return fail(42, `Puts "${brand.inSubdomain.token}" in front of an unrelated domain`);
     } },
 
