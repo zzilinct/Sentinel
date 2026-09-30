@@ -622,7 +622,6 @@ p { text-wrap: pretty; }
 .prose-wrap .card + .card { margin-top: 18px; }
 .updated { font: 12.5px var(--mono); color: var(--faint); margin-top: 14px; }
 
-.plan__badge--best { color: var(--gold-50); background: rgb(var(--gold-rgb) / .16); }
 
 /* ------------------------------------------------- pre-launch static build */
 
