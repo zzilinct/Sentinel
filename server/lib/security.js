@@ -85,7 +85,7 @@ function assertSameOrigin(req) {
   const origin = req.headers.origin;
   if (origin) {
     if (allowedOrigin(origin)) return;
-    throw new HttpError(403, 'bad_origin', 'Request blocked: cross-site request');
+    throw new HttpError(403, 'bad_origin', 'This request came from another site, so Sentinel refused it.');
   }
   const referer = req.headers.referer;
   if (referer) {

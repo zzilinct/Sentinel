@@ -405,7 +405,7 @@ test('marks move with the wheel the moment it turns, and only while there are ma
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /api\.on\('overlay:wheel', function \(p\) \{ if \(p && p\.epoch === epoch\) onWheel\(p\); \}\);/);
   assert.match(html, /perNotch = perNotch \* 0\.5 \+ measured \* 0\.5/, 'how far a notch moves this browser is learned from its reports');
-  assert.match(html, /if \(!gesture\.moved && now - gesture\.steps\[0\]\.at > SETTLE_MS\)/, 'a page that did not move lets go at once');
+  assert.match(html, /if \(!gesture\.moved && now - gesture\.steps\[0\]\.at > SETTLE_MS && roomFor\(gesture\) !== '1'\)/, 'a page that did not move lets go at once, unless it said it has room');
   // New positions read mid-scroll already include what the browser had reported: only the rest carries over, and the
   // scroll goes on instead of starting again (starting again applied the next report twice, off the page).
   assert.match(html, /var carryX = shiftX - report\.x, carryY = shiftY - report\.y;/);
@@ -703,4 +703,15 @@ test('a page that says it has room is followed at full speed, and one at its end
   assert.ok(Math.min(...end) >= -1, 'at its end, the marks stay on their results');
   const top = flick('01');
   assert.ok(top[13] < -300, 'at the top, scrolling down is followed at full speed');
+});
+
+test('a browser slow to report during a long scroll does not throw the marks back to the top', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [], ends: '01' });
+  // Fourteen notches 46 ms apart and no word from the browser for almost three seconds (seen on DuckDuckGo).
+  const wheels = Array.from({ length: 14 }, (_, i) => 10 + i * 46);
+  const ys = o.run(1500, (t) => { for (const w of wheels) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 }); });
+  const lowest = Math.min(...ys);
+  assert.ok(lowest < -1300, `followed only to ${lowest.toFixed(0)} px`);
+  assert.ok(ys[ys.length - 1] < -1300, `went back to ${ys[ys.length - 1].toFixed(0)} px while the page stayed down`);
 });

@@ -149,6 +149,8 @@
           const m = document.createElement('span');
           m.className = `m m--${result.threats[t].badge}`;
           m.title = result.threats[t].label;
+          m.setAttribute('role', 'img');
+          m.setAttribute('aria-label', `${Masks.NAMES[t]}: ${result.threats[t].label}`);
           m.innerHTML = Masks.svg(t);
           slot.appendChild(m);
           setTimeout(() => m.classList.add('is-on'), reduced ? 0 : k * 110);
@@ -466,10 +468,12 @@
           body: JSON.stringify({ url })
         });
         const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error((body.error && body.error.message) || 'Couldn’t check that link right now.');
+        // As in ui.js api(): a server fault never shows its own text, only a plain sentence.
+        if (!res.ok) throw new Error((res.status < 500 && body.error && body.error.message) || 'Couldn’t check that link right now.');
         renderTry(body.verdict);
       } catch (err) {
-        out.innerHTML = `<div class="try__empty"><p>${esc(err.message)}</p><a class="btn btn--gold btn--sm" href="/signup">Create free account</a></div>`;
+        // A failed connection surfaces as a TypeError whose text is the browser's, not ours.
+        out.innerHTML = `<div class="try__empty"><p>${esc(err.name === 'Error' ? err.message : 'Couldn’t check that link right now.')}</p><a class="btn btn--gold btn--sm" href="/signup">Create free account</a></div>`;
       } finally {
         button.disabled = false;
         button.textContent = 'Check';
