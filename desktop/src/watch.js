@@ -97,6 +97,8 @@ public class Wheel : System.Windows.Forms.NativeWindow {
   [DllImport("user32.dll")] static extern bool RegisterRawInputDevices(RAWINPUTDEVICE[] devices, uint count, uint size);
   [DllImport("user32.dll")] static extern uint GetRawInputData(IntPtr raw, uint command, IntPtr data, ref uint size, uint headerSize);
   public static volatile bool Enabled;
+  public static volatile bool Registered;   // Windows accepted the request (for the log)
+  public static int Seen;                   // wheel turns seen, sent or not (for the log)
   static bool started;
   public static void Start() {
     if (started) return;
@@ -108,7 +110,7 @@ public class Wheel : System.Windows.Forms.NativeWindow {
       w.CreateHandle(cp);
       var d = new RAWINPUTDEVICE[1];
       d[0].UsagePage = 1; d[0].Usage = 2; d[0].Flags = 0x100; d[0].Target = w.Handle;   // the mouse, even when not in front
-      RegisterRawInputDevices(d, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)));
+      Registered = RegisterRawInputDevices(d, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)));
       System.Windows.Forms.Application.Run();
     });
     t.IsBackground = true;
@@ -116,6 +118,7 @@ public class Wheel : System.Windows.Forms.NativeWindow {
     t.Start();
   }
   protected override void WndProc(ref System.Windows.Forms.Message m) {
+    if (m.Msg == 0x00FF) System.Threading.Interlocked.Increment(ref Seen);
     if (m.Msg == 0x00FF && Enabled) {
       uint header = (uint)(8 + 2 * IntPtr.Size);
       uint size = 0;
@@ -145,7 +148,7 @@ if (-not $loaded) {
   if (-not $loaded) { Add-Type -TypeDefinition $src -ReferencedAssemblies System.Windows.Forms }
 }
 Write-Output '{"ready":true}'
-try { [Wheel]::Start() } catch { }
+try { [Wheel]::Start() } catch { Write-Output (@{ wheelError = [string]$_.Exception.Message } | ConvertTo-Json -Compress) }
 $A = [System.Windows.Automation.AutomationElement]
 $VP = [System.Windows.Automation.ValuePattern]
 $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
@@ -397,7 +400,7 @@ while ($true) {
     $sig = ($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)|$($_.c)" }) -join ';'
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
-      Write-Output (@{ links = @($list); covered = $covered; for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
+      Write-Output (@{ links = @($list); covered = $covered; for = $url; ms = [int]$sw.ElapsedMilliseconds; wheel = "$([Wheel]::Registered)/$([Wheel]::Seen)/$([Wheel]::Enabled)" } | ConvertTo-Json -Compress -Depth 4)
       # New positions: the anchor starts again from here, and the marks from zero movement.
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0    }
     # A heavy page must not make the reader spin: rest at least twice as long as the read took.
@@ -661,6 +664,7 @@ function onLine(line) {
     setWindow(msg.win || null);
     return;
   }
+  if (msg.wheelError) { log(`wheel following could not start: ${String(msg.wheelError).slice(0, 200)}`); return; }
   if (typeof msg.wheel === 'number') { if (opts.onWheel && latestLinks) opts.onWheel({ epoch: latestLinks.epoch, delta: msg.wheel, t: msg.t }); return; }
   if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t }); return; }
   if (msg.links) return onLinks(msg);
@@ -948,7 +952,7 @@ async function onLinks(msg) {
   const arrived = !fresh && latestLinks.links.length === 0 && links.length > 0;
   latestLinks = { for: msg.for, links, epoch: ++linkEpoch };
   if ((fresh || arrived) && !page.private) {
-    log(`results page: ${links.length} results on screen, read in ${msg.ms} ms`);
+    log(`results page: ${links.length} results on screen, read in ${msg.ms} ms${msg.wheel ? ` (wheel ${msg.wheel})` : ''}`);
     state.lastResults = { count: links.length, ms: msg.ms, at: Date.now() };
   }
   publishMarks();   // positions first: marks already known move at once
