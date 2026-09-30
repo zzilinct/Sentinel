@@ -148,7 +148,19 @@ function OtherBrowser($exe, $proc, $argList, $name) {
 }
 $ddg = 'https://duckduckgo.com/?q=paypal+login+help'
 OtherBrowser 'chrome' 'chrome' @('--no-first-run', '--no-default-browser-check', '--start-maximized', $ddg) 'chrome'
-OtherBrowser 'firefox' 'firefox' @('-new-window', $ddg) 'firefox'
+# Firefox's first start puts a welcome dialog over the page: a fresh profile that has already seen it.
+$ffProfile = Join-Path $env:RUNNER_TEMP 'ff-profile'; New-Item -ItemType Directory -Force $ffProfile | Out-Null
+@(
+  'user_pref("browser.aboutwelcome.enabled", false);',
+  'user_pref("trailhead.firstrun.didSeeAboutWelcome", true);',
+  'user_pref("datareporting.policy.dataSubmissionPolicyBypassNotification", true);',
+  'user_pref("browser.startup.homepage_override.mstone", "ignore");',
+  'user_pref("browser.shell.checkDefaultBrowser", false);',
+  'user_pref("browser.termsofuse.prompt.enabled", false);',
+  'user_pref("termsofuse.acceptedDate", "1735689600000");',
+  'user_pref("termsofuse.acceptedVersion", 999);'
+) | Set-Content -Path (Join-Path $ffProfile 'user.js') -Encoding ascii
+OtherBrowser 'firefox' 'firefox' @('-profile', $ffProfile, '-no-remote', '-new-window', $ddg) 'firefox'
 
 # 5. Download protection: everyday files arrive in Downloads (a program, a text file, an archive). Each should be
 # scanned (app.log says "download scanned"), and none of them flagged.
