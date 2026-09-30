@@ -17,7 +17,16 @@
   button { height: 40px; padding: 0 18px; border: 0; border-radius: 4px; cursor: pointer; font: 500 14px system-ui, sans-serif; color: #e9e6df; background: #1e2126; }
   button.primary { color: #16130b; background: #d6b25a; }
   button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }
-  small { display: block; margin-top: 16px; color: #6f6c65; font-size: 12px; }
+  small { display: block; margin-top: 16px; color: #8d8a82; font-size: 12px; }
+  @media (prefers-color-scheme: light) {
+    html, body { background: #f6f4ef; color: #1c1b18; }
+    p { color: #55524b; }
+    small { color: #6a675f; }
+    code { background: #ebe7de; color: #2e2c27; }
+    button { color: #1c1b18; background: #e4e0d6; }
+    button.primary { color: #16130b; background: #c9a044; }
+    .mark { color: #b3261e; }
+  }
 </style>
 </head>
 <body>
@@ -36,8 +45,11 @@
   </div>
   <script>
     const q = new URLSearchParams(location.search);
-    document.getElementById('msg').textContent = q.get('message') || document.getElementById('msg').textContent;
-    document.getElementById('log').textContent = 'Log: ' + (q.get('log') || '');
+    // A cause written for people is shown as it is. Anything technical (an error code, a file path, a stack) stays in
+    // the log, which "Open log" shows.
+    const raw = q.get('message') || '';
+    if (raw && !/\bE[A-Z]{3,}\b|Error:|\bat \S+ \(|[A-Za-z]:\\|\/[\w.-]+\//.test(raw)) document.getElementById('msg').textContent = raw;
+    document.getElementById('log').textContent = 'Log file: ' + (q.get('log') || '');
     const d = window.sentinelDesktop || {};
     let left = Number(q.get('retryIn')) || 0;
     const auto = document.getElementById('auto');

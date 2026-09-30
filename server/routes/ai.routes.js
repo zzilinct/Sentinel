@@ -171,7 +171,7 @@ function register(router) {
     if (provider.keyPrefix && !key.startsWith(provider.keyPrefix)) {
       throw new HttpError(400, 'bad_key_format', `${provider.vendor} keys start with "${provider.keyPrefix}"`);
     }
-    if (/\s/.test(key)) throw new HttpError(400, 'bad_key_format', 'That key contains spaces - copy it again');
+    if (/\s/.test(key)) throw new HttpError(400, 'bad_key_format', 'That key contains spaces. Copy it again.');
 
     rateLimit(`ai_connect:${user.id}`, 20, 10 * 60 * 1000);
 
