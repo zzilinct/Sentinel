@@ -1000,6 +1000,8 @@
     const df = info.defense || { supported: false, active: false, reason: 'Not available' };
     let ledger = [];
     try { ledger = (await desktop.defense()).ledger || []; } catch { /* none */ }
+    // Left the page while waiting: subscribing now would leave listeners behind that nothing ever removes.
+    if (!slot.isConnected) return;
     const browsers = (info.browsers && info.browsers.installed) || [];
     const running = new Set((info.browsers && info.browsers.running) || []);
     const up = info.update || { status: 'idle' };
@@ -1127,7 +1129,7 @@
       slot._off.push(desktop.onPageChecked((item) => {
         if (!feed.isConnected) return;
         feed.querySelector('.feed__empty')?.remove();
-        const li = h(`<li class="feed__item is-new"><span class="list__icon" style="color:${color(item.badge)}">${item.badge ? Masks.svg('scam') : ICON.check}</span><span class="list__main"><b>${esc(item.host)}</b><span>${esc(item.label)} &middot; ${esc(item.browser)}</span></span></li>`);
+        const li = h(`<li class="feed__item is-new"><span class="list__icon" style="color:${esc(color(item.badge))}">${item.badge ? Masks.svg('scam') : ICON.check}</span><span class="list__main"><b>${esc(item.host)}</b><span>${esc(item.label)} &middot; ${esc(item.browser)}</span></span></li>`);
         feed.prepend(li);
         requestAnimationFrame(() => li.classList.remove('is-new'));
         while (feed.children.length > 8) feed.lastElementChild.remove();
@@ -1432,7 +1434,7 @@
     const active = providers.find((p) => p.id === params.get('ai')) || providers[0];
 
     $('[data-tabs]', el).innerHTML = `<div class="ai-tabs" role="tablist">${providers.map((p) => `
-      <button class="ai-tab" role="tab" style="--accent:${p.accent}" aria-selected="${p.id === active.id}" data-ai="${p.id}">
+      <button class="ai-tab" role="tab" style="--accent:${esc(p.accent)}" aria-selected="${p.id === active.id}" data-ai="${p.id}">
         <span class="ai-tab__mark">${MARKS[p.id]}</span>${esc(p.name)}<span class="ai-tab__dot${p.connected ? ' is-on' : ''}"></span>
       </button>`).join('')}</div>`;
     $$('[data-ai]', el).forEach((b) => b.addEventListener('click', () => navigate(`/app/assistants?ai=${b.dataset.ai}`)));
@@ -1445,7 +1447,7 @@
 
   function renderConnect(pane, p) {
     pane.innerHTML = `
-      <div class="connect-head"><span class="ai-tab__mark ai-tab__mark--lg" style="--accent:${p.accent}">${MARKS[p.id]}</span>
+      <div class="connect-head"><span class="ai-tab__mark ai-tab__mark--lg" style="--accent:${esc(p.accent)}">${MARKS[p.id]}</span>
         <div><h2>Connect ${esc(p.name)}</h2><p class="note">Uses ${esc(p.vendor)}’s official API with a key from your own account &middot; <span class="mono">${esc(p.model)}</span></p></div></div>
       <ol class="steps-list">
         <li>Open <a href="${esc(p.keyUrl)}" target="_blank" rel="noopener noreferrer" class="u-gold">${esc(new URL(p.keyUrl).host)}</a> and sign in to ${esc(p.vendor)} there.</li>

@@ -715,3 +715,10 @@ test('a browser slow to report during a long scroll does not throw the marks bac
   assert.ok(lowest < -1300, `followed only to ${lowest.toFixed(0)} px`);
   assert.ok(ys[ys.length - 1] < -1300, `went back to ${ys[ys.length - 1].toFixed(0)} px while the page stayed down`);
 });
+
+test('the page is followed by a link in its middle, never a header link that hides and comes back', () => {
+  const s = watch._test.SCRIPT;
+  assert.ok(s.includes('$midY = $r.Top + $r.Height / 2'));
+  assert.ok(s.includes('[Math]::Abs($b.Y - $midY) -lt [Math]::Abs($fy - $midY)'), 'the anchor is the link nearest the middle');
+  assert.ok(s.includes("ends = $ends"), 'each read says whether the page can still scroll');
+});

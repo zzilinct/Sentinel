@@ -41,7 +41,7 @@
       if (ev.source !== window || ev.origin !== location.origin || !ev.data || ev.data.type !== 'sentinel:companion-connected') return;
       removeEventListener('message', onReply);
       clearTimeout(timer);
-      if (ev.data.ok) done('You’re protected', `Sentinel is now live in this browser${ev.data.plan ? ` on your ${esc(ev.data.plan)} plan` : ''}.`, true);
+      if (ev.data.ok) done('You’re protected', `Sentinel is now live in this browser${ev.data.plan ? ` on your ${ev.data.plan} plan` : ''}.`, true);
       else done('Couldn’t connect', 'The companion rejected the sign-in. Reload this page to try again.', false);
     });
     window.postMessage({ type: 'sentinel:companion-token', token }, location.origin);
