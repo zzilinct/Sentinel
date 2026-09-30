@@ -60,6 +60,7 @@ test('history rows and totals use the same thirty-day window', async () => {
 
 test('community reports retain their threat type and mixed categories do not combine into confirmation', async () => {
   const users = [await newUser('pro'), await newUser(), await newUser()];
+  established(users);
   const host = 'ordinary-community-review.example';
   for (const u of users) assert.equal((await u.post('/api/v1/report', { url: `https://${host}/`, category: 'malware' })).status, 201);
   const verdict = (await users[0].post('/api/v1/scan/threat', { url: `https://${host}/` })).data.verdict;
@@ -76,6 +77,13 @@ test('community reports retain their threat type and mixed categories do not com
   assert.notEqual(mixed.threats.scam.level, 'confirmed');
   assert.notEqual(mixed.threats.malware.level, 'confirmed');
 });
+
+/** Accounts whose owners confirmed their email a week ago or more: only their reports count for everyone. */
+function established(users) {
+  const { db } = require('../server/lib/db');
+  const weekAgo = Date.now() - 8 * 24 * 60 * 60 * 1000;
+  for (const u of users) db.prepare('UPDATE users SET created_at = ?, email_verified_at = ? WHERE email = ?').run(weekAgo, weekAgo, u.email);
+}
 
 async function newUser(plan = 'free') {
   const c = client(app.base);
