@@ -383,8 +383,6 @@ function readiness() {
 
 module.exports = {
   revision: () => revision,
-  refreshInBackground,
-  REFRESH_MARKER,
   FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness, _test: { refreshFeed },
   status: () => q.allStatus.all().filter((r) => !r.source.startsWith('_'))
 };
