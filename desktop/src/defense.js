@@ -545,26 +545,32 @@ async function restore(id) {
   if (entry.quarantined) {
     fs.mkdirSync(path.dirname(entry.path), { recursive: true });
     // Something new saved at the old place since is never overwritten: the file comes back beside it.
-    if (fs.existsSync(dest)) {
-      const ext = path.extname(dest);
-      dest = path.join(path.dirname(dest), `${path.basename(dest, ext)} (restored)${ext}`);
-    }
+    const ext = path.extname(entry.path);
+    for (let n = 1; fs.existsSync(dest); n++) dest = path.join(path.dirname(entry.path), `${path.basename(entry.path, ext)} (restored${n > 1 ? ` ${n}` : ''})${ext}`);
     moveFile(entry.quarantined, dest);
     try { fs.unlinkSync(`${entry.quarantined}.json`); } catch { /* fine */ }
   }
+  // Startup entries point at the original place: brought back only when the file is back there, never to start
+  // whatever new file is at that place now.
+  const notRestored = [];
   for (const a of entry.actions || []) {
     if (!a.undo) continue;
+    if (dest !== entry.path) { notRestored.push(a.detail || a.did); continue; }
     if (a.undo.hive) await run('reg', ['add', `${a.undo.hive}\\${a.undo.key}`, '/v', a.undo.name, '/t', a.undo.type, '/d', a.undo.data, '/f']);
-    else if (a.undo.lnk) { try { fs.copyFileSync(a.undo.lnk, a.undo.to); fs.unlinkSync(a.undo.lnk); } catch { /* the shortcut stays in quarantine */ } }
-    else if (a.undo.task) await ps(`Register-ScheduledTask -Xml (Get-Content -LiteralPath ${psq(a.undo.task)} -Raw) -TaskPath ${psq(a.undo.taskPath)} -TaskName ${psq(a.undo.taskName)} -Force | Out-Null; Remove-Item -LiteralPath ${psq(a.undo.task)} -Force`);
+    else if (a.undo.lnk) { try { fs.copyFileSync(a.undo.lnk, a.undo.to); fs.unlinkSync(a.undo.lnk); } catch { notRestored.push(a.detail); } }
+    else if (a.undo.task) {
+      // The backup is deleted only once Windows has the task again (a task that needs administrator can be refused).
+      const out = await ps(`try { Register-ScheduledTask -Xml (Get-Content -LiteralPath ${psq(a.undo.task)} -Raw) -TaskPath ${psq(a.undo.taskPath)} -TaskName ${psq(a.undo.taskName)} -Force -ErrorAction Stop | Out-Null; Remove-Item -LiteralPath ${psq(a.undo.task)} -Force; 'OK' } catch { 'FAIL' }`);
+      if (!out.includes('OK')) notRestored.push(a.detail);
+    }
   }
   // The person has vouched for this file: do not judge it again, now or after a restart, while it is unchanged.
   if (entry.sha256) seen.set(entry.sha256, dest);
   isVetted(dest);
   rememberVetted(dest);
   entry.restored = Date.now();
-  record({ kind: 'restored', path: dest, name: path.basename(dest) });
-  return { ok: true, path: dest };
+  record({ kind: 'restored', path: dest, name: path.basename(dest), ...(notRestored.length ? { notRestored } : {}) });
+  return { ok: true, path: dest, notRestored };
 }
 
 /** The person decided: quarantine a startup program that was only suspected (and left alone), with the full response. */
