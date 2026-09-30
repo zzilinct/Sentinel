@@ -722,3 +722,32 @@ test('the page is followed by a link in its middle, never a header link that hid
   assert.ok(s.includes('[Math]::Abs($b.Y - $midY) -lt [Math]::Abs($fy - $midY)'), 'the anchor is the link nearest the middle');
   assert.ok(s.includes("ends = $ends"), 'each read says whether the page can still scroll');
 });
+
+test('settings are swapped in whole, never left half written', () => {
+  const store = require('../desktop/src/store');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-store-'));
+  try {
+    store.init(dir, { isEncryptionAvailable: () => false });
+    store.set('liveScanning', true);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).liveScanning, true);
+    assert.ok(!fs.existsSync(path.join(dir, 'settings.json.tmp')), 'no leftover temporary file');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the mouse is only asked for while marks are on screen, and a failing reader slows down', () => {
+  const s = watch._test.SCRIPT;
+  assert.ok(s.includes('if (Enabled == Registered) return;'), 'registration follows Enabled');
+  assert.ok(s.includes('d[0].Flags = 0x1; d[0].Target = IntPtr.Zero;'), 'and is removed (RIDEV_REMOVE) when off');
+  assert.ok(s.includes('static System.Windows.Forms.Timer sync;'), 'the timer is held for the life of the process');
+  const src = read('desktop/src/watch.js');
+  assert.match(src, /Math\.min\(300000, 3000 \* 2 \*\* Math\.max\(0, quickExits - 1\)\)/);
+});
+
+test('defense never acts on a guess: unreadable files need Defender to say so, and act() re-checks the file', () => {
+  const src = read('desktop/src/defense.js');
+  assert.match(src, /if \(!\(await defenderCaught\(full\)\)\) return null;/);
+  assert.match(src, /if \(!now \|\| \(entry\.sha256 && now !== entry\.sha256\)\) throw/);
+  assert.match(src, /Export-ScheduledTask/, 'a removed task can be restored');
+  assert.ok(read('desktop/src/downloads.js').includes('if (!now || now !== item.sha256) throw'));
+  assert.match(read('desktop/src/main.js'), /if \(idleSeconds < 2 \* 60 \|\| await fullscreenInFront\(\)\) return;/, 'no update over a fullscreen game');
+});
