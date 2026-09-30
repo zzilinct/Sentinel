@@ -113,9 +113,12 @@ public class Wheel : System.Windows.Forms.NativeWindow {
       var cp = new System.Windows.Forms.CreateParams();
       cp.Parent = new IntPtr(-3);   // a message-only window: never shown
       w.CreateHandle(cp);
-      var d = new RAWINPUTDEVICE[1];
-      d[0].UsagePage = 1; d[0].Usage = 2; d[0].Flags = 0x100; d[0].Target = w.Handle;   // the mouse, even when not in front
-      Registered = RegisterRawInputDevices(d, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)));
+      // Windows is asked for the mouse only while marks are on screen, and told to stop the moment they are not: a
+      // gaming mouse reports thousands of times a second, and every report would wake this process during a game.
+      var sync = new System.Windows.Forms.Timer();
+      sync.Interval = 200;
+      sync.Tick += (s, e) => w.Sync();
+      sync.Start();
       System.Windows.Forms.Application.Run();
     });
     t.IsBackground = true;
