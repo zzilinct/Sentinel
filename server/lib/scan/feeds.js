@@ -322,12 +322,18 @@ async function refreshAll({ log = false, force = false } = {}) {
     const results = [];
     const added = new Set();
     const removed = new Set();
-    for (const feed of FEEDS) {
+    const began = now();
+    let done = 0;
+    // The largest list last: the smaller ones (malware among them) are ready minutes sooner on a fresh install.
+    const order = [...FEEDS].sort((x, y) => (x.id === 'phishing_database') - (y.id === 'phishing_database'));
+    for (const feed of order) {
       if (!force && !isStale(feed)) continue;
       const r = await refreshFeed(feed);
       results.push({ source: r.source, ok: r.ok, entries: r.entries, error: r.error, unchanged: Boolean(r.unchanged) });
       if (r.ok) { r.added.forEach((h) => added.add(h)); r.removed.forEach((h) => removed.add(h)); }
-      if (log) console.log(`  feed      ${feed.id}: ${r.ok ? `${r.entries.toLocaleString()} entries${r.unchanged ? ' (unchanged, not imported again)' : ''}` : `failed (${r.error})`}`);
+      done++;
+      // How long a fresh install waits for its lists is part of what protection it gives: said as it happens.
+      if (log) console.log(`  feed      ${feed.id}: ${r.ok ? `${r.entries.toLocaleString()} entries${r.unchanged ? ' (unchanged, not imported again)' : ''}` : `failed (${r.error})`} (${done}/${FEEDS.length}, ${Math.round((now() - began) / 1000)} s)`);
     }
     const last = q.meta.get();
     if (!last || now() - last.fetched_at > FULL_REBUILD_MS) await rebuildTokens();
@@ -370,7 +376,8 @@ function refreshInBackground(options = {}) {
 function start() {
   if (!config.feedRefreshHours) return;
   // Not in the first seconds: the app is starting, and the person is waiting for it.
-  if (FEEDS.some(isStale)) setTimeout(() => refreshInBackground({ log: true }).catch(() => {}), 20000).unref();
+  // A fresh install has no lists at all: every minute without them is a minute of weaker answers, so it starts soon.
+  if (FEEDS.some(isStale)) setTimeout(() => refreshInBackground({ log: true }).catch(() => {}), readiness().ready ? 20000 : 3000).unref();
   // Check hourly; each feed decides for itself whether it is due.
   setInterval(() => refreshInBackground().catch(() => {}), 3600 * 1000).unref();
 }
