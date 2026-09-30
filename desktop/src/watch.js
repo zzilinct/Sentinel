@@ -87,14 +87,65 @@ public static class SW {
     return SetWindowPos(overlay, after, 0, 0, 0, 0, 0x1 | 0x2 | 0x10 | 0x200);
   }
 }
+
+// The mouse wheel, the moment it turns, so marks can move with the page's own smooth scroll instead of waiting for
+// the browser to report where its links went (only a few times a second). Raw input: Windows hands a copy of each
+// wheel movement to a hidden window here; nothing is intercepted or held up, the keyboard is never read, and
+// nothing is sent unless Enabled (a results page with marks is in front).
+public class Wheel : System.Windows.Forms.NativeWindow {
+  [StructLayout(LayoutKind.Sequential)] struct RAWINPUTDEVICE { public ushort UsagePage; public ushort Usage; public uint Flags; public IntPtr Target; }
+  [DllImport("user32.dll")] static extern bool RegisterRawInputDevices(RAWINPUTDEVICE[] devices, uint count, uint size);
+  [DllImport("user32.dll")] static extern uint GetRawInputData(IntPtr raw, uint command, IntPtr data, ref uint size, uint headerSize);
+  public static volatile bool Enabled;
+  static bool started;
+  public static void Start() {
+    if (started) return;
+    started = true;
+    var t = new System.Threading.Thread(() => {
+      var w = new Wheel();
+      var cp = new System.Windows.Forms.CreateParams();
+      cp.Parent = new IntPtr(-3);   // a message-only window: never shown
+      w.CreateHandle(cp);
+      var d = new RAWINPUTDEVICE[1];
+      d[0].UsagePage = 1; d[0].Usage = 2; d[0].Flags = 0x100; d[0].Target = w.Handle;   // the mouse, even when not in front
+      RegisterRawInputDevices(d, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)));
+      System.Windows.Forms.Application.Run();
+    });
+    t.IsBackground = true;
+    t.SetApartmentState(System.Threading.ApartmentState.STA);
+    t.Start();
+  }
+  protected override void WndProc(ref System.Windows.Forms.Message m) {
+    if (m.Msg == 0x00FF && Enabled) {
+      uint header = (uint)(8 + 2 * IntPtr.Size);
+      uint size = 0;
+      GetRawInputData(m.LParam, 0x10000003, IntPtr.Zero, ref size, header);
+      if (size > 0 && size < 1024) {
+        IntPtr buf = Marshal.AllocHGlobal((int)size);
+        try {
+          if (GetRawInputData(m.LParam, 0x10000003, buf, ref size, header) == size && Marshal.ReadInt32(buf) == 0) {
+            ushort flags = (ushort)Marshal.ReadInt16(buf, (int)header + 4);
+            if ((flags & 0x0400) != 0) {
+              short delta = Marshal.ReadInt16(buf, (int)header + 6);
+              Console.Out.WriteLine("{\"wheel\":" + delta + ",\"t\":" + Environment.TickCount + "}");
+              Console.Out.Flush();
+            }
+          }
+        } finally { Marshal.FreeHGlobal(buf); }
+      }
+    }
+    base.WndProc(ref m);
+  }
+}
 "@
 $loaded = $false
 if ($dll -and (Test-Path $dll)) { try { Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
 if (-not $loaded) {
-  if ($dll) { try { Add-Type -TypeDefinition $src -OutputAssembly $dll; Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
-  if (-not $loaded) { Add-Type -TypeDefinition $src }
+  if ($dll) { try { Add-Type -TypeDefinition $src -ReferencedAssemblies System.Windows.Forms -OutputAssembly $dll; Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
+  if (-not $loaded) { Add-Type -TypeDefinition $src -ReferencedAssemblies System.Windows.Forms }
 }
 Write-Output '{"ready":true}'
+try { [Wheel]::Start() } catch { }
 $A = [System.Windows.Automation.AutomationElement]
 $VP = [System.Windows.Automation.ValuePattern]
 $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
@@ -168,10 +219,12 @@ function Covered($el, $b) {
     return $true
   } catch { return $false }
 }
-function Off($why) { $script:anchor = $null; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
+function Off($why) { $script:anchor = $null; try { [Wheel]::Enabled = $false } catch { }; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
   # Between full looks: follow the anchor about 60 times a second and report how far the page has moved, so the
   # marks move while the page scrolls instead of jumping after it. Wake at once for a command.
+  # The wheel is reported only while there are marks to move (a results page in front): never in a game.
+  try { [Wheel]::Enabled = [bool]$anchor } catch { }
   $gotCmd = $false
   $until = [Environment]::TickCount + $pause
   $moved = $false
@@ -608,6 +661,7 @@ function onLine(line) {
     setWindow(msg.win || null);
     return;
   }
+  if (typeof msg.wheel === 'number') { if (opts.onWheel && latestLinks) opts.onWheel({ epoch: latestLinks.epoch, delta: msg.wheel, t: msg.t }); return; }
   if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t }); return; }
   if (msg.links) return onLinks(msg);
   if (msg.mail) return onMail(msg);

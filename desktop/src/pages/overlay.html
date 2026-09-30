@@ -262,15 +262,23 @@
   var shiftY = 0;
   function setShift(dx, dy) { shiftX = dx; shiftY = dy; marksEl.style.transform = 'translate3d(' + dx + 'px,' + dy + 'px,0)'; }
 
-  // The reader reports how far the page has moved whenever the browser updates where its links are. Measured on a
-  // real desktop (scripts/live-e2e.ps1, frames.txt), a browser does that only every 150-300 ms while it scrolls, in
-  // steps of hundreds of pixels: no marks can follow that smoothly, and jumping to each report is what looked
-  // choppy. So once the page has really moved, the marks fade out, and they fade back in exactly on their results
-  // when it stops (the next full read). Small movements are followed: every frame eases the marks toward the page,
-  // a little ahead of the last report by the page's speed; the look-ahead fades as soon as reports stop, so marks
-  // never overshoot a page that has stopped.
-  var MOVING_PX = 24;      // further than this from where the marks were placed: they step aside
+  /*
+   * Moving with the page. Three things say where the page is, from fastest to surest:
+   *   the wheel    (overlay:wheel) the moment a notch turns. The marks start moving at once, along the same kind of
+   *                curve as the browser's own smooth scroll, by what one notch moves this browser (learned as it
+   *                goes). Waiting for the browser's word is what looked choppy: see below.
+   *   reports      (overlay:shift) where the browser says its links went. Measured on a real desktop
+   *                (scripts/live-e2e.ps1, frames.txt), a browser says so only every 150-300 ms while it scrolls,
+   *                in steps of hundreds of pixels. They confirm the wheel afterwards, and teach it the notch size.
+   *   a full read  (overlay:marks) once the page has stopped: every mark exactly on its result.
+   * Movement nothing predicted (the keyboard, the scrollbar, a page moving by itself) has only the reports: the marks
+   * step aside until the page stops, rather than lurching from report to report.
+   */
+  var MOVING_PX = 24;      // unpredicted movement further than this: the marks step aside
   var BACK_MS = 700;       // back again this long after the last report even if no new positions come
+  var SCROLL_MS = 190;     // one notch's smooth scroll in a Chromium browser, roughly
+  var SETTLE_MS = 450;     // after the last notch, the scroll has run its course and the reports have caught up
+  var EASE_MS = 60;        // a correction onto the reported position eases in over about this long
   var moving = false;
   var backTimer = null;
   function setMoving(on) {
@@ -281,46 +289,83 @@
     marksEl.classList.toggle('is-moving', on);
     if (on) tip.classList.remove('is-on');
   }
-  var LEAD_MS = 22;        // how far ahead of the last report, at most
-  var EASE_MS = 26;        // how quickly the marks close the gap (time constant)
-  var goal = { x: 0, y: 0, t: 0 };
-  var vel = { x: 0, y: 0 };
-  var clockGap = null;     // this page's clock minus the reader's clock (their difference, plus the shortest delay seen)
+  var perNotch = 100;      // overlay pixels one wheel notch moves the page in this browser (learned in settleGesture)
+  try { var saved = Number(localStorage.getItem('sentinel.perNotch')); if (saved >= 30 && saved <= 400) perNotch = saved; } catch (e) { /* not stored */ }
+  var gesture = null;      // a run of wheel notches: { base, steps: [{ at, px }], start, notches, lastWheel, moved }
+  var report = { x: 0, y: 0, at: 0 };   // the browser's latest word (time on this page's clock)
+  var goal = { x: 0, y: 0 };
   var frameAt = 0;
   var raf = 0;
-  function readerNow() { return performance.now() - (clockGap || 0); }
+  function ease(u) { u = Math.min(1, Math.max(0, u)); return 1 - Math.pow(1 - u, 3); }
+  function gestureY(now) {
+    var y = gesture.base;
+    for (var i = 0; i < gesture.steps.length; i++) y += gesture.steps[i].px * ease((now - gesture.steps[i].at) / SCROLL_MS);
+    return y;
+  }
+  function kick() { if (!raf) { frameAt = performance.now(); raf = requestAnimationFrame(frame); } }
+  function onWheel(p) {
+    var now = performance.now();
+    var notches = p.delta / 120;
+    if (!gesture) gesture = { base: shiftY, steps: [], start: report.y, notches: 0, lastWheel: now, moved: false };
+    gesture.steps.push({ at: now, px: notches * perNotch });
+    gesture.notches += notches;
+    gesture.lastWheel = now;
+    setMoving(false);   // moving with the page, in view
+    if (tracing) console.log('W ' + now.toFixed(1) + ' ' + p.delta + ' ' + perNotch.toFixed(0));
+    kick();
+  }
   function follow(p) {
     var now = performance.now();
-    var t = typeof p.t === 'number' ? p.t : now - (clockGap || 0);
-    var gap = now - t;
-    if (clockGap === null || gap < clockGap || gap - clockGap > 2000) clockGap = gap;
-    var dt = t - goal.t;
-    if (goal.t && dt > 0 && dt < 150) {
-      // Speed in pixels per millisecond, smoothed over the last few reports.
-      vel.x = vel.x * 0.5 + ((p.dx - goal.x) / dt) * 0.5;
-      vel.y = vel.y * 0.5 + ((p.dy - goal.y) / dt) * 0.5;
-    } else { vel.x = 0; vel.y = 0; }
-    goal = { x: p.dx, y: p.dy, t: t };
-    if (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX) setMoving(true);
-    if (tracing) console.log('R ' + now.toFixed(1) + ' ' + t + ' ' + p.dy.toFixed(1));
-    if (!raf) { frameAt = performance.now(); raf = requestAnimationFrame(frame); }
+    report = { x: p.dx, y: p.dy, at: now };
+    if (gesture) { if (Math.abs(p.dy - gesture.start) > 2) gesture.moved = true; }
+    else {
+      goal = { x: p.dx, y: p.dy };
+      if (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX) setMoving(true);
+    }
+    if (tracing) console.log('R ' + now.toFixed(1) + ' ' + p.t + ' ' + p.dy.toFixed(1));
+    kick();
+  }
+  // The scroll has run its course: the browser's own account decides. It also says how far a notch really moved.
+  function settleGesture() {
+    var g = gesture;
+    gesture = null;
+    var fresh = report.at > g.lastWheel + SCROLL_MS;   // a report from after the scroll, not one still catching up
+    var actual = report.y - g.start;
+    if (fresh && g.moved && Math.abs(g.notches) >= 1 && actual * g.notches > 0 && Math.abs(actual) > 20) {
+      var measured = Math.abs(actual / g.notches);
+      if (measured >= 30 && measured <= 400) {
+        perNotch = perNotch * 0.5 + measured * 0.5;
+        try { localStorage.setItem('sentinel.perNotch', String(Math.round(perNotch))); } catch (e) { /* not stored */ }
+      }
+    }
+    // Onto where the browser says the page is; or, with no fresh word yet, stay put until the full read places them.
+    goal = fresh ? { x: report.x, y: report.y } : { x: shiftX, y: shiftY };
   }
   function frame(ts) {
-    var since = readerNow() - goal.t;
-    // Ahead by up to LEAD_MS while reports keep coming; no look-ahead once they have stopped for a moment.
-    var lead = since < 60 ? Math.min(Math.max(since, 0), LEAD_MS) * Math.max(0, 1 - Math.max(0, since - 30) / 30) : 0;
-    var tx = goal.x + vel.x * lead;
-    var ty = goal.y + vel.y * lead;
+    var now = performance.now();
     var step = Math.min(Math.max(ts - frameAt, 0), 50); frameAt = ts;
+    if (gesture) {
+      if (!gesture.moved && now - gesture.steps[0].at > SETTLE_MS) {
+        // The page did not move at all (its end, or the wheel was over something else): let go at once.
+        gesture = null; goal = { x: report.x, y: report.y };
+      } else if (now - gesture.lastWheel > SETTLE_MS) {
+        settleGesture();
+      } else {
+        setShift(shiftX, gestureY(now));
+        if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + shiftY.toFixed(1) + ' wheel');
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+    }
     var k = 1 - Math.exp(-step / EASE_MS);
-    var nx = shiftX + (tx - shiftX) * k;
-    var ny = shiftY + (ty - shiftY) * k;
-    if (lead === 0 && Math.abs(goal.x - nx) < 0.4 && Math.abs(goal.y - ny) < 0.4) { setShift(goal.x, goal.y); raf = 0; return; }
+    var nx = shiftX + (goal.x - shiftX) * k;
+    var ny = shiftY + (goal.y - shiftY) * k;
+    if (Math.abs(goal.x - nx) < 0.4 && Math.abs(goal.y - ny) < 0.4) { setShift(goal.x, goal.y); raf = 0; return; }
     setShift(nx, ny);
     if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + ny.toFixed(1) + ' ' + goal.y.toFixed(1));
     raf = requestAnimationFrame(frame);
   }
-  function stopFollowing() { if (raf) cancelAnimationFrame(raf); raf = 0; goal = { x: 0, y: 0, t: 0 }; vel = { x: 0, y: 0 }; }
+  function stopFollowing() { if (raf) cancelAnimationFrame(raf); raf = 0; gesture = null; goal = { x: 0, y: 0 }; report = { x: 0, y: 0, at: 0 }; }
   var clipEl = document.getElementById('clip');
   function setClip(c) {
     // A little room above and below, so a mark on the first or last row is not cut in half.
@@ -344,6 +389,7 @@
     if (!p || p.epoch !== epoch) return;
     follow(p);
   });
+  api.on('overlay:wheel', function (p) { if (p && p.epoch === epoch) onWheel(p); });
   api.on('overlay:clear', function () { stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
 })();
 </script>

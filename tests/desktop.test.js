@@ -394,6 +394,20 @@ test('download analysis runs on a worker thread and reports what an in-place sca
   assert.doesNotMatch(d, /buf = fs\.readFileSync\(full\)/, 'the main thread never reads a whole download');
 });
 
+test('marks move with the wheel the moment it turns, and only while there are marks to move', () => {
+  const s = watch._test.SCRIPT;
+  assert.ok(s.includes('public class Wheel : System.Windows.Forms.NativeWindow'), 'raw input from a hidden window');
+  assert.ok(s.includes('d[0].UsagePage = 1; d[0].Usage = 2;'), 'the mouse only, never the keyboard');
+  assert.doesNotMatch(s, /SetWindowsHookEx|WH_KEYBOARD|Usage = 6/, 'no hooks and no keyboard');
+  assert.ok(s.includes('if (m.Msg == 0x00FF && Enabled)'), 'nothing is sent unless enabled');
+  assert.ok(s.includes('try { [Wheel]::Enabled = [bool]$anchor } catch { }'), 'enabled only while a results page with marks is in front');
+  assert.match(s, /function Off\(\$why\) \{ \$script:anchor = \$null; try \{ \[Wheel\]::Enabled = \$false \}/, 'and off the moment it is not (a game in front)');
+  const html = read('desktop/src/pages/overlay.html');
+  assert.match(html, /api\.on\('overlay:wheel', function \(p\) \{ if \(p && p\.epoch === epoch\) onWheel\(p\); \}\);/);
+  assert.match(html, /perNotch = perNotch \* 0\.5 \+ measured \* 0\.5/, 'how far a notch moves this browser is learned from its reports');
+  assert.match(html, /if \(!gesture\.moved && now - gesture\.steps\[0\]\.at > SETTLE_MS\)/, 'a page that did not move lets go at once');
+});
+
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /#marks\.is-moving \{ opacity: 0;/);
@@ -408,7 +422,7 @@ test('the reader\'s C# helper compiles (a compile error would stop live scanning
   fs.writeFileSync(file, src, 'utf8');
   try {
     const r = require('child_process').spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-      `Add-Type -TypeDefinition ([IO.File]::ReadAllText('${file.replace(/'/g, "''")}')); [SW]::Above([IntPtr]::Zero, [IntPtr]::Zero)`], { encoding: 'utf8', timeout: 60000 });
+      `Add-Type -TypeDefinition ([IO.File]::ReadAllText('${file.replace(/'/g, "''")}')) -ReferencedAssemblies System.Windows.Forms; [Wheel]::Start(); [SW]::Above([IntPtr]::Zero, [IntPtr]::Zero)`], { encoding: 'utf8', timeout: 60000 });
     assert.equal(r.status, 0, r.stderr || r.stdout);
     assert.match(r.stdout, /False/);
   } finally { fs.rmSync(file, { force: true }); }

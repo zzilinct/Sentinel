@@ -162,10 +162,17 @@ function handle() {
   return b.length >= 8 ? b.readBigUInt64LE(0).toString() : String(b.readUInt32LE(0));
 }
 
+/** The wheel turned (delta: +120 per notch up), while marks are on screen: they move with the page at once. */
+function wheel({ epoch, delta, t }) {
+  if (!area || dryRun) return;
+  if (process.env.SENTINEL_OVERLAY_TRACE) { try { require('fs').appendFileSync(process.env.SENTINEL_OVERLAY_TRACE, `W ${Date.now()} ${t} ${delta}\n`); } catch { /* best effort */ } }
+  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:wheel', { epoch, delta, t: typeof t === 'number' ? t : null });
+}
+
 function destroy() {
   area = null;
   if (win && !win.isDestroyed()) win.destroy();
   win = null;
 }
 
-module.exports = { handle, setWindow, sweep, setVerdict, setMarks, shift, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { handle, setWindow, sweep, setVerdict, setMarks, shift, wheel, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
