@@ -130,7 +130,7 @@ async function restore() {
 
 /* --------------------------------------------------------------- scanning */
 
-async function liveBatch(urls, phase) {
+async function liveBatch(urls, phase, isPrivate = false) {
   const blocked = liveBlockReason();
   if (blocked) return { locked: blocked };
   if (phase === 'research' && !features().liveResearch) return { locked: 'plan', verdicts: {} };
@@ -147,7 +147,7 @@ async function liveBatch(urls, phase) {
       // Plans without delicate ask for fast outright: once Free's fast minutes are used up, a
       // delicate request would come back as plan_required instead of live_hours_exhausted.
       const mode = features().liveScanning ? 'delicate' : 'fast';
-      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research' }, timeout: phase === 'research' ? 90000 : 20000 });
+      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate }, timeout: phase === 'research' ? 90000 : 20000 });
       noteLive(data.live);
       for (const [url, verdict] of Object.entries(data.byUrl)) {
         out[url] = verdict;
@@ -180,7 +180,11 @@ async function onNavigate(details) {
   let verdict = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url);
   if (!verdict) {
     try {
-      const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: details.url }, timeout: 30000 });
+      // From a private window only the page's address without its query goes out, and nothing about it is kept.
+      const tab = await ext.tabs.get(details.tabId).catch(() => null);
+      const isPrivate = Boolean(tab && tab.incognito);
+      const url = isPrivate ? details.url.replace(/[?#].*$/, '') : details.url;
+      const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url, private: isPrivate }, timeout: 30000 });
       noteLive(data.live);
       verdict = data.verdict;
       cacheSet(features().liveResearch ? 'research' : 'quick', details.url, verdict);
@@ -253,10 +257,11 @@ const handlers = {
     syncIntel();
     return { account };
   },
-  async 'live-batch'({ urls, phase = 'quick' }) {
+  async 'live-batch'({ urls, phase = 'quick' }, sender) {
     const settings = await getSettings();
     if (!settings.enabled) return { locked: 'disabled' };
-    return liveBatch((urls || []).slice(0, 60), phase);
+    // A private window is protected like any other; the server keeps nothing about it.
+    return liveBatch((urls || []).slice(0, 60), phase, Boolean(sender && sender.tab && sender.tab.incognito));
   },
   async 'live-email'({ emails }) {
     const settings = await getSettings();
