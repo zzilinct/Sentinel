@@ -187,6 +187,8 @@
     if (state.config.verificationAvailable && !state.me.user.emailVerified) view.appendChild(verifyBar());
     view.appendChild(el);
     fn(el, new URLSearchParams(location.search));
+    // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
+    restoreDrafts();
     document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules' }[name]} · Sentinel`;
   }
 
@@ -195,6 +197,20 @@
     out.innerHTML = verdict(v, opts) + actionsFor(v);
     wireVerdict(out, v);
     wireActions(out, v);
+    restoreDrafts();
+  }
+
+  // The views are drawn after the page loads, so boot.js cannot put drafts back by itself: each view asks it to.
+  function restoreDrafts() {
+    if (window.sentinelDrafts) window.sentinelDrafts.restore();
+  }
+
+  // The desktop app's errors arrive wrapped by Electron ("Error invoking remote method 'x': Error: ..."). People get
+  // the sentence underneath, or a plain one when what is left is a system code, a file path or a stack trace.
+  function desktopError(err) {
+    const text = String((err && err.message) || '').replace(/^Error invoking remote method '[^']*':\s*/, '').replace(/^(\w*Error:\s*)+/, '').trim();
+    const technical = !text || /\bE[A-Z]{3,}\b|[A-Za-z]:\\|\/[\w.-]+\/|\bat\s+\S+\s*\(|\n\s*at\s/.test(text);
+    return technical ? 'That did not work. Try again, or choose Open log folder from the Sentinel icon in the system tray.' : text;
   }
 
   /* ========================================================== shortcuts */
@@ -282,15 +298,15 @@
 
   function termsGate(el) {
     el.innerHTML = `<form class="panel gate" data-gate>
-      <h1 style="font-size:24px">Before you continue</h1>
-      <p class="muted" style="margin-top:8px;font-size:14.5px">Sentinel is for adults, and using it means agreeing to how it works and what it does with your data. Both boxes are required.</p>
+      <h1>Before you continue</h1>
+      <p class="panel-lede">Sentinel is for adults, and using it means agreeing to how it works and what it does with your data. Both boxes are required.</p>
       <div class="consent">
         <label class="consent__row"><input type="checkbox" name="ageConfirmed"><span>I confirm that I am at least 18 years old.</span></label>
         <span class="field__error" data-error="ageConfirmed"></span>
         <label class="consent__row"><input type="checkbox" name="termsAccepted"><span>I have read and accept the <a href="/terms" target="_blank" rel="noopener">Terms and Conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
         <span class="field__error" data-error="termsAccepted"></span>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:22px;flex-wrap:wrap">
+      <div class="btn-row">
         <button class="btn btn--gold" type="submit">Continue</button>
         <button class="btn" type="button" data-gate-out>Sign out</button>
       </div>
@@ -401,7 +417,7 @@
   // never opens a suspicious page (that is what research does). Say so.
   function localNote() {
     if (state.config.researchAvailable !== false) return '';
-    return '<div class="banner" style="margin-bottom:18px"><div><b>Running on this computer.</b> This copy of Sentinel keeps its server and database on your machine. Suspicious pages are never opened from here, so research (domain age, certificates, redirects, page content) waits for the hosted service. Everything else works.</div></div>';
+    return '<div class="banner"><div><b>Running on this computer.</b> This copy of Sentinel keeps its server and database on your machine. Suspicious pages are never opened from here, so research (domain age, certificates, redirects, page content) waits for the hosted service. Everything else works.</div></div>';
   }
 
   /** The live allowance that can run out: delicate where the plan has it, fast otherwise. */
@@ -417,10 +433,10 @@
 
   function usageCard(icon, n, unit, label, used, limit, locked, meta) {
     const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
-    return `<div class="usage-card${locked ? ' is-locked' : ''}">
-      <div class="usage-card__top"><span class="usage-card__icon">${icon}</span><span class="mono muted" style="font-size:12px">${meta || (locked ? 'Pro & up' : `resets ${until(state.me.week.resetsAt)}`)}</span></div>
-      <div class="usage-card__n tabular">${locked ? '·' : n}<span>${locked ? '' : unit}</span></div>
-      <div class="usage-card__l">${label}</div>
+    return `<div class="usage-row${locked ? ' is-locked' : ''}">
+      <span class="usage-row__icon">${icon}</span>
+      <span class="usage-row__l">${label}<small>${meta || (locked ? 'Pro & up' : `resets ${until(state.me.week.resetsAt)}`)}</small></span>
+      <b class="usage-row__n tabular">${locked ? '·' : n}<span>${locked ? '' : unit}</span></b>
       <div class="meter${pct >= 100 ? ' is-full' : ''}"><i style="width:${locked ? 0 : 100 - pct}%"></i></div>
     </div>`;
   }
@@ -445,7 +461,7 @@
     const greet = hour < 5 ? 'Up late' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
     el.innerHTML = `
-      ${title(`${greet}, <span class="serif italic">${esc(u.firstName)}</span>`, 'Paste anything you’re unsure about. Sentinel will tell you exactly what it finds.')}
+      ${title(`${greet}, ${esc(u.firstName)}`,'Paste anything you’re unsure about. Sentinel will tell you exactly what it finds.')}
       <form class="scanbox" data-quick>
         ${ICON.search}
         <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link from a message, email or search result" aria-label="Link to scan">
@@ -453,7 +469,7 @@
       </form>
       <div class="scan-meta"><span>${left('linkScans')} of ${us.linkScans.limit} link scans left this week</span><a href="/app/threats">Scan a file instead &rarr;</a></div>
 
-      <div class="grid3 u-mt-lg" >
+      <div class="usage-list u-mt-lg">
         <a class="usage-link" href="/app/scan" aria-label="Link scan">${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, `link scans left${f.research ? ', researched' : ''}`, us.linkScans.used, us.linkScans.limit)}</a>
         <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
         <a class="usage-link" href="/app/protection" aria-label="Live protection">${liveCard(us, f)}</a>
@@ -461,7 +477,7 @@
 
       <div class="u-mt">${protectionTeaser()}</div>
 
-      <div class="panel u-mt" >
+      <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
         <div data-recent><div class="skeleton u-h-md" ></div></div>
       </div>`;
@@ -587,7 +603,7 @@
         <button class="btn btn--sm" data-act="${trusted ? 'clear' : 'allow'}">${trusted ? 'Stop trusting' : 'Trust this site'}</button>
         <button class="btn btn--sm" data-act="${blocked ? 'clear' : 'block'}">${blocked ? 'Unblock' : 'Block this site'}</button>
       </span>
-      <form class="report" data-report-form hidden>
+      <form class="report" data-report-form data-draft="report:${esc(v.url)}" hidden>
         <div class="row2">
           <div class="field"><label for="rp-cat">What kind of site is it?</label><select class="input" id="rp-cat" name="category">${REPORT_CATEGORIES.map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></div>
           <div class="field"><label for="rp-note">Anything else? <span class="opt">(optional)</span></label><input class="input" id="rp-note" name="note" maxlength="500" placeholder="How did you come across it?"></div>
@@ -670,7 +686,7 @@
 
     input.innerHTML = `<label class="drop" data-drop>
       <input type="file" data-file aria-label="Choose a file to scan">
-      <div><div class="drop__icon" style="margin-inline:auto">${ICON.upload}</div><h3>Drop a file here, or click to choose</h3><p>Programs, documents, archives, scripts, installers</p></div>
+      <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a file here, or click to choose</h3><p>Programs, documents, archives, scripts, installers</p></div>
     </label>`;
     const drop = $('[data-drop]', input);
     const fileInput = $('[data-file]', input);

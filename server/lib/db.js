@@ -463,6 +463,7 @@ function sweep() {
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(t);
   db.prepare('DELETE FROM oauth_states WHERE created_at < ?').run(t - 10 * 60 * 1000);
   db.prepare('DELETE FROM password_resets WHERE expires_at < ?').run(t - day);
+  db.prepare('DELETE FROM email_verifications WHERE expires_at < ?').run(t - day);
   db.prepare('DELETE FROM research_cache WHERE checked_at < ?').run(t - 3 * day);
   db.prepare('DELETE FROM live_minutes WHERE minute < ?').run(Math.floor((t - 21 * day) / 60000));
   db.prepare('DELETE FROM fast_minutes WHERE minute < ?').run(Math.floor((t - 21 * day) / 60000));
