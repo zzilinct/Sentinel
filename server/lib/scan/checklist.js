@@ -21,7 +21,8 @@ const reported = new Set();
 // A name nobody would type: letters with almost no vowels that make no words ("wsdqmoc", "yvgfnnhfjw02").
 function mash(seg) {
   const s = String(seg).toLowerCase().replace(/\d+/g, '');
-  if (!/^[a-z]{5,16}$/.test(s)) return false;
+  // Six letters or more with five consonants in a row: "tvshows", "xhtml" and "schwab" are ordinary.
+  if (!/^[a-z]{6,16}$/.test(s) || !/[bcdfghjklmnpqrstvwxyz]{5}/.test(s)) return false;
   return (s.match(/[aeiou]/g) || []).length / s.length < 0.2 && !isRealWords(s);
 }
 

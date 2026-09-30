@@ -35,12 +35,14 @@ function createServer() {
   // (DNS rebinding) and read this server as if it were its own site. Only requests addressed to this computer by
   // name are answered.
   const localOnly = ['127.0.0.1', '::1', 'localhost'].includes(config.host);
+  // A server behind a proxy on the same machine is reached by the site's own name, which is also this server.
+  const publicHost = (() => { try { return new URL(config.publicOrigin).host.toLowerCase(); } catch { return ''; } })();
   const server = http.createServer(async (req, res) => {
     const started = Date.now();
     if (localOnly) {
       const port = req.socket.localPort;
       const host = String(req.headers.host || '').toLowerCase();
-      if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}` && host !== `[::1]:${port}`) { send(res, 421, 'Misdirected request'); return; }
+      if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}` && host !== `[::1]:${port}` && host !== publicHost) { send(res, 421, 'Misdirected request'); return; }
     }
     let url;
     try { url = parseUrl(req); } catch { send(res, 400, 'Bad request'); return; }

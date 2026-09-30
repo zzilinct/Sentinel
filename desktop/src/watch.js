@@ -100,6 +100,7 @@ public class Wheel : System.Windows.Forms.NativeWindow {
   public static volatile bool Registered;   // Windows is sending the mouse now (only while Enabled)
   public static int Seen;                   // raw input messages seen, sent or not (for the log)
   public static int Msgs;                   // any message at all: tells a dead window from a quiet mouse
+  public static volatile int LastWheel;     // when the wheel last turned (TickCount), so the page's place is confirmed after
   static bool started;
   // Held here for the life of the process, so the window cannot be collected once the thread is inside
   // Application.Run and nothing else refers to it.
@@ -148,6 +149,7 @@ public class Wheel : System.Windows.Forms.NativeWindow {
             ushort flags = (ushort)Marshal.ReadInt16(buf, (int)header + 4);
             if ((flags & 0x0400) != 0) {
               short delta = Marshal.ReadInt16(buf, (int)header + 6);
+              LastWheel = Environment.TickCount;
               Console.Out.WriteLine("{\"wheel\":" + delta + ",\"t\":" + Environment.TickCount + "}");
               Console.Out.Flush();
             }
@@ -185,7 +187,7 @@ $cache.AutomationElementMode = [System.Windows.Automation.AutomationElementMode]
 $docCache = New-Object System.Windows.Automation.CacheRequest
 $docCache.Add($A::BoundingRectangleProperty); $docCache.Add($A::IsOffscreenProperty)
 # The anchor: one result link whose position is followed between full reads, so marks move WITH the page.
-$anchor = $null; $anchorX = 0; $anchorY = 0; $lastDx = 0; $lastDy = 0; $moved = $false
+$anchor = $null; $anchorX = 0; $anchorY = 0; $lastDx = 0; $lastDy = 0; $moved = $false; $confirmedWheel = 0
 $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
 $private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
 $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
@@ -277,6 +279,14 @@ while ($true) {
             $stillAt = [Environment]::TickCount + 350; $lastMoveAt = [Environment]::TickCount
             # Never more than 5 s between full reads, even on a page that keeps moving by itself.
             if ($until -lt $stillAt -and $stillAt - $loopStart -lt 5000) { $until = $stillAt }
+          } else {
+            # Half a second after the wheel last turned, the page's place is said again even if it did not move: a
+            # wheel turned over something that does not scroll otherwise leaves the marks where the wheel sent them.
+            $lw = [Wheel]::LastWheel
+            if ($lw -ne $confirmedWheel -and [Environment]::TickCount - $lw -gt 500) {
+              $confirmedWheel = $lw
+              Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + ',"t":' + [Environment]::TickCount + '}}')
+            }
           }
         }
       } catch { $anchor = $null }
@@ -538,6 +548,7 @@ function setState(active, reason) {
 
 function init(options) {
   opts = options;
+  quickExits = 0;   // switched on (again): a fresh start, not the tail of an earlier run of failures
   restart();
 }
 
