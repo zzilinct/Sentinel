@@ -227,6 +227,9 @@ async function research(p, { lite = false, budgetMs = 0 } = {}) {
   // Page content can differ by scheme, port, path and query; fragments are local.
   const requestUrl = new URL(p.url);
   requestUrl.hash = '';
+  // Live scanning looks at pages nobody asked it to open: its query can be a one-time sign-in or reset link, which
+  // Sentinel's visit would use up. It opens the page without it. A link someone pastes to scan is opened as given.
+  if (budgetMs) requestUrl.search = '';
   const key = lite ? `lite:${p.host}` : `url-v2:${crypto.createHash('sha256').update(requestUrl.href).digest('hex')}`;
   const cached = q.get.get(key);
   if (cached && now() - cached.checked_at < CACHE_MS && !p.ext) {
@@ -240,7 +243,7 @@ async function research(p, { lite = false, budgetMs = 0 } = {}) {
     const [registration, dnsInfo, http] = await Promise.all([
       p.isIp ? Promise.resolve({ available: false, reason: 'ip_address' }) : within(rdap(p.registrable), budgetMs, { available: false, reason: 'not answered in time' }),
       p.isIp ? Promise.resolve({ resolves: true, addresses: [p.host], privateAddress: !isPublicAddress(p.host.replace(/^\[|\]$/g, '')), mx: false, nameservers: [] }) : within(dnsFacts(p.host, p.registrable), budgetMs, { ...DNS_UNKNOWN }),
-      lite ? Promise.resolve({ ok: false, error: 'the page is not opened during live scanning on this computer', chain: [], tls: null, disposition: '', contentType: '' }) : within(fetchPage(p.url), budgetMs, { ok: false, error: 'not answered in time', chain: [], tls: null, disposition: '', contentType: '' })
+      lite ? Promise.resolve({ ok: false, error: 'the page is not opened during live scanning on this computer', chain: [], tls: null, disposition: '', contentType: '' }) : within(fetchPage(requestUrl.href), budgetMs, { ok: false, error: 'not answered in time', chain: [], tls: null, disposition: '', contentType: '' })
     ]);
 
     const facts = { performed: true, lite, checkedAt: now(), registration, dns: dnsInfo, http };
