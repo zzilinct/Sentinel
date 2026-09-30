@@ -932,15 +932,23 @@ function resultLinks(links, pageUrl, seen = new Map()) {
     const near = groups.find((g) => g.key === key && l.y >= g.top && l.y < g.bottom + SAME_RESULT_PX
       && ((g.page === page && l.y <= g.bottom + SAME_PAGE_PX) || (!(Math.abs(x - g.head) < 4 && w >= 0.5 * g.headW) && (x >= g.left + 4 || w < 0.75 * g.wide))));
     if (!near) {
-      const g = { key, page, head: x, headW: w, link, left: x, wide: w, top: l.y, bottom: l.y + (l.h || 0) };
+      const g = { key, page, head: x, headW: w, link, cands: [link], left: x, wide: w, top: l.y, bottom: l.y + (l.h || 0) };
       groups.push(g); members.push([page, g]); continue;
     }
     members.push([page, near]);
-    // The mark goes beside the title: the widest link to the result's own page.
-    if (near.page === page && w > (near.link.w || 0)) near.link = link;
+    if (near.page === page) near.cands.push(link);
     near.left = Math.min(near.left, x);
     near.wide = Math.max(near.wide, w);
     near.bottom = Math.max(near.bottom, l.y + (l.h || 0));
+  }
+  // The mark goes beside the title: the topmost link to the result's own page that is sized like one (a single
+  // line, a fair part of the result's width). Not simply the widest: a Bing ad's description is a link too, wider than its
+  // title, and the mark landed in the middle of the text. A Google result is one tall link: then the widest.
+  for (const g of groups) {
+    if (!g.cands || g.cands.length < 2) continue;
+    const widest = g.cands.reduce((a, c) => ((c.w || 0) > (a.w || 0) ? c : a));
+    const title = g.cands.filter((c) => (c.h || 0) >= 14 && (c.h || 0) <= 34 && (c.w || 0) >= 0.4 * (widest.w || 0)).sort((a, b) => a.y - b.y)[0];
+    g.link = title || widest;
   }
   // A group that was part of another result last time, whose title is now off screen, went with that title.
   const heads = new Set(groups.map((g) => g.page));
