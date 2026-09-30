@@ -403,10 +403,14 @@ while ($true) {
     }
     $sw.Stop()
     $lastCount = $list.Count
-    $sig = ($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)|$($_.c)" }) -join ';'
+    # Whether the page can still scroll up and down ("11"; "01" at its top, "10" at its end, "" when it does not say):
+    # a wheel turned toward an end the page has reached moves nothing, and the marks must not move either.
+    $ends = ''
+    try { $sp = $doc.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).Current; if ($sp.VerticallyScrollable) { $ends = "$([int]($sp.VerticalScrollPercent -gt 0.5))$([int]($sp.VerticalScrollPercent -lt 99.5))" } } catch { $ends = '' }
+    $sig = (($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)|$($_.c)" }) -join ';') + "|$ends"
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
-      Write-Output (@{ links = @($list); covered = $covered; for = $url; ms = [int]$sw.ElapsedMilliseconds; wheel = "$([Wheel]::Registered)/$([Wheel]::Seen)/$([Wheel]::Enabled)/$([Wheel]::Msgs)" } | ConvertTo-Json -Compress -Depth 4)
+      Write-Output (@{ links = @($list); covered = $covered; for = $url; ends = $ends; ms = [int]$sw.ElapsedMilliseconds; wheel = "$([Wheel]::Registered)/$([Wheel]::Seen)/$([Wheel]::Enabled)/$([Wheel]::Msgs)" } | ConvertTo-Json -Compress -Depth 4)
       # New positions: the anchor starts again from here, and the marks from zero movement.
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0    }
     # A heavy page must not make the reader spin: rest at least twice as long as the read took.
