@@ -480,6 +480,24 @@
       "from": "Sam Lee <sam.lee@gmail.com>",
       "subject": "Dinner split",
       "body": "Hey! Dinner came to $84 total, so $42 each. Venmo me whenever. Also are we still on for the hiking trip next weekend?"
+    },
+    {
+      "name": "Google security tips",
+      "from": "Google <no-reply@accounts.google.com>",
+      "subject": "Keep your account secure",
+      "body": "Google will never send you an email asking for your password or verification code. Review your security settings at https://myaccount.google.com/security."
+    },
+    {
+      "name": "Credit union text code notice",
+      "from": "First Community CU <notices@firstcommunitycu.org>",
+      "subject": "New sign-in method",
+      "body": "Starting next week we'll text you a PIN when you sign in from a new device. No action is needed."
+    },
+    {
+      "name": "App Leader newsletter",
+      "from": "App Leader Weekly <news@appleaderweekly.com>",
+      "subject": "This week in app design",
+      "body": "Five onboarding patterns that work, and one that does not. Read more at https://appleaderweekly.com/issue-42"
     }
   ],
   "scam": [
