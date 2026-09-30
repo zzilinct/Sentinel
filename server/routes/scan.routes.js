@@ -62,7 +62,8 @@ async function metered(user, key, fn) {
   try {
     return await fn();
   } catch (err) {
-    if (!err.status || err.status >= 500) refund();
+    // No result, no charge: a file too large or empty is refused without using up one of the week's scans.
+    refund();
     throw err;
   }
 }
