@@ -37,6 +37,9 @@
   --orange: #f08a24;
   --red: #e5484d;
   --green: #4cb782;
+  --on-status: #15130d;  /* text on a filled status colour */
+  --link: #a9c1ff;       /* result titles, as a search page shows them */
+  --error-text: #ff8d90;
 
   /* Headings in Bricolage Grotesque, text in Atkinson Hyperlegible Next (made to be read easily), addresses and code
      in JetBrains Mono. All SIL Open Font License, self-hosted; licences in /assets/fonts. */
@@ -57,7 +60,8 @@
 }
 
 /* Light: warm paper and ink, gold deepened so it still reads as text. Follows the system unless the person chose
-   (data-theme on <html>, set by the theme switch and remembered). */
+   (data-theme on <html>, set by the theme switch and remembered). The status colours are darkened too, so they pass
+   4.5:1 as text on paper and carry white text when they fill a label. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f6f4ef; --bg-2: #efece5; --surface: #ffffff; --surface-2: #faf8f4; --surface-3: #f1eee8;
@@ -65,6 +69,7 @@
     --text: #16171a; --text-2: #3b3a36; --muted: #57554f; --faint: #66645d;
     --gold-50: #3d2c0c; --gold-200: #6f5217; --gold-300: #7d5c1c; --gold-400: #8a6420; --gold-500: #9c7229; --gold-600: #b08433;
     --gold-grad: #8a6420; --gold-hover: #74531a; --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
+    --yellow: #8a6100; --orange: #b04a00; --green: #1e7a3c; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
     --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
     color-scheme: light;
   }
@@ -75,6 +80,7 @@
   --text: #16171a; --text-2: #3b3a36; --muted: #57554f; --faint: #66645d;
   --gold-50: #3d2c0c; --gold-200: #6f5217; --gold-300: #7d5c1c; --gold-400: #8a6420; --gold-500: #9c7229; --gold-600: #b08433;
   --gold-grad: #8a6420; --gold-hover: #74531a; --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
+  --yellow: #8a6100; --orange: #b04a00; --green: #1e7a3c; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
   --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
   color-scheme: light;
 }
