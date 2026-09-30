@@ -764,3 +764,17 @@ test('a wheel turned over something that does not scroll: the reader\'s confirma
   assert.ok(Math.abs(ys[ys.length - 1]) < 1, `left at ${ys[ys.length - 1].toFixed(0)} px instead of on the results`);
   assert.ok(watch._test.SCRIPT.includes('if ($lw -ne $confirmedWheel -and [Environment]::TickCount - $lw -gt 500)'));
 });
+
+test('live scanning looks settled: the corner mask steps back after a moment, and a result\'s mark sits by its title', () => {
+  const html = read('desktop/src/pages/overlay.html');
+  assert.match(html, /\.corner\.is-on\.is-rested:not\(\.is-flagged\) \{ opacity: 0;/, 'the mask leaves the page\'s own corner');
+  assert.match(html, /restTimer = setTimeout\(function \(\) \{ corner\.classList\.add\('is-rested'\); \}, 5000\);/);
+  // A Bing result: the site-name block, then the title, then a description that is also a link and wider.
+  const out = watch._test.resultLinks([
+    { u: 'https://www.bestbuy.com/site/airpods', n: 'Bestbuy https://www.bestbuy.com', x: 22, y: 343, w: 336, h: 46 },
+    { u: 'https://www.bestbuy.com/site/airpods', n: 'Clearance AirPods Deals - Best Buy', x: 22, y: 390, w: 312, h: 24 },
+    { u: 'https://www.bestbuy.com/site/airpods', n: 'Shop AirPods deals today, with free shipping on orders over $35 and more', x: 22, y: 420, w: 640, h: 44 }
+  ], 'https://www.bing.com/search?q=airpods');
+  assert.equal(out.length, 1);
+  assert.equal(out[0].y, 390, 'beside the title, not the site name or the description');
+});
