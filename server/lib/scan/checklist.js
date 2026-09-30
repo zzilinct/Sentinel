@@ -70,6 +70,14 @@ function keywordScore(words, list, cap, p) {
   return { hits, points };
 }
 
+// A known scam that copied this site's name: the same plain name on another ending (zoominfo.lol copying zoominfo.com),
+// or this name with parts added (ap2-zoominfo.com). The site with the plain name is the one being imitated.
+function copiedFrom(p, scamHost) {
+  if (/[-\d]/.test(p.sld) || p.sld.length < 5) return false;
+  const their = analyze(`https://${scamHost}`);
+  return Boolean(their && their.registrable !== p.registrable && their.sld.replace(/[-d]/g, '').includes(p.sld));
+}
+
 const page = (ctx) => ctx.research && ctx.research.http && ctx.research.http.page;
 const needsResearch = (ctx) => (ctx.research ? null : skip(ctx.researchSkipReason || 'Research is not part of this scan'));
 
@@ -613,11 +621,11 @@ const KNOWLEDGE_CHECKS = [
     } },
 
   { id: 'K01', group: 'Known threats', threat: 'scam', title: 'Not a known scam',
-    run: ({ knowledge }) => matchCheck(knowledge, 'scam', 'scam') },
+    run: ({ knowledge, p }) => matchCheck(knowledge, 'scam', 'scam', p) },
   { id: 'K02', group: 'Known threats', threat: 'malware', title: 'Not a known malware site',
-    run: ({ knowledge }) => matchCheck(knowledge, 'malware', 'malware') },
+    run: ({ knowledge, p }) => matchCheck(knowledge, 'malware', 'malware', p) },
   { id: 'K03', group: 'Known threats', threat: 'virus', title: 'Not a known virus distributor',
-    run: ({ knowledge }) => matchCheck(knowledge, 'virus', 'virus') },
+    run: ({ knowledge, p }) => matchCheck(knowledge, 'virus', 'virus', p) },
   { id: 'K04', group: 'Known threats', threat: 'scam', title: 'Not reported by the Sentinel community',
     run: ({ knowledge }) => {
       if (!knowledge.reports) return pass('No reports');
@@ -630,7 +638,7 @@ const KNOWLEDGE_CHECKS = [
     run: ({ knowledge }) => pass(`${knowledge.sources.length} sources: ${knowledge.sources.join(', ')}`) }
 ];
 
-function matchCheck(knowledge, threat, noun) {
+function matchCheck(knowledge, threat, noun, p) {
   const confirmed = knowledge.matches.filter((m) => m.threat === threat && m.strength === 'confirmed' && m.source !== 'community');
   if (confirmed.length) {
     const wording = {
@@ -647,6 +655,12 @@ function matchCheck(knowledge, threat, noun) {
   if (inferred.length) {
     const n = Math.max(...inferred.map((m) => m.listed || 1));
     const who = [...new Set(inferred.map((m) => m.sourceName))].join(', ');
+    // The listed page is elsewhere: a site's front page, or a platform where each person's page is their own
+    // (linktr.ee), is not that page. A note, not a warning.
+    const host = p ? p.host.replace(/^www./, '') : '';
+    if (p && ((p.path === '/' || !p.path) && !p.query || L.PATH_HOSTING.includes(host) || (knowledge.userContent && !p.hosting))) {
+      return warn(12, `${n >= 3 ? `${n} other addresses` : 'Another page'} on this site ${n >= 3 ? 'are' : 'is'} listed by ${who}; this is not one of them`);
+    }
     // "Likely", not "confirmed": nobody has listed this address, but the odds are poor.
     return fail(55, n >= 3
       ? `${n} other addresses on this site are listed by ${who}; this one is not`
@@ -669,13 +683,14 @@ const COMPARE_CHECKS = [
       // docs.google.com): the domain is the service's own, whatever scam borrowed the same word.
       if (knowledge && knowledge.userContent && !p.hosting) return pass('A known service; its pages are judged one by one');
       if (plainName(p) && !brand.inDomain && !brand.lookalike && compare.skeletonMatches.every((m) => m.generic)) return pass('A plain name; the look-alikes borrowed a common word');
+      if (compare.skeletonMatches.length && compare.skeletonMatches.every((m) => copiedFrom(p, m.host))) return pass(`Scam sites copied this name (${compare.skeletonMatches[0].host}), not the other way round`);
       const m = compare.skeletonMatches[0];
       return m ? fail(34, `Nearly the same name as known ${String(m.category || m.threat).replace(/_/g, ' ')} site ${m.host}`) : pass('No near-duplicate');
     } },
   { id: 'C02', group: 'Compared to known scams', threat: 'scam', title: 'Name does not follow a known scam naming pattern',
     run: ({ compare, brand, p }) => {
       if (brand.owner) return pass(`Official ${brand.owner.domains[0]}`);
-      const m = compare.tokenMatches[0];
+      const m = compare.tokenMatches.find((t) => !copiedFrom(p, t.host));
       if (m && plainName(p) && !brand.inDomain && !brand.lookalike) return warn(6, `Shares "${m.shared.join('" + "')}" with known scam ${m.host}, but is one plain name`);
       return m ? warn(Math.min(24, 10 + 6 * m.shared.length), `Shares "${m.shared.join('" + "')}" with known scam ${m.host}`) : pass('No shared pattern');
     } },
