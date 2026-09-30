@@ -116,16 +116,24 @@ async function restart() {
 
 /** Belt and braces: look for program files that appeared recently, in case a watch event was missed. */
 const sweptAt = new Map();
-function sweep() {
+let sweeping = false;
+// Asynchronous: a Downloads folder with thousands of files held up the main thread (which also relays live
+// scanning's marks) on every sweep. One sweep at a time.
+async function sweep() {
+  if (sweeping) return;
+  sweeping = true;
+  try { await sweepOnce(); } catch { /* next time */ } finally { sweeping = false; }
+}
+async function sweepOnce() {
   const cutoff = Date.now() - 2 * SWEEP_EVERY_MS;
   for (const f of folders()) {
     let names = [];
-    try { names = fs.readdirSync(f.dir); } catch { continue; }
+    try { names = await fs.promises.readdir(f.dir); } catch { continue; }
     for (const name of names) {
       if (!PROGRAM.test(name) || PARTIAL.test(name)) continue;
       const full = path.join(f.dir, name);
       let st;
-      try { st = fs.statSync(full); } catch { continue; }
+      try { st = await fs.promises.stat(full); } catch { continue; }
       if (!st.isFile() || st.mtimeMs < cutoff || sweptAt.get(full) === st.mtimeMs) continue;
       sweptAt.set(full, st.mtimeMs);
       if (sweptAt.size > 2000) sweptAt.clear();
