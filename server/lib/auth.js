@@ -286,7 +286,7 @@ function currentUser(req) {
     sq.seen.run(t, t + idle, hash);
   }
   req._sessionHash = hash;
-  req._session = { kind: row.kind, persistent: row.persistent !== 0 };
+  req._session = { kind: row.kind, persistent: row.persistent !== 0, createdAt: row.created_at };
   req._user = user;
   return req._user;
 }
@@ -346,6 +346,16 @@ function safeNext(next) {
 // "stay signed in" choice made on the sign-in page.
 const STAY_MARK = 'stay';
 
+// The state also goes into a short-lived cookie: a sign-in only finishes in the browser that started it. Without it,
+// a link to someone else's half-finished Google sign-in would sign this browser into their account, and whatever it
+// then scanned or paired would be theirs to read.
+const OAUTH_COOKIE = config.secureCookies ? '__Host-sentinel_oauth' : 'sentinel_oauth';
+
+function googleStateCookie(state) {
+  return serializeCookie(OAUTH_COOKIE, state, { maxAge: state ? 600 : 0, secure: config.secureCookies, sameSite: 'Lax' });
+}
+
+/** The address to send the browser to, and the cookie that must come back with it. */
 function googleAuthUrl(nextUrl, { staySignedIn = false } = {}) {
   if (!config.google.enabled) throw new HttpError(503, 'google_not_configured', 'Google sign-in is not configured on this server yet');
   const state = crypto.randomBytes(24).toString('base64url');
@@ -358,11 +368,16 @@ function googleAuthUrl(nextUrl, { staySignedIn = false } = {}) {
     state,
     prompt: 'select_account'
   });
-  return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, cookie: googleStateCookie(state) };
 }
 
-async function googleExchange(code, state) {
-  const row = oq.take.get(String(state));
+async function googleExchange(code, state, req) {
+  const mine = String(parseCookies(req)[OAUTH_COOKIE] || '');
+  const theirs = String(state || '');
+  if (!mine || !crypto.timingSafeEqual(crypto.createHash('sha256').update(mine).digest(), crypto.createHash('sha256').update(theirs).digest())) {
+    throw new HttpError(400, 'bad_state', 'Sign-in link expired. Please try again.');
+  }
+  const row = oq.take.get(theirs);
   if (!row || now() - row.created_at > 10 * 60 * 1000) throw new HttpError(400, 'bad_state', 'Sign-in link expired. Please try again.');
   oq.del.run(row.state);
 
@@ -408,7 +423,17 @@ async function upsertGoogleUser(claims) {
   if (existing) {
     // An account already tied to one Google account is not taken over by another with the same address.
     if (existing.google_sub && existing.google_sub !== claims.sub) throw new HttpError(409, 'google_other_account', 'This email is linked to a different Google account');
-    if (!existing.google_sub) uq.linkGoogle.run(claims.sub, claims.picture || null, existing.id);
+    if (!existing.google_sub) {
+      // Nobody had proved they own this address until now. Anyone could have signed up with it and a password, and
+      // waited for its owner to arrive through Google: that password, any 2FA and every session end here.
+      if (!existing.email_verified_at) {
+        uq.setPassword.run(null, existing.id);
+        uq.setTotp.run(null, 0, existing.id);
+        sq.delAllForUser.run(existing.id);
+      }
+      uq.linkGoogle.run(claims.sub, claims.picture || null, existing.id);
+      uq.markVerified.run(now(), existing.id);
+    }
     return uq.byId.get(existing.id);
   }
   const first = String(claims.given_name || (claims.name || email).split(' ')[0] || 'Friend').slice(0, 60);
@@ -424,5 +449,5 @@ module.exports = {
   validateSignup, createUser, publicUser, checkPassword, TERMS_VERSION, requireAgreedUser,
   createChallenge, completeChallenge,
   createSession, sessionCookie, refreshedCookie, IDLE, clearCookie, currentUser, requireUser, destroySession,
-  googleAuthUrl, googleExchange, upsertGoogleUser, safeNext
+  googleAuthUrl, googleExchange, googleStateCookie, upsertGoogleUser, safeNext
 };
