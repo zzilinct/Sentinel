@@ -119,6 +119,9 @@ test('the companion unwraps search engines\' links the way the desktop app does 
     [`https://duckduckgo.com/y.js?ad_domain=cheap-pods.example&u3=${encodeURIComponent('https://www.bing.com/aclick?ld=x')}`, null, 'https://cheap-pods.example/']
   ];
   for (const [href, anchor, want] of cases) assert.equal(ctx.realUrl(href, anchor), want, href.slice(0, 60));
+  // Inbox rows are sent as previews (one line, no links), as the desktop app sends them.
+  const mail = fs.readFileSync(path.join(SRC, 'content', 'mail.js'), 'utf8');
+  assert.equal((mail.match(/email: \{ key, preview: true,/g) || []).length, 2, 'Gmail and Outlook rows are previews');
   // The same answers as the desktop app's own unwrapping.
   const watch = require('../desktop/src/watch.js')._test;
   assert.equal(watch.unwrapResult(new URL(cases[0][0])).href, cases[0][2]);

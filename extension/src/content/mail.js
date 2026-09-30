@@ -32,7 +32,8 @@
       return {
         key,
         mount: row.querySelector('.yW') || sender.parentElement,
-        email: { key, fromName: sender.getAttribute('name') || text(sender), fromAddress: sender.getAttribute('email'), subject, body: snippet, links: [], attachments: [] }
+        // A row of the inbox list: a preview (one line, no links). Wording alone is never decisive on one.
+        email: { key, preview: true, fromName: sender.getAttribute('name') || text(sender), fromAddress: sender.getAttribute('email'), subject, body: snippet, links: [], attachments: [] }
       };
     }).filter(Boolean);
   }
@@ -66,7 +67,7 @@
       const name = senderEl ? text(senderEl) : '';
       if (!label) return null;
       const key = `orow|${label.slice(0, 160)}`;
-      return { key, mount: senderEl || row.firstElementChild, email: { key, fromName: name, fromAddress: address, subject: label.slice(0, 200), body: label.slice(0, 600), links: [], attachments: [] } };
+      return { key, mount: senderEl || row.firstElementChild, email: { key, preview: true, fromName: name, fromAddress: address, subject: label.slice(0, 200), body: label.slice(0, 600), links: [], attachments: [] } };
     }).filter(Boolean);
   }
 
