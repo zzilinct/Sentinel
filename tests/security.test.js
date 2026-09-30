@@ -109,8 +109,11 @@ test('two-factor authentication: setup, login challenge, replay protection', asy
   const secret = security.base32Decode(setup.data.secret);
   const codeAt = (t) => security.hotp(secret, Math.floor(t / 30000));
 
-  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: '000000' })).status, 400);
-  const enable = await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now() - 30000) });
+  // A session alone cannot turn it on (it signs every other device out): the password is asked for too.
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now()) })).status, 401);
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now()), password: 'wrong-password' })).status, 401);
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: '000000', password: 'Correct-Horse-42' })).status, 400);
+  const enable = await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now() - 30000), password: 'Correct-Horse-42' });
   assert.equal(enable.status, 200, JSON.stringify(enable.data));
   assert.equal(enable.data.user.twoFactorEnabled, true);
 
