@@ -22,6 +22,58 @@ test.after(() => fixture.close());
 const scan = (url, opts = {}) => engine.scanUrl(url, { threats: ['scam', 'virus', 'malware'], ...opts });
 const lvl = (v, t) => v.threats[t].level;
 
+test('live and manual research never reuse verdicts for different page requests', async t => {
+  const research = require('../server/lib/scan/research');
+  const content = require('../server/lib/scan/content');
+  const url = 'https://research-mode-boundary.example/view?variant=account';
+  const calls = [];
+  t.mock.method(research, 'research', async (p, opts) => {
+    const title = opts.budgetMs ? 'Query omitted' : 'Exact requested page';
+    calls.push(opts.budgetMs || 0);
+    return { performed: true, registration: { available: true, createdAt: Date.now() - 3650 * 86400000 },
+      dns: { resolves: true, addresses: ['93.184.216.34'], mx: true },
+      http: { ok: true, status: 200, finalUrl: p.url, chain: [{ url: p.url }], disposition: '', contentType: 'text/html',
+        page: content.parse(`<html><title>${title}</title><p>Ordinary page</p></html>`, p.url) } };
+  });
+  const live = await scan(url, { research: true, budgetMs: 4500 });
+  const manual = await scan(url, { research: true });
+  assert.equal(live.research.pageTitle, 'Query omitted');
+  assert.equal(manual.research.pageTitle, 'Exact requested page');
+  assert.equal(manual.researchComplete, true);
+  assert.deepEqual(calls, [4500, 0]);
+});
+
+test('cache invalidation also separates scans already in progress', async t => {
+  const knowledge = require('../server/lib/scan/knowledge');
+  const { db } = require('../server/lib/db');
+  const original = knowledge.lookup;
+  const host = 'inflight-update.example';
+  let release, entered;
+  const gate = new Promise(r => { release = r; });
+  const waiting = new Promise(r => { entered = r; });
+  let calls = 0;
+  t.mock.method(knowledge, 'lookup', async p => {
+    const first = ++calls === 1;
+    const facts = await original(p);
+    if (first) { entered(); await gate; }
+    return facts;
+  });
+  const before = scan(`https://${host}/`);
+  await waiting;
+  db.prepare('INSERT INTO blocklist (host, category, source, threat, added_at) VALUES (?, ?, ?, ?, ?)')
+    .run(host, 'phishing', 'sentinel', 'scam', Date.now());
+  try {
+    engine.invalidate(host);
+    const after = scan(`https://${host}/`);
+    release();
+    const [old, fresh] = await Promise.all([before, after]);
+    assert.equal(old.overall.badge, null);
+    assert.equal(fresh.overall.badge, 'red');
+    assert.equal(calls, 2);
+    assert.equal((await scan(`https://${host}/`)).overall.badge, 'red');
+  } finally { release(); db.prepare('DELETE FROM blocklist WHERE host = ?').run(host); engine.invalidate(host); }
+});
+
 /* ----------------------------------------------------------- known scams */
 
 test('known scam domains are confirmed (red) from knowledge alone', async () => {
@@ -83,12 +135,16 @@ test('imported public feeds are used as knowledge', async () => {
   await feeds.rebuildTokens();
 
   assert.equal(lvl(await scan('https://compromised-dentist-site.com/wp-content/uploads/secure/login.php'), 'scam'), 'confirmed');
-  // The rest of that site is likely dangerous while it hosts a listed page, and the reason says
+  // Other pages of that site are likely dangerous while it hosts a listed page, and the reason says
   // exactly what is known. It is not "confirmed": nobody has listed this address.
+  const deep = await scan('https://compromised-dentist-site.com/about-us');
+  assert.equal(lvl(deep, 'scam'), 'likely');
+  assert.equal(deep.threats.scam.badge, 'orange');
+  assert.ok(deep.reasons.some((r) => /another page on this site is listed by OpenPhish; this address is not/i.test(r.text)), 'the reason says why');
+  // The front page is not the listed page (paypay.ne.jp has one listed page too): a note, not a warning.
   const root = await scan('https://compromised-dentist-site.com/');
-  assert.equal(lvl(root, 'scam'), 'likely');
-  assert.equal(root.threats.scam.badge, 'orange');
-  assert.ok(root.reasons.some((r) => /another page on this site is listed by OpenPhish; this address is not/i.test(r.text)), 'the reason says why');
+  assert.equal(lvl(root, 'scam'), 'caution');
+  assert.ok(root.reasons.some((r) => /another page on this site is listed by OpenPhish; this is not one of them/i.test(r.text)), 'the note says why');
   // "www." on either side of the list makes no difference.
   assert.equal(lvl(await scan('https://www.brand-new-phish-zone.com/'), 'scam'), 'confirmed');
   assert.equal(lvl(await scan('https://brand-new-phish-zone.com/anything'), 'scam'), 'confirmed');
@@ -138,12 +194,37 @@ test('today\'s phishing shapes are flagged from the address alone; customers\' s
   assert.ok(!(await scan('https://www.google.com/recaptcha/admin')).checklist.items.some((c) => c.id === 'U55' && c.status === 'fail'));
 });
 
+test('names are read like words: overdrive is not onedrive misspelled, but onedrlve, 0nedrive and onedriive are', async () => {
+  const { isRealWords } = require('../server/lib/scan/url');
+  assert.ok(isRealWords('overdrive') && isRealWords('over-drive'));
+  for (const w of ['onedrlve', 'netfliks', 'coinbse', 'linkedln', 'microsofy', 'facebok', 'paypai']) assert.ok(!isRealWords(w), w);
+  const od = await scan('https://www.overdrive.com/');
+  assert.equal(od.overall.badge, null, `overdrive.com ${od.threats.scam.score}`);
+  for (const url of ['https://0nedrive.com/', 'https://onedrlve.com/', 'https://onedriive-login.com/', 'https://www.linkedln.com/', 'https://coinbse.com/']) {
+    assert.ok((await scan(url)).overall.badge, url);
+  }
+  // A real word near a brand still counts next to other warning signs.
+  assert.ok((await scan('https://overdrive-login-verify.xyz/')).overall.badge);
+});
+
+test('what the search result says about a site is read without opening it: a title claiming the brand the address imitates', async () => {
+  const run = (url, hint) => engine.scanUrls([url], { threats: ['scam', 'virus', 'malware'], mode: 'live', detail: 'full', hints: { [url]: hint } }).then((r) => r[0]);
+  const claim = await run('https://onedrlve.com/login', { title: 'Microsoft OneDrive - Sign in', query: 'onedrive login' });
+  assert.ok(claim.checklist.items.some((c) => c.id === 'X01' && c.status === 'fail'), 'the disguise in its own words');
+  const own = await run('https://www.overdrive.com/', { title: 'OverDrive: Free ebooks, audiobooks & more', query: 'overdrive libby' });
+  assert.equal(own.threats.scam.score, 0, 'shown under its own name, searched for by name: nothing against it');
+  const article = await run('https://www.wikihow.com/Contact-PayPal', { title: 'How to Contact PayPal - wikiHow', query: 'contact paypal' });
+  assert.ok(!article.checklist.items.some((c) => c.id === 'X01' && c.status === 'fail'), 'a title that only mentions a brand is fine');
+  assert.equal((await run('https://www.paypal.com/signin', { title: 'Log in to your PayPal account', query: 'paypal' })).overall.badge, null);
+});
+
 test('the website\'s numbers are the real ones (checks in the checklist, kinds of threat named)', async () => {
   const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'web', 'index.html'), 'utf8');
   const total = (await scan('https://example.com/', { detail: 'full' })).checklist.total;
   assert.ok(html.includes(`<span data-count="${total}" data-live="checks">${total}</span>`), `the site should say ${total} checks`);
   assert.ok(html.includes(`<span data-v-checks>${total} checks</span>`), `the demo should say ${total} checks`);
-  const kinds = Object.keys(require('../server/lib/scan/kinds').KINDS).length;
+  // As the site's live count reports them: 'blocked' is a rule the person set, not a kind of threat.
+  const kinds = Object.keys(require('../server/lib/scan/kinds').KINDS).filter((k) => k !== 'blocked').length;
   assert.ok(html.includes(`<span data-count="${kinds}" data-live="kinds">${kinds}</span>`), `the site should say ${kinds} kinds of threat`);
 });
 
@@ -864,4 +945,45 @@ test('inbox previews: the sender\'s name counts, and a company or agency asking 
     'Microsoft account team, Microsoft account security code, Sep 26, Please use the following security code for the Microsoft account.'
   ];
   for (const row of clear) assert.equal((await check(row)).overall.badge, null, row);
+});
+
+test('pages hidden behind generated names are suspected; ordinary names, even odd real words, are not', async () => {
+  for (const url of ['http://doctorpizzaband.example/wp-content/uploads/aynqxts/wsdqmoc/dpgqmbx/clickon/pasific.html',
+    'http://sites.google.com/view/yvgfnnhfjw02/accueil', 'http://website-e86d3b7f.zhp.tyc.mybluehost.me/']) {
+    assert.ok(['suspicious', 'likely', 'confirmed'].includes(lvl(await scan(url, { research: false }), 'scam')), url);
+  }
+  for (const url of ['https://sites.google.com/view/strengths-club/home', 'https://www.nytimes.com/2026/09/30/rhythms/lyrics.html',
+    'https://example.com/wp-content/uploads/2024/05/brochure.pdf', 'https://en.wikipedia.org/wiki/Przemy%C5%9Bl']) {
+    // Well-known sites skip some checks entirely; what matters is that this one never fails.
+    assert.ok(!(await scan(url, { research: false })).checklist.items.some((c) => c.id === 'U56' && c.status === 'fail'), url);
+  }
+});
+
+test('real pages deep inside real sites are left alone (shared documents, site builders, sign-in pages)', async () => {
+  const pages = require('../scripts/evaluate-pages.json');
+  const flagged = [];
+  for (const url of pages) if ((await scan(url, { research: false })).overall.badge) flagged.push(url);
+  assert.deepEqual(flagged, []);
+  assert.ok((await scan('https://sites.google.com/view/paypal-login-verify/home', { research: false })).overall.badge, 'a brand login page on a site builder still is not');
+});
+
+test('email: real mail from real companies is left alone, and today\'s scams are flagged, links or not', async () => {
+  const { legit, scam } = require('../scripts/evaluate-emails.json');
+  const flag = async (m) => Boolean((await engine.scanEmail(m, { research: false, mode: 'live', detail: 'compact' })).overall.badge);
+  const alarms = [];
+  for (const m of legit) if (await flag(m)) alarms.push(m.name);
+  assert.deepEqual(alarms, [], 'no real email is flagged');
+  let caught = 0;
+  for (const m of scam) if (await flag(m)) caught++;
+  assert.ok(caught >= scam.length - 2, `only ${caught}/${scam.length} scams flagged`);
+});
+
+test('real sites whose names resemble big companies are left alone; brand names joined to bait are not', async () => {
+  const list = require('../scripts/evaluate-lookalikes.json');
+  const flagged = [];
+  for (const { url } of list) if ((await scan(url, { research: false })).overall.badge) flagged.push(url);
+  assert.ok(flagged.length <= 1, `flagged: ${flagged.join(' ')}`);
+  for (const url of ['https://paypalresolution.com/', 'https://amazonrefunds.com/', 'https://netflixaccount.net/', 'https://roblox-free-robux.fandom.com/']) {
+    assert.ok((await scan(url, { research: false })).overall.badge, url);
+  }
 });

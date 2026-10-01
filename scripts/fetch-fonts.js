@@ -9,7 +9,10 @@ const fs = require('fs');
 const path = require('path');
 
 const OUT = path.join(__dirname, '..', 'web', 'assets', 'fonts');
-const CSS_URL = 'https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&family=Instrument+Serif:ital@0;1&display=swap';
+// Instrument Serif for headings (upright and italic), Geist for text and Geist Mono for addresses and code. All SIL
+// Open Font License; each licence is saved next to the fonts.
+const CSS_URL = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap';
+const LICENCES = { 'instrument-serif': 'ofl/instrumentserif/OFL.txt', geist: 'ofl/geist/OFL.txt', 'geist-mono': 'ofl/geistmono/OFL.txt' };
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36';
 
 (async () => {
@@ -30,4 +33,10 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
   const fontCss = faces.map((f) => `@font-face {\n  font-family: '${f.family}';\n  font-style: ${f.style};\n  font-weight: ${f.weight};\n  font-display: swap;\n  src: url('/assets/fonts/${f.file}') format('woff2');\n}`).join('\n\n');
   fs.writeFileSync(path.join(OUT, 'fonts.css'), `/* Self-hosted, SIL Open Font License */\n${fontCss}\n`);
   for (const f of faces) console.log(`  ${f.file.padEnd(40)} ${(f.bytes / 1024).toFixed(1)} KB`);
+  for (const [name, p] of Object.entries(LICENCES)) {
+    const text = await (await fetch(`https://raw.githubusercontent.com/google/fonts/main/${p}`)).text();
+    if (!/SIL OPEN FONT LICENSE/i.test(text)) throw new Error(`no licence found for ${name}`);
+    fs.writeFileSync(path.join(OUT, `${name}-OFL.txt`), text);
+    console.log(`  ${`${name}-OFL.txt`.padEnd(40)} licence`);
+  }
 })().catch((err) => { console.error(err); process.exit(1); });

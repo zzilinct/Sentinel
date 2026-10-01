@@ -5,22 +5,22 @@
  * official lists need to be complete - including country and short domains.
  */
 
-const AMAZON_CC = ['com', 'co.uk', 'de', 'fr', 'it', 'es', 'ca', 'co.jp', 'in', 'com.au', 'com.br', 'com.mx', 'nl', 'se', 'pl', 'sg', 'ae', 'sa', 'eg', 'com.tr', 'com.be', 'cn'];
-const GOOGLE_CC = ['com', 'co.uk', 'de', 'fr', 'it', 'es', 'ca', 'co.jp', 'co.in', 'com.au', 'com.br', 'com.mx', 'nl', 'se', 'pl', 'ru', 'com.sg', 'ae', 'com.tr', 'be', 'ch', 'at', 'dk', 'no', 'fi', 'ie', 'pt', 'gr', 'cz', 'co.za', 'co.nz', 'com.ar', 'cl', 'co.kr', 'com.hk', 'com.tw', 'co.id', 'com.ph', 'com.vn', 'com.my', 'co.th', 'com.pk', 'com.ng', 'com.sa', 'com.eg', 'co.il', 'hu', 'ro', 'com.ua'];
+const AMAZON_CC = ['com', 'co.uk', 'de', 'fr', 'it', 'es', 'ca', 'co.jp', 'in', 'com.au', 'com.br', 'com.mx', 'nl', 'se', 'pl', 'sg', 'ae', 'sa', 'eg', 'com.tr', 'com.be', 'cn', 'co.za'];
+const GOOGLE_CC = ['com', 'co.uk', 'de', 'fr', 'it', 'es', 'ca', 'co.jp', 'co.in', 'com.au', 'com.br', 'com.mx', 'nl', 'se', 'pl', 'ru', 'com.sg', 'ae', 'com.tr', 'be', 'ch', 'at', 'dk', 'no', 'fi', 'ie', 'pt', 'gr', 'cz', 'co.za', 'co.nz', 'com.ar', 'cl', 'co.kr', 'com.hk', 'com.tw', 'co.id', 'com.ph', 'com.vn', 'com.my', 'co.th', 'com.pk', 'com.ng', 'com.sa', 'com.eg', 'co.il', 'hu', 'ro', 'com.ua', 'lk'];
 const EBAY_CC = ['com', 'co.uk', 'de', 'fr', 'it', 'es', 'ca', 'com.au', 'nl', 'at', 'ch', 'ie', 'be', 'pl', 'com.sg', 'com.hk', 'com.my', 'ph'];
 
 const cc = (name, list) => list.map((suffix) => `${name}.${suffix}`);
 
 const BRANDS = [
   // Payments and banks
-  { token: 'paypal', domains: ['paypal.com', 'paypal.me', 'paypalobjects.com', 'paypal-community.com', ...cc('paypal', ['co.uk', 'de', 'fr', 'it', 'es', 'ca', 'com.au'])] },
+  { token: 'paypal', domains: ['paypal.com', 'paypal.me', 'paypalobjects.com', 'paypal-community.com', 'paypalhere.com', ...cc('paypal', ['co.uk', 'de', 'fr', 'it', 'es', 'nl', 'ca', 'com.au'])] },
   { token: 'venmo', domains: ['venmo.com'] },
-  { token: 'zelle', domains: ['zellepay.com'] },
+  { token: 'zelle', domains: ['zellepay.com', 'zelle.com'] },
   { token: 'cashapp', domains: ['cash.app', 'square.com', 'squareup.com'] },
   { token: 'stripe', domains: ['stripe.com', 'stripe.network'] },
   { token: 'wise', domains: ['wise.com', 'transferwise.com'] },
   { token: 'revolut', domains: ['revolut.com', 'revolut.me'] },
-  { token: 'chase', domains: ['chase.com', 'jpmorganchase.com', 'jpmorgan.com'] },
+  { token: 'chase', domains: ['chase.com', 'chase.co.uk', 'jpmorganchase.com', 'jpmorgan.com'] },
   { token: 'wellsfargo', domains: ['wellsfargo.com', 'wf.com'] },
   { token: 'bankofamerica', domains: ['bankofamerica.com', 'bofa.com', 'ml.com'] },
   { token: 'citibank', domains: ['citi.com', 'citibank.com', 'citibankonline.com'] },
@@ -29,31 +29,31 @@ const BRANDS = [
   { token: 'amex', domains: ['americanexpress.com', 'amex.com', 'aexp.com'] },
   { token: 'usaa', domains: ['usaa.com'] },
   { token: 'truist', domains: ['truist.com'] },
-  { token: 'santander', domains: ['santander.com', 'santander.co.uk', 'santanderbank.com'] },
-  { token: 'hsbc', domains: ['hsbc.com', 'hsbc.co.uk', 'hsbc.com.hk', 'us.hsbc.com'] },
+  { token: 'santander', domains: ['santander.com', 'santander.co.uk', 'santander.es', 'santanderbank.com'] },
+  { token: 'hsbc', domains: ['hsbc.com', 'hsbc.co.uk', 'hsbc.com.hk', 'hsbc.fr', 'us.hsbc.com'] },
   { token: 'barclays', domains: ['barclays.co.uk', 'barclays.com', 'barclaycard.co.uk', 'barclaycardus.com'] },
   { token: 'natwest', domains: ['natwest.com'] },
-  { token: 'lloyds', domains: ['lloydsbank.com', 'lloydsbankinggroup.com'] },
+  { token: 'lloyds', domains: ['lloydsbank.com', 'lloydsbank.co.uk', 'lloydsbankinggroup.com'] },
   { token: 'mastercard', domains: ['mastercard.com', 'mastercard.us'] },
   { token: 'interac', domains: ['interac.ca'] },
   { token: 'mercadopago', domains: ['mercadopago.com', 'mercadopago.com.br', 'mercadopago.com.mx', 'mercadopago.com.ar'] },
 
   // Big tech and accounts
-  { token: 'apple', domains: ['apple.com', 'icloud.com', 'me.com', 'apple.co', 'mzstatic.com'] },
+  { token: 'apple', domains: ['apple.com', 'apple.com.cn', 'apple.news', 'icloud.com', 'me.com', 'apple.co', 'mzstatic.com'] },
   { token: 'icloud', domains: ['icloud.com', 'apple.com'] },
-  { token: 'microsoft', domains: ['microsoft.com', 'microsoftonline.com', 'microsoft365.com', 'live.com', 'outlook.com', 'office.com', 'windows.com', 'windows.net', 'azure.com', 'msn.com', 'bing.com', 'xbox.com', 'sharepoint.com', 'onedrive.com', 'skype.com', 'msauth.net', 'msftauth.net'] },
+  { token: 'microsoft', domains: ['microsoft.com', 'microsoftonline.com', 'microsoft365.com', 'microsoftedge.com', 'live.com', 'outlook.com', 'office.com', 'windows.com', 'windows.net', 'azure.com', 'msn.com', 'bing.com', 'xbox.com', 'sharepoint.com', 'onedrive.com', 'skype.com', 'msauth.net', 'msftauth.net'] },
   { token: 'outlook', domains: ['outlook.com', 'live.com', 'office.com', 'microsoft.com', 'office365.com'] },
   { token: 'office365', domains: ['office.com', 'office365.com', 'microsoft.com'] },
   { token: 'onedrive', domains: ['onedrive.com', 'live.com', 'microsoft.com', 'sharepoint.com'] },
   { token: 'sharepoint', domains: ['sharepoint.com', 'microsoft.com'] },
-  { token: 'google', domains: [...cc('google', GOOGLE_CC), 'googleapis.com', 'gstatic.com', 'googleusercontent.com', 'googlevideo.com', 'withgoogle.com', 'goo.gl', 'g.co', 'gmail.com', 'youtube.com', 'google'] },
+  { token: 'google', domains: [...cc('google', GOOGLE_CC), 'googleapis.com', 'gstatic.com', 'googleusercontent.com', 'googlevideo.com', 'withgoogle.com', 'googlemail.com', 'goo.gl', 'g.co', 'gmail.com', 'youtube.com', 'google'] },
   { token: 'gmail', domains: ['gmail.com', 'google.com'] },
   { token: 'youtube', domains: ['youtube.com', 'youtu.be', 'ytimg.com', 'youtube-nocookie.com'] },
   { token: 'amazon', domains: [...cc('amazon', AMAZON_CC), 'amazonaws.com', 'amazon.dev', 'a2z.com', 'amzn.to', 'media-amazon.com', 'primevideo.com', 'aboutamazon.com', 'amazonpay.com', 'amazon.jobs', 'amazon.science'] },
   { token: 'netflix', domains: ['netflix.com', 'nflxext.com', 'nflximg.net', 'netflix.net'] },
   { token: 'spotify', domains: ['spotify.com', 'spotify.link', 'scdn.co', 'spoti.fi'] },
   { token: 'adobe', domains: ['adobe.com', 'adobe.io', 'adobelogin.com', 'typekit.net'] },
-  { token: 'dropbox', domains: ['dropbox.com', 'dropboxusercontent.com', 'db.tt'] },
+  { token: 'dropbox', domains: ['dropbox.com', 'dropboxmail.com', 'dropboxusercontent.com', 'db.tt'] },
   { token: 'docusign', domains: ['docusign.com', 'docusign.net'] },
   { token: 'tesla', domains: ['tesla.com', 'teslamotors.com'] },
   { token: 'nike', domains: ['nike.com', 'nike.net', 'swoosh.com'] },
@@ -70,7 +70,7 @@ const BRANDS = [
   { token: 'deepseek', domains: ['deepseek.com'] },
 
   // Social
-  { token: 'facebook', domains: ['facebook.com', 'fb.com', 'fb.me', 'fbcdn.net', 'messenger.com', 'meta.com', 'facebook.net'] },
+  { token: 'facebook', domains: ['facebook.com', 'fb.com', 'fb.me', 'fbcdn.net', 'messenger.com', 'meta.com', 'facebook.net', 'facebookmail.com'] },
   { token: 'instagram', domains: ['instagram.com', 'cdninstagram.com', 'ig.me'] },
   { token: 'whatsapp', domains: ['whatsapp.com', 'whatsapp.net', 'wa.me'] },
   { token: 'linkedin', domains: ['linkedin.com', 'lnkd.in', 'licdn.com'] },
@@ -90,6 +90,8 @@ const BRANDS = [
   { token: 'dhl', domains: ['dhl.com', 'dhl.de', 'dhl.co.uk', 'dhl.fr', 'dhlparcel.nl', 'dhl.nl'] },
   { token: 'fedex', domains: ['fedex.com'] },
   { token: 'usps', domains: ['usps.com', 'usps.gov'] },
+  // Toll roads: "unpaid toll" messages from look-alike E-ZPass sites are among the most common scams today.
+  { token: 'ezpass', domains: ['e-zpassiag.com', 'e-zpassny.com', 'ezpassnj.com', 'ezpassva.com', 'ezpassmd.com', 'ezpassde.com', 'ezpassma.com', 'ezpassoh.com', 'ezpass.com'] },
   { token: 'ups', domains: ['ups.com'] },
   { token: 'royalmail', domains: ['royalmail.com', 'royalmailgroup.com'] },
   { token: 'evri', domains: ['evri.com'] },
