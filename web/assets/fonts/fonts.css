@@ -4,7 +4,7 @@
   font-style: normal;
   font-weight: 300 700;
   font-display: swap;
-  src: url('/assets/fonts/geist-normal-300-700.woff2') format('woff2');
+  src: url('./geist-normal-300-700.woff2') format('woff2');
 }
 
 @font-face {
@@ -12,7 +12,7 @@
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url('/assets/fonts/geist-mono-normal-400-600.woff2') format('woff2');
+  src: url('./geist-mono-normal-400-600.woff2') format('woff2');
 }
 
 @font-face {
@@ -20,7 +20,7 @@
   font-style: italic;
   font-weight: 400;
   font-display: swap;
-  src: url('/assets/fonts/instrument-serif-italic-400.woff2') format('woff2');
+  src: url('./instrument-serif-italic-400.woff2') format('woff2');
 }
 
 @font-face {
@@ -28,5 +28,5 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/assets/fonts/instrument-serif-normal-400.woff2') format('woff2');
+  src: url('./instrument-serif-normal-400.woff2') format('woff2');
 }

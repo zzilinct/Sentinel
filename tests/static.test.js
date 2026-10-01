@@ -107,6 +107,7 @@ test('boot: hidden reveals fail open when a script errors or site.js never becom
     return { classes, error: (tagName) => onError({ target: tagName ? { tagName } : win }), timeout: () => timer() };
   };
   let b = boot(false); b.error('IMG'); assert.ok(!b.classes.has('no-io'), 'a missing image keeps the animations');
+  b.error('LINK'); assert.ok(!b.classes.has('no-io'), 'a missing stylesheet keeps the animations');
   b.error('SCRIPT'); assert.ok(b.classes.has('no-io'), 'a script that fails to load reveals everything');
   b = boot(false); b.error(); assert.ok(b.classes.has('no-io'), 'a runtime error reveals everything');
   b = boot(false); b.timeout(); assert.ok(b.classes.has('no-io'), 'site.js never running reveals everything');
