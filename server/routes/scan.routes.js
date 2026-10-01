@@ -20,6 +20,7 @@ const feeds = require('../lib/scan/feeds');
 const { analyze, typedUrl } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
 const { KINDS } = require('../lib/scan/kinds');
+const { REPORTER_MIN_AGE_MS, REPORTS_FOR_CONFIRMED } = require('../lib/scan/knowledge');
 // Kinds the engine can name from evidence; "blocked" is a rule the user set, not a threat kind.
 const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
 const { ALL_CHECKS } = require('../lib/scan/checklist');
@@ -31,7 +32,6 @@ const REPORT_CATEGORIES = new Set([
   'romance_scam', 'malware', 'impersonation', 'other'
 ]);
 
-const REPORTER_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const q = {
   insertReport: db.prepare('INSERT INTO reports (id, host, url, user_id, category, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
@@ -267,7 +267,7 @@ function register(router) {
     const threat = category === 'malware' ? 'malware' : 'scam';
     const agreeing = q.countThreatReports.get(host, threat, now() - REPORTER_MIN_AGE_MS).n;
     // A well-known site is never condemned by reports alone.
-    const promoted = agreeing >= 3 && !q.allowlisted.get(host);
+    const promoted = agreeing >= REPORTS_FOR_CONFIRMED && !q.allowlisted.get(host);
     if (promoted) q.promote.run(host, category, `Promoted after ${agreeing} ${threat} reports`, threat, now());
     engine.invalidate(host);
     security.audit('report', { userId: user.id, req, detail: host });
