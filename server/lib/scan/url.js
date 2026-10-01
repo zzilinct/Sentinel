@@ -3,6 +3,44 @@
 const crypto = require('crypto');
 const L = require('./lists');
 
+/*
+ * Ordinary words, to read a name the way a person does: "overdrive" is two real words ("over", "drive"), not
+ * "onedrive" misspelled. The ENABLE word list (public domain), words of four letters or more; shorter words only
+ * from the short list below, so obscure three-letter words cannot make any string look like words.
+ */
+const COMMON_SHORT_WORDS = ['one', 'two', 'ten', 'new', 'net', 'web', 'app', 'pay', 'get', 'all', 'box', 'bit', 'big', 'now', 'top', 'hub',
+  'the', 'and', 'for', 'car', 'buy', 'sea', 'sky', 'sun', 'air', 'art', 'fly', 'fit', 'fix', 'job', 'key', 'lab', 'law', 'map', 'max', 'mix',
+  'out', 'own', 'pet', 'pro', 'run', 'tax', 'way', 'zip', 'dev', 'doc', 'kit', 'cup', 'eat', 'cat', 'dog', 'red', 'hot', 'bet', 'day', 'eye',
+  'fun', 'gym', 'ink', 'joy', 'kid', 'man', 'men', 'mom', 'dad', 'oil', 'old', 'our', 'pen', 'pop', 'raw', 'sip', 'spa', 'tea', 'toy', 'van',
+  'war', 'win', 'yes', 'you', 'zoo', 'bus', 'bay', 'bee', 'bio', 'blue', 'cab', 'cam', 'cod', 'com', 'cow', 'cut', 'die', 'dry', 'ear', 'egg',
+  'end', 'fan', 'far', 'fat', 'fee', 'few', 'fox', 'gap', 'gas', 'gem', 'god', 'gun', 'guy', 'hat', 'hen', 'hip', 'hit', 'ice', 'ivy', 'jam',
+  'jet', 'leg', 'lid', 'lip', 'log', 'low', 'mad', 'mat', 'mud', 'nut', 'oak', 'off', 'pad', 'pan', 'pie', 'pig', 'pin', 'pot', 'rat', 'ray',
+  'rib', 'rod', 'row', 'rub', 'sad', 'saw', 'set', 'sew', 'sit', 'six', 'ski', 'son', 'spy', 'sum', 'tab', 'tan', 'tap', 'tip', 'toe', 'ton',
+  'tub', 'use', 'vet', 'wax', 'wet', 'who', 'why', 'wig', 'yard', 'yet'];
+let WORDS = null;
+function ordinaryWords() {
+  if (WORDS) return WORDS;
+  try {
+    const text = require('zlib').gunzipSync(require('fs').readFileSync(require('path').join(__dirname, 'words.txt.gz'))).toString('utf8');
+    WORDS = new Set(text.split('\n').map((w) => w.trim()).filter(Boolean));
+  } catch { WORDS = new Set(); }
+  for (const w of COMMON_SHORT_WORDS) WORDS.add(w);
+  return WORDS;
+}
+/** Is this name one to three ordinary words ("overdrive", "over-drive", "bluewater")? */
+function isRealWords(name) {
+  const W = ordinaryWords();
+  const parts = String(name || '').toLowerCase().split(/[-_]/).filter(Boolean);
+  if (!parts.length || parts.some((p) => /[^a-z]/.test(p))) return false;
+  const split = (s, left) => {
+    if (W.has(s)) return true;
+    if (left <= 1) return false;
+    for (let i = 3; i <= s.length - 3; i++) if (W.has(s.slice(0, i)) && split(s.slice(i), left - 1)) return true;
+    return false;
+  };
+  return parts.every((p) => split(p, 3));
+}
+
 // Country-code second levels ("com.bi", "co.ke", "org.ng") that behave like suffixes.
 const GENERIC_SECOND_LEVEL = new Set(['com', 'net', 'org', 'co', 'gov', 'edu', 'ac', 'or', 'ne', 'go', 'gob', 'mil', 'nic']);
 // Hosting platforms where each customer gets a subdomain: treat those like public
@@ -261,6 +299,7 @@ function brandInfo(p) {
   let inDomain = null;
   let inSubdomain = null;
   let lookalike = null;
+  let wordLike = null;   // spelled near a brand, but ordinary words (see isRealWords)
 
   for (const brand of L.PROTECTED_BRANDS) {
     // A customer page on a hosting platform ("x.myshopify.com") is never the platform itself.
@@ -292,6 +331,10 @@ function brandInfo(p) {
     // words; long distinctive ones ("coinbase", "microsoft") also as substrings.
     const inside = (flat, set) => set.has(t) || (t.length >= substringMin && flat.includes(t));
     if (!inDomain && inside(sldFlat, words)) inDomain = brand;
+    // The brand at the start or end, joined to a real word the small built-in list does not know ("paypalresolution",
+    // "applebees"): found here, and judged by the word it is joined to (see U22).
+    const rest = sldFlat.startsWith(t) ? sldFlat.slice(t.length) : sldFlat.endsWith(t) ? sldFlat.slice(0, -t.length) : '';
+    if (!inDomain && t.length >= 4 && rest.length >= 4 && isRealWords(rest)) inDomain = brand;
     if (!inSubdomain && subWords.some((s) => inside(s.flat, s.words))) inSubdomain = brand;
     // A hyphen put inside the brand's name ("tik-tokbusiness", "pay-pal-help"): the name only appears once the
     // hyphens are gone. Nobody splits a brand in two by accident.
@@ -308,6 +351,7 @@ function brandInfo(p) {
     if (!lookalike && t.length >= 5) {
       const maxDist = t.length >= 8 ? 2 : 1;
       const tSquashed = squash(t);
+      const rawOf = new Map([[sldFlat, p.sld], ...p.sld.split(/[-_]/).map((r) => [deskin(r), r])]);
       for (const part of [sldFlat, ...hyphenParts]) {
         if (part === t || L.NOT_LOOKALIKES.has(part)) continue;
         const whole = levenshtein(part, t);
@@ -324,11 +368,19 @@ function brandInfo(p) {
             prefix = Math.min(prefix, levenshtein(part.slice(0, n), t));
           }
         }
-        if ((whole > 0 && whole <= maxDist) || doubled || (prefix > 0 && prefix <= 1)) { lookalike = brand; break; }
+        if ((whole > 0 && whole <= maxDist) || doubled || (prefix > 0 && prefix <= 1)) {
+          // Spelled close to the brand, but written in ordinary words, with no digit for a letter and no doubled
+          // letter: another word ("overdrive", not "onedrive"), which a person reads as a different name. Noted,
+          // not treated as a disguise.
+          const raw = rawOf.get(part) || part;
+          if (!doubled && isRealWords(raw)) { if (!wordLike) wordLike = { brand, word: raw }; continue; }
+          lookalike = brand;
+          break;
+        }
       }
     }
   }
-  return { official: null, owner: null, inDomain, inSubdomain, lookalike };
+  return { official: null, owner: null, inDomain, inSubdomain, lookalike, wordLike: lookalike ? null : wordLike };
 }
 
 /**
@@ -344,5 +396,5 @@ function typedUrl(raw) {
 }
 
 module.exports = {
-  analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent
+  analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent, isRealWords
 };

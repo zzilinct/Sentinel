@@ -23,7 +23,7 @@ function build(extraArgs = []) {
 
 test('static build: every page ships, every relative link resolves, nothing points at the server-only routes', () => {
   const { out, read, hrefs } = build();
-  for (const page of ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', '404.html']) {
+  for (const page of ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', '404.html']) {
     assert.ok(fs.existsSync(path.join(out, page)), `${page} missing`);
     const html = read(page);
     assert.ok(!html.includes('@include'), `${page} has an unexpanded include`);
