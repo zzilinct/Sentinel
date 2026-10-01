@@ -37,6 +37,7 @@
   const engine = ENGINES.find((e) => e.test.test(location.hostname)) || { titles: '' };
 
   const SEARCH_HOSTS = /(^|\.)(google|bing|duckduckgo|yahoo|brave|ecosia|startpage|mojeek|yandex|googleusercontent|gstatic)\.[a-z.]+$/;
+  const USER_PAGES_ON_ENGINES = /^((sites|docs|drive|forms)\.google\.com|forms\.gle|storage\.googleapis\.com|[a-z0-9-]+\.blogspot\.com)$/i;
 
   /* ------------------------------------------------------------- urls */
 
@@ -69,7 +70,7 @@
         if (v.startsWith('a1')) target = fromBase64(v.slice(2));
       } else if (/(^|\.)bing\.com$/.test(host) && /^\/(aclk|aclick)$/.test(u.pathname)) {
         const v = u.searchParams.get('u') || '';
-        if (v) target = decodeURIComponent(fromBase64(v));
+        if (v) { const decoded = fromBase64(v); target = /^https?%3a/i.test(decoded) ? decodeURIComponent(decoded) : decoded; }
       } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/goto') {
         target = citedAddress(anchor ? anchor.innerText || anchor.textContent : '');
       } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
@@ -111,23 +112,20 @@
     let u;
     try { u = new URL(href, location.href); } catch { return null; }
     if (!/^https?:$/.test(u.protocol)) return null;
-    if (SEARCH_HOSTS.test(u.hostname) || /\/(url|l)\/?$/.test(u.pathname)) {
+    for (let i = 0; i < 6; i++) {
       const inner = unwrap(u, anchor);
-      if (inner) u = inner;
-      else {
-        const wrapped = u.searchParams.get('uddg') || u.searchParams.get('q') || u.searchParams.get('url') || u.searchParams.get('u');
-        if (wrapped && /^https?:\/\//i.test(wrapped)) { try { u = new URL(wrapped); } catch { /* keep */ } }
-      }
+      const next = inner || trackerTarget(u);
+      if (!next || next.href === u.href) break;
+      u = next;
     }
-    const behind = trackerTarget(u);
-    return (behind || u).href;
+    return u.href;
   }
 
   function isResult(anchor, url) {
     if (!url) return false;
     let host;
     try { host = new URL(url).hostname; } catch { return false; }
-    if (host === location.hostname || SEARCH_HOSTS.test(host)) return false;
+    if ((host === location.hostname || SEARCH_HOSTS.test(host)) && !USER_PAGES_ON_ENGINES.test(host)) return false;
     return !anchor.closest('nav, header, footer, [role="navigation"]');
   }
 
@@ -422,6 +420,13 @@
 
   let queue = [];
   let busy = false;
+  function hintsFor(urls) {
+    const query = new URL(location.href).searchParams;
+    return Object.fromEntries(urls.map((url) => {
+      const a = (byUrl.get(url) || []).find((a) => a.isConnected);
+      return [url, { title: String(a ? a.innerText || a.textContent || '' : '').slice(0, 200), query: String(query.get('q') || query.get('p') || query.get('query') || '').slice(0, 200) }];
+    }));
+  }
   async function flush() {
     if (busy || !queue.length || !settings.enabled) return;
     busy = true;
@@ -433,12 +438,13 @@
     let checked = 0;
     let locked = false;
     try {
-      const quick = await send({ type: 'live-batch', urls, phase: 'quick' });
+      const hints = hintsFor(urls);
+      const quick = await send({ type: 'live-batch', urls, phase: 'quick', hints });
       if (quick.locked) { queue = []; locked = true; return; }
       apply(quick.verdicts);
       for (const v of Object.values(quick.verdicts || {})) { if (v && v.ok) { checked++; if (v.overall && v.overall.badge) flagged++; } }
       // Delicate scanning (Pro and up): follow up with researched verdicts, which may raise or clear masks.
-      send({ type: 'live-batch', urls, phase: 'research' }).then((r) => { if (r.ok && !r.locked) apply(r.verdicts); });
+      send({ type: 'live-batch', urls, phase: 'research', hints }).then((r) => { if (r.ok && !r.locked) apply(r.verdicts); });
     } finally {
       if (show) scanFinished(checked, flagged, locked);
       busy = false;
