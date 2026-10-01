@@ -61,6 +61,8 @@ test('CORS only opens up to the extension, never to arbitrary sites', async () =
   assert.equal(evil.headers.get('access-control-allow-origin'), null);
   const ext = await fetch(`${app.base}/api/v1/auth/me`, { headers: { Origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' } });
   assert.equal(ext.headers.get('access-control-allow-origin'), 'chrome-extension://abcdefghijklmnopabcdefghijklmnop');
+  // Never with the sign-in cookie: any extension has an extension origin.
+  assert.equal(ext.headers.get('access-control-allow-credentials'), null);
 });
 
 /* ------------------------------------------------------------ static files */
@@ -107,8 +109,11 @@ test('two-factor authentication: setup, login challenge, replay protection', asy
   const secret = security.base32Decode(setup.data.secret);
   const codeAt = (t) => security.hotp(secret, Math.floor(t / 30000));
 
-  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: '000000' })).status, 400);
-  const enable = await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now() - 30000) });
+  // A session alone cannot turn it on (it signs every other device out): the password is asked for too.
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now()) })).status, 401);
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now()), password: 'wrong-password' })).status, 401);
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: '000000', password: 'Correct-Horse-42' })).status, 400);
+  const enable = await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now() - 30000), password: 'Correct-Horse-42' });
   assert.equal(enable.status, 200, JSON.stringify(enable.data));
   assert.equal(enable.data.user.twoFactorEnabled, true);
 
@@ -182,6 +187,9 @@ test('client tokens are only issued to a browser session, not to another token',
     body: '{}'
   });
   assert.equal(chained.status, 403);
+  // An extension asking with the cookie could be any extension: it pairs through the connect page instead.
+  const fromExtension = await c.raw('POST', '/api/v1/auth/client-token', { raw: '{}', headers: { 'Content-Type': 'application/json' }, origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' });
+  assert.equal(fromExtension.status, 403);
   const me = await fetch(`${app.base}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${tok.data.token}` } });
   assert.equal(me.status, 200);
 });
@@ -219,4 +227,51 @@ test('a typed host with a port is a web address, not a scheme', () => {
   assert.equal(typedUrl('example.com:8443/login'), 'https://example.com:8443/login');
   assert.equal(typedUrl('localhost:3000'), 'https://localhost:3000');
   assert.equal(typedUrl('mailto:a@b.co'), 'mailto:a@b.co');
+});
+
+test('a page that points its own name at this computer (DNS rebinding) gets no answer', async () => {
+  const http = require('http');
+  const u = new URL(app.base);
+  const get = (host) => new Promise((resolve, reject) => {
+    http.get({ host: u.hostname, port: u.port, path: '/api/v1/auth/config', headers: { Host: host } }, (res) => { res.resume(); resolve(res.statusCode); }).on('error', reject);
+  });
+  assert.equal(await get(`attacker.example:${u.port}`), 421);
+  assert.equal(await get('127.0.0.1'), 421, 'the port is part of the name');
+  assert.equal(await get(`127.0.0.1:${u.port}`), 200);
+  assert.equal(await get(`localhost:${u.port}`), 200);
+});
+
+test('a page built to be slow to read is read as quickly as any other (no regex backtracking)', () => {
+  const { parse } = require('../server/lib/scan/content');
+  const K = 600 * 1024;
+  for (const html of ['<a ' + 'href=x'.repeat(K / 6), '<img src="x'.repeat(K / 11), '<'.repeat(K), '<form'.repeat(K / 5), '<meta '.repeat(K / 6), '<title>'.repeat(K / 7), '<' + 'a'.repeat(K)]) {
+    const t = Date.now();
+    parse(html, 'https://page.example/');
+    assert.ok(Date.now() - t < 1500, `${html.slice(0, 12)}... took ${Date.now() - t} ms`);
+  }
+  const b64 = /(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{2000}/;
+  const t = Date.now();
+  assert.equal(b64.test(('A'.repeat(1999) + '!').repeat(2500)), false);
+  assert.ok(Date.now() - t < 1500);
+  const page = parse('<title>Sign in</title><form action="https://evil.example/p"><input type=password name=pw></form><a href="/help">Help</a>', 'https://page.example/');
+  assert.equal(page.title, 'Sign in');
+  assert.equal(page.forms[0].external, true);
+  assert.deepEqual(page.links, ['/help']);
+  // A "<" inside a quoted handler (common in phishing kits) does not hide the form; an unclosed title is no title.
+  const kit = parse('<title>Foo<form action="https://evil.example/x" onsubmit="return a.length<9"><input type=password onkeyup="if(v<3)x()"></form>', 'https://page.example/');
+  assert.equal(kit.forms.length, 1);
+  assert.equal(kit.forms[0].external, true);
+  assert.equal(kit.forms[0].inputs[0].type, 'password');
+  assert.equal(kit.title, '');
+});
+
+test('an email is not taken for a brand by a word that contains its name', () => {
+  const { analyzeEmail } = require('../server/lib/scan/email');
+  const e01 = (m) => analyzeEmail(m).checks.find((c) => c.id === 'E01').status;
+  assert.equal(e01({ from: 'Etsy <transaction@etsy.com>', subject: 'Your purchase receipt', body: 'x' }), 'pass');
+  assert.equal(e01({ from: 'Morningstar <news@morningstar.com>', subject: 'Weekly market outlook', body: 'x' }), 'pass');
+  assert.equal(e01({ from: 'PayPalSupport <a@evil.example>', subject: 'x', body: 'x' }), 'fail');
+  assert.equal(e01({ from: 'Service <a@evil.example>', subject: 'Your Chase account is locked', body: 'x' }), 'fail');
+  const e03 = analyzeEmail({ from: 'NYT <news@email.nytimes.com>', replyTo: 'help@nytimes.com', subject: 'Today', body: 'x' }).checks.find((c) => c.id === 'E03');
+  assert.equal(e03.status, 'pass', 'the same company writing from its own subdomain');
 });

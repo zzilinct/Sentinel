@@ -7,13 +7,13 @@
 </head>
 <body>
 <!-- @include nav -->
-<main>
+<main id="main">
   <section class="page-head" style="padding-bottom:40px">
     <div class="wrap-narrow">
       <span class="kicker" data-reveal>Privacy Policy</span>
-      <h1 data-split>Exactly what Sentinel <span class="serif italic">sees</span></h1>
+      <h1 data-split>Exactly what Sentinel sees</h1>
       <p data-reveal>A protection tool should collect as little as it can and explain the rest. This page describes what the software actually does, not what a template says it should.</p>
-      <p class="updated" data-reveal>Last updated 23 September 2026 &middot; pre-launch draft, not yet reviewed by a lawyer</p>
+      <p class="updated" data-reveal>Last updated 30 September 2026 &middot; pre-launch draft, not yet reviewed by a lawyer</p>
     </div>
   </section>
 
@@ -35,7 +35,7 @@
         <li><b>Files</b> you upload to the virus and malware scanner are inspected in memory and discarded. Only the file&rsquo;s SHA-256 fingerprint may be kept, so the same file can be recognised again.</li>
         <li><b>Downloads</b> on your computer are inspected by the desktop app locally. Only the fingerprint is sent to check against known threats; the file itself never leaves your computer.</li>
         <li><b>Programs that arrive on your computer</b>, if defense is on in the Windows app. New program files in Downloads, Desktop, the temporary folder and the Startup folder are inspected on your computer, and the list of programs that start with Windows is read to look for new entries. Only a file&rsquo;s fingerprint is ever sent for a known-threat check. A log of what was scanned, stopped and quarantined is kept on your computer only.</li>
-        <li><b>Live scanning in the Windows app.</b> It is off until you press Start scanning, and it stays on until you press Stop. While it is on, and only while a browser is the window in front, not minimised, with someone at the keyboard, the app asks Windows (through the accessibility interface screen readers use) for three things: the address of the page the browser is showing, where that page sits on your screen, and, on a search results page, the addresses of the links on screen and where they are. The addresses are checked the same way a pasted link is checked. The positions are used only to draw Sentinel&rsquo;s gold line, its mask in the corner of the browser and the marks beside results, in a transparent window of Sentinel&rsquo;s own that sits over the page; nothing is added to the page or the browser, and clicks and keys pass straight through. Sentinel does not read what a page says, what you type, passwords, cookies or anything behind a login, and it takes no screenshots. It works in Chrome, Edge, Brave, Opera, Vivaldi, DuckDuckGo, Firefox and LibreWolf. A browser that is minimised, behind another program, closed, or left alone for two minutes is not read at all.</li>
+        <li><b>Live scanning in the Windows app.</b> It is off until you press Start scanning, and it stays on until you press Stop. While it is on, and only while a browser is the window in front, not minimised, with someone at the keyboard, the app asks Windows (through the accessibility interface screen readers use) for three things: the address of the page the browser is showing, where that page sits on your screen, and, on a search results page, the addresses of the links on screen, where they are, and the text each link shows (a result&rsquo;s title, as the search engine displays it). The addresses are checked the same way a pasted link is checked. A result&rsquo;s title and the words you searched for help the check understand what a site is about without opening it: a site whose name only resembles a brand is judged by whether its result claims to be that brand. They are used for that check only, by the copy of Sentinel running on your computer, and are not written to your history or the log. In a private window they are not used at all. The positions are used only to draw Sentinel&rsquo;s gold line, its mask in the corner of the browser and the marks beside results, in a transparent window of Sentinel&rsquo;s own that sits over the page; nothing is added to the page or the browser, and clicks and keys pass straight through. Beyond those result titles, Sentinel does not read what a page says, what you type, passwords, cookies or anything behind a login, and it takes no screenshots. It works in Chrome, Edge, Brave, Opera, Vivaldi, DuckDuckGo, Firefox and LibreWolf. A browser that is minimised, behind another program, closed, or left alone for two minutes is not read at all.</li>
         <li><b>Fast and delicate scanning.</b> Live scanning has two modes, and you choose. <b>Fast</b> checks addresses against the threat lists and Sentinel&rsquo;s own rules, entirely on your computer in the Windows app. <b>Delicate</b> does the same and also asks two public services about each result&rsquo;s domain name: the domain registry that IANA lists for that ending (how long ago the domain was registered) and the DNS (whether it resolves). Those services see the domain name and your internet address, as they would if you looked the domain up yourself. They are not sent the full address, the page, or anything about you or your account. The Windows app never opens a suspicious page from your computer in either mode. Private windows always get the fast checks, so nothing about them is sent to a registry.</li>
         <li><b>Webmail inboxes.</b> When Gmail or Outlook on the web is the page in front and live scanning is on (Pro and up), the Windows app reads the message rows your inbox is showing on screen, as the inbox displays them: sender name, subject and the short preview. Each row is checked for signs of a scam and gets a mark beside it before you open the message. Sentinel does not open, click, move or mark any message, does not read a message you have not scrolled to, and keeps none of this: the rows are checked and discarded, and are not written to your history or to a log.</li>
         <li><b>Private windows.</b> InPrivate, Incognito and Private Browsing windows are protected in the same way, so a dangerous page still gets a warning. Nothing about them is kept: no entry in your scan history even when a result is flagged, no line in the app&rsquo;s local log, no entry in the app&rsquo;s live list, and the address is not held in memory after the check. Sentinel recognises a private window by the words the browser puts in its title; if your browser uses wording Sentinel does not know, the window is treated as an ordinary one, so say so and we will add it.</li>
@@ -53,7 +53,7 @@
           <tr><td>Plan and weekly usage counters</td><td>To apply your plan&rsquo;s allowances</td><td>35 days</td></tr>
           <tr><td>Scan history: what was checked, when, and the result</td><td>So you can see and re-run past scans</td><td>90 days</td></tr>
           <tr><td>Sites you have trusted or blocked</td><td>To honour your rules on future scans</td><td>Until you remove them or delete the account</td></tr>
-          <tr><td>Reports you file: the site, your category and any note</td><td>To confirm threats for everyone when enough people agree</td><td>Until you delete the account</td></tr>
+          <tr><td>Reports you file: the site, your category and any note</td><td>To confirm threats for everyone when enough people agree</td><td>Linked to you until you delete the account. After that the report stays, with no link to you, so a confirmed threat stays confirmed for everyone</td></tr>
           <tr><td>Signed-in devices: browser name, IP address, last activity</td><td>So you can see and revoke sessions</td><td>Until the session ends or expires (30 days)</td></tr>
           <tr><td>Security log: sign-ins, password and 2FA changes, reports, plan changes, with IP address</td><td>To investigate misuse and unauthorised access</td><td>180 days</td></tr>
           <tr><td>Two-factor secret, encrypted</td><td>Two-factor sign-in, if you turn it on</td><td>Until you turn it off</td></tr>
@@ -64,12 +64,13 @@
       <h2>4. Without an account</h2>
       <ul>
         <li><b>Guest mode</b> lets you scan ten links a day per connection. Sentinel uses your IP address, in memory only, to count those ten. Nothing about a guest scan is written to disk or kept after the result is shown.</li>
-        <li><b>The website&rsquo;s demo</b> shows example verdicts that were computed when the site was built. Trying a link on the website works the same way as guest mode.</li>
+        <li><b>The website&rsquo;s demo</b> shows example verdicts that were computed when the site was built. Trying a link on the website is limited to five a day per connection, counted the same way as guest mode, in memory only.</li>
       </ul>
 
       <h2>5. Cookies and storage in your browser</h2>
       <ul>
         <li>One cookie, <span class="mono">sentinel_session</span>, keeps you signed in for 30 days. It is HttpOnly and SameSite, so scripts and other sites cannot read it. There are no advertising or analytics cookies, and no cookie banner because none is needed.</li>
+        <li>Two small settings are kept in your browser&rsquo;s local storage, never sent anywhere: <span class="mono">sentinel:theme</span> remembers whether you chose the light or dark theme, and <span class="mono">sentinel:stay</span> remembers whether you asked to stay signed in on this browser. While you fill in the sign-up or password-reset form, what you have typed (never a password) is kept for that browser tab only, so the back button does not lose it; it is gone when the tab closes or the form is sent.</li>
         <li>The web app may register a service worker that caches Sentinel&rsquo;s own fonts and scripts so pages load faster. It stores nothing about you.</li>
         <li>The browser companion keeps its settings, your pairing token and a short-lived cache of recent verdicts in the browser&rsquo;s extension storage on your computer.</li>
       </ul>
@@ -102,7 +103,7 @@
 
       <h2>9. Your choices and rights</h2>
       <ul>
-        <li>Delete your account at any time from Security settings. Everything in section 3 is removed immediately, except security-log entries that finish their 180 days.</li>
+        <li>Delete your account at any time from Security settings. Everything in section 3 is removed immediately, except security-log entries that finish their 180 days and the reports you filed, which stay with no link to you.</li>
         <li>Revoke any signed-in device, remove any trusted or blocked site, and disconnect any AI assistant from the app.</li>
         <li>Ask us what we hold about you, to correct it, or to delete it, by emailing <a href="mailto:privacy@usesentinel.technology">privacy@usesentinel.technology</a>. Depending on where you live, laws such as the GDPR or the CCPA may give you further rights, including to complain to a regulator.</li>
       </ul>
@@ -116,17 +117,6 @@
       <h2>12. Contact</h2>
       <p><a href="mailto:privacy@usesentinel.technology">privacy@usesentinel.technology</a></p>
 
-      <div class="review-note">
-        <h3>Open items for legal review</h3>
-        <ul>
-          <li>The legal entity, its address, and a named privacy contact or data protection officer if one is required.</li>
-          <li>Where the hosted service&rsquo;s servers will be, and whether international transfer terms are needed.</li>
-          <li>The lawful basis for each processing purpose under the GDPR, and whether a CCPA &ldquo;Do Not Sell or Share&rdquo; notice is required even though nothing is sold.</li>
-          <li>Whether the 90-day history and 180-day security-log retention periods are appropriate, and any legal-hold exceptions.</li>
-          <li>Data processing agreements with Resend and any hosting provider.</li>
-          <li>Whether reading page and link addresses through the operating system&rsquo;s accessibility interface needs its own consent wording in any market, beyond the Start scanning button and this page.</li>
-        </ul>
-      </div>
     </div>
   </section>
 </main>
