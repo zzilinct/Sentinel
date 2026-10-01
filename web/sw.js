@@ -5,7 +5,7 @@
  *   CSS & scripts    network first, cache only as an offline fallback
  *   pages & API      never touched - always live
  */
-const VERSION = 'sentinel-v2';
+const VERSION = 'sentinel-v4';
 const PRECACHE = [
   '/assets/fonts/fonts.css',
   '/assets/fonts/geist-normal-300-700.woff2',

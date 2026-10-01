@@ -87,14 +87,88 @@ public static class SW {
     return SetWindowPos(overlay, after, 0, 0, 0, 0, 0x1 | 0x2 | 0x10 | 0x200);
   }
 }
+
+// The mouse wheel, the moment it turns, so marks can move with the page's own smooth scroll instead of waiting for
+// the browser to report where its links went (only a few times a second). Raw input: Windows hands a copy of each
+// wheel movement to a hidden window here; nothing is intercepted or held up, the keyboard is never read, and
+// nothing is sent unless Enabled (a results page with marks is in front).
+public class Wheel : System.Windows.Forms.NativeWindow {
+  [StructLayout(LayoutKind.Sequential)] struct RAWINPUTDEVICE { public ushort UsagePage; public ushort Usage; public uint Flags; public IntPtr Target; }
+  [DllImport("user32.dll")] static extern bool RegisterRawInputDevices(RAWINPUTDEVICE[] devices, uint count, uint size);
+  [DllImport("user32.dll")] static extern uint GetRawInputData(IntPtr raw, uint command, IntPtr data, ref uint size, uint headerSize);
+  public static volatile bool Enabled;
+  public static volatile bool Registered;   // Windows is sending the mouse now (only while Enabled)
+  public static int Seen;                   // raw input messages seen, sent or not (for the log)
+  public static int Msgs;                   // any message at all: tells a dead window from a quiet mouse
+  public static volatile int LastWheel;     // when the wheel last turned (TickCount), so the page's place is confirmed after
+  static bool started;
+  // Held here for the life of the process, so the window cannot be collected once the thread is inside
+  // Application.Run and nothing else refers to it.
+  static Wheel instance;
+  static System.Windows.Forms.Timer sync;
+  public static void Start() {
+    if (started) return;
+    started = true;
+    var t = new System.Threading.Thread(() => {
+      var w = new Wheel();
+      instance = w;
+      var cp = new System.Windows.Forms.CreateParams();
+      cp.Parent = new IntPtr(-3);   // a message-only window: never shown
+      w.CreateHandle(cp);
+      // Windows is asked for the mouse only while marks are on screen, and told to stop the moment they are not: a
+      // gaming mouse reports thousands of times a second, and every report would wake this process during a game.
+      sync = new System.Windows.Forms.Timer();
+      sync.Interval = 200;
+      sync.Tick += (s, e) => w.Sync();
+      sync.Start();
+      System.Windows.Forms.Application.Run();
+    });
+    t.IsBackground = true;
+    t.SetApartmentState(System.Threading.ApartmentState.STA);
+    t.Start();
+  }
+  void Sync() {
+    if (Enabled == Registered) return;
+    var d = new RAWINPUTDEVICE[1];
+    d[0].UsagePage = 1; d[0].Usage = 2;
+    // On: the mouse, even when this window is not in front (RIDEV_INPUTSINK). Off: RIDEV_REMOVE, no window.
+    if (Enabled) { d[0].Flags = 0x100; d[0].Target = Handle; } else { d[0].Flags = 0x1; d[0].Target = IntPtr.Zero; }
+    if (RegisterRawInputDevices(d, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)))) Registered = Enabled;
+  }
+  protected override void WndProc(ref System.Windows.Forms.Message m) {
+    System.Threading.Interlocked.Increment(ref Msgs);
+    if (m.Msg == 0x00FF) System.Threading.Interlocked.Increment(ref Seen);
+    if (m.Msg == 0x00FF && Enabled) {
+      uint header = (uint)(8 + 2 * IntPtr.Size);
+      uint size = 0;
+      GetRawInputData(m.LParam, 0x10000003, IntPtr.Zero, ref size, header);
+      if (size > 0 && size < 1024) {
+        IntPtr buf = Marshal.AllocHGlobal((int)size);
+        try {
+          if (GetRawInputData(m.LParam, 0x10000003, buf, ref size, header) == size && Marshal.ReadInt32(buf) == 0) {
+            ushort flags = (ushort)Marshal.ReadInt16(buf, (int)header + 4);
+            if ((flags & 0x0400) != 0) {
+              short delta = Marshal.ReadInt16(buf, (int)header + 6);
+              LastWheel = Environment.TickCount;
+              Console.Out.WriteLine("{\"wheel\":" + delta + ",\"t\":" + Environment.TickCount + "}");
+              Console.Out.Flush();
+            }
+          }
+        } finally { Marshal.FreeHGlobal(buf); }
+      }
+    }
+    base.WndProc(ref m);
+  }
+}
 "@
 $loaded = $false
 if ($dll -and (Test-Path $dll)) { try { Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
 if (-not $loaded) {
-  if ($dll) { try { Add-Type -TypeDefinition $src -OutputAssembly $dll; Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
-  if (-not $loaded) { Add-Type -TypeDefinition $src }
+  if ($dll) { try { Add-Type -TypeDefinition $src -ReferencedAssemblies System.Windows.Forms -OutputAssembly $dll; Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
+  if (-not $loaded) { Add-Type -TypeDefinition $src -ReferencedAssemblies System.Windows.Forms }
 }
 Write-Output '{"ready":true}'
+try { [Wheel]::Start() } catch { Write-Output (@{ wheelError = [string]$_.Exception.Message } | ConvertTo-Json -Compress) }
 $A = [System.Windows.Automation.AutomationElement]
 $VP = [System.Windows.Automation.ValuePattern]
 $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
@@ -113,7 +187,7 @@ $cache.AutomationElementMode = [System.Windows.Automation.AutomationElementMode]
 $docCache = New-Object System.Windows.Automation.CacheRequest
 $docCache.Add($A::BoundingRectangleProperty); $docCache.Add($A::IsOffscreenProperty)
 # The anchor: one result link whose position is followed between full reads, so marks move WITH the page.
-$anchor = $null; $anchorX = 0; $anchorY = 0; $lastDx = 0; $lastDy = 0; $moved = $false
+$anchor = $null; $anchorX = 0; $anchorY = 0; $lastDx = 0; $lastDy = 0; $moved = $false; $confirmedWheel = 0
 $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
 $private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
 $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
@@ -168,10 +242,12 @@ function Covered($el, $b) {
     return $true
   } catch { return $false }
 }
-function Off($why) { $script:anchor = $null; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
+function Off($why) { $script:anchor = $null; try { [Wheel]::Enabled = $false } catch { }; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
   # Between full looks: follow the anchor about 60 times a second and report how far the page has moved, so the
   # marks move while the page scrolls instead of jumping after it. Wake at once for a command.
+  # The wheel is reported only while there are marks to move (a results page in front): never in a game.
+  try { [Wheel]::Enabled = [bool]$anchor } catch { }
   $gotCmd = $false
   $until = [Environment]::TickCount + $pause
   $moved = $false
@@ -203,6 +279,14 @@ while ($true) {
             $stillAt = [Environment]::TickCount + 350; $lastMoveAt = [Environment]::TickCount
             # Never more than 5 s between full reads, even on a page that keeps moving by itself.
             if ($until -lt $stillAt -and $stillAt - $loopStart -lt 5000) { $until = $stillAt }
+          } else {
+            # Half a second after the wheel last turned, the page's place is said again even if it did not move: a
+            # wheel turned over something that does not scroll otherwise leaves the marks where the wheel sent them.
+            $lw = [Wheel]::LastWheel
+            if ($lw -ne $confirmedWheel -and [Environment]::TickCount - $lw -gt 500) {
+              $confirmedWheel = $lw
+              Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + ',"t":' + [Environment]::TickCount + '}}')
+            }
           }
         }
       } catch { $anchor = $null }
@@ -315,7 +399,7 @@ while ($true) {
     $scope = $cache.Activate()
     try { $found = $doc.FindAll([System.Windows.Automation.TreeScope]::Descendants, $linkCond) } catch { $found = $null } finally { $scope.Dispose() }
     $list = New-Object System.Collections.ArrayList
-    $firstEl = $null; $covered = 0; $staleRead = $false; $hitBudget = $sw.ElapsedMilliseconds + 150
+    $firstEl = $null; $covered = 0; $staleRead = $false; $hitBudget = $sw.ElapsedMilliseconds + 150; $midY = $r.Top + $r.Height / 2
     if ($found) {
       foreach ($l in $found) {
         if ($list.Count -ge 60) { break }
@@ -328,19 +412,30 @@ while ($true) {
         $item = @{ u = $u; x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height }
         # A covered link still says which result its neighbours belong to; the app leaves that result without a mark.
         if ($sw.ElapsedMilliseconds -lt $hitBudget -and (Covered $l $b)) { $covered++; $item.c = 1; $item.by = $coverHit }
-        elseif (-not $firstEl) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
+        # The anchor the page's movement is measured by: the link nearest the middle of the page. The first one was
+        # often a header link (DuckDuckGo's logo) in a bar that hides and comes back while scrolling, so the anchor
+        # moved by itself and threw every mark off.
+        elseif (-not $firstEl -or [Math]::Abs($b.Y - $midY) -lt [Math]::Abs($fy - $midY)) { $firstEl = $l; $fx = [int]$b.X; $fy = [int]$b.Y }
         # Google's own redirect (/goto?url=...) hides where a result leads. The address it shows under the result's
         # title is part of the link's name, so the name goes along for those links only.
-        if ($u -match '^https://www\.google\.[a-z.]{2,6}/goto\?') { $n = [string]$l.GetCachedPropertyValue($A::NameProperty); $item.n = $n.Substring(0, [Math]::Min(400, $n.Length)) }
+        # What the results page shows for the link (its title, and on Google the address under it): the page's own
+        # words about itself, as the search engine displays them. Google's /goto links hide where they lead; this
+        # text is also how that is found (the address Google shows).
+        $n = [string]$l.GetCachedPropertyValue($A::NameProperty)
+        if ($n) { $item.n = $n.Substring(0, [Math]::Min(400, $n.Length)) }
         [void]$list.Add($item)
       }
     }
     $sw.Stop()
     $lastCount = $list.Count
-    $sig = ($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)|$($_.c)" }) -join ';'
+    # Whether the page can still scroll up and down ("11"; "01" at its top, "10" at its end, "" when it does not say):
+    # a wheel turned toward an end the page has reached moves nothing, and the marks must not move either.
+    $ends = ''
+    try { $sp = $doc.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).Current; if ($sp.VerticallyScrollable) { $ends = "$([int]($sp.VerticalScrollPercent -gt 0.5))$([int]($sp.VerticalScrollPercent -lt 99.5))" } } catch { $ends = '' }
+    $sig = (($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)|$($_.c)" }) -join ';') + "|$ends"
     if ($sig -ne $lastLinks) {
       $lastLinks = $sig
-      Write-Output (@{ links = @($list); covered = $covered; for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
+      Write-Output (@{ links = @($list); covered = $covered; for = $url; ends = $ends; ms = [int]$sw.ElapsedMilliseconds; wheel = "$([Wheel]::Registered)/$([Wheel]::Seen)/$([Wheel]::Enabled)/$([Wheel]::Msgs)" } | ConvertTo-Json -Compress -Depth 4)
       # New positions: the anchor starts again from here, and the marks from zero movement.
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0    }
     # A heavy page must not make the reader spin: rest at least twice as long as the read took.
@@ -398,6 +493,9 @@ const warned = new Map();
 const verdicts = new Map();   // url -> { at, fast, mark }
 let settleTimer = null;
 let restartTimer = null;
+// A reader that keeps failing is brought back more and more slowly (3 s doubling up to 5 min), so a machine where it
+// cannot run is not made to start PowerShell every few seconds all day. A minute of running resets the pace.
+let quickExits = 0;
 let retryTimer = null;        // a failed results check, tried again (see checkLinks)
 let latestLinks = null;       // the last list of on-screen links, so late verdicts land where the links are now
 let seenResults = { for: null, map: new Map() };   // which result each sitelink on this results page belongs to
@@ -450,6 +548,7 @@ function setState(active, reason) {
 
 function init(options) {
   opts = options;
+  quickExits = 0;   // switched on (again): a fresh start, not the tail of an earlier run of failures
   restart();
 }
 
@@ -471,7 +570,7 @@ async function restart() {
     if (err.status === 401) return setState(false, 'Sign in to start live scanning');
     // "Will retry" has to be true: a scanner that is still starting answers a minute later.
     restartTimer = setTimeout(() => restart(), 30000);
-    return setState(false, 'Sentinel is offline - will retry');
+    return setState(false, 'Sentinel is offline. Trying again shortly.');
   }
   if (mine !== generation) return;
   start();
@@ -529,6 +628,7 @@ function start() {
   }
   log('reader started');
   const mine = child;
+  const startedAt = Date.now();
   let errText = '';
   child.on('error', (err) => {
     if (child !== mine) return;
@@ -553,8 +653,9 @@ function start() {
     setWindow(null);
     if (!state.active) return;
     // Keep watching: the reader is cheap to bring back.
-    setState(false, 'Live scanning stopped - restarting');
-    restartTimer = setTimeout(() => restart(), 3000);
+    setState(false, 'Live scanning stopped. Starting it again.');
+    quickExits = Date.now() - startedAt > 60000 ? 0 : quickExits + 1;
+    restartTimer = setTimeout(() => restart(), Math.min(300000, 3000 * 2 ** Math.max(0, quickExits - 1)));
   });
   setState(true, null);
 }
@@ -571,6 +672,8 @@ function stop(reason, silent) {
   if (old) { try { old.kill(); } catch { /* gone */ } }
   state.current = null;
   latestLinks = null;
+  verdicts.clear();
+  pending.clear();
   setWindow(null);
   generation++;
   if (!silent) setState(false, reason || 'Live scanning is off');
@@ -600,10 +703,12 @@ function onLine(line) {
   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
   if (msg.awake) { log('in use again'); return; }
   if ('win' in msg) {
-    if (!msg.win) { clearTimeout(settleTimer); state.current = null; latestLinks = null; }
+    if (!msg.win) { clearTimeout(settleTimer); state.current = null; latestLinks = null; verdicts.clear(); }
     setWindow(msg.win || null);
     return;
   }
+  if (msg.wheelError) { log(`wheel following could not start: ${String(msg.wheelError).slice(0, 200)}`); return; }
+  if (typeof msg.wheel === 'number') { if (opts.onWheel && latestLinks) opts.onWheel({ epoch: latestLinks.epoch, delta: msg.wheel, t: msg.t }); return; }
   if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t }); return; }
   if (msg.links) return onLinks(msg);
   if (msg.mail) return onMail(msg);
@@ -611,6 +716,7 @@ function onLine(line) {
 
   clearTimeout(settleTimer);
   latestLinks = null;
+  verdicts.clear();
   if (!/^https?:\/\//i.test(msg.url)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
   // Sentinel's own pages and the app's server are not "sites".
   if (opts.origin && msg.url.startsWith(opts.origin)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
@@ -622,6 +728,7 @@ function onLine(line) {
 }
 
 async function check(page) {
+  const mine = generation;
   let host;
   try { host = new URL(page.url).hostname; } catch { return; }
   // A results page is the search engine's own; its links are what matter, and they are checked one by one.
@@ -631,8 +738,11 @@ async function check(page) {
   try {
     let answer;
     ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode() }));
+    if (mine !== generation || !state.current || state.current.at !== page.at) return;
+    if (!verdict || !verdict.ok || !verdict.overall) return;
     noteMode(answer);
   } catch (err) {
+    if (mine !== generation || !state.current || state.current.at !== page.at) return;
     log(`check failed${page.private ? '' : ` for ${host}`}: ${err.status || ''} ${err.code || err.message}`);
     // Refused, not a hiccup: stop reading the browser altogether. A reader left running would keep asking, and the
     // gold mask would keep saying "scanning" while nothing is checked.
@@ -722,7 +832,7 @@ function unwrapResult(u, name) {
     } else if (/(^|\.)bing\.com$/.test(host) && /^\/(aclk|aclick)$/.test(u.pathname)) {
       // An ad: the advertiser's address, percent-encoded, then base64.
       const v = u.searchParams.get('u') || '';
-      if (v) target = decodeURIComponent(Buffer.from(v, 'base64url').toString('utf8'));
+      if (v) { const decoded = Buffer.from(v, 'base64url').toString('utf8'); target = /^https?%3a/i.test(decoded) ? decodeURIComponent(decoded) : decoded; }
     } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
       target = u.searchParams.get('q') || u.searchParams.get('url');
     } else if (/(^|\.)google\.[a-z.]+$/.test(host) && /^\/(pagead\/)?aclk$/.test(u.pathname)) {
@@ -815,8 +925,9 @@ function resultLinks(links, pageUrl, seen = new Map()) {
     if (APP_STORES.test(u.hostname) && brand && u.href.toLowerCase().includes(brand)) continue;
     const host = u.hostname.replace(/^www\./, '');
     const key = SHARED_HOSTS.test(host) ? `${host}${u.pathname.split('/').slice(0, 3).join('/')}` : siteOf(host);
-    const { n: _name, by: _by, ...box } = l;   // the name was only needed to find the address; by is for review
-    const link = { ...box, u: u.href };
+    const { n: name, by: _by, ...box } = l;   // by is for review only
+    // The result's title, as the search engine shows it: what the page says it is (see the scanner's X01 and U24).
+    const link = { ...box, u: u.href, ...(name ? { title: String(name).slice(0, 200) } : {}) };
     const page = host + u.pathname.replace(/\/+$/, '') + u.search;
     if ((l.w || 0) < 100 && (l.h || 0) < 24) { chips.push({ key, link }); continue; }
     // A second link to the same page (or a part of it) is the same result. A sitelink sits just under its result,
@@ -828,15 +939,23 @@ function resultLinks(links, pageUrl, seen = new Map()) {
     const near = groups.find((g) => g.key === key && l.y >= g.top && l.y < g.bottom + SAME_RESULT_PX
       && ((g.page === page && l.y <= g.bottom + SAME_PAGE_PX) || (!(Math.abs(x - g.head) < 4 && w >= 0.5 * g.headW) && (x >= g.left + 4 || w < 0.75 * g.wide))));
     if (!near) {
-      const g = { key, page, head: x, headW: w, link, left: x, wide: w, top: l.y, bottom: l.y + (l.h || 0) };
+      const g = { key, page, head: x, headW: w, link, cands: [link], left: x, wide: w, top: l.y, bottom: l.y + (l.h || 0) };
       groups.push(g); members.push([page, g]); continue;
     }
     members.push([page, near]);
-    // The mark goes beside the title: the widest link to the result's own page.
-    if (near.page === page && w > (near.link.w || 0)) near.link = link;
+    if (near.page === page) near.cands.push(link);
     near.left = Math.min(near.left, x);
     near.wide = Math.max(near.wide, w);
     near.bottom = Math.max(near.bottom, l.y + (l.h || 0));
+  }
+  // The mark goes beside the title: the topmost link to the result's own page that is sized like one (a single
+  // line in title type, taller than the address line under it). Not simply the widest: a Bing ad's description is a link too, wider than its
+  // title, and the mark landed in the middle of the text. A Google result is one tall link: then the widest.
+  for (const g of groups) {
+    if (!g.cands || g.cands.length < 2) continue;
+    const widest = g.cands.reduce((a, c) => ((c.w || 0) > (a.w || 0) ? c : a));
+    const title = g.cands.filter((c) => (c.h || 0) >= 22 && (c.h || 0) <= 34 && (c.w || 0) >= 0.4 * (widest.w || 0)).sort((a, b) => a.y - b.y)[0];
+    g.link = title || widest;
   }
   // A group that was part of another result last time, whose title is now off screen, went with that title.
   const heads = new Set(groups.map((g) => g.page));
@@ -860,6 +979,12 @@ function markFor(url) {
   return hit.mark;
 }
 
+// The title and search influence detection. A verdict for the same URL in a
+// different result must not suppress a fresh scan of that result.
+function resultKey(link, forUrl, isPrivate) {
+  return JSON.stringify([link.u, forUrl, isPrivate ? '' : (link.title || ''), Boolean(isPrivate)]);
+}
+
 const markKey = (u) => crypto.createHash('sha1').update(u).digest('base64url').slice(0, 12);
 
 function publishMarks() {
@@ -868,10 +993,11 @@ function publishMarks() {
     for: latestLinks.for,
     epoch: latestLinks.epoch,
     clip: latestLinks.clip || null,
-    checking: latestLinks.links.filter((l) => !markFor(l.u)).length,
+    ends: latestLinks.ends || '',
+    checking: latestLinks.links.filter((l) => !markFor(l.cacheKey || l.u)).length,
     // `k` keeps each mark on its own element in the overlay while results scroll in and out. A hash, so no address
     // reaches the overlay window.
-    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, k: markKey(l.u), row: l.u.startsWith('mail:'), ...(markFor(l.u) || { pending: true }) }))
+    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, k: markKey(l.u), row: l.u.startsWith('mail:'), ...(markFor(l.cacheKey || l.u) || { pending: true }) }))
   });
 }
 
@@ -879,6 +1005,7 @@ async function onLinks(msg) {
   const page = state.window ? { private: Boolean(state.window.private) } : { private: false };
   if (seenResults.for !== msg.for) seenResults = { for: msg.for, map: new Map() };
   const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for, seenResults.map);
+  for (const l of links) l.cacheKey = resultKey(l, msg.for, page.private);
   // The end-to-end run on a GitHub desktop (scripts/live-e2e.ps1) asks for what the reader saw; nobody else sets this.
   if (process.env.SENTINEL_LINK_DUMP && !page.private) {
     try { fs.appendFileSync(process.env.SENTINEL_LINK_DUMP, JSON.stringify({ for: msg.for, covered: msg.covered || 0, raw: msg.links, marked: links.map((l) => l.u) }) + '\n'); } catch { /* best effort */ }
@@ -887,9 +1014,9 @@ async function onLinks(msg) {
   // A page read while it was still loading has no results yet: say so again when they arrive, or the log reads
   // "0 results" for a page that is fully marked.
   const arrived = !fresh && latestLinks.links.length === 0 && links.length > 0;
-  latestLinks = { for: msg.for, links, epoch: ++linkEpoch };
+  latestLinks = { for: msg.for, links, epoch: ++linkEpoch, ends: /^[01]{2}$/.test(msg.ends) ? msg.ends : '' };
   if ((fresh || arrived) && !page.private) {
-    log(`results page: ${links.length} results on screen, read in ${msg.ms} ms`);
+    log(`results page: ${links.length} results on screen, read in ${msg.ms} ms${msg.wheel ? ` (wheel ${msg.wheel})` : ''}`);
     state.lastResults = { count: links.length, ms: msg.ms, at: Date.now() };
   }
   publishMarks();   // positions first: marks already known move at once
@@ -901,48 +1028,76 @@ async function onLinks(msg) {
  * restarting) is tried again a few seconds later: a results page left still would otherwise never be marked,
  * because nothing on it changes to cause another read.
  */
+/**
+ * What the results page says about each result, for the scanner to read without opening anything: the title the
+ * search engine shows, and what was searched for ("q" on Google, Bing and DuckDuckGo, "p" on Yahoo).
+ */
+function searchQuery(forUrl) {
+  try { const s = new URL(forUrl).searchParams; return String(s.get('q') || s.get('p') || s.get('query') || '').slice(0, 200); } catch { return ''; }
+}
+function hintsFor(links, urls, forUrl) {
+  const query = searchQuery(forUrl);
+  const hints = {};
+  for (const u of urls) {
+    const l = links.find((x) => x.u === u);
+    if ((l && l.title) || query) hints[u] = { title: (l && l.title) || '', query };
+  }
+  return hints;
+}
+
 async function checkLinks(links, page, forUrl) {
+  const mine = generation;
+  const pageAt = state.current && state.current.at;
+  const mode = currentMode();
+  const keys = new Map(links.map((l) => [l.u, l.cacheKey || resultKey(l, forUrl, page.private)]));
+  const current = () => mine === generation && pageAt === (state.current && state.current.at) && currentMode() === mode && latestLinks && latestLinks.for === forUrl;
   clearTimeout(retryTimer);
-  const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
+  const missing = [...keys.keys()].filter((u) => !markFor(keys.get(u)) && !pending.has(keys.get(u)));
   if (!missing.length) return;
-  missing.forEach((u) => pending.add(u));
+  missing.forEach((u) => pending.add(keys.get(u)));
+  let retry = false;
   const store = (byUrl, final, fast) => {
     for (const u of missing) {
       const v = byUrl && byUrl[u];
-      if (!v) continue;
+      if (!v || !v.ok || !v.overall) { if (final) retry = true; continue; }
       const badge = (v.overall && v.overall.badge) || null;
       const first = v.reasons && v.reasons[0];
-      verdicts.set(u, { at: Date.now(), fast, mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      const incomplete = !final || v.researchComplete === false;
+      verdicts.set(keys.get(u), { at: incomplete ? Date.now() - VERDICT_TTL_MS + RETRY_MS : Date.now(), fast, mark: { badge, kind: worstKind(v), label: v.overall.label, reason: first ? first.text : '' } });
+      if (final && incomplete) retry = true;
       if (final) count(page.private, badge);
     }
   };
   try {
     const started = Date.now();
-    const mode = currentMode();
     // Delicate is shown in two steps: the quick answer (lists and checklist, a few ms) goes on screen at once, and
     // the researched answer replaces it when it lands. Nobody waits five seconds for a mark.
     if (mode === 'delicate' && !page.private) {
-      const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true });
+      const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true, hints: hintsFor(links, missing, forUrl) });
+      if (!current()) return;
       store(quick.byUrl, false, false);   // shown until the researched answer replaces it
       publishMarks();
       log(`results marked: ${missing.length} in ${Date.now() - started} ms (quick pass)`);
     }
-    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode });
+    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode, hints: page.private ? undefined : hintsFor(links, missing, forUrl) });
+    if (!current()) return;
     noteMode(answer);
     if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
     store(byUrl, true, (answer.mode || mode) !== 'delicate');
     if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
   } catch (err) {
+    if (!current()) return;
     log(`results check failed: ${err.status || ''} ${err.code || err.message}`);
     if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
-    else if (err.status !== 401 && err.status !== 403) {
-      retryTimer = setTimeout(() => {
-        if (child && latestLinks && latestLinks.for === forUrl) checkLinks(latestLinks.links, page, forUrl).catch(() => {});
-      }, RETRY_MS);
-    }
+    else if (err.status === 401) stop('Sign in to start live scanning');
+    else if (err.status === 403) stop('Live scanning is not part of this plan');
+    else retry = true;
   } finally {
-    missing.forEach((u) => pending.delete(u));
+    missing.forEach((u) => pending.delete(keys.get(u)));
   }
+  if (retry && current()) retryTimer = setTimeout(() => {
+    if (child && current()) checkLinks(latestLinks.links, page, forUrl).catch(() => {});
+  }, RETRY_MS + 1);
   publishMarks();
 }
 
@@ -975,6 +1130,7 @@ function distinctRows(rows) {
 }
 
 async function onMail(msg) {
+  const mine = generation;
   const isPrivate = Boolean(state.window && state.window.private);
   const rows = distinctRows((Array.isArray(msg.mail) ? msg.mail : []).map((r) => ({ u: rowKey(r.t), x: r.x, y: r.y, w: r.w, h: r.h, text: r.t })));
   const fresh = !latestLinks || latestLinks.for !== msg.for;
@@ -987,12 +1143,14 @@ async function onMail(msg) {
   missing.forEach((r) => pending.add(r.u));
   try {
     const { results } = await opts.api('/api/v1/live/email', { preview: true, emails: missing.map((r) => ({ key: r.u, ...mailFromRow(r.text) })) });
+    if (mine !== generation || !latestLinks || latestLinks.for !== msg.for) return;
     for (const item of results || []) {
       const v = item.verdict;
-      if (!v || !item.key) continue;
+      if (!v || !v.ok || !v.overall || !item.key) continue;
       const badge = (v.overall && v.overall.badge) || null;
       const first = v.reasons && v.reasons[0];
       verdicts.set(item.key, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
       count(isPrivate, badge);
     }
   } catch (err) {
@@ -1009,4 +1167,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, SCRIPT } };
