@@ -626,3 +626,5 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .meter, .threat__meter { box-shadow: inset 1px 1px 3px var(--neu-lo); }
 .meter i { background: var(--gold-grad); }
 .avatar { box-shadow: inset 0 1px 0 rgb(255 255 255 / .4), var(--gold-glow); }
+/* A box, not a dot: square enough to read as a tick box, with an edge in both themes. */
+.consent__row input { border-radius: 6px; box-shadow: var(--press), inset 0 0 0 1px var(--line-2); }
