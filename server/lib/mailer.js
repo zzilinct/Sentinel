@@ -16,7 +16,7 @@ async function send({ to, subject, text, html }) {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     if (config.isProd) {
-      console.error(`[mail] RESEND_API_KEY is not set - could not send "${subject}" to ${to}`);
+      console.error(`[mail] RESEND_API_KEY is not set, so this was not sent: "${subject}" to ${to}`);
       return { ok: false, reason: 'not_configured' };
     }
     console.log(`\n[mail] To: ${to}\n[mail] Subject: ${subject}\n${text}\n`);
@@ -51,7 +51,7 @@ function layout(title, bodyHtml) {
     <h1 style="margin:0 0 14px;font-size:24px;font-weight:500;color:#efece5">${title}</h1>
     ${bodyHtml}
   </td></tr></table>
-  <p style="color:#5f5e5a;font-size:12px;margin-top:18px">www.usesentinel.technology</p>
+  <p style="color:#8d8a82;font-size:12px;margin-top:18px">Sent by Sentinel because of something done in your account. <a href="https://www.usesentinel.technology/privacy" style="color:#c9c5bb">Privacy Policy</a></p>
   </td></tr></table></body></html>`;
 }
 
