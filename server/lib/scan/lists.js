@@ -204,7 +204,8 @@ const FREE_MAIL_PROVIDERS = new Set([
 // Business platforms that give every customer company its own subdomain (sign-in, help desk, intranet): a brand's
 // name in front of these is that brand's own space, not a costume.
 const TENANT_PLATFORMS = [
-  'okta.com', 'oktapreview.com', 'onelogin.com', 'auth0.com', 'zendesk.com', 'freshdesk.com', 'atlassian.net',
+  // Fandom gives each game, film or show its own wiki: "roblox.fandom.com" is the Roblox wiki.
+  'fandom.com', 'wikia.org', 'okta.com', 'oktapreview.com', 'onelogin.com', 'auth0.com', 'zendesk.com', 'freshdesk.com', 'atlassian.net',
   'service-now.com', 'servicenowservices.com', 'my.salesforce.com', 'force.com', 'salesforce.com', 'my.site.com',
   'slack.com', 'zoom.us', 'webex.com', 'box.com', 'sharepoint.com', 'workday.com', 'myworkdayjobs.com',
   'greenhouse.io', 'lever.co', 'bamboohr.com', 'status.io', 'statuspage.io', 'helpscoutdocs.com', 'intercom.help',
