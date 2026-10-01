@@ -13,7 +13,6 @@ const feeds = require('./feeds');
 const { urlKey, isUserContent } = require('./url');
 
 const REPORTS_FOR_CONFIRMED = 3;
-const REPORTER_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Lists are queried by the exact host, the registrable domain and the host
 // without "www.", so a list that says "www.evil.com" still catches "evil.com".
@@ -23,9 +22,7 @@ const q = {
   feedHost: db.prepare('SELECT host, source, threat, category FROM feed_hosts WHERE host IN (?, ?, ?, ?)'),
   feedUrl: db.prepare('SELECT source, threat, category FROM feed_urls WHERE url_key = ?'),
   feedUrlHost: db.prepare('SELECT source, threat, COUNT(*) AS n FROM feed_urls WHERE host IN (?, ?, ?) GROUP BY source, threat ORDER BY n DESC'),
-  reports: db.prepare(`SELECT CASE WHEN r.category = 'malware' THEN 'malware' ELSE 'scam' END AS threat,
-    COUNT(DISTINCT r.user_id) AS n FROM reports r JOIN users u ON u.id = r.user_id
-    WHERE r.host = ? AND u.email_verified_at IS NOT NULL AND u.created_at <= ? GROUP BY threat`),
+  reports: db.prepare("SELECT CASE WHEN category = 'malware' THEN 'malware' ELSE 'scam' END AS threat, COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ? GROUP BY threat"),
   sources: db.prepare("SELECT source, entries FROM feed_status WHERE ok = 1 AND substr(source, 1, 1) != '_'")
 };
 
@@ -93,13 +90,11 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
 
   let reports = 0;
   const reportCounts = { scam: 0, malware: 0 };
-  for (const row of q.reports.all(p.registrable, Date.now() - REPORTER_MIN_AGE_MS)) {
+  for (const row of q.reports.all(p.registrable)) {
     reports += row.n;
     reportCounts[row.threat] = row.n;
-    if (!allowed) {
-      if (row.n >= REPORTS_FOR_CONFIRMED) add('community', row.threat, 'community_confirmed');
-      else if (row.n > 0) add('community', row.threat, 'community_reported', 'reported');
-    }
+    if (row.n >= REPORTS_FOR_CONFIRMED) add('community', row.threat, 'community_confirmed');
+    else if (row.n > 0) add('community', row.threat, 'community_reported', 'reported');
   }
 
   if (useSafeBrowsing) {
@@ -134,4 +129,4 @@ function dedupe(matches) {
   });
 }
 
-module.exports = { lookup, REPORTER_MIN_AGE_MS, REPORTS_FOR_CONFIRMED };
+module.exports = { lookup };
