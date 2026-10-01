@@ -35,7 +35,7 @@
       view.innerHTML = `
         <div class="card">
           <div class="label">One more step</div>
-          <p style="margin:0 0 12px;color:#c4c8ce">Firefox asks before an add-on can see the pages you visit. Sentinel needs that to add masks to search results and warn you before a dangerous page loads.</p>
+          <p class="lede">Firefox asks before an add-on can see the pages you visit. Sentinel needs that to add masks to search results and warn you before a dangerous page loads.</p>
           <button class="btn gold block" id="grant">Allow Sentinel on all websites</button>
         </div>`;
       document.getElementById('grant').onclick = async () => {
@@ -57,7 +57,7 @@
     view.innerHTML = `
       <div class="card">
         <div class="label">Welcome</div>
-        <p style="margin:0 0 12px;color:#c4c8ce">Sign in to Sentinel to turn on live scam, virus and malware protection in this browser.</p>
+        <p class="lede">Sign in to Sentinel to turn on live scam, virus and malware protection in this browser.</p>
         <div class="actions">
           <a class="btn gold" href="${esc(site)}/connect" target="_blank" rel="noopener">Sign in</a>
           <a class="btn" href="${esc(site)}/signup?next=/connect" target="_blank" rel="noopener">Create account</a>
@@ -88,12 +88,12 @@
     return `
       <div class="threats">${THREATS.map((t) => {
         const th = v.threats[t];
-        if (!th) return `<div class="threat locked">${Masks.svg(t, 'style="color:#555"')}<b>${Masks.NAMES[t]}</b><span>Pro &amp; up</span></div>`;
-        const color = th.badge ? Masks.COLORS[th.badge] : Masks.COLORS.clear;
+        if (!th) return `<div class="threat locked">${Masks.svg(t, 'style="color:var(--muted)"')}<b>${Masks.NAMES[t]}</b><span>Pro &amp; up</span></div>`;
+        const color = `var(--${{ red: 'red', orange: 'orange', yellow: 'yellow' }[th.badge] || 'green'})`;
         return `<div class="threat" style="color:${color}">${Masks.svg(t)}<b>${esc(th.badge ? th.label : 'Clear')}</b><span>${th.kindShort ? `${esc(th.kindShort)} · ` : ''}${th.score}/100</span></div>`;
       }).join('')}</div>
       <ul class="reasons">${(v.reasons || []).slice(0, 3).map((r) => `<li>${esc(r.text)}</li>`).join('') || '<li>No warning signs found</li>'}</ul>
-      <p class="small" style="margin:10px 0 12px">${researched} &middot; ${v.checklist.total} checks</p>`;
+      <p class="small meta">${researched} &middot; ${v.checklist.total} checks</p>`;
   }
 
   /** "1.5 of 4 hours" or "12 of 15 minutes": short allowances read better in minutes. */
