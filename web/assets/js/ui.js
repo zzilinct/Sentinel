@@ -33,7 +33,11 @@ window.UI = (() => {
     try { data = await res.json(); } catch { /* empty */ }
     if (!res.ok) {
       const e = (data && data.error) || {};
-      throw new ApiError(e.message || `Something went wrong (${res.status})`, res.status, e);
+      // A server fault never shows its own text: people get a plain sentence, the code stays in the response.
+      const message = res.status === 429 ? (e.message || 'Too many tries in a short time. Wait a minute, then try again.')
+        : res.status >= 500 || !e.message ? 'Sentinel had a problem on its side. Try again in a moment.'
+        : e.message;
+      throw new ApiError(message, res.status, e);
     }
     return data;
   }
@@ -90,7 +94,12 @@ window.UI = (() => {
 
   /* ----------------------------------------------------------- busy */
 
+  // A second press while the first is still working does nothing, so a double tap never submits twice.
   async function busy(button, label, fn) {
+    if (button.dataset.busy) return undefined;
+    button.dataset.busy = '1';
+    const wasDisabled = button.disabled;
+    button.disabled = true;
     const original = button.innerHTML;
     button.classList.add('is-busy');
     button.setAttribute('aria-busy', 'true');
@@ -101,12 +110,15 @@ window.UI = (() => {
       button.classList.remove('is-busy');
       button.removeAttribute('aria-busy');
       button.innerHTML = original;
+      button.disabled = wasDisabled;
+      delete button.dataset.busy;
     }
   }
 
   /* -------------------------------------------------------- verdicts */
 
-  const color = (badge) => (badge ? Masks.COLORS[badge] : Masks.COLORS.clear);
+  // The theme's own status colours, so a mask is as readable on light paper as on dark.
+  const color = (badge) => `var(--${badge || 'green'})`;
 
   function worst(threats) {
     return THREATS.filter((t) => threats[t]).sort((a, b) => SEV[threats[b].level] - SEV[threats[a].level])[0];
@@ -126,16 +138,18 @@ window.UI = (() => {
   }
 
   function threatTiles(v, { lockedLabel = 'Pro & up' } = {}) {
-    return `<div class="tiles3">${THREATS.map((t) => {
+    return `<div class="threat-list">${THREATS.map((t) => {
       const th = v.threats[t];
       if (!th) {
-        return `<div class="threat is-locked"><div class="threat__glyph">${Masks.svg(t)}</div><div class="threat__name">${Masks.NAMES[t]}</div><div class="threat__level"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>${esc(lockedLabel)}</div></div>`;
+        return `<div class="threat is-locked"><div class="threat__glyph">${Masks.svg(t)}</div><div><div class="threat__name">${Masks.NAMES[t]}</div><div class="threat__level"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>${esc(lockedLabel)}</div></div></div>`;
       }
       return `<div class="threat" style="--c:${color(th.badge)}">
         <div class="threat__glyph">${Masks.svg(t)}</div>
-        <div class="threat__name">${Masks.NAMES[t]}</div>
-        <div class="threat__level">${esc(th.badge ? th.label : 'Clear')}</div>
-        ${th.kind ? `<div class="threat__kind">${Masks.kindIcon(th.kind)}<span>${esc(th.kindLabel)}</span></div>` : ''}
+        <div>
+          <div class="threat__name">${Masks.NAMES[t]}</div>
+          <div class="threat__level">${esc(th.badge ? th.label : 'Clear')}</div>
+          ${th.kind ? `<div class="threat__kind">${Masks.kindIcon(th.kind)}<span>${esc(th.kindLabel)}</span></div>` : ''}
+        </div>
         <div class="threat__meter"><i style="width:${Math.max(3, th.score)}%"></i></div>
         <div class="threat__score mono">${th.score}<span>/100</span></div>
       </div>`;
@@ -242,7 +256,7 @@ window.UI = (() => {
   /** Plain-text summary of a verdict, for pasting into a message or a report. */
   function reportText(v) {
     const subject = v.kind === 'file' ? v.file.name : v.kind === 'email' ? (v.sender.address || 'Email') : v.url;
-    const lines = [`Sentinel scan - ${headline(v).title}`, subject, ''];
+    const lines = [`Sentinel scan: ${headline(v).title}`, subject, ''];
     for (const t of THREATS) if (v.threats[t]) lines.push(`${Masks.NAMES[t]}: ${v.threats[t].label} (${v.threats[t].score}/100)`);
     if (v.reasons && v.reasons.length) { lines.push('', 'Why:'); v.reasons.forEach((r) => lines.push(`- ${r.text}`)); }
     const concerns = v.checklist.items.filter((c) => c.status === 'fail' || c.status === 'warn');
@@ -254,7 +268,7 @@ window.UI = (() => {
   function wireCopy(root, v) {
     const copy = $('[data-copy-report]', root);
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(reportText(v)); toast('Report copied - paste it anywhere.', 'success'); }
+      try { await navigator.clipboard.writeText(reportText(v)); toast('Report copied. Paste it anywhere.', 'success'); }
       catch { toast('Couldn’t access the clipboard.', 'error'); }
     });
   }

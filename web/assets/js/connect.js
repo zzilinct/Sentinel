@@ -17,13 +17,13 @@
       await api('/auth/me');
     } catch (err) {
       if (err.status === 401) { location.replace('/login?next=/connect'); return; }
-      done('Something went <span class="serif italic">wrong</span>', err.message, false);
+      done('Something went wrong', err.message, false);
       return;
     }
 
     // The companion's content script marks the page when it is installed.
     if (document.documentElement.dataset.sentinelCompanion !== '1') {
-      done('Companion <span class="serif italic">not found</span>', 'This page pairs the optional browser add-on. Get it from the download page, load it in your browser, then open this page again.', false);
+      done('Companion not found', 'This page pairs the optional browser add-on. Get it from the download page, load it in your browser, then open this page again.', false);
       $('[data-note]').innerHTML = '<div class="banner" style="margin-top:22px"><div><a href="/download" style="color:var(--gold-300)">Get the Sentinel app</a></div></div>';
       return;
     }
@@ -32,17 +32,17 @@
     try {
       ({ token } = await api('/auth/client-token', { method: 'POST', body: { client: 'extension' } }));
     } catch (err) {
-      done('Couldn’t <span class="serif italic">connect</span>', err.message, false);
+      done('Couldn’t connect', err.message, false);
       return;
     }
 
-    const timer = setTimeout(() => done('Couldn’t <span class="serif italic">connect</span>', 'The companion didn’t respond. Reload this page to try again.', false), 5000);
+    const timer = setTimeout(() => done('Couldn’t connect', 'The companion didn’t respond. Reload this page to try again.', false), 5000);
     addEventListener('message', function onReply(ev) {
       if (ev.source !== window || ev.origin !== location.origin || !ev.data || ev.data.type !== 'sentinel:companion-connected') return;
       removeEventListener('message', onReply);
       clearTimeout(timer);
-      if (ev.data.ok) done('You’re <span class="serif italic gold-text">protected</span>', `Sentinel is now live in this browser${ev.data.plan ? ` on your ${esc(ev.data.plan)} plan` : ''}.`, true);
-      else done('Couldn’t <span class="serif italic">connect</span>', 'The companion rejected the sign-in. Reload this page to try again.', false);
+      if (ev.data.ok) done('You’re protected', `Sentinel is now live in this browser${ev.data.plan ? ` on your ${ev.data.plan} plan` : ''}.`, true);
+      else done('Couldn’t connect', 'The companion rejected the sign-in. Reload this page to try again.', false);
     });
     window.postMessage({ type: 'sentinel:companion-token', token }, location.origin);
   }
