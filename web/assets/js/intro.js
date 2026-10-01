@@ -57,7 +57,7 @@
     const my = H * 0.44 - mh / 2;
 
     // Sample the render into cells: brightness and alpha decide what each cell shows.
-    const CELL = Math.max(6, Math.round(mh / 64));
+    const CELL = Math.max(7, Math.round(mh / 56));
     const cols = Math.ceil(mw / CELL);
     const rows = Math.ceil(mh / CELL);
     const probe = document.createElement('canvas');
@@ -73,7 +73,8 @@
         const i = (r * cols + c) * 4;
         const a = data[i + 3] / 255;
         if (a < 0.35) continue;
-        const lum = (0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2]) / 255;
+        // Lifted (gamma), so the black lacquer still reads as a shape and not as empty space.
+        const lum = Math.pow((0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2]) / 255, 0.6);
         cells.push({ x: mx + c * CELL, y: my + r * CELL, lum, at: Math.random() * 650, glyph: GLYPHS[Math.min(GLYPHS.length - 1, 1 + Math.floor(lum * (GLYPHS.length - 1)))] });
       }
     }
@@ -100,8 +101,8 @@
       ctx.clearRect(0, 0, W, H);
 
       // Glitch bands: a few rows of the field jump sideways for a frame or two, split into gold, orange and red.
-      if (t < T_SCAN && Math.random() < 0.22) {
-        bands = Array.from({ length: 1 + Math.floor(Math.random() * 3) }, () => ({ y: my + Math.random() * mh, h: CELL * (1 + Math.floor(Math.random() * 4)), dx: (Math.random() - 0.5) * CELL * 6 }));
+      if (t < T_SCAN && Math.random() < 0.34) {
+        bands = Array.from({ length: 1 + Math.floor(Math.random() * 3) }, () => ({ y: my + Math.random() * mh, h: CELL * (1 + Math.floor(Math.random() * 4)), dx: (Math.random() - 0.5) * CELL * 9 }));
       } else if (Math.random() < 0.5) bands = [];
       const shiftAt = (y) => { for (const b of bands) if (y >= b.y && y < b.y + b.h) return b.dx; return 0; };
 
@@ -127,7 +128,7 @@
         const fade = above > 0 ? 1 - above / (CELL * 6) : 1;
         const flicker = t < T_IN && Math.random() < 0.06 ? 0.25 : 1;
         const dx = shiftAt(c.y);
-        const alpha = life * fade * flicker * (0.35 + c.lum * 0.75);
+        const alpha = Math.min(1, life * fade * flicker * (0.5 + c.lum * 0.7));
         if (dx) {
           lx.fillStyle = `rgba(232, 74, 72, ${alpha * 0.8})`;
           lx.fillText(c.glyph, c.x + dx - CELL * 0.6, c.y);

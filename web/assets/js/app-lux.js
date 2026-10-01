@@ -73,7 +73,9 @@
   }
 
   function scan() {
-    if (reduced || performance.now() - pageAt > STAGE_MS) return;
+    // With reduced motion nothing waits or moves, but the page still wears its rule beneath the title.
+    if (reduced) { view.querySelectorAll('.page-title').forEach(dressTitle); return; }
+    if (performance.now() - pageAt > STAGE_MS) return;
     view.querySelectorAll(PARTS).forEach(stage);
   }
 

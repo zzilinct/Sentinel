@@ -13,6 +13,59 @@
   --lux-spring: cubic-bezier(.34, 1.56, .64, 1);
 }
 
+/* ----------------------------------------------------- the palette */
+
+/* The site's black lacquer and gold (from lux.css), so the app and the site are one place. */
+html.lux-app {
+  --bg: #15120e; --bg-2: #18140f; --surface: #1b1712; --surface-2: #1e1a14; --surface-3: #262019;
+  --text: #efe6d4; --text-2: #c9bda6; --muted: #a49882; --faint: #8f8471;
+  --line: rgb(239 230 212 / .08); --line-2: rgb(239 230 212 / .14); --line-gold: rgb(210 172 99 / .3);
+  --gold-200: #f3dca4; --gold-300: #e2c27f; --gold-400: #d2ac63; --gold-500: #b8913f; --gold-600: #8a6424;
+  --gold-rgb: 210 172 99;
+  --panel: rgb(24 20 15 / .97);
+  --hi: rgb(255 236 205 / .055); --lo: rgb(0 0 0 / .62);
+  --neu-hi: var(--hi); --neu-lo: var(--lo);
+  --raise: -9px -9px 22px var(--hi), 12px 14px 30px var(--lo), inset 0 1px 0 rgb(255 240 215 / .06);
+  --raise-sm: -4px -4px 10px var(--hi), 6px 7px 14px var(--lo), inset 0 1px 0 rgb(255 240 215 / .06);
+  --press: inset 5px 6px 12px var(--lo), inset -4px -4px 10px var(--hi);
+  --relief: linear-gradient(150deg, rgb(255 240 215 / .035), transparent 55%);
+  --glass: rgb(27 23 18 / .74);
+  --metal: linear-gradient(176deg, #f3dca4 0%, #d2ac63 30%, #8a6424 56%, #e9c983 72%, #7a561c 100%);
+  --sketch: rgb(239 230 212 / .24);
+  --sketch-gold: rgb(210 172 99 / .55);
+  --wordmark: 'Anton', 'Impact', sans-serif;
+}
+@media (prefers-color-scheme: light) {
+  html.lux-app:not([data-theme="dark"]) {
+    --bg: #efe8da; --bg-2: #ebe3d4; --surface: #f1eadd; --surface-2: #f4eee3; --surface-3: #e4dbca;
+    --text: #1d1811; --text-2: #4a4134; --muted: #5d5444; --faint: #6c6252;
+    --line: rgb(40 30 15 / .1); --line-2: rgb(40 30 15 / .16); --line-gold: rgb(138 100 32 / .35);
+    --panel: rgb(239 232 218 / .97);
+    --hi: rgb(255 255 255 / .85); --lo: rgb(120 95 55 / .24);
+    --raise: -9px -9px 22px var(--hi), 12px 14px 30px var(--lo), inset 0 1px 0 rgb(255 255 255 / .7);
+    --raise-sm: -4px -4px 10px var(--hi), 6px 7px 14px var(--lo), inset 0 1px 0 rgb(255 255 255 / .7);
+    --relief: linear-gradient(150deg, rgb(255 255 255 / .5), transparent 60%);
+    --glass: rgb(241 234 221 / .8);
+    --metal: linear-gradient(176deg, #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%);
+    --sketch: rgb(60 45 20 / .28); --sketch-gold: rgb(138 100 32 / .6);
+  }
+}
+html.lux-app[data-theme="light"] {
+  --bg: #efe8da; --bg-2: #ebe3d4; --surface: #f1eadd; --surface-2: #f4eee3; --surface-3: #e4dbca;
+  --text: #1d1811; --text-2: #4a4134; --muted: #5d5444; --faint: #6c6252;
+  --line: rgb(40 30 15 / .1); --line-2: rgb(40 30 15 / .16); --line-gold: rgb(138 100 32 / .35);
+  --panel: rgb(239 232 218 / .97);
+  --hi: rgb(255 255 255 / .85); --lo: rgb(120 95 55 / .24);
+  --raise: -9px -9px 22px var(--hi), 12px 14px 30px var(--lo), inset 0 1px 0 rgb(255 255 255 / .7);
+  --raise-sm: -4px -4px 10px var(--hi), 6px 7px 14px var(--lo), inset 0 1px 0 rgb(255 255 255 / .7);
+  --relief: linear-gradient(150deg, rgb(255 255 255 / .5), transparent 60%);
+  --glass: rgb(241 234 221 / .8);
+  --metal: linear-gradient(176deg, #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%);
+  --sketch: rgb(60 45 20 / .28); --sketch-gold: rgb(138 100 32 / .6);
+}
+
+/* ------------------------------------------------------- atmosphere */
+
 /* ------------------------------------------------------- atmosphere */
 
 /* Three slow blooms of warm light, and motes rising through them, behind the whole app. */
