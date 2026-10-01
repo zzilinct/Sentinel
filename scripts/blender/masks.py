@@ -1,8 +1,11 @@
 """
 Sentinel's three masks as studio product renders, built in Blender from the same drawings as the icons.
 
-    python scripts/blender/masks.py --svg-dir <dir> --out <dir> [--mask scam|virus|malware|glass|all]
-                                    [--frames N] [--size PX] [--samples N]
+    python scripts/blender/masks.py --svg-dir <dir> --out <dir> [--mask scam|virus|malware|glass|pearl|onyx|all]
+                                    [--tint yellow|orange|red] [--pose stand|lay] [--frames N] [--size PX] [--samples N]
+
+The site uses: each of scam, virus and malware with --tint yellow, orange and red (the severity colours), and
+--mask onyx --pose lay --yaw 16 for the hero. The renders are cropped and saved as web/assets/img/masks/*.webp.
 
 Needs the Blender Python module (pip install bpy). The SVGs are the GLYPHS of web/assets/js/masks.js written
 as files (scripts/blender/export-svgs.js does that). Each mask is extruded, remeshed so its edges round like

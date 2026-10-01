@@ -292,27 +292,6 @@ h2 em { color: var(--text-2); }
 /* ------------------------------------------------------------------- hero */
 
 .hero { position: relative; padding: 150px 0 80px; }
-/* The three masks (scene3d.js) are drawn on one canvas behind the whole page. */
-.scene3d { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.2s var(--ease-out); }
-.has-3d .scene3d { opacity: 1; }
-
-/* Headline beside the mask on wide screens, under it on phones. The slot shows a flat gold mask until the 3D one
-   has drawn, and is where the 3D one sits. */
-.hero__top { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); align-items: center; gap: 24px; }
-.hero__top .hero__copy { order: -1; text-align: left; margin: 0; max-width: none; }
-.hero__top .hero__lede { margin-left: 0; }
-.hero__top .hero__cta { justify-content: flex-start; }
-.hero .hero__top h1 { font-size: clamp(54px, 7vw, 112px); }
-.hero__visual { aspect-ratio: 1 / 1.15; width: 100%; max-width: 520px; justify-self: center; color: var(--gold-400); filter: drop-shadow(0 30px 60px rgb(var(--gold-rgb) / .35)); transition: opacity .8s var(--ease-out); }
-.hero__visual svg { width: 100%; height: 100%; }
-.has-3d .hero__visual { opacity: 0; }
-@media (max-width: 860px) {
-  .hero__top { grid-template-columns: 1fr; }
-  .hero__top .hero__copy { order: 0; text-align: center; }
-  .hero__top .hero__lede { margin-left: auto; }
-  .hero__top .hero__cta { justify-content: center; }
-  .hero__visual { width: min(62vw, 300px); }
-}
 .hero__copy { text-align: center; max-width: 1160px; margin: 0 auto; }
 h1, h2, h3 { text-wrap: balance; }
 p { text-wrap: pretty; }
@@ -321,7 +300,6 @@ p { text-wrap: pretty; }
 .hero__lede { margin: 28px auto 0; max-width: 620px; font-size: clamp(17px, 2vw, 19.5px); color: var(--text-2); line-height: 1.55; }
 .hero__cta { margin-top: 38px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
 .hero__fine { margin-top: 18px; font-size: 13px; color: var(--muted); }
-.hero__fine span + span::before { content: '·'; margin: 0 10px; color: var(--faint); }
 
 /* ------------------------------------------------------------ hero stage */
 
@@ -453,12 +431,8 @@ p { text-wrap: pretty; }
 .trio { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--line); border-radius: var(--r-xl); overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
 .mask-card { position: relative; background: var(--bg-2); padding: 36px 40px; overflow: hidden; display: grid; grid-template-columns: 112px minmax(0, 1fr); column-gap: 40px; align-items: start; }
 .mask-card > * { grid-column: 2; }
-.mask-card > .mask-card__glyph { grid-column: 1; grid-row: 1 / span 8; }
 .mask-card > h3 { margin-top: 0 !important; }
-@media (max-width: 640px) { .mask-card { grid-template-columns: 1fr; padding: 28px 22px; } .mask-card > *, .mask-card > .mask-card__glyph { grid-column: 1; grid-row: auto; } .mask-card > h3 { margin-top: 20px !important; } }
-.mask-card__glyph { width: 92px; height: 92px; color: var(--c); transition: color .5s var(--ease), transform .6s var(--ease); }
-.mask-card:hover .mask-card__glyph { transform: translateY(-4px) rotate(-3deg); }
-.mask-card__glyph svg { width: 100%; height: 100%; filter: drop-shadow(0 12px 30px color-mix(in srgb, var(--c) 35%, transparent)); }
+@media (max-width: 640px) { .mask-card { grid-template-columns: 1fr; padding: 28px 22px; } .mask-card > * { grid-column: 1; grid-row: auto; } .mask-card > h3 { margin-top: 20px !important; } }
 .mask-card h3 { margin-top: 28px; font-size: 34px; }
 .mask-card p { margin-top: 10px; color: var(--text-2); font-size: 15px; }
 .mask-card ul { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 8px; font-size: 14px; color: var(--muted); }
@@ -600,8 +574,6 @@ p { text-wrap: pretty; }
 .lockart__orbit i { position: absolute; top: -4px; left: 50%; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--gold-300); box-shadow: 0 0 16px var(--gold-400); }
 @keyframes orbit { to { transform: rotate(360deg); } }
 .lockart__core { position: relative; width: 34%; aspect-ratio: 1; border-radius: var(--r-lg); display: grid; place-items: center; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-gold), 0 30px 80px -20px rgb(var(--gold-rgb) / .35); color: var(--gold-300); }
-.lockart__core svg { width: 46%; height: 46%; }
-.has-3d .lockart__core { opacity: 0; }
 
 /* -------------------------------------------------------------------- faq */
 
@@ -627,7 +599,6 @@ p { text-wrap: pretty; }
 .cta h2 { font-size: clamp(48px, 7.4vw, 100px); letter-spacing: -.02em; line-height: .96; }
 .cta p { margin: 18px auto 0; max-width: 520px; color: var(--text-2); font-size: 18px; }
 .cta .hero__cta { margin-top: 34px; }
-.cta__mask { position: absolute; width: 520px; height: 520px; right: -140px; bottom: -220px; color: rgb(var(--gold-rgb) / .05); pointer-events: none; }
 
 /* ----------------------------------------------------------------- footer */
 
@@ -737,16 +708,9 @@ p { text-wrap: pretty; }
 /* ------------------------------------------------------------ soft relief */
 
 /* Raised: cards and panels stand up from the page, lit from the top left. */
-/* Glass over the 3D masks: panels blur whatever moves behind them, so the masks read as coloured light through
-   frosted metal instead of disappearing behind a flat card. Without backdrop-filter the glass is simply more opaque. */
-body:has(.nav) :is(.tile, .plan, .card, .cta, .trio, .window, .float) {
-  background: var(--relief), var(--glass);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
-  box-shadow: var(--raise), inset 0 0 0 1px var(--glass-edge);
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  body:has(.nav) :is(.tile, .plan, .card, .cta, .trio, .window, .float) { background: var(--relief), var(--surface); }
+.tile, .plan, .card, .cta, .trio, .window, .float {
+  background: var(--relief), var(--surface);
+  box-shadow: var(--raise);
 }
 .trio { gap: 0; }
 .mask-card { background: transparent; }
@@ -814,7 +778,9 @@ body:has(.nav) :is(.tile, .plan, .card, .cta, .trio, .window, .float) {
 /* Each section arrives its own way. A hidden state only exists while scripts run and the observers are working
    (.no-io turns them all off), and every entrance is a keyframe with backwards fill, so once it has played the
    element is exactly as styled: hover effects and tilts keep working. */
-[data-reveal="flip"], [data-reveal="tilt"] { transform-origin: 50% 100%; }
+/* Hinged at the top edge, so the hidden pose never moves an element's top below where the observer looks for it
+   (a tall card tipped back on its bottom edge would not arrive until well after it was on screen). */
+[data-reveal="flip"], [data-reveal="tilt"] { transform-origin: 50% 0; }
 [data-reveal="domino"] { transform-origin: 0 50%; }
 .js:not(.no-io) [data-reveal="flip"]:not(.is-in) { opacity: 0; transform: perspective(900px) rotateX(-50deg) translateY(30px); }
 .js:not(.no-io) [data-reveal="left"]:not(.is-in) { opacity: 0; transform: perspective(1200px) translateX(-70px) rotateY(12deg); filter: blur(6px); }

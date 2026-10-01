@@ -229,9 +229,6 @@
       card.style.setProperty('--c', COLOR[sev]);
       // The mask itself takes the colour: each card carries a render in every severity colour.
       $$('[data-tint]', card).forEach((img) => img.classList.toggle('is-on', img.dataset.tint === sev));
-      card.classList.remove('is-switching');
-      void card.offsetWidth;
-      card.classList.add('is-switching');
 
       const d = await examples;
       const ex = d && d.masks[threat] && d.masks[threat][sev];

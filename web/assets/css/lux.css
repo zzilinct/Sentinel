@@ -71,6 +71,7 @@ body::after {
 @keyframes grain { 20% { transform: translate(-3%, 2%); } 40% { transform: translate(2%, -3%); } 60% { transform: translate(-2%, -1%); } 80% { transform: translate(3%, 3%); } }
 /* Motes of light (lux.js places them), rising slowly. */
 .motes { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+#main, .footer { position: relative; z-index: 2; }
 .motes span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--gold-200); box-shadow: 0 0 8px 2px rgb(243 220 164 / .55); opacity: 0; }
 
 /* -------------------------------------------------------- typography */
@@ -87,11 +88,11 @@ h2 em, .page-head h1 em { color: var(--text-2); }
 .kicker__n { padding: 0; border-radius: 0; background: none; color: var(--gold-300); font: 400 14px/1 var(--display); letter-spacing: .08em; margin-right: 2px; }
 .kicker:has(.kicker__n)::before { display: inline-block; }
 
-/* A Victorian rule: two lines, a lozenge and a pair of curls. Drawn as a mask so it takes the gold. */
+/* A Victorian rule: two lines, a lozenge and a pair of curls, in gold (inline as .orn-rule, or drawn as a mask over
+   centred section heads). */
 .orn-rule { display: block; width: 240px; height: 24px; margin: 0 auto; color: var(--gold-400); overflow: visible; }
 .orn-rule * { fill: none; stroke: currentColor; stroke-width: 1.1; vector-effect: non-scaling-stroke; }
-.section__head--center::before, .page-head .orn-rule { content: ''; }
-.section__head--center::before { display: block; width: 240px; height: 24px; margin: 0 auto 26px; background: var(--gold-400);
+.section__head--center::before { content: ''; display: block; width: 240px; height: 24px; margin: 0 auto 26px; background: var(--gold-400);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat;
           mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat; }
 
@@ -154,7 +155,9 @@ h2 em, .page-head h1 em { color: var(--text-2); }
 .page-head h1 { font-size: clamp(48px, 7vw, 100px); }
 .page-head__mask { display: block; width: clamp(130px, 14vw, 210px); height: auto; margin: 0 auto 18px; filter: drop-shadow(0 30px 30px rgb(0 0 0 / .55)); animation: drift-y 6s ease-in-out infinite; }
 @keyframes drift-y { 50% { transform: translateY(-10px) rotate(-1.5deg); } }
-.page-head--404 { min-height: 80vh; display: grid; place-items: center; overflow: hidden; }
+/* Arrives with its zoom, then keeps drifting. */
+.js .page-head__mask[data-reveal="zoom"].is-in { animation: rv-zoom 1.2s var(--ease-out) var(--d, 0s) backwards, drift-y 6s ease-in-out 1.2s infinite; }
+.page-head--404 { min-height: 80vh; display: grid; place-items: center; overflow: clip; overflow-clip-margin: 12px; }
 .page-head--404 .page-head__mask { width: clamp(180px, 22vw, 300px); }
 .petals { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .petals i { position: absolute; top: -20px; width: 12px; height: 16px; border-radius: 70% 0 70% 0; background: linear-gradient(140deg, #ff6b6f, #a3141c); opacity: .75; }

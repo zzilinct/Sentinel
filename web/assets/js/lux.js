@@ -86,7 +86,7 @@
       }, { passive: true });
     }
     // The name drifts up and the mask sinks a little as the hero scrolls away.
-    animate(word, { translateY: ['0%', '-18%'], ease: 'linear', autoplay: onScroll({ target: hero, sync: 0.35, enter: 'top top', leave: 'bottom top' }) });
+    animate(word, { translateY: ['0%', '-18%'], ease: 'linear', autoplay: onScroll({ target: hero, sync: 0.35, enter: 'top top', leave: 'top bottom' }) });
   }
 
   /* ------------------------------------------------- mask plates */
@@ -109,15 +109,17 @@
   for (const frame of $$('.cta .vframe, .page-head .vframe')) whenSeen(frame.parentElement, () => draw($$('path, circle', frame), { duration: 1500, delay: stagger(25) }));
   for (const rule of $$('.orn-rule')) whenSeen(rule, () => draw($$('path, circle', rule), { duration: 1400 }));
 
-  // Medallions lean slightly as the row passes.
-  const medals = $$('.stat');
-  if (medals.length) animate(medals, { rotateY: [12, -12], ease: 'linear', delay: stagger(40), autoplay: onScroll({ target: $('.stats'), sync: 0.6, enter: 'bottom top', leave: 'top bottom' }) });
-
   // Page masks lean toward the pointer.
   const pageMask = $('.page-head__mask');
   if (pageMask && finePointer) {
+    let queued = false;
     addEventListener('pointermove', (e) => {
-      animate(pageMask, { rotateY: (e.clientX / innerWidth - 0.5) * 18, rotateX: -(e.clientY / innerHeight - 0.5) * 12, duration: 1000, ease: 'outQuart' });
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        animate(pageMask, { rotateY: (e.clientX / innerWidth - 0.5) * 18, rotateX: -(e.clientY / innerHeight - 0.5) * 12, duration: 1000, ease: 'outQuart' });
+      });
     }, { passive: true });
   }
 

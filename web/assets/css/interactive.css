@@ -58,8 +58,6 @@
 .mask-card .example__why li { display: block; position: relative; padding-left: 13px; font-size: 13px; color: var(--text-2); line-height: 1.45; }
 .mask-card .example__why li::before { content: ""; position: absolute; margin: 0; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--c); }
 .example__tag { display: inline-flex; margin-top: 12px; font: 600 11px var(--sans); letter-spacing: .01em; text-transform: none; color: var(--c); }
-.mask-card.is-switching .mask-card__glyph { animation: glyph-pop .5s cubic-bezier(.3, 1.6, .5, 1); }
-@keyframes glyph-pop { 30% { transform: scale(.86) rotate(-4deg); } }
 .severity button:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; }
 
 /* -------------------------------------------------------------------- game */

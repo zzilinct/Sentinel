@@ -12,7 +12,7 @@ const OUT = path.join(__dirname, '..', 'web', 'assets', 'fonts');
 // Instrument Serif for headings (upright and italic), Geist for text, Geist Mono for addresses and code and Anton for the wordmark. All SIL
 // Open Font License; each licence is saved next to the fonts.
 const CSS_URL = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&family=Anton&display=swap';
-const LICENCES = { 'instrument-serif': 'ofl/instrumentserif/OFL.txt', geist: 'ofl/geist/OFL.txt', 'geist-mono': 'ofl/geistmono/OFL.txt' };
+const LICENCES = { 'instrument-serif': 'ofl/instrumentserif/OFL.txt', geist: 'ofl/geist/OFL.txt', 'geist-mono': 'ofl/geistmono/OFL.txt', anton: 'ofl/anton/OFL.txt' };
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36';
 
 (async () => {
