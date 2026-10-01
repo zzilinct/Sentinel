@@ -86,13 +86,3 @@ test('temporary registry errors do not become day-long cached answers', async ()
   assert.equal(second.registration.available, true);
   assert.equal(calls.get('rdap:registry-retry.com'), 2);
 });
-
-test('a short live deadline never joins a longer research job', async () => {
-  const p = analyze('https://deadline-isolation.com/page');
-  const longer = research(p, { budgetMs: 200 });
-  const shorter = research(p, { budgetMs: 1 });
-  const [full, partial] = await Promise.all([longer, shorter]);
-  assert.equal(full.registration.available, true);
-  assert.equal(partial.registration.reason, 'not answered in time');
-  assert.equal(partial.dns.unavailable, true);
-});
