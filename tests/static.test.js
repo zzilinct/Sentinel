@@ -113,3 +113,15 @@ test('boot: hidden reveals fail open when a script errors or site.js never becom
   b = boot(true); b.error(); b.timeout(); assert.ok(!b.classes.has('no-io'), 'once reveals run, later errors leave them alone');
   assert.match(fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'site.js'), 'utf8'), /window\.Site\.ready = true/);
 });
+
+test('home 3D: every data-pose on the page has a pose, and three.js loads before the scene', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
+  const scene = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'scene3d.js'), 'utf8');
+  const desktop = scene.slice(scene.indexOf('const DESKTOP = {'), scene.indexOf('const PHONE = {'));
+  const names = [...html.matchAll(/data-pose="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(names.length >= 10, 'sections carry their poses');
+  const posed = new Set([...desktop.matchAll(/^\s+'?([\w-]+)'?:/gm)].map((m) => m[1]));
+  for (const name of names) assert.ok(posed.has(name), `no pose for data-pose="${name}"`);
+  assert.ok(html.indexOf('assets/js/three.min.js') < html.indexOf('assets/js/scene3d.js'), 'three.js has to run first');
+  assert.match(html, /<canvas class="scene3d" data-scene aria-hidden="true">/);
+});

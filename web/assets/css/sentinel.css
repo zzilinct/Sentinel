@@ -292,37 +292,27 @@ h2 em { color: var(--text-2); }
 /* ------------------------------------------------------------------- hero */
 
 .hero { position: relative; padding: 150px 0 80px; }
-/* 3D backdrop: a slowly turning wireframe globe over a grid floor that runs toward the viewer. Only transforms
-   animate, so it stays smooth; reduced motion freezes it. */
-.hero__3d { position: absolute; inset: 0 0 -10%; z-index: -1; overflow: hidden; pointer-events: none; perspective: 1400px; }
-.hero__3d::before {
-  content: ''; position: absolute; left: 50%; top: 60px; width: 900px; height: 700px; margin-left: -450px;
-  background: radial-gradient(closest-side, rgb(var(--gold-rgb) / .16), transparent);
-}
-.globe {
-  --s: min(640px, 92vw);
-  position: absolute; left: 50%; top: 70px; width: var(--s); height: var(--s); margin-left: calc(var(--s) / -2);
-  transform-style: preserve-3d;
-  animation: globe 48s linear infinite;
-  opacity: .55;
-}
-.globe i, .globe b { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgb(var(--gold-rgb) / .32); }
-.globe i { transform: rotateY(calc(var(--n) * 22.5deg)); }
-.globe b { transform: rotateX(90deg) translateZ(calc(var(--s) * var(--z))) scale(var(--r)); border-color: rgb(var(--gold-rgb) / .22); }
-@keyframes globe { from { transform: rotateX(-16deg) rotateY(0); } to { transform: rotateX(-16deg) rotateY(360deg); } }
+/* The gold mask (scene3d.js) is drawn on one canvas behind the whole page. */
+.scene3d { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.2s var(--ease-out); }
+.has-3d .scene3d { opacity: 1; }
 
-.hero__floor {
-  position: absolute; left: 0; right: 0; top: 34%; bottom: 0; perspective: 520px; perspective-origin: 50% 0;
-  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 55%, transparent);
-  mask-image: linear-gradient(transparent, #000 30%, #000 55%, transparent);
+/* Headline beside the mask on wide screens, under it on phones. The slot shows a flat gold mask until the 3D one
+   has drawn, and is where the 3D one sits. */
+.hero__top { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); align-items: center; gap: 24px; }
+.hero__top .hero__copy { order: -1; text-align: left; margin: 0; max-width: none; }
+.hero__top .hero__lede { margin-left: 0; }
+.hero__top .hero__cta { justify-content: flex-start; }
+.hero .hero__top h1 { font-size: clamp(54px, 7vw, 112px); }
+.hero__visual { aspect-ratio: 1 / 1.15; width: 100%; max-width: 520px; justify-self: center; color: var(--gold-400); filter: drop-shadow(0 30px 60px rgb(var(--gold-rgb) / .35)); transition: opacity .8s var(--ease-out); }
+.hero__visual svg { width: 100%; height: 100%; }
+.has-3d .hero__visual { opacity: 0; }
+@media (max-width: 860px) {
+  .hero__top { grid-template-columns: 1fr; }
+  .hero__top .hero__copy { order: 0; text-align: center; }
+  .hero__top .hero__lede { margin-left: auto; }
+  .hero__top .hero__cta { justify-content: center; }
+  .hero__visual { width: min(62vw, 300px); }
 }
-.hero__floor i {
-  position: absolute; left: -60%; right: -60%; top: 0; height: 260%; transform-origin: 50% 0;
-  background-image: linear-gradient(rgb(var(--gold-rgb) / .2) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--gold-rgb) / .2) 1px, transparent 1px);
-  background-size: 64px 64px;
-  animation: floor 3.2s linear infinite;
-}
-@keyframes floor { from { transform: rotateX(74deg) translateY(-64px); } to { transform: rotateX(74deg) translateY(0); } }
 .hero__copy { text-align: center; max-width: 1160px; margin: 0 auto; }
 h1, h2, h3 { text-wrap: balance; }
 p { text-wrap: pretty; }
@@ -601,7 +591,7 @@ p { text-wrap: pretty; }
 .vault__item h4 { font-size: 16px; font-weight: 500; letter-spacing: -.01em; }
 .vault__item p { margin-top: 4px; color: var(--muted); font-size: 14px; }
 
-.lockart { position: relative; aspect-ratio: 1; max-width: 460px; margin-inline: auto; display: grid; place-items: center; }
+.lockart { position: relative; aspect-ratio: 1; width: 100%; max-width: 460px; margin-inline: auto; display: grid; place-items: center; }
 .lockart__ring { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line); }
 .lockart__ring:nth-child(2) { inset: 14%; box-shadow: inset 0 0 0 1px var(--line-2); }
 .lockart__ring:nth-child(3) { inset: 28%; box-shadow: inset 0 0 0 1px var(--line-gold); }
@@ -611,6 +601,7 @@ p { text-wrap: pretty; }
 @keyframes orbit { to { transform: rotate(360deg); } }
 .lockart__core { position: relative; width: 34%; aspect-ratio: 1; border-radius: var(--r-lg); display: grid; place-items: center; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-gold), 0 30px 80px -20px rgb(var(--gold-rgb) / .35); color: var(--gold-300); }
 .lockart__core svg { width: 46%; height: 46%; }
+.has-3d .lockart__core { opacity: 0; }
 
 /* -------------------------------------------------------------------- faq */
 
@@ -772,3 +763,29 @@ p { text-wrap: pretty; }
 .lockart__core { box-shadow: var(--raise), 0 30px 80px -20px rgb(var(--gold-rgb) / .3); }
 .nav.is-scrolled { box-shadow: 0 10px 30px -18px var(--neu-lo); }
 .skip-link { box-shadow: var(--raise-sm), 0 0 0 2px var(--gold-400); }
+
+/* ------------------------------------------------------------- manifesto */
+
+/* Three screens tall; the words stay pinned while the mask turns under each colour's light (home.js picks the line). */
+.manifesto { position: relative; }
+.manifesto__line { margin: 0; padding: 12vh 24px; text-align: center; font: 400 clamp(56px, 10vw, 168px)/.95 var(--display); letter-spacing: -.02em; color: var(--c); text-shadow: 0 0 80px color-mix(in srgb, var(--c) 35%, transparent); }
+.manifesto__line span { display: block; margin-bottom: 18px; font: 600 14px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--text-2); text-shadow: none; }
+.js:not(.no-io) .manifesto { height: 300vh; }
+.js:not(.no-io) .manifesto__stick { position: sticky; top: 0; height: 100vh; display: grid; align-items: end; overflow: hidden; }
+.js:not(.no-io) .manifesto__line { grid-area: 1 / 1; padding-bottom: 14vh; opacity: 0; transform: translateY(40px) scale(.98); filter: blur(8px); transition: opacity .7s var(--ease-out), transform .9s var(--ease-out), filter .7s var(--ease-out); }
+.js:not(.no-io) .manifesto__line.is-on { opacity: 1; transform: none; filter: none; }
+
+/* --------------------------------------------------------------- marquee */
+
+.marquee { overflow: hidden; padding: 70px 0; border-block: 1px solid var(--line); }
+.marquee__track { display: flex; align-items: center; gap: 48px; width: max-content; animation: marquee 36s linear infinite; }
+.marquee span { font: 400 clamp(64px, 10vw, 150px)/1 var(--display); letter-spacing: -.02em; white-space: nowrap; color: transparent; -webkit-text-stroke: 1px rgb(var(--gold-rgb) / .6); }
+.marquee span.gold-text { -webkit-text-stroke: 0; margin: 0; padding: 0; }
+.marquee i { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--gold-400); box-shadow: 0 0 24px var(--gold-400); }
+@keyframes marquee { to { transform: translateX(calc(-50% - 24px)); } }
+
+/* --------------------------------------------------- section backdrops */
+
+/* A spotlight from above for the game, and a lit band behind pricing, so no two sections sit on the same dark. */
+.section--spot::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(60% 45% at 50% 0%, rgb(var(--gold-rgb) / .14), transparent 70%); }
+.section--band::before { content: ''; position: absolute; inset: 40px 0; z-index: -1; pointer-events: none; background: linear-gradient(180deg, transparent, rgb(var(--gold-rgb) / .06) 30%, rgb(var(--gold-rgb) / .06) 70%, transparent); border-block: 1px solid rgb(var(--gold-rgb) / .14); }
