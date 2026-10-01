@@ -18,7 +18,7 @@
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v6c0 4.4 3 8 7 9 4-1 7-4.6 7-9V6Z"/><path d="m9 12 2.2 2.2L15 10.5"/></svg>';
 
   let settings = DEFAULTS;
-  const seen = new WeakSet();
+  const seen = new WeakMap();
   const byUrl = new Map();                 // url -> [anchor]
   let popover = null;
 
@@ -37,6 +37,7 @@
   const engine = ENGINES.find((e) => e.test.test(location.hostname)) || { titles: '' };
 
   const SEARCH_HOSTS = /(^|\.)(google|bing|duckduckgo|yahoo|brave|ecosia|startpage|mojeek|yandex|googleusercontent|gstatic)\.[a-z.]+$/;
+  const USER_PAGES_ON_ENGINES = /^((sites|docs|drive|forms)\.google\.com|forms\.gle|storage\.googleapis\.com|[a-z0-9-]+\.blogspot\.com)$/i;
 
   /* ------------------------------------------------------------- urls */
 
@@ -69,7 +70,7 @@
         if (v.startsWith('a1')) target = fromBase64(v.slice(2));
       } else if (/(^|\.)bing\.com$/.test(host) && /^\/(aclk|aclick)$/.test(u.pathname)) {
         const v = u.searchParams.get('u') || '';
-        if (v) target = decodeURIComponent(fromBase64(v));
+        if (v) { const decoded = fromBase64(v); target = /^https?%3a/i.test(decoded) ? decodeURIComponent(decoded) : decoded; }
       } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/goto') {
         target = citedAddress(anchor ? anchor.innerText || anchor.textContent : '');
       } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
@@ -111,23 +112,20 @@
     let u;
     try { u = new URL(href, location.href); } catch { return null; }
     if (!/^https?:$/.test(u.protocol)) return null;
-    if (SEARCH_HOSTS.test(u.hostname) || /\/(url|l)\/?$/.test(u.pathname)) {
+    for (let i = 0; i < 6; i++) {
       const inner = unwrap(u, anchor);
-      if (inner) u = inner;
-      else {
-        const wrapped = u.searchParams.get('uddg') || u.searchParams.get('q') || u.searchParams.get('url') || u.searchParams.get('u');
-        if (wrapped && /^https?:\/\//i.test(wrapped)) { try { u = new URL(wrapped); } catch { /* keep */ } }
-      }
+      const next = inner || trackerTarget(u);
+      if (!next || next.href === u.href) break;
+      u = next;
     }
-    const behind = trackerTarget(u);
-    return (behind || u).href;
+    return u.href;
   }
 
   function isResult(anchor, url) {
     if (!url) return false;
     let host;
     try { host = new URL(url).hostname; } catch { return false; }
-    if (host === location.hostname || SEARCH_HOSTS.test(host)) return false;
+    if ((host === location.hostname || SEARCH_HOSTS.test(host)) && !USER_PAGES_ON_ENGINES.test(host)) return false;
     return !anchor.closest('nav, header, footer, [role="navigation"]');
   }
 
@@ -350,6 +348,20 @@
 
   /* ------------------------------------------------------- collection */
 
+  function resultTitle(anchor) {
+    const copy = anchor.cloneNode(true);
+    for (const badge of copy.querySelectorAll('.sentinel-masks')) badge.remove();
+    return String(copy.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  }
+
+  function clearMark(anchor) {
+    const heading = anchor.closest('h1, h2, h3') || anchor.querySelector('h1, h2, h3') || anchor;
+    const old = heading.querySelector(':scope > .sentinel-masks');
+    if (old) old.remove();
+    const row = anchor.closest('[data-hveid], li, .result, article') || anchor.parentElement;
+    if (row) row.classList.remove('sentinel-row--danger');
+  }
+
   function collect() {
     const anchors = new Set();
     if (engine.titles) {
@@ -364,10 +376,30 @@
       }
     }
     for (const a of anchors) {
-      if (!a || seen.has(a)) continue;
-      seen.add(a);
+      if (!a) continue;
+      const prior = seen.get(a);
       const url = realUrl(a.getAttribute('href'), a);
-      if (!isResult(a, url)) continue;
+      if (!isResult(a, url)) {
+        if (prior) {
+          byUrl.set(prior.url, (byUrl.get(prior.url) || []).filter((node) => node !== a));
+          clearMark(a);
+          seen.delete(a);
+          anchorUrl.delete(a);
+          nearView.unobserve(a);
+        }
+        continue;
+      }
+      const context = JSON.stringify([url, resultTitle(a), location.href]);
+      if (prior && prior.context === context) {
+        if (!requested.has(url)) nearView.observe(a);
+        continue;
+      }
+      if (prior) {
+        byUrl.set(prior.url, (byUrl.get(prior.url) || []).filter((node) => node !== a));
+        requested.delete(url);
+        clearMark(a);
+      }
+      seen.set(a, { url, context });
       if (!byUrl.has(url)) byUrl.set(url, []);
       byUrl.get(url).push(a);
       anchorUrl.set(a, url);
@@ -406,10 +438,11 @@
     });
   }
 
-  function apply(verdicts) {
+  function apply(verdicts, hints, pageUrl) {
+    if (pageUrl && location.href !== pageUrl) return;
     const todo = [];
     for (const [url, verdict] of Object.entries(verdicts || {})) {
-      for (const a of byUrl.get(url) || []) if (a.isConnected) todo.push([a, verdict]);
+      for (const a of byUrl.get(url) || []) if (a.isConnected && realUrl(a.getAttribute('href'), a) === url && (!hints || resultTitle(a) === hints[url].title)) todo.push([a, verdict]);
     }
     todo.sort((x, y) => x[0].getBoundingClientRect().top - y[0].getBoundingClientRect().top);
     todo.forEach(([a, verdict], i) => {
@@ -422,10 +455,18 @@
 
   let queue = [];
   let busy = false;
+  function hintsFor(urls) {
+    const query = new URL(location.href).searchParams;
+    return Object.fromEntries(urls.map((url) => {
+      const a = (byUrl.get(url) || []).find((a) => a.isConnected);
+      return [url, { title: a ? resultTitle(a) : '', query: String(query.get('q') || query.get('p') || query.get('query') || '').slice(0, 200) }];
+    }));
+  }
   async function flush() {
     if (busy || !queue.length || !settings.enabled) return;
     busy = true;
     const urls = queue.splice(0, 30);
+    const pageUrl = location.href;
     // Hidden or unfocused tab: send() refuses, nothing is scanned, no hours are spent, no overlay.
     const show = settings.scanOverlay && inUse();
     if (show) scanStarted(urls.length);
@@ -433,12 +474,25 @@
     let checked = 0;
     let locked = false;
     try {
-      const quick = await send({ type: 'live-batch', urls, phase: 'quick' });
-      if (quick.locked) { queue = []; locked = true; return; }
-      apply(quick.verdicts);
+      const hints = hintsFor(urls);
+      const quick = await send({ type: 'live-batch', urls, phase: 'quick', hints });
+      if (quick.locked) {
+        for (const url of [...urls, ...queue]) requested.delete(url);
+        queue = []; locked = true; return;
+      }
+      apply(quick.verdicts, hints, pageUrl);
+      const retry = (list) => {
+        for (const url of list) requested.delete(url);
+        if (list.length) schedule(5000);
+      };
+      retry(urls.filter((url) => !quick.verdicts || !quick.verdicts[url] || !quick.verdicts[url].ok));
       for (const v of Object.values(quick.verdicts || {})) { if (v && v.ok) { checked++; if (v.overall && v.overall.badge) flagged++; } }
       // Delicate scanning (Pro and up): follow up with researched verdicts, which may raise or clear masks.
-      send({ type: 'live-batch', urls, phase: 'research' }).then((r) => { if (r.ok && !r.locked) apply(r.verdicts); });
+      send({ type: 'live-batch', urls, phase: 'research', hints }).then((r) => {
+        if (r.locked) return;
+        if (r.ok) apply(r.verdicts, hints, pageUrl);
+        retry(urls.filter((url) => !r.verdicts || !r.verdicts[url] || !r.verdicts[url].ok || r.verdicts[url].researchComplete === false));
+      });
     } finally {
       if (show) scanFinished(checked, flagged, locked);
       busy = false;
