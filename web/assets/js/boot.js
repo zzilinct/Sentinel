@@ -2,6 +2,29 @@
 document.documentElement.classList.add('js');
 
 /*
+ * The opening (intro.js) plays once per visit, never with reduced motion, never in a test browser, and never for a
+ * page that is only being printed or prerendered. The class goes on now, before the first paint, so the page does
+ * not flash before the cover; whatever happens to intro.js, it comes off by itself after 4 s.
+ */
+(function () {
+  try {
+    // ?intro=1 plays it regardless (the review screenshots photograph it that way).
+    var forced = /[?&]intro=1\b/.test(location.search);
+    if (!forced && (sessionStorage.getItem('sentinel:intro') || navigator.webdriver || /HeadlessChrome/.test(navigator.userAgent))) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!forced && (document.visibilityState === 'hidden' || document.prerendering)) return;
+    document.documentElement.classList.add('intro');
+    // Fail open: if intro.js never ran, the page still uncovers and whatever waits for the opening still starts.
+    setTimeout(function () {
+      var r = document.documentElement;
+      if (!r.classList.contains('intro')) return;
+      r.classList.remove('intro');
+      document.dispatchEvent(new Event('sentinel:intro-done'));
+    }, 4000);
+  } catch (e) { /* storage blocked: no opening */ }
+})();
+
+/*
  * Light or dark. "Auto" (nothing stored) follows the system; a choice is remembered on this device. Applied here,
  * before the page is painted, so it never flashes the other theme. Any [data-theme-toggle] button cycles
  * Auto, Light, Dark and says which is on.

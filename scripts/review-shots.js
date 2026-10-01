@@ -166,6 +166,22 @@ async function main() {
         await send('Target.closeTarget', { targetId });
       }
     }
+    // The opening, frame by frame, on the site and in the app (it never plays for a test browser unless asked).
+    for (const [name, url] of [['site', '/?intro=1'], ['app', '/app?intro=1']]) {
+      const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+      await send('Page.enable', {}, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await send('Page.navigate', { url: BASE + url }, sessionId);
+      const started = Date.now();
+      for (const at of [250, 600, 950, 1300, 1700, 2300, 3200]) {
+        await sleep(Math.max(0, at - (Date.now() - started)));
+        const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+        fs.writeFileSync(path.join(OUT, `intro-${name}-${String(at).padStart(4, '0')}ms.png`), Buffer.from(shot.data, 'base64'));
+      }
+      console.log(`intro-${name}: 7 frames`);
+      await send('Target.closeTarget', { targetId });
+    }
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
     browser.kill();

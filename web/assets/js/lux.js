@@ -61,12 +61,17 @@
     word.setAttribute('aria-hidden', 'true');
     word.innerHTML = [...word.textContent].map((c) => `<span>${c}</span>`).join('');
     const hero = word.closest('.hero');
-    createTimeline({ defaults: { ease: 'outExpo' } })
-      .add(word.children, { translateY: ['55%', '0%'], opacity: [0, 1], duration: 1400, delay: stagger(60) }, 0)
-      .add($('[data-hero-mask]'), { opacity: [0, 1], translateY: [-150, 0], rotate: [-28, 0], scale: [.82, 1], duration: 1900, ease: 'outElastic(1, .78)' }, 380);
-    draw($$('[data-sketch] :not(text)'), { duration: 2000, delay: stagger(70, { start: 300 }) });
-    animate($$('[data-sketch] text'), { opacity: [0, .8], duration: 900, delay: stagger(140, { start: 1500 }) });
-    draw($$('.vframe path, .vframe circle', hero), { duration: 1500, delay: stagger(25) });
+    // After the opening (intro.js) when it plays, so the entrance is seen rather than spent under the cover.
+    const entrance = () => {
+      createTimeline({ defaults: { ease: 'outExpo' } })
+        .add(word.children, { translateY: ['55%', '0%'], opacity: [0, 1], duration: 1400, delay: stagger(60) }, 0)
+        .add($('[data-hero-mask]'), { opacity: [0, 1], translateY: [-150, 0], rotate: [-28, 0], scale: [.82, 1], duration: 1900, ease: 'outElastic(1, .78)' }, 380);
+      draw($$('[data-sketch] :not(text)'), { duration: 2000, delay: stagger(70, { start: 300 }) });
+      animate($$('[data-sketch] text'), { opacity: [0, .8], duration: 900, delay: stagger(140, { start: 1500 }) });
+      draw($$('.vframe path, .vframe circle', hero), { duration: 1500, delay: stagger(25) });
+    };
+    if (document.documentElement.classList.contains('intro')) document.addEventListener('sentinel:intro-done', entrance, { once: true });
+    else entrance();
 
     const mask = $('[data-hero-mask] img');
     if (mask) animate(mask, { translateY: [-8, 8], rotate: [-1.2, 1.2], duration: 3800, alternate: true, loop: true, ease: 'inOutSine' });

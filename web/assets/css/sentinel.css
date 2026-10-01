@@ -899,3 +899,21 @@ p { text-wrap: pretty; }
   .wipe { display: none !important; }
   @view-transition { navigation: none; }
 }
+
+/* ------------------------------------------------------ the opening */
+/* Once per visit (boot.js, intro.js). Always black lacquer, whatever the theme: it is the mask's own stage. Until
+   intro.js has built its canvas, html::before holds the same colour, so the page never flashes through first. */
+html.intro { overflow: hidden; }
+html.intro::before { content: ''; position: fixed; inset: 0; z-index: 9998; background: #0e0c09; }
+.intro-cover { position: fixed; inset: 0; z-index: 9999; background: radial-gradient(60vmax 50vmax at 50% 40%, #1d1810, #0e0c09 70%); clip-path: inset(0 0 0 0); }
+.intro-cover canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.intro-cover__name { position: absolute; left: 0; right: 0; display: flex; justify-content: center; gap: .02em; font: 400 clamp(30px, 5.4vw, 64px)/1 var(--wordmark, var(--display)); letter-spacing: .22em; color: #e2c27f; }
+.intro-cover__name span { display: inline-block; transform: translateY(70%); clip-path: inset(0 0 100% 0); transition: transform .8s cubic-bezier(.16, 1, .3, 1), clip-path .8s cubic-bezier(.16, 1, .3, 1); }
+.intro-cover__name.is-in span { transform: none; clip-path: inset(-20% 0 -20% 0); }
+.intro-cover__name span:nth-child(2) { transition-delay: .04s; } .intro-cover__name span:nth-child(3) { transition-delay: .08s; }
+.intro-cover__name span:nth-child(4) { transition-delay: .12s; } .intro-cover__name span:nth-child(5) { transition-delay: .16s; }
+.intro-cover__name span:nth-child(6) { transition-delay: .2s; } .intro-cover__name span:nth-child(7) { transition-delay: .24s; }
+.intro-cover__name span:nth-child(8) { transition-delay: .28s; }
+/* The curtain lifts from the bottom up, the way the site uncovers a page after a tab. */
+.intro-cover.is-leaving { clip-path: inset(0 0 100% 0); transition: clip-path .8s cubic-bezier(.7, 0, .2, 1); }
+@media (prefers-reduced-motion: reduce) { .intro-cover { display: none; } html.intro::before { display: none; } }

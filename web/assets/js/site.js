@@ -251,7 +251,10 @@
   }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
   // Groups reveal their children one after another.
   $$('[data-stagger]').forEach((g) => [...g.children].forEach((c, i) => c.style.setProperty('--i', i)));
-  $$('[data-reveal], [data-split], [data-pipeline], [data-stagger]').forEach((el) => io.observe(el));
+  // Under the opening (intro.js) the page is covered: what is on screen reveals as the curtain lifts, not unseen.
+  const observeAll = () => $$('[data-reveal], [data-split], [data-pipeline], [data-stagger]').forEach((el) => io.observe(el));
+  if (document.documentElement.classList.contains('intro')) document.addEventListener('sentinel:intro-done', observeAll, { once: true });
+  else observeAll();
   // boot.js stops its fail-open timer once this is set.
   window.Site.ready = true;
 
