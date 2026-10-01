@@ -10,7 +10,9 @@
 <body>
 <!-- @include nav -->
 <main id="main">
-  <section class="page-head" style="padding-bottom:50px">
+  <!-- The three masks (scene3d.js), resting at the margins. -->
+  <canvas class="scene3d" data-scene aria-hidden="true"></canvas>
+  <section class="page-head" data-pose="page" style="padding-bottom:50px">
     <div class="wrap">
       <h1 data-split>Plans by how much <em>live scanning</em> you need</h1>
       <p data-reveal>Start free with manual scans and 15 minutes of live scanning a week. Upgrade for more time and research.</p>
@@ -48,5 +50,7 @@
 <!-- @include footer -->
 <script src="/assets/js/masks.js"></script>
 <script src="/assets/js/site.js"></script>
+<script src="/assets/js/three.min.js" defer></script>
+<script src="/assets/js/scene3d.js" defer></script>
 </body>
 </html>

@@ -10,7 +10,9 @@
 <body>
 <!-- @include nav -->
 <main id="main">
-  <section class="page-head">
+  <!-- The three masks (scene3d.js), resting at the margins. -->
+  <canvas class="scene3d" data-scene aria-hidden="true"></canvas>
+  <section class="page-head" data-pose="page">
     <div class="wrap">
       <h1 data-split>Sentinel for <em data-os-label>your computer</em></h1>
       <p data-reveal>The web app scans links and files anywhere. The Sentinel app adds everything that runs live: on your searches, on the pages you open and on your downloads.</p>
@@ -29,8 +31,9 @@
     <div class="wrap">
       <div class="tile" data-reveal>
         <div class="tile__label">Release notes</div>
-        <h2 id="release-notes-title">Sentinel 1.8.8</h2>
-        <p>A new look: editorial serif headlines, the gold gradient back on the buttons, soft raised panels and a new way for sections to arrive as you scroll. Real sites named like big companies are left alone (110 of 111, up from 106), and a site&rsquo;s front page is no longer blamed for a listed page elsewhere on it.</p>
+        <h2 id="release-notes-title">Sentinel 1.8.9</h2>
+        <p>The three masks in 3D: the scam mask in polished gold, the malware mask in candy-red metal and the virus mask in burnt orange with its spores orbiting it, regrouping behind every section as you scroll. Every section arrives its own way, panels are frosted glass, and clicking a tab sweeps you to its chapter.</p>
+        <p>1.8.8: A new look: editorial serif headlines, the gold gradient back on the buttons, soft raised panels and a new way for sections to arrive as you scroll. Real sites named like big companies are left alone (110 of 111, up from 106), and a site&rsquo;s front page is no longer blamed for a listed page elsewhere on it.</p>
         <p>1.8.7: fixes from a full review of the last six updates: hidden PowerShell downloaders and phishing forms with little scripts in them are caught again, real security mail stays unmarked, marks come back after a wheel turned over something that does not scroll, and Restore keeps a backup of anything it cannot put back.</p>
         <p>1.8.6: the file scanner leaves your real programs alone: measured on 4,500 real files from Windows and the programs installed with it, none is marked. Scripts are only treated as downloaders when they both fetch and run something, and a program or archive hiding behind a document name is still caught.</p>
         <p>1.8.5: email scams are caught even when they have no link: callback scams (&ldquo;call this number to cancel&rdquo;), fake tech support, gift-card and wire requests from a &ldquo;boss&rdquo;, requests for your bank details or Social Security number, and toll and fine demands. On 80 real emails from real companies and 46 of today&rsquo;s scams, every scam was flagged and no real email was.</p>
@@ -124,6 +127,8 @@
 <!-- @include footer -->
 <script src="/assets/js/masks.js"></script>
 <script src="/assets/js/site.js"></script>
+<script src="/assets/js/three.min.js" defer></script>
+<script src="/assets/js/scene3d.js" defer></script>
 <script src="/assets/js/download.js"></script>
 </body>
 </html>

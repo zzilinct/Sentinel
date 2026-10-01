@@ -8,7 +8,9 @@
 <body>
 <!-- @include nav -->
 <main id="main">
-  <section class="page-head" style="min-height:78vh;display:grid;place-items:center">
+  <!-- The three masks (scene3d.js), resting at the margins. -->
+  <canvas class="scene3d" data-scene aria-hidden="true"></canvas>
+  <section class="page-head" data-pose="page" style="min-height:78vh;display:grid;place-items:center">
     <div class="wrap-narrow">
       <div class="mask-card__glyph" style="--c:var(--gold-400);margin:0 auto 20px;color:var(--gold-400)" data-glyph="scam" data-reveal="scale"></div>
       <h1 data-split>Nothing behind this mask.</h1>
@@ -23,5 +25,7 @@
 <!-- @include legal -->
 <script src="/assets/js/masks.js"></script>
 <script src="/assets/js/site.js"></script>
+<script src="/assets/js/three.min.js" defer></script>
+<script src="/assets/js/scene3d.js" defer></script>
 </body>
 </html>

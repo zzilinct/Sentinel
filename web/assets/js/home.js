@@ -171,7 +171,14 @@
     }
 
     chips.forEach((chip, i) => {
-      chip.addEventListener('click', () => play(chip.dataset.query));
+      chip.addEventListener('click', () => {
+        // The window turns over to the new search.
+        const win = $('.window', stage);
+        win.classList.remove('is-swapping');
+        void win.offsetWidth;
+        win.classList.add('is-swapping');
+        play(chip.dataset.query);
+      });
       chip.addEventListener('keydown', (ev) => {
         if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
         const next = chips[(i + (ev.key === 'ArrowRight' ? 1 : chips.length - 1)) % chips.length];
@@ -537,6 +544,7 @@
       const p = Math.min(0.999, Math.max(0, -r.top / Math.max(1, r.height - innerHeight)));
       const at = Math.floor(p * lines.length);
       lines.forEach((line, i) => line.classList.toggle('is-on', i === at));
+      manifesto.dataset.on = String(at);
     };
     addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(pick); } }, { passive: true });
     pick();

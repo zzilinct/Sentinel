@@ -49,6 +49,101 @@
     });
   }
 
+  /* ------------------------------------------------------- tabs: the glider */
+
+  // A pill glides to the tab under the pointer and settles on the active one.
+  const links = $('.nav__links');
+  const glider = links && document.createElement('span');
+  function glide(to) {
+    if (!glider) return;
+    const a = to || $('.nav__links a.is-active');
+    if (!a || !a.offsetWidth) { glider.classList.remove('is-on'); return; }
+    glider.style.width = `${a.offsetWidth}px`;
+    glider.style.transform = `translateX(${a.offsetLeft}px)`;
+    glider.classList.add('is-on');
+  }
+  if (glider) {
+    glider.className = 'nav__glider';
+    glider.setAttribute('aria-hidden', 'true');
+    links.prepend(glider);
+    nav.classList.add('has-glider');
+    $$('a', links).forEach((a) => {
+      a.addEventListener('pointerenter', () => glide(a));
+      a.addEventListener('focus', () => glide(a));
+    });
+    links.addEventListener('pointerleave', () => glide());
+    addEventListener('resize', () => glide());
+    if (document.fonts) document.fonts.ready.then(() => glide());
+  }
+
+  /* --------------------------------------------- tabs: the page transition */
+
+  // Clicking a tab sweeps three panels in the masks' colours over the page, names the chapter, moves the page
+  // underneath and sweeps on. Every path ends with the panels gone: a timer clears them whatever happens, and with
+  // reduced motion (or any error) the link simply does what a link does.
+  let wipe = null;
+  let wipeTimer = 0;
+  const clearWipe = () => { if (wipe) wipe.className = 'wipe'; };
+  function cover(label, then) {
+    if (!wipe) {
+      wipe = document.createElement('div');
+      wipe.className = 'wipe';
+      wipe.setAttribute('aria-hidden', 'true');
+      wipe.innerHTML = `<i></i><i></i><i></i><div class="wipe__label">${Masks ? Masks.svg('logo') : ''}<b></b></div>`;
+      document.body.appendChild(wipe);
+      void wipe.offsetWidth;
+    }
+    $('b', wipe).textContent = label;
+    clearTimeout(wipeTimer);
+    wipe.className = 'wipe is-cover';
+    wipeTimer = setTimeout(clearWipe, 2600);
+    setTimeout(then, 640);
+  }
+  const uncover = () => {
+    if (!wipe) return;
+    wipe.className = 'wipe is-cover is-leave';
+    setTimeout(() => { if (wipe.classList.contains('is-leave')) clearWipe(); }, 900);
+  };
+  // Coming back with the back button restores the page as it was left: never covered.
+  addEventListener('pageshow', clearWipe);
+
+  // "/", "/index.html" and a static copy's "/sentinel/" are all the home page.
+  const pageOf = (p) => p.replace(/\/index\.html$/, '/').replace(/\/$/, '');
+  const samePage = (url) => url.origin === location.origin && pageOf(url.pathname) === pageOf(location.pathname);
+  const labelOf = (a, target) => (target && target.dataset.chapter) || a.dataset.label || a.textContent.trim();
+
+  function jump(target, hash) {
+    // Everything in the chapter is shown at once, so the page never lands on held-back content.
+    [target, ...$$('[data-reveal], [data-split], [data-stagger], [data-pipeline]', target)].forEach((el) => el.classList.add('is-in'));
+    $$('.gold-text', target).forEach((g) => g.classList.add('is-live'));
+    const top = target.getBoundingClientRect().top + scrollY - (nav ? nav.offsetHeight : 0) - 8;
+    scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+    if (history.pushState) history.pushState(null, '', hash); else location.hash = hash;
+  }
+
+  function onTab(ev) {
+    const a = ev.currentTarget;
+    if (reduced || ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+    if (a.target && a.target !== '_self') return;
+    if (a.getAttribute('aria-disabled') === 'true' || !a.getAttribute('href') || a.getAttribute('href') === '#') return;
+    let url;
+    try { url = new URL(a.href, location.href); } catch { return; }
+    if (url.origin !== location.origin) return;
+    if (glider && links.contains(a)) { glide(a); glider.classList.remove('is-pressed'); void glider.offsetWidth; glider.classList.add('is-pressed'); }
+    if (samePage(url) && url.hash) {
+      const target = document.getElementById(decodeURIComponent(url.hash.slice(1)));
+      if (!target) return;
+      ev.preventDefault();
+      cover(labelOf(a, target), () => {
+        try { jump(target, url.hash); } finally { requestAnimationFrame(uncover); }
+      });
+    } else if (!samePage(url)) {
+      ev.preventDefault();
+      cover(labelOf(a), () => { location.href = url.href; });
+    }
+  }
+  $$('.nav__links a, [data-tab-link]').forEach((a) => a.addEventListener('click', onTab));
+
   // Back-to-top button, shown once the reader is well down the page.
   const toTop = document.createElement('button');
   toTop.className = 'to-top';
@@ -58,6 +153,12 @@
   toTop.addEventListener('click', () => scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }));
   document.body.appendChild(toTop);
 
+  // How far down the page the reader is.
+  const progress = document.createElement('div');
+  progress.className = 'progress';
+  progress.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(progress);
+
   let ticking = false;
   const onScroll = () => {
     if (ticking) return;
@@ -65,6 +166,8 @@
     requestAnimationFrame(() => {
       if (nav) nav.classList.toggle('is-scrolled', scrollY > 12);
       toTop.classList.toggle('is-on', scrollY > innerHeight * 1.5);
+      const room = document.documentElement.scrollHeight - innerHeight;
+      progress.style.setProperty('--p', room > 0 ? Math.min(1, scrollY / room).toFixed(4) : 0);
       ticking = false;
     });
   };
@@ -79,12 +182,14 @@
       for (const e of entries) {
         if (!e.isIntersecting) continue;
         spyLinks.forEach((a) => a.classList.toggle('is-active', a.dataset.spy === e.target.id));
+        glide();
       }
     }, { rootMargin: '-45% 0px -50% 0px' });
     spyTargets.forEach((t) => spy.observe(t));
   } else if (location.pathname === '/pricing') {
     spyLinks.forEach((a) => a.classList.toggle('is-active', a.dataset.spy === 'pricing'));
   }
+  glide();
 
   $$('[data-year]').forEach((el) => { el.textContent = new Date().getFullYear(); });
 
@@ -138,7 +243,9 @@
       io.unobserve(e.target);
     }
   }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
-  $$('[data-reveal], [data-split], [data-pipeline]').forEach((el) => io.observe(el));
+  // Groups reveal their children one after another.
+  $$('[data-stagger]').forEach((g) => [...g.children].forEach((c, i) => c.style.setProperty('--i', i)));
+  $$('[data-reveal], [data-split], [data-pipeline], [data-stagger]').forEach((el) => io.observe(el));
   // boot.js stops its fail-open timer once this is set.
   window.Site.ready = true;
 
@@ -242,6 +349,79 @@
       pricing.classList.add('has-pick');
     }
     update();
+  }
+
+  /* ------------------------------------------------------- chapter rail */
+
+  // One mark per chapter down the left edge on wide screens; each one is a tab like those in the header.
+  const chapters = $$('[data-chapter]').filter((s) => s.id || s.classList.contains('hero'));
+  if (chapters.length > 2) {
+    const rail = document.createElement('ul');
+    rail.className = 'rail';
+    rail.setAttribute('aria-label', 'Chapters');
+    rail.innerHTML = chapters.map((s) => `<li><a href="#${s.id || 'main'}" data-tab-link data-label="${s.dataset.chapter}"><span>${s.dataset.chapter}</span></a></li>`).join('');
+    document.body.appendChild(rail);
+    const marks = $$('a', rail);
+    marks.forEach((a) => a.addEventListener('click', onTab));
+    const railSpy = new Observer((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const i = chapters.indexOf(e.target);
+        marks.forEach((m, k) => m.classList.toggle('is-active', k === i));
+      }
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    chapters.forEach((c) => railSpy.observe(c));
+  }
+
+  /* --------------------------------------------------------------- tilt */
+
+  // Panels lean toward the pointer. Mouse only: touch scrolling never tilts anything.
+  if (!reduced && matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    $$('[data-tilt]').forEach((el) => {
+      const max = Number(el.dataset.tilt) || 6;
+      el.addEventListener('pointermove', (ev) => {
+        const r = el.getBoundingClientRect();
+        el.style.setProperty('--ry', `${((ev.clientX - r.left) / r.width - 0.5) * max}deg`);
+        el.style.setProperty('--rx', `${(0.5 - (ev.clientY - r.top) / r.height) * max}deg`);
+        el.classList.add('tilt-on');
+      });
+      el.addEventListener('pointerleave', () => {
+        el.classList.remove('tilt-on');
+        el.style.removeProperty('--rx');
+        el.style.removeProperty('--ry');
+      });
+    });
+  }
+
+  /* ------------------------------------------------------------- ripples */
+
+  if (!reduced) document.addEventListener('pointerdown', (ev) => {
+    const b = ev.target.closest && ev.target.closest('.chip-q, .severity button, .seg-toggle button');
+    if (!b) return;
+    const r = b.getBoundingClientRect();
+    const dot = document.createElement('span');
+    dot.className = 'ripple';
+    dot.style.left = `${ev.clientX - r.left}px`;
+    dot.style.top = `${ev.clientY - r.top}px`;
+    b.appendChild(dot);
+    setTimeout(() => dot.remove(), 750);
+  });
+
+  /* ------------------------------------------------------------ marquee */
+
+  // The words lean with the speed of the scroll.
+  const marquee = $('[data-marquee]');
+  if (marquee && !reduced) {
+    let lastY = scrollY;
+    let skew = 0;
+    const lean = () => {
+      const v = scrollY - lastY;
+      lastY = scrollY;
+      skew += (Math.max(-12, Math.min(12, v * 0.35)) - skew) * 0.12;
+      marquee.style.setProperty('--skew', `${skew.toFixed(2)}deg`);
+      requestAnimationFrame(lean);
+    };
+    requestAnimationFrame(lean);
   }
 
   /* ---------------------------------------------------- download picker */

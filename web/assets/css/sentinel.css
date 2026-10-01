@@ -679,9 +679,9 @@ p { text-wrap: pretty; }
 
 /* Blocks are unveiled from the top down, a curtain drawn back over a still page. The clip is dropped once open, so
    raised surfaces keep their full shadow. */
-.js [data-reveal]:not(.is-in) { clip-path: inset(-80px -80px 100% -80px); }
-.js [data-reveal].is-in { animation: unveil 1.1s var(--ease-out) var(--d, 0s) backwards; }
-.no-io [data-reveal] { clip-path: none !important; animation: none !important; }
+.js [data-reveal=""]:not(.is-in), .js [data-reveal="scale"]:not(.is-in) { clip-path: inset(-80px -80px 100% -80px); }
+.js [data-reveal=""].is-in { animation: unveil 1.1s var(--ease-out) var(--d, 0s) backwards; }
+.no-io [data-reveal], .no-io [data-stagger] > * { clip-path: none !important; animation: none !important; opacity: 1 !important; filter: none !important; translate: none !important; scale: none !important; rotate: none !important; }
 @keyframes unveil {
   from { clip-path: inset(-80px -80px 100% -80px); }
   to { clip-path: inset(-80px -80px -80px -80px); }
@@ -691,10 +691,7 @@ p { text-wrap: pretty; }
 @keyframes settle { from { transform: scale(1.025); } }
 
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
-  [data-reveal], .word { opacity: 1 !important; transform: none !important; filter: none !important; clip-path: none !important; }
-}
+
 
 /* --------------------------------------------------------------- helpers */
 
@@ -740,14 +737,21 @@ p { text-wrap: pretty; }
 /* ------------------------------------------------------------ soft relief */
 
 /* Raised: cards and panels stand up from the page, lit from the top left. */
+/* Glass over the 3D masks: panels blur whatever moves behind them, so the masks read as coloured light through
+   frosted metal instead of disappearing behind a flat card. Without backdrop-filter the glass is simply more opaque. */
 .tile, .plan, .card, .cta, .trio, .window, .float {
-  background: var(--relief), var(--surface);
-  box-shadow: var(--raise);
+  background: var(--relief), var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  box-shadow: var(--raise), inset 0 0 0 1px var(--glass-edge);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tile, .plan, .card, .cta, .trio, .window, .float { background: var(--relief), var(--surface); }
 }
 .trio { gap: 0; }
 .mask-card { background: transparent; }
 .trio > * + * { border-top: 1px solid var(--line); }
-.float { box-shadow: var(--raise), 0 40px 90px -30px rgb(0 0 0 / .55); }
+.float { box-shadow: var(--raise), inset 0 0 0 1px var(--glass-edge), 0 40px 90px -30px rgb(0 0 0 / .55); }
 .plan--featured { box-shadow: var(--raise), inset 0 0 0 1px var(--line-gold); }
 .theme-toggle, .logo__mark { background: var(--relief), var(--surface); box-shadow: var(--raise-sm); }
 .theme-toggle:active { box-shadow: var(--press); }
@@ -789,3 +793,143 @@ p { text-wrap: pretty; }
 /* A spotlight from above for the game, and a lit band behind pricing, so no two sections sit on the same dark. */
 .section--spot::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(60% 45% at 50% 0%, rgb(var(--gold-rgb) / .14), transparent 70%); }
 .section--band::before { content: ''; position: absolute; inset: 40px 0; z-index: -1; pointer-events: none; background: linear-gradient(180deg, transparent, rgb(var(--gold-rgb) / .06) 30%, rgb(var(--gold-rgb) / .06) 70%, transparent); border-block: 1px solid rgb(var(--gold-rgb) / .14); }
+
+/* ===========================================================================
+   Motion: glass, scroll reveals, tab transitions
+   =========================================================================== */
+
+:root { --glass: rgb(20 21 25 / .6); --glass-edge: rgb(255 255 255 / .07); --glass-blur: 18px; --spring: cubic-bezier(.34, 1.56, .64, 1); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --glass: rgb(246 243 237 / .68); --glass-edge: rgb(255 255 255 / .75); } }
+:root[data-theme="light"] { --glass: rgb(246 243 237 / .68); --glass-edge: rgb(255 255 255 / .75); }
+
+/* The fixed header clears every jump target. */
+[id] { scroll-margin-top: 84px; }
+
+/* Section labels carry a chapter number. */
+.kicker__n { font: 500 11px/1 var(--mono); letter-spacing: .04em; padding: 4px 6px; border-radius: 6px; color: var(--on-gold); background: var(--gold-grad); margin-right: -2px; }
+.kicker:has(.kicker__n)::before { display: none; }
+
+/* ------------------------------------------------------------ reveal styles */
+
+/* Each section arrives its own way. A hidden state only exists while scripts run and the observers are working
+   (.no-io turns them all off), and every entrance is a keyframe with backwards fill, so once it has played the
+   element is exactly as styled: hover effects and tilts keep working. */
+[data-reveal="flip"], [data-reveal="tilt"] { transform-origin: 50% 100%; }
+[data-reveal="domino"] { transform-origin: 0 50%; }
+.js:not(.no-io) [data-reveal="flip"]:not(.is-in) { opacity: 0; transform: perspective(900px) rotateX(-50deg) translateY(30px); }
+.js:not(.no-io) [data-reveal="left"]:not(.is-in) { opacity: 0; transform: perspective(1200px) translateX(-70px) rotateY(12deg); filter: blur(6px); }
+.js:not(.no-io) [data-reveal="right"]:not(.is-in) { opacity: 0; transform: perspective(1200px) translateX(70px) rotateY(-12deg); filter: blur(6px); }
+.js:not(.no-io) [data-reveal="domino"]:not(.is-in) { opacity: 0; transform: perspective(1000px) rotateY(-70deg); }
+.js:not(.no-io) [data-reveal="iris"]:not(.is-in) { clip-path: circle(0% at 50% 45%); }
+.js:not(.no-io) [data-reveal="tilt"]:not(.is-in) { opacity: 0; transform: perspective(1100px) rotateX(30deg) translateY(80px) scale(.94); }
+.js:not(.no-io) [data-reveal="spin"]:not(.is-in) { opacity: 0; transform: rotate(-90deg) scale(.6); filter: blur(6px); }
+.js:not(.no-io) [data-reveal="zoom"]:not(.is-in) { opacity: 0; transform: scale(.86); filter: blur(12px); }
+.js:not(.no-io) [data-reveal="blur"]:not(.is-in) { opacity: 0; transform: translateY(14px); filter: blur(14px); }
+.js:not(.no-io) [data-reveal="rise"]:not(.is-in) { opacity: 0; transform: translateY(60px); }
+.js:not(.no-io) [data-reveal="doors"]:not(.is-in) { opacity: 0; }
+.js:not(.no-io) [data-reveal="doors"]:not(.is-in) > * { opacity: 0; }
+
+.js [data-reveal="flip"].is-in { animation: rv-flip 1.1s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="left"].is-in { animation: rv-left 1.1s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="right"].is-in { animation: rv-right 1.1s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="domino"].is-in { animation: rv-domino 1.2s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="iris"].is-in { animation: rv-iris 1.3s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="tilt"].is-in { animation: rv-tilt 1.2s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="spin"].is-in { animation: rv-spin 1.6s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="zoom"].is-in { animation: rv-zoom 1.2s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="blur"].is-in { animation: rv-blur 1s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="rise"].is-in { animation: rv-rise 1s var(--spring) var(--d, 0s) backwards; }
+.js [data-reveal="doors"].is-in { animation: rv-fade .6s var(--ease-out) var(--d, 0s) backwards; }
+.js [data-reveal="doors"].is-in > :first-child { animation: rv-door-l 1.1s var(--ease-out) .1s backwards; }
+.js [data-reveal="doors"].is-in > :last-child { animation: rv-door-r 1.1s var(--ease-out) .18s backwards; }
+
+@keyframes rv-flip { from { opacity: 0; transform: perspective(900px) rotateX(-50deg) translateY(30px); } }
+@keyframes rv-left { from { opacity: 0; transform: perspective(1200px) translateX(-70px) rotateY(12deg); filter: blur(6px); } }
+@keyframes rv-right { from { opacity: 0; transform: perspective(1200px) translateX(70px) rotateY(-12deg); filter: blur(6px); } }
+@keyframes rv-domino { from { opacity: 0; transform: perspective(1000px) rotateY(-70deg); } }
+@keyframes rv-iris { from { clip-path: circle(0% at 50% 45%); } to { clip-path: circle(75% at 50% 50%); } }
+@keyframes rv-tilt { from { opacity: 0; transform: perspective(1100px) rotateX(30deg) translateY(80px) scale(.94); } }
+@keyframes rv-spin { from { opacity: 0; transform: rotate(-90deg) scale(.6); filter: blur(6px); } }
+@keyframes rv-zoom { from { opacity: 0; transform: scale(.86); filter: blur(12px); } }
+@keyframes rv-blur { from { opacity: 0; transform: translateY(14px); filter: blur(14px); } }
+@keyframes rv-rise { from { opacity: 0; transform: translateY(60px); } }
+@keyframes rv-fade { from { opacity: 0; } }
+@keyframes rv-door-l { from { opacity: 0; transform: translateX(-60px); filter: blur(8px); } }
+@keyframes rv-door-r { from { opacity: 0; transform: translateX(60px); filter: blur(8px); } }
+
+/* Groups: the children pop in one after another (site.js numbers them as --i). */
+.js:not(.no-io) [data-stagger]:not(.is-in) > * { opacity: 0; }
+.js [data-stagger].is-in > * { animation: rv-pop .8s var(--ease-out) calc(var(--i, 0) * 55ms) backwards; }
+@keyframes rv-pop { from { opacity: 0; transform: translateY(26px) scale(.94); filter: blur(6px); } }
+
+/* Tilt toward the pointer (site.js sets --rx and --ry on [data-tilt]). */
+[data-tilt] { transition: transform .5s var(--ease-out); }
+.tilt-on[data-tilt] { transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .12s linear; }
+
+/* Pressed controls send out a ring of light from where they were touched. */
+.chip-q, .severity button, .seg-toggle button { position: relative; overflow: hidden; isolation: isolate; }
+.ripple { position: absolute; z-index: -1; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, rgb(255 255 255 / .55), rgb(var(--gold-rgb) / .25) 45%, transparent 70%); animation: ripple .7s var(--ease-out) forwards; }
+@keyframes ripple { to { transform: scale(26); opacity: 0; } }
+
+/* ------------------------------------------------------- the nav as tabs */
+
+/* A pill of light glides to the tab under the pointer, and rests on the section being read. */
+.nav__links { position: relative; }
+.nav__glider { position: absolute; top: 0; left: 0; height: 100%; width: 0; border-radius: var(--r-sm); pointer-events: none; opacity: 0;
+  background: rgb(var(--gold-rgb) / .1); box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .22);
+  transition: transform .45s var(--spring), width .45s var(--spring), opacity .3s; }
+.nav__glider::after { content: ''; position: absolute; left: 22%; right: 22%; bottom: -1px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--yellow), var(--orange), var(--red)); box-shadow: 0 0 10px rgb(var(--gold-rgb) / .8); }
+.nav__glider.is-on { opacity: 1; }
+.nav__glider.is-pressed { animation: glider-press .5s var(--spring); }
+@keyframes glider-press { 30% { scale: 1.12 .82; } }
+.nav__links a { position: relative; z-index: 1; }
+.has-glider .nav__links a.is-active, .has-glider .nav__links a:hover { background: transparent; }
+@media (max-width: 900px) { .nav__glider { display: none; } }
+
+/* The tab change: three panels in the masks' colours sweep up over the page, the chapter's name rises with them,
+   the page moves underneath, and the panels sweep on. Purely decorative, and gone in under a second. */
+.wipe { position: fixed; inset: 0; z-index: 400; pointer-events: none; display: grid; grid-template-columns: repeat(3, 1fr); visibility: hidden; }
+.wipe.is-cover, .wipe.is-leave { visibility: visible; }
+.wipe > i { position: relative; background: var(--bg); transform: translateY(102%); transition: transform .5s cubic-bezier(.7, 0, .2, 1); }
+.wipe > i::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: var(--c); box-shadow: 0 0 24px 4px var(--c); }
+.wipe > i::after { content: ''; position: absolute; inset: 0; background: radial-gradient(80% 60% at 50% 0%, color-mix(in srgb, var(--c) 22%, transparent), transparent 70%); }
+.wipe > i:nth-child(1) { --c: var(--gold-400); }
+.wipe > i:nth-child(2) { --c: var(--orange); transition-delay: .06s; }
+.wipe > i:nth-child(3) { --c: var(--red); transition-delay: .12s; }
+.wipe.is-cover > i { transform: translateY(0); }
+.wipe.is-leave > i { transform: translateY(-102%); }
+.wipe.is-leave > i::before { inset: auto 0 0; }
+.wipe__label { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 18px; text-align: center; color: var(--text); opacity: 0; transform: translateY(30px); transition: opacity .3s, transform .5s var(--ease-out); }
+.wipe__label svg { width: 64px; height: 64px; color: var(--gold-300); filter: drop-shadow(0 10px 30px rgb(var(--gold-rgb) / .6)); }
+.wipe__label b { font: 400 clamp(44px, 7vw, 96px)/1 var(--display); letter-spacing: -.02em; }
+.wipe.is-cover:not(.is-leave) .wipe__label { opacity: 1; transform: none; transition-delay: .18s; }
+.wipe.is-leave .wipe__label { opacity: 0; transform: translateY(-30px); transition-duration: .25s; }
+
+/* Arriving on another page: the new page is uncovered from the bottom, where the panels left off. */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: none; }
+::view-transition-new(root) { animation: vt-in .7s cubic-bezier(.7, 0, .2, 1) both; }
+@keyframes vt-in { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* ------------------------------------------------- reading position */
+
+.progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 120; pointer-events: none; transform-origin: 0 50%; transform: scaleX(var(--p, 0));
+  background: linear-gradient(90deg, var(--gold-400), var(--orange), var(--red)); box-shadow: 0 0 12px rgb(var(--gold-rgb) / .6); }
+
+/* Chapter rail: one mark per section on wide screens, labelled on hover, and a way to jump. */
+.rail { position: fixed; left: 22px; top: 50%; z-index: 80; transform: translateY(-50%); display: none; flex-direction: column; gap: 14px; margin: 0; padding: 0; list-style: none; }
+@media (min-width: 1360px) { .rail { display: flex; } }
+.rail a { position: relative; display: block; width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-2); transition: box-shadow .3s, background .3s, transform .4s var(--spring); }
+.rail a:hover, .rail a:focus-visible { transform: scale(1.3); box-shadow: inset 0 0 0 1.5px var(--gold-300); }
+.rail a.is-active { background: var(--gold-grad); box-shadow: 0 0 12px rgb(var(--gold-rgb) / .7); transform: scale(1.25); }
+.rail span { position: absolute; left: 20px; top: 50%; translate: -6px -50%; white-space: nowrap; font: 500 12.5px var(--sans); color: var(--text); padding: 5px 9px; border-radius: var(--r-sm); background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: inset 0 0 0 1px var(--glass-edge); opacity: 0; pointer-events: none; transition: opacity .25s, translate .35s var(--ease-out); }
+.rail a:hover span, .rail a:focus-visible span { opacity: 1; translate: 0 -50%; }
+
+/* ---------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  [data-reveal], [data-reveal] > *, [data-stagger] > *, .word { opacity: 1 !important; transform: none !important; filter: none !important; clip-path: none !important; }
+  .wipe { display: none !important; }
+  @view-transition { navigation: none; }
+}
