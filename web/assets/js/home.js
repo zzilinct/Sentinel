@@ -523,4 +523,22 @@
     row.addEventListener('click', toggle);
     row.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
   });
+
+  /* =========================================================== manifesto */
+
+  // One line per colour, chosen by how far through the pinned section the reader has scrolled.
+  const manifesto = $('[data-manifesto]');
+  if (manifesto) {
+    const lines = $$('.manifesto__line', manifesto);
+    let queued = false;
+    const pick = () => {
+      queued = false;
+      const r = manifesto.getBoundingClientRect();
+      const p = Math.min(0.999, Math.max(0, -r.top / Math.max(1, r.height - innerHeight)));
+      const at = Math.floor(p * lines.length);
+      lines.forEach((line, i) => line.classList.toggle('is-on', i === at));
+    };
+    addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(pick); } }, { passive: true });
+    pick();
+  }
 })();

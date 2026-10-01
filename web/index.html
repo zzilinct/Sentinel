@@ -14,16 +14,13 @@
 <main id="main">
 
   <!-- ================================================================ hero -->
+  <!-- The gold mask (scene3d.js) is drawn here, behind everything, and moves to each section's data-pose. -->
+  <canvas class="scene3d" data-scene aria-hidden="true"></canvas>
+
   <section class="hero">
-    <div class="hero__3d" aria-hidden="true">
-      <div class="globe">
-        <i style="--n:0"></i><i style="--n:1"></i><i style="--n:2"></i><i style="--n:3"></i>
-        <i style="--n:4"></i><i style="--n:5"></i><i style="--n:6"></i><i style="--n:7"></i>
-        <b style="--z:0;--r:1"></b><b style="--z:.25;--r:.866"></b><b style="--z:-.25;--r:.866"></b>
-      </div>
-      <div class="hero__floor"><i></i></div>
-    </div>
     <div class="wrap">
+      <div class="hero__top" data-pose="hero">
+      <div class="hero__visual" data-hero-visual data-glyph="scam" aria-hidden="true"></div>
       <div class="hero__copy">
         <h1 data-split>The internet wears masks.<br><span class="serif italic gold-text">Sentinel sees through them.</span></h1>
         <p class="hero__lede" data-reveal style="--d:.5s">
@@ -39,9 +36,10 @@
         </div>
         <p class="hero__fine" data-reveal style="--d:.8s"><span>Free plan, no card</span><span>Windows app for Chrome, Edge, Firefox, Brave and Opera</span><span>No browser add-on needed on Windows</span></p>
       </div>
+      </div>
 
       <!-- product stage -->
-      <div class="stage" data-stage>
+      <div class="stage" data-stage data-pose="stage">
         <div class="stage__glow"></div>
         <div class="stage__controls" data-reveal style="--d:.9s">
           <div class="stage__chips" role="tablist" aria-label="Example searches">
@@ -127,7 +125,7 @@
   </section>
 
   <!-- =============================================================== stats -->
-  <section class="stats" aria-label="Sentinel in numbers">
+  <section class="stats" aria-label="Sentinel in numbers" data-pose="stats">
     <div class="wrap stats__grid">
       <div class="stat" data-reveal><div class="stat__n tabular"><span data-count="1200000" data-live="threats">1,200,000</span><span class="unit">+</span></div><div class="stat__l">known threats tracked from live public feeds</div></div>
       <div class="stat" data-reveal style="--d:.08s"><div class="stat__n tabular"><span data-count="107" data-live="checks">107</span></div><div class="stat__l">checks in Sentinel&rsquo;s checklist, from look-alike names to hidden downloads</div></div>
@@ -139,13 +137,13 @@
   <!-- ========================================================= three masks -->
   <section class="section" id="masks">
     <div class="wrap">
-      <div class="section__head">
+      <div class="section__head" data-pose="masks-head">
         <span class="kicker">The masks</span>
         <h2 data-split>Three masks, <em>one glance</em></h2>
         <p data-reveal>Every threat gets its own face, and every face gets a colour. Yellow means look closer. Orange means it&rsquo;s probably dangerous. Red means Sentinel has proof.</p>
       </div>
 
-      <div class="trio" data-reveal="scale">
+      <div class="trio" data-reveal="scale" data-pose="trio">
         <article class="mask-card" style="--c:var(--red)" data-trio data-threat="scam">
           <div class="mask-card__glyph" data-glyph="scam"></div>
           <h3>Scam</h3>
@@ -272,7 +270,16 @@
   </section>
 
   <!-- ============================================================ pipeline -->
-  <section class="section" id="how" style="padding-top:40px">
+  <!-- ========================================================== manifesto -->
+  <section class="manifesto" data-manifesto data-pose="manifesto" aria-label="What the colours mean">
+    <div class="manifesto__stick">
+      <p class="manifesto__line" style="--c:var(--yellow)"><span>Yellow</span>Look closer.</p>
+      <p class="manifesto__line" style="--c:var(--orange)"><span>Orange</span>Probably dangerous.</p>
+      <p class="manifesto__line" style="--c:var(--red)"><span>Red</span>Proven threat.</p>
+    </div>
+  </section>
+
+  <section class="section" id="how" style="padding-top:40px" data-pose="how">
     <div class="wrap">
       <div class="section__head">
         <span class="kicker">How it decides</span>
@@ -311,7 +318,7 @@
   </section>
 
   <!-- ================================================================ game -->
-  <section class="section" id="game" style="padding-top:40px">
+  <section class="section section--spot" id="game" style="padding-top:40px" data-pose="game">
     <div class="wrap">
       <div class="section__head section__head--center">
         <span class="kicker">A short test</span>
@@ -333,7 +340,7 @@
   </section>
 
   <!-- ========================================================== everywhere -->
-  <section class="section" id="everywhere">
+  <section class="section" id="everywhere" data-pose="everywhere">
     <div class="wrap">
       <div class="section__head">
         <span class="kicker">Where it works</span>
@@ -380,8 +387,16 @@
     </div>
   </section>
 
+  <!-- ============================================================ marquee -->
+  <div class="marquee" data-pose="marquee" aria-hidden="true">
+    <div class="marquee__track">
+      <span>Scam</span><i></i><span class="gold-text">Virus</span><i></i><span>Malware</span><i></i><span class="gold-text">Seen through</span><i></i>
+      <span>Scam</span><i></i><span class="gold-text">Virus</span><i></i><span>Malware</span><i></i><span class="gold-text">Seen through</span><i></i>
+    </div>
+  </div>
+
   <!-- ============================================================= try it -->
-  <section class="section" id="try">
+  <section class="section" id="try" data-pose="try">
     <div class="wrap">
       <div class="try" data-reveal="scale">
         <div class="try__copy">
@@ -412,7 +427,7 @@
   </section>
 
   <!-- ============================================================= pricing -->
-  <section class="section" id="pricing">
+  <section class="section section--band" id="pricing" data-pose="pricing">
     <div class="wrap">
       <div class="section__head section__head--center">
         <span class="kicker">Plans</span>
@@ -424,7 +439,7 @@
   </section>
 
   <!-- ============================================================ security -->
-  <section class="section" id="security">
+  <section class="section" id="security" data-pose="security">
     <div class="wrap vault">
       <div>
         <span class="kicker">Your data</span>
@@ -457,7 +472,7 @@
   </section>
 
   <!-- ================================================================= faq -->
-  <section class="section" style="padding-top:40px">
+  <section class="section" style="padding-top:40px" data-pose="faq">
     <div class="wrap-narrow">
       <div class="section__head section__head--center" style="margin-bottom:48px">
         <span class="kicker">Questions</span>
@@ -489,7 +504,7 @@
   </section>
 
   <!-- ================================================================= cta -->
-  <section class="section--tight">
+  <section class="section--tight" data-pose="cta">
     <div class="wrap">
       <div class="cta" data-reveal="scale">
         <div class="cta__mask" data-glyph="scam"></div>
@@ -508,5 +523,7 @@
 <script src="/assets/js/masks.js"></script>
 <script src="/assets/js/site.js"></script>
 <script src="/assets/js/home.js"></script>
+<script src="/assets/js/three.min.js" defer></script>
+<script src="/assets/js/scene3d.js" defer></script>
 </body>
 </html>
