@@ -18,7 +18,7 @@
   const saved = document.getElementById('saved');
 
   document.getElementById('legend').innerHTML = ['scam', 'virus', 'malware']
-    .map((t) => `<div style="color:${Masks.COLORS.red}">${Masks.svg(t)}<span style="color:var(--text)">${Masks.NAMES[t]}</span></div>`).join('');
+    .map((t) => `<div><span style="color:var(--red)">${Masks.svg(t)}</span>${Masks.NAMES[t]}</div>`).join('');
 
   Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
     stored = stored || {};

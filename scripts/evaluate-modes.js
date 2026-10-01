@@ -89,6 +89,24 @@ async function main() {
   const fastP = await run('fast', phish, { research: false }, 16);
   const fastL = await run('fast', legit, { research: false }, 16);
   report(`FAST (all ${phish.length} held-out phishing addresses, ${legit.length} legitimate sites)`, fastP, fastL);
+  // Home pages say little about rules that read the path: real pages deep inside real sites (articles, shops,
+  // shared documents, sign-in pages, site builders) are checked too.
+  const pages = require('./evaluate-pages.json');
+  const deep = await run('fast', pages, { research: false }, 16);
+  const deepAlarms = pages.filter((u, i) => deep.verdicts[i] && deep.verdicts[i].overall.badge);
+  console.log(`  real pages left alone ${pages.length - deepAlarms.length}/${pages.length} = ${pct(pages.length - deepAlarms.length, pages.length)}${deepAlarms.length ? `   false alarms: ${deepAlarms.join(' ')}` : ''}`);
+  // Real, safe sites named like big companies (netlify and netflix, shopify and spotify, paypay and paypal).
+  const alike = require('./evaluate-lookalikes.json').map((x) => x.url);
+  const al = await run('fast', alike, { research: false }, 16);
+  const alAlarms = alike.filter((u, i) => al.verdicts[i] && al.verdicts[i].overall.badge);
+  console.log(`  look-alike names left alone ${alike.length - alAlarms.length}/${alike.length} = ${pct(alike.length - alAlarms.length, alike.length)}${alAlarms.length ? `   false alarms: ${alAlarms.join(' ')}` : ''}`);
+  // Why, for each false alarm: the checks that fired, so a fix can aim at the cause.
+  for (const [i, u] of alike.entries()) {
+    const v = al.verdicts[i];
+    if (!v || !v.overall.badge) continue;
+    console.log(`    ${u}: ${v.checklist.items.filter((c) => c.status === 'fail' || c.status === 'warn').map((c) => `${c.id} ${c.points} ${String(c.detail || '').slice(0, 70)}`).join(' | ')}`);
+  }
+  console.log('');
   if (MISSES) {
     const missed = phish.filter((u, i) => fastP.verdicts[i] && !fastP.verdicts[i].overall.badge);
     fs.writeFileSync(MISSES, missed.join('\n') + '\n');
