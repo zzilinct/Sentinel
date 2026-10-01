@@ -12,20 +12,44 @@
  */
 const L = require('./lists');
 const config = require('../../config');
-const { analyze, entropy, hostWords, levenshtein } = require('./url');
+const { analyze, entropy, hostWords, levenshtein, isRealWords, isUserContent } = require('./url');
 // Words that make an address look trustworthy, long enough that one letter off is never an ordinary word (U54).
 const TRUST_WORDS = ['support', 'account', 'security', 'service', 'billing', 'customer', 'recovery', 'password', 'verification', 'helpdesk'];
 
 const reported = new Set();
+
+// A name nobody would type: letters with almost no vowels that make no words ("wsdqmoc", "yvgfnnhfjw02").
+function mash(seg) {
+  const s = String(seg).toLowerCase().replace(/\d+/g, '');
+  // Six letters or more with five consonants in a row: "tvshows", "xhtml" and "schwab" are ordinary.
+  if (!/^[a-z]{6,16}$/.test(s) || !/[bcdfghjklmnpqrstvwxyz]{5}/.test(s)) return false;
+  return (s.match(/[aeiou]/g) || []).length / s.length < 0.2 && !isRealWords(s);
+}
+
+// The name as people see it: an international name (xn--mnchen-3ya is münchen) is judged by its letters, not by the
+// hyphens and digits of its encoding. U02 already weighs the encoding itself.
+const shownName = (p) => (p.sld.startsWith('xn--') ? require('url').domainToUnicode(p.sld) || p.sld : p.sld);
 
 const fail = (points, detail, extra) => ({ status: 'fail', points, detail, extra });
 const warn = (points, detail, extra) => ({ status: 'warn', points, detail, extra });
 const pass = (detail, points = 0) => ({ status: 'pass', points, detail });
 const skip = (detail) => ({ status: 'skip', points: 0, detail });
 
+// The words of a search result's title or query (ctx.hint), and neighbouring words joined ("One Drive" -> onedrive).
+function hintWords(text) {
+  const w = String(text || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const set = new Set(w);
+  for (let i = 0; i + 1 < w.length; i++) set.add(w[i] + w[i + 1]);
+  return set;
+}
+
 const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'security', 'account', 'signin', 'login', 'logon', 'auth', 'update', 'unlock', 'suspended', 'recovery', 'recover', 'confirm', 'support', 'helpdesk', 'billing', 'invoice', 'password',
   'bank', 'banking', 'onlinebanking', 'online', 'webmail', 'mailbox', 'quota', 'owa', 'reactivate', 'deactivate', 'deactivation', 'expired', 'session', 'urgent', 'notice', 'required', 'action', 'immediately', 'attention',
   'payroll', 'salary', 'benefits', 'w2', 'enrollment', 'hr', 'docs', 'document', 'documents', 'fileshare', 'sharefile', 'portal', 'sso', 'adfs', 'authenticate', 'authentication'];
+// Section names shared platforms put in their own addresses (docs.google.com/document/..., drive/file): the platform
+// chose them, not whoever made the page, so they say nothing about the page.
+const PLATFORM_WORDS = new Set(['docs', 'document', 'documents', 'drive', 'file', 'forms', 'sites', 'view', 'edit']);
+const authorWords = (p, words) => (L.PATH_HOSTING.includes(p.host) ? new Set([...words].filter((w) => !PLATFORM_WORDS.has(w))) : words);
 const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery', 'survey', 'loyalty', 'win'];
 const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway', 'airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
@@ -46,6 +70,14 @@ function keywordScore(words, list, cap, p) {
   return { hits, points };
 }
 
+// A known scam that copied this site's name: the same plain name on another ending (zoominfo.lol copying zoominfo.com),
+// or this name with parts added (ap2-zoominfo.com). The site with the plain name is the one being imitated.
+function copiedFrom(p, scamHost) {
+  if (/[-\d]/.test(p.sld) || p.sld.length < 5) return false;
+  const their = analyze(`https://${scamHost}`);
+  return Boolean(their && their.registrable !== p.registrable && their.sld.replace(/[-\d]/g, '').includes(p.sld));
+}
+
 const page = (ctx) => ctx.research && ctx.research.http && ctx.research.http.page;
 const needsResearch = (ctx) => (ctx.research ? null : skip(ctx.researchSkipReason || 'Research is not part of this scan'));
 
@@ -62,16 +94,16 @@ const URL_CHECKS = [
     } },
 
   { id: 'U02', group: 'Address', threat: 'scam', title: 'No look-alike international characters (punycode)',
-    run: ({ p }) => (/(^|\.)xn--/.test(p.host) ? fail(30, 'Punycode domain - characters may imitate a different alphabet') : pass('Plain characters only')) },
+    run: ({ p }) => (/(^|\.)xn--/.test(p.host) ? fail(30, 'Punycode domain: characters may imitate a different alphabet') : pass('Plain characters only')) },
 
   { id: 'U03', group: 'Address', threat: 'scam', title: 'Destination is not hidden behind an "@"',
     run: ({ p }) => {
       if (!p.hasUserinfo) return pass('No hidden destination');
       const before = (/^[a-z]+:\/\/([^/@]*)@/i.exec(p.url) || [])[1] || '';
-      if (!/\./.test(before)) return fail(24, 'Everything before "@" is ignored by the browser - the real destination is hidden');
+      if (!/\./.test(before)) return fail(24, 'Everything before "@" is ignored by the browser: the real destination is hidden');
       const decoyWords = hostWords(before);
       const decoyBrand = L.PROTECTED_BRANDS.find((b) => decoyWords.has(b.token));
-      return fail(decoyBrand ? 40 : 32, `"${before.slice(0, 40)}" is a decoy${decoyBrand ? ` posing as ${decoyBrand.domains[0]}` : ''} - everything before "@" is ignored and the real site is ${p.host}`);
+      return fail(decoyBrand ? 40 : 32, `"${before.slice(0, 40)}" is a decoy${decoyBrand ? ` posing as ${decoyBrand.domains[0]}` : ''}: everything before "@" is ignored and the real site is ${p.host}`);
     } },
 
   { id: 'U04', group: 'Address', threat: 'scam', title: 'Reasonable subdomain depth',
@@ -82,20 +114,20 @@ const URL_CHECKS = [
 
   { id: 'U06', group: 'Address', threat: 'scam', title: 'Domain is not stuffed with hyphens',
     run: ({ p }) => {
-      const n = (p.sld.match(/-/g) || []).length;
+      const n = (shownName(p).match(/-/g) || []).length;
       if (n >= 3) return fail(12, `${n} hyphens in the domain name`);
       if (n === 2) return warn(5, 'Two hyphens in the domain name');
       return pass('Few or no hyphens');
     } },
 
   { id: 'U07', group: 'Address', threat: 'scam', title: 'No digits disguised inside words',
-    run: ({ p }) => (!p.isIp && /[a-z]\d|\d[a-z]/.test(p.sld) && !/^[a-z]{1,4}\d{1,3}$/.test(p.sld) ? warn(6, 'Digits mixed into the name (e.g. "0" for "o")') : pass('No mixed digits')) },
+    run: ({ p }) => (!p.isIp && /[a-z]\d|\d[a-z]/.test(shownName(p)) && !/^[a-z]{1,4}\d{1,3}$/.test(shownName(p)) ? warn(6, 'Digits mixed into the name (e.g. "0" for "o")') : pass('No mixed digits')) },
 
   { id: 'U08', group: 'Address', threat: 'scam', title: 'Served on a standard port',
     run: ({ p }) => (p.port && !['80', '443'].includes(p.port) ? fail(8, `Uses port ${p.port}`, { malware: 8 }) : pass('Standard port')) },
 
   { id: 'U09', group: 'Address', threat: 'scam', title: 'Uses an encrypted (HTTPS) connection',
-    run: ({ p }) => (p.scheme === 'http' ? warn(8, 'Unencrypted HTTP - anything you type can be read in transit') : pass('HTTPS')) },
+    run: ({ p }) => (p.scheme === 'http' ? warn(8, 'Unencrypted HTTP: anything you type can be read in transit') : pass('HTTPS')) },
 
   { id: 'U10', group: 'Address', threat: 'scam', title: 'Top-level domain is not heavily abused',
     run: ({ p }) => {
@@ -144,7 +176,7 @@ const URL_CHECKS = [
     run: ({ p }) => (L.ARCHIVE_EXT.has(p.ext) ? warn(6, `.${p.ext} archives are a common way to smuggle malware past filters`) : pass('Not an archive')) },
 
   { id: 'U18', group: 'Address', threat: 'scam', title: 'Real destination is visible (not a URL shortener)',
-    run: ({ p }) => (L.URL_SHORTENERS.has(p.registrable) || L.URL_SHORTENERS.has(p.host) ? warn(14, 'Shortened link - the destination is hidden until you click') : pass('Not shortened')) },
+    run: ({ p }) => (L.URL_SHORTENERS.has(p.registrable) || L.URL_SHORTENERS.has(p.host) ? warn(14, 'Shortened link: the destination is hidden until you click') : pass('Not shortened')) },
 
   { id: 'U19', group: 'Address', threat: 'scam', title: 'Does not bounce you to another site through a parameter',
     run: ({ p }) => {
@@ -158,7 +190,7 @@ const URL_CHECKS = [
     run: ({ p, brand, words }) => {
       if (L.PATH_HOSTING.includes(p.host) && p.path.length > 1) {
         const lower = p.path.toLowerCase();
-        if (CREDENTIAL_WORDS.some((w) => lower.includes(w))) return fail(20, `User-made page on ${p.host} using login wording`);
+        if (CREDENTIAL_WORDS.some((w) => !PLATFORM_WORDS.has(w) && lower.includes(w))) return fail(20, `User-made page on ${p.host} using login wording`);
         if (/\.html?$/.test(lower) && L.OBJECT_STORAGE.test(p.host)) return fail(CREDENTIAL_WORDS.some((w) => lower.includes(w)) ? 32 : 22, `Web page served straight from a storage bucket on ${p.host}, where anyone can upload one`);
         return warn(8, `User-made page on ${p.host}`);
       }
@@ -189,7 +221,7 @@ const URL_CHECKS = [
       const segs = p.path.split('/').filter(Boolean);
       const token = segs.find((s) => s.length >= 12 && /^[A-Za-z0-9_-]+={0,2}$/.test(s) && /[A-Z]/.test(s) && /[a-z]/.test(s) && /\d|[A-Z].*[A-Z].*[A-Z]/.test(s) && !/\.(html?|php|aspx?)$/.test(s));
       const emailInUrl = /[?&=/][^?&=/]*%40|[?&=][a-z0-9._%+-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(p.path + p.query);
-      if (emailInUrl) return fail(14, 'The link contains an email address - it was generated for one victim');
+      if (emailInUrl) return fail(14, 'The link contains an email address: it was generated for one victim');
       return token ? warn(6, 'Link carries an encoded per-recipient token') : pass('No per-recipient token');
     } },
 
@@ -200,19 +232,45 @@ const URL_CHECKS = [
     } },
 
   { id: 'U22', group: 'Impersonation', threat: 'scam', title: 'Does not borrow a brand name it does not own',
-    run: ({ brand }) => (brand.inDomain ? fail(38, `Uses "${brand.inDomain.token}" but is not ${brand.inDomain.domains[0]}`) : pass('No borrowed brand in the domain')) },
+    run: ({ brand, p }) => {
+      if (!brand.inDomain) return pass('No borrowed brand in the domain');
+      const token = brand.inDomain.token;
+      // A brand joined to one ordinary word that asks nothing of you ("zoominfo", "chasecenter", the arena) is a name
+      // of its own, the way people read it. A small note, which only counts next to other signs. Joined to a bait
+      // word ("chaseonline", "paypalsupport"), with a hyphen or digits, it stays a warning.
+      const sld = p.sld.toLowerCase();
+      const rest = sld.startsWith(token) ? sld.slice(token.length) : sld.endsWith(token) ? sld.slice(0, -token.length) : '';
+      const bait = new Set([...CREDENTIAL_WORDS, ...TRUST_WORDS, ...MONEY_WORDS, ...CRYPTO_WORDS, ...SHOP_WORDS, 'help', 'care', 'team', 'app', 'apps', 'pay', 'card', 'cards', 'wallet', 'mail', 'alert', 'alerts', 'official', 'store', 'shop', 'id', 'web', 'net', 'my', 'get', 'go', 'resolution', 'dispute', 'disputes', 'case', 'claim', 'claims', 'limited', 'restore', 'unlock', 'review']);
+      if (rest.length >= 4 && !/[-\d]/.test(sld) && isRealWords(rest) && !bait.has(rest) && !bait.has(rest.replace(/s$/, ''))) return warn(12, `${sld} is "${token}" joined to the ordinary word "${rest}": a different name unless other signs say otherwise`);
+      return fail(38, `Uses "${token}" but is not ${brand.inDomain.domains[0]}`);
+    } },
 
   { id: 'U23', group: 'Impersonation', threat: 'scam', title: 'No brand name planted in a subdomain',
     run: ({ brand, p }) => {
       if (!brand.inSubdomain || brand.inDomain) return pass('No planted brand');
       // On a platform where every customer gets a subdomain ("paypal.zendesk.com", "acme.okta.com"), a company's name
       // in front is how the platform works.
-      if (L.TENANT_PLATFORMS.includes(p.registrable)) return pass(`A customer's own space on ${p.registrable}`);
+      // Not when the name in front is bait ("roblox-free-robux.fandom.com"): a platform's customers do not name
+      // themselves that way.
+      const label = p.subdomains.join('.');
+      const lured = [...CREDENTIAL_WORDS, ...MONEY_WORDS, ...CRYPTO_WORDS].some((w) => hostWords(label).has(w)) || /robux|vbucks|v-bucks|free/.test(label);
+      if (L.TENANT_PLATFORMS.includes(p.registrable) && !lured) return pass(`A customer's own space on ${p.registrable}`);
       return fail(42, `Puts "${brand.inSubdomain.token}" in front of an unrelated domain`);
     } },
 
   { id: 'U24', group: 'Impersonation', threat: 'scam', title: 'Not a misspelling of a well-known brand',
-    run: ({ brand }) => {
+    run: ({ brand, p, hint }) => {
+      // Close in spelling but ordinary words ("overdrive" and "onedrive"): a different name, the way a person reads
+      // it. A small note, which only matters next to other warning signs; none at all when the search result shows
+      // the site under its own name (and not the brand's), or the person searched for it by name.
+      if (!brand.lookalike && brand.wordLike) {
+        if (hint) {
+          const own = p.sld.toLowerCase().replace(/[-_]/g, '');
+          const tw = hintWords(hint.title);
+          if ((tw.has(own) || hintWords(hint.query).has(own)) && !tw.has(brand.wordLike.brand.token)) return pass(`Shown as "${p.sld}", its own name, not as ${brand.wordLike.brand.domains[0]}`);
+        }
+        return warn(12, `"${brand.wordLike.word}" is spelled like ${brand.wordLike.brand.domains[0]}, but is an ordinary word`);
+      }
       if (!brand.lookalike) return pass('No typosquatting');
       // Nobody accidentally registers a one-letter-off "steamcommunity"; a word
       // one letter off "apple" is far more often innocent.
@@ -224,7 +282,7 @@ const URL_CHECKS = [
 
   { id: 'U25', group: 'Wording', threat: 'scam', title: 'No account-security bait in the address',
     run: ({ words, p }) => {
-      const { hits, points } = keywordScore(words, CREDENTIAL_WORDS, 30, p);
+      const { hits, points } = keywordScore(authorWords(p, words), CREDENTIAL_WORDS, 30, p);
       return hits.length ? fail(points, `Address uses: ${hits.slice(0, 4).join(', ')}`) : pass('None found');
     } },
 
@@ -293,7 +351,7 @@ const URL_CHECKS = [
     run: ({ brand, words }) => {
       const b = brand.inDomain || brand.inSubdomain || brand.lookalike;
       const hits = CREDENTIAL_WORDS.filter((w) => words.has(w));
-      return b && hits.length ? fail(12, `"${b.token}" combined with "${hits[0]}" - a classic combosquatting pattern`) : pass('No brand + security combination');
+      return b && hits.length ? fail(12, `"${b.token}" combined with "${hits[0]}": a classic combosquatting pattern`) : pass('No brand + security combination');
     } },
 
   { id: 'U36', group: 'Trust', threat: 'scam', title: 'Official domain of a well-known brand',
@@ -335,6 +393,21 @@ const KNOWLEDGE_CHECKS = [
       }
       if (kitFile) return fail(14, `Kit-style file name ${lower.split('/').pop().split('?')[0]}`);
       return pass('Ordinary page location');
+    } },
+
+  { id: 'U56', group: 'Address', threat: 'scam', title: 'Page is not hidden behind generated names',
+    run: ({ p, brand }) => {
+      if (brand.official) return pass('Official site');
+      // Hosting's temporary address (website-e86d3b7f.….mybluehost.me): what a site is reached by before it has a
+      // name of its own. Nobody sends customers there; throwaway pages live there.
+      if (p.host.endsWith('.mybluehost.me') && /^(www\.)?website-[0-9a-f]{6,}\./.test(p.host)) return fail(24, 'A hosting company\'s temporary address, not a site\'s own name');
+      // Folder and page names nobody would type ("aynqxts/wsdqmoc/dpgqmbx"): phishing kits unpack into generated
+      // folders on hacked sites, and shared site builders give throwaway pages generated names.
+      const parts = p.path.split('/').filter(Boolean).map((s) => s.replace(/\.[a-z0-9]+$/i, ''));
+      const random = parts.filter(mash);
+      if (random.length >= 2) return fail(26, `Page hidden behind generated folder names (${random.slice(0, 3).join('/')})`);
+      if (random.length === 1 && isUserContent(p.host)) return fail(18, `A throwaway page name on a shared site builder ("${random[0]}")`);
+      return pass('Ordinary names');
     } },
 
   { id: 'U42', group: 'Address', threat: 'scam', title: 'No random-looking subdomain in front of bait wording',
@@ -490,6 +563,19 @@ const KNOWLEDGE_CHECKS = [
       return LURE.test(rest) ? fail(34, `A "${rest.split('/')[0] || rest}" page inside the hosting account "~${m[1]}": the account is almost certainly hijacked`) : warn(8, "Served from a hosting account's home folder");
     } },
 
+  { id: 'X01', group: 'Impersonation', threat: 'scam', title: 'Its search result does not claim a brand its name only resembles',
+    run: ({ brand, hint }) => {
+      // The title a search engine shows is the page's own title: the site's words about itself, read without opening
+      // it. A title that names the very brand the address imitates ("OneDrive - Sign in" on onedrlve.com) is the
+      // disguise in the site's own words. A title that merely mentions a brand ("How to contact PayPal") is not.
+      if (!hint || !hint.title) return skip('Not found through a search');
+      if (brand.official) return pass('Official site');
+      const tw = hintWords(hint.title);
+      const resembled = [brand.lookalike, brand.inDomain, brand.inSubdomain, brand.wordLike && brand.wordLike.brand].filter(Boolean);
+      const claimed = resembled.find((b) => tw.has(b.token));
+      return claimed ? fail(40, `Its title says "${claimed.token}" and its address looks like ${claimed.domains[0]}, but it is not ${claimed.domains[0]}`) : pass('Its title fits its address');
+    } },
+
   { id: 'U54', group: 'Wording', threat: 'scam', title: 'Trust words in the name are spelled right',
     run: ({ p, brand }) => {
       if (brand.official) return pass('Official site');
@@ -535,11 +621,11 @@ const KNOWLEDGE_CHECKS = [
     } },
 
   { id: 'K01', group: 'Known threats', threat: 'scam', title: 'Not a known scam',
-    run: ({ knowledge }) => matchCheck(knowledge, 'scam', 'scam') },
+    run: ({ knowledge, p }) => matchCheck(knowledge, 'scam', 'scam', p) },
   { id: 'K02', group: 'Known threats', threat: 'malware', title: 'Not a known malware site',
-    run: ({ knowledge }) => matchCheck(knowledge, 'malware', 'malware') },
+    run: ({ knowledge, p }) => matchCheck(knowledge, 'malware', 'malware', p) },
   { id: 'K03', group: 'Known threats', threat: 'virus', title: 'Not a known virus distributor',
-    run: ({ knowledge }) => matchCheck(knowledge, 'virus', 'virus') },
+    run: ({ knowledge, p }) => matchCheck(knowledge, 'virus', 'virus', p) },
   { id: 'K04', group: 'Known threats', threat: 'scam', title: 'Not reported by the Sentinel community',
     run: ({ knowledge }) => {
       if (!knowledge.reports) return pass('No reports');
@@ -552,7 +638,7 @@ const KNOWLEDGE_CHECKS = [
     run: ({ knowledge }) => pass(`${knowledge.sources.length} sources: ${knowledge.sources.join(', ')}`) }
 ];
 
-function matchCheck(knowledge, threat, noun) {
+function matchCheck(knowledge, threat, noun, p) {
   const confirmed = knowledge.matches.filter((m) => m.threat === threat && m.strength === 'confirmed' && m.source !== 'community');
   if (confirmed.length) {
     const wording = {
@@ -569,6 +655,12 @@ function matchCheck(knowledge, threat, noun) {
   if (inferred.length) {
     const n = Math.max(...inferred.map((m) => m.listed || 1));
     const who = [...new Set(inferred.map((m) => m.sourceName))].join(', ');
+    // The listed page is elsewhere: a site's front page, or a platform where each person's page is their own
+    // (linktr.ee), is not that page. A note, not a warning.
+    const host = p ? p.host.replace(/^www\./, '') : '';
+    if (p && ((p.path === '/' || !p.path) && !p.query || L.PATH_HOSTING.includes(host) || (knowledge.userContent && !p.hosting))) {
+      return warn(12, `${n >= 3 ? `${n} other addresses` : 'Another page'} on this site ${n >= 3 ? 'are' : 'is'} listed by ${who}; this is not one of them`);
+    }
     // "Likely", not "confirmed": nobody has listed this address, but the odds are poor.
     return fail(55, n >= 3
       ? `${n} other addresses on this site are listed by ${who}; this one is not`
@@ -591,13 +683,14 @@ const COMPARE_CHECKS = [
       // docs.google.com): the domain is the service's own, whatever scam borrowed the same word.
       if (knowledge && knowledge.userContent && !p.hosting) return pass('A known service; its pages are judged one by one');
       if (plainName(p) && !brand.inDomain && !brand.lookalike && compare.skeletonMatches.every((m) => m.generic)) return pass('A plain name; the look-alikes borrowed a common word');
+      if (compare.skeletonMatches.length && compare.skeletonMatches.every((m) => copiedFrom(p, m.host))) return pass(`Scam sites copied this name (${compare.skeletonMatches[0].host}), not the other way round`);
       const m = compare.skeletonMatches[0];
       return m ? fail(34, `Nearly the same name as known ${String(m.category || m.threat).replace(/_/g, ' ')} site ${m.host}`) : pass('No near-duplicate');
     } },
   { id: 'C02', group: 'Compared to known scams', threat: 'scam', title: 'Name does not follow a known scam naming pattern',
     run: ({ compare, brand, p }) => {
       if (brand.owner) return pass(`Official ${brand.owner.domains[0]}`);
-      const m = compare.tokenMatches[0];
+      const m = compare.tokenMatches.find((t) => !copiedFrom(p, t.host));
       if (m && plainName(p) && !brand.inDomain && !brand.lookalike) return warn(6, `Shares "${m.shared.join('" + "')}" with known scam ${m.host}, but is one plain name`);
       return m ? warn(Math.min(24, 10 + 6 * m.shared.length), `Shares "${m.shared.join('" + "')}" with known scam ${m.host}`) : pass('No shared pattern');
     } },
@@ -672,14 +765,14 @@ const INFRA_CHECKS = [
       // Some registries (.edu among them) answer "not found" for domains they do hold. A domain that resolves to a
       // server is owned by someone, whatever its registry says.
       if (reg.available && reg.registered === false && ctx.research.dns && ctx.research.dns.resolves) return pass('Resolves to a server (its registry did not answer for it)');
-      return reg.available && reg.registered === false ? fail(20, 'Nobody owns this domain - the link is fake or already taken down') : pass(reg.available ? 'Registered' : 'Registry not reachable');
+      return reg.available && reg.registered === false ? fail(20, 'Nobody owns this domain: the link is fake or already taken down') : pass(reg.available ? 'Registered' : 'Registry not reachable');
     } },
 
   { id: 'R05', group: 'Network', threat: 'scam', title: 'Domain resolves to a server', research: true,
     run: (ctx) => {
       const r = needsResearch(ctx); if (r) return r;
       if (ctx.research.dns.unavailable) return skip('DNS did not answer in time');
-      return ctx.research.dns.resolves ? pass(`Resolves to ${ctx.research.dns.addresses[0]}`) : warn(10, 'Does not resolve - possibly taken down after abuse reports');
+      return ctx.research.dns.resolves ? pass(`Resolves to ${ctx.research.dns.addresses[0]}`) : warn(10, 'Does not resolve: possibly taken down after abuse reports');
     } },
 
   { id: 'R06', group: 'Network', threat: 'malware', title: 'Does not point at a private network address', research: true,
@@ -694,7 +787,7 @@ const INFRA_CHECKS = [
       const brandish = ctx.brand.inDomain || ctx.brand.lookalike;
       if (!brandish) return skip('Only checked for brand-style domains');
       if (ctx.research.dns.unavailable) return skip('DNS did not answer in time');
-      return ctx.research.dns.mx ? pass('Has mail servers') : warn(6, 'No mail servers - a real company domain would have them');
+      return ctx.research.dns.mx ? pass('Has mail servers') : warn(6, 'No mail servers: a real company domain would have them');
     } },
 
   { id: 'R08', group: 'Certificate', threat: 'scam', title: 'Valid, trusted HTTPS certificate', research: true,
@@ -822,7 +915,7 @@ const CONTENT_CHECKS = [
       const r = needsResearch(ctx); if (r) return r;
       const pg = page(ctx);
       if (!pg) return skip('No page content');
-      if (pg.htmlLower.includes('api.telegram.org/bot')) return fail(45, 'Sends form data to a Telegram bot - a phishing-kit hallmark');
+      if (pg.htmlLower.includes('api.telegram.org/bot')) return fail(45, 'Sends form data to a Telegram bot: a phishing-kit hallmark');
       if (pg.forms.some((f) => /^mailto:/i.test(f.action))) return fail(20, 'Form emails your details to someone');
       return pass('No exfiltration endpoints');
     } },
@@ -845,7 +938,7 @@ const CONTENT_CHECKS = [
       const phraseText = /(recovery|seed|secret|mnemonic) phrase|private key|12[- ]word|24[- ]word/.test(pg.text);
       const wordInputs = pg.inputs.filter((i) => /word\s*\d+|phrase|mnemonic/.test(`${i.name} ${i.placeholder}`)).length;
       return phraseText && (wordInputs >= 1 || pg.inputs.some((i) => i.type === 'text' || i.type === 'password'))
-        ? fail(55, 'Asks you to type a wallet recovery phrase - no legitimate site ever does')
+        ? fail(55, 'Asks you to type a wallet recovery phrase: no legitimate site ever does')
         : pass('No seed-phrase request');
     } },
 
@@ -915,7 +1008,7 @@ const CONTENT_CHECKS = [
       if (/eval\s*\(\s*(atob|unescape|decodeuricomponent|function\s*\(p,a,c,k,e)/i.test(js)) signals += 2;
       if ((js.match(/string\.fromcharcode/gi) || []).length > 5) signals += 1;
       if ((js.match(/\\x[0-9a-f]{2}/gi) || []).length > 200) signals += 1;
-      if (/[A-Za-z0-9+/]{600,}={0,2}/.test(js)) signals += 1;
+      if (/(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{600}/.test(js)) signals += 1;
       if (/_0x[0-9a-f]{4,}/.test(js)) signals += 1;
       if (signals >= 3) return fail(30, 'Heavily obfuscated inline scripts');
       if (signals >= 2) return warn(14, 'Obfuscated inline scripts');
@@ -985,7 +1078,7 @@ const CONTENT_CHECKS = [
       if (!pg) return skip('No page content');
       const js = pg.inlineJs;
       const blob = /new\s+blob\s*\(/i.test(js) && /createobjecturl|mssaveoropenblob/i.test(js) && /\.download\s*=/.test(js);
-      const payload = /[A-Za-z0-9+/]{2000,}={0,2}/.test(js);
+      const payload = /(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{2000}/.test(js);
       return blob && payload ? fail(40, 'Builds a file inside the page and forces it to download') : pass('No smuggling pattern');
     } },
 
@@ -1039,7 +1132,7 @@ const CONTENT_CHECKS = [
       const r = needsResearch(ctx); if (r) return r;
       const pg = page(ctx);
       if (!pg) return skip('No page content');
-      return PAY_ODDLY.test(pg.text) ? fail(30, 'Demands payment by crypto, gift cards or wire transfer - none of which can be reversed') : pass('No unusual payment demands');
+      return PAY_ODDLY.test(pg.text) ? fail(30, 'Demands payment by crypto, gift cards or wire transfer: none of which can be reversed') : pass('No unusual payment demands');
     } },
 
   { id: 'P26', group: 'Shopping', threat: 'scam', title: 'Contact is not limited to WhatsApp or Telegram', research: true,

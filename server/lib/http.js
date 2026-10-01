@@ -100,7 +100,7 @@ function readBody(req, limit = 512 * 1024) {
       if (size > limit) {
         tooLarge = true;
         chunks.length = 0;
-        reject(new HttpError(413, 'payload_too_large', 'Request body too large', { closeConnection: true }));
+        reject(new HttpError(413, 'payload_too_large', 'That is too large to send to Sentinel.', { closeConnection: true }));
         return;
       }
       chunks.push(c);
@@ -115,13 +115,13 @@ async function readJson(req, limit = 256 * 1024) {
   const type = String(req.headers['content-type'] || '');
   const raw = await readBody(req, limit);
   if (!raw.length) return {};
-  if (!/^application\/json\b/i.test(type)) throw new HttpError(415, 'unsupported_media_type', 'Send JSON with Content-Type: application/json');
+  if (!/^application\/json\b/i.test(type)) throw new HttpError(415, 'unsupported_media_type', 'Sentinel could not read that request. Reload the page and try again.');
   try {
     const value = JSON.parse(raw.toString('utf8'));
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('not an object');
     return value;
   } catch {
-    throw new HttpError(400, 'bad_json', 'Request body must be a JSON object');
+    throw new HttpError(400, 'bad_json', 'Sentinel could not read that request. Reload the page and try again.');
   }
 }
 
