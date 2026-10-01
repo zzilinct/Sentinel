@@ -30,3 +30,12 @@
   font-display: swap;
   src: url('./instrument-serif-normal-400.woff2') format('woff2');
 }
+
+/* Display capitals for the SENTINEL wordmark. */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./anton-normal-400.woff2') format('woff2');
+}

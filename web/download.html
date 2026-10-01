@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <!-- @include head -->
+<link rel="stylesheet" href="/assets/css/lux.css">
 <title>Download Sentinel</title>
 <meta name="description" content="Download the Sentinel app for live scam, virus and malware protection on search results, email and downloads.">
 <meta property="og:title" content="Download Sentinel">
@@ -10,10 +11,11 @@
 <body>
 <!-- @include nav -->
 <main id="main">
-  <!-- The three masks (scene3d.js), resting at the margins. -->
-  <canvas class="scene3d" data-scene aria-hidden="true"></canvas>
-  <section class="page-head" data-pose="page">
+  <section class="page-head page-head--download">
+    <div class="vframe" aria-hidden="true"><svg viewBox="0 0 74 74"><g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 66V22C8 14 14 8 22 8h44"/><path d="M15 66V28c0-7 6-13 13-13h38"/><path d="M28 28c-6 0-10 4-10 9 0 4 3 7 6 7 3 0 5-2 5-5 0-2-2-4-4-4"/><path d="M38 8c0 6 4 10 10 10M8 38c6 0 10 4 10 10"/><circle cx="8" cy="8" r="3"/></g></svg><svg viewBox="0 0 74 74"><g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 66V22C8 14 14 8 22 8h44"/><path d="M15 66V28c0-7 6-13 13-13h38"/><path d="M28 28c-6 0-10 4-10 9 0 4 3 7 6 7 3 0 5-2 5-5 0-2-2-4-4-4"/><path d="M38 8c0 6 4 10 10 10M8 38c6 0 10 4 10 10"/><circle cx="8" cy="8" r="3"/></g></svg><svg viewBox="0 0 74 74"><g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 66V22C8 14 14 8 22 8h44"/><path d="M15 66V28c0-7 6-13 13-13h38"/><path d="M28 28c-6 0-10 4-10 9 0 4 3 7 6 7 3 0 5-2 5-5 0-2-2-4-4-4"/><path d="M38 8c0 6 4 10 10 10M8 38c6 0 10 4 10 10"/><circle cx="8" cy="8" r="3"/></g></svg><svg viewBox="0 0 74 74"><g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 66V22C8 14 14 8 22 8h44"/><path d="M15 66V28c0-7 6-13 13-13h38"/><path d="M28 28c-6 0-10 4-10 9 0 4 3 7 6 7 3 0 5-2 5-5 0-2-2-4-4-4"/><path d="M38 8c0 6 4 10 10 10M8 38c6 0 10 4 10 10"/><circle cx="8" cy="8" r="3"/></g></svg></div>
     <div class="wrap">
+      <img class="page-head__mask" src="/assets/img/masks/onyx.webp" width="788" height="896" alt="" data-reveal="zoom">
+      <svg class="orn-rule" viewBox="0 0 260 26" aria-hidden="true"><path d="M0 13h100M160 13h100"/><path d="M130 3l10 10-10 10-10-10z"/><path d="M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0"/><circle cx="130" cy="13" r="2"/></svg>
       <h1 data-split>Sentinel for <em data-os-label>your computer</em></h1>
       <p data-reveal>The web app scans links and files anywhere. The Sentinel app adds everything that runs live: on your searches, on the pages you open and on your downloads.</p>
       <div class="hero__cta" data-reveal style="--d:.2s">
@@ -32,7 +34,7 @@
       <div class="tile" data-reveal>
         <div class="tile__label">Release notes</div>
         <h2 id="release-notes-title">Sentinel 1.8.9</h2>
-        <p>The three masks in 3D: the scam mask in polished gold, the malware mask in candy-red metal and the virus mask in burnt orange with its spores orbiting it, regrouping behind every section as you scroll. Every section arrives its own way, panels are frosted glass, and clicking a tab sweeps you to its chapter.</p>
+        <p>A new look, in black lacquer and gold. The three masks are real 3D renders now, and each one turns yellow, orange or red as you pick how sure Sentinel is. The pages carry Victorian frames, pencil construction sketches, raised panels and a slow mist of light, every section arrives its own way, and clicking a tab sweeps you to its chapter.</p>
         <p>1.8.8: A new look: editorial serif headlines, the gold gradient back on the buttons, soft raised panels and a new way for sections to arrive as you scroll. Real sites named like big companies are left alone (110 of 111, up from 106), and a site&rsquo;s front page is no longer blamed for a listed page elsewhere on it.</p>
         <p>1.8.7: fixes from a full review of the last six updates: hidden PowerShell downloaders and phishing forms with little scripts in them are caught again, real security mail stays unmarked, marks come back after a wheel turned over something that does not scroll, and Restore keeps a backup of anything it cannot put back.</p>
         <p>1.8.6: the file scanner leaves your real programs alone: measured on 4,500 real files from Windows and the programs installed with it, none is marked. Scripts are only treated as downloaders when they both fetch and run something, and a program or archive hiding behind a document name is still caught.</p>
@@ -127,8 +129,8 @@
 <!-- @include footer -->
 <script src="/assets/js/masks.js"></script>
 <script src="/assets/js/site.js"></script>
-<script src="/assets/js/three.min.js" defer></script>
-<script src="/assets/js/scene3d.js" defer></script>
+<script src="/assets/js/anime.min.js" defer></script>
+<script src="/assets/js/lux.js" defer></script>
 <script src="/assets/js/download.js"></script>
 </body>
 </html>

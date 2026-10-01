@@ -115,14 +115,21 @@ test('boot: hidden reveals fail open when a script errors or site.js never becom
   assert.match(fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'site.js'), 'utf8'), /window\.Site\.ready = true/);
 });
 
-test('home 3D: every data-pose on the page has a pose, and three.js loads before the scene', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
-  const scene = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'scene3d.js'), 'utf8');
-  const desktop = scene.slice(scene.indexOf('const DESKTOP = {'), scene.indexOf('const PHONE = {'));
-  const names = [...html.matchAll(/data-pose="([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(names.length >= 10, 'sections carry their poses');
-  const posed = new Set([...desktop.matchAll(/^\s+'?([\w-]+)'?:/gm)].map((m) => m[1]));
-  for (const name of names) assert.ok(posed.has(name), `no pose for data-pose="${name}"`);
-  assert.ok(html.indexOf('assets/js/three.min.js') < html.indexOf('assets/js/scene3d.js'), 'three.js has to run first');
-  assert.match(html, /<canvas class="scene3d" data-scene aria-hidden="true">/);
+test('home masks: every rendered mask the pages point at exists, and anime.js loads before the motion', () => {
+  const web = path.join(ROOT, 'web');
+  for (const page of ['index.html', 'pricing.html', 'download.html', '404.html']) {
+    const html = fs.readFileSync(path.join(web, page), 'utf8');
+    for (const [, src] of html.matchAll(/src="(\/assets\/img\/masks\/[^"]+)"/g)) {
+      assert.ok(fs.existsSync(path.join(web, src)), `${page} points at missing ${src}`);
+    }
+    assert.ok(html.indexOf('assets/js/anime.min.js') < html.indexOf('assets/js/lux.js'), `${page}: anime.js has to load first`);
+    assert.ok(!/scene3d|three\.min/.test(html), `${page} still loads the old WebGL scene`);
+  }
+  // Each mask plate carries its mask in all three severity colours, one of them showing.
+  const home = fs.readFileSync(path.join(web, 'index.html'), 'utf8');
+  for (const threat of ['scam', 'virus', 'malware']) {
+    const plate = home.slice(home.indexOf(`data-threat="${threat}">`), home.indexOf('</article>', home.indexOf(`data-threat="${threat}">`)));
+    for (const tint of ['yellow', 'orange', 'red']) assert.ok(plate.includes(`data-tint="${tint}"`), `${threat} has no ${tint} render`);
+    assert.equal((plate.match(/data-tint="[a-z]+"[^>]*class="is-on"/g) || []).length, 1, `${threat} shows exactly one colour`);
+  }
 });

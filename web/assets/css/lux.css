@@ -1,0 +1,188 @@
+/* =============================================================================
+   Sentinel, the luxury edition: black lacquer and gold, Victorian frames and
+   rules, pencil construction sketches, soft relief, mist and motes of light.
+   Loaded after sentinel.css on the marketing pages only; the app keeps its own.
+   ============================================================================= */
+
+:root {
+  --bg: #15120e; --bg-2: #18140f; --surface: #1b1712; --surface-2: #1e1a14; --surface-3: #262019;
+  --text: #efe6d4; --text-2: #c9bda6; --muted: #a49882; --faint: #8f8471;
+  --line: rgb(239 230 212 / .08); --line-2: rgb(239 230 212 / .14); --line-gold: rgb(210 172 99 / .3);
+  --gold-200: #f3dca4; --gold-300: #e2c27f; --gold-400: #d2ac63; --gold-500: #b8913f; --gold-600: #8a6424;
+  --gold-rgb: 210 172 99;
+  --panel: rgb(24 20 15 / .97);
+  --hi: rgb(255 236 205 / .055); --lo: rgb(0 0 0 / .62);
+  --neu-hi: var(--hi); --neu-lo: var(--lo);
+  --raise: -9px -9px 22px var(--hi), 12px 14px 30px var(--lo), inset 0 1px 0 rgb(255 240 215 / .06);
+  --raise-sm: -4px -4px 10px var(--hi), 6px 7px 14px var(--lo), inset 0 1px 0 rgb(255 240 215 / .06);
+  --press: inset 5px 6px 12px var(--lo), inset -4px -4px 10px var(--hi);
+  --relief: linear-gradient(150deg, rgb(255 240 215 / .035), transparent 55%);
+  --glass: rgb(27 23 18 / .74);
+  --metal: linear-gradient(176deg, #f3dca4 0%, #d2ac63 30%, #8a6424 56%, #e9c983 72%, #7a561c 100%);
+  --sketch: rgb(239 230 212 / .24);
+  --sketch-gold: rgb(210 172 99 / .55);
+  --wordmark: 'Anton', 'Impact', sans-serif;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #efe8da; --bg-2: #ebe3d4; --surface: #f1eadd; --surface-2: #f4eee3; --surface-3: #e4dbca;
+    --text: #1d1811; --text-2: #4a4134; --muted: #5d5444; --faint: #6c6252;
+    --line: rgb(40 30 15 / .1); --line-2: rgb(40 30 15 / .16); --line-gold: rgb(138 100 32 / .35);
+    --panel: rgb(239 232 218 / .97);
+    --hi: rgb(255 255 255 / .85); --lo: rgb(120 95 55 / .24);
+    --raise: -9px -9px 22px var(--hi), 12px 14px 30px var(--lo), inset 0 1px 0 rgb(255 255 255 / .7);
+    --raise-sm: -4px -4px 10px var(--hi), 6px 7px 14px var(--lo), inset 0 1px 0 rgb(255 255 255 / .7);
+    --relief: linear-gradient(150deg, rgb(255 255 255 / .5), transparent 60%);
+    --glass: rgb(241 234 221 / .8);
+    --metal: linear-gradient(176deg, #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%);
+    --sketch: rgb(60 45 20 / .28); --sketch-gold: rgb(138 100 32 / .6);
+  }
+}
+:root[data-theme="light"] {
+  --bg: #efe8da; --bg-2: #ebe3d4; --surface: #f1eadd; --surface-2: #f4eee3; --surface-3: #e4dbca;
+  --text: #1d1811; --text-2: #4a4134; --muted: #5d5444; --faint: #6c6252;
+  --line: rgb(40 30 15 / .1); --line-2: rgb(40 30 15 / .16); --line-gold: rgb(138 100 32 / .35);
+  --panel: rgb(239 232 218 / .97);
+  --hi: rgb(255 255 255 / .85); --lo: rgb(120 95 55 / .24);
+  --raise: -9px -9px 22px var(--hi), 12px 14px 30px var(--lo), inset 0 1px 0 rgb(255 255 255 / .7);
+  --raise-sm: -4px -4px 10px var(--hi), 6px 7px 14px var(--lo), inset 0 1px 0 rgb(255 255 255 / .7);
+  --relief: linear-gradient(150deg, rgb(255 255 255 / .5), transparent 60%);
+  --glass: rgb(241 234 221 / .8);
+  --metal: linear-gradient(176deg, #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%);
+  --sketch: rgb(60 45 20 / .28); --sketch-gold: rgb(138 100 32 / .6);
+}
+
+/* ------------------------------------------------------- atmosphere */
+
+/* Mist: three slow blooms of warm light behind everything. */
+body::before {
+  background:
+    radial-gradient(40vmax 32vmax at 12% 6%, rgb(var(--gold-rgb) / .16), transparent 70%),
+    radial-gradient(34vmax 34vmax at 92% 40%, rgb(239 230 212 / .06), transparent 70%),
+    radial-gradient(48vmax 30vmax at 50% 104%, rgb(160 110 50 / .14), transparent 70%);
+  animation-duration: 46s;
+}
+/* Film grain over the whole page. */
+body::after {
+  content: ''; position: fixed; inset: -50%; z-index: 300; pointer-events: none; opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 1.2s steps(6) infinite;
+}
+@keyframes grain { 20% { transform: translate(-3%, 2%); } 40% { transform: translate(2%, -3%); } 60% { transform: translate(-2%, -1%); } 80% { transform: translate(3%, 3%); } }
+/* Motes of light (lux.js places them), rising slowly. */
+.motes { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.motes span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--gold-200); box-shadow: 0 0 8px 2px rgb(243 220 164 / .55); opacity: 0; }
+
+/* -------------------------------------------------------- typography */
+
+.caps { font-family: var(--display); text-transform: uppercase; letter-spacing: .24em; }
+.metal { background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
+h2 em, .page-head h1 em { color: var(--text-2); }
+.gold-text { background: var(--metal); background-size: 100% 100%; -webkit-background-clip: text; background-clip: text; }
+.gold-text.is-live { animation: none; }
+
+/* Section labels: small spaced capitals in gold, a roman numeral, a hairline. */
+.kicker { font: 400 12.5px/1.2 var(--display); letter-spacing: .26em; color: var(--gold-400); }
+.kicker::before { width: 34px; background: linear-gradient(90deg, transparent, currentColor); }
+.kicker__n { padding: 0; border-radius: 0; background: none; color: var(--gold-300); font: 400 14px/1 var(--display); letter-spacing: .08em; margin-right: 2px; }
+.kicker:has(.kicker__n)::before { display: inline-block; }
+
+/* A Victorian rule: two lines, a lozenge and a pair of curls. Drawn as a mask so it takes the gold. */
+.orn-rule { display: block; width: 240px; height: 24px; margin: 0 auto; color: var(--gold-400); overflow: visible; }
+.orn-rule * { fill: none; stroke: currentColor; stroke-width: 1.1; vector-effect: non-scaling-stroke; }
+.section__head--center::before, .page-head .orn-rule { content: ''; }
+.section__head--center::before { display: block; width: 240px; height: 24px; margin: 0 auto 26px; background: var(--gold-400);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat; }
+
+/* ------------------------------------------------------ Victorian frame */
+
+/* A double rule with filigree in each corner, around a hero or a card. */
+.vframe { position: absolute; inset: 0; pointer-events: none; border: 1px solid var(--line-2); z-index: 0; }
+.vframe::after { content: ''; position: absolute; inset: 7px; border: 1px solid rgb(var(--gold-rgb) / .15); }
+.vframe svg { position: absolute; width: 74px; height: 74px; color: var(--gold-400); opacity: .78; }
+.vframe svg:nth-child(1) { left: -8px; top: -8px; }
+.vframe svg:nth-child(2) { right: -8px; top: -8px; transform: scaleX(-1); }
+.vframe svg:nth-child(3) { left: -8px; bottom: -8px; transform: scaleY(-1); }
+.vframe svg:nth-child(4) { right: -8px; bottom: -8px; transform: scale(-1); }
+@media (max-width: 640px) { .vframe svg { width: 50px; height: 50px; } }
+
+/* Construction sketches: thin pencil lines with italic notes. */
+.sketch, .cartouche { overflow: visible; pointer-events: none; }
+.sketch *, .cartouche * { fill: none; stroke: var(--sketch); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.sketch .dash, .cartouche .dash { stroke-dasharray: 4 7; }
+.cartouche .g { stroke: var(--sketch-gold); }
+.sketch text, .cartouche text { fill: var(--text-2); stroke: none; font: italic 15px var(--display); opacity: .8; }
+
+/* ------------------------------------------------------------ header */
+
+/* The header floats as one raised bar; the tab being read is pressed in. */
+.nav { inset: 14px 0 auto; padding: 0 20px; border: 0; background: none; transition: none; }
+.nav.is-scrolled { background: none; box-shadow: none; }
+.nav__inner { width: min(1240px, 100%); height: 64px; padding: 0 12px 0 20px; border-radius: 22px; gap: 20px;
+  background: rgb(27 23 18 / .8); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--raise-sm); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .nav__inner { background: rgb(241 234 221 / .86); } }
+:root[data-theme="light"] .nav__inner { background: rgb(241 234 221 / .86); }
+.logo { font: 400 23px var(--display); letter-spacing: .03em; }
+.logo__mark { background: none; box-shadow: none; color: var(--gold-400); width: 28px; height: 28px; }
+.logo__mark svg { width: 24px; height: 24px; }
+.nav__links a { border-radius: 12px; }
+.nav__glider { background: transparent; box-shadow: var(--press); }
+.nav__glider::after { left: 30%; right: 30%; background: var(--metal); box-shadow: 0 0 10px rgb(var(--gold-rgb) / .6); }
+.nav__links a.is-active { color: var(--gold-200); }
+.theme-toggle, .logo__mark { box-shadow: none; }
+.theme-toggle { background: transparent; box-shadow: inset 0 0 0 1px var(--line-2); }
+@media (max-width: 900px) {
+  .nav { padding: 0 10px; inset: 10px 0 auto; }
+  .nav__inner { height: 58px; padding: 0 8px 0 14px; }
+  .nav.is-open .nav__inner { height: auto; padding: 14px; }
+}
+
+/* ----------------------------------------------------------- buttons */
+
+.btn { border-radius: 14px; background: var(--relief), var(--surface); box-shadow: var(--raise-sm); }
+.btn:active { box-shadow: var(--press); }
+.btn--gold { color: #1a1206; background: linear-gradient(176deg, #f6e1ab, #d2ac63 48%, #a97f35); box-shadow: inset 0 1px 0 rgb(255 255 255 / .5), 0 14px 30px -12px rgb(var(--gold-rgb) / .7), 6px 8px 18px var(--lo); }
+.btn--gold:hover { color: #1a1206; background: linear-gradient(176deg, #fbe9bd, #ddb873 48%, #b48a3e); }
+.btn--ghost { background: transparent; box-shadow: none; }
+
+/* -------------------------------------------------------- page heads */
+
+.page-head { position: relative; margin: 96px 2.6vw 0; padding: 90px 0 80px; }
+.page-head .vframe { inset: 0; }
+.page-head .orn-rule { margin-bottom: 24px; }
+.page-head h1 { font-size: clamp(48px, 7vw, 100px); }
+.page-head__mask { display: block; width: clamp(130px, 14vw, 210px); height: auto; margin: 0 auto 18px; filter: drop-shadow(0 30px 30px rgb(0 0 0 / .55)); animation: drift-y 6s ease-in-out infinite; }
+@keyframes drift-y { 50% { transform: translateY(-10px) rotate(-1.5deg); } }
+.page-head--404 { min-height: 80vh; display: grid; place-items: center; overflow: hidden; }
+.page-head--404 .page-head__mask { width: clamp(180px, 22vw, 300px); }
+.petals { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.petals i { position: absolute; top: -20px; width: 12px; height: 16px; border-radius: 70% 0 70% 0; background: linear-gradient(140deg, #ff6b6f, #a3141c); opacity: .75; }
+.has-prelaunch .page-head { margin-top: 20px; }
+
+/* ------------------------------------------------- panels and tables */
+
+.card, .tile, .plan, .cta, .window, .float { background: var(--relief), var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--raise); }
+.prose h2 { font-size: 40px; }
+.prose-wrap .card { border-radius: 26px; padding: 34px; }
+.compare-wrap { margin-top: 56px; padding: 10px 24px; border-radius: 26px; background: var(--relief), var(--surface); box-shadow: var(--raise); }
+.compare { margin-top: 0; }
+.compare th { font: 400 13px var(--display); letter-spacing: .18em; text-transform: uppercase; color: var(--gold-400); }
+
+/* ------------------------------------------------------------ footer */
+
+.footer { position: relative; border-top: 0; }
+.footer::before { content: ''; position: absolute; left: 50%; top: 0; translate: -50% -50%; width: 260px; height: 26px; background: var(--gold-400);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat; }
+.footer::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--line-gold) 30%, transparent 46%, transparent 54%, var(--line-gold) 70%, transparent); }
+.footer h5 { font: 400 12px var(--display); letter-spacing: .22em; text-transform: uppercase; color: var(--gold-400); }
+.footer__base { border-top-color: var(--line); }
+
+/* The tab change sweeps lacquer panels with gold edges. */
+.wipe > i:nth-child(n) { --c: var(--gold-400); }
+
+@media (prefers-reduced-motion: reduce) {
+  .motes, body::after { display: none; }
+  .page-head__mask { animation: none; }
+}

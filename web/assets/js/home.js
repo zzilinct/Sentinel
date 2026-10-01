@@ -227,6 +227,8 @@
       if (focus) b.focus();
       const sev = b.dataset.sev;
       card.style.setProperty('--c', COLOR[sev]);
+      // The mask itself takes the colour: each card carries a render in every severity colour.
+      $$('[data-tint]', card).forEach((img) => img.classList.toggle('is-on', img.dataset.tint === sev));
       card.classList.remove('is-switching');
       void card.offsetWidth;
       card.classList.add('is-switching');
@@ -278,7 +280,8 @@
       }, 3200);
     };
     cycle.addEventListener('click', () => (timer ? stop(true) : start()));
-    card.appendChild(cycle);
+    // Beside the severity buttons, in the plate's panel when the card has one.
+    ($('.plate__info', card) || card).appendChild(cycle);
     stop();
 
     buttons.forEach((b, i) => {
