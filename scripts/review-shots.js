@@ -173,6 +173,8 @@ async function main() {
       const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
       await send('Page.enable', {}, sessionId);
       await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+      // CI's Windows has animations off, which browsers report as reduced motion: these frames are about the motion.
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
       await send('Page.navigate', { url: BASE + url }, sessionId);
       const started = Date.now();
       for (const at of [250, 600, 950, 1300, 1700, 2300, 3200]) {
@@ -189,6 +191,7 @@ async function main() {
       const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
       await send('Page.enable', {}, sessionId);
       await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
       await send('Page.navigate', { url: BASE + '/app' }, sessionId);
       await sleep(3000);
       for (const route of ['protection', 'scan', 'threats', 'history', 'sites', 'plan', 'security', 'assistants', 'home']) {
