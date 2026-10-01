@@ -1,7 +1,8 @@
 /* Sentinel web app. Loaded after sentinel.css. */
 
 body.app { overflow-x: hidden; }
-body.app::before { background: var(--bg); }
+/* The site's ambient light, dimmed so it never competes with results. */
+body.app::before { opacity: .6; }
 
 .shell { display: grid; grid-template-columns: 256px 1fr; min-height: 100vh; min-height: 100dvh; }
 @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } }

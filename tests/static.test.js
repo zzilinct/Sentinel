@@ -84,3 +84,32 @@ test('desktop bundle: carries the server and site but never an installer', () =>
   const files = fs.readdirSync(bundle, { recursive: true }).map(String);
   assert.equal(files.filter((f) => /\.(exe|dmg|AppImage|msi)$/i.test(f)).length, 0, 'installers must not be bundled into the app');
 });
+
+test('boot: hidden reveals fail open when a script errors or site.js never becomes ready', () => {
+  const vm = require('vm');
+  const src = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'boot.js'), 'utf8');
+  const boot = (ready) => {
+    const classes = new Set();
+    let onError;
+    let timer;
+    const win = {
+      IntersectionObserver: class {},
+      document: { documentElement: { classList: { add: (c) => classes.add(c) }, dataset: {} }, addEventListener() {}, querySelectorAll: () => [] },
+      localStorage: { getItem: () => null },
+      location: { protocol: 'file:', hostname: '', pathname: '/' },
+      navigator: {},
+      addEventListener: (type, fn) => { if (type === 'error') onError = fn; },
+      setTimeout: (fn) => { timer = fn; }
+    };
+    win.window = win;
+    vm.runInNewContext(src, win);
+    if (ready) win.Site = { ready: true };
+    return { classes, error: (tagName) => onError({ target: tagName ? { tagName } : win }), timeout: () => timer() };
+  };
+  let b = boot(false); b.error('IMG'); assert.ok(!b.classes.has('no-io'), 'a missing image keeps the animations');
+  b.error('SCRIPT'); assert.ok(b.classes.has('no-io'), 'a script that fails to load reveals everything');
+  b = boot(false); b.error(); assert.ok(b.classes.has('no-io'), 'a runtime error reveals everything');
+  b = boot(false); b.timeout(); assert.ok(b.classes.has('no-io'), 'site.js never running reveals everything');
+  b = boot(true); b.error(); b.timeout(); assert.ok(!b.classes.has('no-io'), 'once reveals run, later errors leave them alone');
+  assert.match(fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'site.js'), 'utf8'), /window\.Site\.ready = true/);
+});
