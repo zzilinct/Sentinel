@@ -52,7 +52,6 @@ const q = {
 const CORE_TTL = 10 * 60 * 1000;
 const coreCache = new Map();
 const coreInflight = new Map();
-let coreRevision = 0;
 
 function cacheGet(key) {
   const hit = coreCache.get(key);
@@ -69,7 +68,6 @@ function cacheSet(key, value) {
 }
 
 function invalidate(host) {
-  coreRevision++;
   for (const key of coreCache.keys()) if (key.includes(`//${host}`) || key.includes(`.${host}`)) coreCache.delete(key);
 }
 
@@ -153,13 +151,11 @@ async function coreScan(p, { research: wanted, budgetMs, hint }) {
   // Results computed before a feed import (including in-flight scans) cannot
   // satisfy a lookup after that import has completed.
   // What the search result says about the page (its title, what was searched) changes the answer: part of the key.
-  const hintKey = hint ? `|h:${require('crypto').createHash('sha256').update(JSON.stringify([hint.title, hint.query])).digest('hex')}` : '';
-  // Live research omits the query when opening a page. It cannot stand in for
-  // research of that exact URL, or share a job with a longer deadline.
-  const key = `${coreRevision}|${feeds.revision()}|${research ? (lite ? 'l' : (budgetMs ? 'live-r' : 'r')) : 'q'}|${p.url}${hintKey}`;
+  const hintKey = hint ? `|h:${require('crypto').createHash('sha1').update(`${hint.title}|${hint.query}`).digest('hex').slice(0, 12)}` : '';
+  const key = `${feeds.revision()}|${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}${hintKey}`;
   const cached = cacheGet(key);
   if (cached) return cached;
-  const flightKey = budgetMs ? `${key}|b:${budgetMs}` : key;
+  const flightKey = budgetMs ? `${key}|b` : key;
   if (coreInflight.has(flightKey)) return coreInflight.get(flightKey);
 
   const job = (async () => {
@@ -249,7 +245,6 @@ async function coreScan(p, { research: wanted, budgetMs, hint }) {
     const facts = ctx.research;
     const complete = !facts || (facts.registration.reason !== 'not answered in time' && !facts.dns.unavailable &&
       (facts.lite || (facts.http.ok && facts.http.status >= 200 && facts.http.status < 300 && !facts.http.truncated)));
-    result.researchComplete = !research || know.trusted || complete;
     if (complete) cacheSet(key, result);
     return result;
   })();
@@ -329,7 +324,6 @@ function shape(core, { threats: visible, userId, mode, detail = 'full', planId }
     plan: planId,
     override,
     researched: core.researched,
-    researchComplete: core.researchComplete,
     researchSkipReason: core.researchSkipReason || null,
     threats,
     overall: { level: worst.level, badge: worst.badge, label: worst.label },

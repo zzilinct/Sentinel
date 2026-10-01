@@ -236,7 +236,7 @@ async function research(p, { lite = false, budgetMs = 0 } = {}) {
     return { ...JSON.parse(cached.payload), cached: true };
   }
   // A live scan (with a budget) never joins a full scan's job, which may take far longer than it promised.
-  const flightKey = budgetMs ? `${key}|b:${budgetMs}` : key;
+  const flightKey = budgetMs ? `${key}|b` : key;
   if (inflight.has(flightKey)) return inflight.get(flightKey);
 
   const job = (async () => {

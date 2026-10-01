@@ -492,7 +492,6 @@ let state = { active: false, reason: 'Starting', supported: process.platform ===
 const warned = new Map();
 const verdicts = new Map();   // url -> { at, fast, mark }
 let settleTimer = null;
-let visitRetryTimer = null;
 let restartTimer = null;
 // A reader that keeps failing is brought back more and more slowly (3 s doubling up to 5 min), so a machine where it
 // cannot run is not made to start PowerShell every few seconds all day. A minute of running resets the pace.
@@ -663,7 +662,6 @@ function start() {
 
 function stop(reason, silent) {
   clearTimeout(settleTimer);
-  clearTimeout(visitRetryTimer);
   clearTimeout(retryTimer);
   clearTimeout(restartTimer);
   const old = child;
@@ -674,8 +672,6 @@ function stop(reason, silent) {
   if (old) { try { old.kill(); } catch { /* gone */ } }
   state.current = null;
   latestLinks = null;
-  verdicts.clear();
-  pending.clear();
   setWindow(null);
   generation++;
   if (!silent) setState(false, reason || 'Live scanning is off');
@@ -705,7 +701,7 @@ function onLine(line) {
   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
   if (msg.awake) { log('in use again'); return; }
   if ('win' in msg) {
-    if (!msg.win) { clearTimeout(settleTimer); clearTimeout(visitRetryTimer); state.current = null; latestLinks = null; verdicts.clear(); }
+    if (!msg.win) { clearTimeout(settleTimer); state.current = null; latestLinks = null; }
     setWindow(msg.win || null);
     return;
   }
@@ -717,9 +713,7 @@ function onLine(line) {
   if (!msg.url) return;
 
   clearTimeout(settleTimer);
-  clearTimeout(visitRetryTimer);
   latestLinks = null;
-  verdicts.clear();
   if (!/^https?:\/\//i.test(msg.url)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
   // Sentinel's own pages and the app's server are not "sites".
   if (opts.origin && msg.url.startsWith(opts.origin)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
@@ -731,13 +725,6 @@ function onLine(line) {
 }
 
 async function check(page) {
-  const mine = generation;
-  clearTimeout(visitRetryTimer);
-  const retry = () => {
-    visitRetryTimer = setTimeout(() => {
-      if (mine === generation && state.current && state.current.at === page.at) check(page).catch(() => {});
-    }, RETRY_MS);
-  };
   let host;
   try { host = new URL(page.url).hostname; } catch { return; }
   // A results page is the search engine's own; its links are what matter, and they are checked one by one.
@@ -747,18 +734,14 @@ async function check(page) {
   try {
     let answer;
     ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode() }));
-    if (mine !== generation || !state.current || state.current.at !== page.at) return;
-    if (!verdict || !verdict.ok || !verdict.overall) { retry(); return; }
     noteMode(answer);
   } catch (err) {
-    if (mine !== generation || !state.current || state.current.at !== page.at) return;
     log(`check failed${page.private ? '' : ` for ${host}`}: ${err.status || ''} ${err.code || err.message}`);
     // Refused, not a hiccup: stop reading the browser altogether. A reader left running would keep asking, and the
     // gold mask would keep saying "scanning" while nothing is checked.
     if (err.status === 401) stop('Sign in to start live scanning');
     else if (err.status === 403) stop('Live scanning is not part of this plan');
     else if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
-    else retry();
     return;
   }
   const badge = (verdict && verdict.overall && verdict.overall.badge) || null;
@@ -842,7 +825,7 @@ function unwrapResult(u, name) {
     } else if (/(^|\.)bing\.com$/.test(host) && /^\/(aclk|aclick)$/.test(u.pathname)) {
       // An ad: the advertiser's address, percent-encoded, then base64.
       const v = u.searchParams.get('u') || '';
-      if (v) { const decoded = Buffer.from(v, 'base64url').toString('utf8'); target = /^https?%3a/i.test(decoded) ? decodeURIComponent(decoded) : decoded; }
+      if (v) target = decodeURIComponent(Buffer.from(v, 'base64url').toString('utf8'));
     } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
       target = u.searchParams.get('q') || u.searchParams.get('url');
     } else if (/(^|\.)google\.[a-z.]+$/.test(host) && /^\/(pagead\/)?aclk$/.test(u.pathname)) {
@@ -924,12 +907,13 @@ function resultLinks(links, pageUrl, seen = new Map()) {
     try { u = new URL(l.u); } catch { continue }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
     const engines = (h) => (h === pageHost || ENGINE_HOSTS.test(h)) && !USER_PAGES_ON_ENGINES.test(h);
-    for (let i = 0; i < 6; i++) {
-      const next = unwrapResult(u, l.n) || trackerTarget(u);
-      if (!next || next.href === u.href) break;
-      u = next;
+    if (engines(u.hostname)) {
+      // The engine's own link, unless it is a redirect to a result.
+      u = unwrapResult(u, l.n);
+      if (!u || engines(u.hostname)) continue;
     }
-    if (engines(u.hostname)) continue;
+    const behind = trackerTarget(u);
+    if (behind) u = behind;
     // The engine's own app in an app store ("Get the DuckDuckGo browser" in its menu) is its own link too.
     if (APP_STORES.test(u.hostname) && brand && u.href.toLowerCase().includes(brand)) continue;
     const host = u.hostname.replace(/^www\./, '');
@@ -988,12 +972,6 @@ function markFor(url) {
   return hit.mark;
 }
 
-// The title and search influence detection. A verdict for the same URL in a
-// different result must not suppress a fresh scan of that result.
-function resultKey(link, forUrl, isPrivate) {
-  return crypto.createHash('sha256').update(JSON.stringify([link.u, forUrl, isPrivate ? '' : (link.title || ''), Boolean(isPrivate)])).digest('hex');
-}
-
 const markKey = (u) => crypto.createHash('sha1').update(u).digest('base64url').slice(0, 12);
 
 function publishMarks() {
@@ -1003,10 +981,10 @@ function publishMarks() {
     epoch: latestLinks.epoch,
     clip: latestLinks.clip || null,
     ends: latestLinks.ends || '',
-    checking: latestLinks.links.filter((l) => !markFor(l.cacheKey || l.u)).length,
+    checking: latestLinks.links.filter((l) => !markFor(l.u)).length,
     // `k` keeps each mark on its own element in the overlay while results scroll in and out. A hash, so no address
     // reaches the overlay window.
-    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, k: markKey(l.u), row: l.u.startsWith('mail:'), ...(markFor(l.cacheKey || l.u) || { pending: true }) }))
+    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, k: markKey(l.u), row: l.u.startsWith('mail:'), ...(markFor(l.u) || { pending: true }) }))
   });
 }
 
@@ -1014,7 +992,6 @@ async function onLinks(msg) {
   const page = state.window ? { private: Boolean(state.window.private) } : { private: false };
   if (seenResults.for !== msg.for) seenResults = { for: msg.for, map: new Map() };
   const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for, seenResults.map);
-  for (const l of links) l.cacheKey = resultKey(l, msg.for, page.private);
   // The end-to-end run on a GitHub desktop (scripts/live-e2e.ps1) asks for what the reader saw; nobody else sets this.
   if (process.env.SENTINEL_LINK_DUMP && !page.private) {
     try { fs.appendFileSync(process.env.SENTINEL_LINK_DUMP, JSON.stringify({ for: msg.for, covered: msg.covered || 0, raw: msg.links, marked: links.map((l) => l.u) }) + '\n'); } catch { /* best effort */ }
@@ -1055,59 +1032,47 @@ function hintsFor(links, urls, forUrl) {
 }
 
 async function checkLinks(links, page, forUrl) {
-  const mine = generation;
-  const pageAt = state.current && state.current.at;
-  const mode = currentMode();
-  const keys = new Map();
-  for (const l of links) if (!keys.has(l.u)) keys.set(l.u, l.cacheKey || resultKey(l, forUrl, page.private));
-  const current = () => mine === generation && pageAt === (state.current && state.current.at) && currentMode() === mode && latestLinks && latestLinks.for === forUrl;
   clearTimeout(retryTimer);
-  const missing = [...keys.keys()].filter((u) => !markFor(keys.get(u)) && !pending.has(keys.get(u)));
+  const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
   if (!missing.length) return;
-  missing.forEach((u) => pending.add(keys.get(u)));
-  let retry = false;
+  missing.forEach((u) => pending.add(u));
   const store = (byUrl, final, fast) => {
     for (const u of missing) {
       const v = byUrl && byUrl[u];
-      if (!v || !v.ok || !v.overall) { if (final) retry = true; continue; }
+      if (!v) continue;
       const badge = (v.overall && v.overall.badge) || null;
       const first = v.reasons && v.reasons[0];
-      const incomplete = !final || v.researchComplete === false;
-      verdicts.set(keys.get(u), { at: incomplete ? Date.now() - VERDICT_TTL_MS + RETRY_MS : Date.now(), fast, mark: { badge, kind: worstKind(v), label: v.overall.label, reason: first ? first.text : '' } });
-      if (final && incomplete) retry = true;
+      verdicts.set(u, { at: Date.now(), fast, mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
       if (final) count(page.private, badge);
     }
   };
   try {
     const started = Date.now();
+    const mode = currentMode();
     // Delicate is shown in two steps: the quick answer (lists and checklist, a few ms) goes on screen at once, and
     // the researched answer replaces it when it lands. Nobody waits five seconds for a mark.
     if (mode === 'delicate' && !page.private) {
       const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true, hints: hintsFor(links, missing, forUrl) });
-      if (!current()) return;
       store(quick.byUrl, false, false);   // shown until the researched answer replaces it
       publishMarks();
       log(`results marked: ${missing.length} in ${Date.now() - started} ms (quick pass)`);
     }
     const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode, hints: page.private ? undefined : hintsFor(links, missing, forUrl) });
-    if (!current()) return;
     noteMode(answer);
     if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
     store(byUrl, true, (answer.mode || mode) !== 'delicate');
     if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
   } catch (err) {
-    if (!current()) return;
     log(`results check failed: ${err.status || ''} ${err.code || err.message}`);
     if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
-    else if (err.status === 401) stop('Sign in to start live scanning');
-    else if (err.status === 403) stop('Live scanning is not part of this plan');
-    else retry = true;
+    else if (err.status !== 401 && err.status !== 403) {
+      retryTimer = setTimeout(() => {
+        if (child && latestLinks && latestLinks.for === forUrl) checkLinks(latestLinks.links, page, forUrl).catch(() => {});
+      }, RETRY_MS);
+    }
   } finally {
-    missing.forEach((u) => pending.delete(keys.get(u)));
+    missing.forEach((u) => pending.delete(u));
   }
-  if (retry && current()) retryTimer = setTimeout(() => {
-    if (child && current()) checkLinks(latestLinks.links, page, forUrl).catch(() => {});
-  }, RETRY_MS + 1);
   publishMarks();
 }
 
@@ -1140,7 +1105,6 @@ function distinctRows(rows) {
 }
 
 async function onMail(msg) {
-  const mine = generation;
   const isPrivate = Boolean(state.window && state.window.private);
   const rows = distinctRows((Array.isArray(msg.mail) ? msg.mail : []).map((r) => ({ u: rowKey(r.t), x: r.x, y: r.y, w: r.w, h: r.h, text: r.t })));
   const fresh = !latestLinks || latestLinks.for !== msg.for;
@@ -1153,10 +1117,9 @@ async function onMail(msg) {
   missing.forEach((r) => pending.add(r.u));
   try {
     const { results } = await opts.api('/api/v1/live/email', { preview: true, emails: missing.map((r) => ({ key: r.u, ...mailFromRow(r.text) })) });
-    if (mine !== generation || !latestLinks || latestLinks.for !== msg.for) return;
     for (const item of results || []) {
       const v = item.verdict;
-      if (!v || !v.ok || !v.overall || !item.key) continue;
+      if (!v || !item.key) continue;
       const badge = (v.overall && v.overall.badge) || null;
       const first = v.reasons && v.reasons[0];
       verdicts.set(item.key, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });

@@ -21,18 +21,14 @@ let intel = { hosts: new Map(), at: 0 };
 
 const hostOf = (url) => { try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ''); } catch { return null; } };
 
-function cacheKey(phase, url, hint) {
-  return JSON.stringify([phase, url, hint ? [hint.title || '', hint.query || ''] : null]);
-}
-function cacheGet(phase, url, hint) {
-  const hit = cache.get(cacheKey(phase, url, hint));
+function cacheGet(phase, url) {
+  const hit = cache.get(`${phase}|${url}`);
   if (hit && Date.now() - hit.at < TTL[phase]) return hit.verdict;
   return null;
 }
-function cacheSet(phase, url, verdict, hint) {
-  if (!verdict || !verdict.ok || verdict.researchComplete === false) return;
+function cacheSet(phase, url, verdict) {
   if (cache.size > 3000) cache.clear();
-  cache.set(cacheKey(phase, url, hint), { verdict, at: Date.now() });
+  cache.set(`${phase}|${url}`, { verdict, at: Date.now() });
 }
 
 const features = () => (account.plan && account.plan.features) || {};
@@ -98,7 +94,6 @@ async function connect() {
 
 async function refreshAccount(force = false) {
   if (!force && Date.now() - account.checkedAt < 5 * 60 * 1000) return account;
-  const previousUser = account.user && account.user.id;
   try {
     const data = await apiFetch('/api/v1/auth/me');
     account = { signedIn: true, user: data.user, plan: data.plan, usage: data.usage, week: data.week, checkedAt: Date.now() };
@@ -111,7 +106,6 @@ async function refreshAccount(force = false) {
   } catch (err) {
     if (err.status === 401) account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() };
   }
-  if (previousUser !== (account.user && account.user.id)) cache.clear();
   await ext.storage.local.set({ account });
   return account;
 }
@@ -136,7 +130,7 @@ async function restore() {
 
 /* --------------------------------------------------------------- scanning */
 
-async function liveBatch(urls, phase, isPrivate = false, hints = {}) {
+async function liveBatch(urls, phase, isPrivate = false) {
   const blocked = liveBlockReason();
   if (blocked) return { locked: blocked };
   if (phase === 'research' && !features().liveResearch) return { locked: 'plan', verdicts: {} };
@@ -144,7 +138,7 @@ async function liveBatch(urls, phase, isPrivate = false, hints = {}) {
   const out = {};
   const pending = [];
   for (const url of urls) {
-    const cached = isPrivate ? null : cacheGet(phase, url, hints[url]);
+    const cached = cacheGet(phase, url) || (phase === 'quick' ? localVerdict(url) : null);
     if (cached) out[url] = cached;
     else pending.push(url);
   }
@@ -153,11 +147,11 @@ async function liveBatch(urls, phase, isPrivate = false, hints = {}) {
       // Plans without delicate ask for fast outright: once Free's fast minutes are used up, a
       // delicate request would come back as plan_required instead of live_hours_exhausted.
       const mode = features().liveScanning ? 'delicate' : 'fast';
-      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate, hints: isPrivate ? undefined : hints }, timeout: phase === 'research' ? 90000 : 20000 });
+      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate }, timeout: phase === 'research' ? 90000 : 20000 });
       noteLive(data.live);
       for (const [url, verdict] of Object.entries(data.byUrl)) {
         out[url] = verdict;
-        if (!isPrivate && !(phase === 'research' && data.mode === 'fast')) cacheSet(phase, url, verdict, hints[url]);
+        if (verdict.ok) cacheSet(phase, url, verdict);
       }
     } catch (err) {
       handleApiError(err);
@@ -183,25 +177,22 @@ async function onNavigate(details) {
   const settings = await getSettings();
   if (!settings.enabled || liveBlockReason()) return;
 
-  const tab = await ext.tabs.get(details.tabId).catch(() => null);
-  if (!tab || tab.url !== details.url) return;
-  const isPrivate = Boolean(tab.incognito);
-  let verdict = isPrivate ? null : cacheGet(features().liveResearch ? 'research' : 'quick', details.url);
+  let verdict = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url);
   if (!verdict) {
     try {
       // From a private window only the page's address without its query goes out, and nothing about it is kept.
+      const tab = await ext.tabs.get(details.tabId).catch(() => null);
+      const isPrivate = Boolean(tab && tab.incognito);
       const url = isPrivate ? details.url.replace(/[?#].*$/, '') : details.url;
       const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url, private: isPrivate }, timeout: 30000 });
       noteLive(data.live);
       verdict = data.verdict;
-      if (!isPrivate) cacheSet(data.mode === 'delicate' ? 'research' : 'quick', details.url, verdict);
+      cacheSet(features().liveResearch ? 'research' : 'quick', details.url, verdict);
     } catch (err) {
       handleApiError(err);
       return;
     }
   }
-  const currentTab = await ext.tabs.get(details.tabId).catch(() => null);
-  if (!currentTab || currentTab.url !== details.url || !verdict || !verdict.ok) return;
   paint(details.tabId, verdict);
 
   const severe = verdict.overall && (verdict.overall.badge === 'red' || (verdict.overall.badge === 'orange' && settings.minimumBadge !== 'red'));
@@ -266,11 +257,11 @@ const handlers = {
     syncIntel();
     return { account };
   },
-  async 'live-batch'({ urls, phase = 'quick', hints = {} }, sender) {
+  async 'live-batch'({ urls, phase = 'quick' }, sender) {
     const settings = await getSettings();
     if (!settings.enabled) return { locked: 'disabled' };
     // A private window is protected like any other; the server keeps nothing about it.
-    return liveBatch((urls || []).slice(0, 60), phase, Boolean(sender && sender.tab && sender.tab.incognito), hints);
+    return liveBatch((urls || []).slice(0, 60), phase, Boolean(sender && sender.tab && sender.tab.incognito));
   },
   async 'live-email'({ emails }) {
     const settings = await getSettings();
@@ -303,7 +294,6 @@ const handlers = {
     return data;
   },
   async 'sign-out'() {
-    cache.clear();
     try { await apiFetch('/api/v1/auth/logout', { method: 'POST', body: {} }); } catch { /* already signed out */ }
     await setToken(null);
     account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() };
