@@ -7,13 +7,13 @@
 </head>
 <body>
 <!-- @include nav -->
-<main>
+<main id="main">
   <section class="page-head" style="padding-bottom:40px">
     <div class="wrap-narrow">
       <span class="kicker" data-reveal>Terms and Conditions</span>
-      <h1 data-split>What you agree to when you <span class="serif italic">use Sentinel</span></h1>
+      <h1 data-split>What you agree to when you use Sentinel</h1>
       <p data-reveal>Written in plain language, because terms nobody reads protect nobody. Version 2026-09-17, which is the version new accounts accept.</p>
-      <p class="updated" data-reveal>Last updated 17 September 2026 &middot; pre-launch draft, not yet reviewed by a lawyer</p>
+      <p class="updated" data-reveal>Last updated 30 September 2026 &middot; pre-launch draft, not yet reviewed by a lawyer</p>
     </div>
   </section>
 
@@ -57,10 +57,11 @@
       <h2>6. Plans, allowances and payment</h2>
       <p>Each plan includes a weekly allowance of link scans, virus and malware scans, and live-scanning hours. Allowances reset every Monday at 00:00 UTC and do not roll over. Scans that fail because of a problem on our side are not counted against you.</p>
       <p>Paid plans are not on sale yet. While Sentinel is pre-launch, plan switching is free and exists so the product can be tested. When paid plans go live, their price, billing period, cancellation and refund terms will be shown at the point of purchase and added here, and you will be asked to accept the updated terms.</p>
+      <p>Refunds are covered by the <a href="/refunds">Refund Policy</a>, which is part of these terms.</p>
 
       <h2>7. The desktop app and browser companion</h2>
       <p>The desktop app runs a copy of Sentinel on your own computer and keeps its data there. It can watch your Downloads folder, check new files against known threats, and move files it flags into a quarantine folder that you control. Quarantine moves a file; it does not delete it, and you can restore it.</p>
-      <p>On Windows, the app can also read the web address of the page your browser is currently showing, using the accessibility interface Windows provides for that purpose, and warn you if that address is dangerous. It reads the address only: not the contents of the page, not form fields, and nothing you type. On a search results page it also reads the addresses of the links on screen and where they are, so it can check each one and draw a mask beside it. Those marks, the gold line and the mask in the corner of the browser are drawn in a transparent window of Sentinel&rsquo;s own; nothing is changed inside your browser. The app lists which browsers are installed and which are open so you can choose one to scan with. Live scanning is off until you press Start scanning, it only works while a browser is the window in front and in use, and private windows are protected without anything about them being kept.</p>
+      <p>On Windows, the app can also read the web address of the page your browser is currently showing, using the accessibility interface Windows provides for that purpose, and warn you if that address is dangerous. It reads the address only: not the contents of the page, not form fields, and nothing you type. On a search results page it also reads the addresses of the links on screen, where they are and the title each one shows, so it can check each one and draw a mask beside it. Those marks, the gold line and the mask in the corner of the browser are drawn in a transparent window of Sentinel&rsquo;s own; nothing is changed inside your browser. The app lists which browsers are installed and which are open so you can choose one to scan with. Live scanning is off until you press Start scanning, it only works while a browser is the window in front and in use, and private windows are protected without anything about them being kept.</p>
       <p>The optional browser companion adds masks to search results and email from inside Chrome, Edge, Brave and Firefox, for people who are not using the Windows app. Every part of this can be turned off at any time.</p>
       <p>Defense watches the places programs arrive (Downloads, Desktop, the temporary folder and the Startup folder) and the entries that start programs with Windows. When the on-device scanner flags a program as likely or confirmed malware, the app ends any process running from that file, moves the file into quarantine, and removes Run keys, Startup shortcuts and scheduled tasks that point at it. Quarantine is a move, not a deletion, and the app lists every action so you can put a file back. Defense runs as an ordinary program beside your system&rsquo;s own antivirus, not instead of it. It has no kernel driver, it cannot promise to find or remove everything, and like any scanner it can be wrong in both directions. You can turn it off.</p>
       <p>So that protection works without a sign-up, the desktop app creates one local account for the computer the first time it starts. That account exists only in the app&rsquo;s own database on your computer.</p>
@@ -84,7 +85,7 @@
       <p>Nothing in these terms limits liability that cannot be limited by law, such as liability for fraud.</p>
 
       <h2>13. Ending your account</h2>
-      <p>You can delete your account at any time from Security settings. Deletion removes your history, reports, usage records, site rules and connected keys. We may close accounts that break section 5 or that have been inactive for a long time, with notice by email where we can.</p>
+      <p>You can delete your account at any time from Security settings. Deletion removes your history, usage records, site rules and connected keys. Reports you filed stay, with no link to you, so a confirmed threat stays confirmed. We may close accounts that break section 5 or that have been inactive for a long time, with notice by email where we can.</p>
 
       <h2>14. Governing law and disputes</h2>
       <p>The governing law and the way disputes are handled will be settled before launch and stated here. Until then, we will try to resolve any problem with you directly: write to <a href="mailto:support@usesentinel.technology">support@usesentinel.technology</a>.</p>
@@ -92,17 +93,6 @@
       <h2>15. Contact</h2>
       <p><a href="mailto:support@usesentinel.technology">support@usesentinel.technology</a></p>
 
-      <div class="review-note">
-        <h3>Open items for legal review</h3>
-        <p>This is a product-written draft. Before launch a lawyer needs to settle, at minimum:</p>
-        <ul>
-          <li>Section 2: whether an age statement is sufficient in the jurisdictions Sentinel serves, and any parental-consent or age-verification duties.</li>
-          <li>Section 6: consumer-law wording for paid plans (cancellation, refunds, auto-renewal notices, price changes).</li>
-          <li>Section 12: whether the liability limits and warranty disclaimers are enforceable where users are, and any required carve-outs.</li>
-          <li>Section 14: governing law, venue, and whether arbitration or class-action terms are appropriate and enforceable.</li>
-          <li>The legal entity behind &ldquo;the Sentinel team&rdquo;, its registered address, and any required regulatory notices.</li>
-        </ul>
-      </div>
     </div>
   </section>
 </main>

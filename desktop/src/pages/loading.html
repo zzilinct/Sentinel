@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
 <title>Sentinel</title>
 <style>
-  html, body { height: 100%; margin: 0; background: #0c0d10; color: #e9e6df; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  html, body { height: 100%; margin: 0; background: #111215; color: #e9e6df; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
   body { display: grid; place-items: center; }
   .box { text-align: center; }
   .mark { width: 64px; height: 64px; margin: 0 auto 18px; color: #d6b25a; }
@@ -16,6 +16,13 @@
   .bar i { display: block; width: 40%; height: 100%; background: #d6b25a; animation: slide 1.2s ease-in-out infinite; }
   @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
   @media (prefers-reduced-motion: reduce) { .bar i { animation: none; width: 100%; opacity: .5; } }
+  @media (prefers-color-scheme: light) {
+    html, body { background: #f6f4ef; color: #1c1b18; }
+    .mark { color: #9c7229; }
+    .bar i { background: #9c7229; }
+    p { color: #5f5c55; }
+    .bar { background: rgba(0,0,0,.08); }
+  }
 </style>
 </head>
 <body>
