@@ -148,12 +148,20 @@ async function main() {
           document.documentElement.style.height = 'auto'; document.body.style.height = 'auto'; document.body.style.overflow = 'visible';
           return tallest;
         })()` }, sessionId);
-        await sleep(600);
+        // Long enough for the slowest entrance (headings rise over a second, after a stagger).
+        await sleep(2500);
         const { cssContentSize } = await send('Page.getLayoutMetrics', {}, sessionId);
         const full = Math.min(Math.ceil(Math.max(cssContentSize.height, Number(inner.value) || 0)), 9000);
         const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: Math.max(height, full), scale: 1 } }, sessionId);
         fs.writeFileSync(path.join(OUT, `${size}-${name}.png`), Buffer.from(shot.data, 'base64'));
         console.log(`${size}-${name}.png  ${width}x${Math.max(height, full)}`);
+        // A long page also in screen-sized parts, which can be looked at without shrinking the whole page to fit.
+        if (full > height * 2) {
+          for (let y = 0, i = 1; y < full; y += height * 1.5, i++) {
+            const part = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y, width, height: Math.min(height * 1.5, full - y), scale: 1 } }, sessionId);
+            fs.writeFileSync(path.join(OUT, `${size}-${name}-part${i}.png`), Buffer.from(part.data, 'base64'));
+          }
+        }
         await send('Target.closeTarget', { targetId });
       }
     }
