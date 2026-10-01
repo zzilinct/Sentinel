@@ -142,6 +142,7 @@ async function main() {
         // at full height, so the photograph holds what someone scrolling would see.
         const { result: inner } = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
           document.querySelectorAll('[data-reveal], [data-split], [data-pipeline]').forEach((el) => el.classList.add('is-in', 'is-visible'));
+          document.querySelectorAll('.lux-wait').forEach((el) => { el.classList.remove('lux-wait'); el.classList.add('lux-in'); });
           let tallest = document.documentElement.scrollHeight;
           for (const el of document.querySelectorAll('main, .main, .app__main, [data-view], .view')) {
             if (el.scrollHeight > el.clientHeight + 20) { el.style.overflow = 'visible'; el.style.height = 'auto'; el.style.maxHeight = 'none'; tallest = Math.max(tallest, el.scrollHeight + el.getBoundingClientRect().top); }
@@ -180,6 +181,27 @@ async function main() {
         fs.writeFileSync(path.join(OUT, `intro-${name}-${String(at).padStart(4, '0')}ms.png`), Buffer.from(shot.data, 'base64'));
       }
       console.log(`intro-${name}: 7 frames`);
+      await send('Target.closeTarget', { targetId });
+    }
+    // Each app page's entrance, caught mid-way: open the overview, then click through the sidebar.
+    {
+      const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+      await send('Page.enable', {}, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await send('Page.navigate', { url: BASE + '/app' }, sessionId);
+      await sleep(3000);
+      for (const route of ['protection', 'scan', 'threats', 'history', 'sites', 'plan', 'security', 'assistants', 'home']) {
+        await send('Runtime.evaluate', { expression: `document.querySelector('.side__link[data-route="${route}"]').click()` }, sessionId);
+        const t0 = Date.now();
+        for (const at of [180, 450]) {
+          await sleep(Math.max(0, at - (Date.now() - t0)));
+          const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+          fs.writeFileSync(path.join(OUT, `motion-${route}-${at}ms.png`), Buffer.from(shot.data, 'base64'));
+        }
+        await sleep(1400);
+      }
+      console.log('motion: entrances photographed');
       await send('Target.closeTarget', { targetId });
     }
   } finally {
