@@ -353,10 +353,11 @@
     nebula.uniforms.uAspect.value = w / h;
     phone = w < 760;
     frames = [];
+    let spare = 0;
     for (const el of anchors) {
       const name = el.dataset.pose;
       let f = phone ? PHONE[name] : DESKTOP[name];
-      if (phone && !f) f = frames.length % 2 ? EDGE_A : EDGE_B;
+      if (phone && !f) f = spare++ % 2 ? EDGE_A : EDGE_B;
       if (!f) continue;
       const r = el.getBoundingClientRect();
       // A pinned section taller than the screen plays its formations while it is pinned, in step with its text.

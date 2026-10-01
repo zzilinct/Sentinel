@@ -292,7 +292,7 @@ h2 em { color: var(--text-2); }
 /* ------------------------------------------------------------------- hero */
 
 .hero { position: relative; padding: 150px 0 80px; }
-/* The gold mask (scene3d.js) is drawn on one canvas behind the whole page. */
+/* The three masks (scene3d.js) are drawn on one canvas behind the whole page. */
 .scene3d { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.2s var(--ease-out); }
 .has-3d .scene3d { opacity: 1; }
 
@@ -681,7 +681,7 @@ p { text-wrap: pretty; }
    raised surfaces keep their full shadow. */
 .js [data-reveal=""]:not(.is-in), .js [data-reveal="scale"]:not(.is-in) { clip-path: inset(-80px -80px 100% -80px); }
 .js [data-reveal=""].is-in { animation: unveil 1.1s var(--ease-out) var(--d, 0s) backwards; }
-.no-io [data-reveal], .no-io [data-stagger] > * { clip-path: none !important; animation: none !important; opacity: 1 !important; filter: none !important; translate: none !important; scale: none !important; rotate: none !important; }
+.no-io [data-reveal], .no-io [data-stagger] > * { clip-path: none !important; animation: none !important; opacity: 1 !important; filter: none !important; }
 @keyframes unveil {
   from { clip-path: inset(-80px -80px 100% -80px); }
   to { clip-path: inset(-80px -80px -80px -80px); }
@@ -739,14 +739,14 @@ p { text-wrap: pretty; }
 /* Raised: cards and panels stand up from the page, lit from the top left. */
 /* Glass over the 3D masks: panels blur whatever moves behind them, so the masks read as coloured light through
    frosted metal instead of disappearing behind a flat card. Without backdrop-filter the glass is simply more opaque. */
-.tile, .plan, .card, .cta, .trio, .window, .float {
+body:has(.nav) :is(.tile, .plan, .card, .cta, .trio, .window, .float) {
   background: var(--relief), var(--glass);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   box-shadow: var(--raise), inset 0 0 0 1px var(--glass-edge);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .tile, .plan, .card, .cta, .trio, .window, .float { background: var(--relief), var(--surface); }
+  body:has(.nav) :is(.tile, .plan, .card, .cta, .trio, .window, .float) { background: var(--relief), var(--surface); }
 }
 .trio { gap: 0; }
 .mask-card { background: transparent; }
@@ -786,7 +786,7 @@ p { text-wrap: pretty; }
 .marquee span { font: 400 clamp(64px, 10vw, 150px)/1 var(--display); letter-spacing: -.02em; white-space: nowrap; color: transparent; -webkit-text-stroke: 1px rgb(var(--gold-rgb) / .6); }
 .marquee span.gold-text { -webkit-text-stroke: 0; margin: 0; padding: 0; }
 .marquee i { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--gold-400); box-shadow: 0 0 24px var(--gold-400); }
-@keyframes marquee { to { transform: translateX(calc(-50% - 24px)); } }
+@keyframes marquee { to { translate: calc(-50% - 24px) 0; } }
 
 /* --------------------------------------------------- section backdrops */
 
@@ -883,7 +883,7 @@ p { text-wrap: pretty; }
 .nav__glider.is-pressed { animation: glider-press .5s var(--spring); }
 @keyframes glider-press { 30% { scale: 1.12 .82; } }
 .nav__links a { position: relative; z-index: 1; }
-.has-glider .nav__links a.is-active, .has-glider .nav__links a:hover { background: transparent; }
+@media (min-width: 901px) { .has-glider .nav__links a.is-active, .has-glider .nav__links a:hover { background: transparent; } }
 @media (max-width: 900px) { .nav__glider { display: none; } }
 
 /* The tab change: three panels in the masks' colours sweep up over the page, the chapter's name rises with them,
@@ -929,7 +929,7 @@ p { text-wrap: pretty; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
-  [data-reveal], [data-reveal] > *, [data-stagger] > *, .word { opacity: 1 !important; transform: none !important; filter: none !important; clip-path: none !important; }
+  [data-reveal], [data-reveal="doors"] > *, [data-stagger] > *, .word { opacity: 1 !important; transform: none !important; filter: none !important; clip-path: none !important; }
   .wipe { display: none !important; }
   @view-transition { navigation: none; }
 }

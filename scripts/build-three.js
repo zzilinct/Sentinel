@@ -20,10 +20,10 @@ const THREE = '0.186.0';
 const OUT = path.join(__dirname, '..', 'web', 'assets', 'js', 'three.min.js');
 
 const CORE = [
-  'ACESFilmicToneMapping', 'AdditiveBlending', 'Box3', 'BufferGeometry', 'CanvasTexture', 'Color', 'DirectionalLight',
+  'ACESFilmicToneMapping', 'AdditiveBlending', 'BufferGeometry', 'CanvasTexture', 'Color', 'DirectionalLight',
   'ExtrudeGeometry', 'Float32BufferAttribute', 'Group', 'IcosahedronGeometry', 'Mesh', 'MeshPhysicalMaterial',
   'PerspectiveCamera', 'PlaneGeometry', 'PMREMGenerator', 'PointLight', 'Points', 'PointsMaterial', 'Scene',
-  'ShaderMaterial', 'SRGBColorSpace', 'TorusGeometry', 'Vector3', 'WebGLRenderer'
+  'ShaderMaterial', 'SRGBColorSpace', 'Vector3', 'WebGLRenderer'
 ];
 
 const entry = `export { ${CORE.join(', ')} } from 'three';

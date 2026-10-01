@@ -83,6 +83,7 @@
   // reduced motion (or any error) the link simply does what a link does.
   let wipe = null;
   let wipeTimer = 0;
+  let pending = 0;
   const clearWipe = () => { if (wipe) wipe.className = 'wipe'; };
   function cover(label, then) {
     if (!wipe) {
@@ -97,7 +98,9 @@
     clearTimeout(wipeTimer);
     wipe.className = 'wipe is-cover';
     wipeTimer = setTimeout(clearWipe, 2600);
-    setTimeout(then, 640);
+    // A second click replaces the first, so the page never jumps twice.
+    clearTimeout(pending);
+    pending = setTimeout(then, 640);
   }
   const uncover = () => {
     if (!wipe) return;
@@ -119,6 +122,9 @@
     const top = target.getBoundingClientRect().top + scrollY - (nav ? nav.offsetHeight : 0) - 8;
     scrollTo({ top: Math.max(0, top), behavior: 'instant' });
     if (history.pushState) history.pushState(null, '', hash); else location.hash = hash;
+    // Keyboard focus follows, as a native jump to a fragment would move it.
+    if (!target.hasAttribute('tabindex')) target.tabIndex = -1;
+    target.focus({ preventScroll: true });
   }
 
   function onTab(ev) {
@@ -142,7 +148,7 @@
       cover(labelOf(a), () => { location.href = url.href; });
     }
   }
-  $$('.nav__links a, [data-tab-link]').forEach((a) => a.addEventListener('click', onTab));
+  $$('.nav__links a').forEach((a) => a.addEventListener('click', onTab));
 
   // Back-to-top button, shown once the reader is well down the page.
   const toTop = document.createElement('button');
@@ -354,12 +360,12 @@
   /* ------------------------------------------------------- chapter rail */
 
   // One mark per chapter down the left edge on wide screens; each one is a tab like those in the header.
-  const chapters = $$('[data-chapter]').filter((s) => s.id || s.classList.contains('hero'));
+  const chapters = $$('[data-chapter]').filter((s) => s.id);
   if (chapters.length > 2) {
     const rail = document.createElement('ul');
     rail.className = 'rail';
     rail.setAttribute('aria-label', 'Chapters');
-    rail.innerHTML = chapters.map((s) => `<li><a href="#${s.id || 'main'}" data-tab-link data-label="${s.dataset.chapter}"><span>${s.dataset.chapter}</span></a></li>`).join('');
+    rail.innerHTML = chapters.map((s) => `<li><a href="#${s.id}" data-label="${s.dataset.chapter}"><span>${s.dataset.chapter}</span></a></li>`).join('');
     document.body.appendChild(rail);
     const marks = $$('a', rail);
     marks.forEach((a) => a.addEventListener('click', onTab));
@@ -414,14 +420,22 @@
   if (marquee && !reduced) {
     let lastY = scrollY;
     let skew = 0;
+    let running = false;
+    let visible = false;
+    // Runs only while the marquee is on screen, and settles back to upright before stopping.
     const lean = () => {
       const v = scrollY - lastY;
       lastY = scrollY;
       skew += (Math.max(-12, Math.min(12, v * 0.35)) - skew) * 0.12;
       marquee.style.setProperty('--skew', `${skew.toFixed(2)}deg`);
-      requestAnimationFrame(lean);
+      running = visible || Math.abs(skew) > 0.05;
+      if (running) requestAnimationFrame(lean);
     };
-    requestAnimationFrame(lean);
+    new Observer((entries) => {
+      visible = entries[0].isIntersecting;
+      lastY = scrollY;
+      if (visible && !running) { running = true; requestAnimationFrame(lean); }
+    }).observe(marquee);
   }
 
   /* ---------------------------------------------------- download picker */
