@@ -67,6 +67,7 @@ function register(router) {
     const ip = security.clientIp(req);
     security.rateLimit(`signup:${ip}`, config.isTest ? 10000 : 8, 60 * 60 * 1000, 'Too many accounts created from this network. Try again later.');
     const clean = A.validateSignup(await readJson(req));
+    if (await security.breachedPassword(clean.password)) throw new HttpError(400, 'validation_failed', security.BREACHED, { errors: { password: security.BREACHED } });
     const user = await A.createUser(clean);
     security.audit('signup', { userId: user.id, req });
     // 'sent' | 'failed' | 'unavailable' - the client only says an email went out when one did.
@@ -104,7 +105,7 @@ function register(router) {
     const body = await readJson(req);
     const email = String(body.email || '').trim().toLowerCase().slice(0, 254);
     const ip = security.clientIp(req);
-    security.rateLimit(`login:ip:${ip}`, 30, 15 * 60 * 1000, 'Too many sign-in attempts. Please wait a few minutes.');
+    security.rateLimit(`login:ip:${ip}`, config.isTest ? 10000 : 30, 15 * 60 * 1000, 'Too many sign-in attempts. Please wait a few minutes.');
     security.rateLimit(`login:email:${email}`, 12, 15 * 60 * 1000, 'Too many sign-in attempts. Please wait a few minutes.');
 
     const user = await A.checkPassword(email, String(body.password || ''), req);
@@ -170,6 +171,7 @@ function register(router) {
     if (!user) throw new HttpError(400, 'reset_invalid', 'This reset link is no longer valid.');
     const problem = security.passwordProblem(body.password, { email: user.email, firstName: user.first_name });
     if (problem) throw new HttpError(400, 'validation_failed', problem, { errors: { password: problem } });
+    if (await security.breachedPassword(body.password)) throw new HttpError(400, 'validation_failed', security.BREACHED, { errors: { password: security.BREACHED } });
 
     A.uq.setPassword.run(await A.hashPassword(String(body.password)), user.id);
     resets.use.run(Date.now(), user.id);

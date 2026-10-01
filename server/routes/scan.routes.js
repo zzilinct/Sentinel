@@ -92,6 +92,7 @@ function register(router) {
 
   router.post('/api/v1/scan/link', async (req, res) => {
     const user = A.requireAgreedUser(req);
+    security.rateLimit(`scan-minute:${user.id}`, 30, 60 * 1000, 'Too many scans in a minute. Wait a moment, then try again.');
     const body = await readJson(req);
     if (!body.url || typeof body.url !== 'string') throw new HttpError(400, 'missing_url', 'Paste a link to check');
     const url = typedUrl(body.url);
@@ -113,6 +114,7 @@ function register(router) {
 
   router.post('/api/v1/scan/threat', async (req, res) => {
     const user = A.requireAgreedUser(req);
+    security.rateLimit(`scan-minute:${user.id}`, 30, 60 * 1000, 'Too many scans in a minute. Wait a moment, then try again.');
     const body = await readJson(req);
     const url = body.url && typedUrl(body.url);
     if (!url || !analyze(url)) throw new HttpError(400, 'bad_url', 'Paste a download link or web address to scan');
@@ -133,6 +135,7 @@ function register(router) {
 
   router.post('/api/v1/scan/file', async (req, res) => {
     const user = A.requireAgreedUser(req);
+    security.rateLimit(`scan-minute:${user.id}`, 30, 60 * 1000, 'Too many scans in a minute. Wait a moment, then try again.');
     // A custom header makes this a non-simple request, so browsers preflight it.
     const rawName = req.headers['x-file-name'];
     if (!rawName) throw new HttpError(400, 'missing_name', 'Missing X-File-Name header');
@@ -154,6 +157,7 @@ function register(router) {
 
   router.post('/api/v1/scan/email', async (req, res) => {
     const user = A.requireAgreedUser(req);
+    security.rateLimit(`scan-minute:${user.id}`, 30, 60 * 1000, 'Too many scans in a minute. Wait a moment, then try again.');
     const plan = plans.planFor(user);
     if (!plan.features.emailManual) {
       throw new HttpError(403, 'plan_required', 'Pasting emails in for a scan is part of Sentinel Max.', { needs: 'max', plan: plan.id });

@@ -27,6 +27,9 @@ test('static build: every page ships, every relative link resolves, nothing poin
     assert.ok(fs.existsSync(path.join(out, page)), `${page} missing`);
     const html = read(page);
     assert.ok(!html.includes('@include'), `${page} has an unexpanded include`);
+    // A static host sends no security headers: the page must carry its own content policy and referrer policy.
+    assert.match(html, /<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'/, `${page} lost its content policy`);
+    assert.match(html, /<meta name="referrer" content="strict-origin-when-cross-origin">/, `${page} lost its referrer policy`);
     for (const href of hrefs(html)) {
       if (/^(#|mailto:|https?:)/.test(href)) continue;
       const file = href.split('#')[0].split('?')[0];

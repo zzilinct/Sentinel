@@ -163,6 +163,25 @@ function passwordProblem(password, { email = '', firstName = '' } = {}) {
   return null;
 }
 
+/**
+ * Has this password turned up in a known data breach? Asks Have I Been Pwned's range API, which only ever sees the
+ * first 5 characters of the password's SHA-1 hash (k-anonymity, padded responses): not the password, not its hash.
+ * When the service cannot be reached the answer is "not known", so signing up never depends on it.
+ */
+async function breachedPassword(password) {
+  if (config.isTest) return false;
+  try {
+    const hash = crypto.createHash('sha1').update(String(password)).digest('hex').toUpperCase();
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${hash.slice(0, 5)}`, { headers: { 'Add-Padding': 'true', 'User-Agent': 'Sentinel' }, signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return false;
+    const rest = hash.slice(5);
+    return (await res.text()).split('\n').some((line) => { const [suffix, count] = line.trim().split(':'); return suffix === rest && Number(count) > 0; });
+  } catch {
+    return false;
+  }
+}
+const BREACHED = 'This password has appeared in a known data breach, so attackers try it first. Choose a different one.';
+
 /* ------------------------------------------------------------------- TOTP */
 
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -227,5 +246,5 @@ function totpUri(secretB32, email) {
 
 module.exports = {
   baseHeaders, corsHeaders, assertSameOrigin, isExtensionOrigin, clientIp, rateLimit, audit,
-  passwordProblem, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode
+  passwordProblem, breachedPassword, BREACHED, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode
 };

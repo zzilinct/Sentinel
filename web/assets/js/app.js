@@ -492,7 +492,7 @@
     });
 
     try {
-      const data = await api('/account/history');
+      const data = await api('/account/history?limit=6');
       const slot = $('[data-recent]', el);
       if (!slot) return;
       slot.innerHTML = historyList(data.items.slice(0, 6), { clickable: true });
@@ -505,7 +505,11 @@
         const row = ev.target.closest('[data-rescan]');
         if (row && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); row.click(); }
       });
-    } catch { /* optional */ }
+    } catch {
+      // Never a skeleton that loads forever: say so, plainly.
+      const slot = $('[data-recent]', el);
+      if (slot) slot.innerHTML = '<p class="muted">Recent scans could not be loaded. They will be back next time you open this page.</p>';
+    }
   }
 
   function protectionTeaser() {
@@ -693,9 +697,15 @@
     </label>`;
     const drop = $('[data-drop]', input);
     const fileInput = $('[data-file]', input);
+    // One file at a time: a second drop while one is being checked would start a second scan and use a second
+    // scan from the allowance.
+    let scanning = false;
     const scanFile = async (file) => {
       if (!file) return;
+      if (scanning) { toast('One file at a time. This one is still being checked.', 'info'); return; }
       if (file.size > 25 * 1024 * 1024) { toast('Files up to 25 MB can be scanned.', 'error'); return; }
+      scanning = true;
+      drop.setAttribute('aria-busy', 'true');
       out.innerHTML = `<div class="panel scanning"><div class="scanning__rings">${Masks.svg('virus')}</div><h3>Inspecting ${esc(file.name)}</h3><p class="muted u-mt-xs">${bytes(file.size)} &middot; checking signatures, disguises, macros and scripts</p></div>`;
       try {
         const data = await api('/scan/file', { method: 'POST', raw: file, headers: { 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' } });
@@ -704,6 +714,8 @@
         showVerdict(out, data.verdict);
       } catch (err) { out.innerHTML = friendlyError(err); }
       fileInput.value = '';
+      scanning = false;
+      drop.removeAttribute('aria-busy');
     };
     fileInput.addEventListener('change', () => scanFile(fileInput.files[0]));
     ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (ev) => { ev.preventDefault(); drop.classList.add('is-over'); }));
@@ -1363,9 +1375,11 @@
         })));
         const revoke = $('[data-revoke]', slot);
         if (revoke) revoke.addEventListener('click', () => busy(revoke, 'Signing out', async () => {
-          await api('/account/sessions/revoke-others', { method: 'POST', body: {} });
-          toast('Other devices were signed out.', 'success');
-          loadSessions();
+          try {
+            await api('/account/sessions/revoke-others', { method: 'POST', body: {} });
+            toast('Other devices were signed out.', 'success');
+            loadSessions();
+          } catch (err) { toast(err.message, 'error'); }
         }));
       } catch (err) { slot.innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; }
     }
@@ -1377,7 +1391,7 @@
     slot.innerHTML = `<h2>Two-factor authentication</h2>
       <p class="panel-lede">${on ? 'On. Signing in needs a code from your authenticator app.' : 'Add a second step to sign-in with Google Authenticator, 1Password, Authy or any authenticator app.'}</p>
       <div data-2fa-body>${on
-        ? '<form data-disable><div class="field"><label for="tfa-off">Enter a current code to turn it off</label><input class="input code-input" id="tfa-off" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div><button class="btn u-mt-sm" type="submit">Turn off two-factor</button></form>'
+        ? '<form data-disable><div class="field"><label for="tfa-off">Enter a current code to turn it off</label><input class="input code-input" id="tfa-off" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div>' + (state.me.user.hasPassword ? '<div class="field"><label for="tfa-off-pw">Your password</label><input class="input" id="tfa-off-pw" type="password" name="password" autocomplete="current-password" required></div>' : '') + '<button class="btn u-mt-sm" type="submit">Turn off two-factor</button></form>'
         : '<button class="btn btn--gold" data-setup>Set up two-factor</button>'}</div>`;
 
     const setup = $('[data-setup]', slot);
@@ -1412,7 +1426,7 @@
       ev.preventDefault();
       await busy($('button', disable), 'Turning off', async () => {
         try {
-          const data = await api('/account/2fa/disable', { method: 'POST', body: { code: disable.code.value } });
+          const data = await api('/account/2fa/disable', { method: 'POST', body: { code: disable.code.value, password: disable.password ? disable.password.value : '' } });
           state.me.user = data.user;
           toast('Two-factor authentication is off.', 'info');
           render2fa(slot);
@@ -1486,7 +1500,8 @@
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const content = form.message.value.trim();
-      if (!content) return;
+      // While a reply is on its way the text stays in the box: it is sent with the next press, not lost or doubled.
+      if (!content || $('button', form).dataset.busy) return;
       log.push({ role: 'user', content });
       form.message.value = '';
       paint();
@@ -1499,7 +1514,8 @@
       });
     });
     $('[data-disconnect]', pane).addEventListener('click', async () => {
-      await api('/ai/disconnect', { method: 'POST', body: { provider: p.id } }).catch(() => {});
+      try { await api('/ai/disconnect', { method: 'POST', body: { provider: p.id } }); }
+      catch (err) { toast(err.message, 'error'); return; }
       chats[p.id] = [];
       render();
     });

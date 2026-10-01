@@ -19,7 +19,9 @@ window.UI = (() => {
   }
 
   async function api(path, { method = 'GET', body, raw, headers = {}, signal } = {}) {
-    const init = { method, credentials: 'same-origin', headers: { ...headers }, signal };
+    // Nothing waits forever: a call nobody cancels gives up after 75 s (past the 60 s an AI reply may take) with a plain
+    // message instead of a spinner that never stops.
+    const init = { method, credentials: 'same-origin', headers: { ...headers }, signal: signal || AbortSignal.timeout(75000) };
     if (raw !== undefined) init.body = raw;
     else if (body !== undefined) { init.body = JSON.stringify(body); init.headers['Content-Type'] = 'application/json'; }
     let res;
@@ -27,6 +29,7 @@ window.UI = (() => {
       res = await fetch(`/api/v1${path}`, init);
     } catch (err) {
       if (err.name === 'AbortError') throw err;
+      if (err.name === 'TimeoutError') throw new ApiError('Sentinel is taking too long to answer. Try again in a moment.', 0);
       throw new ApiError('Could not reach Sentinel. Check your connection and try again.', 0);
     }
     let data = null;

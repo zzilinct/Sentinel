@@ -3,7 +3,7 @@
  * Operator commands. There are deliberately no admin HTTP endpoints - an admin
  * API is one more thing to break into. Run these on the server itself.
  *
- *   node scripts/admin.js set-plan <email> <free|pro|max>
+ *   node scripts/admin.js set-plan <email> <free|pro|max|ultimate>
  *   node scripts/admin.js unlock <email>
  *   node scripts/admin.js revoke-sessions <email>
  *   node scripts/admin.js refresh-feeds
@@ -25,7 +25,7 @@ function userByEmail(email) {
   switch (cmd) {
     case 'set-plan': {
       const [email, plan] = args;
-      if (!['free', 'pro', 'max'].includes(plan)) throw new Error('Plan must be free, pro or max');
+      if (!['free', 'pro', 'max', 'ultimate'].includes(plan)) throw new Error('Plan must be free, pro, max or ultimate');
       const u = userByEmail(email);
       db.prepare('UPDATE users SET plan = ? WHERE id = ?').run(plan, u.id);
       console.log(`${u.email} is now on ${plan}`);

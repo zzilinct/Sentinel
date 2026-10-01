@@ -24,6 +24,10 @@ async function lookup(url) {
   const hit = cache.get(url);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
 
+  // The daily spending cap: past it, scans go on with Sentinel's own lists until the day resets.
+  try { require('../security').rateLimit('spend:safebrowsing', config.safeBrowsingDailyCap, 24 * 60 * 60 * 1000); }
+  catch { return { hit: false, skipped: true, error: 'safe_browsing_daily_cap' }; }
+
   const body = {
     client: { clientId: 'sentinel-scam-scan', clientVersion: '0.1.0' },
     threatInfo: {

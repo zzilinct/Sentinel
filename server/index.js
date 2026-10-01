@@ -54,6 +54,12 @@ function createServer() {
 
       const isApi = url.pathname.startsWith('/api/');
       if (isApi) {
+        // For uptime monitors and the container health check: answers only when the accounts database does.
+        if (url.pathname === '/api/v1/health') {
+          require('./lib/db').db.prepare('SELECT count(*) AS n FROM users').get();
+          sendJson(res, 200, { ok: true }, { 'Cache-Control': 'no-store' });
+          return;
+        }
         security.rateLimit(`api:${security.clientIp(req)}`, 600, 60 * 1000);
         security.assertSameOrigin(req);
         const route = router.match(req.method, url.pathname);
@@ -106,6 +112,10 @@ function start() {
   // One server per database, and a verified copy of the accounts file before
   // anything else happens to it.
   acquireLock();
+  // Nothing fails silently. A stray rejected promise is logged and the server carries on; an uncaught exception
+  // leaves the process in an unknown state, so it is logged and the process exits for the container to restart.
+  process.on('unhandledRejection', (err) => console.error('[crash] unhandled rejection', err));
+  process.on('uncaughtException', (err) => { console.error('[crash] uncaught exception', err); process.exit(1); });
   backupAccounts();
   setInterval(backupAccounts, 6 * 60 * 60 * 1000).unref();
 

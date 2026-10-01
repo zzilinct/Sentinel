@@ -29,6 +29,9 @@ async function requireRecentPassword(user, password, req) {
     if (!at || Date.now() - at > RECENT_SIGN_IN_MS) throw new HttpError(401, 'reauth_required', 'For your safety, sign out and sign in again with Google, then try once more.');
     return;
   }
+  // Every place that asks for the password again (change it, two-step setup, delete the account) shares one limit,
+  // so none of them can be used to guess it.
+  security.rateLimit(`password-check:${user.id}`, 10, 15 * 60 * 1000, 'Too many password attempts. Wait 15 minutes, then try again.');
   if (!(await A.verifyPassword(String(password || ''), user.password_hash))) {
     throw new HttpError(401, 'bad_credentials', 'Your current password is incorrect');
   }
@@ -50,7 +53,8 @@ function register(router) {
     const s = q.stats.get(user.id, since);
     sendJson(res, 200, {
       stats: { total: s.total || 0, flagged: s.flagged || 0, scams: s.scams || 0, viruses: s.viruses || 0, malware: s.malware || 0 },
-      items: q.history.all(user.id, since, 200)
+      // ?limit= asks for fewer (the overview shows 6); never more than 200.
+      items: q.history.all(user.id, since, Math.min(200, Math.max(1, Number(new URL(req.url, 'http://x').searchParams.get('limit')) || 200)))
     });
   });
 
@@ -72,6 +76,7 @@ function register(router) {
     await requireRecentPassword(user, body.currentPassword, req);
     const problem = security.passwordProblem(body.newPassword, { email: user.email, firstName: user.first_name });
     if (problem) throw new HttpError(400, 'validation_failed', problem, { errors: { newPassword: problem } });
+    if (await security.breachedPassword(body.newPassword)) throw new HttpError(400, 'validation_failed', security.BREACHED, { errors: { newPassword: security.BREACHED } });
 
     A.uq.setPassword.run(await A.hashPassword(String(body.newPassword)), user.id);
     A.sq.delAllForUser.run(user.id);              // sign out everywhere else
@@ -113,6 +118,8 @@ function register(router) {
     const body = await readJson(req);
     security.rateLimit(`2fa-disable:${user.id}`, 10, 15 * 60 * 1000);
     if (!user.totp_enabled) throw new HttpError(400, 'not_enabled', 'Two-factor authentication is not on');
+    // A code alone is not enough: someone holding a signed-in device and the phone must also know the password.
+    await requireRecentPassword(user, body.password, req);
     const counter = security.verifyTotp(A.decryptSecret(user.totp_secret), body.code, user.totp_last_counter);
     if (counter === null) throw new HttpError(400, 'bad_code', 'That code is not correct');
     A.uq.setTotp.run(null, 0, user.id);

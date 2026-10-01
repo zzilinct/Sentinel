@@ -64,6 +64,11 @@ module.exports = {
     get enabled() { return Boolean(this.clientId && this.clientSecret); }
   },
   safeBrowsingKey: process.env.SAFE_BROWSING_API_KEY || '',
+  // Spending caps on paid services, per server per day. Past them Sentinel carries on without the service
+  // (Safe Browsing) or stops sending (email) instead of running up a bill. Google's free Safe Browsing quota is
+  // 10,000 lookups a day.
+  safeBrowsingDailyCap: Number(process.env.SAFE_BROWSING_DAILY_CAP || 9000),
+  mailDailyCap: Number(process.env.MAIL_DAILY_CAP || 1000),
   // Threat feeds are refreshed on this interval (0 disables automatic refresh).
   feedRefreshHours: Number(process.env.FEED_REFRESH_HOURS ?? (isTest ? 0 : 6)),
   // "demo" lets signed-in users switch plans without payment (development only).

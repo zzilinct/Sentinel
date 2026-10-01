@@ -18,6 +18,7 @@ const MAX_BYTES = 1.5 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 const TIMEOUT_MS = 8000;
+const TOTAL_MS = 12000;   // one request, start to finish, however slowly the site answers
 
 /* ----------------------------------------------------------- address rules */
 
@@ -184,6 +185,9 @@ function requestOnce(url, { method = 'GET', headers = {} } = {}) {
       if (stream !== res) res.on('error', incomplete);
     });
     req.on('timeout', () => req.destroy(Object.assign(new Error('Research request timed out'), { code: 'timeout' })));
+    // TIMEOUT_MS only fires on a silent socket: a site that drips a byte a second never trips it. This caps the
+    // whole request; whatever arrived by then is used, marked truncated. (Destroying a finished request does nothing.)
+    setTimeout(() => req.destroy(Object.assign(new Error('Research request took too long'), { code: 'timeout' })), TOTAL_MS).unref();
     req.on('error', reject);
     req.end();
   });

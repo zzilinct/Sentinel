@@ -430,3 +430,26 @@ test('demo scan: no account needed, bare domains are treated as HTTPS, bad input
   assert.equal((await post({ url: '   ' })).status, 400);
   assert.equal((await post({ url: 42 })).status, 400);
 });
+
+test('health check answers only when the accounts database does', async () => {
+  const r = await fetch(`${app.base}/api/v1/health`);
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true });
+});
+
+test('two sign-ups for one address at the same moment: one account, the other is told it exists', async () => {
+  const email = `race_${Date.now()}@example.com`;
+  const body = { email, password: 'Correct-Horse-42', firstName: 'Race', lastName: '', ageConfirmed: true, termsAccepted: true };
+  const [a, b] = await Promise.all([client(app.base).post('/api/v1/auth/signup', body), client(app.base).post('/api/v1/auth/signup', body)]);
+  assert.deepEqual([a.status, b.status].sort(), [201, 409]);
+});
+
+test('many people at once: 20 accounts scanning together all get their own answers', async () => {
+  const users = await Promise.all(Array.from({ length: 20 }, () => newUser()));
+  const results = await Promise.all(users.map((c, i) => c.post('/api/v1/scan/link', { url: `https://together-${i}.example.com/` })));
+  for (const r of results) assert.equal(r.status, 200, JSON.stringify(r.data));
+  // Each person's allowance counted once, for their own scan.
+  for (const r of results) assert.equal(r.data.usage.linkScans.used, 1);
+  const history = await users[0].get('/api/v1/account/history?limit=1');
+  assert.equal(history.data.items.length, 1);
+});

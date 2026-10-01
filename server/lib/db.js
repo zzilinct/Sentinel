@@ -327,6 +327,19 @@ const MIGRATIONS = [
     minute INTEGER NOT NULL,
     PRIMARY KEY (user_id, minute)
   );
+  `,
+
+  // 9 - indexes for what the hourly sweep deletes by date, and for deleting an account (its reports are kept,
+  //     unlinked, which meant reading every report)
+  `
+  CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id);
+  CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_history_time ON scan_history(created_at);
+  CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_log(created_at);
+  CREATE INDEX IF NOT EXISTS idx_research_checked ON research_cache(checked_at);
+  CREATE INDEX IF NOT EXISTS idx_oauth_created ON oauth_states(created_at);
+  CREATE INDEX IF NOT EXISTS idx_resets_expires ON password_resets(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_verifications_expires ON email_verifications(expires_at);
   `
 ];
 
@@ -445,10 +458,29 @@ function backupAccounts() {
     try { fs.unlinkSync(tmp); } catch { /* none */ }
     db.exec(`VACUUM main INTO '${tmp.replace(/'/g, "''")}'`);
     fs.renameSync(tmp, BACKUP_PATH);
+    keepDailyCopy();
     return true;
   } catch {
     try { fs.unlinkSync(tmp); } catch { /* none */ }
     return false;
+  }
+}
+
+/**
+ * A dated copy of the verified backup, one per day, the newest 7 kept. BACKUP_DIR can point at another disk or a
+ * mounted remote folder, so losing the data volume does not lose every copy. To restore one: stop the server,
+ * copy the dated file over the database path, start it again (it is checked on opening, see healthy()).
+ */
+function keepDailyCopy() {
+  try {
+    const dir = process.env.BACKUP_DIR || path.join(path.dirname(BACKUP_PATH), 'backups');
+    fs.mkdirSync(dir, { recursive: true });
+    const name = `sentinel-${new Date().toISOString().slice(0, 10)}.db`;
+    fs.copyFileSync(BACKUP_PATH, path.join(dir, name));
+    const old = fs.readdirSync(dir).filter((f) => /^sentinel-\d{4}-\d{2}-\d{2}\.db$/.test(f)).sort().slice(0, -7);
+    for (const f of old) fs.unlinkSync(path.join(dir, f));
+  } catch (err) {
+    console.error(`[backup] Could not keep a dated copy: ${err.message}`);
   }
 }
 

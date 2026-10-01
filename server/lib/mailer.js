@@ -23,6 +23,13 @@ async function send({ to, subject, text, html }) {
     return { ok: true, logged: true };
   }
 
+  // The daily spending cap on email, across every account, so a flood of sign-ups cannot run up a bill.
+  try { require('./security').rateLimit('spend:mail', config.mailDailyCap, 24 * 60 * 60 * 1000); }
+  catch {
+    console.error(`[mail] Daily cap of ${config.mailDailyCap} emails reached, so this was not sent: "${subject}"`);
+    return { ok: false, reason: 'daily_cap' };
+  }
+
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',

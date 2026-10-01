@@ -136,7 +136,11 @@ async function dnsRecord(method, host) {
   const cached = dnsCache.get(key);
   if (cached && now() - cached.at < DNS_CACHE_MS) return cached.value;
   if (dnsInflight.has(key)) return dnsInflight.get(key);
-  const job = dns[method](host).then(value => {
+  // Bounded: the system resolver retries for 20 seconds or more on a dead name server. A lookup past 5 s counts
+  // as failed (unknown, not cached), like any other outage.
+  let timer;
+  const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('DNS timed out'), { code: 'ETIMEOUT' })), 5000); });
+  const job = Promise.race([dns[method](host), deadline]).finally(() => clearTimeout(timer)).then(value => {
     dnsCache.set(key, { value, at: now() });
     if (dnsCache.size > 5000) dnsCache.delete(dnsCache.keys().next().value);
     return value;

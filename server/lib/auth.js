@@ -114,7 +114,7 @@ const sq = {
   del: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
   delAllForUser: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
   delOthers: db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?'),
-  list: db.prepare('SELECT token_hash, kind, created_at, last_seen_at, expires_at, persistent, user_agent, ip FROM sessions WHERE user_id = ? AND expires_at >= ? ORDER BY COALESCE(last_seen_at, created_at) DESC')
+  list: db.prepare('SELECT token_hash, kind, created_at, last_seen_at, expires_at, persistent, user_agent, ip FROM sessions WHERE user_id = ? AND expires_at >= ? ORDER BY COALESCE(last_seen_at, created_at) DESC LIMIT 100')
 };
 
 function publicUser(u) {
@@ -146,7 +146,13 @@ async function createUser({ email, password, firstName, lastName, googleSub = nu
   const userId = id('usr');
   const hash = password ? await hashPassword(password) : null;
   const t = now();
-  uq.insert.run(userId, email, hash, firstName, lastName, googleSub, avatarUrl, t, t);
+  // Two sign-ups for one address at once both pass the check above while hashing; the database's UNIQUE rule
+  // stops the second, which gets the same answer as if it had come later.
+  try { uq.insert.run(userId, email, hash, firstName, lastName, googleSub, avatarUrl, t, t); }
+  catch (err) {
+    if (String(err.code || err.message).includes('CONSTRAINT')) throw new HttpError(409, 'email_taken', 'An account with this email already exists');
+    throw err;
+  }
   if (emailVerified) uq.markVerified.run(t, userId);
   if (ageConfirmed && termsAccepted) uq.acceptTerms.run(t, t, TERMS_VERSION, userId);
   return uq.byId.get(userId);
