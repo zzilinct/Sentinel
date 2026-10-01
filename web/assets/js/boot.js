@@ -41,9 +41,10 @@ if (!('IntersectionObserver' in window)) document.documentElement.classList.add(
   const revealAll = () => document.documentElement.classList.add('no-io');
   const ready = () => window.Site && window.Site.ready;
   addEventListener('error', (ev) => {
-    // Runtime errors target window; failed loads target the element. A missing image is harmless.
+    // Runtime errors target window; failed loads target the element. Only a script can stop the reveals: a missing
+    // image or stylesheet (a font import under a subpath) leaves them working.
     const tag = ev.target && ev.target.tagName;
-    if ((!tag || tag === 'SCRIPT' || tag === 'LINK') && !ready()) revealAll();
+    if ((!tag || tag === 'SCRIPT') && !ready()) revealAll();
   }, true);
   setTimeout(() => { if (!ready()) revealAll(); }, 3000);
 })();
