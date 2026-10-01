@@ -146,7 +146,7 @@ function register(router) {
       await mailer.send({
         to: user.email,
         subject: 'Reset your Sentinel password',
-        text: `Hi ${user.first_name},\n\nUse this link to choose a new Sentinel password. It expires in 30 minutes and works once:\n\n${link}\n\nIf you didn't ask for this, you can ignore this email - your password hasn't changed.`,
+        text: `Hi ${user.first_name},\n\nUse this link to choose a new Sentinel password. It expires in 30 minutes and works once:\n\n${link}\n\nIf you didn't ask for this, you can ignore this email: your password hasn't changed.`,
         html: mailer.layout('Reset your password', `<p style="color:#b9b6ae;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(user.first_name)}, use the button below to choose a new password. The link expires in 30 minutes and works once.</p>
           <a href="${link}" style="display:inline-block;background:#d4ae63;color:#16130b;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:11px">Choose a new password</a>
           <p style="color:#86847e;font-size:13px;line-height:1.6;margin:24px 0 0">Didn't ask for this? Ignore this email. Your password hasn't changed.</p>`)
@@ -205,6 +205,11 @@ function register(router) {
     if ((req.headers.authorization || '').startsWith('Bearer ')) {
       throw new HttpError(403, 'session_required', 'Client tokens can only be issued from a signed-in browser session');
     }
+    // From Sentinel's own pages only (the connect page hands the token to the companion). An extension asking with
+    // the person's cookie could be any extension, so it is told to use the connect page instead.
+    if (security.isExtensionOrigin(req.headers.origin || '')) {
+      throw new HttpError(403, 'use_connect_page', 'Open the Sentinel connect page to pair this add-on');
+    }
     const body = await readJson(req);
     const kind = body.client === 'desktop' ? 'desktop' : 'extension';
     security.rateLimit(`client-token:${user.id}`, 20, 60 * 60 * 1000);
@@ -244,7 +249,8 @@ function register(router) {
     security.rateLimit(`google:${security.clientIp(req)}`, 30, 15 * 60 * 1000);
     const q = parseUrl(req).searchParams;
     // The sign-in page's "stay signed in" box travels with the OAuth state.
-    send(res, 302, null, { Location: A.googleAuthUrl(q.get('next'), { staySignedIn: q.get('stay') === '1' }) });
+    const { url, cookie } = A.googleAuthUrl(q.get('next'), { staySignedIn: q.get('stay') === '1' });
+    send(res, 302, null, { Location: url, 'Set-Cookie': cookie });
   });
 
   router.get('/api/v1/auth/google/callback', async (req, res) => {
@@ -257,16 +263,17 @@ function register(router) {
     const state = params.get('state');
     if (!code || !state) throw new HttpError(400, 'missing_code', 'Google sign-in did not complete');
 
-    const { claims, nextUrl, staySignedIn } = await A.googleExchange(code, state);
+    const { claims, nextUrl, staySignedIn } = await A.googleExchange(code, state, req);
     const user = await A.upsertGoogleUser(claims);
+    const done = A.googleStateCookie('');
     if (user.totp_enabled) {
       const challenge = A.createChallenge(user.id, nextUrl, { staySignedIn });
-      send(res, 302, null, { Location: `/login?mfa=${encodeURIComponent(challenge)}` });
+      send(res, 302, null, { Location: `/login?mfa=${encodeURIComponent(challenge)}`, 'Set-Cookie': done });
       return;
     }
     security.audit('login_google', { userId: user.id, req });
     const { token, persistent } = A.createSession(user.id, req, { staySignedIn });
-    send(res, 302, null, { Location: A.safeNext(nextUrl), 'Set-Cookie': A.sessionCookie(token, { persistent }) });
+    send(res, 302, null, { Location: A.safeNext(nextUrl), 'Set-Cookie': [A.sessionCookie(token, { persistent }), done] });
   });
 }
 

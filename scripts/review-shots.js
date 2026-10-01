@@ -29,7 +29,7 @@ const CANDIDATES = {
 
 // The pages, in the order a new person meets them. `wait` gives a scan time to finish.
 const PAGES = [
-  ['home', '/'], ['pricing', '/pricing'], ['download', '/download'], ['privacy', '/privacy'], ['terms', '/terms'],
+  ['home', '/'], ['pricing', '/pricing'], ['download', '/download'], ['privacy', '/privacy'], ['terms', '/terms'], ['refunds', '/refunds'],
   ['signup', '/signup', { anonymous: true }], ['login', '/login', { anonymous: true }], ['not-found', '/no-such-page'],
   ['app-overview', '/app'],
   ['app-scan-empty', '/app/scan'],
@@ -38,7 +38,8 @@ const PAGES = [
   ['app-files', '/app/threats'], ['app-email', '/app/email'], ['app-history', '/app/history'], ['app-sites', '/app/sites'],
   ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-security', '/app/security'], ['app-assistants', '/app/assistants']
 ];
-const SIZES = [['desktop', 1366, 900, false], ['phone', 390, 844, true]];
+// Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.
+const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light']];
 
 function cdpPipe(child) {
   let id = 0;
@@ -87,6 +88,7 @@ async function signUp() {
   const email = `review-${Date.now()}@example.com`;
   const post = (p, body, cookie) => fetch(`${BASE}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: BASE, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) });
   const r = await post('/api/v1/auth/signup', { email, password: PASSWORD, firstName: 'Alex', ageConfirmed: true, termsAccepted: true });
+  if (!r.ok) throw new Error(`sign-up was refused: ${r.status} ${await r.text()}`);
   const cookie = (r.headers.getSetCookie ? r.headers.getSetCookie() : [r.headers.get('set-cookie')]).filter(Boolean).map((c) => c.split(';')[0]).join('; ');
   await post('/api/v1/billing/plan', { plan: 'max' }, cookie);
   return email;
@@ -98,10 +100,19 @@ async function signIn(send, email) {
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
   await sleep(2500);
   await send('Runtime.evaluate', { expression: `(() => { const f = document.querySelector('[data-form]'); f.email.value = ${JSON.stringify(email)}; f.password.value = ${JSON.stringify(PASSWORD)}; f.requestSubmit(); })()` }, sessionId);
-  await sleep(3500);
-  const { result } = await send('Runtime.evaluate', { expression: 'location.pathname' }, sessionId);
+  // A slow runner can take a while to answer: wait for the app rather than a fixed time.
+  let result = { value: '' };
+  for (let i = 0; i < 30 && !String(result.value).startsWith('/app'); i++) {
+    await sleep(500);
+    ({ result } = await send('Runtime.evaluate', { expression: 'location.pathname' }, sessionId));
+  }
+  if (!String(result.value).startsWith('/app')) {
+    // Say what the page said, so a failed run explains itself.
+    const { result: why } = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify({ url: location.href, note: (document.querySelector('[data-note]') || {}).textContent || '', toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '), fields: [...document.querySelectorAll('.field__error')].map((t) => t.textContent).filter(Boolean).join(' | '), ready: document.readyState })` }, sessionId);
+    await send('Target.closeTarget', { targetId });
+    throw new Error(`sign-in did not reach the app: ${why.value}`);
+  }
   await send('Target.closeTarget', { targetId });
-  if (!String(result.value).startsWith('/app')) throw new Error(`sign-in did not reach the app (at ${result.value})`);
 }
 
 async function main() {
@@ -117,12 +128,13 @@ async function main() {
     await signIn(send, await signUp());
     // Signed-out pages are photographed in a separate, empty browser context.
     const { browserContextId: anonymous } = await send('Target.createBrowserContext', {});
-    for (const [size, width, height, mobile] of SIZES) {
+    for (const [size, width, height, mobile, scheme] of SIZES) {
       for (const [name, url, opt = {}] of PAGES) {
         const { targetId } = await send('Target.createTarget', { url: 'about:blank', ...(opt.anonymous ? { browserContextId: anonymous } : {}) });
         const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
         await send('Page.enable', {}, sessionId);
         await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+        await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, sessionId);
         await send('Page.navigate', { url: BASE + url }, sessionId);
         await sleep(opt.wait || 2500);
         // The whole page, top to bottom, as someone scrolling it would see it (capped for very long pages).
@@ -137,12 +149,20 @@ async function main() {
           document.documentElement.style.height = 'auto'; document.body.style.height = 'auto'; document.body.style.overflow = 'visible';
           return tallest;
         })()` }, sessionId);
-        await sleep(600);
+        // Long enough for the slowest entrance (headings rise over a second, after a stagger).
+        await sleep(2500);
         const { cssContentSize } = await send('Page.getLayoutMetrics', {}, sessionId);
         const full = Math.min(Math.ceil(Math.max(cssContentSize.height, Number(inner.value) || 0)), 9000);
         const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: Math.max(height, full), scale: 1 } }, sessionId);
         fs.writeFileSync(path.join(OUT, `${size}-${name}.png`), Buffer.from(shot.data, 'base64'));
         console.log(`${size}-${name}.png  ${width}x${Math.max(height, full)}`);
+        // A long page also in screen-sized parts, which can be looked at without shrinking the whole page to fit.
+        if (full > height * 2) {
+          for (let y = 0, i = 1; y < full; y += height * 1.5, i++) {
+            const part = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y, width, height: Math.min(height * 1.5, full - y), scale: 1 } }, sessionId);
+            fs.writeFileSync(path.join(OUT, `${size}-${name}-part${i}.png`), Buffer.from(part.data, 'base64'));
+          }
+        }
         await send('Target.closeTarget', { targetId });
       }
     }

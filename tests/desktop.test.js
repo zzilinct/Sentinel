@@ -42,15 +42,14 @@ test('the reader only works on a browser that is in front and in use, and reads 
   assert.ok(gates > 0 && gates < s.indexOf('FromHandle'), 'every gate comes before the first look inside the window');
   // What it asks Windows for: the address (Value), rectangles, and whether a link is on screen. Never text.
   assert.ok(!/TextPattern|HelpText|LegacyIAccessible|Clipboard|CopyFromScreen|Screenshot/i.test(s), 'no page text, no clipboard, no screenshots');
-  // Names are read in two places only: the message rows of a webmail inbox, which the inbox itself displays, and
-  // Google's own /goto links, whose name carries the address Google shows under the result.
+  // Names are read in two places only: the message rows of a webmail inbox, which the inbox itself displays, and the
+  // links of a search results page (the titles the search engine shows), inside the results-page block.
   const mailBlock = s.indexOf('if ($needRead -and $url -match $mail)');
-  const googleLine = s.indexOf("if ($u -match '^https://www\\.google\\.[a-z.]{2,6}/goto\\?') { $n = [string]$l.GetCachedPropertyValue($A::NameProperty)");
+  const searchBlock = s.indexOf('if ($needRead -and $url -match $search)');
   const names = [...s.matchAll(/NameProperty/g)].map((m) => m.index);
-  assert.ok(names.length >= 1 && mailBlock > 0 && googleLine > 0);
-  const allowed = (i) => i > mailBlock || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);')
-    || (i > googleLine && i < googleLine + 200);
-  assert.ok(names.every(allowed), 'names are read only for a webmail inbox and Google\'s /goto links');
+  assert.ok(names.length >= 1 && mailBlock > 0 && searchBlock > 0 && searchBlock < mailBlock);
+  const allowed = (i) => i > mailBlock || (i > searchBlock && i < mailBlock) || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);');
+  assert.ok(names.every(allowed), 'names are read only for a webmail inbox and a results page\'s links');
   assert.ok(s.includes('InPrivate|Incognito|Private Browsing'), 'private windows are recognised by their title');
   for (const b of ['chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf']) assert.ok(s.includes(`'${b}'`), b);
 });
@@ -103,13 +102,17 @@ test('Google results behind its opaque /goto redirect are checked by the address
   assert.equal(g('Read more'), null, 'no address shown: nothing is guessed');
   const out = resultLinks([{ u: 'https://www.google.com/goto?url=X', n: 'Contact Us PayPal https://www.paypal.com › cshelp › contact-us', x: 66, y: 248, w: 282, h: 71 }], 'https://www.google.com/search?q=x');
   assert.deepEqual(out.map((l) => l.u), ['https://www.paypal.com/cshelp/contact-us']);
-  assert.equal(out[0].n, undefined, 'the name is not passed on');
+  assert.equal(out[0].n, undefined, 'the raw name is not passed on');
+  assert.equal(out[0].title, 'Contact Us PayPal https://www.paypal.com › cshelp › contact-us', 'the title the results page shows goes along');
   // Three results from one site, as Google lays them out (the reader may deliver ">" for "›"): three marks.
   const three = [248, 396, 544].map((y, i) => ({ u: `https://www.google.com/goto?url=X${i}`, n: `Title ${i} PayPal https://www.paypal.com > cshelp > page${i}`, x: 66, y, w: 300, h: 71 }));
   assert.deepEqual(resultLinks(three, 'https://www.google.com/search?q=x').map((l) => l.u), [0, 1, 2].map((i) => `https://www.paypal.com/cshelp/page${i}`));
   const same = three.map((l) => ({ ...l, n: 'PayPal https://www.paypal.com' }));
   assert.equal(resultLinks(same, 'https://www.google.com/search?q=x').length, 3, 'results far apart stay apart even when they lead to the same page');
-  assert.ok(watch._test.SCRIPT.includes("if ($u -match '^https://www\\.google\\.[a-z.]{2,6}/goto\\?')"), 'the reader sends the name for those links only');
+  // What the scanner is told about each result: its title and the search, never for a private window.
+  const hints = watch._test.hintsFor([{ u: 'https://www.overdrive.com/', title: 'OverDrive: Free ebooks' }], ['https://www.overdrive.com/'], 'https://duckduckgo.com/?q=overdrive+libby');
+  assert.deepEqual(hints, { 'https://www.overdrive.com/': { title: 'OverDrive: Free ebooks', query: 'overdrive libby' } });
+  assert.match(read('desktop/src/watch.js'), /hints: page\.private \? undefined : hintsFor\(/);
 });
 
 test('the search engine\'s own menu (its app, its AI chat) gets no marks; other apps in a store still do', () => {
@@ -155,7 +158,7 @@ test('private windows leave nothing behind: not in history, not in the log, not 
   const w = read('desktop/src/watch.js');
   assert.match(w, /if \(opts\.onChecked && !page\.private\) opts\.onChecked/, 'the log and the live list are fed only by ordinary windows');
   assert.match(w, /state\.current = page\.private \? \{ browser: page\.browser, url: null, private: true/, 'the address is not kept where the app window can read it');
-  assert.ok(w.includes("live/batch', { urls: missing, private: page.private, mode }"), 'the server is told the window is private');
+  assert.ok(w.includes("live/batch', { urls: missing, private: page.private, mode, hints: page.private ? undefined : hintsFor("), 'the server is told the window is private, and gets no titles or search from it');
   assert.ok(w.includes("if (mode === 'delicate' && !page.private) {"), 'a private window gets no quick-then-research pass');
   assert.match(read('server/routes/scan.routes.js'), /const isPrivate = body\.private === true;[\s\S]*recordFlagged: !isPrivate/, 'flagged private results are not written to history');
 });
@@ -391,6 +394,24 @@ test('download analysis runs on a worker thread and reports what an in-place sca
   assert.doesNotMatch(d, /buf = fs\.readFileSync\(full\)/, 'the main thread never reads a whole download');
 });
 
+test('marks move with the wheel the moment it turns, and only while there are marks to move', () => {
+  const s = watch._test.SCRIPT;
+  assert.ok(s.includes('public class Wheel : System.Windows.Forms.NativeWindow'), 'raw input from a hidden window');
+  assert.ok(s.includes('d[0].UsagePage = 1; d[0].Usage = 2;'), 'the mouse only, never the keyboard');
+  assert.doesNotMatch(s, /SetWindowsHookEx|WH_KEYBOARD|Usage = 6/, 'no hooks and no keyboard');
+  assert.ok(s.includes('if (m.Msg == 0x00FF && Enabled)'), 'nothing is sent unless enabled');
+  assert.ok(s.includes('try { [Wheel]::Enabled = [bool]$anchor } catch { }'), 'enabled only while a results page with marks is in front');
+  assert.match(s, /function Off\(\$why\) \{ \$script:anchor = \$null; try \{ \[Wheel\]::Enabled = \$false \}/, 'and off the moment it is not (a game in front)');
+  const html = read('desktop/src/pages/overlay.html');
+  assert.match(html, /api\.on\('overlay:wheel', function \(p\) \{ if \(p && p\.epoch === epoch\) onWheel\(p\); \}\);/);
+  assert.match(html, /perNotch = perNotch \* 0\.5 \+ measured \* 0\.5/, 'how far a notch moves this browser is learned from its reports');
+  assert.match(html, /if \(!gesture\.moved && now - gesture\.steps\[0\]\.at > SETTLE_MS && roomFor\(gesture\) !== '1'\)/, 'a page that did not move lets go at once, unless it said it has room');
+  // New positions read mid-scroll already include what the browser had reported: only the rest carries over, and the
+  // scroll goes on instead of starting again (starting again applied the next report twice, off the page).
+  assert.match(html, /var carryX = shiftX - report\.x, carryY = shiftY - report\.y;/);
+  assert.match(html, /if \(gesture\) \{ gesture\.base -= report\.y; gesture\.start -= report\.y; \}/);
+});
+
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /#marks\.is-moving \{ opacity: 0;/);
@@ -405,7 +426,7 @@ test('the reader\'s C# helper compiles (a compile error would stop live scanning
   fs.writeFileSync(file, src, 'utf8');
   try {
     const r = require('child_process').spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-      `Add-Type -TypeDefinition ([IO.File]::ReadAllText('${file.replace(/'/g, "''")}')); [SW]::Above([IntPtr]::Zero, [IntPtr]::Zero)`], { encoding: 'utf8', timeout: 60000 });
+      `Add-Type -TypeDefinition ([IO.File]::ReadAllText('${file.replace(/'/g, "''")}')) -ReferencedAssemblies System.Windows.Forms; [Wheel]::Start(); [SW]::Above([IntPtr]::Zero, [IntPtr]::Zero)`], { encoding: 'utf8', timeout: 60000 });
     assert.equal(r.status, 0, r.stderr || r.stdout);
     assert.match(r.stdout, /False/);
   } finally { fs.rmSync(file, { force: true }); }
@@ -594,4 +615,166 @@ test('two separate results from one site each keep their mark; only a result\'s 
     { u: 'https://www.paypal.com/us/cshelp/article/x', x: 22, y: 720, w: 600, h: 58 }
   ];
   assert.deepEqual(resultLinks(links, 'https://duckduckgo.com/?q=paypal').map((l) => l.y), [130, 560, 720]);
+});
+
+/**
+ * The overlay's own script, run in a sandbox with a stand-in page: time, frames and the browser's reports are driven
+ * by the test. Returns the layer's vertical shift after each frame.
+ */
+function overlaySandbox() {
+  const vm = require('vm');
+  const html = read('desktop/src/pages/overlay.html');
+  const code = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
+  const el = () => ({ style: { setProperty() {}, transform: '' }, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+    dataset: {}, appendChild() {}, remove() {}, querySelector: () => el(), getBoundingClientRect: () => ({ left: 0, top: 0 }), offsetWidth: 0, innerHTML: '' });
+  const els = {};
+  const handlers = {};
+  let now = 0;
+  let queued = [];
+  const ctx = {
+    performance: { now: () => now },
+    requestAnimationFrame: (f) => { queued.push(f); return queued.length; },
+    cancelAnimationFrame: () => { queued = []; },
+    setTimeout: () => 0, clearTimeout: () => {},
+    localStorage: { getItem: () => null, setItem() {} },
+    location: { search: '' },
+    Map, Math, Number, String, Boolean, console,
+    document: { getElementById: (id) => (els[id] = els[id] || el()), createElement: el, body: el() },
+  };
+  ctx.window = Object.assign(ctx, { innerWidth: 1000, innerHeight: 700, addEventListener() {},
+    SentinelMasks: { COLORS: {}, svg: () => '' }, sentinelOverlay: { on: (n, f) => { handlers[n] = f; } } });
+  vm.runInNewContext(code, ctx);
+  const shift = () => Number(/,(-?[\d.]+)px,0\)/.exec(els.marks.style.transform || 'translate3d(0px,0px,0)')[1]);
+  return {
+    send: (name, p) => handlers[name](p),
+    // Runs 16 ms frames up to `until`, calling at(t) before each for the events due then.
+    run(until, at) {
+      const seen = [];
+      for (; now <= until; now += 16) {
+        if (at) at(now);
+        const due = queued; queued = [];
+        due.forEach((f) => f(now));
+        seen.push(shift());
+      }
+      return seen;
+    },
+  };
+}
+
+test('a wheel turned where the page cannot move (its end, an inner list) keeps the marks in place', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [] });
+  // As the live-e2e inbox recorded it: twelve notches 46 ms apart, and the browser saying the list moved by 1 px.
+  const wheels = Array.from({ length: 12 }, (_, i) => 10 + i * 46);
+  const ys = o.run(1600, (t) => {
+    for (const w of wheels) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 });
+    if (t >= 90 && t < 106) o.send('overlay:shift', { epoch: 1, dx: 0, dy: -1, t });
+  });
+  assert.ok(Math.min(...ys) >= -201, `ran ${Math.min(...ys).toFixed(0)} px ahead of a page that never moved`);
+  // Having found the end, more notches that way do not move the marks at all.
+  const again = o.run(2400, (t) => { if (t >= 1700 && t < 1716) o.send('overlay:wheel', { epoch: 1, delta: -120 }); });
+  assert.ok(Math.min(...again) >= -2, `moved ${Math.min(...again).toFixed(0)} px past the end`);
+});
+
+test('once the browser confirms the page is moving, the marks catch up with the wheel smoothly', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [] });
+  // Four quick notches; the browser's reports trail the real scroll (100 px a notch) by about 200 ms.
+  const wheels = [10, 60, 110, 160];
+  const reports = [[210, -100], [360, -300], [520, -400]];
+  const ys = o.run(1400, (t) => {
+    for (const w of wheels) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 });
+    for (const [at, dy] of reports) if (t >= at && t < at + 16) o.send('overlay:shift', { epoch: 1, dx: 0, dy, t });
+  });
+  const steps = ys.slice(1).map((y, i) => Math.abs(y - ys[i]));
+  assert.ok(Math.max(...steps) <= 45, `a ${Math.max(...steps).toFixed(0)} px jump in one frame`);
+  assert.ok(Math.abs(ys[ys.length - 1] + 400) < 2, `settled at ${ys[ys.length - 1]}, not with the page at -400`);
+});
+
+test('a page that says it has room is followed at full speed, and one at its end not at all', () => {
+  const flick = (ends) => {
+    const o = overlaySandbox();
+    o.send('overlay:marks', { epoch: 1, marks: [], ends });
+    return o.run(400, (t) => { for (const w of [10, 60, 110, 160]) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 }); });
+  };
+  const room = flick('11');
+  assert.ok(room[13] < -300, `only at ${room[13].toFixed(0)} px 210 ms into a four-notch flick`);
+  const end = flick('10');
+  assert.ok(Math.min(...end) >= -1, 'at its end, the marks stay on their results');
+  const top = flick('01');
+  assert.ok(top[13] < -300, 'at the top, scrolling down is followed at full speed');
+});
+
+test('a browser slow to report during a long scroll does not throw the marks back to the top', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [], ends: '01' });
+  // Fourteen notches 46 ms apart and no word from the browser for almost three seconds (seen on DuckDuckGo).
+  const wheels = Array.from({ length: 14 }, (_, i) => 10 + i * 46);
+  const ys = o.run(1500, (t) => { for (const w of wheels) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 }); });
+  const lowest = Math.min(...ys);
+  assert.ok(lowest < -1300, `followed only to ${lowest.toFixed(0)} px`);
+  assert.ok(ys[ys.length - 1] < -1300, `went back to ${ys[ys.length - 1].toFixed(0)} px while the page stayed down`);
+});
+
+test('the page is followed by a link in its middle, never a header link that hides and comes back', () => {
+  const s = watch._test.SCRIPT;
+  assert.ok(s.includes('$midY = $r.Top + $r.Height / 2'));
+  assert.ok(s.includes('[Math]::Abs($b.Y - $midY) -lt [Math]::Abs($fy - $midY)'), 'the anchor is the link nearest the middle');
+  assert.ok(s.includes("ends = $ends"), 'each read says whether the page can still scroll');
+});
+
+test('settings are swapped in whole, never left half written', () => {
+  const store = require('../desktop/src/store');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-store-'));
+  try {
+    store.init(dir, { isEncryptionAvailable: () => false });
+    store.set('liveScanning', true);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).liveScanning, true);
+    assert.ok(!fs.existsSync(path.join(dir, 'settings.json.tmp')), 'no leftover temporary file');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the mouse is only asked for while marks are on screen, and a failing reader slows down', () => {
+  const s = watch._test.SCRIPT;
+  assert.ok(s.includes('if (Enabled == Registered) return;'), 'registration follows Enabled');
+  assert.ok(s.includes('d[0].Flags = 0x1; d[0].Target = IntPtr.Zero;'), 'and is removed (RIDEV_REMOVE) when off');
+  assert.ok(s.includes('static System.Windows.Forms.Timer sync;'), 'the timer is held for the life of the process');
+  const src = read('desktop/src/watch.js');
+  assert.match(src, /Math\.min\(300000, 3000 \* 2 \*\* Math\.max\(0, quickExits - 1\)\)/);
+});
+
+test('defense never acts on a guess: unreadable files need Defender to say so, and act() re-checks the file', () => {
+  const src = read('desktop/src/defense.js');
+  assert.match(src, /if \(!\(await defenderCaught\(full\)\)\) return null;/);
+  assert.match(src, /if \(!now \|\| \(entry\.sha256 && now !== entry\.sha256\)\) throw/);
+  assert.match(src, /Export-ScheduledTask/, 'a removed task can be restored');
+  assert.ok(read('desktop/src/downloads.js').includes('if (!now || now !== item.sha256) throw'));
+  assert.match(read('desktop/src/main.js'), /if \(idleSeconds < 2 \* 60 \|\| await fullscreenInFront\(\)\) return;/, 'no update over a fullscreen game');
+});
+
+test('a wheel turned over something that does not scroll: the reader\'s confirmation puts the marks back', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [], ends: '11' });
+  const ys = o.run(1600, (t) => {
+    for (const w of [10, 60, 110]) if (t >= w && t < w + 16) o.send('overlay:wheel', { epoch: 1, delta: -120 });
+    // Half a second after the last notch the reader says where the page is: it never moved.
+    if (t >= 640 && t < 656) o.send('overlay:shift', { epoch: 1, dx: 0, dy: 0, t });
+  });
+  assert.ok(Math.min(...ys) < -200, 'the wheel was followed at once');
+  assert.ok(Math.abs(ys[ys.length - 1]) < 1, `left at ${ys[ys.length - 1].toFixed(0)} px instead of on the results`);
+  assert.ok(watch._test.SCRIPT.includes('if ($lw -ne $confirmedWheel -and [Environment]::TickCount - $lw -gt 500)'));
+});
+
+test('live scanning looks settled: the corner mask steps back after a moment, and a result\'s mark sits by its title', () => {
+  const html = read('desktop/src/pages/overlay.html');
+  assert.match(html, /\.corner\.is-on\.is-rested:not\(\.is-flagged\) \{ opacity: 0;/, 'the mask leaves the page\'s own corner');
+  assert.match(html, /restTimer = setTimeout\(function \(\) \{ corner\.classList\.add\('is-rested'\); \}, 5000\);/);
+  // A Bing result: the site-name block, then the title, then a description that is also a link and wider.
+  const out = watch._test.resultLinks([
+    { u: 'https://www.bestbuy.com/site/airpods', n: 'Bestbuy https://www.bestbuy.com', x: 22, y: 343, w: 336, h: 46 },
+    { u: 'https://www.bestbuy.com/site/airpods', n: 'Clearance AirPods Deals - Best Buy', x: 22, y: 390, w: 312, h: 24 },
+    { u: 'https://www.bestbuy.com/site/airpods', n: 'Shop AirPods deals today, with free shipping on orders over $35 and more', x: 22, y: 420, w: 640, h: 44 }
+  ], 'https://www.bing.com/search?q=airpods');
+  assert.equal(out.length, 1);
+  assert.equal(out[0].y, 390, 'beside the title, not the site name or the description');
 });
