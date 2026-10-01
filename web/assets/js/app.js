@@ -2,7 +2,7 @@
 (() => {
   'use strict';
 
-  const { api, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, wireVerdict } = window.UI;
+  const { api, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, wireVerdict, color } = window.UI;
   const Masks = window.SentinelMasks;
   const view = $('#view');
   const desktop = window.sentinelDesktop || null;
@@ -131,7 +131,23 @@
     } catch { /* desktop bridge optional */ }
   }
 
-  async function signOut() {
+  // The account button asks first: one press says what a second press will do, so a stray tap never signs you out.
+  let signOutArmed = 0;
+  async function signOut(ev) {
+    const button = ev && ev.currentTarget;
+    if (button && Date.now() - signOutArmed > 4000) {
+      signOutArmed = Date.now();
+      const plan = $('[data-plan]', button);
+      const was = plan ? plan.textContent : '';
+      if (plan) plan.textContent = 'Press again to sign out';
+      button.setAttribute('aria-label', 'Press again to sign out');
+      setTimeout(() => {
+        if (Date.now() - signOutArmed < 3900) return;
+        if (plan && plan.textContent === 'Press again to sign out') plan.textContent = was;
+        button.setAttribute('aria-label', 'Sign out');
+      }, 4050);
+      return;
+    }
     try { await api('/auth/logout', { method: 'POST', body: {} }); } catch { /* ignore */ }
     if (desktop) { try { await desktop.clearToken(); } catch { /* ignore */ } }
     location.href = '/';
@@ -171,6 +187,8 @@
     if (state.config.verificationAvailable && !state.me.user.emailVerified) view.appendChild(verifyBar());
     view.appendChild(el);
     fn(el, new URLSearchParams(location.search));
+    // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
+    restoreDrafts();
     document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules' }[name]} · Sentinel`;
   }
 
@@ -179,6 +197,23 @@
     out.innerHTML = verdict(v, opts) + actionsFor(v);
     wireVerdict(out, v);
     wireActions(out, v);
+    restoreDrafts();
+  }
+
+  // The views are drawn after the page loads, so boot.js cannot put drafts back by itself: each view asks it to.
+  function restoreDrafts() {
+    if (window.sentinelDrafts) window.sentinelDrafts.restore();
+  }
+
+  // The desktop app's errors arrive wrapped by Electron ("Error invoking remote method 'x': Error: ..."). People get
+  // the sentence underneath, or a plain one when what is left is a system code, a file path or a stack trace.
+  function desktopError(err) {
+    const inner = String((err && err.message) || '').replace(/^Error invoking remote method '[^']*':\s*/, '');
+    // A plain Error carries a sentence the app wrote; a TypeError or the like is a fault in the code.
+    const fault = /^\w+Error:/.test(inner) && !/^Error:/.test(inner);
+    const text = inner.replace(/^Error:\s*/, '').trim();
+    const technical = fault || !text || /\bE[A-Z]{3,}\b|[A-Za-z]:\\|\/[\w.-]+\/|\bat\s+\S+\s*\(|\n\s*at\s/.test(text);
+    return technical ? 'That did not work. Try again, or choose Open log folder from the Sentinel icon in the system tray.' : text;
   }
 
   /* ========================================================== shortcuts */
@@ -253,7 +288,7 @@
         if (box) { box.focus(); box.select(); } else navigate('/app/scan');
       } else if (ev.key === '?') showShortcuts();
     });
-    // Pasting a link anywhere on the page (outside a field) offers to scan it -
+    // Pasting a link anywhere on the page (outside a field) offers to scan it:
     // one more Enter, so a stray paste never spends a weekly scan by itself.
     document.addEventListener('paste', (ev) => {
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) || palette) return;
@@ -266,15 +301,15 @@
 
   function termsGate(el) {
     el.innerHTML = `<form class="panel gate" data-gate>
-      <h1 style="font-size:24px">Before you continue</h1>
-      <p class="muted" style="margin-top:8px;font-size:14.5px">Sentinel is for adults, and using it means agreeing to how it works and what it does with your data. Both boxes are required.</p>
+      <h1>Before you continue</h1>
+      <p class="panel-lede">Sentinel is for adults, and using it means agreeing to how it works and what it does with your data. Both boxes are required.</p>
       <div class="consent">
         <label class="consent__row"><input type="checkbox" name="ageConfirmed"><span>I confirm that I am at least 18 years old.</span></label>
         <span class="field__error" data-error="ageConfirmed"></span>
         <label class="consent__row"><input type="checkbox" name="termsAccepted"><span>I have read and accept the <a href="/terms" target="_blank" rel="noopener">Terms and Conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
         <span class="field__error" data-error="termsAccepted"></span>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:22px;flex-wrap:wrap">
+      <div class="btn-row">
         <button class="btn btn--gold" type="submit">Continue</button>
         <button class="btn" type="button" data-gate-out>Sign out</button>
       </div>
@@ -361,7 +396,7 @@
       const kind = kinds[t];
       const name = kind ? kind.replace(/_/g, ' ') : '';
       return `<span class="m m--${badge}" title="${esc(Masks.NAMES[t])}: ${esc(level)}${kind ? ` (${esc(name)})` : ''}">${Masks.svg(t)}</span>`
-        + (kind ? `<span class="kind-icon" style="--c:${Masks.COLORS[badge]}" title="${esc(name)}">${Masks.kindIcon(kind)}</span>` : '');
+        + (kind ? `<span class="kind-icon" style="--c:${color(badge)}" title="${esc(name)}">${Masks.kindIcon(kind)}</span>` : '');
     }).join('');
   }
 
@@ -385,7 +420,7 @@
   // never opens a suspicious page (that is what research does). Say so.
   function localNote() {
     if (state.config.researchAvailable !== false) return '';
-    return '<div class="banner" style="margin-bottom:18px"><div><b>Running on this computer.</b> This copy of Sentinel keeps its server and database on your machine. Suspicious pages are never opened from here, so research (domain age, certificates, redirects, page content) waits for the hosted service. Everything else works.</div></div>';
+    return '<div class="banner"><div><b>Running on this computer.</b> This copy of Sentinel keeps its server and database on your machine. Suspicious pages are never opened from here, so research (domain age, certificates, redirects, page content) waits for the hosted service. Everything else works.</div></div>';
   }
 
   /** The live allowance that can run out: delicate where the plan has it, fast otherwise. */
@@ -401,10 +436,10 @@
 
   function usageCard(icon, n, unit, label, used, limit, locked, meta) {
     const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
-    return `<div class="usage-card${locked ? ' is-locked' : ''}">
-      <div class="usage-card__top"><span class="usage-card__icon">${icon}</span><span class="mono muted" style="font-size:12px">${meta || (locked ? 'Pro & up' : `resets ${until(state.me.week.resetsAt)}`)}</span></div>
-      <div class="usage-card__n tabular">${locked ? '·' : n}<span>${locked ? '' : unit}</span></div>
-      <div class="usage-card__l">${label}</div>
+    return `<div class="usage-row${locked ? ' is-locked' : ''}">
+      <span class="usage-row__icon">${icon}</span>
+      <span class="usage-row__l">${label}<small>${meta || (locked ? 'Pro & up' : `resets ${until(state.me.week.resetsAt)}`)}</small></span>
+      <b class="usage-row__n tabular">${locked ? '·' : n}<span>${locked ? '' : unit}</span></b>
       <div class="meter${pct >= 100 ? ' is-full' : ''}"><i style="width:${locked ? 0 : 100 - pct}%"></i></div>
     </div>`;
   }
@@ -429,7 +464,7 @@
     const greet = hour < 5 ? 'Up late' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
     el.innerHTML = `
-      ${title(`${greet}, <span class="serif italic">${esc(u.firstName)}</span>`, 'Paste anything you’re unsure about. Sentinel will tell you exactly what it finds.')}
+      ${title(`${greet}, ${esc(u.firstName)}`,'Paste anything you’re unsure about. Sentinel will tell you exactly what it finds.')}
       <form class="scanbox" data-quick>
         ${ICON.search}
         <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link from a message, email or search result" aria-label="Link to scan">
@@ -437,7 +472,7 @@
       </form>
       <div class="scan-meta"><span>${left('linkScans')} of ${us.linkScans.limit} link scans left this week</span><a href="/app/threats">Scan a file instead &rarr;</a></div>
 
-      <div class="grid3 u-mt-lg" >
+      <div class="usage-list u-mt-lg">
         <a class="usage-link" href="/app/scan" aria-label="Link scan">${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, `link scans left${f.research ? ', researched' : ''}`, us.linkScans.used, us.linkScans.limit)}</a>
         <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
         <a class="usage-link" href="/app/protection" aria-label="Live protection">${liveCard(us, f)}</a>
@@ -445,7 +480,7 @@
 
       <div class="u-mt">${protectionTeaser()}</div>
 
-      <div class="panel u-mt" >
+      <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
         <div data-recent><div class="skeleton u-h-md" ></div></div>
       </div>`;
@@ -571,7 +606,7 @@
         <button class="btn btn--sm" data-act="${trusted ? 'clear' : 'allow'}">${trusted ? 'Stop trusting' : 'Trust this site'}</button>
         <button class="btn btn--sm" data-act="${blocked ? 'clear' : 'block'}">${blocked ? 'Unblock' : 'Block this site'}</button>
       </span>
-      <form class="report" data-report-form hidden>
+      <form class="report" data-report-form data-draft="report:${esc(v.url)}" hidden>
         <div class="row2">
           <div class="field"><label for="rp-cat">What kind of site is it?</label><select class="input" id="rp-cat" name="category">${REPORT_CATEGORIES.map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></div>
           <div class="field"><label for="rp-note">Anything else? <span class="opt">(optional)</span></label><input class="input" id="rp-note" name="note" maxlength="500" placeholder="How did you come across it?"></div>
@@ -654,14 +689,14 @@
 
     input.innerHTML = `<label class="drop" data-drop>
       <input type="file" data-file aria-label="Choose a file to scan">
-      <div><div class="drop__icon" style="margin-inline:auto">${ICON.upload}</div><h3>Drop a file here, or click to choose</h3><p>Programs, documents, archives, scripts, installers</p></div>
+      <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a file here, or click to choose</h3><p>Programs, documents, archives, scripts, installers</p></div>
     </label>`;
     const drop = $('[data-drop]', input);
     const fileInput = $('[data-file]', input);
     const scanFile = async (file) => {
       if (!file) return;
       if (file.size > 25 * 1024 * 1024) { toast('Files up to 25 MB can be scanned.', 'error'); return; }
-      out.innerHTML = `<div class="panel scanning"><div class="scanning__rings">${Masks.svg('virus')}</div><h3>Inspecting ${esc(file.name)}</h3><p class="muted" style="margin-top:6px">${bytes(file.size)} &middot; checking signatures, disguises, macros and scripts</p></div>`;
+      out.innerHTML = `<div class="panel scanning"><div class="scanning__rings">${Masks.svg('virus')}</div><h3>Inspecting ${esc(file.name)}</h3><p class="muted u-mt-xs">${bytes(file.size)} &middot; checking signatures, disguises, macros and scripts</p></div>`;
       try {
         const data = await api('/scan/file', { method: 'POST', raw: file, headers: { 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' } });
         applyUsage(data.usage);
@@ -688,11 +723,11 @@
     el.innerHTML = `
       ${title('Email scan', 'Paste what you see in your inbox. Every link and the sender’s domain go through the full link pipeline too.',
         '<div class="segmented" role="tablist"><button role="tab" data-emode="fields" aria-selected="true">Fill in</button><button role="tab" data-emode="paste" aria-selected="false">Paste whole email</button></div>')}
-      <div class="panel" data-paste hidden>
-        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check.</span></div>
+      <form class="panel" data-paste data-draft="email-paste" hidden>
+        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" name="raw" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check.</span></div>
         <div class="report__foot"><span></span><button class="btn btn--gold" type="button" data-parse>Read this email</button></div>
-      </div>
-      <form class="panel" data-form>
+      </form>
+      <form class="panel" data-form data-draft="email-scan">
         <div class="row2">
           <div class="field"><label for="e-from">From</label><input class="input" id="e-from" name="from" placeholder="PayPal Security &lt;alerts@example.com&gt;" autocomplete="off"></div>
           <div class="field"><label for="e-reply">Reply-to <span class="opt">(optional)</span></label><input class="input" id="e-reply" name="replyTo" autocomplete="off"></div>
@@ -700,8 +735,8 @@
         <div class="field"><label for="e-subject">Subject</label><input class="input" id="e-subject" name="subject" autocomplete="off"></div>
         <div class="field"><label for="e-body">Message</label><textarea class="textarea" id="e-body" name="body" placeholder="Paste the message text, including any links"></textarea></div>
         <div class="field"><label for="e-att">Attachment names <span class="opt">(optional, comma separated)</span></label><input class="input" id="e-att" name="attachments" placeholder="Invoice_2026.pdf.exe, statement.zip" autocomplete="off"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap">
-          <span class="muted" style="font-size:13px">Uses 1 of your ${left('linkScans')} remaining link scans. Nothing is stored.</span>
+        <div class="report__foot">
+          <span class="muted">Uses 1 of your ${left('linkScans')} remaining link scans. Nothing is stored.</span>
           <button class="btn btn--gold" type="submit">Scan email</button>
         </div>
       </form>
@@ -722,7 +757,9 @@
       form.from.value = m.from; form.replyTo.value = m.replyTo; form.subject.value = m.subject; form.body.value = m.body; form.attachments.value = m.attachments.join(', ');
       $$('[data-emode]', el).forEach((x) => x.setAttribute('aria-selected', String(x.dataset.emode === 'fields')));
       pasteBox.hidden = true;
-      toast(m.from ? `Found sender ${m.from}. Check the fields, then scan.` : 'No headers found - the text went into the message field.', 'info', 5000);
+      // Filled in by script, which raises no input event: say so, so the draft keeps what was filled in.
+      form.dispatchEvent(new Event('input', { bubbles: true }));
+      toast(m.from ? `Found sender ${m.from}. Check the fields, then scan.` : 'No headers found, so the text went into the message field.', 'info', 5000);
       form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     });
     form.addEventListener('submit', async (ev) => {
@@ -768,14 +805,14 @@
 
   async function historyView(el, params) {
     el.innerHTML = `${title('History', 'Everything Sentinel checked for you in the last 30 days. Click a link to scan it again.')}
-      <div class="grid3" data-stats><div class="skeleton u-h-sm" ></div><div class="skeleton u-h-sm" ></div><div class="skeleton u-h-sm" ></div></div>
-      <div class="panel u-mt"  data-list><div class="skeleton" style="height:240px"></div></div>`;
+      <div class="usage-list" data-stats><div class="skeleton u-h-sm"></div></div>
+      <div class="panel u-mt" data-list><div class="skeleton u-h-lg"></div></div>`;
     let data;
     try { data = await api('/account/history'); }
     catch (err) { $('[data-list]', el).innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; return; }
 
     const s = data.stats;
-    const stat = (glyph, n, label, color, filter) => `<button type="button" class="usage-card usage-card--btn" data-stat="${filter}"><div class="usage-card__top"><span class="usage-card__icon" style="color:${color}">${Masks.svg(glyph)}</span></div><div class="usage-card__n tabular">${n}</div><div class="usage-card__l">${label}</div></button>`;
+    const stat = (glyph, n, label, color, filter) => `<button type="button" class="usage-row" data-stat="${filter}" aria-pressed="false"><span class="usage-row__icon" style="color:${color}">${Masks.svg(glyph)}</span><span class="usage-row__l">${label}</span><b class="usage-row__n tabular">${n}</b></button>`;
     $('[data-stats]', el).innerHTML = stat('scam', s.scams, 'scams caught', 'var(--red)', 'scam') + stat('virus', s.viruses, 'viruses caught', 'var(--orange)', 'virus') + stat('malware', s.malware, 'malware caught', 'var(--yellow)', 'malware');
 
     const FILTERS = [['all', 'All'], ['flagged', 'Flagged'], ['clear', 'Clear'], ['scam', 'Scam'], ['virus', 'Virus'], ['malware', 'Malware'], ['live', 'Live'], ['manual', 'Manual']];
@@ -799,7 +836,10 @@
       $('[data-rows]', list).innerHTML = items.length ? historyList(items, { clickable: true })
         : `<div class="empty">${Masks.svg('scam')}<p>${data.items.length ? 'Nothing matches that filter.' : 'No scans yet. Paste a link on the Overview page to run your first one.'}</p></div>`;
       $$('[data-filter]', list).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === hs.filter)));
-      $$('[data-stat]', el).forEach((b) => b.classList.toggle('is-active', b.dataset.stat === hs.filter));
+      $$('[data-stat]', el).forEach((b) => {
+        b.classList.toggle('is-active', b.dataset.stat === hs.filter);
+        b.setAttribute('aria-pressed', String(b.dataset.stat === hs.filter));
+      });
     };
     $$('[data-filter]', list).forEach((b) => b.addEventListener('click', () => { hs.filter = b.dataset.filter; paint(); }));
     $$('[data-stat]', el).forEach((b) => b.addEventListener('click', () => { hs.filter = hs.filter === b.dataset.stat ? 'all' : b.dataset.stat; paint(); }));
@@ -819,14 +859,14 @@
 
   async function sitesView(el) {
     el.innerHTML = `${title('Site rules', 'Sites you trust never show a mask for you. Sites you block always show a red one, in scans, search results and email.')}
-      <form class="panel" data-add>
+      <form class="panel" data-add data-draft="site-rule">
         <div class="row2">
           <div class="field"><label for="site-host">Website</label><input class="input mono" id="site-host" name="host" placeholder="example.com" autocomplete="off" spellcheck="false" required></div>
-          <div class="field"><label>Rule</label><div class="segmented" role="radiogroup"><button type="button" role="radio" aria-checked="true" data-rule="allow">Trust</button><button type="button" role="radio" aria-checked="false" data-rule="block">Block</button></div></div>
+          <div class="field"><label>Rule</label><div class="segmented" role="radiogroup" aria-label="Rule"><button type="button" role="radio" aria-checked="true" data-rule="allow">Trust</button><button type="button" role="radio" aria-checked="false" data-rule="block">Block</button></div></div>
         </div>
         <div class="report__foot"><span class="muted">Rules apply to the whole site, including its subdomains. Only your account is affected.</span><button class="btn btn--gold" type="submit">Add rule</button></div>
       </form>
-      <div class="grid2 u-mt" >
+      <div class="grid2 u-mt">
         <div class="panel" data-allow><div class="skeleton u-h-md" ></div></div>
         <div class="panel" data-block><div class="skeleton u-h-md" ></div></div>
       </div>`;
@@ -905,7 +945,7 @@
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
 
-      ${!planLocked ? `<div class="panel u-mt" >
+      ${!planLocked ? `<div class="panel u-mt">
         <div class="panel__head"><div><h2>Live scanning this week</h2><p>Minutes only count when Sentinel actually checks something. Resets ${until(state.me.week.resetsAt)}.</p></div></div>
         <div class="meters">
           ${liveMeter('Fast', 'Answers in about a second. Threat lists, the checklist and comparison with known scams.', us.fastMinutes)}
@@ -914,9 +954,9 @@
       </div>` : ''}
 
       <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
-      <div class="panel u-mt"  data-intel>
+      <div class="panel u-mt" data-intel>
         <div class="panel__head"><div><h2>Threat intelligence</h2><p>The public feeds every scan is checked against, refreshed automatically.</p></div></div>
-        <div class="skeleton" style="height:90px"></div>
+        <div class="skeleton u-h-sm"></div>
       </div>`;
 
     if (desktop && !planLocked) renderDesktopControls($('[data-desktop]', el));
@@ -960,6 +1000,8 @@
     const df = info.defense || { supported: false, active: false, reason: 'Not available' };
     let ledger = [];
     try { ledger = (await desktop.defense()).ledger || []; } catch { /* none */ }
+    // Left the page while waiting: subscribing now would leave listeners behind that nothing ever removes.
+    if (!slot.isConnected) return;
     const browsers = (info.browsers && info.browsers.installed) || [];
     const running = new Set((info.browsers && info.browsers.running) || []);
     const up = info.update || { status: 'idle' };
@@ -968,7 +1010,8 @@
       downloading: `Downloading ${up.version || 'an update'}${up.progress ? ` (${up.progress}%)` : ''}…`,
       ready: `Version ${up.version} is ready. It installs when Sentinel quits.`,
       current: 'Sentinel is up to date.',
-      error: `Could not check for updates: ${up.error || 'unknown error'}`,
+      // The updater's own error text is technical; the log keeps it.
+      error: 'Could not check for updates. Sentinel tries again by itself later.',
       dev: 'Updates are off in a development run.',
       unavailable: 'This build cannot update itself.'
     };
@@ -985,7 +1028,7 @@
       : live.active ? (live.window ? `Watching the browser in front. Look for the gold mask in its bottom right corner.${live.lastResults ? ` Last search: ${live.lastResults.count} results marked.` : ''}${fellBack}` : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
         : live.enabled ? (live.reason || 'Starting') : 'Off. One click, and every browser you use is covered.';
     slot.innerHTML = `
-      <div class="panel live u-mt" >
+      <div class="panel live u-mt">
         <div class="live__main">
           <span class="live__mask${live.active ? ' is-on' : ''}" aria-hidden="true">${Masks.svg('scam')}</span>
           <div class="live__text"><h2>Live scanning</h2><p data-live-text>${esc(liveText)}</p>${live.counts && live.counts.checked ? `<p class="live__counts" data-live-counts>${live.counts.checked.toLocaleString()} checked since Sentinel started, ${live.counts.flagged.toLocaleString()} flagged. Private windows are not counted.</p>` : '<p class="live__counts" data-live-counts hidden></p>'}</div>
@@ -1004,10 +1047,9 @@
         </ul>
       </div>
 
-      <div class="grid2 u-mt" >
+      <div class="grid2 u-mt">
         <div class="panel">
-          <h2 class="u-mb-xs">Your browsers</h2>
-          <p class="muted" style="font-size:13.5px;margin:0 0 4px">Pick one. Sentinel opens it if it is closed, brings it to the front, and starts scanning.</p>
+          <div class="panel__head"><div><h2>Your browsers</h2><p>Pick one. Sentinel opens it if it is closed, brings it to the front, and starts scanning.</p></div></div>
           ${browsers.length ? `<ul class="list">${browsers.map((b) => `<li>
             <span class="list__icon">${ICON.globe}</span>
             <span class="list__main"><b>${esc(b.name)}</b><span data-browser-state="${esc(b.id)}">${running.has(b.id) ? 'Open now' : 'Installed'}</span></span>
@@ -1029,14 +1071,13 @@
         </div>
       </div>
 
-      <div class="grid2 u-mt" >
+      <div class="grid2 u-mt">
         <div class="panel">
-          <div class="panel__head" style="margin-bottom:10px"><div><h2>Live, right now</h2><p>${live.active ? 'Pages show up here as they are checked. Private windows never do.' : 'Start scanning to see pages as they are checked.'}</p></div><span class="live-dot${live.active ? ' is-on' : ''}" aria-hidden="true"></span></div>
+          <div class="panel__head"><div><h2>Live, right now</h2><p>${live.active ? 'Pages show up here as they are checked. Private windows never do.' : 'Start scanning to see pages as they are checked.'}</p></div><span class="live-dot${live.active ? ' is-on' : ''}" aria-hidden="true"></span></div>
           <ul class="list feed" data-feed>${live.current && live.current.url ? `<li class="feed__item"><span class="list__icon">${ICON.globe}</span><span class="list__main"><b>${esc(live.current.url)}</b><span>In front now</span></span></li>` : '<li class="feed__empty muted">Nothing checked yet. Open a page in your browser.</li>'}</ul>
         </div>
         <div class="panel">
-          <h2 class="u-mb-xs">Defense log</h2>
-          <p class="muted" style="font-size:13.5px;margin:0 0 4px">What arrived, what was scanned, what was stopped.</p>
+          <div class="panel__head"><div><h2>Defense log</h2><p>What arrived, what was scanned, what was stopped.</p></div></div>
           ${ledger.length ? `<ul class="list">${ledger.slice(0, 8).map((e) => `<li>
             <span class="list__icon" style="${e.kind === 'threat' ? 'color:var(--red)' : e.kind === 'suspect' ? 'color:var(--orange)' : e.kind === 'restored' ? 'color:var(--gold-300)' : ''}">${ICON.file}</span>
             <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'suspect' ? `${e.label}: runs at startup; nothing was changed. Quarantine it if you do not recognise it.` : e.kind === 'restored' ? 'Put back' : e.kind === 'noted' ? `${e.label}: noted, nothing touched` : `Clean (${e.how || 'scanned'})`)}</span></span>
@@ -1070,17 +1111,17 @@
       try {
         const s = await desktop.setDefense(ev.target.checked);
         toast(s.active ? 'Defense is on.' : (s.reason || 'Defense is off.'), s.active ? 'success' : 'info');
-      } catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, 'error'); }
+      } catch (err) { ev.target.checked = !ev.target.checked; toast(desktopError(err), 'error'); }
       renderDesktopControls(slot);
     });
     $$('[data-suspect]', slot).forEach((b) => b.addEventListener('click', async () => {
       b.disabled = true;
       try { await desktop.quarantineSuspect(b.dataset.suspect); toast('Quarantined. You can put it back from here.', 'success'); renderDesktopControls(slot); }
-      catch (err) { b.disabled = false; toast(err.message, 'error'); }
+      catch (err) { b.disabled = false; toast(desktopError(err), 'error'); }
     }));
     $$('[data-restore]', slot).forEach((b) => b.addEventListener('click', async () => {
       try { await desktop.restoreQuarantined(b.dataset.restore); toast('Put back as it was.', 'success'); renderDesktopControls(slot); }
-      catch (err) { toast(err.message, 'error'); }
+      catch (err) { toast(desktopError(err), 'error'); }
     }));
     // The live feed fills in as the desktop checks pages.
     const feed = $('[data-feed]', slot);
@@ -1088,8 +1129,7 @@
       slot._off.push(desktop.onPageChecked((item) => {
         if (!feed.isConnected) return;
         feed.querySelector('.feed__empty')?.remove();
-        const color = item.badge ? Masks.COLORS[item.badge] : Masks.COLORS.clear;
-        const li = h(`<li class="feed__item is-new"><span class="list__icon" style="color:${color}">${item.badge ? Masks.svg('scam') : ICON.check}</span><span class="list__main"><b>${esc(item.host)}</b><span>${esc(item.label)} &middot; ${esc(item.browser)}</span></span></li>`);
+        const li = h(`<li class="feed__item is-new"><span class="list__icon" style="color:${esc(color(item.badge))}">${item.badge ? Masks.svg('scam') : ICON.check}</span><span class="list__main"><b>${esc(item.host)}</b><span>${esc(item.label)} &middot; ${esc(item.browser)}</span></span></li>`);
         feed.prepend(li);
         requestAnimationFrame(() => li.classList.remove('is-new'));
         while (feed.children.length > 8) feed.lastElementChild.remove();
@@ -1097,7 +1137,7 @@
     }
     $$('[data-live-mode]', slot).forEach((b) => b.addEventListener('click', async () => {
       if (b.disabled || b.classList.contains('is-on')) return;
-      try { await desktop.setLiveMode(b.dataset.liveMode); } catch (err) { toast(err.message, 'error'); }
+      try { await desktop.setLiveMode(b.dataset.liveMode); } catch (err) { toast(desktopError(err), 'error'); }
       renderDesktopControls(slot);
     }));
     const auto = $('[data-auto-scan]', slot);
@@ -1105,7 +1145,7 @@
       try {
         await desktop.setAutoScan(auto.checked);
         toast(auto.checked ? 'Auto scanning is on. Open a browser and Sentinel starts scanning it.' : 'Auto scanning is off.', 'success');
-      } catch (err) { auto.checked = !auto.checked; toast(err.message, 'error'); }
+      } catch (err) { auto.checked = !auto.checked; toast(desktopError(err), 'error'); }
       renderDesktopControls(slot);
     });
     const toggle = $('[data-live-toggle]', slot);
@@ -1113,7 +1153,7 @@
       try {
         const s2 = live.enabled ? await desktop.liveStop() : await desktop.liveStart();
         if (!live.enabled && !s2.active) toast(s2.reason || 'Live scanning could not start.', 'error');
-      } catch (err) { toast(err.message, 'error'); }
+      } catch (err) { toast(desktopError(err), 'error'); }
       renderDesktopControls(slot);
     }));
     $$('[data-scan-with]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Opening', async () => {
@@ -1121,7 +1161,7 @@
         const r = await desktop.scanWith(b.dataset.scanWith);
         if (!r.ok) toast(r.reason || 'Live scanning could not start.', 'error');
         else toast(`${r.name} is ${r.launched ? 'opening' : 'in front'}. Sentinel is scanning it.`, 'success');
-      } catch (err) { toast(err.message, 'error'); }
+      } catch (err) { toast(desktopError(err), 'error'); }
       renderDesktopControls(slot);
     })));
     if (desktop.onLive) {
@@ -1153,7 +1193,7 @@
       try {
         const s = await desktop.setDownloadProtection(ev.target.checked);
         toast(s.active ? 'Download protection is on.' : (s.reason || 'Download protection is off.'), s.active ? 'success' : 'info');
-      } catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, 'error'); }
+      } catch (err) { ev.target.checked = !ev.target.checked; toast(desktopError(err), 'error'); }
     });
     $('[data-login]', slot).addEventListener('change', (ev) => desktop.setOpenAtLogin(ev.target.checked));
     const clip = $('[data-clip]', slot);
@@ -1161,14 +1201,14 @@
       try {
         await desktop.setClipboardCheck(clip.checked);
         toast(clip.checked ? 'Sentinel will check links you copy.' : 'Copied links are no longer checked.', 'success');
-      } catch (err) { clip.checked = !clip.checked; toast(err.message, 'error'); }
+      } catch (err) { clip.checked = !clip.checked; toast(desktopError(err), 'error'); }
     });
 
     const check = $('[data-check-update]', slot);
     if (check) check.addEventListener('click', () => busy(check, 'Checking', async () => {
       let s;
-      try { s = await desktop.checkUpdates(); } catch (err) { toast(err.message, 'error'); return; }
-      toast(s.status === 'current' ? 'Sentinel is up to date.' : s.status === 'error' ? `Could not check: ${s.error}` : 'Checking for a newer version…', s.status === 'error' ? 'error' : 'info');
+      try { s = await desktop.checkUpdates(); } catch (err) { toast(desktopError(err), 'error'); return; }
+      toast(s.status === 'current' ? 'Sentinel is up to date.' : s.status === 'error' ? 'Could not check for updates. Try again later.' : 'Checking for a newer version…', s.status === 'error' ? 'error' : 'info');
       renderDesktopControls(slot);
     }));
     const install = $('[data-install-update]', slot);
@@ -1179,7 +1219,7 @@
         await desktop.quarantine(b.dataset.quarantine);
         toast('File moved to quarantine.', 'success');
         renderDesktopControls(slot);
-      } catch (err) { toast(err.message, 'error'); }
+      } catch (err) { toast(desktopError(err), 'error'); }
     }));
   }
 
@@ -1196,14 +1236,14 @@
       ultimate: ['Unlimited fast live scanning', '96 hours of delicate live scanning a week', '500 researched link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max']
     };
     el.innerHTML = `
-      ${title('Plan &amp; usage', `You’re on <b style="color:var(--gold-200);font-weight:500">${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
+      ${title('Plan &amp; usage', `You’re on <b>${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
       ${demo ? '<div class="banner"><div><b>Demo billing.</b> Plan changes are instant and free on this server. No payment is taken.</div></div>' : ''}
-      <div class="grid3">
+      <div class="usage-list">
         ${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, 'link scans left', us.linkScans.used, us.linkScans.limit)}
         ${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}
         ${liveCard(us, plan().features)}
       </div>
-      <div class="plans u-mt-lg" >${state.plans.map((p) => `
+      <div class="plans u-mt-lg">${state.plans.map((p) => `
         <article class="plan${p.id === 'pro' ? ' plan--featured' : ''}${p.id === current ? ' is-current' : ''}">
           ${p.id === current ? '<span class="plan__badge">Current</span>' : ''}
           <div class="plan__name">${esc(p.name)}</div>
@@ -1231,14 +1271,14 @@
     el.innerHTML = `
       ${title('Security', 'Protect your Sentinel account the way Sentinel protects you.')}
       <div class="grid2">
-        <form class="panel" data-name-form>
+        <form class="panel" data-name-form data-draft="profile">
           <h2 class="u-mb">Profile</h2>
           <div class="row2">
             <div class="field"><label for="p-first">First name</label><input class="input" id="p-first" name="firstName" value="${esc(u.firstName)}" required maxlength="60"></div>
             <div class="field"><label for="p-last">Last name <span class="opt">(optional)</span></label><input class="input" id="p-last" name="lastName" value="${esc(u.lastName || '')}" maxlength="60"></div>
           </div>
-          <div class="field"><label>Email ${u.emailVerified ? '<span class="status is-on" style="display:inline-flex;margin-left:8px">Confirmed</span>' : '<span class="status is-locked" style="display:inline-flex;margin-left:8px">Not confirmed</span>'}</label><input class="input" value="${esc(u.email)}" disabled></div>
-          <button class="btn u-mt"  type="submit">Save profile</button>
+          <div class="field"><label for="p-email">Email ${u.emailVerified ? '<span class="status is-on u-ml">Confirmed</span>' : '<span class="status is-locked u-ml">Not confirmed</span>'}</label><input class="input" id="p-email" value="${esc(u.email)}" disabled></div>
+          <button class="btn u-mt" type="submit">Save profile</button>
         </form>
 
         <div class="panel" data-2fa></div>
@@ -1250,19 +1290,19 @@
           <div class="field"><label for="pw-cur">Current password</label><input class="input" id="pw-cur" type="password" name="currentPassword" autocomplete="current-password" required></div>
           <div class="field"><label for="pw-new">New password</label><input class="input" id="pw-new" type="password" name="newPassword" autocomplete="new-password" required minlength="10"><span class="field__hint">10+ characters with a letter and a number. You’ll be signed out everywhere else.</span></div>
         </div>
-        <button class="btn u-mt"  type="submit">Update password</button>
+        <button class="btn u-mt" type="submit">Update password</button>
       </form>` : ''}
 
       <div class="panel" data-sessions><div class="skeleton u-h-md" ></div></div>
 
-      <form class="panel" data-delete style="box-shadow:inset 0 0 0 1px rgba(229,72,77,.25)">
+      <form class="panel panel--danger" data-delete>
         <h2>Delete account</h2>
-        <p class="muted" style="margin:6px 0 16px;font-size:14px">Permanently removes your account, history, reports and trusted sites.</p>
+        <p class="panel-lede">Permanently removes your account, history, reports and trusted sites.</p>
         <div class="row2">
           ${u.hasPassword ? '<div class="field"><label for="del-pw">Password</label><input class="input" id="del-pw" type="password" name="password" autocomplete="current-password"></div>' : ''}
           <div class="field"><label for="del-confirm">Type DELETE to confirm</label><input class="input" id="del-confirm" name="confirm" autocomplete="off"></div>
         </div>
-        <button class="btn" style="margin-top:18px;color:#ff8d90" type="submit">Delete my account</button>
+        <button class="btn btn--danger u-mt" type="submit">Delete my account</button>
       </form>`;
 
     $('[data-name-form]', el).addEventListener('submit', async (ev) => {
@@ -1311,7 +1351,7 @@
         slot.innerHTML = `<div class="panel__head"><div><h2>Signed-in devices</h2><p>${sessions.length} active session${sessions.length === 1 ? '' : 's'}</p></div>${sessions.length > 1 ? '<button class="btn btn--sm" data-revoke>Sign out other devices</button>' : ''}</div>
           <ul class="list">${sessions.map((s) => `<li>
             <span class="list__icon">${s.kind === 'web' ? ICON.link : s.kind === 'desktop' ? ICON.download : ICON.shield}</span>
-            <span class="list__main"><b>${esc(s.device)}${s.current ? ' <span class="status is-on" style="display:inline-flex;margin-left:6px">This device</span>' : ''}</b><span>${esc(s.kind === 'web' ? 'Browser' : s.kind === 'desktop' ? 'Sentinel app' : 'Browser companion')} &middot; ${s.ip ? esc(s.ip) + ' &middot; ' : ''}active ${ago(s.lastSeenAt || s.createdAt)} &middot; ${s.kind === 'web' ? (s.staySignedIn ? 'stays signed in, ends after 30 days unused' : 'ends when the browser closes') : 'ends after 90 days unused'}</span></span>
+            <span class="list__main"><b>${esc(s.device)}${s.current ? ' <span class="status is-on u-ml">This device</span>' : ''}</b><span>${esc(s.kind === 'web' ? 'Browser' : s.kind === 'desktop' ? 'Sentinel app' : 'Browser companion')} &middot; ${s.ip ? esc(s.ip) + ' &middot; ' : ''}active ${ago(s.lastSeenAt || s.createdAt)} &middot; ${s.kind === 'web' ? (s.staySignedIn ? 'stays signed in, ends after 30 days unused' : 'ends when the browser closes') : 'ends after 90 days unused'}</span></span>
             ${s.current ? '' : `<button class="btn btn--sm" data-revoke-one="${esc(s.id)}">Sign out</button>`}
           </li>`).join('')}</ul>`;
         $$('[data-revoke-one]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Signing out', async () => {
@@ -1335,9 +1375,9 @@
   function render2fa(slot) {
     const on = state.me.user.twoFactorEnabled;
     slot.innerHTML = `<h2>Two-factor authentication</h2>
-      <p class="muted" style="margin:6px 0 18px;font-size:14px">${on ? 'On. Signing in needs a code from your authenticator app.' : 'Add a second step to sign-in with Google Authenticator, 1Password, Authy or any authenticator app.'}</p>
+      <p class="panel-lede">${on ? 'On. Signing in needs a code from your authenticator app.' : 'Add a second step to sign-in with Google Authenticator, 1Password, Authy or any authenticator app.'}</p>
       <div data-2fa-body>${on
-        ? '<form data-disable><div class="field"><label for="tfa-off">Enter a current code to turn it off</label><input class="input code-input" id="tfa-off" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div><button class="btn u-mt-sm"  type="submit">Turn off two-factor</button></form>'
+        ? '<form data-disable><div class="field"><label for="tfa-off">Enter a current code to turn it off</label><input class="input code-input" id="tfa-off" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div><button class="btn u-mt-sm" type="submit">Turn off two-factor</button></form>'
         : '<button class="btn btn--gold" data-setup>Set up two-factor</button>'}</div>`;
 
     const setup = $('[data-setup]', slot);
@@ -1345,18 +1385,19 @@
       try {
         const { secret, uri } = await api('/account/2fa/setup', { method: 'POST', body: {} });
         $('[data-2fa-body]', slot).innerHTML = `
-          <ol style="padding-left:18px;color:var(--text-2);font-size:14px;display:grid;gap:10px;margin:0 0 16px">
+          <ol class="steps-list">
             <li>Open your authenticator app and add an account with this key${/Mobi/.test(navigator.userAgent) ? `, or <a href="${esc(uri)}" class="u-gold">tap here</a>` : ''}:</li>
           </ol>
           <div class="secret"><span>${esc(secret.match(/.{1,4}/g).join(' '))}</span><button class="btn btn--sm" type="button" data-copy>Copy</button></div>
-          <form data-enable style="margin-top:16px"><div class="field"><label for="tfa-on">Then enter the 6-digit code it shows</label><input class="input code-input" id="tfa-on" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div>
-          <button class="btn btn--gold u-mt-sm"  type="submit">Turn on</button></form>`;
+          <form data-enable class="u-mt-sm"><div class="field"><label for="tfa-on">Then enter the 6-digit code it shows</label><input class="input code-input" id="tfa-on" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div>
+          ${state.me.user.hasPassword ? '<div class="field"><label for="tfa-pw">Your password</label><input class="input" id="tfa-pw" type="password" name="password" autocomplete="current-password" required><span class="field__hint">Turning this on signs out your other devices, so Sentinel checks that it is you.</span></div>' : ''}
+          <button class="btn btn--gold u-mt-sm" type="submit">Turn on</button></form>`;
         $('[data-copy]', slot).addEventListener('click', async () => { await navigator.clipboard.writeText(secret); toast('Key copied.', 'success'); });
         $('[data-enable]', slot).addEventListener('submit', async (ev) => {
           ev.preventDefault();
           await busy($('button[type=submit]', ev.target), 'Checking', async () => {
             try {
-              const data = await api('/account/2fa/enable', { method: 'POST', body: { code: ev.target.code.value } });
+              const data = await api('/account/2fa/enable', { method: 'POST', body: { code: ev.target.code.value, password: ev.target.password ? ev.target.password.value : '' } });
               state.me.user = data.user;
               toast('Two-factor authentication is on.', 'success');
               render2fa(slot);
@@ -1387,13 +1428,13 @@
 
   async function assistantsView(el, params) {
     el.innerHTML = `${title('AI assistants', 'Optional. Ask ChatGPT, Claude, Gemini or DeepSeek about anything. Sentinel’s scans never depend on them.')}
-      <div data-tabs><div class="skeleton" style="height:40px;width:420px;max-width:100%"></div></div><div class="panel" data-pane><div class="skeleton" style="height:200px"></div></div>`;
+      <div data-tabs><div class="skeleton skeleton--tabs"></div></div><div class="panel" data-pane><div class="skeleton u-h-lg"></div></div>`;
     let providers;
     try { ({ providers } = await api('/ai/providers')); } catch (err) { $('[data-pane]', el).innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; return; }
     const active = providers.find((p) => p.id === params.get('ai')) || providers[0];
 
     $('[data-tabs]', el).innerHTML = `<div class="ai-tabs" role="tablist">${providers.map((p) => `
-      <button class="ai-tab" role="tab" style="--accent:${p.accent}" aria-selected="${p.id === active.id}" data-ai="${p.id}">
+      <button class="ai-tab" role="tab" style="--accent:${esc(p.accent)}" aria-selected="${p.id === active.id}" data-ai="${p.id}">
         <span class="ai-tab__mark">${MARKS[p.id]}</span>${esc(p.name)}<span class="ai-tab__dot${p.connected ? ' is-on' : ''}"></span>
       </button>`).join('')}</div>`;
     $$('[data-ai]', el).forEach((b) => b.addEventListener('click', () => navigate(`/app/assistants?ai=${b.dataset.ai}`)));
@@ -1406,15 +1447,15 @@
 
   function renderConnect(pane, p) {
     pane.innerHTML = `
-      <div style="display:flex;gap:14px;align-items:center"><span class="ai-tab__mark" style="width:44px;height:44px;border-radius:13px;font-size:14px;--accent:${p.accent}">${MARKS[p.id]}</span>
-        <div><h2>Connect ${esc(p.name)}</h2><p class="muted" style="font-size:14px">Uses ${esc(p.vendor)}’s official API with a key from your own account &middot; <span class="mono">${esc(p.model)}</span></p></div></div>
-      <ol style="margin:22px 0;padding-left:20px;display:grid;gap:8px;color:var(--text-2);font-size:14.5px">
+      <div class="connect-head"><span class="ai-tab__mark ai-tab__mark--lg" style="--accent:${esc(p.accent)}">${MARKS[p.id]}</span>
+        <div><h2>Connect ${esc(p.name)}</h2><p class="note">Uses ${esc(p.vendor)}’s official API with a key from your own account &middot; <span class="mono">${esc(p.model)}</span></p></div></div>
+      <ol class="steps-list">
         <li>Open <a href="${esc(p.keyUrl)}" target="_blank" rel="noopener noreferrer" class="u-gold">${esc(new URL(p.keyUrl).host)}</a> and sign in to ${esc(p.vendor)} there.</li>
         <li>Create an API key and copy it.</li>
         <li>Paste it below. Sentinel checks it with ${esc(p.vendor)} and stores it encrypted.</li>
       </ol>
-      <form class="scanbox" data-connect>${ICON.lock}<input name="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ${esc(p.vendor)} API key" required><button class="btn btn--gold" type="submit">Connect</button></form>
-      <p class="muted" style="margin-top:16px;font-size:13px">Sentinel never asks for your ${esc(p.vendor)} password. A login form for another company inside our app is exactly what we warn you about.</p>`;
+      <form class="scanbox" data-connect data-no-draft>${ICON.lock}<input name="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ${esc(p.vendor)} API key" aria-label="${esc(p.vendor)} API key" data-no-draft required><button class="btn btn--gold" type="submit">Connect</button></form>
+      <p class="note u-mt">Sentinel never asks for your ${esc(p.vendor)} password. A login form for another company inside our app is exactly what we warn you about.</p>`;
     $('[data-connect]', pane).addEventListener('submit', async (ev) => {
       ev.preventDefault();
       await busy($('button', ev.target), 'Verifying', async () => {
@@ -1432,7 +1473,7 @@
     pane.innerHTML = `
       <div class="panel__head"><div><h2>${esc(p.name)}</h2><p>Connected &middot; key ${esc(p.label || '')} &middot; <span class="mono">${esc(p.model)}</span></p></div><button class="btn btn--sm" data-disconnect>Disconnect</button></div>
       <div class="chat"><div class="chat__log" data-log></div>
-        <form class="chat__form" data-send><textarea class="textarea" name="message" rows="1" placeholder="Ask ${esc(p.name)} anything" required></textarea><button class="btn btn--gold" type="submit">Send</button></form></div>`;
+        <form class="chat__form" data-send><textarea class="textarea" name="message" rows="1" placeholder="Ask ${esc(p.name)} anything" aria-label="Message to ${esc(p.name)}" required></textarea><button class="btn btn--gold" type="submit">Send</button></form></div>`;
     const logEl = $('[data-log]', pane);
     const paint = () => {
       logEl.innerHTML = log.length ? log.map((m) => `<div class="msg msg--${m.role === 'user' ? 'user' : 'ai'}${m.error ? ' msg--error' : ''}"><span class="msg__who">${m.role === 'user' ? esc(state.me.user.firstName[0]) : MARKS[p.id]}</span><div class="msg__body">${esc(m.content)}</div></div>`).join('')

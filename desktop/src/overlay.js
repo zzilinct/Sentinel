@@ -125,7 +125,7 @@ function sweep(kind) {
 function setVerdict(v) { send('overlay:verdict', v || { badge: null }); }
 
 /** Marks beside results. Positions arrive in screen pixels and leave relative to the overlay. */
-function setMarks({ marks, checking, epoch, clip }) {
+function setMarks({ marks, checking, epoch, clip, ends }) {
   if (!area) return;
   const local = marks.map((m) => ({
     x: (m.x - area.x) / scale,
@@ -145,7 +145,7 @@ function setMarks({ marks, checking, epoch, clip }) {
     dryRun(`marks: ${local.length} (${local.filter((m) => m.badge).length} flagged, ${local.filter((m) => m.pending).length} waiting), ${inside} inside the page area; first at ${Math.round(local[0].x)},${Math.round(local[0].y)}`);
   }
   const band = clip ? { top: (clip.top - area.y) / scale, bottom: (clip.bottom - area.y) / scale } : null;
-  send('overlay:marks', { marks: local, checking: checking || 0, epoch: epoch || 0, clip: band });
+  send('overlay:marks', { marks: local, checking: checking || 0, epoch: epoch || 0, clip: band, ends: /^[01]{2}$/.test(ends) ? ends : '' });
 }
 
 /** The page moved by (dx, dy) screen pixels since the marks of `epoch` were placed. Sent straight through, every frame. */
@@ -162,10 +162,17 @@ function handle() {
   return b.length >= 8 ? b.readBigUInt64LE(0).toString() : String(b.readUInt32LE(0));
 }
 
+/** The wheel turned (delta: +120 per notch up), while marks are on screen: they move with the page at once. */
+function wheel({ epoch, delta, t }) {
+  if (!area || dryRun) return;
+  if (process.env.SENTINEL_OVERLAY_TRACE) { try { require('fs').appendFileSync(process.env.SENTINEL_OVERLAY_TRACE, `W ${Date.now()} ${t} ${delta}\n`); } catch { /* best effort */ } }
+  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:wheel', { epoch, delta, t: typeof t === 'number' ? t : null });
+}
+
 function destroy() {
   area = null;
   if (win && !win.isDestroyed()) win.destroy();
   win = null;
 }
 
-module.exports = { handle, setWindow, sweep, setVerdict, setMarks, shift, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { handle, setWindow, sweep, setVerdict, setMarks, shift, wheel, destroy, setDryRun: (logger) => { dryRun = logger || null; } };

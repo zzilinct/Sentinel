@@ -12,14 +12,14 @@
     <a class="logo" href="/"><span class="logo__mark" data-glyph="scam"></span>Sentinel</a>
 
     <div class="auth__inner">
-      <h1>Start seeing <span class="serif italic">through the masks</span></h1>
-      <p>Free forever for manual scans. No card needed.</p>
+      <h1>Start seeing through the masks</h1>
+      <p>The Free plan covers manual scans. No card needed.</p>
 
       <div data-note></div>
       <!-- @include google-button -->
       <div class="divider">or</div>
 
-      <form data-form novalidate>
+      <form data-form data-draft="signup" method="post" novalidate>
         <div class="row2">
           <div class="field">
             <label for="firstName">First name</label>
@@ -61,6 +61,7 @@
       <p class="auth__switch">Already have an account? <a href="/login" data-keep-query>Sign in</a></p>
       <p class="auth__legal">Sentinel is for adults. Accounts need a confirmed email address to keep.</p>
     </div>
+    <!-- @include legal -->
   </section>
   <!-- @include auth-art -->
 </div>

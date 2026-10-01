@@ -71,11 +71,16 @@
 
   if (!isSignup) {
     // Arriving from sign-up: the account exists, this is where it is used.
-    if (!params.get('created') && params.get('email') && form.elements.email) form.elements.email.value = params.get('email');
+    // The address comes over in this tab's session storage, never in the web address, where it would end up in
+    // history and server logs. Older links that still carry ?email= are read once and cleaned from the address bar.
+    let email = '';
+    try { email = sessionStorage.getItem('sentinel:email') || ''; sessionStorage.removeItem('sentinel:email'); } catch { /* private window */ }
+    if (!email && params.get('email')) email = params.get('email');
+    if (params.has('email')) { params.delete('email'); history.replaceState(null, '', location.pathname + (params.toString() ? `?${params}` : '') + location.hash); }
+    if (email && form.elements.email) form.elements.email.value = email;
     if (params.get('created')) {
       note('[data-note]', '<b>Account created.</b> Sign in to start using it.', 'ok');
-      const email = params.get('email');
-      if (email && form.elements.email) { form.elements.email.value = email; pw.focus(); }
+      if (email) pw.focus();
     }
     // On your own computer the box starts ticked; in a browser it is a choice you make.
     const stay = form.elements.staySignedIn;
@@ -121,7 +126,8 @@
         if (res.twoFactorRequired) return showCodeStep(res.challenge);
         if (isSignup) {
           // The account is saved. Signing in is a separate, deliberate step.
-          const q = new URLSearchParams({ created: '1', email: data.email || '' });
+          try { sessionStorage.setItem('sentinel:email', data.email || ''); } catch { /* private window */ }
+          const q = new URLSearchParams({ created: '1' });
           const n = params.get('next');
           if (n) q.set('next', n);
           if (params.get('plan')) q.set('plan', params.get('plan'));
@@ -131,8 +137,8 @@
         location.replace(next());
       } catch (err) {
         if (err.code === 'email_taken') {
-          const q = new URLSearchParams({ email: data.email || '' });
-          note('[data-note]', `That email is already registered. <a href="/login?${esc(q.toString())}" style="color:var(--gold-300)">Sign in instead</a>, or use <a href="/forgot" style="color:var(--gold-300)">Forgot password</a> if you cannot get in.`);
+          try { sessionStorage.setItem('sentinel:email', data.email || ''); } catch { /* private window */ }
+          note('[data-note]', `That email is already registered. <a href="/login" style="color:var(--gold-300)">Sign in instead</a>, or use <a href="/forgot" style="color:var(--gold-300)">Forgot password</a> if you cannot get in.`);
         } else if (!showErrors(form, err.errors)) note('[data-note]', esc(err.message));
       }
     });

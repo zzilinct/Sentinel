@@ -59,9 +59,12 @@ function allowedOrigin(origin) {
 function corsHeaders(req) {
   const origin = req.headers.origin;
   if (!allowedOrigin(origin) || origin === config.publicOrigin) return {};
+  // Any installed extension has an extension origin, so none of them is allowed to read answers sent with the
+  // person's sign-in cookie: an extension signs in with its own bearer token. (Sentinel's companion has host access
+  // to the site, so it does not depend on these headers at all.)
   return {
     'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Credentials': 'true',
+    ...(isExtensionOrigin(origin) ? {} : { 'Access-Control-Allow-Credentials': 'true' }),
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-File-Name, X-Sentinel-Client',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Max-Age': '600',
@@ -82,7 +85,7 @@ function assertSameOrigin(req) {
   const origin = req.headers.origin;
   if (origin) {
     if (allowedOrigin(origin)) return;
-    throw new HttpError(403, 'bad_origin', 'Request blocked: cross-site request');
+    throw new HttpError(403, 'bad_origin', 'This request came from another site, so Sentinel refused it.');
   }
   const referer = req.headers.referer;
   if (referer) {
@@ -152,7 +155,7 @@ function passwordProblem(password, { email = '', firstName = '' } = {}) {
   if (pw.length < 10) return 'Password must be at least 10 characters';
   if (pw.length > 200) return 'Password is too long';
   if (!/[a-zA-Z]/.test(pw) || !/[0-9]/.test(pw)) return 'Include at least one letter and one number';
-  if (COMMON_PASSWORDS.has(pw.toLowerCase())) return 'That password is too common - choose something less predictable';
+  if (COMMON_PASSWORDS.has(pw.toLowerCase())) return 'That password is too common: choose something less predictable';
   const local = String(email).split('@')[0].toLowerCase();
   if (local.length >= 4 && pw.toLowerCase().includes(local)) return 'Password should not contain your email address';
   if (firstName && firstName.length >= 3 && pw.toLowerCase().includes(firstName.toLowerCase())) return 'Password should not contain your name';
@@ -223,6 +226,6 @@ function totpUri(secretB32, email) {
 }
 
 module.exports = {
-  baseHeaders, corsHeaders, assertSameOrigin, clientIp, rateLimit, audit,
+  baseHeaders, corsHeaders, assertSameOrigin, isExtensionOrigin, clientIp, rateLimit, audit,
   passwordProblem, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode
 };

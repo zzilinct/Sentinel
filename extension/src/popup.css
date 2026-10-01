@@ -1,16 +1,34 @@
+/* The website's own type and colours (web/assets/css/sentinel.css), so the companion looks like the same product. */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 300 700;
+  src: url('fonts/geist-normal-300-700.woff2') format('woff2');
+}
 :root {
-  --bg: #0f1013;
-  --panel: #16181c;
-  --panel-2: #1c1f24;
-  --line: #262a30;
-  --text: #ecebe7;
-  --muted: #8b9199;
-  --gold: #c9a64e;
-  --gold-hi: #e5c77e;
+  --bg: #0a0b0d;
+  --gold-grad: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%);
+  --panel: #131519;
+  --panel-2: #1e2126;
+  --line: rgba(255, 255, 255, .09);
+  --text: #efece5;
+  --text-2: #b9b6ae;
+  --muted: #9a978f;
+  --gold: #d4ae63;
+  --gold-hi: #e2c47f;
+  --on-gold: #16130b;
   --yellow: #f5c542;
   --orange: #f08a24;
   --red: #e5484d;
   --green: #4cb782;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f4ef; --panel: #ffffff; --panel-2: #f1eee8; --line: rgba(20, 22, 26, .12);
+    --text: #16171a; --text-2: #3b3a36; --muted: #57554f;
+    --gold: #8a6420; --gold-hi: #74531a; --gold-grad: linear-gradient(180deg, #98712a 0%, #8a6420 50%, #6f4f16 100%); --on-gold: #ffffff;
+    --yellow: #8a6100; --orange: #b04a00; --red: #b3261e; --green: #1e7a3c;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -19,59 +37,62 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 13px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 13px/1.5 'Geist', system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 .top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: .01em; font-size: 14px; }
-.brand img { border-radius: 6px; }
-.plan { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); border: 1px solid rgba(201, 166, 78, .35); padding: 3px 8px; border-radius: 99px; }
+.brand img { border-radius: 4px; }
+.plan { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--line); padding: 2px 8px; border-radius: 4px; }
 
 .view { padding: 16px; min-height: 180px; }
 .loading { display: grid; place-items: center; height: 160px; }
 .spin { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--gold); animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; animation: rise .25s cubic-bezier(.2, .8, .2, 1) both; }
-@keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: -4px -4px 10px rgba(255,255,255,.035), 5px 6px 14px rgba(0,0,0,.5); }
 .label { color: var(--muted); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; font-weight: 650; margin-bottom: 8px; }
 .host { font: 600 12.5px/1.4 ui-monospace, Menlo, Consolas, monospace; word-break: break-all; margin-bottom: 10px; }
 
-.threats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.threat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px; padding: 10px 6px; text-align: center; }
-.threat svg { width: 26px; height: 26px; display: block; margin: 0 auto 6px; }
-.threat b { display: block; font-size: 11.5px; font-weight: 650; }
-.threat span { color: var(--muted); font-size: 10.5px; }
+/* One row per threat: its mask, what was found, and how sure. */
+.threats { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.threat { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel); }
+.threat svg { width: 22px; height: 22px; display: block; }
+.threat b { font-size: 12.5px; font-weight: 700; color: var(--text); }
+.threat span { color: var(--muted); font-size: 11px; }
 .threat.locked { opacity: .45; }
 
 .reasons { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
-.reasons li { display: flex; gap: 8px; color: #c4c8ce; font-size: 12px; }
+.reasons li { display: flex; gap: 8px; color: var(--text-2); font-size: 12px; }
 .reasons li::before { content: ""; flex: none; width: 5px; height: 5px; margin-top: 7px; border-radius: 50%; background: var(--gold); }
 
 .meter { height: 6px; border-radius: 99px; background: var(--panel-2); overflow: hidden; margin: 8px 0 6px; }
 /* Full-width fill slid in from the left; --p (0-100) is the share used. */
-.meter i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--gold), var(--gold-hi)); transform: translateX(calc(var(--p, 0) * 1% - 100%)); transition: transform .5s ease; }
+.meter i { display: block; height: 100%; border-radius: 99px; background: var(--gold); transform: translateX(calc(var(--p, 0) * 1% - 100%)); transition: transform .5s ease; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .small { color: var(--muted); font-size: 11.5px; }
 
-.btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 650; font-size: 12.5px; padding: 9px 13px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); transition: background .15s ease, transform .1s ease; }
-.btn:hover { background: #23262c; }
+.btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 650; font-size: 12.5px; padding: 9px 13px; border-radius: 11px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); transition: background .15s ease, transform .1s ease; }
+.btn:hover { border-color: var(--muted); }
 .btn:active { transform: scale(.98); }
-.btn.gold { background: linear-gradient(180deg, var(--gold-hi), var(--gold)); color: #121316; border-color: transparent; }
+.btn.gold { background: var(--gold-grad); color: var(--on-gold); border-color: transparent; box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 10px 24px -12px rgba(212,174,99,.75); }
+.btn.gold:hover { background: var(--gold-hi); }
 .btn.block { width: 100%; }
 .btn[disabled] { opacity: .55; cursor: default; }
 .actions { display: flex; gap: 8px; margin-top: 12px; }
 
 .lock { display: flex; gap: 10px; align-items: flex-start; }
 .lock svg { flex: none; width: 18px; height: 18px; color: var(--gold); margin-top: 1px; }
-.lock p { margin: 0 0 10px; color: #c4c8ce; }
+.lock p { margin: 0 0 10px; color: var(--text-2); }
 
 .foot { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); }
 .foot a, .link { all: unset; cursor: pointer; color: var(--gold); font-weight: 600; font-size: 12px; }
 .foot a:hover, .link:hover { color: var(--gold-hi); }
 
 @media (prefers-reduced-motion: reduce) {
-  .card { animation: none; }
   .meter i, .btn { transition: none; }
 }
+
+.lede { margin: 0 0 12px; color: var(--text-2); }
+.meta { margin: 10px 0 12px; }
