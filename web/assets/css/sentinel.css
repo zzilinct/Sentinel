@@ -124,6 +124,23 @@ body {
   overflow-x: hidden;
 }
 
+/* Ambient light so the page is never flat. Oversized so the slow drift never shows an edge; transform-only, so it
+   stays on the GPU and never repaints. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20vmax;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(38vmax 28vmax at 24% 18%, rgb(var(--gold-rgb) / .13), transparent 70%),
+    radial-gradient(34vmax 30vmax at 82% 34%, rgb(70 110 190 / .08), transparent 70%),
+    radial-gradient(44vmax 32vmax at 50% 92%, rgb(var(--gold-rgb) / .07), transparent 70%);
+  animation: drift 38s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes drift { to { transform: translate3d(4vmax, -3vmax, 0) rotate(7deg) scale(1.06); } }
+
 ::selection { background: rgb(var(--gold-rgb) / .35); color: var(--text); }
 
 img, svg, video { display: block; max-width: 100%; }
@@ -275,17 +292,37 @@ h2 em { color: var(--text-2); }
 /* ------------------------------------------------------------------- hero */
 
 .hero { position: relative; padding: 150px 0 80px; }
-.hero::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 -10%;
-  z-index: -1;
-  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 64px 64px;
-  -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 25%, #000 20%, transparent 75%);
-  mask-image: radial-gradient(ellipse 60% 55% at 50% 25%, #000 20%, transparent 75%);
+/* 3D backdrop: a slowly turning wireframe globe over a grid floor that runs toward the viewer. Only transforms
+   animate, so it stays smooth; reduced motion freezes it. */
+.hero__3d { position: absolute; inset: 0 0 -10%; z-index: -1; overflow: hidden; pointer-events: none; perspective: 1400px; }
+.hero__3d::before {
+  content: ''; position: absolute; left: 50%; top: 60px; width: 900px; height: 700px; margin-left: -450px;
+  background: radial-gradient(closest-side, rgb(var(--gold-rgb) / .16), transparent);
+}
+.globe {
+  --s: min(640px, 92vw);
+  position: absolute; left: 50%; top: 70px; width: var(--s); height: var(--s); margin-left: calc(var(--s) / -2);
+  transform-style: preserve-3d;
+  animation: globe 48s linear infinite;
   opacity: .55;
 }
+.globe i, .globe b { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgb(var(--gold-rgb) / .32); }
+.globe i { transform: rotateY(calc(var(--n) * 22.5deg)); }
+.globe b { transform: rotateX(90deg) translateZ(calc(var(--s) * var(--z))) scale(var(--r)); border-color: rgb(var(--gold-rgb) / .22); }
+@keyframes globe { from { transform: rotateX(-16deg) rotateY(0); } to { transform: rotateX(-16deg) rotateY(360deg); } }
+
+.hero__floor {
+  position: absolute; left: 0; right: 0; top: 34%; bottom: 0; perspective: 520px; perspective-origin: 50% 0;
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 55%, transparent);
+  mask-image: linear-gradient(transparent, #000 30%, #000 55%, transparent);
+}
+.hero__floor i {
+  position: absolute; left: -60%; right: -60%; top: 0; height: 260%; transform-origin: 50% 0;
+  background-image: linear-gradient(rgb(var(--gold-rgb) / .2) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--gold-rgb) / .2) 1px, transparent 1px);
+  background-size: 64px 64px;
+  animation: floor 3.2s linear infinite;
+}
+@keyframes floor { from { transform: rotateX(74deg) translateY(-64px); } to { transform: rotateX(74deg) translateY(0); } }
 .hero__copy { text-align: center; max-width: 1160px; margin: 0 auto; }
 h1, h2, h3 { text-wrap: balance; }
 p { text-wrap: pretty; }

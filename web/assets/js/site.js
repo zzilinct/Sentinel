@@ -19,8 +19,8 @@
 
   /* ------------------------------------------------------------- glyphs */
 
-  $$('[data-glyph]').forEach((el) => { if (!el.firstElementChild) el.innerHTML = Masks.svg(el.dataset.glyph); });
-  $$('[data-kind]').forEach((el) => { if (!el.firstElementChild) el.innerHTML = Masks.kindIcon(el.dataset.kind); });
+  $$('[data-glyph]').forEach((el) => { if (Masks && !el.firstElementChild) el.innerHTML = Masks.svg(el.dataset.glyph); });
+  $$('[data-kind]').forEach((el) => { if (Masks && !el.firstElementChild) el.innerHTML = Masks.kindIcon(el.dataset.kind); });
 
   /* ---------------------------------------------------------------- nav */
 
@@ -137,8 +137,10 @@
       if (e.target.matches('[data-split]')) $$('.gold-text', e.target).forEach((g) => g.classList.add('is-live'));
       io.unobserve(e.target);
     }
-  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 });
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
   $$('[data-reveal], [data-split], [data-pipeline]').forEach((el) => io.observe(el));
+  // boot.js stops its fail-open timer once this is set.
+  window.Site.ready = true;
 
   /* ----------------------------------------------------------- counters */
 

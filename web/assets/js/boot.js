@@ -34,6 +34,21 @@ document.documentElement.classList.add('js');
 if (!('IntersectionObserver' in window)) document.documentElement.classList.add('no-io');
 
 /*
+ * Fail open: if a script errors or never arrives, show everything rather than a blank page. .no-io is the "reveal
+ * all" switch; site.js sets Site.ready once its observers are running, after which errors leave the reveals alone.
+ */
+(function () {
+  const revealAll = () => document.documentElement.classList.add('no-io');
+  const ready = () => window.Site && window.Site.ready;
+  addEventListener('error', (ev) => {
+    // Runtime errors target window; failed loads target the element. A missing image is harmless.
+    const tag = ev.target && ev.target.tagName;
+    if ((!tag || tag === 'SCRIPT' || tag === 'LINK') && !ready()) revealAll();
+  }, true);
+  setTimeout(() => { if (!ready()) revealAll(); }, 3000);
+})();
+
+/*
  * On a phone the keyboard shrinks the visible part of the page: the field being typed in is brought back into view
  * above it, so people can see what they type.
  */
