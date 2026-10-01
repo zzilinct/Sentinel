@@ -31,11 +31,18 @@ const REPORT_CATEGORIES = new Set([
   'romance_scam', 'malware', 'impersonation', 'other'
 ]);
 
+const REPORTER_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 const q = {
   insertReport: db.prepare('INSERT INTO reports (id, host, url, user_id, category, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
   myReportFor: db.prepare('SELECT 1 FROM reports WHERE host = ? AND user_id = ?'),
   countReports: db.prepare('SELECT COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ?'),
-  countThreatReports: db.prepare("SELECT COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ? AND (CASE WHEN category = 'malware' THEN 'malware' ELSE 'scam' END) = ?"),
+  // Only accounts that confirmed their email and are at least a week old count toward condemning a site for everyone:
+  // three accounts made in a minute must not be able to paint a competitor red.
+  countThreatReports: db.prepare(`SELECT COUNT(DISTINCT r.user_id) AS n FROM reports r JOIN users u ON u.id = r.user_id
+    WHERE r.host = ? AND (CASE WHEN r.category = 'malware' THEN 'malware' ELSE 'scam' END) = ?
+      AND u.email_verified_at IS NOT NULL AND u.created_at <= ?`),
+  allowlisted: db.prepare('SELECT 1 FROM allowlist WHERE host = ?'),
   promote: db.prepare(`INSERT INTO blocklist (host, category, source, note, threat, added_at) VALUES (?, ?, 'community', ?, ?, ?)
                        ON CONFLICT(host) DO NOTHING`),
   setOverride: db.prepare(`INSERT INTO overrides (user_id, host, action, created_at) VALUES (?, ?, ?, ?)
@@ -55,7 +62,8 @@ async function metered(user, key, fn) {
   try {
     return await fn();
   } catch (err) {
-    if (!err.status || err.status >= 500) refund();
+    // No result, no charge: a file too large or empty is refused without using up one of the week's scans.
+    refund();
     throw err;
   }
 }
@@ -65,7 +73,7 @@ function withUsage(user, payload) {
 }
 
 function cleanMail(body) {
-  const m = body && typeof body.email === 'object' && body.email ? body.email : body;
+  const m = (body && typeof body.email === 'object' && body.email) || body || {};
   return {
     from: String(m.from || '').slice(0, 320),
     fromName: String(m.fromName || '').slice(0, 200),
@@ -83,7 +91,7 @@ function register(router) {
   /* ---------------------------------------------------- manual link scan */
 
   router.post('/api/v1/scan/link', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     if (!body.url || typeof body.url !== 'string') throw new HttpError(400, 'missing_url', 'Paste a link to check');
     const url = typedUrl(body.url);
@@ -104,7 +112,7 @@ function register(router) {
   /* ------------------------------------------ virus & malware scanner (URL) */
 
   router.post('/api/v1/scan/threat', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const url = body.url && typedUrl(body.url);
     if (!url || !analyze(url)) throw new HttpError(400, 'bad_url', 'Paste a download link or web address to scan');
@@ -124,7 +132,7 @@ function register(router) {
   /* ----------------------------------------- virus & malware scanner (file) */
 
   router.post('/api/v1/scan/file', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     // A custom header makes this a non-simple request, so browsers preflight it.
     const rawName = req.headers['x-file-name'];
     if (!rawName) throw new HttpError(400, 'missing_name', 'Missing X-File-Name header');
@@ -145,7 +153,7 @@ function register(router) {
   /* ------------------------------------------------- manual email scan (Max) */
 
   router.post('/api/v1/scan/email', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const plan = plans.planFor(user);
     if (!plan.features.emailManual) {
       throw new HttpError(403, 'plan_required', 'Pasting emails in for a scan is part of Sentinel Max.', { needs: 'max', plan: plan.id });
@@ -164,7 +172,7 @@ function register(router) {
   const DELICATE_BUDGET_MS = 4500;
 
   router.post('/api/v1/live/batch', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const urls = Array.isArray(body.urls) ? body.urls.map(String).filter((u) => u.length < 4096).slice(0, 60) : [];
     if (!urls.length) throw new HttpError(400, 'missing_urls', 'Provide urls: string[]');
@@ -179,8 +187,16 @@ function register(router) {
     // so marks appear at once; the researched pass follows and refines them. Both count as the same delicate minute.
     const research = mode === 'delicate' && plan.features.liveResearch && !isPrivate && body.quick !== true;
     const started = Date.now();
+    // What the results page showed for each address (its title, the search): read, never kept, never for a private window.
+    const hints = {};
+    if (!isPrivate && body.hints && typeof body.hints === 'object') {
+      for (const u of urls) {
+        const h = Object.prototype.hasOwnProperty.call(body.hints, u) ? body.hints[u] : null;
+        if (h && typeof h === 'object') hints[u] = { title: String(h.title || '').slice(0, 200), query: String(h.query || '').slice(0, 200) };
+      }
+    }
     const verdicts = await engine.scanUrls(urls, {
-      userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: !isPrivate
+      userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: !isPrivate, hints
     });
     const byUrl = {};
     for (const v of verdicts) byUrl[v.requested] = v;
@@ -188,7 +204,7 @@ function register(router) {
   });
 
   router.post('/api/v1/live/visit', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const { url } = body;
     if (!url || !analyze(String(url))) throw new HttpError(400, 'bad_url', 'Not a web address');
@@ -202,7 +218,7 @@ function register(router) {
   });
 
   router.post('/api/v1/live/email', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     if (!plans.planFor(user).features.emailLive) throw new HttpError(403, 'plan_required', 'Email protection is part of Sentinel Pro, Max and Ultimate.', { needs: 'pro' });
     security.rateLimit(`live-email:${user.id}`, 120, 60 * 1000);
     const body = await readJson(req, 512 * 1024);
@@ -222,7 +238,7 @@ function register(router) {
 
   /** Desktop download protection: is this file hash a known threat? (Pro/Max, not metered) */
   router.post('/api/v1/live/file-hash', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const plan = plans.planFor(user);
     if (!plan.features.liveScanning) throw new HttpError(403, 'plan_required', 'Download protection is part of Sentinel Pro, Max and Ultimate.', { needs: 'pro' });
     security.rateLimit(`file-hash:${user.id}`, 300, 60 * 60 * 1000);
@@ -235,7 +251,7 @@ function register(router) {
   /* ------------------------------------------------ reports and overrides */
 
   router.post('/api/v1/report', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     security.rateLimit(`report:${user.id}`, 30, 60 * 60 * 1000);
     const body = await readJson(req);
     const parsed = analyze(String(body.url || ''));
@@ -249,15 +265,17 @@ function register(router) {
     // Reports from distinct accounts only - one person cannot condemn a site alone.
     const total = q.countReports.get(host).n;
     const threat = category === 'malware' ? 'malware' : 'scam';
-    const agreeing = q.countThreatReports.get(host, threat).n;
-    if (agreeing >= 3) q.promote.run(host, category, `Promoted after ${agreeing} ${threat} reports`, threat, now());
+    const agreeing = q.countThreatReports.get(host, threat, now() - REPORTER_MIN_AGE_MS).n;
+    // A well-known site is never condemned by reports alone.
+    const promoted = agreeing >= 3 && !q.allowlisted.get(host);
+    if (promoted) q.promote.run(host, category, `Promoted after ${agreeing} ${threat} reports`, threat, now());
     engine.invalidate(host);
     security.audit('report', { userId: user.id, req, detail: host });
-    sendJson(res, 201, { ok: true, host, reports: total, promoted: agreeing >= 3 });
+    sendJson(res, 201, { ok: true, host, reports: total, promoted });
   });
 
   router.post('/api/v1/sites/override', async (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     const body = await readJson(req);
     const parsed = analyze(String(body.url || body.host || ''));
     if (!parsed) throw new HttpError(400, 'bad_url', 'That does not look like a web address');
@@ -268,7 +286,7 @@ function register(router) {
   });
 
   router.get('/api/v1/sites/overrides', (req, res) => {
-    const user = A.requireUser(req);
+    const user = A.requireAgreedUser(req);
     sendJson(res, 200, { overrides: q.listOverrides.all(user.id) });
   });
 

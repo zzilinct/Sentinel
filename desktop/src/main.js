@@ -407,6 +407,16 @@ async function setAutoScan(enabled) {
   refreshTray();
   return { autoScan: Boolean(enabled), live: { ...watch.status(), enabled: store.get('liveScanning', false) } };
 }
+/** Is a fullscreen game, video or presentation in front? (SHQueryUserNotificationState: busy, Direct3D fullscreen, presentation.) */
+function fullscreenInFront() {
+  const script = `Add-Type -Namespace S -Name Q -MemberDefinition '[DllImport("shell32.dll")] public static extern int SHQueryUserNotificationState(out int s);'
+$s = 0; [void][S.Q]::SHQueryUserNotificationState([ref]$s); $s`;
+  return new Promise((resolve) => {
+    require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+      { windowsHide: true, timeout: 15000 }, (err, out) => resolve(!err && [2, 3, 4].includes(Number(String(out).trim()))));
+  });
+}
+
 async function autoInstallSoon() {
   if (autoInstalling || updater.status().status !== 'ready') return;
   const idleSeconds = powerMonitor.getSystemIdleTime();
@@ -416,8 +426,16 @@ async function autoInstallSoon() {
   const away = !browserInFront && idleSeconds >= 5 * 60 && !usingSentinel;
   if (open.length && !away) return;
   if (usingSentinel && idleSeconds < 5 * 60) return;
-  autoInstalling = true;
+  // Never in the middle of something: someone typing or moving the mouse, or a game or video fullscreen (a game
+  // played with a controller leaves the keyboard and mouse idle, so fullscreen is asked of Windows itself).
+  if (idleSeconds < 2 * 60 || await fullscreenInFront()) return;
   const version = updater.status().version;
+  // An update that failed to install twice is left for the person to install: trying again and again would
+  // restart Sentinel over and over.
+  const tries = store.get('autoInstallTries', {});
+  if ((tries[version] || 0) >= 2) return;
+  store.set('autoInstallTries', { [version]: (tries[version] || 0) + 1 });
+  autoInstalling = true;
   appLog(`updating to ${version} by itself (${open.length ? `idle ${Math.round(idleSeconds / 60)} min` : 'no browser open'})`);
   const r = await updater.install({ relaunch: true, hidden: !(win && !win.isDestroyed() && win.isVisible()) }).catch((err) => ({ ok: false, error: err.message }));
   if (!r.ok) { autoInstalling = false; appLog(`automatic update did not start: ${r.error || 'unknown'}`); }
@@ -718,6 +736,7 @@ async function boot() {
   defense.init({
     api: apiCall,
     downloads: app.getPath('downloads'),
+    desktop: app.getPath('desktop'),
     quarantineDir: path.join(app.getPath('userData'), 'quarantine'),
     dataDir: app.getPath('userData'),
     selfDir: path.dirname(process.execPath),
@@ -785,6 +804,7 @@ async function boot() {
     onVerdict: (v) => overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind }),
     onMarks: (m) => overlay.setMarks(m),
     onShift: (s) => overlay.shift(s),
+    onWheel: (w) => overlay.wheel(w),
     onLog: (text) => appendLog('watch.log', `${new Date().toISOString()} # ${text}`),
     // A short on-disk trail of what live scanning checked, for the person to read. Private windows never reach here.
     onChecked: (item) => {

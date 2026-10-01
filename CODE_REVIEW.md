@@ -1,6 +1,6 @@
 # Sentinel code reviews
 
-## September 22, 2026 — version 1.6.2
+## September 22, 2026: version 1.6.2
 
 Audited the latest source at `8fcf221` after fetching `origin/main`. Six new regression cases reproduced bugs before the fixes:
 
@@ -13,7 +13,7 @@ Audited the latest source at `8fcf221` after fetching `origin/main`. Six new reg
 
 Validation: 119 automated tests pass, including six new regression tests. This is a targeted code audit, not a claim that every bug or detection gap has been eliminated. The remaining improvements below still apply, except for the community category-label bug corrected here. No new archive scanning, hosted service, or moderation system was added.
 
-## September 21, 2026 — version 1.6.1
+## September 21, 2026: version 1.6.1
 
 Reviewed version 1.6.0 at `f678646`, focusing on scanning, network research, email handling, feed updates, and the surrounding API, desktop and release code. Only bug fixes were implemented. Broader changes below remain suggestions.
 
@@ -33,7 +33,7 @@ Reviewed version 1.6.0 at `f678646`, focusing on scanning, network research, ema
 
 Validation: **113 automated tests passed**, covering detection, API behavior, authentication, network guards, static builds, extension checks and desktop tests. Regression fixtures are inert and local. This does not establish real-world detection accuracy or replace installed-app/browser testing.
 
-## Suggested next work — not implemented
+## Suggested next work: not implemented
 
 | Priority | Suggestion | Reason and relevant code |
 | --- | --- | --- |
