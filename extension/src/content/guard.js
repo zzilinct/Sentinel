@@ -37,7 +37,7 @@
     root.innerHTML = `
       <style>
         :host{all:initial}
-        .wrap{position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:radial-gradient(1200px 600px at 50% -10%,${accent}22,transparent 60%),rgba(9,10,12,.96);
+        .wrap{position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:rgba(9,10,12,.96);
           font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#ecebe7;animation:f .25s ease}
         @keyframes f{from{opacity:0}to{opacity:1}}
         .panel{width:min(560px,100%);background:#131519;border:1px solid #2a2d33;border-radius:22px;padding:36px 36px 28px;box-shadow:0 40px 100px rgba(0,0,0,.6);animation:r .35s cubic-bezier(.2,.8,.2,1)}
@@ -52,7 +52,7 @@
         .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
         button{all:unset;cursor:pointer;font-weight:650;font-size:14px;padding:12px 18px;border-radius:12px;background:#1f2227;color:#ecebe7}
         button:hover{background:#272a30}
-        .go{background:linear-gradient(180deg,#e2c275,#c49b3c);color:#131519}.go:hover{filter:brightness(1.05);background:linear-gradient(180deg,#e2c275,#c49b3c)}
+        .go{background:#d6b25a;color:#131519}.go:hover{background:#e2c47f}
         .on{background:none;color:#80868f;text-decoration:underline;padding:12px 6px}.on:hover{background:none;color:#c7cad0}
         .foot{margin-top:24px;padding-top:16px;border-top:1px solid #23262b;display:flex;justify-content:space-between;gap:12px;color:#6e747c;font-size:12px}
         .foot b{color:#c9a64e;letter-spacing:.22em;font-size:11px}
@@ -78,7 +78,7 @@
     root.querySelector('.rep').onclick = (ev) => {
       ev.target.textContent = 'Reporting...';
       Promise.resolve(ext.runtime.sendMessage({ type: 'report', url: v.url, category: threat === 'scam' ? 'phishing' : 'malware' }))
-        .then((res) => { ev.target.textContent = res && res.ok ? 'Reported - thank you' : 'Could not report'; }, () => { ev.target.textContent = 'Could not report'; });
+        .then((res) => { ev.target.textContent = res && res.ok ? 'Reported. Thank you.' : 'Could not report'; }, () => { ev.target.textContent = 'Could not report'; });
     };
   }
 
