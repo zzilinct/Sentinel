@@ -22,6 +22,58 @@ test.after(() => fixture.close());
 const scan = (url, opts = {}) => engine.scanUrl(url, { threats: ['scam', 'virus', 'malware'], ...opts });
 const lvl = (v, t) => v.threats[t].level;
 
+test('live and manual research never reuse verdicts for different page requests', async t => {
+  const research = require('../server/lib/scan/research');
+  const content = require('../server/lib/scan/content');
+  const url = 'https://research-mode-boundary.example/view?variant=account';
+  const calls = [];
+  t.mock.method(research, 'research', async (p, opts) => {
+    const title = opts.budgetMs ? 'Query omitted' : 'Exact requested page';
+    calls.push(opts.budgetMs || 0);
+    return { performed: true, registration: { available: true, createdAt: Date.now() - 3650 * 86400000 },
+      dns: { resolves: true, addresses: ['93.184.216.34'], mx: true },
+      http: { ok: true, status: 200, finalUrl: p.url, chain: [{ url: p.url }], disposition: '', contentType: 'text/html',
+        page: content.parse(`<html><title>${title}</title><p>Ordinary page</p></html>`, p.url) } };
+  });
+  const live = await scan(url, { research: true, budgetMs: 4500 });
+  const manual = await scan(url, { research: true });
+  assert.equal(live.research.pageTitle, 'Query omitted');
+  assert.equal(manual.research.pageTitle, 'Exact requested page');
+  assert.equal(manual.researchComplete, true);
+  assert.deepEqual(calls, [4500, 0]);
+});
+
+test('cache invalidation also separates scans already in progress', async t => {
+  const knowledge = require('../server/lib/scan/knowledge');
+  const { db } = require('../server/lib/db');
+  const original = knowledge.lookup;
+  const host = 'inflight-update.example';
+  let release, entered;
+  const gate = new Promise(r => { release = r; });
+  const waiting = new Promise(r => { entered = r; });
+  let calls = 0;
+  t.mock.method(knowledge, 'lookup', async p => {
+    const first = ++calls === 1;
+    const facts = await original(p);
+    if (first) { entered(); await gate; }
+    return facts;
+  });
+  const before = scan(`https://${host}/`);
+  await waiting;
+  db.prepare('INSERT INTO blocklist (host, category, source, threat, added_at) VALUES (?, ?, ?, ?, ?)')
+    .run(host, 'phishing', 'sentinel', 'scam', Date.now());
+  try {
+    engine.invalidate(host);
+    const after = scan(`https://${host}/`);
+    release();
+    const [old, fresh] = await Promise.all([before, after]);
+    assert.equal(old.overall.badge, null);
+    assert.equal(fresh.overall.badge, 'red');
+    assert.equal(calls, 2);
+    assert.equal((await scan(`https://${host}/`)).overall.badge, 'red');
+  } finally { release(); db.prepare('DELETE FROM blocklist WHERE host = ?').run(host); engine.invalidate(host); }
+});
+
 /* ----------------------------------------------------------- known scams */
 
 test('known scam domains are confirmed (red) from knowledge alone', async () => {
