@@ -28,12 +28,12 @@ Red is only ever shown with **evidence** (a threat-feed match, a known scam kit 
 | Link scans / week | 10 (no research, scam mask only) | 40 (researched, all masks) | 100 (researched, all masks) | 500 (researched, all masks) |
 | Virus & malware scans / week | 5 | 40 | 100 | 500 |
 | Fast live scanning / week | 15 min | 24 h | unlimited | unlimited |
-| Delicate live scanning / week (every result researched) | — | 4 h | 24 h | 96 h |
-| Email masks (Gmail/Outlook) | — | ✓ | ✓ | ✓ |
-| Paste-in email scans | — | — | ✓ (counts as a link scan) | ✓ (counts as a link scan) |
-| Download protection (app) | — | ✓ | ✓ | ✓ |
+| Delicate live scanning / week (every result researched) | No | 4 h | 24 h | 96 h |
+| Email masks (Gmail/Outlook) | No | ✓ | ✓ | ✓ |
+| Paste-in email scans | No | No | ✓ (counts as a link scan) | ✓ (counts as a link scan) |
+| Download protection (app) | No | ✓ | ✓ | ✓ |
 
-Prices and entitlements live in [server/lib/plans.js](server/lib/plans.js) and are enforced there — the client only renders what the server returns. An uncapped allowance is stored as `null`.
+Prices and entitlements live in [server/lib/plans.js](server/lib/plans.js) and are enforced there: the client only renders what the server returns. An uncapped allowance is stored as `null`.
 
 ## What's in the repo
 

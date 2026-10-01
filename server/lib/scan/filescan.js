@@ -185,11 +185,13 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
     add('F03', 'virus', 'File is what its name says it is', pass(`Detected type: ${type}`));
   }
   add('F04', 'virus', 'Not a program file', executable
-    ? warn(18, `${type.toUpperCase()} executable - only run programs from publishers you trust`)
+    ? warn(18, `${type.toUpperCase()} executable: only run programs from publishers you trust`)
     : pass('Not an executable'));
 
   // F05 - double extension
-  if (exts.length >= 2 && L.DOC_EXT.has(exts[exts.length - 2]) && (L.EXECUTABLE_EXT.has(ext) || L.ARCHIVE_EXT.has(ext))) {
+  // Only a type someone would open by double-clicking hides behind a document name ("invoice.pdf.exe"); a library
+  // is never opened that way, and Windows names its own that way ("Windows.Data.Pdf.dll").
+  if (exts.length >= 2 && L.DOC_EXT.has(exts[exts.length - 2]) && ((L.EXECUTABLE_EXT.has(ext) && !['dll', 'sys', 'ocx', 'drv', 'cpl'].includes(ext)) || L.ARCHIVE_EXT.has(ext))) {
     add('F05', 'virus', 'No disguised double extension', fail(45, `"${name}" hides a .${ext} behind .${exts[exts.length - 2]}`));
   } else {
     add('F05', 'virus', 'No disguised double extension', pass('Single, honest extension'));
@@ -198,7 +200,7 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
   // F06 - packed executable
   if (executable) {
     const e = entropy(buf);
-    add('F06', 'malware', 'Program is not packed to hide its code', e > 7.3 ? warn(14, `Very high entropy (${e.toFixed(2)} bits/byte) - packed or encrypted`) : pass(`Entropy ${e.toFixed(2)}`));
+    add('F06', 'malware', 'Program is not packed to hide its code', e > 7.3 ? warn(14, `Very high entropy (${e.toFixed(2)} bits/byte): packed or encrypted`) : pass(`Entropy ${e.toFixed(2)}`));
   } else {
     add('F06', 'malware', 'Program is not packed to hide its code', skip('Not an executable'));
   }
@@ -219,11 +221,21 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
   // F08 - script droppers (text, scripts, HTA, shortcuts, documents)
   const droppers = [...new Set((lower.match(SCRIPT_DROPPER) || []).map((s) => s.trim().slice(0, 40)))];
   const scriptFile = ['js', 'jse', 'vbs', 'vbe', 'ps1', 'bat', 'cmd', 'hta', 'wsf', 'lnk'].includes(ext);
-  if (droppers.length >= 2 || (droppers.length && scriptFile)) {
-    const points = droppers.length >= 2 && scriptFile ? 65 : 50;
-    add('F08', 'malware', 'Does not download and run hidden code', fail(points, `Download-and-execute commands: ${droppers.slice(0, 3).join(', ')}`));
+  // A dropper fetches something and runs it. Measured on real software (scripts/evaluate-files.js): Windows' own
+  // admin scripts run commands or fetch pages on their own all day, and every .NET program names WebClient and
+  // DownloadString, so only a script that does both is marked, or one command that does both at once (encoded
+  // PowerShell, mshta or regsvr32 on a web address, certutil or bitsadmin downloads). Programs have their own checks.
+  // Judged on the whole commands: the shortened ones are only for display, and cut "-enc" off a long preamble.
+  const whole = lower.match(SCRIPT_DROPPER) || [];
+  const oneCommand = whole.some((d) => /mshta|regsvr32|certutil|bitsadmin|-(e|enc|encodedcommand)\b/.test(d));
+  const fetches = whole.some((d) => /downloadstring|downloadfile|net\.webclient|start-bitstransfer/.test(d));
+  const runs = whole.some((d) => /invoke-expression|iex|wscript\.shell|activexobject|frombase64string/.test(d));
+  if (executable) {
+    add('F08', 'malware', 'Does not download and run hidden code', skip('A program: judged by the checks for programs'));
+  } else if (oneCommand || (fetches && runs)) {
+    add('F08', 'malware', 'Does not download and run hidden code', fail(scriptFile ? 65 : 50, `Download-and-execute commands: ${droppers.slice(0, 3).join(', ')}`));
   } else if (droppers.length) {
-    add('F08', 'malware', 'Does not download and run hidden code', warn(18, `Suspicious command: ${droppers[0]}`));
+    add('F08', 'malware', 'Does not download and run hidden code', warn(scriptFile ? 12 : 8, `${fetches ? 'Fetches' : 'Runs commands'} (${droppers.slice(0, 2).join(', ')}), but does not do both`));
   } else {
     add('F08', 'malware', 'Does not download and run hidden code', pass('No dropper commands'));
   }
@@ -242,7 +254,7 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
     const autoRun = /auto_?open|document_open|workbook_open|autoexec|auto_close/i.test(macroText);
     add('F09', 'malware', 'Document has no auto-running macros', autoRun
       ? fail(55, 'Contains macros set to run as soon as the document opens')
-      : fail(36, 'Contains VBA macros - only enable them for documents you expected'));
+      : fail(36, 'Contains VBA macros: only enable them for documents you expected'));
   } else {
     add('F09', 'malware', 'Document has no auto-running macros', ['zip', 'ole'].includes(type) ? pass('No macros') : skip('Not an Office document'));
   }
@@ -278,7 +290,7 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
     } else if (!isOffice && !isApk && risky.length) {
       add('F11', 'virus', 'Archive holds no programs', fail(encrypted ? 45 : 32, `Contains ${risky.slice(0, 3).map((e) => e.name).join(', ')}${encrypted ? ' in a password-protected archive' : ''}`));
     } else if (encrypted) {
-      add('F11', 'virus', 'Archive holds no programs', warn(20, 'Password-protected archive - a common trick to get past email scanners'));
+      add('F11', 'virus', 'Archive holds no programs', warn(20, 'Password-protected archive: a common trick to get past email scanners'));
     } else {
       add('F11', 'virus', 'Archive holds no programs', pass(`${entries.length} entries, none executable`));
     }
@@ -289,11 +301,11 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
       const text = manifest ? manifest.toString('utf16le') + manifest.toString('latin1') : '';
       const perms = ['BIND_ACCESSIBILITY_SERVICE', 'RECEIVE_SMS', 'READ_SMS', 'SYSTEM_ALERT_WINDOW', 'BIND_DEVICE_ADMIN', 'REQUEST_INSTALL_PACKAGES'].filter((perm) => text.includes(perm));
       add('F12', 'malware', 'Android app does not request takeover permissions', perms.length >= 3
-        ? fail(45, `Requests ${perms.join(', ')} - the banking-trojan combination`)
+        ? fail(45, `Requests ${perms.join(', ')}: the banking-trojan combination`)
         : perms.length ? warn(12, `Requests ${perms.join(', ')}`) : pass('Ordinary permissions'));
     }
   } else {
-    add('F11', 'virus', 'Archive holds no programs', ['rar', '7z', 'gzip'].includes(type) ? warn(8, `${type.toUpperCase()} archive contents cannot be listed - open with care`) : skip('Not an archive'));
+    add('F11', 'virus', 'Archive holds no programs', ['rar', '7z', 'gzip'].includes(type) ? warn(8, `${type.toUpperCase()} archive contents cannot be listed: open with care`) : skip('Not an archive'));
   }
 
   // F13 - shortcut and disk-image delivery tricks
@@ -309,7 +321,7 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
 
   // F14 - HTML attachments (phishing pages and smuggled payloads)
   if (type === 'html') {
-    const smuggle = /new\s+blob\s*\(/i.test(latin) && /createobjecturl|mssaveoropenblob/i.test(latin) && /[A-Za-z0-9+/]{2000,}={0,2}/.test(latin);
+    const smuggle = /new\s+blob\s*\(/i.test(latin) && /createobjecturl|mssaveoropenblob/i.test(latin) && /(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{2000}/.test(latin);
     const phish = /type\s*=\s*["']?password/i.test(latin);
     add('F14', 'malware', 'Not an HTML file carrying a payload or login form', smuggle
       ? fail(45, 'HTML file that assembles and downloads a hidden file')

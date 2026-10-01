@@ -294,7 +294,7 @@
       ul{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}li{display:flex;gap:8px;color:#c7cad0}li:before{content:"";flex:none;width:5px;height:5px;margin-top:7px;border-radius:50%;background:#c9a64e}
       .meta{color:#80868f;font-size:11px;margin-bottom:12px}
       .row{display:flex;gap:8px}button.a{all:unset;cursor:pointer;font-weight:600;font-size:12px;padding:8px 12px;border-radius:9px;background:#23262c;color:#ecebe7}
-      button.a:hover{background:#2c3037}button.p{background:linear-gradient(180deg,#e0c070,#c49b3c);color:#15171b}
+      button.a:hover{background:#2c3037}button.p{background:#d6b25a;color:#15171b}button.p:hover{background:#e2c47f}
     </style><div class="card" role="dialog" hidden></div>`;
     document.documentElement.appendChild(host);
     popover = { host, card: root.querySelector('.card') };

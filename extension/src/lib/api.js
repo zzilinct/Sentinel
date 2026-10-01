@@ -67,7 +67,9 @@ export async function apiFetch(path, { method = 'GET', body, timeout = 20000 } =
   try { data = await res.json(); } catch { /* empty body */ }
   if (!res.ok) {
     const e = (data && data.error) || {};
-    throw new ApiError(e.message || `Request failed (${res.status})`, res.status, e.code, e);
+    // A fault on Sentinel's side is said in a plain sentence; its own wording is kept for things the person can fix.
+    const message = res.status >= 500 || !e.message ? 'Sentinel could not do that right now. Try again in a moment.' : e.message;
+    throw new ApiError(message, res.status, e.code, e);
   }
   return data;
 }

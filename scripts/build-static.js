@@ -31,7 +31,7 @@ const OUT = path.resolve(ROOT, argOf('--out', 'dist-static'));
 
 // Pages the static build ships. The app needs accounts and the scan API, so it
 // is not exported: its links point at the real site instead.
-const PAGES = ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', '404.html'];
+const PAGES = ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', '404.html'];
 const ASSET_DIRS = ['assets/css', 'assets/js', 'assets/img', 'assets/fonts'];
 
 /* ------------------------------------------------------------- helpers */
@@ -60,7 +60,8 @@ const ROUTES = {
   '/pricing': 'pricing.html',
   '/download': 'download.html',
   '/privacy': 'privacy.html',
-  '/terms': 'terms.html'
+  '/terms': 'terms.html',
+  '/refunds': 'refunds.html'
 };
 
 /** Pages that only exist with a server: point them at the live site. */
@@ -196,6 +197,12 @@ async function main() {
     const tag = '<script src="assets/js/static.js"></script>';
     const boot = '<script src="assets/js/boot.js"></script>';
     html = html.includes(boot) ? html.replace(boot, `${tag}\n${boot}`) : html.replace('</head>', `${tag}\n</head>`);
+    // A static host sends no security headers of its own, so the page carries what a meta tag can: the same
+    // content policy as the server's pages, and no full addresses leaked to other sites.
+    const csp = ["default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "font-src 'self'",
+      "img-src 'self' data:", `connect-src 'self' ${origin} https://api.github.com`, "object-src 'none'", "base-uri 'none'",
+      `form-action 'self' ${origin}`].join('; ');
+    html = html.replace('<meta charset="utf-8">', `<meta charset="utf-8">\n<meta http-equiv="Content-Security-Policy" content="${csp}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
     fs.writeFileSync(path.join(OUT, page), html);
     console.log(`  ${page.padEnd(15)} ${(html.length / 1024).toFixed(1)} KB`);
   }
