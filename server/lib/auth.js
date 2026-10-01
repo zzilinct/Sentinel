@@ -150,7 +150,7 @@ async function createUser({ email, password, firstName, lastName, googleSub = nu
   // stops the second, which gets the same answer as if it had come later.
   try { uq.insert.run(userId, email, hash, firstName, lastName, googleSub, avatarUrl, t, t); }
   catch (err) {
-    if (String(err.code || err.message).includes('CONSTRAINT')) throw new HttpError(409, 'email_taken', 'An account with this email already exists');
+    if (/UNIQUE constraint/i.test(String(err.message))) throw new HttpError(409, 'email_taken', 'An account with this email already exists');
     throw err;
   }
   if (emailVerified) uq.markVerified.run(t, userId);
