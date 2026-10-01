@@ -88,6 +88,7 @@ async function signUp() {
   const email = `review-${Date.now()}@example.com`;
   const post = (p, body, cookie) => fetch(`${BASE}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: BASE, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) });
   const r = await post('/api/v1/auth/signup', { email, password: PASSWORD, firstName: 'Alex', ageConfirmed: true, termsAccepted: true });
+  if (!r.ok) throw new Error(`sign-up was refused: ${r.status} ${await r.text()}`);
   const cookie = (r.headers.getSetCookie ? r.headers.getSetCookie() : [r.headers.get('set-cookie')]).filter(Boolean).map((c) => c.split(';')[0]).join('; ');
   await post('/api/v1/billing/plan', { plan: 'max' }, cookie);
   return email;
@@ -107,7 +108,7 @@ async function signIn(send, email) {
   }
   if (!String(result.value).startsWith('/app')) {
     // Say what the page said, so a failed run explains itself.
-    const { result: why } = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify({ url: location.href, note: (document.querySelector('[data-note]') || {}).textContent || '', toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '), ready: document.readyState })` }, sessionId);
+    const { result: why } = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify({ url: location.href, note: (document.querySelector('[data-note]') || {}).textContent || '', toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '), fields: [...document.querySelectorAll('.field__error')].map((t) => t.textContent).filter(Boolean).join(' | '), ready: document.readyState })` }, sessionId);
     await send('Target.closeTarget', { targetId });
     throw new Error(`sign-in did not reach the app: ${why.value}`);
   }
