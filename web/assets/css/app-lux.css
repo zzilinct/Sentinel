@@ -162,6 +162,21 @@ html.lux-app[data-theme="light"] {
 /* Everything else (and the page title on every page) rises gently. */
 .lux-in.lux-title { animation-name: lux-pop; animation-duration: .7s; animation-timing-function: var(--lux-out); animation-delay: 0s; }
 
+/* ------------------------------------------------ small moments */
+
+/* Meters fill from empty when they appear, so a page shows how much is left rather than just stating it. */
+.lux-app .meter i { transform-origin: 0 50%; animation: lux-fill 1.2s var(--lux-out) .25s backwards; }
+@keyframes lux-fill { from { transform: scaleX(0); } }
+/* A verdict's mask is read by a gold scan line as it lands, as the opening reads the onyx mask. */
+.lux-app .result__glyph { position: relative; overflow: hidden; }
+.lux-app .result__glyph::after { content: ''; position: absolute; left: -10%; right: -10%; height: 2px; top: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--gold-200), transparent); box-shadow: 0 0 12px rgb(var(--gold-rgb) / .9);
+  transform: translateY(-4px); animation: lux-read 1.1s var(--lux-io) .25s both; }
+@keyframes lux-read { 85% { opacity: 1; } to { transform: translateY(72px); opacity: 0; } }
+/* Empty places are not dead: their mask floats. */
+.lux-app .empty svg { animation: lux-float 3.6s ease-in-out infinite alternate; }
+@keyframes lux-float { from { transform: translateY(-3px) rotate(-3deg); } to { transform: translateY(3px) rotate(3deg); } }
+
 /* ------------------------------------------------------------ hover */
 
 @media (hover: hover) and (pointer: fine) {
@@ -216,7 +231,8 @@ html.lux-app[data-theme="light"] {
 /* ----------------------------------------------------- reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
-  .lux-atmos i, .lux-sweep, .lux-rule *, .lux-word, .lux-mask, .lux-mask img { animation: none !important; }
+  .lux-atmos i, .lux-sweep, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .result__glyph::after, .lux-app .empty svg { animation: none !important; }
+  .lux-app .result__glyph::after { display: none; }
   .lux-atmos i { display: none; }
   .lux-word { transform: none; clip-path: none; }
   .lux-rule * { stroke-dashoffset: 0; }
