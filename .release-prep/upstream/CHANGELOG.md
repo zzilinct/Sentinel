@@ -1,17 +1,5 @@
 # Changelog
 
-## 1.8.9: live scanning accuracy and reliability
-
-- Failed live scans stay pending and retry instead of appearing clean. Incomplete research and provisional verdicts expire promptly so a failed follow-up cannot suppress another scan.
-- Search-result caches include the title and search context. The companion sends that context to the engine and rescans results whose address or title changes.
-- Late scan responses are discarded after navigation or stopping protection, preventing warnings for pages that have already been left.
-- Both clients unwrap nested search redirects and preserve encoded path and query characters in Bing ad destinations. The companion checks user-published Google Sites and Docs results and does not substitute an arbitrary URL parameter on an unrecognized site.
-- Live research and exact-URL manual research have separate verdict caches, and short research deadlines do not join longer jobs. In-progress scans are isolated when threat knowledge is invalidated.
-- Community confirmation requires independent verified accounts at least seven days old. Reports alone cannot condemn verified sites; exact malicious URL listings still apply.
-- Companion 1.4.2 keeps private batches out of its local verdict cache, separates contextual verdicts, and does not cache fast fallback results as completed delicate research.
-
-Validation: all 17 new regression tests pass. Local checks passed 200 tests; 14 process-dependent tests could not run successfully under the sandbox's child-process restrictions. The release workflow runs the full suite on Windows before publishing installers. No zero-error or real-world accuracy percentage is claimed.
-
 ## 1.6.3: scan performance
 
 - File analysis counts byte frequencies more efficiently and avoids macro-text searches for files with no macros. File-size limits, sampled bytes and detection rules are unchanged.
