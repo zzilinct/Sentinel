@@ -11,19 +11,16 @@
 <body>
 <!-- @include nav -->
 
-<main>
+<main id="main">
 
   <!-- ================================================================ hero -->
   <section class="hero">
     <div class="wrap">
       <div class="hero__copy">
-        <a class="hero__pill" href="#masks" data-reveal>
-          <b>New</b> Virus &amp; malware masks, alongside scams
-        </a>
         <h1 data-split>The internet wears masks.<br><span class="serif italic gold-text">Sentinel sees through them.</span></h1>
         <p class="hero__lede" data-reveal style="--d:.5s">
-          Real-time protection that flags scams, viruses and malware on your search results,
-          in your inbox and in your downloads, before a single click.
+          Sentinel checks the links in your search results, the messages in your inbox and the files you
+          download, and marks the dangerous ones before you open them.
         </p>
         <div class="hero__cta" data-reveal style="--d:.65s">
           <a class="btn btn--gold btn--lg" href="/download">
@@ -32,7 +29,7 @@
           </a>
           <a class="btn btn--lg" href="/app">Open in your browser <span class="arrow">&rarr;</span></a>
         </div>
-        <p class="hero__fine" data-reveal style="--d:.8s"><span>Free plan, no card</span><span>Chrome, Edge, Firefox, Brave, Opera and more</span><span>No add-on to install</span></p>
+        <p class="hero__fine" data-reveal style="--d:.8s"><span>Free plan, no card</span><span>Windows app for Chrome, Edge, Firefox, Brave and Opera</span><span>No browser add-on needed on Windows</span></p>
       </div>
 
       <!-- product stage -->
@@ -105,14 +102,14 @@
             <div class="bar" style="--c:var(--green)" data-v-bar="malware"><span>Malware</span><div class="bar__track"><div class="bar__fill" data-w="0"></div></div><b>0</b></div>
           </div>
           <ul class="verdict__why" data-v-why></ul>
-          <div class="verdict__foot"><span data-v-checks>105 checks</span><span data-v-source>Known threat</span></div>
+          <div class="verdict__foot"><span data-v-checks>107 checks</span><span data-v-source>Known threat</span></div>
         </div>
 
         <div class="float float--mail" data-float="mail">
           <div class="mailrow">
             <div class="mailrow__avatar">P</div>
             <div style="min-width:0">
-              <div class="mailrow__from">PayPal Security <span class="masks"><span class="m m--red is-on" data-glyph="virus"></span></span></div>
+              <div class="mailrow__from">PayPal Security <span class="masks"><span class="m m--red is-on" role="img" aria-label="Confirmed virus" data-glyph="virus"></span></span></div>
               <div class="mailrow__subject">Action required: Account_Statement.pdf.exe</div>
             </div>
           </div>
@@ -125,9 +122,9 @@
   <section class="stats" aria-label="Sentinel in numbers">
     <div class="wrap stats__grid">
       <div class="stat" data-reveal><div class="stat__n tabular"><span data-count="1200000" data-live="threats">1,200,000</span><span class="unit">+</span></div><div class="stat__l">known threats tracked from live public feeds</div></div>
-      <div class="stat" data-reveal style="--d:.08s"><div class="stat__n tabular"><span data-count="105" data-live="checks">105</span></div><div class="stat__l">checks in Sentinel&rsquo;s checklist, from look-alike names to hidden downloads</div></div>
+      <div class="stat" data-reveal style="--d:.08s"><div class="stat__n tabular"><span data-count="107" data-live="checks">107</span></div><div class="stat__l">checks in Sentinel&rsquo;s checklist, from look-alike names to hidden downloads</div></div>
       <div class="stat" data-reveal style="--d:.16s"><div class="stat__n tabular"><span data-count="3">3</span></div><div class="stat__l">masks: scam, virus and malware</div></div>
-      <div class="stat" data-reveal style="--d:.24s"><div class="stat__n tabular"><span data-count="25" data-live="kinds">25</span></div><div class="stat__l">kinds of threat it can name, from a fake login to a fake browser update</div></div>
+      <div class="stat" data-reveal style="--d:.24s"><div class="stat__n tabular"><span data-count="24" data-live="kinds">24</span></div><div class="stat__l">kinds of threat it can name, from a fake login to a fake browser update</div></div>
     </div>
   </section>
 
@@ -135,8 +132,8 @@
   <section class="section" id="masks">
     <div class="wrap">
       <div class="section__head">
-        <span class="kicker" data-reveal>The masks</span>
-        <h2 data-split>Three masks.<br><span class="serif italic">One glance.</span></h2>
+        <span class="kicker">The masks</span>
+        <h2 data-split>Three masks, <em>one glance</em></h2>
         <p data-reveal>Every threat gets its own face, and every face gets a colour. Yellow means look closer. Orange means it&rsquo;s probably dangerous. Red means Sentinel has proof.</p>
       </div>
 
@@ -270,9 +267,9 @@
   <section class="section" id="how" style="padding-top:40px">
     <div class="wrap">
       <div class="section__head">
-        <span class="kicker" data-reveal>How a verdict is made</span>
-        <h2 data-split>Evidence first.<br><span class="serif italic">Then everything else.</span></h2>
-        <p data-reveal>Sentinel never guesses red. Every link goes through the same four stages, and you can open the full checklist behind any mask.</p>
+        <span class="kicker">How it decides</span>
+        <h2 data-split>Evidence first, <em>then everything else</em></h2>
+        <p data-reveal>Red means proof: a known threat list or a known malicious file, never a hunch. Every link goes through the same four stages, and you can open the full checklist behind any mask.</p>
       </div>
 
       <div class="pipeline" data-pipeline>
@@ -309,8 +306,8 @@
   <section class="section" id="game" style="padding-top:40px">
     <div class="wrap">
       <div class="section__head section__head--center">
-        <span class="kicker" data-reveal>Spot the scam</span>
-        <h2 data-split>Can you read <span class="serif italic">the masks?</span></h2>
+        <span class="kicker">A short test</span>
+        <h2 data-split>Can you read <em>the masks?</em></h2>
         <p data-reveal>Six real links. Decide how dangerous each one is, then see what Sentinel found.</p>
       </div>
 
@@ -331,8 +328,8 @@
   <section class="section" id="everywhere">
     <div class="wrap">
       <div class="section__head">
-        <span class="kicker" data-reveal>Protection</span>
-        <h2 data-split>Wherever you click,<br><span class="serif italic">it&rsquo;s already checked.</span></h2>
+        <span class="kicker">Where it works</span>
+        <h2 data-split>Marked on the page, <em>before you click</em></h2>
       </div>
 
       <div class="surfaces">
@@ -342,11 +339,11 @@
           <p>Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more, in Chrome, Edge, Brave and Firefox. Masks appear as the page loads. With delicate scanning, from Pro up, each result is researched too.</p>
           <div class="tile__demo demo-list">
             <div class="demo-row" data-why="The real Coinbase: a long-established domain on Sentinel’s verified list, so it gets a tick."><div class="grow"><div class="t">Coinbase | Buy and Sell Bitcoin</div><div class="s">coinbase.com</div></div><span class="m m--clear" role="img" aria-label="No threats found"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg></span></div>
-            <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension | Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" data-glyph="scam"></span></div>
-            <div class="demo-row" data-why="Listed in public phishing feeds. Brand name + “airdrop claim” on a free .tk domain."><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" data-glyph="scam"></span></div>
-            <div class="demo-row" data-why="A direct program download from a throwaway .site domain with no reputation, dressed up as a free tool."><div class="grow"><div class="t">Crypto Price Tracker | Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" data-glyph="virus"></span><span class="m m--yellow" data-glyph="malware"></span></div>
+            <div class="demo-row" data-why="Misspelled brand (“coinbse”) on a free website builder, promising to “restore access” to a wallet."><div class="grow"><div class="t">Coinbase Wallet Extension | Restore Access</div><div class="s">coinbse-extension.framer.website</div></div><span class="m m--orange" role="img" aria-label="Likely scam" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="Listed in public phishing feeds. Brand name + “airdrop claim” on a free .tk domain."><div class="grow"><div class="t">Claim Your Coinbase Airdrop Now</div><div class="s">coinbase-airdrop-claim.tk</div></div><span class="m m--red" role="img" aria-label="Confirmed scam" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="A direct program download from a throwaway .site domain with no reputation, dressed up as a free tool."><div class="grow"><div class="t">Crypto Price Tracker | Free Download</div><div class="s">tracker-apps.site/setup.exe</div></div><span class="m m--orange" role="img" aria-label="Likely virus" data-glyph="virus"></span><span class="m m--yellow" role="img" aria-label="Possible malware" data-glyph="malware"></span></div>
             <div class="demo-row" data-why="A subdomain of the verified coinbase.com, so it inherits its trust."><div class="grow"><div class="t">Coinbase Help | Contact Support</div><div class="s">help.coinbase.com</div></div><span class="m m--clear" role="img" aria-label="No threats found"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg></span></div>
-            <div class="demo-row" data-why="Crypto exchanges don’t run phone support lines on look-alike domains. Classic support-number scam pattern."><div class="grow"><div class="t">Coinbase Support Number 24/7 | Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="Crypto exchanges don’t run phone support lines on look-alike domains. Classic support-number scam pattern."><div class="grow"><div class="t">Coinbase Support Number 24/7 | Call Now</div><div class="s">coinbase-helpdesk-number.online</div></div><span class="m m--orange" role="img" aria-label="Likely scam" data-glyph="scam"></span></div>
             <div class="demo-row" data-why="An established site with a normal history and nothing suspicious on the page."><div class="grow"><div class="t">Crypto Tax Calculator | Free Guide 2026</div><div class="s">koinly.io/guides</div></div><span class="m m--clear" role="img" aria-label="No threats found"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg></span></div>
           </div>
           <div class="tile__lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Live scanning: 15 minutes a week free, 24 hours on Pro, unlimited on Max</div>
@@ -357,7 +354,7 @@
           <h3>Emails, unmasked</h3>
           <p>In Gmail and Outlook on the web, the Sentinel app marks the messages in your inbox list before you open them: a tick when nothing is wrong, a mask when there is evidence of a scam. It reads only what the list already shows.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row" data-why="DocuSign never sends from a free Gmail address, and the display name doesn’t match the sender."><div class="file">DS</div><div class="grow"><div class="t">DocuSign: Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" data-glyph="scam"></span></div>
+            <div class="demo-row" data-why="DocuSign never sends from a free Gmail address, and the display name doesn’t match the sender."><div class="file">DS</div><div class="grow"><div class="t">DocuSign: Please review</div><div class="s">docs-sign.support@gmail.com</div></div><span class="m m--orange" role="img" aria-label="Likely scam" data-glyph="scam"></span></div>
             <div class="demo-row" data-why="Sent from github.com with passing sender authentication."><div class="file">GH</div><div class="grow"><div class="t">GitHub: Your weekly digest</div><div class="s">noreply@github.com</div></div><span class="m m--clear" role="img" aria-label="No threats found"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg></span></div>
           </div>
         </article>
@@ -365,10 +362,10 @@
         <article class="tile" data-reveal style="--d:.2s">
           <div class="tile__label">Downloads</div>
           <h3>Every file, inspected</h3>
-          <p>The Sentinel app scans new downloads on your computer. Files never leave your device. Only their fingerprint does.</p>
+          <p>The Sentinel app checks new downloads on your computer. The file stays there: only its fingerprint is compared online.</p>
           <div class="tile__demo demo-list">
-            <div class="demo-row" data-why="The real extension is .exe. The “.pdf” is there to trick you into running it."><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" data-glyph="virus"></span></div>
-            <div class="demo-row" data-why=".docm files carry macros that can download and run other programs as soon as you enable editing."><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" data-glyph="malware"></span></div>
+            <div class="demo-row" data-why="The real extension is .exe. The “.pdf” is there to trick you into running it."><div class="file">EXE</div><div class="grow"><div class="t">Invoice_March.pdf.exe</div><div class="s">Named like a PDF, runs as a program</div></div><span class="m m--red" role="img" aria-label="Confirmed virus" data-glyph="virus"></span></div>
+            <div class="demo-row" data-why=".docm files carry macros that can download and run other programs as soon as you enable editing."><div class="file">DOC</div><div class="grow"><div class="t">Quarterly_Report.docm</div><div class="s">Macro runs on open</div></div><span class="m m--orange" role="img" aria-label="Likely malware" data-glyph="malware"></span></div>
           </div>
         </article>
       </div>
@@ -380,8 +377,7 @@
     <div class="wrap">
       <div class="try" data-reveal="scale">
         <div class="try__copy">
-          <span class="kicker">Try it now</span>
-          <h2 style="margin-top:16px">Got a link you&rsquo;re <span class="serif italic">not sure about?</span></h2>
+          <h2>Got a link you&rsquo;re <em>not sure about?</em></h2>
           <p>Paste it here. No account needed: you get the known-threat lookup and the full checklist. A free account adds history and a little live scanning. Pro adds research.</p>
           <div class="try__examples" aria-label="Examples">
             <span class="muted">Try:</span>
@@ -411,8 +407,8 @@
   <section class="section" id="pricing">
     <div class="wrap">
       <div class="section__head section__head--center">
-        <span class="kicker" data-reveal>Pricing</span>
-        <h2 data-split>Simple plans.<br><span class="serif italic">Serious protection.</span></h2>
+        <span class="kicker">Plans</span>
+        <h2 data-split>Four plans, <em>starting free</em></h2>
         <p data-reveal>Start free with 15 minutes of live scanning a week. Upgrade for more time and research.</p>
       </div>
       <!-- @include pricing -->
@@ -423,8 +419,8 @@
   <section class="section" id="security">
     <div class="wrap vault">
       <div>
-        <span class="kicker" data-reveal>Security &amp; privacy</span>
-        <h2 data-split style="margin-top:18px;font-size:clamp(38px,5vw,60px)">Built like <span class="serif italic">a vault.</span></h2>
+        <span class="kicker">Your data</span>
+        <h2 data-split style="font-size:clamp(42px,5.4vw,72px);margin-top:22px">What Sentinel keeps, <em>and what it never does</em></h2>
         <div class="vault__list" style="margin-top:36px">
           <div class="vault__item" data-reveal>
             <div class="vault__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v6c0 4.5 3 8.2 7 9 4-.8 7-4.5 7-9V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
@@ -436,11 +432,11 @@
           </div>
           <div class="vault__item" data-reveal style="--d:.16s">
             <div class="vault__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12h16M12 4v16"/><circle cx="12" cy="12" r="8"/></svg></div>
-            <div><h4>Research happens on our side</h4><p>Suspicious pages are opened from isolated servers that refuse to touch private networks, never from your computer.</p></div>
+            <div><h4>Research happens on our side</h4><p>Suspicious pages are opened by Sentinel&rsquo;s servers, which refuse to reach private networks, never by your computer.</p></div>
           </div>
           <div class="vault__item" data-reveal style="--d:.24s">
             <div class="vault__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h10v10H7z"/><path d="M4 4h3M17 4h3M4 20h3M17 20h3"/></svg></div>
-            <div><h4>Files stay on your device</h4><p>Downloads are analysed locally by the Sentinel app. Only a SHA-256 fingerprint is compared online.</p></div>
+            <div><h4>Downloads stay on your computer</h4><p>The Sentinel app analyses them where they are. Only a SHA-256 fingerprint is compared online. A file you check on the website is uploaded for that check and not kept.</p></div>
           </div>
         </div>
       </div>
@@ -456,8 +452,8 @@
   <section class="section" style="padding-top:40px">
     <div class="wrap-narrow">
       <div class="section__head section__head--center" style="margin-bottom:48px">
-        <span class="kicker" data-reveal>Questions</span>
-        <h2 data-split>Good to know</h2>
+        <span class="kicker">Questions</span>
+        <h2 data-split>Good <em>to know</em></h2>
       </div>
       <div class="faq" data-reveal>
         <details>
@@ -489,8 +485,8 @@
     <div class="wrap">
       <div class="cta" data-reveal="scale">
         <div class="cta__mask" data-glyph="scam"></div>
-        <h2 data-split>Stop guessing <span class="serif italic gold-text">which link is safe.</span></h2>
-        <p>Free to start. Up and running in two minutes.</p>
+        <h2 data-split>See which links are dangerous <span class="serif italic gold-text">before you open them</span></h2>
+        <p>Free to start. No card needed.</p>
         <div class="hero__cta">
           <a class="btn btn--gold btn--lg" href="/download">Download Sentinel</a>
           <a class="btn btn--lg" href="/signup">Create free account</a>
