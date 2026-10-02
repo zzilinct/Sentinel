@@ -1,0 +1,107 @@
+/* =============================================================================
+   Hover: the pointer is a lamp, and the masks are watching it (hover.js sets html.hv and the variables).
+   Nothing is lifted, enlarged or faded: light moves, shadows answer it, masks turn, gold fills and lines engrave.
+   ============================================================================= */
+
+@property --tr { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@property --sheen { syntax: '<angle>'; inherits: true; initial-value: 176deg; }
+@property --near { syntax: '<number>'; inherits: false; initial-value: 0; }
+
+:root { --metal-stops: #f3dca4 0%, #d2ac63 30%, #8a6424 56%, #e9c983 72%, #7a561c 100%; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --metal-stops: #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%; } }
+:root[data-theme="light"] { --metal-stops: #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%; }
+
+/* ------------------------------------------------------------- the gaze */
+
+/* A mask that watches the pointer (hover.js turns it); the wrapper keeps the mask's own float and entrance free. */
+.gaze { display: block; position: relative; transform-origin: 50% 45%; will-change: transform; }
+.gaze--block { width: fit-content; margin-inline: auto; }
+.gaze > img { display: block; }
+/* The hero mask's eyes: a gold light in each slot while it watches, drifting a little toward the pointer. */
+.gaze__eye { position: absolute; left: var(--ex); top: var(--ey); width: var(--ew); height: var(--eh); translate: calc(-50% + var(--gx, 0) * 7px) calc(-50% + var(--gy, 0) * 5px);
+  border-radius: 50%; pointer-events: none; mix-blend-mode: screen; opacity: var(--gaze, 0);
+  background: radial-gradient(closest-side, rgb(255 236 190 / .95), rgb(240 180 90 / .55) 45%, rgb(210 140 60 / 0) 100%); filter: blur(3px); }
+.gaze__eye::after { content: ''; position: absolute; inset: 30% 38%; border-radius: 50%; background: #fff6df; filter: blur(1px); }
+
+/* --------------------------------------------------------------- the lamp */
+
+/* A raised surface lit by the pointer: the highlight comes from the pointer's side, the shadow falls away from it.
+   It is the same relief as at rest (lux.css), only with the light moved. */
+.hv :is(.btn, .chip-q, .chip, .fchip, .card, .tile, .plan, .stat, .answer, .plate__info, .finder__q, .finder__answer, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .panel, .feature, .usage-list, .models--bar) {
+  transition: box-shadow .45s var(--ease-out), color .2s, background-color .3s;
+}
+.hv .is-lit {
+  --raise: calc(var(--lx) * 11px) calc(var(--ly) * 11px) 26px var(--hi), calc(var(--lx) * -17px + 2px) calc(var(--ly) * -17px + 4px) 36px var(--lo), inset calc(var(--lx) * 1.5px) calc(var(--ly) * 1.5px) 0 rgb(255 240 215 / .09);
+  --raise-sm: calc(var(--lx) * 5px) calc(var(--ly) * 5px) 11px var(--hi), calc(var(--lx) * -8px + 1px) calc(var(--ly) * -8px + 2px) 16px var(--lo), inset calc(var(--lx) * 1px) calc(var(--ly) * 1px) 0 rgb(255 240 215 / .09);
+}
+/* ...and a soft pool of light where the pointer is. The app's panels have their own (app-lux.css). */
+.hv .is-lit:is(.card, .tile, .plan, .stat, .answer, .plate__info, .finder__q, .finder__answer, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .btn, .chip-q, .models--bar) {
+  background-image: radial-gradient(280px circle at var(--mx) var(--my), rgb(255 232 190 / .075), transparent 65%), var(--relief);
+}
+.hv .plan:hover, .hv .answer:not([disabled]):hover, .hv .kind:hover { transform: none; }
+
+/* ------------------------------------------------------------ liquid gold */
+
+/* Polished metal: a specular highlight sits under the pointer, and the button's glow leans away from it. */
+.hv .btn--gold.is-gilt, .hv .chip-q[aria-selected="true"].is-gilt {
+  background: radial-gradient(70px 46px at var(--mx) var(--my), rgb(255 253 244 / .78), rgb(255 238 196 / .3) 45%, transparent 75%), linear-gradient(176deg, #fbe9bd, #ddb873 48%, #b48a3e);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .55), calc(var(--lx) * -12px) calc(var(--ly) * -6px + 14px) 32px -12px rgb(var(--gold-rgb) / .8), 6px 8px 18px var(--lo);
+}
+.hv .seg__btn.is-on.is-gilt { background: radial-gradient(60px 36px at var(--mx) var(--my), rgb(255 253 244 / .7), transparent 75%), var(--gold-grad); }
+
+/* An arrow passes through its button and comes round again, instead of nudging along. */
+.hv .btn .arrow { display: inline-block; }
+.hv .btn:hover .arrow { transform: none; animation: arrow-pass .7s var(--ease-out); }
+@keyframes arrow-pass {
+  0% { transform: none; clip-path: inset(0); }
+  45% { transform: translateX(.9em); clip-path: inset(0 0 0 100%); }
+  46% { transform: translateX(-.9em); clip-path: inset(0 100% 0 0); }
+  100% { transform: none; clip-path: inset(0); }
+}
+
+/* ------------------------------------------------------------ cast gold */
+
+/* The wordmark's letters brighten as the lamp passes over them, and its light turns toward the pointer. */
+.hv .hero__word span { background-image: linear-gradient(var(--sheen), var(--metal-stops)); filter: brightness(calc(1 + var(--near) * .45)) saturate(calc(1 + var(--near) * .25)); transition: --near .35s linear; }
+/* Medallion numbers and prices: the band of light circles round as the pointer circles the medallion. */
+.hv .is-sheen :is(.stat__n, .plan__price b) { background-image: linear-gradient(var(--sheen), var(--metal-stops)); }
+.hv :is(.stat, .plan) { transition: box-shadow .45s var(--ease-out), --sheen .6s var(--ease-out); }
+
+/* ------------------------------------------------------------------ ink */
+
+/* Gold that flows in from the side the pointer entered and out of the side it leaves (hover.js moves it). */
+.hv .ink { color: transparent; -webkit-background-clip: text; background-clip: text; background-size: 300% 100%; background-repeat: no-repeat;
+  background-image: linear-gradient(90deg, var(--ink-c) 31%, var(--gold-300) 36%, var(--gold-200) 50%, var(--gold-300) 64%, var(--ink-c) 69%);
+  background-position-x: 100%; transition: background-position-x .55s var(--ease-out); text-decoration-color: var(--line-gold); }
+.hv .ink--still { transition: none; }
+
+/* ---------------------------------------------------------------- trace */
+
+/* An engraved gold line that draws itself round the border from where the pointer came in. */
+.hv :is(.answer, .kind, .faq details, .vault__item, .finder__q, .step, .rail a, .models__opt, .list li.is-link, .usage-link, .severity button, .stage__chips .chip-q) { position: relative; }
+.trace { position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; z-index: 1;
+  background: conic-gradient(from var(--t0, 0deg), var(--gold-300), var(--gold-400) var(--tr), transparent var(--tr));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  transition: --tr .45s var(--ease-out); }
+.is-traced > .trace { --tr: 360deg; transition-duration: 1s; }
+.rail a > .trace { inset: -4px; padding: 1.5px; }
+.vault__item > .trace, .step > .trace { inset: -10px -14px; border-radius: 16px; }
+.hv .rail a:hover, .hv .rail a:focus-visible { transform: none; }
+
+/* A coin turned over: the round icon beside a row spins once on its edge. */
+.hv :is(.kind, .vault__item, .usage-link, .feature, .list li.is-link):hover :is(.kind__icon, .vault__icon, .usage-row__icon, .feature__icon, .list__icon) { animation: coin .9s var(--ease-out); }
+@keyframes coin { from { transform: perspective(240px) rotateY(0); } to { transform: perspective(240px) rotateY(360deg); } }
+
+/* ------------------------------------------------- the demo, read aloud */
+
+/* A search result is read as it would be scanned: a thin gold line passes along it once. */
+.hv .res { position: relative; overflow: hidden; }
+.hv .res::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 34%; pointer-events: none; translate: -110% 0;
+  background: linear-gradient(90deg, transparent, rgb(var(--gold-rgb) / .14) 70%, rgb(var(--gold-rgb) / .55) 98%, transparent); }
+.hv .res:hover::after { animation: read-line .9s var(--ease-out); }
+@keyframes read-line { to { translate: 310% 0; } }
+
+/* The mask plates: their light follows the pointer round the mask. */
+.hv .plate__art { transition: none; }
+.hv .plate__glow { translate: calc(var(--gx, 0) * -18px) calc(var(--gy, 0) * -14px); }
