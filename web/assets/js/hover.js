@@ -31,14 +31,15 @@
   let px = -1e5;
   let py = -1e5;
   let present = false;
+  let target = null;     // what the pointer is over: the event's own target, refreshed after a scroll
   let frame = 0;
   const wake = () => { if (!frame) frame = requestAnimationFrame(tick); };
 
-  addEventListener('pointermove', (e) => { px = e.clientX; py = e.clientY; present = true; wake(); }, { passive: true });
+  addEventListener('pointermove', (e) => { px = e.clientX; py = e.clientY; target = e.target; present = true; wake(); }, { passive: true });
   // The pointer left the window: every mask is free to look away.
   document.addEventListener('mouseout', (e) => { if (!e.relatedTarget) { present = false; wake(); } });
   addEventListener('blur', () => { present = false; wake(); });
-  addEventListener('scroll', wake, { passive: true });
+  addEventListener('scroll', () => { target = null; wake(); }, { passive: true });
 
   /* --------------------------------------------------------------- gaze */
 
@@ -131,7 +132,8 @@
     let again = false;
     for (const g of gazers) if (g.visible && gaze(g, t)) again = true;
 
-    const under = present ? document.elementFromPoint(px, py) : null;
+    if (present && !target) target = document.elementFromPoint(px, py);
+    const under = present && target && target.closest ? target : null;
     lit = swap(lit, under && under.closest(LAMP), 'is-lit');
     if (lit) light(lit, 'is-lit');
     gilt = swap(gilt, under && under.closest(GOLD), 'is-gilt');

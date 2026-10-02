@@ -125,7 +125,16 @@ async function main() {
     { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], windowsHide: true });
   const send = cdpPipe(browser);
   try {
-    await signIn(send, await signUp());
+    // A slow runner sometimes submits before the sign-in script has loaded (the plain form post lands back on
+    // /login with nothing said): try again, up to three times, before giving up.
+    const email = await signUp();
+    for (let attempt = 1; ; attempt++) {
+      try { await signIn(send, email); break; } catch (err) {
+        if (attempt >= 3) throw err;
+        console.log(`sign-in attempt ${attempt} failed (${err.message}); trying again`);
+        await sleep(2000 * attempt);
+      }
+    }
     // Signed-out pages are photographed in a separate, empty browser context.
     const { browserContextId: anonymous } = await send('Target.createBrowserContext', {});
     for (const [size, width, height, mobile, scheme] of SIZES) {
