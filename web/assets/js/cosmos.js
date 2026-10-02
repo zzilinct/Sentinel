@@ -162,7 +162,8 @@
     d.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 70; i++) {
       const k = i / 69;
-      const r = c * (0.36 + k * 0.62);
+      // The inner edge stays well clear of the shadow, as a real disc ends short of the hole.
+      const r = c * (0.5 + k * 0.48);
       const a = Math.pow(1 - k, 1.5) * (0.4 + 0.6 * Math.min(1, k * 7));
       for (let j = 0; j < 9; j++) {
         const from = Math.random() * Math.PI * 2;
@@ -247,10 +248,10 @@
     if (g <= 0.001) return;
     const sp = spritesFor(color);
     // The shadow grows from a point to the size of the mask as it feeds (mask3d.js grows its horizon in step).
-    const core = size * (0.055 + 0.15 * eat) * g;
+    const core = size * (0.055 + 0.13 * eat) * g;
     // Its pull on the starlight reaches further as it grows.
     const R = Math.min(c * 0.98, core * 3.4 + size * 0.1);
-    const discR = core * (3.9 - 1.9 * eat);
+    const discR = core * 2.85;
     const rect = back.getBoundingClientRect();
     const scale = size / Math.max(1, rect.width);
     const cx = rect.left + rect.width / 2;

@@ -348,7 +348,7 @@ async function build(el) {
             // Consumed: the horizon grows from the middle, in step with the hole drawn over it (cosmos.js), until
             // nothing of the mask is left.
             const u = ease(e / out);
-            state.eat.value = 0.3 + 0.9 * u;
+            state.eat.value = 0.3 + 0.8 * u;
           } else if (e < out + gap) {
             state.eat.value = 0;
             state.radius.value = 0;
