@@ -5,6 +5,7 @@
  */
 const { db, now } = require('./db');
 const { HttpError } = require('./http');
+const models = require('./models');
 
 const PLANS = {
   free: {
@@ -71,6 +72,15 @@ const PLANS = {
   }
 };
 
+/**
+ * The three newest models (models.js) have their own allowances on Pro and Max; Ultimate keeps its own. The free
+ * plan cannot use them at all (models.freeLocked), which only applies inside the app.
+ */
+const NEWEST_LIMITS = {
+  pro: { fastMinutes: 18 * 60, liveMinutes: 3 * 60, linkScans: 30, fileScans: 30 },
+  max: { fastMinutes: null, liveMinutes: 18 * 60, linkScans: 90, fileScans: 90 }
+};
+
 /** Uncapped allowances are stored as null so the UI can say so plainly. */
 const uncapped = (limit) => limit === null;
 
@@ -90,8 +100,26 @@ function weekResetsAt(t = now()) {
   return weekStart(t) + 7 * 24 * 60 * 60 * 1000;
 }
 
-function planFor(user) {
+function basePlan(user) {
   return user && typeof user.plan === 'string' && Object.hasOwn(PLANS, user.plan) ? PLANS[user.plan] : PLANS.free;
+}
+
+/** The plan as it applies to the model this copy runs. */
+function planFor(user) {
+  const plan = basePlan(user);
+  if (!models.enabled() || !models.isNewest()) return plan;
+  if (plan.id === 'free') return models.freeLocked() ? { ...plan, modelLocked: true } : plan;
+  const over = NEWEST_LIMITS[plan.id];
+  return over ? { ...plan, limits: { ...plan.limits, ...over } } : plan;
+}
+
+/** A free account on one of the three newest models is told so, with the model it can switch to. */
+function assertModel(plan) {
+  if (!plan.modelLocked) return;
+  const free = models.newestFree();
+  throw new HttpError(403, 'model_requires_plan',
+    ,
+    { model: models.own(), newestFree: free, needs: 'pro' });
 }
 
 const q = {
@@ -120,6 +148,7 @@ function used(userId, key) {
  */
 function consume(user, key) {
   const plan = planFor(user);
+  assertModel(plan);
   const limit = plan.limits[key];
   const week = weekStart();
   const current = used(user.id, key);
@@ -162,6 +191,7 @@ function hasTime(user, plan, mode) {
  */
 function trackLive(user, wanted) {
   const plan = planFor(user);
+  assertModel(plan);
   // Clients from before there were two modes ask for nothing: give them the best their plan has.
   let mode = wanted === 'fast' || wanted === 'delicate' ? wanted : (plan.features.liveScanning ? 'delicate' : 'fast');
   let fellBack = null;
@@ -201,7 +231,8 @@ function liveMinutesUsed(userId) {
 function usageSummary(user) {
   const plan = planFor(user);
   return {
-    plan: { id: plan.id, name: plan.name, price: plan.price, features: plan.features, limits: plan.limits },
+    plan: { id: plan.id, name: plan.name, price: plan.price, features: plan.features, limits: plan.limits, modelLocked: Boolean(plan.modelLocked) },
+    model: models.enabled() ? { version: models.own(), label: models.label(models.own()), newest: models.isNewest(), newestFree: models.newestFree() } : null,
     week: { startsAt: weekStart(), resetsAt: weekResetsAt() },
     usage: {
       linkScans: { used: used(user.id, 'linkScans'), limit: plan.limits.linkScans },
@@ -218,7 +249,7 @@ function setPlan(userId, planId) {
 }
 
 function publicPlans() {
-  return Object.values(PLANS).map(({ id, name, price, limits, features }) => ({ id, name, price, limits, features }));
+  return Object.values(PLANS).map(({ id, name, price, limits, features }) => ({ id, name, price, limits, features, newestModelLimits: id === 'free' ? null : { ...limits, ...(NEWEST_LIMITS[id] || {}) } }));
 }
 
-module.exports = { planFor, consume, trackLive, usageSummary, setPlan, publicPlans, weekStart, weekResetsAt, liveMinutesUsed, fastMinutesUsed };
+module.exports = { NEWEST_LIMITS, planFor, consume, trackLive, usageSummary, setPlan, publicPlans, weekStart, weekResetsAt, liveMinutesUsed, fastMinutesUsed };
