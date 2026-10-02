@@ -240,7 +240,7 @@
     if (g <= 0.001) return;
     const sp = spritesFor(color);
     // The shadow grows from a point to the size of the mask as it feeds (mask3d.js grows its horizon in step).
-    const core = size * (0.055 + 0.175 * eat) * g;
+    const core = size * (0.055 + 0.15 * eat) * g;
     // Its pull on the starlight reaches further as it grows.
     const R = Math.min(c * 0.98, core * 3.4 + size * 0.1);
     const discR = core * (3.9 - 1.9 * eat);
@@ -274,7 +274,7 @@
       }
       bx.globalAlpha = 1;
     }
-    // The disc: face-on sprite, spun, tilted and leaned; the far half behind the mask, the near half in front, and
+    // The disc: face-on sprite, spun, tilted and leaned; the far half under the shadow, the near half over it, and
     // the side coming toward us drawn a second time, brighter.
     const disc = (ctx, near) => {
       ctx.save();
@@ -297,7 +297,8 @@
       ctx.drawImage(sp.disc, -discR, -discR, discR * 2, discR * 2);
       ctx.restore();
     };
-    disc(bx, false);
+    // Both halves on the one canvas, so they meet without a seam: the far half first, under the halo and shadow.
+    disc(fx, false);
     fx.save();
     fx.globalCompositeOperation = 'lighter';
     fx.globalAlpha = 0.9 * g;
