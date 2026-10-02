@@ -1,0 +1,81 @@
+{
+  "name": "sentinel-desktop",
+  "productName": "Sentinel",
+  "version": "1.8.8",
+  "description": "Sentinel - scam, virus and malware protection that runs on your own computer",
+  "main": "src/main.js",
+  "author": "Sentinel",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "prepare-shared": "node scripts/sync-shared.js",
+    "start": "node scripts/sync-shared.js && electron .",
+    "dev": "node scripts/sync-shared.js && electron . --dev",
+    "dist:win": "node scripts/sync-shared.js && electron-builder --win nsis --publish never",
+    "dist:mac": "node scripts/sync-shared.js && electron-builder --mac dmg --publish never",
+    "dist:linux": "node scripts/sync-shared.js && electron-builder --linux AppImage --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.usesentinel.desktop",
+    "productName": "Sentinel",
+    "copyright": "Copyright © 2026 Sentinel",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "shared/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "bundle",
+        "to": "sentinel",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "artifactName": "Sentinel-Setup-${version}.${ext}",
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sentinel",
+      "runAfterFinish": true,
+      "include": "build/installer.nsh"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.png",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png",
+      "category": "Utility"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "zzilinct",
+        "repo": "Sentinel"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}
