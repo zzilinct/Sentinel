@@ -324,6 +324,15 @@ def export_glb(kind):
         dec.ratio = args.faces / len(face.data.polygons)
         select_only([face])
         bpy.ops.object.modifier_apply(modifier='decimate')
+    # build() stands the mask up by swapping two axes, which mirrors it and turns every face inside out. Cycles
+    # shades both sides alike so the renders never showed it, but a real-time renderer culls the faces it thinks
+    # point away: the outside vanished and the inside of the shell showed through. Point them all outward again.
+    for o in meshes:
+        select_only([o])
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.normals_make_consistent(inside=False)
+        bpy.ops.object.mode_set(mode='OBJECT')
     for o in meshes:
         o.data.materials.clear()
         o.name = 'face' if o is face else 'bead'
