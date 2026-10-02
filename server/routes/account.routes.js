@@ -3,6 +3,7 @@ const { sendJson, HttpError, readJson } = require('../lib/http');
 const A = require('../lib/auth');
 const security = require('../lib/security');
 const plans = require('../lib/plans');
+const models = require('../lib/models');
 const { db } = require('../lib/db');
 const config = require('../config');
 
@@ -40,6 +41,13 @@ async function requireRecentPassword(user, password, req) {
 function register(router) {
   router.get('/api/v1/plans', (req, res) => {
     sendJson(res, 200, { plans: plans.publicPlans(), billingMode: config.billingMode }, { 'Cache-Control': 'public, max-age=300' });
+  });
+
+  // The model picker: every released version by category, marked for this account's plan (models.js).
+  router.get('/api/v1/models', async (req, res) => {
+    const user = A.requireUser(req);
+    await Promise.race([models.refresh(), new Promise((r) => setTimeout(r, 3000))]);
+    sendJson(res, 200, models.catalogue(plans.planFor(user).id));
   });
 
   router.get('/api/v1/account/usage', (req, res) => {
