@@ -230,7 +230,7 @@ async function main() {
       const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
       await send('Page.enable', {}, sessionId);
       await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }, { name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
       // A headless browser has no mouse to report; say there is one, as a desktop browser would.
       await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const mm = window.matchMedia.bind(window); window.matchMedia = (q) => /hover: hover|pointer: fine/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : mm(q); })();` }, sessionId);
       await send('Page.navigate', { url: BASE + '/' }, sessionId);
