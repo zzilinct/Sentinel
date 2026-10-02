@@ -44,7 +44,8 @@
 
 /* Polished metal: a specular highlight sits under the pointer, and the button's glow leans away from it. */
 .hv .btn--gold.is-gilt, .hv .chip-q[aria-selected="true"].is-gilt {
-  background: radial-gradient(70px 46px at var(--mx) var(--my), rgb(255 253 244 / .78), rgb(255 238 196 / .3) 45%, transparent 75%), linear-gradient(176deg, #fbe9bd, #ddb873 48%, #b48a3e);
+  /* The metal deepens under the lamp so its hot spot reads, in the light theme too. */
+  background: radial-gradient(58px 40px at var(--mx) var(--my), #fffdf6, rgb(255 244 214 / .7) 30%, rgb(255 232 180 / 0) 72%), radial-gradient(140px 90px at var(--mx) var(--my), transparent 40%, rgb(90 60 15 / .16) 100%), linear-gradient(176deg, #f0d28c, #c99a45 50%, #8e6626);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .55), calc(var(--lx) * -12px) calc(var(--ly) * -6px + 14px) 32px -12px rgb(var(--gold-rgb) / .8), 6px 8px 18px var(--lo, var(--neu-lo));
 }
 .hv .seg__btn.is-on.is-gilt { background: radial-gradient(60px 36px at var(--mx) var(--my), rgb(255 253 244 / .7), transparent 75%), var(--gold-grad); }
