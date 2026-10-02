@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   scanWith: (browser) => ipcRenderer.invoke('sentinel:scan-with', String(browser)),
   checkUpdates: () => ipcRenderer.invoke('sentinel:check-updates'),
   installUpdate: () => ipcRenderer.invoke('sentinel:install-update'),
+  installModel: (version) => ipcRenderer.invoke('sentinel:install-model', String(version)),
   defense: () => ipcRenderer.invoke('sentinel:defense'),
   setDefense: (enabled) => ipcRenderer.invoke('sentinel:set-defense', Boolean(enabled)),
   restoreQuarantined: (id) => ipcRenderer.invoke('sentinel:defense-restore', String(id)),
