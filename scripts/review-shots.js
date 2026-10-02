@@ -176,6 +176,14 @@ async function main() {
       // CI's Windows has animations off, which browsers report as reduced motion: these frames are about the motion.
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
       await send('Page.navigate', { url: BASE + url }, sessionId);
+      // The clock starts when the sheet is down (intro.js has run), not when the navigation was asked for.
+      for (let i = 0; i < 150; i++) {
+        try {
+          const { result } = await send('Runtime.evaluate', { returnByValue: true, expression: "Boolean(document.querySelector('.intro-cover'))" }, sessionId);
+          if (result.value) break;
+        } catch { /* the new page is not attached yet */ }
+        await sleep(20);
+      }
       const started = Date.now();
       for (const at of [120, 350, 550, 750, 950, 1250, 1600, 2400]) {
         await sleep(Math.max(0, at - (Date.now() - started)));
