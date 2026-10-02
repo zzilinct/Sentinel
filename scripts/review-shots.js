@@ -234,12 +234,13 @@ async function main() {
         }
         at = { x, y };
       };
-      const rect = async (sel) => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()` }, sessionId)).result.value;
+      const rect = async (sel) => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, sx: scrollX, sy: scrollY }; })()` }, sessionId)).result.value;
       const shoot = async (name, clip) => {
-        const shot = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 } } : {}) }, sessionId);
+        const shot = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 }, captureBeyondViewport: true } : {}) }, sessionId);
         fs.writeFileSync(path.join(OUT, `hover-${name}.png`), Buffer.from(shot.data, 'base64'));
       };
-      const pad = (r, p) => ({ x: Math.max(0, r.x - p), y: Math.max(0, r.y - p), width: r.w + p * 2, height: r.h + p * 2 });
+      // The pointer works in the window, a clip in the page: the clip adds the scroll.
+      const pad = (r, p) => ({ x: Math.max(0, r.x + r.sx - p), y: Math.max(0, r.y + r.sy - p), width: r.w + p * 2, height: r.h + p * 2 });
       const m = await rect('[data-hero-mask]');
       if (m) {
         const cx = m.x + m.w / 2;
@@ -259,6 +260,17 @@ async function main() {
         await shoot(name, pad(r, 40));
         if (name === 'footer-link') { await sleep(700); await shoot(`${name}-filled`, pad(r, 40)); }
       }
+      // The model picker on the link scan tab, open on its category and then on Argus's versions.
+      await send('Page.navigate', { url: BASE + '/app/scan' }, sessionId);
+      await sleep(3500);
+      const click = (sel) => send('Runtime.evaluate', { expression: `document.querySelector(${JSON.stringify(sel)})?.click()` }, sessionId);
+      await click('[data-model-open]'); await sleep(900); await shoot('models-categories');
+      await click('[data-model-cat]'); await sleep(900); await shoot('models-versions');
+      // The email scan's screenshot tab, on Max (demo billing on this throwaway server).
+      await send('Runtime.evaluate', { awaitPromise: true, expression: "fetch('/api/v1/billing/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: 'max' }) }).then((r) => r.status)" }, sessionId);
+      await send('Page.navigate', { url: BASE + '/app/email' }, sessionId);
+      await sleep(3500);
+      await click('[data-emode="shot"]'); await sleep(900); await shoot('email-screenshot');
       console.log('hover: photographed');
       await send('Target.closeTarget', { targetId });
     }
