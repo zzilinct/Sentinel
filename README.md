@@ -1,6 +1,6 @@
 # Sentinel
 
-**See the scam before you click.** Real-time scam, virus and malware protection for search results, email and downloads.
+**Unmask the internet.** Real-time scam, virus and malware protection for search results, email and downloads.
 Brand domain: **[www.usesentinel.technology](https://www.usesentinel.technology)** (configured in [brand.json](brand.json)).
 
 Sentinel marks risky links with three masks, each coloured by severity:
