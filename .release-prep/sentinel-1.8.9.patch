@@ -1,0 +1,1122 @@
+diff --git a/server/lib/scan/knowledge.js b/server/lib/scan/knowledge.js
+--- a/server/lib/scan/knowledge.js
++++ b/server/lib/scan/knowledge.js
+@@ -13,6 +13,7 @@
+ const { urlKey, isUserContent } = require('./url');
+ 
+ const REPORTS_FOR_CONFIRMED = 3;
++const REPORTER_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+ 
+ // Lists are queried by the exact host, the registrable domain and the host
+ // without "www.", so a list that says "www.evil.com" still catches "evil.com".
+@@ -22,7 +23,9 @@
+   feedHost: db.prepare('SELECT host, source, threat, category FROM feed_hosts WHERE host IN (?, ?, ?, ?)'),
+   feedUrl: db.prepare('SELECT source, threat, category FROM feed_urls WHERE url_key = ?'),
+   feedUrlHost: db.prepare('SELECT source, threat, COUNT(*) AS n FROM feed_urls WHERE host IN (?, ?, ?) GROUP BY source, threat ORDER BY n DESC'),
+-  reports: db.prepare("SELECT CASE WHEN category = 'malware' THEN 'malware' ELSE 'scam' END AS threat, COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ? GROUP BY threat"),
++  reports: db.prepare(`SELECT CASE WHEN r.category = 'malware' THEN 'malware' ELSE 'scam' END AS threat,
++    COUNT(DISTINCT r.user_id) AS n FROM reports r JOIN users u ON u.id = r.user_id
++    WHERE r.host = ? AND u.email_verified_at IS NOT NULL AND u.created_at <= ? GROUP BY threat`),
+   sources: db.prepare("SELECT source, entries FROM feed_status WHERE ok = 1 AND substr(source, 1, 1) != '_'")
+ };
+ 
+@@ -90,11 +93,13 @@
+ 
+   let reports = 0;
+   const reportCounts = { scam: 0, malware: 0 };
+-  for (const row of q.reports.all(p.registrable)) {
++  for (const row of q.reports.all(p.registrable, Date.now() - REPORTER_MIN_AGE_MS)) {
+     reports += row.n;
+     reportCounts[row.threat] = row.n;
+-    if (row.n >= REPORTS_FOR_CONFIRMED) add('community', row.threat, 'community_confirmed');
+-    else if (row.n > 0) add('community', row.threat, 'community_reported', 'reported');
++    if (!allowed) {
++      if (row.n >= REPORTS_FOR_CONFIRMED) add('community', row.threat, 'community_confirmed');
++      else if (row.n > 0) add('community', row.threat, 'community_reported', 'reported');
++    }
+   }
+ 
+   if (useSafeBrowsing) {
+@@ -129,4 +134,4 @@
+   });
+ }
+ 
+-module.exports = { lookup };
++module.exports = { lookup, REPORTER_MIN_AGE_MS, REPORTS_FOR_CONFIRMED };
+diff --git a/server/routes/scan.routes.js b/server/routes/scan.routes.js
+--- a/server/routes/scan.routes.js
++++ b/server/routes/scan.routes.js
+@@ -20,6 +20,7 @@
+ const { analyze, typedUrl } = require('../lib/scan/url');
+ const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
+ const { KINDS } = require('../lib/scan/kinds');
++const { REPORTER_MIN_AGE_MS, REPORTS_FOR_CONFIRMED } = require('../lib/scan/knowledge');
+ // Kinds the engine can name from evidence; "blocked" is a rule the user set, not a threat kind.
+ const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
+ const { ALL_CHECKS } = require('../lib/scan/checklist');
+@@ -31,7 +32,6 @@
+   'romance_scam', 'malware', 'impersonation', 'other'
+ ]);
+ 
+-const REPORTER_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+ 
+ const q = {
+   insertReport: db.prepare('INSERT INTO reports (id, host, url, user_id, category, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+@@ -267,7 +267,7 @@
+     const threat = category === 'malware' ? 'malware' : 'scam';
+     const agreeing = q.countThreatReports.get(host, threat, now() - REPORTER_MIN_AGE_MS).n;
+     // A well-known site is never condemned by reports alone.
+-    const promoted = agreeing >= 3 && !q.allowlisted.get(host);
++    const promoted = agreeing >= REPORTS_FOR_CONFIRMED && !q.allowlisted.get(host);
+     if (promoted) q.promote.run(host, category, `Promoted after ${agreeing} ${threat} reports`, threat, now());
+     engine.invalidate(host);
+     security.audit('report', { userId: user.id, req, detail: host });
+diff --git a/server/lib/scan/engine.js b/server/lib/scan/engine.js
+--- a/server/lib/scan/engine.js
++++ b/server/lib/scan/engine.js
+@@ -52,6 +52,7 @@
+ const CORE_TTL = 10 * 60 * 1000;
+ const coreCache = new Map();
+ const coreInflight = new Map();
++let coreRevision = 0;
+ 
+ function cacheGet(key) {
+   const hit = coreCache.get(key);
+@@ -68,6 +69,7 @@
+ }
+ 
+ function invalidate(host) {
++  coreRevision++;
+   for (const key of coreCache.keys()) if (key.includes(`//${host}`) || key.includes(`.${host}`)) coreCache.delete(key);
+ }
+ 
+@@ -151,11 +153,13 @@
+   // Results computed before a feed import (including in-flight scans) cannot
+   // satisfy a lookup after that import has completed.
+   // What the search result says about the page (its title, what was searched) changes the answer: part of the key.
+-  const hintKey = hint ? `|h:${require('crypto').createHash('sha1').update(`${hint.title}|${hint.query}`).digest('hex').slice(0, 12)}` : '';
+-  const key = `${feeds.revision()}|${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}${hintKey}`;
++  const hintKey = hint ? `|h:${require('crypto').createHash('sha256').update(JSON.stringify([hint.title, hint.query])).digest('hex')}` : '';
++  // Live research omits the query when opening a page. It cannot stand in for
++  // research of that exact URL, or share a job with a longer deadline.
++  const key = `${coreRevision}|${feeds.revision()}|${research ? (lite ? 'l' : (budgetMs ? 'live-r' : 'r')) : 'q'}|${p.url}${hintKey}`;
+   const cached = cacheGet(key);
+   if (cached) return cached;
+-  const flightKey = budgetMs ? `${key}|b` : key;
++  const flightKey = budgetMs ? `${key}|b:${budgetMs}` : key;
+   if (coreInflight.has(flightKey)) return coreInflight.get(flightKey);
+ 
+   const job = (async () => {
+@@ -245,6 +249,7 @@
+     const facts = ctx.research;
+     const complete = !facts || (facts.registration.reason !== 'not answered in time' && !facts.dns.unavailable &&
+       (facts.lite || (facts.http.ok && facts.http.status >= 200 && facts.http.status < 300 && !facts.http.truncated)));
++    result.researchComplete = !research || know.trusted || complete;
+     if (complete) cacheSet(key, result);
+     return result;
+   })();
+@@ -324,6 +329,7 @@
+     plan: planId,
+     override,
+     researched: core.researched,
++    researchComplete: core.researchComplete,
+     researchSkipReason: core.researchSkipReason || null,
+     threats,
+     overall: { level: worst.level, badge: worst.badge, label: worst.label },
+diff --git a/server/lib/scan/research.js b/server/lib/scan/research.js
+--- a/server/lib/scan/research.js
++++ b/server/lib/scan/research.js
+@@ -236,7 +236,7 @@
+     return { ...JSON.parse(cached.payload), cached: true };
+   }
+   // A live scan (with a budget) never joins a full scan's job, which may take far longer than it promised.
+-  const flightKey = budgetMs ? `${key}|b` : key;
++  const flightKey = budgetMs ? `${key}|b:${budgetMs}` : key;
+   if (inflight.has(flightKey)) return inflight.get(flightKey);
+ 
+   const job = (async () => {
+diff --git a/desktop/src/watch.js b/desktop/src/watch.js
+--- a/desktop/src/watch.js
++++ b/desktop/src/watch.js
+@@ -492,6 +492,7 @@
+ const warned = new Map();
+ const verdicts = new Map();   // url -> { at, fast, mark }
+ let settleTimer = null;
++let visitRetryTimer = null;
+ let restartTimer = null;
+ // A reader that keeps failing is brought back more and more slowly (3 s doubling up to 5 min), so a machine where it
+ // cannot run is not made to start PowerShell every few seconds all day. A minute of running resets the pace.
+@@ -662,6 +663,7 @@
+ 
+ function stop(reason, silent) {
+   clearTimeout(settleTimer);
++  clearTimeout(visitRetryTimer);
+   clearTimeout(retryTimer);
+   clearTimeout(restartTimer);
+   const old = child;
+@@ -672,6 +674,8 @@
+   if (old) { try { old.kill(); } catch { /* gone */ } }
+   state.current = null;
+   latestLinks = null;
++  verdicts.clear();
++  pending.clear();
+   setWindow(null);
+   generation++;
+   if (!silent) setState(false, reason || 'Live scanning is off');
+@@ -701,7 +705,7 @@
+   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
+   if (msg.awake) { log('in use again'); return; }
+   if ('win' in msg) {
+-    if (!msg.win) { clearTimeout(settleTimer); state.current = null; latestLinks = null; }
++    if (!msg.win) { clearTimeout(settleTimer); clearTimeout(visitRetryTimer); state.current = null; latestLinks = null; verdicts.clear(); }
+     setWindow(msg.win || null);
+     return;
+   }
+@@ -713,7 +717,9 @@
+   if (!msg.url) return;
+ 
+   clearTimeout(settleTimer);
++  clearTimeout(visitRetryTimer);
+   latestLinks = null;
++  verdicts.clear();
+   if (!/^https?:\/\//i.test(msg.url)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
+   // Sentinel's own pages and the app's server are not "sites".
+   if (opts.origin && msg.url.startsWith(opts.origin)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
+@@ -725,6 +731,13 @@
+ }
+ 
+ async function check(page) {
++  const mine = generation;
++  clearTimeout(visitRetryTimer);
++  const retry = () => {
++    visitRetryTimer = setTimeout(() => {
++      if (mine === generation && state.current && state.current.at === page.at) check(page).catch(() => {});
++    }, RETRY_MS);
++  };
+   let host;
+   try { host = new URL(page.url).hostname; } catch { return; }
+   // A results page is the search engine's own; its links are what matter, and they are checked one by one.
+@@ -734,14 +747,18 @@
+   try {
+     let answer;
+     ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode() }));
++    if (mine !== generation || !state.current || state.current.at !== page.at) return;
++    if (!verdict || !verdict.ok || !verdict.overall) { retry(); return; }
+     noteMode(answer);
+   } catch (err) {
++    if (mine !== generation || !state.current || state.current.at !== page.at) return;
+     log(`check failed${page.private ? '' : ` for ${host}`}: ${err.status || ''} ${err.code || err.message}`);
+     // Refused, not a hiccup: stop reading the browser altogether. A reader left running would keep asking, and the
+     // gold mask would keep saying "scanning" while nothing is checked.
+     if (err.status === 401) stop('Sign in to start live scanning');
+     else if (err.status === 403) stop('Live scanning is not part of this plan');
+     else if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
++    else retry();
+     return;
+   }
+   const badge = (verdict && verdict.overall && verdict.overall.badge) || null;
+@@ -825,7 +842,7 @@
+     } else if (/(^|\.)bing\.com$/.test(host) && /^\/(aclk|aclick)$/.test(u.pathname)) {
+       // An ad: the advertiser's address, percent-encoded, then base64.
+       const v = u.searchParams.get('u') || '';
+-      if (v) target = decodeURIComponent(Buffer.from(v, 'base64url').toString('utf8'));
++      if (v) { const decoded = Buffer.from(v, 'base64url').toString('utf8'); target = /^https?%3a/i.test(decoded) ? decodeURIComponent(decoded) : decoded; }
+     } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
+       target = u.searchParams.get('q') || u.searchParams.get('url');
+     } else if (/(^|\.)google\.[a-z.]+$/.test(host) && /^\/(pagead\/)?aclk$/.test(u.pathname)) {
+@@ -907,13 +924,12 @@
+     try { u = new URL(l.u); } catch { continue }
+     if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+     const engines = (h) => (h === pageHost || ENGINE_HOSTS.test(h)) && !USER_PAGES_ON_ENGINES.test(h);
+-    if (engines(u.hostname)) {
+-      // The engine's own link, unless it is a redirect to a result.
+-      u = unwrapResult(u, l.n);
+-      if (!u || engines(u.hostname)) continue;
+-    }
+-    const behind = trackerTarget(u);
+-    if (behind) u = behind;
++    for (let i = 0; i < 6; i++) {
++      const next = unwrapResult(u, l.n) || trackerTarget(u);
++      if (!next || next.href === u.href) break;
++      u = next;
++    }
++    if (engines(u.hostname)) continue;
+     // The engine's own app in an app store ("Get the DuckDuckGo browser" in its menu) is its own link too.
+     if (APP_STORES.test(u.hostname) && brand && u.href.toLowerCase().includes(brand)) continue;
+     const host = u.hostname.replace(/^www\./, '');
+@@ -972,6 +988,12 @@
+   return hit.mark;
+ }
+ 
++// The title and search influence detection. A verdict for the same URL in a
++// different result must not suppress a fresh scan of that result.
++function resultKey(link, forUrl, isPrivate) {
++  return crypto.createHash('sha256').update(JSON.stringify([link.u, forUrl, isPrivate ? '' : (link.title || ''), Boolean(isPrivate)])).digest('hex');
++}
++
+ const markKey = (u) => crypto.createHash('sha1').update(u).digest('base64url').slice(0, 12);
+ 
+ function publishMarks() {
+@@ -981,10 +1003,10 @@
+     epoch: latestLinks.epoch,
+     clip: latestLinks.clip || null,
+     ends: latestLinks.ends || '',
+-    checking: latestLinks.links.filter((l) => !markFor(l.u)).length,
++    checking: latestLinks.links.filter((l) => !markFor(l.cacheKey || l.u)).length,
+     // `k` keeps each mark on its own element in the overlay while results scroll in and out. A hash, so no address
+     // reaches the overlay window.
+-    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, k: markKey(l.u), row: l.u.startsWith('mail:'), ...(markFor(l.u) || { pending: true }) }))
++    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, k: markKey(l.u), row: l.u.startsWith('mail:'), ...(markFor(l.cacheKey || l.u) || { pending: true }) }))
+   });
+ }
+ 
+@@ -992,6 +1014,7 @@
+   const page = state.window ? { private: Boolean(state.window.private) } : { private: false };
+   if (seenResults.for !== msg.for) seenResults = { for: msg.for, map: new Map() };
+   const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for, seenResults.map);
++  for (const l of links) l.cacheKey = resultKey(l, msg.for, page.private);
+   // The end-to-end run on a GitHub desktop (scripts/live-e2e.ps1) asks for what the reader saw; nobody else sets this.
+   if (process.env.SENTINEL_LINK_DUMP && !page.private) {
+     try { fs.appendFileSync(process.env.SENTINEL_LINK_DUMP, JSON.stringify({ for: msg.for, covered: msg.covered || 0, raw: msg.links, marked: links.map((l) => l.u) }) + '\n'); } catch { /* best effort */ }
+@@ -1032,47 +1055,59 @@
+ }
+ 
+ async function checkLinks(links, page, forUrl) {
++  const mine = generation;
++  const pageAt = state.current && state.current.at;
++  const mode = currentMode();
++  const keys = new Map();
++  for (const l of links) if (!keys.has(l.u)) keys.set(l.u, l.cacheKey || resultKey(l, forUrl, page.private));
++  const current = () => mine === generation && pageAt === (state.current && state.current.at) && currentMode() === mode && latestLinks && latestLinks.for === forUrl;
+   clearTimeout(retryTimer);
+-  const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
++  const missing = [...keys.keys()].filter((u) => !markFor(keys.get(u)) && !pending.has(keys.get(u)));
+   if (!missing.length) return;
+-  missing.forEach((u) => pending.add(u));
++  missing.forEach((u) => pending.add(keys.get(u)));
++  let retry = false;
+   const store = (byUrl, final, fast) => {
+     for (const u of missing) {
+       const v = byUrl && byUrl[u];
+-      if (!v) continue;
++      if (!v || !v.ok || !v.overall) { if (final) retry = true; continue; }
+       const badge = (v.overall && v.overall.badge) || null;
+       const first = v.reasons && v.reasons[0];
+-      verdicts.set(u, { at: Date.now(), fast, mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
++      const incomplete = !final || v.researchComplete === false;
++      verdicts.set(keys.get(u), { at: incomplete ? Date.now() - VERDICT_TTL_MS + RETRY_MS : Date.now(), fast, mark: { badge, kind: worstKind(v), label: v.overall.label, reason: first ? first.text : '' } });
++      if (final && incomplete) retry = true;
+       if (final) count(page.private, badge);
+     }
+   };
+   try {
+     const started = Date.now();
+-    const mode = currentMode();
+     // Delicate is shown in two steps: the quick answer (lists and checklist, a few ms) goes on screen at once, and
+     // the researched answer replaces it when it lands. Nobody waits five seconds for a mark.
+     if (mode === 'delicate' && !page.private) {
+       const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true, hints: hintsFor(links, missing, forUrl) });
++      if (!current()) return;
+       store(quick.byUrl, false, false);   // shown until the researched answer replaces it
+       publishMarks();
+       log(`results marked: ${missing.length} in ${Date.now() - started} ms (quick pass)`);
+     }
+     const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode, hints: page.private ? undefined : hintsFor(links, missing, forUrl) });
++    if (!current()) return;
+     noteMode(answer);
+     if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
+     store(byUrl, true, (answer.mode || mode) !== 'delicate');
+     if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
+   } catch (err) {
++    if (!current()) return;
+     log(`results check failed: ${err.status || ''} ${err.code || err.message}`);
+     if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
+-    else if (err.status !== 401 && err.status !== 403) {
+-      retryTimer = setTimeout(() => {
+-        if (child && latestLinks && latestLinks.for === forUrl) checkLinks(latestLinks.links, page, forUrl).catch(() => {});
+-      }, RETRY_MS);
+-    }
++    else if (err.status === 401) stop('Sign in to start live scanning');
++    else if (err.status === 403) stop('Live scanning is not part of this plan');
++    else retry = true;
+   } finally {
+-    missing.forEach((u) => pending.delete(u));
+-  }
++    missing.forEach((u) => pending.delete(keys.get(u)));
++  }
++  if (retry && current()) retryTimer = setTimeout(() => {
++    if (child && current()) checkLinks(latestLinks.links, page, forUrl).catch(() => {});
++  }, RETRY_MS + 1);
+   publishMarks();
+ }
+ 
+@@ -1105,6 +1140,7 @@
+ }
+ 
+ async function onMail(msg) {
++  const mine = generation;
+   const isPrivate = Boolean(state.window && state.window.private);
+   const rows = distinctRows((Array.isArray(msg.mail) ? msg.mail : []).map((r) => ({ u: rowKey(r.t), x: r.x, y: r.y, w: r.w, h: r.h, text: r.t })));
+   const fresh = !latestLinks || latestLinks.for !== msg.for;
+@@ -1117,9 +1153,10 @@
+   missing.forEach((r) => pending.add(r.u));
+   try {
+     const { results } = await opts.api('/api/v1/live/email', { preview: true, emails: missing.map((r) => ({ key: r.u, ...mailFromRow(r.text) })) });
++    if (mine !== generation || !latestLinks || latestLinks.for !== msg.for) return;
+     for (const item of results || []) {
+       const v = item.verdict;
+-      if (!v || !item.key) continue;
++      if (!v || !v.ok || !v.overall || !item.key) continue;
+       const badge = (v.overall && v.overall.badge) || null;
+       const first = v.reasons && v.reasons[0];
+       verdicts.set(item.key, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+diff --git a/extension/src/background.js b/extension/src/background.js
+--- a/extension/src/background.js
++++ b/extension/src/background.js
+@@ -21,14 +21,18 @@
+ 
+ const hostOf = (url) => { try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ''); } catch { return null; } };
+ 
+-function cacheGet(phase, url) {
+-  const hit = cache.get(`${phase}|${url}`);
++function cacheKey(phase, url, hint) {
++  return JSON.stringify([phase, url, hint ? [hint.title || '', hint.query || ''] : null]);
++}
++function cacheGet(phase, url, hint) {
++  const hit = cache.get(cacheKey(phase, url, hint));
+   if (hit && Date.now() - hit.at < TTL[phase]) return hit.verdict;
+   return null;
+ }
+-function cacheSet(phase, url, verdict) {
++function cacheSet(phase, url, verdict, hint) {
++  if (!verdict || !verdict.ok || verdict.researchComplete === false) return;
+   if (cache.size > 3000) cache.clear();
+-  cache.set(`${phase}|${url}`, { verdict, at: Date.now() });
++  cache.set(cacheKey(phase, url, hint), { verdict, at: Date.now() });
+ }
+ 
+ const features = () => (account.plan && account.plan.features) || {};
+@@ -94,6 +98,7 @@
+ 
+ async function refreshAccount(force = false) {
+   if (!force && Date.now() - account.checkedAt < 5 * 60 * 1000) return account;
++  const previousUser = account.user && account.user.id;
+   try {
+     const data = await apiFetch('/api/v1/auth/me');
+     account = { signedIn: true, user: data.user, plan: data.plan, usage: data.usage, week: data.week, checkedAt: Date.now() };
+@@ -106,6 +111,7 @@
+   } catch (err) {
+     if (err.status === 401) account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() };
+   }
++  if (previousUser !== (account.user && account.user.id)) cache.clear();
+   await ext.storage.local.set({ account });
+   return account;
+ }
+@@ -130,7 +136,7 @@
+ 
+ /* --------------------------------------------------------------- scanning */
+ 
+-async function liveBatch(urls, phase, isPrivate = false) {
++async function liveBatch(urls, phase, isPrivate = false, hints = {}) {
+   const blocked = liveBlockReason();
+   if (blocked) return { locked: blocked };
+   if (phase === 'research' && !features().liveResearch) return { locked: 'plan', verdicts: {} };
+@@ -138,7 +144,7 @@
+   const out = {};
+   const pending = [];
+   for (const url of urls) {
+-    const cached = cacheGet(phase, url) || (phase === 'quick' ? localVerdict(url) : null);
++    const cached = isPrivate ? null : cacheGet(phase, url, hints[url]);
+     if (cached) out[url] = cached;
+     else pending.push(url);
+   }
+@@ -147,11 +153,11 @@
+       // Plans without delicate ask for fast outright: once Free's fast minutes are used up, a
+       // delicate request would come back as plan_required instead of live_hours_exhausted.
+       const mode = features().liveScanning ? 'delicate' : 'fast';
+-      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate }, timeout: phase === 'research' ? 90000 : 20000 });
++      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate, hints: isPrivate ? undefined : hints }, timeout: phase === 'research' ? 90000 : 20000 });
+       noteLive(data.live);
+       for (const [url, verdict] of Object.entries(data.byUrl)) {
+         out[url] = verdict;
+-        if (verdict.ok) cacheSet(phase, url, verdict);
++        if (!isPrivate && !(phase === 'research' && data.mode === 'fast')) cacheSet(phase, url, verdict, hints[url]);
+       }
+     } catch (err) {
+       handleApiError(err);
+@@ -177,22 +183,25 @@
+   const settings = await getSettings();
+   if (!settings.enabled || liveBlockReason()) return;
+ 
+-  let verdict = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url);
++  const tab = await ext.tabs.get(details.tabId).catch(() => null);
++  if (!tab || tab.url !== details.url) return;
++  const isPrivate = Boolean(tab.incognito);
++  let verdict = isPrivate ? null : cacheGet(features().liveResearch ? 'research' : 'quick', details.url);
+   if (!verdict) {
+     try {
+       // From a private window only the page's address without its query goes out, and nothing about it is kept.
+-      const tab = await ext.tabs.get(details.tabId).catch(() => null);
+-      const isPrivate = Boolean(tab && tab.incognito);
+       const url = isPrivate ? details.url.replace(/[?#].*$/, '') : details.url;
+       const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url, private: isPrivate }, timeout: 30000 });
+       noteLive(data.live);
+       verdict = data.verdict;
+-      cacheSet(features().liveResearch ? 'research' : 'quick', details.url, verdict);
++      if (!isPrivate) cacheSet(data.mode === 'delicate' ? 'research' : 'quick', details.url, verdict);
+     } catch (err) {
+       handleApiError(err);
+       return;
+     }
+   }
++  const currentTab = await ext.tabs.get(details.tabId).catch(() => null);
++  if (!currentTab || currentTab.url !== details.url || !verdict || !verdict.ok) return;
+   paint(details.tabId, verdict);
+ 
+   const severe = verdict.overall && (verdict.overall.badge === 'red' || (verdict.overall.badge === 'orange' && settings.minimumBadge !== 'red'));
+@@ -257,11 +266,11 @@
+     syncIntel();
+     return { account };
+   },
+-  async 'live-batch'({ urls, phase = 'quick' }, sender) {
++  async 'live-batch'({ urls, phase = 'quick', hints = {} }, sender) {
+     const settings = await getSettings();
+     if (!settings.enabled) return { locked: 'disabled' };
+     // A private window is protected like any other; the server keeps nothing about it.
+-    return liveBatch((urls || []).slice(0, 60), phase, Boolean(sender && sender.tab && sender.tab.incognito));
++    return liveBatch((urls || []).slice(0, 60), phase, Boolean(sender && sender.tab && sender.tab.incognito), hints);
+   },
+   async 'live-email'({ emails }) {
+     const settings = await getSettings();
+@@ -294,6 +303,7 @@
+     return data;
+   },
+   async 'sign-out'() {
++    cache.clear();
+     try { await apiFetch('/api/v1/auth/logout', { method: 'POST', body: {} }); } catch { /* already signed out */ }
+     await setToken(null);
+     account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() };
+diff --git a/extension/src/content/serp.js b/extension/src/content/serp.js
+--- a/extension/src/content/serp.js
++++ b/extension/src/content/serp.js
+@@ -18,7 +18,7 @@
+   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v6c0 4.4 3 8 7 9 4-1 7-4.6 7-9V6Z"/><path d="m9 12 2.2 2.2L15 10.5"/></svg>';
+ 
+   let settings = DEFAULTS;
+-  const seen = new WeakSet();
++  const seen = new WeakMap();
+   const byUrl = new Map();                 // url -> [anchor]
+   let popover = null;
+ 
+@@ -37,6 +37,7 @@
+   const engine = ENGINES.find((e) => e.test.test(location.hostname)) || { titles: '' };
+ 
+   const SEARCH_HOSTS = /(^|\.)(google|bing|duckduckgo|yahoo|brave|ecosia|startpage|mojeek|yandex|googleusercontent|gstatic)\.[a-z.]+$/;
++  const USER_PAGES_ON_ENGINES = /^((sites|docs|drive|forms)\.google\.com|forms\.gle|storage\.googleapis\.com|[a-z0-9-]+\.blogspot\.com)$/i;
+ 
+   /* ------------------------------------------------------------- urls */
+ 
+@@ -69,7 +70,7 @@
+         if (v.startsWith('a1')) target = fromBase64(v.slice(2));
+       } else if (/(^|\.)bing\.com$/.test(host) && /^\/(aclk|aclick)$/.test(u.pathname)) {
+         const v = u.searchParams.get('u') || '';
+-        if (v) target = decodeURIComponent(fromBase64(v));
++        if (v) { const decoded = fromBase64(v); target = /^https?%3a/i.test(decoded) ? decodeURIComponent(decoded) : decoded; }
+       } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/goto') {
+         target = citedAddress(anchor ? anchor.innerText || anchor.textContent : '');
+       } else if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
+@@ -111,23 +112,20 @@
+     let u;
+     try { u = new URL(href, location.href); } catch { return null; }
+     if (!/^https?:$/.test(u.protocol)) return null;
+-    if (SEARCH_HOSTS.test(u.hostname) || /\/(url|l)\/?$/.test(u.pathname)) {
++    for (let i = 0; i < 6; i++) {
+       const inner = unwrap(u, anchor);
+-      if (inner) u = inner;
+-      else {
+-        const wrapped = u.searchParams.get('uddg') || u.searchParams.get('q') || u.searchParams.get('url') || u.searchParams.get('u');
+-        if (wrapped && /^https?:\/\//i.test(wrapped)) { try { u = new URL(wrapped); } catch { /* keep */ } }
+-      }
+-    }
+-    const behind = trackerTarget(u);
+-    return (behind || u).href;
++      const next = inner || trackerTarget(u);
++      if (!next || next.href === u.href) break;
++      u = next;
++    }
++    return u.href;
+   }
+ 
+   function isResult(anchor, url) {
+     if (!url) return false;
+     let host;
+     try { host = new URL(url).hostname; } catch { return false; }
+-    if (host === location.hostname || SEARCH_HOSTS.test(host)) return false;
++    if ((host === location.hostname || SEARCH_HOSTS.test(host)) && !USER_PAGES_ON_ENGINES.test(host)) return false;
+     return !anchor.closest('nav, header, footer, [role="navigation"]');
+   }
+ 
+@@ -350,6 +348,20 @@
+ 
+   /* ------------------------------------------------------- collection */
+ 
++  function resultTitle(anchor) {
++    const copy = anchor.cloneNode(true);
++    for (const badge of copy.querySelectorAll('.sentinel-masks')) badge.remove();
++    return String(copy.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
++  }
++
++  function clearMark(anchor) {
++    const heading = anchor.closest('h1, h2, h3') || anchor.querySelector('h1, h2, h3') || anchor;
++    const old = heading.querySelector(':scope > .sentinel-masks');
++    if (old) old.remove();
++    const row = anchor.closest('[data-hveid], li, .result, article') || anchor.parentElement;
++    if (row) row.classList.remove('sentinel-row--danger');
++  }
++
+   function collect() {
+     const anchors = new Set();
+     if (engine.titles) {
+@@ -364,10 +376,30 @@
+       }
+     }
+     for (const a of anchors) {
+-      if (!a || seen.has(a)) continue;
+-      seen.add(a);
++      if (!a) continue;
++      const prior = seen.get(a);
+       const url = realUrl(a.getAttribute('href'), a);
+-      if (!isResult(a, url)) continue;
++      if (!isResult(a, url)) {
++        if (prior) {
++          byUrl.set(prior.url, (byUrl.get(prior.url) || []).filter((node) => node !== a));
++          clearMark(a);
++          seen.delete(a);
++          anchorUrl.delete(a);
++          nearView.unobserve(a);
++        }
++        continue;
++      }
++      const context = JSON.stringify([url, resultTitle(a), location.href]);
++      if (prior && prior.context === context) {
++        if (!requested.has(url)) nearView.observe(a);
++        continue;
++      }
++      if (prior) {
++        byUrl.set(prior.url, (byUrl.get(prior.url) || []).filter((node) => node !== a));
++        requested.delete(url);
++        clearMark(a);
++      }
++      seen.set(a, { url, context });
+       if (!byUrl.has(url)) byUrl.set(url, []);
+       byUrl.get(url).push(a);
+       anchorUrl.set(a, url);
+@@ -406,10 +438,11 @@
+     });
+   }
+ 
+-  function apply(verdicts) {
++  function apply(verdicts, hints, pageUrl) {
++    if (pageUrl && location.href !== pageUrl) return;
+     const todo = [];
+     for (const [url, verdict] of Object.entries(verdicts || {})) {
+-      for (const a of byUrl.get(url) || []) if (a.isConnected) todo.push([a, verdict]);
++      for (const a of byUrl.get(url) || []) if (a.isConnected && realUrl(a.getAttribute('href'), a) === url && (!hints || resultTitle(a) === hints[url].title)) todo.push([a, verdict]);
+     }
+     todo.sort((x, y) => x[0].getBoundingClientRect().top - y[0].getBoundingClientRect().top);
+     todo.forEach(([a, verdict], i) => {
+@@ -422,10 +455,18 @@
+ 
+   let queue = [];
+   let busy = false;
++  function hintsFor(urls) {
++    const query = new URL(location.href).searchParams;
++    return Object.fromEntries(urls.map((url) => {
++      const a = (byUrl.get(url) || []).find((a) => a.isConnected);
++      return [url, { title: a ? resultTitle(a) : '', query: String(query.get('q') || query.get('p') || query.get('query') || '').slice(0, 200) }];
++    }));
++  }
+   async function flush() {
+     if (busy || !queue.length || !settings.enabled) return;
+     busy = true;
+     const urls = queue.splice(0, 30);
++    const pageUrl = location.href;
+     // Hidden or unfocused tab: send() refuses, nothing is scanned, no hours are spent, no overlay.
+     const show = settings.scanOverlay && inUse();
+     if (show) scanStarted(urls.length);
+@@ -433,12 +474,25 @@
+     let checked = 0;
+     let locked = false;
+     try {
+-      const quick = await send({ type: 'live-batch', urls, phase: 'quick' });
+-      if (quick.locked) { queue = []; locked = true; return; }
+-      apply(quick.verdicts);
++      const hints = hintsFor(urls);
++      const quick = await send({ type: 'live-batch', urls, phase: 'quick', hints });
++      if (quick.locked) {
++        for (const url of [...urls, ...queue]) requested.delete(url);
++        queue = []; locked = true; return;
++      }
++      apply(quick.verdicts, hints, pageUrl);
++      const retry = (list) => {
++        for (const url of list) requested.delete(url);
++        if (list.length) schedule(5000);
++      };
++      retry(urls.filter((url) => !quick.verdicts || !quick.verdicts[url] || !quick.verdicts[url].ok));
+       for (const v of Object.values(quick.verdicts || {})) { if (v && v.ok) { checked++; if (v.overall && v.overall.badge) flagged++; } }
+       // Delicate scanning (Pro and up): follow up with researched verdicts, which may raise or clear masks.
+-      send({ type: 'live-batch', urls, phase: 'research' }).then((r) => { if (r.ok && !r.locked) apply(r.verdicts); });
++      send({ type: 'live-batch', urls, phase: 'research', hints }).then((r) => {
++        if (r.locked) return;
++        if (r.ok) apply(r.verdicts, hints, pageUrl);
++        retry(urls.filter((url) => !r.verdicts || !r.verdicts[url] || !r.verdicts[url].ok || r.verdicts[url].researchComplete === false));
++      });
+     } finally {
+       if (show) scanFinished(checked, flagged, locked);
+       busy = false;
+diff --git a/tests/detection.test.js b/tests/detection.test.js
+--- a/tests/detection.test.js
++++ b/tests/detection.test.js
+@@ -21,6 +21,58 @@
+ 
+ const scan = (url, opts = {}) => engine.scanUrl(url, { threats: ['scam', 'virus', 'malware'], ...opts });
+ const lvl = (v, t) => v.threats[t].level;
++
++test('live and manual research never reuse verdicts for different page requests', async t => {
++  const research = require('../server/lib/scan/research');
++  const content = require('../server/lib/scan/content');
++  const url = 'https://research-mode-boundary.example/view?variant=account';
++  const calls = [];
++  t.mock.method(research, 'research', async (p, opts) => {
++    const title = opts.budgetMs ? 'Query omitted' : 'Exact requested page';
++    calls.push(opts.budgetMs || 0);
++    return { performed: true, registration: { available: true, createdAt: Date.now() - 3650 * 86400000 },
++      dns: { resolves: true, addresses: ['93.184.216.34'], mx: true },
++      http: { ok: true, status: 200, finalUrl: p.url, chain: [{ url: p.url }], disposition: '', contentType: 'text/html',
++        page: content.parse(`<html><title>${title}</title><p>Ordinary page</p></html>`, p.url) } };
++  });
++  const live = await scan(url, { research: true, budgetMs: 4500 });
++  const manual = await scan(url, { research: true });
++  assert.equal(live.research.pageTitle, 'Query omitted');
++  assert.equal(manual.research.pageTitle, 'Exact requested page');
++  assert.equal(manual.researchComplete, true);
++  assert.deepEqual(calls, [4500, 0]);
++});
++
++test('cache invalidation also separates scans already in progress', async t => {
++  const knowledge = require('../server/lib/scan/knowledge');
++  const { db } = require('../server/lib/db');
++  const original = knowledge.lookup;
++  const host = 'inflight-update.example';
++  let release, entered;
++  const gate = new Promise(r => { release = r; });
++  const waiting = new Promise(r => { entered = r; });
++  let calls = 0;
++  t.mock.method(knowledge, 'lookup', async p => {
++    const first = ++calls === 1;
++    const facts = await original(p);
++    if (first) { entered(); await gate; }
++    return facts;
++  });
++  const before = scan(`https://${host}/`);
++  await waiting;
++  db.prepare('INSERT INTO blocklist (host, category, source, threat, added_at) VALUES (?, ?, ?, ?, ?)')
++    .run(host, 'phishing', 'sentinel', 'scam', Date.now());
++  try {
++    engine.invalidate(host);
++    const after = scan(`https://${host}/`);
++    release();
++    const [old, fresh] = await Promise.all([before, after]);
++    assert.equal(old.overall.badge, null);
++    assert.equal(fresh.overall.badge, 'red');
++    assert.equal(calls, 2);
++    assert.equal((await scan(`https://${host}/`)).overall.badge, 'red');
++  } finally { release(); db.prepare('DELETE FROM blocklist WHERE host = ?').run(host); engine.invalidate(host); }
++});
+ 
+ /* ----------------------------------------------------------- known scams */
+ 
+diff --git a/tests/api-regressions.test.js b/tests/api-regressions.test.js
+--- a/tests/api-regressions.test.js
++++ b/tests/api-regressions.test.js
+@@ -78,6 +78,45 @@
+   assert.notEqual(mixed.threats.malware.level, 'confirmed');
+ });
+ 
++test('new and unverified reporters cannot confirm a site through the scan pipeline', async () => {
++  const users = [await newUser(), await newUser(), await newUser()];
++  const host = 'unqualified-reports.example';
++  const { db } = require('../server/lib/db');
++  const { lookup } = require('../server/lib/scan/knowledge');
++  const { analyze } = require('../server/lib/scan/url');
++  for (const u of users) {
++    const r = await u.post('/api/v1/report', { url: `https://${host}/`, category: 'phishing' });
++    assert.equal(r.data.promoted, false);
++  }
++  const know = () => lookup(analyze(`https://${host}/`));
++  assert.equal((await know()).matches.length, 0, 'fresh accounts do not count');
++  const old = Date.now() - 8 * 86400000;
++  for (const u of users) db.prepare('UPDATE users SET created_at = ?, email_verified_at = NULL WHERE email = ?').run(old, u.email);
++  assert.equal((await know()).matches.length, 0, 'old unverified accounts do not count');
++  for (const u of users) db.prepare('UPDATE users SET created_at = ?, email_verified_at = ? WHERE email = ?').run(Date.now(), old, u.email);
++  assert.equal((await know()).matches.length, 0, 'verification alone is insufficient');
++  established(users);
++  assert.equal((await know()).known, true, 'eligible independent reports still count');
++});
++
++test('community reports cannot condemn a verified site but exact threat listings still apply', async () => {
++  const users = [await newUser(), await newUser(), await newUser()];
++  established(users);
++  for (const u of users) assert.equal((await u.post('/api/v1/report', { url: 'https://www.paypal.com/', category: 'phishing' })).data.promoted, false);
++  const { scanUrl, invalidate } = require('../server/lib/scan/engine');
++  invalidate('paypal.com');
++  assert.equal((await scanUrl('https://www.paypal.com/', { research: false })).overall.badge, null);
++  const { db } = require('../server/lib/db');
++  const { urlKey } = require('../server/lib/scan/url');
++  const url = 'https://www.paypal.com/exact-compromised-page';
++  db.prepare('INSERT INTO feed_urls (url_key, host, source, threat, category, added_at) VALUES (?, ?, ?, ?, ?, ?)')
++    .run(urlKey(url), 'www.paypal.com', 'test_live_accuracy', 'scam', 'phishing', Date.now());
++  try {
++    invalidate('paypal.com');
++    assert.equal((await scanUrl(url, { research: false })).overall.badge, 'red');
++  } finally { db.prepare('DELETE FROM feed_urls WHERE source = ?').run('test_live_accuracy'); invalidate('paypal.com'); }
++});
++
+ /** Accounts whose owners confirmed their email a week ago or more: only their reports count for everyone. */
+ function established(users) {
+   const { db } = require('../server/lib/db');
+diff --git a/tests/research-performance.test.js b/tests/research-performance.test.js
+--- a/tests/research-performance.test.js
++++ b/tests/research-performance.test.js
+@@ -86,3 +86,13 @@
+   assert.equal(second.registration.available, true);
+   assert.equal(calls.get('rdap:registry-retry.com'), 2);
+ });
++
++test('a short live deadline never joins a longer research job', async () => {
++  const p = analyze('https://deadline-isolation.com/page');
++  const longer = research(p, { budgetMs: 200 });
++  const shorter = research(p, { budgetMs: 1 });
++  const [full, partial] = await Promise.all([longer, shorter]);
++  assert.equal(full.registration.available, true);
++  assert.equal(partial.registration.reason, 'not answered in time');
++  assert.equal(partial.dns.unavailable, true);
++});
+diff --git a/tests/live-accuracy.test.js b/tests/live-accuracy.test.js
+new file mode 100644
+--- /dev/null
++++ b/tests/live-accuracy.test.js
+@@ -0,0 +1,215 @@
++'use strict';
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const vm = require('node:vm');
++const { createRequire } = require('node:module');
++
++const ROOT = path.join(__dirname, '..');
++const pageUrl = 'https://www.bing.com/search?q=wallet';
++const url = 'https://ordinary-example.com/login';
++const verdict = (badge = null, extra = {}) => ({ ok: true, overall: { badge, label: badge ? 'Likely scam' : 'No scam signs' }, threats: {}, reasons: [], ...extra });
++
++function desktop(api, mode = 'fast') {
++  let now = 1000000;
++  const timers = new Map();
++  const file = path.join(ROOT, 'desktop/src/watch.js');
++  const ctx = vm.createContext({ require: createRequire(file), module: { exports: {} }, process, Buffer, URL,
++    Date: class extends Date { static now() { return now; } },
++    setTimeout(fn, ms) { const id = {}; timers.set(id, { fn, ms }); return id; },
++    clearTimeout(id) { timers.delete(id); } });
++  vm.runInContext(fs.readFileSync(file, 'utf8') + `
++    this.driver = { onLinks, check, markFor, resultKey, stop,
++      setup(options) { opts = options; child = { kill() {} }; state.current = { at: 1 }; state.window = { private: false }; },
++      navigate() { state.current = { at: 2 }; latestLinks = null; },
++      cached() { return [...verdicts.values()]; }, pendingCount() { return pending.size; }
++    };`, ctx);
++  const marks = [];
++  const threats = [];
++  ctx.driver.setup({ api, mode: () => mode, onMarks: m => marks.push(m), onThreat: t => threats.push(t) });
++  return { ...ctx.driver, marks, threats, timers, advance(ms) { now += ms; },
++    links(title = 'Ordinary result') { return ctx.driver.onLinks({ for: pageUrl, links: [{ u: url, n: title, x: 10, y: 100, w: 300, h: 26 }] }); } };
++}
++
++test('live scan errors remain pending and are retried instead of marked clean', async () => {
++  let calls = 0;
++  const d = desktop(async () => ({ byUrl: { [url]: ++calls === 1 ? { ok: false, error: 'scan_failed' } : verdict() }, mode: 'fast' }));
++  await d.links();
++  assert.equal(d.cached().length, 0);
++  assert.equal(d.marks.at(-1).marks[0].pending, true);
++  assert.equal(d.timers.size, 1);
++  d.advance(5000);
++  await [...d.timers.values()][0].fn();
++  await new Promise(resolve => setImmediate(resolve));
++  assert.equal(calls, 2);
++  assert.equal(d.marks.at(-1).marks[0].pending, undefined);
++});
++
++test('changing a search result title rescans the same URL', async () => {
++  const titles = [];
++  const d = desktop(async (_, body) => {
++    titles.push(body.hints[url].title);
++    return { byUrl: { [url]: verdict(titles.length === 1 ? null : 'orange') }, mode: 'fast' };
++  });
++  await d.links('Ordinary result');
++  await d.links('Ordinary result');
++  assert.equal(titles.length, 1, 'scrolling reuses a verdict');
++  await d.links('Microsoft account sign in');
++  assert.equal(titles.length, 2);
++  assert.equal(d.marks.at(-1).marks[0].badge, 'orange');
++});
++
++test('failed delicate follow-up expires its provisional answer and retries', async () => {
++  let calls = 0;
++  const d = desktop(async (_, body) => {
++    calls++;
++    if (!body.quick && calls === 2) throw new Error('network outage');
++    return { byUrl: { [url]: verdict(body.quick ? null : 'orange', { researchComplete: true }) }, mode: 'delicate' };
++  }, 'delicate');
++  await d.links();
++  assert.equal(calls, 2);
++  assert.equal(d.timers.size, 1);
++  d.advance(5000);
++  await [...d.timers.values()][0].fn();
++  await new Promise(resolve => setImmediate(resolve));
++  assert.equal(calls, 4);
++  assert.equal(d.marks.at(-1).marks[0].badge, 'orange');
++});
++
++test('incomplete research is retried instead of retained for the verdict TTL', async () => {
++  const d = desktop(async () => ({ byUrl: { [url]: verdict(null, { researchComplete: false }) }, mode: 'delicate' }), 'delicate');
++  await d.links();
++  assert.ok([...d.timers.values()].some(t => t.ms > 1500));
++  d.advance(5000);
++  assert.equal(d.markFor(d.resultKey({ u: url, title: 'Ordinary result' }, pageUrl, false)), null);
++});
++
++test('late result answers after navigation or stop cannot repopulate marks', async () => {
++  for (const action of ['navigate', 'stop']) {
++    let resolve;
++    const d = desktop(() => new Promise(r => { resolve = r; }));
++    const checking = d.links();
++    d[action]();
++    resolve({ byUrl: { [url]: verdict('orange') }, mode: 'fast' });
++    await checking;
++    assert.equal(d.cached().length, 0, action);
++    assert.equal(d.pendingCount(), 0);
++  }
++});
++
++test('a late visited-page answer cannot warn about a page that was left', async () => {
++  let resolve;
++  const d = desktop(() => new Promise(r => { resolve = r; }));
++  const checking = d.check({ url, at: 1, private: false });
++  d.navigate();
++  resolve({ verdict: verdict('orange'), mode: 'fast' });
++  await checking;
++  assert.equal(d.threats.length, 0);
++});
++
++test('a visited-page scan that failed is retried while that page remains in front', async () => {
++  let calls = 0;
++  const d = desktop(async () => {
++    if (++calls === 1) throw new Error('temporary outage');
++    return { verdict: verdict('orange'), mode: 'fast' };
++  });
++  await d.check({ url, at: 1, private: false });
++  assert.equal(d.threats.length, 0);
++  assert.equal(d.timers.size, 1);
++  await [...d.timers.values()][0].fn();
++  await new Promise(resolve => setImmediate(resolve));
++  assert.equal(calls, 2);
++  assert.equal(d.threats.length, 1);
++});
++
++function companionUrls() {
++  const src = fs.readFileSync(path.join(ROOT, 'extension/src/content/serp.js'), 'utf8');
++  const ctx = vm.createContext({ URL, TextDecoder, atob: s => Buffer.from(s, 'base64').toString('latin1'),
++    location: { href: pageUrl, hostname: 'www.bing.com' },
++    SEARCH_HOSTS: /(^|\.)(google|bing|duckduckgo|yahoo)\.[a-z.]+$/,
++    USER_PAGES_ON_ENGINES: /^(sites|docs|drive|forms)\.google\.com$/ });
++  vm.runInContext(src.slice(src.indexOf('function fromBase64'), src.indexOf('/* ----------------------------------------------------------- badges')) + '; this.urls = { realUrl, isResult };', ctx);
++  return ctx.urls;
++}
++
++test('Bing ad decoding preserves encoded path and query characters in both clients', () => {
++  const target = 'https://shop.example/a%2Fb?token=a%26b%3Dc';
++  const ad = raw => `https://www.bing.com/aclk?u=${Buffer.from(raw).toString('base64url')}`;
++  const c = companionUrls();
++  const watch = require('../desktop/src/watch.js')._test;
++  for (const raw of [target, encodeURIComponent(target)]) {
++    assert.equal(c.realUrl(ad(raw)), target);
++    assert.equal(watch.unwrapResult(new URL(ad(raw))).href, target);
++  }
++});
++
++test('companion checks user-published Google results and cannot be tricked into scanning a decoy parameter', () => {
++  const c = companionUrls();
++  const anchor = { closest: () => null };
++  assert.equal(c.isResult(anchor, 'https://sites.google.com/view/wallet-login'), true);
++  assert.equal(c.isResult(anchor, 'https://docs.google.com/forms/d/example/viewform'), true);
++  const decoy = 'https://attacker.example/url?url=https://www.paypal.com/';
++  assert.equal(c.realUrl(decoy), decoy);
++  const nested = `https://www.bing.com/ck/a?u=a1${Buffer.from('https://www.google.com/url?q=https%3A%2F%2Fdestination.example%2Flogin').toString('base64url')}`;
++  assert.equal(c.realUrl(nested), 'https://destination.example/login');
++  const watch = require('../desktop/src/watch.js')._test;
++  assert.equal(watch.resultLinks([{ u: nested, x: 10, y: 100, w: 300, h: 26 }], pageUrl)[0].u, 'https://destination.example/login');
++});
++
++test('companion cache keeps title context separate and refuses incomplete research', () => {
++  const src = fs.readFileSync(path.join(ROOT, 'extension/src/background.js'), 'utf8');
++  const ctx = vm.createContext({ Date });
++  vm.runInContext(`const TTL = { quick: 60000, research: 60000 }; const cache = new Map();
++    ${src.slice(src.indexOf('function cacheKey'), src.indexOf('const features'))}
++    this.cacheApi = { cacheGet, cacheSet };`, ctx);
++  const c = ctx.cacheApi;
++  c.cacheSet('quick', url, verdict(), { title: 'ordinary', query: 'wallet' });
++  assert.ok(c.cacheGet('quick', url, { title: 'ordinary', query: 'wallet' }));
++  assert.equal(c.cacheGet('quick', url, { title: 'account sign in', query: 'wallet' }), null);
++  c.cacheSet('research', url, verdict(null, { researchComplete: false }));
++  assert.equal(c.cacheGet('research', url), null);
++});
++
++function companionBatch(api) {
++  const src = fs.readFileSync(path.join(ROOT, 'extension/src/background.js'), 'utf8');
++  const ctx = vm.createContext({ Date, apiFetch: api });
++  vm.runInContext(`const TTL = { quick: 60000, research: 60000 }; const cache = new Map();
++    const features = () => ({ liveResearch: true, liveScanning: true });
++    const liveBlockReason = () => null; const noteLive = () => {}; const handleApiError = () => {};
++    ${src.slice(src.indexOf('function cacheKey'), src.indexOf('const features'))}
++    ${src.slice(src.indexOf('async function liveBatch'), src.indexOf('async function paint'))}
++    this.batch = liveBatch;`, ctx);
++  return ctx.batch;
++}
++
++test('companion sends contextual hints, rescans changed titles, and keeps private batches out of its cache', async () => {
++  const bodies = [];
++  const batch = companionBatch(async (_, options) => {
++    bodies.push(options.body);
++    return { byUrl: { [url]: verdict() }, mode: 'delicate' };
++  });
++  const hints = { [url]: { title: 'Ordinary result', query: 'wallet' } };
++  await batch([url], 'quick', false, hints);
++  await batch([url], 'quick', false, hints);
++  assert.equal(bodies.length, 1);
++  assert.equal(bodies[0].hints[url].title, 'Ordinary result');
++  await batch([url], 'quick', false, { [url]: { title: 'Account sign in', query: 'wallet' } });
++  assert.equal(bodies.length, 2);
++  await batch([url], 'quick', true, hints);
++  await batch([url], 'quick', true, hints);
++  assert.equal(bodies.length, 4);
++  assert.equal(bodies[3].hints, undefined);
++  assert.equal(bodies[3].private, true);
++});
++
++test('companion never caches a fast fallback as a researched verdict', async () => {
++  let calls = 0;
++  const batch = companionBatch(async () => {
++    calls++;
++    return { byUrl: { [url]: verdict() }, mode: 'fast' };
++  });
++  await batch([url], 'research');
++  await batch([url], 'research');
++  assert.equal(calls, 2);
++});
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "sentinel",
+-  "version": "1.8.8",
++  "version": "1.8.9",
+   "private": true,
+   "description": "Sentinel - real-time scam, virus and malware protection",
+   "type": "commonjs",
+@@ -10,7 +10,7 @@
+   "scripts": {
+     "start": "node server/index.js",
+     "dev": "node --watch server/index.js",
+-    "test": "node --test tests/detection.test.js tests/api.test.js tests/api-regressions.test.js tests/auth.test.js tests/security.test.js tests/static.test.js tests/extension.test.js tests/desktop.test.js tests/filescan.test.js tests/compare-performance.test.js tests/research-performance.test.js tests/startup.test.js",
++    "test": "node --test tests/detection.test.js tests/api.test.js tests/api-regressions.test.js tests/auth.test.js tests/security.test.js tests/static.test.js tests/extension.test.js tests/desktop.test.js tests/live-accuracy.test.js tests/filescan.test.js tests/compare-performance.test.js tests/research-performance.test.js tests/startup.test.js",
+     "benchmark:scans": "node scripts/benchmark-filescan.js && node scripts/benchmark-comparison.js && node scripts/benchmark-research.js",
+     "evaluate": "node scripts/evaluate.js --research-safe",
+     "evaluate:modes": "node scripts/evaluate-modes.js",
+diff --git a/desktop/package.json b/desktop/package.json
+--- a/desktop/package.json
++++ b/desktop/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "sentinel-desktop",
+   "productName": "Sentinel",
+-  "version": "1.8.8",
++  "version": "1.8.9",
+   "description": "Sentinel - scam, virus and malware protection that runs on your own computer",
+   "main": "src/main.js",
+   "author": "Sentinel",
+diff --git a/desktop/package-lock.json b/desktop/package-lock.json
+--- a/desktop/package-lock.json
++++ b/desktop/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "sentinel-desktop",
+-  "version": "1.8.8",
++  "version": "1.8.9",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "sentinel-desktop",
+-      "version": "1.8.8",
++      "version": "1.8.9",
+       "license": "UNLICENSED",
+       "dependencies": {
+         "electron-updater": "^6.8.9"
+diff --git a/extension/manifest.json b/extension/manifest.json
+--- a/extension/manifest.json
++++ b/extension/manifest.json
+@@ -2,7 +2,7 @@
+   "manifest_version": 3,
+   "name": "Sentinel Companion",
+   "short_name": "Sentinel",
+-  "version": "1.4.1",
++  "version": "1.4.2",
+   "description": "Live scam, virus and malware masks on search results and in your inbox. Part of the Sentinel app. Works in Chrome, Edge, Brave and Firefox.",
+   "homepage_url": "https://www.usesentinel.technology",
+   "minimum_chrome_version": "116",
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,4 +1,16 @@
+ # Changelog
++
++## 1.8.9: live scanning accuracy and reliability
++
++- Failed live scans stay pending and retry instead of appearing clean. Incomplete research and provisional verdicts expire promptly so a failed follow-up cannot suppress another scan.
++- Search-result caches include the title and search context. The companion sends that context to the engine and rescans results whose address or title changes.
++- Late scan responses are discarded after navigation or stopping protection, preventing warnings for pages that have already been left.
++- Both clients unwrap nested search redirects and preserve encoded path and query characters in Bing ad destinations. The companion checks user-published Google Sites and Docs results and does not substitute an arbitrary URL parameter on an unrecognized site.
++- Live research and exact-URL manual research have separate verdict caches, and short research deadlines do not join longer jobs. In-progress scans are isolated when threat knowledge is invalidated.
++- Community confirmation requires independent verified accounts at least seven days old. Reports alone cannot condemn verified sites; exact malicious URL listings still apply.
++- Companion 1.4.2 keeps private batches out of its local verdict cache, separates contextual verdicts, and does not cache fast fallback results as completed delicate research.
++
++Validation: all 17 new regression tests pass. Local checks passed 200 tests; 14 process-dependent tests could not run successfully under the sandbox's child-process restrictions. The release workflow runs the full suite on Windows before publishing installers. No zero-error or real-world accuracy percentage is claimed.
+ 
+ ## 1.6.3: scan performance
+ 
+diff --git a/changelog/1.8.9.md b/changelog/1.8.9.md
+new file mode 100644
+--- /dev/null
++++ b/changelog/1.8.9.md
+@@ -0,0 +1,11 @@
++Sentinel 1.8.9: more reliable live scanning
++
++- Failed scans retry instead of being shown as clean.
++- Results are rescanned when their title, address or search context changes.
++- Late answers cannot warn about a page after you leave it or stop protection.
++- Nested search redirects, Bing ad addresses and user-published Google results are checked more accurately.
++- Incomplete research is retried, and live and manual research results remain separate.
++- Community reports must meet verification and account-age requirements before they can confirm a threat.
++- Companion 1.4.2 improves contextual scans and private-window cache handling.
++
++All 17 new regression tests pass. These changes fix specific error cases; scanning cannot guarantee zero mistakes.
