@@ -98,3 +98,28 @@
 /* The chapter rail's label is drawn out from the mark, as if written, rather than faded in. */
 .hv .rail span { opacity: 1; translate: 0 -50%; clip-path: inset(-4px 100% -4px -4px round 8px); transition: clip-path .5s var(--ease-out); }
 .hv .rail a:hover span, .hv .rail a:focus-visible span { clip-path: inset(-4px -4px -4px -4px round 8px); }
+
+/* ------------------------------------------------------ more to touch */
+/* Each part answers the pointer in its own way, all mouse-only (html.hv) and all transform or colour. */
+/* The logo's mask turns once, like a coin, and settles. */
+.hv .logo .logo__mark { transition: transform .9s cubic-bezier(.34, 1.4, .64, 1); transform-style: preserve-3d; }
+.hv .logo:hover .logo__mark { transform: perspective(240px) rotateY(360deg); }
+/* The theme switch: its half-moon swings round, and a little further, before it settles. */
+.hv .theme-toggle svg { transition: transform .7s cubic-bezier(.34, 1.8, .5, 1); }
+.hv .theme-toggle:hover svg { transform: rotate(160deg); }
+.hv .theme-toggle[data-mode="light"]:hover svg { transform: rotate(340deg); }
+/* A section's roman numeral catches the light when its heading is read. */
+.hv .section__head:hover .kicker__n { background: var(--metal, var(--gold-grad)); -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: numeral-shine 1.1s cubic-bezier(.16, 1, .3, 1); background-size: 300% 100%; }
+@keyframes numeral-shine { from { background-position: 100% 0; } to { background-position: 0 0; } }
+/* A row in the search demo: its verdict mask flinches toward the pointer, as if caught. */
+.hv .demo-row .m { transition: transform .45s cubic-bezier(.34, 1.8, .5, 1); }
+.hv .demo-row:hover .m { transform: scale(1.18) rotate(-8deg); }
+/* The colour reading: the word in each line underlines itself in its own colour. */
+.hv .manifesto__line span { background: linear-gradient(var(--c), var(--c)) 0 100% / 0 2px no-repeat; transition: background-size .5s cubic-bezier(.16, 1, .3, 1); }
+.hv .manifesto__line:hover span { background-size: 100% 2px; }
+/* A question opens with its cross turning a quarter further than it needs to, then back. */
+.hv .faq summary i { transition: transform .6s cubic-bezier(.34, 1.8, .5, 1); }
+.hv .faq summary:hover i { transform: rotate(90deg) scale(1.15); }
+/* The model badge in the app, and the guardians' names: a soft gold breath. */
+.hv .guardian:hover .guardian__name { color: var(--gold-200); transition: color .4s; }

@@ -151,7 +151,8 @@ async function build(el) {
   pivot.add(holder);
   scene.add(pivot);
   const lay = el.dataset.pose === 'lay';
-  const rest = lay ? { x: -0.42, y: 0.28, z: -0.49 } : { x: 0, y: el.classList.contains('plate__art') ? 0 : -0.18, z: 0 };
+  // Blender's lay pose (x -24, y 28, z 16 degrees), turned a little more toward the viewer so the face reads.
+  const rest = lay ? { x: -0.38, y: 0.12, z: -0.42 } : { x: 0, y: el.classList.contains('plate__art') ? 0 : -0.18, z: 0 };
   // Blender's XYZ turn (masks.py --pose lay), carried into glTF's Y-up axes: the same order becomes YZX.
   holder.rotation.order = 'YZX';
   holder.rotation.set(rest.x, rest.y, rest.z);

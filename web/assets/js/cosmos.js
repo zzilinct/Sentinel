@@ -70,7 +70,7 @@
     const rand = () => ((x = (x * 16807) % 2147483647) / 2147483647);
     stars = Array.from({ length: Math.round((W * H) / 5200) }, () => {
       const b = rand();
-      return { x: rand() * W, y: rand() * H, r: b > 0.985 ? 1.5 : b > 0.9 ? 1.05 : 0.6, a: 0.25 + rand() * 0.6, warm: rand() };
+      return { x: rand() * W, y: rand() * H, r: b > 0.985 ? 1.7 : b > 0.9 ? 1.2 : 0.75, a: 0.35 + rand() * 0.6, warm: rand() };
     });
   }
   // Where a star appears: pushed outward and swung round near a black hole, hidden behind its horizon.
@@ -161,7 +161,7 @@
     const { back, front, size } = h;
     const c = size / 2;
     const R = size * 0.42;          // how far its pull reaches
-    const core = size * 0.11 * g;   // the horizon
+    const core = size * 0.085 * g;  // the shadow of the horizon
     const bx = back.getContext('2d');
     const fx = front.getContext('2d');
     bx.clearRect(0, 0, size, size);
@@ -196,39 +196,90 @@
       }
       bx.globalAlpha = 1;
     }
-    // The accretion disc, tilted: its far half behind the mask, its near half in front.
-    const disc = (ctx, from, to) => {
-      for (let i = 0; i < 3; i++) {
-        ctx.save();
-        ctx.translate(c, c);
-        ctx.rotate(-0.32);
-        ctx.scale(1, 0.32);
-        const rr = core * (2.1 + i * 0.55);
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = (0.55 - i * 0.15) * g;
-        ctx.lineWidth = core * (0.55 - i * 0.12);
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 24;
-        ctx.setLineDash([core * (1.6 + i), core * 0.5]);
-        ctx.lineDashOffset = -spin * (60 + i * 25);
-        ctx.beginPath(); ctx.arc(0, 0, rr, from, to); ctx.stroke();
-        ctx.restore();
+    // Drawn as the real thing is seen. The accretion disc is tilted toward us and spins: the side coming toward us
+    // is brighter (Doppler beaming), streaked with hot gas. Its near half passes in front of the shadow; its far
+    // half is behind, but the hole's gravity bends that light up over the top and under the bottom, so a ring of it
+    // wraps the shadow. At the edge of the shadow, a thin photon ring.
+    const rgb = hexRgb(color);
+    const hot = (k) => `rgb(${Math.round(rgb[0] + (255 - rgb[0]) * k)},${Math.round(rgb[1] + (255 - rgb[1]) * k)},${Math.round(rgb[2] + (255 - rgb[2]) * k)})`;
+    const TILT = 0.26;      // how flat the disc looks from here
+    const ROLL = -0.22;     // and how it leans
+    const band = (ctx, from, to) => {
+      ctx.save();
+      ctx.translate(c, c);
+      ctx.rotate(ROLL);
+      ctx.globalCompositeOperation = 'lighter';
+      const rings = 16;
+      for (let i = 0; i < rings; i++) {
+        const k = i / (rings - 1);
+        const rr = core * (1.55 + k * 2.3);
+        const profile = Math.pow(1 - k, 1.6) * (0.35 + 0.65 * Math.min(1, k * 6));
+        const segs = 56;
+        ctx.lineWidth = core * 0.17;
+        for (let j = 0; j < segs; j++) {
+          const a0 = from + (to - from) * (j / segs);
+          const a1 = from + (to - from) * ((j + 1) / segs);
+          const mid = (a0 + a1) / 2;
+          // Coming toward us on the left; gas streams faster near the middle.
+          const doppler = 0.45 + 0.55 * (0.5 - 0.5 * Math.cos(mid));
+          const streak = 0.6 + 0.4 * Math.sin(mid * 7 + i * 1.7 - spin * (6 - k * 4)) * Math.sin(mid * 3 - spin * 2.3 + i);
+          const alpha = profile * doppler * streak * g;
+          if (alpha < 0.01) continue;
+          ctx.globalAlpha = Math.min(1, alpha);
+          ctx.strokeStyle = hot(0.55 * (1 - k) * doppler);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, rr, rr * TILT, 0, a0, a1);
+          ctx.stroke();
+        }
       }
+      ctx.restore();
     };
-    disc(bx, Math.PI, Math.PI * 2);
-    disc(fx, 0, Math.PI);
-    // The horizon, and the photon ring of light that circles just outside it.
+    // Behind the mask: the far half of the disc (the top half, as we see it).
+    band(bx, Math.PI, Math.PI * 2);
+    // In front, from the back: the bent light of the far side, wrapped round the shadow; the shadow; the photon
+    // ring; and the near half of the disc crossing in front of it all.
     fx.save();
-    fx.shadowColor = color;
-    fx.shadowBlur = core * 1.4;
-    fx.globalAlpha = g;
-    fx.strokeStyle = color;
-    fx.lineWidth = Math.max(1.5, core * 0.14);
-    fx.beginPath(); fx.arc(c, c, core * 1.08, 0, Math.PI * 2); fx.stroke();
-    fx.shadowBlur = 0;
-    fx.fillStyle = '#000';
-    fx.beginPath(); fx.arc(c, c, core, 0, Math.PI * 2); fx.fill();
+    fx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 10; i++) {
+      const k = i / 9;
+      const rr = core * (1.12 + k * 0.75);
+      fx.lineWidth = core * 0.12;
+      for (let j = 0; j < 48; j++) {
+        const a0 = (j / 48) * Math.PI * 2;
+        const a1 = ((j + 1) / 48) * Math.PI * 2;
+        const mid = (a0 + a1) / 2;
+        // Brightest over the top and under the bottom, where the lensed disc is seen.
+        const wrap = Math.pow(Math.abs(Math.sin(mid)), 1.5);
+        const doppler = 0.5 + 0.5 * (0.5 - 0.5 * Math.cos(mid + ROLL));
+        fx.globalAlpha = Math.min(1, (1 - k) * wrap * doppler * 0.55 * g);
+        fx.strokeStyle = hot(0.35 * (1 - k));
+        fx.beginPath();
+        fx.ellipse(c, c, rr, rr * 0.92, ROLL, a0, a1);
+        fx.stroke();
+      }
+    }
     fx.restore();
+    fx.save();
+    const shadow = fx.createRadialGradient(c, c, 0, c, c, core * 1.18);
+    shadow.addColorStop(0, 'rgba(0,0,0,1)');
+    shadow.addColorStop(0.82, 'rgba(0,0,0,1)');
+    shadow.addColorStop(1, 'rgba(0,0,0,0)');
+    fx.globalAlpha = Math.min(1, g * 1.4);
+    fx.fillStyle = shadow;
+    fx.beginPath(); fx.arc(c, c, core * 1.18, 0, Math.PI * 2); fx.fill();
+    fx.globalCompositeOperation = 'lighter';
+    fx.shadowColor = color;
+    fx.shadowBlur = core * 0.6;
+    fx.strokeStyle = hot(0.7);
+    fx.globalAlpha = 0.85 * g;
+    fx.lineWidth = Math.max(1, core * 0.05);
+    fx.beginPath(); fx.arc(c, c, core * 1.0, 0, Math.PI * 2); fx.stroke();
+    fx.restore();
+    band(fx, 0, Math.PI);
+  }
+  function hexRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   }
 
   const busy = new WeakSet();
