@@ -99,14 +99,15 @@ function init(options) {
     return;
   }
   reviewLastAttempt();
-  autoUpdater.autoDownload = true;
+  // A chosen model (models.js) is kept: newer versions are still looked for and shown, but not downloaded.
+  autoUpdater.autoDownload = !pinned();
   // Sentinel installs on quit itself (see install()); electron-updater's own quit-install reads the stale record.
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowPrerelease = false;
   autoUpdater.logger = null;
 
   autoUpdater.on('checking-for-update', () => set({ status: 'checking', error: null }));
-  autoUpdater.on('update-available', (info) => set({ status: 'downloading', version: info.version }));
+  autoUpdater.on('update-available', (info) => set(pinned() ? { status: 'pinned', version: info.version, pinned: pinned() } : { status: 'downloading', version: info.version }));
   autoUpdater.on('update-not-available', () => set({ status: 'current', checkedAt: Date.now() }));
   autoUpdater.on('download-progress', (p) => set({ status: 'downloading', progress: Math.round(p.percent) }));
   autoUpdater.on('update-downloaded', (info) => {
@@ -154,6 +155,16 @@ async function check() {
  */
 function hiddenMarker() { return path.join(app.getPath('userData'), 'start-hidden'); }
 
+/** The model this copy was asked to stay on, if any (it is the running version once the switch has taken). */
+function pinned() { return (hooks.store && hooks.store.get('modelPin', null)) || null; }
+
+/** Run a model's installer that models.js downloaded and checked, the same way as an update. */
+function installFile({ version, file, sha512: expected }) {
+  if (installing) return Promise.resolve({ ok: false, error: 'An install is already running' });
+  downloaded = { version, file, sha512: expected };
+  return install({ relaunch: true });
+}
+
 async function install({ relaunch = true, hidden = false } = {}) {
   if (!downloaded || installing) return { ok: false, error: 'No update is ready' };
   installing = true;
@@ -194,4 +205,4 @@ async function install({ relaunch = true, hidden = false } = {}) {
   return { ok: true };
 }
 
-module.exports = { init, check, install, status, hiddenMarker, _test: { newer } };
+module.exports = { init, check, install, installFile, status, pinned, cacheDir, hiddenMarker, _test: { newer } };
