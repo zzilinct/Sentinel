@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   scanWith: (browser) => ipcRenderer.invoke('sentinel:scan-with', String(browser)),
   checkUpdates: () => ipcRenderer.invoke('sentinel:check-updates'),
   installUpdate: () => ipcRenderer.invoke('sentinel:install-update'),
+  installModel: (version) => ipcRenderer.invoke('sentinel:install-model', String(version)),
+  // PNG slices of one screenshot, as Uint8Arrays; resolves to the text of each.
+  readScreenshot: (images) => ipcRenderer.invoke('sentinel:read-screenshot', [...images].map((b) => new Uint8Array(b))),
   defense: () => ipcRenderer.invoke('sentinel:defense'),
   setDefense: (enabled) => ipcRenderer.invoke('sentinel:set-defense', Boolean(enabled)),
   restoreQuarantined: (id) => ipcRenderer.invoke('sentinel:defense-restore', String(id)),
