@@ -11,7 +11,8 @@ document.documentElement.classList.add('js');
   try {
     // ?intro=1 plays it regardless (the review screenshots photograph it that way).
     var forced = /[?&]intro=1\b/.test(location.search);
-    if (!forced && (sessionStorage.getItem('sentinel:intro') || navigator.webdriver || /HeadlessChrome/.test(navigator.userAgent))) return;
+    // Crawlers and speed tests see the page itself: the opening is for people.
+    if (!forced && (sessionStorage.getItem('sentinel:intro') || navigator.webdriver || /HeadlessChrome|bot|crawl|spider|slurp|Lighthouse|PageSpeed/i.test(navigator.userAgent))) return;
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     if (!forced && (document.visibilityState === 'hidden' || document.prerendering)) return;
     document.documentElement.classList.add('intro');

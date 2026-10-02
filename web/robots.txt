@@ -1,0 +1,14 @@
+# Sentinel. The public pages are for everyone; account pages and the API are not for indexing.
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot
+Disallow: /reset
+Disallow: /verify
+Disallow: /connect
+Disallow: /guest
+
+Sitemap: https://www.usesentinel.technology/sitemap.xml

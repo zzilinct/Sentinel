@@ -39,6 +39,15 @@ test('static build: every page ships, every relative link resolves, nothing poin
     assert.equal(hrefs(html).filter((h) => /^\/(app|login|signup|forgot|reset|connect|welcome)/.test(h)).length, 0, `${page} keeps a root-absolute server route`);
   }
   assert.ok(fs.existsSync(path.join(out, '.nojekyll')), 'GitHub Pages must not run Jekyll over the output');
+  // Search engines and AI crawlers: their files ship, pointed at where this build lives.
+  for (const f of ['robots.txt', 'sitemap.xml', 'llms.txt']) assert.ok(fs.existsSync(path.join(out, f)), `${f} missing`);
+  assert.match(read('robots.txt'), /^Sitemap: \S+\/sitemap\.xml$/m);
+  // One H1 per public page, and every public page names its canonical address.
+  for (const page of ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html']) {
+    const html = read(page);
+    assert.equal((html.match(/<h1[\s>]/g) || []).length, 1, `${page} needs exactly one h1`);
+    assert.match(html, /<link rel="canonical" href="[^"]+">/, `${page} has no canonical link`);
+  }
 });
 
 test('static build: pre-launch defuses account and download links instead of leaving them dead', () => {

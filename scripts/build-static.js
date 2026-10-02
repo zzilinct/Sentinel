@@ -167,6 +167,11 @@ async function main() {
     const from = path.join(WEB, extra);
     if (fs.existsSync(from)) fs.copyFileSync(from, path.join(OUT, extra));
   }
+  // For search engines and AI crawlers, pointed at wherever this build lands.
+  for (const extra of ['robots.txt', 'sitemap.xml', 'llms.txt']) {
+    const from = path.join(WEB, extra);
+    if (fs.existsSync(from)) fs.writeFileSync(path.join(OUT, extra), fs.readFileSync(from, 'utf8').split(brand.origin).join(origin));
+  }
   // GitHub Pages otherwise treats leading-underscore paths as Jekyll sources.
   fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
 

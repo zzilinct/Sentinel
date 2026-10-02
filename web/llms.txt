@@ -1,0 +1,21 @@
+# Sentinel
+
+> Sentinel unmasks the internet: it checks the links in your search results, the messages in your inbox and the files you download, and marks the dangerous ones with a coloured mask before you open them. Yellow means look closer, orange means probably dangerous, red means Sentinel has proof.
+
+Sentinel has a Windows app with live scanning (marks beside search results in Chrome, Edge, Firefox, Brave and Opera, inbox marks in Gmail and Outlook on the web, download protection) and a web app for scanning a link, a file or a pasted email. There is a free plan with no card needed; Pro, Max and Ultimate add research of every result, email and download protection.
+
+## Pages
+
+- [Home](https://www.usesentinel.technology/): what Sentinel does, the three masks (scam, virus, malware), how a verdict is reached
+- [Download](https://www.usesentinel.technology/download): the Windows app, release notes, the optional browser companion
+- [Pricing](https://www.usesentinel.technology/pricing): Free, Pro, Max and Ultimate, and what each includes
+- [Privacy Policy](https://www.usesentinel.technology/privacy): what Sentinel reads, keeps and never does
+- [Terms](https://www.usesentinel.technology/terms): the terms of use
+- [Refund Policy](https://www.usesentinel.technology/refunds): refunds, in plain words
+
+## Facts
+
+- Sentinel checks addresses, not page contents: it never records what you type or reads pages behind your logins.
+- Private and incognito windows are protected and nothing about them is kept.
+- Downloads are analysed on your own computer; only a SHA-256 fingerprint is compared online.
+- Source and releases: https://github.com/zzilinct/Sentinel

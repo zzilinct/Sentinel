@@ -179,7 +179,7 @@ h2 em, .page-head h1 em { color: var(--text-2); }
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat;
           mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat; }
 .footer::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--line-gold) 30%, transparent 46%, transparent 54%, var(--line-gold) 70%, transparent); }
-.footer h5 { font: 400 12px var(--display); letter-spacing: .22em; text-transform: uppercase; color: var(--gold-400); }
+.footer .footer__h { font: 400 12px var(--display); letter-spacing: .22em; text-transform: uppercase; color: var(--gold-400); }
 .footer__base { border-top-color: var(--line); }
 
 /* The tab change sweeps lacquer panels with gold edges. */
