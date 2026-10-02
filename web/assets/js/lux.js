@@ -75,18 +75,15 @@
 
     const mask = $('[data-hero-mask] img');
     if (mask) animate(mask, { translateY: [-8, 8], rotate: [-1.2, 1.2], duration: 3800, alternate: true, loop: true, ease: 'inOutSine' });
+    // The mask itself watches the pointer (hover.js); the name drifts the other way a little, for depth.
     if (finePointer) {
-      const holder = $('[data-hero-mask]');
       let pending = false;
       addEventListener('pointermove', (e) => {
         if (pending || scrollY > innerHeight) return;
         pending = true;
         requestAnimationFrame(() => {
           pending = false;
-          const x = e.clientX / innerWidth - 0.5;
-          const y = e.clientY / innerHeight - 0.5;
-          animate(holder, { x: x * 30, y: y * 20, rotateY: x * 14, rotateX: -y * 10, duration: 1200, ease: 'outQuart' });
-          animate(word, { x: x * -18, duration: 1400, ease: 'outQuart' });
+          animate(word, { x: (e.clientX / innerWidth - 0.5) * -18, duration: 1400, ease: 'outQuart' });
         });
       }, { passive: true });
     }
@@ -113,20 +110,6 @@
 
   for (const frame of $$('.cta .vframe, .page-head .vframe')) whenSeen(frame.parentElement, () => draw($$('path, circle', frame), { duration: 1500, delay: stagger(25) }));
   for (const rule of $$('.orn-rule')) whenSeen(rule, () => draw($$('path, circle', rule), { duration: 1400 }));
-
-  // Page masks lean toward the pointer.
-  const pageMask = $('.page-head__mask');
-  if (pageMask && finePointer) {
-    let queued = false;
-    addEventListener('pointermove', (e) => {
-      if (queued) return;
-      queued = true;
-      requestAnimationFrame(() => {
-        queued = false;
-        animate(pageMask, { rotateY: (e.clientX / innerWidth - 0.5) * 18, rotateX: -(e.clientY / innerHeight - 0.5) * 12, duration: 1000, ease: 'outQuart' });
-      });
-    }, { passive: true });
-  }
 
   /* ------------------------------------------ 404: petals of red fall */
 
