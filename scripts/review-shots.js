@@ -215,6 +215,53 @@ async function main() {
       console.log('motion: entrances photographed');
       await send('Target.closeTarget', { targetId });
     }
+    // Hover (hover.js): a real pointer moved round the home page, photographed as it goes.
+    {
+      const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+      await send('Page.enable', {}, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
+      // A headless browser has no mouse to report; say there is one, as a desktop browser would.
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const mm = window.matchMedia.bind(window); window.matchMedia = (q) => /hover: hover|pointer: fine/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : mm(q); })();` }, sessionId);
+      await send('Page.navigate', { url: BASE + '/' }, sessionId);
+      await sleep(4500);
+      let at = { x: 1300, y: 860 };
+      const move = async (x, y, steps = 12) => {
+        for (let i = 1; i <= steps; i++) {
+          await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x + (x - at.x) * i / steps, y: at.y + (y - at.y) * i / steps }, sessionId);
+          await sleep(16);
+        }
+        at = { x, y };
+      };
+      const rect = async (sel) => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()` }, sessionId)).result.value;
+      const shoot = async (name, clip) => {
+        const shot = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 } } : {}) }, sessionId);
+        fs.writeFileSync(path.join(OUT, `hover-${name}.png`), Buffer.from(shot.data, 'base64'));
+      };
+      const pad = (r, p) => ({ x: Math.max(0, r.x - p), y: Math.max(0, r.y - p), width: r.w + p * 2, height: r.h + p * 2 });
+      const m = await rect('[data-hero-mask]');
+      if (m) {
+        const cx = m.x + m.w / 2;
+        const cy = m.y + m.h / 2;
+        await move(cx + 260, cy - 80); await sleep(1400); await shoot('gaze-right');
+        await move(cx - 280, cy + 120, 20); await sleep(1400); await shoot('gaze-left');
+        await move(1340, 880, 10); await sleep(700); await shoot('gaze-away');
+        await sleep(3200); await shoot('gaze-rest');
+      }
+      for (const [name, sel, fx, fy] of [['gold-button', '.hero__cta .btn--gold', 0.25, 0.4], ['plan', '.plan--featured', 0.15, 0.12], ['kind', '.kind', 0.05, 0.5], ['footer-link', '.footer ul a', 0.02, 0.5], ['stat', '.stat', 0.85, 0.2]]) {
+        const r = await rect(sel);
+        if (!r) continue;
+        await move(r.x - 30, r.y + r.h * fy, 4);
+        await sleep(400);
+        await move(r.x + r.w * fx, r.y + r.h * fy, 8);
+        await sleep(name === 'footer-link' ? 220 : 900);
+        await shoot(name, pad(r, 40));
+        if (name === 'footer-link') { await sleep(700); await shoot(`${name}-filled`, pad(r, 40)); }
+      }
+      console.log('hover: photographed');
+      await send('Target.closeTarget', { targetId });
+    }
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
     browser.kill();
