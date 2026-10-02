@@ -234,12 +234,13 @@ async function main() {
         }
         at = { x, y };
       };
-      const rect = async (sel) => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()` }, sessionId)).result.value;
+      const rect = async (sel) => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, sx: scrollX, sy: scrollY }; })()` }, sessionId)).result.value;
       const shoot = async (name, clip) => {
-        const shot = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 } } : {}) }, sessionId);
+        const shot = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 }, captureBeyondViewport: true } : {}) }, sessionId);
         fs.writeFileSync(path.join(OUT, `hover-${name}.png`), Buffer.from(shot.data, 'base64'));
       };
-      const pad = (r, p) => ({ x: Math.max(0, r.x - p), y: Math.max(0, r.y - p), width: r.w + p * 2, height: r.h + p * 2 });
+      // The pointer works in the window, a clip in the page: the clip adds the scroll.
+      const pad = (r, p) => ({ x: Math.max(0, r.x + r.sx - p), y: Math.max(0, r.y + r.sy - p), width: r.w + p * 2, height: r.h + p * 2 });
       const m = await rect('[data-hero-mask]');
       if (m) {
         const cx = m.x + m.w / 2;
