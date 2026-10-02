@@ -37,6 +37,7 @@
         <li><b>Web addresses</b> you paste in, and, with live protection on, the addresses of search results and pages you open. They are checked against threat lists and the checklist.</li>
         <li><b>Page content</b> of a site, fetched by Sentinel&rsquo;s own servers, only when the scan includes research (Pro, Max and Ultimate). Nothing from your browser session is used: no cookies, no logged-in pages, nothing you typed.</li>
         <li><b>Email details</b> your mail client already shows you (sender, reply-to, subject, a text excerpt, link addresses and attachment names) when email protection or a paste-in email scan is used. They are analysed in memory and not stored.</li>
+        <li><b>Screenshots of emails</b>, only when you choose one for an email scan in the Windows app. The app reads its text on your computer with the text recognition built into Windows; the image is not uploaded, and the copy made for reading is deleted straight away. The text it finds is then scanned like a pasted email.</li>
         <li><b>Files</b> you upload to the virus and malware scanner are inspected in memory and discarded. Only the file&rsquo;s SHA-256 fingerprint may be kept, so the same file can be recognised again.</li>
         <li><b>Downloads</b> on your computer are inspected by the desktop app locally. Only the fingerprint is sent to check against known threats; the file itself never leaves your computer.</li>
         <li><b>Programs that arrive on your computer</b>, if defense is on in the Windows app. New program files in Downloads, Desktop, the temporary folder and the Startup folder are inspected on your computer, and the list of programs that start with Windows is read to look for new entries. Only a file&rsquo;s fingerprint is ever sent for a known-threat check. A log of what was scanned, stopped and quarantined is kept on your computer only.</li>
@@ -96,7 +97,7 @@
       <h2>7. What Sentinel never does</h2>
       <ul>
         <li>Record what you type into websites, or read pages behind your logins.</li>
-        <li>Take screenshots, record your screen, or change anything inside your browser. The marks live scanning draws are in Sentinel&rsquo;s own window, on top of the page.</li>
+        <li>Take screenshots of your screen (a screenshot is only read when you choose one for an email scan), record your screen, or change anything inside your browser. The marks live scanning draws are in Sentinel&rsquo;s own window, on top of the page.</li>
         <li>Read a browser that is not the window in front, or keep anything about a private window.</li>
         <li>Act against a program because of a guess when Windows can vouch for its publisher. Defense ends, quarantines or removes something only for a known malicious file or strong evidence, never for &ldquo;possible&rdquo;, and whatever it removes can be put back from the defense log.</li>
         <li>Run analytics, trackers or crash reporters on the website or in the app. The desktop app writes a local log file for troubleshooting, which stays on your computer unless you choose to send it to us.</li>
