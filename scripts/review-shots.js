@@ -259,6 +259,22 @@ async function main() {
         await move(1340, 880, 10); await sleep(700); await shoot('gaze-away');
         await sleep(3200); await shoot('gaze-rest');
       }
+      // A threat plate: its mask turning on hover, then a severity chosen, and the black hole frame by frame
+      // (cosmos.js, mask3d.js). The software renderer of a headless browser is slow, so the frames are approximate.
+      const plate = await rect('.plate .plate__art');
+      if (plate) {
+        await sleep(2500);
+        await move(plate.x + plate.w / 2, plate.y + plate.h / 2, 10);
+        await sleep(700); await shoot('plate-spin', pad(plate, 30));
+        await send('Runtime.evaluate', { expression: "document.querySelector('.plate').closest('[data-trio]').querySelector('[data-sev=\"yellow\"]').click()" }, sessionId);
+        const t0 = Date.now();
+        for (const ms of [250, 600, 900, 1200, 1600, 2100, 2600, 3200, 4200]) {
+          await sleep(Math.max(0, ms - (Date.now() - t0)));
+          await shoot(`blackhole-${String(ms).padStart(4, '0')}ms`, pad(plate, 60));
+        }
+        const { result: m3 } = await send('Runtime.evaluate', { returnByValue: true, expression: "[!!window.SentinelMask3D, document.querySelectorAll('.mask3d--ready').length, document.querySelectorAll('[data-mask3d]').length].join(' ')" }, sessionId);
+        console.log(`3D masks (loaded, ready, total): ${m3.value}`);
+      }
       for (const [name, sel, fx, fy] of [['gold-button', '.hero__cta .btn--gold', 0.25, 0.4], ['plan', '.plan--featured', 0.15, 0.12], ['kind', '.kind', 0.05, 0.5], ['footer-link', '.footer ul a', 0.02, 0.5], ['stat', '.stat', 0.85, 0.2]]) {
         const r = await rect(sel);
         if (!r) continue;

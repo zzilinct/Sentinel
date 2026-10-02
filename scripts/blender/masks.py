@@ -33,6 +33,8 @@ ap.add_argument('--samples', type=int, default=96)
 ap.add_argument('--yaw', type=float, default=-22, help='still: turn of the mask in degrees')
 ap.add_argument('--tint', default='', choices=['', 'yellow', 'orange', 'red'], help='recolour the mask in a severity colour')
 ap.add_argument('--pose', default='stand', choices=['stand', 'lay'], help='lay: tipped back and turned, lying on a surface')
+ap.add_argument('--glb', action='store_true', help='export the mask as a glTF model (no render) for the site to light in real time')
+ap.add_argument('--faces', type=int, default=36000, help='--glb: the model is simplified to about this many faces')
 args = ap.parse_args(argv)
 
 # Colour, finish and the light around each mask.
@@ -311,5 +313,28 @@ def render(kind):
         bpy.ops.render.render(write_still=True)
 
 
+def export_glb(kind):
+    """The mask as geometry only: the site gives it its metal, its light and its pose (web/assets/js/mask3d.js)."""
+    reset()
+    rig = build(LOOKS[kind])
+    meshes = [o for o in rig.children if o.type == 'MESH']
+    face = max(meshes, key=lambda o: len(o.data.polygons))
+    if len(face.data.polygons) > args.faces:
+        dec = face.modifiers.new('decimate', 'DECIMATE')
+        dec.ratio = args.faces / len(face.data.polygons)
+        select_only([face])
+        bpy.ops.object.modifier_apply(modifier='decimate')
+    for o in meshes:
+        o.data.materials.clear()
+        o.name = 'face' if o is face else 'bead'
+    select_only([rig, *meshes])
+    os.makedirs(args.out, exist_ok=True)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(args.out, f'{LOOKS[kind]["svg"]}.glb'), export_format='GLB', use_selection=True,
+                              export_apply=True, export_materials='NONE', export_yup=True, export_texcoords=False)
+
+
 for kind in (LOOKS if args.mask == 'all' else [args.mask]):
-    render(kind)
+    if args.glb:
+        export_glb(kind)
+    else:
+        render(kind)

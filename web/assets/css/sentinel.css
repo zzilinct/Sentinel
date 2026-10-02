@@ -924,3 +924,65 @@ html.intro::before { content: ''; position: fixed; inset: 0; z-index: 9998; back
 html.intro body > :not(.intro-cover), html.intro-ink body > :not(.intro-cover) { filter: grayscale(1) sepia(.18) contrast(.94); }
 html.intro-ink.intro-ink-go body > :not(.intro-cover) { filter: none; transition: filter .95s cubic-bezier(.4, 0, .2, 1) .1s; }
 @media (prefers-reduced-motion: reduce) { .intro-cover { display: none; } html.intro::before { display: none; } }
+
+/* ---------------------------------------------------------- the models */
+/* Sentinel's five guardians, one medallion per major version. The one out now is struck in gold; the planned ones
+   are engraved and waiting. On hover a medallion turns over like a coin to show its reverse. */
+.guardians { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; }
+@media (max-width: 860px) { .guardians { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .guardians { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.guardian { perspective: 900px; text-align: center; }
+.guardian__coin { position: relative; display: block; width: 100%; max-width: 150px; aspect-ratio: 1; margin: 0 auto; transform-style: preserve-3d;
+  transition: transform .9s cubic-bezier(.34, 1.4, .64, 1); }
+.guardian__face { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; align-content: center; gap: 4px; backface-visibility: hidden;
+  background: radial-gradient(circle at 35% 30%, rgb(255 255 255 / .06), transparent 60%), var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-2), inset 0 0 0 7px var(--surface), inset 0 0 0 8px var(--line), 0 14px 30px -14px rgb(0 0 0 / .6); }
+.guardian__face b { font: 400 clamp(26px, 3.2vw, 40px)/1 var(--display); letter-spacing: .04em; color: var(--muted); }
+.guardian__face small { font: 500 11px var(--mono); letter-spacing: .06em; color: var(--faint); }
+.guardian__back { transform: rotateY(180deg); padding: 18%; }
+.guardian__back span { font: italic 13px/1.35 var(--serif, var(--display)); color: var(--text-2); }
+.guardian.is-out .guardian__face { background: radial-gradient(circle at 34% 28%, rgb(255 255 255 / .5), transparent 42%), var(--metal, var(--gold-grad));
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .35), inset 0 0 0 7px rgb(0 0 0 / .08), inset 0 0 0 8px rgb(255 255 255 / .25), 0 18px 40px -14px rgb(var(--gold-rgb) / .75); }
+.guardian.is-out .guardian__face b, .guardian.is-out .guardian__face small, .guardian.is-out .guardian__back span { color: #20170a; }
+.guardian__name { display: block; margin-top: 14px; font: 400 21px/1.1 var(--display); color: var(--text); }
+.guardian__tag { display: inline-block; margin-top: 7px; padding: 3px 9px; border-radius: 99px; font: 600 10.5px var(--sans); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--faint); box-shadow: inset 0 0 0 1px var(--line-2); }
+.guardian.is-out .guardian__tag { color: var(--on-gold); background: var(--gold-grad); box-shadow: none; }
+.guardian.is-current .guardian__name::after { content: ' \00b7  yours'; font: 500 12px var(--sans); color: var(--gold-300); }
+@media (hover: hover) and (pointer: fine) {
+  .guardian:hover .guardian__coin, .guardian:focus-within .guardian__coin { transform: rotateY(180deg); }
+}
+.guardian:focus-visible .guardian__coin { transform: rotateY(180deg); }
+@media (prefers-reduced-motion: reduce) { .guardian__coin { transition: none; } }
+
+/* ----------------------------------------------------- masks in 3D */
+/* mask3d.js lays a live 3D model over each mask's picture, a little larger than it so the mask can turn without
+   being cut off; the picture steps aside once the model is drawn, and stays without WebGL. */
+.m3 { display: block; position: relative; }
+.m3--fit { width: fit-content; margin-inline: auto; }
+.m3 > img { display: block; }
+.mask3d__canvas { position: absolute; left: 50%; top: 50%; width: var(--m3w, 124%) !important; height: var(--m3h, 124%) !important; translate: -50% -50%;
+  pointer-events: none; opacity: 0; transition: opacity .9s cubic-bezier(.16, 1, .3, 1); }
+.mask3d--ready > .mask3d__canvas { opacity: 1; }
+.mask3d--ready > img { opacity: 0 !important; transition: opacity .6s ease; }
+/* The plates and the colour reading hold several pictures; the model takes the whole frame. */
+.plate__art.mask3d { --m3w: 96%; --m3h: 96%; }
+.plate__art > .mask3d__canvas { z-index: 1; filter: drop-shadow(0 40px 34px rgb(0 0 0 / .6)); }
+.manifesto__mask.mask3d { --m3w: 140%; --m3h: 140%; }
+.lockart__core .m3 { width: 80%; }
+.lockart__core .m3 > img { width: 100%; height: auto; }
+
+/* ---------------------------------------------------- stars, black holes */
+/* cosmos.js: distant stars behind the page (dark theme), and the threat plates' black hole. */
+.cosmos { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; }
+.bh-back, .bh-front { position: absolute; left: 50%; top: 50%; width: 130%; height: 130%; translate: -50% -50%; pointer-events: none; }
+.bh-back { z-index: 0; }
+.bh-front { z-index: 2; }
+.bh-scope { position: absolute; inset: 4%; width: 92%; height: 92%; z-index: 3; overflow: visible; pointer-events: none; }
+.bh-gem { fill: var(--bh); stroke: #fff6df; stroke-width: 1; opacity: 0; transform-box: fill-box; transform-origin: center;
+  filter: drop-shadow(0 0 6px var(--bh)) drop-shadow(0 0 16px var(--bh)); }
+.bh-beam { stroke: var(--bh); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 4px var(--bh)) drop-shadow(0 0 12px var(--bh)); }
+.bh-flash { fill: #fff6df; opacity: 0; transform-box: fill-box; transform-origin: center; filter: drop-shadow(0 0 24px var(--bh)) drop-shadow(0 0 48px var(--bh)); }
+/* While the hole is open the plate's own glow gives way to it. */
+.plate.is-singular .plate__glow { opacity: .25; transition: opacity .4s; }

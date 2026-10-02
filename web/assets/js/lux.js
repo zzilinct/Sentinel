@@ -67,7 +67,7 @@
         .add(word.children, { translateY: ['100%', '0%'], clipPath: ['inset(0% 0% 100% 0%)', 'inset(0% 0% 0% 0%)'], duration: 1400, delay: stagger(60) }, 0)
         .add($('[data-hero-mask]'), { translateY: [-150, 0], rotate: [-28, 0], scale: [.82, 1], duration: 1900, ease: 'outElastic(1, .78)' }, 380)
         // The mask is lit up out of the dark rather than faded in (on the inner wrapper: the holder keeps its shadow).
-        .add($('[data-hero-mask] .gaze'), { filter: ['brightness(0)', 'brightness(1)'], duration: 1500, ease: 'outQuad' }, 380);
+        .add($('[data-hero-mask] .m3'), { filter: ['brightness(0)', 'brightness(1)'], duration: 1500, ease: 'outQuad' }, 380);
       draw($$('[data-sketch] :not(text)'), { duration: 2000, delay: stagger(70, { start: 300 }) });
       animate($$('[data-sketch] text'), { clipPath: ['inset(0% 100% 0% 0%)', 'inset(0% 0% 0% 0%)'], duration: 1100, ease: 'inOutQuad', delay: stagger(140, { start: 1500 }) });
       draw($$('.vframe path, .vframe circle', hero), { duration: 1500, delay: stagger(25) });

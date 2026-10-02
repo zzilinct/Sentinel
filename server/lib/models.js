@@ -5,7 +5,7 @@
  *   1.x.y Argus   2.x.y Cerberus   3.x.y Talos   4.x.y Heimdall   5.x.y Lokapalas
  *
  * The list comes from the GitHub Releases the release workflow publishes (one installer per version). The three
- * newest models are for paid plans, with their own allowances (plans.js). Models are an app idea: the rules only
+ * newest models come with slightly smaller allowances on Pro (plans.js), and the five newest are for paid plans only. Models are an app idea: the rules only
  * apply where this server runs inside the Sentinel app (SENTINEL_DEVICE_ACCOUNTS), or where SENTINEL_MODELS=1 says
  * so (tests). A browser on the hosted site always gets the hosted engine.
  */
@@ -18,7 +18,8 @@ const REPO = 'zzilinct/Sentinel';
 // Versions before this one update themselves to the newest release whatever was chosen (their code predates the
 // choice), so a model older than this cannot be kept.
 const KEEPS_CHOICE_SINCE = '1.9.2';
-const NEWEST_PAID = 3;
+const NEWEST_LIMITED = 3;   // the newest three: Pro has slightly smaller allowances on them (plans.js)
+const NEWEST_PAID = 5;      // the newest five: not on the free plan
 const REFRESH_MS = 6 * 60 * 60 * 1000;
 
 const parse = (v) => /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(v || '').trim());
@@ -84,11 +85,13 @@ function versions() {
   return [...known.values()].sort((a, b) => cmp(b.version, a.version));
 }
 
-const newest = () => versions().slice(0, NEWEST_PAID).map((r) => r.version);
+const newest = () => versions().slice(0, NEWEST_LIMITED).map((r) => r.version);
 const isNewest = (v = OWN) => newest().includes(v);
+const paidOnly = () => versions().slice(0, NEWEST_PAID).map((r) => r.version);
+const isPaidOnly = (v = OWN) => paidOnly().includes(v);
 const keepsChoice = (v) => cmp(v, KEEPS_CHOICE_SINCE) >= 0;
 
-/** The newest model the free plan may use, or null if none is older than the paid three. */
+/** The newest model the free plan may use, or null if none is older than the paid five. */
 function newestFree() {
   const older = versions().slice(NEWEST_PAID);
   return older.length ? older[0].version : null;
@@ -99,14 +102,15 @@ function newestFree() {
  * chosen: before that, sending free accounts to an older model would only see it update itself back here.
  */
 function freeLocked() {
-  if (!enabled() || !isNewest()) return false;
+  if (!enabled() || !isPaidOnly()) return false;
   const free = newestFree();
   return Boolean(free && keepsChoice(free));
 }
 
 /** The model picker's data: models by category, each marked for this account's plan. */
 function catalogue(planId) {
-  const paid = new Set(newest());
+  const limited = new Set(newest());
+  const paid = new Set(paidOnly());
   const groups = new Map();
   for (const r of versions()) {
     const name = nameFor(r.version);
@@ -116,7 +120,8 @@ function catalogue(planId) {
       label: label(r.version),
       date: r.date,
       current: r.version === OWN,
-      newest: paid.has(r.version),
+      newest: limited.has(r.version),
+      paidOnly: paid.has(r.version),
       installable: Boolean(r.installer && r.manifest),
       keepsChoice: keepsChoice(r.version),
       available: !(planId === 'free' && paid.has(r.version) && freeLockApplies())
@@ -124,7 +129,8 @@ function catalogue(planId) {
   }
   return {
     enabled: enabled(),
-    current: { version: OWN, label: label(OWN), name: nameFor(OWN), newest: isNewest() },
+    current: { version: OWN, label: label(OWN), name: nameFor(OWN), newest: isNewest(), paidOnly: isPaidOnly() },
+    planned: Object.entries(NAMES).map(([major, name]) => ({ major: Number(major), name, released: versions().some((r) => Number(parse(r.version)[1]) === Number(major)) })),
     newestFree: newestFree(),
     categories: [...groups.values()].sort((a, b) => b.major - a.major)
   };
@@ -135,5 +141,5 @@ function freeLockApplies() { const free = newestFree(); return Boolean(enabled()
 /** A published release, for the app's installer (desktop/src/models.js checks it again against GitHub itself). */
 const release = (v) => versions().find((r) => r.version === v) || null;
 
-module.exports = { NAMES, nameFor, label, enabled, versions, newest, isNewest, newestFree, freeLocked, catalogue, release, refresh, own: () => OWN,
+module.exports = { NAMES, nameFor, label, enabled, versions, newest, isNewest, paidOnly, isPaidOnly, newestFree, freeLocked, catalogue, release, refresh, own: () => OWN,
   _test: { cmp, set: (list) => { releases = list; fetchedAt = Date.now(); } } };

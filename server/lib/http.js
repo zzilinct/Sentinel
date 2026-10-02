@@ -25,6 +25,7 @@ const MIME = {
   '.appimage': 'application/octet-stream',
   '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8',
+  '.glb': 'model/gltf-binary',
   '.xml': 'application/xml; charset=utf-8',
   '.webmanifest': 'application/manifest+json'
 };
@@ -144,7 +145,7 @@ function sendJson(res, status, obj, headers = {}) {
 
 /* ------------------------------------------------------------ static files */
 
-const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.json', '.svg', '.txt', '.webmanifest']);
+const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.json', '.svg', '.txt', '.webmanifest', '.glb']);
 const compressedCache = new Map();
 const htmlCache = new Map();
 

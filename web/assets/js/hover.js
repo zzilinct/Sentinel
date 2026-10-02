@@ -1,8 +1,7 @@
 /*
  * Hover, as one idea: the pointer is a lamp, and the masks are watching it.
  *
- *   Gaze     every mask turns to look at the pointer while it is near, looks away when it leaves, and after a while
- *            faces forward again. The hero mask's eyes light up while it watches.        [data-gaze="range in px"]
+ *   (The masks watch the pointer in 3D: mask3d.js.)
  *   Lamp     raised surfaces are lit by the pointer: their shadow falls away from it and the edge facing it catches
  *            the light, so a card is never lifted or enlarged, only lit differently.
  *   Gold     gold buttons carry a specular highlight under the pointer, like polished metal.
@@ -36,59 +35,9 @@
   const wake = () => { if (!frame) frame = requestAnimationFrame(tick); };
 
   addEventListener('pointermove', (e) => { px = e.clientX; py = e.clientY; target = e.target; present = true; wake(); }, { passive: true });
-  // The pointer left the window: every mask is free to look away.
   document.addEventListener('mouseout', (e) => { if (!e.relatedTarget) { present = false; wake(); } });
   addEventListener('blur', () => { present = false; wake(); });
   addEventListener('scroll', () => { target = null; wake(); }, { passive: true });
-
-  /* --------------------------------------------------------------- gaze */
-
-  const gazers = [];
-  const seen = new IntersectionObserver((entries) => {
-    for (const e of entries) { const g = gazers.find((x) => x.el === e.target); if (g) g.visible = e.isIntersecting; }
-    wake();
-  });
-  function watch(el) {
-    if (gazers.some((g) => g.el === el)) return;
-    const g = { el, range: Number(el.dataset.gaze) || 420, max: Number(el.dataset.gazeMax) || 1, cur: { x: 0, y: 0, g: 0 }, tgt: { x: 0, y: 0, g: 0 }, mode: 'rest', until: 0, visible: true };
-    gazers.push(g);
-    seen.observe(el);
-  }
-  $$('[data-gaze]').forEach(watch);
-
-  function gaze(g, t) {
-    const r = g.el.getBoundingClientRect();
-    const dx = px - (r.left + r.width / 2);
-    const dy = py - (r.top + r.height / 2);
-    const near = present && Math.hypot(dx, dy) < g.range;
-    if (near) {
-      // Watching: turned toward the pointer, the eyes lit, brightest when it first notices.
-      if (g.mode !== 'watch') g.cur.g = Math.max(g.cur.g, 0.6);
-      g.mode = 'watch';
-      g.tgt = { x: clamp(dx / (g.range * 0.62)), y: clamp(dy / (g.range * 0.62)), g: 1 };
-    } else if (g.mode === 'watch') {
-      // Out of range: it looks away, to the other side and a little down, then faces forward again.
-      g.mode = 'away';
-      g.until = t + 1800;
-      g.tgt = { x: -(Math.sign(dx) || 1) * 0.85, y: 0.32, g: 0 };
-    } else if (g.mode === 'away' && t > g.until) {
-      g.mode = 'rest';
-      g.tgt = { x: 0, y: 0, g: 0 };
-    }
-    const k = g.mode === 'watch' ? 0.085 : g.mode === 'away' ? 0.045 : 0.028;
-    let moving = g.mode === 'away';
-    for (const key of ['x', 'y', 'g']) {
-      const d = g.tgt[key] - g.cur[key];
-      if (Math.abs(d) > 0.0015) { g.cur[key] += d * k; moving = true; } else g.cur[key] = g.tgt[key];
-    }
-    const ry = g.cur.x * 26 * g.max;
-    const rx = -g.cur.y * 18 * g.max;
-    g.el.style.transform = `perspective(1100px) translate3d(${(g.cur.x * 12 * g.max).toFixed(2)}px, ${(g.cur.y * 8 * g.max).toFixed(2)}px, 0) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
-    g.el.style.setProperty('--gaze', g.cur.g.toFixed(3));
-    g.el.style.setProperty('--gx', g.cur.x.toFixed(3));
-    g.el.style.setProperty('--gy', g.cur.y.toFixed(3));
-    return moving;
-  }
 
   /* ------------------------------------------------------ lamp and gold */
 
@@ -129,8 +78,6 @@
   let last = 0;
   function tick(t) {
     frame = 0;
-    let again = false;
-    for (const g of gazers) if (g.visible && gaze(g, t)) again = true;
 
     if (present && !target) target = document.elementFromPoint(px, py);
     const under = present && target && target.closest ? target : null;
@@ -144,7 +91,7 @@
       sheened.style.setProperty('--sheen', `${(Math.atan2(y, x) * 180 / Math.PI + 90).toFixed(1)}deg`);
     }
     if (t - last > 30) { wordLight(); last = t; }
-    if (again) wake();
+
   }
 
   /* ----------------------------------------------------------------- ink */
@@ -191,8 +138,4 @@
     if (host && !host.contains(e.relatedTarget)) host.classList.remove('is-traced');
   });
 
-  /* ----------------------------------------------- masks added later on */
-
-  // The app draws its pages as you move between them; masks that arrive later are watched too.
-  new MutationObserver(() => $$('[data-gaze]').forEach(watch)).observe(document.body, { childList: true, subtree: true });
 })();

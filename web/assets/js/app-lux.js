@@ -159,7 +159,9 @@
   function addMask() {
     const head = view.querySelector('.page-title');
     if (!head || head.querySelector('.lux-mask')) return;
-    head.insertAdjacentHTML('beforeend', '<div class="lux-mask" aria-hidden="true"><img src="/assets/img/masks/onyx.webp" width="788" height="896" alt=""></div>');
+    // In 3D when it can be (cosmos.js fetches the models): it turns to watch the pointer as it comes near.
+    head.insertAdjacentHTML('beforeend', '<div class="lux-mask" aria-hidden="true"><span class="m3" data-mask3d="onyx" data-pose="lay" data-look="380"><img src="/assets/img/masks/onyx.webp" width="788" height="896" alt=""></span></div>');
+    if (window.SentinelLoadMask3D) window.SentinelLoadMask3D();
   }
 
   /* ---------------------------------------------- numbers that count */

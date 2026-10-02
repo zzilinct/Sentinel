@@ -11,18 +11,6 @@
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --metal-stops: #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%; } }
 :root[data-theme="light"] { --metal-stops: #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%; }
 
-/* ------------------------------------------------------------- the gaze */
-
-/* A mask that watches the pointer (hover.js turns it); the wrapper keeps the mask's own float and entrance free. */
-.gaze { display: block; position: relative; transform-origin: 50% 45%; will-change: transform; }
-.gaze--block { width: fit-content; margin-inline: auto; }
-.gaze > img { display: block; }
-/* The hero mask's eyes: a gold light in each slot while it watches, drifting a little toward the pointer. */
-.gaze__eye { position: absolute; left: var(--ex); top: var(--ey); width: var(--ew); height: var(--eh); translate: calc(-50% + var(--gx, 0) * 7px) calc(-50% + var(--gy, 0) * 5px);
-  border-radius: 50%; pointer-events: none; mix-blend-mode: screen; opacity: var(--gaze, 0);
-  background: radial-gradient(closest-side, rgb(255 236 190 / .95), rgb(240 180 90 / .55) 45%, rgb(210 140 60 / 0) 100%); filter: blur(3px); }
-.gaze__eye::after { content: ''; position: absolute; inset: 30% 38%; border-radius: 50%; background: #fff6df; filter: blur(1px); }
-
 /* --------------------------------------------------------------- the lamp */
 
 /* A raised surface lit by the pointer: the highlight comes from the pointer's side, the shadow falls away from it.

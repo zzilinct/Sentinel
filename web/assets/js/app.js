@@ -42,6 +42,7 @@
 
     $$('[data-glyph]').forEach((el) => { el.innerHTML = Masks.svg(el.dataset.glyph); });
     paintAccount();
+    paintModelBadge();
     // The first screen depends on what the desktop says (is live scanning on?), so ask before drawing it.
     // Pairing itself can finish afterwards.
     if (desktop) { try { state.desktopInfo = await desktop.info(); } catch { /* bridge optional */ } }
@@ -465,6 +466,33 @@
   /** A placeholder that mountModels() fills in. `compact` is the scan tabs' one-line bar. */
   const modelSlot = (compact) => `<div class="models${compact ? ' models--bar' : ''}" data-models><div class="skeleton models__skeleton"></div></div>`;
 
+  // The five guardians (the same medallions as the site's download page). `name` is the model running here.
+  const GUARDIANS = [
+    ['I', 'Argus', '1.x', 'The hundred-eyed watchman, who never closed every eye at once.'],
+    ['II', 'Cerberus', '2.x', 'The three-headed hound who keeps the gate.'],
+    ['III', 'Talos', '3.x', 'The bronze giant who walked the shore three times a day.'],
+    ['IV', 'Heimdall', '4.x', 'The watchman of the bridge, who hears grass grow.'],
+    ['V', 'Lokapalas', '5.x', 'The guardians of the four directions of the world.']
+  ];
+  function guardiansHTML(released = ['Argus'], name = 'Argus') {
+    return `<ol class="guardians">${GUARDIANS.map(([n, g, v, myth]) => {
+      const out = released.includes(g);
+      return `<li class="guardian${out ? ' is-out' : ''}${g === name ? ' is-current' : ''}" tabindex="0"><span class="guardian__coin"><span class="guardian__face"><b>${n}</b><small>${v}</small></span><span class="guardian__face guardian__back"><span>${esc(myth)}</span></span></span><span class="guardian__name">${g}</span><span class="guardian__tag">${out ? 'Out now' : 'Planned'}</span></li>`;
+    }).join('')}</ol>`;
+  }
+
+  // The model running here, beneath the logo: a quiet reminder, and the way to the picker.
+  async function paintModelBadge() {
+    const badge = $('[data-model-badge]');
+    if (!badge) return;
+    try {
+      const cat = (state.models && state.models.cat) || await api('/models');
+      state.models = state.models || { cat, at: Date.now() };
+      badge.innerHTML = `<span class="model-badge__dot" aria-hidden="true"></span>${esc(cat.current.label)}`;
+      badge.hidden = false;
+    } catch { /* the badge is optional */ }
+  }
+
   async function mountModels(root) {
     const slot = $('[data-models]', root);
     if (!slot) return;
@@ -867,6 +895,7 @@
     el.innerHTML = `
       ${title('Email scan', 'Paste what you see in your inbox. Every link and the sender’s domain go through the full link pipeline too.',
         '<div class="segmented" role="tablist"><button role="tab" data-emode="fields" aria-selected="true">Fill in</button><button role="tab" data-emode="paste" aria-selected="false">Paste whole email</button><button role="tab" data-emode="shot" aria-selected="false">Screenshot</button></div>')}
+      ${modelSlot(true)}
       <div class="panel" data-shot hidden>
         <label class="drop" data-shot-drop>
           <input type="file" accept="image/png,image/jpeg" data-shot-file aria-label="Choose a screenshot of the email">
@@ -896,6 +925,7 @@
       </form>
       <div data-out></div>`;
 
+    mountModels(el);
     const form = $('[data-form]', el);
     const out = $('[data-out]', el);
     const pasteBox = $('[data-paste]', el);
@@ -1470,12 +1500,12 @@
     const us = usage();
     const demo = state.config.billingMode === 'demo';
     const lines = {
-      free: ['10 link scans a week', '5 virus & malware scans a week', 'Known threats + full checklist', 'Scam mask on link scans', 'Argus models before the newest three'],
+      free: ['10 link scans a week', '5 virus & malware scans a week', 'Known threats + full checklist', 'Scam mask on link scans', 'Models older than the newest five'],
       pro: ['24 hours of fast live scanning a week', '4 hours of delicate live scanning a week', '40 researched link scans', '40 virus & malware scans', 'All three masks', 'Email & download protection',
         'Newest three models: 18 h fast, 3 h delicate, 30 scam and 30 virus & malware link scans'],
       max: ['Unlimited fast live scanning', '24 hours of delicate live scanning a week', '100 researched link scans', '100 virus & malware scans', 'Paste-in email scans',
-        'Newest three models: unlimited fast, 18 h delicate, 90 scam and 90 virus & malware link scans'],
-      ultimate: ['Unlimited fast live scanning', '96 hours of delicate live scanning a week', '500 researched link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max', 'The same on every model']
+        'Every model, in full'],
+      ultimate: ['Unlimited fast live scanning', '96 hours of delicate live scanning a week', '500 researched link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max', 'Every model, in full']
     };
     el.innerHTML = `
       ${title('Plan &amp; usage', `You’re on <b>${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
@@ -1485,6 +1515,8 @@
         ${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}
         ${liveCard(us, plan().features)}
       </div>
+      <div class="u-mt-lg">${modelSlot(false)}</div>
+      <div class="panel u-mt"><h2>The models</h2><p class="muted u-mt-xs">Every major version of Sentinel is a model, named for a guardian from myth. Turn one over to read about it.</p><div class="u-mt">${guardiansHTML()}</div></div>
       <div class="plans u-mt-lg">${state.plans.map((p) => `
         <article class="plan${p.id === 'pro' ? ' plan--featured' : ''}${p.id === current ? ' is-current' : ''}">
           ${p.id === current ? '<span class="plan__badge">Current</span>' : ''}
@@ -1495,6 +1527,7 @@
         </article>`).join('')}
       </div>`;
 
+    mountModels(el);
     $$('[data-plan]', el).forEach((b) => b.addEventListener('click', () => busy(b, 'Updating', async () => {
       try {
         const data = await api('/billing/plan', { method: 'POST', body: { plan: b.dataset.plan } });

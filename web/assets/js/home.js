@@ -219,7 +219,9 @@
     const buttons = $$('[data-sev]', card);
     const slot = $('[data-example]', card);
 
-    const choose = async (b, focus) => {
+    // how: 'user' (a click or a key) or 'auto' (the card walking its own stages).
+    let shown = (buttons.find((x) => x.getAttribute('aria-pressed') === 'true') || buttons[0]).dataset.sev;
+    const choose = async (b, focus, how) => {
       buttons.forEach((x) => {
         x.setAttribute('aria-pressed', String(x === b));
         x.tabIndex = x === b ? 0 : -1;
@@ -227,8 +229,16 @@
       if (focus) b.focus();
       const sev = b.dataset.sev;
       card.style.setProperty('--c', COLOR[sev]);
-      // The mask itself takes the colour: each card carries a render in every severity colour.
+      // The mask itself takes the colour: each card carries a render in every severity colour, and in 3D the model
+      // changes. A choice the reader makes, and the stages wrapping round from confirmed back to suspicious, open a
+      // black hole that takes the old mask and gives back the new one (cosmos.js); the steps up glow and shift.
       $$('[data-tint]', card).forEach((img) => img.classList.toggle('is-on', img.dataset.tint === sev));
+      const before = shown;
+      shown = sev;
+      if (window.SentinelBlackHole && sev !== before) {
+        if (how === 'user' || (before === 'red' && sev === 'yellow')) window.SentinelBlackHole.play(card, sev);
+        else window.SentinelBlackHole.pulse(card, sev);
+      }
 
       const d = await examples;
       const ex = d && d.masks[threat] && d.masks[threat][sev];
@@ -272,9 +282,11 @@
       cycle.textContent = 'Pause stages';
       cycle.setAttribute('aria-label', `Pause ${name} severity stages`);
       timer = setInterval(() => {
+        // Never in the middle of a black hole.
+        if (card.classList.contains('is-singular')) return;
         const at = buttons.findIndex((b) => b.getAttribute('aria-pressed') === 'true');
-        choose(buttons[(at + 1) % buttons.length]);
-      }, 3200);
+        choose(buttons[(at + 1) % buttons.length], false, 'auto');
+      }, 4400);
     };
     cycle.addEventListener('click', () => (timer ? stop(true) : start()));
     // Beside the severity buttons, in the plate's panel when the card has one.
@@ -283,12 +295,12 @@
 
     buttons.forEach((b, i) => {
       b.tabIndex = b.getAttribute('aria-pressed') === 'true' ? 0 : -1;
-      b.addEventListener('click', () => { stop(true); choose(b); });
+      b.addEventListener('click', () => { stop(true); choose(b, false, 'user'); });
       b.addEventListener('keydown', (ev) => {
         if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
         ev.preventDefault();
         stop(true);
-        choose(buttons[(i + (ev.key === 'ArrowRight' ? 1 : buttons.length - 1)) % buttons.length], true);
+        choose(buttons[(i + (ev.key === 'ArrowRight' ? 1 : buttons.length - 1)) % buttons.length], true, 'user');
       });
     });
 
@@ -544,6 +556,11 @@
       const p = Math.min(0.999, Math.max(0, -r.top / Math.max(1, r.height - innerHeight)));
       const at = Math.floor(p * lines.length);
       lines.forEach((line, i) => line.classList.toggle('is-on', i === at));
+      // The 3D mask (cosmos.js, mask3d.js) turns the colour of the line being read, smoothly, as it watches you.
+      if (manifesto.dataset.on !== String(at)) {
+        const m3 = window.SentinelMask3D && window.SentinelMask3D.get($('.manifesto__mask', manifesto));
+        if (m3) m3.blend(['yellow', 'orange', 'red'][at], 700);
+      }
       manifesto.dataset.on = String(at);
     };
     addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(pick); } }, { passive: true });
