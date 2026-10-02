@@ -258,6 +258,9 @@ async function main() {
         await move(r.x + r.w * fx, r.y + r.h * fy, 8);
         await sleep(name === 'footer-link' ? 220 : 900);
         await shoot(name, pad(r, 40));
+        // Which hover state took, so a photograph that shows nothing can be explained.
+        const { result: why } = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const el = document.querySelector(${JSON.stringify(sel)}); const u = document.elementFromPoint(${Math.round(r.x + r.w * fx)}, ${Math.round(r.y + r.h * fy)}); return [el.className, (u && (u.className.baseVal ?? u.className)) || '', getComputedStyle(el).backgroundImage.slice(0, 90), document.documentElement.className].join(' | '); })()` }, sessionId);
+        console.log(`hover-${name}: ${why.value}`);
         if (name === 'footer-link') { await sleep(700); await shoot(`${name}-filled`, pad(r, 40)); }
       }
       // The model picker on the link scan tab, open on its category and then on Argus's versions.
