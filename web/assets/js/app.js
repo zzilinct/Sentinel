@@ -444,7 +444,135 @@
     </div>`;
   }
 
+  /* ------------------------------------------------------------ models */
+
+  // Sentinel's models: every released version, by category (1.x Argus, 2.x Cerberus, ...; server/lib/models.js).
+  // A bar with the current model, a picker (category first, then every version in it) and an update check. In the
+  // app, choosing a model installs that release; in a browser, the list is shown and the switch happens in the app.
+  const MODEL_UPDATE_TEXT = {
+    checking: 'Checking for updates…',
+    downloading: (u) => `Downloading ${u.version || 'an update'}${u.progress ? ` (${u.progress}%)` : ''}…`,
+    switching: (u) => `Downloading ${u.version}${u.progress ? ` (${u.progress}%)` : ''}. Sentinel restarts into it.`,
+    ready: (u) => `Version ${u.version} is ready. It installs when Sentinel quits.`,
+    pinned: (u) => `${u.version ? `Version ${u.version} is out. ` : ''}You chose this model, so it is kept until you pick the newest.`,
+    current: 'Up to date.',
+    error: 'Could not check for updates. Sentinel tries again by itself later.',
+    dev: 'Updates are off in a development run.',
+    unavailable: 'This build cannot update itself.'
+  };
+  const updateText = (u) => { const t = MODEL_UPDATE_TEXT[u && u.status]; return typeof t === 'function' ? t(u) : t || 'Updates install themselves.'; };
+
+  /** A placeholder that mountModels() fills in. `compact` is the scan tabs' one-line bar. */
+  const modelSlot = (compact) => `<div class="models${compact ? ' models--bar' : ''}" data-models><div class="skeleton models__skeleton"></div></div>`;
+
+  async function mountModels(root) {
+    const slot = $('[data-models]', root);
+    if (!slot) return;
+    let cat;
+    // Kept for a minute: the protection page redraws on every update event.
+    const cached = state.models && Date.now() - state.models.at < 60000 ? state.models.cat : null;
+    try { cat = cached || await api('/models'); } catch { slot.innerHTML = '<p class="muted">The list of models is unavailable right now.</p>'; return; }
+    state.models = { cat, at: cached ? state.models.at : Date.now() };
+    if (!slot.isConnected) return;
+    let up = (state.desktopInfo && state.desktopInfo.update) || null;
+    const all = cat.categories.flatMap((c) => c.versions);
+    const newest = all[0];
+    const render = () => {
+      const canUpdate = Boolean(desktop && up && up.supported);
+      slot.innerHTML = `
+        <div class="models__row">
+          <span class="models__seal" aria-hidden="true">${Masks.svg('scam')}</span>
+          <div class="models__now"><span class="models__k">Model</span><b>${esc(cat.current.label)}</b>
+            <small data-model-status>${desktop ? esc(updateText(up)) : newest && newest.version !== cat.current.version ? `${esc(newest.label)} is the newest.` : 'The newest model.'}</small></div>
+          <button class="btn btn--sm models__pick" type="button" data-model-open aria-expanded="false" aria-haspopup="true">${esc(cat.current.name || 'Models')} <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+          ${up && up.status === 'ready' ? '<button class="btn btn--sm btn--gold" type="button" data-model-install-update>Restart now</button>'
+            : `<button class="btn btn--sm" type="button" data-model-check ${desktop && !canUpdate ? 'disabled' : ''}>Check for updates</button>`}
+        </div>
+        <div class="models__menu" data-model-menu hidden></div>`;
+      wire();
+    };
+    const menuCategories = (menu) => {
+      menu.innerHTML = `<p class="models__h">Choose a model</p><ul class="models__list">${cat.categories.map((c) => `
+        <li><button type="button" class="models__opt" data-model-cat="${esc(c.name)}"><b>${esc(c.name)}</b><span>${c.major}.x &middot; ${c.versions.length} version${c.versions.length === 1 ? '' : 's'}</span><i aria-hidden="true">&rsaquo;</i></button></li>`).join('')}</ul>`;
+      $$('[data-model-cat]', menu).forEach((b) => b.addEventListener('click', () => menuVersions(menu, cat.categories.find((c) => c.name === b.dataset.modelCat))));
+      $('button', menu)?.focus();
+    };
+    const menuVersions = (menu, c) => {
+      menu.innerHTML = `<button type="button" class="models__back" data-model-back>&lsaquo; ${esc(c.name)}</button>
+        <ul class="models__list models__list--versions">${c.versions.map((v) => {
+          const tags = [v.current ? 'Running' : '', v.newest ? 'Newest three' : '', !v.available ? 'Pro &amp; up' : '', !v.installable && !v.current ? 'No installer' : ''].filter(Boolean);
+          return `<li><button type="button" class="models__opt${v.current ? ' is-current' : ''}" data-model-v="${esc(v.version)}" ${v.current || !v.available || !v.installable ? 'disabled' : ''}>
+            <b>${esc(v.label)}</b><span>${v.date ? new Date(v.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'This copy'}${tags.length ? ` &middot; ${tags.join(' &middot; ')}` : ''}</span></button></li>`;
+        }).join('')}</ul>`;
+      $('[data-model-back]', menu).addEventListener('click', () => menuCategories(menu));
+      $$('[data-model-v]', menu).forEach((b) => b.addEventListener('click', () => confirmSwitch(menu, all.find((v) => v.version === b.dataset.modelV))));
+      $('[data-model-v]:not([disabled])', menu)?.focus();
+    };
+    const confirmSwitch = (menu, v) => {
+      const isNewest = v === newest;
+      menu.innerHTML = `<p class="models__h">Switch to ${esc(v.label)}?</p>
+        <p class="models__note">${desktop
+          ? `Sentinel downloads it from GitHub, checks it against its published checksum, and restarts into it.${isNewest ? ' Updates install themselves again.'
+            : v.keepsChoice ? ' It is kept until you pick the newest model again.' : ' This model was made before models could be chosen, so it updates itself back to the newest the next time Sentinel restarts.'}`
+          : 'Models are switched in the Sentinel app for Windows, which runs the model you choose on your own computer.'}</p>
+        <div class="btn-row">${desktop ? '<button class="btn btn--gold btn--sm" type="button" data-model-go>Switch</button>' : '<a class="btn btn--gold btn--sm" href="/download">Get the app</a>'}
+          <button class="btn btn--sm" type="button" data-model-cancel>Back</button></div>`;
+      $('[data-model-cancel]', menu).addEventListener('click', () => menuVersions(menu, cat.categories.find((c) => c.versions.includes(v))));
+      const go = $('[data-model-go]', menu);
+      if (go) go.addEventListener('click', () => busy(go, 'Downloading', async () => {
+        try {
+          const r = await desktop.installModel(v.version);
+          if (!r || !r.ok) toast((r && r.error) || 'The model could not be installed.', 'error');
+        } catch (err) { toast(desktopError(err), 'error'); }
+      }));
+      (go || $('a', menu)).focus();
+    };
+    const wire = () => {
+      const open = $('[data-model-open]', slot);
+      const menu = $('[data-model-menu]', slot);
+      const close = () => { menu.hidden = true; open.setAttribute('aria-expanded', 'false'); document.removeEventListener('pointerdown', outside, true); };
+      const outside = (e) => { if (!slot.contains(e.target)) close(); };
+      open.addEventListener('click', () => {
+        if (!menu.hidden) { close(); return; }
+        menu.hidden = false;
+        open.setAttribute('aria-expanded', 'true');
+        // With one category (Argus, today), the list of its versions is one click away: the category comes first.
+        menuCategories(menu);
+        document.addEventListener('pointerdown', outside, true);
+      });
+      menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); open.focus(); } });
+      const check = $('[data-model-check]', slot);
+      if (check) check.addEventListener('click', () => busy(check, 'Checking', async () => {
+        if (!desktop) {
+          try { cat = await api('/models'); } catch { /* keep the list we have */ }
+          const n = cat.categories.flatMap((c) => c.versions)[0];
+          toast(n && n.version !== cat.current.version ? `${n.label} is the newest model. The Sentinel app updates itself to it.` : `${cat.current.label} is the newest model.`, 'info', 5000);
+          render();
+          return;
+        }
+        try { up = await desktop.checkUpdates(); } catch (err) { toast(desktopError(err), 'error'); return; }
+        toast(up.status === 'current' ? 'Sentinel is up to date.' : up.status === 'error' ? 'Could not check for updates. Try again later.' : up.status === 'pinned' ? `${up.version} is out. You are keeping the model you chose.` : 'Checking for a newer version…', up.status === 'error' ? 'error' : 'info');
+        render();
+      }));
+      const restart = $('[data-model-install-update]', slot);
+      if (restart) restart.addEventListener('click', () => desktop.installUpdate());
+    };
+    render();
+    if (desktop && desktop.onUpdate) {
+      const off = desktop.onUpdate((u) => {
+        if (!slot.isConnected) { off && off(); return; }
+        up = u;
+        const s = $('[data-model-status]', slot);
+        if (s) s.textContent = updateText(u);
+        if (u.status === 'ready' && !$('[data-model-install-update]', slot)) render();
+      });
+    }
+  }
+
   function friendlyError(err) {
+    if (err.code === 'model_requires_plan') {
+      return `<div class="banner"><div><b>${esc(err.message)}</b> Choose a model above, or <a href="/app/plan" class="u-gold">compare plans</a>.</div></div>`;
+    }
     if (err.code === 'weekly_limit_reached') {
       return `<div class="banner"><div><b>You’ve used this week’s scans.</b> Your ${esc(err.extra.plan)} plan resets ${until(err.extra.resetsAt)}. <a href="/app/plan" class="u-gold">See plans</a></div></div>`;
     }
@@ -547,6 +675,7 @@
       ${title('Link scan', f.research
         ? 'Known threats, the full checklist, comparison with known scams, and research, for scam, virus and malware.'
         : 'Known threats, the full checklist and comparison with known scams. Upgrade for research and virus & malware masks.')}
+      ${modelSlot(true)}
       <form class="scanbox" data-form>
         ${ICON.search}
         <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://" aria-label="Link to scan" required>
@@ -560,6 +689,7 @@
       </div>
       <div data-out></div>`;
 
+    mountModels(el);
     const form = $('[data-form]', el);
     const out = $('[data-out]', el);
     $$('[data-example]', el).forEach((b) => b.addEventListener('click', () => { form.url.value = b.dataset.example; form.requestSubmit(); }));
@@ -664,11 +794,13 @@
       ${localNote()}
       ${title('Virus &amp; malware scan', `Check a file or download link for viruses and malware. ${f.research ? 'Links are researched and downloaded files are inspected.' : 'Files are fully inspected; links get the checklist without research.'}`,
         `<div class="segmented" role="tablist"><button role="tab" data-mode="file" aria-selected="${mode === 'file'}">File</button><button role="tab" data-mode="url" aria-selected="${mode === 'url'}">Link</button></div>`)}
+      ${modelSlot(true)}
       <div data-input></div>
       <div class="scan-meta"><span data-left>${left('fileScans')} of ${usage().fileScans.limit} scans left this week</span><span>Files up to 25 MB &middot; nothing is stored</span></div>
       <div data-out></div>`;
 
     $$('[data-mode]', el).forEach((b) => b.addEventListener('click', () => navigate(`/app/threats?mode=${b.dataset.mode}`)));
+    mountModels(el);
     const input = $('[data-input]', el);
     const out = $('[data-out]', el);
     const updateLeft = () => { $('[data-left]', el).textContent = `${left('fileScans')} of ${usage().fileScans.limit} scans left this week`; };
@@ -1017,16 +1149,6 @@
     const browsers = (info.browsers && info.browsers.installed) || [];
     const running = new Set((info.browsers && info.browsers.running) || []);
     const up = info.update || { status: 'idle' };
-    const UPDATE_TEXT = {
-      checking: 'Checking for updates…',
-      downloading: `Downloading ${up.version || 'an update'}${up.progress ? ` (${up.progress}%)` : ''}…`,
-      ready: `Version ${up.version} is ready. It installs when Sentinel quits.`,
-      current: 'Sentinel is up to date.',
-      // The updater's own error text is technical; the log keeps it.
-      error: 'Could not check for updates. Sentinel tries again by itself later.',
-      dev: 'Updates are off in a development run.',
-      unavailable: 'This build cannot update itself.'
-    };
 
     (slot._off || []).forEach((off) => off());
     slot._off = [];
@@ -1077,9 +1199,10 @@
           <label class="setting"><div><b>Download protection</b><span>${esc(info.downloads.active ? `Watching ${info.downloads.folder || 'Downloads'}` : info.downloads.reason || 'Off')}</span></div><input class="switch" type="checkbox" data-dl ${info.downloads.active ? 'checked' : ''}></label>
           ${desktop.setClipboardCheck ? `<label class="setting"><div><b>Check links I copy</b><span>Copy a link from a text message, a chat or a PDF and Sentinel checks it, and warns you only if it is dangerous. Only copied web links are read; nothing else on your clipboard is sent or kept.</span></div><input class="switch" type="checkbox" data-clip ${info.clipboardCheck ? 'checked' : ''}></label>` : ''}
           <label class="setting"><div><b>Start with my computer</b><span>Keep protection running from the moment you sign in.</span></div><input class="switch" type="checkbox" data-login ${info.openAtLogin ? 'checked' : ''}></label>
-          <div class="setting"><div><b>Sentinel ${esc(info.version)}</b><span>${esc(UPDATE_TEXT[up.status] || 'Updates install themselves.')}</span></div>
+          <div class="setting"><div><b>Sentinel ${esc(info.version)}</b><span>${esc(updateText(up))}</span></div>
             ${up.status === 'ready' ? '<button class="btn btn--sm btn--gold" data-install-update>Restart now</button>'
               : up.supported ? '<button class="btn btn--sm" data-check-update>Check now</button>' : ''}</div>
+          ${modelSlot(false)}
         </div>
       </div>
 
@@ -1225,6 +1348,7 @@
     }));
     const install = $('[data-install-update]', slot);
     if (install) install.addEventListener('click', () => desktop.installUpdate());
+    mountModels(slot);
 
     $$('[data-quarantine]', slot).forEach((b) => b.addEventListener('click', async () => {
       try {
