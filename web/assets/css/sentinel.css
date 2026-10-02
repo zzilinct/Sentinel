@@ -975,14 +975,17 @@ html.intro-ink.intro-ink-go body > :not(.intro-cover) { filter: none; transition
 /* ---------------------------------------------------- stars, black holes */
 /* cosmos.js: distant stars behind the page (dark theme), and the threat plates' black hole. */
 .cosmos { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; }
-.bh-back, .bh-front { position: absolute; left: 50%; top: 50%; width: 130%; height: 130%; translate: -50% -50%; pointer-events: none; }
+.bh-back, .bh-front { position: absolute; left: 50%; top: 50%; width: 200%; height: 200%; translate: -50% -50%; pointer-events: none; }
 .bh-back { z-index: 0; }
 .bh-front { z-index: 2; }
 .bh-scope { position: absolute; inset: 4%; width: 92%; height: 92%; z-index: 3; overflow: visible; pointer-events: none; }
 .bh-gem { fill: var(--bh); stroke: #fff6df; stroke-width: 1; opacity: 0; transform-box: fill-box; transform-origin: center;
   filter: drop-shadow(0 0 6px var(--bh)) drop-shadow(0 0 16px var(--bh)); }
 .bh-beam { stroke: var(--bh); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 4px var(--bh)) drop-shadow(0 0 12px var(--bh)); }
-.bh-flash { fill: #fff6df; opacity: 0; transform-box: fill-box; transform-origin: center; filter: drop-shadow(0 0 24px var(--bh)) drop-shadow(0 0 48px var(--bh)); }
+  filter: drop-shadow(0 0 6px var(--bh)); }
+/* The ring joining the diamonds, lit from each to the next just before the hole opens. */
+.bh-arc { fill: none; stroke: var(--bh); stroke-width: 2.5; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 5px var(--bh)); }
+.bh-flash { fill: #fff6df; opacity: 0; transform-box: fill-box; transform-origin: center; filter: drop-shadow(0 0 30px var(--bh)); }
 /* While the hole is open the plate's own glow gives way to it. */
 .plate.is-singular .plate__glow { opacity: .25; transition: opacity .4s; }

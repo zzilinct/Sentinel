@@ -268,7 +268,7 @@ async function main() {
         await sleep(700); await shoot('plate-spin', pad(plate, 30));
         await send('Runtime.evaluate', { expression: "document.querySelector('.plate').closest('[data-trio]').querySelector('[data-sev=\"yellow\"]').click()" }, sessionId);
         const t0 = Date.now();
-        for (const ms of [250, 600, 900, 1200, 1600, 2100, 2600, 3200, 4200]) {
+        for (const ms of [400, 900, 1300, 1700, 2200, 2700, 3200, 3700, 4300, 5200]) {
           await sleep(Math.max(0, ms - (Date.now() - t0)));
           await shoot(`blackhole-${String(ms).padStart(4, '0')}ms`, pad(plate, 60));
         }

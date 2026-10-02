@@ -45,7 +45,6 @@
   const dark = () => root.dataset.theme === 'dark' || (!root.dataset.theme && !matchMedia('(prefers-color-scheme: light)').matches);
   let sky = null;
   let stars = [];
-  const lenses = new Set();   // black holes bending the light right now: { x, y, r, s } in viewport pixels
 
   function makeSky() {
     sky = document.createElement('canvas');
@@ -73,15 +72,16 @@
       return { x: rand() * W, y: rand() * H, r: b > 0.985 ? 1.7 : b > 0.9 ? 1.2 : 0.75, a: 0.35 + rand() * 0.6, warm: rand() };
     });
   }
-  // Where a star appears: pushed outward and swung round near a black hole, hidden behind its horizon.
-  function bend(s) {
+  // Where a star appears near a black hole L ({ x, y, r, s } in viewport pixels): pushed outward and swung round,
+  // or hidden behind its horizon.
+  function bend(s, L) {
     let x = s.x;
     let y = s.y;
-    for (const L of lenses) {
+    {
       const dx = x - L.x;
       const dy = y - L.y;
       const d = Math.hypot(dx, dy) || 0.001;
-      if (d > L.r) continue;
+      if (d > L.r) return { x, y };
       const fall = (1 - d / L.r) ** 2;
       const horizon = L.r * 0.16 * L.s;
       if (d < horizon) return null;
@@ -104,8 +104,7 @@
     ctx.clearRect(0, 0, innerWidth, innerHeight);
     if (!dark()) return;
     for (const s of stars) {
-      const p = lenses.size ? bend(s) : s;
-      if (!p) continue;
+      const p = s;
       ctx.globalAlpha = s.a;
       ctx.fillStyle = s.warm > 0.7 ? '#ffe2b0' : s.warm > 0.2 ? '#f4efe6' : '#cfdcff';
       ctx.beginPath();
@@ -123,9 +122,13 @@
   const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
   const out = (u) => 1 - Math.pow(1 - u, 3);
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  const hexRgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const tint = (rgb, k, a = 1) => `rgba(${Math.round(rgb[0] + (255 - rgb[0]) * k)},${Math.round(rgb[1] + (255 - rgb[1]) * k)},${Math.round(rgb[2] + (255 - rgb[2]) * k)},${a})`;
 
-  // The four diamonds of the scope (top, right, bottom, left) and the beams they send to the centre.
+  // The scope's four diamonds (top, right, bottom, left), the arcs of its circle that join them, and the beams they
+  // send to the centre.
   const DIAMONDS = [[300, 18], [582, 300], [300, 582], [18, 300]];
+  const ARCS = ['M300 10A290 290 0 0 1 590 300', 'M590 300A290 290 0 0 1 300 590', 'M300 590A290 290 0 0 1 10 300', 'M10 300A290 290 0 0 1 300 10'];
   function scope(art) {
     let svg = art.querySelector('.bh-scope');
     if (svg) return svg;
@@ -133,14 +136,82 @@
     svg.setAttribute('class', 'bh-scope');
     svg.setAttribute('viewBox', '0 0 600 600');
     svg.setAttribute('aria-hidden', 'true');
-    svg.innerHTML = DIAMONDS.map(([x, y]) => `<line class="bh-beam" x1="${x}" y1="${y}" x2="300" y2="300" pathLength="1"/>`).join('')
+    svg.innerHTML = ARCS.map((d) => `<path class="bh-arc" d="${d}" pathLength="1"/>`).join('')
+      + DIAMONDS.map(([x, y]) => `<line class="bh-beam" x1="${x}" y1="${y}" x2="300" y2="300" pathLength="1"/>`).join('')
       + DIAMONDS.map(([x, y]) => `<path class="bh-gem" d="M${x} ${y - 10}l10 10-10 10-10-10z"/>`).join('')
       + '<circle class="bh-flash" cx="300" cy="300" r="40"/>';
     art.appendChild(svg);
     return svg;
   }
+
+  /*
+   * The hole's pieces are drawn once per colour into small sprites and only placed, turned and scaled each frame:
+   * the accretion disc seen face-on (it is tilted and spun as it is drawn), and the halo of light the hole bends
+   * round its shadow. No blur is computed while it plays.
+   */
+  const sprites = new Map();
+  function spritesFor(color) {
+    if (sprites.has(color)) return sprites.get(color);
+    const rgb = hexRgb(color);
+    const S = 512;
+    const c = S / 2;
+    // The disc: hot and bright near the inner edge, fading out, streaked with gas in rings.
+    const disc = document.createElement('canvas');
+    disc.width = disc.height = S;
+    const d = disc.getContext('2d');
+    d.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 70; i++) {
+      const k = i / 69;
+      const r = c * (0.36 + k * 0.62);
+      const a = Math.pow(1 - k, 1.5) * (0.4 + 0.6 * Math.min(1, k * 7));
+      for (let j = 0; j < 9; j++) {
+        const from = Math.random() * Math.PI * 2;
+        d.strokeStyle = tint(rgb, 0.6 * (1 - k), a * (0.25 + Math.random() * 0.5));
+        d.lineWidth = 1.5 + Math.random() * 3;
+        d.beginPath();
+        d.arc(c, c, r, from, from + 0.4 + Math.random() * 1.6);
+        d.stroke();
+      }
+    }
+    const soft = document.createElement('canvas');
+    soft.width = soft.height = S;
+    const sd = soft.getContext('2d');
+    sd.filter = 'blur(6px)';
+    sd.drawImage(disc, 0, 0);
+    sd.filter = 'none';
+    sd.globalCompositeOperation = 'lighter';
+    sd.drawImage(disc, 0, 0);
+    // The halo: the far side's light bent over the top and under the bottom of the shadow.
+    const halo = document.createElement('canvas');
+    halo.width = halo.height = S;
+    const h = halo.getContext('2d');
+    h.filter = 'blur(5px)';
+    for (let i = 0; i < 14; i++) {
+      const k = i / 13;
+      h.strokeStyle = tint(rgb, 0.45 * (1 - k), 0.5 * (1 - k));
+      h.lineWidth = 6;
+      h.beginPath();
+      h.ellipse(c, c, c * (0.44 + k * 0.3), c * (0.44 + k * 0.3) * 0.94, 0, 0, Math.PI * 2);
+      h.stroke();
+    }
+    h.filter = 'none';
+    h.globalCompositeOperation = 'destination-in';
+    // Brightest top and bottom, where the lensed disc is seen.
+    const band = h.createLinearGradient(0, 0, S, 0);
+    band.addColorStop(0, 'rgba(0,0,0,.25)');
+    band.addColorStop(0.35, 'rgba(0,0,0,1)');
+    band.addColorStop(0.65, 'rgba(0,0,0,1)');
+    band.addColorStop(1, 'rgba(0,0,0,.25)');
+    h.fillStyle = band;
+    h.fillRect(0, 0, S, S);
+    const set = { disc: soft, halo, rgb };
+    sprites.set(color, set);
+    return set;
+  }
+
   // Two canvases round the mask: behind it the bent starlight and the far side of the disc; in front of it the
-  // horizon, the photon ring and the near side of the disc.
+  // halo, the shadow and photon ring, and the near side of the disc. Twice the plate's size, so the pull on the
+  // stars can reach well beyond the mask as the hole grows; drawn at screen resolution at most (a glow needs no more).
   function hole(art) {
     let back = art.querySelector('.bh-back');
     let front = art.querySelector('.bh-front');
@@ -150,136 +221,106 @@
       art.append(back, front);
     }
     const r = art.getBoundingClientRect();
-    const size = Math.round(r.width * 1.3);
-    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const size = Math.round(r.width * 2);
+    const dpr = Math.min(devicePixelRatio || 1, 1);
     for (const c of [back, front]) { c.width = size * dpr; c.height = size * dpr; c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0); }
     return { back, front, size };
   }
 
-  function drawHole(h, art, color, g, spin) {
-    // g: 0..1, how open the hole is.
+  const TILT = 0.27;     // how flat the disc looks from here
+  const ROLL = -0.22;    // and how it leans
+  // g: how open the hole is (0..1); eat: how far it has grown over the mask (0..1); spin in radians.
+  function drawHole(h, color, g, eat, spin) {
     const { back, front, size } = h;
     const c = size / 2;
-    const R = size * 0.42;          // how far its pull reaches
-    const core = size * 0.085 * g;  // the shadow of the horizon
     const bx = back.getContext('2d');
     const fx = front.getContext('2d');
     bx.clearRect(0, 0, size, size);
     fx.clearRect(0, 0, size, size);
     if (g <= 0.001) return;
+    const sp = spritesFor(color);
+    // The shadow grows from a point to the size of the mask as it feeds (mask3d.js grows its horizon in step).
+    const core = size * (0.055 + 0.175 * eat) * g;
+    // Its pull on the starlight reaches further as it grows.
+    const R = Math.min(c * 0.98, core * 3.4 + size * 0.1);
+    const discR = core * (3.9 - 1.9 * eat);
     const rect = back.getBoundingClientRect();
-    const scale = size / rect.width;
+    const scale = size / Math.max(1, rect.width);
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
-    // The sky here, bent: a disc of darkness that replaces the page's own sky, with the stars drawn where the hole
-    // has thrown their light. Outside R nothing changes.
+
+    // The sky here, bent: a disc of darkness over the page's own sky, with the stars drawn where the hole has
+    // thrown their light. Outside R nothing changes.
     if (dark()) {
       const grad = bx.createRadialGradient(c, c, 0, c, c, R);
-      grad.addColorStop(0, 'rgba(8,6,4,.96)');
-      grad.addColorStop(0.75, 'rgba(8,6,4,.6)');
+      grad.addColorStop(0, 'rgba(8,6,4,.97)');
+      grad.addColorStop(0.7, 'rgba(8,6,4,.7)');
       grad.addColorStop(1, 'rgba(8,6,4,0)');
       bx.globalAlpha = g;
       bx.fillStyle = grad;
       bx.beginPath(); bx.arc(c, c, R, 0, Math.PI * 2); bx.fill();
-      const L = { x: cx, y: cy, r: R / scale, s: g };
-      lenses.clear(); lenses.add(L);
+      const L = { x: cx, y: cy, r: R / scale, s: Math.min(1.4, g * (1 + eat)) };
       for (const s of stars) {
-        if (Math.hypot(s.x - cx, s.y - cy) > L.r * 1.05) continue;
-        const p = bend(s);
+        if (Math.abs(s.x - cx) > L.r || Math.abs(s.y - cy) > L.r) continue;
+        const p = bend(s, L);
         if (!p) continue;
         const lx = (p.x - cx) * scale + c;
         const ly = (p.y - cy) * scale + c;
         const fade = 1 - clamp01((Math.hypot(lx - c, ly - c) - R * 0.8) / (R * 0.2));
         bx.globalAlpha = s.a * fade * g;
         bx.fillStyle = s.warm > 0.7 ? '#ffe2b0' : '#f4efe6';
-        bx.beginPath(); bx.arc(lx, ly, s.r * scale * 1.1, 0, Math.PI * 2); bx.fill();
+        const z = s.r * scale * 1.6;
+        bx.fillRect(lx - z / 2, ly - z / 2, z, z);
       }
       bx.globalAlpha = 1;
     }
-    // Drawn as the real thing is seen. The accretion disc is tilted toward us and spins: the side coming toward us
-    // is brighter (Doppler beaming), streaked with hot gas. Its near half passes in front of the shadow; its far
-    // half is behind, but the hole's gravity bends that light up over the top and under the bottom, so a ring of it
-    // wraps the shadow. At the edge of the shadow, a thin photon ring.
-    const rgb = hexRgb(color);
-    const hot = (k) => `rgb(${Math.round(rgb[0] + (255 - rgb[0]) * k)},${Math.round(rgb[1] + (255 - rgb[1]) * k)},${Math.round(rgb[2] + (255 - rgb[2]) * k)})`;
-    const TILT = 0.26;      // how flat the disc looks from here
-    const ROLL = -0.22;     // and how it leans
-    const band = (ctx, from, to) => {
+    // The disc: face-on sprite, spun, tilted and leaned; the far half behind the mask, the near half in front, and
+    // the side coming toward us drawn a second time, brighter.
+    const disc = (ctx, near) => {
       ctx.save();
       ctx.translate(c, c);
       ctx.rotate(ROLL);
+      ctx.scale(1, TILT);
+      ctx.beginPath();
+      ctx.rect(-discR, near ? 0 : -discR, discR * 2, discR);
+      ctx.clip();
       ctx.globalCompositeOperation = 'lighter';
-      const rings = 16;
-      for (let i = 0; i < rings; i++) {
-        const k = i / (rings - 1);
-        const rr = core * (1.55 + k * 2.3);
-        const profile = Math.pow(1 - k, 1.6) * (0.35 + 0.65 * Math.min(1, k * 6));
-        const segs = 56;
-        ctx.lineWidth = core * 0.17;
-        for (let j = 0; j < segs; j++) {
-          const a0 = from + (to - from) * (j / segs);
-          const a1 = from + (to - from) * ((j + 1) / segs);
-          const mid = (a0 + a1) / 2;
-          // Coming toward us on the left; gas streams faster near the middle.
-          const doppler = 0.45 + 0.55 * (0.5 - 0.5 * Math.cos(mid));
-          const streak = 0.6 + 0.4 * Math.sin(mid * 7 + i * 1.7 - spin * (6 - k * 4)) * Math.sin(mid * 3 - spin * 2.3 + i);
-          const alpha = profile * doppler * streak * g;
-          if (alpha < 0.01) continue;
-          ctx.globalAlpha = Math.min(1, alpha);
-          ctx.strokeStyle = hot(0.55 * (1 - k) * doppler);
-          ctx.beginPath();
-          ctx.ellipse(0, 0, rr, rr * TILT, 0, a0, a1);
-          ctx.stroke();
-        }
-      }
+      ctx.globalAlpha = 0.85 * g;
+      ctx.rotate(spin);
+      ctx.drawImage(sp.disc, -discR, -discR, discR * 2, discR * 2);
+      ctx.rotate(-spin);
+      ctx.beginPath();
+      ctx.rect(-discR, -discR, discR, discR * 2);
+      ctx.clip();
+      ctx.globalAlpha = 0.55 * g;
+      ctx.rotate(spin);
+      ctx.drawImage(sp.disc, -discR, -discR, discR * 2, discR * 2);
       ctx.restore();
     };
-    // Behind the mask: the far half of the disc (the top half, as we see it).
-    band(bx, Math.PI, Math.PI * 2);
-    // In front, from the back: the bent light of the far side, wrapped round the shadow; the shadow; the photon
-    // ring; and the near half of the disc crossing in front of it all.
+    disc(bx, false);
     fx.save();
     fx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 10; i++) {
-      const k = i / 9;
-      const rr = core * (1.12 + k * 0.75);
-      fx.lineWidth = core * 0.12;
-      for (let j = 0; j < 48; j++) {
-        const a0 = (j / 48) * Math.PI * 2;
-        const a1 = ((j + 1) / 48) * Math.PI * 2;
-        const mid = (a0 + a1) / 2;
-        // Brightest over the top and under the bottom, where the lensed disc is seen.
-        const wrap = Math.pow(Math.abs(Math.sin(mid)), 1.5);
-        const doppler = 0.5 + 0.5 * (0.5 - 0.5 * Math.cos(mid + ROLL));
-        fx.globalAlpha = Math.min(1, (1 - k) * wrap * doppler * 0.55 * g);
-        fx.strokeStyle = hot(0.35 * (1 - k));
-        fx.beginPath();
-        fx.ellipse(c, c, rr, rr * 0.92, ROLL, a0, a1);
-        fx.stroke();
-      }
-    }
+    fx.globalAlpha = 0.9 * g;
+    const hr = core * 2.3;
+    fx.translate(c, c);
+    fx.rotate(ROLL);
+    fx.drawImage(sp.halo, -hr, -hr, hr * 2, hr * 2);
     fx.restore();
+    // The shadow, soft at its edge, and the thin photon ring that circles it.
     fx.save();
     const shadow = fx.createRadialGradient(c, c, 0, c, c, core * 1.18);
     shadow.addColorStop(0, 'rgba(0,0,0,1)');
-    shadow.addColorStop(0.82, 'rgba(0,0,0,1)');
+    shadow.addColorStop(0.83, 'rgba(0,0,0,1)');
     shadow.addColorStop(1, 'rgba(0,0,0,0)');
     fx.globalAlpha = Math.min(1, g * 1.4);
     fx.fillStyle = shadow;
     fx.beginPath(); fx.arc(c, c, core * 1.18, 0, Math.PI * 2); fx.fill();
     fx.globalCompositeOperation = 'lighter';
-    fx.shadowColor = color;
-    fx.shadowBlur = core * 0.6;
-    fx.strokeStyle = hot(0.7);
-    fx.globalAlpha = 0.85 * g;
-    fx.lineWidth = Math.max(1, core * 0.05);
-    fx.beginPath(); fx.arc(c, c, core * 1.0, 0, Math.PI * 2); fx.stroke();
+    fx.strokeStyle = tint(sp.rgb, 0.7, 0.9 * g);
+    fx.lineWidth = Math.max(1, core * 0.045);
+    fx.beginPath(); fx.arc(c, c, core, 0, Math.PI * 2); fx.stroke();
     fx.restore();
-    band(fx, 0, Math.PI);
-  }
-  function hexRgb(hex) {
-    const n = parseInt(hex.slice(1), 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    disc(fx, true);
   }
 
   const busy = new WeakSet();
@@ -294,35 +335,45 @@
     const svg = scope(art);
     svg.style.setProperty('--bh', color);
     const gems = [...svg.querySelectorAll('.bh-gem')];
+    const arcs = [...svg.querySelectorAll('.bh-arc')];
     const beams = [...svg.querySelectorAll('.bh-beam')];
     const flash = svg.querySelector('.bh-flash');
     const h = hole(art);
-    // The timeline, in milliseconds.
-    const CHARGE = 700;
-    const BEAM = 320;
+    spritesFor(color);
+    // The timeline, in milliseconds: the diamonds charge, the ring joining them lights from each diamond to the
+    // next, they fire to the centre, the hole opens and feeds until the mask is gone, closes, and the new mask
+    // comes out of it.
+    const CHARGE = 650;
+    const RING = 420;
+    const BEAM = 300;
     const OPEN = 320;
-    const SWALLOW = 1100;
-    const CLOSE = 260;
+    const FEED = 1400;
+    const CLOSE = 300;
     const GROW = 1100;
-    const tBeam = CHARGE;
+    const tRing = CHARGE;
+    const tBeam = tRing + RING;
     const tOpen = tBeam + BEAM;
-    const tSwallow = tOpen + OPEN;
-    const tClose = tSwallow + SWALLOW;
+    const tFeed = tOpen + OPEN;
+    const tClose = tFeed + FEED;
     const tEnd = tClose + CLOSE + GROW;
     const start = performance.now();
-    let swallowing = null;
+    let feeding = null;
     await new Promise((resolve) => {
       const tick = (now) => {
         const t = now - start;
         // 1. The diamonds charge, brighter and brighter, with a quickening pulse.
         const charge = clamp01(t / CHARGE);
         const pulse = 0.75 + 0.25 * Math.sin(t * 0.018 * (1 + charge * 2));
-        const lit = t < tSwallow ? charge * pulse : clamp01(1 - (t - tSwallow) / 400);
+        const lit = t < tFeed ? charge * pulse : clamp01(1 - (t - tFeed) / 400);
         gems.forEach((gm, i) => {
           gm.style.opacity = String(Math.min(1, lit * (0.35 + 0.65 * clamp01((t - i * 90) / CHARGE))));
           gm.style.transform = `scale(${1 + 0.45 * lit})`;
         });
-        // 2. They fire: four beams meet in the middle, and a flash where they meet.
+        // 2. The ring lights: each arc runs from its diamond to the next.
+        const ring = out(clamp01((t - tRing) / RING));
+        const ringOn = t < tRing ? 0 : t < tClose ? 1 : clamp01(1 - (t - tClose) / 500);
+        arcs.forEach((a) => { a.style.strokeDashoffset = String(1 - ring); a.style.opacity = String(ringOn); });
+        // 3. They fire: four beams meet in the middle, with a flash where they meet.
         const beam = clamp01((t - tBeam) / BEAM);
         beams.forEach((b) => {
           b.style.strokeDashoffset = String(1 - out(beam));
@@ -331,23 +382,27 @@
         const fl = t < tOpen - 80 ? 0 : clamp01(1 - (t - tOpen + 80) / 420);
         flash.style.opacity = String(fl);
         flash.style.transform = `scale(${0.4 + (1 - fl) * 1.6})`;
-        // 3. The hole opens, takes the mask, and closes from the outside in.
+        // 4. The hole opens, feeds on the mask as it grows, and closes from the outside in.
         let g = 0;
-        if (t >= tOpen && t < tClose) g = out(clamp01((t - tOpen) / OPEN)) * (1 + 0.15 * clamp01((t - tSwallow) / SWALLOW));
-        else if (t >= tClose) g = 1.15 * (1 - ease(clamp01((t - tClose) / (CLOSE + 260))));
-        drawHole(h, art, color, Math.min(1.15, g), t / 1000);
-        if (dark() && g > 0.001) paint();
-        if (t >= tSwallow && !swallowing) swallowing = m3.swallow(sev, { out: SWALLOW, gap: CLOSE, grow: GROW });
+        let eat = 0;
+        if (t >= tOpen && t < tClose) {
+          g = out(clamp01((t - tOpen) / OPEN));
+          eat = ease(clamp01((t - tFeed) / FEED));
+        } else if (t >= tClose) {
+          g = 1 - ease(clamp01((t - tClose) / (CLOSE + 200)));
+          eat = 1;
+        }
+        drawHole(h, color, g, eat, t / 380);
+        if (t >= tFeed && !feeding) feeding = m3.swallow(sev, { out: FEED, gap: CLOSE, grow: GROW });
         if (t < tEnd) requestAnimationFrame(tick);
         else resolve();
       };
       requestAnimationFrame(tick);
     });
-    await swallowing;
-    lenses.clear();
-    paint();
-    drawHole(h, art, color, 0, 0);
+    await feeding;
+    drawHole(h, color, 0, 0, 0);
     gems.forEach((gm) => { gm.style.opacity = '0'; });
+    arcs.forEach((a) => { a.style.opacity = '0'; });
     card.classList.remove('is-singular');
     busy.delete(card);
     // A choice made while the hole was busy: follow it now, quietly.

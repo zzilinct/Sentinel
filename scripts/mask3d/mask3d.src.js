@@ -48,29 +48,41 @@ const model = (name) => {
 
 /* ----------------------------------------------- the black hole's shader */
 
-// Added to the physical material: a swirl that tightens toward the middle, and a radius outside which the mask is
-// gone, so it vanishes from the outside in (and grows back from the inside out), with a burning rim at the edge.
+// Added to the physical material. Consumed: a horizon (uEat) grows from the middle and everything inside it is gone,
+// while the metal just outside is dragged round and in toward it. Reborn: a radius (uRadius) grows from the middle
+// with a swirl that unwinds, so the new mask comes out of the hole. Both edges burn in the hole's colour.
 function swallowable(material, state) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uRadius = state.radius;
     shader.uniforms.uSwirl = state.swirl;
     shader.uniforms.uRim = state.rim;
+    shader.uniforms.uEat = state.eat;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uSwirl;\nvarying vec3 vMaskPos;')
+      .replace('#include <common>', '#include <common>\nuniform float uSwirl;\nuniform float uEat;\nvarying vec3 vMaskPos;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         float r = length(transformed.xy);
         float a = uSwirl * 2.6 / (r + 0.22);
         float s = sin(a), c = cos(a);
         transformed.xy = mat2(c, s, -s, c) * transformed.xy * (1.0 - 0.55 * uSwirl * (1.0 - smoothstep(0.0, 1.3, r)));
         transformed.z *= 1.0 - 0.6 * uSwirl;
+        // Tidal pull: within reach of the horizon the metal is dragged round and in, harder the closer it is.
+        float rr = length(transformed.xy);
+        float pull = uEat > 0.0 ? 1.0 - smoothstep(uEat, uEat + 0.8, rr) : 0.0;
+        float tw = pull * pull * 2.2;
+        float ts = sin(tw), tc = cos(tw);
+        transformed.xy = mat2(tc, ts, -ts, tc) * transformed.xy * (1.0 - 0.3 * pull);
+        transformed.z -= pull * 0.35;
         vMaskPos = transformed;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRadius;\nuniform vec3 uRim;\nvarying vec3 vMaskPos;')
+      .replace('#include <common>', '#include <common>\nuniform float uRadius;\nuniform float uEat;\nuniform vec3 uRim;\nvarying vec3 vMaskPos;')
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
         float edge = uRadius - length(vMaskPos.xy);
-        if (edge < 0.0) discard;`)
+        if (edge < 0.0) discard;
+        float eaten = length(vMaskPos.xy) - uEat;
+        if (uEat > 0.0 && eaten < 0.0) discard;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.09, edge)) * 4.0 * step(uRadius, 1.6);`);
+        totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.09, edge)) * 4.0 * step(uRadius, 1.6);
+        if (uEat > 0.0) totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.14, eaten)) * 5.0;`);
   };
   material.customProgramCacheKey = () => 'sentinel-swallow';
 }
@@ -113,7 +125,8 @@ async function build(el) {
   try {
     renderer = new WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
   } catch { return null; }   // no WebGL: the still render stays
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  // Sharp on a high-density screen without drawing every physical pixel of it.
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
   renderer.toneMapping = AgXToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.outputColorSpace = SRGBColorSpace;
@@ -129,7 +142,7 @@ async function build(el) {
 
   const finishName = el.dataset.tint || kind;
   const f = FINISH[finishName] || FINISH.scam;
-  const state = { radius: { value: 9 }, swirl: { value: 0 }, rim: { value: new Color(f.rim) } };
+  const state = { radius: { value: 9 }, swirl: { value: 0 }, eat: { value: 0 }, rim: { value: new Color(f.rim) } };
   const material = new MeshPhysicalMaterial({
     color: new Color(f.color), metalness: f.metalness, roughness: f.roughness, clearcoat: f.clearcoat,
     clearcoatRoughness: f.clearcoatRoughness, envMapIntensity: f.env
@@ -220,6 +233,7 @@ async function build(el) {
   let ty = 0;
   let tw = 0;
   let last = performance.now();
+  let drawnAt = 0;
   let raf = 0;
   const t0 = performance.now();
   let anim = null;   // a running swallow or colour change
@@ -276,9 +290,11 @@ async function build(el) {
       for (const s of eyes.halos) s.material.opacity = Math.max(0, (eyes.level - 0.3) * 1.35) * flicker;
     }
     if (anim && anim(now) === false) anim = null;
-    renderer.render(scene, camera);
-    dirty = false;
     const moving = Math.abs(tx - look.x) + Math.abs(ty - look.y) + Math.abs(tw - look.w) + Math.abs(look.vx) + Math.abs(look.vy) > 0.0005;
+    // Only drifting (breathing, swaying, the eyes' flicker): half the frames are plenty, and half the work.
+    const idle = !moving && !anim && !spinAt;
+    if (!idle || now - drawnAt > 30) { renderer.render(scene, camera); drawnAt = now; }
+    dirty = false;
     // Breathing and glowing eyes keep a visible mask alive; otherwise it rests until something changes.
     if (visible && (moving || anim || eyes || !reduced)) raf = requestAnimationFrame(frame);
   };
@@ -329,10 +345,12 @@ async function build(el) {
         anim = (now) => {
           const e = now - start;
           if (e < out) {
+            // Consumed: the horizon grows from the middle, in step with the hole drawn over it (cosmos.js), until
+            // nothing of the mask is left.
             const u = ease(e / out);
-            state.radius.value = 1.5 * (1 - u);
-            state.swirl.value = u;
+            state.eat.value = 0.3 + 1.05 * u;
           } else if (e < out + gap) {
+            state.eat.value = 0;
             state.radius.value = 0;
             if (!swapped) { setFinish(name); state.rim.value.set(next.rim); swapped = true; }
           } else if (e < out + gap + grow) {
