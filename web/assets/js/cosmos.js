@@ -227,6 +227,13 @@
     return { back, front, size };
   }
 
+  // The working canvas for each frame's disc, and the fade from its bright side to its dim side.
+  const dopplerCanvas = document.createElement('canvas');
+  dopplerCanvas.width = dopplerCanvas.height = 384;
+  const dopplerCtx = dopplerCanvas.getContext('2d');
+  const dopplerFade = dopplerCtx.createLinearGradient(0, 0, 384, 0);
+  dopplerFade.addColorStop(0, 'rgba(0,0,0,1)');
+  dopplerFade.addColorStop(1, 'rgba(0,0,0,.38)');
   const TILT = 0.27;     // how flat the disc looks from here
   const ROLL = -0.22;    // and how it leans
   // g: how open the hole is (0..1); eat: how far it has grown over the mask (0..1); spin in radians.
@@ -276,6 +283,17 @@
     }
     // The disc: face-on sprite, spun, tilted and leaned; the far half under the shadow, the near half over it, and
     // the side coming toward us drawn a second time, brighter.
+    // This frame's disc, spun, with the side coming toward us brighter and the far side dimmer, fading smoothly
+    // across (Doppler beaming): made once a frame on a small canvas, then laid down in two halves.
+    const W = dopplerCanvas.width;
+    dopplerCtx.globalCompositeOperation = 'copy';
+    dopplerCtx.setTransform(1, 0, 0, 1, W / 2, W / 2);
+    dopplerCtx.rotate(spin);
+    dopplerCtx.drawImage(sp.disc, -W / 2, -W / 2, W, W);
+    dopplerCtx.setTransform(1, 0, 0, 1, 0, 0);
+    dopplerCtx.globalCompositeOperation = 'destination-in';
+    dopplerCtx.fillStyle = dopplerFade;
+    dopplerCtx.fillRect(0, 0, W, W);
     const disc = (ctx, near) => {
       ctx.save();
       ctx.translate(c, c);
@@ -285,16 +303,8 @@
       ctx.rect(-discR, near ? 0 : -discR, discR * 2, discR);
       ctx.clip();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.85 * g;
-      ctx.rotate(spin);
-      ctx.drawImage(sp.disc, -discR, -discR, discR * 2, discR * 2);
-      ctx.rotate(-spin);
-      ctx.beginPath();
-      ctx.rect(-discR, -discR, discR, discR * 2);
-      ctx.clip();
-      ctx.globalAlpha = 0.55 * g;
-      ctx.rotate(spin);
-      ctx.drawImage(sp.disc, -discR, -discR, discR * 2, discR * 2);
+      ctx.globalAlpha = Math.min(1, 1.15 * g);
+      ctx.drawImage(dopplerCanvas, -discR, -discR, discR * 2, discR * 2);
       ctx.restore();
     };
     // Both halves on the one canvas, so they meet without a seam: the far half first, under the halo and shadow.
