@@ -4,7 +4,8 @@ document.documentElement.classList.add('js');
 /*
  * The opening (intro.js) plays once per visit, never with reduced motion, never in a test browser, and never for a
  * page that is only being printed or prerendered. The class goes on now, before the first paint, so the page does
- * not flash before the cover; whatever happens to intro.js, it comes off by itself after 4 s.
+ * not flash before the cover; whatever happens to intro.js, it comes off by itself after 10 s (intro.js itself never runs
+ * past 8 s, the longest a slow page is allowed to keep its sketch).
  */
 (function () {
   try {
@@ -20,7 +21,7 @@ document.documentElement.classList.add('js');
       if (!r.classList.contains('intro')) return;
       r.classList.remove('intro');
       document.dispatchEvent(new Event('sentinel:intro-done'));
-    }, 4000);
+    }, 10000);
   } catch (e) { /* storage blocked: no opening */ }
 })();
 

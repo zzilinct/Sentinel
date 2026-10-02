@@ -75,6 +75,9 @@
   function scan() {
     // With reduced motion nothing waits or moves, but the page still wears its rule beneath the title.
     if (reduced) { view.querySelectorAll('.page-title').forEach(dressTitle); return; }
+    // Under the opening's sketch (intro.js) nothing enters yet: the page must be laid out as it will be, for the
+    // sketch to be drawn from it. Entrances start as the sketch becomes the page.
+    if (root.classList.contains('intro')) return;
     if (performance.now() - pageAt > STAGE_MS) return;
     view.querySelectorAll(PARTS).forEach(stage);
   }
@@ -102,6 +105,7 @@
     }
   }).observe(view, { childList: true, subtree: true });
   if (view.querySelector('.view')) newPage();
+  document.addEventListener('sentinel:intro-done', () => { if (view.querySelector('.view')) newPage(); }, { once: true });
 
   /* ------------------------------------------- the sweep, between pages */
 

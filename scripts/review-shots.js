@@ -177,12 +177,12 @@ async function main() {
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
       await send('Page.navigate', { url: BASE + url }, sessionId);
       const started = Date.now();
-      for (const at of [250, 600, 950, 1300, 1700, 2300, 3200]) {
+      for (const at of [120, 350, 550, 750, 950, 1250, 1600, 2400]) {
         await sleep(Math.max(0, at - (Date.now() - started)));
         const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
         fs.writeFileSync(path.join(OUT, `intro-${name}-${String(at).padStart(4, '0')}ms.png`), Buffer.from(shot.data, 'base64'));
       }
-      console.log(`intro-${name}: 7 frames`);
+      console.log(`intro-${name}: 8 frames`);
       await send('Target.closeTarget', { targetId });
     }
     // Each app page's entrance, caught mid-way: open the overview, then click through the sidebar.

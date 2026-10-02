@@ -901,19 +901,26 @@ p { text-wrap: pretty; }
 }
 
 /* ------------------------------------------------------ the opening */
-/* Once per visit (boot.js, intro.js). Always black lacquer, whatever the theme: it is the mask's own stage. Until
-   intro.js has built its canvas, html::before holds the same colour, so the page never flashes through first. */
-html.intro { overflow: hidden; }
-html.intro::before { content: ''; position: fixed; inset: 0; z-index: 9998; background: #0e0c09; }
-.intro-cover { position: fixed; inset: 0; z-index: 9999; background: radial-gradient(60vmax 50vmax at 50% 40%, #1d1810, #0e0c09 70%); clip-path: inset(0 0 0 0); }
+/* A pencil sketch of the page on warm paper, which becomes the page (intro.js, started by boot.js). Until
+   intro.js has laid out its sheet, html::before holds the paper colour, so the page never flashes through first. */
+html.intro, html.intro-ink { overflow: hidden; }
+html.intro::before { content: ''; position: fixed; inset: 0; z-index: 9998; background: #efe4c6; }
+.intro-cover { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
+/* The paper: warm, faintly fibrous, darker toward its edges. */
+.intro-cover::before {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 45%, transparent 55%, rgb(120 90 40 / .2)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .36 0 0 0 0 .2 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E"),
+    #efe4c6;
+}
 .intro-cover canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.intro-cover__name { position: absolute; left: 0; right: 0; display: flex; justify-content: center; gap: .02em; font: 400 clamp(30px, 5.4vw, 64px)/1 var(--wordmark, var(--display)); letter-spacing: .22em; color: #e2c27f; }
-.intro-cover__name span { display: inline-block; transform: translateY(70%); clip-path: inset(0 0 100% 0); transition: transform .8s cubic-bezier(.16, 1, .3, 1), clip-path .8s cubic-bezier(.16, 1, .3, 1); }
-.intro-cover__name.is-in span { transform: none; clip-path: inset(-20% 0 -20% 0); }
-.intro-cover__name span:nth-child(2) { transition-delay: .04s; } .intro-cover__name span:nth-child(3) { transition-delay: .08s; }
-.intro-cover__name span:nth-child(4) { transition-delay: .12s; } .intro-cover__name span:nth-child(5) { transition-delay: .16s; }
-.intro-cover__name span:nth-child(6) { transition-delay: .2s; } .intro-cover__name span:nth-child(7) { transition-delay: .24s; }
-.intro-cover__name span:nth-child(8) { transition-delay: .28s; }
-/* The curtain lifts from the bottom up, the way the site uncovers a page after a tab. */
-.intro-cover.is-leaving { clip-path: inset(0 0 100% 0); transition: clip-path .8s cubic-bezier(.7, 0, .2, 1); }
+/* The morph: the paper dissolves, the pencil lingers a moment on the page and fades. Over the dark site the
+   lines turn to gold as they go, as if inked over. */
+.intro-cover.is-morphing::before { opacity: 0; transition: opacity .7s cubic-bezier(.4, 0, .2, 1); }
+.intro-cover.is-morphing canvas { opacity: 0; transition: opacity .8s ease .15s, filter .5s ease; }
+.intro-cover.is-morphing.is-dark canvas { filter: invert(.82) sepia(1) saturate(2.4) hue-rotate(-8deg) brightness(1.05); }
+/* The page under it washes from pencil grey into its colours. */
+html.intro body > :not(.intro-cover), html.intro-ink body > :not(.intro-cover) { filter: grayscale(1) sepia(.18) contrast(.94); }
+html.intro-ink.intro-ink-go body > :not(.intro-cover) { filter: none; transition: filter .95s cubic-bezier(.4, 0, .2, 1) .1s; }
 @media (prefers-reduced-motion: reduce) { .intro-cover { display: none; } html.intro::before { display: none; } }
