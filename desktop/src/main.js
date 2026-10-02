@@ -24,6 +24,7 @@ const browsers = require('./browsers');
 const watch = require('./watch');
 const overlay = require('./overlay');
 const updater = require('./updater');
+const models = require('./models');
 const clipwatch = require('./clipwatch');
 const defense = require('./defense');
 const store = require('./store');
@@ -629,6 +630,13 @@ function registerBridge() {
   handle('sentinel:defense-restore', (id) => defense.restore(String(id)));
   handle('sentinel:defense-act', (id) => defense.act(String(id)));
   handle('sentinel:install-update', () => updater.install());
+  // The text of an email screenshot, read on this computer by Windows (ocr.js); the images are not kept.
+  handle('sentinel:read-screenshot', (images) => require('./ocr').read(Array.isArray(images) ? images : []));
+  // Switch to a chosen model (a released version): downloaded from GitHub and checked there, never from the page.
+  handle('sentinel:install-model', (version) => models.install({
+    version: String(version), dir: path.join(updater.cacheDir(), 'models'), updater, store, log: appLog,
+    onProgress: (progress) => push('sentinel:update', { ...updater.status(), status: 'switching', version: String(version), progress })
+  }));
 
   handle('sentinel:set-token', (token, userId) => {
     if (typeof token !== 'string' || token.length < 20 || token.length > 200) throw new Error('Invalid token');
