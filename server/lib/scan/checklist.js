@@ -54,8 +54,9 @@ const authorWords = (p, words) => (L.PATH_HOSTING.includes(p.host) ? new Set([..
 // reddit.com/r/Chase/...): reviews, news, forums and listings name brands in their paths because that is their
 // subject. It says nothing about the page pretending to be the brand.
 const aboutPage = (p) => /\/(reviews?|news|articles?|story|blog|wiki|compare|comparisons?|guides?|how-to|learn|course|docs|advisor|terms|questions|comments|biz|company|companies|cmp|plugins|apps|integrations|package|tagged|topics?|r|20\d\d)\//i.test(p.path)
-  // An article's slug: four words or more joined by hyphens ("how-to-delete-your-paypal-account").
-  || p.path.split('/').some((s) => s.split('-').filter((w) => /^[a-z]+$/i.test(w)).length >= 4);
+  // An article's slug: four words or more joined by hyphens ("how-to-delete-your-paypal-account"). Not an address
+  // spelled out with hyphens ("roblox-com-users-...-profile"), which is a costume.
+  || p.path.split('/').some((s) => { const w = s.toLowerCase().split('-'); return !w.some((x) => /^(www|com|net|org)$/.test(x)) && w.filter((x) => /^[a-z]+$/.test(x)).length >= 4; });
 const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery', 'survey', 'loyalty', 'win', 'robux', 'vbucks'];
 const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway', 'airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
