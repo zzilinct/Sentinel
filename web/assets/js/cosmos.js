@@ -356,7 +356,7 @@
     // next, they fire to the centre, the hole opens and feeds until the mask is gone, closes, and the new mask
     // comes out of it.
     const CHARGE = 650;
-    const RING = 420;
+    const RING = 280;
     const BEAM = 300;
     const OPEN = 320;
     const FEED = 1400;
@@ -381,9 +381,10 @@
           gm.style.opacity = String(Math.min(1, lit * (0.35 + 0.65 * clamp01((t - i * 90) / CHARGE))));
           gm.style.transform = `scale(${1 + 0.45 * lit})`;
         });
-        // 2. The ring lights: each arc runs from its diamond to the next.
+        // 2. The sight: the ring flashes round from each diamond to the next for a split second, and goes out as
+        //    the shot is fired.
         const ring = out(clamp01((t - tRing) / RING));
-        const ringOn = t < tRing ? 0 : t < tClose ? 1 : clamp01(1 - (t - tClose) / 500);
+        const ringOn = t < tRing ? 0 : t < tBeam ? 1 : clamp01(1 - (t - tBeam) / 160);
         arcs.forEach((a) => { a.style.strokeDashoffset = String(1 - ring); a.style.opacity = String(ringOn); });
         // 3. They fire: four beams meet in the middle, with a flash where they meet.
         const beam = clamp01((t - tBeam) / BEAM);
