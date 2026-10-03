@@ -299,6 +299,7 @@ function brandInfo(p) {
   let inDomain = null;
   let inSubdomain = null;
   let lookalike = null;
+  let visual = false;    // the look-alike reads as the brand to the eye: a digit or i for l, or a doubled letter
   let wordLike = null;   // spelled near a brand, but ordinary words (see isRealWords)
 
   for (const brand of L.PROTECTED_BRANDS) {
@@ -341,12 +342,14 @@ function brandInfo(p) {
     // Six letters or more: a shorter brand is made by ordinary words meeting at a hyphen ("my-app-lessons" is not Apple).
     const split = (label) => t.length >= 6 && /[-_]/.test(label) && !label.split(/[-_]/).some((part) => deskin(part).includes(t)) && deskin(label.replace(/[-_]/g, '')).includes(t);
     if (!inDomain && split(p.sld)) inDomain = brand;
+    // The name of one of the brand's own sites as a part of this one ("ezpassnj-toll" borrows ezpassnj.com).
+    if (!inDomain && hyphenParts.length > 1 && brand.domains.some((d) => { const n = deskin(d.split('.')[0]); return n.length >= 6 && hyphenParts.includes(n); })) inDomain = brand;
     if (!inSubdomain && p.subdomains.some(split)) inSubdomain = brand;
 
     // Characters swapped for look-alikes ("paypa1", "g00gle", "micr0soft"): the name as written is not the brand, but
     // reads as it. That is a misspelling of the brand, and it was reported as "not a misspelling" because the
     // comparison below only ever saw the name with the swaps undone.
-    if (!lookalike && t.length >= 4 && [p.sld, ...p.sld.split(/[-_]/)].some((raw) => raw !== t && raw.length === t.length && /\d/.test(raw) && deskin(raw) === t)) lookalike = brand;
+    if (!lookalike && t.length >= 4 && [p.sld, ...p.sld.split(/[-_]/)].some((raw) => raw !== t && raw.length === t.length && /\d/.test(raw) && deskin(raw) === t)) { lookalike = brand; visual = true; }
 
     if (!lookalike && t.length >= 5) {
       const maxDist = t.length >= 8 ? 2 : 1;
@@ -373,14 +376,18 @@ function brandInfo(p) {
           // letter: another word ("overdrive", not "onedrive"), which a person reads as a different name. Noted,
           // not treated as a disguise.
           const raw = rawOf.get(part) || part;
-          if (!doubled && isRealWords(raw)) { if (!wordLike) wordLike = { brand, word: raw }; continue; }
+          const real = isRealWords(raw);
+          if (!doubled && real) { if (!wordLike) wordLike = { brand, word: raw }; continue; }
           lookalike = brand;
+          // "paypai", "robloxx": the same word at a glance. Not "goggles", a real word whose doubled letter is its own.
+          const il = (s) => s.replace(/i/g, 'l');
+          visual = !real && (doubled || (part.length === t.length && il(part) === il(t)));
           break;
         }
       }
     }
   }
-  return { official: null, owner: null, inDomain, inSubdomain, lookalike, wordLike: lookalike ? null : wordLike };
+  return { official: null, owner: null, inDomain, inSubdomain, lookalike, visual, wordLike: lookalike ? null : wordLike };
 }
 
 /**

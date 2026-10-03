@@ -155,6 +155,28 @@ test('names are read like words: overdrive is not onedrive misspelled, but onedr
   assert.ok((await scan('https://overdrive-login-verify.xyz/')).overall.badge);
 });
 
+test('a number that is its own word is a name, not a disguise: 1password and 23andme are clean, paypa1 and micros0ft are not', async () => {
+  for (const url of ['https://1password.com/', 'https://www.23andme.com/', 'https://www.1800flowers.com/', 'https://99designs.com/', 'https://hotel24.com/']) {
+    const v = await scan(url);
+    assert.equal(v.threats.scam.level, 'safe', `${url} ${v.threats.scam.score}`);
+  }
+  for (const url of ['https://paypa1.com/', 'https://paypal1.com/', 'https://micros0ft-login.net/']) assert.ok((await scan(url)).overall.badge, url);
+  // Password managers are brands too: their name on someone else's address is borrowed.
+  for (const url of ['https://lastpass-vault-login.com/', 'https://bitwarden-secure.net/']) assert.ok((await scan(url)).overall.badge, url);
+});
+
+test('unpaid-toll texts, look-alike letters and fake .gov names are caught; the real agencies and institutions are not', async () => {
+  for (const url of ['https://ezdrivema-tolls.com/pay', 'https://ezpassnj-toll.xin/', 'https://sunpass-toll-services.top/pay', 'https://txtag-unpaidtoll.com/',
+    'https://paypai.com/signin', 'https://robloxx.com/users/1/profile', 'https://ssa-gov-statement.com/download', 'https://norton-subscription-refund.com/',
+    'https://geek-squad-renewal.com/', 'https://ticketmaster-resale-tickets.net/']) {
+    assert.ok((await scan(url)).overall.badge, url);
+  }
+  for (const url of ['https://www.sunpass.com/', 'https://www.txtag.org/', 'https://www.ezdrivema.com/', 'https://www.peachpassgo.com/', 'https://www.norton.edu/', 'https://www.goggles.com/', 'https://www.ssa.gov/']) {
+    const v = await scan(url);
+    assert.equal(v.overall.badge, null, `${url} ${v.threats.scam.score}`);
+  }
+});
+
 test('what the search result says about a site is read without opening it: a title claiming the brand the address imitates', async () => {
   const run = (url, hint) => engine.scanUrls([url], { threats: ['scam', 'virus', 'malware'], mode: 'live', detail: 'full', hints: { [url]: hint } }).then((r) => r[0]);
   const claim = await run('https://onedrlve.com/login', { title: 'Microsoft OneDrive - Sign in', query: 'onedrive login' });

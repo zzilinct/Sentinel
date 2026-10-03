@@ -55,7 +55,13 @@ const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway',
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
 
 /** A domain that is one plain name: no hyphens, no digits, nothing in front of it. */
-const plainName = (p) => !p.isIp && !/[-\d]/.test(p.sld) && !p.subdomains.filter((s) => s !== 'www').length;
+// A number standing as its own word before or after ordinary words (1password, 23andme, hotel24): a name, not a
+// letter swapped for a digit (paypa1, micros0ft).
+const numberWord = (name) => {
+  const m = /^(?:\d+([a-z]+)|([a-z]+)\d+)$/.exec(name);
+  return Boolean(m) && isRealWords(m[1] || m[2]);
+};
+const plainName = (p) => !p.isIp && !p.sld.includes('-') && (!/\d/.test(p.sld) || numberWord(p.sld)) && !p.subdomains.filter((s) => s !== 'www').length;
 
 /**
  * Bait wording scores by how it is combined. One plain word that IS the whole
@@ -121,7 +127,7 @@ const URL_CHECKS = [
     } },
 
   { id: 'U07', group: 'Address', threat: 'scam', title: 'No digits disguised inside words',
-    run: ({ p }) => (!p.isIp && /[a-z]\d|\d[a-z]/.test(shownName(p)) && !/^[a-z]{1,4}\d{1,3}$/.test(shownName(p)) ? warn(6, 'Digits mixed into the name (e.g. "0" for "o")') : pass('No mixed digits')) },
+    run: ({ p }) => (!p.isIp && /[a-z]\d|\d[a-z]/.test(shownName(p)) && !/^[a-z]{1,4}\d{1,3}$/.test(shownName(p)) && !shownName(p).split('-').every((s) => !/\d/.test(s) || numberWord(s)) ? warn(6, 'Digits mixed into the name (e.g. "0" for "o")') : pass('No mixed digits')) },
 
   { id: 'U08', group: 'Address', threat: 'scam', title: 'Served on a standard port',
     run: ({ p }) => (p.port && !['80', '443'].includes(p.port) ? fail(8, `Uses port ${p.port}`, { malware: 8 }) : pass('Standard port')) },
@@ -234,6 +240,8 @@ const URL_CHECKS = [
   { id: 'U22', group: 'Impersonation', threat: 'scam', title: 'Does not borrow a brand name it does not own',
     run: ({ brand, p }) => {
       if (!brand.inDomain) return pass('No borrowed brand in the domain');
+      // Only schools and governments can register these, so a shared name (norton.edu) is theirs, not borrowed.
+      if (/(^|\.)(edu|gov|mil|ac\.uk|gov\.uk|edu\.au|gov\.au)$/.test(p.suffix)) return pass(`.${p.suffix} names are only given to institutions`);
       const token = brand.inDomain.token;
       // A brand joined to one ordinary word that asks nothing of you ("zoominfo", "chasecenter", the arena) is a name
       // of its own, the way people read it. A small note, which only counts next to other signs. Joined to a bait
@@ -275,7 +283,8 @@ const URL_CHECKS = [
       // Nobody accidentally registers a one-letter-off "steamcommunity"; a word
       // one letter off "apple" is far more often innocent.
       const t = brand.lookalike.token;
-      return t.length >= 7
+      // A letter swapped for its twin or doubled ("paypai", "robloxx") is made to be read as the brand, at any length.
+      return t.length >= 7 || brand.visual
         ? fail(70, `Near-identical spelling of ${brand.lookalike.domains[0]}`)
         : fail(36, `Similar spelling to ${brand.lookalike.domains[0]}`);
     } },
@@ -338,6 +347,9 @@ const URL_CHECKS = [
     run: ({ p, words }) => {
       const hits = L.GOV_WORDS.filter((w) => words.has(w));
       const realGov = /(^|\.)(gov|mil|gov\.[a-z]{2}|gc\.ca|gouv\.fr|europa\.eu)$/.test(p.host) || p.suffix === 'gov';
+      // "gov" set apart as a word of its own ("ssa-gov-statement.com", "irs.gov.refund-help.com") is written to read
+      // as a .gov address.
+      if (!realGov && [p.sld, ...p.subdomains].some((label) => label.split(/[-_]/).includes('gov'))) return fail(40, 'Written to read like a .gov address, but is not one');
       return hits.length && !realGov ? fail(22, `Uses government wording (${hits.join(', ')}) on a non-government domain`) : pass('No government impersonation');
     } },
 
