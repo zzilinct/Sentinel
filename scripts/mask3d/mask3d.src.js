@@ -67,7 +67,8 @@ function swallowable(material, state) {
         transformed.z *= 1.0 - 0.6 * uSwirl;
         // Tidal pull: within reach of the horizon the metal is dragged round and in, harder the closer it is.
         float rr = length(transformed.xy);
-        float pull = uEat > 0.0 ? 1.0 - smoothstep(uEat, uEat + 0.8, rr) : 0.0;
+        // The pull eases in as the hole grows, so nothing is bent before it is there to bend it.
+        float pull = uEat > 0.0 ? (1.0 - smoothstep(uEat, uEat + 0.8, rr)) * smoothstep(0.0, 0.45, uEat) : 0.0;
         float tw = pull * pull * 2.2;
         float ts = sin(tw), tc = cos(tw);
         transformed.xy = mat2(tc, ts, -ts, tc) * transformed.xy * (1.0 - 0.3 * pull);
@@ -224,10 +225,6 @@ async function build(el) {
   /* -------- motion: springs toward where it should look */
 
   const reach = Number(el.dataset.look) || 0;
-  let spinAt = 0;
-  if (!reach && !reduced && el.classList.contains('plate__art')) {
-    el.addEventListener('pointerenter', () => { if (!spinAt && !anim) { spinAt = performance.now(); kick(); } });
-  }
   const look = { x: 0, y: 0, vx: 0, vy: 0, w: 0, vw: 0 };
   let tx = 0;
   let ty = 0;
@@ -272,15 +269,9 @@ async function build(el) {
     const face = look.w * 0.7;
     holder.rotation.set(rest.x * (1 - face), rest.y * (1 - face), rest.z * (1 - face));
     const breathe = reduced ? 0 : Math.sin(t * 1.1) * 0.035 * (1 - look.w);
-    // Masks that do not watch sway slowly on their own, like a piece turning on a display stand; a plate's mask
-    // spins once all the way round when the pointer comes to it.
+    // Masks that do not watch sway slowly on their own, like a piece turning on a display stand.
     const sway = !reach && !reduced ? { y: Math.sin(t * 0.42) * 0.34, x: Math.sin(t * 0.31) * 0.06 } : { y: 0, x: 0 };
-    let spin = 0;
-    if (spinAt) {
-      const u = (now - spinAt) / 1800;
-      if (u >= 1) spinAt = 0; else spin = (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2) * Math.PI * 2;
-    }
-    pivot.rotation.set(look.y * 0.5 + breathe * 0.4 + sway.x, look.x * 0.75 + sway.y + spin + (reduced ? 0 : Math.sin(t * 0.55) * 0.05 * (1 - look.w)), -look.x * 0.06);
+    pivot.rotation.set(look.y * 0.5 + breathe * 0.4 + sway.x, look.x * 0.75 + sway.y + (reduced ? 0 : Math.sin(t * 0.55) * 0.05 * (1 - look.w)), -look.x * 0.06);
     pivot.position.y = reduced ? 0 : Math.sin(t * 0.9) * 0.05;
     if (eyes) {
       const want = 0.35 + 0.65 * look.w;
@@ -292,7 +283,7 @@ async function build(el) {
     if (anim && anim(now) === false) anim = null;
     const moving = Math.abs(tx - look.x) + Math.abs(ty - look.y) + Math.abs(tw - look.w) + Math.abs(look.vx) + Math.abs(look.vy) > 0.0005;
     // Only drifting (breathing, swaying, the eyes' flicker): half the frames are plenty, and half the work.
-    const idle = !moving && !anim && !spinAt;
+    const idle = !moving && !anim;
     if (!idle || now - drawnAt > 30) { renderer.render(scene, camera); drawnAt = now; }
     dirty = false;
     // Breathing and glowing eyes keep a visible mask alive; otherwise it rests until something changes.
@@ -348,7 +339,8 @@ async function build(el) {
             // Consumed: the horizon grows from the middle, in step with the hole drawn over it (cosmos.js), until
             // nothing of the mask is left.
             const u = ease(e / out);
-            state.eat.value = 0.3 + 0.8 * u;
+            // From nothing: no sudden bite out of the middle when the hole starts to feed.
+            state.eat.value = 1.1 * u;
           } else if (e < out + gap) {
             state.eat.value = 0;
             state.radius.value = 0;
@@ -378,14 +370,17 @@ async function build(el) {
 function start() {
   if (!('IntersectionObserver' in window) || !('ResizeObserver' in window)) return;
   const all = [...document.querySelectorAll('[data-mask3d]')];
-  // Each is built as it nears the screen, so a page with many masks does not start them all at once.
+  // The models every mask on the page needs, fetched now (they are cached), so a mask is ready before it is reached.
+  for (const el of all) model(GEOMETRY[el.dataset.mask3d] || 'scam');
+  // Each is built a screen or so before it is reached, so a page with many masks does not start them all at once
+  // and none appears late.
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       io.unobserve(e.target);
       mount(e.target).then((api) => { if (api) e.target.dispatchEvent(new CustomEvent('mask3d:ready', { detail: api })); });
     }
-  }, { rootMargin: '300px' });
+  }, { rootMargin: '900px 0px' });
   all.forEach((el) => io.observe(el));
 }
 

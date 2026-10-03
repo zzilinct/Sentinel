@@ -38,7 +38,14 @@
   }
   window.SentinelLoadMask3D = loadMask3D;
   const whenReady = (fn) => (document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', fn) : fn());
-  whenReady(() => { if (document.querySelector('[data-mask3d]')) loadMask3D(); });
+  // Only once the page has loaded and the browser is idle: a script added before then holds up the page's own load
+  // (and the opening sketch, which waits for it). The pictures stand in until the models are ready.
+  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 200));
+  whenReady(() => {
+    if (!document.querySelector('[data-mask3d]')) return;
+    if (document.readyState === 'complete') idle(loadMask3D);
+    else addEventListener('load', () => idle(loadMask3D), { once: true });
+  });
 
   /* ------------------------------------------------------------------- stars */
 

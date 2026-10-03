@@ -219,6 +219,35 @@
     const buttons = $$('[data-sev]', card);
     const slot = $('[data-example]', card);
 
+    const exampleHTML = (ex) => {
+      const t = ex.threats[threat];
+      const reasons = ex.reasons.filter((r) => r.threat === threat).concat(ex.reasons.filter((r) => r.threat !== threat)).slice(0, 3);
+      return `
+        <div class="example__context">${esc(ex.context)}</div>
+        <div class="example__url">${esc(ex.url)}</div>
+        <div class="example__meter"><div class="bar__track"><div class="bar__fill"></div></div><b>${t.score}/100</b></div>
+        <ul class="example__why">${reasons.map((r) => `<li>${esc(r.text)}</li>`).join('')}</ul>
+        <span class="example__tag">${t.kind ? `${Masks.kindIcon(t.kind)} ${esc(t.kindShort)} · ` : ''}${esc(t.label)} · ${ex.known ? 'known threat' : `${ex.checks.failed + ex.checks.warned} of ${ex.checks.total} checks flagged`}</span>`;
+    };
+    // The example box keeps the height of its tallest severity, so switching never moves the buttons or the page:
+    // all three are measured once (and again when the width changes).
+    let reservedAt = -1;
+    const reserve = (d) => {
+      const width = slot.clientWidth;
+      if (!d || !d.masks[threat] || width === reservedAt) return;
+      reservedAt = width;
+      slot.style.minHeight = '';
+      const keep = slot.innerHTML;
+      let tallest = 0;
+      for (const ex of Object.values(d.masks[threat])) {
+        slot.innerHTML = exampleHTML(ex);
+        tallest = Math.max(tallest, slot.offsetHeight);
+      }
+      slot.innerHTML = keep;
+      slot.style.minHeight = `${tallest}px`;
+    };
+    addEventListener('resize', () => { reservedAt = -1; examples.then((d) => { if (!slot.hidden) reserve(d); }); }, { passive: true });
+
     // how: 'user' (a click or a key) or 'auto' (the card walking its own stages).
     let shown = (buttons.find((x) => x.getAttribute('aria-pressed') === 'true') || buttons[0]).dataset.sev;
     const choose = async (b, focus, how) => {
@@ -244,14 +273,9 @@
       const ex = d && d.masks[threat] && d.masks[threat][sev];
       if (!ex || b.getAttribute('aria-pressed') !== 'true') return;
       const t = ex.threats[threat];
-      const reasons = ex.reasons.filter((r) => r.threat === threat).concat(ex.reasons.filter((r) => r.threat !== threat)).slice(0, 3);
       slot.hidden = false;
-      slot.innerHTML = `
-        <div class="example__context">${esc(ex.context)}</div>
-        <div class="example__url">${esc(ex.url)}</div>
-        <div class="example__meter"><div class="bar__track"><div class="bar__fill"></div></div><b>${t.score}/100</b></div>
-        <ul class="example__why">${reasons.map((r) => `<li>${esc(r.text)}</li>`).join('')}</ul>
-        <span class="example__tag">${t.kind ? `${Masks.kindIcon(t.kind)} ${esc(t.kindShort)} · ` : ''}${esc(t.label)} · ${ex.known ? 'known threat' : `${ex.checks.failed + ex.checks.warned} of ${ex.checks.total} checks flagged`}</span>`;
+      reserve(d);
+      slot.innerHTML = exampleHTML(ex);
       // Restart the entrance animation for each switch.
       slot.style.animation = 'none';
       void slot.offsetWidth;
@@ -292,6 +316,8 @@
     // Beside the severity buttons, in the plate's panel when the card has one.
     ($('.plate__info', card) || card).appendChild(cycle);
     stop();
+    // The example for the severity already showing, from the start: the box never appears mid-scroll.
+    choose(buttons.find((x) => x.getAttribute('aria-pressed') === 'true') || buttons[0]);
 
     buttons.forEach((b, i) => {
       b.tabIndex = b.getAttribute('aria-pressed') === 'true' ? 0 : -1;

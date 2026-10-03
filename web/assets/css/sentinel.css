@@ -967,7 +967,7 @@ html.intro-ink.intro-ink-go body > :not(.intro-cover) { filter: none; transition
 .mask3d--ready > img { opacity: 0 !important; transition: opacity .6s ease; }
 /* The plates and the colour reading hold several pictures; the model takes the whole frame. */
 .plate__art.mask3d { --m3w: 96%; --m3h: 96%; }
-.plate__art > .mask3d__canvas { z-index: 1; filter: drop-shadow(0 40px 34px rgb(0 0 0 / .6)); }
+.plate__art > .mask3d__canvas { z-index: 1; }
 .manifesto__mask.mask3d { --m3w: 140%; --m3h: 140%; }
 .lockart__core .m3 { width: 80%; }
 .lockart__core .m3 > img { width: 100%; height: auto; }
@@ -989,3 +989,9 @@ html.intro-ink.intro-ink-go body > :not(.intro-cover) { filter: none; transition
 .bh-flash { fill: #fff6df; opacity: 0; transform-box: fill-box; transform-origin: center; filter: drop-shadow(0 0 30px var(--bh)); }
 /* While the hole is open the plate's own glow gives way to it. */
 .plate.is-singular .plate__glow { opacity: .25; transition: opacity .4s; }
+/* A live 3D mask redraws many times a second, and a drop-shadow filter over it would be recomputed on every one of
+   those frames: once the model is up the filters come off, and a still, soft shadow lies under the mask instead. */
+.hero__mask:has(.mask3d--ready), .page-head__mask.mask3d--ready, .lux-mask:has(.mask3d--ready) { filter: none !important; }
+.mask3d--ready::before { content: ''; position: absolute; left: 18%; right: 18%; bottom: -6%; height: 14%; border-radius: 50%; pointer-events: none; z-index: 0;
+  background: radial-gradient(closest-side, rgb(0 0 0 / .5), rgb(0 0 0 / 0)); }
+.manifesto__mask.mask3d--ready::before { bottom: -14%; }

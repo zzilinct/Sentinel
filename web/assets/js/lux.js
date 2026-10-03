@@ -37,20 +37,12 @@
   motes.className = 'motes';
   motes.setAttribute('aria-hidden', 'true');
   document.body.appendChild(motes);
+  // Each mote rises on a CSS animation (lux.css), which the browser runs off the main thread: placed here, never
+  // touched again.
   for (let i = 0; i < (innerWidth < 760 ? 12 : 24); i++) {
     const m = document.createElement('span');
-    m.style.left = `${utils.random(0, 100)}%`;
-    m.style.top = `${utils.random(25, 100)}%`;
+    m.style.cssText = `left:${utils.random(0, 100)}%;top:${utils.random(25, 100)}%;--o:${utils.random(3, 8) / 10};--rise:${-utils.random(120, 360)}px;--dx:${utils.random(-40, 40)}px;animation-duration:${utils.random(6000, 13000)}ms;animation-delay:${utils.random(0, 6000)}ms`;
     motes.appendChild(m);
-    animate(m, {
-      opacity: [0, utils.random(3, 8) / 10, 0],
-      translateY: [0, -utils.random(120, 360)],
-      translateX: [0, utils.random(-40, 40)],
-      duration: utils.random(6000, 13000),
-      delay: utils.random(0, 6000),
-      loop: true,
-      ease: 'inOutSine'
-    });
   }
 
   /* -------------------------------------------------------------- hero */
