@@ -50,6 +50,12 @@ const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'secur
 // chose them, not whoever made the page, so they say nothing about the page.
 const PLATFORM_WORDS = new Set(['docs', 'document', 'documents', 'drive', 'file', 'forms', 'sites', 'view', 'edit']);
 const authorWords = (p, words) => (L.PATH_HOSTING.includes(p.host) ? new Set([...words].filter((w) => !PLATFORM_WORDS.has(w))) : words);
+// A page ABOUT a company (nerdwallet.com/reviews/banking/chase-bank, trustpilot.com/review/www.chase.com,
+// reddit.com/r/Chase/...): reviews, news, forums and listings name brands in their paths because that is their
+// subject. It says nothing about the page pretending to be the brand.
+const aboutPage = (p) => /\/(reviews?|news|articles?|story|blog|wiki|compare|comparisons?|guides?|how-to|learn|course|docs|advisor|terms|questions|comments|biz|company|companies|cmp|plugins|apps|integrations|package|tagged|topics?|r|20\d\d)\//i.test(p.path)
+  // An article's slug: four words or more joined by hyphens ("how-to-delete-your-paypal-account").
+  || p.path.split('/').some((s) => s.split('-').filter((w) => /^[a-z]+$/i.test(w)).length >= 4);
 const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery', 'survey', 'loyalty', 'win', 'robux', 'vbucks'];
 const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway', 'airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
@@ -158,6 +164,9 @@ const URL_CHECKS = [
   { id: 'U14', group: 'Downloads', threat: 'virus', title: 'Link does not download a program',
     run: ({ p }) => {
       if (!L.EXECUTABLE_EXT.has(p.ext)) return pass('Not an executable download');
+      // ".../review/www.chase.com": a web address in a path, not an old DOS program.
+      const last = p.path.split('/').filter(Boolean).pop() || '';
+      if (p.ext === 'com' && /^www\.|^[a-z0-9-]+\.[a-z0-9.-]+\.com$/i.test(last)) return pass('A web address in the path, not a program');
       // A program served from a raw IP, a heavily abused ending or a throwaway
       // host is far more likely to be malicious than one from an established site.
       const shadyHost = p.isIp || Boolean(L.RISKY_TLDS[p.suffix]) || Boolean(p.hosting) || L.DYNAMIC_DNS.some((d) => p.host.endsWith('.' + d));
@@ -249,7 +258,12 @@ const URL_CHECKS = [
       const sld = p.sld.toLowerCase();
       const rest = sld.startsWith(token) ? sld.slice(token.length) : sld.endsWith(token) ? sld.slice(0, -token.length) : '';
       const bait = new Set([...CREDENTIAL_WORDS, ...TRUST_WORDS, ...MONEY_WORDS, ...CRYPTO_WORDS, ...SHOP_WORDS, 'help', 'care', 'team', 'app', 'apps', 'pay', 'card', 'cards', 'wallet', 'mail', 'alert', 'alerts', 'official', 'store', 'shop', 'id', 'web', 'net', 'my', 'get', 'go', 'resolution', 'dispute', 'disputes', 'case', 'claim', 'claims', 'limited', 'restore', 'unlock', 'review']);
-      if (rest.length >= 4 && !/[-\d]/.test(sld) && isRealWords(rest) && !bait.has(rest) && !bait.has(rest.replace(/s$/, ''))) return warn(12, `${sld} is "${token}" joined to the ordinary word "${rest}": a different name unless other signs say otherwise`);
+      // Bait anywhere in what is joined on ("centersupport", "centerverify"), not only as the whole of it.
+      const baited = [...bait].some((w) => w.length >= 4 && rest.includes(w));
+      if (rest.length >= 4 && !/[-\d]/.test(sld) && isRealWords(rest) && !baited && !bait.has(rest) && !bait.has(rest.replace(/s$/, ''))) return warn(12, `${sld} is "${token}" joined to the ordinary word "${rest}": a different name unless other signs say otherwise`);
+      // A place named for its sponsor ("wellsfargocenterphilly", the arena): the brand, a venue word, maybe a city.
+      const venue = /^(center|centre|arena|field|stadium|park|amphitheater|amphitheatre|theater|theatre|pavilion|dome|garden|gardens)/.exec(rest);
+      if (venue && !/[-\d]/.test(sld) && !baited) return warn(12, `${sld} is a place named for ${token} (the ${venue[1]}): a different name unless other signs say otherwise`);
       return fail(38, `Uses "${token}" but is not ${brand.inDomain.domains[0]}`);
     } },
 
@@ -388,6 +402,7 @@ const KNOWLEDGE_CHECKS = [
       for (const seg of lower.split(/[^a-z0-9_-]+/)) if (/[-_]/.test(seg)) segments.add(seg.replace(/[-_0-9]/g, ''));
       const hit = L.PROTECTED_BRANDS.find((b) => segments.has(b.token) && !b.domains.includes(p.registrable));
       if (!hit) return pass('No brand names in the path');
+      if (aboutPage(p)) return pass(`A page about ${hit.token} (a review, article, forum or listing)`);
       const login = CREDENTIAL_WORDS.some((w) => words.has(w) || p.path.toLowerCase().includes(w));
       return fail(login ? 30 : 22, `Path mentions "${hit.token}" but this is not ${hit.domains[0]}${login ? ', next to login wording' : ''}`);
     } },
@@ -413,6 +428,9 @@ const KNOWLEDGE_CHECKS = [
       // Hosting's temporary address (website-e86d3b7f.….mybluehost.me): what a site is reached by before it has a
       // name of its own. Nobody sends customers there; throwaway pages live there.
       if (p.host.endsWith('.mybluehost.me') && /^(www\.)?website-[0-9a-f]{6,}\./.test(p.host)) return fail(24, 'A hosting company\'s temporary address, not a site\'s own name');
+      // Netlify's made-up name for a site its owner never named ("regal-lolly-92b4a1"): fine for a test, odd for a
+      // site anyone is sent to.
+      if (/^[a-z]+-[a-z]+-[0-9a-f]{6}\.netlify\.app$/.test(p.host)) return fail(18, 'A name Netlify made up for a site its owner never named');
       // Folder and page names nobody would type ("aynqxts/wsdqmoc/dpgqmbx"): phishing kits unpack into generated
       // folders on hacked sites, and shared site builders give throwaway pages generated names.
       const parts = p.path.split('/').filter(Boolean).map((s) => s.replace(/\.[a-z0-9]+$/i, ''));
@@ -549,13 +567,29 @@ const KNOWLEDGE_CHECKS = [
 
   { id: 'U50', group: 'Address', threat: 'scam', title: 'Path is not dressed up as another site\'s address',
     run: ({ p, brand }) => {
-      if (brand.owner || !p.path || p.path.includes('://')) return pass('Not applicable');
+      if (brand.owner || !p.path || p.path.includes('://') || aboutPage(p)) return pass('Not applicable');
       // "s4w.in/roblox-com-users-...-profile", "gurl.pro/wwwrobloxcom-users-...": the eye reads roblox.com. The site is s4w.in.
       const path = p.path.toLowerCase();
       for (const b of L.PROTECTED_BRANDS) {
         if (b.token.length < 4) continue;
         const re = new RegExp(`(^|[/._-])(www[._-]?)?${b.token}[._-]?com([/._-]|$)`);
         if (re.test(path)) return fail(38, `The path is written to look like ${b.domains[0]}; the real site is ${p.registrable}`);
+      }
+      return pass('Ordinary path');
+    } },
+
+  { id: 'U58', group: 'Address', threat: 'scam', title: 'Path does not hold another company\'s sign-in page',
+    run: ({ p, brand }) => {
+      if (brand.owner || !p.path || aboutPage(p)) return pass('Not applicable');
+      // "securitynotifications.org/login/chasebank/...": a folder named for a brand glued to the way into its
+      // account ("chasebank", "paypallogin"), beside a sign-in folder. Sites name folders for what they hold; this
+      // one holds a bank's sign-in.
+      const glued = /^(bank|online|secure|verify|account|login|signin|logon|auth)$/;
+      const segs = p.path.toLowerCase().split('/').filter(Boolean);
+      const signin = segs.some((s) => /^(login|signin|sign-in|logon|auth|verify|secure|account)$/.test(s));
+      for (const seg of segs) {
+        const b = signin && L.PROTECTED_BRANDS.find((x) => x.token.length >= 4 && seg.startsWith(x.token) && glued.test(seg.slice(x.token.length)));
+        if (b) return fail(30, `A folder called "${seg}" beside a sign-in folder on ${p.registrable}, which is not ${b.domains[0]}`);
       }
       return pass('Ordinary path');
     } },

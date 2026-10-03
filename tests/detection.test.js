@@ -178,6 +178,28 @@ test('unpaid-toll texts, look-alike letters and fake .gov names are caught; the 
   }
 });
 
+test('pages ABOUT a brand (reviews, news, forums, how-tos) are not dressed up as it; a bank folder beside a sign-in folder is', async () => {
+  for (const url of ['https://www.nerdwallet.com/reviews/banking/chase-bank', 'https://www.trustpilot.com/review/www.chase.com', 'https://www.reddit.com/r/Chase/comments/abc/chase_online_login_issue/',
+    'https://www.cnbc.com/2026/01/02/chase-bank-outage-customers.html', 'https://www.pcmag.com/how-to/how-to-delete-your-paypal-account', 'https://www.consumerfinance.gov/complaint/paypalaccount',
+    'https://www.yelp.com/biz/chase-bank-new-york-120', 'https://auth0.com/docs/authenticate/identity-providers/social-identity-providers/microsoft-account']) {
+    const v = await scan(url);
+    assert.equal(v.overall.badge, null, `${url} ${v.threats.scam.score}`);
+    assert.ok(!v.checklist.items.some((c) => ['U40', 'U50', 'U58', 'U14'].includes(c.id) && c.status === 'fail'), url);
+  }
+  const bank = await scan('https://securitynotifications.org/login/chasebank/mfjr2p5001vn?u=567236');
+  assert.ok(bank.checklist.items.some((c) => c.id === 'U58' && c.status === 'fail'));
+  assert.ok((await scan('https://regal-lolly-92b4a1.netlify.app/gghjkjctdtydffuiijgugug.html')).checklist.items.some((c) => c.id === 'U56' && c.status === 'fail'));
+});
+
+test('a place named for its sponsor is its own name; a brand joined to words hiding bait is not', async () => {
+  for (const url of ['https://www.wellsfargocenterphilly.com/', 'https://www.capitalonearena.com/', 'https://www.chasecenter.com/']) {
+    assert.ok(!(await scan(url)).checklist.items.some((c) => c.id === 'U22' && c.status === 'fail'), url);
+  }
+  for (const url of ['https://www.paypalcentersupport.com/', 'https://www.amazoncenterverify.com/']) {
+    assert.ok((await scan(url)).checklist.items.some((c) => c.id === 'U22' && c.status === 'fail'), url);
+  }
+});
+
 test('what the search result says about a site is read without opening it: a title claiming the brand the address imitates', async () => {
   const run = (url, hint) => engine.scanUrls([url], { threats: ['scam', 'virus', 'malware'], mode: 'live', detail: 'full', hints: { [url]: hint } }).then((r) => r[0]);
   const claim = await run('https://onedrlve.com/login', { title: 'Microsoft OneDrive - Sign in', query: 'onedrive login' });
