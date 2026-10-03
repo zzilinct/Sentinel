@@ -67,6 +67,8 @@
 .stat::before { content: ''; position: absolute; inset: 9px; border-radius: inherit; border: 1px solid rgb(var(--gold-rgb) / .2); pointer-events: none; }
 .stat__n { font-size: clamp(42px, 4.6vw, 66px); background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: .05em; }
 .stat__n .unit { -webkit-text-fill-color: var(--gold-300); }
+/* Two cards a row on a phone: "1,200,000+" must fit inside its arch. */
+@media (max-width: 520px) { .stat__n { font-size: 34px; } }
 .stat__l { margin-inline: auto; }
 @media (max-width: 860px) { .stats__grid { grid-template-columns: 1fr 1fr; gap: 16px; } }
 
