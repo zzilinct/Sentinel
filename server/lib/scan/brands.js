@@ -55,6 +55,9 @@ const BRANDS = [
   { token: 'adobe', domains: ['adobe.com', 'adobe.io', 'adobelogin.com', 'typekit.net'] },
   { token: 'dropbox', domains: ['dropbox.com', 'dropboxmail.com', 'dropboxusercontent.com', 'db.tt'] },
   { token: 'docusign', domains: ['docusign.com', 'docusign.net'] },
+  // Link shorteners: a page named for one pretends to be a short link you can trust to forward you.
+  { token: 'tinyurl', domains: ['tinyurl.com'] },
+  { token: 'bitly', domains: ['bitly.com', 'bit.ly'] },
   // More of the most impersonated names (banks, posts, streaming, taxes, games). Brands that are ordinary words
   // (Discover, Target, Citizens, Chime, Vanguard) are left out: their names turn up in honest sites everywhere. So
   // are games with big fan scenes (Minecraft, Fortnite, Twitch): minecraft.wiki and the like are not imitations.

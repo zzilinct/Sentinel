@@ -206,6 +206,19 @@ const URL_CHECKS = [
     run: ({ p, brand, words }) => {
       if (L.PATH_HOSTING.includes(p.host) && p.path.length > 1) {
         const lower = p.path.toLowerCase();
+        // The page's own name begins with a brand ("sites.google.com/view/shopeehethongxuly..."): a company's real
+        // pages are never a free user page named after it.
+        const named = lower.split('/').filter((s) => s && !PLATFORM_WORDS.has(s) && !/^(view|d|u|s|e|forms?)$/.test(s))[0] || '';
+        // Read as words, the way U22 reads domains: "applewoodelementary" and "paypalfanclub" are other names,
+        // "shopee" + "hethongxulydonhang" is the brand with a lure after it.
+        const head = named.split(/[-_]/)[0];
+        const b = L.PROTECTED_BRANDS.find((x) => {
+          if (x.token.length < 5 || !head.startsWith(x.token) || x.domains.some((d) => p.host === d || p.host.endsWith('.' + d))) return false;
+          const rest = head.slice(x.token.length).replace(/\d+/g, '');
+          // A short ending makes another word ("amazonia", "chaser"), not a brand and a lure.
+          return !rest || (rest.length >= 4 && !isRealWords(rest) && !isRealWords(head));
+        });
+        if (b) return fail(30, `A user-made page on ${p.host} named for ${b.domains[0]} ("${named.slice(0, 30)}")`);
         if (CREDENTIAL_WORDS.some((w) => !PLATFORM_WORDS.has(w) && lower.includes(w))) return fail(20, `User-made page on ${p.host} using login wording`);
         if (/\.html?$/.test(lower) && L.OBJECT_STORAGE.test(p.host)) return fail(CREDENTIAL_WORDS.some((w) => lower.includes(w)) ? 32 : 22, `Web page served straight from a storage bucket on ${p.host}, where anyone can upload one`);
         return warn(8, `User-made page on ${p.host}`);
@@ -590,7 +603,7 @@ const KNOWLEDGE_CHECKS = [
       const signin = segs.some((s) => /^(login|signin|sign-in|logon|auth|verify|secure|account)$/.test(s));
       for (const seg of segs) {
         const b = signin && L.PROTECTED_BRANDS.find((x) => x.token.length >= 4 && seg.startsWith(x.token) && glued.test(seg.slice(x.token.length)));
-        if (b) return fail(30, `A folder called "${seg}" beside a sign-in folder on ${p.registrable}, which is not ${b.domains[0]}`);
+        if (b) return fail(40, `A folder called "${seg}" beside a sign-in folder on ${p.registrable}, which is not ${b.domains[0]}`);
       }
       return pass('Ordinary path');
     } },

@@ -200,6 +200,15 @@ test('more banks, posts, streaming and tax brands are guarded; their fan and com
   }
 });
 
+test('a free user page named for a brand with a lure after it is caught; one named in ordinary words is not', async () => {
+  for (const url of ['http://sites.google.com/view/shopeehethongxulydonhang2026vn/home/', 'https://sites.google.com/view/netflixsupportcenterxz', 'https://tinyurl-blox-web.blogspot.com/']) {
+    assert.ok((await scan(url)).overall.badge, url);
+  }
+  for (const url of ['https://sites.google.com/view/applewoodelementary/home', 'https://sites.google.com/view/paypalfanclub/home', 'https://sites.google.com/view/amazonia-research/home', 'https://linktr.ee/netflixfan', 'https://tinyurl.com/y7abc123']) {
+    assert.equal((await scan(url)).overall.badge, null, url);
+  }
+});
+
 test('a place named for its sponsor is its own name; a brand joined to words hiding bait is not', async () => {
   for (const url of ['https://www.wellsfargocenterphilly.com/', 'https://www.capitalonearena.com/', 'https://www.chasecenter.com/']) {
     assert.ok(!(await scan(url)).checklist.items.some((c) => c.id === 'U22' && c.status === 'fail'), url);
