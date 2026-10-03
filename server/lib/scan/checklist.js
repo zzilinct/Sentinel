@@ -50,7 +50,7 @@ const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'secur
 // chose them, not whoever made the page, so they say nothing about the page.
 const PLATFORM_WORDS = new Set(['docs', 'document', 'documents', 'drive', 'file', 'forms', 'sites', 'view', 'edit']);
 const authorWords = (p, words) => (L.PATH_HOSTING.includes(p.host) ? new Set([...words].filter((w) => !PLATFORM_WORDS.has(w))) : words);
-const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery', 'survey', 'loyalty', 'win'];
+const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery', 'survey', 'loyalty', 'win', 'robux', 'vbucks'];
 const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway', 'airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
 
@@ -422,6 +422,16 @@ const KNOWLEDGE_CHECKS = [
       return pass('Ordinary names');
     } },
 
+  { id: 'U57', group: 'Downloads', threat: 'malware', title: 'Not a fake browser or software update site',
+    run: ({ p, words, brand }) => {
+      // "chrome-update-now.com", "browser-update-required.net": real updates come from the browser itself, never
+      // from a site named after one. The commonest way malware is handed out on the web.
+      if (brand.official) return pass('Official site');
+      const software = ['chrome', 'browser', 'firefox', 'edge', 'flash', 'flashplayer', 'java', 'driver', 'drivers', 'windows'].filter((w) => words.has(w));
+      const update = ['update', 'updates', 'upgrade', 'patch'].filter((w) => words.has(w));
+      return software.length && update.length ? fail(40, `Named for a ${software[0]} ${update[0]}: real updates never come from a site like this`, { scam: 10 }) : pass('Not an update lure');
+    } },
+
   { id: 'U42', group: 'Address', threat: 'scam', title: 'No random-looking subdomain in front of bait wording',
     run: ({ p, words }) => {
       const label = p.subdomains[0] || (p.hosting ? p.sld : '');
@@ -618,8 +628,12 @@ const KNOWLEDGE_CHECKS = [
       // paste a command into Windows ("ClickFix"), or a gate in front of a phishing page.
       const seg = p.path.toLowerCase().split('/').filter(Boolean)[0] || '';
       const real = /(^|\.)(google\.com|recaptcha\.net|hcaptcha\.com|cloudflare\.com|challenges\.cloudflare\.com)$/.test(p.host);
-      return !real && /^(h?captcha|recaptcha|re-captcha|verify-?human|human-?verif\w*|cf-?(verify|challenge)|cloudflare-?verif\w*|im-?not-?a-?robot|not-?a-?robot)\b/.test(seg)
-        ? fail(26, `The page is called "${seg.slice(0, 30)}" on a site that is not a CAPTCHA service`)
+      const fake = /^(h?captcha|recaptcha|re-captcha|verify-?human|human-?verif\w*|cf-?(verify|challenge)|cloudflare-?verif\w*|im-?not-?a-?robot|not-?a-?robot)\b/;
+      // Or the whole site is named for it ("verify-human-captcha.com").
+      // Not the plain name alone: captcha.net is the project that coined the word.
+      const named = !plainName(p) && /(^|-)(h?captcha|recaptcha)(-|$)|verify-?human|human-?verif|im-?not-?a-?robot/.test(p.sld);
+      return !real && (fake.test(seg) || named)
+        ? fail(26, named ? `The site is named "${p.sld}", but is not a CAPTCHA service` : `The page is called "${seg.slice(0, 30)}" on a site that is not a CAPTCHA service`)
         : pass('No fake robot check');
     } },
 

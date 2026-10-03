@@ -168,10 +168,11 @@ test('a number that is its own word is a name, not a disguise: 1password and 23a
 test('unpaid-toll texts, look-alike letters and fake .gov names are caught; the real agencies and institutions are not', async () => {
   for (const url of ['https://ezdrivema-tolls.com/pay', 'https://ezpassnj-toll.xin/', 'https://sunpass-toll-services.top/pay', 'https://txtag-unpaidtoll.com/',
     'https://paypai.com/signin', 'https://robloxx.com/users/1/profile', 'https://ssa-gov-statement.com/download', 'https://norton-subscription-refund.com/',
-    'https://geek-squad-renewal.com/', 'https://ticketmaster-resale-tickets.net/']) {
+    'https://geek-squad-renewal.com/', 'https://ticketmaster-resale-tickets.net/', 'https://browser-update-required.net/', 'https://verify-human-captcha.com/']) {
     assert.ok((await scan(url)).overall.badge, url);
   }
-  for (const url of ['https://www.sunpass.com/', 'https://www.txtag.org/', 'https://www.ezdrivema.com/', 'https://www.peachpassgo.com/', 'https://www.norton.edu/', 'https://www.goggles.com/', 'https://www.ssa.gov/']) {
+  for (const url of ['https://www.sunpass.com/', 'https://www.txtag.org/', 'https://www.ezdrivema.com/', 'https://www.peachpassgo.com/', 'https://www.norton.edu/', 'https://www.goggles.com/', 'https://www.ssa.gov/',
+    'https://www.captcha.net/', 'https://www.windowsupdate.com/', 'https://www.mozilla.org/en-US/firefox/new/', 'https://www.java.com/en/download/']) {
     const v = await scan(url);
     assert.equal(v.overall.badge, null, `${url} ${v.threats.scam.score}`);
   }

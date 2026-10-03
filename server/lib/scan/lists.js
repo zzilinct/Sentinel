@@ -48,7 +48,7 @@ const HOST_KEYWORDS = {
   unlock: 14, suspended: 16, recovery: 12, recover: 12, confirm: 12,
   support: 10, helpdesk: 14, billing: 10, invoice: 10, password: 14,
   // money bait
-  free: 12, gift: 14, giftcard: 18, giveaway: 18, bonus: 14, prize: 16,
+  free: 12, robux: 20, vbucks: 20, gift: 14, giftcard: 18, giveaway: 18, bonus: 14, prize: 16,
   winner: 18, reward: 14, claim: 16, refund: 16, cashback: 14, lottery: 18,
   // crypto drainers
   airdrop: 20, presale: 16, wallet: 14, walletconnect: 24,

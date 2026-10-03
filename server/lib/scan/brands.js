@@ -41,7 +41,7 @@ const BRANDS = [
   // Big tech and accounts
   { token: 'apple', domains: ['apple.com', 'apple.com.cn', 'apple.news', 'icloud.com', 'me.com', 'apple.co', 'mzstatic.com'] },
   { token: 'icloud', domains: ['icloud.com', 'apple.com'] },
-  { token: 'microsoft', domains: ['microsoft.com', 'microsoftonline.com', 'microsoft365.com', 'microsoftedge.com', 'live.com', 'outlook.com', 'office.com', 'windows.com', 'windows.net', 'azure.com', 'msn.com', 'bing.com', 'xbox.com', 'sharepoint.com', 'onedrive.com', 'skype.com', 'msauth.net', 'msftauth.net'] },
+  { token: 'microsoft', domains: ['microsoft.com', 'microsoftonline.com', 'microsoft365.com', 'microsoftedge.com', 'live.com', 'outlook.com', 'office.com', 'windows.com', 'windows.net', 'azure.com', 'msn.com', 'bing.com', 'xbox.com', 'sharepoint.com', 'onedrive.com', 'skype.com', 'msauth.net', 'msftauth.net', 'windowsupdate.com', 'update.microsoft.com', 'microsoftedgeinsider.com'] },
   { token: 'outlook', domains: ['outlook.com', 'live.com', 'office.com', 'microsoft.com', 'office365.com'] },
   { token: 'office365', domains: ['office.com', 'office365.com', 'microsoft.com'] },
   { token: 'onedrive', domains: ['onedrive.com', 'live.com', 'microsoft.com', 'sharepoint.com'] },
