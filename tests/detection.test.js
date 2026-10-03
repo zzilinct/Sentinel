@@ -191,6 +191,15 @@ test('pages ABOUT a brand (reviews, news, forums, how-tos) are not dressed up as
   assert.ok((await scan('https://regal-lolly-92b4a1.netlify.app/gghjkjctdtydffuiijgugug.html')).checklist.items.some((c) => c.id === 'U56' && c.status === 'fail'));
 });
 
+test('more banks, posts, streaming and tax brands are guarded; their fan and companion sites are not flagged', async () => {
+  for (const url of ['https://navyfederal-secure-login.com/', 'https://disneyplus-billing-update.com/', 'https://turbotax-refund-claim.net/', 'https://etsy-seller-verify.com/', 'https://postnl-pakket-douane.top/']) {
+    assert.ok((await scan(url)).overall.badge, url);
+  }
+  for (const url of ['https://www.disneyfoodblog.com/', 'https://www.minecraft.wiki/', 'https://minecraft-heads.com/', 'https://twitchtracker.com/', 'https://www.purexbox.com/', 'https://www.navyfederal.org/', 'https://www.max.com/']) {
+    assert.equal((await scan(url)).overall.badge, null, url);
+  }
+});
+
 test('a place named for its sponsor is its own name; a brand joined to words hiding bait is not', async () => {
   for (const url of ['https://www.wellsfargocenterphilly.com/', 'https://www.capitalonearena.com/', 'https://www.chasecenter.com/']) {
     assert.ok(!(await scan(url)).checklist.items.some((c) => c.id === 'U22' && c.status === 'fail'), url);
