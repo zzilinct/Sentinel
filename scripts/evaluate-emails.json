@@ -498,6 +498,66 @@
       "from": "App Leader Weekly <news@appleaderweekly.com>",
       "subject": "This week in app design",
       "body": "Five onboarding patterns that work, and one that does not. Read more at https://appleaderweekly.com/issue-42"
+    },
+    {
+      "name": "Real Amazon shipped",
+      "from": "Amazon.com <shipment-tracking@amazon.com>",
+      "subject": "Your Amazon.com order has shipped",
+      "body": "Hello, your package is on the way. Track your package: https://www.amazon.com/gp/your-account/order-history\nThanks for shopping with us."
+    },
+    {
+      "name": "Real GitHub security",
+      "from": "GitHub <noreply@github.com>",
+      "subject": "[GitHub] A new SSH authentication public key was added to your account",
+      "body": "The following SSH key was added to your account. If you believe this key was added in error, you can remove the key and disable access at https://github.com/settings/keys"
+    },
+    {
+      "name": "Real recruiter",
+      "from": "Jordan Lee <jordan.lee@stripe.com>",
+      "subject": "Software engineer role at Stripe",
+      "body": "Hi, I came across your profile and wanted to see if you would be open to a conversation about a backend role on our payments team. Happy to share more details over a call next week."
+    },
+    {
+      "name": "Real Coinbase receipt",
+      "from": "Coinbase <no-reply@coinbase.com>",
+      "subject": "You received 0.01 BTC",
+      "body": "You just received 0.01 BTC. View your balance in the app."
+    },
+    {
+      "name": "Real newsletter about bitcoin",
+      "from": "Morning Brew <crew@morningbrew.com>",
+      "subject": "Bitcoin hits a new high",
+      "body": "Bitcoin crossed a new record today as investors piled in. Here is what that means for you."
+    },
+    {
+      "name": "DoorDash recruiting",
+      "from": "DoorDash <no-reply@doordash.com>",
+      "subject": "Earn on your schedule",
+      "body": "Earn up to $25 per hour delivering with DoorDash. No experience needed. Sign up: https://dasher.doordash.com/en-us"
+    },
+    {
+      "name": "RingCentral voicemail",
+      "from": "RingCentral <service@ringcentral.com>",
+      "subject": "New Voice Message from (312) 555-0148",
+      "body": "You have a new voice message. Listen in the app: https://app.ringcentral.com/messages"
+    },
+    {
+      "name": "Ooma voicemail",
+      "from": "Ooma <voicemail@ooma.com>",
+      "subject": "New voicemail from WIRELESS CALLER",
+      "body": "You have a new voicemail (0:21). Listen online: https://my.ooma.com/voicemail"
+    },
+    {
+      "name": "Upwork job",
+      "from": "Upwork <donotreply@upwork.com>",
+      "subject": "New job: Product review writer",
+      "body": "A client posted a job that matches your skills: write reviews of kitchen products, $40 per article. View job: https://www.upwork.com/jobs/abc"
+    },
+    {
+      "name": "Telegram friend",
+      "from": "Mike <mike.chen@outlook.com>",
+      "subject": "weekend",
+      "body": "hey, made $200 a day at the market stall last summer lol. ping me on telegram later"
     }
   ],
   "scam": [
@@ -789,6 +849,54 @@
       "from": "Barrister James Okoro <j.okoro.law@outlook.com>",
       "subject": "Inheritance of $7.5 million",
       "body": "I am contacting you about the estate of a late client who shares your surname. The sum of $7,500,000 is unclaimed. Reply to proceed with the transfer."
+    },
+    {
+      "name": "QR code MFA reset",
+      "from": "Microsoft 365 <security@m365-admin-notice.com>",
+      "subject": "Action required: Multi-factor authentication expires today",
+      "body": "Your MFA setup expires today. Scan the QR code below with your phone camera to re-enroll and keep access to your mailbox. Failure to complete this within 24 hours will lock your account.\n[QR CODE]\nIT Service Desk"
+    },
+    {
+      "name": "Voicemail lure",
+      "from": "Voice Mail <noreply@vm-notify-center.net>",
+      "subject": "You have a new voice message (0:42)",
+      "body": "You received a new voicemail from +1 (312) 555-0148. Listen to the message: https://vm-notify-center.net/listen?id=88213\nThis message will be deleted in 48 hours."
+    },
+    {
+      "name": "Task job scam",
+      "from": "Sarah HR <sarah.recruit2026@gmail.com>",
+      "subject": "Remote part-time job, earn $300-$800 daily",
+      "body": "Hello! Our company is hiring remote workers. Simple tasks: rate products online, 60-90 minutes a day, earn $300-$800 daily. No experience needed. Contact me on WhatsApp +44 7700 900123 or Telegram @sarahjobs to start today."
+    },
+    {
+      "name": "Crypto recovery",
+      "from": "Asset Recovery Desk <recovery@chainsafe-recover.org>",
+      "subject": "We can recover your lost crypto",
+      "body": "Lost funds to a scam? Our certified blockchain forensic team recovers stolen cryptocurrency. Pay a small recovery fee of 0.05 BTC to begin. Reply with your wallet address and the transaction IDs."
+    },
+    {
+      "name": "DocuSign completed",
+      "from": "DocuSign <dse@docusign-sign-review.net>",
+      "subject": "Completed: Please review the signed agreement",
+      "body": "All parties have completed Agreement_2026.pdf. REVIEW DOCUMENT: https://docusign-sign-review.net/d/77123\nDo not share this email."
+    },
+    {
+      "name": "Sextortion",
+      "from": "<anon8812@protonmail.com>",
+      "subject": "I know your password: hunter2",
+      "body": "I hacked your device months ago and recorded you through your camera. Send $1450 in Bitcoin to this address within 48 hours or I send the video to all your contacts: bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+    },
+    {
+      "name": "Fake refund",
+      "from": "Billing Team <billing@account-refunds-center.com>",
+      "subject": "Refund of $349.99 approved",
+      "body": "We overcharged your subscription. To receive your refund of $349.99, confirm your card details here: https://account-refunds-center.com/claim"
+    },
+    {
+      "name": "Account closure",
+      "from": "Mail Admin <admin@mailbox-quota-alerts.com>",
+      "subject": "Your mailbox will be closed",
+      "body": "Your email account will be closed in 24 hours due to inactivity. Keep my account: https://mailbox-quota-alerts.com/keep"
     }
   ]
 }
