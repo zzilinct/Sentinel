@@ -13,7 +13,7 @@ const pass = (detail, points = 0) => ({ status: 'pass', points, detail });
 const skip = (detail) => ({ status: 'skip', points: 0, detail });
 
 const URGENT_SUBJECT = /(urgent|immediately|action required|final notice|suspended|locked|verify|unusual (sign-?in|activity)|payment (failed|declined)|overdue|expires? today|last chance|security alert|confirm your)/i;
-const CREDENTIAL_ASK = /(verify your (account|identity)|confirm your (online )?(banking )?(password|account|details|information)|update your (payment|billing)|log ?in to (restore|avoid|keep)|re-?enter your|validate your (account|mailbox)|mailbox (is )?(full|quota))/i;
+const CREDENTIAL_ASK = /(verify your (account|identity)|confirm your (online )?(banking )?(password|account|details|information|(credit |debit |bank )?card( details| number)?)|enter your (credit |debit )?card (details|number)|update your (payment|billing)|log ?in to (restore|avoid|keep)|re-?enter your|validate your (account|mailbox)|mailbox (is )?(full|quota))/i;
 // A request to pay in a way that cannot be undone, not the words alone: a Coinbase price alert says "bitcoin", an
 // insurance letter says "beneficiary", a store sells gift cards.
 // Not a receipt ("your purchase of an Apple Gift Card") or a gift someone sent ("redeem your gift card code").
@@ -146,7 +146,10 @@ function analyzeEmail(mail, how = {}) {
   add('E05', 'scam', 'Subject is not built to rush you', wording(URGENT_SUBJECT.test(subject) ? warn(10, `"${subject.slice(0, 80)}"`) : pass('Calm subject')));
   add('E06', 'scam', 'Does not ask you to confirm login or payment details', wording(CREDENTIAL_ASK.test(subject + ' ' + body)
     // A preview has no sender address to hold the request against: noted, never decisive on its own.
-    ? (how.preview ? warn(12, 'Asks you to verify or re-enter account details') : fail(24, 'Asks you to verify or re-enter account details'))
+    ? (how.preview ? warn(12, 'Asks you to verify or re-enter account details')
+      // Real refunds go back to the card you paid with: none needs your card details first.
+      : /\b(refund|overcharg\w*|reimburse\w*)\b/i.test(subject + ' ' + body) ? fail(34, 'Offers a refund but first wants your card or account details: real refunds go back to how you paid')
+      : fail(24, 'Asks you to verify or re-enter account details'))
     : pass('No credential request')));
   // Gift cards, crypto, wire transfers, "release fees": the one request a real company never makes by email. Weighted to
   // mark on its own, even in an inbox preview.

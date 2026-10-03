@@ -208,6 +208,9 @@ test('task-job offers and expiring voicemail links are caught; real gig ads and 
   const vm = await mail('Voice Mail <noreply@vm-notify-center.net>', 'You have a new voice message (0:42)',
     'Listen to the message: https://vm-notify-center.net/listen?id=88213\nThis message will be deleted in 48 hours.');
   assert.ok(vm.threats.scam.badge, `voicemail ${vm.threats.scam.score}`);
+  const refund = await mail('Billing Team <billing@account-refunds-center.com>', 'Refund of $349.99 approved',
+    'We overcharged your subscription. To receive your refund of $349.99, confirm your card details here: https://account-refunds-center.com/claim');
+  assert.ok(refund.threats.scam.badge, `refund ${refund.threats.scam.score}`);
   for (const [from, subject, body] of [
     ['DoorDash <no-reply@doordash.com>', 'Earn on your schedule', 'Earn up to $25 per hour delivering with DoorDash. No experience needed. Sign up: https://dasher.doordash.com/en-us'],
     ['Ooma <voicemail@ooma.com>', 'New voicemail from WIRELESS CALLER', 'You have a new voicemail (0:21). Listen online: https://my.ooma.com/voicemail']]) {
