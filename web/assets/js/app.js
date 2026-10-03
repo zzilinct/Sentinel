@@ -410,7 +410,7 @@
       return `
       <li class="${link ? 'is-link' : ''}" ${link ? `data-rescan="${esc(it.target)}" tabindex="0" role="button" title="Scan again"` : ''}>
         <span class="list__icon">${it.kind === 'file' ? ICON.file : it.kind === 'email' ? ICON.mail : ICON.link}</span>
-        <span class="list__main"><b class="${it.kind === 'url' ? 'mono' : ''}">${esc(it.target)}</b><span>${esc(it.mode === 'live' ? 'Live' : 'Manual')} ${esc(it.kind)} scan &middot; ${ago(it.created_at)}</span></span>
+        <span class="list__main"><b class="${it.kind === 'url' ? 'mono' : ''}">${esc(it.target)}</b><span>${esc(it.mode === 'live' ? 'Live' : 'Manual')} ${esc({ url: 'link', file: 'file', email: 'email' }[it.kind] || it.kind)} scan &middot; ${ago(it.created_at)}</span></span>
         <span class="list__masks">${masksFor(it) || '<span class="status is-on">Clear</span>'}</span>
         ${link ? '<span class="list__go" aria-hidden="true">&rarr;</span>' : ''}
       </li>`;
@@ -427,7 +427,7 @@
   /** The live allowance that can run out: delicate where the plan has it, fast otherwise. */
   function liveCard(us, f) {
     const m = f.liveScanning ? us.liveMinutes : us.fastMinutes;
-    const name = f.liveScanning ? 'delicate scanning left' : 'fast scanning left';
+    const name = f.liveScanning ? 'Delicate live scanning left' : 'Fast live scanning left';
     if (!m || uncapped(m.limit)) return usageCard(ICON.clock, 'No limit', '', 'fast live scanning', 0, null, false, 'never resets');
     const left = Math.max(0, m.limit - m.used);
     return m.limit < 60
@@ -630,7 +630,7 @@
 
       <div class="usage-list u-mt-lg">
         <a class="usage-link" href="/app/scan" aria-label="Link scan">${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, `link scans left${f.research ? ', researched' : ''}`, us.linkScans.used, us.linkScans.limit)}</a>
-        <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
+        <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
         <a class="usage-link" href="/app/protection" aria-label="Live protection">${liveCard(us, f)}</a>
       </div>
 
@@ -1091,7 +1091,7 @@
 
     const s = data.stats;
     const stat = (glyph, n, label, color, filter) => `<button type="button" class="usage-row" data-stat="${filter}" aria-pressed="false"><span class="usage-row__icon" style="color:${color}">${Masks.svg(glyph)}</span><span class="usage-row__l">${label}</span><b class="usage-row__n tabular">${n}</b></button>`;
-    $('[data-stats]', el).innerHTML = stat('scam', s.scams, 'scams caught', 'var(--red)', 'scam') + stat('virus', s.viruses, 'viruses caught', 'var(--orange)', 'virus') + stat('malware', s.malware, 'malware caught', 'var(--yellow)', 'malware');
+    $('[data-stats]', el).innerHTML = stat('scam', s.scams, 'Scams caught', 'var(--red)', 'scam') + stat('virus', s.viruses, 'Viruses caught', 'var(--orange)', 'virus') + stat('malware', s.malware, 'Malware caught', 'var(--yellow)', 'malware');
 
     const FILTERS = [['all', 'All'], ['flagged', 'Flagged'], ['clear', 'Clear'], ['scam', 'Scam'], ['virus', 'Virus'], ['malware', 'Malware'], ['live', 'Live'], ['manual', 'Manual']];
     const flaggedLevel = (lvl) => ['suspicious', 'likely', 'confirmed'].includes(lvl);
@@ -1500,7 +1500,7 @@
     const us = usage();
     const demo = state.config.billingMode === 'demo';
     const lines = {
-      free: ['10 link scans a week', '5 virus & malware scans a week', 'Known threats + full checklist', 'Scam mask on link scans', 'Models older than the newest five'],
+      free: ['10 link scans a week', '5 virus & malware scans a week', '15 minutes of fast live scanning a week', 'Known threats + full checklist', 'Scam mask on link scans', 'Models older than the newest five'],
       pro: ['24 hours of fast live scanning a week', '4 hours of delicate live scanning a week', '40 researched link scans', '40 virus & malware scans', 'All three masks', 'Email & download protection',
         'Newest three models: 18 h fast, 3 h delicate, 30 scam and 30 virus & malware link scans'],
       max: ['Unlimited fast live scanning', '24 hours of delicate live scanning a week', '100 researched link scans', '100 virus & malware scans', 'Paste-in email scans',
@@ -1511,8 +1511,8 @@
       ${title('Plan &amp; usage', `You’re on <b>${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
       ${demo ? '<div class="banner"><div><b>Demo billing.</b> Plan changes are instant and free on this server. No payment is taken.</div></div>' : ''}
       <div class="usage-list">
-        ${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, 'link scans left', us.linkScans.used, us.linkScans.limit)}
-        ${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'virus & malware scans left', us.fileScans.used, us.fileScans.limit)}
+        ${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, 'Link scans left', us.linkScans.used, us.linkScans.limit)}
+        ${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}
         ${liveCard(us, plan().features)}
       </div>
       <div class="u-mt-lg">${modelSlot(false)}</div>
