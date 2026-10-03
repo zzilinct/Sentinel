@@ -200,6 +200,21 @@ test('more banks, posts, streaming and tax brands are guarded; their fan and com
   }
 });
 
+test('task-job offers and expiring voicemail links are caught; real gig ads and office voicemail are not', async () => {
+  const mail = (from, subject, body) => engine.scanEmail({ from, subject, body }, { threats: ['scam', 'virus', 'malware'], detail: 'full' });
+  const job = await mail('Sarah HR <sarah.recruit2026@gmail.com>', 'Remote part-time job, earn $300-$800 daily',
+    'Simple tasks: rate products online, 60-90 minutes a day, earn $300-$800 daily. Contact me on WhatsApp to start today.');
+  assert.ok(job.threats.scam.badge, `task job ${job.threats.scam.score}`);
+  const vm = await mail('Voice Mail <noreply@vm-notify-center.net>', 'You have a new voice message (0:42)',
+    'Listen to the message: https://vm-notify-center.net/listen?id=88213\nThis message will be deleted in 48 hours.');
+  assert.ok(vm.threats.scam.badge, `voicemail ${vm.threats.scam.score}`);
+  for (const [from, subject, body] of [
+    ['DoorDash <no-reply@doordash.com>', 'Earn on your schedule', 'Earn up to $25 per hour delivering with DoorDash. No experience needed. Sign up: https://dasher.doordash.com/en-us'],
+    ['Ooma <voicemail@ooma.com>', 'New voicemail from WIRELESS CALLER', 'You have a new voicemail (0:21). Listen online: https://my.ooma.com/voicemail']]) {
+    assert.equal((await mail(from, subject, body)).threats.scam.badge, null, subject);
+  }
+});
+
 test('a free user page named for a brand with a lure after it is caught; one named in ordinary words is not', async () => {
   for (const url of ['http://sites.google.com/view/shopeehethongxulydonhang2026vn/home/', 'https://sites.google.com/view/netflixsupportcenterxz', 'https://tinyurl-blox-web.blogspot.com/']) {
     assert.ok((await scan(url)).overall.badge, url);

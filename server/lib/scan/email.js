@@ -230,6 +230,21 @@ function analyzeEmail(mail, how = {}) {
     return COURIER.test(from.name + ' ' + subject) ? warn(18, 'Asks for a fee to release a parcel') : pass('No courier fee');
   })()));
 
+  // "Earn $300-$800 daily rating products, message me on WhatsApp": the task scam, which ends in "deposits" to
+  // unlock your earnings. Real offers do not quote daily pay for liking or rating things.
+  const PAY_CLAIM = /\b(earn|make|income of)\s+(up to\s+)?[$£€]?\s?\d[\d,]*(\s*(-|to|–)\s*[$£€]?\s?\d[\d,]*)?\s*(usd|dollars)?\s*(\/|a|per)?\s*(day|daily|hour|hourly)\b/i;
+  const TASKS = /\b(rate|rating|review|reviewing|like|liking|boost|boosting)\s+(products?|videos?|apps?|hotels?|movies?)\b|\bsimple (online )?tasks?\b/i;   // not "no experience needed": real gig ads say it too
+  const OFF_PLATFORM = /\b(whatsapp|telegram|signal)\b/i;
+  add('E28', 'scam', 'Not a "paid tasks" job offer', PAY_CLAIM.test(text) && (TASKS.test(text) || OFF_PLATFORM.test(text))
+    ? fail(40, 'Promises daily pay for simple online tasks: the task scam, which ends with you paying to unlock "earnings"') : pass('None'));
+
+  // A voicemail you can only hear through a link, which will be "deleted" soon: the sign-in page waiting behind it.
+  // Office phone systems do email voicemail with a link, so the link alone is only noted.
+  const voicemail = /\bvoice ?mail\b|\bvoice message\b|\bmissed call\b/i.test(text) && links.length && !fromOfficial;
+  add('E29', 'scam', 'Not a voicemail lure', voicemail
+    ? (/\b(deleted|expire[sd]?|removed)\b.{0,40}\b(\d+\s*(hours?|days?)|today|soon)\b/i.test(text) ? fail(30, 'A voicemail behind a link that will "expire": a sign-in page posing as a message') : warn(10, 'A voicemail you can only hear through a link'))
+    : pass('None'));
+
   add('E18', 'scam', 'Sender domain is not freshly invented',
     senderUrl && hostWords(senderUrl.sld).size >= 3 && /-/.test(senderUrl.sld) && !senderBrand.official
       ? warn(8, `${from.domain} is a stitched-together multi-word domain`) : pass('Ordinary sender domain'));
