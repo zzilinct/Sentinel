@@ -244,7 +244,7 @@ async function build(el) {
       // Light inside the mask, seen through its eyes; and a glow over each eye, always lit and brighter as it watches.
       // The light is drawn last and over the metal's inside, so the eyes read clearly against a bright finish.
       const glowMat = new MeshBasicMaterial({ color: 0xffc83a, side: DoubleSide, toneMapped: false });
-      const inner = new Mesh(new PlaneGeometry(1.6, 0.62), glowMat);
+      const inner = new Mesh(new PlaneGeometry(1.25, 0.34), glowMat);
       inner.position.set(0, 0.2, 0.2);
       holder.add(inner);
       const tex = glowTexture();
