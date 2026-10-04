@@ -274,7 +274,7 @@ public class Glide {
         var cur = Profile(bmp, g, x, y, w, h);
         if (prev != null) {
           bool sure;
-          int s = Shift(prev, cur, Math.Min(240, h / 3), out sure);
+          int s = Shift(prev, cur, Math.Min(400, h / 2), out sure);
           // Content moved up by s rows: the page's links moved by -s, as the anchor reports them.
           if (sure && s != 0) {
             Sent++; Total += -s; LastMove = Environment.TickCount;

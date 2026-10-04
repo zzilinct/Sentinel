@@ -25,6 +25,17 @@ jobs:
           path: shots/
           retention-days: 7
       # How smoothly the home page runs as a phone and as a computer (frames, freezes, 3D contexts), with frames to look at.
+      # The released site is measured on the same machine first: runners differ from run to run, a comparison on one
+      # machine does not.
+      - name: The released site, to compare against
+        run: |
+          git fetch --depth 1 origin main
+          git worktree add "${{ github.workspace }}/../released" FETCH_HEAD
+        continue-on-error: true
+      - run: node scripts/perf-probe.js --out perf --label released
+        env:
+          SENTINEL_ROOT: ${{ github.workspace }}/../released
+        continue-on-error: true
       - run: node scripts/perf-probe.js --out perf --label probe
         continue-on-error: true
       - uses: actions/upload-artifact@v4

@@ -67,7 +67,7 @@ function cdpPipe(child) {
 
 async function startServer() {
   const db = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-shots-'));
-  const child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
+  const child = spawn(process.execPath, [path.join(process.env.SENTINEL_ROOT || ROOT, 'server', 'index.js')], {
     env: { ...process.env, NODE_ENV: 'development', PORT: String(PORT), DB_PATH: path.join(db, 'sentinel.db'), FEED_REFRESH_HOURS: '0', RESEARCH_ENABLED: '0', BILLING_MODE: 'demo', SESSION_SECRET: 'review-shots-secret-000000000000000000000' },
     stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
   });
