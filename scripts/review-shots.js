@@ -311,4 +311,6 @@ async function main() {
   }
 }
 
-main().catch((err) => { console.error(err); process.exitCode = 1; });
+// Its browser and server helpers are shared with scripts/perf-probe.js.
+if (require.main === module) main().catch((err) => { console.error(err); process.exitCode = 1; });
+module.exports = { cdpPipe, startServer, CANDIDATES, expand, sleep, BASE };

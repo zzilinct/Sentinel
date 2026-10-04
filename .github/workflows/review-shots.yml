@@ -24,3 +24,11 @@ jobs:
           name: review-shots
           path: shots/
           retention-days: 7
+      # How smoothly the home page runs as a phone and as a computer (frames, freezes, 3D contexts), with frames to look at.
+      - run: node scripts/perf-probe.js --out perf --label probe
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perf-probe
+          path: perf/
+          retention-days: 7
