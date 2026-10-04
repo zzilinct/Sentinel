@@ -15,7 +15,26 @@
 (() => {
   'use strict';
 
-  if (!matchMedia('(hover: hover) and (pointer: fine)').matches || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // A touch screen has no lamp to follow, but gold still answers a finger: the lettering nearest a tap catches the
+  // light for a moment (hover.css, html.tv).
+  if (!matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    document.documentElement.classList.add('tv');
+    addEventListener('pointerdown', (e) => {
+      for (const el of document.querySelectorAll('.gold-text, .metal, .unmasked')) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > innerHeight) continue;
+        const d = Math.hypot(Math.max(r.left - e.clientX, 0, e.clientX - r.right), Math.max(r.top - e.clientY, 0, e.clientY - r.bottom));
+        if (d > 160) continue;
+        el.style.setProperty('--gx', `${(e.clientX - r.left).toFixed(0)}px`);
+        el.style.setProperty('--gy', `${(e.clientY - r.top).toFixed(0)}px`);
+        el.style.setProperty('--gr', `${Math.max(70, Math.min(200, r.height * 1.6)).toFixed(0)}px`);
+        clearTimeout(el._glint);
+        el._glint = setTimeout(() => el.style.setProperty('--gr', '0px'), 450);
+      }
+    }, { passive: true });
+    return;
+  }
   const root = document.documentElement;
   root.classList.add('hv');
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
