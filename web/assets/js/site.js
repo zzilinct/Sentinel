@@ -139,7 +139,7 @@
       sight.setAttribute('aria-hidden', 'true');
       sight.innerHTML = '<svg viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid slice"><circle class="sight__ring" r="60" pathLength="1"/><circle class="sight__ring sight__ring--in" r="44" pathLength="1"/>'
         + '<path class="sight__hair" d="M-96 0H-8M8 0H96M0 -96V-8M0 8V96" pathLength="1"/>'
-        + [[0, -60], [60, 0], [0, 60], [-60, 0]].map(([x, y]) => `<path class="sight__gem" d="M${x} ${y - 3.2}l3.2 3.2-3.2 3.2-3.2-3.2z"/>`).join('') + '</svg>';
+        + [[0, -60], [60, 0], [0, 60], [-60, 0]].map(([x, y]) => `<path class="sight__gem" d="M${x} ${y - 2.2}l2.2 2.2-2.2 2.2-2.2-2.2z"/>`).join('') + '</svg>';
       document.body.appendChild(sight);
     }
     target.classList.remove('is-sighted');

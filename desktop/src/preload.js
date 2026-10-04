@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   // Live scanning: one switch, and "Scan with <browser>".
   liveStart: () => ipcRenderer.invoke('sentinel:live-start'),
   liveStop: () => ipcRenderer.invoke('sentinel:live-stop'),
+  // Chat safety (Roblox and the Discord app): one switch.
+  setChatSafety: (enabled) => ipcRenderer.invoke('sentinel:chat-safety', Boolean(enabled)),
+  onChatSafety: (callback) => on('sentinel:chat-safety', callback),
   setLiveMode: (mode) => ipcRenderer.invoke('sentinel:live-mode', mode === 'delicate' ? 'delicate' : 'fast'),
   setAutoScan: (enabled) => ipcRenderer.invoke('sentinel:auto-scan', Boolean(enabled)),
   scanWith: (browser) => ipcRenderer.invoke('sentinel:scan-with', String(browser)),

@@ -408,7 +408,10 @@ test('marks move with the wheel the moment it turns, and only while there are ma
   assert.match(s, /function Off\(\$why\) \{ \$script:anchor = \$null; try \{ \[Wheel\]::Enabled = \$false; \[Glide\]::Enabled = \$false \}/, 'and off the moment it is not (a game in front)');
   // The page follower: only a band of the page, only while something scrolls, and nothing kept.
   assert.ok(s.includes('d[1].UsagePage = 0x0D; d[1].Usage = 0x05;'), 'a touchpad only says fingers are on it');
-  assert.ok(s.includes('if (!Enabled || Environment.TickCount - Until > 0'), 'the follower copies nothing unless a scroll woke it');
+  assert.ok(s.includes('if (!Enabled || w < 16 || h < 120)'), 'the follower copies nothing unless a results page with marks is in front');
+  assert.ok(s.includes('int rest = (woken ? 16 : 120)'), 'a few times a second between scrolls, every frame only while something scrolls');
+  // A full read waits for the browser's positions to catch up with the movement the pixels saw.
+  assert.ok(s.includes('if ([Glide]::Total -ne 0 -and [Math]::Abs($lastDy - [Glide]::Total) -gt 20'));
   assert.ok(s.includes('p[i] = s;'), 'each row of the band is reduced to one brightness number');
   assert.match(read('desktop/src/pages/overlay.html'), /api\.on\('overlay:px', function \(p\) \{ if \(p && p\.epoch === epoch\) onPixels\(p\); \}\);/);
   const html = read('desktop/src/pages/overlay.html');

@@ -188,6 +188,11 @@ public class Glide {
   static readonly object gate = new object();
   static bool started;
   public static int Sent;   // movements reported (for the log)
+  // How far the page has moved since the last full read, by its pixels, and when it last moved: the reader waits for
+  // the browser's own positions to catch up with this before it reads the links again (a read taken before then
+  // put every mark where its result had been).
+  public static volatile int Total;
+  public static volatile int LastMove;
   public static void Poke(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; }
   public static void Region(int x, int y, int w, int h) { lock (gate) { rx = x; ry = y; rw = Math.Max(0, w); rh = Math.Max(0, h); } }
   public static void Start() {
@@ -249,13 +254,18 @@ public class Glide {
       try {
         int x, y, w, h;
         lock (gate) { x = rx; y = ry; w = rw; h = rh; }
-        if (!Enabled || Environment.TickCount - Until > 0 || w < 16 || h < 120) {
+        if (!Enabled || w < 16 || h < 120) {
           if (fast) { timeEndPeriod(1); fast = false; }
           prev = null;
-          System.Threading.Thread.Sleep(20);
+          System.Threading.Thread.Sleep(40);
           continue;
         }
-        if (!fast) { timeBeginPeriod(1); fast = true; }
+        // Between scrolls the band is looked at a few times a second, so the first frame of a scroll always has a
+        // copy from before it to compare with (otherwise the first notch was missed), and a page moved by the
+        // keyboard is followed too. While something scrolls, every frame.
+        bool woken = Environment.TickCount - Until <= 0;
+        if (woken && !fast) { timeBeginPeriod(1); fast = true; }
+        if (!woken && fast) { timeEndPeriod(1); fast = false; }
         long t0 = clock.ElapsedMilliseconds;
         if (bmp == null || bw != w || bh != h) {
           if (g != null) g.Dispose(); if (bmp != null) bmp.Dispose();
@@ -266,10 +276,15 @@ public class Glide {
           bool sure;
           int s = Shift(prev, cur, Math.Min(240, h / 3), out sure);
           // Content moved up by s rows: the page's links moved by -s, as the anchor reports them.
-          if (sure && s != 0) { Sent++; Console.Out.WriteLine("{\"px\":{\"dy\":" + (-s) + ",\"t\":" + Environment.TickCount + "}}"); Console.Out.Flush(); }
+          if (sure && s != 0) {
+            Sent++; Total += -s; LastMove = Environment.TickCount;
+            // A movement seen between scrolls (the keyboard, a page moving itself): watch every frame for a moment.
+            if (!woken) Poke(400);
+            Console.Out.WriteLine("{\"px\":{\"dy\":" + (-s) + ",\"t\":" + Environment.TickCount + "}}"); Console.Out.Flush();
+          }
         }
         prev = cur;
-        int rest = 16 - (int)(clock.ElapsedMilliseconds - t0);
+        int rest = (woken ? 16 : 120) - (int)(clock.ElapsedMilliseconds - t0);
         System.Threading.Thread.Sleep(Math.Max(1, rest));
       } catch { prev = null; System.Threading.Thread.Sleep(50); }
     }
@@ -377,6 +392,14 @@ while ($true) {
   # marks jumped back and forth.
   $stillAt = 0; $loopStart = [Environment]::TickCount
   while ($anchor -and -not $gotCmd -and [Environment]::TickCount -lt $until) {
+    # The page's pixels moved further than the browser has said its links did: its positions are behind, and a read
+    # now would put every mark where its result was. Wait for them (up to a second and a half after the last move).
+    try {
+      if ([Glide]::Total -ne 0 -and [Math]::Abs($lastDy - [Glide]::Total) -gt 20 -and [Environment]::TickCount - [Glide]::LastMove -lt 1500) {
+        $stillAt = [Environment]::TickCount + 120
+        if ($until -lt $stillAt -and $stillAt - $loopStart -lt 5000) { $until = $stillAt }
+      }
+    } catch { }
     # A page someone is reading, not scrolling, is looked at less and less often: every call costs the browser too.
     # Marks step aside while a page moves anyway, so a scroll noticed a few dozen milliseconds later looks the same.
     $sinceMove = [Environment]::TickCount - $lastMoveAt
@@ -566,6 +589,7 @@ while ($true) {
       Write-Output (@{ links = @($list); covered = $covered; for = $url; ends = $ends; ms = [int]$sw.ElapsedMilliseconds; wheel = "$([Wheel]::Registered)/$([Wheel]::Seen)/$([Wheel]::Enabled)/$([Wheel]::Msgs)" } | ConvertTo-Json -Compress -Depth 4)
       # New positions: the anchor starts again from here, and the marks from zero movement.
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0
+      try { [Glide]::Total = 0 } catch { }
       # The band the page is followed by: the left edge of the results' own text (the marks sit to the right of the
       # links, so they are not in it), from the first result down to the bottom of the page.
       $bandX = ($list | Where-Object { -not $_.c } | ForEach-Object { $_.x } | Measure-Object -Minimum).Minimum

@@ -23,6 +23,8 @@ const downloads = require('./downloads');
 const browsers = require('./browsers');
 const watch = require('./watch');
 const overlay = require('./overlay');
+const chatwatch = require('./chatwatch');
+const chatoverlay = require('./chatoverlay');
 const updater = require('./updater');
 const models = require('./models');
 const clipwatch = require('./clipwatch');
@@ -101,6 +103,25 @@ function step(name, fn) {
 /** Tell the web app (if it is open) that something on this computer changed. */
 function push(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+}
+
+/* Chat safety: Roblox and the Discord app, read on this computer only (chatwatch.js). */
+function chatSafetyStatus() {
+  return { enabled: store.get('chatSafety', false), running: chatwatch.running(), supported: process.platform === 'win32' };
+}
+function startChatSafety() {
+  chatwatch.start({
+    // Only that it started or failed: never a message, a name or a game.
+    log: (text) => appLog(text),
+    onState: (s) => chatoverlay.show(s)
+  });
+}
+function setChatSafety(enabled) {
+  store.set('chatSafety', Boolean(enabled));
+  if (enabled) startChatSafety(); else { chatwatch.stop(); chatoverlay.show(null); }
+  const s = chatSafetyStatus();
+  push('sentinel:chat-safety', s);
+  return s;
 }
 
 /** The signed-in person's pairing if there is one, otherwise this computer's own account. */
@@ -600,6 +621,7 @@ function registerBridge() {
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
+    chatSafety: chatSafetyStatus(),
     liveMode: store.get('liveMode', 'fast'),
     autoScan: store.get('autoScan', false),
     defense: { ...defense.status(), enabled: store.get('defense', true) },
@@ -610,6 +632,7 @@ function registerBridge() {
   }));
 
 
+  handle('sentinel:chat-safety', (enabled) => setChatSafety(Boolean(enabled)));
   handle('sentinel:live-start', () => { setAutoSession(false); return startScanning(); });
   handle('sentinel:live-stop', () => setLiveScanning(false, { byPerson: true }));
   handle('sentinel:auto-scan', (enabled) => setAutoScan(Boolean(enabled)));
@@ -775,6 +798,10 @@ async function boot() {
   });
 
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) overlay.setDryRun((text) => appLog(`overlay (dry run): ${text}`));
+
+  // Chat safety (Roblox and the Discord app): off until turned on in Live protection; nothing about a chat is logged.
+  if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) chatoverlay.setDryRun((text) => appLog(`chat overlay (dry run): ${text}`));
+  if (store.get('chatSafety', false)) startChatSafety();
 
   watch.init({
     origin: ORIGIN,

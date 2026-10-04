@@ -24,6 +24,9 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 
 const BASE = (document.currentScript && document.currentScript.src) ? new URL('../models/', document.currentScript.src).href : '/assets/models/';
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// How often a mask that is only drifting (breathing, swaying, its eyes flickering) is redrawn: slow motion needs few
+// frames, and on a phone fewer still (the drift is the same, the phone stays cool).
+const IDLE_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;
 
 // Finishes, matching the Blender renders (masks.py LOOKS and TINTS).
 const FINISH = {
@@ -225,6 +228,11 @@ async function build(el) {
   // Blender's XYZ turn (masks.py --pose lay), carried into glTF's Y-up axes: the same order becomes YZX.
   holder.rotation.order = 'YZX';
   holder.rotation.set(rest.x, rest.y, rest.z);
+  // The hero is framed exactly as its still picture (onyx.webp), so the 3D model takes over without a jump: measured
+  // on the picture and the model side by side, the model sat smaller, higher and to the right.
+  const frame = lay ? { x: -0.17, y: -0.19, s: 1.15 } : { x: 0, y: 0, s: 1 };
+  holder.scale.setScalar(frame.s);
+  pivot.position.x = frame.x;
 
   let eyes = null;
   try {
@@ -236,12 +244,14 @@ async function build(el) {
       // Light inside the mask, seen through its eyes; and a glow over each eye, always lit and brighter as it watches.
       // The light is drawn last and over the metal's inside, so the eyes read clearly against a bright finish.
       const glowMat = new MeshBasicMaterial({ color: 0xffc83a, side: DoubleSide, toneMapped: false });
-      const inner = new Mesh(new PlaneGeometry(1.4, 0.42), glowMat);
+      const inner = new Mesh(new PlaneGeometry(1.6, 0.62), glowMat);
       inner.position.set(0, 0.2, 0.2);
       holder.add(inner);
       const tex = glowTexture();
       const halos = [-0.36, 0.36].map((x) => {
-        const s = new Sprite(new SpriteMaterial({ map: tex, blending: AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, toneMapped: false }));
+        const s = new Sprite(new SpriteMaterial({ map: tex, blending: AdditiveBlending, depthWrite: false, depthTest: false, transparent: true, opacity: 0, toneMapped: false }));
+        // Drawn over the metal: the eyes glow from any angle, not only when the mask faces the camera.
+        s.renderOrder = 2;
         s.position.set(x, 0.2, 0.64);
         s.scale.set(0.7, 0.46, 1);
         holder.add(s);
@@ -352,7 +362,7 @@ async function build(el) {
       // Masks that do not watch sway slowly on their own, like a piece turning on a display stand.
       const sway = !reach && !reduced ? { y: Math.sin(t * 0.42) * 0.34, x: Math.sin(t * 0.31) * 0.06 } : { y: 0, x: 0 };
       pivot.rotation.set(look.y * 0.45 + breathe * 0.4 + sway.x, look.x * 0.6 + sway.y + (reduced ? 0 : Math.sin(t * 0.55) * 0.05 * (1 - look.w)), -look.x * 0.05);
-      pivot.position.y = reduced ? 0 : Math.sin(t * 0.9) * 0.05;
+      pivot.position.y = frame.y + (reduced ? 0 : Math.sin(t * 0.9) * 0.05);
       if (eyes) {
         const want = 0.7 + 0.5 * look.w;
         eyes.level += (want - eyes.level) * Math.min(1, dt * 6);
@@ -365,7 +375,7 @@ async function build(el) {
       // Only drifting (breathing, swaying, the eyes' flicker): half the frames are plenty, and none while scrolling.
       const idle = !moving && !anim;
       const scrolling = now < scrollingUntil;
-      if (dirty || !idle || (!scrolling && now - drawnAt > 30)) { draw(); drawnAt = now; dirty = false; }
+      if (dirty || !idle || (!scrolling && now - drawnAt > IDLE_MS)) { draw(); drawnAt = now; dirty = false; }
       return moving || Boolean(anim) || !reduced || Boolean(eyes);
     }
   };
@@ -452,7 +462,7 @@ function start() {
   for (const el of els) model(GEOMETRY[el.dataset.mask3d] || 'scam');
   // Each is built a screen or so before it is reached, in a quiet moment rather than in the middle of a scroll, so a
   // page with many masks does not start them all at once and none appears late.
-  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 400 }) : setTimeout(fn, 60));
+  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 60));
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;

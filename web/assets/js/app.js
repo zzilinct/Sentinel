@@ -635,12 +635,14 @@
       </div>
 
       <div class="u-mt">${protectionTeaser()}</div>
+      <div data-chat-ask></div>
 
       <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
         <div data-recent><div class="skeleton u-h-md" ></div></div>
       </div>`;
 
+    askChatSafety($('[data-chat-ask]', el));
     $('[data-quick]', el).addEventListener('submit', (ev) => {
       ev.preventDefault();
       const url = ev.target.url.value.trim();
@@ -1219,7 +1221,7 @@
       <div class="feature-grid">
         ${feature(Masks.svg('scam'), 'Page warnings', 'While a browser is in front, Sentinel checks the address of the page it shows and warns you before a dangerous one gets your details. No add-on.', st(!lock && desktop, lock || 'Needs app'))}
         ${feature(ICON.search, 'Search result masks', `A gold line crosses the page when you search, then a mask appears beside every result. Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock && desktop, lock || 'Needs app'))}
-        ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: the messages in your inbox list get a tick or a mask before you open them. Sentinel reads only what the list shows (sender, subject, first line) and never opens a message.', f.emailLive && !planLocked ? '<span class="status">Optional add-on</span>' : st(false, 'Pro & up'))}
+        ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: the messages in your inbox list get a green mask or a warning mask before you open them. Sentinel reads only what the list shows (sender, subject, first line) and never opens a message.', f.emailLive && !planLocked ? '<span class="status">Optional add-on</span>' : st(false, 'Pro & up'))}
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
 
@@ -1265,6 +1267,56 @@
         </li>`).join('')}</ul>
       </div>`;
     } catch { $('.skeleton', slot).outerHTML = '<p class="muted">Feed status is unavailable right now.</p>'; }
+  }
+
+  /**
+   * Chat safety (Roblox and the Discord app): what it reads and what it never does, said before it is switched on.
+   * Off until the person (or a parent) turns it on.
+   */
+  function chatSafetyPanel(info) {
+    const cs = (info && info.chatSafety) || { enabled: false, supported: false };
+    if (!desktop || !desktop.setChatSafety) return '';
+    return `<div class="panel u-mt" id="chat-safety">
+      <div class="panel__head"><div><h2>Chat safety: Roblox and Discord</h2>
+        <p>Points out scams and people who may not be safe to talk to (someone asking a child to keep secrets, to send pictures, to move to another app, or to meet), right beside the message, while Roblox or the Discord app is in front.</p></div>
+        <input class="switch" type="checkbox" data-chat-safety aria-label="Chat safety" ${cs.enabled ? 'checked' : ''} ${cs.supported ? '' : 'disabled'}></div>
+      <ul class="list">
+        <li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>Read on this computer only</b><span>Messages are read from the screen as they appear, judged here and forgotten. No message, name or game is sent to Sentinel or anyone else, saved, or logged.</span></span></li>
+        <li><span class="list__icon">${Masks.svg('logo')}</span><span class="list__main"><b>Always plain to see</b><span>A Sentinel badge shows while chat is watched. In a Roblox game it shows only when you open the Esc menu, so it never covers the game; warnings sit small, beside the chat box.</span></span></li>
+        <li><span class="list__icon">${ICON.check}</span><span class="list__main"><b>Never in the way</b><span>Nothing is read while a game's chat is closed. Sentinel never changes Roblox or Discord, never types or clicks in them, and only speaks up when a message is suspicious, using the game or server it is in to tell play from danger.</span></span></li>
+      </ul>
+    </div>`;
+  }
+  // Asked once, in the Windows app, before chat safety ever reads anything: what it does, then Turn on or Not now.
+  async function askChatSafety(slot) {
+    if (!slot || !desktop || !desktop.setChatSafety) return;
+    try { if (localStorage.getItem('sentinel.chatAsked')) return; } catch { return; }
+    let info = state.desktopInfo;
+    try { if (!info) info = state.desktopInfo = await desktop.info(); } catch { return; }
+    if (!info.chatSafety || !info.chatSafety.supported || info.chatSafety.enabled || !slot.isConnected) return;
+    slot.innerHTML = `<div class="locked u-mt">
+      <div><span class="locked__tag">${ICON.shield}New in Sentinel</span><h3>Chat safety for Roblox and Discord</h3>
+        <p>Sentinel can point out scams and people who may not be safe to talk to, right beside the message, while Roblox or the Discord app is in front. It reads chat on this computer only and keeps nothing; a badge shows while it watches, and in a Roblox game only when you press Esc. Turn it on for yourself, or for a child who uses this computer.</p></div>
+      <div class="locked__actions"><button class="btn btn--gold" data-chat-yes>Turn on chat safety</button><button class="btn" data-chat-no>Not now</button><a class="btn btn--ghost" href="/app/protection#chat-safety">How it works</a></div>
+    </div>`;
+    const done = () => { try { localStorage.setItem('sentinel.chatAsked', '1'); } catch { /* not stored */ } slot.innerHTML = ''; };
+    $('[data-chat-no]', slot).addEventListener('click', done);
+    $('[data-chat-yes]', slot).addEventListener('click', async (ev) => {
+      ev.target.disabled = true;
+      try { await desktop.setChatSafety(true); toast('Chat safety is on. Open Roblox or Discord and Sentinel watches their chat.', 'success'); done(); }
+      catch (err) { ev.target.disabled = false; toast(desktopError(err), 'error'); }
+    });
+  }
+  function bindChatSafety(slot) {
+    const sw = $('[data-chat-safety]', slot);
+    if (!sw || sw.disabled) return;
+    sw.addEventListener('change', async () => {
+      try {
+        const s = await desktop.setChatSafety(sw.checked);
+        try { localStorage.setItem('sentinel.chatAsked', '1'); } catch { /* not stored */ }
+        toast(s.enabled ? 'Chat safety is on. Open Roblox or Discord and Sentinel watches their chat.' : 'Chat safety is off.', 'success');
+      } catch (err) { sw.checked = !sw.checked; toast(desktopError(err), 'error'); }
+    });
   }
 
   async function renderDesktopControls(slot) {
@@ -1340,6 +1392,8 @@
         </div>
       </div>
 
+      ${chatSafetyPanel(info)}
+
       <div class="grid2 u-mt">
         <div class="panel">
           <div class="panel__head"><div><h2>Live, right now</h2><p>${live.active ? 'Pages show up here as they are checked. Private windows never do.' : 'Start scanning to see pages as they are checked.'}</p></div><span class="live-dot${live.active ? ' is-on' : ''}" aria-hidden="true"></span></div>
@@ -1375,6 +1429,7 @@
       const dl = $('#downloads', slot);
       if (dl) dl.scrollIntoView({ block: 'start' });
     }
+    bindChatSafety(slot);
     const defEl = $('[data-defense]', slot);
     if (defEl && !defEl.disabled) defEl.addEventListener('change', async (ev) => {
       try {
