@@ -155,6 +155,13 @@ function shift({ epoch, dx, dy, t }) {
   if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:shift',{ epoch, dx: dx / scale, dy: dy / scale, t: typeof t === 'number' ? t : null });
 }
 
+/** The page's pixels moved by dy screen pixels in the last frame (watch.js Glide): the marks move by as much. */
+function pixels({ epoch, dy, t }) {
+  if (!area || dryRun) return;
+  if (process.env.SENTINEL_OVERLAY_TRACE) { try { require('fs').appendFileSync(process.env.SENTINEL_OVERLAY_TRACE, `P ${Date.now()} ${t} ${dy}\n`); } catch { /* best effort */ } }
+  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:px', { epoch, dy: dy / scale, t: typeof t === 'number' ? t : null });
+}
+
 /** The overlay window's handle, as a decimal string, or '' when there is none. */
 function handle() {
   if (!win || win.isDestroyed()) return '';
@@ -175,4 +182,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { handle, setWindow, sweep, setVerdict, setMarks, shift, wheel, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { handle, setWindow, sweep, setVerdict, setMarks, shift, wheel, pixels, destroy, setDryRun: (logger) => { dryRun = logger || null; } };

@@ -125,6 +125,30 @@
     // Keyboard focus follows, as a native jump to a fragment would move it.
     if (!target.hasAttribute('tabindex')) target.tabIndex = -1;
     target.focus({ preventScroll: true });
+    arrive(target);
+  }
+
+  // Arriving by a tab is not arriving by scrolling: the chapter is sighted. As the panels sweep off, a scope opens
+  // from the middle of the screen (its ring, its crosshairs drawing out to four diamonds, like the threat plates'
+  // sights) and the chapter is seen through it; its heading lands with a flash, like struck metal. Then it all goes.
+  let sight = null;
+  function arrive(target) {
+    if (!sight) {
+      sight = document.createElement('div');
+      sight.className = 'sight';
+      sight.setAttribute('aria-hidden', 'true');
+      sight.innerHTML = '<svg viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid slice"><circle class="sight__ring" r="60" pathLength="1"/><circle class="sight__ring sight__ring--in" r="44" pathLength="1"/>'
+        + '<path class="sight__hair" d="M-96 0H-8M8 0H96M0 -96V-8M0 8V96" pathLength="1"/>'
+        + [[0, -60], [60, 0], [0, 60], [-60, 0]].map(([x, y]) => `<path class="sight__gem" d="M${x} ${y - 3.2}l3.2 3.2-3.2 3.2-3.2-3.2z"/>`).join('') + '</svg>';
+      document.body.appendChild(sight);
+    }
+    target.classList.remove('is-sighted');
+    sight.classList.remove('is-on');
+    void target.offsetWidth;
+    target.classList.add('is-sighted');
+    sight.classList.add('is-on');
+    clearTimeout(arrive.t);
+    arrive.t = setTimeout(() => { target.classList.remove('is-sighted'); sight.classList.remove('is-on'); }, 1700);
   }
 
   function onTab(ev) {

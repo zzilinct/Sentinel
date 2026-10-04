@@ -369,9 +369,10 @@
     const FEED = 1400;
     const CLOSE = 300;
     const GROW = 1100;
-    const tRing = CHARGE;
-    const tBeam = tRing + RING;
+    const tBeam = CHARGE;
     const tOpen = tBeam + BEAM;
+    // The sight's ring lights as the hole appears, not before the shot: the two arrive together.
+    const tRing = tOpen;
     const tFeed = tOpen + OPEN;
     const tClose = tFeed + FEED;
     const tEnd = tClose + CLOSE + GROW;
@@ -388,10 +389,10 @@
           gm.style.opacity = String(Math.min(1, lit * (0.35 + 0.65 * clamp01((t - i * 90) / CHARGE))));
           gm.style.transform = `scale(${1 + 0.45 * lit})`;
         });
-        // 2. The sight: the ring flashes round from each diamond to the next for a split second, and goes out as
-        //    the shot is fired.
+        // 2. The sight: as the hole opens, the ring flashes round from each diamond to the next, holds for a moment,
+        //    and goes out.
         const ring = out(clamp01((t - tRing) / RING));
-        const ringOn = t < tRing ? 0 : t < tBeam ? 1 : clamp01(1 - (t - tBeam) / 160);
+        const ringOn = t < tRing ? 0 : t < tRing + RING ? 1 : clamp01(1 - (t - tRing - RING) / 220);
         arcs.forEach((a) => { a.style.strokeDashoffset = String(1 - ring); a.style.opacity = String(ringOn); });
         // 3. They fire: four beams meet in the middle, with a flash where they meet.
         const beam = clamp01((t - tBeam) / BEAM);

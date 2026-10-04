@@ -813,6 +813,7 @@ async function boot() {
     onMarks: (m) => overlay.setMarks(m),
     onShift: (s) => overlay.shift(s),
     onWheel: (w) => overlay.wheel(w),
+    onPixels: (p) => overlay.pixels(p),
     onLog: (text) => appendLog('watch.log', `${new Date().toISOString()} # ${text}`),
     // A short on-disk trail of what live scanning checked, for the person to read. Private windows never reach here.
     onChecked: (item) => {

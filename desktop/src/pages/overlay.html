@@ -56,7 +56,7 @@
   .mark.is-still { transition: none; }
   .mark svg { width: 20px; height: 20px; display: block; }
   .mark.is-clear { width: 20px; height: 20px; border-radius: 6px; background: rgba(12, 13, 16, .8); box-shadow: 0 1px 6px rgba(0, 0, 0, .2); }
-  .mark.is-clear svg { width: 12px; height: 12px; }
+  .mark.is-clear svg { width: 15px; height: 15px; }
   .mark.is-pending { width: 10px; height: 10px; border-radius: 3px; border: 0; box-shadow: none; background: #d6b25a; opacity: .0; animation: wait 1s ease-in-out infinite; }
   .mark.is-in { animation: pop .34s cubic-bezier(.2, 1.4, .4, 1) var(--d, 0ms) forwards; }
   @keyframes pop { 0% { opacity: 0; scale: .55; } 100% { opacity: 1; scale: 1; } }
@@ -93,7 +93,6 @@
   var M = window.SentinelMasks;
   var GOLD = '#d6b25a';
   var tracing = /[?&]trace=1\b/.test(location.search);   // end-to-end runs only (see overlay.js)
-  var TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.6 4.6L19 7.4"/></svg>';
   var corner = document.getElementById('corner');
   var cornerMask = document.getElementById('cornerMask');
   var cornerLabel = document.getElementById('cornerLabel');
@@ -145,7 +144,8 @@
   // the small address line at the top.
   function spot(m, size, W) {
     var x = m.x + m.w + 8;
-    var y = m.y + Math.min(m.h, 26) / 2 - size / 2;
+    // One line: centred on the whole line, whatever its height (the link's box is the line's box).
+    var y = m.y + m.h / 2 - size / 2;
     if (m.row) {
       // Inbox rows span the page: the mark sits inside the row, near its right end, centred on it.
       x = m.x + m.w - size - 64;
@@ -154,6 +154,7 @@
       // Up to about three lines (Google: site name, address, title). A taller link is a whole card (a Bing ad with
       // its sitelinks inside): its title is at the top.
       if (m.h > 40 && m.h <= 90) y = m.y + m.h - 15 - size / 2;
+      else if (m.h > 90) y = m.y + 15 - size / 2;
       if (x + size > W - 6) x = Math.max(4, m.x - size - 8);
     }
     return { x: Math.round(x), y: Math.round(y) };
@@ -196,7 +197,7 @@
       n.style.setProperty('--c', m.badge ? M.COLORS[m.badge] : M.COLORS.clear);
       // A batch arriving together ripples in; a single newcomer during a scroll appears at once.
       n.style.setProperty('--d', Math.min(popped++, 14) * 45 + 'ms');
-      n.innerHTML = m.badge ? M.svg(m.kind) : TICK;
+      n.innerHTML = M.svg(m.badge ? m.kind : 'scam');
       void n.offsetWidth;
       n.classList.add('is-in');
     });
@@ -333,8 +334,29 @@
     return gesture.base + y - gesture.held * (1 - u * u * (3 - 2 * u));
   }
   function kick() { if (!raf) { frameAt = performance.now(); raf = requestAnimationFrame(frame); } }
+  // The page's own pixels (overlay:px), a frame after each movement, from whatever moved it. While they come they are
+  // the truth: no prediction, no stepping aside, and the browser's slower word only confirms them afterwards.
+  var PX_MS = 300;         // pixels this recent mean the follower is watching this scroll
+  var PX_EASE_MS = 10;     // the marks close on the measured place within a frame
+  var pxAt = -1e9;        // never
+  var pxY = 0;
+  function pxActive(now) { return now - pxAt < PX_MS; }
+  function onPixels(p) {
+    var now = performance.now();
+    // A new run starts from where the page rested: before the wheel's lead, if a gesture had begun.
+    if (!pxActive(now)) pxY = gesture ? gesture.base : goal.y;
+    pxAt = now;
+    pxY += p.dy;
+    gesture = null;
+    goal = { x: goal.x, y: pxY };
+    setMoving(false);
+    if (tracing) console.log('P ' + now.toFixed(1) + ' ' + p.dy + ' ' + pxY.toFixed(1));
+    kick();
+  }
   function onWheel(p) {
     var now = performance.now();
+    if (pxActive(now)) return;   // the pixels are already following this scroll
+
     var notches = p.delta / 120;
     if (!gesture) gesture = { base: shiftY, steps: [], start: report.y, notches: 0, lastWheel: now, moved: false, dir: Math.sign(notches), held: 0, freedAt: 0 };
     gesture.steps.push({ at: now, px: notches * perNotch });
@@ -349,9 +371,14 @@
     if (Math.abs(p.dy - report.y) > 2) stuckDir = 0;
     report = { x: p.dx, y: p.dy, at: now };
     if (gesture) { if (!gesture.moved && Math.abs(p.dy - gesture.start) > 2) gesture.moved = true; }
-    else {
+    else if (pxActive(now)) {
+      // The pixels are ahead of this word: it only confirms them, later.
+    } else {
+      // After a scroll the pixels followed, the browser's word agreeing with where the marks are is no surprise: they
+      // settle onto it in view. Only movement nothing followed makes them step aside.
+      var followed = now - pxAt < 1500 && Math.abs(p.dy - shiftY) < 40;
       goal = { x: p.dx, y: p.dy };
-      if (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX) setMoving(true);
+      if (!followed && (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX)) setMoving(true);
     }
     if (tracing) console.log('R ' + now.toFixed(1) + ' ' + p.t + ' ' + p.dy.toFixed(1));
     kick();
@@ -391,7 +418,7 @@
         return;
       }
     }
-    var k = 1 - Math.exp(-step / EASE_MS);
+    var k = 1 - Math.exp(-step / (pxActive(now) ? PX_EASE_MS : EASE_MS));
     var nx = shiftX + (goal.x - shiftX) * k;
     var ny = shiftY + (goal.y - shiftY) * k;
     if (Math.abs(goal.x - nx) < 0.4 && Math.abs(goal.y - ny) < 0.4) { setShift(goal.x, goal.y); raf = 0; return; }
@@ -399,7 +426,7 @@
     if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + ny.toFixed(1) + ' ' + goal.y.toFixed(1));
     raf = requestAnimationFrame(frame);
   }
-  function stopFollowing() { if (raf) cancelAnimationFrame(raf); raf = 0; gesture = null; stuckDir = 0; goal = { x: 0, y: 0 }; report = { x: 0, y: 0, at: 0 }; }
+  function stopFollowing() { if (raf) cancelAnimationFrame(raf); raf = 0; gesture = null; pxAt = -1e9; stuckDir = 0; goal = { x: 0, y: 0 }; report = { x: 0, y: 0, at: 0 }; }
   var clipEl = document.getElementById('clip');
   function setClip(c) {
     // A little room above and below, so a mark on the first or last row is not cut in half.
@@ -419,6 +446,7 @@
       rebase = { dx: report.x, dy: report.y };
       if (gesture) { gesture.base -= report.y; gesture.start -= report.y; }
       goal = { x: goal.x - report.x, y: goal.y - report.y };
+      pxY -= report.y;
       report = { x: 0, y: 0, at: report.at };
       epoch = p.epoch;
       setShift(carryX, carryY);
@@ -438,6 +466,7 @@
     follow(p);
   });
   api.on('overlay:wheel', function (p) { if (p && p.epoch === epoch) onWheel(p); });
+  api.on('overlay:px', function (p) { if (p && p.epoch === epoch) onPixels(p); });
   api.on('overlay:clear', function () { stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
 })();
 </script>

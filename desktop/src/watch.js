@@ -129,12 +129,18 @@ public class Wheel : System.Windows.Forms.NativeWindow {
   }
   void Sync() {
     if (Enabled == Registered) return;
-    var d = new RAWINPUTDEVICE[1];
+    // The mouse, and a precision touchpad (its scrolling never arrives as a wheel): only that fingers are on it, which
+    // wakes the page follower (Glide). Neither is held up; the keyboard is never asked for.
+    var d = new RAWINPUTDEVICE[2];
     d[0].UsagePage = 1; d[0].Usage = 2;
-    // On: the mouse, even when this window is not in front (RIDEV_INPUTSINK). Off: RIDEV_REMOVE, no window.
-    if (Enabled) { d[0].Flags = 0x100; d[0].Target = Handle; } else { d[0].Flags = 0x1; d[0].Target = IntPtr.Zero; }
-    if (RegisterRawInputDevices(d, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)))) Registered = Enabled;
+    d[1].UsagePage = 0x0D; d[1].Usage = 0x05;
+    // On: even when this window is not in front (RIDEV_INPUTSINK). Off: RIDEV_REMOVE, no window.
+    for (int i = 0; i < 2; i++) { if (Enabled) { d[i].Flags = 0x100; d[i].Target = Handle; } else { d[i].Flags = 0x1; d[i].Target = IntPtr.Zero; } }
+    if (RegisterRawInputDevices(d, 2, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)))) Registered = Enabled;
+    // A touchpad-less machine refuses the pair on some versions: the mouse alone, as before.
+    else if (RegisterRawInputDevices(new[] { d[0] }, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)))) Registered = Enabled;
   }
+  static bool held;   // a mouse button is down: dragging the scrollbar or a selection moves the page too
   protected override void WndProc(ref System.Windows.Forms.Message m) {
     System.Threading.Interlocked.Increment(ref Msgs);
     if (m.Msg == 0x00FF) System.Threading.Interlocked.Increment(ref Seen);
@@ -145,11 +151,18 @@ public class Wheel : System.Windows.Forms.NativeWindow {
       if (size > 0 && size < 1024) {
         IntPtr buf = Marshal.AllocHGlobal((int)size);
         try {
-          if (GetRawInputData(m.LParam, 0x10000003, buf, ref size, header) == size && Marshal.ReadInt32(buf) == 0) {
+          int kind = GetRawInputData(m.LParam, 0x10000003, buf, ref size, header) == size ? Marshal.ReadInt32(buf) : -1;
+          // A touchpad (RIM_TYPEHID): fingers on it may be scrolling the page.
+          if (kind == 2) Glide.Poke(450);
+          if (kind == 0) {
             ushort flags = (ushort)Marshal.ReadInt16(buf, (int)header + 4);
+            if ((flags & 0x0001) != 0 || (flags & 0x0004) != 0 || (flags & 0x0010) != 0) held = true;
+            if ((flags & 0x0002) != 0 || (flags & 0x0008) != 0 || (flags & 0x0020) != 0) held = false;
+            if (held) Glide.Poke(300);
             if ((flags & 0x0400) != 0) {
               short delta = Marshal.ReadInt16(buf, (int)header + 6);
               LastWheel = Environment.TickCount;
+              Glide.Poke(700);
               Console.Out.WriteLine("{\"wheel\":" + delta + ",\"t\":" + Environment.TickCount + "}");
               Console.Out.Flush();
             }
@@ -160,15 +173,118 @@ public class Wheel : System.Windows.Forms.NativeWindow {
     base.WndProc(ref m);
   }
 }
+
+// The page itself, followed by its pixels while it scrolls: a narrow band of the results' own text is copied from the
+// screen about 60 times a second and compared with the last copy to see how far it moved. That is the page's real
+// movement a frame after it happens, whatever moved it (a wheel's smooth scroll, a touchpad, the scrollbar), where the
+// browser itself says where its links went only every 150-300 ms. Only while something is scrolling (Poke), only the
+// band (Region), and nothing is kept: each copy is reduced to one brightness number per row and dropped.
+public class Glide {
+  [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint ms);
+  [DllImport("winmm.dll")] static extern uint timeEndPeriod(uint ms);
+  public static volatile bool Enabled;
+  public static volatile int Until;
+  static int rx, ry, rw, rh;
+  static readonly object gate = new object();
+  static bool started;
+  public static int Sent;   // movements reported (for the log)
+  public static void Poke(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; }
+  public static void Region(int x, int y, int w, int h) { lock (gate) { rx = x; ry = y; rw = Math.Max(0, w); rh = Math.Max(0, h); } }
+  public static void Start() {
+    if (started) return;
+    started = true;
+    var t = new System.Threading.Thread(Run);
+    t.IsBackground = true;
+    t.Priority = System.Threading.ThreadPriority.AboveNormal;
+    t.Start();
+  }
+  static int[] Profile(System.Drawing.Bitmap bmp, System.Drawing.Graphics g, int x, int y, int w, int h) {
+    g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h), System.Drawing.CopyPixelOperation.SourceCopy);
+    var data = bmp.LockBits(new System.Drawing.Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+    var p = new int[h];
+    try {
+      var row = new int[w];
+      for (int i = 0; i < h; i++) {
+        Marshal.Copy(data.Scan0 + i * data.Stride, row, 0, w);
+        int s = 0;
+        for (int j = 0; j < w; j += 2) { int c = row[j]; s += ((c >> 16) & 255) * 3 + ((c >> 8) & 255) * 6 + (c & 255); }
+        p[i] = s;
+      }
+    } finally { bmp.UnlockBits(data); }
+    return p;
+  }
+  // How far the band moved between two copies: the shift that lines them up best, if one clearly does.
+  public static int Shift(int[] a, int[] b, int max, out bool sure) {
+    sure = false;
+    int n = Math.Min(a.Length, b.Length);
+    if (n < 80) return 0;
+    long same = 0;
+    for (int i = 0; i < n; i++) same += Math.Abs(a[i] - b[i]);
+    double base0 = (double)same / n;
+    // Nothing changed (or only a little: a cursor blinking): still.
+    if (base0 < 40) { sure = true; return 0; }
+    // A band without detail (blank page edge) cannot be lined up.
+    long lo = long.MaxValue, hi = 0; for (int i = 0; i < n; i += 4) { lo = Math.Min(lo, a[i]); hi = Math.Max(hi, a[i]); }
+    if (hi - lo < 600) return 0;
+    double best = double.MaxValue; int at = 0;
+    for (int s = -max; s <= max; s++) {
+      if (s == 0) continue;
+      int from = Math.Max(0, -s), to = Math.Min(n, n - s);
+      if (to - from < n / 2) continue;
+      long sum = 0;
+      for (int i = from; i < to; i++) { sum += Math.Abs(b[i] - a[i + s]); if (sum > best * (to - from)) break; }
+      double v = (double)sum / (to - from);
+      if (v < best) { best = v; at = s; }
+    }
+    // Clearly the page moving, not something on it changing (a video, an image loading in): the shifted copy must line
+    // up far better than the unmoved one.
+    if (best < base0 * 0.35) { sure = true; return at; }
+    return 0;
+  }
+  static void Run() {
+    System.Drawing.Bitmap bmp = null; System.Drawing.Graphics g = null; int[] prev = null; int bw = 0, bh = 0;
+    bool fast = false;
+    var clock = System.Diagnostics.Stopwatch.StartNew();
+    while (true) {
+      try {
+        int x, y, w, h;
+        lock (gate) { x = rx; y = ry; w = rw; h = rh; }
+        if (!Enabled || Environment.TickCount - Until > 0 || w < 16 || h < 120) {
+          if (fast) { timeEndPeriod(1); fast = false; }
+          prev = null;
+          System.Threading.Thread.Sleep(20);
+          continue;
+        }
+        if (!fast) { timeBeginPeriod(1); fast = true; }
+        long t0 = clock.ElapsedMilliseconds;
+        if (bmp == null || bw != w || bh != h) {
+          if (g != null) g.Dispose(); if (bmp != null) bmp.Dispose();
+          bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppRgb); g = System.Drawing.Graphics.FromImage(bmp); bw = w; bh = h; prev = null;
+        }
+        var cur = Profile(bmp, g, x, y, w, h);
+        if (prev != null) {
+          bool sure;
+          int s = Shift(prev, cur, Math.Min(240, h / 3), out sure);
+          // Content moved up by s rows: the page's links moved by -s, as the anchor reports them.
+          if (sure && s != 0) { Sent++; Console.Out.WriteLine("{\"px\":{\"dy\":" + (-s) + ",\"t\":" + Environment.TickCount + "}}"); Console.Out.Flush(); }
+        }
+        prev = cur;
+        int rest = 16 - (int)(clock.ElapsedMilliseconds - t0);
+        System.Threading.Thread.Sleep(Math.Max(1, rest));
+      } catch { prev = null; System.Threading.Thread.Sleep(50); }
+    }
+  }
+}
 "@
 $loaded = $false
 if ($dll -and (Test-Path $dll)) { try { Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
 if (-not $loaded) {
-  if ($dll) { try { Add-Type -TypeDefinition $src -ReferencedAssemblies System.Windows.Forms -OutputAssembly $dll; Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
-  if (-not $loaded) { Add-Type -TypeDefinition $src -ReferencedAssemblies System.Windows.Forms }
+  if ($dll) { try { Add-Type -TypeDefinition $src -ReferencedAssemblies System.Windows.Forms, System.Drawing -OutputAssembly $dll; Add-Type -Path $dll; $loaded = $true } catch { $loaded = $false } }
+  if (-not $loaded) { Add-Type -TypeDefinition $src -ReferencedAssemblies System.Windows.Forms, System.Drawing }
 }
 Write-Output '{"ready":true}'
 try { [Wheel]::Start() } catch { Write-Output (@{ wheelError = [string]$_.Exception.Message } | ConvertTo-Json -Compress) }
+try { [Glide]::Start() } catch { Write-Output (@{ glideError = [string]$_.Exception.Message } | ConvertTo-Json -Compress) }
 $A = [System.Windows.Automation.AutomationElement]
 $VP = [System.Windows.Automation.ValuePattern]
 $docCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)
@@ -188,6 +304,7 @@ $docCache = New-Object System.Windows.Automation.CacheRequest
 $docCache.Add($A::BoundingRectangleProperty); $docCache.Add($A::IsOffscreenProperty)
 # The anchor: one result link whose position is followed between full reads, so marks move WITH the page.
 $anchor = $null; $anchorX = 0; $anchorY = 0; $lastDx = 0; $lastDy = 0; $moved = $false; $confirmedWheel = 0
+$appCheckFor = [IntPtr]::Zero; $isApp = $false
 $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
 $private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
 $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
@@ -242,12 +359,12 @@ function Covered($el, $b) {
     return $true
   } catch { return $false }
 }
-function Off($why) { $script:anchor = $null; try { [Wheel]::Enabled = $false } catch { }; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
+function Off($why) { $script:anchor = $null; try { [Wheel]::Enabled = $false; [Glide]::Enabled = $false } catch { }; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
   # Between full looks: follow the anchor about 60 times a second and report how far the page has moved, so the
   # marks move while the page scrolls instead of jumping after it. Wake at once for a command.
   # The wheel is reported only while there are marks to move (a results page in front): never in a game.
-  try { [Wheel]::Enabled = [bool]$anchor } catch { }
+  try { [Wheel]::Enabled = [bool]$anchor; [Glide]::Enabled = [bool]$anchor } catch { }
   $gotCmd = $false
   $until = [Environment]::TickCount + $pause
   $moved = $false
@@ -277,6 +394,8 @@ while ($true) {
             $lastDx = $dx; $lastDy = $dy; $moved = $true
             Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + ',"t":' + [Environment]::TickCount + '}}')
             $stillAt = [Environment]::TickCount + 350; $lastMoveAt = [Environment]::TickCount
+            # Moving by something the follower was not woken for (a touchpad it cannot hear, the keyboard): follow it now.
+            try { [Glide]::Poke(450) } catch { }
             # Never more than 5 s between full reads, even on a page that keeps moving by itself.
             if ($until -lt $stillAt -and $stillAt - $loopStart -lt 5000) { $until = $stillAt }
           } else {
@@ -328,6 +447,15 @@ while ($true) {
   if ([SW]::IsIconic($h)) { Off 'minimised'; continue }
   if (-not $testName -and [SW]::IdleMs() -gt 120000) { if (-not $wasIdle) { $wasIdle = $true; Write-Output '{"idle":true}' }; Off 'idle'; continue }
   if ($wasIdle) { $wasIdle = $false; Write-Output '{"awake":true}' }
+  # An app installed from the browser (Instagram, WhatsApp, YouTube as a window of their own) runs as the browser's
+  # own process, but it is an app, not a browser: it has no address bar. Looked for once per window.
+  if ($h -ne $appCheckFor) {
+    $appCheckFor = $h; $isApp = $false
+    if (@('chrome', 'msedge', 'brave') -contains $fname) {
+      try { $isApp = -not $A::FromHandle($h).FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition($A::ClassNameProperty, 'OmniboxViewViews'))) } catch { $isApp = $false }
+    }
+  }
+  if ($isApp) { Off 'an app, not a browser'; $pause = 1000; continue }
 
   $url = $null; $r = $null; $doc = $null
   # Finding the page means walking the whole browser window, page included. The page in front only changes with
@@ -437,7 +565,16 @@ while ($true) {
       $lastLinks = $sig
       Write-Output (@{ links = @($list); covered = $covered; for = $url; ends = $ends; ms = [int]$sw.ElapsedMilliseconds; wheel = "$([Wheel]::Registered)/$([Wheel]::Seen)/$([Wheel]::Enabled)/$([Wheel]::Msgs)" } | ConvertTo-Json -Compress -Depth 4)
       # New positions: the anchor starts again from here, and the marks from zero movement.
-      $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0    }
+      $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0
+      # The band the page is followed by: the left edge of the results' own text (the marks sit to the right of the
+      # links, so they are not in it), from the first result down to the bottom of the page.
+      $bandX = ($list | Where-Object { -not $_.c } | ForEach-Object { $_.x } | Measure-Object -Minimum).Minimum
+      $bandTop = ($list | ForEach-Object { $_.y } | Measure-Object -Minimum).Minimum
+      if ($null -ne $bandX -and $null -ne $bandTop) {
+        $bx = [int][Math]::Max($r.Left, $bandX); $by = [int][Math]::Max($r.Top, $bandTop - 20)
+        try { [Glide]::Region($bx, $by, [int][Math]::Min(160, $r.Right - $bx), [int]($r.Bottom - $by)) } catch { }
+      }
+    }
     # A heavy page must not make the reader spin: rest at least twice as long as the read took.
     if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
     # A light page is read more often, so marks arrive sooner and keep up with scrolling.
@@ -707,6 +844,9 @@ function onLine(line) {
   }
   if (msg.wheelError) { log(`wheel following could not start: ${String(msg.wheelError).slice(0, 200)}`); return; }
   if (typeof msg.wheel === 'number') { if (opts.onWheel && latestLinks) opts.onWheel({ epoch: latestLinks.epoch, delta: msg.wheel, t: msg.t }); return; }
+  if (msg.glideError) { log(`page following by pixels could not start: ${String(msg.glideError).slice(0, 200)}`); return; }
+  // The page's own pixels moved by dy since the last frame (Glide): the surest word on a scroll, a frame late.
+  if (msg.px) { if (opts.onPixels && latestLinks) opts.onPixels({ epoch: latestLinks.epoch, dy: msg.px.dy, t: msg.px.t }); return; }
   if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t }); return; }
   if (msg.links) return onLinks(msg);
   if (msg.mail) return onMail(msg);

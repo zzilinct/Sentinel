@@ -41,12 +41,16 @@ test('the reader only works on a browser that is in front and in use, and reads 
   const gates = s.indexOf("Off 'idle'");
   assert.ok(gates > 0 && gates < s.indexOf('FromHandle'), 'every gate comes before the first look inside the window');
   // What it asks Windows for: the address (Value), rectangles, and whether a link is on screen. Never text.
-  assert.ok(!/TextPattern|HelpText|LegacyIAccessible|Clipboard|CopyFromScreen|Screenshot/i.test(s), 'no page text, no clipboard, no screenshots');
+  // The one screen copy: the page follower's band, reduced at once to a brightness number per row (privacy policy).
+  const outside = s.replace(/public class Glide \{[\s\S]*?\n\}\n/, '');
+  assert.ok(!/TextPattern|HelpText|LegacyIAccessible|Clipboard|CopyFromScreen|Screenshot/i.test(outside), 'no page text, no clipboard, no screenshots');
+  assert.equal((s.match(/CopyFromScreen/g) || []).length, 1, 'the follower copies the band in one place only');
+  assert.ok(/CopyFromScreen[\s\S]{0,600}p\[i\] = s;[\s\S]{0,200}return p;/.test(s), 'and keeps only the row numbers');
   // Names are read in two places only: the message rows of a webmail inbox, which the inbox itself displays, and the
   // links of a search results page (the titles the search engine shows), inside the results-page block.
   const mailBlock = s.indexOf('if ($needRead -and $url -match $mail)');
   const searchBlock = s.indexOf('if ($needRead -and $url -match $search)');
-  const names = [...s.matchAll(/NameProperty/g)].map((m) => m.index);
+  const names = [...s.matchAll(/(?<!Class)NameProperty/g)].map((m) => m.index);
   assert.ok(names.length >= 1 && mailBlock > 0 && searchBlock > 0 && searchBlock < mailBlock);
   const allowed = (i) => i > mailBlock || (i > searchBlock && i < mailBlock) || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);');
   assert.ok(names.every(allowed), 'names are read only for a webmail inbox and a results page\'s links');
@@ -400,8 +404,13 @@ test('marks move with the wheel the moment it turns, and only while there are ma
   assert.ok(s.includes('d[0].UsagePage = 1; d[0].Usage = 2;'), 'the mouse only, never the keyboard');
   assert.doesNotMatch(s, /SetWindowsHookEx|WH_KEYBOARD|Usage = 6/, 'no hooks and no keyboard');
   assert.ok(s.includes('if (m.Msg == 0x00FF && Enabled)'), 'nothing is sent unless enabled');
-  assert.ok(s.includes('try { [Wheel]::Enabled = [bool]$anchor } catch { }'), 'enabled only while a results page with marks is in front');
-  assert.match(s, /function Off\(\$why\) \{ \$script:anchor = \$null; try \{ \[Wheel\]::Enabled = \$false \}/, 'and off the moment it is not (a game in front)');
+  assert.ok(s.includes('try { [Wheel]::Enabled = [bool]$anchor; [Glide]::Enabled = [bool]$anchor } catch { }'), 'enabled only while a results page with marks is in front');
+  assert.match(s, /function Off\(\$why\) \{ \$script:anchor = \$null; try \{ \[Wheel\]::Enabled = \$false; \[Glide\]::Enabled = \$false \}/, 'and off the moment it is not (a game in front)');
+  // The page follower: only a band of the page, only while something scrolls, and nothing kept.
+  assert.ok(s.includes('d[1].UsagePage = 0x0D; d[1].Usage = 0x05;'), 'a touchpad only says fingers are on it');
+  assert.ok(s.includes('if (!Enabled || Environment.TickCount - Until > 0'), 'the follower copies nothing unless a scroll woke it');
+  assert.ok(s.includes('p[i] = s;'), 'each row of the band is reduced to one brightness number');
+  assert.match(read('desktop/src/pages/overlay.html'), /api\.on\('overlay:px', function \(p\) \{ if \(p && p\.epoch === epoch\) onPixels\(p\); \}\);/);
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /api\.on\('overlay:wheel', function \(p\) \{ if \(p && p\.epoch === epoch\) onWheel\(p\); \}\);/);
   assert.match(html, /perNotch = perNotch \* 0\.5 \+ measured \* 0\.5/, 'how far a notch moves this browser is learned from its reports');
@@ -415,7 +424,7 @@ test('marks move with the wheel the moment it turns, and only while there are ma
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /#marks\.is-moving \{ opacity: 0;/);
-  assert.match(html, /if \(moving \|\| Math\.abs\(p\.dx\) \+ Math\.abs\(p\.dy\) > MOVING_PX\) setMoving\(true\)/);
+  assert.ok(html.includes('if (!followed && (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX)) setMoving(true)'));
   assert.match(html, /backTimer = setTimeout\(function \(\) \{ setMoving\(false\); \}, BACK_MS\)/, 'back even if no new positions ever come');
   assert.match(html, /place\(\(p && p\.marks\) \|\| \[\], null, true\);\s+setMoving\(false\);/, 'fresh positions: straight there, then shown');
 });
@@ -426,9 +435,38 @@ test('the reader\'s C# helper compiles (a compile error would stop live scanning
   fs.writeFileSync(file, src, 'utf8');
   try {
     const r = require('child_process').spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-      `Add-Type -TypeDefinition ([IO.File]::ReadAllText('${file.replace(/'/g, "''")}')) -ReferencedAssemblies System.Windows.Forms; [Wheel]::Start(); [SW]::Above([IntPtr]::Zero, [IntPtr]::Zero)`], { encoding: 'utf8', timeout: 60000 });
+      `Add-Type -TypeDefinition ([IO.File]::ReadAllText('${file.replace(/'/g, "''")}')) -ReferencedAssemblies System.Windows.Forms, System.Drawing; [Wheel]::Start(); [Glide]::Start(); [SW]::Above([IntPtr]::Zero, [IntPtr]::Zero)`], { encoding: 'utf8', timeout: 60000 });
     assert.equal(r.status, 0, r.stderr || r.stdout);
     assert.match(r.stdout, /False/);
+  } finally { fs.rmSync(file, { force: true }); }
+});
+
+test('the page follower lines up a scrolled band of text, and ignores a page that changed without moving', { skip: process.platform !== 'win32' }, () => {
+  const src = /\$src = @"([\s\S]*?)"@/.exec(watch._test.SCRIPT)[1];
+  const file = path.join(os.tmpdir(), `sentinel-glide-check-${process.pid}.cs`);
+  fs.writeFileSync(file, src, 'utf8');
+  // A column of "text": rows of varying brightness, like lines of results. Then the same column moved up 37 rows (a
+  // scroll down), moved down 12, and a different column altogether (a video changing, not a scroll).
+  const ps = `
+    Add-Type -TypeDefinition ([IO.File]::ReadAllText('${file.replace(/'/g, "''")}')) -ReferencedAssemblies System.Windows.Forms, System.Drawing
+    $r = New-Object Random 7
+    $page = [int[]](1..1400 | ForEach-Object { if (($_ % 23) -lt 14) { 20000 + $r.Next(0, 9000) } else { 60000 } })
+    $a = $page[200..999]; $up = $page[237..1036]; $down = $page[188..987]
+    $other = [int[]](1..800 | ForEach-Object { $r.Next(0, 70000) })
+    $s = $false
+    $one = [Glide]::Shift($a, $up, 240, [ref]$s); $oneSure = $s
+    $two = [Glide]::Shift($a, $down, 240, [ref]$s); $twoSure = $s
+    $three = [Glide]::Shift($a, $other, 240, [ref]$s); $threeSure = $s
+    $four = [Glide]::Shift($a, $a, 240, [ref]$s); $fourSure = $s
+    "$one $oneSure $two $twoSure $three $threeSure $four $fourSure"`;
+  try {
+    const r = require('child_process').spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 90000 });
+    assert.equal(r.status, 0, r.stderr || r.stdout);
+    const [one, oneSure, two, twoSure, three, threeSure, four, fourSure] = r.stdout.trim().split(/\s+/);
+    assert.deepEqual([one, oneSure], ['37', 'True'], 'content moved up 37 rows');
+    assert.deepEqual([two, twoSure], ['-12', 'True'], 'content moved down 12 rows');
+    assert.deepEqual([three, threeSure], ['0', 'False'], 'a change that is not a scroll is not taken for one');
+    assert.deepEqual([four, fourSure], ['0', 'True'], 'nothing moved');
   } finally { fs.rmSync(file, { force: true }); }
 });
 
@@ -737,7 +775,7 @@ test('settings are swapped in whole, never left half written', () => {
 test('the mouse is only asked for while marks are on screen, and a failing reader slows down', () => {
   const s = watch._test.SCRIPT;
   assert.ok(s.includes('if (Enabled == Registered) return;'), 'registration follows Enabled');
-  assert.ok(s.includes('d[0].Flags = 0x1; d[0].Target = IntPtr.Zero;'), 'and is removed (RIDEV_REMOVE) when off');
+  assert.ok(s.includes('d[i].Flags = 0x1; d[i].Target = IntPtr.Zero;'), 'and is removed (RIDEV_REMOVE) when off');
   assert.ok(s.includes('static System.Windows.Forms.Timer sync;'), 'the timer is held for the life of the process');
   const src = read('desktop/src/watch.js');
   assert.match(src, /Math\.min\(300000, 3000 \* 2 \*\* Math\.max\(0, quickExits - 1\)\)/);

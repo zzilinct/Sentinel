@@ -259,6 +259,17 @@ async function main() {
         await move(1340, 880, 10); await sleep(700); await shoot('gaze-away');
         await sleep(3200); await shoot('gaze-rest');
       }
+      // A tab clicked: the panels, then the chapter sighted through the scope (site.js arrive), frame by frame.
+      {
+        await send('Runtime.evaluate', { expression: "scrollTo(0, 0); document.querySelector('.nav__links a[href=\"/#how\"]').click()" }, sessionId);
+        const t0 = Date.now();
+        for (const ms of [300, 700, 900, 1100, 1400, 1800, 2400]) {
+          await sleep(Math.max(0, ms - (Date.now() - t0)));
+          await shoot(`tab-arrive-${String(ms).padStart(4, '0')}ms`);
+        }
+        await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
+        await sleep(800);
+      }
       // A threat plate: its mask turning on hover, then a severity chosen, and the black hole frame by frame
       // (cosmos.js, mask3d.js). The software renderer of a headless browser is slow, so the frames are approximate.
       const plate = await rect('.plate .plate__art');

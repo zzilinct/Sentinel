@@ -73,6 +73,34 @@
     word.style.setProperty('--sheen', `${(176 + clamp((px - (wr.left + wr.width / 2)) / wr.width) * 50).toFixed(1)}deg`);
   }
 
+  /* ------------------------------------------------------- gold lettering */
+
+  // Every gold line of type catches the lamp: the letters nearest the pointer take a warm highlight that grows as it
+  // comes closer and fades as it leaves (hover.css). Only lines on screen are looked at.
+  const TORCH = '.gold-text, .metal, .unmasked';
+  const golds = new Set();
+  const goldWatch = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) golds.add(e.target);
+      else { golds.delete(e.target); e.target.style.setProperty('--gr', '0px'); }
+    }
+  });
+  const watchGold = () => $$(TORCH).forEach((el) => { if (!el.dataset.torch) { el.dataset.torch = '1'; goldWatch.observe(el); } });
+  watchGold();
+  // Pages that write their headings later (the app's views) bring new gold in: picked up as it appears.
+  new MutationObserver(() => { clearTimeout(watchGold.t); watchGold.t = setTimeout(watchGold, 200); }).observe(document.body, { childList: true, subtree: true });
+  function torch() {
+    for (const el of golds) {
+      const r = el.getBoundingClientRect();
+      const dx = Math.max(r.left - px, 0, px - r.right);
+      const dy = Math.max(r.top - py, 0, py - r.bottom);
+      const near = present ? Math.max(0, 1 - Math.hypot(dx, dy) / 240) : 0;
+      el.style.setProperty('--gx', `${(px - r.left).toFixed(0)}px`);
+      el.style.setProperty('--gy', `${(py - r.top).toFixed(0)}px`);
+      el.style.setProperty('--gr', `${(near * near * Math.max(80, Math.min(260, r.height * 1.8))).toFixed(0)}px`);
+    }
+  }
+
   /* ---------------------------------------------------------------- tick */
 
   let last = 0;
@@ -90,7 +118,7 @@
       const { x, y } = light(sheened, 'is-sheen');
       sheened.style.setProperty('--sheen', `${(Math.atan2(y, x) * 180 / Math.PI + 90).toFixed(1)}deg`);
     }
-    if (t - last > 30) { wordLight(); last = t; }
+    if (t - last > 30) { wordLight(); torch(); last = t; }
 
   }
 

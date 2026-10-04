@@ -6,6 +6,15 @@
 @property --tr { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 @property --sheen { syntax: '<angle>'; inherits: true; initial-value: 176deg; }
 @property --near { syntax: '<number>'; inherits: false; initial-value: 0; }
+@property --gr { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+/* Gold lettering catches the lamp: a warm highlight under the pointer, over the cast metal, growing as the pointer
+   nears (hover.js sets --gx/--gy, where the pointer is over the line, and --gr, how near). */
+.hv :is(.gold-text, .metal, .unmasked) {
+  background-image: radial-gradient(circle max(var(--gr), .1px) at var(--gx, 50%) var(--gy, 50%), rgb(255 249 230 / .95), rgb(255 226 150 / .55) 42%, rgb(255 226 150 / 0) 100%), var(--metal);
+  background-size: 100% 100%; background-repeat: no-repeat;
+  transition: --gr .5s cubic-bezier(.2, .8, .2, 1);
+}
 
 :root { --metal-stops: #f3dca4 0%, #d2ac63 30%, #8a6424 56%, #e9c983 72%, #7a561c 100%; }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --metal-stops: #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%; } }

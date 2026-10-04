@@ -27,7 +27,8 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Finishes, matching the Blender renders (masks.py LOOKS and TINTS).
 const FINISH = {
-  onyx: { color: '#0b0a09', metalness: 0.15, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.04, rim: '#ffb455', env: 1.25 },
+  // The hero: a darker silver than the studio light first gave it (env 1.25 read as bright chrome and hid its eyes).
+  onyx: { color: '#0b0a09', metalness: 0.15, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.05, rim: '#ffb455', env: 0.72 },
   scam: { color: '#f2b64b', metalness: 1, roughness: 0.17, clearcoat: 0.4, clearcoatRoughness: 0.06, rim: '#ffa04a', env: 1 },
   virus: { color: '#ff5a10', metalness: 1, roughness: 0.22, clearcoat: 0.7, clearcoatRoughness: 0.06, rim: '#ff7a2a', env: 1 },
   malware: { color: '#a1040c', metalness: 0.85, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.05, rim: '#ff2a20', env: 1 },
@@ -106,12 +107,71 @@ function glowTexture() {
   return t;
 }
 
+/* ------------------------------------------------------- one renderer for all */
+
+/*
+ * Every mask on the page is drawn by one WebGL renderer, into its own plain canvas: one drawing context, one studio
+ * light, each shader built once. A context per mask cost each of them all of that again (seven on the home page),
+ * and a phone that ran out of contexts dropped the oldest mid-scroll.
+ */
+let shared;
+function renderer() {
+  if (shared !== undefined) return shared;
+  try {
+    const r = new WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
+    r.setPixelRatio(1);   // sizes below are in device pixels already
+    r.toneMapping = AgXToneMapping;
+    r.toneMappingExposure = 1.05;
+    r.outputColorSpace = SRGBColorSpace;
+    r.setClearColor(0x000000, 0);
+    r.autoClear = false;
+    const pmrem = new PMREMGenerator(r);
+    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+    shared = { r, env, w: 0, h: 0, lost: false };
+    // A phone short of memory can take the context away: every mask goes back to its still picture.
+    r.domElement.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      shared.lost = true;
+      for (const m of all) m.el.classList.remove('mask3d--ready');
+    });
+  } catch { shared = null; }
+  return shared;
+}
+// The drawing surface only grows (to the largest mask), so changing between masks never reallocates it.
+function fit(w, h) {
+  if (w <= shared.w && h <= shared.h) return;
+  shared.w = Math.max(shared.w, w);
+  shared.h = Math.max(shared.h, h);
+  shared.r.setSize(shared.w, shared.h, false);
+}
+
+/* -------------------------------------------- one clock, paused while scrolling */
+
+const all = new Set();
+let raf = 0;
+// While the page scrolls, the idle drifting (breathing, swaying) waits: frames go to the scroll, and nothing is lost
+// by a mask holding still for the moment it moves past. Anything that is happening (a turn, the black hole) goes on.
+let scrollingUntil = 0;
+addEventListener('scroll', () => { scrollingUntil = performance.now() + 160; }, { passive: true, capture: true });
+function wake() { if (!raf) raf = requestAnimationFrame(tick); }
+function tick(now) {
+  raf = 0;
+  if (document.hidden || (shared && shared.lost)) return;
+  let more = false;
+  for (const m of all) if (m.step(now)) more = true;
+  if (more) wake();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { for (const m of all) m.last = performance.now(); wake(); } });
+
 /* --------------------------------------------------------------- a mask */
 
 const masks = new WeakMap();
+// Only a mouse or a pen points: a finger touching the screen is not hovering, and following it made the hero whip
+// round to face every tap.
 let pointer = null;
-addEventListener('pointermove', (e) => { pointer = { x: e.clientX, y: e.clientY }; }, { passive: true });
-document.addEventListener('pointerleave', () => { pointer = null; });
+addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.pointerType === 'pen') { pointer = { x: e.clientX, y: e.clientY }; wake(); } }, { passive: true });
+document.addEventListener('pointerleave', () => { pointer = null; wake(); });
 
 const mounting = new WeakMap();
 function mount(el) {
@@ -122,22 +182,17 @@ function mount(el) {
 async function build(el) {
   const kind = el.dataset.mask3d;
   const geom = GEOMETRY[kind] || 'scam';
-  let renderer;
-  try {
-    renderer = new WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
-  } catch { return null; }   // no WebGL: the still render stays
+  const S = renderer();
+  if (!S) return null;   // no WebGL: the still render stays
   // Sharp on a high-density screen without drawing every physical pixel of it.
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
-  renderer.toneMapping = AgXToneMapping;
-  renderer.toneMappingExposure = 1.05;
-  renderer.outputColorSpace = SRGBColorSpace;
-  const canvas = renderer.domElement;
+  const dpr = Math.min(devicePixelRatio || 1, 1.5);
+  const canvas = document.createElement('canvas');
   canvas.className = 'mask3d__canvas';
   canvas.setAttribute('aria-hidden', 'true');
+  const ctx = canvas.getContext('2d');
 
   const scene = new Scene();
-  const pmrem = new PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = S.env;
   const camera = new PerspectiveCamera(20, 1, 0.1, 50);
   camera.position.set(0, 0, 7.6);
 
@@ -178,23 +233,23 @@ async function build(el) {
     m.traverse((o) => { if (o.isMesh) { o.material = material; } });
     holder.add(m);
     if (el.hasAttribute('data-eyes')) {
-      // Light inside the mask, seen only through its eyes; and a glow over each eye that brightens as it watches.
+      // Light inside the mask, seen through its eyes; and a glow over each eye, always lit and brighter as it watches.
+      // The light is drawn last and over the metal's inside, so the eyes read clearly against a bright finish.
       const glowMat = new MeshBasicMaterial({ color: 0xffc83a, side: DoubleSide, toneMapped: false });
-      const inner = new Mesh(new PlaneGeometry(1.25, 0.34), glowMat);
-      inner.position.set(0, 0.2, 0.18);
+      const inner = new Mesh(new PlaneGeometry(1.4, 0.42), glowMat);
+      inner.position.set(0, 0.2, 0.2);
       holder.add(inner);
       const tex = glowTexture();
       const halos = [-0.36, 0.36].map((x) => {
         const s = new Sprite(new SpriteMaterial({ map: tex, blending: AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, toneMapped: false }));
-        s.position.set(x, 0.2, 0.62);
-        s.scale.set(0.62, 0.42, 1);
+        s.position.set(x, 0.2, 0.64);
+        s.scale.set(0.7, 0.46, 1);
         holder.add(s);
         return s;
       });
-      eyes = { glowMat, halos, level: 0.35 };
+      eyes = { glowMat, halos, level: 0.7 };
     }
   } catch {
-    renderer.dispose();
     return null;
   }
 
@@ -203,35 +258,37 @@ async function build(el) {
 
   /* -------- sizing, visibility */
 
-  let w = 0;
-  let h = 0;
+  let w = 1;
+  let h = 1;
+  let dirty = true;
   const resize = () => {
+    // Drawn at the box's size (the canvas is shown a little larger, sentinel.css --m3w/--m3h, so the mask can turn).
     const r = el.getBoundingClientRect();
-    w = Math.max(1, Math.round(r.width));
-    h = Math.max(1, Math.round(r.height));
-    renderer.setSize(w, h, false);
+    w = Math.max(1, Math.round(r.width * dpr));
+    h = Math.max(1, Math.round(r.height * dpr));
+    canvas.width = w;
+    canvas.height = h;
     camera.aspect = w / h;
     // Keep the whole mask in frame whatever the box's shape.
     camera.fov = w / h < 0.72 ? 20 * (0.72 / (w / h)) : 20;
     camera.updateProjectionMatrix();
     dirty = true;
+    wake();
   };
-  let visible = true;
-  let dirty = true;
+  let visible = false;
   new ResizeObserver(resize).observe(el);
-  new IntersectionObserver((e) => { visible = e[0].isIntersecting; if (visible) kick(); }, { rootMargin: '80px' }).observe(el);
+  new IntersectionObserver((e) => { visible = e[0].isIntersecting; if (visible) { mask.last = performance.now(); wake(); } }, { rootMargin: '80px' }).observe(el);
   resize();
 
-  /* -------- motion: springs toward where it should look */
+  /* -------- motion: a calm spring toward where it should look */
 
   const reach = Number(el.dataset.look) || 0;
   const look = { x: 0, y: 0, vx: 0, vy: 0, w: 0, vw: 0 };
   let tx = 0;
   let ty = 0;
   let tw = 0;
-  let last = performance.now();
   let drawnAt = 0;
-  let raf = 0;
+  let shown = false;
   const t0 = performance.now();
   let anim = null;   // a running swallow or colour change
   const colorFrom = new Color();
@@ -253,47 +310,67 @@ async function build(el) {
     ty = Math.max(-1, Math.min(1, dy / reach)) * tw;
   };
 
-  const frame = (now) => {
-    raf = 0;
-    const dt = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    target();
-    // A spring: quick to turn, settling without a wobble.
-    const k = 70;
-    const c = 15;
-    look.vx += ((tx - look.x) * k - look.vx * c) * dt; look.x += look.vx * dt;
-    look.vy += ((ty - look.y) * k - look.vy * c) * dt; look.y += look.vy * dt;
-    look.vw += ((tw - look.w) * k * 0.6 - look.vw * c) * dt; look.w += look.vw * dt;
-    const t = (now - t0) / 1000;
-    // Watching: the mask lifts out of its resting pose to face the pointer, then turns with it in three dimensions.
-    const face = look.w * 0.7;
-    holder.rotation.set(rest.x * (1 - face), rest.y * (1 - face), rest.z * (1 - face));
-    const breathe = reduced ? 0 : Math.sin(t * 1.1) * 0.035 * (1 - look.w);
-    // Masks that do not watch sway slowly on their own, like a piece turning on a display stand.
-    const sway = !reach && !reduced ? { y: Math.sin(t * 0.42) * 0.34, x: Math.sin(t * 0.31) * 0.06 } : { y: 0, x: 0 };
-    pivot.rotation.set(look.y * 0.5 + breathe * 0.4 + sway.x, look.x * 0.75 + sway.y + (reduced ? 0 : Math.sin(t * 0.55) * 0.05 * (1 - look.w)), -look.x * 0.06);
-    pivot.position.y = reduced ? 0 : Math.sin(t * 0.9) * 0.05;
-    if (eyes) {
-      const want = 0.35 + 0.65 * look.w;
-      eyes.level += (want - eyes.level) * Math.min(1, dt * 6);
-      const flicker = 0.92 + 0.08 * Math.sin(t * 13) * Math.sin(t * 7.3);
-      eyes.glowMat.color.setRGB(1.6 * eyes.level * flicker, 1.15 * eyes.level * flicker, 0.25 * eyes.level);
-      for (const s of eyes.halos) s.material.opacity = Math.max(0, (eyes.level - 0.3) * 1.35) * flicker;
-    }
-    if (anim && anim(now) === false) anim = null;
-    const moving = Math.abs(tx - look.x) + Math.abs(ty - look.y) + Math.abs(tw - look.w) + Math.abs(look.vx) + Math.abs(look.vy) > 0.0005;
-    // Only drifting (breathing, swaying, the eyes' flicker): half the frames are plenty, and half the work.
-    const idle = !moving && !anim;
-    if (!idle || now - drawnAt > 30) { renderer.render(scene, camera); drawnAt = now; }
-    dirty = false;
-    // Breathing and glowing eyes keep a visible mask alive; otherwise it rests until something changes.
-    if (visible && (moving || anim || eyes || !reduced)) raf = requestAnimationFrame(frame);
+  const draw = () => {
+    fit(w, h);
+    const r = S.r;
+    r.setViewport(0, 0, w, h);
+    r.setScissor(0, 0, w, h);
+    r.setScissorTest(true);
+    r.clear();
+    r.render(scene, camera);
+    ctx.clearRect(0, 0, w, h);
+    // WebGL counts rows from the bottom: this mask's picture is the bottom-left w x h of the shared surface.
+    ctx.drawImage(r.domElement, 0, S.h - h, w, h, 0, 0, w, h);
+    if (!shown) { shown = true; requestAnimationFrame(() => el.classList.add('mask3d--ready')); }
   };
-  const kick = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } };
-  addEventListener('pointermove', kick, { passive: true });
-  kick();
-  // Shown once the first frame is down: the still render steps aside.
-  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('mask3d--ready')));
+
+  const mask = {
+    el,
+    last: performance.now(),
+    // One frame of this mask: true while it wants more frames.
+    step(now) {
+      if (!visible) return false;
+      const dt = Math.min(0.05, Math.max(0, (now - mask.last) / 1000));
+      mask.last = now;
+      target();
+      // A spring stiff enough to follow, damped so it settles without a swing, and soft enough that it turns rather
+      // than snaps (a stiffer one whipped the mask round, worst of all at a phone's low frame rate).
+      const k = 30;
+      const c = 11;
+      // Small steps, so a slow frame cannot throw the spring off.
+      for (let left = dt; left > 0; left -= 1 / 120) {
+        const s = Math.min(left, 1 / 120);
+        look.vx += ((tx - look.x) * k - look.vx * c) * s; look.x += look.vx * s;
+        look.vy += ((ty - look.y) * k - look.vy * c) * s; look.y += look.vy * s;
+        look.vw += ((tw - look.w) * k * 0.6 - look.vw * c) * s; look.w += look.vw * s;
+      }
+      const t = (now - t0) / 1000;
+      // Watching: the mask lifts part way out of its resting pose to face the pointer, and turns with it.
+      const face = look.w * 0.5;
+      holder.rotation.set(rest.x * (1 - face), rest.y * (1 - face), rest.z * (1 - face));
+      const breathe = reduced ? 0 : Math.sin(t * 1.1) * 0.035 * (1 - look.w);
+      // Masks that do not watch sway slowly on their own, like a piece turning on a display stand.
+      const sway = !reach && !reduced ? { y: Math.sin(t * 0.42) * 0.34, x: Math.sin(t * 0.31) * 0.06 } : { y: 0, x: 0 };
+      pivot.rotation.set(look.y * 0.45 + breathe * 0.4 + sway.x, look.x * 0.6 + sway.y + (reduced ? 0 : Math.sin(t * 0.55) * 0.05 * (1 - look.w)), -look.x * 0.05);
+      pivot.position.y = reduced ? 0 : Math.sin(t * 0.9) * 0.05;
+      if (eyes) {
+        const want = 0.7 + 0.5 * look.w;
+        eyes.level += (want - eyes.level) * Math.min(1, dt * 6);
+        const flicker = 0.93 + 0.07 * Math.sin(t * 13) * Math.sin(t * 7.3);
+        eyes.glowMat.color.setRGB(1.9 * eyes.level * flicker, 1.35 * eyes.level * flicker, 0.3 * eyes.level);
+        for (const s of eyes.halos) s.material.opacity = Math.min(1, Math.max(0, (eyes.level - 0.15) * 1.25)) * flicker;
+      }
+      if (anim && anim(now) === false) anim = null;
+      const moving = Math.abs(tx - look.x) + Math.abs(ty - look.y) + Math.abs(tw - look.w) + Math.abs(look.vx) + Math.abs(look.vy) > 0.0005;
+      // Only drifting (breathing, swaying, the eyes' flicker): half the frames are plenty, and none while scrolling.
+      const idle = !moving && !anim;
+      const scrolling = now < scrollingUntil;
+      if (dirty || !idle || (!scrolling && now - drawnAt > 30)) { draw(); drawnAt = now; dirty = false; }
+      return moving || Boolean(anim) || !reduced || Boolean(eyes);
+    }
+  };
+  all.add(mask);
+  wake();
 
   /* -------- controls */
 
@@ -303,6 +380,7 @@ async function build(el) {
     material.metalness = fin.metalness;
     material.roughness = fin.roughness;
     material.clearcoat = fin.clearcoat;
+    material.envMapIntensity = fin.env;
     state.rim.value.set(fin.rim);
     rimL.color.set(fin.rim);
     rimR.color.set(fin.rim);
@@ -311,7 +389,7 @@ async function build(el) {
   const api = {
     el,
     // Straight to a finish (no transition).
-    tint(name) { setFinish(name); kick(); },
+    tint(name) { setFinish(name); dirty = true; wake(); },
     // A smooth change of colour, for the colour reading and the plates' quieter steps.
     blend(name, ms = 900) {
       const fin = FINISH[name] || FINISH.scam;
@@ -324,7 +402,7 @@ async function build(el) {
         if (u >= 1) { setFinish(name); return false; }
         return true;
       };
-      kick();
+      wake();
     },
     // The black hole: the mask is pulled in and vanishes from the outside in (out, ms), then the new one grows from
     // the inside out (in). Returns when the new mask is whole.
@@ -357,7 +435,7 @@ async function build(el) {
           }
           return true;
         };
-        kick();
+        wake();
       });
     }
   };
@@ -369,19 +447,21 @@ async function build(el) {
 
 function start() {
   if (!('IntersectionObserver' in window) || !('ResizeObserver' in window)) return;
-  const all = [...document.querySelectorAll('[data-mask3d]')];
+  const els = [...document.querySelectorAll('[data-mask3d]')];
   // The models every mask on the page needs, fetched now (they are cached), so a mask is ready before it is reached.
-  for (const el of all) model(GEOMETRY[el.dataset.mask3d] || 'scam');
-  // Each is built a screen or so before it is reached, so a page with many masks does not start them all at once
-  // and none appears late.
+  for (const el of els) model(GEOMETRY[el.dataset.mask3d] || 'scam');
+  // Each is built a screen or so before it is reached, in a quiet moment rather than in the middle of a scroll, so a
+  // page with many masks does not start them all at once and none appears late.
+  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 400 }) : setTimeout(fn, 60));
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       io.unobserve(e.target);
-      mount(e.target).then((api) => { if (api) e.target.dispatchEvent(new CustomEvent('mask3d:ready', { detail: api })); });
+      const el = e.target;
+      idle(() => mount(el).then((api) => { if (api) el.dispatchEvent(new CustomEvent('mask3d:ready', { detail: api })); }));
     }
   }, { rootMargin: '900px 0px' });
-  all.forEach((el) => io.observe(el));
+  els.forEach((el) => io.observe(el));
 }
 
 window.SentinelMask3D = { mount, get: (el) => masks.get(el) || null, scan: start, FINISH: Object.keys(FINISH) };
