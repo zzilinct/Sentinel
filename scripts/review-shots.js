@@ -270,6 +270,26 @@ async function main() {
         await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
         await sleep(800);
       }
+      // Binary (binary.js): the example browser digging into its results, and a delicate "Try a link".
+      {
+        const stageRect = await rect('[data-stage] .window, .stage .window');
+        if (stageRect) {
+          await send('Runtime.evaluate', { expression: "document.querySelector('[data-stage] .window, .stage .window').scrollIntoView({ block: 'center' }); document.querySelector('[data-replay]')?.click()" }, sessionId);
+          const t0 = Date.now();
+          for (const ms of [900, 1500, 2200, 3200]) {
+            await sleep(Math.max(0, ms - (Date.now() - t0)));
+            await shoot(`binary-stage-${String(ms).padStart(4, '0')}ms`);
+          }
+        }
+        await send('Runtime.evaluate', { expression: "document.querySelector('#try').scrollIntoView({ block: 'center' }); document.querySelector('[data-try-mode=\"delicate\"]').click(); const f = document.querySelector('[data-try-form]'); f.url.value = 'paypal-account-verify.com/login'; f.requestSubmit();" }, sessionId);
+        const t1 = Date.now();
+        for (const ms of [400, 1200, 6000]) {
+          await sleep(Math.max(0, ms - (Date.now() - t1)));
+          await shoot(`binary-try-${String(ms).padStart(4, '0')}ms`);
+        }
+        await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
+        await sleep(600);
+      }
       // A threat plate: its mask turning on hover, then a severity chosen, and the black hole frame by frame
       // (cosmos.js, mask3d.js). The software renderer of a headless browser is slow, so the frames are approximate.
       const plate = await rect('.plate .plate__art');

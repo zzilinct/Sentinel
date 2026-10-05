@@ -834,7 +834,8 @@ async function boot() {
     onPage: (page) => {
       overlay.setVerdict(null);
       overlay.setMarks({ marks: [] });
-      if (page && page.search) overlay.sweep('search');
+      // Delicate scanning (the person's choice, not auto scanning's fast) digs into the results in binary.
+      if (page && page.search) overlay.sweep('search', { binary: !autoSession && store.get('liveMode', 'fast') === 'delicate' });
     },
     onVerdict: (v) => overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind }),
     onMarks: (m) => overlay.setMarks(m),

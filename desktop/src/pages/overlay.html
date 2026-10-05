@@ -87,6 +87,7 @@
     <div class="corner__label" id="cornerLabel"></div>
   </div>
 <script src="../../shared/masks.js"></script>
+<script src="../../shared/binary.js"></script>
 <script>
 (function () {
   'use strict';
@@ -132,6 +133,33 @@
     sweepTimer = setTimeout(function () { document.body.classList.remove('sweeping'); }, 2800);
   }
 
+  // Delicate scanning digs in (binary.js): as the gold line finishes, the page corrupts into binary for a moment,
+  // gold digits and, over each result, its mask's colour (cycling until its verdict is in). Once every result has
+  // its verdict it thins out and is gone; never longer than five seconds, so a search is never just binary.
+  var digging = null;
+  var digTimer = null;
+  var DIG_COLOR = { yellow: 'yellow', orange: 'orange', red: 'red' };
+  function digLinks() {
+    return current.filter(function (m) { return !m.row; }).map(function (m) {
+      return { x: m.x + shiftX, y: m.y + shiftY, w: m.w, h: m.h, color: m.pending ? null : m.badge ? DIG_COLOR[m.badge] : 'green' };
+    });
+  }
+  function startDig() {
+    if (!window.SentinelBinary || digging) return;
+    digging = window.SentinelBinary.dig(null, { links: digLinks, density: 0.55 });
+    clearTimeout(digTimer);
+    digTimer = setTimeout(endDig, 5000);
+  }
+  function endDig() {
+    clearTimeout(digTimer);
+    if (!digging) return;
+    var d = digging;
+    digging = null;
+    d.finish();
+  }
+  // Everything checked: no result still waiting for its verdict.
+  function digCheck() { if (digging && current.length && !current.some(function (m) { return m.pending; })) setTimeout(endDig, 350); }
+
   function clearMarks() {
     nodes.forEach(function (n) { n.remove(); });
     nodes.clear();
@@ -167,6 +195,7 @@
   // to where the fresh read says their result is. Without this they jumped back and forth after every scroll.
   function place(list, rebase, instant) {
     current = list;
+    setTimeout(digCheck, 0);
     var seen = {};
     var popped = 0;
     var W = window.innerWidth;
@@ -252,7 +281,11 @@
     if (s.private) say('<b>Private window.</b> Protected, and nothing is kept.', '#e2c47f');
     else if (s.appeared) say('<b>Sentinel is scanning</b> this browser.', '#e2c47f');
   });
-  api.on('overlay:sweep', function () { sweep(); wake(); });
+  api.on('overlay:sweep', function (p) {
+    sweep(); wake();
+    // The gold line takes 1.35 s to cross: the digging starts as it finishes.
+    if (p && p.binary) setTimeout(startDig, 1100);
+  });
   api.on('overlay:verdict', function (v) {
     flagged = Boolean(v && (v.badge === 'red' || v.badge === 'orange' || v.badge === 'yellow'));
     corner.classList.toggle('is-flagged', flagged);
@@ -467,7 +500,7 @@
   });
   api.on('overlay:wheel', function (p) { if (p && p.epoch === epoch) onWheel(p); });
   api.on('overlay:px', function (p) { if (p && p.epoch === epoch) onPixels(p); });
-  api.on('overlay:clear', function () { stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
+  api.on('overlay:clear', function () { endDig(); stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); corner.classList.remove('is-on'); cornerLabel.classList.remove('is-on'); flagged = false; });
 })();
 </script>
 </body>

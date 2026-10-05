@@ -147,6 +147,14 @@
     void target.offsetWidth;
     target.classList.add('is-sighted');
     sight.classList.add('is-on');
+    // And the chapter is dug into: a moment of binary across the screen, its links' digits in the masks' colours.
+    if (window.SentinelBinary) {
+      window.SentinelBinary.burst(null, 650, {
+        links: () => [...target.querySelectorAll('a, button, .chip-q, .res__title')].map((a) => a.getBoundingClientRect())
+          .filter((r) => r.width > 20 && r.bottom > 0 && r.top < innerHeight).slice(0, 24)
+          .map((r) => ({ x: r.left, y: r.top, w: r.width, h: r.height }))
+      });
+    }
     clearTimeout(arrive.t);
     arrive.t = setTimeout(() => { target.classList.remove('is-sighted'); sight.classList.remove('is-on'); }, 1700);
   }
@@ -173,6 +181,21 @@
     }
   }
   $$('.nav__links a').forEach((a) => a.addEventListener('click', onTab));
+
+  // Binary (binary.js): each chapter's heading arrives out of binary the first time it scrolls in, and cards show a
+  // lens of binary around the pointer.
+  if (window.SentinelBinary && !reduced && 'IntersectionObserver' in window) {
+    const heads = $$('.section h2, .page-head h1, .kicker__n');
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        io.unobserve(e.target);
+        window.SentinelBinary.decode(e.target);
+      }
+    }, { rootMargin: '0px 0px -12% 0px' });
+    heads.forEach((h) => io.observe(h));
+    window.SentinelBinary.lens('.tile, .plan, .stat, .feature, .kind, .card, .faq details, .demo-row');
+  }
 
   // Back-to-top button, shown once the reader is well down the page.
   const toTop = document.createElement('button');

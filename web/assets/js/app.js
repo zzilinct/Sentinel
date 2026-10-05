@@ -114,7 +114,8 @@
       return row(label, m.used / 60, m.limit / 60, 'h').replace(/>[\d.]+h left</, () => `>${leftH.toFixed(leftH < 10 && leftH % 1 ? 1 : 0)}h left<`);
     };
     $('[data-usage-mini]').innerHTML =
-      row('Link scans', us.linkScans.used, us.linkScans.limit) +
+      (uncapped(us.linkScans.limit) ? '<div class="usage-mini__row"><span>Fast scans</span><b class="tabular">Unlimited</b></div><div class="meter is-uncapped"><i style="width:100%"></i></div>' : row('Fast scans', us.linkScans.used, us.linkScans.limit)) +
+      row('Delicate scans', (us.deepScans || {}).used || 0, (us.deepScans || {}).limit || 0) +
       row('Virus scans', us.fileScans.used, us.fileScans.limit) +
       liveRow('Fast live', us.fastMinutes) +
       liveRow('Delicate live', us.liveMinutes);
@@ -435,6 +436,17 @@
       : usageCard(ICON.clock, (left / 60).toFixed(left < 600 ? 1 : 0), `h / ${m.limit / 60}h`, name, m.used, m.limit);
   }
 
+  // The two manual link scan allowances: fast (unlimited on Ultimate) and delicate (Pro and up).
+  function scanCards(us) {
+    const fast = us.linkScans;
+    const deep = us.deepScans || { used: 0, limit: 0 };
+    const fastCard = uncapped(fast.limit)
+      ? usageCard(ICON.link, 'Unlimited', '', 'Fast link scans', 0, 0, false, 'no weekly limit')
+      : usageCard(ICON.link, left('linkScans'), `/ ${fast.limit}`, 'Fast link scans left', fast.used, fast.limit);
+    const deepCard = usageCard(ICON.search, deep.limit ? Math.max(0, deep.limit - deep.used) : 0, deep.limit ? `/ ${deep.limit}` : '', 'Delicate link scans left', deep.used, deep.limit, !deep.limit);
+    return `<a class="usage-link" href="/app/scan" aria-label="Link scan">${fastCard}</a><a class="usage-link" href="/app/scan" aria-label="Delicate link scan">${deepCard}</a>`;
+  }
+
   function usageCard(icon, n, unit, label, used, limit, locked, meta) {
     const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
     return `<div class="usage-row${locked ? ' is-locked' : ''}">
@@ -626,10 +638,10 @@
         <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link from a message, email or search result" aria-label="Link to scan">
         <button class="btn btn--gold" type="submit">Scan</button>
       </form>
-      <div class="scan-meta"><span>${left('linkScans')} of ${us.linkScans.limit} link scans left this week</span><a href="/app/threats">Scan a file instead &rarr;</a></div>
+      <div class="scan-meta"><span>${scanLeftText(plan().features.research ? 'delicate' : 'fast')}</span><a href="/app/threats">Scan a file instead &rarr;</a></div>
 
       <div class="usage-list u-mt-lg">
-        <a class="usage-link" href="/app/scan" aria-label="Link scan">${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, `Link scans left${f.research ? ', researched' : ''}`, us.linkScans.used, us.linkScans.limit)}</a>
+        ${scanCards(us)}
         <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
         <a class="usage-link" href="/app/protection" aria-label="Live protection">${liveCard(us, f)}</a>
       </div>
@@ -699,19 +711,39 @@
 
   /* ============================================================ link scan */
 
+  // Fast: threat lists, the checklist and comparison. Delicate: the site researched as well (Pro and up).
+  const scanModeKey = 'sentinel.scanMode';
+  function scanLeftText(mode) {
+    const u = usage();
+    const m = mode === 'delicate' ? u.deepScans : u.linkScans;
+    if (!m) return '';
+    const name = mode === 'delicate' ? 'delicate scans' : 'fast scans';
+    return uncapped(m.limit) ? `Unlimited ${name}` : `${Math.max(0, m.limit - m.used)} of ${m.limit} ${name} left this week`;
+  }
+
   function scanView(el, params) {
     const f = plan().features;
+    let mode = 'fast';
+    try { mode = localStorage.getItem(scanModeKey) || (f.research ? 'delicate' : 'fast'); } catch { mode = f.research ? 'delicate' : 'fast'; }
+    if (!f.research) mode = 'fast';
     el.innerHTML = `
       ${title('Link scan', f.research
-        ? 'Known threats, the full checklist, comparison with known scams, and research, for scam, virus and malware.'
-        : 'Known threats, the full checklist and comparison with known scams. Upgrade for research and virus & malware masks.')}
+        ? 'Fast checks known threats, the full checklist and known scams in about a second. Delicate also researches the site, for scam, virus and malware.'
+        : 'Known threats, the full checklist and comparison with known scams. Pro adds delicate scans, which research the site too.')}
       ${modelSlot(true)}
+      <div class="scan-mode">
+        <div class="seg" role="group" aria-label="Scan mode">
+          <button type="button" class="seg__btn${mode === 'fast' ? ' is-on' : ''}" data-scan-mode="fast" aria-pressed="${mode === 'fast'}">Fast</button>
+          <button type="button" class="seg__btn${mode === 'delicate' ? ' is-on' : ''}" data-scan-mode="delicate" aria-pressed="${mode === 'delicate'}" ${f.research ? '' : 'disabled title="Delicate scans come with Pro, Max and Ultimate"'}>Delicate</button>
+        </div>
+        <span class="muted" data-mode-note>${mode === 'delicate' ? 'Researches the site: its age, certificate, redirects and page content.' : 'Threat lists, the full checklist and known scams, in about a second.'}</span>
+      </div>
       <form class="scanbox" data-form>
         ${ICON.search}
         <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://" aria-label="Link to scan" required>
         <button class="btn btn--gold" type="submit">Scan link</button>
       </form>
-      <div class="scan-meta"><span data-left>${left('linkScans')} of ${usage().linkScans.limit} scans left this week</span>
+      <div class="scan-meta"><span data-left>${scanLeftText(mode)}</span>
         <span class="examples">
           <button class="chip" type="button" data-example="paypa1-secure-login.com/account">paypa1-secure-login.com</button>
           <button class="chip" type="button" data-example="https://github.com">github.com</button>
@@ -723,6 +755,14 @@
     const form = $('[data-form]', el);
     const out = $('[data-out]', el);
     $$('[data-example]', el).forEach((b) => b.addEventListener('click', () => { form.url.value = b.dataset.example; form.requestSubmit(); }));
+    $$('[data-scan-mode]', el).forEach((b) => b.addEventListener('click', () => {
+      if (b.disabled) return;
+      mode = b.dataset.scanMode;
+      try { localStorage.setItem(scanModeKey, mode); } catch { /* not stored */ }
+      $$('[data-scan-mode]', el).forEach((x) => { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+      $('[data-mode-note]', el).textContent = mode === 'delicate' ? 'Researches the site: its age, certificate, redirects and page content.' : 'Threat lists, the full checklist and known scams, in about a second.';
+      $('[data-left]', el).textContent = scanLeftText(mode);
+    }));
 
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
@@ -731,16 +771,21 @@
       // Remembered in the history entry, so Back and reload show the address without spending another scan.
       history.replaceState({ scanned: url }, '', `/app/scan?url=${encodeURIComponent(url)}`);
       const button = $('button[type=submit]', form);
-      out.innerHTML = stagesView(f.research);
-      const stop = runStages(out, f.research);
+      const deep = mode === 'delicate';
+      out.innerHTML = stagesView(deep);
+      const stop = runStages(out, deep);
+      // A delicate scan digs: the result area runs with binary while the site is researched (binary.js).
+      const dig = deep && window.SentinelBinary ? window.SentinelBinary.dig(out, { colors: ['gold'] }) : null;
       try {
-        const data = await busy(button, 'Scanning', () => api('/scan/link', { method: 'POST', body: { url } }));
+        const data = await busy(button, 'Scanning', () => api('/scan/link', { method: 'POST', body: { url, mode } }));
         stop();
         applyUsage(data.usage);
+        if (dig) await dig.finish(data.verdict);
         showVerdict(out, data.verdict, { lockedLabel: 'Pro & up' });
-        $('[data-left]', el).textContent = `${left('linkScans')} of ${usage().linkScans.limit} scans left this week`;
+        $('[data-left]', el).textContent = scanLeftText(mode);
       } catch (err) {
         stop();
+        if (dig) dig.stop();
         out.innerHTML = friendlyError(err);
       }
     });
@@ -921,7 +966,7 @@
         <div class="field"><label for="e-body">Message</label><textarea class="textarea" id="e-body" name="body" placeholder="Paste the message text, including any links"></textarea></div>
         <div class="field"><label for="e-att">Attachment names <span class="opt">(optional, comma separated)</span></label><input class="input" id="e-att" name="attachments" placeholder="Invoice_2026.pdf.exe, statement.zip" autocomplete="off"></div>
         <div class="report__foot">
-          <span class="muted">Uses 1 of your ${left('linkScans')} remaining link scans. Nothing is stored.</span>
+          <span class="muted">Uses 1 of your ${left('deepScans')} remaining delicate scans. Nothing is stored.</span>
           <button class="btn btn--gold" type="submit">Scan email</button>
         </div>
       </form>
@@ -1555,18 +1600,18 @@
     const us = usage();
     const demo = state.config.billingMode === 'demo';
     const lines = {
-      free: ['10 link scans a week', '5 virus & malware scans a week', '15 minutes of fast live scanning a week', 'Known threats + full checklist', 'Scam mask on link scans', 'Models older than the newest five'],
-      pro: ['24 hours of fast live scanning a week', '4 hours of delicate live scanning a week', '40 researched link scans', '40 virus & malware scans', 'All three masks', 'Email & download protection',
-        'Newest three models: 18 h fast, 3 h delicate, 30 scam and 30 virus & malware link scans'],
-      max: ['Unlimited fast live scanning', '24 hours of delicate live scanning a week', '100 researched link scans', '100 virus & malware scans', 'Paste-in email scans',
+      free: ['10 fast link scans a week', '5 virus & malware scans a week', '15 minutes of fast live scanning a week', 'Known threats + full checklist', 'Scam mask on link scans', 'Models older than the newest five'],
+      pro: ['24 hours of fast live scanning a week', '4 hours of delicate live scanning a week', '200 fast and 40 delicate link scans', '40 virus & malware scans', 'All three masks', 'Email & download protection',
+        'Newest three models: 18 h fast, 3 h delicate live; 150 fast, 30 delicate and 30 virus & malware scans'],
+      max: ['Unlimited fast live scanning', '24 hours of delicate live scanning a week', '1,000 fast and 100 delicate link scans', '100 virus & malware scans', 'Paste-in email scans',
         'Every model, in full'],
-      ultimate: ['Unlimited fast live scanning', '96 hours of delicate live scanning a week', '500 researched link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max', 'Every model, in full']
+      ultimate: ['Unlimited fast live scanning', '96 hours of delicate live scanning a week', 'Unlimited fast and 500 delicate link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max', 'Every model, in full']
     };
     el.innerHTML = `
       ${title('Plan &amp; usage', `You’re on <b>${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
       ${demo ? '<div class="banner"><div><b>Demo billing.</b> Plan changes are instant and free on this server. No payment is taken.</div></div>' : ''}
       <div class="usage-list">
-        ${usageCard(ICON.link, left('linkScans'), `/ ${us.linkScans.limit}`, 'Link scans left', us.linkScans.used, us.linkScans.limit)}
+        ${scanCards(us)}
         ${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}
         ${liveCard(us, plan().features)}
       </div>

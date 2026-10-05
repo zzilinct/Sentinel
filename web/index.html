@@ -440,7 +440,7 @@
         <div class="try__copy">
           <span class="kicker"><b class="kicker__n">IX</b>Check it yourself</span>
           <h2>Got a link you&rsquo;re <em>not sure about?</em></h2>
-          <p>Paste it here. No account needed: you get the known-threat lookup and the full checklist. A free account adds history and a little live scanning. Pro adds research.</p>
+          <p>Paste it here. No account needed. Fast gives you the known-threat lookup and the full checklist in about a second; Delicate also researches the site, and you can try it three times a day. A free account adds history and a little live scanning; Pro adds delicate scans every week.</p>
           <div class="try__examples" aria-label="Examples">
             <span class="muted">Try:</span>
             <button type="button" class="chip-q" data-try-example="paypal-account-verify.com/login">paypal-account-verify.com</button>
@@ -454,6 +454,22 @@
             <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link" aria-label="Link to check" required maxlength="2000">
             <button class="btn btn--gold" type="submit">Check</button>
           </form>
+          <div class="try__opts">
+            <label class="try__model"><span>Model</span>
+              <select data-try-model aria-label="Model">
+                <option value="argus" selected>Argus, the newest</option>
+                <option disabled>Cerberus, planned</option>
+                <option disabled>Talos, planned</option>
+                <option disabled>Heimdall, planned</option>
+                <option disabled>Lokapalas, planned</option>
+              </select>
+            </label>
+            <div class="try__seg" role="group" aria-label="Scan mode">
+              <button type="button" class="is-on" data-try-mode="fast" aria-pressed="true">Fast</button>
+              <button type="button" data-try-mode="delicate" aria-pressed="false">Delicate</button>
+            </div>
+            <span class="try__mode-note" data-try-note>Threat lists, the full checklist and known scams, in about a second.</span>
+          </div>
           <div class="try__out" data-try-out aria-live="polite">
             <div class="try__empty">
               <div class="try__masks"><span data-glyph="scam" style="color:var(--red)"></span><span data-glyph="virus" style="color:var(--orange)"></span><span data-glyph="malware" style="color:var(--yellow)"></span></div>
@@ -573,6 +589,7 @@
 
 <!-- @include footer -->
 <script src="/assets/js/masks.js"></script>
+<script src="/assets/js/binary.js"></script>
 <script src="/assets/js/site.js"></script>
 <script src="/assets/js/home.js"></script>
 <script src="/assets/js/anime.min.js" defer></script>

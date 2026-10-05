@@ -139,12 +139,28 @@
       void scanline.offsetWidth;
       if (!reduced) scanline.classList.add('is-running');
 
+      // After the gold line, the results corrupt into binary for a moment (delicate scanning digging in, binary.js):
+      // gold digits, and over each result's title the masks' colours, settling on its own verdict once it is in.
+      const verdictColor = new Map();
+      const dig = window.SentinelBinary ? window.SentinelBinary.dig(serp, {
+        links: () => {
+          const s = serp.getBoundingClientRect();
+          return rows.map((row, i) => {
+            const t = $('.res__title', row);
+            if (!t) return null;
+            const r = t.getBoundingClientRect();
+            return { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height, color: verdictColor.get(i) || null };
+          }).filter(Boolean);
+        }
+      }) : null;
+
       await Promise.all(rows.map(async (row, i) => {
         await wait(280 + (row.offsetTop / serp.offsetHeight) * 2300);
         if (id !== run) return;
         const result = set.results[i];
         const slot = $('.masks', row);
         const threats = flagged(result);
+        verdictColor.set(i, threats.length ? result.threats[threats[0]].badge : 'green');
         threats.forEach((t, k) => {
           const m = document.createElement('span');
           m.className = `m m--${result.threats[t].badge}`;
@@ -157,6 +173,7 @@
         });
         if (threats.length && result.threats[threats[0]].badge === 'red') row.classList.add('is-danger');
       }));
+      if (dig) { await wait(250); await dig.finish(); }
       if (id !== run) return;
 
       // Open the most dangerous result so the panel always has something to explain.
@@ -492,6 +509,16 @@
     const out = $('[data-try-out]');
     const input = form.elements.url;
     const button = $('button', form);
+    // Fast, or delicate: the site researched too, while the result area digs in binary (binary.js).
+    let tryMode = 'fast';
+    const note = $('[data-try-note]');
+    $$('[data-try-mode]').forEach((b) => b.addEventListener('click', () => {
+      tryMode = b.dataset.tryMode;
+      $$('[data-try-mode]').forEach((x) => { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+      if (note) note.textContent = tryMode === 'delicate'
+        ? 'Also researches the site: its age, certificate, redirects and page content. Three a day without an account.'
+        : 'Threat lists, the full checklist and known scams, in about a second.';
+    }));
 
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
@@ -506,17 +533,20 @@
       button.disabled = true;
       button.innerHTML = '<span class="spinner"></span>';
       out.setAttribute('aria-busy', 'true');
+      const dig = tryMode === 'delicate' && window.SentinelBinary ? window.SentinelBinary.dig(out) : null;
       try {
         const res = await fetch('/api/v1/demo/scan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url, mode: tryMode })
         });
         const body = await res.json().catch(() => ({}));
         // As in ui.js api(): a server fault never shows its own text, only a plain sentence.
         if (!res.ok) throw new Error((res.status < 500 && body.error && body.error.message) || 'Couldn’t check that link right now.');
+        if (dig) await dig.finish();
         renderTry(body.verdict);
       } catch (err) {
+        if (dig) dig.stop();
         // A failed connection surfaces as a TypeError whose text is the browser's, not ours.
         out.innerHTML = `<div class="try__empty"><p>${esc(err.name === 'Error' ? err.message : 'Couldn’t check that link right now.')}</p><a class="btn btn--gold btn--sm" href="/signup">Create free account</a></div>`;
       } finally {
@@ -540,7 +570,7 @@
           </div>
           <ul class="try__why">${v.reasons.length ? v.reasons.map((r) => `<li>${esc(r.text)}</li>`).join('') : `<li>${v.discounted ? 'No record in any threat feed and nothing in the checklist raised a concern' : 'Nothing in the checklist raised a concern'}</li>`}</ul>
           <div class="try__foot">
-            <span>${v.known ? 'Known threat' : `${v.checks.total} checks &middot; ${v.checks.failed + v.checks.warned} flagged &middot; no research`}</span>
+            <span>${v.known ? 'Known threat' : `${v.checks.total} checks &middot; ${v.checks.failed + v.checks.warned} flagged &middot; ${v.delicate ? 'site researched' : 'no research'}`}</span>
             <a href="/signup?next=${encodeURIComponent(`/app/scan?url=${encodeURIComponent(v.url)}`)}">Research it with Sentinel Pro &rarr;</a>
           </div>
         </div>`;

@@ -37,15 +37,15 @@ test('models are named after their major version', () => {
 test('on one of the newest three models, Pro has slightly smaller allowances; Max and Ultimate keep theirs', async () => {
   published(own, '1.8.8', '1.8.7', '1.8.6');
   const usage = async (plan) => (await (await signedIn(plan)).get('/api/v1/account/usage')).data.plan.limits;
-  assert.deepEqual(await usage('pro'), { linkScans: 30, fileScans: 30, liveMinutes: 180, fastMinutes: 1080 });
-  assert.deepEqual(await usage('max'), { linkScans: 100, fileScans: 100, liveMinutes: 1440, fastMinutes: null });
-  assert.deepEqual(await usage('ultimate'), { linkScans: 500, fileScans: 500, liveMinutes: 5760, fastMinutes: null });
+  assert.deepEqual(await usage('pro'), { linkScans: 150, deepScans: 30, fileScans: 30, liveMinutes: 180, fastMinutes: 1080 });
+  assert.deepEqual(await usage('max'), { linkScans: 1000, deepScans: 100, fileScans: 100, liveMinutes: 1440, fastMinutes: null });
+  assert.deepEqual(await usage('ultimate'), { linkScans: null, deepScans: 500, fileScans: 500, liveMinutes: 5760, fastMinutes: null });
 });
 
 test('an older model keeps the plans as they were', async () => {
   published(bump(own, 3), bump(own, 2), bump(own, 1), own);
   const c = await signedIn('pro');
-  assert.deepEqual((await c.get('/api/v1/account/usage')).data.plan.limits, { linkScans: 40, fileScans: 40, liveMinutes: 240, fastMinutes: 1440 });
+  assert.deepEqual((await c.get('/api/v1/account/usage')).data.plan.limits, { linkScans: 200, deepScans: 40, fileScans: 40, liveMinutes: 240, fastMinutes: 1440 });
 });
 
 test('the free plan is shut out of the newest five only once a free model would stay put', async () => {

@@ -13,7 +13,9 @@ const PLANS = {
     name: 'Free',
     price: 0,
     // fastMinutes: fast live scanning (lists, checklist, comparison). liveMinutes: delicate live scanning (the same plus research).
-    limits: { linkScans: 10, fileScans: 5, liveMinutes: 0, fastMinutes: 15 },
+    // linkScans: fast manual link scans (lists, checklist, comparison). deepScans: delicate manual scans, which research
+    // the site too.
+    limits: { linkScans: 10, deepScans: 0, fileScans: 5, liveMinutes: 0, fastMinutes: 15 },
     features: {
       research: false,          // manual scans: knowledge + checklist + compare only
       liveFast: true,
@@ -28,7 +30,7 @@ const PLANS = {
     id: 'pro',
     name: 'Pro',
     price: 15,
-    limits: { linkScans: 40, fileScans: 40, liveMinutes: 4 * 60, fastMinutes: 24 * 60 },
+    limits: { linkScans: 200, deepScans: 40, fileScans: 40, liveMinutes: 4 * 60, fastMinutes: 24 * 60 },
     features: {
       research: true,
       liveFast: true,
@@ -43,7 +45,7 @@ const PLANS = {
     id: 'max',
     name: 'Max',
     price: 40,
-    limits: { linkScans: 100, fileScans: 100, liveMinutes: 24 * 60, fastMinutes: null },
+    limits: { linkScans: 1000, deepScans: 100, fileScans: 100, liveMinutes: 24 * 60, fastMinutes: null },
     features: {
       research: true,
       liveFast: true,
@@ -59,7 +61,7 @@ const PLANS = {
     name: 'Ultimate',
     price: 100,
     // null = uncapped. Fast scanning has no weekly ceiling here; delicate has 96 hours.
-    limits: { linkScans: 500, fileScans: 500, liveMinutes: 96 * 60, fastMinutes: null },
+    limits: { linkScans: null, deepScans: 500, fileScans: 500, liveMinutes: 96 * 60, fastMinutes: null },
     features: {
       research: true,
       liveFast: true,
@@ -77,7 +79,7 @@ const PLANS = {
  * The free plan cannot use the five newest at all (models.freeLocked). Both only apply inside the app.
  */
 const NEWEST_LIMITS = {
-  pro: { fastMinutes: 18 * 60, liveMinutes: 3 * 60, linkScans: 30, fileScans: 30 }
+  pro: { fastMinutes: 18 * 60, liveMinutes: 3 * 60, linkScans: 150, deepScans: 30, fileScans: 30 }
 };
 
 /** Uncapped allowances are stored as null so the UI can say so plainly. */
@@ -85,6 +87,7 @@ const uncapped = (limit) => limit === null;
 
 const METRICS = {
   linkScans: 'link_scans',
+  deepScans: 'deep_scans',
   fileScans: 'file_scans'
 };
 
@@ -152,9 +155,12 @@ function consume(user, key) {
   const limit = plan.limits[key];
   const week = weekStart();
   const current = used(user.id, key);
-  if (current >= limit) {
+  if (limit === 0 && key === 'deepScans') {
+    throw new HttpError(403, 'plan_required', 'Delicate scans, which research the site as well, come with Sentinel Pro, Max and Ultimate. A fast scan is included in your plan.', { plan: plan.id, needs: 'pro' });
+  }
+  if (!uncapped(limit) && current >= limit) {
     throw new HttpError(429, 'weekly_limit_reached',
-      `You have used all ${limit} ${key === 'fileScans' ? 'virus & malware scans' : 'link scans'} on the ${plan.name} plan this week.`,
+      `You have used all ${limit} ${key === 'fileScans' ? 'virus & malware scans' : key === 'deepScans' ? 'delicate scans' : 'fast link scans'} on the ${plan.name} plan this week.`,
       { limit, used: current, resetsAt: weekResetsAt(), plan: plan.id });
   }
   q.bump.run(user.id, week, METRICS[key], 1);
@@ -236,6 +242,7 @@ function usageSummary(user) {
     week: { startsAt: weekStart(), resetsAt: weekResetsAt() },
     usage: {
       linkScans: { used: used(user.id, 'linkScans'), limit: plan.limits.linkScans },
+      deepScans: { used: used(user.id, 'deepScans'), limit: plan.limits.deepScans },
       fileScans: { used: used(user.id, 'fileScans'), limit: plan.limits.fileScans },
       liveMinutes: { used: liveMinutesUsed(user.id), limit: plan.limits.liveMinutes },
       fastMinutes: { used: fastMinutesUsed(user.id), limit: plan.limits.fastMinutes }

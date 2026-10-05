@@ -33,6 +33,7 @@ for (const file of ['filescan.js', 'lists.js', 'brands.js', 'chat.js']) {
   copyIfChanged(path.join(ROOT, 'server', 'lib', 'scan', file), path.join(SHARED, file));
 }
 copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SHARED, 'masks.js'));
+copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'binary.js'), path.join(SHARED, 'binary.js'));
 
 for (const size of [16, 32, 48, 128, 256, 512]) {
   const src = path.join(ROOT, 'extension', 'icons', `icon${size}.png`);

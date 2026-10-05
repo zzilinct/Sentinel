@@ -202,8 +202,16 @@ test('pro plan: research + virus & malware on link scans, 40/week, 4 h delicate 
   assert.equal(r.status, 200);
   assert.equal(r.data.verdict.researched, true);
   assert.equal(r.data.verdict.threats.malware.level, 'confirmed');
-  assert.equal(r.data.usage.linkScans.limit, 40);
+  assert.equal(r.data.scanMode, 'delicate', 'Pro scans are delicate unless asked otherwise');
+  assert.equal(r.data.usage.deepScans.used, 1, 'and count against the delicate allowance');
+  assert.equal(r.data.usage.deepScans.limit, 40);
+  assert.equal(r.data.usage.linkScans.limit, 200);
   assert.equal(r.data.usage.fileScans.limit, 40);
+  const fast = await c.post('/api/v1/scan/link', { url: 'https://browser-update-center.top/', mode: 'fast' });
+  assert.equal(fast.data.scanMode, 'fast');
+  assert.equal(fast.data.verdict.researched, false, 'a fast scan does not research');
+  assert.equal(fast.data.usage.linkScans.used, 1);
+  assert.equal(fast.data.usage.deepScans.used, 1);
   assert.equal(r.data.usage.liveMinutes.limit, 4 * 60);
   assert.equal(r.data.usage.fastMinutes.limit, 24 * 60);
 
@@ -238,7 +246,8 @@ test('pro plan: research + virus & malware on link scans, 40/week, 4 h delicate 
 test('max plan: 100/week, 24 h delicate, unlimited fast, manual email scans', async () => {
   const c = await newUser('max');
   const me = await c.get('/api/v1/auth/me');
-  assert.equal(me.data.usage.linkScans.limit, 100);
+  assert.equal(me.data.usage.deepScans.limit, 100);
+  assert.equal(me.data.usage.linkScans.limit, 1000);
   assert.equal(me.data.usage.fileScans.limit, 100);
   assert.equal(me.data.usage.liveMinutes.limit, 24 * 60);
   assert.equal(me.data.usage.fastMinutes.limit, null, 'fast is uncapped');
@@ -256,14 +265,15 @@ test('max plan: 100/week, 24 h delicate, unlimited fast, manual email scans', as
   });
   assert.equal(mail.status, 200, JSON.stringify(mail.data));
   assert.ok(['likely', 'confirmed'].includes(mail.data.verdict.threats.scam.level));
-  assert.equal(mail.data.usage.linkScans.used, 1, 'manual email scans count toward the weekly scans');
+  assert.equal(mail.data.usage.deepScans.used, 1, 'manual email scans are researched: they count as delicate scans');
 });
 
 test('ultimate plan: 500/week, 96 h delicate, unlimited fast, everything Max has', async () => {
   const c = await newUser('ultimate');
   const me = await c.get('/api/v1/auth/me');
   assert.equal(me.data.plan.price, 100);
-  assert.equal(me.data.usage.linkScans.limit, 500);
+  assert.equal(me.data.usage.deepScans.limit, 500);
+  assert.equal(me.data.usage.linkScans.limit, null, 'fast manual scans are uncapped');
   assert.equal(me.data.usage.fileScans.limit, 500);
   assert.equal(me.data.usage.liveMinutes.limit, 96 * 60);
   assert.equal(me.data.usage.fastMinutes.limit, null, 'fast minutes are uncapped, not a number');

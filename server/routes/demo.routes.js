@@ -139,6 +139,12 @@ function register(router) {
     if (!url || !analyze(url)) throw new HttpError(400, 'bad_url', 'That doesn’t look like a web address.');
     security.rateLimit(`demo-scan:${ip}`, config.isTest ? 1000 : 5, 24 * 60 * 60 * 1000, 'You’ve used today’s free demo scans. Create a free account for 10 scans a week.');
     security.rateLimit('demo-scan:global', config.isTest ? 100000 : 5000, 24 * 60 * 60 * 1000, 'The demo is busy right now. Create a free account to keep scanning.');
+    // Delicate: the site researched too, so a visitor sees what Pro adds. Research costs real work, so fewer of them.
+    if (body.mode === 'delicate') {
+      security.rateLimit(`demo-deep:${ip}`, config.isTest ? 1000 : 3, 24 * 60 * 60 * 1000, 'You’ve used today’s delicate demo scans. A fast scan still works, or try Pro for delicate scans every week.');
+      sendJson(res, 200, { verdict: { ...summarize(await engine.scanUrl(url, { threats: ALL, research: true, mode: 'demo' })), delicate: true } });
+      return;
+    }
     sendJson(res, 200, { verdict: summarize(await scan(url)) });
   });
 

@@ -99,15 +99,18 @@ function register(router) {
     if (!analyze(url)) throw new HttpError(400, 'bad_url', 'That is not a web address Sentinel can check');
 
     const plan = plans.planFor(user);
-    const verdict = await metered(user, 'linkScans', () => engine.scanUrl(url, {
+    // Fast: threat lists, the checklist and comparison. Delicate: all that, and the site researched too. Asked for by
+    // the person; a client that does not ask gets the best its plan has, as before there were two.
+    const scanMode = body.mode === 'fast' || body.mode === 'delicate' ? body.mode : (plan.features.research ? 'delicate' : 'fast');
+    const verdict = await metered(user, scanMode === 'delicate' ? 'deepScans' : 'linkScans', () => engine.scanUrl(url, {
       userId: user.id,
       planId: plan.id,
-      research: plan.features.research,
+      research: scanMode === 'delicate' && plan.features.research,
       threats: plan.features.virusMalwareOnLinks ? ALL : ['scam'],
       mode: 'manual',
       record: true
     }));
-    sendJson(res, 200, withUsage(user, { verdict }));
+    sendJson(res, 200, withUsage(user, { verdict, scanMode }));
   });
 
   /* ------------------------------------------ virus & malware scanner (URL) */
@@ -164,7 +167,8 @@ function register(router) {
     }
     const mail = cleanMail(await readJson(req, 128 * 1024));
     if (!mail.from && !mail.fromAddress && !mail.body && !mail.subject) throw new HttpError(400, 'empty_email', 'Paste the email you want checked');
-    const verdict = await metered(user, 'linkScans', () => engine.scanEmail(mail, { userId: user.id, planId: plan.id, research: true, mode: 'manual', record: true }));
+    // A pasted email is researched (its links and sender): a delicate scan.
+    const verdict = await metered(user, 'deepScans', () => engine.scanEmail(mail, { userId: user.id, planId: plan.id, research: true, mode: 'manual', record: true }));
     sendJson(res, 200, withUsage(user, { verdict }));
   });
 

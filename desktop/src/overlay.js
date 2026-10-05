@@ -116,9 +116,10 @@ function setWindow(rect) {
 }
 
 /** The gold line and tint over the page in front. */
-function sweep(kind) {
+function sweep(kind, opts = {}) {
   if (!area) return;
-  send('overlay:sweep', { kind: kind || 'search' });
+  // binary: delicate scanning digs in (binary.js) after the gold line, on the results until they are checked.
+  send('overlay:sweep', { kind: kind || 'search', binary: Boolean(opts.binary) });
 }
 
 /** The verdict on the page in front, shown by the corner mask. */
