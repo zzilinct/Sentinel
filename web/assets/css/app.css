@@ -550,6 +550,10 @@ select.input option { background: var(--surface-3); color: var(--text); }
   border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.5; }
 .live__facts li { padding-left: 14px; position: relative; }
 .live__facts li::before { content: ""; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 1px; background: var(--gold-500); }
+/* Exposure alerts: a listed site, what it means, and what to do. */
+.exposure { align-items: flex-start; }
+.exposure .list__main > span + span { margin-top: 6px; color: var(--text); line-height: 1.5; }
+.list__main > .exposure__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 @media (max-width: 860px) {
   .live__main { flex-wrap: wrap; }
   .live__button { width: 100%; }

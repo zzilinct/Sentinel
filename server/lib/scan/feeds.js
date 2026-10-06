@@ -21,6 +21,7 @@ const { db, now } = require('../db');
 const config = require('../../config');
 const L = require('./lists');
 const { analyze, urlKey, deskin, nameTokens } = require('./url');
+const exposure = require('./exposure');
 
 /**
  * kind      'urls' (exact malicious addresses) or 'hosts' (whole domains / IPs)
@@ -136,6 +137,8 @@ async function importHosts(feed, rows) {
   const existing = new Set(q.sourceHosts.all(feed.id).map((r) => r.host));
   const seen = new Set();
   const added = new Set();
+  // Hosts this list names for the first time, for exposure alerts; collected only when someone has visits to check.
+  const listed = exposure.watching() ? [] : null;
   // Never listed, even if an older version stored it: any of the name's parent domains on the never-list.
   const never = (host) => { const parts = host.split('.'); for (let i = 0; i < parts.length - 1; i++) if (NEVER_LIST.has(parts.slice(i).join('.'))) return true; return false; };
   for (let i = 0; i < rows.length; i += CHUNK) {
@@ -149,7 +152,9 @@ async function importHosts(feed, rows) {
         const host = p.host.replace(/^www\./, '');
         seen.add(host);
         if (existing.has(host)) continue;
-        if (q.hostNew.run(host, feed.id, feed.threat, feed.category, deskin(p.sld), stamp).changes && feed.threat === 'scam') added.add(p.registrable);
+        if (!q.hostNew.run(host, feed.id, feed.threat, feed.category, deskin(p.sld), stamp).changes) continue;
+        if (feed.threat === 'scam') added.add(p.registrable);
+        if (listed) listed.push({ host, registrable: p.registrable, threat: feed.threat, category: feed.category });
       }
       db.exec('COMMIT');
     } catch (err) { db.exec('ROLLBACK'); throw err; }
@@ -170,7 +175,8 @@ async function importHosts(feed, rows) {
   }
   q.status.run(feed.id, stamp, seen.size, 1, null);
   revision++;
-  return { count: seen.size, added, removed };
+  const exposed = noteExposures(listed);
+  return { count: seen.size, added, removed, exposed };
 }
 
 /** Import already-downloaded feed lines. Returns counts and the scam hosts that changed. */
@@ -178,6 +184,7 @@ async function importLines(feed, lines) {
   const stamp = now();
   let count = 0;
   const added = new Set();
+  const listed = exposure.watching() ? [] : null;
   const rows = lines.map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
   if (feed.kind === 'hosts') return importHosts(feed, rows);
 
@@ -185,6 +192,7 @@ async function importLines(feed, lines) {
     const host = p.host.replace(/^www\./, '');
     if (q.hostNew.run(host, feed.id, threat, feed.category, deskin(p.sld), stamp).changes) {
       if (threat === 'scam') added.add(p.registrable);
+      if (listed) listed.push({ host, registrable: p.registrable, threat, category: feed.category });
     } else {
       q.hostTouch.run(stamp, threat, host, feed.id);
     }
@@ -223,7 +231,14 @@ async function importLines(feed, lines) {
   q.pruneUrls.run(feed.id, stamp);
   q.status.run(feed.id, stamp, count, 1, null);
   revision++;
-  return { count, added, removed };
+  const exposed = noteExposures(listed);
+  return { count, added, removed, exposed };
+}
+
+/** Newly listed hosts against the sites people visited (exposure.js). A failure here never fails the import. */
+function noteExposures(listed) {
+  if (!listed || !listed.length) return 0;
+  try { return exposure.match(listed); } catch (err) { console.error(`[feeds] exposure check failed: ${err.message}`); return 0; }
 }
 
 /** Apply added/removed scam domains to the token index. */

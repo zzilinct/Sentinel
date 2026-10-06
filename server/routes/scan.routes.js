@@ -16,6 +16,7 @@ const plans = require('../lib/plans');
 const security = require('../lib/security');
 const { db, now } = require('../lib/db');
 const engine = require('../lib/scan/engine');
+const exposure = require('../lib/scan/exposure');
 const feeds = require('../lib/scan/feeds');
 const { analyze, typedUrl } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
@@ -222,7 +223,41 @@ function register(router) {
     const verdict = await engine.scanUrl(String(url), {
       userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact'
     });
+    // Exposure alerts, when the person switched them on: a page that was not a likely or confirmed threat is
+    // remembered as a keyed hash for 14 days, in case a list names it later. Never a page in a private window.
+    const badge = verdict && verdict.overall && verdict.overall.badge;
+    if (body.remember === true && body.private !== true && badge !== 'red' && badge !== 'orange') {
+      try { exposure.remember(user.id, String(url)); } catch { /* best effort, like history */ }
+    }
     sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan) });
+  });
+
+  /* ------------------------------------------------- exposure alerts */
+
+  // Sites this account visited that a threat list named afterwards (scan/exposure.js), with what to do about each.
+  router.get('/api/v1/live/exposures', (req, res) => {
+    const user = A.requireAgreedUser(req);
+    sendJson(res, 200, { items: exposure.list(user.id) });
+  });
+
+  router.post('/api/v1/live/exposures/notified', async (req, res) => {
+    const user = A.requireAgreedUser(req);
+    const body = await readJson(req);
+    const hosts = (Array.isArray(body.hosts) ? body.hosts : []).slice(0, 50).map((h) => String(h).slice(0, 253));
+    sendJson(res, 200, { ok: true, marked: exposure.markNotified(user.id, hosts) });
+  });
+
+  router.post('/api/v1/live/exposures/dismiss', async (req, res) => {
+    const user = A.requireAgreedUser(req);
+    const body = await readJson(req);
+    sendJson(res, 200, { ok: exposure.dismiss(user.id, String(body.host || '').slice(0, 253)) });
+  });
+
+  // Switched off: every remembered visit goes at once.
+  router.post('/api/v1/live/exposures/forget', async (req, res) => {
+    const user = A.requireAgreedUser(req);
+    await readJson(req);
+    sendJson(res, 200, { ok: true, forgotten: exposure.forget(user.id) });
   });
 
   router.post('/api/v1/live/email', async (req, res) => {

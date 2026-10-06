@@ -897,7 +897,9 @@ async function check(page) {
   let verdict;
   try {
     let answer;
-    ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode() }));
+    // Exposure alerts (switched on by the person) ask the server to remember a clean page; a private window never.
+    const remember = !page.private && Boolean(opts.remember && opts.remember());
+    ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode(), ...(remember ? { remember: true } : {}) }));
     noteMode(answer);
   } catch (err) {
     log(`check failed${page.private ? '' : ` for ${host}`}: ${err.status || ''} ${err.code || err.message}`);
