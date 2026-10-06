@@ -28,6 +28,7 @@ const chatoverlay = require('./chatoverlay');
 const updater = require('./updater');
 const models = require('./models');
 const clipwatch = require('./clipwatch');
+const remoteguard = require('./remoteguard');
 const defense = require('./defense');
 const store = require('./store');
 const server = require('./server');
@@ -43,6 +44,7 @@ let win = null;
 let tray = null;
 let quitting = false;
 let warnWin = null;
+let guardWin = null;
 let booting = false;
 let retryTimer = null;
 let retryCount = 0;
@@ -312,6 +314,132 @@ function showWarning(item) {
   }
   warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
   if (warnWin.isVisible()) warnWin.moveTop();
+}
+
+/* --------------------------------------------- tech-support scam shield */
+
+// A fake virus alert that takes the whole screen gets a way out, and a remote-control program that starts soon after
+// a flagged page (or soon after it was downloaded) gets a plain question. See remoteguard.js for what is looked at.
+const remote = remoteguard.create();
+let guardMode = null;          // what the shield's window shows: 'escape', 'remote', 'bank', or 'done' once acted on
+let guardPid = 0;              // the browser "Get me out" could not close, for "Close <browser>"
+let badPage = null;            // the page in front, while it is a fake virus alert or flagged orange or red
+let escapeOfferedFor = null;
+const bankWarned = new Map();
+
+function remoteGuardOn() { return process.platform === 'win32' && store.get('remoteGuard', true); }
+function trustedRemote() {
+  const t = store.get('remoteTrusted', []);
+  return Array.isArray(t) ? t.filter((id) => remoteguard.byId[id]) : [];
+}
+function remoteGuardStatus() {
+  return { supported: process.platform === 'win32', enabled: store.get('remoteGuard', true), trusted: trustedRemote().map((id) => remoteguard.byId[id].name) };
+}
+
+/** The shield's own small window. Above everything, a page that has taken the whole screen included. */
+function showGuard(mode, data = {}) {
+  if (!guardWin || guardWin.isDestroyed()) {
+    guardWin = new BrowserWindow({
+      width: 480, height: 420, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
+      alwaysOnTop: true, skipTaskbar: false, show: false, backgroundColor: '#111215', title: 'Sentinel', icon: ICON, autoHideMenuBar: true,
+      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false }
+    });
+    // An ordinary always-on-top window sits under a browser in full screen.
+    guardWin.setAlwaysOnTop(true, 'screen-saver');
+    guardWin.on('closed', () => { guardWin = null; guardMode = null; guardPid = 0; });
+    // On top, but without taking the keyboard: nothing being typed lands in it by accident.
+    guardWin.once('ready-to-show', () => { if (guardWin) guardWin.showInactive(); });
+    guardWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    guardWin.webContents.on('will-navigate', (e) => e.preventDefault());
+  }
+  guardMode = mode;
+  guardWin.loadFile(path.join(__dirname, 'pages', 'guard.html'), { query: { mode, ...data } });
+  if (guardWin.isVisible()) guardWin.moveTop();
+}
+function closeGuard() { if (guardWin && !guardWin.isDestroyed()) guardWin.close(); }
+
+/** A flagged page in front that fills the screen: offer the way out, once for that page. */
+function offerEscape() {
+  if (!remoteGuardOn() || !badPage || !overlay.isFullscreen() || escapeOfferedFor === badPage.key) return;
+  escapeOfferedFor = badPage.key;
+  appLog('tech-support scam shield: a flagged page took the whole screen; offered a way out');
+  showGuard('escape', { browser: browserName(badPage.browser) });
+}
+
+/** The remote-control programs running changed (the running-browsers helper's report). */
+function remoteSeen(names) {
+  const alarms = remote.update(names, { downloads: downloads.recent(), trusted: trustedRemote() });
+  if (!remoteGuardOn() || !alarms.length) return;
+  const a = alarms[0];
+  // The program's name and why, never a page or a file name.
+  appLog(`tech-support scam shield: ${a.tool.name} started ${a.reason === 'page' ? 'soon after a flagged page' : 'soon after it was downloaded'}`);
+  askAboutRemote(a, Date.now());
+}
+async function askAboutRemote(a, since) {
+  // Never over a game: while something other than a browser is full screen, the question waits (half an hour at most).
+  if (!watch.status().window && await fullscreenInFront()) {
+    if (Date.now() - since < 30 * 60 * 1000) setTimeout(() => askAboutRemote(a, since), 20000);
+    return;
+  }
+  if (!remote.running(trustedRemote()).some((t) => t.id === a.tool.id)) return;   // closed in the meantime
+  showGuard('remote', { tool: a.tool.id, toolName: a.tool.name, reason: a.reason });
+}
+
+/** A bank or payment site in front while a remote-control program runs: say so, once per site in half an hour. */
+function checkMoneyPage(page) {
+  if (!page || page.search || !remoteGuardOn() || !remoteguard.moneySite(page.url)) return;
+  const tool = remote.running(trustedRemote())[0];
+  if (!tool) return;
+  // A private window's site is not kept, even here.
+  let key = 'private';
+  if (!page.private) { try { key = new URL(page.url).hostname; } catch { return; } }
+  const at = bankWarned.get(key);
+  if (at && Date.now() - at < 30 * 60 * 1000) return;
+  if (bankWarned.size > 100) bankWarned.clear();
+  bankWarned.set(key, Date.now());
+  showGuard('bank', { tool: tool.id, toolName: tool.name });
+}
+
+/** End a process and its children, as Task Manager's End task does. Resolves true when Windows did it. */
+function endTask(args) {
+  return new Promise((resolve) => {
+    require('child_process').execFile('taskkill', [...args, '/T', '/F'], { windowsHide: true, timeout: 15000 }, (err) => resolve(!err));
+  });
+}
+
+/** What the shield's window asks for. Every action follows a button the person pressed there. */
+async function guardAction(action, arg) {
+  if (action === 'close-page') {
+    guardMode = 'done';
+    const r = await watch.closeBrowser();
+    guardPid = r && !r.closed ? r.pid : 0;
+    appLog(`tech-support scam shield: asking the browser window to close ${r && r.closed ? 'worked' : 'did not work'}`);
+    return { closed: Boolean(r && r.closed) };
+  }
+  if (action === 'end-browser') {
+    const pid = guardPid;
+    guardPid = 0;
+    if (!Number.isInteger(pid) || pid <= 4) return { ok: false };
+    const ok = await endTask(['/PID', String(pid)]);
+    appLog(`tech-support scam shield: closing the browser ${ok ? 'worked' : 'did not work'}`);
+    return { ok };
+  }
+  if (action === 'end-tool') {
+    const tool = remoteguard.byId[arg];
+    if (!tool) return { ok: false };
+    guardMode = 'done';
+    let ok = false;
+    for (const p of tool.processes) if (await endTask(['/IM', `${p}.exe`])) ok = true;
+    appLog(`tech-support scam shield: ending ${tool.name} at the person's request ${ok ? 'worked' : 'did not work'}`);
+    return { ok };
+  }
+  if (action === 'trust-tool') {
+    if (!remoteguard.byId[arg]) return { ok: false };
+    store.set('remoteTrusted', [...new Set([...trustedRemote(), arg])]);
+    return { ok: true };
+  }
+  if (action === 'dismiss') closeGuard();
+  return { ok: true };
 }
 
 /* --------------------------------------------------------------- tray */
@@ -608,7 +736,7 @@ function trusted(event) {
 function trustedLocal(event) {
   try {
     const from = BrowserWindow.fromWebContents(event.sender);
-    return event.senderFrame && event.senderFrame.url.startsWith(PAGES) && (from === win || (warnWin && from === warnWin));
+    return event.senderFrame && event.senderFrame.url.startsWith(PAGES) && (from === win || (warnWin && from === warnWin) || (guardWin && from === guardWin));
   } catch {
     return false;
   }
@@ -632,6 +760,7 @@ function registerBridge() {
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
     chatSafety: chatSafetyStatus(),
+    remoteGuard: remoteGuardStatus(),
     liveMode: store.get('liveMode', 'fast'),
     autoScan: store.get('autoScan', false),
     defense: { ...defense.status(), enabled: store.get('defense', true) },
@@ -643,6 +772,8 @@ function registerBridge() {
 
 
   handle('sentinel:chat-safety', (enabled) => setChatSafety(Boolean(enabled)));
+  handle('sentinel:set-remote-guard', (enabled) => { store.set('remoteGuard', Boolean(enabled)); if (!enabled) closeGuard(); return remoteGuardStatus(); });
+  handle('sentinel:forget-trusted-remote', () => { store.set('remoteTrusted', []); return remoteGuardStatus(); });
   handle('sentinel:live-start', () => { setAutoSession(false); return startScanning(); });
   handle('sentinel:live-stop', () => setLiveScanning(false, { byPerson: true }));
   handle('sentinel:auto-scan', (enabled) => setAutoScan(Boolean(enabled)));
@@ -713,6 +844,7 @@ function registerBridge() {
     if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`/app/scan?url=${encodeURIComponent(url)}`);
     return { ok: true };
   }, trustedLocal);
+  handle('sentinel:guard-action', (action, arg) => guardAction(String(action), String(arg || '')), trustedLocal);
 }
 
 /* --------------------------------------------------------------- startup */
@@ -830,6 +962,7 @@ async function boot() {
     onWindow: (rect) => {
       overlay.setWindow(rect);
       if (rect) watch.keepAbove(overlay.handle());
+      if (rect) offerEscape();
       // A warning about a dangerous page stays on top only while a browser is in front: switch to a game or any other
       // program and it waits behind it like an ordinary window, instead of floating over everything.
       if (warnWin && !warnWin.isDestroyed()) warnWin.setAlwaysOnTop(Boolean(rect));
@@ -845,10 +978,22 @@ async function boot() {
     onPage: (page) => {
       overlay.setVerdict(null);
       overlay.setMarks({ marks: [] });
+      // A new page: an escape still on offer was for the page before. If that page comes back, it is offered again.
+      badPage = null;
+      if (guardMode === 'escape') { closeGuard(); escapeOfferedFor = null; }
+      checkMoneyPage(page);
       // Delicate scanning (the person's choice, not auto scanning's fast) digs into the results in binary.
       if (page && page.search) overlay.sweep('search', { binary: !autoSession && store.get('liveMode', 'fast') === 'delicate' });
     },
-    onVerdict: (v) => overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind }),
+    onVerdict: (v) => {
+      overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind });
+      // A fake virus alert, or any page flagged orange or red: both moments of the shield start from here.
+      if (v.support || v.badge === 'orange' || v.badge === 'red') {
+        badPage = { key: v.page.private ? `private:${v.page.at}` : v.page.url, browser: v.page.browser };
+        remote.flaggedPage();
+        offerEscape();
+      }
+    },
     onMarks: (m) => overlay.setMarks(m),
     onShift: (s) => overlay.shift(s),
     onWheel: (w) => overlay.wheel(w),
@@ -874,6 +1019,8 @@ async function boot() {
       // Which browsers are open is shown in the app. It is never a notification:
       // a browser running somewhere in the background is not an event.
       onChange: (s) => { browserState = s; refreshTray(); push('sentinel:browsers', s); autoScanFollow(s.running).catch(() => {}); },
+      // The same helper looks for remote-control programs (the tech-support scam shield): no extra process.
+      others: { names: remoteguard.PROCESS_NAMES, onChange: (names) => remoteSeen(names) },
       // With auto scanning on, a browser that opens is noticed within a few seconds.
       everyMs: () => (store.get('autoScan', false) ? 4000 : 15000)
     });

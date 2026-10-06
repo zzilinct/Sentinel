@@ -86,6 +86,16 @@ public static class SW {
     IntPtr after = (prev == IntPtr.Zero || (GetWindowLong(prev, -20) & 0x8) != 0) ? IntPtr.Zero : prev;
     return SetWindowPos(overlay, after, 0, 0, 0, 0, 0x1 | 0x2 | 0x10 | 0x200);
   }
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+  // "Get me out of this page" (the tech-support scam shield): ask the browser window to close, as its own close
+  // button does, and say whether it went within a few seconds. A page can hold it open with a "Leave site?" prompt.
+  public static bool Close(IntPtr h) {
+    if (h == IntPtr.Zero || !IsWindow(h)) return false;
+    PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero);
+    for (int i = 0; i < 25 && IsWindow(h); i++) System.Threading.Thread.Sleep(100);
+    return !IsWindow(h);
+  }
 }
 
 // The mouse wheel, the moment it turns, so marks can move with the page's own smooth scroll instead of waiting for
@@ -327,7 +337,7 @@ $last = ''; $lastFront = ''; $lastWin = ''; $lastLinks = ''; $wasIdle = $false; 
 $lastPid = 0; $lastProc = $null; $cachedDoc = $null; $cachedFor = [IntPtr]::Zero; $cachedTitle = ''; $cachedAt = 0
 $forceRead = $true; $readAt = 0; $lastCount = 0
 # The overlay's window (sent by the app once it exists) and the browser it belongs over.
-$overlayH = [IntPtr]::Zero; $browserH = [IntPtr]::Zero
+$overlayH = [IntPtr]::Zero; $browserH = [IntPtr]::Zero; $browserPid = 0
 $lastFocus = ''; $recheckAt = 0; $lastMoveAt = 0# Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
 # so the loop would stop at the first read until the app sent a command. A plain reader over the raw stream is
 # truly asynchronous.
@@ -448,6 +458,11 @@ while ($true) {
       $rp = Get-Process -Name $Matches[1] | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
       if ($rp) { [SW]::Raise($rp.MainWindowHandle); Write-Output ('{"raised":"' + $Matches[1] + '"}') } else { Write-Output ('{"noWindow":"' + $Matches[1] + '"}') }
     }
+    # The person pressed "Get me out of this page": the browser window last watched is asked to close.
+    if ($cmd -eq 'close') {
+      $gone = [SW]::Close($browserH)
+      Write-Output ('{"closed":' + $(if ($gone) { 'true' } else { 'false' }) + ',"pid":' + [int]$browserPid + '}')
+    }
     continue
   }
   $pause = 300
@@ -516,7 +531,7 @@ while ($true) {
   $noDoc = ''
   $isPrivate = $title -match $private
   # Over this browser, and only just: anything opened on top of it stays on top of the marks.
-  $browserH = $h
+  $browserH = $h; $browserPid = $fp
   if ($overlayH -ne [IntPtr]::Zero) { [void][SW]::Above($overlayH, $h) }
 
   $winKey = "$h|$([int]$r.X)|$([int]$r.Y)|$([int]$r.Width)|$([int]$r.Height)|$isPrivate"
@@ -667,6 +682,7 @@ let readerReady = false;
 let overlayHandle = '';     // the overlay's window, kept just above the browser by the reader
 const queued = [];
 const raiseWaiters = [];
+const closeWaiters = [];
 function send(line) {
   if (!child || !child.stdin || child.stdin.destroyed) return false;
   if (!readerReady) { queued.push(line); return true; }
@@ -685,6 +701,21 @@ function raise(processName) {
     const done = (ok) => { clearTimeout(timer); resolve(ok); };
     raiseWaiters.push(done);
     if (!send(`raise ${processName}`)) { raiseWaiters.pop(); clearTimeout(timer); resolve(null); }
+  });
+}
+
+/**
+ * "Get me out of this page": the reader asks the browser window it last watched to close, as its own close button
+ * would. Resolves { closed, pid } (pid: that browser's process, for "End the browser" when a page holds the window
+ * open), or null when there is no reader to ask. Nothing is typed or clicked in the browser.
+ */
+function closeBrowser() {
+  if (!child) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { const i = closeWaiters.indexOf(done); if (i >= 0) closeWaiters.splice(i, 1); resolve(null); }, 8000);
+    const done = (r) => { clearTimeout(timer); resolve(r); };
+    closeWaiters.push(done);
+    if (!send('close')) { closeWaiters.pop(); clearTimeout(timer); resolve(null); }
   });
 }
 
@@ -830,6 +861,7 @@ function stop(reason, silent) {
   readerReady = false;
   queued.length = 0;
   for (const r of raiseWaiters.splice(0)) r(null);
+  for (const r of closeWaiters.splice(0)) r(null);
   if (old) { try { old.kill(); } catch { /* gone */ } }
   state.current = null;
   latestLinks = null;
@@ -857,6 +889,7 @@ function onLine(line) {
     return;
   }
   if (msg.raised || msg.noWindow) { const r = raiseWaiters.shift(); if (r) r(Boolean(msg.raised)); return; }
+  if ('closed' in msg) { const r = closeWaiters.shift(); if (r) r({ closed: msg.closed === true, pid: Number(msg.pid) || 0 }); return; }
   if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); else if (opts.onFront) opts.onFront(msg.front); return; }
   if (msg.nodoc) { log(`${msg.browser} is in front, but Windows gave no page address (a start page, a dialog over the page, or the browser's accessibility is off)`); return; }
   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
@@ -911,7 +944,9 @@ async function check(page) {
   const badge = (verdict && verdict.overall && verdict.overall.badge) || null;
   const label = verdict && verdict.overall ? verdict.overall.label : 'Checked';
   const stillThere = Boolean(state.current) && state.current.at === page.at;
-  if (opts.onVerdict && stillThere) opts.onVerdict({ page, badge, label, kind: worstKind(verdict) });
+  // A fake virus alert (kinds.js "Tech support scam") of any colour: the tech-support scam shield watches for it.
+  const support = Boolean(verdict && verdict.threats && verdict.threats.scam && verdict.threats.scam.kind === 'support');
+  if (opts.onVerdict && stillThere) opts.onVerdict({ page, badge, label, kind: worstKind(verdict), support });
   count(page.private, badge);
   if (opts.onChecked && !page.private) opts.onChecked({ browser: page.browser, url: page.url, host, badge, label, at: Date.now() });
   if (badge !== 'red' && badge !== 'orange') return;
@@ -1304,4 +1339,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, closeBrowser, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, SCRIPT } };

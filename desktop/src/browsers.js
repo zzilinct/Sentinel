@@ -110,10 +110,12 @@ while ($true) {
 let watcherChild = null;
 let watcherRunning = null;   // the helper's latest answer: process names, or null before it has one
 
-function startProcessWatcher(onNames) {
+function startProcessWatcher(onNames, extra = []) {
   if (process.platform !== 'win32' || watcherChild) return;
   const { spawn } = require('child_process');
-  const names = BROWSERS.map((b) => `'${b.process}'`).join(',');
+  // Browsers, and any other programs a caller asked about (the remote-control programs of remoteguard.js): one
+  // helper looks at them all, so watching more costs no extra process.
+  const names = [...BROWSERS.map((b) => b.process), ...extra.filter((n) => /^[a-z0-9_.]{2,40}$/.test(n))].map((n) => `'${n}'`).join(',');
   const script = WATCH_SCRIPT.replace('__NAMES__', names);
   try {
     watcherChild = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
@@ -244,8 +246,10 @@ async function preferred(chosen) {
 /**
  * Polls the running browsers and reports when one appears or goes away.
  * `onChange(state)` gets { installed: [...], running: [...] }. `everyMs` may be a function, asked before each wait.
+ * `others` ({ names, onChange }): more process names to look for in the same helper (Windows only); `onChange` gets
+ * the ones running, each time the helper reports a change.
  */
-function watch({ onChange, everyMs = 15000 }) {
+function watch({ onChange, everyMs = 15000, others = null }) {
   let last = '';
   let timer = null;
   let stopped = false;
@@ -258,12 +262,18 @@ function watch({ onChange, everyMs = 15000 }) {
     } catch { /* keep going */ }
   };
   // Windows: the helper says when something changes. Elsewhere, or while the helper is not running, poll.
-  startProcessWatcher(() => { if (!stopped) report(); });
+  const extra = (others && others.names) || [];
+  const heard = () => {
+    if (stopped) return;
+    report();
+    if (others && watcherRunning) { try { others.onChange(extra.filter((n) => watcherRunning.has(n))); } catch { /* keep going */ } }
+  };
+  startProcessWatcher(heard, extra);
   const tick = async () => {
     if (stopped) return;
     if (!watcherChild) await report();
     // With the helper running this only looks after it: starts it again if it ended.
-    if (process.platform === 'win32' && !watcherChild) startProcessWatcher(() => { if (!stopped) report(); });
+    if (process.platform === 'win32' && !watcherChild) startProcessWatcher(heard, extra);
     if (!stopped) timer = setTimeout(tick, watcherChild ? 60000 : (typeof everyMs === 'function' ? everyMs() : everyMs));
   };
   tick();
