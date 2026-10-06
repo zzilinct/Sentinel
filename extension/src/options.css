@@ -13,3 +13,9 @@ body.options { width: auto; max-width: 640px; margin: 0 auto; padding: 36px 20px
 .legend div { display: flex; align-items: center; gap: 10px; background: var(--panel); padding: 8px 10px; font-size: 12.5px; }
 .legend svg { width: 22px; height: 22px; flex: none; }
 .saved { text-align: center; min-height: 18px; color: var(--green); }
+.pw-intro { margin: 0 0 6px; color: var(--muted); }
+.pw-add { display: flex; gap: 8px; align-items: center; }
+.pw-add input { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; width: 150px; }
+.pw-allowed { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.pw-allowed button { font-size: 11.5px; padding: 3px 8px; }
+.pw-actions { display: flex; gap: 8px; align-items: center; flex: none; }

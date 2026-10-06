@@ -10,6 +10,7 @@
  * appear instantly from the checklist, then upgrade once research finishes.
  */
 import { ext, apiFetch, getSettings, setToken, siteUrl, COLORS, ApiError } from './lib/api.js';
+import { PRESETS, MIN_LENGTH, bankDomain, newSalt, hashPassword, sameHash, homeAccount, guardedHere } from './lib/pwalarm.js';
 
 const TTL = { quick: 15 * 60 * 1000, research: 60 * 60 * 1000 };
 const cache = new Map();                  // `${phase}|${url}` -> { verdict, at }
@@ -214,6 +215,121 @@ async function onNavigate(details) {
   }
 }
 
+/* --------------------------------------------------------- password alarm */
+
+// See lib/pwalarm.js. Only hashes live here; a password reaches the worker in a message from this extension's own
+// content script, is hashed, and is dropped.
+async function pwState() {
+  const { pwalarm } = await ext.storage.local.get('pwalarm');
+  return pwalarm && pwalarm.accounts ? pwalarm : { accounts: {} };
+}
+const pwSave = (state) => ext.storage.local.set({ pwalarm: state });
+const frameHost = (sender) => { try { return new URL(sender.url).hostname.toLowerCase(); } catch { return ''; } };
+const lastAlarm = new Map();   // tabId -> { id, host }: what "This is a real site" may allow, decided here, not by the page
+
+/** Settings messages come only from the extension's own pages (a content script's sender.url is its web page). */
+function fromOptions(sender) {
+  if (!sender.url || !sender.url.startsWith(ext.runtime.getURL(''))) throw new ApiError('Not allowed', 403, 'forbidden');
+}
+/** Page messages come only from a content script in a web page. */
+function fromPage(sender) {
+  if (!sender.tab || !/^https?:/i.test(sender.url || '')) throw new ApiError('Not allowed', 403, 'forbidden');
+}
+
+/** What the options page shows: never the hashes. */
+function pwList(state) {
+  const accounts = Object.values(state.accounts).map((a) => ({
+    id: a.id, name: a.name, on: Boolean(a.on), bank: Boolean(a.bank), learned: Boolean(a.hash), learnedAt: a.learnedAt || null, allowed: a.allowed || []
+  }));
+  return { presets: PRESETS.map(({ id, name }) => ({ id, name })), accounts };
+}
+
+const pwHandlers = {
+  async 'pw-list'(msg, sender) { fromOptions(sender); return pwList(await pwState()); },
+  async 'pw-set'({ id, on }, sender) {
+    fromOptions(sender);
+    const state = await pwState();
+    const preset = PRESETS.find((p) => p.id === id);
+    if (on && preset && !state.accounts[id]) state.accounts[id] = { id, name: preset.name, homes: preset.homes, on: true, allowed: [] };
+    else if (state.accounts[id]) state.accounts[id].on = Boolean(on);
+    await pwSave(state);
+    return pwList(state);
+  },
+  async 'pw-bank'({ domain }, sender) {
+    fromOptions(sender);
+    const host = bankDomain(domain);
+    if (!host) throw new ApiError('Type your bank’s own address, like chase.com', 400, 'bad_domain');
+    const state = await pwState();
+    const id = `bank:${host}`;
+    state.accounts[id] = state.accounts[id] || { id, name: host, homes: [host], on: true, bank: true, allowed: [] };
+    state.accounts[id].on = true;
+    await pwSave(state);
+    return pwList(state);
+  },
+  async 'pw-forget'({ id }, sender) {
+    fromOptions(sender);
+    const state = await pwState();
+    delete state.accounts[id];
+    await pwSave(state);
+    return pwList(state);
+  },
+  async 'pw-unallow'({ id, host }, sender) {
+    fromOptions(sender);
+    const state = await pwState();
+    if (state.accounts[id]) state.accounts[id].allowed = (state.accounts[id].allowed || []).filter((h) => h !== host);
+    await pwSave(state);
+    return pwList(state);
+  },
+  /** For the content script: whether this is a sign-in site to learn from, and the lengths worth checking. */
+  async 'pw-config'(msg, sender) {
+    fromPage(sender);
+    const state = await pwState();
+    const host = frameHost(sender);
+    return { learn: Boolean(homeAccount(state, host)), lengths: [...new Set(guardedHere(state, host).map((a) => a.length))] };
+  },
+  /** A sign-in on the account's own site: keep the hash of what was typed (the latest sign-in wins). */
+  async 'pw-learn'({ password }, sender) {
+    fromPage(sender);
+    if (typeof password !== 'string' || password.length < MIN_LENGTH || password.length > 512) return { learned: false };
+    const state = await pwState();
+    const account = homeAccount(state, frameHost(sender));
+    if (!account) return { learned: false };
+    const salt = newSalt();
+    Object.assign(account, { salt, hash: await hashPassword(password, salt), length: password.length, learnedAt: Date.now() });
+    await pwSave(state);
+    return { learned: true };
+  },
+  /** A password typed anywhere else: is it one of the protected ones? On a match, the top frame shows the alarm. */
+  async 'pw-check'({ password }, sender) {
+    fromPage(sender);
+    if (typeof password !== 'string' || password.length < MIN_LENGTH || password.length > 512) return { match: null };
+    const state = await pwState();
+    const host = frameHost(sender);
+    for (const a of guardedHere(state, host)) {
+      if (a.length !== password.length || !sameHash(await hashPassword(password, a.salt), a.hash)) continue;
+      lastAlarm.set(sender.tab.id, { id: a.id, host });
+      const tabUrl = sender.tab.url || sender.url;
+      const verdict = localVerdict(tabUrl) || cacheGet('research', tabUrl) || cacheGet('quick', tabUrl);
+      Promise.resolve(ext.tabs.sendMessage(sender.tab.id, { type: 'sentinel:pw-alarm', name: a.name, host, bank: Boolean(a.bank), verdict: verdict || null }, { frameId: 0 })).catch(() => {});
+      return { match: { name: a.name } };
+    }
+    return { match: null };
+  },
+  /** "This is a real site", confirmed twice by the person: stop sounding the alarm for this account on that host. */
+  async 'pw-allow'(msg, sender) {
+    fromPage(sender);
+    const alarm = lastAlarm.get(sender.tab.id);
+    if (!alarm) return { allowed: false };
+    lastAlarm.delete(sender.tab.id);
+    const state = await pwState();
+    const a = state.accounts[alarm.id];
+    if (!a) return { allowed: false };
+    a.allowed = [...new Set([...(a.allowed || []), alarm.host])].slice(-50);
+    await pwSave(state);
+    return { allowed: true };
+  }
+};
+
 /* --------------------------------------------------------------- messages */
 
 
@@ -293,6 +409,7 @@ const handlers = {
     cache.clear();
     return data;
   },
+  ...pwHandlers,
   async 'sign-out'() {
     try { await apiFetch('/api/v1/auth/logout', { method: 'POST', body: {} }); } catch { /* already signed out */ }
     await setToken(null);

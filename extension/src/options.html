@@ -35,6 +35,14 @@
       <select id="minimumBadge"><option value="yellow">Yellow and above</option><option value="orange">Orange and above</option><option value="red">Red only</option></select></label>
   </section>
 
+  <section class="card" id="pw">
+    <div class="label">Password alarm</div>
+    <p class="small pw-intro">Pick the accounts that matter most. The next time you sign in to one on its own site, Sentinel remembers a scrambled form of the password (never the password itself, and it never leaves this computer). Type that password on any other site and Sentinel empties the box and stops you.</p>
+    <div id="pwPresets"></div>
+    <form class="opt pw-bank" id="pwBankForm"><span><b>Your bank</b><small>Its own address, like chase.com.</small></span><span class="pw-add"><input type="text" id="pwBank" placeholder="yourbank.com" spellcheck="false" autocomplete="off" aria-label="Your bank's address"><button class="btn" type="submit">Add</button></span></form>
+    <div id="pwBanks"></div>
+  </section>
+
   <section class="card">
     <div class="label">Advanced</div>
     <label class="opt"><span><b>Sentinel server</b><small>Only change this if you run your own Sentinel.</small></span><input type="url" id="apiBase" spellcheck="false"></label>
