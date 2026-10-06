@@ -29,7 +29,7 @@ const CANDIDATES = {
 
 // The pages, in the order a new person meets them. `wait` gives a scan time to finish.
 const PAGES = [
-  ['home', '/'], ['pricing', '/pricing'], ['download', '/download'], ['privacy', '/privacy'], ['terms', '/terms'], ['refunds', '/refunds'],
+  ['home', '/'], ['pricing', '/pricing'], ['download', '/download'], ['privacy', '/privacy'], ['terms', '/terms'], ['refunds', '/refunds'], ['recover', '/recover'],
   ['signup', '/signup', { anonymous: true }], ['login', '/login', { anonymous: true }], ['not-found', '/no-such-page'],
   ['app-overview', '/app'],
   ['app-scan-empty', '/app/scan'],

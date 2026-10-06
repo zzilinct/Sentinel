@@ -546,6 +546,8 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .next-steps h3 { margin: 0 0 10px; font: 600 15px/1.3 var(--sans); color: var(--c); }
 .next-steps ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .next-steps li { line-height: 1.5; }
+.next-steps__more { margin: 12px 0 0; font-size: 14px; color: var(--text-2); }
+.next-steps__more a { color: var(--c); text-decoration: underline; text-underline-offset: 3px; }
 .live__facts { margin: 20px 0 0; padding: 16px 0 0; list-style: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 28px;
   border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.5; }
 .live__facts li { padding-left: 14px; position: relative; }

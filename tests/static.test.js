@@ -23,7 +23,7 @@ function build(extraArgs = []) {
 
 test('static build: every page ships, every relative link resolves, nothing points at the server-only routes', () => {
   const { out, read, hrefs } = build();
-  for (const page of ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', '404.html']) {
+  for (const page of ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', 'recover.html', '404.html']) {
     assert.ok(fs.existsSync(path.join(out, page)), `${page} missing`);
     const html = read(page);
     assert.ok(!html.includes('@include'), `${page} has an unexpanded include`);
@@ -43,7 +43,7 @@ test('static build: every page ships, every relative link resolves, nothing poin
   for (const f of ['robots.txt', 'sitemap.xml', 'llms.txt']) assert.ok(fs.existsSync(path.join(out, f)), `${f} missing`);
   assert.match(read('robots.txt'), /^Sitemap: \S+\/sitemap\.xml$/m);
   // One H1 per public page, and every public page names its canonical address.
-  for (const page of ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html']) {
+  for (const page of ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', 'recover.html']) {
     const html = read(page);
     assert.equal((html.match(/<h1[\s>]/g) || []).length, 1, `${page} needs exactly one h1`);
     assert.match(html, /<link rel="canonical" href="[^"]+">/, `${page} has no canonical link`);

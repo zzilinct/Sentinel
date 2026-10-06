@@ -333,7 +333,9 @@ window.UI = (() => {
     if (!head || (head.tone !== 'red' && head.tone !== 'orange' && head.tone !== 'yellow')) return '';
     const steps = NEXT_STEPS[head.kind] || (head.threat === 'scam' ? LOGIN : FILE);
     const title = head.tone === 'yellow' ? 'If you are not sure' : 'What to do now';
-    return `<div class="next-steps next-steps--${head.tone}"><h3>${title}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></div>`;
+    // Past the first steps (money sent, an ID number given, someone let in), the recovery guide puts everything in order.
+    const more = head.tone === 'yellow' ? '' : '<p class="next-steps__more">Already clicked, paid or let someone in? <a href="/recover">Open the recovery guide</a> for every step, in order.</p>';
+    return `<div class="next-steps next-steps--${head.tone}"><h3>${title}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${more}</div>`;
   }
 
   function verdict(v, { lockedLabel } = {}) {

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- @include head -->
+<link rel="stylesheet" href="/assets/css/lux.css">
+<title>Recovery guide · Sentinel</title>
+<meta name="description" content="Think you have been scammed? Tick what happened and get one ordered checklist of what to do, starting now, and where to report it.">
+<meta property="og:url" content="https://www.usesentinel.technology/recover">
+<link rel="canonical" href="https://www.usesentinel.technology/recover">
+</head>
+<body>
+<!-- @include nav -->
+<main id="main">
+  <section class="page-head page-head--recover">
+    <div class="wrap-narrow">
+      <svg class="orn-rule" viewBox="0 0 260 26" aria-hidden="true"><path d="M0 13h100M160 13h100"/><path d="M130 3l10 10-10 10-10-10z"/><path d="M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0"/><circle cx="130" cy="13" r="2"/></svg>
+      <span class="kicker" data-reveal>Recovery guide</span>
+      <h1 data-split>I think I&rsquo;ve been scammed</h1>
+      <p data-reveal>Take a breath. Tick what happened, and Sentinel puts what to do in order, most urgent first. Nothing you tick leaves this browser.</p>
+    </div>
+  </section>
+
+  <section class="prose-wrap">
+    <div class="wrap-narrow recover" data-recover>
+      <noscript>
+        <div class="prose">
+          <h2>What to do now</h2>
+          <ol>
+            <li>Stop all contact. Do not reply, call back or pay anything more.</li>
+            <li>Gave card or bank details, or sent money? Call your bank using the number on your card, and ask them to block the card or stop the payment.</li>
+            <li>Typed a password into a fake site? Change it on the real site, and anywhere else you use it.</li>
+            <li>Let someone connect to your computer? Disconnect from the internet, uninstall their program, and run a full scan in Windows Security.</li>
+            <li>Report it: in the United States at <a href="https://reportfraud.ftc.gov/">reportfraud.ftc.gov</a>, in the United Kingdom at <a href="https://www.actionfraud.police.uk/">actionfraud.police.uk</a>, or to your local police.</li>
+          </ol>
+        </div>
+      </noscript>
+      <fieldset class="recover__what">
+        <legend><h2>What happened?</h2><span>Tick everything that fits.</span></legend>
+        <div class="recover__picks" data-recover-picks></div>
+      </fieldset>
+      <div class="recover__bar">
+        <label class="recover__country"><span>Where you live</span><select data-recover-country></select></label>
+        <div class="recover__actions">
+          <button type="button" class="btn btn--gold btn--sm" data-recover-print>Print</button>
+          <button type="button" class="btn btn--ghost btn--sm" data-recover-reset>Start over</button>
+        </div>
+      </div>
+      <div class="recover__plan" data-recover-plan></div>
+    </div>
+  </section>
+</main>
+<!-- @include footer -->
+<script src="/assets/js/masks.js"></script>
+<script src="/assets/js/site.js"></script>
+<script src="/assets/js/recover.js"></script>
+<script src="/assets/js/anime.min.js" defer></script>
+<script src="/assets/js/lux.js" defer></script>
+</body>
+</html>

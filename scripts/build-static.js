@@ -31,7 +31,7 @@ const OUT = path.resolve(ROOT, argOf('--out', 'dist-static'));
 
 // Pages the static build ships. The app needs accounts and the scan API, so it
 // is not exported: its links point at the real site instead.
-const PAGES = ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', '404.html'];
+const PAGES = ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', 'recover.html', '404.html'];
 const ASSET_DIRS = ['assets/css', 'assets/js', 'assets/img', 'assets/fonts', 'assets/models'];
 
 /* ------------------------------------------------------------- helpers */
@@ -61,7 +61,8 @@ const ROUTES = {
   '/download': 'download.html',
   '/privacy': 'privacy.html',
   '/terms': 'terms.html',
-  '/refunds': 'refunds.html'
+  '/refunds': 'refunds.html',
+  '/recover': 'recover.html'
 };
 
 /** Pages that only exist with a server: point them at the live site. */
