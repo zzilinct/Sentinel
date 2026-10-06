@@ -29,7 +29,14 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   // Chat safety (Roblox and the Discord app): one switch.
   setChatSafety: (enabled) => ipcRenderer.invoke('sentinel:chat-safety', Boolean(enabled)),
   onChatSafety: (callback) => on('sentinel:chat-safety', callback),
-  setLiveMode: (mode) => ipcRenderer.invoke('sentinel:live-mode', mode === 'delicate' ? 'delicate' : 'fast'),
+  // Parent lock: a PIN before protection can be switched off. The PIN is checked in the main process.
+  lockStatus: () => ipcRenderer.invoke('sentinel:lock-status'),
+  lockSet: (pin) => ipcRenderer.invoke('sentinel:lock-set', String(pin)),
+  lockUnlock: (pin) => ipcRenderer.invoke('sentinel:lock-unlock', String(pin)),
+  lockRelock: () => ipcRenderer.invoke('sentinel:lock-relock'),
+  lockRemove: () => ipcRenderer.invoke('sentinel:lock-remove'),
+  lockReset: () => ipcRenderer.invoke('sentinel:lock-reset'),
+  setLiveMode:(mode) => ipcRenderer.invoke('sentinel:live-mode', mode === 'delicate' ? 'delicate' : 'fast'),
   setAutoScan: (enabled) => ipcRenderer.invoke('sentinel:auto-scan', Boolean(enabled)),
   scanWith: (browser) => ipcRenderer.invoke('sentinel:scan-with', String(browser)),
   checkUpdates: () => ipcRenderer.invoke('sentinel:check-updates'),

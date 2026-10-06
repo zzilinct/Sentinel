@@ -30,6 +30,7 @@ const models = require('./models');
 const clipwatch = require('./clipwatch');
 const defense = require('./defense');
 const store = require('./store');
+const parentlock = require('./parentlock');
 const server = require('./server');
 
 const DEV = process.argv.includes('--dev');
@@ -51,6 +52,7 @@ let browserState = { installed: [], running: [] };
 // The page live scanning last judged in front ({ host, badge, at }), for the command shield. A private window's host is not kept.
 let pageInFront = null;
 let browserWatcher = null;
+let lock = null;   // the parent lock (parentlock.js), made once the settings are read
 
 /** Started without a window: from the startup entry, or brought back in the tray after an automatic update. */
 const startHidden = (() => {
@@ -133,6 +135,70 @@ function setChatSafety(enabled) {
   const s = chatSafetyStatus();
   push('sentinel:chat-safety', s);
   return s;
+}
+
+/*
+ * Parent lock (parentlock.js): with a PIN set, switching protection off or quitting needs the PIN. The tray cannot
+ * ask for one, so a locked tray click is refused, the menu goes back to how things really are, and the app opens
+ * on Parent lock.
+ */
+function trayGuard(what, weakens) {
+  try { lock.guard(what, weakens); return true; } catch {
+    refreshTray();
+    showWindow('/app/protection#parent-lock');
+    return false;
+  }
+}
+
+function runPowerShell(script, timeout = 15000) {
+  return new Promise((resolve) => {
+    require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+      { windowsHide: true, timeout }, (err, out) => resolve({ ok: !err, out: String(out || '').trim() }));
+  });
+}
+
+// While the lock is set, a small file says once a minute that Sentinel is running, and on quitting that it quit.
+// Found unfinished at the next start, with no Windows restart or shutdown since, Sentinel was ended without
+// the PIN (from Task Manager, or a crash), and the parent's record says when. Only times are written.
+const heartbeatFile = () => path.join(app.getPath('userData'), 'parent-lock-heartbeat.json');
+function heartbeat(clean = false) {
+  if (!lock || !lock.isSet()) return;
+  try { require('fs').writeFileSync(heartbeatFile(), JSON.stringify({ at: Date.now(), clean })); } catch { /* next minute */ }
+}
+async function checkHeartbeat() {
+  let last = null;
+  try { last = JSON.parse(require('fs').readFileSync(heartbeatFile(), 'utf8')); } catch { /* none */ }
+  if (lock.isSet() && process.platform === 'win32') {
+    const bootAt = Date.now() - require('os').uptime() * 1000;
+    // A shutdown or restart (1074, 6006; with fast startup the uptime does not reset) or a power loss (6008) since then: Windows ended Sentinel.
+    const systemStopAfter = async (at) => {
+      const r = await runPowerShell(`try { @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; Id = 1074, 6006, 6008; StartTime = ([DateTimeOffset]::FromUnixTimeMilliseconds(${Number(at)})).LocalDateTime } -MaxEvents 1 -ErrorAction Stop).Count } catch { if ($_.FullyQualifiedErrorId -match 'NoMatchingEventsFound') { 0 } else { -1 } }`);
+      if (!r.ok || r.out === '-1') throw new Error('event log not read');
+      return Number(r.out) > 0;
+    };
+    const at = await parentlock.stoppedWithoutPin(last, bootAt, systemStopAfter);
+    if (at) lock.note('Sentinel stopped without the PIN (ended from Task Manager, or it crashed)', at);
+  }
+  heartbeat();
+}
+
+// Is this Windows account an administrator? (Then the lock only slows a child down: the app says so.)
+let adminAccount = null;
+async function isAdminAccount() {
+  if (adminAccount === null && process.platform === 'win32') {
+    const r = await runPowerShell('whoami /groups');
+    adminAccount = r.ok && /S-1-5-32-544/.test(r.out);
+  }
+  return Boolean(adminAccount);
+}
+
+async function lockStatus() {
+  return { ...lock.status(), admin: await isAdminAccount(), supported: process.platform === 'win32' };
+}
+
+function lockChanged() {
+  if (lock.isSet()) heartbeat(); else { try { require('fs').unlinkSync(heartbeatFile()); } catch { /* none */ } }
+  refreshTray();
 }
 
 /** The signed-in person's pairing if there is one, otherwise this computer's own account. */
@@ -350,16 +416,17 @@ function refreshTray() {
     { label: pw.active ? (pw.window ? 'Live scanning: watching the browser in front' : 'Live scanning: ready') : pw.reason || 'Live scanning is off', enabled: false },
     { label: 'Scan a file...', click: () => showWindow('/app/threats') },
     { type: 'separator' },
-    { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
+    { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? trayGuard('live scanning off', true) && setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
     ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
-    ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => setAutoScan(item.checked).catch(() => {}) }] : []),
-    ...(process.platform === 'win32' ? [{ label: 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { setChatSafety(item.checked); refreshTray(); } }] : []),
-    { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => setOpenAtLogin(item.checked) },
+    ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => { if (trayGuard('auto scanning off', !item.checked)) setAutoScan(item.checked).catch(() => {}); } }] : []),
+    ...(process.platform === 'win32' ? [{ label: 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { if (trayGuard('chat safety off', !item.checked)) { setChatSafety(item.checked); refreshTray(); } } }] : []),
+    { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => { if (trayGuard('starting with the computer off', !item.checked)) setOpenAtLogin(item.checked); } },
     { type: 'separator' },
     updateItem(up),
     { label: 'Open log folder', click: () => shell.showItemInFolder(server.logPath()) },
     { type: 'separator' },
-    { label: 'Quit Sentinel', click: () => { quitting = true; app.quit(); } }
+    ...(lock && lock.isSet() ? [{ label: lock.locked() ? 'Parent lock: on' : 'Parent lock: open for a few minutes', enabled: false }] : []),
+    { label: 'Quit Sentinel', click: () => { if (trayGuard('Sentinel off', true)) { quitting = true; app.quit(); } } }
   ]));
 }
 
@@ -657,6 +724,7 @@ function registerBridge() {
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
     chatSafety: chatSafetyStatus(),
+    parentLock: lock.status(),
     liveMode: store.get('liveMode', 'fast'),
     autoScan: store.get('autoScan', false),
     defense: { ...defense.status(), enabled: store.get('defense', true) },
@@ -667,10 +735,34 @@ function registerBridge() {
   }));
 
 
-  handle('sentinel:chat-safety', (enabled) => setChatSafety(Boolean(enabled)));
+  handle('sentinel:chat-safety', (enabled) => { lock.guard('chat safety off', !enabled); return setChatSafety(Boolean(enabled)); });
   handle('sentinel:live-start', () => { setAutoSession(false); return startScanning(); });
-  handle('sentinel:live-stop', () => setLiveScanning(false, { byPerson: true }));
-  handle('sentinel:auto-scan', (enabled) => setAutoScan(Boolean(enabled)));
+  handle('sentinel:live-stop', () => { lock.guard('live scanning off', true); return setLiveScanning(false, { byPerson: true }); });
+  handle('sentinel:auto-scan', (enabled) => { lock.guard('auto scanning off', !enabled); return setAutoScan(Boolean(enabled)); });
+
+  // Parent lock. Setting, changing or removing the PIN needs the lock open (or no PIN yet); a forgotten PIN is
+  // removed only with a Windows administrator's approval, asked for by Windows itself.
+  let relockTimer = null;
+  handle('sentinel:lock-status', () => lockStatus());
+  handle('sentinel:lock-set', (pin) => { lock.set(String(pin)); lockChanged(); return lockStatus(); });
+  handle('sentinel:lock-unlock', (pin) => {
+    lock.unlock(String(pin));
+    refreshTray();
+    clearTimeout(relockTimer);
+    relockTimer = setTimeout(refreshTray, parentlock.UNLOCK_MS + 500);
+    return lockStatus();
+  });
+  handle('sentinel:lock-relock', () => { lock.relock(); refreshTray(); return lockStatus(); });
+  handle('sentinel:lock-remove', () => { lock.remove(); lockChanged(); return lockStatus(); });
+  handle('sentinel:lock-reset', async () => {
+    if (process.platform !== 'win32' || !lock.isSet()) return lockStatus();
+    // Windows shows its own administrator prompt; cancelled or refused, nothing changes.
+    const r = await runPowerShell("try { Start-Process -FilePath cmd.exe -ArgumentList '/c','exit' -Verb RunAs -WindowStyle Hidden -Wait -ErrorAction Stop; 'yes' } catch { 'no' }", 5 * 60 * 1000);
+    if (!r.ok || r.out !== 'yes') throw new Error('Windows did not approve it, so the PIN was kept.');
+    lock.reset();
+    lockChanged();
+    return lockStatus();
+  });
   handle('sentinel:live-mode', (mode) => {
     store.set('liveMode', mode === 'delicate' ? 'delicate' : 'fast');
     refreshTray();
@@ -683,19 +775,23 @@ function registerBridge() {
 
   handle('sentinel:check-updates', () => updater.check());
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
-  handle('sentinel:set-clipboard-check', (enabled) => setClipboardCheck(Boolean(enabled)));
-  handle('sentinel:set-command-shield', (enabled) => setCommandShield(Boolean(enabled)));
-  handle('sentinel:set-defense', (enabled) => { store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
+  handle('sentinel:set-clipboard-check', (enabled) => { lock.guard('checking copied links off', !enabled); return setClipboardCheck(Boolean(enabled)); });
+  handle('sentinel:set-command-shield', (enabled) => { lock.guard('the command shield off', !enabled); return setCommandShield(Boolean(enabled)); });
+  handle('sentinel:set-defense', (enabled) => { lock.guard('defense off', !enabled); store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
   handle('sentinel:defense-restore', (id) => defense.restore(String(id)));
   handle('sentinel:defense-act', (id) => defense.act(String(id)));
   handle('sentinel:install-update', () => updater.install());
   // The text of an email screenshot, read on this computer by Windows (ocr.js); the images are not kept.
   handle('sentinel:read-screenshot', (images) => require('./ocr').read(Array.isArray(images) ? images : []));
   // Switch to a chosen model (a released version): downloaded from GitHub and checked there, never from the page.
-  handle('sentinel:install-model', (version) => models.install({
-    version: String(version), dir: path.join(updater.cacheDir(), 'models'), updater, store, log: appLog,
-    onProgress: (progress) => push('sentinel:update', { ...updater.status(), status: 'switching', version: String(version), progress })
-  }));
+  // An older model may not have chat safety at all: choosing one is switching protection off, as far as the lock goes.
+  handle('sentinel:install-model', (version) => {
+    lock.guard('to another Sentinel version', true);
+    return models.install({
+      version: String(version), dir: path.join(updater.cacheDir(), 'models'), updater, store, log: appLog,
+      onProgress: (progress) => push('sentinel:update', { ...updater.status(), status: 'switching', version: String(version), progress })
+    });
+  });
 
   handle('sentinel:set-token', (token, userId) => {
     if (typeof token !== 'string' || token.length < 20 || token.length > 200) throw new Error('Invalid token');
@@ -719,13 +815,14 @@ function registerBridge() {
   });
 
   handle('sentinel:set-download-protection', (enabled) => {
+    lock.guard('download protection off', !enabled);
     store.set('downloadProtection', Boolean(enabled));
     if (enabled) downloads.restart(); else downloads.stop('Turned off');
     refreshTray();
     return downloads.status();
   });
 
-  handle('sentinel:set-open-at-login', (enabled) => { setOpenAtLogin(Boolean(enabled)); return { ok: true }; });
+  handle('sentinel:set-open-at-login', (enabled) => { lock.guard('starting with the computer off', !enabled); setOpenAtLogin(Boolean(enabled)); return { ok: true }; });
 
   handle('sentinel:recent-downloads', () => downloads.recent());
 
@@ -733,7 +830,7 @@ function registerBridge() {
 
   handle('sentinel:retry-server', () => { retryCount = 0; boot(); return { ok: true }; }, trustedLocal);
   handle('sentinel:open-logs', () => { shell.showItemInFolder(server.logPath()); return { ok: true }; }, trustedLocal);
-  handle('sentinel:quit', () => { quitting = true; app.quit(); return { ok: true }; }, trustedLocal);
+  handle('sentinel:quit', () => { lock.guard('Sentinel off', true); quitting = true; app.quit(); return { ok: true }; }, trustedLocal);
   handle('sentinel:warn-action', (action, url) => {
     if (warnWin && !warnWin.isDestroyed()) warnWin.close();
     if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`/app/scan?url=${encodeURIComponent(url)}`);
@@ -924,6 +1021,8 @@ app.whenReady().then(() => {
   appLog(`starting Sentinel ${app.getVersion()}${startHidden ? ' (hidden)' : ''}`);
   cpuProfileOnRequest();
   store.init(app.getPath('userData'), safeStorage);
+  lock = parentlock.create(store);
+  step('parent lock', () => { checkHeartbeat().catch(() => {}); setInterval(() => heartbeat(), 60 * 1000).unref(); });
   // Scanning that auto scanning had started before a restart is still its to switch off.
   autoSession = Boolean(store.get('autoScan', false) && store.get('autoSession', false));
   step('bridge', () => registerBridge());
@@ -963,7 +1062,7 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => { quitting = true; clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
+app.on('before-quit', () => { quitting = true; heartbeat(true); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 

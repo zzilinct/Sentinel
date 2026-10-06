@@ -1,0 +1,133 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const parentlock = require('../desktop/src/parentlock.js');
+
+// The settings store, in memory: get and set, as desktop/src/store.js has them.
+function memoryStore() {
+  const data = {};
+  return {
+    data,
+    get: (k, fallback) => (Object.prototype.hasOwnProperty.call(data, k) ? data[k] : fallback),
+    set: (k, v) => { if (v === undefined) delete data[k]; else data[k] = v; }
+  };
+}
+
+test('only a salted hash of the PIN is kept, and the same PIN hashes differently each time', () => {
+  const a = memoryStore(), b = memoryStore();
+  parentlock.create(a).set('4821');
+  parentlock.create(b).set('4821');
+  assert.ok(!JSON.stringify(a.data).includes('4821'));
+  assert.match(a.data.parentLock.hash, /^[0-9a-f]{64}$/);
+  assert.notEqual(a.data.parentLock.salt, b.data.parentLock.salt);
+  assert.notEqual(a.data.parentLock.hash, b.data.parentLock.hash);
+});
+
+test('a PIN is 4 to 8 digits', () => {
+  const lock = parentlock.create(memoryStore());
+  for (const bad of ['123', '123456789', 'abcd', '12 34', '']) assert.throws(() => lock.set(bad), /4 to 8 digits/);
+  assert.equal(lock.set('12345678').set, true);
+});
+
+test('without a PIN nothing is guarded; with one, switching protection off is refused and written down', () => {
+  const store = memoryStore();
+  const lock = parentlock.create(store);
+  assert.doesNotThrow(() => lock.guard('chat safety off', true));
+  lock.set('2580');
+  assert.equal(lock.locked(), true);
+  assert.throws(() => lock.guard('chat safety off', true), /Locked by a parent/);
+  // Turning protection on never needs the PIN.
+  assert.doesNotThrow(() => lock.guard('chat safety off', false));
+  assert.equal(store.data.parentLockRecord[0].text, 'Tried to switch chat safety off without the PIN');
+});
+
+test('the PIN opens the lock for five minutes, then it locks again by itself', () => {
+  let t = 1_000_000;
+  const store = memoryStore();
+  const lock = parentlock.create(store, () => t);
+  lock.set('2580');
+  assert.throws(() => lock.unlock('0000'), /Wrong PIN/);
+  lock.unlock('2580');
+  assert.doesNotThrow(() => lock.guard('live scanning off', true));
+  assert.equal(store.data.parentLockRecord[0].text, 'Switched live scanning off with the PIN');
+  t += parentlock.UNLOCK_MS + 1;
+  assert.equal(lock.locked(), true);
+  assert.throws(() => lock.guard('live scanning off', true), /Locked by a parent/);
+});
+
+test('the record is the parent\'s: shown only while the lock is open', () => {
+  const lock = parentlock.create(memoryStore());
+  lock.set('2580');
+  assert.equal(lock.status().record, null);
+  lock.unlock('2580');
+  assert.ok(Array.isArray(lock.status().record));
+});
+
+test('five wrong PINs in a row mean a minute\'s wait, even for the right one', () => {
+  let t = 5_000_000;
+  const store = memoryStore();
+  const lock = parentlock.create(store, () => t);
+  lock.set('2580');
+  for (let i = 0; i < 4; i++) assert.throws(() => lock.unlock('1111'), /^Error: Wrong PIN\.$/);
+  assert.throws(() => lock.unlock('1111'), /in a minute/);
+  assert.throws(() => lock.unlock('2580'), /Too many wrong PINs/);
+  t += 61 * 1000;
+  assert.equal(lock.unlock('2580').locked, false);
+  // A right PIN clears the count: the next wrong one is the first again.
+  lock.relock();
+  assert.throws(() => lock.unlock('1111'), /^Error: Wrong PIN\.$/);
+});
+
+test('the PIN is changed or removed only while the lock is open; a Windows administrator can remove a forgotten one', () => {
+  const store = memoryStore();
+  const lock = parentlock.create(store);
+  lock.set('2580');
+  assert.throws(() => lock.set('9999'), /current PIN/);
+  assert.throws(() => lock.remove(), /PIN first/);
+  lock.unlock('2580');
+  lock.set('9999');
+  assert.equal(lock.locked(), true);
+  assert.throws(() => lock.unlock('2580'), /Wrong PIN/);
+  lock.reset();
+  assert.equal(lock.isSet(), false);
+  assert.equal(store.data.parentLock, undefined);
+});
+
+test('Sentinel ended without the PIN is told apart from Windows shutting down', async () => {
+  const boot = 1000;
+  const never = async () => false;
+  // Quit properly, or never ran with the lock: nothing to record.
+  assert.equal(await parentlock.stoppedWithoutPin({ at: 5000, clean: true }, boot, never), null);
+  assert.equal(await parentlock.stoppedWithoutPin(null, boot, never), null);
+  // Windows started again since: a shutdown or restart ended it.
+  assert.equal(await parentlock.stoppedWithoutPin({ at: 500, clean: false }, boot, never), null);
+  // Same Windows session, but Windows logged a shutdown after it (fast startup keeps the uptime running).
+  assert.equal(await parentlock.stoppedWithoutPin({ at: 5000, clean: false }, boot, async () => true), null);
+  // Same session, no shutdown: ended from Task Manager (or a crash). The log cannot be read: still recorded.
+  assert.equal(await parentlock.stoppedWithoutPin({ at: 5000, clean: false }, boot, never), 5000);
+  assert.equal(await parentlock.stoppedWithoutPin({ at: 5000, clean: false }, boot, async () => { throw new Error('no log'); }), 5000);
+});
+
+test('every way to switch protection off or quit goes through the lock: the app, the tray and the error page', () => {
+  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'desktop', 'src', 'main.js'), 'utf8');
+  // The app's switches.
+  for (const [channel, what] of [['chat-safety', 'chat safety off'], ['auto-scan', 'auto scanning off'], ['set-clipboard-check', 'checking copied links off'],
+    ['set-defense', 'defense off'], ['set-open-at-login', 'starting with the computer off']]) {
+    assert.ok(main.includes(`handle('sentinel:${channel}', (enabled) => { lock.guard('${what}', !enabled);`), channel);
+  }
+  assert.match(main, /handle\('sentinel:live-stop', \(\) => \{ lock\.guard\('live scanning off', true\);/);
+  assert.match(main, /lock\.guard\('download protection off', !enabled\);/);
+  assert.match(main, /lock\.guard\('to another Sentinel version', true\);/);
+  assert.match(main, /handle\('sentinel:quit', \(\) => \{ lock\.guard\('Sentinel off', true\);/);
+  // The tray: chat safety's own switch (since 1.11.1), auto scanning, Stop scanning, starting with the computer, Quit.
+  assert.match(main, /if \(trayGuard\('chat safety off', !item\.checked\)\) \{ setChatSafety\(item\.checked\);/);
+  assert.match(main, /if \(trayGuard\('auto scanning off', !item\.checked\)\) setAutoScan/);
+  assert.match(main, /trayGuard\('live scanning off', true\) && setLiveScanning\(false/);
+  assert.match(main, /if \(trayGuard\('starting with the computer off', !item\.checked\)\) setOpenAtLogin/);
+  assert.match(main, /label: 'Quit Sentinel', click: \(\) => \{ if \(trayGuard\('Sentinel off', true\)\)/);
+  // No other tray or IPC path calls these setters with the switch off.
+  assert.equal((main.match(/setChatSafety\(/g) || []).length, 3, 'chat safety: defined, the tray, the app, and nothing else');
+  // A quit written down as clean, so the next start can tell it from Task Manager.
+  assert.match(main, /app\.on\('before-quit', \(\) => \{ quitting = true; heartbeat\(true\);/);
+});
