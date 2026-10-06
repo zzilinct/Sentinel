@@ -64,6 +64,10 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   onUpdate: (callback) => on('sentinel:update', callback),
   // Answered only for the app's own warning page.
   warnAction: (action, url) => ipcRenderer.invoke('sentinel:warn-action', String(action), url == null ? '' : String(url)),
+  // Tech-support scam shield: one switch in the app, and the answers of its own warning page (guard.html).
+  setRemoteGuard: (enabled) => ipcRenderer.invoke('sentinel:set-remote-guard', Boolean(enabled)),
+  forgetTrustedRemote: () => ipcRenderer.invoke('sentinel:forget-trusted-remote'),
+  guardAction: (action, arg) => ipcRenderer.invoke('sentinel:guard-action', String(action), arg == null ? '' : String(arg)),
   // Answered only for the app's own error page; the main process checks the caller.
   retryServer: () => ipcRenderer.invoke('sentinel:retry-server'),
   openLogs: () => ipcRenderer.invoke('sentinel:open-logs'),

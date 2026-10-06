@@ -96,9 +96,14 @@ function placeOver(rect) {
 }
 
 /** The browser in front, or null when there is none: `{ x, y, w, h, private, browser }` in screen pixels. */
+let pageFullscreen = false;
+/** Does the page in front fill its whole display (a video, or a page that has taken the screen)? */
+function isFullscreen() { return Boolean(area) && pageFullscreen; }
+
 function setWindow(rect) {
   if (!rect) {
     area = null;
+    pageFullscreen = false;
     if (win && !win.isDestroyed() && win.isVisible()) win.hide();
     send('overlay:clear');
     return;
@@ -112,6 +117,7 @@ function setWindow(rect) {
   const display = screen.getDisplayMatching(win.getBounds());
   const b = win.getBounds();
   const fullscreen = b.width >= display.bounds.width && b.height >= display.bounds.height;
+  pageFullscreen = fullscreen;
   send('overlay:watching', { private: Boolean(rect.private), browser: rect.browser, appeared, fullscreen });
 }
 
@@ -183,4 +189,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { handle, setWindow, sweep, setVerdict, setMarks, shift, wheel, pixels, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { handle, setWindow, isFullscreen, sweep, setVerdict, setMarks, shift, wheel, pixels, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
