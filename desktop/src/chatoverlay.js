@@ -1,6 +1,6 @@
 'use strict';
 /**
- * What chat safety looks like: a transparent window over Roblox or the Discord app while it is in front, with the
+ * What chat safety looks like: a transparent window over Roblox, the Discord app or Phone Link while it is in front, with the
  * Sentinel badge (so it is plain that chat is being watched) and a warning beside a suspicious message.
  *
  * It is never in the way: it cannot take focus, every click and key goes through it, and it hides the moment the app

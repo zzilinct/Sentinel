@@ -43,6 +43,9 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   lockRemove: () => ipcRenderer.invoke('sentinel:lock-remove'),
   lockReset: () => ipcRenderer.invoke('sentinel:lock-reset'),
   setLiveMode:(mode) => ipcRenderer.invoke('sentinel:live-mode', mode === 'delicate' ? 'delicate' : 'fast'),
+  // Texts in Phone Link: one switch.
+  setTextSafety: (enabled) => ipcRenderer.invoke('sentinel:text-safety', Boolean(enabled)),
+  onTextSafety: (callback) => on('sentinel:text-safety', callback),
   setAutoScan: (enabled) => ipcRenderer.invoke('sentinel:auto-scan', Boolean(enabled)),
   scanWith: (browser) => ipcRenderer.invoke('sentinel:scan-with', String(browser)),
   checkUpdates: () => ipcRenderer.invoke('sentinel:check-updates'),

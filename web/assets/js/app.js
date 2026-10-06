@@ -1496,6 +1496,46 @@
     if (!d && !r) return now;
     return `${now} Since Sentinel started: ${d} message${d === 1 ? '' : 's'} checked in Discord, ${r} in Roblox, ${f} flagged.`;
   }
+  /** Texts in Phone Link: what it reads and what it never does, said before it is switched on. Off until turned on. */
+  function textSafetyPanel(info) {
+    const ts = (info && info.textSafety) || { enabled: false, supported: false };
+    if (!desktop || !desktop.setTextSafety) return '';
+    return `<div class="panel u-mt" id="text-safety">
+      <div class="panel__head"><div><h2>Check my texts: Phone Link</h2>
+        <p>If your phone's texts show on this computer through Phone Link, Sentinel points out scam texts (unpaid tolls, parcel fees, "Hi Mum, this is my new number", task jobs, "your account is locked") right beside the message, while Phone Link is in front.</p></div>
+        <input class="switch" type="checkbox" data-text-safety aria-label="Check my texts" ${ts.enabled ? 'checked' : ''} ${ts.supported ? '' : 'disabled'}></div>
+      <p class="muted u-mt-sm" data-text-seen>${textSeenText(ts)}</p>
+      <ul class="list">
+        <li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>Read on this computer only</b><span>The conversation on screen is read as it appears, judged here and forgotten. No text, name or number is sent to Sentinel or anyone else, saved, or logged.</span></span></li>
+        <li><span class="list__icon">${ICON.globe}</span><span class="list__main"><b>Links checked, never opened</b><span>A link in a text is checked by its address, the way a copied link is. Sentinel never opens it, and it is not added to your history.</span></span></li>
+        <li><span class="list__icon">${ICON.check}</span><span class="list__main"><b>Never in the way</b><span>Only texts you received are checked. Sentinel never changes Phone Link, never types, clicks or replies in it, and only speaks up when a text looks like a scam.</span></span></li>
+      </ul>
+    </div>`;
+  }
+  // What text checking is doing right now, in numbers only.
+  function textSeenText(ts) {
+    if (!ts.enabled) return 'Off. Turn it on, then open a conversation in Phone Link.';
+    const s = ts.seen || {};
+    const now = s.app === 'phonelink' ? (s.reading ? 'Checking Phone Link now.' : 'Phone Link is in front, but its texts cannot be read yet.') : 'On. It starts checking when Phone Link is in front.';
+    const n = s.checked || 0, f = s.flagged || 0;
+    if (!n) return now;
+    return `${now} Since Sentinel started: ${n} text${n === 1 ? '' : 's'} checked, ${f} flagged.`;
+  }
+  function bindTextSafety(slot) {
+    const sw = $('[data-text-safety]', slot);
+    if (!sw || sw.disabled) return;
+    const line = $('[data-text-seen]', slot);
+    if (line && desktop.onTextSafety) {
+      const off = desktop.onTextSafety((ts) => { if (ts) { line.textContent = textSeenText(ts); sw.checked = Boolean(ts.enabled); } });
+      if (slot._off && typeof off === 'function') slot._off.push(off);
+    }
+    sw.addEventListener('change', async () => {
+      try {
+        const s = await desktop.setTextSafety(sw.checked);
+        toast(s.enabled ? 'Text checking is on. Open a conversation in Phone Link and Sentinel checks it.' : 'Text checking is off.', 'success');
+      } catch (err) { sw.checked = !sw.checked; toast(desktopError(err), 'error'); }
+    });
+  }
   // Asked once, in the Windows app, before chat safety ever reads anything: what it does, then Turn on or Not now.
   async function askChatSafety(slot) {
     if (!slot || !desktop || !desktop.setChatSafety) return;
@@ -1701,6 +1741,7 @@
       ${exposurePanel(info, exposures)}
 
       ${chatSafetyPanel(info)}
+      ${textSafetyPanel(info)}
 
       <div class="grid2 u-mt">
         <div class="panel">
@@ -1745,6 +1786,7 @@
     }
     bindChatSafety(slot);
     bindExposures(slot);
+    bindTextSafety(slot);
     const defEl = $('[data-defense]', slot);
     if (defEl && !defEl.disabled) defEl.addEventListener('change', async (ev) => {
       try {

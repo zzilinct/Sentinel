@@ -7,7 +7,7 @@ const path = require('path');
 
 require('../desktop/scripts/sync-shared.js');
 const chatwatch = require('../desktop/src/chatwatch.js');
-const { robloxMessages, readLog, discordContext, judge, SCRIPT } = chatwatch._test;
+const { robloxMessages, readLog, discordContext, judge, SCRIPT, phonelinkMessages, judgeTexts, textOf, setOpts } = chatwatch._test;
 
 test('Roblox\'s chat box: names and messages, wrapped lines joined, and whether the box is open at all', () => {
   const r = robloxMessages([
@@ -67,4 +67,46 @@ test('the chat reader\'s PowerShell parses', { skip: process.platform !== 'win32
       `$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile('${file.replace(/'/g, "''")}', [ref]$null, [ref]$e); if ($e) { $e | ForEach-Object { $_.Message + ' @ ' + $_.Extent.StartLineNumber } } else { 'parsed' }`], { encoding: 'utf8', timeout: 60000 });
     assert.equal(r.stdout.trim(), 'parsed', r.stdout + r.stderr);
   } finally { fs.rmSync(file, { force: true }); }
+});
+
+test('Phone Link read with the text recogniser: who it is with, received texts with their lines joined, sent ones and times left out', () => {
+  const pane = [300, 0, 700, 800];
+  const r = phonelinkMessages([
+    { t: '+1 (415) 555-0199', x: 330, y: 20, w: 160, h: 20 },
+    { t: 'USPS: Your package is on hold due to an', x: 330, y: 200, w: 300, h: 18 },
+    { t: 'unpaid redelivery fee. Pay at usps-fee.top/p', x: 330, y: 221, w: 310, h: 18 },
+    { t: '10:42 AM', x: 330, y: 245, w: 60, h: 14 },
+    { t: 'who is this?', x: 860, y: 300, w: 100, h: 18 },
+    { t: 'Send a message', x: 330, y: 760, w: 120, h: 18 }
+  ], pane);
+  assert.equal(r.who, '+1 (415) 555-0199');
+  assert.equal(r.messages.length, 1);
+  assert.equal(r.messages[0].text, 'USPS: Your package is on hold due to an unpaid redelivery fee. Pay at usps-fee.top/p');
+  assert.equal(textOf('Is this Jessica? 10:42 AM'), 'Is this Jessica?');
+});
+
+test('texts are judged once, their links checked by address only and privately, and a dangerous link raises the warning', async () => {
+  const calls = [];
+  let answer;
+  const answered = new Promise((resolve) => { answer = resolve; });
+  setOpts({ log: () => {}, onState: () => {}, api: async (p, body) => { calls.push([p, body]); answer(); return { byUrl: { [body.urls[0]]: { host: 'shop-orders.top', overall: { badge: 'red', label: 'Confirmed scam' }, reasons: [{ text: 'Listed as phishing' }] } } }; } });
+  const msg = { text: 'Your order is ready, details at https://shop-orders.top/a', x: 1, y: 2, w: 3, h: 4 };
+  assert.equal(judgeTexts('+1 415 555 0199', [msg]).length, 0, 'the words alone are ordinary');
+  await answered;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/api/v1/live/batch');
+  assert.deepEqual(calls[0][1], { urls: ['https://shop-orders.top/a'], private: true, mode: 'fast' });
+  const flags = judgeTexts('+1 415 555 0199', [msg]);
+  assert.equal(calls.length, 1, 'checked once');
+  assert.equal(flags.length, 1);
+  assert.equal(flags[0].level, 'danger');
+  assert.deepEqual(flags[0].rect, { x: 1, y: 2, w: 3, h: 4 });
+  setOpts(null);
+});
+
+test('the reader reads only the apps switched on, Phone Link included', () => {
+  assert.match(SCRIPT, /'PhoneExperienceHost'/);
+  assert.match(SCRIPT, /if \(\$apps -notcontains \$app\) \{ \$app = '' \}/);
+  assert.match(SCRIPT, /\$cmd -like 'apps \*'/);
 });
