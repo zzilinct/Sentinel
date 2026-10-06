@@ -15,7 +15,7 @@ const path = require('path');
 {
   const shared = path.join(__dirname, '..', 'desktop', 'shared');
   fs.mkdirSync(shared, { recursive: true });
-  for (const file of ['filescan.js', 'lists.js', 'brands.js']) {
+  for (const file of ['filescan.js', 'lists.js', 'brands.js', 'clickfix.js']) {
     const from = path.join(__dirname, '..', 'server', 'lib', 'scan', file);
     const to = path.join(shared, file);
     let same = false;

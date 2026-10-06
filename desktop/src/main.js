@@ -48,6 +48,8 @@ let retryTimer = null;
 let retryCount = 0;
 let lastUpdateStatus = null;
 let browserState = { installed: [], running: [] };
+// The page live scanning last judged in front ({ host, badge, at }), for the command shield. A private window's host is not kept.
+let pageInFront = null;
 let browserWatcher = null;
 
 /** Started without a window: from the startup entry, or brought back in the tray after an automatic update. */
@@ -559,19 +561,41 @@ function cpuProfileOnRequest() {
   try { fsx.watch(require('path').dirname(trigger), () => begin()); } catch { /* no folder */ }
 }
 
-/** "Check links I copy": started and stopped with its switch; see clipwatch.js for what it reads. */
+/**
+ * "Check links I copy" and "Stop pasted commands" share one look at the clipboard (clipwatch.js), running while
+ * either switch is on. Links are off until the person turns them on; the command shield is on unless they turn it
+ * off, because the people a fake "I am not a robot" page catches are not the ones who go looking for a switch.
+ */
+function syncClipboard() {
+  const links = () => store.get('clipboardCheck', false);
+  const commands = () => process.platform === 'win32' && store.get('commandShield', true);
+  if (!ORIGIN || (!links() && !commands())) { clipwatch.stop(); return; }
+  clipwatch.start({
+    api: apiCall,
+    log: appLog,
+    links,
+    commands,
+    browserOpen: () => (browserState.running || []).length > 0,
+    page: () => (pageInFront && Date.now() - pageInFront.at < 10 * 60 * 1000 ? pageInFront : undefined),
+    onDanger: (d) => notify(`Careful: the link you copied is a ${d.label.toLowerCase()}`, `${d.host}${d.reason ? ` - ${d.reason}` : ''}. Click to see why.`, () => showWindow(`/app/scan?url=${encodeURIComponent(d.url)}`)),
+    onCommand: (c) => (c.action === 'stop'
+      ? notify('Sentinel stopped a command you copied', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Never paste a command a website gives you into Windows. Click to put it back if you trust it.`, () => { if (clipwatch.putBack()) notify('The command is back on your clipboard', 'Only run it if you know exactly what it does.'); })
+      : notify('Careful with the command you copied', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Only run it if you know exactly what it does and who it came from.`))
+  });
+}
+
+/** "Check links I copy": its switch. */
 function setClipboardCheck(enabled) {
   store.set('clipboardCheck', Boolean(enabled));
-  if (enabled && ORIGIN) {
-    clipwatch.start({
-      api: apiCall,
-      log: appLog,
-      onDanger: (d) => notify(`Careful: the link you copied is a ${d.label.toLowerCase()}`, `${d.host}${d.reason ? ` - ${d.reason}` : ''}. Click to see why.`, () => showWindow(`/app/scan?url=${encodeURIComponent(d.url)}`))
-    });
-  } else {
-    clipwatch.stop();
-  }
+  syncClipboard();
   return { clipboardCheck: Boolean(enabled) };
+}
+
+/** "Stop pasted commands": its switch. */
+function setCommandShield(enabled) {
+  store.set('commandShield', Boolean(enabled));
+  syncClipboard();
+  return { commandShield: Boolean(enabled) };
 }
 
 // A file in Downloads is checked by download protection and by Defense: one notification about it, not two.
@@ -628,6 +652,7 @@ function registerBridge() {
     embeddedServer: Boolean(server.port),
     openAtLogin: store.get('openAtLogin', true),
     clipboardCheck: store.get('clipboardCheck', false),
+    commandShield: process.platform === 'win32' && store.get('commandShield', true),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
@@ -659,6 +684,7 @@ function registerBridge() {
   handle('sentinel:check-updates', () => updater.check());
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
   handle('sentinel:set-clipboard-check', (enabled) => setClipboardCheck(Boolean(enabled)));
+  handle('sentinel:set-command-shield', (enabled) => setCommandShield(Boolean(enabled)));
   handle('sentinel:set-defense', (enabled) => { store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
   handle('sentinel:defense-restore', (id) => defense.restore(String(id)));
   handle('sentinel:defense-act', (id) => defense.act(String(id)));
@@ -843,12 +869,18 @@ async function boot() {
     },
     // A new page: last page's verdict and marks are gone; a search gets the gold line.
     onPage: (page) => {
+      pageInFront = null;
       overlay.setVerdict(null);
       overlay.setMarks({ marks: [] });
       // Delicate scanning (the person's choice, not auto scanning's fast) digs into the results in binary.
       if (page && page.search) overlay.sweep('search', { binary: !autoSession && store.get('liveMode', 'fast') === 'delicate' });
     },
-    onVerdict: (v) => overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind }),
+    onVerdict: (v) => {
+      let host = null;
+      try { host = v.page.private ? null : new URL(v.page.url).hostname; } catch { /* no address */ }
+      if (!v.page.search) pageInFront = { host, badge: v.badge || null, at: Date.now() };
+      overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind });
+    },
     onMarks: (m) => overlay.setMarks(m),
     onShift: (s) => overlay.shift(s),
     onWheel: (w) => overlay.wheel(w),
@@ -879,7 +911,7 @@ async function boot() {
     });
   }
 
-  step('copied links', () => { if (store.get('clipboardCheck', false)) setClipboardCheck(true); });
+  step('copied links and commands', () => syncClipboard());
   step('tray refresh', () => refreshTray());
   // In the tray (started with Windows, or after an update) there is no window until someone opens one.
   if (win) openApp();
