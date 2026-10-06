@@ -7,16 +7,30 @@
  * What it reads: the clipboard's text, every 1.5 seconds, while this is switched on (it is off until the person
  * turns it on). Only a single web link is ever acted on; any other text is left alone, never sent, never kept. The
  * log records that a copied link was checked and how it came out, never the link itself.
+ *
+ * "Stop pasted commands" (the ClickFix shield) shares the same look at the clipboard: while a browser is open, a
+ * command copied from it that a fake "I am not a robot" page would want pasted into Windows (see
+ * server/lib/scan/clickfix.js) is swapped for a harmless line, and the person can put it back in one click. The
+ * command is judged here, on the computer: it is never sent, logged or kept, except in memory for that one click.
  */
 // Loaded when the check starts, so the link rules can be tested without Electron.
 const clipboard = () => require('electron').clipboard;
+const clickfix = require('../shared/clickfix');
 
 const EVERY_MS = 1500;
+// The shield looks more often: from "copied" to "pasted into the Run box" is a few seconds.
+const SHIELD_EVERY_MS = 500;
 const MAX_LENGTH = 2000;
+const PUT_BACK_MS = 2 * 60 * 1000;
 
 let timer = null;
 let last = '';
 let opts = null;
+let held = null;              // { text, until }: the command taken off the clipboard, for "put it back"
+const allowed = new Set();    // commands the person put back: not stopped again while Sentinel runs
+
+/** What goes on the clipboard instead. Pasted into the Run box it is only words Windows cannot find. */
+const stoppedLine = (host) => `Sentinel stopped a command copied from ${host || 'a web page'}. It could have taken over this computer.`;
 
 /** A single web address and nothing else ("https://x.y/z", or "x.y/z" as people often copy them), or null. */
 function linkIn(text) {
@@ -33,11 +47,44 @@ function linkIn(text) {
   } catch { return null; }
 }
 
+/** A command a page wanted pasted into Windows: stopped (taken off the clipboard) or told about. True when it was one. */
+function shield(text) {
+  if (!opts.commands() || allowed.has(text)) return false;
+  const found = clickfix.classify(text);
+  if (!found) return false;
+  const page = (opts.page && opts.page()) || {};
+  const action = clickfix.decide(found, page.badge);
+  if (action === 'stop') {
+    try { clipboard().writeText(stoppedLine(page.host)); } catch { return true; }
+    last = stoppedLine(page.host);
+    held = { text, until: Date.now() + PUT_BACK_MS };
+  }
+  if (opts.log) opts.log(`copied command ${action === 'stop' ? 'stopped' : 'flagged'}: ${found.reason}`);
+  if (opts.onCommand) opts.onCommand({ action, reason: found.reason, host: page.host || null });
+  return true;
+}
+
+/** "Put it back": the command returns to the clipboard, and is left alone from now on. */
+function putBack() {
+  if (!held || Date.now() > held.until) { held = null; return false; }
+  allowed.add(held.text);
+  try { clipboard().writeText(held.text); } catch { return false; }
+  last = held.text;
+  held = null;
+  return true;
+}
+
 async function tick() {
+  const links = opts.links();
+  // The shield alone reads nothing while no browser is open: a command only comes from a page.
+  if (!links && !opts.browserOpen()) return;
   let text = '';
   try { text = clipboard().readText(); } catch { return; }
   if (text === last) return;
   last = text;
+  if (held && Date.now() > held.until) held = null;
+  if (opts.browserOpen() && shield(text)) return;
+  if (!links) return;
   const url = linkIn(text);
   if (!url) return;
   try {
@@ -51,12 +98,16 @@ async function tick() {
   }
 }
 
+/**
+ * Started (or restarted) whenever either switch changes. options: api, log, links() and commands() (the two switches),
+ * browserOpen(), page() (the page in front: { host, badge }), onDanger (a dangerous link), onCommand (a command).
+ */
 function start(options) {
   opts = options;
   stop();
   // Whatever is on the clipboard when this starts was copied before: it is not checked.
   try { last = clipboard().readText(); } catch { last = ''; }
-  timer = setInterval(() => { tick().catch(() => {}); }, EVERY_MS);
+  timer = setInterval(() => { tick().catch(() => {}); }, opts.commands() ? SHIELD_EVERY_MS : EVERY_MS);
   timer.unref();
 }
 
@@ -65,4 +116,4 @@ function stop() {
   timer = null;
 }
 
-module.exports = { start, stop, _test: { linkIn } };
+module.exports = { start, stop, putBack, _test: { linkIn, stoppedLine } };
