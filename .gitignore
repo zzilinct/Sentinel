@@ -32,3 +32,5 @@ dist-static/
 /vk_swiftshader_icd.json
 /locales/
 /resources/
+desktop/.sync-lock/
+desktop/.sync-stamp

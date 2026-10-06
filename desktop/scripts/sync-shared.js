@@ -27,6 +27,19 @@ function copyIfChanged(from, to) {
   fs.copyFileSync(from, to);
 }
 
+// The test files run side by side and several of them sync: one at a time, or one deletes the Firefox build or the
+// bundle while another is copying into it. A lock left by a run that died is taken over after a minute.
+const LOCK = path.join(APP, '.sync-lock');
+for (let tries = 0; ; tries++) {
+  try { fs.mkdirSync(LOCK); break; } catch (err) {
+    if (err.code !== 'EEXIST' || tries > 2400) throw err;
+    try { if (Date.now() - fs.statSync(LOCK).mtimeMs > 60000) fs.rmSync(LOCK, { recursive: true, force: true }); } catch { /* just released */ }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  }
+}
+const unlock = () => fs.rmSync(LOCK, { recursive: true, force: true });
+process.once('exit', unlock);
+
 fs.mkdirSync(SHARED, { recursive: true });
 fs.mkdirSync(ASSETS, { recursive: true });
 
@@ -70,8 +83,23 @@ function copyTree(from, to, skip = () => false, rel = '') {
 // build-extension.js writes the Firefox manifest into its archive only; lay the
 // same files out as a folder so the app can point Firefox at it.
 const FF = path.join(APP, 'companion-firefox');
-fs.rmSync(FF, { recursive: true, force: true });
 const EXT = path.join(ROOT, 'extension');
+// The Firefox folder and the bundle are rebuilt only when what they are made from changed: another test file may be
+// reading them right now, and deleting them under it failed the run.
+const STAMP = path.join(APP, '.sync-stamp');
+const sources = () => {
+  let files = 0, newest = 0;
+  for (const dir of ['server', 'web', 'extension', 'brand.json', 'package.json'].map((d) => path.join(ROOT, d))) {
+    const list = fs.statSync(dir).isDirectory() ? fs.readdirSync(dir, { withFileTypes: true, recursive: true }).filter((e) => e.isFile()).map((e) => path.join(e.parentPath || e.path, e.name)) : [dir];
+    for (const f of list) { files++; newest = Math.max(newest, fs.statSync(f).mtimeMs); }
+  }
+  return `${files}:${newest}`;
+};
+const made = sources();
+let fresh = false;
+try { fresh = fs.readFileSync(STAMP, 'utf8') === made && fs.existsSync(path.join(FF, 'manifest.json')) && fs.existsSync(path.join(BUNDLE, 'package.json')); } catch { /* never synced */ }
+if (!fresh) {
+fs.rmSync(FF, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 if (!fs.existsSync(path.join(EXT, 'src', 'background.firefox.js'))) require(path.join(ROOT, 'scripts', 'build-extension.js'));
 copyTree(EXT, FF);
 fs.rmSync(path.join(FF, 'src', 'background.js'), { force: true });
@@ -85,7 +113,7 @@ fs.rmSync(path.join(FF, 'src', 'background.js'), { force: true });
   fs.writeFileSync(path.join(FF, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 }
 
-fs.rmSync(BUNDLE, { recursive: true, force: true });
+fs.rmSync(BUNDLE, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 copyTree(path.join(ROOT, 'server'), path.join(BUNDLE, 'server'));
 // web/downloads/ holds the companion zips the website offers; the app never serves them,
 // and bundling them would ship them inside the installer.
@@ -94,6 +122,9 @@ fs.copyFileSync(path.join(ROOT, 'brand.json'), path.join(BUNDLE, 'brand.json'));
 // The server reads its own version from here.
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 fs.writeFileSync(path.join(BUNDLE, 'package.json'), JSON.stringify({ name: pkg.name, version: pkg.version, private: true }, null, 2));
+fs.writeFileSync(STAMP, sources());
+}
 
 const count = (dir) => fs.readdirSync(dir, { withFileTypes: true, recursive: true }).filter((e) => e.isFile()).length;
 console.log(`  desktop: shared scanner and icons synced; server bundle has ${count(BUNDLE)} files`);
+unlock();
