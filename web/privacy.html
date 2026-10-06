@@ -80,6 +80,7 @@
         <li>Two small settings are kept in your browser&rsquo;s local storage, never sent anywhere: <span class="mono">sentinel:theme</span> remembers whether you chose the light or dark theme, and <span class="mono">sentinel:stay</span> remembers whether you asked to stay signed in on this browser. While you fill in the sign-up or password-reset form, what you have typed (never a password) is kept for that browser tab only, so the back button does not lose it; it is gone when the tab closes or the form is sent.</li>
         <li>The web app may register a service worker that caches Sentinel&rsquo;s own fonts and scripts so pages load faster. It stores nothing about you.</li>
         <li>The browser companion keeps its settings, your pairing token and a short-lived cache of recent verdicts in the browser&rsquo;s extension storage on your computer.</li>
+        <li>If you turn on the companion&rsquo;s password alarm, it reads the password you type when you sign in to an account you chose to protect and keeps only a salted, scrambled form of it (a PBKDF2 hash) and its length on your computer, never the password itself, and nothing about it is sent anywhere.</li>
       </ul>
 
       <h2>6. Who else sees anything</h2>
