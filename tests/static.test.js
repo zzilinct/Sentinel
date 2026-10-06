@@ -72,7 +72,7 @@ test('static build: --launched wires every link to the live origin', () => {
 });
 
 test('static build: demo verdicts are baked in so the interactive sections work without an API', () => {
-  const { read } = build();
+  const { out, read } = build();
   const config = read(path.join('assets', 'js', 'static.js'));
   assert.ok(config.includes('window.SENTINEL_STATIC'));
   assert.ok(config.includes('window.SENTINEL_DEMO'));
@@ -82,6 +82,10 @@ test('static build: demo verdicts are baked in so the interactive sections work 
   for (const threat of ['scam', 'virus', 'malware']) for (const badge of ['yellow', 'orange', 'red']) {
     assert.equal(demo.masks[threat][badge].threats[threat].badge, badge, `${threat}/${badge} example carries its own colour`);
   }
+  // Try a link has no server here: the checker and its word list ship beside the page, and the CSP lets them load.
+  assert.match(read(path.join('assets', 'js', 'engine.js')), /window\.SentinelEngine = /);
+  assert.ok(fs.statSync(path.join(out, 'assets', 'data', 'words.txt.gz')).size > 100000, 'the word list ships');
+  assert.match(read('index.html'), /data-try-lede/);
   // The config loads before boot.js, which is the first script that reads it.
   const home = read('index.html');
   assert.ok(home.indexOf('assets/js/static.js') < home.indexOf('assets/js/boot.js'));

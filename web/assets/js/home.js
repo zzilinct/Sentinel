@@ -509,32 +509,53 @@
     const out = $('[data-try-out]');
     const input = form.elements.url;
     const button = $('button', form);
+    // A copy of the site with no server behind it (scripts/build-static.js) checks the link here, in the browser,
+    // with the engine's own checklist (server/lib/scan/offline.js, bundled as assets/js/engine.js). Nothing is sent.
+    const here = Boolean(window.SENTINEL_STATIC);
     // Fast, or delicate: the site researched too, while the result area digs in binary (binary.js).
     let tryMode = 'fast';
     const note = $('[data-try-note]');
+    const NOTES = here
+      ? { fast: 'Sentinel’s address checks, run here in your browser. The link is not sent anywhere.',
+        delicate: 'Research into the site runs in the Sentinel app. Here, the link gets the fast check, in your browser.' }
+      : { fast: 'Threat lists, the full checklist and known scams, in about a second.',
+        delicate: 'Also researches the site: its age, certificate, redirects and page content. Three a day without an account.' };
+    if (here) {
+      if (note) note.textContent = NOTES.fast;
+      const lede = $('[data-try-lede]');
+      if (lede) lede.textContent = 'Paste it here. Sentinel’s address checks run right in your browser, so the link is never sent anywhere. The Sentinel app adds the public threat lists, research into the site and live scanning.';
+    }
     $$('[data-try-mode]').forEach((b) => b.addEventListener('click', () => {
       tryMode = b.dataset.tryMode;
       $$('[data-try-mode]').forEach((x) => { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
-      if (note) note.textContent = tryMode === 'delicate'
-        ? 'Also researches the site: its age, certificate, redirects and page content. Three a day without an account.'
-        : 'Threat lists, the full checklist and known scams, in about a second.';
+      if (note) note.textContent = NOTES[tryMode] || NOTES.fast;
+    }));
+
+    // Loaded on the first check only: the checklist and its word list are too big to make every visitor wait for.
+    let engineLoad = null;
+    const localEngine = () => engineLoad || (engineLoad = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'assets/js/engine.js';
+      s.onload = () => (window.SentinelEngine ? resolve(window.SentinelEngine) : s.onerror());
+      s.onerror = () => { engineLoad = null; s.remove(); reject(new Error('Couldn’t load the checker. Try again in a moment.')); };
+      document.head.appendChild(s);
     }));
 
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const url = input.value.trim();
       if (!url) return;
-      if (window.SENTINEL_STATIC) {
-        const site = window.SENTINEL_STATIC.origin;
-        out.innerHTML = `<div class="try__empty"><p>This preview can&rsquo;t reach the scanner. Check this link on the live site. No account needed.</p>`
-          + `<a class="btn btn--gold btn--sm" href="${site}/#try">Open ${esc(site.replace(/^https?:\/\//, ''))}</a></div>`;
-        return;
-      }
       button.disabled = true;
       button.innerHTML = '<span class="spinner"></span>';
       out.setAttribute('aria-busy', 'true');
-      const dig = tryMode === 'delicate' && window.SentinelBinary ? window.SentinelBinary.dig(out) : null;
+      const dig = !here && tryMode === 'delicate' && window.SentinelBinary ? window.SentinelBinary.dig(out) : null;
       try {
+        if (here) {
+          const v = await (await localEngine()).scan(url);
+          if (!v.ok) throw new Error(v.message);
+          renderTry(v);
+          return;
+        }
         const res = await fetch('/api/v1/demo/scan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -548,7 +569,7 @@
       } catch (err) {
         if (dig) dig.stop();
         // A failed connection surfaces as a TypeError whose text is the browser's, not ours.
-        out.innerHTML = `<div class="try__empty"><p>${esc(err.name === 'Error' ? err.message : 'Couldn’t check that link right now.')}</p><a class="btn btn--gold btn--sm" href="/signup">Create free account</a></div>`;
+        out.innerHTML = `<div class="try__empty"><p>${esc(err.name === 'Error' ? err.message : 'Couldn’t check that link right now.')}</p>${here ? '' : '<a class="btn btn--gold btn--sm" href="/signup">Create free account</a>'}</div>`;
       } finally {
         button.disabled = false;
         button.textContent = 'Check';
@@ -570,8 +591,10 @@
           </div>
           <ul class="try__why">${v.reasons.length ? v.reasons.map((r) => `<li>${esc(r.text)}</li>`).join('') : `<li>${v.discounted ? 'No record in any threat feed and nothing in the checklist raised a concern' : 'Nothing in the checklist raised a concern'}</li>`}</ul>
           <div class="try__foot">
-            <span>${v.known ? 'Known threat' : `${v.checks.total} checks &middot; ${v.checks.failed + v.checks.warned} flagged &middot; ${v.delicate ? 'site researched' : 'no research'}`}</span>
-            <a href="/signup?next=${encodeURIComponent(`/app/scan?url=${encodeURIComponent(v.url)}`)}">Research it with Sentinel Pro &rarr;</a>
+            <span>${v.known ? 'Known threat' : `${v.checks.total} checks &middot; ${v.checks.failed + v.checks.warned} flagged &middot; ${v.local ? 'checked in your browser' : v.delicate ? 'site researched' : 'no research'}`}</span>
+            ${v.local
+    ? '<a href="download.html">Threat lists and research come with the app &rarr;</a>'
+    : `<a href="/signup?next=${encodeURIComponent(`/app/scan?url=${encodeURIComponent(v.url)}`)}">Research it with Sentinel Pro &rarr;</a>`}
           </div>
         </div>`;
     }
