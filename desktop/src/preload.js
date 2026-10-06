@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   installModel: (version) => ipcRenderer.invoke('sentinel:install-model', String(version)),
   // PNG slices of one screenshot, as Uint8Arrays; resolves to the text of each.
   readScreenshot: (images) => ipcRenderer.invoke('sentinel:read-screenshot', [...images].map((b) => new Uint8Array(b))),
+  // Browser checkup: read only; the result lists what was found, judged.
+  browserCheckup: () => ipcRenderer.invoke('sentinel:checkup'),
+  openBrowser: (id) => ipcRenderer.invoke('sentinel:checkup-open', String(id)),
   defense: () => ipcRenderer.invoke('sentinel:defense'),
   setDefense: (enabled) => ipcRenderer.invoke('sentinel:set-defense', Boolean(enabled)),
   restoreQuarantined: (id) => ipcRenderer.invoke('sentinel:defense-restore', String(id)),

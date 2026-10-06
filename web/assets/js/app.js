@@ -168,7 +168,8 @@
     '/app/plan': ['plan', planView],
     '/app/security': ['security', securityView],
     '/app/assistants': ['assistants', assistantsView],
-    '/app/sites': ['sites', sitesView]
+    '/app/sites': ['sites', sitesView],
+    '/app/checkup': ['checkup', checkupView]
   };
 
   function render() {
@@ -191,7 +192,7 @@
     fn(el, new URLSearchParams(location.search));
     // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
     restoreDrafts();
-    document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules' }[name]} · Sentinel`;
+    document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup' }[name]} · Sentinel`;
   }
 
   /** Render a verdict with its checklist tools and follow-up actions. */
@@ -222,7 +223,7 @@
 
   const PAGES = [
     ['Overview', '/app', 'home'], ['Link scan', '/app/scan', 'scan'], ['Virus & malware scan', '/app/threats', 'threats'],
-    ['Email scan', '/app/email', 'email'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'],
+    ['Email scan', '/app/email', 'email'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
     ['Live protection', '/app/protection', 'protection'], ['Plan & usage', '/app/plan', 'plan'], ['Security', '/app/security', 'security'],
     ['AI assistants', '/app/assistants', 'assistants']
   ];
@@ -1239,6 +1240,95 @@
       });
     });
     load();
+  }
+
+  /* ====================================================== browser checkup */
+
+  function checkupView(el) {
+    const can = Boolean(desktop && desktop.browserCheckup);
+    el.innerHTML = `${title('Browser checkup', 'The add-ons, notification permissions, search engine and startup pages of every browser on this computer, looked over for the ones scammers and unwanted software plant.')}
+      ${can ? `<div class="panel">
+        <div class="panel__head"><div><h2>Check my browsers</h2><p>Sentinel reads each browser’s settings on this computer and changes nothing. History, passwords and cookies are never opened, and sites are checked by their address without being opened.</p></div>
+          <button class="btn btn--gold" data-run-checkup>Run checkup</button></div>
+      </div>
+      <div data-checkup-out></div>`
+    : lockedCard({ tag: 'Unlocked by the Sentinel app', heading: 'Download Sentinel to check your browsers', body: 'The checkup reads your browsers’ settings on your computer, so it runs in the Sentinel app for Windows.', actions: `<a class="btn btn--gold" href="/download">${ICON.download}Download Sentinel</a>` })}`;
+    if (!can) return;
+    const out = $('[data-checkup-out]', el);
+    const run = $('[data-run-checkup]', el);
+    if (state.checkup) paintCheckup(out, state.checkup);
+    run.addEventListener('click', () => busy(run, 'Checking', async () => {
+      try {
+        state.checkup = await desktop.browserCheckup();
+        if (out.isConnected) paintCheckup(out, state.checkup);
+      } catch (err) { toast(desktopError(err), 'error'); }
+    }));
+  }
+
+  /** The checkup's findings, worst first in every list. Everything shown came from files any program can write, so all of it is escaped. */
+  function paintCheckup(out, r) {
+    const rank = { red: 3, orange: 2, yellow: 1 };
+    const worse = (a, b) => ((rank[a] || 0) >= (rank[b] || 0) ? a : b);
+    const siteBadge = (s) => (s && s.verdict ? s.verdict.badge : null);
+    const copy = (addr) => `<button class="btn btn--sm" type="button" data-copy-text="${esc(addr)}">Copy ${esc(addr)}</button>`;
+    const row = (icon, badge, name, detail, help = '') => `<li>
+      <span class="list__icon" style="${badge ? `color:${esc(color(badge))}` : ''}">${icon}</span>
+      <span class="list__main"><b>${esc(name)}</b><span>${esc(detail)}</span>${help ? `<span class="muted">${help}</span>` : ''}</span>
+    </li>`;
+    const siteRow = (where, s, plain) => row(siteBadge(s) ? Masks.svg('scam') : ICON.globe, siteBadge(s), where,
+      !s.verdict ? (r.sitesChecked ? plain : `${plain}. Not checked: Sentinel could not reach its scanner just now.`)
+        : s.verdict.badge ? `${s.verdict.label}${s.verdict.reason ? `: ${s.verdict.reason}` : ''}` : `${plain}. No issues found.`);
+
+    let flagged = 0;
+    const panels = r.browsers.map((b) => {
+      const short = b.name.replace(/^(Google|Microsoft|Mozilla) /, '');
+      const settings = /^about:/.test(b.places.search) ? null : b.places.search;
+      const pol = b.policies;
+      if (pol && pol.badge) flagged++;
+      const profiles = b.profiles.map((p) => {
+        const addons = [...p.addons].sort((x, y) => (rank[y.badge] || 0) - (rank[x.badge] || 0));
+        const sites = (p.notifications || []).slice().sort((x, y) => (rank[siteBadge(y)] || 0) - (rank[siteBadge(x)] || 0));
+        const searchBadge = p.search ? worse(p.search.badge, siteBadge(p.search)) : null;
+        flagged += addons.filter((a) => a.badge).length + sites.filter(siteBadge).length + (searchBadge ? 1 : 0) + p.startup.filter(siteBadge).length;
+        return `${b.profiles.length > 1 ? `<h3 class="u-mt">${esc(p.name)}</h3>` : ''}
+          <h4 class="u-mt">Add-ons</h4>
+          ${addons.length ? `<ul class="list">${addons.map((a) => row(a.badge ? Masks.svg('malware') : ICON.check, a.badge, `${a.name}${a.enabled ? '' : ' (turned off)'}`,
+            a.reasons.length ? a.reasons.map((x) => x.text).join(' ') : (a.notes[0] || (a.fromStore ? 'From the browser’s add-on store.' : 'Nothing about it needs your attention.')),
+            a.badge ? `If you did not add it yourself, remove it at ${copy(b.places.addons)}` : '')).join('')}</ul>`
+            : '<div class="empty"><p>No add-ons.</p></div>'}
+          <h4 class="u-mt">Sites allowed to send notifications</h4>
+          ${p.notifications === null ? '<div class="empty"><p>These could not be read.</p></div>'
+            : sites.length ? `<ul class="list">${sites.map((s) => siteRow(s.origin.replace(/^https?:\/\//, ''), s, 'Can send you notifications')).join('')}</ul>
+              <p class="muted u-mt-xs">Fake virus alerts and prize pop-ups arrive this way. To stop a site, remove it at ${copy(b.places.notifications)}</p>`
+              : '<div class="empty"><p>No site may send notifications.</p></div>'}
+          ${p.search ? `<h4 class="u-mt">Search engine</h4><ul class="list">${row(searchBadge ? Masks.svg('scam') : ICON.search, searchBadge, p.search.name || p.search.host || 'Custom',
+            p.search.host && !p.search.known ? `${p.search.host} is not a search engine people know. Unwanted software changes your search to earn from what you look for.${p.search.verdict && p.search.verdict.badge ? ` ${p.search.verdict.label}.` : ''}` : `${p.search.engine || p.search.host || 'A search engine'} runs your searches.`,
+            searchBadge ? `To choose your own, ${settings ? `open ${copy(settings)} and search its settings for “search engine”` : `go to ${copy(b.places.search)}`}` : '')}</ul>` : ''}
+          ${p.startup.length ? `<h4 class="u-mt">Pages it opens on start</h4><ul class="list">${p.startup.map((s) => siteRow(s.url, s, 'Opens when the browser starts')).join('')}</ul>
+            ${p.startup.some(siteBadge) ? `<p class="muted u-mt-xs">To change them, ${settings ? `open ${copy(settings)} and search its settings for “on startup”` : `go to ${copy(b.places.startup)}`}</p>` : ''}` : ''}`;
+      }).join('');
+      return `<div class="panel u-mt">
+        <div class="panel__head"><div><h2>${esc(b.name)}</h2><p>${b.profiles.length} profile${b.profiles.length === 1 ? '' : 's'}</p></div>
+          <button class="btn btn--sm" type="button" data-open-browser="${esc(b.id)}">Open ${esc(short)}</button></div>
+        ${pol ? `<ul class="list">${row(pol.badge ? ICON.lock : ICON.shield, pol.badge, 'Policies on this computer', `${pol.text} Set: ${pol.names.slice(0, 8).join(', ')}${pol.names.length > 8 ? ', and more' : ''}.`,
+          pol.badge ? `${short} lists them at ${copy(b.places.policies)} Removing them needs this computer’s administrator; if nobody set them on purpose, ask someone you trust to help.` : '')}</ul>` : ''}
+        ${profiles}
+      </div>`;
+    }).join('');
+
+    out.innerHTML = r.browsers.length ? `<div class="panel u-mt">
+        <h2>${flagged ? `${flagged} thing${flagged === 1 ? '' : 's'} to look at` : 'Nothing here needs your attention'}</h2>
+        <p class="muted">Checked ${esc(ago(r.at))}. Sentinel changed nothing. Removing anything is your choice, in the browser, and the browser can add it back.${r.sitesChecked ? '' : ' Site addresses could not be checked just now, so only add-ons, search engines and policies were judged.'}</p>
+      </div>${panels}`
+      : '<div class="panel u-mt"><div class="empty"><p>No Chrome, Edge, Brave, Vivaldi, Firefox or LibreWolf settings were found on this computer.</p></div></div>';
+
+    $$('[data-copy-text]', out).forEach((btn) => btn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(btn.dataset.copyText); toast('Copied. Paste it into the browser’s address bar.', 'success'); }
+      catch { toast('Could not copy. Type it into the browser’s address bar instead.', 'error'); }
+    }));
+    $$('[data-open-browser]', out).forEach((btn) => btn.addEventListener('click', () => busy(btn, 'Opening', async () => {
+      try { await desktop.openBrowser(btn.dataset.openBrowser); } catch (err) { toast(desktopError(err), 'error'); }
+    })));
   }
 
   /* ===================================================== live protection */

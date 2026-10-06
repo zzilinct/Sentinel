@@ -2,7 +2,8 @@
 /**
  * Gathers everything the desktop app ships that lives elsewhere in the repo:
  *
- *   shared/   the on-device file scanner and its lists (download protection)
+ *   shared/   the on-device file scanner and its lists (download protection), chat safety's and the
+ *             browser checkup's rules
  *   assets/   icons
  *   bundle/   the whole Sentinel server and website, so the app can run the
  *             product by itself with nothing hosted anywhere
@@ -29,7 +30,7 @@ function copyIfChanged(from, to) {
 fs.mkdirSync(SHARED, { recursive: true });
 fs.mkdirSync(ASSETS, { recursive: true });
 
-for (const file of ['filescan.js', 'lists.js', 'brands.js', 'chat.js']) {
+for (const file of ['filescan.js', 'lists.js', 'brands.js', 'chat.js', 'addons.js']) {
   copyIfChanged(path.join(ROOT, 'server', 'lib', 'scan', file), path.join(SHARED, file));
 }
 copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SHARED, 'masks.js'));
