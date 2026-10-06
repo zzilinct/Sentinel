@@ -11,6 +11,10 @@
  *             words of the Esc menu; and Roblox's own log file for which game is being played. The game's name and
  *             description come from Roblox's public game pages, by its place number: they are what makes "where do
  *             you live" ordinary in a role-play town and not in a lobby.
+ *   Phone Link  (its own switch, "Check my texts") the open conversation: who it is with and the messages received,
+ *             through the accessibility interface, or with the text recogniser over the conversation side of the window
+ *             when Windows cannot describe it. Judged by server/lib/scan/texts.js; links in a text are checked by
+ *             address only, like a copied link, never opened, and never kept in history.
  * Nothing is read while chat is closed in a game, nothing is kept: each message is judged (server/lib/scan/chat.js,
  * loaded here directly, so not even this computer's own server sees it) and forgotten. No message, name or game is
  * written to the log, sent to Sentinel or anywhere else. Roblox is never touched: no code goes into it, nothing of
@@ -23,6 +27,7 @@ const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
 const { conversation } = require('../shared/chat');
+const texts = require('../shared/texts');
 
 /* ------------------------------------------------------------- the reader */
 
@@ -94,10 +99,12 @@ $listCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTy
 $cache = New-Object System.Windows.Automation.CacheRequest
 $cache.Add($A::NameProperty); $cache.Add($A::BoundingRectangleProperty); $cache.Add($A::AutomationIdProperty); $cache.Add($A::LocalizedControlTypeProperty)
 $itemCache = New-Object System.Windows.Automation.CacheRequest
-$itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdProperty)
+$itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdProperty); $itemCache.Add($A::NameProperty)
 $stdin = [Console]::In
 $pending = $stdin.ReadLineAsync()
-$lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $msgList = $null; $msgFor = [IntPtr]::Zero
+$lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''
+# Which apps were switched on: the others are never read, even in front.
+$apps = @('discord', 'roblox')
 while ($true) {
   $wait = 700
   if ($pending.Wait(1)) {
@@ -105,11 +112,13 @@ while ($true) {
     if ($null -eq $cmd) { exit }
     $pending = $stdin.ReadLineAsync()
     if ($cmd -eq 'chat closed') { $chatOpen = $false } elseif ($cmd -eq 'chat open') { $chatOpen = $true }
+    elseif ($cmd -like 'apps *') { $apps = @($cmd.Substring(5).Split(',') | Where-Object { $_ }); $lastApp = '-' }
   }
   $h = [CW]::GetForegroundWindow()
   $fp = 0; [void][CW]::GetWindowThreadProcessId($h, [ref]$fp)
   $name = ''; try { $name = (Get-Process -Id $fp).ProcessName } catch { }
-  $app = if ($name -eq 'Discord') { 'discord' } elseif ($name -eq 'RobloxPlayerBeta') { 'roblox' } else { '' }
+  $app = if ($name -eq 'Discord') { 'discord' } elseif ($name -eq 'RobloxPlayerBeta') { 'roblox' } elseif ($name -eq 'PhoneExperienceHost' -or $name -eq 'YourPhone') { 'phonelink' } else { '' }
+  if ($apps -notcontains $app) { $app = '' }
   if (-not $app -or [CW]::IsIconic($h)) {
     if ($lastApp -ne '') { $lastApp = ''; $lastSig = ''; Write-Output '{"app":null}' }
     Start-Sleep -Milliseconds 900; continue
@@ -154,6 +163,62 @@ while ($true) {
         # No message list to read (Discord still building it, or a screen without one): said once, so the badge is honest.
         $msgList = $null
         if ($lastSig -ne 'nolist') { $lastSig = 'nolist'; Write-Output (@{ app = 'discord'; title = [CW]::Title($h); win = $c; items = @(); noList = $true } | ConvertTo-Json -Compress -Depth 4) }
+      }
+    } elseif ($app -eq 'phonelink') {
+      # Phone Link: the open conversation is the message list on the right (the list of conversations is on the left).
+      # Looked for once per window, and again at most every 5 seconds while there is none.
+      if ((-not $msgList -or $msgFor -ne $h) -and ($msgFor -ne $h -or [Environment]::TickCount -gt $nextList)) {
+        $msgList = $null; $msgFor = $h; $nextList = [Environment]::TickCount + 5000; $best = [double]::MinValue
+        $lists = $A::FromHandle($h).FindAll([System.Windows.Automation.TreeScope]::Descendants, $listCond)
+        foreach ($l in $lists) { $b = $l.Current.BoundingRectangle; if ($b.Width -gt 200 -and $b.Height -gt 150 -and $b.X -ge $c[0] + $c[2] * 0.25 -and $b.X -gt $best) { $best = $b.X; $msgList = $l } }
+      }
+      if ($msgList) {
+        $lb = $msgList.Current.BoundingRectangle
+        $scope = $itemCache.Activate()
+        try { $items = $msgList.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) } finally { $scope.Dispose() }
+        $scope = $cache.Activate()
+        try { $texts = $msgList.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond) } finally { $scope.Dispose() }
+        $out = @()
+        foreach ($it in $items) {
+          $b = $it.GetCachedPropertyValue($A::BoundingRectangleProperty)
+          if ([double]::IsInfinity($b.Y) -or $b.Height -lt 8 -or $b.Bottom -lt $c[1] -or $b.Top -gt $c[1] + $c[3]) { continue }
+          $parts = @(); $left = [double]::MaxValue
+          foreach ($t in $texts) {
+            $tb = $t.GetCachedPropertyValue($A::BoundingRectangleProperty)
+            if ([double]::IsInfinity($tb.Y) -or $tb.Top -lt $b.Top - 1 -or $tb.Bottom -gt $b.Bottom + 1) { continue }
+            $tn = [string]$t.GetCachedPropertyValue($A::NameProperty)
+            if ($tn) { $parts += $tn; $left = [Math]::Min($left, $tb.X) }
+          }
+          if (-not $parts.Count) { $parts = @([string]$it.GetCachedPropertyValue($A::NameProperty)); $left = $b.X }
+          # Messages you sent sit on the right of the conversation; only messages you received are judged.
+          $out += @{ k = [string]$it.GetCachedPropertyValue($A::AutomationIdProperty); t = (($parts -join ' ') -replace '\s+', ' ').Trim(); rx = ($left -lt $lb.X + $lb.Width * 0.4); x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height }
+        }
+        $out = @($out | Select-Object -Last 30)
+        $sig = ($out | ForEach-Object { $_.k + '|' + $_.y + '|' + $_.t.Length }) -join ';'
+        if ($sig -ne $lastSig) {
+          $lastSig = $sig
+          # Who the conversation is with: the top line of its header, just above the message list.
+          $who = ''; $whoY = [double]::MaxValue
+          $scope = $cache.Activate()
+          try { $all = $A::FromHandle($h).FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond) } finally { $scope.Dispose() }
+          foreach ($t in $all) {
+            $tb = $t.GetCachedPropertyValue($A::BoundingRectangleProperty)
+            if ([double]::IsInfinity($tb.Y) -or $tb.Bottom -gt $lb.Top + 1 -or $tb.Top -lt $lb.Top - 140 -or $tb.X -lt $lb.X - 20) { continue }
+            $tn = [string]$t.GetCachedPropertyValue($A::NameProperty)
+            if ($tn -and $tb.Y -lt $whoY) { $who = $tn; $whoY = $tb.Y }
+          }
+          Write-Output (@{ app = 'phonelink'; who = $who; win = $c; items = $out } | ConvertTo-Json -Compress -Depth 4)
+        }
+      } else {
+        # No conversation list Windows can describe: the conversation side of the window is read with the text
+        # recogniser instead, only when it changed, as Roblox's chat box is.
+        $px = $c[0] + [int]($c[2] * 0.3); $pw = $c[2] - [int]($c[2] * 0.3)
+        $p = Print $px $c[1] $pw $c[3]
+        if ($p -ne $lastPrint) {
+          $lastPrint = $p
+          $lines = Read-Area $px $c[1] $pw $c[3]
+          Write-Output (@{ app = 'phonelink'; win = $c; pane = @($px, $c[1], $pw, $c[3]); lines = @($lines); ocr = ($null -ne $engine) } | ConvertTo-Json -Compress -Depth 4)
+        }
       }
     } else {
       # Roblox: the chat box sits in the top left of the window. It is read only when it changed, and less often
@@ -211,6 +276,48 @@ function robloxMessages(lines) {
     }
   }
   return { open, messages: out };
+}
+
+/* ------------------------------------------- what Phone Link's texts show */
+
+// What sits beside a message without being part of it: its time, its day, whether it was delivered.
+const STAMP = /^(\d{1,2}:\d{2}\s*([ap]\.?m\.?)?|today|yesterday|(mon|tues|wednes|thurs|fri|satur|sun)day|sent|delivered|read|failed|not delivered)$/i;
+const COMPOSER = /^(send a message|type a message|text message|message)$/i;
+
+/** A message's text without the time Phone Link writes after it. */
+function textOf(t) {
+  return String(t || '').replace(/\s+/g, ' ').replace(/(\s+(\d{1,2}:\d{2}\s*([ap]\.?m\.?)?|sent|delivered|read))+\s*$/i, '').trim().slice(0, 1500);
+}
+
+/**
+ * The texts in a conversation read with the text recogniser (when Phone Link cannot be read through the accessibility
+ * interface): who it is with (the top line of the header), and each received message, its lines joined back together.
+ * `pane`: [x, y, w, h] of the part of the window that was read. Messages on its right half are ones you sent.
+ */
+function phonelinkMessages(lines, pane) {
+  const [px, py, pw, ph] = Array.isArray(pane) ? pane : [0, 0, 0, 0];
+  const header = py + Math.max(60, ph * 0.12);
+  const footer = py + ph * 0.9;
+  let who = '';
+  const out = [];
+  let last = null;
+  const sorted = (Array.isArray(lines) ? lines : []).filter((l) => l && String(l.t || '').trim()).sort((a, b) => a.y - b.y);
+  for (const l of sorted) {
+    const text = String(l.t).trim();
+    if (l.y < header) { if (!who) who = text; continue; }
+    if (l.y > footer || STAMP.test(text) || COMPOSER.test(text)) { last = null; continue; }
+    const received = l.x < px + pw * 0.4;
+    // The next line of the same bubble: just below, starting where it starts.
+    if (last && last.received === received && l.y - (last.y + last.h) < Math.max(10, l.h * 0.9) && Math.abs(l.x - last.x) < 40) {
+      last.text = `${last.text} ${text}`.slice(0, 1500);
+      last.h = (l.y + l.h) - last.y;
+      last.w = Math.max(last.w, (l.x + l.w) - last.x);
+      continue;
+    }
+    last = { text, received, x: l.x, y: l.y, w: l.w, h: l.h };
+    out.push(last);
+  }
+  return { who, messages: out.filter((m) => m.received) };
 }
 
 /* ------------------------------------------------ which game, from its log */
@@ -286,8 +393,11 @@ const told = new Map();       // what was already pointed out, so a message is f
 let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true };
 let logTimer = null;
 // How many messages were checked and flagged in each app since chat safety started: numbers only, never what they said.
-let seen = { discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, app: null, reading: false, at: 0 };
+const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0 }, app: null, reading: false, at: 0 });
+let seen = fresh();
 let seenTimer = null;
+let apps = ['discord', 'roblox'];
+let lastPhone = null;          // Phone Link's latest reading, drawn again when a link check comes back
 let saidNoList = false;
 function noteSeen() { if (!seenTimer) seenTimer = setTimeout(() => { seenTimer = null; if (opts && opts.onSeen) opts.onSeen(); }, 3000); }
 
@@ -315,8 +425,49 @@ function judge(app, key, context, messages) {
   return flags;
 }
 
+/**
+ * Texts in Phone Link: each received message judged once (server/lib/scan/texts.js, here on this computer), and its
+ * links checked by address only, the way a copied link is: never opened. A link check that comes back dangerous makes
+ * the text's warning stronger, and the warning is drawn again.
+ */
+function judgeTexts(who, messages) {
+  const flags = [];
+  for (const m of messages) {
+    const text = textOf(m.text);
+    if (!text) continue;
+    const id = `phonelink|${who}|${m.k || ''}|${text}`;
+    let entry = told.get(id);
+    if (entry === undefined) {
+      const r = texts.judgeText({ from: who, text });
+      entry = { flag: r.flag, app: 'phonelink' };
+      told.set(id, entry);
+      seen.phonelink.checked++;
+      if (r.flag) seen.phonelink.flagged++;
+      noteSeen();
+      if (told.size > 2000) told.delete(told.keys().next().value);
+      if (r.links.length && opts && opts.api) checkLinks(id, r);
+    }
+    if (entry && entry.flag) flags.push({ ...entry.flag, app: 'phonelink', rect: { x: m.x, y: m.y, w: m.w, h: m.h } });
+  }
+  return flags;
+}
+function checkLinks(id, result) {
+  // Private: no history entry and nothing sent to a registry, as for a private browser window.
+  opts.api('/api/v1/live/batch', { urls: result.links, private: true, mode: 'fast' }).then((res) => {
+    const entry = told.get(id);
+    if (!entry) return;
+    const flag = texts.withLinks(result, res && res.byUrl);
+    if (flag === entry.flag) return;
+    if (!entry.flag) seen.phonelink.flagged++;
+    entry.flag = flag;
+    noteSeen();
+    if (lastPhone && child) onMessage(lastPhone);
+  }).catch(() => { /* the words still count; the links were not checked this time */ });
+}
+
 function onMessage(msg) {
   if (msg.error) { opts.log(`chat safety: ${msg.error}`); return; }
+  if (msg.app !== 'phonelink') lastPhone = null;
   if (msg.app === null) { seen.app = null; seen.reading = false; noteSeen(); opts.onState({ app: null }); return; }
   seen.app = msg.app; seen.at = Date.now();
   if (msg.app === 'discord') {
@@ -330,6 +481,20 @@ function onMessage(msg) {
     noteSeen();
     const flags = judge('discord', key, ctx, items);
     opts.onState({ app: 'discord', win: msg.win, indicator: true, reading: !msg.noList, flags });
+    return;
+  }
+  if (msg.app === 'phonelink') {
+    lastPhone = msg;
+    let who = String(msg.who || '');
+    let items;
+    if (Array.isArray(msg.items)) items = msg.items.filter((i) => i.rx !== false).map((i) => ({ ...i, text: i.t }));
+    else { const r = phonelinkMessages(msg.lines, msg.pane); who = who || r.who; items = r.messages; }
+    // Read with the text recogniser and nothing came back at all: say so rather than claim to be watching.
+    const reading = Array.isArray(msg.items) || (msg.ocr !== false && Array.isArray(msg.lines) && msg.lines.length > 0);
+    seen.reading = reading;
+    noteSeen();
+    const flags = judgeTexts(who.slice(0, 80), items);
+    opts.onState({ app: 'phonelink', win: msg.win, indicator: true, reading, flags });
     return;
   }
   if (msg.app === 'roblox') {
@@ -380,22 +545,40 @@ function followLog() {
 
 function send(line) { try { if (child && child.stdin.writable) child.stdin.write(`${line}\n`); } catch { /* gone */ } }
 
+const NAMES = { discord: 'Discord', roblox: 'Roblox', phonelink: 'Phone Link' };
+function watching() { return apps.map((a) => NAMES[a]).join(' and ').replace(/ and (?=.* and )/g, ', '); }
+
 /**
- * @param {{ log: (s: string) => void, onState: (s: object) => void }} o
+ * Which apps are read: chat safety's (Discord, Roblox) and text checking's (Phone Link) are switched on separately.
+ * An app that is not in the list is never read, even in front.
+ */
+function setApps(list) {
+  const next = (Array.isArray(list) ? list : []).filter((a) => NAMES[a]);
+  if (next.join(',') === apps.join(',')) return;
+  apps = next;
+  send(`apps ${apps.join(',')}`);
+  if (child && opts) opts.log(`chat safety: now watching ${watching() || 'nothing'} while in front`);
+}
+
+/**
+ * @param {{ log: (s: string) => void, onState: (s: object) => void, onSeen?: () => void, apps?: string[],
+ *   api?: (path: string, body: object) => Promise<object> }} o  api: checks the addresses of links in texts
  */
 function start(o) {
   if (process.platform !== 'win32' || child) return;
   opts = o;
+  if (o.apps) apps = o.apps.filter((a) => NAMES[a]);
   child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '[ScriptBlock]::Create([Console]::In.ReadLine() | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) }).Invoke()'],
     { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdin.write(`${Buffer.from(SCRIPT, 'utf8').toString('base64')}\n`);
+  send(`apps ${apps.join(',')}`);
   lines = require('readline').createInterface({ input: child.stdout });
   lines.on('line', (l) => { try { onMessage(JSON.parse(l)); } catch { /* not ours */ } });
   child.stderr.on('data', () => { /* the reader's own errors are not about any chat: nothing to keep */ });
   child.on('exit', () => { child = null; opts && opts.onState({ app: null }); });
   logTimer = setInterval(followLog, 2000);
   followLog();
-  o.log('chat safety: watching Roblox and Discord while they are in front');
+  o.log(`chat safety: watching ${watching()} while in front`);
 }
 
 function stop() {
@@ -404,8 +587,12 @@ function stop() {
   if (child) { try { child.kill(); } catch { /* gone */ } child = null; }
   chats.clear();
   told.clear();
-  seen = { discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, app: null, reading: false, at: 0 };
+  seen = fresh();
+  lastPhone = null;
   if (opts) opts.onState({ app: null });
 }
 
-module.exports = { start, stop, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)), _test: { SCRIPT, robloxMessages, readLog, discordContext, judge } };
+module.exports = {
+  start, stop, setApps, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)),
+  _test: { SCRIPT, robloxMessages, readLog, discordContext, judge, phonelinkMessages, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
+};

@@ -107,29 +107,62 @@ function push(channel, payload) {
 
 /* Chat safety: Roblox and the Discord app, read on this computer only (chatwatch.js). */
 function chatSafetyStatus() {
-  return { enabled: store.get('chatSafety', false), running: chatwatch.running(), supported: process.platform === 'win32', seen: chatwatch.stats() };
+  const enabled = store.get('chatSafety', false);
+  return { enabled, running: enabled && chatwatch.running(), supported: process.platform === 'win32', seen: chatwatch.stats() };
 }
-// Roblox or Discord came to the front while chat safety is off: say once, for each, that Sentinel can watch it.
+/* Text messages in Phone Link: the same reader, its own switch; links in texts are checked by address only. */
+function textSafetyStatus() {
+  const enabled = store.get('textSafety', false);
+  const s = chatwatch.stats();
+  return { enabled, running: enabled && chatwatch.running(), supported: process.platform === 'win32', seen: { ...s.phonelink, app: s.app === 'phonelink' ? 'phonelink' : null, reading: s.reading } };
+}
+// Roblox, Discord or Phone Link came to the front while its switch is off: say once, for each, that Sentinel can watch it.
 const CHAT_APPS = { RobloxPlayerBeta: 'Roblox', Discord: 'Discord' };
+const TEXT_APPS = { PhoneExperienceHost: 'Phone Link', YourPhone: 'Phone Link' };
 function offerChatSafety(processName) {
+  if (process.platform !== 'win32') return;
+  const texts = TEXT_APPS[processName];
+  if (texts) {
+    if (store.get('textSafety', false) || store.get('textsOffered', false)) return;
+    store.set('textsOffered', true);
+    notify('Phone Link is open. Sentinel can check your texts', 'It points out scam texts beside the message, on this computer only. Click to turn it on.', () => showWindow('/app/protection#text-safety'));
+    return;
+  }
   const name = CHAT_APPS[processName];
-  if (!name || process.platform !== 'win32' || store.get('chatSafety', false) || store.get(`chatOffered:${name}`, false)) return;
+  if (!name || store.get('chatSafety', false) || store.get(`chatOffered:${name}`, false)) return;
   store.set(`chatOffered:${name}`, true);
   notify(`${name} is open. Sentinel can watch its chat`, 'Chat safety points out scams and people who may not be safe to talk to, on this computer only. Click to turn it on.', () => showWindow('/app/protection#chat-safety'));
 }
+/** One reader for both switches: it reads only the apps whose switch is on, and stops when both are off. */
+function chatApps() {
+  return [...(store.get('chatSafety', false) ? ['discord', 'roblox'] : []), ...(store.get('textSafety', false) ? ['phonelink'] : [])];
+}
 function startChatSafety() {
+  const apps = chatApps();
+  if (!apps.length) { chatwatch.stop(); chatoverlay.show(null); return; }
+  if (chatwatch.running()) { chatwatch.setApps(apps); return; }
   chatwatch.start({
-    // Only that it started or failed: never a message, a name or a game.
+    apps,
+    // Only that it started or failed: never a message, a name, a game or a link.
     log: (text) => appLog(text),
     onState: (s) => chatoverlay.show(s),
-    onSeen: () => push('sentinel:chat-safety', chatSafetyStatus())
+    onSeen: () => { push('sentinel:chat-safety', chatSafetyStatus()); push('sentinel:text-safety', textSafetyStatus()); },
+    // Links in texts, by address only. The scanner may still be starting: the words still count without it.
+    api: (pathname, body) => (ORIGIN ? apiCall(pathname, body) : Promise.reject(new Error('scanner not ready')))
   });
 }
 function setChatSafety(enabled) {
   store.set('chatSafety', Boolean(enabled));
-  if (enabled) startChatSafety(); else { chatwatch.stop(); chatoverlay.show(null); }
+  startChatSafety();
   const s = chatSafetyStatus();
   push('sentinel:chat-safety', s);
+  return s;
+}
+function setTextSafety(enabled) {
+  store.set('textSafety', Boolean(enabled));
+  startChatSafety();
+  const s = textSafetyStatus();
+  push('sentinel:text-safety', s);
   return s;
 }
 
@@ -352,6 +385,7 @@ function refreshTray() {
     ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
     ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => setAutoScan(item.checked).catch(() => {}) }] : []),
     ...(process.platform === 'win32' ? [{ label: 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { setChatSafety(item.checked); refreshTray(); } }] : []),
+    ...(process.platform === 'win32' ? [{ label: 'Check my texts (Phone Link)', type: 'checkbox', checked: store.get('textSafety', false), click: (item) => { setTextSafety(item.checked); refreshTray(); } }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => setOpenAtLogin(item.checked) },
     { type: 'separator' },
     updateItem(up),
@@ -632,6 +666,7 @@ function registerBridge() {
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
     chatSafety: chatSafetyStatus(),
+    textSafety: textSafetyStatus(),
     liveMode: store.get('liveMode', 'fast'),
     autoScan: store.get('autoScan', false),
     defense: { ...defense.status(), enabled: store.get('defense', true) },
@@ -643,6 +678,7 @@ function registerBridge() {
 
 
   handle('sentinel:chat-safety', (enabled) => setChatSafety(Boolean(enabled)));
+  handle('sentinel:text-safety', (enabled) => setTextSafety(Boolean(enabled)));
   handle('sentinel:live-start', () => { setAutoSession(false); return startScanning(); });
   handle('sentinel:live-stop', () => setLiveScanning(false, { byPerson: true }));
   handle('sentinel:auto-scan', (enabled) => setAutoScan(Boolean(enabled)));
@@ -809,9 +845,10 @@ async function boot() {
 
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) overlay.setDryRun((text) => appLog(`overlay (dry run): ${text}`));
 
-  // Chat safety (Roblox and the Discord app): off until turned on in Live protection; nothing about a chat is logged.
+  // Chat safety (Roblox and the Discord app) and texts in Phone Link: each off until turned on in Live protection;
+  // nothing about a chat or a text is logged.
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) chatoverlay.setDryRun((text) => appLog(`chat overlay (dry run): ${text}`));
-  if (store.get('chatSafety', false)) startChatSafety();
+  if (store.get('chatSafety', false) || store.get('textSafety', false)) startChatSafety();
 
   watch.init({
     origin: ORIGIN,

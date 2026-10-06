@@ -28,6 +28,9 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   // Chat safety (Roblox and the Discord app): one switch.
   setChatSafety: (enabled) => ipcRenderer.invoke('sentinel:chat-safety', Boolean(enabled)),
   onChatSafety: (callback) => on('sentinel:chat-safety', callback),
+  // Texts in Phone Link: one switch.
+  setTextSafety: (enabled) => ipcRenderer.invoke('sentinel:text-safety', Boolean(enabled)),
+  onTextSafety: (callback) => on('sentinel:text-safety', callback),
   setLiveMode: (mode) => ipcRenderer.invoke('sentinel:live-mode', mode === 'delicate' ? 'delicate' : 'fast'),
   setAutoScan: (enabled) => ipcRenderer.invoke('sentinel:auto-scan', Boolean(enabled)),
   scanWith: (browser) => ipcRenderer.invoke('sentinel:scan-with', String(browser)),
