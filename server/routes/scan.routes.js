@@ -21,6 +21,7 @@ const feeds = require('../lib/scan/feeds');
 const { analyze, typedUrl } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
 const { KINDS } = require('../lib/scan/kinds');
+const { classify: classifyQr } = require('../lib/scan/qr');
 // Kinds the engine can name from evidence; "blocked" is a rule the user set, not a threat kind.
 const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
 const { ALL_CHECKS } = require('../lib/scan/checklist');
@@ -84,6 +85,8 @@ function cleanMail(body) {
     body: String(m.body || '').slice(0, 20000),
     links: (Array.isArray(m.links) ? m.links : []).slice(0, 60).map((l) => ({ href: String((l && l.href) || '').slice(0, 2048), text: String((l && l.text) || '').slice(0, 300) })),
     attachments: (Array.isArray(m.attachments) ? m.attachments : []).slice(0, 30).map((a) => String(a).slice(0, 255)),
+    // What QR codes in a screenshot of the email hold, read on the person's device. Never the picture.
+    qr: (Array.isArray(m.qr) ? m.qr : []).slice(0, 5).map((t) => String(t || '').slice(0, 4096)).filter(Boolean),
     linksTruncated: Array.isArray(m.links) && m.links.length > 60
   };
 }
@@ -112,6 +115,19 @@ function register(router) {
       record: true
     }));
     sendJson(res, 200, withUsage(user, { verdict, scanMode }));
+  });
+
+  /* ------------------------------------------------------------ QR codes */
+
+  // What a QR code holds, read from a picture on the person's own device: only the text arrives, never the picture.
+  // Saying what a code does is not a scan and uses none of the week's scans; a link in it then goes through
+  // /scan/link like any pasted link.
+  router.post('/api/v1/scan/qr', async (req, res) => {
+    const user = A.requireAgreedUser(req);
+    security.rateLimit(`scan-minute:${user.id}`, 30, 60 * 1000, 'Too many scans in a minute. Wait a moment, then try again.');
+    const body = await readJson(req, 16 * 1024);
+    if (typeof body.text !== 'string' || !body.text.trim()) throw new HttpError(400, 'missing_text', 'No QR code was read');
+    sendJson(res, 200, { qr: classifyQr(body.text.slice(0, 4096)) });
   });
 
   /* ------------------------------------------ virus & malware scanner (URL) */
@@ -167,7 +183,7 @@ function register(router) {
       throw new HttpError(403, 'plan_required', 'Pasting emails in for a scan is part of Sentinel Max.', { needs: 'max', plan: plan.id });
     }
     const mail = cleanMail(await readJson(req, 128 * 1024));
-    if (!mail.from && !mail.fromAddress && !mail.body && !mail.subject) throw new HttpError(400, 'empty_email', 'Paste the email you want checked');
+    if (!mail.from && !mail.fromAddress && !mail.body && !mail.subject && !mail.qr.length) throw new HttpError(400, 'empty_email', 'Paste the email you want checked');
     // A pasted email is researched (its links and sender): a delicate scan.
     const verdict = await metered(user, 'deepScans', () => engine.scanEmail(mail, { userId: user.id, planId: plan.id, research: true, mode: 'manual', record: true }));
     sendJson(res, 200, withUsage(user, { verdict }));

@@ -1316,8 +1316,18 @@ async function boot() {
 }
 
 app.whenReady().then(() => {
-  // Deny every browser permission request (camera, notifications, etc.) from web content.
-  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => callback(false));
+  // Deny every browser permission request (microphone, notifications, etc.) from web content. The one exception is
+  // the camera alone, for Sentinel's own page in Sentinel's own window: holding a QR code up to it on the link scan.
+  // The picture is read in that page and never leaves it.
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
+    try {
+      const types = (details && details.mediaTypes) || [];
+      const own = Boolean(ORIGIN) && win && wc === win.webContents && new URL((details && details.requestingUrl) || wc.getURL()).origin === ORIGIN;
+      callback(permission === 'media' && own && types.length > 0 && types.every((t) => t === 'video'));
+    } catch {
+      callback(false);
+    }
+  });
 
   appLog(`starting Sentinel ${app.getVersion()}${startHidden ? ' (hidden)' : ''}`);
   cpuProfileOnRequest();

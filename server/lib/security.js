@@ -34,7 +34,7 @@ function baseHeaders() {
     'X-Frame-Options': 'DENY',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Cross-Origin-Resource-Policy': 'same-site',
-    'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()',
+    'Permissions-Policy': 'geolocation=(), microphone=(), camera=(self), payment=(), usb=(), interest-cohort=()',
     'Origin-Agent-Cluster': '?1',
     'Content-Security-Policy': CSP
   };

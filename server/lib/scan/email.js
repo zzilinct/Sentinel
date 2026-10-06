@@ -6,6 +6,7 @@
  */
 const L = require('./lists');
 const { analyze, brandInfo, hostWords } = require('./url');
+const { classify: classifyQr } = require('./qr');
 
 const fail = (points, detail) => ({ status: 'fail', points, detail });
 const warn = (points, detail) => ({ status: 'warn', points, detail });
@@ -98,6 +99,10 @@ function analyzeEmail(mail, how = {}) {
     }
     links.push({ href, text: '' });
   }
+  // QR codes read from a screenshot of the email, on the person's device: what each holds. A link in one is checked
+  // like any other link in the message; that is how a "scan to view your document" email hides its page.
+  const codes = (Array.isArray(mail.qr) ? mail.qr : []).slice(0, 5).map((t) => classifyQr(String(t)));
+  for (const c of codes) if (c.url) links.push({ href: c.url, text: 'QR code' });
   const targets = [...new Set(links.map(l => analyze(String(l.href || ''))?.url).filter(Boolean))];
   const attachments = (Array.isArray(mail.attachments) ? mail.attachments : []).map(String).slice(0, 30);
   const checks = [];
@@ -171,6 +176,18 @@ function analyzeEmail(mail, how = {}) {
   const shortLinks = links.filter((l) => { const a = analyze(String(l.href || '')); return a && L.URL_SHORTENERS.has(a.registrable); });
   add('E11', 'scam', 'Links are not disguised with shorteners', shortLinks.length ? warn(12, `${shortLinks.length} shortened link(s)`) : pass('None'));
   add('E12', 'scam', 'No QR code phishing lure', QR.test(body) ? warn(14, 'Asks you to scan a QR code: a way to move you off a protected computer') : pass('None'));
+  if (codes.length) {
+    // A code that signs someone into your account, connects your wallet or takes a crypto payment is the scam itself.
+    const signIn = codes.find((c) => c.kind === 'signin');
+    const wallet = codes.find((c) => c.kind === 'wallet');
+    const payment = codes.find((c) => c.kind === 'payment');
+    const hosts = [...new Set(codes.filter((c) => c.host).map((c) => c.host))];
+    add('E30', 'scam', 'Its QR code does not sign anyone in, connect a wallet or take a payment', signIn
+      ? fail(50, `Its QR code is a ${signIn.app} sign-in code: scanning it signs the sender into your ${signIn.app} account`)
+      : wallet ? fail(44, 'Its QR code connects a crypto wallet to a website')
+        : payment ? fail(44, 'Its QR code asks for a cryptocurrency payment')
+          : pass(hosts.length ? `Its QR code leads to ${hosts.join(', ')}, checked with the links` : `${codes.length} QR code(s), none a link`));
+  }
 
   const risky = attachments.filter((n) => { const x = n.toLowerCase().split('.'); return x.length > 1 && (L.EXECUTABLE_EXT.has(x.pop()) ); });
   add('E13', 'virus', 'No program attachments', risky.length ? fail(45, `Attached program: ${risky[0]}`) : pass(attachments.length ? `${attachments.length} attachment(s), none programs` : 'No attachments'));

@@ -20,6 +20,7 @@
     file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></svg>',
     upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5M5 20h14"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
+    qr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>',
     globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18"/></svg>'
   };
 
@@ -753,6 +754,8 @@
           <button class="chip" type="button" data-example="https://github.com">github.com</button>
         </span>
       </div>
+      ${qrPicker()}
+      <div data-qr-out></div>
       <div data-out></div>`;
 
     mountModels(el);
@@ -768,10 +771,24 @@
       $('[data-left]', el).textContent = scanLeftText(mode);
     }));
 
+    // A QR code: read here, explained, and a link in it scanned like a typed one.
+    const qrOut = $('[data-qr-out]', el);
+    let fromQr = false;
+    wireQr(el, async (text) => {
+      const info = await explainQr(qrOut, text);
+      if (!info || !info.url) return;
+      fromQr = true;
+      form.url.value = info.url;
+      form.requestSubmit();
+    });
+
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const url = form.url.value.trim();
       if (!url) return;
+      // A link typed after a QR code is a scan of its own: the code's card goes.
+      if (!fromQr) qrOut.innerHTML = '';
+      fromQr = false;
       // Remembered in the history entry, so Back and reload show the address without spending another scan.
       history.replaceState({ scanned: url }, '', `/app/scan?url=${encodeURIComponent(url)}`);
       const button = $('button[type=submit]', form);
@@ -799,6 +816,158 @@
       form.url.value = preset;
       if (!history.state || history.state.scanned !== preset) form.requestSubmit();
     }
+  }
+
+  /* ------------------------------------------------------------ QR codes */
+
+  // A picture of a QR code is read in this page (qr.js), never uploaded. Only the text it holds goes to the server,
+  // which says what the code does: a link, or something that is not a link at all (a sign-in code, a wallet
+  // connection, a crypto payment) and would never show up in a link scan.
+
+  function qrPicker() {
+    const camera = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    return `<div class="qr-in" data-qr>
+        <span class="qr-in__icon">${ICON.qr}</span>
+        <div class="qr-in__text"><b>Got a QR code?</b><span>Choose, drop or paste (Ctrl+V) a picture of it${camera ? ', or hold it up to the camera' : ''}. It is read on this device and not uploaded.</span></div>
+        <span class="qr-in__btns">
+          <label class="btn btn--sm">Choose a picture<input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" data-qr-file hidden></label>
+          ${camera ? '<button class="btn btn--sm" type="button" data-qr-cam>Use the camera</button>' : ''}
+        </span>
+        <div class="qr-cam" data-qr-camview hidden><video muted playsinline aria-label="Camera view"></video><p class="muted">Hold the QR code up to the camera. It is read here, and the camera turns off as soon as a code is found.</p></div>
+      </div>`;
+  }
+
+  /** The text of a QR code in an image or a video frame, or null. Tried at two sizes: large first, then smaller. */
+  function qrFrom(src, w, h) {
+    if (!window.SentinelQR || !w || !h) return null;
+    const big = Math.max(w, h);
+    for (const side of [Math.min(1600, Math.max(big, 480)), 800]) {
+      const s = side / big;
+      const cw = Math.max(1, Math.round(w * s));
+      const ch = Math.max(1, Math.round(h * s));
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const g = canvas.getContext('2d', { willReadFrequently: true });
+      // A small, sharp code is enlarged square by square, not blurred.
+      g.imageSmoothingEnabled = s < 1;
+      g.drawImage(src, 0, 0, cw, ch);
+      const text = window.SentinelQR.decode(g.getImageData(0, 0, cw, ch));
+      if (text != null) return text;
+    }
+    return null;
+  }
+
+  async function qrFromFile(file) {
+    const bmp = await createImageBitmap(file);
+    try { return qrFrom(bmp, bmp.width, bmp.height); } finally { bmp.close(); }
+  }
+
+  /** What a QR code does, as a card in the shape of a verdict, with what to do when it is more than a link. */
+  function qrCard(info) {
+    const tone = info.tone || 'clear';
+    const steps = info.steps || [];
+    return `<article class="result result--${tone} qr-card">
+        <header class="result__head">
+          <div class="result__glyph" style="--c:${color(info.tone || null)}">${ICON.qr}</div>
+          <div class="result__title">
+            <h2>${esc(info.title)}</h2>
+            <p><span class="mono">From a QR code</span></p>
+            <p class="result__sub">${esc(info.detail)}</p>
+          </div>
+        </header>
+        ${steps.length ? `<div class="next-steps next-steps--${tone === 'clear' ? 'yellow' : tone}"><h3>${tone === 'red' || tone === 'orange' ? 'What to do now' : 'Before you use it'}</h3><ol>${steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}
+      </article>`;
+  }
+
+  async function explainQr(out, text) {
+    try {
+      const { qr } = await api('/scan/qr', { method: 'POST', body: { text } });
+      out.innerHTML = qrCard(qr);
+      return qr;
+    } catch (err) {
+      out.innerHTML = friendlyError(err);
+      return null;
+    }
+  }
+
+  /** A picture chosen, dropped or pasted, or the camera, each ending in onText(the code's text). */
+  function wireQr(el, onText) {
+    const box = $('[data-qr]', el);
+    let reading = false;
+    const fromFile = async (file) => {
+      if (!file || reading) return;
+      if (!/^image\//.test(file.type)) { toast('Choose a picture of the QR code: PNG, JPEG, WebP, GIF or BMP.', 'error'); return; }
+      if (file.size > 20 * 1024 * 1024) { toast('That picture is too large.', 'error'); return; }
+      reading = true;
+      try {
+        const text = await qrFromFile(file);
+        if (text == null) toast('No QR code was found in that picture. Try a closer, sharper picture with the whole code in it.', 'info', 6000);
+        else await onText(text);
+      } catch {
+        toast('That picture could not be read.', 'error');
+      } finally { reading = false; }
+    };
+    const input = $('[data-qr-file]', box);
+    input.addEventListener('change', () => { fromFile(input.files[0]); input.value = ''; });
+    ['dragenter', 'dragover'].forEach((t) => el.addEventListener(t, (ev) => {
+      if (ev.dataTransfer && [...ev.dataTransfer.types].includes('Files')) { ev.preventDefault(); box.classList.add('is-over'); }
+    }));
+    el.addEventListener('dragleave', (ev) => { if (!el.contains(ev.relatedTarget)) box.classList.remove('is-over'); });
+    el.addEventListener('drop', (ev) => {
+      const file = ev.dataTransfer && ev.dataTransfer.files[0];
+      box.classList.remove('is-over');
+      if (!file) return;
+      ev.preventDefault();
+      fromFile(file);
+    });
+    // Ctrl+V with a picture on the clipboard (a Snipping Tool capture, say). Pasted text is left to the page.
+    const onPaste = (ev) => {
+      if (!el.isConnected) { document.removeEventListener('paste', onPaste); return; }
+      const item = [...(ev.clipboardData ? ev.clipboardData.items : [])].find((i) => i.kind === 'file' && /^image\//.test(i.type));
+      if (item) { ev.preventDefault(); fromFile(item.getAsFile()); }
+    };
+    document.addEventListener('paste', onPaste);
+
+    // The camera: on only while its view is open, looked at a few times a second, off the moment a code is found.
+    const camBtn = $('[data-qr-cam]', box);
+    if (!camBtn) return;
+    const camView = $('[data-qr-camview]', box);
+    const video = $('video', camView);
+    let stream = null;
+    let timer = null;
+    const stop = () => {
+      clearInterval(timer);
+      timer = null;
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+      video.srcObject = null;
+      camView.hidden = true;
+      camBtn.textContent = 'Use the camera';
+    };
+    camBtn.addEventListener('click', async () => {
+      if (stream) { stop(); return; }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      } catch {
+        stream = null;
+        toast('The camera could not be started. Check that one is connected and that apps are allowed to use it.', 'error', 6000);
+        return;
+      }
+      camView.hidden = false;
+      camBtn.textContent = 'Stop the camera';
+      video.srcObject = stream;
+      try { await video.play(); } catch { /* it plays when it can */ }
+      timer = setInterval(async () => {
+        if (!el.isConnected) { stop(); return; }
+        if (reading || !video.videoWidth) return;
+        const text = qrFrom(video, video.videoWidth, video.videoHeight);
+        if (text == null) return;
+        stop();
+        reading = true;
+        try { await onText(text); } finally { reading = false; }
+      }, 350);
+    });
   }
 
   const REPORT_CATEGORIES = [
@@ -950,7 +1119,7 @@
       <div class="panel" data-shot hidden>
         <label class="drop" data-shot-drop>
           <input type="file" accept="image/png,image/jpeg" data-shot-file aria-label="Choose a screenshot of the email">
-          <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a screenshot of the email, or click to choose</h3><p>Or press Ctrl+V to paste one. PNG or JPEG.</p></div>
+          <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a screenshot of the email, or click to choose</h3><p>Or press Ctrl+V to paste one. PNG or JPEG. A QR code in it is read too.</p></div>
         </label>
         <figure class="shot" data-shot-preview hidden><img alt="The screenshot to read"><figcaption data-shot-status></figcaption></figure>
         <p class="field__hint u-mt-sm">${desktop && desktop.readScreenshot
@@ -962,6 +1131,7 @@
         <div class="report__foot"><span></span><button class="btn btn--gold" type="button" data-parse>Read this email</button></div>
       </form>
       <form class="panel" data-form data-draft="email-scan">
+        <div data-email-qr></div>
         <div class="row2">
           <div class="field"><label for="e-from">From</label><input class="input" id="e-from" name="from" placeholder="PayPal Security &lt;alerts@example.com&gt;" autocomplete="off"></div>
           <div class="field"><label for="e-reply">Reply-to <span class="opt">(optional)</span></label><input class="input" id="e-reply" name="replyTo" autocomplete="off"></div>
@@ -1007,6 +1177,10 @@
     // put through the same reading as a pasted email.
     const preview = $('[data-shot-preview]', el);
     const shotStatus = $('[data-shot-status]', el);
+    // A QR code in the screenshot, read in this page whatever the computer: its text goes with the scan, so a link
+    // hidden in the code is checked with the email's other links, and a sign-in code is called what it is.
+    const qrSlot = $('[data-email-qr]', el);
+    let shotQr = [];
     let reading = false;
     const readShot = async (file) => {
       if (!file || reading) return;
@@ -1015,6 +1189,12 @@
       const url = URL.createObjectURL(file);
       $('img', preview).src = url;
       preview.hidden = false;
+      shotQr = [];
+      qrSlot.innerHTML = '';
+      try {
+        const code = await qrFromFile(file);
+        if (code != null && await explainQr(qrSlot, code)) shotQr = [code];
+      } catch { /* no code read: the text is still read below */ }
       if (!desktop || !desktop.readScreenshot) { shotStatus.textContent = 'Reading screenshots needs the Sentinel app for Windows.'; return; }
       reading = true;
       preview.classList.add('is-reading');
@@ -1057,7 +1237,7 @@
       const links = [...new Set(found)].map((href) => ({ href, text: '' }));
       const payload = {
         from: form.from.value, replyTo: form.replyTo.value, subject: form.subject.value, body,
-        links, attachments: form.attachments.value.split(',').map((s) => s.trim()).filter(Boolean)
+        links, attachments: form.attachments.value.split(',').map((s) => s.trim()).filter(Boolean), qr: shotQr
       };
       out.innerHTML = stagesView(true);
       const stop = runStages(out, true);
