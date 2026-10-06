@@ -1279,12 +1279,14 @@
       </div>` : ''}
 
       <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
+      <div id="parent-lock" data-parent-lock></div>
       <div class="panel u-mt" data-intel>
         <div class="panel__head"><div><h2>Threat intelligence</h2><p>The public feeds every scan is checked against, refreshed automatically.</p></div></div>
         <div class="skeleton u-h-sm"></div>
       </div>`;
 
     if (desktop && !planLocked) renderDesktopControls($('[data-desktop]', el));
+    if (desktop) renderParentLock($('[data-parent-lock]', el));
     renderIntel($('[data-intel]', el));
   }
 
@@ -1332,6 +1334,63 @@
         <li><span class="list__icon">${ICON.check}</span><span class="list__main"><b>Never in the way</b><span>Nothing is read while a game's chat is closed. Sentinel never changes Roblox or Discord, never types or clicks in them, and only speaks up when a message is suspicious, using the game or server it is in to tell play from danger.</span></span></li>
       </ul>
     </div>`;
+  }
+  /**
+   * Parent lock: a PIN before protection can be switched off or Sentinel quit. The PIN is checked by the app on this
+   * computer (desktop/src/parentlock.js); only a salted hash of it is kept. Drawn into its own slot, since it changes
+   * on its own (it locks again five minutes after the PIN opens it).
+   */
+  async function renderParentLock(slot) {
+    if (!slot || !desktop || !desktop.lockStatus) return;
+    let s;
+    try { s = await desktop.lockStatus(); } catch { return; }
+    if (!slot.isConnected || !s.supported) { slot.innerHTML = ''; return; }
+    clearTimeout(slot._relock);
+    const pinInput = (name, label, auto) => `<div class="field"><label for="pl-${name}">${label}</label><input class="input code-input" id="pl-${name}" name="${name}" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="${auto}" required></div>`;
+    const adminNote = s.admin ? '<p class="field__hint">This Windows account is an administrator, so it can still uninstall Sentinel. On a child\'s own standard Windows account, the lock holds.</p>' : '';
+    const newPin = (button) => `<form data-pl-set class="u-mt-sm">${pinInput('pin', 'New PIN, 4 to 8 digits', 'new-password')}${pinInput('again', 'The same PIN again', 'new-password')}<button class="btn btn--gold u-mt-sm" type="submit">${button}</button></form>`;
+    const when = (at) => new Date(at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
+    let body;
+    if (!s.set) {
+      body = `<p class="muted u-mt-sm">Off.</p>${newPin('Lock with this PIN')}${adminNote}`;
+    } else if (s.locked) {
+      body = `<p class="muted u-mt-sm">On. Switching protection off, or quitting Sentinel, needs the PIN.${s.waitSeconds ? ` Too many wrong PINs: try again in ${s.waitSeconds} seconds.` : ''}</p>
+        <form data-pl-unlock class="u-mt-sm">${pinInput('pin', 'PIN', 'current-password')}<button class="btn u-mt-sm" type="submit">Unlock for 5 minutes</button></form>
+        <p class="field__hint">Forgot the PIN? <button class="btn btn--ghost btn--sm" type="button" data-pl-reset>Remove it with a Windows administrator</button></p>${adminNote}`;
+    } else {
+      const record = s.record || [];
+      body = `<p class="muted u-mt-sm">Open until ${esc(new Date(s.unlockedUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}, then it locks again by itself. Change what you need now, in this page or in the tray menu.</p>
+        <div class="actions__btns u-mt-sm"><button class="btn btn--gold btn--sm" type="button" data-pl-relock>Lock now</button><button class="btn btn--sm" type="button" data-pl-remove>Turn off parent lock</button></div>
+        ${newPin('Change the PIN')}
+        <h3 class="u-mt">Record</h3>
+        <p class="field__hint">Times and switches only. Nothing about a chat or a page is ever written here.</p>
+        ${record.length ? `<ul class="list">${record.slice(0, 10).map((r) => `<li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>${esc(r.text)}</b><span>${esc(when(r.at))}</span></span></li>`).join('')}</ul>` : '<div class="empty"><p>Nothing yet.</p></div>'}`;
+      slot._relock = setTimeout(() => { if (slot.isConnected) renderParentLock(slot); }, Math.max(1000, s.unlockedUntil - Date.now() + 1000));
+    }
+    slot.innerHTML = `<div class="panel u-mt">
+      <div class="panel__head"><div><h2>Parent lock</h2>
+        <p>With a PIN set, switching off chat safety, live scanning, defense, download protection or checking copied links, switching to another Sentinel version, or quitting Sentinel, needs the PIN, here and in the tray menu. Turning protection on never does. On a computer a child uses, a stranger cannot talk them into switching Sentinel off.</p></div></div>
+      ${body}
+    </div>`;
+
+    const act = (el, fn, done) => el && el.addEventListener(el.tagName === 'FORM' ? 'submit' : 'click', async (ev) => {
+      ev.preventDefault();
+      const btn = el.tagName === 'FORM' ? $('button[type=submit]', el) : el;
+      btn.disabled = true;
+      try { await fn(); if (done) toast(done, 'success'); } catch (err) { toast(desktopError(err), 'error'); }
+      renderParentLock(slot);
+    });
+    act($('[data-pl-set]', slot), async () => {
+      const f = $('[data-pl-set]', slot);
+      if (f.pin.value !== f.again.value) throw new Error('The two PINs are not the same.');
+      await desktop.lockSet(f.pin.value);
+    }, s.set ? 'The PIN is changed.' : 'Parent lock is on. Keep the PIN somewhere a child will not find it.');
+    act($('[data-pl-unlock]', slot), () => desktop.lockUnlock($('[data-pl-unlock]', slot).pin.value), 'Unlocked for 5 minutes.');
+    act($('[data-pl-relock]', slot), () => desktop.lockRelock(), 'Locked.');
+    act($('[data-pl-remove]', slot), () => desktop.lockRemove(), 'Parent lock is off.');
+    act($('[data-pl-reset]', slot), () => desktop.lockReset(), 'The PIN was removed. Set a new one to lock again.');
+    // Opened from a refused tray click: straight to the PIN.
+    if (location.hash === '#parent-lock' && !slot._scrolled) { slot._scrolled = true; slot.scrollIntoView({ block: 'start' }); const pin = $('input', slot); if (pin) pin.focus({ preventScroll: true }); }
   }
   // What chat safety is doing right now, in numbers only: proof that it works, without a word of anyone's chat.
   function chatSeenText(cs) {
@@ -1581,7 +1640,9 @@
         toast(s.active ? 'Download protection is on.' : (s.reason || 'Download protection is off.'), s.active ? 'success' : 'info');
       } catch (err) { ev.target.checked = !ev.target.checked; toast(desktopError(err), 'error'); }
     });
-    $('[data-login]', slot).addEventListener('change', (ev) => desktop.setOpenAtLogin(ev.target.checked));
+    $('[data-login]', slot).addEventListener('change', async (ev) => {
+      try { await desktop.setOpenAtLogin(ev.target.checked); } catch (err) { ev.target.checked = !ev.target.checked; toast(desktopError(err), 'error'); }
+    });
     const clip = $('[data-clip]', slot);
     if (clip) clip.addEventListener('change', async () => {
       try {
