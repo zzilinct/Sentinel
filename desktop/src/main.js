@@ -665,6 +665,84 @@ function setCommandShield(enabled) {
   return { commandShield: Boolean(enabled) };
 }
 
+/*
+ * Exposure alerts: a site visited in the last 14 days that a threat list names afterwards. The embedded server keeps
+ * the keyed marks and does the matching when its lists refresh (server/lib/scan/exposure.js); here the app asks for
+ * new matches once an hour, and says so at most once a day.
+ */
+const EXPOSURE_EVERY_MS = 60 * 60 * 1000;
+const EXPOSURE_FIRST_MS = 2 * 60 * 1000;
+const EXPOSURE_NOTIFY_GAP_MS = 20 * 60 * 60 * 1000;
+let exposureTimer = null;
+let exposureFirst = null;
+
+/** Plain words for what a list says a site is. */
+function exposureWhat(e) {
+  return e.kind === 'malware' ? 'spreading malware' : e.kind === 'phishing' ? 'a fake sign-in page' : e.kind === 'crypto' ? 'a crypto scam' : 'a scam';
+}
+
+async function checkExposures() {
+  if (!store.get('exposureAlerts', false) || !ORIGIN) return;
+  let items;
+  try { items = (await apiCall('/api/v1/live/exposures')).items || []; } catch { return; }
+  const fresh = items.filter((e) => !e.notified);
+  if (!fresh.length) return;
+  push('sentinel:exposures', items);
+  if (Date.now() - store.get('exposureNotifiedAt', 0) < EXPOSURE_NOTIFY_GAP_MS) return;
+  store.set('exposureNotifiedAt', Date.now());
+  const one = fresh.length === 1;
+  notify(one ? `A site you visited is now listed as ${exposureWhat(fresh[0])}` : `${fresh.length} sites you visited are now on threat lists`,
+    one ? `${fresh[0].host}. Click to see what to do.` : 'Click to see which ones, and what to do about each.',
+    () => showWindow('/app/protection#exposures'));
+  // Only the hosts it named: anything a list adds after this is told about tomorrow.
+  try { await apiCall('/api/v1/live/exposures/notified', { hosts: fresh.map((e) => e.host) }); } catch { /* told again next time */ }
+}
+
+function setExposureAlerts(enabled) {
+  store.set('exposureAlerts', Boolean(enabled));
+  clearInterval(exposureTimer);
+  clearTimeout(exposureFirst);
+  exposureTimer = exposureFirst = null;
+  if (enabled) {
+    exposureTimer = setInterval(() => checkExposures().catch(() => {}), EXPOSURE_EVERY_MS);
+    exposureFirst = setTimeout(() => checkExposures().catch(() => {}), EXPOSURE_FIRST_MS);
+    exposureTimer.unref();
+    exposureFirst.unref();
+  } else if (ORIGIN) {
+    // Off means forgotten: every remembered visit is removed from the server at once.
+    apiCall('/api/v1/live/exposures/forget', {}).catch(() => {});
+  }
+  return { exposureAlerts: Boolean(enabled) };
+}
+
+/**
+ * "Check that day's downloads", for a site a list says spreads malware: the files that arrived in Downloads around the
+ * day of the visit go through Defense, exactly as a new download would.
+ */
+async function checkDownloadsFrom(day) {
+  const DAY = 24 * 60 * 60 * 1000;
+  const at = Number(day);
+  if (!Number.isFinite(at) || at <= 0) throw new Error('Unknown day');
+  const fsx = require('fs');
+  const folder = app.getPath('downloads');
+  // Half a day either side: the day is counted in UTC, and the person's evening may be the next day there.
+  const from = at - DAY / 2;
+  const to = at + DAY + DAY / 2;
+  let names = [];
+  try { names = fsx.readdirSync(folder); } catch { return { checked: 0, flagged: 0 }; }
+  const files = [];
+  for (const name of names) {
+    const full = path.join(folder, name);
+    try { const st = fsx.statSync(full); if (st.isFile() && st.mtimeMs >= from && st.mtimeMs < to) files.push(full); } catch { /* gone */ }
+    if (files.length >= 200) break;
+  }
+  let flagged = 0;
+  for (const full of files) {
+    try { const item = await defense.inspect(full, 'exposure check'); if (item && item.badge) flagged++; } catch { /* unreadable: skipped */ }
+  }
+  return { checked: files.length, flagged };
+}
+
 // A file in Downloads is checked by download protection and by Defense: one notification about it, not two.
 const notifiedFiles = new Map();
 function notifyAboutFile(file, title, body, onClick) {
@@ -720,6 +798,7 @@ function registerBridge() {
     openAtLogin: store.get('openAtLogin', true),
     clipboardCheck: store.get('clipboardCheck', false),
     commandShield: process.platform === 'win32' && store.get('commandShield', true),
+    exposureAlerts: store.get('exposureAlerts', false),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
@@ -778,6 +857,10 @@ function registerBridge() {
   handle('sentinel:set-clipboard-check', (enabled) => { lock.guard('checking copied links off', !enabled); return setClipboardCheck(Boolean(enabled)); });
   handle('sentinel:set-command-shield', (enabled) => { lock.guard('the command shield off', !enabled); return setCommandShield(Boolean(enabled)); });
   handle('sentinel:set-defense', (enabled) => { lock.guard('defense off', !enabled); store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
+  handle('sentinel:set-exposure-alerts', (enabled) => { lock.guard('exposure alerts off', !enabled); return setExposureAlerts(Boolean(enabled)); });
+  handle('sentinel:exposures', async () => (ORIGIN ? (await apiCall('/api/v1/live/exposures')).items || [] : []));
+  handle('sentinel:exposure-dismiss', async (host) => (await apiCall('/api/v1/live/exposures/dismiss', { host: String(host).slice(0, 253) })).ok);
+  handle('sentinel:exposure-downloads', (day) => checkDownloadsFrom(day));
   handle('sentinel:defense-restore', (id) => defense.restore(String(id)));
   handle('sentinel:defense-act', (id) => defense.act(String(id)));
   handle('sentinel:install-update', () => updater.install());
@@ -941,6 +1024,8 @@ async function boot() {
     api: apiCall,
     getToken: () => activeToken(),
     enabled: () => store.get('liveScanning', false),
+    // Exposure alerts: clean pages are remembered (as keyed hashes, 14 days) only while this is switched on.
+    remember: () => store.get('exposureAlerts', false),
     // Auto scanning starts fast scanning; scanning the person started uses the mode they chose.
     mode: () => (autoSession ? 'fast' : store.get('liveMode', 'fast')),
     // The reader's helper types are compiled once into here and loaded from then on.
@@ -1009,6 +1094,7 @@ async function boot() {
   }
 
   step('copied links and commands', () => syncClipboard());
+  step('exposure alerts', () => { if (store.get('exposureAlerts', false)) setExposureAlerts(true); });
   step('tray refresh', () => refreshTray());
   // In the tray (started with Windows, or after an update) there is no window until someone opens one.
   if (win) openApp();

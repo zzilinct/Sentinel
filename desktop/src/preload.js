@@ -21,6 +21,12 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   setOpenAtLogin: (enabled) => ipcRenderer.invoke('sentinel:set-open-at-login', Boolean(enabled)),
   setClipboardCheck: (enabled) => ipcRenderer.invoke('sentinel:set-clipboard-check', Boolean(enabled)),
   setCommandShield: (enabled) => ipcRenderer.invoke('sentinel:set-command-shield', Boolean(enabled)),
+  // Exposure alerts: sites visited that a threat list named afterwards.
+  setExposureAlerts: (enabled) => ipcRenderer.invoke('sentinel:set-exposure-alerts', Boolean(enabled)),
+  exposures: () => ipcRenderer.invoke('sentinel:exposures'),
+  dismissExposure: (host) => ipcRenderer.invoke('sentinel:exposure-dismiss', String(host)),
+  checkDownloadsFrom: (day) => ipcRenderer.invoke('sentinel:exposure-downloads', Number(day)),
+  onExposures: (callback) => on('sentinel:exposures', callback),
   recentDownloads: () => ipcRenderer.invoke('sentinel:recent-downloads'),
   quarantine: (id) => ipcRenderer.invoke('sentinel:quarantine', String(id)),
   // Live scanning: one switch, and "Scan with <browser>".

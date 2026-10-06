@@ -340,6 +340,24 @@ const MIGRATIONS = [
   CREATE INDEX IF NOT EXISTS idx_oauth_created ON oauth_states(created_at);
   CREATE INDEX IF NOT EXISTS idx_resets_expires ON password_resets(expires_at);
   CREATE INDEX IF NOT EXISTS idx_verifications_expires ON email_verifications(expires_at);
+  `,
+
+  // 10 - exposure alerts (scan/exposure.js): keyed hashes of hosts live scanning found clean, kept 14 days, and the
+  //      ones a threat list named afterwards
+  `
+  CREATE TABLE IF NOT EXISTS visit_marks (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    host_hash TEXT NOT NULL, reg_hash TEXT NOT NULL, day INTEGER NOT NULL,
+    PRIMARY KEY (user_id, host_hash)
+  );
+  CREATE INDEX IF NOT EXISTS idx_visit_marks_day ON visit_marks(day);
+  CREATE TABLE IF NOT EXISTS exposures (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    host TEXT NOT NULL, threat TEXT NOT NULL, category TEXT,
+    visited_day INTEGER NOT NULL, listed_at INTEGER NOT NULL, notified_at INTEGER, dismissed_at INTEGER,
+    PRIMARY KEY (user_id, host)
+  );
+  CREATE INDEX IF NOT EXISTS idx_exposures_listed ON exposures(listed_at);
   `
 ];
 
@@ -502,6 +520,9 @@ function sweep() {
   db.prepare('DELETE FROM usage_counters WHERE week < ?').run(t - 35 * day);
   db.prepare('DELETE FROM scan_history WHERE created_at < ?').run(t - 90 * day);
   db.prepare('DELETE FROM audit_log WHERE created_at < ?').run(t - 180 * day);
+  // Exposure alerts: a visit is remembered 14 days, a site found on a list afterwards 30.
+  db.prepare('DELETE FROM visit_marks WHERE day < ?').run(t - 14 * day);
+  db.prepare('DELETE FROM exposures WHERE listed_at < ?').run(t - 30 * day);
 }
 
 module.exports = { db, now, sweep, acquireLock, backupAccounts, verifyFeeds, resetFeeds, FEEDS_PATH, BACKUP_PATH };

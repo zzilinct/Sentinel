@@ -648,13 +648,16 @@
 
       <div class="u-mt">${protectionTeaser()}</div>
       <div data-chat-ask></div>
+      <div data-exposure-ask></div>
 
       <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
         <div data-recent><div class="skeleton u-h-md" ></div></div>
       </div>`;
 
-    askChatSafety($('[data-chat-ask]', el));
+    // One offer at a time: exposure alerts are offered only while chat safety's question is not showing.
+    const chatAsk = $('[data-chat-ask]', el);
+    askChatSafety(chatAsk).then(() => { if (!chatAsk.innerHTML) askExposureAlerts($('[data-exposure-ask]', el)); }).catch(() => {});
     $('[data-quick]', el).addEventListener('submit', (ev) => {
       ev.preventDefault();
       const url = ev.target.url.value.trim();
@@ -1440,6 +1443,93 @@
     });
   }
 
+  /* Exposure alerts: sites visited in the last 14 days that a threat list named afterwards (server/lib/scan/exposure.js). */
+  const EXPOSURE_WHAT = { phishing: 'Fake sign-in page', crypto: 'Crypto scam', scam: 'Scam site', malware: 'Spreads malware' };
+  function exposureSteps(e) {
+    const real = e.realSite ? ` (<b>${esc(e.realSite)}</b>)` : '';
+    if (e.kind === 'phishing') return `If you signed in or typed a password there, change that password now on the real site${real}, and anywhere else you use it. Then look for sign-ins or changes you do not recognise.`;
+    if (e.kind === 'crypto') return 'If you connected a wallet or signed anything there, remove that site’s permissions in your wallet and move what is left to a new wallet. Never type a recovery phrase into any site.';
+    if (e.kind === 'malware') return 'If you downloaded or opened anything from it, check that day’s downloads now. If you ran a program from it, run a full scan with your antivirus too.';
+    return 'If you paid or gave card details there, call your bank or card company on the number printed on your card and ask about a refund. Watch your statements for charges you did not make.';
+  }
+  function exposureItem(e) {
+    const day = new Date(e.visitedAt).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
+    const malware = e.kind === 'malware';
+    return `<li class="exposure">
+      <span class="list__icon" style="color:${esc(color(malware ? 'red' : 'orange'))}">${Masks.svg(malware ? 'malware' : 'scam')}</span>
+      <span class="list__main"><b>${esc(e.host)}</b><span>${esc(EXPOSURE_WHAT[e.kind] || 'Listed')} &middot; you visited it on ${esc(day)}, and a threat list named it ${esc(ago(e.listedAt))}.</span>
+        <span>${exposureSteps(e)}</span>
+        <span class="exposure__actions">
+          ${malware && desktop.checkDownloadsFrom ? `<button class="btn btn--sm btn--gold" data-exposure-downloads="${esc(String(e.visitedAt))}">Check that day&rsquo;s downloads</button>` : ''}
+          ${e.realSite ? `<a class="btn btn--sm btn--gold" href="https://${esc(e.realSite)}/" target="_blank" rel="noopener noreferrer">Go to ${esc(e.realSite)}</a>` : ''}
+          <button class="btn btn--sm" data-exposure-done="${esc(e.host)}">Done</button>
+        </span></span>
+    </li>`;
+  }
+  function exposurePanel(info, items) {
+    if (!desktop || !desktop.setExposureAlerts) return '';
+    const on = Boolean(info && info.exposureAlerts);
+    const supported = Boolean(info && info.live && info.live.supported);
+    return `<div class="panel u-mt" id="exposures">
+      <div class="panel__head"><div><h2>Sites you visited that were listed later</h2>
+        <p>A scam page often reaches the threat lists hours or days after it goes up. With this on, Sentinel remembers the sites live scanning found safe for 14 days, and tells you if a list names one of them afterwards, with what to do.</p></div>
+        <input class="switch" type="checkbox" data-exposure-alerts aria-label="Exposure alerts" ${on ? 'checked' : ''} ${supported ? '' : 'disabled'}></div>
+      ${items.length ? `<ul class="list">${items.map(exposureItem).join('')}</ul>`
+        : `<p class="muted u-mt-sm">${!supported ? 'Available on Windows, with live scanning.' : on ? 'Nothing so far. None of the sites you visited in the last 14 days has been put on a threat list since.' : 'Off. Nothing about the sites you visit is remembered.'}</p>`}
+      <ul class="live__facts">
+        <li>Kept on this computer as a scrambled code of each site&rsquo;s name and the day, never the address or the time, and erased after 14 days. Turning this off erases every one.</li>
+        <li>Private windows are never remembered. Pages on shared sites (a Google Sites page, a Netlify site) are left out, since one bad page there says nothing about the one you saw.</li>
+      </ul>
+    </div>`;
+  }
+  function bindExposures(slot) {
+    const sw = $('[data-exposure-alerts]', slot);
+    if (sw && !sw.disabled) sw.addEventListener('change', async () => {
+      try {
+        await desktop.setExposureAlerts(sw.checked);
+        try { localStorage.setItem('sentinel.exposureAsked', '1'); } catch { /* not stored */ }
+        toast(sw.checked ? 'Exposure alerts are on. Sentinel will tell you if a site you visit is listed later.' : 'Exposure alerts are off, and every remembered site is erased.', 'success');
+      } catch (err) { sw.checked = !sw.checked; toast(desktopError(err), 'error'); }
+      renderDesktopControls(slot);
+    });
+    $$('[data-exposure-done]', slot).forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await desktop.dismissExposure(b.dataset.exposureDone); renderDesktopControls(slot); }
+      catch (err) { b.disabled = false; toast(desktopError(err), 'error'); }
+    }));
+    $$('[data-exposure-downloads]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Checking', async () => {
+      try {
+        const r = await desktop.checkDownloadsFrom(Number(b.dataset.exposureDownloads));
+        const files = (n) => `${n} file${n === 1 ? '' : 's'}`;
+        toast(!r.checked ? 'Nothing arrived in Downloads around that day.'
+          : r.flagged ? `${r.flagged} of ${files(r.checked)} from that day ${r.flagged === 1 ? 'was' : 'were'} flagged. See the Defense log.`
+            : `${files(r.checked)} from that day checked. None was flagged.`, r.flagged ? 'error' : 'success');
+      } catch (err) { toast(desktopError(err), 'error'); }
+      renderDesktopControls(slot);
+    })));
+    if (desktop.onExposures) slot._off.push(desktop.onExposures(() => { if (slot.isConnected) renderDesktopControls(slot); }));
+  }
+  // Asked once, in the Windows app, once live scanning is in use: what exposure alerts do, then Turn on or Not now.
+  async function askExposureAlerts(slot) {
+    if (!slot || !desktop || !desktop.setExposureAlerts) return;
+    try { if (localStorage.getItem('sentinel.exposureAsked')) return; } catch { return; }
+    let info = state.desktopInfo;
+    try { if (!info) info = state.desktopInfo = await desktop.info(); } catch { return; }
+    if (info.exposureAlerts || !info.live || !info.live.supported || !info.live.enabled || !slot.isConnected) return;
+    slot.innerHTML = `<div class="locked u-mt">
+      <div><span class="locked__tag">${ICON.shield}New in Sentinel</span><h3>Hear about it if a site you visited turns out to be a scam</h3>
+        <p>Scam pages often reach the threat lists a day or two after they go up. Sentinel can remember the sites live scanning found safe for 14 days, on this computer only and as scrambled codes, and tell you if a list names one of them later, with what to change.</p></div>
+      <div class="locked__actions"><button class="btn btn--gold" data-exposure-yes>Turn on exposure alerts</button><button class="btn" data-exposure-no>Not now</button><a class="btn btn--ghost" href="/app/protection#exposures">How it works</a></div>
+    </div>`;
+    const done = () => { try { localStorage.setItem('sentinel.exposureAsked', '1'); } catch { /* not stored */ } slot.innerHTML = ''; };
+    $('[data-exposure-no]', slot).addEventListener('click', done);
+    $('[data-exposure-yes]', slot).addEventListener('click', async (ev) => {
+      ev.target.disabled = true;
+      try { await desktop.setExposureAlerts(true); toast('Exposure alerts are on. Sentinel will tell you if a site you visit is listed later.', 'success'); done(); }
+      catch (err) { ev.target.disabled = false; toast(desktopError(err), 'error'); }
+    });
+  }
+
   async function renderDesktopControls(slot) {
     let info;
     try { info = await desktop.info(); } catch { return; }
@@ -1451,6 +1541,8 @@
     const df = info.defense || { supported: false, active: false, reason: 'Not available' };
     let ledger = [];
     try { ledger = (await desktop.defense()).ledger || []; } catch { /* none */ }
+    let exposures = [];
+    try { if (desktop.exposures) exposures = await desktop.exposures(); } catch { /* none */ }
     // Left the page while waiting: subscribing now would leave listeners behind that nothing ever removes.
     if (!slot.isConnected) return;
     const browsers = (info.browsers && info.browsers.installed) || [];
@@ -1514,6 +1606,8 @@
         </div>
       </div>
 
+      ${exposurePanel(info, exposures)}
+
       ${chatSafetyPanel(info)}
 
       <div class="grid2 u-mt">
@@ -1551,7 +1645,14 @@
       const dl = $('#downloads', slot);
       if (dl) dl.scrollIntoView({ block: 'start' });
     }
+    // Opened from an exposure notification: straight to the sites and what to do, once.
+    if (location.hash === '#exposures' && !state.scrolledToExposures) {
+      state.scrolledToExposures = true;
+      const ex = $('#exposures', slot);
+      if (ex) ex.scrollIntoView({ block: 'start' });
+    }
     bindChatSafety(slot);
+    bindExposures(slot);
     const defEl = $('[data-defense]', slot);
     if (defEl && !defEl.disabled) defEl.addEventListener('change', async (ev) => {
       try {
