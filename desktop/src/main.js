@@ -30,6 +30,7 @@ const models = require('./models');
 const clipwatch = require('./clipwatch');
 const remoteguard = require('./remoteguard');
 const defense = require('./defense');
+const checkup = require('./checkup');
 const store = require('./store');
 const parentlock = require('./parentlock');
 const server = require('./server');
@@ -871,6 +872,32 @@ async function checkDownloadsFrom(day) {
   return { checked: files.length, flagged };
 }
 
+/**
+ * Browser checkup: every browser's add-ons, notification permissions, search engine and startup pages, read from its
+ * settings files on this computer (checkup.js, read only) and judged there. The site addresses it finds get the fast
+ * scan by address, as a private window's would (nothing goes into history); no site is opened. Nothing in a browser
+ * is changed: the person removes what they choose, in the browser.
+ */
+async function runCheckup() {
+  const result = await checkup.collect();
+  const urls = checkup.addressesOf(result);
+  const byUrl = {};
+  let sitesChecked = true;
+  for (let i = 0; i < urls.length; i += 60) {
+    try {
+      Object.assign(byUrl, (await apiCall('/api/v1/live/batch', { urls: urls.slice(i, i + 60), private: true, mode: 'fast' })).byUrl || {});
+    } catch (err) {
+      sitesChecked = false;
+      appLog(`checkup: site addresses could not be checked: ${err.status || ''} ${err.code || err.message}`);
+      break;
+    }
+  }
+  const addons = result.browsers.reduce((n, b) => n + b.profiles.reduce((m, p) => m + p.addons.length, 0), 0);
+  // Counts only: no add-on, site or address is written to the log.
+  appLog(`checkup: ${result.browsers.length} browser(s), ${addons} add-on(s), ${urls.length} site address(es) read`);
+  return { ...checkup.attach(result, byUrl), sitesChecked: sitesChecked || !urls.length, at: Date.now() };
+}
+
 // A file in Downloads is checked by download protection and by Defense: one notification about it, not two.
 const notifiedFiles = new Map();
 function notifyAboutFile(file, title, body, onClick) {
@@ -983,6 +1010,12 @@ function registerBridge() {
     return scanWith(id);
   });
 
+  handle('sentinel:checkup', () => runCheckup());
+  // "Open <browser>" beside a finding: brings it to the front, where the person removes what they choose.
+  handle('sentinel:checkup-open', (id) => {
+    if (typeof id !== 'string' || !browsers.BROWSERS.some((b) => b.id === id)) throw new Error('Unknown browser');
+    return browsers.bringForward(id, { raise: watch.raise });
+  });
   handle('sentinel:check-updates', () => updater.check());
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
   handle('sentinel:set-clipboard-check', (enabled) => { lock.guard('checking copied links off', !enabled); return setClipboardCheck(Boolean(enabled)); });

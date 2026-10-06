@@ -25,7 +25,7 @@ function buildRouter() {
 }
 
 // Clean URLs for the app shell: /app/scan, /app/settings ... all serve app.html.
-const APP_ROUTES = /^\/app(\/(scan|threats|email|history|sites|protection|plan|security|assistants|download))?\/?$/;
+const APP_ROUTES = /^\/app(\/(scan|threats|email|history|sites|protection|plan|security|assistants|download|checkup))?\/?$/;
 
 function createServer() {
   const router = buildRouter();
