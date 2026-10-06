@@ -107,13 +107,22 @@ function push(channel, payload) {
 
 /* Chat safety: Roblox and the Discord app, read on this computer only (chatwatch.js). */
 function chatSafetyStatus() {
-  return { enabled: store.get('chatSafety', false), running: chatwatch.running(), supported: process.platform === 'win32' };
+  return { enabled: store.get('chatSafety', false), running: chatwatch.running(), supported: process.platform === 'win32', seen: chatwatch.stats() };
+}
+// Roblox or Discord came to the front while chat safety is off: say once, for each, that Sentinel can watch it.
+const CHAT_APPS = { RobloxPlayerBeta: 'Roblox', Discord: 'Discord' };
+function offerChatSafety(processName) {
+  const name = CHAT_APPS[processName];
+  if (!name || process.platform !== 'win32' || store.get('chatSafety', false) || store.get(`chatOffered:${name}`, false)) return;
+  store.set(`chatOffered:${name}`, true);
+  notify(`${name} is open. Sentinel can watch its chat`, 'Chat safety points out scams and people who may not be safe to talk to, on this computer only. Click to turn it on.', () => showWindow('/app/protection#chat-safety'));
 }
 function startChatSafety() {
   chatwatch.start({
     // Only that it started or failed: never a message, a name or a game.
     log: (text) => appLog(text),
-    onState: (s) => chatoverlay.show(s)
+    onState: (s) => chatoverlay.show(s),
+    onSeen: () => push('sentinel:chat-safety', chatSafetyStatus())
   });
 }
 function setChatSafety(enabled) {
@@ -342,6 +351,7 @@ function refreshTray() {
     { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
     ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
     ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => setAutoScan(item.checked).catch(() => {}) }] : []),
+    ...(process.platform === 'win32' ? [{ label: 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { setChatSafety(item.checked); refreshTray(); } }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => setOpenAtLogin(item.checked) },
     { type: 'separator' },
     updateItem(up),
@@ -814,6 +824,7 @@ async function boot() {
     helperDll: path.join(app.getPath('userData'), 'reader-helper-2.dll'),
     // Development runs only: never honoured by an installed build.
     testProcess: app.isPackaged ? null : process.env.SENTINEL_TEST_PROCESS,
+    onFront: (name) => offerChatSafety(name),
     onChange: (s) => { refreshTray(); push('sentinel:live', { ...s, enabled: store.get('liveScanning', false) }); },
     // The browser in front (or none): the overlay follows it, and leaves with it.
     onWindow: (rect) => {

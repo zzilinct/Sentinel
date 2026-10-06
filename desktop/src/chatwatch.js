@@ -150,7 +150,11 @@ while ($true) {
         }
         $sig = ($out | ForEach-Object { $_.k + '|' + $_.y + '|' + $_.t.Length }) -join ';'
         if ($sig -ne $lastSig) { $lastSig = $sig; Write-Output (@{ app = 'discord'; title = [CW]::Title($h); win = $c; items = $out } | ConvertTo-Json -Compress -Depth 4) }
-      } else { $msgList = $null }
+      } else {
+        # No message list to read (Discord still building it, or a screen without one): said once, so the badge is honest.
+        $msgList = $null
+        if ($lastSig -ne 'nolist') { $lastSig = 'nolist'; Write-Output (@{ app = 'discord'; title = [CW]::Title($h); win = $c; items = @(); noList = $true } | ConvertTo-Json -Compress -Depth 4) }
+      }
     } else {
       # Roblox: the chat box sits in the top left of the window. It is read only when it changed, and less often
       # while chat is closed (the app says so: then only a glance for the box coming back).
@@ -281,6 +285,11 @@ const chats = new Map();      // a conversation per chat: game or channel
 const told = new Map();       // what was already pointed out, so a message is flagged once
 let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true };
 let logTimer = null;
+// How many messages were checked and flagged in each app since chat safety started: numbers only, never what they said.
+let seen = { discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, app: null, reading: false, at: 0 };
+let seenTimer = null;
+let saidNoList = false;
+function noteSeen() { if (!seenTimer) seenTimer = setTimeout(() => { seenTimer = null; if (opts && opts.onSeen) opts.onSeen(); }, 3000); }
 
 function chatFor(key, context) {
   if (!chats.has(key)) chats.set(key, conversation(context));
@@ -297,6 +306,9 @@ function judge(app, key, context, messages) {
     if (told.has(id)) { const f = told.get(id); if (f) flags.push({ ...f, rect: { x: m.x, y: m.y, w: m.w, h: m.h } }); continue; }
     const f = c.add({ who: m.who, text: m.text });
     told.set(id, f ? { ...f, app } : null);
+    seen[app].checked++;
+    if (f) seen[app].flagged++;
+    noteSeen();
     if (told.size > 2000) told.delete(told.keys().next().value);
     if (f) flags.push({ ...f, app, rect: { x: m.x, y: m.y, w: m.w, h: m.h } });
   }
@@ -305,15 +317,19 @@ function judge(app, key, context, messages) {
 
 function onMessage(msg) {
   if (msg.error) { opts.log(`chat safety: ${msg.error}`); return; }
-  if (msg.app === null) { opts.onState({ app: null }); return; }
+  if (msg.app === null) { seen.app = null; seen.reading = false; noteSeen(); opts.onState({ app: null }); return; }
+  seen.app = msg.app; seen.at = Date.now();
   if (msg.app === 'discord') {
     const ctx = discordContext(msg.title);
     // Messages are grouped under one name: a message with none belongs to the one above it.
     let who = '';
     const items = (msg.items || []).map((i) => { if (i.who) who = i.who; return { ...i, who: i.who || who, text: i.t }; });
     const key = `discord|${ctx.server}|${ctx.channel}`;
+    if (msg.noList && !saidNoList) { saidNoList = true; opts.log('chat safety: Discord is in front, but its message list cannot be read yet'); }
+    seen.reading = !msg.noList;
+    noteSeen();
     const flags = judge('discord', key, ctx, items);
-    opts.onState({ app: 'discord', win: msg.win, indicator: true, flags });
+    opts.onState({ app: 'discord', win: msg.win, indicator: true, reading: !msg.noList, flags });
     return;
   }
   if (msg.app === 'roblox') {
@@ -322,6 +338,8 @@ function onMessage(msg) {
     // A closed chat box is not read: the reader is told, and looks only for it coming back.
     if (open !== roblox.open) { roblox.open = open; send(open ? 'chat open' : 'chat closed'); }
     roblox.win = msg.win;
+    seen.reading = open;
+    noteSeen();
     roblox.area = msg.area;
     if (!open) { opts.onState(robloxState([])); return; }
     const ctx = roblox.inGame ? { ...(roblox.info || {}), place: roblox.placeId } : { game: 'Roblox app', description: 'friends and chat' };
@@ -386,7 +404,8 @@ function stop() {
   if (child) { try { child.kill(); } catch { /* gone */ } child = null; }
   chats.clear();
   told.clear();
+  seen = { discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, app: null, reading: false, at: 0 };
   if (opts) opts.onState({ app: null });
 }
 
-module.exports = { start, stop, running: () => Boolean(child), _test: { SCRIPT, robloxMessages, readLog, discordContext, judge } };
+module.exports = { start, stop, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)), _test: { SCRIPT, robloxMessages, readLog, discordContext, judge } };

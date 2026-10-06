@@ -92,3 +92,13 @@ test('system lines and the game\'s own messages are never judged', () => {
   const c = conversation({ game: 'Brookhaven' });
   for (const text of ['[System]: Welcome to Brookhaven!', 'Player123 has joined the game', 'secret_agent joined the server']) assert.equal(c.add({ who: 'system', text }), null);
 });
+
+test('a phone number said in chat is flagged; one from a scam area code is a scam; game numbers are not', () => {
+  const r = (text) => conversation({ game: 'Blox Fruits' }).add({ who: 'stranger', text, at: 1000 });
+  for (const t of ['call me 876-555-0123', 'text me at (473) 555 0199', '+1 809 555 0100', 'my number is 8765550123']) {
+    assert.equal(r(t) && r(t).level, 'danger', t);
+    assert.equal(r(t).family, 'scam', t);
+  }
+  for (const t of ['my number is 212-555-0147', 'hmu +447700900123']) assert.equal(r(t) && r(t).level, 'warn', t);
+  for (const t of ['place 1818 id 4924922222', 'i have 1500 robux and 20 pets', 'score 99-100', 'join code 4821']) assert.equal(r(t), null, t);
+});

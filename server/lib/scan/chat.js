@@ -55,6 +55,13 @@ const SIGNS = [
   { id: 'verify', family: 'scam', w: 4, re: /\b(verify (your|ur) (account|age|identity) (here|at|on|with|by)|(your|ur) account (will be|is going to be|gets) (banned|deleted|terminated|suspended)|(i|someone) (accidentally|mistakenly|by mistake) reported (you|u|your account))\b/i },
   { id: 'trade', family: 'scam', w: 3, re: /\b((you|u) (go|give) first|(trust|trust me) trade|send (it|them|the items?) first and i('?ll| will)|i('?ll| will) (give|send) (it )?back (later|after)|middle ?man)\b/i },
   { id: 'qr', family: 'scam', w: 4, re: /\b(scan (this|the|my) (qr|code)|qr code to (claim|get|verify|log ?in))\b/i },
+  // A phone number said in chat. Roblox and Discord are no place to hand one out, so any number is worth a warning.
+  // Numbers in the area codes consumer agencies name for "one ring" and callback scams (the BBB: 268 Antigua and
+  // Barbuda, 284 British Virgin Islands, 473 Grenada, 809 Dominican Republic, 876 Jamaica; the FCC: 649 Turks and
+  // Caicos; 829 and 849 are the Dominican Republic's other codes) and 900 pay-per-call numbers: calling back costs
+  // money per minute, so those are flagged as a scam outright.
+  { id: 'scamnum', family: 'scam', w: 5, re: /(?:\+?\b1[\s.-]?)?(?:\((?:268|284|473|649|809|829|849|876|900)\)|\b(?:268|284|473|649|809|829|849|876|900))[\s.-]?\d{3}[\s.-]?\d{4}\b/ },
+  { id: 'number', family: 'grooming', w: 3, re: /(?:\+\s?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\b[2-9]\d{2})[\s.-]?\d{3}[\s.-]?\d{4}\b|\+\d{8,15}\b/ },
   { id: 'download', family: 'scam', w: 3, re: /\b((download|install|run) (this|my|the) (exe|file|mod|script|executor|injector|hack|cheat|program)|(try|test) (my|this) (game|app|program) (and|&) (tell|lmk)|it'?s not a virus)\b/i }
 ];
 
@@ -90,6 +97,8 @@ function signsIn(text, kinds) {
     if (s.id === 'home' && kinds.roleplay && !real) w = 0;
     if (s.id === 'home' && real) w = 3;
     // In a trading game, trading words are ordinary: only "you go first" and a middleman stay suspicious.
+    // Ten digits run together are as often a game's place or player number: a phone number only with phone words.
+    if ((s.id === 'number' || s.id === 'scamnum') && /^\d+$/.test(s.re.exec(t)[0]) && !/\b(call|text|txt|number|num|phone|cell|whats ?app|dial|hmu|ring)\b/i.test(t)) w = 0;
     if (s.id === 'trade' && kinds.trading && !/\b(you|u) (go|give) first|send (it|them|the items?) first|i('?ll| will) (give|send) (it )?back\b/i.test(t)) w = 0;
     if (w > 0) found.push({ id: s.id, family: s.family, w });
   }
@@ -114,7 +123,8 @@ const WHAT = {
   meet: 'asked to meet in person', sexual: 'said something sexual to you', extort: 'threatened to share pictures',
   threat: 'threatened you in real life', freebie: 'offered free Robux, V-Bucks or Nitro', creds: 'asked for your password or a code',
   verify: 'said your account is in trouble', trade: 'asked you to trade first', qr: 'asked you to scan a code',
-  download: 'asked you to download or run something'
+  download: 'asked you to download or run something',
+  scamnum: 'posted a phone number from an area code known for phone scams (calling back can cost money)', number: 'shared a phone number'
 };
 
 /**

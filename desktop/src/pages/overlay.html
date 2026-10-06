@@ -60,6 +60,8 @@
   .mark.is-pending { width: 10px; height: 10px; border-radius: 3px; border: 0; box-shadow: none; background: #d6b25a; opacity: .0; animation: wait 1s ease-in-out infinite; }
   .mark.is-in { animation: pop .34s cubic-bezier(.2, 1.4, .4, 1) var(--d, 0ms) forwards; }
   @keyframes pop { 0% { opacity: 0; scale: .55; } 100% { opacity: 1; scale: 1; } }
+  /* A mark that has popped in once just shows when it comes back (scrolled away and back, or its verdict refined). */
+  .mark.is-on { opacity: 1; scale: 1; }
   @keyframes wait { 0%, 100% { opacity: .25; } 50% { opacity: .8; } }
 
   .tip { position: absolute; max-width: 300px; padding: 9px 12px; border-radius: 9px; background: rgba(12, 13, 16, .95); border: 1px solid rgba(255, 255, 255, .1);
@@ -102,6 +104,9 @@
   // One element per result, kept by the result's key: when scrolling brings new results in and takes others out,
   // the marks that stay are the same elements, untouched, and only newcomers pop in.
   var nodes = new Map();
+  // Results whose mark has already popped in. Scrolling re-reads the page, and a mark that left the screen and came
+  // back, or whose quick verdict was replaced by the researched one, was popping in again after every scroll.
+  var shown = new Set();
   var current = [];
   var labelTimer = null;
   var sweepTimer = null;
@@ -138,6 +143,8 @@
   // its verdict it thins out and is gone; never longer than five seconds, so a search is never just binary.
   var digging = null;
   var digTimer = null;
+  var digFrom = 0;
+  var DIG_MIN_MS = 2400;   // the quick verdicts are in within milliseconds: it digs at least this long all the same
   var DIG_COLOR = { yellow: 'yellow', orange: 'orange', red: 'red' };
   function digLinks() {
     return current.filter(function (m) { return !m.row; }).map(function (m) {
@@ -146,7 +153,8 @@
   }
   function startDig() {
     if (!window.SentinelBinary || digging) return;
-    digging = window.SentinelBinary.dig(null, { links: digLinks, density: 0.55 });
+    digging = window.SentinelBinary.dig(null, { links: digLinks });
+    digFrom = Date.now();
     clearTimeout(digTimer);
     digTimer = setTimeout(endDig, 5000);
   }
@@ -158,7 +166,11 @@
     d.finish();
   }
   // Everything checked: no result still waiting for its verdict.
-  function digCheck() { if (digging && current.length && !current.some(function (m) { return m.pending; })) setTimeout(endDig, 350); }
+  function digCheck() {
+    if (!digging || !current.length || current.some(function (m) { return m.pending; })) return;
+    clearTimeout(digTimer);
+    digTimer = setTimeout(endDig, Math.max(350, DIG_MIN_MS - (Date.now() - digFrom)));
+  }
 
   function clearMarks() {
     nodes.forEach(function (n) { n.remove(); });
@@ -224,9 +236,12 @@
       n.className = 'mark is-still' + (m.pending ? ' is-pending' : m.badge ? '' : ' is-clear');
       if (m.pending) { n.innerHTML = ''; return; }
       n.style.setProperty('--c', m.badge ? M.COLORS[m.badge] : M.COLORS.clear);
+      n.innerHTML = M.svg(m.badge ? m.kind : 'scam');
+      if (shown.has(key)) { n.classList.add('is-on'); return; }
+      if (shown.size > 2000) shown.clear();
+      shown.add(key);
       // A batch arriving together ripples in; a single newcomer during a scroll appears at once.
       n.style.setProperty('--d', Math.min(popped++, 14) * 45 + 'ms');
-      n.innerHTML = M.svg(m.badge ? m.kind : 'scam');
       void n.offsetWidth;
       n.classList.add('is-in');
     });

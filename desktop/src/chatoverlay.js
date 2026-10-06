@@ -52,6 +52,7 @@ function show(state) {
   last = {
     app: state.app,
     indicator: Boolean(state.indicator),
+    reading: state.reading !== false,
     inGame: Boolean(state.inGame),
     area: state.area ? local({ x: state.area[0], y: state.area[1], w: state.area[2], h: state.area[3] }) : null,
     flags: (state.flags || []).slice(0, 6).map((f) => ({ level: f.level, family: f.family, title: f.title, detail: f.detail, advice: f.advice, rect: local(f.rect) }))

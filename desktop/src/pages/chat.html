@@ -32,7 +32,7 @@
 </style>
 </head>
 <body>
-  <div class="badge" id="badge"><span id="badgeMask"></span><span>Sentinel is watching this chat</span></div>
+  <div class="badge" id="badge"><span id="badgeMask"></span><span id="badgeText">Sentinel is watching this chat</span></div>
   <div id="cards"></div>
 <script src="../../shared/masks.js"></script>
 <script>
@@ -48,6 +48,8 @@
   window.sentinelChat.onState(function (s) {
     document.body.className = (s.app || '') + (s.inGame ? ' in-game' : '');
     badge.classList.toggle('is-on', Boolean(s.indicator));
+    // Never claims to watch what it cannot read.
+    document.getElementById('badgeText').textContent = s.reading === false ? 'Sentinel cannot read this chat yet' : 'Sentinel is watching this chat';
     var W = window.innerWidth, H = window.innerHeight;
     var html = '';
     var taken = [];

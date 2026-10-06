@@ -857,7 +857,7 @@ function onLine(line) {
     return;
   }
   if (msg.raised || msg.noWindow) { const r = raiseWaiters.shift(); if (r) r(Boolean(msg.raised)); return; }
-  if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); return; }
+  if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); else if (opts.onFront) opts.onFront(msg.front); return; }
   if (msg.nodoc) { log(`${msg.browser} is in front, but Windows gave no page address (a start page, a dialog over the page, or the browser's accessibility is off)`); return; }
   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
   if (msg.awake) { log('in use again'); return; }

@@ -1325,12 +1325,24 @@
       <div class="panel__head"><div><h2>Chat safety: Roblox and Discord</h2>
         <p>Points out scams and people who may not be safe to talk to (someone asking a child to keep secrets, to send pictures, to move to another app, or to meet), right beside the message, while Roblox or the Discord app is in front.</p></div>
         <input class="switch" type="checkbox" data-chat-safety aria-label="Chat safety" ${cs.enabled ? 'checked' : ''} ${cs.supported ? '' : 'disabled'}></div>
+      <p class="muted u-mt-sm" data-chat-seen>${chatSeenText(cs)}</p>
       <ul class="list">
         <li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>Read on this computer only</b><span>Messages are read from the screen as they appear, judged here and forgotten. No message, name or game is sent to Sentinel or anyone else, saved, or logged.</span></span></li>
         <li><span class="list__icon">${Masks.svg('logo')}</span><span class="list__main"><b>Always plain to see</b><span>A Sentinel badge shows while chat is watched. In a Roblox game it shows only when you open the Esc menu, so it never covers the game; warnings sit small, beside the chat box.</span></span></li>
         <li><span class="list__icon">${ICON.check}</span><span class="list__main"><b>Never in the way</b><span>Nothing is read while a game's chat is closed. Sentinel never changes Roblox or Discord, never types or clicks in them, and only speaks up when a message is suspicious, using the game or server it is in to tell play from danger.</span></span></li>
       </ul>
     </div>`;
+  }
+  // What chat safety is doing right now, in numbers only: proof that it works, without a word of anyone's chat.
+  function chatSeenText(cs) {
+    if (!cs.enabled) return 'Off. Turn it on, then open Roblox or the Discord app.';
+    const s = cs.seen || {};
+    const name = { discord: 'Discord', roblox: 'Roblox' }[s.app];
+    const now = name ? (s.reading ? `Watching ${name} now.` : `${name} is in front, but its chat cannot be read yet.`) : 'On. It starts watching when Roblox or the Discord app is in front.';
+    const d = (s.discord && s.discord.checked) || 0, r = (s.roblox && s.roblox.checked) || 0;
+    const f = ((s.discord && s.discord.flagged) || 0) + ((s.roblox && s.roblox.flagged) || 0);
+    if (!d && !r) return now;
+    return `${now} Since Sentinel started: ${d} message${d === 1 ? '' : 's'} checked in Discord, ${r} in Roblox, ${f} flagged.`;
   }
   // Asked once, in the Windows app, before chat safety ever reads anything: what it does, then Turn on or Not now.
   async function askChatSafety(slot) {
@@ -1355,6 +1367,11 @@
   function bindChatSafety(slot) {
     const sw = $('[data-chat-safety]', slot);
     if (!sw || sw.disabled) return;
+    const line = $('[data-chat-seen]', slot);
+    if (line && desktop.onChatSafety) {
+      const off = desktop.onChatSafety((cs) => { if (cs) { line.textContent = chatSeenText(cs); sw.checked = Boolean(cs.enabled); } });
+      if (slot._off && typeof off === 'function') slot._off.push(off);
+    }
     sw.addEventListener('change', async () => {
       try {
         const s = await desktop.setChatSafety(sw.checked);

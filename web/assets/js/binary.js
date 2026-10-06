@@ -46,6 +46,33 @@
     return atlas;
   }
 
+  // Whole sheets of digits in each colour, drawn once, with the gaps of a broken signal: a block of binary is then
+  // one copy from a random place on a sheet instead of a hundred digits, so the screen can be full of it.
+  var PCOLS = 48;
+  var PROWS = 10;
+  var sheets = null;
+  function patches() {
+    if (sheets) return sheets;
+    var A = glyphs();
+    sheets = {};
+    Object.keys(COLORS).forEach(function (n) {
+      sheets[n] = [0, 1, 2].map(function () {
+        var c = document.createElement('canvas');
+        c.width = A.w * PCOLS; c.height = A.h * PROWS;
+        var g = c.getContext('2d');
+        for (var r = 0; r < PROWS; r++) {
+          for (var k = 0; k < PCOLS; k++) {
+            if (Math.random() < 0.18) continue;
+            g.globalAlpha = n === 'gold' ? 0.55 + Math.random() * 0.45 : 0.85 + Math.random() * 0.15;
+            g.drawImage(A.canvas, (Math.random() < 0.5 ? 0 : 1) * A.w, A.row[n] * A.h, A.w, A.h, k * A.w, r * A.h, A.w, A.h);
+          }
+        }
+        return c;
+      });
+    });
+    return sheets;
+  }
+
   function surface(host) {
     var c = document.createElement('canvas');
     c.className = 'binary-veil';
@@ -64,6 +91,7 @@
     var resolveFinish = null;
     if (reduced) return { finish: function () { return Promise.resolve(); }, stop: function () {} };
     var A = glyphs();
+    var S = patches();
     var canvas = surface(host || null);
     var ctx = canvas.getContext('2d');
     var W = 0, H = 0;
@@ -82,24 +110,30 @@
     function spawn(now, links) {
       // Most of the corruption lands on the links: that is what is being dug into.
       if (links.length && Math.random() < 0.5) {
-        var l = links[(Math.random() * links.length) | 0];
-        blocks.push({ x: l.x - 4, y: l.y - 2, w: l.w + 8, h: l.h + 4, until: now + 90 + Math.random() * 160, link: l });
+        var li = (Math.random() * links.length) | 0, l = links[li];
+        blocks.push({ x: l.x - 4, y: l.y - 2, w: l.w + 8, h: l.h + 4, until: now + 90 + Math.random() * 160, li: li });
         return;
       }
-      var bw = 40 + Math.random() * Math.min(340, W * 0.4);
-      var bh = CH * (1 + ((Math.random() * 6) | 0));
-      blocks.push({ x: Math.random() * (W - bw), y: Math.random() * (H - bh), w: bw, h: bh, until: now + 60 + Math.random() * 170 });
+      var bw = CW * Math.round((40 + Math.random() * Math.min(380, W * 0.45)) / CW);
+      var bh = CH * (1 + ((Math.random() * 8) | 0));
+      blocks.push({ x: CW * Math.floor(Math.random() * (W - bw) / CW), y: CH * Math.floor(Math.random() * (H - bh) / CH), w: bw, h: bh, until: now + 60 + Math.random() * 190 });
     }
 
-    function colorAt(x, y, links, now) {
-      for (var i = 0; i < links.length; i++) {
-        var l = links[i];
-        if (x >= l.x - 4 && x <= l.x + l.w + 4 && y >= l.y - 2 && y <= l.y + l.h + 2) {
-          // Until a link's verdict is in, its digits cycle through the colours.
-          return l.color || LINK_CYCLE[(((now / 130) | 0) + i) % LINK_CYCLE.length];
+    // Until a link's verdict is in, its digits cycle through the colours.
+    function linkColor(l, i, now) {
+      return l.color || LINK_CYCLE[(((now / 130) | 0) + i) % LINK_CYCLE.length];
+    }
+
+    // A block of digits: copies from a random place on a sheet, every frame, so the digits never sit still.
+    function paint(b, col) {
+      var list = S[col] || S.gold;
+      for (var y = 0; y < b.h; y += PROWS * CH) {
+        for (var x = 0; x < b.w; x += PCOLS * CW) {
+          var cols = Math.min(PCOLS, Math.ceil((b.w - x) / CW)), rows = Math.min(PROWS, Math.ceil((b.h - y) / CH));
+          var sx = ((Math.random() * (PCOLS - cols + 1)) | 0) * A.w, sy = ((Math.random() * (PROWS - rows + 1)) | 0) * A.h;
+          ctx.drawImage(list[(Math.random() * list.length) | 0], sx, sy, cols * A.w, rows * A.h, b.x + x, b.y + y, cols * CW, rows * CH);
         }
       }
-      return 'gold';
     }
 
     function frame(now) {
@@ -108,8 +142,8 @@
       var links = (opts.links ? opts.links() : []) || [];
       if (fading) intensity = Math.max(0, 1 - (now - fading) / 420);
       else intensity = Math.min(1, (now - start) / 140);
-      // About a fifth of the area at full strength, in quick, short-lived blocks.
-      var want = Math.round((W * H) / 24000 * intensity * (opts.density || 1)) + (fading ? 0 : 1);
+      // Nearly half the area at full strength (density 1 is about a fifth), in quick, short-lived blocks.
+      var want = Math.round((W * H) / 24000 * intensity * (opts.density || 2.6)) + (fading ? 0 : 1);
       blocks = blocks.filter(function (b) { return b.until > now; });
       while (blocks.length < want) spawn(now, links);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -117,20 +151,11 @@
       ctx.setTransform(A.dpr, 0, 0, A.dpr, 0, 0);
       for (var i = 0; i < blocks.length; i++) {
         var b = blocks[i];
-        ctx.globalAlpha = 0.8 * intensity;
+        ctx.globalAlpha = 0.72 * intensity;
         ctx.fillStyle = '#050403';
         ctx.fillRect(b.x, b.y, b.w, b.h);
-        var c0 = Math.floor(b.x / CW), c1 = Math.ceil((b.x + b.w) / CW);
-        var r0 = Math.floor(b.y / CH), r1 = Math.ceil((b.y + b.h) / CH);
-        for (var r = r0; r < r1; r++) {
-          for (var c = c0; c < c1; c++) {
-            if (Math.random() < 0.18) continue;      // gaps, like a broken signal
-            var x = c * CW, y = r * CH;
-            var col = colorAt(x + CW / 2, y + CH / 2, links, now);
-            ctx.globalAlpha = (col === 'gold' ? 0.55 + Math.random() * 0.45 : 0.85 + Math.random() * 0.15) * intensity;
-            ctx.drawImage(A.canvas, (Math.random() < 0.5 ? 0 : 1) * A.w, A.row[col] * A.h, A.w, A.h, x, y, CW, CH);
-          }
-        }
+        ctx.globalAlpha = intensity;
+        paint(b, b.li != null && links[b.li] ? linkColor(links[b.li], b.li, now) : 'gold');
       }
       ctx.globalAlpha = 1;
       if (fading && intensity <= 0) { stop(); if (resolveFinish) resolveFinish(); return; }
@@ -155,7 +180,9 @@
   }
 
   function burst(host, ms, opts) {
-    var d = dig(host, opts);
+    // A passing moment (a chapter arriving on the website), lighter than a scan digging in.
+    opts = opts || {};
+    var d = dig(host, { links: opts.links, density: opts.density || 1 });
     return new Promise(function (resolve) { setTimeout(function () { d.finish().then(resolve); }, ms || 900); });
   }
 
