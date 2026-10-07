@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const { SITUATIONS, STEPS, REPORT, plan, countryFor } = require('../web/assets/js/recover.js');
+const { SITUATIONS, STEPS, REPORT, plan, countryFor, happenedFrom } = require('../web/assets/js/recover.js');
 
 test('recovery guide: nothing ticked, no steps', () => {
   assert.deepEqual(plan([]), []);
@@ -54,4 +54,20 @@ test('recovery guide: plain words, official https places, no em dashes', () => {
   const page = fs.readFileSync(path.join(__dirname, '..', 'web', 'recover.html'), 'utf8');
   assert.ok(!page.includes('—') && !page.includes('&mdash;'), 'no em dashes on the page');
   assert.match(page, /<script src="\/assets\/js\/recover\.js"><\/script>/);
+});
+
+test('recovery guide: a link from a warning ticks what it was about, and nothing the page does not know', () => {
+  assert.deepEqual(happenedFrom('?happened=password'), ['password']);
+  assert.deepEqual(happenedFrom('?happened=remote,card,remote'), ['remote', 'card']);
+  assert.deepEqual(happenedFrom('?happened=<script>,bank'), ['bank']);
+  assert.deepEqual(happenedFrom(''), []);
+  assert.deepEqual(happenedFrom('?other=1'), []);
+  // Every place that links here asks only for situations the guide has.
+  const ids = new Set(SITUATIONS.map((s) => s.id));
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  for (const file of ['web/assets/js/ui.js', 'web/assets/js/app.js']) {
+    const map = /HAPPENED = \{([^}]*)\}/.exec(read(file));
+    assert.ok(map, `${file} has its HAPPENED map`);
+    for (const m of map[1].matchAll(/: '([a-z]+)'/g)) assert.ok(ids.has(m[1]), `${file}: ${m[1]}`);
+  }
 });

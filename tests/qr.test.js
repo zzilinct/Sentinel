@@ -292,6 +292,31 @@ test('wallet, payment, two-step, Wi-Fi and contact codes are explained', () => {
   assert.equal(classify('just some words').kind, 'text');
 });
 
+test('the secret in a code is taken out before it is sent, and the code is still called what it is', () => {
+  for (const [text, secret] of [
+    ['otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example', 'JBSWY3DPEHPK3PXP'],
+    ['otpauth://totp/Example:alice?issuer=Example&secret=JBSWY3DPEHPK3PXP', 'JBSWY3DPEHPK3PXP'],
+    ['WIFI:S:Cafe\\;Guest;T:WPA;P:hunter2;;', 'hunter2'],
+    ['WIFI:T:WPA;P:p\\;ss;S:Home;;', 'p\\;ss'],
+    ['tg://login?token=AQABC123secret', 'AQABC123secret'],
+    ['sgnl://linkdevice?uuid=abc123&pub_key=xyz789', 'xyz789'],
+    ['2@Qk3n2kd9AbCdEfGh,Zm9vYmFyYmF6cXV4,cXV1eHF1dXhxdXV4', 'Qk3n2kd9AbCdEfGh'],
+    ['https://discord.com/ra/Xk3jdk29dkdmmQ', 'Xk3jdk29dkdmmQ'],
+    ['https://s.team/q/1/1234567890123456789', '1234567890123456789'],
+    ['wc:8a5e5bdc-a0e4-4702-ba63-8f1a5655744f@2?relay-protocol=irn&symKey=abcdef0123', 'abcdef0123']
+  ]) {
+    const sent = QR.redact(text);
+    assert.ok(!sent.includes(secret), `${text} -> ${sent}`);
+    const before = classify(text);
+    const after = classify(sent);
+    assert.deepEqual([after.kind, after.app, after.tone], [before.kind, before.app, before.tone], text);
+  }
+  assert.match(classify(QR.redact('WIFI:S:Cafe\\;Guest;T:WPA;P:hunter2;;')).detail, /"Cafe;Guest"/);
+  assert.match(classify(QR.redact('otpauth://totp/Example:alice@example.com?secret=X&issuer=Example')).detail, /Example \(alice@example\.com\)/);
+  // Everything else goes as it is.
+  for (const text of ['https://example.com/a?b=c', 'bitcoin:bc1qabc?amount=1', 'tel:+18005551234', 'just some words']) assert.equal(QR.redact(text), text);
+});
+
 test('links are handed to the link scan', () => {
   for (const [text, host] of [['https://example.com/x', 'example.com'], ['HTTP://EXAMPLE.ORG', 'example.org'], ['www.example.net/a', 'www.example.net'], ['example.co.uk/menu', 'example.co.uk']]) {
     const c = classify(text);

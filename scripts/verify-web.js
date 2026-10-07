@@ -171,6 +171,7 @@ async function checkSite() {
           const r = document.querySelector('[data-try-out] .try__result');
           if (!r) { const e = document.querySelector('[data-try-out] .try__empty'); return e ? { error: e.textContent.trim() } : null; }
           return { title: r.querySelector('h3').textContent, host: r.querySelector('.try__head p').textContent, colour: r.style.getPropertyValue('--c'),
+            caveat: [...r.querySelectorAll('.try__caveat')].map((p) => p.textContent),
             threats: [...r.querySelectorAll('.try__threat')].map((t) => t.textContent.trim().replace(/\\s+/g, ' ')),
             why: [...r.querySelectorAll('.try__why li')].map((li) => li.textContent), foot: r.querySelector('.try__foot span').textContent };
         })()`);
@@ -185,8 +186,11 @@ async function checkSite() {
     const leaks = requests.slice(before).filter((r) => needles.some((n) => (r.url + r.post).toLowerCase().includes(n)));
     // Requests after typing: only the checker itself (engine.js and its word list) may load, from this host.
     const offHost = requests.slice(before).filter((r) => !r.url.startsWith(files.base) && !r.url.startsWith('data:'));
-    result(`site: ${SCAM} gets a warning`, Boolean(scam.title) && scam.title !== 'No threats found' && !/green/.test(scam.colour), scam);
-    result(`site: ${HONEST} gets a clear verdict`, honest.title === 'No threats found' && /green/.test(honest.colour), honest);
+    const CLEAN = 'No warning signs in the address';
+    result(`site: ${SCAM} gets a warning`, Boolean(scam.title) && scam.title !== CLEAN && scam.title !== 'No threats found' && !/green/.test(scam.colour), scam);
+    // Checked in the browser, with no threat list: never "No threats found" in green, and it says what was left out.
+    result(`site: ${HONEST} shows no warning signs, without claiming the threat lists were checked`,
+      honest.title === CLEAN && !/green/.test(honest.colour) && (honest.caveat || []).some((c) => /Threat lists were not checked here/.test(c)) && !(honest.caveat || []).some((c) => /did not run/.test(c)), honest);
     result('site: no request carries the typed link, and none leaves the page\'s host', !leaks.length && !offHost.length,
       [`requests after typing: ${requests.slice(before).map((r) => r.url.replace(files.base, '')).join(', ') || 'none'}`, ...leaks.map((r) => `leak: ${r.url}`), ...offHost.map((r) => `off host: ${r.url}`)]);
     result('site: no console errors', !errors.length, errors.length ? errors : `${version}, ${requests.length} requests`);

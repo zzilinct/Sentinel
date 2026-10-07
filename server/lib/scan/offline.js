@@ -88,7 +88,7 @@ function assess(p) {
     reasons: reasonsOf(checks).slice(0, 5).map((r) => ({ threat: r.threat, text: r.text })),
     known: know.known,
     discounted: false,
-    checks: { total: tally.total, failed: tally.failed, warned: tally.warned, passed: tally.passed }
+    checks: { total: tally.total, failed: tally.failed, warned: tally.warned, passed: tally.passed, skipped: tally.skipped }
   };
   return { verdict, checks };
 }

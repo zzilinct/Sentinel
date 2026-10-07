@@ -40,6 +40,7 @@ const q = {
                     ON CONFLICT(user_id, host_hash) DO UPDATE SET day = excluded.day`),
   marks: db.prepare('SELECT user_id, host_hash, reg_hash, day FROM visit_marks WHERE day >= ?'),
   forget: db.prepare('DELETE FROM visit_marks WHERE user_id = ?'),
+  forgetFound: db.prepare('DELETE FROM exposures WHERE user_id = ?'),
   expose: db.prepare(`INSERT OR IGNORE INTO exposures (user_id, host, threat, category, visited_day, listed_at)
                       VALUES (?, ?, ?, ?, ?, ?)`),
   list: db.prepare(`SELECT host, threat, category, visited_day, listed_at, notified_at FROM exposures
@@ -49,20 +50,35 @@ const q = {
 };
 
 const dayOf = (t) => Math.floor(t / DAY_MS) * DAY_MS;
+/**
+ * The calendar day of a visit where the person was, kept as that day's midnight UTC, so an evening visit in America
+ * is not told as the next day. `tz` is the app's Date.getTimezoneOffset() (minutes, UTC minus local); without one,
+ * this server's own, which is the person's when it is the app's own server on their computer.
+ */
+function localDay(at, tz) {
+  const offset = Number.isFinite(tz) && Math.abs(tz) <= 14 * 60 ? tz : new Date(at).getTimezoneOffset();
+  return dayOf(at - offset * 60 * 1000);
+}
 /** Hosts on shared platforms, where one listed page says nothing about the next. */
 const shared = (p) => Boolean(p.hosting) || isUserContent(p.host);
 const bare = (host) => String(host).toLowerCase().replace(/^www\./, '');
 
 /** A page live scanning found clean, for someone who switched exposure alerts on. Private windows never get here. */
-function remember(userId, url, at = now()) {
+function remember(userId, url, at = now(), tz) {
   const p = analyze(String(url));
   if (!p || shared(p)) return false;
-  q.mark.run(userId, hash(bare(p.host)), hash(bare(p.registrable)), dayOf(at));
+  q.mark.run(userId, hash(bare(p.host)), hash(bare(p.registrable)), localDay(at, tz));
   return true;
 }
 
-/** Switched off: every mark this account has goes at once. Exposures already found stay until dismissed. */
-function forget(userId) { return q.forget.run(userId).changes; }
+/**
+ * Switched off: every mark this account has goes at once, and so do the exposures already found, which name the
+ * listed sites in plain words. Returns how many marks went.
+ */
+function forget(userId) {
+  q.forgetFound.run(userId);
+  return q.forget.run(userId).changes;
+}
 
 /** Whether anyone has a mark at all: an import with nobody to tell skips the hashing. */
 function watching() { return Boolean(q.any.get()); }
@@ -87,7 +103,8 @@ function match(listed, at = now()) {
   let found = 0;
   for (const m of q.marks.all(at - KEEP_MARKS_MS)) {
     const hit = byHost.get(m.host_hash) || byDomain.get(m.reg_hash);
-    if (!hit || m.day > at) continue;
+    // A day kept as local midnight can be up to 14 hours ahead of UTC.
+    if (!hit || m.day > at + DAY_MS) continue;
     found += Number(q.expose.run(m.user_id, hit.host, hit.threat, hit.category || null, m.day, at).changes);
   }
   return found;

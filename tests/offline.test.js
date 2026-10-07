@@ -91,6 +91,21 @@ test('engine.js: the bundle the website loads gives the same answers, with the w
   // A host that already unpacked it (Content-Encoding: gzip) sends plain text.
   const plain = run(require('zlib').gunzipSync(gz));
   assert.equal((await plain.scan('https://overdrive.com/')).overall.badge, scanAddress('https://overdrive.com/').overall.badge);
+  // The word list did not arrive: the check still runs, says it is partial, and the next one fetches the list again.
+  let calls = 0;
+  const flaky = {};
+  vm.runInNewContext(engineBundle(), {
+    window: flaky,
+    document: { currentScript: { src: 'https://example.github.io/sentinel/assets/js/engine.js' } },
+    fetch: async () => { if (++calls === 1) throw new TypeError('Failed to fetch'); return { ok: true, arrayBuffer: async () => gz.buffer.slice(gz.byteOffset, gz.byteOffset + gz.byteLength) }; },
+    URL, Response, Blob, DecompressionStream, TextDecoder, console
+  });
+  const first = await flaky.SentinelEngine.scan('https://overdrive.com/');
+  assert.equal(first.partial, true);
+  const second = await flaky.SentinelEngine.scan('https://overdrive.com/');
+  assert.equal(calls, 2, 'fetched again');
+  assert.deepEqual(JSON.parse(JSON.stringify(second)), JSON.parse(JSON.stringify(scanAddress('https://overdrive.com/'))), 'and then the full check');
+  assert.equal((await flaky.SentinelEngine.scan('not a link')).ok, false);
   // Nothing in the bundle may reach a server or the page's storage.
   assert.doesNotMatch(engineBundle(), /XMLHttpRequest|sendBeacon|localStorage|indexedDB/);
 });

@@ -92,67 +92,91 @@
     return /^en\b/i.test(String(lang || '')) ? 'us' : 'other';
   }
 
-  if (typeof module === 'object' && module.exports) module.exports = { SITUATIONS, STEPS, REPORT, plan, countryFor };
+  /** What a link asked to be ticked (recover?happened=password,remote), only the ids this page knows. */
+  function happenedFrom(search) {
+    const raw = new URLSearchParams(search || '').get('happened') || '';
+    return [...new Set(raw.split(',').map((s) => s.trim()))].filter((id) => SITUATIONS.some((s) => s.id === id));
+  }
+
+  if (typeof module === 'object' && module.exports) module.exports = { SITUATIONS, STEPS, REPORT, plan, countryFor, happenedFrom };
   if (typeof document === 'undefined') return;
 
-  const root = document.querySelector('[data-recover]');
-  if (!root) return;
   const KEY = 'sentinel:recover';
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { saved = {}; }
-  const state = {
-    picked: Array.isArray(saved.picked) ? saved.picked : [],
-    done: Array.isArray(saved.done) ? saved.done : [],
-    country: REPORT[saved.country] ? saved.country : countryFor(navigator.language)
-  };
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private window: still works, just not remembered */ } };
+  /** The guide inside `root`: on the recover page, and inside the app (app.js, /app/recover). */
+  function mount(root, search) {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { saved = {}; }
+    const state = {
+      picked: Array.isArray(saved.picked) ? saved.picked : [],
+      done: Array.isArray(saved.done) ? saved.done : [],
+      country: REPORT[saved.country] ? saved.country : countryFor(navigator.language)
+    };
+    const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private window: still works, just not remembered */ } };
+    // Opened from a warning ("Already paid or let someone in?"): what it was about is ticked already, beside anything
+    // ticked on an earlier visit.
+    const asked = happenedFrom(search);
+    if (asked.some((id) => !state.picked.includes(id))) { state.picked = [...new Set([...state.picked, ...asked])]; save(); }
 
-  const picks = root.querySelector('[data-recover-picks]');
-  const out = root.querySelector('[data-recover-plan]');
-  const country = root.querySelector('[data-recover-country]');
+    const picks = root.querySelector('[data-recover-picks]');
+    const out = root.querySelector('[data-recover-plan]');
+    const country = root.querySelector('[data-recover-country]');
 
-  picks.innerHTML = SITUATIONS.map((s) => `<label class="recover__pick"><input type="checkbox" value="${s.id}"${state.picked.includes(s.id) ? ' checked' : ''}><span>${esc(s.label)}</span></label>`).join('');
-  country.innerHTML = Object.entries(REPORT).map(([id, c]) => `<option value="${id}"${id === state.country ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+    picks.innerHTML = SITUATIONS.map((s) => `<label class="recover__pick"><input type="checkbox" value="${s.id}"${state.picked.includes(s.id) ? ' checked' : ''}><span>${esc(s.label)}</span></label>`).join('');
+    country.innerHTML = Object.entries(REPORT).map(([id, c]) => `<option value="${id}"${id === state.country ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
 
-  function draw() {
-    const steps = plan(state.picked);
-    if (!steps.length) {
-      out.innerHTML = '<p class="recover__empty">Tick what happened above, and your steps appear here, most urgent first.</p>';
-      return;
+    const progress = (steps) => `${steps.filter((s) => state.done.includes(s.id)).length} of ${steps.length} done`;
+
+    function draw() {
+      const steps = plan(state.picked);
+      if (!steps.length) {
+        out.innerHTML = '<p class="recover__empty">Tick what happened above, and your steps appear here, most urgent first.</p>';
+        return;
+      }
+      const groups = WHEN.map((title, w) => {
+        const items = steps.filter((s) => s.when === w);
+        if (!items.length) return '';
+        return `<h3>${title}</h3><ol class="recover__steps">${items.map((s) => `<li><label><input type="checkbox" data-step="${s.id}"${state.done.includes(s.id) ? ' checked' : ''}><span>${esc(s.text)}</span></label>${s.id === 'report' ? `<ul class="recover__report" data-recover-report>${reportList()}</ul>` : ''}</li>`).join('')}</ol>`;
+      }).join('');
+      out.innerHTML = `<p class="recover__progress" aria-live="polite" data-recover-progress>${progress(steps)}</p>${groups}`;
     }
-    const done = steps.filter((s) => state.done.includes(s.id)).length;
-    const groups = WHEN.map((title, w) => {
-      const items = steps.filter((s) => s.when === w);
-      if (!items.length) return '';
-      return `<h3>${title}</h3><ol class="recover__steps">${items.map((s) => `<li><label><input type="checkbox" data-step="${s.id}"${state.done.includes(s.id) ? ' checked' : ''}><span>${esc(s.text)}</span></label>${s.id === 'report' ? reportList() : ''}</li>`).join('')}</ol>`;
-    }).join('');
-    out.innerHTML = `<p class="recover__progress" aria-live="polite">${done} of ${steps.length} done</p>${groups}`;
-  }
 
-  function reportList() {
-    const c = REPORT[state.country];
-    return `<ul class="recover__report">${c.places.map(([label, url]) => `<li>${url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : esc(label)}</li>`).join('')}</ul>`;
-  }
+    function reportList() {
+      const c = REPORT[state.country];
+      return c.places.map(([label, url]) => `<li>${url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : esc(label)}</li>`).join('');
+    }
 
-  picks.addEventListener('change', () => {
-    state.picked = [...picks.querySelectorAll('input:checked')].map((i) => i.value);
-    save(); draw();
-  });
-  out.addEventListener('change', (ev) => {
-    const id = ev.target.dataset && ev.target.dataset.step;
-    if (!id) return;
-    state.done = ev.target.checked ? [...new Set([...state.done, id])] : state.done.filter((d) => d !== id);
-    save(); draw();
-  });
-  country.addEventListener('change', () => { state.country = country.value; save(); draw(); });
-  root.querySelector('[data-recover-print]').addEventListener('click', () => window.print());
-  root.querySelector('[data-recover-reset]').addEventListener('click', () => {
-    state.picked = []; state.done = [];
-    try { localStorage.removeItem(KEY); } catch { /* nothing kept */ }
-    picks.querySelectorAll('input').forEach((i) => { i.checked = false; });
+    picks.addEventListener('change', () => {
+      state.picked = [...picks.querySelectorAll('input:checked')].map((i) => i.value);
+      save(); draw();
+    });
+    // Ticking a step changes only that step and the count, so focus and a screen reader's place stay where they were.
+    out.addEventListener('change', (ev) => {
+      const id = ev.target.dataset && ev.target.dataset.step;
+      if (!id) return;
+      state.done = ev.target.checked ? [...new Set([...state.done, id])] : state.done.filter((d) => d !== id);
+      save();
+      const line = out.querySelector('[data-recover-progress]');
+      if (line) line.textContent = progress(plan(state.picked));
+    });
+    country.addEventListener('change', () => {
+      state.country = country.value;
+      save();
+      const list = out.querySelector('[data-recover-report]');
+      if (list) list.innerHTML = reportList();
+    });
+    root.querySelector('[data-recover-print]').addEventListener('click', () => window.print());
+    root.querySelector('[data-recover-reset]').addEventListener('click', () => {
+      state.picked = []; state.done = [];
+      try { localStorage.removeItem(KEY); } catch { /* nothing kept */ }
+      picks.querySelectorAll('input').forEach((i) => { i.checked = false; });
+      draw();
+    });
     draw();
-  });
-  draw();
+  }
+
+  window.SentinelRecover = { mount };
+  const root = document.querySelector('[data-recover]');
+  if (root) mount(root, location.search);
 })();
