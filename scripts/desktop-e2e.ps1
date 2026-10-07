@@ -131,6 +131,31 @@ Get-Process RobloxPlayerBeta -ErrorAction SilentlyContinue | Stop-Process -Force
 # Messages tab (scripts/e2e-chat/phonelink.html). This proves the reader and the judging; the real Phone Link's
 # layout has not been checked against it.
 function Texts { return (Info 'info()').textSafety.seen }
+# When a check fails: what the reader itself writes for the stand-in in front (its texts are harmless stand-ins), and
+# the tabs Windows describes in it.
+function PlDiag {
+  $diag = Join-Path $env:RUNNER_TEMP 'pl-diag.js'
+  @'
+const { spawn } = require('child_process');
+const t = require(process.argv[2])._test;
+const child = spawn('powershell.exe', t.LAUNCH, { windowsHide: true });
+let out = '', err = '';
+child.stdout.on('data', (d) => { out += d; });
+child.stderr.on('data', (d) => { err += d; });
+child.stdin.write(`${Buffer.from(t.SCRIPT, 'utf8').toString('base64')}\napps phonelink\n`);
+setTimeout(() => { console.log(`stdout: ${out.slice(0, 4000)}\nstderr: ${err.slice(0, 2000)}`); child.kill(); process.exit(0); }, 8000);
+'@ | Set-Content -Path $diag -Encoding utf8
+  node $diag (Resolve-Path (Join-Path $PSScriptRoot '..\desktop\src\chatwatch.js')).Path | ForEach-Object { Say "  reader: $_" }
+  Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+  $p = Get-Process PhoneExperienceHost -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  if ($p) {
+    $all = [System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle).FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($e in $all) {
+      $c = $e.Current
+      if ($c.Name -match '^(Messages|Calls)' -or $c.ControlType.ProgrammaticName -match 'Tab|List\b') { Say "  uia: $($c.ControlType.ProgrammaticName) '$($c.Name)' $($c.BoundingRectangle) patterns: $(($e.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName }) -join ',')" }
+    }
+  }
+}
 $t0 = Texts
 Say "texts before: $($t0 | ConvertTo-Json -Compress)"
 Say "Phone Link in front (a scam text): $(Fake 'PhoneExperienceHost' 'phonelink.html?c=scam')"
@@ -142,6 +167,7 @@ Check 'texts-scam-flagged' ($ok -and $ts.flagged -eq 1) "texts flagged: $($ts.fl
 Check 'texts-links-checked' ($ts.unchecked -eq 0) "links that could not be checked: $($ts.unchecked) $($ts.why)"
 $o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className + '|' + document.getElementById('badgeText').textContent").value
 Check 'texts-overlay' ($o -match '^1\|phonelink\|') "chat overlay over Phone Link (warnings|app|badge): $o"
+if (-not ($ts.checked -eq 2 -and $ts.flagged -eq 1)) { PlDiag }
 Get-Process PhoneExperienceHost -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep 3
 Say "Phone Link in front (a short code): $(Fake 'PhoneExperienceHost' 'phonelink.html?c=code')"
@@ -155,6 +181,7 @@ $ok = Until 20 { (Texts).otherTab -eq $true }
 Start-Sleep 4; $ts = Texts
 Shot 'phonelink-calls'
 Check 'texts-other-tab' ($ok -and $ts.checked -eq 3 -and $ts.flagged -eq 1) "with the Calls tab open: $($ts.checked) checked, $($ts.flagged) flagged (nothing new read)"
+if (-not ($ts.checked -eq 3)) { PlDiag }
 Get-Process PhoneExperienceHost -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 $log = AppLog
 Check 'chat-log-private' (-not ($log -match '876-555|robux-gen|our secret|Player1|Stranger|555-0199|usps-redeliver|72166|Hi Mum')) 'app.log holds no message, name or number'

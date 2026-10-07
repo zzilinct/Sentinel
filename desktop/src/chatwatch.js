@@ -109,7 +109,7 @@ $itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdPr
 # Windows PowerShell, so the loop would stop at the first read until the app sent its next command.
 $stdin = $in
 $pending = $stdin.ReadLineAsync()
-$lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}
+$lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}; $plSeen = 0
 # Which apps were switched on: the others are never read, even in front.
 $apps = @('discord', 'roblox')
 while ($true) {
@@ -177,7 +177,9 @@ while ($true) {
       # list of conversations on the left edge, or, in a narrow window where the conversation fills it, the list with
       # the message box under it.
       if ((-not $msgList -or $msgFor -ne $h) -and ($msgFor -ne $h -or [Environment]::TickCount -gt $nextList)) {
-        $msgList = $null; $msgFor = $h; $nextList = [Environment]::TickCount + 5000; $best = [double]::MinValue; $msgTab = $null; $whoKeys = @{}
+        # A window just opened may not have described itself yet: looked at again every second for its first seconds.
+        if ($msgFor -ne $h) { $plSeen = [Environment]::TickCount }
+        $msgList = $null; $msgFor = $h; $nextList = [Environment]::TickCount + $(if ([Environment]::TickCount - $plSeen -lt 6000) { 1000 } else { 5000 }); $best = [double]::MinValue; $msgTab = $null; $whoKeys = @{}
         $found = $A::FromHandle($h).FindAll([System.Windows.Automation.TreeScope]::Descendants, $plCond)
         $lists = @(); $edits = @()
         foreach ($e in $found) {
@@ -253,10 +255,10 @@ while ($true) {
           }
           Write-Output (@{ app = 'phonelink'; who = $who; win = $c; items = $out } | ConvertTo-Json -Compress -Depth 4)
         }
-      } else {
-        # No conversation list Windows can describe: the conversation side of the window is read with the text
-        # recogniser instead, only when it changed, as Roblox's chat box is. A narrow window shows the conversation
-        # alone, so all of it is read.
+      } elseif ([Environment]::TickCount - $plSeen -gt 6000) {
+        # No conversation list Windows can describe, even after a few seconds (reading it twice, both ways, would judge
+        # each text twice): the conversation side of the window is read with the text recogniser instead, only when it
+        # changed, as Roblox's chat box is. A narrow window shows the conversation alone, so all of it is read.
         $cut = if ($c[2] -lt 760) { 0 } else { [int]($c[2] * 0.3) }
         $px = $c[0] + $cut; $pw = $c[2] - $cut
         $p = Print $px $c[1] $pw $c[3]
