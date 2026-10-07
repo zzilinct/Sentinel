@@ -1,4 +1,4 @@
-# The browser checkup (desktop/src/checkup.js) against the real default profiles of Chrome, Edge and Firefox on a
+# The browser checkup (desktop/src/checkup.js) against the real default profiles of Chrome, Edge, Firefox, Opera and Opera GX on a
 # GitHub-hosted Windows runner (scripts/verify-checkup.js). It changes those profiles, so it never runs on a
 # person's computer.
 name: Browser checkup end to end
@@ -14,7 +14,7 @@ permissions:
 jobs:
   checkup:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,6 +26,28 @@ jobs:
         working-directory: desktop
         run: npm ci
       - run: node desktop/scripts/sync-shared.js
+      # Opera and Opera GX are not on the runner: their own installers, per user, quietly. If a download fails the
+      # check says it skipped them.
+      - name: Install Opera and Opera GX
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          foreach ($b in @(@{ name = 'Opera'; url = 'https://net.geo.opera.com/opera/stable/windows' }, @{ name = 'Opera GX'; url = 'https://net.geo.opera.com/opera_gx/stable/windows' })) {
+            $setup = Join-Path $env:RUNNER_TEMP ("setup-" + ($b.name -replace ' ', '') + ".exe")
+            try {
+              Invoke-WebRequest -Uri $b.url -OutFile $setup -UseBasicParsing
+              $p = Start-Process $setup -ArgumentList '--silent', '--allusers=0', '--launchopera=0', '--setdefaultbrowser=0', '--desktopshortcut=0', '--startmenushortcut=0', '--pintotaskbar=0' -PassThru
+              if (-not $p.WaitForExit(600000)) { Write-Host "$($b.name): installer still running after 10 minutes" }
+              Write-Host "$($b.name): installer exited $($p.ExitCode)"
+              # The download stub can hand over to the full installer and return first.
+              $dir = Join-Path $env:LOCALAPPDATA "Programs\$($b.name)"
+              for ($i = 0; $i -lt 60 -and -not (Get-ChildItem $dir -Filter opera.exe -Recurse -Depth 1 -ErrorAction SilentlyContinue | Where-Object { $_.DirectoryName -ne $dir }); $i++) { Start-Sleep 5 }
+              Start-Sleep 10
+            } catch { Write-Host "$($b.name): $($_.Exception.Message)" }
+          }
+          # An installer that starts the browser anyway would hold the profile the check needs.
+          Get-Process opera, opera_autoupdate, opera_crashreporter -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-ChildItem "$env:LOCALAPPDATA\Programs\Opera*" -Filter opera.exe -Recurse -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
       - name: Set things up in each browser's default profile
         run: node scripts/verify-checkup.js prepare --out e2e-checkup
       - name: Checkup, in Node

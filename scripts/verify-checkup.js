@@ -7,10 +7,13 @@
  *   node scripts/verify-checkup.js prepare [--out dir]   Chrome and Edge: their default profile, over the DevTools
  *                                                        pipe: a site allowed (and one blocked) to send
  *                                                        notifications, a start page, Bing as the search engine, and
- *                                                        test add-ons. Firefox: a profile with the same
- *                                                        notification permissions, a home page, a store add-on (and an
- *                                                        unsigned one, which release Firefox refuses).
- *   node scripts/verify-checkup.js check [--out dir]     Runs checkup.collect() and addressesOf() on those profiles,
+ *                                                        test add-ons. Opera and Opera GX, when installed: an add-on.
+ *                                                        Firefox: a profile listed in profiles.ini with the same
+ *                                                        notification permissions, a home page, a search engine
+ *                                                        nobody knows, a store add-on (and an unsigned one, which
+ *                                                        release Firefox refuses), and a left-behind profile folder.
+ *   node scripts/verify-checkup.js check [--out dir]     Runs checkup.collectAside() (on a worker thread, as the app
+ *                                                        does), collect() and addressesOf() on those profiles,
  *                                                        asserts what they find and how they judge it, and that not
  *                                                        one byte of any browser file changed.
  *
@@ -34,13 +37,32 @@ const ROAMING = process.env.APPDATA;
 const C = {
   allow: 'https://example-notify.test:443', block: 'https://blocked-notify.test:443',
   startup: 'https://startup-page.test/',
+  search: 'https://find.search-checkup.test/q?s={searchTerms}',
   amo: 'https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi'
 };
+// Opera installs a launcher beside its version folders: the browser itself is the newest version's opera.exe (the
+// launcher would not pass the DevTools pipe on).
+function operaExe(folder) {
+  for (const base of [path.join(LOCAL, 'Programs', folder), path.join(process.env.ProgramFiles || 'C:\\Program Files', folder)]) {
+    let versions = [];
+    try { versions = fs.readdirSync(base).filter((n) => /^\d+\.\d+/.test(n) && fs.existsSync(path.join(base, n, 'opera.exe'))); } catch { continue; }
+    versions.sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+    if (versions.length) return path.join(base, versions[versions.length - 1], 'opera.exe');
+    if (fs.existsSync(path.join(base, 'opera.exe'))) return path.join(base, 'opera.exe');
+  }
+  return null;
+}
+// `lite`: Opera's settings pages are its own, so only an add-on is put in. Its one profile is the folder itself.
 const BROWSERS = [
   { id: 'chrome', userData: path.join(LOCAL, 'Google', 'Chrome', 'User Data'), settings: 'chrome://settings' },
-  { id: 'edge', userData: path.join(LOCAL, 'Microsoft', 'Edge', 'User Data'), settings: 'edge://settings' }
+  { id: 'edge', userData: path.join(LOCAL, 'Microsoft', 'Edge', 'User Data'), settings: 'edge://settings' },
+  { id: 'opera', exe: operaExe('Opera'), userData: path.join(ROAMING, 'Opera Software', 'Opera Stable'), lite: true },
+  { id: 'operagx', exe: operaExe('Opera GX'), userData: path.join(ROAMING, 'Opera Software', 'Opera GX Stable'), lite: true }
 ];
-const FF_PROFILE = path.join(ROAMING, 'Mozilla', 'Firefox', 'Profiles', 'chk00001.default-release');
+const FF_ROOT = path.join(ROAMING, 'Mozilla', 'Firefox');
+const FF_PROFILE = path.join(FF_ROOT, 'Profiles', 'chk00001.default-release');
+// A profile folder profiles.ini does not list: what a removed profile leaves behind. Its add-on must not be shown.
+const FF_STALE = path.join(FF_ROOT, 'Profiles', 'chk00002.left-behind');
 const FF_ADDON_ID = 'video-saver@checkup.test';
 
 // The test add-ons. A: from a folder, every site and cookies. B: forced in by a start command, a bank's name.
@@ -133,9 +155,9 @@ const STEPS = {
 };
 
 async function prepareChromium(b) {
-  const exe = (CANDIDATES[b.id] || []).map(expand).find((p) => fs.existsSync(p));
+  const exe = b.exe !== undefined ? b.exe : (CANDIDATES[b.id] || []).map(expand).find((p) => fs.existsSync(p));
   if (!exe) return { id: b.id, error: 'not installed' };
-  const out = { id: b.id, exe, userData: b.userData };
+  const out = { id: b.id, exe, userData: b.userData, lite: Boolean(b.lite) };
   // The default profile of the runner's own user: the real files, where a person's browser keeps them. Chrome and
   // Edge 136+ refuse DevTools on their default folder (so other programs cannot steal cookies through it); the same
   // folder is reached here through a junction, which they do not take for the default.
@@ -145,9 +167,9 @@ async function prepareChromium(b) {
   fs.symlinkSync(b.userData, via, 'junction');
   out.via = via;
   const child = spawn(exe, [
-    '--headless=new', `--user-data-dir=${via}`, '--profile-directory=Default',
+    '--headless=new', `--user-data-dir=${via}`, ...(b.lite ? [] : ['--profile-directory=Default']),
     '--remote-debugging-pipe', '--enable-unsafe-extension-debugging',
-    '--disable-features=DisableLoadExtensionCommandLineSwitch', `--load-extension=${extDir('B')}`,
+    ...(b.lite ? [] : ['--disable-features=DisableLoadExtensionCommandLineSwitch', `--load-extension=${extDir('B')}`]),
     '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--enable-logging=stderr', 'about:blank'
   ], { stdio: ['ignore', 'ignore', fs.openSync(path.join(OUT, `${b.id}-stderr.txt`), 'w'), 'pipe', 'pipe'] });
   child.on('error', (e) => log(`${b.id}: ${e.message}`));
@@ -176,31 +198,34 @@ async function prepareChromium(b) {
     // does not take what was set before it along.
     await sleep(11000);
 
-    // Each setting on its own page of the browser's settings, the way a person gets there, so the page itself
-    // has started the handler it needs (Chrome crashes when a handler is driven before its page started it).
-    const open = async (page) => {
-      const { targetId } = await send('Target.createTarget', { url: `${b.settings}/${page}` });
-      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-      let ready = false;
-      for (let i = 0; i < 80 && !ready; i++) {
-        await sleep(250);
-        ready = await send('Runtime.evaluate', { expression: "document.readyState === 'complete' && typeof chrome !== 'undefined' && typeof chrome.send === 'function'", returnByValue: true }, sessionId).then((r) => r.result.value, () => false);
-      }
-      await sleep(1500);
-      return sessionId;
-    };
-    let sessionId = await open('content/notifications');
-    await step('init', () => evalIn(sessionId, STEPS.init));
-    await step('notifications', () => evalIn(sessionId, STEPS.notifications(C)));
-    await step('startup', () => evalIn(sessionId, STEPS.startup(C)));
-    await sleep(11000);
-    sessionId = await open('searchEngines');
-    await step('initSearch', () => evalIn(sessionId, STEPS.init));
-    await step('searchList', () => evalIn(sessionId, STEPS.searchList));
-    if (out.searchList.ok) await step('search', () => evalIn(sessionId, STEPS.search));
-    else out.search = out.searchList;
-    await step('extC', () => send('Extensions.loadUnpacked', { path: extDir('C') }).then((r) => r.id));
-    await sleep(2000);
+    // Opera: an add-on only; its settings pages are its own.
+    if (!b.lite) {
+      // Each setting on its own page of the browser's settings, the way a person gets there, so the page itself
+      // has started the handler it needs (Chrome crashes when a handler is driven before its page started it).
+      const open = async (page) => {
+        const { targetId } = await send('Target.createTarget', { url: `${b.settings}/${page}` });
+        const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+        let ready = false;
+        for (let i = 0; i < 80 && !ready; i++) {
+          await sleep(250);
+          ready = await send('Runtime.evaluate', { expression: "document.readyState === 'complete' && typeof chrome !== 'undefined' && typeof chrome.send === 'function'", returnByValue: true }, sessionId).then((r) => r.result.value, () => false);
+        }
+        await sleep(1500);
+        return sessionId;
+      };
+      let sessionId = await open('content/notifications');
+      await step('init', () => evalIn(sessionId, STEPS.init));
+      await step('notifications', () => evalIn(sessionId, STEPS.notifications(C)));
+      await step('startup', () => evalIn(sessionId, STEPS.startup(C)));
+      await sleep(11000);
+      sessionId = await open('searchEngines');
+      await step('initSearch', () => evalIn(sessionId, STEPS.init));
+      await step('searchList', () => evalIn(sessionId, STEPS.searchList));
+      if (out.searchList.ok) await step('search', () => evalIn(sessionId, STEPS.search));
+      else out.search = out.searchList;
+      await step('extC', () => send('Extensions.loadUnpacked', { path: extDir('C') }).then((r) => r.id));
+      await sleep(2000);
+    }
     await send('Browser.close').catch(() => {});
   } catch (err) {
     out.error = err.message;
@@ -211,8 +236,9 @@ async function prepareChromium(b) {
   await sleep(3000);   // helper processes letting go of the profile
   // What the browser wrote, for the record (and the artifact).
   for (const f of ['Preferences', 'Secure Preferences']) {
-    const src = path.join(b.userData, 'Default', f);
-    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(OUT, `${b.id}-${f.replace(' ', '-')}.json`));
+    // Opera keeps its profile in the folder itself, or a Default in it.
+    const src = [path.join(b.userData, 'Default', f), path.join(b.userData, f)].find((x) => fs.existsSync(x));
+    if (src) { fs.copyFileSync(src, path.join(OUT, `${b.id}-${f.replace(' ', '-')}.json`)); out[`where ${f}`] = src; }
   }
   return out;
 }
@@ -223,6 +249,16 @@ async function prepareFirefox() {
   if (!FIREFOX) return { id: 'firefox', error: 'not installed' };
   const out = { id: 'firefox', exe: FIREFOX, profile: FF_PROFILE };
   fs.mkdirSync(path.join(FF_PROFILE, 'extensions'), { recursive: true });
+  // The profile is listed in profiles.ini, as Firefox's profile manager lists the ones it made; the left-behind one
+  // is not, and holds an add-on the checkup would flag if it read that folder.
+  const ini = path.join(FF_ROOT, 'profiles.ini');
+  const had = fs.existsSync(ini) ? fs.readFileSync(ini, 'utf8') : '[General]\r\nStartWithLastProfile=1\r\nVersion=2\r\n';
+  const n = (had.match(/^\[Profile\d+\]/gm) || []).length;
+  fs.writeFileSync(ini, `${had.replace(/\s*$/, '')}\r\n\r\n[Profile${n}]\r\nName=checkup\r\nIsRelative=1\r\nPath=Profiles/${path.basename(FF_PROFILE)}\r\n`);
+  out.profilesIni = fs.readFileSync(ini, 'utf8');
+  fs.mkdirSync(FF_STALE, { recursive: true });
+  fs.writeFileSync(path.join(FF_STALE, 'extensions.json'), JSON.stringify({ addons: [{ id: 'stale@checkup.test', type: 'extension', location: 'app-profile', active: true, signedState: 0, defaultLocale: { name: 'Stale Toolbar Checkup' }, userPermissions: { permissions: ['cookies'], origins: ['<all_urls>'] } }] }));
+  fs.writeFileSync(path.join(FF_STALE, 'prefs.js'), 'user_pref("browser.startup.homepage", "https://stale-home.test/");\n');
   // An unsigned add-on, put in the profile's own add-on folder the way other programs side-load them.
   const zip = path.join(OUT, 'd.zip');
   execFileSync(path.join(process.env.SystemRoot, 'System32', 'tar.exe'), ['-a', '-c', '-f', zip, '-C', extDir('D'), 'manifest.json']);
@@ -257,7 +293,38 @@ async function prepareFirefox() {
             const install = await AddonManager.getInstallForURL(C.amo, { telemetryInfo: { source: 'amo' } });
             store = brief(await install.install());
           } catch (e) { store = { error: String(e) }; }
-          return { unsigned, store };
+          // A search engine nobody knows, made the default the way the person would (Firefox writes
+          // search.json.mozlz4). addUserEngine took (name, url, alias) before it took one object: both are tried.
+          const search = { tried: [] };
+          try {
+            // Firefox 156 has neither Services.search nor the old XPCOM contract here: the search service is a
+            // module of its own. Each way is tried, and what was found is reported.
+            const ways = [
+              () => Services.search,
+              () => ChromeUtils.importESModule('resource://gre/modules/Services.sys.mjs').Services.search,
+              () => { const m = ChromeUtils.importESModule('moz-src:///toolkit/components/search/SearchService.sys.mjs'); search.exports = Object.keys(m); return m.SearchService && (typeof m.SearchService.init === 'function' ? m.SearchService : null); },
+              () => { const m = ChromeUtils.importESModule('resource://gre/modules/SearchService.sys.mjs'); search.exports = Object.keys(m); return m.SearchService && (typeof m.SearchService.init === 'function' ? m.SearchService : null); },
+              () => Cc['@mozilla.org/browser/search-service;1'].getService(Ci.nsISearchService)
+            ];
+            let ss = null;
+            for (const way of ways) { try { ss = way(); } catch (e) { search.tried.push(String(e).slice(0, 160)); } if (ss) break; }
+            if (!ss) throw new Error('no search service');
+            await ss.init();
+            for (const call of [() => ss.addUserEngine({ name: 'Find Checkup', url: C.search, alias: '' }), () => ss.addUserEngine('Find Checkup', C.search, '')]) {
+              try { await call(); } catch (e) { search.tried.push(String(e).slice(0, 200)); }
+              if (ss.getEngineByName('Find Checkup')) break;
+            }
+            let engine = ss.getEngineByName('Find Checkup');
+            // Without it, one of Firefox's own engines: the file is still decoded, judged as Firefox's own.
+            if (!engine) { engine = ss.getEngineByName('Bing'); search.fallback = 'Bing'; }
+            // CHANGE_REASON_USER, which was 1 on nsISearchService; the module may name it itself.
+            const reason = ss.CHANGE_REASON_USER !== undefined ? ss.CHANGE_REASON_USER : (ss.CHANGE_REASON && ss.CHANGE_REASON.USER) || 1;
+            await ss.setDefault(engine, reason);
+            search.name = (await ss.getDefault()).name;
+            const { setTimeout } = ChromeUtils.importESModule('resource://gre/modules/Timer.sys.mjs');
+            await new Promise((r) => setTimeout(r, 3000));
+          } catch (e) { search.error = String(e); }
+          return { unsigned, store, search };
         })().then(done, (e) => done({ error: String(e) }));`,
       args: [C, FF_ADDON_ID], sandbox: 'system'
     });
@@ -271,7 +338,7 @@ async function prepareFirefox() {
   out.cleanExit = await exited(child, 30000);
   if (!out.cleanExit) child.kill();
   await sleep(2000);
-  for (const f of ['extensions.json', 'prefs.js']) {
+  for (const f of ['extensions.json', 'prefs.js', 'search.json.mozlz4']) {
     const src = path.join(FF_PROFILE, f);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(OUT, `firefox-${f}`));
   }
@@ -307,7 +374,7 @@ async function check() {
   const POLICY = 'HKCU\\Software\\Policies\\Google\\Chrome\\ExtensionInstallForcelist';
   execFileSync('reg', ['add', POLICY, '/v', '1', '/t', 'REG_SZ', '/d', 'abcdefghijklmnopabcdefghijklmnop;https://updates.checkup.test/u.xml', '/f']);
 
-  const roots = [...BROWSERS.map((b) => b.userData), FF_PROFILE, path.join(OUT, 'ext')];
+  const roots = [...BROWSERS.map((b) => b.userData), FF_ROOT, path.join(OUT, 'ext')];
   const before = hashTree(roots);
   await sleep(3000);
   const settled = hashTree(roots);
@@ -315,15 +382,22 @@ async function check() {
   const tmpBefore = tempLeftovers();
 
   let result;
+  let inThread;
   try {
-    result = await checkup.collect({ managed: false });
+    // As the app runs it: on a worker thread. Then on this thread, which must find the same.
+    result = await checkup.collectAside({ managed: false });
+    inThread = await checkup.collect({ managed: false });
   } finally {
     execFileSync('reg', ['delete', 'HKCU\\Software\\Policies\\Google\\Chrome', '/f']);
   }
   const urls = checkup.addressesOf(result);
   const after = hashTree(roots);
   fs.writeFileSync(path.join(OUT, `result-${process.versions.electron ? 'electron' : 'node'}.json`), JSON.stringify({ runtime, managedDetected: checkup._test.isManaged(), result, urls }, null, 2));
-  console.log(`\n${runtime}: ${result.browsers.length} browser(s); detected managed=${checkup._test.isManaged()}`);
+  console.log(`\n${runtime}: ${result.browsers.length} browser(s); detected managed=${checkup._test.isManaged()}; not checked: ${result.unchecked.join(', ') || 'none'}`);
+  expect(JSON.stringify(result) === JSON.stringify(inThread), 'the worker thread finds what the main thread finds');
+  expect(['Opera', 'Opera GX'].every((n) => result.looked.includes(n)), `Opera and Opera GX are looked for (${result.looked.join(', ')})`);
+  const everyAddon = result.browsers.flatMap((b) => b.profiles.flatMap((p) => p.addons));
+  expect(!everyAddon.some((a) => a.name === 'Stale Toolbar Checkup'), 'a Firefox profile folder profiles.ini does not list is left out');
 
   const ours = new Set(['Coupon Helper Checkup', 'PayPal Wallet Checkup', 'Weather Tab Checkup', 'Video Saver Checkup', 'uBlock Origin']);
   // Edge's settings page is its own: Chromium's site settings and search engine handlers do not answer there.
@@ -365,6 +439,29 @@ async function check() {
         expect(d.hosts.includes('<all_urls>') && d.permissions.includes('cookies'), `firefox: its sites and powers are read (hosts=${d.hosts} permissions=${d.permissions})`);
         expect(d.badge === 'orange' && ['A02', 'A06', 'A07'].every((id) => reasonIds(d).includes(id)), `firefox: judged orange for A02, A06, A07 (${d.badge} ${reasonIds(d)})`);
       }
+      expect(prof.name === 'checkup', `firefox: the profile carries its name from profiles.ini (${prof.name})`);
+      // search.json.mozlz4, written by Firefox itself, decoded and judged.
+      const s = r.search || {};
+      if (s.name === 'Find Checkup') {
+        expect(prof.search && prof.search.name === 'Find Checkup' && prof.search.host === 'find.search-checkup.test' && prof.search.badge === 'yellow', `firefox: the search engine it was set to is read from search.json.mozlz4 and judged yellow (${JSON.stringify(prof.search)})`);
+        wanted.push('https://find.search-checkup.test/');
+      } else if (s.name === 'Bing') {
+        console.log(`NOTE  firefox: no engine of its own could be added (${JSON.stringify(s.tried)}), so Bing, one of Firefox's own, was set`);
+        expect(prof.search && prof.search.name === 'Bing' && prof.search.known === true && !prof.search.badge, `firefox: Bing is read from search.json.mozlz4 and left alone (${JSON.stringify(prof.search)})`);
+      } else {
+        expect(false, `firefox: a default search engine could be set (${JSON.stringify(s)})`);
+      }
+    } else if (p.lite) {
+      // Opera and Opera GX: the profile in the folder itself, an add-on put in over DevTools.
+      expect(b.places.addons === 'opera://extensions' && b.open === 'opera', `${label}: its pages are Opera's, and "Open" opens Opera (${b.places.addons}, ${b.open})`);
+      console.log(`      ${label}: Preferences at ${p['where Preferences'] || 'nowhere'}`);
+      const a = addon('Coupon Helper Checkup');
+      if (p.extA && p.extA.ok) {
+        expect(Boolean(a) && a.source === 'unpacked' && a.badge === 'yellow' && reasonIds(a) === 'A03,A07', `${label}: the add-on loaded from a folder is found and judged yellow for A03 and A07 (${a ? `${a.source} ${a.badge} ${reasonIds(a)}` : 'not found'})`);
+      } else {
+        console.log(`NOTE  ${label}: no add-on could be loaded over DevTools (${JSON.stringify(p.extA || p.error)}), so only its own add-ons were read`);
+      }
+      continue;
     } else {
       const a = addon('Coupon Helper Checkup');
       expect(Boolean(a), `${label}: the add-on loaded from a folder is found (${JSON.stringify(p.extA)})`);

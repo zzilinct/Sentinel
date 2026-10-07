@@ -179,7 +179,7 @@ test('the whole checkup: judged, addresses gathered for the fast scan, verdicts 
   const { tmp, local, roaming } = fixtureRoots();
   try {
     const policies = async (key) => (key === 'Google\\Chrome' ? ['ExtensionInstallForcelist'] : []);
-    const result = await checkup.collect({ local, roaming, policies, managed: false });
+    const result = await checkup.collect({ local, roaming, policies, managed: false, present: async () => [] });
     assert.deepEqual(result.browsers.map((b) => b.id), ['chrome', 'firefox']);
     const chrome = result.browsers[0];
     assert.equal(chrome.policies.badge, 'orange');
@@ -207,6 +207,110 @@ test('the checkup only reads: no browser file is written, and it is wired read-o
   const src = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src', 'checkup.js'), 'utf8');
   assert.doesNotMatch(src, /writeFile|appendFile|rename|unlink|\bspawn\(|reg', \['(add|delete)/, 'checkup.js writes nothing outside its own temporary copy');
   const main = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src', 'main.js'), 'utf8');
-  assert.match(main, /apiCall\('\/api\/v1\/live\/batch', \{ urls: urls\.slice\(i, i \+ 60\), private: true, mode: 'fast' \}\)/, 'sites are checked by address, kept out of history');
+  assert.match(main, /apiCall\('\/api\/v1\/live\/batch', \{ urls: urls\.slice\(i, i \+ 60\), private: true, mode: 'fast', purpose: 'checkup' \}\)/, 'sites are checked by address, kept out of history, without spending live-scanning minutes');
+  assert.match(main, /checkup\.collectAside\(\)/, 'the files are read on a worker thread, not the app\'s main process');
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src', 'preload.js'), 'utf8'), /browserCheckup:/);
+});
+
+// Firefox keeps its search engine in a mozLz4 file: written here as one LZ4 block of literals, which is valid LZ4.
+function mozLz4Literal(text) {
+  const buf = Buffer.from(text, 'utf8');
+  const head = Buffer.alloc(12);
+  head.write('mozLz40\0', 'latin1');
+  head.writeUInt32LE(buf.length, 8);
+  const ext = [];
+  if (buf.length >= 15) { let n = buf.length - 15; while (n >= 255) { ext.push(255); n -= 255; } ext.push(n); }
+  return Buffer.concat([head, Buffer.from([Math.min(buf.length, 15) << 4, ...ext]), buf]);
+}
+
+test('mozLz4: literals and back-references are decoded, a broken file is refused', () => {
+  const { mozLz4 } = checkup._test;
+  const head = Buffer.alloc(12);
+  head.write('mozLz40\0', 'latin1');
+  head.writeUInt32LE(12, 8);
+  // "abc", then 9 bytes copied from 3 back: the overlapping copy LZ4 uses for runs.
+  assert.equal(mozLz4(Buffer.concat([head, Buffer.from([0x35, 0x61, 0x62, 0x63, 3, 0])])).toString(), 'abcabcabcabc');
+  const long = JSON.stringify({ engines: Array.from({ length: 40 }, (_, i) => ({ _name: `e${i}` })) });
+  assert.equal(mozLz4(mozLz4Literal(long)).toString(), long);
+  assert.throws(() => mozLz4(Buffer.from('not a mozlz4 file')));
+  assert.throws(() => mozLz4(Buffer.concat([head, Buffer.from([0x15, 0x61, 9, 0])])), /bad block/, 'a reference before the start');
+});
+
+test('Firefox: the search engine from search.json.mozlz4, only profiles in profiles.ini, sync add-ons from the store', async () => {
+  const { tmp, local, roaming, fox } = fixtureRoots();
+  try {
+    const ffRoot = path.join(roaming, 'Mozilla', 'Firefox');
+    fs.writeFileSync(path.join(ffRoot, 'profiles.ini'), '[Install308046B0AF4A39CB]\r\nDefault=Profiles/abcd1234.default-release\r\n\r\n[Profile0]\r\nName=Work\r\nIsRelative=1\r\nPath=Profiles/abcd1234.default-release\r\n\r\n[General]\r\nVersion=2\r\n');
+    // A leftover folder profiles.ini no longer lists, with an add-on that would be flagged.
+    const stale = path.join(ffRoot, 'Profiles', 'zzzz9999.old');
+    writeJson(path.join(stale, 'extensions.json'), { addons: [{ id: 'old@example', type: 'extension', location: 'app-profile', active: true, signedState: 0, defaultLocale: { name: 'Old Toolbar' } }] });
+    // Newer Firefox: the default named by id. A user engine nobody knows.
+    fs.writeFileSync(path.join(fox, 'search.json.mozlz4'), mozLz4Literal(JSON.stringify({
+      version: 10, metaData: { defaultEngineId: 'u1', defaultEngineIdHash: 'x' },
+      engines: [{ id: 'google', _name: 'Google', _isAppProvided: true }, { id: 'u1', _name: 'Find It', _loadPath: '[user]', _urls: [{ template: 'https://find.it-search.example/q?s={searchTerms}', params: [] }] }]
+    })));
+    const data = JSON.parse(fs.readFileSync(path.join(fox, 'extensions.json'), 'utf8'));
+    data.addons.push({ id: 'synced@example', type: 'extension', location: 'app-profile', active: true, signedState: 2, installTelemetryInfo: { source: 'sync' }, defaultLocale: { name: 'Synced' } });
+    fs.writeFileSync(path.join(fox, 'extensions.json'), JSON.stringify(data));
+
+    const result = await checkup.collect({ local, roaming, policies: async () => [], managed: false, present: async () => [{ name: 'DuckDuckGo' }, { name: 'Firefox', data: [{}] }] });
+    const ff = result.browsers.find((b) => b.id === 'firefox');
+    assert.deepEqual(ff.profiles.map((p) => p.name), ['Work'], 'the name from profiles.ini; the leftover folder is left out');
+    const p = ff.profiles[0];
+    assert.equal(p.search.name, 'Find It');
+    assert.equal(p.search.host, 'find.it-search.example');
+    assert.equal(p.search.badge, 'yellow');
+    assert.equal(p.addons.find((a) => a.id === 'synced@example').source, 'store');
+    assert.ok(checkup.addressesOf(result).includes('https://find.it-search.example/'));
+    assert.deepEqual(result.unchecked, ['DuckDuckGo'], 'a browser it cannot read is named, not left out');
+    assert.ok(result.looked.includes('Opera GX'));
+
+    // Firefox's own engines are known by its list, whatever their address; older files name the default instead.
+    fs.writeFileSync(path.join(fox, 'search.json.mozlz4'), mozLz4Literal(JSON.stringify({
+      version: 6, metaData: { current: 'Amazon.com', hash: 'x' }, engines: [{ _name: 'Amazon.com', _loadPath: '[app]amazondotcom@search.mozilla.org', _urls: [{ template: 'https://www.amazon.com/s?k={searchTerms}' }] }]
+    })));
+    const again = await checkup.collect({ local, roaming, policies: async () => [], managed: false, present: async () => [] });
+    const s = again.browsers.find((b) => b.id === 'firefox').profiles[0].search;
+    assert.equal(s.name, 'Amazon.com');
+    assert.equal(s.known, true);
+    assert.equal(s.badge, null);
+    // No choice made: the browser's own default, nothing to show.
+    fs.writeFileSync(path.join(fox, 'search.json.mozlz4'), mozLz4Literal(JSON.stringify({ version: 10, metaData: {}, engines: [{ id: 'google', _name: 'Google', _isAppProvided: true }] })));
+    assert.equal(checkup._test.geckoSearch(fox), null);
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('Opera and Opera GX: one profile in the folder itself, read from the one browser list', async () => {
+  const { tmp, local, roaming } = fixtureRoots();
+  try {
+    const { BROWSERS } = require('../desktop/src/browsers');
+    assert.ok(BROWSERS.find((b) => b.id === 'opera').data.some((d) => d.name === 'Opera GX'));
+    // Opera 137 keeps a Default folder and its add-ons under extensions.opsettings (seen on CI); older ones, neither.
+    for (const [dir, ext, sub, key] of [['Opera Stable', 'oooo', '', 'settings'], ['Opera GX Stable', 'gggg', 'Default', 'opsettings']]) {
+      const root = path.join(roaming, 'Opera Software', dir, sub);
+      writeJson(path.join(root, 'Preferences'), { session: { restore_on_startup: 4, startup_urls: [`https://${ext}.example/`] } });
+      writeJson(path.join(root, 'Secure Preferences'), { extensions: { [key]: { [ext]: { location: 4, path: path.join(tmp, `${ext}-addon`) } } } });
+      writeJson(path.join(tmp, `${ext}-addon`, 'manifest.json'), { name: `Addon ${ext}`, version: '1', host_permissions: ['<all_urls>'] });
+    }
+    const result = await checkup.collect({ local, roaming, policies: async () => [], managed: false, present: async () => [] });
+    const opera = result.browsers.find((b) => b.id === 'opera');
+    const gx = result.browsers.find((b) => b.id === 'operagx');
+    assert.equal(gx.name, 'Opera GX');
+    assert.equal(gx.open, 'opera', '"Open" brings Opera forward, the one browser Windows knows');
+    assert.equal(opera.places.addons, 'opera://extensions');
+    assert.deepEqual(opera.profiles[0].addons.map((a) => [a.id, a.source, a.badge]), [['oooo', 'unpacked', 'yellow']]);
+    assert.deepEqual(gx.profiles[0].startup, ['https://gggg.example/']);
+    assert.deepEqual(gx.profiles[0].addons.map((a) => a.id), ['gggg']);
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('collectAside reads on a worker thread and gives the same answer', async () => {
+  const { tmp, local, roaming } = fixtureRoots();
+  try {
+    const result = await checkup.collectAside({ local, roaming, managed: false });
+    const chrome = result.browsers.find((b) => b.id === 'chrome');
+    assert.ok(chrome.profiles[0].addons.some((a) => a.id === 'cccc' && a.badge === 'orange'));
+    assert.ok(result.browsers.some((b) => b.id === 'firefox'));
+    assert.ok(Array.isArray(result.unchecked));
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 });

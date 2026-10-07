@@ -10,15 +10,23 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 
+// `data`: where the browser keeps its settings on Windows, for the browser checkup (checkup.js). `local` is under
+// %LOCALAPPDATA%, `roaming` under %APPDATA%. Chromium keeps profiles in "User Data\Default" and "Profile 1"; Opera
+// has kept its profile in the folder itself, and Opera 137 in a Default there (`flat`: both). Gecko lists its profiles in profiles.ini there. `scheme`: the
+// browser's own pages (chrome://extensions); `policy`: its key under Software\Policies.
 const BROWSERS = [
-  { id: 'chrome', name: 'Google Chrome', process: 'chrome', engine: 'chromium' },
-  { id: 'edge', name: 'Microsoft Edge', process: 'msedge', engine: 'chromium' },
-  { id: 'brave', name: 'Brave', process: 'brave', engine: 'chromium' },
-  { id: 'opera', name: 'Opera', process: 'opera', engine: 'chromium' },
-  { id: 'vivaldi', name: 'Vivaldi', process: 'vivaldi', engine: 'chromium' },
+  { id: 'chrome', name: 'Google Chrome', process: 'chrome', engine: 'chromium', scheme: 'chrome', policy: 'Google\\Chrome', data: [{ local: ['Google', 'Chrome', 'User Data'] }] },
+  { id: 'edge', name: 'Microsoft Edge', process: 'msedge', engine: 'chromium', scheme: 'edge', policy: 'Microsoft\\Edge', data: [{ local: ['Microsoft', 'Edge', 'User Data'] }] },
+  { id: 'brave', name: 'Brave', process: 'brave', engine: 'chromium', scheme: 'brave', policy: 'BraveSoftware\\Brave', data: [{ local: ['BraveSoftware', 'Brave-Browser', 'User Data'] }] },
+  {
+    id: 'opera', name: 'Opera', process: 'opera', engine: 'chromium', scheme: 'opera', policy: null,
+    data: [{ roaming: ['Opera Software', 'Opera Stable'], flat: true }, { id: 'operagx', name: 'Opera GX', roaming: ['Opera Software', 'Opera GX Stable'], flat: true }]
+  },
+  { id: 'vivaldi', name: 'Vivaldi', process: 'vivaldi', engine: 'chromium', scheme: 'vivaldi', policy: null, data: [{ local: ['Vivaldi', 'User Data'] }] },
+  // A Microsoft Store app on WebView2: its settings are not in a place the checkup can read yet, so it says so.
   { id: 'duckduckgo', name: 'DuckDuckGo', process: 'duckduckgo', engine: 'webview2' },
-  { id: 'firefox', name: 'Firefox', process: 'firefox', engine: 'gecko' },
-  { id: 'librewolf', name: 'LibreWolf', process: 'librewolf', engine: 'gecko' }
+  { id: 'firefox', name: 'Firefox', process: 'firefox', engine: 'gecko', policy: 'Mozilla\\Firefox', data: [{ roaming: ['Mozilla', 'Firefox'] }] },
+  { id: 'librewolf', name: 'LibreWolf', process: 'librewolf', engine: 'gecko', policy: null, data: [{ roaming: ['librewolf'] }] }
 ];
 
 // Where each browser's executable usually is. The Windows registry is checked
