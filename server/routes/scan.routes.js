@@ -27,6 +27,7 @@ const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
 const { ALL_CHECKS } = require('../lib/scan/checklist');
 
 const ALL = ['scam', 'virus', 'malware'];
+const UNMETERED = new Set(['texts', 'checkup', 'clipboard']);
 
 const REPORT_CATEGORIES = new Set([
   'phishing', 'fake_store', 'crypto_scam', 'tech_support_scam', 'investment_scam',
@@ -201,6 +202,17 @@ function register(router) {
     const body = await readJson(req);
     const urls = Array.isArray(body.urls) ? body.urls.map(String).filter((u) => u.length < 4096).slice(0, 60) : [];
     if (!urls.length) throw new HttpError(400, 'missing_urls', 'Provide urls: string[]');
+    // Links found by the Windows app outside the browser (a text in Phone Link, the browser checkup, a copied link)
+    // are not browsing: they get the fast, private check against the lists and never spend live-scanning minutes.
+    if (UNMETERED.has(body.purpose)) {
+      security.rateLimit(`links:${user.id}`, 30, 60 * 1000, 'Too many links to check in a minute. Wait a moment, then try again.');
+      const plan = plans.planFor(user);
+      const verdicts = await engine.scanUrls(urls, { userId: user.id, planId: plan.id, research: false, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: false });
+      const byUrl = {};
+      for (const v of verdicts) byUrl[v.requested] = v;
+      sendJson(res, 200, { byUrl, mode: 'fast', fellBack: null, researched: false, live: liveUsage(user, plan) });
+      return;
+    }
     security.rateLimit(`live:${user.id}`, 240, 60 * 1000);
     // Only a request that will be answered counts as a minute of live scanning.
     const { plan, mode, fellBack } = plans.trackLive(user, body.mode);

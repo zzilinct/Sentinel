@@ -320,6 +320,12 @@ test('delicate hours run out: protection carries on in fast mode and says so; fa
   assert.ok(out.status === 200 || out.status === 429);
   assert.equal(none.status, 429, JSON.stringify(none.data));
   assert.equal(none.data.error.code, 'live_hours_exhausted');
+  // A link in a text (or the checkup, or a copied link) is not browsing: still checked, and no minute is spent.
+  const usedBefore = (await d.get('/api/v1/auth/me')).data.usage.fastMinutes.used;
+  const text = await d.post('/api/v1/live/batch', { urls: ['https://paypa1-secure-login.com/'], mode: 'fast', private: true, purpose: 'texts' });
+  assert.equal(text.status, 200, JSON.stringify(text.data));
+  assert.equal(text.data.byUrl['https://paypa1-secure-login.com/'].ok, true);
+  assert.equal((await d.get('/api/v1/auth/me')).data.usage.fastMinutes.used, usedBefore);
 });
 
 test('file scanner through the API flags a known malicious sample', async () => {
