@@ -3,7 +3,7 @@
  * Gathers everything the desktop app ships that lives elsewhere in the repo:
  *
  *   shared/   the on-device file scanner and its lists (download protection), chat safety's, text messages' and the
- *             browser checkup's rules
+ *             browser checkup's rules, and the after-a-scam steps the tech-support scam shield shows
  *   assets/   icons
  *   bundle/   the whole Sentinel server and website, so the app can run the
  *             product by itself with nothing hosted anywhere
@@ -48,6 +48,7 @@ for (const file of ['filescan.js', 'lists.js', 'brands.js', 'chat.js', 'clickfix
 }
 copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SHARED, 'masks.js'));
 copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'binary.js'), path.join(SHARED, 'binary.js'));
+copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), path.join(SHARED, 'steps.js'));
 
 for (const size of [16, 32, 48, 128, 256, 512]) {
   const src = path.join(ROOT, 'extension', 'icons', `icon${size}.png`);

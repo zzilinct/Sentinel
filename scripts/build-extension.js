@@ -29,6 +29,8 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SRC, 'src', 'content', 'masks.js'));
 // And for the ClickFix command rules: the engine's copy, the same one the Windows app uses.
 fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'clickfix.js'), path.join(SRC, 'src', 'content', 'clickfix.js'));
+// And for what to do after a scam: the password alarm gives the same steps as the site and the Windows app.
+fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), path.join(SRC, 'src', 'content', 'steps.js'));
 // And for the typeface the popup shares with the website, with its licence.
 fs.mkdirSync(path.join(SRC, 'src', 'fonts'), { recursive: true });
 for (const file of ['geist-normal-300-700.woff2', 'geist-OFL.txt']) {

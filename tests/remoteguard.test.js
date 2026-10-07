@@ -65,6 +65,12 @@ test('banks and payment services are recognised by their own domains', () => {
     assert.equal(rg.moneySite(u), true, u);
   }
   for (const u of ['https://www.wikipedia.org/', 'https://www.youtube.com/', 'not a url']) assert.equal(rg.moneySite(u), false, u);
+  // Banks with no list entry: "bank" or "cu" as a word of the site's own name, or the .bank ending.
+  for (const u of ['https://online.river-cu.org/', 'https://www.first-bank.co.uk/', 'https://www.ncb.bank/']) assert.equal(rg.moneySite(u), true, u);
+  // "bank" inside another word is news, data or crypto media, not a bank: no warning for someone at work using TeamViewer.
+  for (const u of ['https://www.bankrate.com/', 'https://databank.com/', 'https://www.bankless.com/', 'https://www.bank-holidays.example.com/x']) {
+    assert.equal(rg.moneySite(u), false, u);
+  }
 });
 
 test('the shield closes a window only by asking it to close, and only when the person presses the button', () => {

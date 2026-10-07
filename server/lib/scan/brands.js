@@ -209,4 +209,16 @@ const BRANDS = [
 
 ];
 
-module.exports = { BRANDS };
+// Banks, payment services and exchanges among the brands above, and big banks with no entry of their own (a brand
+// entry also drives lookalike detection, so these are only named here). One list for every place that needs to know
+// "this is where money moves": the tech-support scam shield's bank warning in the Windows app.
+const MONEY_TOKENS = ['paypal', 'venmo', 'zelle', 'cashapp', 'wise', 'revolut', 'chase', 'wellsfargo', 'bankofamerica', 'citibank',
+  'capitalone', 'americanexpress', 'usaa', 'truist', 'santander', 'hsbc', 'barclays', 'natwest', 'lloyds', 'interac', 'mercadopago',
+  'navyfederal', 'monzo', 'desjardins', 'scotiabank', 'tdbank', 'commbank', 'westpac', 'schwab', 'etrade', 'axisbank', 'coinbase', 'binance', 'kraken'];
+const MONEY_DOMAINS = [...new Set([
+  ...BRANDS.filter((b) => MONEY_TOKENS.includes(b.token)).flatMap((b) => b.domains),
+  'usbank.com', 'pnc.com', 'citizensbank.com', 'ally.com', 'discover.com', 'regions.com', 'fidelity.com', 'vanguard.com',
+  'rbcroyalbank.com', 'bmo.com', 'cibc.com', 'nationwide.co.uk', 'halifax.co.uk', 'starlingbank.com', 'anz.com.au', 'nab.com.au'
+])];
+
+module.exports = { BRANDS, MONEY_DOMAINS };

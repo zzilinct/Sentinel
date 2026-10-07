@@ -101,6 +101,7 @@
         "https://*/*"
       ],
       "js": [
+        "src/content/steps.js",
         "src/content/pwalarm.js"
       ],
       "all_frames": true,
