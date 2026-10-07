@@ -108,25 +108,28 @@ const STEPS = {
     const b = await sp('session.startup_urls', [C.startup]);
     return { setRestore: a, setUrls: b, restore: (await gp('session.restore_on_startup') || {}).value, urls: (await gp('session.startup_urls') || {}).value };
   })(${JSON.stringify(C)})`,
-  search: (C) => `(async (C) => {
+  searchList: `(async () => {
     const k = window.__chk;
     if (!k.engines && !k.cr) throw new Error('this settings page has neither a search engines proxy nor cr.js');
-    const list = () => k.engines ? k.engines.getSearchEnginesList() : k.cr.sendWithPromise('getSearchEnginesList');
-    const all = (l) => [...(l.defaults || []), ...(l.actives || []), ...(l.others || []), ...(l.extensions || [])];
+    k.list = () => k.engines ? k.engines.getSearchEnginesList() : k.cr.sendWithPromise('getSearchEnginesList');
+    k.all = (l) => [...(l.defaults || []), ...(l.actives || []), ...(l.others || []), ...(l.extensions || [])];
     // A made-up engine cannot be added from script: Chrome 154 ignores the edit messages, or crashes on them once
     // the handler is live (seen on CI). Another engine than the one it came with, then, so the file holds a choice
     // the person made; unknown engines are judged by the add-on that sets one.
-    const custom = false;
-    const mine = all(await list()).find((e) => /bing\\.com/.test(String(e.url)));
-    if (!mine) throw new Error('Bing is not among the engines: ' + all(await list()).map((e) => e.url).join(' '));
+    k.mine = k.all(await k.list()).find((e) => /bing\.com/.test(String(e.url)));
+    if (!k.mine) throw new Error('Bing is not among the engines');
+    return JSON.parse(JSON.stringify(k.mine));
+  })()`,
+  search: `(async () => {
+    const k = window.__chk;
     // The handler (search_engines_handler.cc) takes the engine's id as a string, where it was chosen
     // (2: kSearchEngineSettings; anything else is a CHECK) and an optional guest choice.
-    chrome.send('setDefaultSearchEngine', [String(mine.id), 2, null]);
+    chrome.send('setDefaultSearchEngine', [String(k.mine.id), 2, null]);
     await k.wait(800);
-    const now = all(await list()).find((e) => e.default);
-    if (!now || now.url !== mine.url) throw new Error('the default did not change: ' + (now && now.url));
-    return { custom, defaultNow: now.url };
-  })(${JSON.stringify(C)})`
+    const now = k.all(await k.list()).find((e) => e.default);
+    if (!now || now.url !== k.mine.url) throw new Error('the default did not change: ' + (now && now.url));
+    return { custom: false, defaultNow: now.url };
+  })()`
 };
 
 async function prepareChromium(b) {
@@ -193,7 +196,8 @@ async function prepareChromium(b) {
     await sleep(11000);
     sessionId = await open('searchEngines');
     await step('initSearch', () => evalIn(sessionId, STEPS.init));
-    await step('search', () => evalIn(sessionId, STEPS.search(C)));
+    await step('searchList', () => evalIn(sessionId, STEPS.searchList));
+    await step('search', () => evalIn(sessionId, STEPS.search));
     await step('extC', () => send('Extensions.loadUnpacked', { path: extDir('C') }).then((r) => r.id));
     await sleep(2000);
     await send('Browser.close').catch(() => {});
