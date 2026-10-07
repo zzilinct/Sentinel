@@ -264,6 +264,7 @@ body.app::before { opacity: .6; }
 .setting:first-child { border-top: 0; padding-top: 0; }
 .setting b { display: block; font-weight: 500; font-size: 15px; }
 .setting span { display: block; color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+.setting .status { display: inline-flex; margin-top: 4px; font-size: 12px; }
 
 /* ------------------------------------------------------------- usage */
 

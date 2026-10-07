@@ -12,7 +12,7 @@
   .mark svg { width: 100%; height: 100%; }
   h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--c); }
   .sub { margin: 2px 0 0; font: 13px ui-monospace, Consolas, monospace; color: #c9c5bb; word-break: break-all; }
-  .body { margin-top: 16px; }
+  .body { margin-top: 16px; min-height: 0; overflow-y: auto; }
   .body p { margin: 0 0 10px; color: #b9b5ab; }
   .body b { color: #e9e6df; font-weight: 500; }
   ul { margin: 0; padding-left: 18px; color: #c9c5bb; }
@@ -22,11 +22,12 @@
   button.primary { color: #16130b; background: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 14px 34px -14px rgba(212,174,99,.75); }
   button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }
   button[disabled] { opacity: .6; cursor: default; }
+  button.quiet { margin-right: auto; padding: 0 2px; background: none; color: #8d8a82; text-decoration: underline; text-underline-offset: 3px; }
   small { display: block; margin-top: 12px; color: #8d8a82; font-size: 12px; }
 </style>
 </head>
-<body>
-  <div class="head" role="alert">
+<body role="alertdialog" aria-labelledby="title" aria-describedby="sub lead steps note">
+  <div class="head">
     <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/></svg></div>
     <div>
       <h1 id="title"></h1>
@@ -50,14 +51,17 @@
     const $ = (id) => document.getElementById(id);
     const act = (action, arg) => window.sentinelDesktop.guardAction(action, arg == null ? '' : String(arg));
 
-    // The same next steps the app gives for a tech-support scam (ui.js), and one for money.
+    // The same next steps the recovery guide gives for a tech-support scam (recover.js), and one for money.
     const STEPS = [
       'Do not call any number a warning page showed you. Real companies never put a phone number in a warning like this.',
       'Do not let anyone connect to your computer, and do not give anyone a code that appears on your screen.',
-      'Already let someone in? Disconnect from the internet, run a full scan in Windows Security, and change your passwords from another device.',
+      'Already let someone in? Turn off Wi-Fi or unplug the cable, then uninstall the program they had you open. Run a full scan in Windows Security, and change your passwords from another device.',
       'Logged in to your bank or paid anything while they were connected? Call your bank, using the number on your card.'
     ];
+    const UNINSTALL = `Then uninstall ${toolName}: open Settings, then Apps, then Installed apps. Until it is uninstalled, it starts again with Windows.`;
 
+    // `cancel` is the button Escape presses: always the one that changes nothing.
+    let cancel = null;
     function show({ title, sub, lead, steps, note, buttons, color }) {
       document.body.style.setProperty('--c', color || '#f08a24');
       $('title').textContent = title;
@@ -69,39 +73,92 @@
       $('note').textContent = note || '';
       const row = $('row');
       row.textContent = '';
+      cancel = null;
       for (const b of buttons) {
         const el = document.createElement('button');
         el.textContent = b.label;
         if (b.primary) el.className = 'primary';
+        if (b.quiet) el.className = 'quiet';
+        if (b.cancel) cancel = el;
         el.onclick = async () => {
           for (const x of row.querySelectorAll('button')) x.disabled = true;
-          try { await b.run(); } catch { done('Sentinel could not do that. Close it yourself, or restart the computer.'); }
+          try { await b.run(); } catch { done('<b>Sentinel could not do that.</b> If someone is connected, turn off Wi-Fi or unplug the cable, then close the program yourself in Task Manager (Ctrl+Shift+Esc).'); }
         };
         row.appendChild(el);
       }
       const first = row.querySelector('.primary');
       if (first) first.focus();
     }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && cancel && !cancel.disabled) { e.preventDefault(); cancel.click(); }
+    });
 
     function done(lead) {
-      show({ title: 'What to do now', lead, steps: STEPS, color: '#e2c47f', buttons: [{ label: 'Got it', primary: true, run: () => act('dismiss') }] });
+      show({ title: 'What to do now', lead, steps: STEPS, color: '#e2c47f', buttons: [
+        { label: 'Open the recovery guide', run: () => act('recover', 'remote') },
+        { label: 'Got it', primary: true, cancel: true, run: () => act('dismiss') }
+      ] });
     }
 
+    const closed = `<b>${toolName} has been closed.</b> Nobody can use it to see or control this computer now.`;
+    const stillRunning = `<b>${toolName} is still running.</b> Keep Wi-Fi off or the cable unplugged. ${UNINSTALL}`;
     const end = { label: 'End the connection', primary: true, run: async () => {
       const r = await act('end-tool', tool);
-      done(r && r.ok ? `<b>${toolName} has been closed.</b> Nobody can use it to see or control this computer now.` : `<b>Sentinel could not close ${toolName}.</b> Restart the computer to end the connection.`);
-    } };
-    const trust = { label: `I use ${toolName} myself`, run: async () => { await act('trust-tool', tool); act('dismiss'); } };
-
-    if (mode === 'escape') {
+      if (r && r.ok) { done(closed); return; }
+      // An installed copy runs as a Windows service: only an administrator can end it.
       show({
-        title: 'This page is trying to scare you',
-        sub: `Full screen in ${browser}`,
-        lead: '<b>Your computer is not locked, and Microsoft did not send this.</b> Pages like this fill the screen with a fake virus alert and a phone number to call. Do not call it.',
-        note: `Sentinel will ask ${browser} to close this window. It never opens or reads the page.`,
+        title: `${toolName} is still running`,
+        sub: toolName,
+        lead: `<b>Turn off Wi-Fi or unplug the network cable now.</b> That ends the connection straight away. ${toolName} is installed on this computer, so Windows needs an administrator to close it.`,
+        note: 'Windows will ask whether Sentinel may make changes. Say yes to close it.',
         color: '#e5484d',
         buttons: [
-          { label: 'Not now', run: () => act('dismiss') },
+          { label: 'Not now', cancel: true, run: () => done(stillRunning) },
+          { label: `Close ${toolName}`, primary: true, run: async () => {
+            const e = await act('end-tool-admin', tool);
+            done(e && e.ok ? `${closed} ${UNINSTALL}` : stillRunning);
+          } }
+        ]
+      });
+    } };
+
+    // Trusting a program takes two steps and is never the first button: "say you use it yourself" is an easy thing
+    // for a scammer on the phone to ask for.
+    const trust = (back) => ({ label: `I use ${toolName} myself`, quiet: true, run: () => show({
+      title: `Do you use ${toolName} yourself?`,
+      sub: toolName,
+      lead: '<b>Only if nobody asked you to install it.</b> Sentinel will stop asking about it. You can turn the question back on under Live protection.',
+      color: '#f08a24',
+      buttons: [
+        { label: 'Yes, stop asking', run: async () => {
+          const r = await act('trust-tool', tool);
+          if (r && r.ok) { act('dismiss'); return; }
+          show({
+            title: 'Parent lock is on',
+            sub: toolName,
+            lead: `<b>Sentinel keeps asking about ${toolName}.</b> To stop the question, a parent enters the PIN in Sentinel first.`,
+            color: '#f08a24',
+            buttons: [{ label: 'Back', primary: true, cancel: true, run: back }]
+          });
+        } },
+        { label: 'Back', primary: true, cancel: true, run: back }
+      ]
+    }) });
+
+    function escape() {
+      // The words for a fake virus alert only when Sentinel judged the page to be one. Any other flagged page that
+      // fills the screen (a video, say) is told plainly.
+      const scare = q.get('support') === '1';
+      show({
+        title: scare ? 'This page is trying to scare you' : 'A flagged page fills the screen',
+        sub: `Full screen in ${browser}`,
+        lead: scare
+          ? '<b>Your computer is not locked, and no real company sends this.</b> Pages like this fill the screen with a fake virus alert and a phone number to call. Do not call it.'
+          : '<b>Sentinel warned you about this page, and it now fills the screen.</b> If it will not let you leave, Sentinel can close it for you. Do not enter any details on it.',
+        note: `Sentinel will ask ${browser} to close this window. It never opens or reads the page.`,
+        color: scare ? '#e5484d' : '#f08a24',
+        buttons: [
+          { label: 'Not now', cancel: true, run: () => act('dismiss') },
           { label: 'Get me out of this page', primary: true, run: async () => {
             const r = await act('close-page');
             if (r && r.closed) { done('<b>The page is closed.</b> If it comes back when you open the browser again, close that tab straight away.'); return; }
@@ -111,7 +168,7 @@
               lead: `<b>Sentinel can close ${browser} completely.</b> Every ${browser} window closes. Tabs you had open may not come back.`,
               color: '#e5484d',
               buttons: [
-                { label: 'Not now', run: () => act('dismiss') },
+                { label: 'Not now', cancel: true, run: () => act('dismiss') },
                 { label: `Close ${browser}`, primary: true, run: async () => {
                   const e = await act('end-browser');
                   done(e && e.ok ? `<b>${browser} is closed.</b> If the page comes back when you open it again, close that tab straight away.` : `<b>Sentinel could not close ${browser}.</b> Press Ctrl+Alt+Delete, open Task Manager, and end it there, or restart the computer.`);
@@ -121,7 +178,9 @@
           } }
         ]
       });
-    } else if (mode === 'remote') {
+    }
+
+    function remote() {
       const why = q.get('reason') === 'download'
         ? `${toolName} started soon after it was downloaded.`
         : `${toolName} started soon after Sentinel warned you about a page.`;
@@ -131,17 +190,23 @@
         lead: `<b>${why}</b> It lets another person see and control this computer. Microsoft, your bank and antivirus companies never call you and ask you to install one.`,
         note: 'Nothing has been stopped. If you did not expect this, end the connection.',
         color: '#e5484d',
-        buttons: [trust, end]
+        buttons: [trust(remote), { label: 'Not now', cancel: true, run: () => act('dismiss') }, end]
       });
-    } else if (mode === 'bank') {
+    }
+
+    function bank() {
       show({
         title: 'A remote-control program is running',
         sub: toolName,
         lead: `<b>${toolName} is running while a bank or payment site is open.</b> If someone is connected to this computer, they can see what you do here. Do not log in, read out a code or move money while they are connected.`,
         color: '#f08a24',
-        buttons: [trust, { label: 'Got it', run: () => act('dismiss') }, end]
+        buttons: [trust(bank), { label: 'Got it', cancel: true, run: () => act('dismiss') }, end]
       });
     }
+
+    if (mode === 'escape') escape();
+    else if (mode === 'remote') remote();
+    else if (mode === 'bank') bank();
   </script>
 </body>
 </html>

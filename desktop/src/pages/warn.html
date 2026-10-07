@@ -12,7 +12,7 @@
   .mark svg { width: 100%; height: 100%; }
   h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--c, #f08a24); }
   .host { margin: 2px 0 0; font: 13px ui-monospace, Consolas, monospace; color: #c9c5bb; word-break: break-all; }
-  .body { margin-top: 16px; }
+  .body { margin-top: 16px; min-height: 0; overflow-y: auto; }
   .body p { margin: 0 0 10px; color: #b9b5ab; }
   .body b { color: #e9e6df; font-weight: 500; }
   ul { margin: 0; padding-left: 18px; color: #c9c5bb; }
@@ -22,6 +22,8 @@
   button.primary { color: #16130b; background: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 14px 34px -14px rgba(212,174,99,.75); }
   button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }
   small { display: block; margin-top: 12px; color: #8d8a82; font-size: 12px; }
+  .body .recover { margin: 10px 0 0; font-size: 13px; color: #b9b5ab; }
+  button.link { height: auto; padding: 0; background: none; border-radius: 4px; color: #e2c47f; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
 </style>
 </head>
 <body>
@@ -36,6 +38,7 @@
     <p id="lead"></p>
     <ul id="reasons"></ul>
     <small id="browser"></small>
+    <p class="recover">Already typed a password or paid on it? <button class="link" id="recover">Open the recovery guide</button></p>
   </div>
   <div class="row">
     <button id="details">Open in Sentinel</button>
@@ -61,6 +64,7 @@
     document.getElementById('browser').textContent = b ? `Seen in ${b}. Sentinel watched the address of the page in front; it did not read the page.` : '';
     document.getElementById('close').onclick = () => window.sentinelDesktop.warnAction('close');
     document.getElementById('details').onclick = () => window.sentinelDesktop.warnAction('open', q.get('url') || '');
+    document.getElementById('recover').onclick = () => window.sentinelDesktop.warnAction('recover', 'password');
   </script>
 </body>
 </html>

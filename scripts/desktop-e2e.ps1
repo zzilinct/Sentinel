@@ -39,6 +39,8 @@ function Shot($name) {
 }
 # Ask one of Sentinel's windows (by part of its address) to evaluate an expression. Single quotes only inside it.
 function Cdp($part, $expr) { $j = node (Join-Path $PSScriptRoot 'e2e-cdp.js') $(if ($part -eq 'main') { 9334 } else { 9333 }) $part $expr; Say "  cdp $part -> $(([string]$j).Substring(0, [Math]::Min(400, ([string]$j).Length)))"; return ($j | ConvertFrom-Json) }
+# Press a button in the shield's window by its words.
+function Press($label) { return (Cdp 'guard.html' "(() => { const b = [...document.querySelectorAll('#row button')].find((x) => x.textContent === '$label'); if (b) b.click(); return Boolean(b); })()").value }
 function Info($expr) { return (Cdp '127.0.0.1:4782' "window.sentinelDesktop.$expr").value }
 function Until($seconds, [scriptblock]$test) { $end = (Get-Date).AddSeconds($seconds); while ((Get-Date) -lt $end) { if (& $test) { return $true }; Start-Sleep 2 }; return [bool](& $test) }
 $data = "$env:APPDATA\Sentinel"
@@ -161,6 +163,29 @@ if (Test-Path $anydesk) {
   Check 'remote-noticed' $ok "app.log: $(([regex]::Match((AppLog), 'tech-support scam shield: AnyDesk started[^\r\n]*')).Value)"
   $g = (Cdp 'guard.html' 'location.search + document.body.innerText.slice(0, 160)').value
   Check 'remote-question' ($g -match 'mode=remote') "the shield's window: $g"
+  # The neutral way out comes before "End the connection"; trusting is a quiet link, and only a second step.
+  $b = (Cdp 'guard.html' "[...document.querySelectorAll('#row button')].map((x) => x.textContent).join('|')").value
+  Check 'remote-buttons' ($b -eq 'I use AnyDesk myself|Not now|End the connection') "buttons, left to right: $b"
+  # Under a parent lock, "I use it myself" needs the PIN.
+  [void](Info "lockSet('2468')")
+  [void](Press 'I use AnyDesk myself'); Start-Sleep 1
+  $t = (Cdp 'guard.html' "document.getElementById('lead').textContent").value
+  Check 'remote-trust-second-step' ($t -match '^Only if nobody asked you to install it') "the second step: $t"
+  [void](Press 'Yes, stop asking'); Start-Sleep 2
+  $t = (Cdp 'guard.html' "document.getElementById('title').textContent").value
+  $trusted = @((Info 'info()').remoteGuard.trusted).Count
+  Check 'remote-trust-locked' ($t -eq 'Parent lock is on' -and $trusted -eq 0) "with the lock on: '$t', programs trusted: $trusted"
+  [void](Info "lockUnlock('2468')"); [void](Info 'lockRemove()')
+  [void](Press 'Back'); Start-Sleep 1
+  # "End the connection", checked afterwards against what is really running, then the recovery guide.
+  [void](Press 'End the connection')
+  $ok = Until 30 { (Cdp 'guard.html' "document.getElementById('title').textContent").value -eq 'What to do now' }
+  Check 'remote-ended' ($ok -and -not (Get-Process AnyDesk -ErrorAction SilentlyContinue) -and (AppLog) -match 'ending AnyDesk at the person.s request worked') "AnyDesk ended: $((Get-Process AnyDesk -ErrorAction SilentlyContinue | Measure-Object).Count) left"
+  Shot 'anydesk-ended'
+  [void](Press 'Open the recovery guide')
+  $u = ''
+  $ok = Until 30 { $script:u = (Cdp '127.0.0.1:4782' 'location.pathname + location.search').value; $script:u -eq '/app/recover?happened=remote' }
+  Check 'remote-recovery-guide' $ok "the app shows: $u"
   Get-Process AnyDesk -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 } else { Check 'remote-noticed' $false 'AnyDesk could not be downloaded on this runner' }
 
@@ -175,8 +200,27 @@ Shot 'escape'
 $verdict = (Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String 'defender-virusalert' | Select-Object -Last 1)
 Say "live scanning's verdict: $verdict"
 Check 'escape-offered' $ok 'app.log: a flagged page took the whole screen; offered a way out'
-$g = (Cdp 'guard.html' 'location.search').value
+$g = (Cdp 'guard.html' "location.search + '|' + document.hasFocus() + '|' + document.body.getAttribute('role') + '|' + document.getElementById('title').textContent").value
 Check 'escape-window' ($g -match 'mode=escape') "the shield's window: $g"
+Check 'escape-words' ($g -match 'support=1' -and $g -match 'trying to scare you') 'a fake virus alert gets the scare-page words'
+# The page holds the keyboard; the way out takes it, so Tab and Escape reach it. Escape is "Not now".
+Check 'escape-focus' ($g -match '\|true\|alertdialog\|') 'the way out has the keyboard, as an alert dialog'
+[K]::Tap(0x1B)
+Check 'escape-key' (Until 10 { [string](Cdp 'guard.html' '1').error -match 'no window' }) 'Escape closed it without doing anything'
+[K]::Tap(0x7A)
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+# 5c. Any other flagged page in full screen (a video, say) gets plain words, not "fake virus alert".
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 paypal-account-verify-login.test"
+Start-Process msedge -ArgumentList 'http://paypal-account-verify-login.test:47910/plain.html'
+Start-Sleep 8
+Say "Edge in front: $(Front 'msedge')"
+[K]::Tap(0x7A)
+$ok = Until 45 { [K]::Tap(0x11); ([regex]::Matches((AppLog), 'flagged page took the whole screen')).Count -ge 2 }
+Shot 'escape-neutral'
+$g = (Cdp 'guard.html' "location.search + '|' + document.body.innerText").value
+Check 'escape-neutral' ($ok -and $g -match 'mode=escape' -and $g -notmatch 'support=1' -and $g -match 'A flagged page fills the screen' -and $g -notmatch 'virus alert|Microsoft') "the shield's window: $(([string]$g).Substring(0, [Math]::Min(200, ([string]$g).Length)))"
+[K]::Tap(0x1B); Start-Sleep 1
 [K]::Tap(0x7A)
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
