@@ -6,9 +6,10 @@
  *
  *   node scripts/verify-checkup.js prepare [--out dir]   Chrome and Edge: their default profile, over the DevTools
  *                                                        pipe: a site allowed (and one blocked) to send
- *                                                        notifications, a start page, a made-up search engine as the
- *                                                        default, and test add-ons. Firefox: a profile with the same
- *                                                        notification permissions, a home page and an unsigned add-on.
+ *                                                        notifications, a start page, Bing as the search engine, and
+ *                                                        test add-ons. Firefox: a profile with the same
+ *                                                        notification permissions, a home page, a store add-on (and an
+ *                                                        unsigned one, which release Firefox refuses).
  *   node scripts/verify-checkup.js check [--out dir]     Runs checkup.collect() and addressesOf() on those profiles,
  *                                                        asserts what they find and how they judge it, and that not
  *                                                        one byte of any browser file changed.
@@ -33,8 +34,7 @@ const ROAMING = process.env.APPDATA;
 const C = {
   allow: 'https://example-notify.test:443', block: 'https://blocked-notify.test:443',
   startup: 'https://startup-page.test/',
-  amo: 'https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi',
-  searchName: 'Checkup Search', keyword: 'checkupsearch', searchUrl: 'https://search.checkup-hijack.test/s?q=%s', searchHost: 'search.checkup-hijack.test'
+  amo: 'https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi'
 };
 const BROWSERS = [
   { id: 'chrome', userData: path.join(LOCAL, 'Google', 'Chrome', 'User Data'), settings: 'chrome://settings' },
@@ -122,15 +122,13 @@ const STEPS = {
   })()`,
   search: `(async () => {
     const k = window.__chk;
-    // The handler (search_engines_handler.cc) takes the engine's id as a string, where it was chosen
-    // (2: kSearchEngineSettings; anything else is a CHECK) and an optional guest choice.
     // As the page itself calls it: setDefaultSearchEngine(id, choiceMadeLocation, saveGuestChoice), the id as the
     // number the list gives (Chrome 154 crashes on a string), 2 = kSearchEngineSettings (anything else is a CHECK).
     k.engines.setDefaultSearchEngine(k.mine.id, 2, null);
     await k.wait(800);
     const now = k.all(await k.list()).find((e) => e.default);
     if (!now || now.url !== k.mine.url) throw new Error('the default did not change: ' + (now && now.url));
-    return { custom: false, defaultNow: now.url };
+    return { defaultNow: now.url };
   })()`
 };
 
@@ -199,7 +197,8 @@ async function prepareChromium(b) {
     sessionId = await open('searchEngines');
     await step('initSearch', () => evalIn(sessionId, STEPS.init));
     await step('searchList', () => evalIn(sessionId, STEPS.searchList));
-    await step('search', () => evalIn(sessionId, STEPS.search));
+    if (out.searchList.ok) await step('search', () => evalIn(sessionId, STEPS.search));
+    else out.search = out.searchList;
     await step('extC', () => send('Extensions.loadUnpacked', { path: extDir('C') }).then((r) => r.id));
     await sleep(2000);
     await send('Browser.close').catch(() => {});
@@ -386,11 +385,7 @@ async function check() {
       } else {
         console.log(`NOTE  ${label}: the browser ignored --load-extension, so there is no start-command add-on to find`);
       }
-      if (p.search && p.search.ok && p.search.value.custom) {
-        expect(prof.search && prof.search.host === C.searchHost && prof.search.known === false && prof.search.badge === 'yellow', `${label}: the made-up default search engine is read and judged yellow (${JSON.stringify(prof.search)})`);
-        wanted.push(`https://${C.searchHost}/`);
-      } else if (p.search && p.search.ok) {
-        console.log(`NOTE  ${label}: the settings page would not add a made-up engine, so Bing was chosen instead`);
+      if (p.search && p.search.ok) {
         expect(prof.search && prof.search.host === 'www.bing.com' && prof.search.known === true && prof.search.engine === 'Bing' && !prof.search.badge, `${label}: the default search engine the person chose (Bing) is read and left alone (${JSON.stringify(prof.search)})`);
         wanted.push('https://www.bing.com/');
       } else if (p.id === 'edge' && unsupported(p.search)) {
