@@ -177,11 +177,13 @@
     }
 
     function remote() {
+      const session = q.get('session') === '1';
+      const what = session ? `Someone connected to this computer through ${toolName}` : `${toolName} started`;
       const why = q.get('reason') === 'download'
-        ? `${toolName} started soon after it was downloaded.`
-        : `${toolName} started soon after Sentinel warned you about a page.`;
+        ? `${what} soon after it was downloaded.`
+        : `${what} soon after Sentinel warned you about a page.`;
       show({
-        title: 'Did someone on the phone ask you to install this?',
+        title: session ? 'Did someone on the phone ask to connect to this computer?' : 'Did someone on the phone ask you to install this?',
         sub: toolName,
         lead: `<b>${why}</b> It lets another person see and control this computer. Microsoft, your bank and antivirus companies never call you and ask you to install one.`,
         note: 'Nothing has been stopped. If you did not expect this, end the connection.',

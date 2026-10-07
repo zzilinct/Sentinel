@@ -482,13 +482,32 @@ function escapeKey(page) {
   try { return new URL(page.url).hostname; } catch { return String(page.url || ''); }
 }
 
-/** The remote-control programs running changed (the running-browsers helper's report). */
+/** When each tool's connection log last changed (0: none), from the file's time alone. See remoteguard.js. */
+function remoteTraces() {
+  const out = {};
+  for (const t of remoteguard.TOOLS) {
+    if (!t.trace) continue;
+    out[t.id] = Math.max(0, ...[process.env.ProgramData, process.env.APPDATA].filter(Boolean).map((dir) => {
+      try { return require('fs').statSync(path.join(dir, t.trace)).mtimeMs; } catch { return 0; }
+    }));
+  }
+  return out;
+}
+/** The remote-control programs running changed (the running-browsers helper's report), or it is time to look at a log. */
+let remoteNames = [];
+let traceTimer = null;
 function remoteSeen(names) {
-  const alarms = remote.update(names, { downloads: downloads.recent(), trusted: trustedRemote() });
+  remoteNames = names;
+  const alarms = remote.update(names, { downloads: downloads.recent(), trusted: trustedRemote(), traces: remoteTraces() });
+  // A connection in an always-running AnyDesk starts no new process: while it runs, its log's time is looked at
+  // every 15 seconds.
+  const tracing = remoteGuardOn() && remote.running(trustedRemote()).some((t) => t.trace);
+  if (tracing && !traceTimer) traceTimer = setInterval(() => remoteSeen(remoteNames), 15000);
+  if (!tracing && traceTimer) { clearInterval(traceTimer); traceTimer = null; }
   if (!remoteGuardOn() || !alarms.length) return;
   const a = alarms[0];
   // The program's name and why, never a page or a file name.
-  appLog(`tech-support scam shield: ${a.tool.name} started ${a.reason === 'page' ? 'soon after a flagged page' : 'soon after it was downloaded'}`);
+  appLog(`tech-support scam shield: ${a.session ? `someone connected to ${a.tool.name}` : `${a.tool.name} started`} ${a.reason === 'page' ? 'soon after a flagged page' : 'soon after it was downloaded'}`);
   askAboutRemote(a, Date.now());
 }
 async function askAboutRemote(a, since) {
@@ -498,7 +517,7 @@ async function askAboutRemote(a, since) {
     return;
   }
   if (!remote.running(trustedRemote()).some((t) => t.id === a.tool.id)) return;   // closed in the meantime
-  showGuard('remote', { tool: a.tool.id, toolName: a.tool.name, reason: a.reason });
+  showGuard('remote', { tool: a.tool.id, toolName: a.tool.name, reason: a.reason, ...(a.session ? { session: '1' } : {}) });
 }
 
 /** A bank or payment site in front while a remote-control program runs: say so, once per site in half an hour. */

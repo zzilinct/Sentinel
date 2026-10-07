@@ -5,23 +5,30 @@
  * 1. A fake virus alert holds the browser full screen ("your computer is blocked, call Microsoft"). main.js offers
  *    a way out: Sentinel asks Windows to close that browser window (see watch.js, the reader's "close").
  * 2. The "agent" on the phone has the person install a remote-control program and connects. A remote-control
- *    program that starts soon after a flagged page, or soon after it was downloaded, gets a plain question.
+ *    program that starts soon after a flagged page, or soon after it was downloaded, gets a plain question. So does a
+ *    new connection in one that is always running (installed with its service): see `session` and `trace` below.
  *
- * What it looks at: process names (the running-browsers helper's list in browsers.js, so no new polling) and the
- * file names download protection already lists. It reads no screen, window, page or file, and it never stops a
- * program by itself: only the person's "End the connection" does that.
+ * What it looks at: process names (the running-browsers helper's list in browsers.js, so no new polling), the
+ * file names download protection already lists, and, while AnyDesk runs, the time its connection log last changed.
+ * It reads no screen, window, page or file's contents, and it never stops a program by itself: only the person's
+ * "End the connection" does that.
+ *
+ * What it cannot see: a connection in an always-running RustDesk, UltraViewer, Supremo or AeroAdmin, which start no
+ * process of their own for one and keep no log Sentinel knows. Those are noticed only when the program starts.
  */
 const { MONEY_DOMAINS } = require('../shared/brands');
 const { analyze } = require('../shared/url');
 
 // The programs these scams ask people to install. Process names as Windows reports them, without ".exe", lower case.
 // `service`: the Windows service an installed copy runs as (a name pattern), which only an administrator can stop.
+// `session`: a process that runs only while someone is connected. `trace`: the log a connection is written to, under
+// ProgramData (installed) or the person's AppData (run without installing); only its time is looked at.
 const TOOLS = [
-  { id: 'anydesk', name: 'AnyDesk', processes: ['anydesk'], file: /anydesk/i, service: 'AnyDesk*' },
-  { id: 'teamviewer', name: 'TeamViewer', processes: ['teamviewer', 'teamviewerqs', 'teamviewer_desktop'], file: /teamviewer/i, service: 'TeamViewer*' },
+  { id: 'anydesk', name: 'AnyDesk', processes: ['anydesk'], file: /anydesk/i, service: 'AnyDesk*', trace: 'AnyDesk/connection_trace.txt' },
+  { id: 'teamviewer', name: 'TeamViewer', processes: ['teamviewer', 'teamviewerqs', 'teamviewer_desktop'], session: ['teamviewer_desktop'], file: /teamviewer/i, service: 'TeamViewer*' },
   { id: 'ultraviewer', name: 'UltraViewer', processes: ['ultraviewer_desktop', 'ultraviewer'], file: /ultra[ _-]?viewer/i, service: 'UltraView*' },
   { id: 'rustdesk', name: 'RustDesk', processes: ['rustdesk'], file: /rustdesk/i, service: 'RustDesk*' },
-  { id: 'screenconnect', name: 'ScreenConnect', processes: ['screenconnect.windowsclient', 'screenconnect.clientservice'], file: /screenconnect|connectwise/i, service: 'ScreenConnect*' },
+  { id: 'screenconnect', name: 'ScreenConnect', processes: ['screenconnect.windowsclient', 'screenconnect.clientservice'], session: ['screenconnect.windowsclient'], file: /screenconnect|connectwise/i, service: 'ScreenConnect*' },
   { id: 'supremo', name: 'Supremo', processes: ['supremo', 'supremoservice'], file: /^supremo/i, service: 'Supremo*' },
   { id: 'aeroadmin', name: 'AeroAdmin', processes: ['aeroadmin'], file: /aeroadmin/i },
   { id: 'quickassist', name: 'Quick Assist', processes: ['quickassist'], file: /quick[ _-]?assist/i }
@@ -80,22 +87,32 @@ function namesFromTasklist(out) {
 }
 
 /**
- * One per app. `update` is given the process names each time the helper reports; it answers with the tools that
- * have just started and deserve a question. The first report is only a starting point: a program that was already
- * running when Sentinel started is someone's own setup, not a new connection.
+ * One per app. `update` is given the process names each time the helper reports, and `traces` (tool id -> the time
+ * its connection log last changed, 0 when there is none); it answers with the tools that have just started, or that
+ * were already running and have just been connected to (`session`), and deserve a question. The first report is only
+ * a starting point: a program that was already running when Sentinel started is someone's own setup, not a new
+ * connection.
  */
 function create() {
   let prev = null;
+  let prevNames = new Set();
+  let traced = {};
   let flaggedAt = 0;
   return {
     flaggedPage(at = Date.now()) { flaggedAt = at; },
-    update(names, { downloads = [], trusted = [], now = Date.now() } = {}) {
-      const running = toolsRunning(names);
+    update(names, { downloads = [], trusted = [], traces = {}, now = Date.now() } = {}) {
+      const set = new Set(names || []);
+      const running = toolsRunning(set);
       const fresh = prev ? [...running].filter((id) => !prev.has(id)) : [];
+      const connected = prev ? [...running].filter((id) => prev.has(id) && (
+        (byId[id].session || []).some((p) => set.has(p) && !prevNames.has(p)) ||
+        (id in traces && id in traced && traces[id] > traced[id]))) : [];
       prev = running;
-      return fresh
-        .filter((id) => !trusted.includes(id))
-        .map((id) => ({ tool: byId[id], reason: reasonFor(byId[id], { flaggedAt, downloads, now }) }))
+      prevNames = set;
+      traced = { ...traces };
+      return [...fresh.map((id) => [id, false]), ...connected.map((id) => [id, true])]
+        .filter(([id]) => !trusted.includes(id))
+        .map(([id, session]) => ({ tool: byId[id], session, reason: reasonFor(byId[id], { flaggedAt, downloads, now }) }))
         .filter((a) => a.reason);
     },
     /** Tools running now that the person has not said they use themselves. */

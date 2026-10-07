@@ -291,6 +291,34 @@ if (Test-Path $anydesk) {
   Get-Process AnyDesk -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 } else { Check 'remote-noticed' $false 'AnyDesk could not be downloaded on this runner' }
 
+# 5a. A connection in a remote-control program that was already running (as an installed one always is). Stand-ins:
+# copies of ping.exe named like TeamViewer's and AnyDesk's programs, and a line added to AnyDesk's connection log.
+$ping = "$env:WINDIR\System32\PING.EXE"
+$standin = Join-Path $env:TEMP 'remote-standins'; New-Item -ItemType Directory -Force $standin | Out-Null
+Copy-Item $ping (Join-Path $dl 'TeamViewer.exe')
+[void](Until 90 { (AppLog) -match 'download scanned: TeamViewer\.exe' })
+$tv = Start-Process (Join-Path $dl 'TeamViewer.exe') -ArgumentList '-n', '900', '127.0.0.1' -WindowStyle Hidden -PassThru
+$ok = Until 60 { (AppLog) -match 'tech-support scam shield: TeamViewer started' }
+Check 'session-start-first' $ok 'TeamViewer (a stand-in) started: asked about the start'
+[void](Press 'Not now'); Start-Sleep 5
+Copy-Item $ping (Join-Path $standin 'TeamViewer_Desktop.exe')
+$tvd = Start-Process (Join-Path $standin 'TeamViewer_Desktop.exe') -ArgumentList '-n', '900', '127.0.0.1' -WindowStyle Hidden -PassThru
+$ok = Until 60 { (AppLog) -match 'tech-support scam shield: someone connected to TeamViewer' }
+$t = (Cdp 'guard.html' "document.getElementById('title').textContent").value
+Check 'session-process' ($ok -and $t -match 'ask to connect to this computer') "TeamViewer's connection program appeared while it ran: logged ($ok), the shield asks: '$t'"
+[void](Press 'Not now')
+foreach ($p in @($tv, $tvd)) { if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
+Copy-Item $ping (Join-Path $standin 'AnyDesk.exe')
+$ad = Start-Process (Join-Path $standin 'AnyDesk.exe') -ArgumentList '-n', '900', '127.0.0.1' -WindowStyle Hidden -PassThru
+[void](Until 60 { ([regex]::Matches((AppLog), 'tech-support scam shield: AnyDesk started')).Count -ge 2 })
+[void](Press 'Not now'); Start-Sleep 20
+New-Item -ItemType Directory -Force "$env:APPDATA\AnyDesk" | Out-Null
+Add-Content "$env:APPDATA\AnyDesk\connection_trace.txt" 'Incoming    2026-10-07, 12:00    User    123456789    123456789'
+$ok = Until 60 { (AppLog) -match 'tech-support scam shield: someone connected to AnyDesk' }
+Check 'session-trace' $ok 'AnyDesk (a stand-in) kept running and its connection log changed: the shield asks'
+[void](Press 'Not now')
+if ($ad) { Stop-Process -Id $ad.Id -Force -ErrorAction SilentlyContinue }
+
 # 5b. A page shaped like a fake virus alert, full screen in Edge, on an address that reads like one.
 Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 defender-virusalert-helpline.test"
 Start-Process msedge -ArgumentList 'http://defender-virusalert-helpline.test:47910/alert.html'
