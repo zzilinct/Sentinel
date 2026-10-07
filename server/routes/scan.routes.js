@@ -204,7 +204,9 @@ function register(router) {
     if (!urls.length) throw new HttpError(400, 'missing_urls', 'Provide urls: string[]');
     // Links found by the Windows app outside the browser (a text in Phone Link, the browser checkup, a copied link)
     // are not browsing: they get the fast, private check against the lists and never spend live-scanning minutes.
-    if (UNMETERED.has(body.purpose)) {
+    // Only the Windows app's own scanner, on the same computer, may ask this way: anywhere else it would be a way
+    // around the live-scanning meter.
+    if (UNMETERED.has(body.purpose) && /^(127\.|::1$)/.test(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''))) {
       security.rateLimit(`links:${user.id}`, 30, 60 * 1000, 'Too many links to check in a minute. Wait a moment, then try again.');
       const plan = plans.planFor(user);
       const verdicts = await engine.scanUrls(urls, { userId: user.id, planId: plan.id, research: false, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: false });
