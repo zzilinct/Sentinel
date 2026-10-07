@@ -285,10 +285,11 @@ test('Opera and Opera GX: one profile in the folder itself, read from the one br
   try {
     const { BROWSERS } = require('../desktop/src/browsers');
     assert.ok(BROWSERS.find((b) => b.id === 'opera').data.some((d) => d.name === 'Opera GX'));
-    for (const [dir, ext] of [['Opera Stable', 'oooo'], ['Opera GX Stable', 'gggg']]) {
-      const root = path.join(roaming, 'Opera Software', dir);
+    // Opera 137 keeps a Default folder and its add-ons under extensions.opsettings (seen on CI); older ones, neither.
+    for (const [dir, ext, sub, key] of [['Opera Stable', 'oooo', '', 'settings'], ['Opera GX Stable', 'gggg', 'Default', 'opsettings']]) {
+      const root = path.join(roaming, 'Opera Software', dir, sub);
       writeJson(path.join(root, 'Preferences'), { session: { restore_on_startup: 4, startup_urls: [`https://${ext}.example/`] } });
-      writeJson(path.join(root, 'Secure Preferences'), { extensions: { settings: { [ext]: { location: 4, path: path.join(tmp, `${ext}-addon`) } } } });
+      writeJson(path.join(root, 'Secure Preferences'), { extensions: { [key]: { [ext]: { location: 4, path: path.join(tmp, `${ext}-addon`) } } } });
       writeJson(path.join(tmp, `${ext}-addon`, 'manifest.json'), { name: `Addon ${ext}`, version: '1', host_permissions: ['<all_urls>'] });
     }
     const result = await checkup.collect({ local, roaming, policies: async () => [], managed: false, present: async () => [] });
@@ -299,6 +300,7 @@ test('Opera and Opera GX: one profile in the folder itself, read from the one br
     assert.equal(opera.places.addons, 'opera://extensions');
     assert.deepEqual(opera.profiles[0].addons.map((a) => [a.id, a.source, a.badge]), [['oooo', 'unpacked', 'yellow']]);
     assert.deepEqual(gx.profiles[0].startup, ['https://gggg.example/']);
+    assert.deepEqual(gx.profiles[0].addons.map((a) => a.id), ['gggg']);
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 });
 

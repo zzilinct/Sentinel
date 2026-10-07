@@ -94,7 +94,9 @@ function readChromiumProfile(profile) {
   // Newer builds keep add-ons and the protected settings in Secure Preferences; older ones in Preferences.
   const pick = (keys) => get(secure, keys) !== undefined ? get(secure, keys) : get(prefs, keys);
 
-  const settings = { ...(get(prefs, ['extensions', 'settings']) || {}), ...(get(secure, ['extensions', 'settings']) || {}) };
+  // Opera and Opera GX keep the same records under "opsettings" (seen on CI, Opera 137).
+  const settings = {};
+  for (const key of ['settings', 'opsettings']) Object.assign(settings, get(prefs, ['extensions', key]) || {}, get(secure, ['extensions', key]) || {});
   const addons = [];
   for (const [id, s] of Object.entries(settings)) {
     if (!s || typeof s !== 'object' || BUILT_IN.has(s.location) || s.was_installed_by_default || s.was_installed_by_oem) continue;
@@ -233,7 +235,7 @@ function subdirs(dir) {
   try { return fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path.join(dir, e.name)); } catch { return []; }
 }
 
-/** Chromium profiles under a "User Data" folder; Opera keeps its one profile in the folder itself (`flat`). */
+/** Chromium profiles under a "User Data" folder; Opera (`flat`): the folder itself as well. */
 function chromiumProfiles(root, flat) {
   const dirs = subdirs(root).filter((d) => /^(Default|Profile \d+)$/.test(path.basename(d)));
   if (flat) dirs.unshift(root);

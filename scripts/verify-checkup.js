@@ -297,17 +297,19 @@ async function prepareFirefox() {
           // search.json.mozlz4). addUserEngine took (name, url, alias) before it took one object: both are tried.
           const search = { tried: [] };
           try {
-            await Services.search.init();
-            for (const call of [() => Services.search.addUserEngine({ name: 'Find Checkup', url: C.search, alias: '' }), () => Services.search.addUserEngine('Find Checkup', C.search, '')]) {
+            // Firefox 156 has no Services.search in this sandbox: the service by its contract, then.
+            const ss = Services.search || Cc['@mozilla.org/browser/search-service;1'].getService(Ci.nsISearchService);
+            await ss.init();
+            for (const call of [() => ss.addUserEngine({ name: 'Find Checkup', url: C.search, alias: '' }), () => ss.addUserEngine('Find Checkup', C.search, '')]) {
               try { await call(); } catch (e) { search.tried.push(String(e).slice(0, 200)); }
-              if (Services.search.getEngineByName('Find Checkup')) break;
+              if (ss.getEngineByName('Find Checkup')) break;
             }
-            let engine = Services.search.getEngineByName('Find Checkup');
+            let engine = ss.getEngineByName('Find Checkup');
             // Without it, one of Firefox's own engines: the file is still decoded, judged as Firefox's own.
-            if (!engine) { engine = Services.search.getEngineByName('Bing'); search.fallback = 'Bing'; }
-            const reason = Services.search.CHANGE_REASON_USER !== undefined ? Services.search.CHANGE_REASON_USER : Ci.nsISearchService.CHANGE_REASON_USER;
-            await Services.search.setDefault(engine, reason);
-            search.name = (await Services.search.getDefault()).name;
+            if (!engine) { engine = ss.getEngineByName('Bing'); search.fallback = 'Bing'; }
+            const reason = ss.CHANGE_REASON_USER !== undefined ? ss.CHANGE_REASON_USER : Ci.nsISearchService.CHANGE_REASON_USER;
+            await ss.setDefault(engine, reason);
+            search.name = (await ss.getDefault()).name;
             const { setTimeout } = ChromeUtils.importESModule('resource://gre/modules/Timer.sys.mjs');
             await new Promise((r) => setTimeout(r, 3000));
           } catch (e) { search.error = String(e); }

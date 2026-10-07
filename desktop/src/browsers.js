@@ -12,7 +12,7 @@ const { execFile } = require('child_process');
 
 // `data`: where the browser keeps its settings on Windows, for the browser checkup (checkup.js). `local` is under
 // %LOCALAPPDATA%, `roaming` under %APPDATA%. Chromium keeps profiles in "User Data\Default" and "Profile 1"; Opera
-// keeps its one profile in the folder itself (`flat`). Gecko lists its profiles in profiles.ini there. `scheme`: the
+// has kept its profile in the folder itself, and Opera 137 in a Default there (`flat`: both). Gecko lists its profiles in profiles.ini there. `scheme`: the
 // browser's own pages (chrome://extensions); `policy`: its key under Software\Policies.
 const BROWSERS = [
   { id: 'chrome', name: 'Google Chrome', process: 'chrome', engine: 'chromium', scheme: 'chrome', policy: 'Google\\Chrome', data: [{ local: ['Google', 'Chrome', 'User Data'] }] },
