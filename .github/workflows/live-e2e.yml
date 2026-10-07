@@ -35,6 +35,11 @@ jobs:
         run: |
           $installer = if ("${{ github.event.inputs.version }}") { '' } else { (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName }
           ./scripts/live-e2e.ps1 -Version "${{ github.event.inputs.version }}" -Installer $installer -Out e2e
+      # Sentinel's own logs, whatever happened: a start that failed still leaves app.log.
+      - name: Sentinel's logs
+        if: always()
+        shell: powershell
+        run: New-Item -ItemType Directory -Force e2e/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e/logs -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@v4
         if: always()
         with:

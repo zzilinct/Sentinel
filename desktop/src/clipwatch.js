@@ -13,7 +13,8 @@
  * server/lib/scan/clickfix.js) is swapped for a harmless line, and the person can put it back in one click. The
  * command is judged here, on the computer: it is never sent, logged or kept, except in memory for that one click.
  */
-// Loaded when the check starts, so the link rules can be tested without Electron.
+// Loaded when the check starts, so the link rules can be tested without Electron. Electron's clipboard answers with a
+// promise (it did not always): every read and write is awaited.
 const clipboard = () => require('electron').clipboard;
 const clickfix = require('../shared/clickfix');
 
@@ -48,14 +49,14 @@ function linkIn(text) {
 }
 
 /** A command a page wanted pasted into Windows: stopped (taken off the clipboard) or told about. True when it was one. */
-function shield(text) {
+async function shield(text) {
   if (!opts.commands() || allowed.has(text)) return false;
   const found = clickfix.classify(text);
   if (!found) return false;
   const page = (opts.page && opts.page()) || {};
   const action = clickfix.decide(found, page.badge);
   if (action === 'stop') {
-    try { clipboard().writeText(stoppedLine(page.host)); } catch { return true; }
+    try { await clipboard().writeText(stoppedLine(page.host)); } catch { return true; }
     last = stoppedLine(page.host);
     held = { text, until: Date.now() + PUT_BACK_MS };
   }
@@ -65,10 +66,10 @@ function shield(text) {
 }
 
 /** "Put it back": the command returns to the clipboard, and is left alone from now on. */
-function putBack() {
+async function putBack() {
   if (!held || Date.now() > held.until) { held = null; return false; }
   allowed.add(held.text);
-  try { clipboard().writeText(held.text); } catch { return false; }
+  try { await clipboard().writeText(held.text); } catch { return false; }
   last = held.text;
   held = null;
   return true;
@@ -79,11 +80,11 @@ async function tick() {
   // The shield alone reads nothing while no browser is open: a command only comes from a page.
   if (!links && !opts.browserOpen()) return;
   let text = '';
-  try { text = clipboard().readText(); } catch { return; }
+  try { text = String(await clipboard().readText()); } catch { return; }
   if (text === last) return;
   last = text;
   if (held && Date.now() > held.until) held = null;
-  if (opts.browserOpen() && shield(text)) return;
+  if (opts.browserOpen() && await shield(text)) return;
   if (!links) return;
   const url = linkIn(text);
   if (!url) return;
@@ -106,8 +107,9 @@ function start(options) {
   opts = options;
   stop();
   // Whatever is on the clipboard when this starts was copied before: it is not checked.
-  try { last = clipboard().readText(); } catch { last = ''; }
-  timer = setInterval(() => { tick().catch(() => {}); }, opts.commands() ? SHIELD_EVERY_MS : EVERY_MS);
+  last = null;
+  Promise.resolve().then(() => clipboard().readText()).then((t) => { if (last === null) last = String(t); }, () => { if (last === null) last = ''; });
+  timer = setInterval(() => { if (last !== null) tick().catch(() => {}); }, opts.commands() ? SHIELD_EVERY_MS : EVERY_MS);
   timer.unref();
 }
 
