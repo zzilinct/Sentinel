@@ -564,12 +564,16 @@ function setApps(list) {
  * @param {{ log: (s: string) => void, onState: (s: object) => void, onSeen?: () => void, apps?: string[],
  *   api?: (path: string, body: object) => Promise<object> }} o  api: checks the addresses of links in texts
  */
+// How the reader starts: its script arrives as the first line on its input (too long for a command line), and runs
+// with `&` so each line it writes reaches Sentinel at once (a script block's Invoke() would hold them all until it ends).
+const LAUNCH = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command',
+  '& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadLine()))))'];
+
 function start(o) {
   if (process.platform !== 'win32' || child) return;
   opts = o;
   if (o.apps) apps = o.apps.filter((a) => NAMES[a]);
-  child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '[ScriptBlock]::Create([Console]::In.ReadLine() | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) }).Invoke()'],
-    { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  child = spawn('powershell.exe', LAUNCH, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdin.write(`${Buffer.from(SCRIPT, 'utf8').toString('base64')}\n`);
   send(`apps ${apps.join(',')}`);
   lines = require('readline').createInterface({ input: child.stdout });
@@ -594,5 +598,5 @@ function stop() {
 
 module.exports = {
   start, stop, setApps, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)),
-  _test: { SCRIPT, robloxMessages, readLog, discordContext, judge, phonelinkMessages, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
+  _test: { SCRIPT, LAUNCH, robloxMessages, readLog, discordContext, judge, phonelinkMessages, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
 };

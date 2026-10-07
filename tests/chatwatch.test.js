@@ -7,7 +7,7 @@ const path = require('path');
 
 require('../desktop/scripts/sync-shared.js');
 const chatwatch = require('../desktop/src/chatwatch.js');
-const { robloxMessages, readLog, discordContext, judge, SCRIPT, phonelinkMessages, judgeTexts, textOf, setOpts } = chatwatch._test;
+const { robloxMessages, readLog, discordContext, judge, SCRIPT, LAUNCH, phonelinkMessages, judgeTexts, textOf, setOpts } = chatwatch._test;
 
 test('Roblox\'s chat box: names and messages, wrapped lines joined, and whether the box is open at all', () => {
   const r = robloxMessages([
@@ -67,6 +67,18 @@ test('the chat reader\'s PowerShell parses', { skip: process.platform !== 'win32
       `$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile('${file.replace(/'/g, "''")}', [ref]$null, [ref]$e); if ($e) { $e | ForEach-Object { $_.Message + ' @ ' + $_.Extent.StartLineNumber } } else { 'parsed' }`], { encoding: 'utf8', timeout: 60000 });
     assert.equal(r.stdout.trim(), 'parsed', r.stdout + r.stderr);
   } finally { fs.rmSync(file, { force: true }); }
+});
+
+test('the chat reader starts, reads its next lines and its output arrives while it runs', { skip: process.platform !== 'win32' }, async () => {
+  const script = "Write-Output 'up'; $l = [Console]::In.ReadLine(); Write-Output ('got ' + $l); Start-Sleep 30";
+  const ps = require('child_process').spawn('powershell.exe', LAUNCH, { windowsHide: true });
+  let out = '';
+  ps.stdout.on('data', (d) => { out += d; });
+  ps.stdin.write(`${Buffer.from(script, 'utf8').toString('base64')}\napps discord\n`);
+  try {
+    for (let i = 0; i < 300 && !/got apps discord/.test(out); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.match(out, /up\s+got apps discord/);
+  } finally { ps.kill(); }
 });
 
 test('Phone Link read with the text recogniser: who it is with, received texts with their lines joined, sent ones and times left out', () => {
