@@ -15,13 +15,14 @@ const { MONEY_DOMAINS } = require('../shared/brands');
 const { analyze } = require('../shared/url');
 
 // The programs these scams ask people to install. Process names as Windows reports them, without ".exe", lower case.
+// `service`: the Windows service an installed copy runs as (a name pattern), which only an administrator can stop.
 const TOOLS = [
-  { id: 'anydesk', name: 'AnyDesk', processes: ['anydesk'], file: /anydesk/i },
-  { id: 'teamviewer', name: 'TeamViewer', processes: ['teamviewer', 'teamviewerqs', 'teamviewer_desktop'], file: /teamviewer/i },
-  { id: 'ultraviewer', name: 'UltraViewer', processes: ['ultraviewer_desktop', 'ultraviewer'], file: /ultra[ _-]?viewer/i },
-  { id: 'rustdesk', name: 'RustDesk', processes: ['rustdesk'], file: /rustdesk/i },
-  { id: 'screenconnect', name: 'ScreenConnect', processes: ['screenconnect.windowsclient', 'screenconnect.clientservice'], file: /screenconnect|connectwise/i },
-  { id: 'supremo', name: 'Supremo', processes: ['supremo', 'supremoservice'], file: /^supremo/i },
+  { id: 'anydesk', name: 'AnyDesk', processes: ['anydesk'], file: /anydesk/i, service: 'AnyDesk*' },
+  { id: 'teamviewer', name: 'TeamViewer', processes: ['teamviewer', 'teamviewerqs', 'teamviewer_desktop'], file: /teamviewer/i, service: 'TeamViewer*' },
+  { id: 'ultraviewer', name: 'UltraViewer', processes: ['ultraviewer_desktop', 'ultraviewer'], file: /ultra[ _-]?viewer/i, service: 'UltraView*' },
+  { id: 'rustdesk', name: 'RustDesk', processes: ['rustdesk'], file: /rustdesk/i, service: 'RustDesk*' },
+  { id: 'screenconnect', name: 'ScreenConnect', processes: ['screenconnect.windowsclient', 'screenconnect.clientservice'], file: /screenconnect|connectwise/i, service: 'ScreenConnect*' },
+  { id: 'supremo', name: 'Supremo', processes: ['supremo', 'supremoservice'], file: /^supremo/i, service: 'Supremo*' },
   { id: 'aeroadmin', name: 'AeroAdmin', processes: ['aeroadmin'], file: /aeroadmin/i },
   { id: 'quickassist', name: 'Quick Assist', processes: ['quickassist'], file: /quick[ _-]?assist/i }
 ];
@@ -61,6 +62,24 @@ function moneySite(url) {
 }
 
 /**
+ * The PowerShell that ends an installed copy, after the person said yes to Windows' administrator prompt: stop its
+ * service, then end its programs. Prints "cancelled" when the prompt was refused. Names come from TOOLS only.
+ */
+function adminStopScript(tool) {
+  const steps = [
+    ...(tool.service ? [`Get-Service -Name '${tool.service}' -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue`] : []),
+    ...tool.processes.map((p) => `taskkill.exe /IM '${p}.exe' /T /F`)
+  ].join('; ');
+  const encoded = Buffer.from(steps, 'utf16le').toString('base64');
+  return `try { Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','${encoded}' -ErrorAction Stop } catch { 'cancelled' }`;
+}
+
+/** The process names in `tasklist /FO CSV /NH` output, lower case and without ".exe", for toolsRunning. */
+function namesFromTasklist(out) {
+  return String(out || '').split(/\r?\n/).map((l) => (l.match(/^"([^"]+)"/) || [])[1]).filter(Boolean).map((n) => n.toLowerCase().replace(/\.exe$/, ''));
+}
+
+/**
  * One per app. `update` is given the process names each time the helper reports; it answers with the tools that
  * have just started and deserve a question. The first report is only a starting point: a program that was already
  * running when Sentinel started is someone's own setup, not a new connection.
@@ -84,4 +103,4 @@ function create() {
   };
 }
 
-module.exports = { TOOLS, PROCESS_NAMES, byId, create, moneySite, reasonFor, toolsRunning, PAGE_WINDOW_MS, DOWNLOAD_WINDOW_MS };
+module.exports = { TOOLS, PROCESS_NAMES, byId, create, moneySite, reasonFor, toolsRunning, adminStopScript, namesFromTasklist, PAGE_WINDOW_MS, DOWNLOAD_WINDOW_MS };

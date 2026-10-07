@@ -10,6 +10,7 @@ const rg = require('../desktop/src/remoteguard.js');
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const MIN = 60 * 1000;
+const watchSrc = () => require('../desktop/src/watch.js')._test.SCRIPT;
 
 test('remote-control programs are recognised by their process names', () => {
   assert.deepEqual([...rg.toolsRunning(['chrome', 'anydesk', 'screenconnect.windowsclient'])].sort(), ['anydesk', 'screenconnect']);
@@ -97,4 +98,47 @@ test('the shield\'s words are plain, with no em dashes', () => {
   assert.match(html, /Did someone on the phone ask you to install this\?/);
   assert.match(html, /End the connection/);
   assert.ok(!read('desktop/src/remoteguard.js').includes('—'));
+});
+
+test('an installed copy is ended as administrator only through Windows\' own prompt, and only by name', () => {
+  const s = rg.adminStopScript(rg.byId.anydesk);
+  assert.match(s, /Start-Process powershell\.exe -Verb RunAs /, 'Windows asks the person first');
+  assert.match(s, /catch \{ 'cancelled' \}/, 'a refused prompt is told apart');
+  const inner = Buffer.from(s.match(/'-EncodedCommand','([A-Za-z0-9+/=]+)'/)[1], 'base64').toString('utf16le');
+  assert.equal(inner, "Get-Service -Name 'AnyDesk*' -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue; taskkill.exe /IM 'anydesk.exe' /T /F");
+  const qa = Buffer.from(rg.adminStopScript(rg.byId.quickassist).match(/'-EncodedCommand','([A-Za-z0-9+/=]+)'/)[1], 'base64').toString('utf16le');
+  assert.equal(qa, "taskkill.exe /IM 'quickassist.exe' /T /F", 'no service, no Stop-Service');
+  for (const t of rg.TOOLS) assert.ok(!t.service || /^[A-Za-z]+\*$/.test(t.service), `${t.id}: a plain service pattern`);
+});
+
+test('what tasklist lists is read back into tool ids, so "End the connection" is checked, not assumed', () => {
+  const out = '"System Idle Process","0","Services","0","8 K"\r\n"AnyDesk.exe","4120","Services","0","20,000 K"\r\n"chrome.exe","77","Console","1","90,000 K"\r\n';
+  assert.deepEqual(rg.namesFromTasklist(out), ['system idle process', 'anydesk', 'chrome']);
+  assert.deepEqual([...rg.toolsRunning(rg.namesFromTasklist(out))], ['anydesk']);
+  assert.deepEqual(rg.namesFromTasklist(''), []);
+});
+
+test('the shield\'s window: a neutral way out first, trusting behind a second step, Escape changes nothing', () => {
+  const html = read('desktop/src/pages/guard.html');
+  assert.match(html, /<body role="alertdialog" aria-labelledby="title" aria-describedby="[^"]*lead[^"]*">/);
+  assert.match(html, /buttons: \[trust\(remote\), \{ label: 'Not now', cancel: true, run: \(\) => act\('dismiss'\) \}, end\]/);
+  assert.match(html, /Only if nobody asked you to install it\.<\/b> Sentinel will stop asking about it\./);
+  assert.match(html, /e\.key === 'Escape' && cancel && !cancel\.disabled/);
+  assert.match(html, /q\.get\('support'\) === '1'/, 'the scare-page words only for a page judged to be one');
+  assert.ok(!/Restart the computer to end the connection/.test(html), 'a service starts again with Windows');
+  assert.match(html, /Turn off Wi-Fi or unplug the network cable now\./);
+  assert.match(html, /act\('end-tool-admin', tool\)/);
+  assert.match(html, /act\('recover', 'remote'\)/, 'the done screen links to the recovery guide');
+  assert.match(read('desktop/src/pages/warn.html'), /warnAction\('recover', 'password'\)/);
+});
+
+test('main: trusting a program needs the PIN under a parent lock, and the way out takes the keyboard', () => {
+  const main = read('desktop/src/main.js');
+  assert.match(main, /if \(action === 'trust-tool'\) \{[\s\S]{0,300}lock\.guard\(`asking about \$\{tool\.name\} off`, true\)/);
+  assert.match(main, /if \(guardMode === 'escape'\) takeKeyboard\(\); else guardWin\.showInactive\(\);/);
+  assert.match(main, /function takeKeyboard\(\) \{[\s\S]{0,200}watch\.front\(/);
+  assert.ok(watchSrc().includes("if ($cmd -match '^front (\\d{1,20})$') { [SW]::Front("), 'the reader brings a window to the front by its handle only');
+  assert.match(main, /badPage = \{ key: escapeKey\(v\.page\), browser: v\.page\.browser, support: Boolean\(v\.support\) \}/, 'keyed on the site');
+  assert.match(main, /if \(action === 'recover'\) \{\n\s+\/\/[^\n]*\n\s+closeGuard\(\);\n\s+showWindow\(recoverRoute\(arg, 'remote'\)\);/);
+  assert.match(main, /`\$\{inApp \? '\/app\/recover' : '\/recover'\}\?happened=\$\{RECOVER_HAPPENED\.has\(happened\) \? happened : fallback\}`/, 'signed out, the website\'s guide, not a sign-in page');
 });
