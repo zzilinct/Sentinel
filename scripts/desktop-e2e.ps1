@@ -77,7 +77,16 @@ Copy-Item -Recurse (Join-Path $PSScriptRoot '..\desktop\src') "$broken\resources
 [IO.File]::WriteAllText("$broken\resources\app\package.json", '{"name":"sentinel-broken-start","productName":"SentinelBrokenStart","main":"src/boot.js"}')
 $bp = Start-Process "$broken\Sentinel.exe" -PassThru
 $logged = Until 40 { (Get-Content "$brokenData\logs\app.log" -Raw -ErrorAction SilentlyContinue) -match 'could not start: Error: broken on purpose' }
-$told = Until 20 { (Get-Process -Id $bp.Id -ErrorAction SilentlyContinue).MainWindowTitle -eq 'Sentinel could not start' }
+# Windows titles the box "Error"; the words inside it are read through UI Automation.
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+function WindowWords($procId) {
+  $A = [Windows.Automation.AutomationElement]
+  $w = $A::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, (New-Object Windows.Automation.PropertyCondition($A::ProcessIdProperty, $procId)))
+  if (-not $w) { return '' }
+  return (@($w.Current.Name) + @($w.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name })) -join ' | '
+}
+$told = Until 20 { (WindowWords $bp.Id) -match 'Sentinel could not start' }
+Say "  the box: $(WindowWords $bp.Id)"
 Check 'broken-start-logged' $logged 'a require that throws at start is in app.log'
 Check 'broken-start-told' $told "the person sees 'Sentinel could not start'"
 if (-not $told) { Shot 'broken-start' }
