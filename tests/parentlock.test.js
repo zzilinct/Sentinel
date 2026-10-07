@@ -79,6 +79,69 @@ test('five wrong PINs in a row mean a minute\'s wait, even for the right one', (
   assert.throws(() => lock.unlock('1111'), /^Error: Wrong PIN\.$/);
 });
 
+test('each wait after five wrong PINs is twice the last, an hour at most, and a right PIN starts it again', () => {
+  let t = 7_000_000;
+  const store = memoryStore();
+  const lock = parentlock.create(store, () => t);
+  lock.set('2580');
+  const seen = [];
+  for (let round = 0; round < 8; round++) {
+    for (let i = 0; i < 4; i++) assert.throws(() => lock.unlock('1111'), /^Error: Wrong PIN\.$/);
+    assert.throws(() => lock.unlock('1111'), /Try again in/);
+    seen.push(lock.status().waitSeconds);
+    t += lock.status().waitSeconds * 1000 + 1;
+  }
+  assert.deepEqual(seen, [60, 120, 240, 480, 960, 1920, 3600, 3600]);
+  assert.ok(store.data.parentLockRecord.some((e) => e.text === 'Wrong PIN entered 5 times'));
+  assert.equal(lock.unlock('2580').locked, false);
+  lock.relock();
+  for (let i = 0; i < 4; i++) assert.throws(() => lock.unlock('1111'));
+  assert.throws(() => lock.unlock('1111'), /in a minute/);
+});
+
+test('the record counts repeats instead of filling up, and never loses "stopped without the PIN"', () => {
+  let t = 9_000_000;
+  const store = memoryStore();
+  const lock = parentlock.create(store, () => t);
+  lock.set('2580');
+  lock.note('Sentinel stopped without the PIN (ended from Task Manager, or it crashed)', t - 5000);
+  for (let i = 0; i < 200; i++) { t += 1000; assert.throws(() => lock.guard(i % 2 ? 'chat safety off' : 'defense off', true)); }
+  const rec = store.data.parentLockRecord;
+  assert.equal(rec.find((e) => e.text === 'Tried to switch chat safety off without the PIN').times, 100);
+  assert.ok(rec.some((e) => /^Sentinel stopped without the PIN/.test(e.text)));
+  // Different lines, many of them: still at most 30, the stop line kept.
+  for (let i = 0; i < 60; i++) { t += 1000; lock.note(`line ${i}`); }
+  assert.equal(store.data.parentLockRecord.length, 30);
+  assert.ok(store.data.parentLockRecord.some((e) => /^Sentinel stopped without the PIN/.test(e.text)));
+  // An hour later the same line is a new one.
+  t += 2 * 60 * 60 * 1000;
+  assert.throws(() => lock.guard('chat safety off', true));
+  assert.equal(store.data.parentLockRecord[0].times, undefined);
+});
+
+test('a quarantined file, the shield\'s "I use it myself" and the account need the PIN too', () => {
+  const store = memoryStore();
+  const lock = parentlock.create(store);
+  lock.set('2580');
+  assert.throws(() => lock.guard('a quarantined file back', true, ['put', 'Put']), /Locked by a parent/);
+  assert.equal(store.data.parentLockRecord[0].text, 'Tried to put a quarantined file back without the PIN');
+  lock.unlock('2580');
+  lock.guard('a quarantined file back', true, ['put', 'Put']);
+  assert.equal(store.data.parentLockRecord[0].text, 'Put a quarantined file back with the PIN');
+  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'desktop', 'src', 'main.js'), 'utf8');
+  assert.match(main, /handle\('sentinel:defense-restore', \(id\) => \{ lock\.guard\('a quarantined file back', true, \['put', 'Put'\]\);/);
+  assert.match(main, /action === 'trust-tool'[\s\S]{0,300}trayGuard\(`asking about \$\{tool\.name\} off`, true\)/);
+  assert.match(main, /handle\('sentinel:set-token'[\s\S]{0,400}lock\.guard\('to another account'/);
+  assert.match(main, /handle\('sentinel:clear-token', \(\) => \{\s*lock\.guard\('to this computer\\'s own account'/);
+});
+
+test('after an administrator removes a forgotten PIN, the record is still there for the parent to read', () => {
+  const lock = parentlock.create(memoryStore());
+  lock.set('2580');
+  lock.reset();
+  assert.equal(lock.status().record[0].text, 'The PIN was removed with a Windows administrator\'s approval');
+});
+
 test('the PIN is changed or removed only while the lock is open; a Windows administrator can remove a forgotten one', () => {
   const store = memoryStore();
   const lock = parentlock.create(store);
