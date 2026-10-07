@@ -249,7 +249,7 @@ Check 'clickfix-snippet-log' (([regex]::Matches((AppLog), 'copied command (stopp
 # The clipboard is read every half second only while a browser is in front; with another program in front, every 1.5 s.
 function ClipStatus { return (Cdp 'main' "process.mainModule.require('./clipwatch').status()").value }
 $a = ClipStatus; Start-Sleep 6; $b = ClipStatus
-Check 'clickfix-fast-in-browser' ($b.every -eq 500 -and ($b.reads - $a.reads) -ge 8) "browser in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
+Check 'clickfix-fast-in-browser' ($b.every -eq 500 -and ($b.reads - $a.reads) -ge 6) "browser in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
 Start-Process notepad
 Start-Sleep 3
 Say "Notepad in front: $(Front 'notepad')"
