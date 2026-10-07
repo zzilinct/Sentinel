@@ -937,7 +937,7 @@ async function checkExposures() {
   if (Date.now() - store.get('exposureNotifiedAt', 0) < EXPOSURE_NOTIFY_GAP_MS) return;
   store.set('exposureNotifiedAt', Date.now());
   const one = fresh.length === 1;
-  notify(one ? `A site you visited is now listed as ${exposureWhat(fresh[0])}` : `${fresh.length} sites you visited are now on threat lists`,
+  notify(one ? `${fresh[0].page ? 'A page on a site you visited' : 'A site you visited'} is now listed as ${exposureWhat(fresh[0])}` : `${fresh.length} sites you visited are now on threat lists`,
     one ? `${fresh[0].host}. Click to see what to do.` : 'Click to see which ones, and what to do about each.',
     () => showWindow('/app/protection#exposures'));
   // Only the hosts it named: anything a list adds after this is told about tomorrow.

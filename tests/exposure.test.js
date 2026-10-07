@@ -56,15 +56,42 @@ test('a whole listed domain matches a visit to any of its subdomains; a listed s
   assert.deepEqual(hosts(user), ['whole-domain-scam.example']);
 });
 
-test('an exact address on a URL list counts only when it is the site itself, and malware gets its own steps', async () => {
+test('an address at the root of a site on a URL list names the whole site, and malware gets its own steps', async () => {
   const user = newUser();
   exposure.remember(user, 'http://payload-drop.example/');
+  // Registered ten years ago, as far as Sentinel already knows.
+  require('../server/lib/scan/research').setTestFacts('big-honest-forum.example', { registration: { available: true, registered: true, createdAt: Date.now() - 3650 * DAY } });
   exposure.remember(user, 'https://big-honest-forum.example/thread/9');
   await feeds.importLines(feed('urlhaus', 'exp_urls'), ['http://payload-drop.example/', 'https://big-honest-forum.example/uploads/bad.zip']);
   const list = exposure.list(user);
-  assert.deepEqual(list.map((e) => e.host), ['payload-drop.example'], 'one bad file on a big site does not condemn the site');
+  assert.deepEqual(list.map((e) => e.host), ['payload-drop.example'], 'one bad file on an established site does not condemn the site');
   assert.equal(list[0].kind, 'malware');
   assert.equal(list[0].realSite, null);
+  assert.equal(list[0].page, false, 'the whole site is listed');
+});
+
+test('a page on a URL list counts for its site when the site is young or its age unknown, and says a page was listed', async () => {
+  const user = newUser();
+  const research = require('../server/lib/scan/research');
+  research.setTestFacts('fresh-parcel-fees.example', { registration: { available: true, registered: true, createdAt: Date.now() - 20 * DAY } });
+  exposure.remember(user, 'https://fresh-parcel-fees.example/track');
+  exposure.remember(user, 'https://unknown-age-shop.example/');
+  exposure.remember(user, 'https://www.wikipedia.org/wiki/Soup');
+  exposure.remember(user, 'https://team-notes.netlify.app/');
+  const r = await feeds.importLines(feed('openphish', 'exp_pages'), [
+    'https://fresh-parcel-fees.example/pay/fee.html', 'https://fresh-parcel-fees.example/pay/again.html',
+    'https://unknown-age-shop.example/login?next=1',
+    'https://www.wikipedia.org/hacked/page', 'https://team-notes.netlify.app/login'
+  ]);
+  assert.equal(r.exposed, 2, 'never a verified site or a shared platform');
+  const list = exposure.list(user);
+  assert.deepEqual(list.map((e) => e.host).sort(), ['fresh-parcel-fees.example', 'unknown-age-shop.example']);
+  assert.ok(list.every((e) => e.page === true && e.kind === 'phishing'));
+  // The same addresses again: nothing new.
+  assert.equal((await feeds.importLines(feed('openphish', 'exp_pages'), ['https://fresh-parcel-fees.example/pay/fee.html'])).exposed, 0);
+  // Listed whole afterwards: the alert now names the site.
+  await feeds.importLines(feed('phishing_database', 'exp_pages_whole'), ['unknown-age-shop.example']);
+  assert.equal(exposure.list(user).find((e) => e.host === 'unknown-age-shop.example').page, false);
 });
 
 test('pages on shared platforms are never remembered, so never matched', async () => {

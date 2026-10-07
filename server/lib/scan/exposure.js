@@ -12,6 +12,10 @@
  *              accounts file never holds a readable list of the sites someone visits.
  *   match      Each threat-list import reports the hosts it had never listed before. Each is hashed with the same
  *              key and looked up among the marks. A whole listed domain also matches a visit to any of its subdomains.
+ *              Lists of single addresses (OpenPhish, PhishTank, URLhaus) also report the host of each new address
+ *              that is not the site's front page. That host matches only itself, and only when the site is young
+ *              (registered less than a year ago) or its age is not known here: one bad page on an established site
+ *              is more often a break-in than a scam site. Such an alert says a page on the site was listed.
  *   tell       A match is an exposure: the listed host (it is public, on the list), its threat, and the day of the
  *              visit. The desktop app asks for new ones and says so, once a day at most.
  *
@@ -24,10 +28,12 @@ const crypto = require('crypto');
 const { db, now } = require('../db');
 const config = require('../../config');
 const { analyze, isUserContent, brandInfo } = require('./url');
+const { knownCreatedAt } = require('./research');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const KEEP_MARKS_MS = 14 * DAY_MS;
 const KEEP_EXPOSURES_MS = 30 * DAY_MS;
+const YOUNG_MS = 365 * DAY_MS;
 
 // The key never leaves this server: derived from its own secret, so a copy of the database alone cannot be checked
 // against a list of sites to see which were visited.
@@ -46,7 +52,9 @@ const q = {
   list: db.prepare(`SELECT host, threat, category, visited_day, listed_at, notified_at FROM exposures
                     WHERE user_id = ? AND dismissed_at IS NULL AND listed_at > ? ORDER BY listed_at DESC LIMIT 50`),
   notified: db.prepare('UPDATE exposures SET notified_at = ? WHERE user_id = ? AND host = ? AND notified_at IS NULL'),
-  dismiss: db.prepare('UPDATE exposures SET dismissed_at = ? WHERE user_id = ? AND host = ?')
+  dismiss: db.prepare('UPDATE exposures SET dismissed_at = ? WHERE user_id = ? AND host = ?'),
+  // The whole site is on a list (or its domain is), rather than one page on it.
+  wholeSite: db.prepare("SELECT 1 FROM feed_hosts WHERE host IN (?, ?) UNION ALL SELECT 1 FROM blocklist WHERE host IN (?, ?) LIMIT 1")
 };
 
 const dayOf = (t) => Math.floor(t / DAY_MS) * DAY_MS;
@@ -84,8 +92,8 @@ function forget(userId) {
 function watching() { return Boolean(q.any.get()); }
 
 /**
- * Newly listed hosts against the marks. `listed` is [{ host, registrable, threat, category }], hosts a list had not
- * named before this import. Returns how many exposures were new.
+ * Newly listed hosts against the marks. `listed` is [{ host, registrable, threat, category, page }], hosts a list had
+ * not named before this import; `page` when only an address on the host was listed. Returns how many exposures were new.
  */
 function match(listed, at = now()) {
   if (!listed || !listed.length || !watching()) return 0;
@@ -95,6 +103,12 @@ function match(listed, at = now()) {
     const host = bare(item.host);
     const p = analyze(`http://${host}`);
     if (!p || shared(p)) continue;
+    if (item.page) {
+      const born = knownCreatedAt(bare(p.registrable), host);
+      if ((born && at - born >= YOUNG_MS) || byHost.has(hash(host))) continue;
+      byHost.set(hash(host), { ...item, host });
+      continue;
+    }
     byHost.set(hash(host), { ...item, host });
     // The whole domain is listed: a visit to any of its subdomains counts too.
     if (host === bare(p.registrable)) byDomain.set(hash(host), { ...item, host });
@@ -116,12 +130,13 @@ function match(listed, at = now()) {
  */
 function advice(row) {
   const p = analyze(`http://${row.host}`);
+  const page = !q.wholeSite.get(row.host, p ? bare(p.registrable) : row.host, row.host, p ? bare(p.registrable) : row.host);
   const b = p ? brandInfo(p) : {};
   const brand = b.lookalike || b.inDomain || b.inSubdomain || null;
   const realSite = brand && brand.domains && brand.domains[0] ? brand.domains[0] : null;
   const malware = row.threat === 'malware' || row.threat === 'virus';
   const kind = malware ? 'malware' : row.category === 'phishing' ? 'phishing' : row.category === 'crypto_scam' ? 'crypto' : 'scam';
-  return { kind, realSite };
+  return { kind, realSite, page };
 }
 
 /** This account's exposures from the last 30 days that it has not dismissed, newest first. */

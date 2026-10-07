@@ -120,6 +120,21 @@ async function fetchRdap(registrable) {
   return value;
 }
 
+/**
+ * When a domain was registered, if Sentinel already knows without asking anyone: from a lookup in the last day, or a
+ * delicate live scan of `host` in the last three days. Null when nothing is known.
+ */
+function knownCreatedAt(registrable, host = registrable) {
+  if (config.isTest) return ((testFacts.get(registrable) || {}).registration || {}).createdAt || null;
+  const hit = rdapCache.get(registrable);
+  if (hit && hit.value.createdAt) return hit.value.createdAt;
+  try {
+    const row = q.get.get(`lite:${host}`);
+    const reg = row && JSON.parse(row.payload).registration;
+    return (reg && reg.createdAt) || null;
+  } catch { return null; }
+}
+
 /* ------------------------------------------------------------------- dns */
 
 // Multiple links often share a host, and subdomains share MX/NS records.
@@ -275,4 +290,4 @@ function slimPage(page) {
   return { ...page, text: page.text.slice(0, 60000), htmlLower: page.htmlLower.slice(0, 200000) };
 }
 
-module.exports = { research, setTestFacts };
+module.exports = { research, setTestFacts, knownCreatedAt };

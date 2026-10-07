@@ -111,6 +111,7 @@ const q = {
   staleHosts: db.prepare("SELECT host FROM feed_hosts WHERE source = ? AND added_at < ? AND threat = 'scam'"),
   pruneHosts: db.prepare('DELETE FROM feed_hosts WHERE source = ? AND added_at < ?'),
   pruneUrls: db.prepare('DELETE FROM feed_urls WHERE source = ? AND added_at < ?'),
+  urlKnown: db.prepare('SELECT 1 FROM feed_urls WHERE url_key = ? AND source = ?'),
   stillKnown: db.prepare("SELECT 1 FROM feed_hosts WHERE host = ? AND threat = 'scam' UNION SELECT 1 FROM blocklist WHERE host = ? AND threat = 'scam' LIMIT 1"),
   tokenIns: db.prepare('INSERT OR IGNORE INTO scam_tokens (token, host) VALUES (?, ?)'),
   tokenDel: db.prepare('DELETE FROM scam_tokens WHERE host = ?'),
@@ -185,6 +186,8 @@ async function importLines(feed, lines) {
   let count = 0;
   const added = new Set();
   const listed = exposure.watching() ? [] : null;
+  // The hosts of addresses this list names for the first time, other than a site's front page (exposure.js match).
+  const pages = new Map();
   const rows = lines.map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
   if (feed.kind === 'hosts') return importHosts(feed, rows);
 
@@ -213,10 +216,16 @@ async function importLines(feed, lines) {
         }
 
         const threat = feed.threat === 'malware' && L.EXECUTABLE_EXT.has(p.ext) ? 'virus' : feed.threat;
-        q.url.run(urlKey(p.url), p.host, feed.id, threat, feed.category, stamp);
+        const key = urlKey(p.url);
+        const fresh = listed && !isNever(p) && !q.urlKnown.get(key, feed.id);
+        q.url.run(key, p.host, feed.id, threat, feed.category, stamp);
         count++;
         // A phishing URL at the root of a non-verified host means the whole host is the scam.
         if ((p.path === '/' || p.path === '') && !p.query && !isNever(p)) putHost(p, threat);
+        else if (fresh) {
+          const host = p.host.replace(/^www\./, '');
+          if (!pages.has(host)) pages.set(host, { host, registrable: p.registrable, threat, category: feed.category, page: true });
+        }
       }
       db.exec('COMMIT');
     } catch (err) {
@@ -231,7 +240,7 @@ async function importLines(feed, lines) {
   q.pruneUrls.run(feed.id, stamp);
   q.status.run(feed.id, stamp, count, 1, null);
   revision++;
-  const exposed = noteExposures(listed);
+  const exposed = noteExposures(listed && [...listed, ...pages.values()]);
   return { count, added, removed, exposed };
 }
 
