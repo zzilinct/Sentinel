@@ -314,3 +314,43 @@ test('collectAside reads on a worker thread and gives the same answer', async ()
     assert.ok(Array.isArray(result.unchecked));
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 });
+
+test('Edge: its own Preferences layout, from a real Edge 153 profile (CI), is read for notifications and search', async () => {
+  const { tmp, local, roaming } = fixtureRoots();
+  try {
+    const edge = path.join(local, 'Microsoft', 'Edge', 'User Data', 'Default');
+    // As Edge 153 wrote it on CI with an add-on that sets the search engine: no template_url_data (the person never
+    // chose), the engine in use mirrored, Edge's own change history beside it, and Edge's extra notification lists
+    // next to Chromium's "notifications" (the allowed site is put in Chromium's own format, which Edge honours: CI).
+    writeJson(path.join(edge, 'Preferences'), {
+      default_search_provider: { reset_occurred: false },
+      default_search_provider_data: { mirrored_template_url_data: {
+        alternate_urls: [], favicon_url: 'https://find.weather-tab.test/favicon.ico', id: '0', input_encodings: ['UTF-8'], is_active: 1,
+        keyword: 'wthr', prepopulate_id: 0, safe_for_autoreplace: false, short_name: 'Weather Search', suggestions_url: '',
+        synced_guid: 'd90351a1-e1de-4757-8477-5a7ff0450fb7', url: 'https://find.weather-tab.test/q?s={searchTerms}', usage_count: 0
+      } },
+      edge: { default_search_provider: { change_history: [{ cause: 3, count: 1, from: { keyword: 'bing.com', prepopulateId: 1 }, material: true, source: 2, time: '13435879749437190', to: { keyword: 'wthr', prepopulateId: 0 }, version: '153.0.4234.48' }] } },
+      profile: { content_settings: { exceptions: {
+        abusive_notification_permissions: {}, disruptive_notification_permissions: {}, edge_notification_referrer_chain_blocked: {},
+        notification_interactions: {}, notification_permission_review: {}, suspicious_notification_ids: {},
+        notifications: { 'https://example-notify.test:443,*': { last_modified: '13435879749437190', setting: 1 }, 'https://blocked-notify.test:443,*': { last_modified: '13435879749437190', setting: 2 } }
+      } } }
+    });
+    writeJson(path.join(edge, 'Secure Preferences'), { session: { restore_on_startup: 4, startup_urls: ['https://startup-page.test/'] } });
+    const result = await checkup.collect({ local, roaming, policies: async () => [], managed: false, present: async () => [] });
+    const p = result.browsers.find((b) => b.id === 'edge').profiles[0];
+    assert.deepEqual(p.notifications, ['https://example-notify.test']);
+    assert.equal(p.search.name, 'Weather Search');
+    assert.equal(p.search.host, 'find.weather-tab.test');
+    assert.equal(p.search.badge, 'yellow', 'an engine an add-on set, nobody knows');
+    assert.deepEqual(p.startup, ['https://startup-page.test/']);
+
+    // The person's own choice (template_url_data) wins over the mirror; one of the browser's own engines is known.
+    writeJson(path.join(edge, 'Secure Preferences'), { default_search_provider_data: { template_url_data: { short_name: 'Sapo', keyword: 'pesquisa.sapo.pt', prepopulate_id: 47, url: 'https://pesquisa.sapo.pt/?q={searchTerms}' } } });
+    const again = await checkup.collect({ local, roaming, policies: async () => [], managed: false, present: async () => [] });
+    const s = again.browsers.find((b) => b.id === 'edge').profiles[0].search;
+    assert.equal(s.name, 'Sapo');
+    assert.equal(s.known, true, 'not on Sentinel\'s list, but one the browser ships');
+    assert.equal(s.badge, null);
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+});

@@ -41,7 +41,8 @@ const PAGES = [
 // Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.
 const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light']];
 
-function cdpPipe(child) {
+/** Commands over the DevTools pipe; `onEvent`, if given, hears the browser's events (messages without an id). */
+function cdpPipe(child, onEvent) {
   let id = 0;
   const waiting = new Map();
   let buf = '';
@@ -51,7 +52,7 @@ function cdpPipe(child) {
     while ((i = buf.indexOf('\0')) >= 0) {
       const msg = JSON.parse(buf.slice(0, i));
       buf = buf.slice(i + 1);
-      if (!msg.id) continue;
+      if (!msg.id) { if (onEvent) onEvent(msg); continue; }
       const w = waiting.get(msg.id);
       if (!w) continue;
       waiting.delete(msg.id);

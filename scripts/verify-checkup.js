@@ -7,7 +7,10 @@
  *   node scripts/verify-checkup.js prepare [--out dir]   Chrome and Edge: their default profile, over the DevTools
  *                                                        pipe: a site allowed (and one blocked) to send
  *                                                        notifications, a start page, Bing as the search engine, and
- *                                                        test add-ons. Opera and Opera GX, when installed: an add-on.
+ *                                                        test add-ons. Edge, whose settings page takes neither the
+ *                                                        site nor the engine from a script: the two sites go into
+ *                                                        its Preferences, and Edge, started again, is asked whether
+ *                                                        it honours them. Opera and Opera GX, when installed: an add-on.
  *                                                        Firefox: a profile listed in profiles.ini with the same
  *                                                        notification permissions, a home page, a search engine
  *                                                        nobody knows, a store add-on (and an unsigned one, which
@@ -166,12 +169,13 @@ async function prepareChromium(b) {
   try { fs.rmSync(via, { force: true, recursive: false }); } catch { /* none */ }
   fs.symlinkSync(b.userData, via, 'junction');
   out.via = via;
-  const child = spawn(exe, [
+  const args = [
     '--headless=new', `--user-data-dir=${via}`, ...(b.lite ? [] : ['--profile-directory=Default']),
     '--remote-debugging-pipe', '--enable-unsafe-extension-debugging',
     ...(b.lite ? [] : ['--disable-features=DisableLoadExtensionCommandLineSwitch', `--load-extension=${extDir('B')}`]),
     '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--enable-logging=stderr', 'about:blank'
-  ], { stdio: ['ignore', 'ignore', fs.openSync(path.join(OUT, `${b.id}-stderr.txt`), 'w'), 'pipe', 'pipe'] });
+  ];
+  const child = spawn(exe, args, { stdio: ['ignore', 'ignore', fs.openSync(path.join(OUT, `${b.id}-stderr.txt`), 'w'), 'pipe', 'pipe'] });
   child.on('error', (e) => log(`${b.id}: ${e.message}`));
   child.on('exit', (code, signal) => log(`${b.id}: exited ${code} ${signal || ''}`));
   const gone = new Promise((resolve) => child.once('exit', (code) => resolve(code)));
@@ -240,7 +244,53 @@ async function prepareChromium(b) {
     const src = [path.join(b.userData, 'Default', f), path.join(b.userData, f)].find((x) => fs.existsSync(x));
     if (src) { fs.copyFileSync(src, path.join(OUT, `${b.id}-${f.replace(' ', '-')}.json`)); out[`where ${f}`] = src; }
   }
+  // Edge's settings page has no handler a script can call to allow a site. The permission goes into Preferences in
+  // Chromium's own format instead, and Edge itself is asked whether it honours it: that is the layout the checkup reads.
+  if (b.id === 'edge' && !(out.notifications && out.notifications.ok)) {
+    out.notificationsByFile = await edgeNotificationsByFile(b, exe, args).then((value) => ({ ok: true, value }), (e) => ({ ok: false, error: e.message }));
+    log(`edge: notificationsByFile ${JSON.stringify(out.notificationsByFile)}`);
+    fs.copyFileSync(path.join(b.userData, 'Default', 'Preferences'), path.join(OUT, 'edge-Preferences.json'));
+  }
   return out;
+}
+
+/** Edge, started again on its default profile, says what Notification.permission is for the two sites put in by file. */
+async function edgeNotificationsByFile(b, exe, args) {
+  const file = path.join(b.userData, 'Default', 'Preferences');
+  const prefs = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const exceptions = ((prefs.profile = prefs.profile || {}).content_settings = prefs.profile.content_settings || {}).exceptions = prefs.profile.content_settings.exceptions || {};
+  exceptions.notifications = { ...(exceptions.notifications || {}), [`${C.allow},*`]: { last_modified: '13435879749437190', setting: 1 }, [`${C.block},*`]: { last_modified: '13435879749437190', setting: 2 } };
+  fs.writeFileSync(file, JSON.stringify(prefs));
+  const child = spawn(exe, args, { stdio: ['ignore', 'ignore', fs.openSync(path.join(OUT, 'edge-stderr-2.txt'), 'w'), 'pipe', 'pipe'] });
+  const gone = new Promise((resolve) => child.once('exit', (code) => resolve(code)));
+  // The two .test sites do not exist: their pages are answered here, over DevTools, so they load as https pages.
+  let send = null;
+  const raw = cdpPipe(child, (msg) => {
+    if (msg.method !== 'Fetch.requestPaused') return;
+    send('Fetch.fulfillRequest', { requestId: msg.params.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/html' }], body: Buffer.from('<!doctype html><title>notify</title>').toString('base64') }, msg.sessionId).catch(() => {});
+  });
+  send = (...a) => Promise.race([raw(...a), gone.then((code) => { throw new Error(`the browser exited (${code}) during ${a[0]}`); })]);
+  try {
+    await Promise.race([send('Browser.getVersion'), sleep(90000).then(() => { throw new Error('no answer on the DevTools pipe'); })]);
+    const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+    const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+    await send('Fetch.enable', { patterns: [{ urlPattern: 'https://*-notify.test/*' }] }, sessionId);
+    const seen = {};
+    for (const [name, origin] of [['allow', C.allow], ['block', C.block]]) {
+      await send('Page.navigate', { url: `${origin.replace(/:443$/, '')}/` }, sessionId);
+      let v = null;
+      for (let i = 0; i < 40 && !v; i++) {
+        await sleep(250);
+        v = await send('Runtime.evaluate', { expression: "location.protocol === 'https:' && document.readyState === 'complete' ? location.origin + ' ' + Notification.permission : null", returnByValue: true }, sessionId).then((r) => r.result.value, () => null);
+      }
+      seen[name] = v;
+    }
+    await send('Browser.close').catch(() => {});
+    return seen;
+  } finally {
+    if (!(await exited(child, 30000))) child.kill();
+    await sleep(3000);
+  }
 }
 
 /* -------------------------------------------------------------------- prepare: Firefox */
@@ -486,7 +536,11 @@ async function check() {
         expect(prof.search && prof.search.host === 'www.bing.com' && prof.search.known === true && prof.search.engine === 'Bing' && !prof.search.badge, `${label}: the default search engine the person chose (Bing) is read and left alone (${JSON.stringify(prof.search)})`);
         wanted.push('https://www.bing.com/');
       } else if (p.id === 'edge' && unsupported(p.search)) {
-        console.log(`NOTE  ${label}: its settings page has no search engine handler a script can call (${p.search.error}), so its default search engine stays as installed`);
+        // No handler to choose an engine: Edge mirrors the engine in use for itself (the add-on's, here), and that is read.
+        const mirror = ((readJsonQuiet(path.join(p.userData, 'Default', 'Preferences')) || {}).default_search_provider_data || {}).mirrored_template_url_data;
+        console.log(`NOTE  ${label}: its settings page has no search engine handler a script can call (${p.search.error}); Edge mirrors ${mirror && mirror.url}`);
+        expect(Boolean(mirror && prof.search && prof.search.url === mirror.url), `${label}: the search engine Edge mirrors in Preferences (default_search_provider_data.mirrored_template_url_data) is read (${JSON.stringify(prof.search)})`);
+        if (mirror && mirror.keyword === 'wthr') expect(prof.search.name === 'Weather Search' && prof.search.badge === 'yellow', `${label}: the add-on's engine, which nobody knows, is judged yellow (${prof.search && prof.search.badge})`);
       } else {
         expect(false, `${label}: the default search engine could be set through the settings page (${JSON.stringify(p.search)})`);
       }
@@ -496,7 +550,9 @@ async function check() {
         expect(b.policies && b.policies.badge === 'orange' && b.policies.risky.includes('ExtensionInstallForcelist'), `chrome: the forced-install policy in the registry is read and judged orange (${JSON.stringify(b.policies)})`);
       }
     }
-    const notifSet = p.id === 'firefox' ? !p.error : p.notifications && p.notifications.ok;
+    const byFile = p.notificationsByFile;
+    if (byFile) expect(byFile.ok && byFile.value.allow === 'https://example-notify.test granted' && byFile.value.block === 'https://blocked-notify.test denied', `${label}: Edge itself honours notification permissions kept in Preferences at profile.content_settings.exceptions.notifications, where the checkup reads them (${JSON.stringify(byFile)})`);
+    const notifSet = p.id === 'firefox' ? !p.error : (p.notifications && p.notifications.ok) || Boolean(byFile && byFile.ok);
     if (!notifSet && p.id === 'edge' && unsupported(p.notifications)) console.log(`NOTE  ${label}: its settings page has no site settings handler a script can call (${p.notifications.error}), so no notification permission could be given`);
     else expect(notifSet && Array.isArray(prof.notifications) && prof.notifications.includes('https://example-notify.test'), `${label}: the site allowed to send notifications is read (${JSON.stringify(prof.notifications)})`);
     expect(Array.isArray(prof.notifications) && !prof.notifications.includes('https://blocked-notify.test'), `${label}: the blocked site is not listed as allowed`);

@@ -122,8 +122,11 @@ function readChromiumProfile(profile) {
     .filter(([, v]) => v && v.setting === 1)     // 1 is "allow"; 2 is "block", 3 is "ask"
     .map(([k]) => patternOrigin(k)).filter(Boolean))];
 
-  const template = pick(['default_search_provider_data', 'template_url_data']);
-  const search = template && template.url ? { name: String(template.short_name || ''), url: String(template.url) } : null;
+  // The engine the person chose, kept only once they choose one. Without it, the engine in use as the browser mirrors
+  // it for itself, including one an add-on set (Edge 153 writes only this, seen on CI).
+  const template = pick(['default_search_provider_data', 'template_url_data']) || pick(['default_search_provider_data', 'mirrored_template_url_data']);
+  // prepopulate_id: one of the engines the browser itself ships (its list says it is known; an add-on's is 0).
+  const search = template && template.url ? { name: String(template.short_name || ''), url: String(template.url), builtIn: Number(template.prepopulate_id) > 0 } : null;
   // 4 is "open a specific page or set of pages".
   const startup = pick(['session', 'restore_on_startup']) === 4 ? (pick(['session', 'startup_urls']) || []).map(webOnly).filter(Boolean) : [];
 
