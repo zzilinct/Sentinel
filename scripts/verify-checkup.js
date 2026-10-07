@@ -297,8 +297,18 @@ async function prepareFirefox() {
           // search.json.mozlz4). addUserEngine took (name, url, alias) before it took one object: both are tried.
           const search = { tried: [] };
           try {
-            // Firefox 156 has no Services.search in this sandbox: the service by its contract, then.
-            const ss = Services.search || Cc['@mozilla.org/browser/search-service;1'].getService(Ci.nsISearchService);
+            // Firefox 156 has neither Services.search nor the old XPCOM contract here: the search service is a
+            // module of its own. Each way is tried, and what was found is reported.
+            const ways = [
+              () => Services.search,
+              () => ChromeUtils.importESModule('resource://gre/modules/Services.sys.mjs').Services.search,
+              () => { const m = ChromeUtils.importESModule('moz-src:///toolkit/components/search/SearchService.sys.mjs'); search.exports = Object.keys(m); return m.SearchService && (typeof m.SearchService.init === 'function' ? m.SearchService : null); },
+              () => { const m = ChromeUtils.importESModule('resource://gre/modules/SearchService.sys.mjs'); search.exports = Object.keys(m); return m.SearchService && (typeof m.SearchService.init === 'function' ? m.SearchService : null); },
+              () => Cc['@mozilla.org/browser/search-service;1'].getService(Ci.nsISearchService)
+            ];
+            let ss = null;
+            for (const way of ways) { try { ss = way(); } catch (e) { search.tried.push(String(e).slice(0, 160)); } if (ss) break; }
+            if (!ss) throw new Error('no search service');
             await ss.init();
             for (const call of [() => ss.addUserEngine({ name: 'Find Checkup', url: C.search, alias: '' }), () => ss.addUserEngine('Find Checkup', C.search, '')]) {
               try { await call(); } catch (e) { search.tried.push(String(e).slice(0, 200)); }
