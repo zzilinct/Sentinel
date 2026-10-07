@@ -27,7 +27,7 @@ test('the companion carries the same copy, and the Windows app gets one', () => 
   assert.match(read('desktop/scripts/sync-shared.js'), /'steps\.js'\), path\.join\(SHARED, 'steps\.js'\)/);
   const manifest = JSON.parse(read('extension/manifest.json'));
   const entry = manifest.content_scripts.find((c) => c.js.includes('src/content/pwalarm.js'));
-  assert.deepEqual(entry.js, ['src/content/steps.js', 'src/content/pwalarm.js'], 'the steps load first');
+  assert.deepEqual(entry.js, ['src/content/steps.js', 'src/content/alarm.js', 'src/content/pwalarm.js'], 'the steps and the shared warning load first');
 });
 
 test('every place that gives the advice picks it from the shared steps', () => {
