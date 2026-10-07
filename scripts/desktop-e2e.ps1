@@ -38,8 +38,8 @@ function Shot($name) {
   $g.Dispose(); $bmp.Dispose()
 }
 # Ask one of Sentinel's windows (by part of its address) to evaluate an expression. Single quotes only inside it.
-function Cdp($part, $expr) { $j = node (Join-Path $PSScriptRoot 'e2e-cdp.js') $(if ($part -eq 'main') { 9334 } else { 9333 }) $part $expr; Say "  cdp $part -> $j"; return ($j | ConvertFrom-Json) }
-function Info($expr) { return (Cdp ':47821/' "window.sentinelDesktop.$expr").value }
+function Cdp($part, $expr) { $j = node (Join-Path $PSScriptRoot 'e2e-cdp.js') $(if ($part -eq 'main') { 9334 } else { 9333 }) $part $expr; Say "  cdp $part -> $(([string]$j).Substring(0, [Math]::Min(400, ([string]$j).Length)))"; return ($j | ConvertFrom-Json) }
+function Info($expr) { return (Cdp '127.0.0.1:4782' "window.sentinelDesktop.$expr").value }
 function Until($seconds, [scriptblock]$test) { $end = (Get-Date).AddSeconds($seconds); while ((Get-Date) -lt $end) { if (& $test) { return $true }; Start-Sleep 2 }; return [bool](& $test) }
 $data = "$env:APPDATA\Sentinel"
 function AppLog { return (Get-Content "$data\logs\app.log" -Raw -ErrorAction SilentlyContinue) + '' }
@@ -53,7 +53,8 @@ function Front($proc) {
   return [K]::GetForegroundWindow() -eq $script:p.MainWindowHandle
 }
 function WaitUp { $up = $false; for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }; return $up }
-function StartSentinel { Start-Process $exe -ArgumentList '--remote-debugging-port=9333', '--inspect=9334'; $up = WaitUp; [void](Until 60 { (Cdp ':47821/' '1').value -eq 1 }); return $up }
+# Its scanner may come up on the next port when the last one's is not yet free: the window says where.
+function StartSentinel { Start-Process $exe -ArgumentList '--remote-debugging-port=9333', '--inspect=9334'; return (Until 120 { (Cdp '127.0.0.1:4782' '1').value -eq 1 }) }
 
 Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
 # 1. Install, as live-e2e.ps1 does, with chat safety on.
@@ -139,7 +140,7 @@ $clip = ''
 $ok = Until 10 { $script:clip = Get-Clipboard -Raw; $script:clip -like 'Sentinel stopped a command*' }
 if (-not $ok) {
   $i = Info 'info()'; Say "  command shield: $($i.commandShield), browsers running: $($i.browsers.running -join ',')"
-  [void](Cdp 'main' "(() => { const m = process.mainModule; const t = m.require('electron').clipboard.readText(); return JSON.stringify({ seen: t.slice(0, 40), found: m.require('../shared/clickfix').classify(t) }); })()")
+  [void](Cdp 'main' "(() => { const m = process.mainModule; const e = m.require('electron'); const t = e.clipboard.readText(); return JSON.stringify({ main: m.filename, electron: typeof e, type: typeof t, seen: String(t).slice(0, 40), found: m.require('../shared/clickfix').classify(String(t)) }); })()")
 }
 Check 'clickfix-stopped' $ok "clipboard after copying the command: $clip"
 Check 'clickfix-log' ((AppLog) -match 'copied command stopped') 'app.log: copied command stopped'
@@ -182,10 +183,10 @@ Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAct
 # 6. Parent lock, through the app's own window (the same calls its Parent lock panel makes).
 $r = Info "lockSet('2468')"
 Check 'lock-set' ($r.set -and $r.locked) "set with a PIN: $($r | ConvertTo-Json -Compress)"
-$r = Cdp ':47821/' 'window.sentinelDesktop.setChatSafety(false)'
+$r = Cdp '127.0.0.1:4782' 'window.sentinelDesktop.setChatSafety(false)'
 Check 'lock-refuses' ($r.error -match 'Locked by a parent') "chat safety off without the PIN: $($r.error)"
 Check 'lock-kept-on' ((Info 'info()').chatSafety.enabled -eq $true) 'chat safety is still on'
-$r = Cdp ':47821/' "window.sentinelDesktop.lockUnlock('1357')"
+$r = Cdp '127.0.0.1:4782' "window.sentinelDesktop.lockUnlock('1357')"
 Check 'lock-wrong-pin' ($r.error -match 'Wrong PIN') "a wrong PIN: $($r.error)"
 $r = Info "lockUnlock('2468')"
 Check 'lock-unlock' ($r.set -and -not $r.locked) 'the right PIN opens it'
