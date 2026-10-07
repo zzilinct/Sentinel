@@ -241,6 +241,8 @@ async function lastAlarmGet(tabId) {
   return (got && got[alarmKey(tabId)]) || null;
 }
 const lastAlarmSet = (tabId, value) => (session() ? (value ? session().set({ [alarmKey(tabId)]: value }) : session().remove(alarmKey(tabId))) : null);
+// The first password learned for an account is said once, quietly, in the tab it was learned in (see pw-told).
+const tellKey = (tabId) => `pwTell:${tabId}`;
 
 /** Settings messages come only from the extension's own pages (a content script's sender.url is its web page). */
 function fromOptions(sender) {
@@ -301,7 +303,14 @@ const pwHandlers = {
     fromPage(sender);
     const state = await pwState();
     const host = frameHost(sender);
-    return { learn: Boolean(homeAccount(state, host)), lengths: [...new Set(guardedHere(state, host).flatMap((a) => hashesOf(a).map((h) => h.length)))] };
+    const tell = sender.frameId === 0 && session() ? (await session().get(tellKey(sender.tab.id)))[tellKey(sender.tab.id)] : null;
+    return { learn: Boolean(homeAccount(state, host)), lengths: [...new Set(guardedHere(state, host).flatMap((a) => hashesOf(a).map((h) => h.length)))], tell: tell || null };
+  },
+  /** The page showed "Your ... password is now protected" long enough to be read: it is not said again. */
+  async 'pw-told'(msg, sender) {
+    fromPage(sender);
+    if (session()) await session().remove(tellKey(sender.tab.id));
+    return { told: true };
   },
   /**
    * A sign-in on the account's own site: keep the hash of what was typed. The last KEEP different passwords are kept,
@@ -313,6 +322,8 @@ const pwHandlers = {
     const state = await pwState();
     const account = homeAccount(state, frameHost(sender));
     if (!account) return { learned: false };
+    // Set before saving: the save makes this tab's page ask pw-config again, and that answer carries it.
+    if (!hashesOf(account).length && session()) await session().set({ [tellKey(sender.tab.id)]: account.name });
     const kept = [];
     let same = null;
     for (const h of hashesOf(account)) {

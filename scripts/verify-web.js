@@ -313,6 +313,20 @@ async function checkCompanion() {
     const homePosted = posts.some((p) => p.host === HOME);
     result(`companion: signing in on ${HOME} teaches the password alarm (and the sign-in goes through)`, learned && homePosted, { learned, homePosted, browser: version });
 
+    // Said once, quietly, in a corner of the sign-in page or the page it moved on to, and not again.
+    let told = '';
+    for (let i = 0; i < 40 && !/Your Google password is now protected/.test(told); i++) { await sleep(250); told = await pageText(browser, s); }
+    await shot(browser, s, 'companion-password-protected');
+    await sleep(3500);   // on screen long enough to count as said
+    await goto(browser, s, `https://${HOME}/`, "document.querySelector('input[type=password]')");
+    await sleep(1500);
+    const again = /now protected/.test(await pageText(browser, s));
+    result('companion: after the first sign-in, a quiet note says "Your Google password is now protected", once', /Your Google password is now protected/.test(told) && !again, { again, onScreen: told.slice(0, 200) });
+    await goto(browser, opt.sessionId, `chrome-extension://${loaded.id}/src/popup.html`, "!document.getElementById('pwLine').hidden");
+    const line = await evalIn(browser, opt.sessionId, "document.getElementById('pwLine').textContent + '|' + (document.getElementById('pwLink') || {}).textContent");
+    result('companion: the popup says what the password alarm protects, with a link to its settings', /Password alarm protects your Google password\..*\|Password alarm settings$/.test(line), { line });
+    await goto(browser, opt.sessionId, `chrome-extension://${loaded.id}/src/options.html`, "typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id");
+
     const before = posts.length;
     await signIn(PHISH, PASSWORD);
     let text = '';

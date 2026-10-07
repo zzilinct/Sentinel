@@ -99,7 +99,7 @@ function worker(store = {}, session = {}) {
 test('learn on the sign-in site, alarm on a look-alike, never store the password', async () => {
   const w = worker();
   await w.call('pw-set', { id: 'google', on: true }, w.options);
-  assert.deepEqual(await w.call('pw-config', {}, w.page('https://accounts.google.com/signin')), { learn: true, lengths: [] });
+  assert.deepEqual(await w.call('pw-config', {}, w.page('https://accounts.google.com/signin')), { learn: true, lengths: [], tell: null });
   assert.deepEqual(await w.call('pw-learn', { password: 'hunter2hunter2' }, w.page('https://accounts.google.com/signin')), { learned: true });
   assert.doesNotMatch(JSON.stringify(w.store), /hunter2/, 'only the hash is kept');
 
@@ -115,6 +115,21 @@ test('learn on the sign-in site, alarm on a look-alike, never store the password
   // At home it is never checked; a password learned on a look-alike would be worthless, so learning there does nothing.
   assert.deepEqual(await w.call('pw-check', { password: 'hunter2hunter2' }, w.page('https://accounts.google.com/x')), { match: null });
   assert.deepEqual(await w.call('pw-learn', { password: 'attacker-chosen' }, evil), { learned: false });
+});
+
+test('the first password learned for an account is said once, in the top frame of the tab it was learned in', async () => {
+  const w = worker();
+  await w.call('pw-set', { id: 'google', on: true }, w.options);
+  const top = (url, tabId = 7) => ({ ...w.page(url, tabId), frameId: 0 });
+  await w.call('pw-learn', { password: 'hunter2hunter2' }, top('https://accounts.google.com/signin'));
+  assert.equal((await w.call('pw-config', {}, top('https://accounts.google.com/signin'))).tell, 'Google');
+  assert.equal((await w.call('pw-config', {}, top('https://mail.google.com/', 7))).tell, 'Google', 'still said on the page the sign-in moved on to');
+  assert.equal((await w.call('pw-config', {}, { ...w.page('https://accounts.google.com/frame'), frameId: 3 })).tell, null, 'not in a frame');
+  assert.equal((await w.call('pw-config', {}, top('https://example.com/', 9))).tell, null, 'not in another tab');
+  assert.deepEqual(await w.call('pw-told', {}, top('https://mail.google.com/')), { told: true });
+  assert.equal((await w.call('pw-config', {}, top('https://mail.google.com/'))).tell, null, 'said once');
+  await w.call('pw-learn', { password: 'second-account-pw' }, top('https://accounts.google.com/signin'));
+  assert.equal((await w.call('pw-config', {}, top('https://accounts.google.com/signin'))).tell, null, 'a second password is not news');
 });
 
 test('"I use this password here on purpose" allows only the host the alarm was raised on, and settings come only from the options page', async () => {
@@ -252,4 +267,35 @@ test('the last three passwords are kept per account, and AWS is not an Amazon si
   assert.equal(L.isHome('signin.aws.amazon.com', amazon.homes, amazon.except), false);
   assert.equal(L.isHome('www.amazon.com', amazon.homes, amazon.except), true);
   assert.equal(L.homeAccount({ accounts: { amazon: { id: 'amazon', on: true, homes: amazon.homes } } }, 'signin.aws.amazon.com'), null, 'an account saved before this change gets the preset\'s exception too');
+});
+
+test('the page says "Your Google password is now protected" quietly, in the top frame only, and tells the worker it was said', async () => {
+  const run = async (top) => {
+    const asked = [];
+    const shown = [];
+    const timers = [];
+    const ext = {
+      runtime: { id: 'me', sendMessage: async (msg) => { asked.push(msg.type); return { ok: true, learn: false, lengths: [14], tell: 'Google' }; }, onMessage: { addListener() {} } },
+      storage: { onChanged: { addListener() {} } }
+    };
+    const win = { addEventListener() {} };
+    win.top = top ? win : {};
+    const ctx = { chrome: ext, window: win, document: { body: {}, querySelectorAll: () => [] }, WeakMap, WeakSet, Promise,
+      setTimeout: (fn, ms) => timers.push({ fn, ms }),
+      SentinelAlarm: { show: (o) => { shown.push(o); return { close() {} }; } } };
+    vm.createContext(ctx);
+    vm.runInContext(read('content/pwalarm.js'), ctx);
+    await new Promise((r) => setImmediate(r));
+    for (const t of timers.sort((a, b) => a.ms - b.ms)) t.fn();
+    await new Promise((r) => setImmediate(r));
+    return { asked, shown };
+  };
+  const top = await run(true);
+  assert.equal(top.shown.length, 1);
+  assert.equal(top.shown[0].title, 'Your Google password is now protected');
+  assert.equal(top.shown[0].small, true, 'a corner note, not a block');
+  assert.deepEqual(top.asked, ['pw-config', 'pw-told']);
+  const frame = await run(false);
+  assert.equal(frame.shown.length, 0);
+  assert.deepEqual(frame.asked, ['pw-config']);
 });
