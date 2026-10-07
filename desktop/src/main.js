@@ -821,7 +821,7 @@ function syncClipboard() {
 
 /** "Put it back", from the notification or the app. Answers { ok, message }; the parent lock covers it. */
 async function putBackCommand() {
-  try { lock.guard('a stopped command back on the clipboard', true); } catch (err) { return { ok: false, message: err.message }; }
+  try { if (lock) lock.guard('a stopped command back on the clipboard', true); } catch (err) { return { ok: false, message: err.message }; }
   const r = await clipwatch.putBack();
   push('sentinel:command', clipwatch.heldCommand());
   return {
