@@ -317,7 +317,8 @@ async function prepareFirefox() {
             let engine = ss.getEngineByName('Find Checkup');
             // Without it, one of Firefox's own engines: the file is still decoded, judged as Firefox's own.
             if (!engine) { engine = ss.getEngineByName('Bing'); search.fallback = 'Bing'; }
-            const reason = ss.CHANGE_REASON_USER !== undefined ? ss.CHANGE_REASON_USER : Ci.nsISearchService.CHANGE_REASON_USER;
+            // CHANGE_REASON_USER, which was 1 on nsISearchService; the module may name it itself.
+            const reason = ss.CHANGE_REASON_USER !== undefined ? ss.CHANGE_REASON_USER : (ss.CHANGE_REASON && ss.CHANGE_REASON.USER) || 1;
             await ss.setDefault(engine, reason);
             search.name = (await ss.getDefault()).name;
             const { setTimeout } = ChromeUtils.importESModule('resource://gre/modules/Timer.sys.mjs');
