@@ -73,61 +73,53 @@ const exited = (child, ms) => new Promise((resolve) => {
 
 /* -------------------------------------------------------------------- prepare: Chromium */
 
-// Runs in the browser's own settings page, through the page's own browser proxies when the page exports them
-// (Chrome's settings.js), else the raw message names the same handlers listen to.
-const SETTINGS_SCRIPT = `(async (C) => {
-  const out = { steps: {} };
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const step = async (name, fn) => { try { out.steps[name] = { ok: true, value: await fn() }; } catch (e) { out.steps[name] = { ok: false, error: String((e && e.message) || e) }; } };
-  let settings = null, cr = null;
-  try { settings = await import(location.origin + '/settings.js'); } catch (e) { out.settingsModule = String(e.message || e); }
-  for (const u of [location.protocol + '//resources/js/cr.js', 'chrome://resources/js/cr.js']) { try { cr = await import(u); break; } catch { /* next */ } }
-  out.cr = Boolean(cr);
-  const ask = (m, ...a) => cr.sendWithPromise(m, ...a);
-  const site = settings && settings.SiteSettingsPrefsBrowserProxyImpl ? settings.SiteSettingsPrefsBrowserProxyImpl.getInstance() : null;
-  const engines = settings && settings.SearchEnginesBrowserProxyImpl ? settings.SearchEnginesBrowserProxyImpl.getInstance() : null;
-  out.proxies = { site: Boolean(site), engines: Boolean(engines), settingsPrivate: Boolean(chrome.settingsPrivate) };
-
-  await step('notifications', async () => {
+// Run in the browser's own settings page, one at a time (a handler given arguments it does not expect can take
+// the whole browser down, and then the log says which). Through the page's own browser proxies when the page
+// exports them (Chrome's settings.js), else the raw messages the same handlers listen to.
+const STEPS = {
+  init: `(async () => {
+    const k = window.__chk = {};
+    try { k.settings = await import(location.origin + '/settings.js'); } catch (e) { k.settingsError = String(e.message || e); }
+    for (const u of [location.protocol + '//resources/js/cr.js', 'chrome://resources/js/cr.js']) { try { k.cr = await import(u); break; } catch { /* next */ } }
+    k.site = k.settings && k.settings.SiteSettingsPrefsBrowserProxyImpl ? k.settings.SiteSettingsPrefsBrowserProxyImpl.getInstance() : null;
+    k.engines = k.settings && k.settings.SearchEnginesBrowserProxyImpl ? k.settings.SearchEnginesBrowserProxyImpl.getInstance() : null;
+    k.wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    return { settingsModule: k.settingsError || 'ok', cr: Boolean(k.cr), site: Boolean(k.site), engines: Boolean(k.engines), settingsPrivate: Boolean(chrome.settingsPrivate) };
+  })()`,
+  notifications: (C) => `(async (C) => {
+    const k = window.__chk;
     for (const [p, v] of [[C.allow, 'allow'], [C.block, 'block']]) {
-      if (site) site.setCategoryPermissionForPattern(p, '', 'notifications', v, false);
+      if (k.site) k.site.setCategoryPermissionForPattern(p, '', 'notifications', v, false);
       else chrome.send('setCategoryPermissionForPattern', [p, '', 'notifications', v, false]);
     }
-    await wait(800);
-    const list = site ? await site.getExceptionList('notifications') : await ask('getExceptionList', 'notifications');
+    await k.wait(800);
+    const list = k.site ? await k.site.getExceptionList('notifications') : await k.cr.sendWithPromise('getExceptionList', 'notifications');
     return JSON.parse(JSON.stringify(list));
-  });
-
-  await step('startup', async () => {
-    const sp = (k, v) => new Promise((r) => chrome.settingsPrivate.setPref(k, v, '', r));
-    const gp = (k) => new Promise((r) => chrome.settingsPrivate.getPref(k, r));
+  })(${JSON.stringify(C)})`,
+  startup: (C) => `(async (C) => {
+    const sp = (key, v) => new Promise((r) => chrome.settingsPrivate.setPref(key, v, '', r));
+    const gp = (key) => new Promise((r) => chrome.settingsPrivate.getPref(key, r));
     const a = await sp('session.restore_on_startup', 4);
     const b = await sp('session.startup_urls', [C.startup]);
     return { setRestore: a, setUrls: b, restore: (await gp('session.restore_on_startup') || {}).value, urls: (await gp('session.startup_urls') || {}).value };
-  });
-  return out;
-})`;
-
-const SEARCH_SCRIPT = `(async (C) => {
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  let settings = null, cr = null;
-  try { settings = await import(location.origin + '/settings.js'); } catch { /* none */ }
-  for (const u of [location.protocol + '//resources/js/cr.js', 'chrome://resources/js/cr.js']) { try { cr = await import(u); break; } catch { /* next */ } }
-  const engines = settings && settings.SearchEnginesBrowserProxyImpl ? settings.SearchEnginesBrowserProxyImpl.getInstance() : null;
-  if (!engines && !cr) throw new Error('this settings page has neither a search engines proxy nor cr.js');
-  const list = () => engines ? engines.getSearchEnginesList() : cr.sendWithPromise('getSearchEnginesList');
-  const all = (l) => [...(l.defaults || []), ...(l.actives || []), ...(l.others || []), ...(l.extensions || [])];
-  if (engines) { engines.searchEngineEditStarted(-1); engines.searchEngineEditCompleted(C.searchName, C.keyword, C.searchUrl); }
-  else { chrome.send('searchEngineEditStarted', [-1]); chrome.send('searchEngineEditCompleted', [C.searchName, C.keyword, C.searchUrl]); }
-  let mine = null;
-  for (let i = 0; i < 20 && !mine; i++) { await wait(250); mine = all(await list()).find((e) => String(e.url).includes(C.searchHost)); }
-  if (!mine) throw new Error('the made-up engine was not added; engines: ' + all(await list()).map((e) => e.url).join(' '));
-  if (engines) engines.setDefaultSearchEngine(mine.modelIndex, 0, false);
-  else chrome.send('setDefaultSearchEngine', [mine.modelIndex, 0]);
-  await wait(800);
-  const now = all(await list()).find((e) => e.default);
-  return { added: mine.url, defaultNow: now ? now.url : null };
-})`;
+  })(${JSON.stringify(C)})`,
+  search: (C) => `(async (C) => {
+    const k = window.__chk;
+    if (!k.engines && !k.cr) throw new Error('this settings page has neither a search engines proxy nor cr.js');
+    const list = () => k.engines ? k.engines.getSearchEnginesList() : k.cr.sendWithPromise('getSearchEnginesList');
+    const all = (l) => [...(l.defaults || []), ...(l.actives || []), ...(l.others || []), ...(l.extensions || [])];
+    if (k.engines) { k.engines.searchEngineEditStarted(-1); k.engines.searchEngineEditCompleted(C.searchName, C.keyword, C.searchUrl); }
+    else { chrome.send('searchEngineEditStarted', [-1]); chrome.send('searchEngineEditCompleted', [C.searchName, C.keyword, C.searchUrl]); }
+    let mine = null;
+    for (let i = 0; i < 20 && !mine; i++) { await k.wait(250); mine = all(await list()).find((e) => String(e.url).includes(C.searchHost)); }
+    if (!mine) throw new Error('the made-up engine was not added; engines: ' + all(await list()).map((e) => e.url).join(' '));
+    if (k.engines) k.engines.setDefaultSearchEngine(mine.modelIndex, 0, false);
+    else chrome.send('setDefaultSearchEngine', [mine.modelIndex, 0]);
+    await k.wait(800);
+    const now = all(await list()).find((e) => e.default);
+    return { added: mine.url, defaultNow: now ? now.url : null };
+  })(${JSON.stringify(C)})`
+};
 
 async function prepareChromium(b) {
   const exe = (CANDIDATES[b.id] || []).map(expand).find((p) => fs.existsSync(p));
@@ -145,20 +137,33 @@ async function prepareChromium(b) {
     '--headless=new', `--user-data-dir=${via}`, '--profile-directory=Default',
     '--remote-debugging-pipe', '--enable-unsafe-extension-debugging',
     '--disable-features=DisableLoadExtensionCommandLineSwitch', `--load-extension=${extDir('B')}`,
-    '--no-first-run', '--no-default-browser-check', '--disable-gpu', 'about:blank'
+    '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--enable-logging=stderr', 'about:blank'
   ], { stdio: ['ignore', 'ignore', fs.openSync(path.join(OUT, `${b.id}-stderr.txt`), 'w'), 'pipe', 'pipe'] });
   child.on('error', (e) => log(`${b.id}: ${e.message}`));
   child.on('exit', (code, signal) => log(`${b.id}: exited ${code} ${signal || ''}`));
-  const send = cdpPipe(child);
-  const evalIn = async (sessionId, fn) => {
-    const r = await send('Runtime.evaluate', { expression: `${fn}(${JSON.stringify(C)})`, awaitPromise: true, returnByValue: true }, sessionId);
+  const gone = new Promise((resolve) => child.once('exit', (code) => resolve(code)));
+  const raw = cdpPipe(child);
+  // A browser that dies takes its pipe with it: every call still waiting fails then, instead of waiting forever.
+  const send = (...a) => Promise.race([raw(...a), gone.then((code) => { throw new Error(`the browser exited (${code}) during ${a[0]}`); })]);
+  const evalIn = async (sessionId, expression) => {
+    const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception ? r.exceptionDetails.exception.description : r.exceptionDetails.text);
     return r.result.value;
   };
+  const step = async (name, fn) => {
+    log(`${b.id}: ${name}`);
+    out[name] = await fn().then((value) => ({ ok: true, value }), (e) => ({ ok: false, error: e.message }));
+    log(`${b.id}: ${name} ${JSON.stringify(out[name]).slice(0, 600)}`);
+  };
   try {
     out.version = (await Promise.race([send('Browser.getVersion'), sleep(90000).then(() => { throw new Error('no answer on the DevTools pipe'); })])).product;
+    log(`${b.id}: ${out.version}`);
     // CDP's own grant, for completeness: an in-memory override, so the settings page below is what writes the file.
     out.grantPermissions = await send('Browser.grantPermissions', { permissions: ['notifications'], origin: 'https://example-notify.test' }).then(() => 'ok', (e) => e.message);
+    await step('extA', () => send('Extensions.loadUnpacked', { path: extDir('A') }).then((r) => r.id));
+    // Preferences are committed about ten seconds after a change: a later step that crashes the browser then
+    // does not take what was set before it along.
+    await sleep(11000);
 
     const { targetId } = await send('Target.createTarget', { url: b.settings });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
@@ -168,22 +173,18 @@ async function prepareChromium(b) {
       ready = await send('Runtime.evaluate', { expression: "document.readyState === 'complete' && typeof chrome !== 'undefined' && typeof chrome.send === 'function'", returnByValue: true }, sessionId).then((r) => r.result.value, () => false);
     }
     out.settingsPage = ready;
-    log(`${b.id}: ${out.version}, settings page ready=${ready}`);
-    out.settings = await evalIn(sessionId, SETTINGS_SCRIPT).catch((e) => ({ error: e.message }));
-
-    log(`${b.id}: settings ${JSON.stringify(out.settings).slice(0, 400)}`);
-    out.extA = await send('Extensions.loadUnpacked', { path: extDir('A') }).then((r) => r.id, (e) => `error: ${e.message}`);
-    // The search engine last but one: a handler given the wrong arguments may take the browser down, and what was
-    // set above is then still lost, so it is only tried after the add-ons that matter most.
-    out.search = await evalIn(sessionId, SEARCH_SCRIPT).catch((e) => ({ error: e.message }));
-    log(`${b.id}: extA ${out.extA}, search ${JSON.stringify(out.search)}`);
-    out.extC = await send('Extensions.loadUnpacked', { path: extDir('C') }).then((r) => r.id, (e) => `error: ${e.message}`);
+    await step('init', () => evalIn(sessionId, STEPS.init));
+    await step('notifications', () => evalIn(sessionId, STEPS.notifications(C)));
+    await step('startup', () => evalIn(sessionId, STEPS.startup(C)));
+    await sleep(11000);
+    await step('search', () => evalIn(sessionId, STEPS.search(C)));
+    await step('extC', () => send('Extensions.loadUnpacked', { path: extDir('C') }).then((r) => r.id));
     await sleep(2000);
     await send('Browser.close').catch(() => {});
   } catch (err) {
     out.error = err.message;
   }
-  log(`${b.id}: extC ${out.extC}, closing${out.error ? `, error ${out.error}` : ''}`);
+  log(`${b.id}: closing${out.error ? `, error ${out.error}` : ''}`);
   out.cleanExit = await exited(child, 30000);
   if (!out.cleanExit) child.kill();
   await sleep(3000);   // helper processes letting go of the profile
@@ -342,14 +343,14 @@ async function check() {
       }
     } else {
       const a = addon('Coupon Helper Checkup');
-      expect(Boolean(a), `${label}: the add-on loaded from a folder is found (${p.extA})`);
+      expect(Boolean(a), `${label}: the add-on loaded from a folder is found (${JSON.stringify(p.extA)})`);
       if (a) {
         expect(a.source === 'unpacked' && a.enabled, `${label}: it is read as loaded from a folder, enabled (source=${a.source} enabled=${a.enabled})`);
         expect(a.hosts.includes('<all_urls>') && a.permissions.includes('cookies'), `${label}: its sites and powers are read from its manifest`);
         expect(a.badge === 'yellow' && reasonIds(a) === 'A03,A07', `${label}: judged yellow for A03 and A07 (${a.badge} ${reasonIds(a)})`);
       }
       const c = addon('Weather Tab Checkup');
-      expect(Boolean(c), `${label}: the search-changing add-on is found (${p.extC})`);
+      expect(Boolean(c), `${label}: the search-changing add-on is found (${JSON.stringify(p.extC)})`);
       if (c) expect(c.searchUrl && c.badge === 'orange' && reasonIds(c) === 'A03,A09', `${label}: its search engine is read and judged orange for A03 and A09 (${c.searchUrl} ${c.badge} ${reasonIds(c)})`);
       // --load-extension: branded Chrome dropped it (137+); whether it was taken at all is the browser's call.
       const rawB = JSON.stringify(readJsonQuiet(path.join(OUT, `${p.id}-Preferences.json`))) + JSON.stringify(readJsonQuiet(path.join(OUT, `${p.id}-Secure-Preferences.json`)));
@@ -360,19 +361,19 @@ async function check() {
       } else {
         console.log(`NOTE  ${label}: the browser ignored --load-extension, so there is no start-command add-on to find`);
       }
-      const searchSet = p.search && !p.search.error;
+      const searchSet = p.search && p.search.ok;
       if (searchSet) {
         expect(prof.search && prof.search.host === C.searchHost && prof.search.known === false && prof.search.badge === 'yellow', `${label}: the made-up default search engine is read and judged yellow (${JSON.stringify(prof.search)})`);
       } else {
-        expect(false, `${label}: the default search engine could be set through the settings page (${p.search && p.search.error})`);
+        expect(false, `${label}: the default search engine could be set through the settings page (${JSON.stringify(p.search)})`);
       }
-      const startSet = p.settings && p.settings.steps && p.settings.steps.startup && p.settings.steps.startup.ok;
-      expect(startSet && prof.startup.includes(C.startup), `${label}: the start page is read (set by the browser: ${JSON.stringify(p.settings && p.settings.steps && p.settings.steps.startup)})`);
+      const startSet = p.startup && p.startup.ok;
+      expect(startSet && prof.startup.includes(C.startup), `${label}: the start page is read (set by the browser: ${JSON.stringify(p.startup)})`);
       if (p.id === 'chrome') {
         expect(b.policies && b.policies.badge === 'orange' && b.policies.risky.includes('ExtensionInstallForcelist'), `chrome: the forced-install policy in the registry is read and judged orange (${JSON.stringify(b.policies)})`);
       }
     }
-    const notifSet = p.id === 'firefox' ? !p.error : p.settings && p.settings.steps && p.settings.steps.notifications && p.settings.steps.notifications.ok;
+    const notifSet = p.id === 'firefox' ? !p.error : p.notifications && p.notifications.ok;
     expect(notifSet && Array.isArray(prof.notifications) && prof.notifications.includes('https://example-notify.test'), `${label}: the site allowed to send notifications is read (${JSON.stringify(prof.notifications)})`);
     expect(Array.isArray(prof.notifications) && !prof.notifications.includes('https://blocked-notify.test'), `${label}: the blocked site is not listed as allowed`);
     if (p.id === 'firefox') expect(prof.startup.includes(C.startup), `firefox: the home page is read (${JSON.stringify(prof.startup)})`);

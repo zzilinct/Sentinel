@@ -35,7 +35,8 @@ jobs:
         shell: pwsh
         run: |
           $env:ELECTRON_RUN_AS_NODE = '1'
-          $electron = node -p "require('./desktop/node_modules/electron')"
+          # Electron fetches its binary on first use and says so on stdout: the path is the last line.
+          $electron = node -p "require('./desktop/node_modules/electron')" | Select-Object -Last 1
           & $electron scripts/verify-checkup.js check --out e2e-checkup
           exit $LASTEXITCODE
       - uses: actions/upload-artifact@v4
