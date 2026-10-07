@@ -23,6 +23,7 @@
     <label class="opt"><span><b>Scanning line and tint</b><small>A golden line sweeps the results while Sentinel checks them.</small></span><input type="checkbox" id="scanOverlay"></label>
     <label class="opt"><span><b>Tick on safe results</b><small>A quiet tick beside results that came back clean, so every link shows a verdict.</small></span><input type="checkbox" id="markSafe"></label>
     <label class="opt"><span><b>Full-page warnings</b><small>Stop likely and confirmed threats before you interact with them.</small></span><input type="checkbox" id="warnOnNavigate"></label>
+    <label class="opt"><span><b>Stop pasted commands</b><small>A page cannot copy a command that only a trick would ask you to paste into Windows (Windows key + R) or a terminal. Checked in the browser; nothing is sent.</small></span><input type="checkbox" id="commandGuard"></label>
     <label class="opt"><span><b>Desktop notifications</b><small>Alert when a confirmed threat opens in any tab.</small></span><input type="checkbox" id="notifications"></label>
   </section>
 
@@ -37,7 +38,7 @@
 
   <section class="card" id="pw">
     <div class="label">Password alarm</div>
-    <p class="small pw-intro">Pick the accounts that matter most. The next time you sign in to one on its own site, Sentinel remembers a scrambled form of the password (never the password itself, and it never leaves this computer). Type that password on any other site and Sentinel empties the box and stops you.</p>
+    <p class="small pw-intro">Pick the accounts that matter most. The next time you sign in to one on its own site, Sentinel remembers a scrambled form of the password (never the password itself, and it never leaves this computer). Type that password on any other site and Sentinel empties the box and stops you. It needs you to type the password once: an account you only open with a passkey, or never sign out of, waits until you do.</p>
     <div id="pwPresets"></div>
     <form class="opt pw-bank" id="pwBankForm"><span><b>Your bank</b><small>Its own address, like chase.com.</small></span><span class="pw-add"><input type="text" id="pwBank" placeholder="yourbank.com" spellcheck="false" autocomplete="off" aria-label="Your bank's address"><button class="btn" type="submit">Add</button></span></form>
     <div id="pwBanks"></div>

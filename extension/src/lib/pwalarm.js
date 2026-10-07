@@ -3,7 +3,8 @@
  *
  * The person picks accounts to protect. The next time they sign in on that account's own sign-in site, the password
  * is turned into a salted PBKDF2 hash on this computer and only the hash, its salt and the password's length are
- * kept, in the extension's local storage: never the password, never synced, never sent. Typing the same password on
+ * kept (for the last KEEP different passwords signed in with), in the extension's local storage: never the password,
+ * never synced, never sent. Typing the same password on
  * any other site sounds the alarm, even on a phishing page no list knows yet.
  *
  * Where a password belongs is a short list of sign-in hosts, not every domain a brand owns (server/lib/scan/brands.js
@@ -19,13 +20,31 @@ export const PRESETS = [
   { id: 'microsoft', name: 'Microsoft', homes: ['login.live.com', 'login.microsoftonline.com', 'login.microsoft.com', 'account.live.com', 'account.microsoft.com'] },
   { id: 'apple', name: 'Apple', homes: ['apple.com', 'icloud.com'] },
   { id: 'paypal', name: 'PayPal', homes: ['paypal.com'] },
-  { id: 'amazon', name: 'Amazon', homes: ['com', 'co.uk', 'de', 'fr', 'it', 'es', 'ca', 'co.jp', 'in', 'com.au', 'com.br', 'com.mx', 'nl', 'se', 'pl', 'sg', 'ae', 'sa', 'eg', 'com.tr', 'com.be', 'co.za'].map((cc) => `amazon.${cc}`) }
+  // AWS is a different account with its own password, on amazon.com addresses.
+  { id: 'amazon', name: 'Amazon', except: ['aws.amazon.com'], homes: ['com', 'co.uk', 'de', 'fr', 'it', 'es', 'ca', 'co.jp', 'in', 'com.au', 'com.br', 'com.mx', 'nl', 'se', 'pl', 'sg', 'ae', 'sa', 'eg', 'com.tr', 'com.be', 'co.za'].map((cc) => `amazon.${cc}`) }
 ];
 
+/** How many of an account's recent passwords are kept (several Google accounts, or a password changed lately). */
+export const KEEP = 3;
+
+const under = (h, d) => h === d || h.endsWith(`.${d}`);
+
 /** The host itself or a subdomain of it: accounts.google.com is home for Google, accounts.google.com.evil.top is not. */
-export function isHome(host, homes) {
+export function isHome(host, homes, except) {
   const h = String(host || '').toLowerCase().replace(/\.$/, '');
-  return Boolean(h) && (homes || []).some((d) => h === d || h.endsWith(`.${d}`));
+  return Boolean(h) && (homes || []).some((d) => under(h, d)) && !(except || []).some((d) => under(h, d));
+}
+
+/** An account's homes, from its preset when it has one, so a corrected preset reaches accounts already set up. */
+function homeOf(a, host) {
+  const preset = PRESETS.find((p) => p.id === a.id);
+  return preset ? isHome(host, preset.homes, preset.except) : isHome(host, a.homes);
+}
+
+/** An account's kept password hashes, newest first: [{ salt, hash, length, at }]. Before 1.12.1 there was one. */
+export function hashesOf(a) {
+  if (Array.isArray(a.hashes)) return a.hashes;
+  return a && a.hash ? [{ salt: a.salt, hash: a.hash, length: a.length, at: a.learnedAt || 0 }] : [];
 }
 
 /** Endings that many unrelated sites share: a bank typed as one of these would make the whole web its home. */
@@ -73,12 +92,12 @@ export function sameHash(a, b) {
  * @param {{ accounts: object }} state
  */
 export function homeAccount(state, host) {
-  return Object.values((state && state.accounts) || {}).find((a) => a.on && isHome(host, a.homes)) || null;
+  return Object.values((state && state.accounts) || {}).find((a) => a.on && homeOf(a, host)) || null;
 }
 
 /** Protected accounts whose password must not be typed on this host: learned, switched on, and not at home or allowed here. */
 export function guardedHere(state, host) {
   const h = String(host || '').toLowerCase();
   return Object.values((state && state.accounts) || {})
-    .filter((a) => a.on && a.hash && !isHome(h, a.homes) && !(a.allowed || []).includes(h));
+    .filter((a) => a.on && hashesOf(a).length && !homeOf(a, h) && !(a.allowed || []).includes(h));
 }
