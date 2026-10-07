@@ -285,6 +285,10 @@ async function edgeNotificationsByFile(b, exe, args) {
       }
       seen[name] = v;
     }
+    // Add-ons loaded over DevTools last only as long as the browser: loaded again (the same folders, the same ids),
+    // and their settings given time to be written, so the profile holds what the first start put in.
+    for (const k of ['A', 'C']) seen[`ext${k}`] = await send('Extensions.loadUnpacked', { path: extDir(k) }).then((r) => r.id, (e) => e.message);
+    await sleep(11000);
     await send('Browser.close').catch(() => {});
     return seen;
   } finally {
