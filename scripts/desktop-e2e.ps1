@@ -38,7 +38,7 @@ function Shot($name) {
   $g.Dispose(); $bmp.Dispose()
 }
 # Ask one of Sentinel's windows (by part of its address) to evaluate an expression. Single quotes only inside it.
-function Cdp($part, $expr) { $j = node (Join-Path $PSScriptRoot 'e2e-cdp.js') 9333 $part $expr; Say "  cdp $part -> $j"; return ($j | ConvertFrom-Json) }
+function Cdp($part, $expr) { $j = node (Join-Path $PSScriptRoot 'e2e-cdp.js') $(if ($part -eq 'main') { 9334 } else { 9333 }) $part $expr; Say "  cdp $part -> $j"; return ($j | ConvertFrom-Json) }
 function Info($expr) { return (Cdp ':47821/' "window.sentinelDesktop.$expr").value }
 function Until($seconds, [scriptblock]$test) { $end = (Get-Date).AddSeconds($seconds); while ((Get-Date) -lt $end) { if (& $test) { return $true }; Start-Sleep 2 }; return [bool](& $test) }
 $data = "$env:APPDATA\Sentinel"
@@ -53,7 +53,7 @@ function Front($proc) {
   return [K]::GetForegroundWindow() -eq $script:p.MainWindowHandle
 }
 function WaitUp { $up = $false; for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }; return $up }
-function StartSentinel { Start-Process $exe -ArgumentList '--remote-debugging-port=9333'; $up = WaitUp; [void](Until 60 { (Cdp ':47821/' '1').value -eq 1 }); return $up }
+function StartSentinel { Start-Process $exe -ArgumentList '--remote-debugging-port=9333', '--inspect=9334'; $up = WaitUp; [void](Until 60 { (Cdp ':47821/' '1').value -eq 1 }); return $up }
 
 Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
 # 1. Install, as live-e2e.ps1 does, with chat safety on.
@@ -83,7 +83,7 @@ if (-not $i.chatSafety.running) {
   @'
 const { spawn } = require('child_process');
 const { SCRIPT } = require(process.argv[2])._test;
-const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '[ScriptBlock]::Create([Console]::In.ReadLine() | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) }).Invoke()'], { windowsHide: true });
+const child = spawn('powershell.exe', require(process.argv[2])._test.LAUNCH, { windowsHide: true });
 let out = '', err = '';
 child.stdout.on('data', (d) => { out += d; });
 child.stderr.on('data', (d) => { err += d; });
@@ -137,7 +137,10 @@ $command = 'powershell -w hidden -enc ' + [Convert]::ToBase64String([Text.Encodi
 Set-Clipboard -Value $command
 $clip = ''
 $ok = Until 10 { $script:clip = Get-Clipboard -Raw; $script:clip -like 'Sentinel stopped a command*' }
-if (-not $ok) { $i = Info 'info()'; Say "  command shield: $($i.commandShield), browsers running: $($i.browsers.running -join ',')" }
+if (-not $ok) {
+  $i = Info 'info()'; Say "  command shield: $($i.commandShield), browsers running: $($i.browsers.running -join ',')"
+  [void](Cdp 'main' "(() => { const m = process.mainModule; const t = m.require('electron').clipboard.readText(); return JSON.stringify({ seen: t.slice(0, 40), found: m.require('../shared/clickfix').classify(t) }); })()")
+}
 Check 'clickfix-stopped' $ok "clipboard after copying the command: $clip"
 Check 'clickfix-log' ((AppLog) -match 'copied command stopped') 'app.log: copied command stopped'
 Set-Clipboard -Value 'eggs, milk, bread'
