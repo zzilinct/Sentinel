@@ -340,9 +340,12 @@ async function checkCompanion() {
     const write = (t) => evalIn(browser, s, `navigator.clipboard.writeText(${JSON.stringify(t)}).${settle}`, { userGesture: true }).catch((err) => `error: ${err.message}`);
     const writeItem = (t) => evalIn(browser, s, `navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([${JSON.stringify(t)}], { type: 'text/plain' }) })]).${settle}`, { userGesture: true }).catch((err) => `error: ${err.message}`);
     const wrapped = await evalIn(browser, s, "!/\\[native code\\]/.test(Function.prototype.toString.call(navigator.clipboard.writeText))");
+    // What the worker registered, and what reached the page: printed with the first result, to tell why if it fails.
+    const registered = await evalIn(browser, opt.sessionId, 'chrome.scripting.getRegisteredContentScripts().then((r) => JSON.stringify(r))').catch((err) => `error: ${err.message}`);
+    const inPage = await evalIn(browser, s, "JSON.stringify({ rules: typeof SentinelClickFix, alarm: typeof SentinelAlarm, guard: Boolean(window.__sentinelClipGuard) })");
     const afterFine = await write(FINE);
     const warnedFine = /stopped this page from copying a command/.test(await pageText(browser, s));
-    result(`companion: an ordinary command (${FINE}) is copied, with no warning`, afterFine === `ok|${FINE}` && !warnedFine, { wrapped, clipboard: afterFine, warned: warnedFine });
+    result(`companion: an ordinary command (${FINE}) is copied, with no warning, and the guard is in the page`, wrapped && afterFine === `ok|${FINE}` && !warnedFine, { wrapped, registered, inPage, clipboard: afterFine, warned: warnedFine });
     const afterBad = await write(BAD);
     let clipText = '';
     for (let i = 0; i < 20 && !/stopped this page from copying a command/.test(clipText); i++) { await sleep(150); clipText = await pageText(browser, s); }
