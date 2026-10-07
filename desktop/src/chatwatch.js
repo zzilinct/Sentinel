@@ -100,7 +100,9 @@ $cache = New-Object System.Windows.Automation.CacheRequest
 $cache.Add($A::NameProperty); $cache.Add($A::BoundingRectangleProperty); $cache.Add($A::AutomationIdProperty); $cache.Add($A::LocalizedControlTypeProperty)
 $itemCache = New-Object System.Windows.Automation.CacheRequest
 $itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdProperty); $itemCache.Add($A::NameProperty)
-$stdin = [Console]::In
+# The launcher's reader (LAUNCH, below), over the raw input stream: Console.In's ReadLineAsync runs synchronously in
+# Windows PowerShell, so the loop would stop at the first read until the app sent its next command.
+$stdin = $in
 $pending = $stdin.ReadLineAsync()
 $lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''
 # Which apps were switched on: the others are never read, even in front.
@@ -564,10 +566,11 @@ function setApps(list) {
  * @param {{ log: (s: string) => void, onState: (s: object) => void, onSeen?: () => void, apps?: string[],
  *   api?: (path: string, body: object) => Promise<object> }} o  api: checks the addresses of links in texts
  */
-// How the reader starts: its script arrives as the first line on its input (too long for a command line), and runs
-// with `&` so each line it writes reaches Sentinel at once (a script block's Invoke() would hold them all until it ends).
+// How the reader starts: its script arrives as the first line on its input (too long for a command line), read with a
+// plain reader over the raw stream ($in, which the script goes on reading its commands from), and runs with `&` so
+// each line it writes reaches Sentinel at once (a script block's Invoke() would hold them all until it ends).
 const LAUNCH = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command',
-  '& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadLine()))))'];
+  '$in = New-Object System.IO.StreamReader([Console]::OpenStandardInput()); & ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($in.ReadLine()))))'];
 
 function start(o) {
   if (process.platform !== 'win32' || child) return;

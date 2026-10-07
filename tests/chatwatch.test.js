@@ -69,15 +69,16 @@ test('the chat reader\'s PowerShell parses', { skip: process.platform !== 'win32
   } finally { fs.rmSync(file, { force: true }); }
 });
 
-test('the chat reader starts, reads its next lines and its output arrives while it runs', { skip: process.platform !== 'win32' }, async () => {
-  const script = "Write-Output 'up'; $l = [Console]::In.ReadLine(); Write-Output ('got ' + $l); Start-Sleep 30";
+test('the chat reader starts, its output arrives while it runs, and waiting for a command does not stop its loop', { skip: process.platform !== 'win32' }, async () => {
+  // As the reader does: a read of the next command is started, and the loop goes on while none has come.
+  const script = "Write-Output 'up'; $p = $in.ReadLineAsync(); Write-Output ('got ' + $p.Result); $p = $in.ReadLineAsync(); Write-Output ('waiting ' + $p.Wait(1)); Start-Sleep 30";
   const ps = require('child_process').spawn('powershell.exe', LAUNCH, { windowsHide: true });
   let out = '';
   ps.stdout.on('data', (d) => { out += d; });
   ps.stdin.write(`${Buffer.from(script, 'utf8').toString('base64')}\napps discord\n`);
   try {
-    for (let i = 0; i < 300 && !/got apps discord/.test(out); i++) await new Promise((r) => setTimeout(r, 100));
-    assert.match(out, /up\s+got apps discord/);
+    for (let i = 0; i < 300 && !/waiting/.test(out); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.match(out, /up\s+got apps discord\s+waiting False/);
   } finally { ps.kill(); }
 });
 
