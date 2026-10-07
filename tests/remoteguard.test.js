@@ -130,5 +130,6 @@ test('main: trusting a program needs the PIN under a parent lock, and the way ou
   assert.match(main, /if \(action === 'trust-tool'\) \{[\s\S]{0,300}lock\.guard\(`asking about \$\{tool\.name\} off`, true\)/);
   assert.match(main, /if \(guardMode === 'escape'\) \{ guardWin\.show\(\); guardWin\.focus\(\); \} else guardWin\.showInactive\(\);/);
   assert.match(main, /badPage = \{ key: escapeKey\(v\.page\), browser: v\.page\.browser, support: Boolean\(v\.support\) \}/, 'keyed on the site');
-  assert.match(main, /showWindow\(`\/app\/recover\?happened=\$\{RECOVER_HAPPENED\.has\(arg\) \? arg : 'remote'\}`\)/);
+  assert.match(main, /if \(action === 'recover'\) \{\n\s+\/\/[^\n]*\n\s+closeGuard\(\);\n\s+showWindow\(recoverRoute\(arg, 'remote'\)\);/);
+  assert.match(main, /`\$\{inApp \? '\/app\/recover' : '\/recover'\}\?happened=\$\{RECOVER_HAPPENED\.has\(happened\) \? happened : fallback\}`/, 'signed out, the website\'s guide, not a sign-in page');
 });

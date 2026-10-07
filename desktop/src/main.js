@@ -539,6 +539,12 @@ function toolStillRunning(tool) {
 }
 // What a warning may tick in the recovery guide (web/assets/js/recover.js reads ?happened=).
 const RECOVER_HAPPENED = new Set(['remote', 'password']);
+/** The recovery guide inside the app when the app is signed in; otherwise the website's, which needs no account. */
+function recoverRoute(happened, fallback) {
+  let inApp = false;
+  try { inApp = Boolean(win && ORIGIN && new URL(win.webContents.getURL()).pathname.startsWith('/app')); } catch { /* no page yet */ }
+  return `${inApp ? '/app/recover' : '/recover'}?happened=${RECOVER_HAPPENED.has(happened) ? happened : fallback}`;
+}
 
 /** What the shield's window asks for. Every action follows a button the person pressed there. */
 async function guardAction(action, arg) {
@@ -588,7 +594,7 @@ async function guardAction(action, arg) {
   if (action === 'recover') {
     // The recovery guide in the app, with what happened already ticked.
     closeGuard();
-    showWindow(`/app/recover?happened=${RECOVER_HAPPENED.has(arg) ? arg : 'remote'}`);
+    showWindow(recoverRoute(arg, 'remote'));
     return { ok: true };
   }
   if (action === 'dismiss') closeGuard();
@@ -1182,7 +1188,7 @@ function registerBridge() {
   handle('sentinel:warn-action', (action, url) => {
     if (warnWin && !warnWin.isDestroyed()) warnWin.close();
     if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`/app/scan?url=${encodeURIComponent(url)}`);
-    if (action === 'recover') showWindow(`/app/recover?happened=${RECOVER_HAPPENED.has(url) ? url : 'password'}`);
+    if (action === 'recover') showWindow(recoverRoute(url, 'password'));
     return { ok: true };
   }, trustedLocal);
   handle('sentinel:guard-action', (action, arg) => guardAction(String(action), String(arg || '')), trustedLocal);

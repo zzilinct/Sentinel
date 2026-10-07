@@ -25,6 +25,7 @@ public static class K {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out int pid);
   public static void Tap(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
 }
 "@
@@ -184,7 +185,8 @@ if (Test-Path $anydesk) {
   Shot 'anydesk-ended'
   [void](Press 'Open the recovery guide')
   $u = ''
-  $ok = Until 30 { $script:u = (Cdp '127.0.0.1:4782' 'location.pathname + location.search').value; $script:u -eq '/app/recover?happened=remote' }
+  # Signed in, the guide inside the app; signed out (as on this runner), the website's, which needs no account.
+  $ok = Until 30 { $script:u = (Cdp '127.0.0.1:4782' 'location.pathname + location.search').value; $script:u -match '^(/app)?/recover\?happened=remote$' }
   Check 'remote-recovery-guide' $ok "the app shows: $u"
   Get-Process AnyDesk -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 } else { Check 'remote-noticed' $false 'AnyDesk could not be downloaded on this runner' }
@@ -205,14 +207,20 @@ Check 'escape-window' ($g -match 'mode=escape') "the shield's window: $g"
 Check 'escape-words' ($g -match 'support=1' -and $g -match 'trying to scare you') 'a fake virus alert gets the scare-page words'
 # The page holds the keyboard; the way out takes it, so Tab and Escape reach it. Escape is "Not now".
 Check 'escape-focus' ($g -match '\|true\|alertdialog\|') 'the way out has the keyboard, as an alert dialog'
+# Which window has the keyboard, and what the shield's page heard.
+$fg = 0; [void][K]::GetWindowThreadProcessId([K]::GetForegroundWindow(), [ref]$fg)
+Say "in front before Escape: $((Get-Process -Id $fg -ErrorAction SilentlyContinue).ProcessName)"
+[void](Cdp 'guard.html' "(() => { window.heard = []; document.addEventListener('keydown', (e) => window.heard.push(e.key), true); return 1; })()")
 [K]::Tap(0x1B)
+Start-Sleep 1
+[void](Cdp 'guard.html' 'String(window.heard)')
 Check 'escape-key' (Until 10 { [string](Cdp 'guard.html' '1').error -match 'no window' }) 'Escape closed it without doing anything'
 [K]::Tap(0x7A)
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 # 5c. Any other flagged page in full screen (a video, say) gets plain words, not "fake virus alert".
 Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 paypal-account-verify-login.test"
-Start-Process msedge -ArgumentList 'http://paypal-account-verify-login.test:47910/plain.html'
+Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', 'http://paypal-account-verify-login.test:47910/plain.html'
 Start-Sleep 8
 Say "Edge in front: $(Front 'msedge')"
 [K]::Tap(0x7A)
