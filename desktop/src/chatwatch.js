@@ -96,6 +96,11 @@ $A = [System.Windows.Automation.AutomationElement]
 $CT = [System.Windows.Automation.ControlType]
 $textCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::Text)
 $listCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::List)
+# Phone Link's parts, in one walk: lists, message boxes, and its Messages tab. (The conditions take an array.)
+function Is($type) { New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $type) }
+function AnyOf { New-Object System.Windows.Automation.OrCondition -ArgumentList (,[System.Windows.Automation.Condition[]]$args) }
+function AllOf { New-Object System.Windows.Automation.AndCondition -ArgumentList (,[System.Windows.Automation.Condition[]]$args) }
+$plCond = AnyOf $listCond (Is $CT::Edit) (AllOf (New-Object System.Windows.Automation.PropertyCondition($A::NameProperty, 'Messages')) (AnyOf (Is $CT::TabItem) (Is $CT::ListItem) (Is $CT::RadioButton)))
 $cache = New-Object System.Windows.Automation.CacheRequest
 $cache.Add($A::NameProperty); $cache.Add($A::BoundingRectangleProperty); $cache.Add($A::AutomationIdProperty); $cache.Add($A::LocalizedControlTypeProperty)
 $itemCache = New-Object System.Windows.Automation.CacheRequest
@@ -104,7 +109,7 @@ $itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdPr
 # Windows PowerShell, so the loop would stop at the first read until the app sent its next command.
 $stdin = $in
 $pending = $stdin.ReadLineAsync()
-$lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''
+$lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}
 # Which apps were switched on: the others are never read, even in front.
 $apps = @('discord', 'roblox')
 while ($true) {
@@ -167,57 +172,96 @@ while ($true) {
         if ($lastSig -ne 'nolist') { $lastSig = 'nolist'; Write-Output (@{ app = 'discord'; title = [CW]::Title($h); win = $c; items = @(); noList = $true } | ConvertTo-Json -Compress -Depth 4) }
       }
     } elseif ($app -eq 'phonelink') {
-      # Phone Link: the open conversation is the message list on the right (the list of conversations is on the left).
-      # Looked for once per window, and again at most every 5 seconds while there is none.
+      # Phone Link: found once per window (and looked for again at most every 5 seconds while missing), in one walk:
+      # the Messages tab, and the open conversation's message list. That is the list furthest right that is not the
+      # list of conversations on the left edge, or, in a narrow window where the conversation fills it, the list with
+      # the message box under it.
       if ((-not $msgList -or $msgFor -ne $h) -and ($msgFor -ne $h -or [Environment]::TickCount -gt $nextList)) {
-        $msgList = $null; $msgFor = $h; $nextList = [Environment]::TickCount + 5000; $best = [double]::MinValue
-        $lists = $A::FromHandle($h).FindAll([System.Windows.Automation.TreeScope]::Descendants, $listCond)
-        foreach ($l in $lists) { $b = $l.Current.BoundingRectangle; if ($b.Width -gt 200 -and $b.Height -gt 150 -and $b.X -ge $c[0] + $c[2] * 0.25 -and $b.X -gt $best) { $best = $b.X; $msgList = $l } }
+        $msgList = $null; $msgFor = $h; $nextList = [Environment]::TickCount + 5000; $best = [double]::MinValue; $msgTab = $null; $whoKeys = @{}
+        $found = $A::FromHandle($h).FindAll([System.Windows.Automation.TreeScope]::Descendants, $plCond)
+        $lists = @(); $edits = @()
+        foreach ($e in $found) {
+          $ct = $e.Current.ControlType
+          if ($ct -eq $CT::List) { $lists += $e } elseif ($ct -eq $CT::Edit) { $edits += $e.Current.BoundingRectangle }
+          elseif (-not $msgTab -and $e.Current.Name -eq 'Messages') { try { $msgTab = $e.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern) } catch { } }
+        }
+        foreach ($l in $lists) {
+          $b = $l.Current.BoundingRectangle
+          if ($b.Width -le 200 -or $b.Height -le 150) { continue }
+          $box = @($edits | Where-Object { $_.Top -ge $b.Bottom - 40 -and $_.Top -le $b.Bottom + 200 -and ($_.X + $_.Width / 2) -gt $b.Left -and ($_.X + $_.Width / 2) -lt $b.Right }).Count -gt 0
+          if (($b.X -ge $c[0] + $c[2] * 0.25 -or $box) -and $b.X -gt $best) { $best = $b.X; $msgList = $l }
+        }
       }
-      if ($msgList) {
+      # Only the Messages tab is read: never calls, photos or notifications. (Without a tab Windows can describe, the
+      # open conversation is what tells.)
+      if ($msgTab -and -not $msgTab.Current.IsSelected) {
+        if ($lastSig -ne 'notab') { $lastSig = 'notab'; $lastPrint = 0; Write-Output (@{ app = 'phonelink'; win = $c; items = @(); noTab = $true } | ConvertTo-Json -Compress -Depth 4) }
+      } elseif ($msgList) {
         $lb = $msgList.Current.BoundingRectangle
         $scope = $itemCache.Activate()
         try { $items = $msgList.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) } finally { $scope.Dispose() }
-        $scope = $cache.Activate()
-        try { $texts = $msgList.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond) } finally { $scope.Dispose() }
-        $out = @()
+        # The messages on screen, and a quick signature of them: their texts are read only when it changes, so a
+        # conversation left open costs one short look per tick.
+        $vis = @(); $sig = ''
         foreach ($it in $items) {
           $b = $it.GetCachedPropertyValue($A::BoundingRectangleProperty)
           if ([double]::IsInfinity($b.Y) -or $b.Height -lt 8 -or $b.Bottom -lt $c[1] -or $b.Top -gt $c[1] + $c[3]) { continue }
-          $parts = @(); $left = [double]::MaxValue
-          foreach ($t in $texts) {
-            $tb = $t.GetCachedPropertyValue($A::BoundingRectangleProperty)
-            if ([double]::IsInfinity($tb.Y) -or $tb.Top -lt $b.Top - 1 -or $tb.Bottom -gt $b.Bottom + 1) { continue }
-            $tn = [string]$t.GetCachedPropertyValue($A::NameProperty)
-            if ($tn) { $parts += $tn; $left = [Math]::Min($left, $tb.X) }
-          }
-          if (-not $parts.Count) { $parts = @([string]$it.GetCachedPropertyValue($A::NameProperty)); $left = $b.X }
-          # Messages you sent sit on the right of the conversation; only messages you received are judged.
-          $out += @{ k = [string]$it.GetCachedPropertyValue($A::AutomationIdProperty); t = (($parts -join ' ') -replace '\s+', ' ').Trim(); rx = ($left -lt $lb.X + $lb.Width * 0.4); x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height }
+          $vis += $it
+          $sig += [string]$it.GetCachedPropertyValue($A::AutomationIdProperty) + '|' + [int]$b.Y + '|' + [int]$b.Height + '|' + ([string]$it.GetCachedPropertyValue($A::NameProperty)).Length + ';'
         }
-        $out = @($out | Select-Object -Last 30)
-        $sig = ($out | ForEach-Object { $_.k + '|' + $_.y + '|' + $_.t.Length }) -join ';'
         if ($sig -ne $lastSig) {
           $lastSig = $sig
-          # Who the conversation is with: the top line of its header, just above the message list.
-          $who = ''; $whoY = [double]::MaxValue
-          $scope = $cache.Activate()
-          try { $all = $A::FromHandle($h).FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond) } finally { $scope.Dispose() }
-          foreach ($t in $all) {
-            $tb = $t.GetCachedPropertyValue($A::BoundingRectangleProperty)
-            if ([double]::IsInfinity($tb.Y) -or $tb.Bottom -gt $lb.Top + 1 -or $tb.Top -lt $lb.Top - 140 -or $tb.X -lt $lb.X - 20) { continue }
-            $tn = [string]$t.GetCachedPropertyValue($A::NameProperty)
-            if ($tn -and $tb.Y -lt $whoY) { $who = $tn; $whoY = $tb.Y }
+          $out = @()
+          foreach ($it in ($vis | Select-Object -Last 30)) {
+            $b = $it.GetCachedPropertyValue($A::BoundingRectangleProperty)
+            $scope = $cache.Activate()
+            try { $texts = $it.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond) } finally { $scope.Dispose() }
+            $parts = @(); $left = [double]::MaxValue; $right = [double]::MinValue
+            foreach ($t in $texts) {
+              $tb = $t.GetCachedPropertyValue($A::BoundingRectangleProperty)
+              if ([double]::IsInfinity($tb.Y)) { continue }
+              $tn = [string]$t.GetCachedPropertyValue($A::NameProperty)
+              if ($tn) { $parts += $tn; $left = [Math]::Min($left, $tb.Left); $right = [Math]::Max($right, $tb.Right) }
+            }
+            if (-not $parts.Count) { $parts = @([string]$it.GetCachedPropertyValue($A::NameProperty)); $left = $b.Left; $right = $b.Right }
+            # Received texts lean on the left of the conversation, sent ones on the right: only received ones are judged.
+            $out += @{ k = [string]$it.GetCachedPropertyValue($A::AutomationIdProperty); t = (($parts -join ' ') -replace '\s+', ' ').Trim(); rx = (($left - $lb.Left) -le ($lb.Right - $right)); x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height }
+          }
+          # A message whose words Windows has not described yet is read again on the next tick.
+          if (@($out | Where-Object { -not $_.t }).Count) { $lastSig = '' }
+          # Who the conversation is with: the top line of its header, just above the message list. Looked for only when
+          # the conversation changed (none of these messages were on screen before), and only in the part of the window
+          # around the conversation, not the whole window.
+          $keys = @{}; foreach ($o in $out) { $keys[$o.k + '|' + $o.t] = 1 }
+          $same = $false; foreach ($k in $keys.Keys) { if ($whoKeys.ContainsKey($k)) { $same = $true; break } }
+          $whoKeys = $keys
+          if (-not $same) {
+            $who = ''; $whoY = [double]::MaxValue
+            $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+            $around = $walker.GetParent($msgList); $up = 0
+            # Never past Phone Link's own window: the desktop above it holds every other window.
+            while ($around -and $up -lt 4 -and $around.Current.ProcessId -eq $fp -and $around.Current.BoundingRectangle.Top -gt $lb.Top - 30) { $around = $walker.GetParent($around); $up++ }
+            if (-not $around -or $around.Current.ProcessId -ne $fp) { $around = $A::FromHandle($h) }
+            $scope = $cache.Activate()
+            try { $all = $around.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond) } finally { $scope.Dispose() }
+            foreach ($t in $all) {
+              $tb = $t.GetCachedPropertyValue($A::BoundingRectangleProperty)
+              if ([double]::IsInfinity($tb.Y) -or $tb.Bottom -gt $lb.Top + 1 -or $tb.Top -lt $lb.Top - 140 -or $tb.X -lt $lb.X - 20) { continue }
+              $tn = [string]$t.GetCachedPropertyValue($A::NameProperty)
+              if ($tn -and $tb.Y -lt $whoY) { $who = $tn; $whoY = $tb.Y }
+            }
           }
           Write-Output (@{ app = 'phonelink'; who = $who; win = $c; items = $out } | ConvertTo-Json -Compress -Depth 4)
         }
       } else {
         # No conversation list Windows can describe: the conversation side of the window is read with the text
-        # recogniser instead, only when it changed, as Roblox's chat box is.
-        $px = $c[0] + [int]($c[2] * 0.3); $pw = $c[2] - [int]($c[2] * 0.3)
+        # recogniser instead, only when it changed, as Roblox's chat box is. A narrow window shows the conversation
+        # alone, so all of it is read.
+        $cut = if ($c[2] -lt 760) { 0 } else { [int]($c[2] * 0.3) }
+        $px = $c[0] + $cut; $pw = $c[2] - $cut
         $p = Print $px $c[1] $pw $c[3]
         if ($p -ne $lastPrint) {
-          $lastPrint = $p
+          $lastPrint = $p; $lastSig = ''
           $lines = Read-Area $px $c[1] $pw $c[3]
           Write-Output (@{ app = 'phonelink'; win = $c; pane = @($px, $c[1], $pw, $c[3]); lines = @($lines); ocr = ($null -ne $engine) } | ConvertTo-Json -Compress -Depth 4)
         }
@@ -242,7 +286,7 @@ while ($true) {
       }
       if (-not $chatOpen) { $wait = 2000 }
     }
-  } catch { $msgList = $null }
+  } catch { $msgList = $null; $msgTab = $null }
   Start-Sleep -Milliseconds $wait
 }
 `;
@@ -292,9 +336,19 @@ function textOf(t) {
 }
 
 /**
+ * Whether a bubble was received: received texts sit against the left of the conversation, sent ones against the right,
+ * so the side with the smaller gap is the side it leans on. This holds for a full-width conversation (a narrow window)
+ * and for a long message that spans most of it.
+ */
+function receivedSide(left, right, areaLeft, areaRight) {
+  return (left - areaLeft) <= (areaRight - right);
+}
+
+/**
  * The texts in a conversation read with the text recogniser (when Phone Link cannot be read through the accessibility
  * interface): who it is with (the top line of the header), and each received message, its lines joined back together.
- * `pane`: [x, y, w, h] of the part of the window that was read. Messages on its right half are ones you sent.
+ * `pane`: [x, y, w, h] of the part of the window that was read. Lines are joined into bubbles first, so a short last
+ * line of a sent message is not mistaken for a received one.
  */
 function phonelinkMessages(lines, pane) {
   const [px, py, pw, ph] = Array.isArray(pane) ? pane : [0, 0, 0, 0];
@@ -308,18 +362,17 @@ function phonelinkMessages(lines, pane) {
     const text = String(l.t).trim();
     if (l.y < header) { if (!who) who = text; continue; }
     if (l.y > footer || STAMP.test(text) || COMPOSER.test(text)) { last = null; continue; }
-    const received = l.x < px + pw * 0.4;
     // The next line of the same bubble: just below, starting where it starts.
-    if (last && last.received === received && l.y - (last.y + last.h) < Math.max(10, l.h * 0.9) && Math.abs(l.x - last.x) < 40) {
+    if (last && l.y - (last.y + last.h) < Math.max(10, l.h * 0.9) && Math.abs(l.x - last.x) < 40) {
       last.text = `${last.text} ${text}`.slice(0, 1500);
       last.h = (l.y + l.h) - last.y;
       last.w = Math.max(last.w, (l.x + l.w) - last.x);
       continue;
     }
-    last = { text, received, x: l.x, y: l.y, w: l.w, h: l.h };
+    last = { text, x: l.x, y: l.y, w: l.w, h: l.h };
     out.push(last);
   }
-  return { who, messages: out.filter((m) => m.received) };
+  return { who, messages: out.filter((m) => receivedSide(m.x, m.x + m.w, px, px + pw)) };
 }
 
 /* ------------------------------------------------ which game, from its log */
@@ -395,7 +448,7 @@ const told = new Map();       // what was already pointed out, so a message is f
 let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true, flags: [] };
 let logTimer = null;
 // How many messages were checked and flagged in each app since chat safety started: numbers only, never what they said.
-const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0 }, app: null, reading: false, at: 0 });
+const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0, unchecked: 0, why: '', otherTab: false }, app: null, reading: false, at: 0 });
 let seen = fresh();
 let seenTimer = null;
 let apps = ['discord', 'roblox'];
@@ -454,17 +507,30 @@ function judgeTexts(who, messages) {
   return flags;
 }
 function checkLinks(id, result) {
-  // Private: no history entry and nothing sent to a registry, as for a private browser window.
-  opts.api('/api/v1/live/batch', { urls: result.links, private: true, mode: 'fast' }).then((res) => {
+  // Private: no history entry and nothing sent to a registry, as for a private browser window. `purpose`: checked
+  // against the lists without spending live-scanning minutes, which are for browsing.
+  opts.api('/api/v1/live/batch', { urls: result.links, private: true, mode: 'fast', purpose: 'texts' }).then((res) => {
     const entry = told.get(id);
     if (!entry) return;
     const flag = texts.withLinks(result, res && res.byUrl);
     if (flag === entry.flag) return;
-    if (!entry.flag) seen.phonelink.flagged++;
+    if (!entry.flag && flag) seen.phonelink.flagged++;
+    if (entry.flag && !flag) seen.phonelink.flagged--;
     entry.flag = flag;
     noteSeen();
     if (lastPhone && child) onMessage(lastPhone);
-  }).catch(() => { /* the words still count; the links were not checked this time */ });
+  }).catch((err) => {
+    // The words still count; the links were not checked, and the panel says so and why.
+    seen.phonelink.unchecked += result.links.length;
+    seen.phonelink.why = whyUnchecked(err);
+    noteSeen();
+  });
+}
+/** Why a text's links could not be checked, in plain words for the panel. */
+function whyUnchecked(err) {
+  if (err && err.status === 429) return String(err.message || 'Too many links to check just now');
+  if (err && err.message === 'scanner not ready') return "Sentinel's scanner was still starting";
+  return "Sentinel's scanner could not be reached";
 }
 
 function onMessage(msg) {
@@ -487,6 +553,9 @@ function onMessage(msg) {
   }
   if (msg.app === 'phonelink') {
     lastPhone = msg;
+    // Calls, photos or notifications are open: nothing is read there, and the badge does not claim otherwise.
+    seen.phonelink.otherTab = Boolean(msg.noTab);
+    if (msg.noTab) { seen.reading = false; noteSeen(); opts.onState({ app: 'phonelink', win: msg.win, indicator: false, reading: false, flags: [] }); return; }
     let who = String(msg.who || '');
     let items;
     if (Array.isArray(msg.items)) items = msg.items.filter((i) => i.rx !== false).map((i) => ({ ...i, text: i.t }));
@@ -603,5 +672,5 @@ function stop() {
 
 module.exports = {
   start, stop, setApps, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)),
-  _test: { SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
+  _test: { SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, receivedSide, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
 };

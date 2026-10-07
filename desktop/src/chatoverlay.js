@@ -25,6 +25,8 @@ function ensure() {
     webPreferences: { preload: path.join(__dirname, 'chat-preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false }
   });
   win.setIgnoreMouseEvents(true);
+  // Left out of screen copies, so its own cards never end up in what the text recogniser reads (Phone Link, Roblox).
+  win.setContentProtection(true);
   win.setMenu(null);
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
