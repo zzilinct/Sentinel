@@ -119,8 +119,9 @@ const STEPS = {
     const custom = false;
     const mine = all(await list()).find((e) => /bing\\.com/.test(String(e.url)));
     if (!mine) throw new Error('Bing is not among the engines: ' + all(await list()).map((e) => e.url).join(' '));
-    if (k.engines) k.engines.setDefaultSearchEngine(mine.modelIndex, 0, false);
-    else chrome.send('setDefaultSearchEngine', [mine.modelIndex, 0]);
+    // The handler (search_engines_handler.cc) takes the engine's id as a string, where it was chosen
+    // (2: kSearchEngineSettings; anything else is a CHECK) and an optional guest choice.
+    chrome.send('setDefaultSearchEngine', [String(mine.id), 2, null]);
     await k.wait(800);
     const now = all(await list()).find((e) => e.default);
     if (!now || now.url !== mine.url) throw new Error('the default did not change: ' + (now && now.url));
