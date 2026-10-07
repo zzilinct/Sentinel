@@ -63,6 +63,8 @@ function writeExtensions() {
   }
 }
 
+const log = (msg) => console.log(`${new Date().toISOString().slice(11, 19)}  ${msg}`);
+process.on('exit', (code) => console.log(`exit ${code}`));
 const exited = (child, ms) => new Promise((resolve) => {
   if (child.exitCode !== null) return resolve(true);
   const t = setTimeout(() => resolve(false), ms);
@@ -144,7 +146,9 @@ async function prepareChromium(b) {
     '--remote-debugging-pipe', '--enable-unsafe-extension-debugging',
     '--disable-features=DisableLoadExtensionCommandLineSwitch', `--load-extension=${extDir('B')}`,
     '--no-first-run', '--no-default-browser-check', '--disable-gpu', 'about:blank'
-  ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+  ], { stdio: ['ignore', 'ignore', fs.openSync(path.join(OUT, `${b.id}-stderr.txt`), 'w'), 'pipe', 'pipe'] });
+  child.on('error', (e) => log(`${b.id}: ${e.message}`));
+  child.on('exit', (code, signal) => log(`${b.id}: exited ${code} ${signal || ''}`));
   const send = cdpPipe(child);
   const evalIn = async (sessionId, fn) => {
     const r = await send('Runtime.evaluate', { expression: `${fn}(${JSON.stringify(C)})`, awaitPromise: true, returnByValue: true }, sessionId);
@@ -164,18 +168,22 @@ async function prepareChromium(b) {
       ready = await send('Runtime.evaluate', { expression: "document.readyState === 'complete' && typeof chrome !== 'undefined' && typeof chrome.send === 'function'", returnByValue: true }, sessionId).then((r) => r.result.value, () => false);
     }
     out.settingsPage = ready;
+    log(`${b.id}: ${out.version}, settings page ready=${ready}`);
     out.settings = await evalIn(sessionId, SETTINGS_SCRIPT).catch((e) => ({ error: e.message }));
 
+    log(`${b.id}: settings ${JSON.stringify(out.settings).slice(0, 400)}`);
     out.extA = await send('Extensions.loadUnpacked', { path: extDir('A') }).then((r) => r.id, (e) => `error: ${e.message}`);
     // The search engine last but one: a handler given the wrong arguments may take the browser down, and what was
     // set above is then still lost, so it is only tried after the add-ons that matter most.
     out.search = await evalIn(sessionId, SEARCH_SCRIPT).catch((e) => ({ error: e.message }));
+    log(`${b.id}: extA ${out.extA}, search ${JSON.stringify(out.search)}`);
     out.extC = await send('Extensions.loadUnpacked', { path: extDir('C') }).then((r) => r.id, (e) => `error: ${e.message}`);
     await sleep(2000);
     await send('Browser.close').catch(() => {});
   } catch (err) {
     out.error = err.message;
   }
+  log(`${b.id}: extC ${out.extC}, closing${out.error ? `, error ${out.error}` : ''}`);
   out.cleanExit = await exited(child, 30000);
   if (!out.cleanExit) child.kill();
   await sleep(3000);   // helper processes letting go of the profile
@@ -388,7 +396,9 @@ async function main() {
   if (MODE === 'prepare') {
     writeExtensions();
     const browsers = [];
-    for (const b of BROWSERS) browsers.push(await prepareChromium(b));
+    const save = () => fs.writeFileSync(path.join(OUT, 'prepare.json'), JSON.stringify({ browsers }, null, 2));
+    for (const b of BROWSERS) { log(`${b.id}: preparing`); browsers.push(await prepareChromium(b)); save(); }
+    log('firefox: preparing');
     browsers.push(await prepareFirefox());
     fs.writeFileSync(path.join(OUT, 'prepare.json'), JSON.stringify({ browsers }, null, 2));
     for (const b of browsers) console.log(`${b.id}: ${JSON.stringify(b, null, 1)}`);
