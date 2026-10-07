@@ -513,7 +513,9 @@ ext.runtime.onStartup.addListener(restore);
  */
 const CLIPGUARD = {
   id: 'sentinel-clipguard',
-  js: ['src/content/clickfix.js', 'src/content/alarm.js', 'src/content/clipguard.js'],
+  // alarm.page.js is alarm.js under another name (scripts/build-extension.js): a file already run in the frame in the
+  // companion's world is not run again in the page's.
+  js: ['src/content/clickfix.js', 'src/content/alarm.page.js', 'src/content/clipguard.js'],
   matches: ['http://*/*', 'https://*/*'],
   world: 'MAIN',
   allFrames: true,
@@ -522,8 +524,11 @@ const CLIPGUARD = {
 async function syncClipGuard() {
   if (!ext.scripting || !ext.scripting.registerContentScripts) return;
   const { commandGuard } = await getSettings();
-  const there = (await ext.scripting.getRegisteredContentScripts({ ids: [CLIPGUARD.id] })).length > 0;
+  const [old] = await ext.scripting.getRegisteredContentScripts({ ids: [CLIPGUARD.id] });
+  let there = Boolean(old);
   try {
+    // Registered by an earlier version with other files: register it again.
+    if (old && String(old.js) !== String(CLIPGUARD.js)) { await ext.scripting.unregisterContentScripts({ ids: [CLIPGUARD.id] }); there = false; }
     if (commandGuard && !there) {
       // Frames a page opens on about:blank too, where the browser can do that.
       await Promise.resolve().then(() => ext.scripting.registerContentScripts([{ ...CLIPGUARD, matchOriginAsFallback: true }]))

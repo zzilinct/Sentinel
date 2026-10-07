@@ -77,7 +77,8 @@ test('the Windows app and the companion carry the same rules', () => {
   assert.ok(manifest.permissions.includes('scripting'));
   const bg = read('extension/src/background.js');
   const reg = bg.slice(bg.indexOf('const CLIPGUARD = {'), bg.indexOf('};', bg.indexOf('const CLIPGUARD = {')));
-  assert.match(reg, /js: \['src\/content\/clickfix\.js', 'src\/content\/alarm\.js', 'src\/content\/clipguard\.js'\]/, 'the rules and the warning load first');
+  assert.match(reg, /js: \['src\/content\/clickfix\.js', 'src\/content\/alarm\.page\.js', 'src\/content\/clipguard\.js'\]/, 'the rules and the warning load first');
+  assert.equal(read('extension/src/content/alarm.page.js'), read('extension/src/content/alarm.js'), 'scripts/build-extension.js copies it; commit the copy');
   assert.match(reg, /world: 'MAIN'/, "it must wrap the page's own clipboard calls");
   assert.match(reg, /runAt: 'document_start'/, "before the page's scripts");
   assert.match(read('extension/src/lib/api.js'), /commandGuard: true/, 'on unless the person turns it off');
