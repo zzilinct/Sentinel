@@ -98,7 +98,7 @@ function grid(cw, version, level, mask) {
 }
 
 /** RGBA pixels of a grid: a quiet zone of 4, `scale` pixels a module, turned by `angle` degrees. */
-function picture({ g, size }, { scale = 4, angle = 0, invert = false, mirror = false, noise = 0 } = {}) {
+function picture({ g, size }, { scale = 4, angle = 0, invert = false, mirror = false, noise = 0, ink = 30, paper = 230 } = {}) {
   const side = Math.ceil((size + 8) * scale * (angle ? 1.5 : 1));
   const data = new Uint8ClampedArray(side * side * 4);
   const c = side / 2;
@@ -113,7 +113,7 @@ function picture({ g, size }, { scale = 4, angle = 0, invert = false, mirror = f
     const mx = Math.floor(u); const my = Math.floor(v);
     let dark = mx >= 0 && my >= 0 && mx < size && my < size && g[my * size + mx] === 1;
     if (invert) dark = !dark;
-    let lum = dark ? 30 : 230;
+    let lum = dark ? ink : paper;
     if (noise) lum = Math.max(0, Math.min(255, lum + (rand() - 0.5) * noise));
     const o = (y * side + x) * 4;
     data[o] = data[o + 1] = data[o + 2] = lum;
@@ -226,6 +226,9 @@ test('reads a code turned, mirrored, light on dark, noisy or damaged', () => {
   assert.equal(QR.decode(picture(code, { mirror: true })), text);
   assert.equal(QR.decode(picture(code, { invert: true })), text);
   assert.equal(QR.decode(picture(code, { noise: 120 })), text);
+  // Grey on grey, as a branded or faded code is: found with CI's real pictures (scripts/verify-web.js).
+  assert.equal(QR.decode(picture(code, { ink: 105, paper: 176 })), text);
+  assert.equal(QR.decode(picture(code, { ink: 105, paper: 176, scale: 10 })), text);
   // A few data modules scratched off: error correction puts them back.
   const scratched = { size: code.size, g: code.g.slice() };
   for (const [x, y] of [[20, 20], [21, 22], [12, 25], [26, 14]]) scratched.g[y * code.size + x] ^= 1;

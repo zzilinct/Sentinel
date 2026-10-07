@@ -219,11 +219,13 @@
     var h = img.height;
     var px = img.data;
     var lum = new Uint8Array(w * h);
+    var floor = 255;   // the darkest ink in the picture
     for (var i = 0, j = 0; i < lum.length; i++, j += 4) {
       // Transparent counts as white: a code saved as a PNG on a clear background.
       var a = px[j + 3];
       var v = (px[j] * 77 + px[j + 1] * 150 + px[j + 2] * 29) >> 8;
       lum[i] = a === 255 ? v : 255 - (((255 - v) * a) >> 8);
+      if (lum[i] < floor) floor = lum[i];
     }
     var out = new Uint8Array(w * h);
     var B = 8;
@@ -244,7 +246,9 @@
         var mean = sum / cnt;
         // A flat block (all paper, or all ink) takes its cue from its neighbours, as in ZXing's hybrid binarizer.
         if (max - min <= 24) {
-          mean = min / 2;
+          // Halfway down to the darkest ink, not to black: in a grey-on-grey code, half of the paper's brightness is
+          // darker than the ink itself, and the ink around it would be read as paper.
+          mean = floor + (min - floor) / 2;
           if (by > 0 && bx > 0) {
             var nb = (avg[(by - 1) * bw + bx] + 2 * avg[by * bw + bx - 1] + avg[(by - 1) * bw + bx - 1]) / 4;
             if (min < nb) mean = nb;
