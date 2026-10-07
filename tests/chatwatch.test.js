@@ -7,7 +7,7 @@ const path = require('path');
 
 require('../desktop/scripts/sync-shared.js');
 const chatwatch = require('../desktop/src/chatwatch.js');
-const { robloxMessages, readLog, discordContext, judge, SCRIPT, LAUNCH, phonelinkMessages, judgeTexts, textOf, setOpts } = chatwatch._test;
+const { onMessage, robloxMessages, readLog, discordContext, judge, SCRIPT, LAUNCH, phonelinkMessages, judgeTexts, textOf, setOpts } = chatwatch._test;
 
 test('Roblox\'s chat box: names and messages, wrapped lines joined, and whether the box is open at all', () => {
   const r = robloxMessages([
@@ -80,6 +80,17 @@ test('the chat reader starts, its output arrives while it runs, and waiting for 
     for (let i = 0; i < 300 && !/waiting/.test(out); i++) await new Promise((r) => setTimeout(r, 100));
     assert.match(out, /up\s+got apps discord\s+waiting False/);
   } finally { ps.kill(); }
+});
+
+test('a warning by Roblox\'s chat box stays when the Esc menu opens or closes', () => {
+  const states = [];
+  setOpts({ log: () => {}, onState: (st) => states.push(st) });
+  try {
+    onMessage({ app: 'roblox', win: [0, 0, 1000, 700], area: [0, 0, 450, 350], lines: [{ t: '[Player1]: free robux at robux-gen.top', x: 24, y: 70, w: 380, h: 20 }] });
+    assert.equal(states.at(-1).flags.length, 1);
+    onMessage({ app: 'roblox', menu: false });
+    assert.equal(states.at(-1).flags.length, 1, 'the menu message must not wipe the warning');
+  } finally { setOpts(null); }
 });
 
 test('Phone Link read with the text recogniser: who it is with, received texts with their lines joined, sent ones and times left out', () => {

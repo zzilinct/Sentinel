@@ -392,7 +392,7 @@ let child = null;
 let lines = null;
 const chats = new Map();      // a conversation per chat: game or channel
 const told = new Map();       // what was already pointed out, so a message is flagged once
-let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true };
+let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true, flags: [] };
 let logTimer = null;
 // How many messages were checked and flagged in each app since chat safety started: numbers only, never what they said.
 const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0 }, app: null, reading: false, at: 0 });
@@ -500,7 +500,8 @@ function onMessage(msg) {
     return;
   }
   if (msg.app === 'roblox') {
-    if (typeof msg.menu === 'boolean') { roblox.menu = msg.menu; opts.onState(robloxState([])); return; }
+    // The Esc menu opened or closed: the badge changes, and the warnings by the chat box stay.
+    if (typeof msg.menu === 'boolean') { roblox.menu = msg.menu; opts.onState(robloxState(roblox.flags)); return; }
     const { open, messages } = robloxMessages(msg.lines);
     // A closed chat box is not read: the reader is told, and looks only for it coming back.
     if (open !== roblox.open) { roblox.open = open; send(open ? 'chat open' : 'chat closed'); }
@@ -508,9 +509,10 @@ function onMessage(msg) {
     seen.reading = open;
     noteSeen();
     roblox.area = msg.area;
-    if (!open) { opts.onState(robloxState([])); return; }
+    if (!open) { roblox.flags = []; opts.onState(robloxState([])); return; }
     const ctx = roblox.inGame ? { ...(roblox.info || {}), place: roblox.placeId } : { game: 'Roblox app', description: 'friends and chat' };
     const flags = judge('roblox', `roblox|${roblox.inGame ? roblox.placeId : 'app'}`, ctx, messages);
+    roblox.flags = flags;
     opts.onState(robloxState(flags));
   }
 }
@@ -601,5 +603,5 @@ function stop() {
 
 module.exports = {
   start, stop, setApps, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)),
-  _test: { SCRIPT, LAUNCH, robloxMessages, readLog, discordContext, judge, phonelinkMessages, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
+  _test: { SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
 };
