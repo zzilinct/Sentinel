@@ -1773,10 +1773,12 @@
   function textSeenText(ts) {
     if (!ts.enabled) return 'Off. Turn it on, then open a conversation in Phone Link.';
     const s = ts.seen || {};
-    const now = s.app === 'phonelink' ? (s.reading ? 'Checking Phone Link now.' : 'Phone Link is in front, but its texts cannot be read yet.') : 'On. It starts checking when Phone Link is in front.';
+    const now = s.app === 'phonelink' ? (s.reading ? 'Checking Phone Link now.' : s.otherTab ? 'Phone Link is in front. Texts are checked on its Messages tab.' : 'Phone Link is in front, but its texts cannot be read yet.') : 'On. It starts checking when Phone Link is in front.';
     const n = s.checked || 0, f = s.flagged || 0;
-    if (!n) return now;
-    return `${now} Since Sentinel started: ${n} text${n === 1 ? '' : 's'} checked, ${f} flagged.`;
+    const u = s.unchecked || 0;
+    const missed = u ? ` ${u} link${u === 1 ? '' : 's'} in texts could not be checked against the threat lists: ${String(s.why || "Sentinel's scanner could not be reached").replace(/\.$/, '')}. The words were still checked.` : '';
+    if (!n) return now + missed;
+    return `${now} Since Sentinel started: ${n} text${n === 1 ? '' : 's'} checked, ${f} flagged.${missed}`;
   }
   function bindTextSafety(slot) {
     const sw = $('[data-text-safety]', slot);

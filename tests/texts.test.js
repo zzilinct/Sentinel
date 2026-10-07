@@ -14,7 +14,9 @@ const ORDINARY = [
   ['Sarah', 'Is this Mike?'],
   ['+1 917 555 0101', 'Hi, this is Sarah from Dr Lee\'s office, can you call us back about Tuesday?'],
   ['DoorDash', 'Your DoorDash order is on the way'],
-  ['+44 7700 900123', 'Your table for 4 at 7pm is confirmed. Reply CANCEL to cancel']
+  ['+44 7700 900123', 'Your table for 4 at 7pm is confirmed. Reply CANCEL to cancel'],
+  ['72166', 'Reply Y to activate text alerts. Msg & data rates may apply. Reply STOP to cancel'],
+  ['39769', 'E-ZPass: Your toll balance of $12.50 is due. Pay at https://www.e-zpassny.com or in the E-ZPass app']
 ];
 
 // Scam texts, and the level each must get.
@@ -28,6 +30,7 @@ const SCAMS = [
   ['task job', '+1 917 555 0101', 'Earn $300-$800 daily rating products from home. Message me on WhatsApp', 'danger'],
   ['locked account', '+1 917 555 0101', 'Your Apple ID has been locked due to suspicious activity. Verify at http://apple-id-verify.co', 'warn'],
   ['reply Y', '+1 917 555 0101', 'Please reply Y, then exit the message and reopen it to activate the link', 'danger'],
+  ['currency sign', '+44 7700 900123', 'Hi mum, new phone, can you send £200 today', 'danger'],
   ['parcel address', '+1 917 555 0101', 'Your package could not be delivered due to an incomplete address. Please update your address at https://pkg-track-help.com', 'danger']
 ];
 
@@ -65,4 +68,16 @@ test('a dangerous link makes a quiet text dangerous; a clear link changes nothin
   assert.match(red.detail, /shop-orders\.top: Listed as phishing/);
   const orange = withLinks(r, { x: { host: 'h', overall: { badge: 'orange', label: 'Likely scam' } } });
   assert.equal(orange.level, 'warn');
+});
+
+test('a warning from the wording is lowered one step when every link is a site Sentinel trusts', () => {
+  const r = judgeText({ from: '+1 917 555 0101', text: 'Your Apple ID has been locked due to suspicious activity. Verify at https://www.apple.com/account' });
+  assert.equal(r.flag.level, 'warn');
+  const trusted = { 'https://www.apple.com/account': { host: 'www.apple.com', overall: { badge: null }, knowledge: { trusted: true } } };
+  assert.equal(withLinks(r, trusted), null);
+  // Only known-real sites: an address with nothing against it yet does not count as safe.
+  assert.equal(withLinks(r, { 'https://www.apple.com/account': { host: 'x', overall: { badge: null }, knowledge: { trusted: false } } }).level, 'warn');
+  // Family on a new number asking for money is about the words, not a link.
+  const fam = judgeText({ from: '+44 7700 900123', text: 'Hi Mum, this is my new number. Can you send money for a bill? https://www.apple.com/x' });
+  assert.equal(withLinks(fam, { 'https://www.apple.com/x': { overall: { badge: null }, knowledge: { trusted: true } } }).level, 'danger');
 });

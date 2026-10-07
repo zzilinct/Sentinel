@@ -1,6 +1,6 @@
 # The desktop protections, end to end, on a real Windows desktop (a GitHub-hosted runner, never a person's computer):
 # install Sentinel built from this commit, then prove in the installed app that chat safety reads Discord and Roblox
-# and flags messages, that "Stop pasted commands" swaps a ClickFix-shaped command on the clipboard, that the
+# and flags messages, that "Check my texts" reads a Phone Link-shaped window and judges only received texts, that "Stop pasted commands" swaps a ClickFix-shaped command on the clipboard, that the
 # tech-support scam shield notices AnyDesk (and offers a way out of a full-screen flagged page), and that the parent
 # lock guards switching protection off. Everything that looks dangerous here is a harmless stand-in.
 # Sentinel is started with a debugging port so this script can ask its own windows what they show (scripts/e2e-cdp.js).
@@ -62,7 +62,7 @@ Start-Process $Installer -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"
 Say "installed -> $((Get-Item $exe).VersionInfo.ProductVersion)"
 New-Item -ItemType Directory -Force $data | Out-Null
-[IO.File]::WriteAllText("$data\settings.json", '{"liveScanning":true,"autoScan":true,"openAtLogin":false,"chatSafety":true}')
+[IO.File]::WriteAllText("$data\settings.json", '{"liveScanning":true,"autoScan":true,"openAtLogin":false,"chatSafety":true,"textSafety":true}')
 $pages = Start-Process python -ArgumentList '-m', 'http.server', '47910', '--directory', (Join-Path $PSScriptRoot 'e2e-chat') -PassThru -WindowStyle Hidden
 Start-Process $exe -ArgumentList '--hidden'
 $up = WaitUp
@@ -99,6 +99,7 @@ setTimeout(() => { console.log(`reader still running after 15 s\nstdout: ${out.s
 $chromeDir = "$env:ProgramFiles\Google\Chrome\Application"
 New-Item -ItemType HardLink -Path "$chromeDir\Discord.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 New-Item -ItemType HardLink -Path "$chromeDir\RobloxPlayerBeta.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
+New-Item -ItemType HardLink -Path "$chromeDir\PhoneExperienceHost.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 function Fake($name, $page) {
   Start-Process "$chromeDir\$name.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\$name-profile", '--start-maximized', "--app=http://127.0.0.1:47910/$page"
   Start-Sleep 8
@@ -126,8 +127,64 @@ Check 'chat-roblox-flagged' $ok "messages flagged in Roblox: $($seen.roblox.flag
 $o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className").value
 Check 'chat-roblox-overlay' ($o -match '^[1-9]\d*\|roblox in-game') "chat overlay over Roblox (warnings|app): $o"
 Get-Process RobloxPlayerBeta -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# 3b. "Check my texts" in "Phone Link": Chrome under the name PhoneExperienceHost.exe, showing a page shaped like its
+# Messages tab (scripts/e2e-chat/phonelink.html). This proves the reader and the judging; the real Phone Link's
+# layout has not been checked against it.
+function Texts { return (Info 'info()').textSafety.seen }
+# When a check fails: what the reader itself writes for the stand-in in front (its texts are harmless stand-ins), and
+# the tabs Windows describes in it.
+function PlDiag {
+  $diag = Join-Path $env:RUNNER_TEMP 'pl-diag.js'
+  @'
+const { spawn } = require('child_process');
+const t = require(process.argv[2])._test;
+const child = spawn('powershell.exe', t.LAUNCH, { windowsHide: true });
+let out = '', err = '';
+child.stdout.on('data', (d) => { out += d; });
+child.stderr.on('data', (d) => { err += d; });
+child.stdin.write(`${Buffer.from(t.SCRIPT, 'utf8').toString('base64')}\napps phonelink\n`);
+setTimeout(() => { console.log(`stdout: ${out.slice(0, 4000)}\nstderr: ${err.slice(0, 2000)}`); child.kill(); process.exit(0); }, 8000);
+'@ | Set-Content -Path $diag -Encoding utf8
+  node $diag (Resolve-Path (Join-Path $PSScriptRoot '..\desktop\src\chatwatch.js')).Path | ForEach-Object { Say "  reader: $_" }
+  Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+  $p = Get-Process PhoneExperienceHost -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  if ($p) {
+    $all = [System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle).FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($e in $all) {
+      $c = $e.Current
+      if ($c.Name -match '^(Messages|Calls)' -or $c.ControlType.ProgrammaticName -match 'Tab|List\b') { Say "  uia: $($c.ControlType.ProgrammaticName) '$($c.Name)' $($c.BoundingRectangle) patterns: $(($e.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName }) -join ',')" }
+    }
+  }
+}
+$t0 = Texts
+Say "texts before: $($t0 | ConvertTo-Json -Compress)"
+Say "Phone Link in front (a scam text): $(Fake 'PhoneExperienceHost' 'phonelink.html?c=scam')"
+$ok = Until 40 { $script:ts = Texts; $script:ts.flagged -ge 1 -and $script:ts.checked -ge 2 }
+Start-Sleep 6; $ts = Texts
+Shot 'phonelink-scam'
+Check 'texts-read' ($ts.checked -eq 2) "texts checked: $($ts.checked) (2 received on screen, 1 sent)"
+Check 'texts-scam-flagged' ($ok -and $ts.flagged -eq 1) "texts flagged: $($ts.flagged) (the USPS fee; the sent message would be a second if it were judged)"
+Check 'texts-links-checked' ($ts.unchecked -eq 0) "links that could not be checked: $($ts.unchecked) $($ts.why)"
+$o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className + '|' + document.getElementById('badgeText').textContent").value
+Check 'texts-overlay' ($o -match '^1\|phonelink\|') "chat overlay over Phone Link (warnings|app|badge): $o"
+if (-not ($ts.checked -eq 2 -and $ts.flagged -eq 1)) { PlDiag }
+Get-Process PhoneExperienceHost -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep 3
+Say "Phone Link in front (a short code): $(Fake 'PhoneExperienceHost' 'phonelink.html?c=code')"
+$ok = Until 40 { $script:ts = Texts; $script:ts.checked -ge 3 }
+Start-Sleep 4; $ts = Texts
+Check 'texts-shortcode-ordinary' ($ok -and $ts.checked -eq 3 -and $ts.flagged -eq 1) "after 'Reply Y to activate text alerts' from 72166: $($ts.checked) checked, $($ts.flagged) flagged (expected 3 and 1)"
+Get-Process PhoneExperienceHost -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep 3
+Say "Phone Link in front (its Calls tab): $(Fake 'PhoneExperienceHost' 'phonelink.html?c=calls')"
+$ok = Until 20 { (Texts).otherTab -eq $true }
+Start-Sleep 4; $ts = Texts
+Shot 'phonelink-calls'
+Check 'texts-other-tab' ($ok -and $ts.checked -eq 3 -and $ts.flagged -eq 1) "with the Calls tab open: $($ts.checked) checked, $($ts.flagged) flagged (nothing new read)"
+if (-not ($ts.checked -eq 3)) { PlDiag }
+Get-Process PhoneExperienceHost -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 $log = AppLog
-Check 'chat-log-private' (-not ($log -match '876-555|robux-gen|our secret|Player1|Stranger')) 'app.log holds no message, name or number'
+Check 'chat-log-private' (-not ($log -match '876-555|robux-gen|our secret|Player1|Stranger|555-0199|usps-redeliver|72166|Hi Mum')) 'app.log holds no message, name or number'
 Start-Sleep 2
 
 # 4. "Stop pasted commands": a browser in front, a ClickFix-shaped command copied (harmless: it would only print hi).

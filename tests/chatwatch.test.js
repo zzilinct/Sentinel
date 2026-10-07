@@ -120,7 +120,7 @@ test('texts are judged once, their links checked by address only and privately, 
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], '/api/v1/live/batch');
-  assert.deepEqual(calls[0][1], { urls: ['https://shop-orders.top/a'], private: true, mode: 'fast' });
+  assert.deepEqual(calls[0][1], { urls: ['https://shop-orders.top/a'], private: true, mode: 'fast', purpose: 'texts' });
   const flags = judgeTexts('+1 415 555 0199', [msg]);
   assert.equal(calls.length, 1, 'checked once');
   assert.equal(flags.length, 1);
@@ -133,4 +133,33 @@ test('the reader reads only the apps switched on, Phone Link included', () => {
   assert.match(SCRIPT, /'PhoneExperienceHost'/);
   assert.match(SCRIPT, /if \(\$apps -notcontains \$app\) \{ \$app = '' \}/);
   assert.match(SCRIPT, /\$cmd -like 'apps \*'/);
+});
+
+test('Phone Link: sent or received by which side a bubble leans on, in a wide or a narrow window', () => {
+  const r = phonelinkMessages([
+    { t: 'Ann', x: 20, y: 10, w: 40, h: 20 },
+    // A long received message that spans most of the conversation.
+    { t: 'Your toll balance is overdue, pay today at ezpass-fee.top/p or a fee of $50 is added', x: 16, y: 200, w: 300, h: 18 },
+    // A sent message on two lines: its short last line starts on the left of its bubble, not of the conversation.
+    { t: 'Who is this? I do not owe any', x: 120, y: 260, w: 236, h: 18 },
+    { t: 'toll', x: 120, y: 281, w: 30, h: 18 }
+  ], [0, 0, 360, 700]);
+  assert.deepEqual(r.messages.map((m) => m.text), ['Your toll balance is overdue, pay today at ezpass-fee.top/p or a fee of $50 is added']);
+  assert.equal(chatwatch._test.receivedSide(16, 316, 0, 360), true);
+  assert.equal(chatwatch._test.receivedSide(120, 356, 0, 360), false);
+});
+
+test('Phone Link: nothing is read off the Messages tab, and links that could not be checked are said so', async () => {
+  const states = [];
+  setOpts({ log: () => {}, onState: (s) => states.push(s), api: async () => { throw Object.assign(new Error('Too many links to check in a minute. Wait a moment, then try again.'), { status: 429 }); } });
+  try {
+    onMessage({ app: 'phonelink', win: [0, 0, 800, 600], items: [], noTab: true });
+    assert.equal(states.at(-1).indicator, false);
+    assert.equal(chatwatch.stats().phonelink.otherTab, true);
+    judgeTexts('+1 415 555 0199', [{ text: 'Your order is ready at https://shop-orders.top/b', x: 1, y: 2, w: 3, h: 4 }]);
+    await new Promise((resolve) => setImmediate(resolve));
+    const s = chatwatch.stats().phonelink;
+    assert.equal(s.unchecked, 1);
+    assert.match(s.why, /Too many links/);
+  } finally { setOpts(null); }
 });
