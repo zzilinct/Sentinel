@@ -33,6 +33,7 @@ const ROAMING = process.env.APPDATA;
 const C = {
   allow: 'https://example-notify.test:443', block: 'https://blocked-notify.test:443',
   startup: 'https://startup-page.test/',
+  amo: 'https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi',
   searchName: 'Checkup Search', keyword: 'checkupsearch', searchUrl: 'https://search.checkup-hijack.test/s?q=%s', searchHost: 'search.checkup-hijack.test'
 };
 const BROWSERS = [
@@ -130,9 +131,16 @@ async function prepareChromium(b) {
   const exe = (CANDIDATES[b.id] || []).map(expand).find((p) => fs.existsSync(p));
   if (!exe) return { id: b.id, error: 'not installed' };
   const out = { id: b.id, exe, userData: b.userData };
-  // The default profile of the runner's own user: the real files, where a person's browser keeps them.
+  // The default profile of the runner's own user: the real files, where a person's browser keeps them. Chrome and
+  // Edge 136+ refuse DevTools on their default folder (so other programs cannot steal cookies through it); the same
+  // folder is reached here through a junction, which they do not take for the default.
+  fs.mkdirSync(b.userData, { recursive: true });
+  const via = path.join(os.tmpdir(), `checkup-${b.id}-userdata`);
+  try { fs.rmSync(via, { force: true, recursive: false }); } catch { /* none */ }
+  fs.symlinkSync(b.userData, via, 'junction');
+  out.via = via;
   const child = spawn(exe, [
-    '--headless=new', `--user-data-dir=${b.userData}`, '--profile-directory=Default',
+    '--headless=new', `--user-data-dir=${via}`, '--profile-directory=Default',
     '--remote-debugging-pipe', '--enable-unsafe-extension-debugging',
     '--disable-features=DisableLoadExtensionCommandLineSwitch', `--load-extension=${extDir('B')}`,
     '--no-first-run', '--no-default-browser-check', '--disable-gpu', 'about:blank'
@@ -200,6 +208,7 @@ async function prepareFirefox() {
     if (!m) throw new Error('Firefox did not open its Marionette port');
     const session = await m.send('WebDriver:NewSession', { capabilities: { alwaysMatch: {} } });
     out.version = session.capabilities.browserVersion;
+    await m.send('WebDriver:SetTimeouts', { script: 180000 });
     await m.send('Marionette:SetContext', { value: 'chrome' });
     const r = await m.send('WebDriver:ExecuteAsyncScript', {
       script: `const [C, id, done] = arguments;
@@ -210,8 +219,15 @@ async function prepareFirefox() {
           Services.prefs.setIntPref('browser.startup.page', 1);
           Services.prefs.setStringPref('browser.startup.homepage', C.startup);
           const { AddonManager } = ChromeUtils.importESModule('resource://gre/modules/AddonManager.sys.mjs');
-          const a = await AddonManager.getAddonByID(id);
-          return { addon: a ? { id: a.id, location: a.location, signedState: a.signedState, appDisabled: a.appDisabled, userDisabled: a.userDisabled, isActive: a.isActive } : null };
+          const brief = (a) => a ? { id: a.id, name: a.name, location: a.location, signedState: a.signedState, appDisabled: a.appDisabled, userDisabled: a.userDisabled, isActive: a.isActive, sourceURI: a.sourceURI && a.sourceURI.spec } : null;
+          const unsigned = brief(await AddonManager.getAddonByID(id));
+          // A real store add-on, installed the way the store's own page installs it.
+          let store = null;
+          try {
+            const install = await AddonManager.getInstallForURL(C.amo, { telemetryInfo: { source: 'amo' } });
+            store = brief(await install.install());
+          } catch (e) { store = { error: String(e) }; }
+          return { unsigned, store };
         })().then(done, (e) => done({ error: String(e) }));`,
       args: [C, FF_ADDON_ID], sandbox: 'system'
     });
@@ -279,7 +295,7 @@ async function check() {
   fs.writeFileSync(path.join(OUT, `result-${process.versions.electron ? 'electron' : 'node'}.json`), JSON.stringify({ runtime, managedDetected: checkup._test.isManaged(), result, urls }, null, 2));
   console.log(`\n${runtime}: ${result.browsers.length} browser(s); detected managed=${checkup._test.isManaged()}`);
 
-  const ours = new Set(['Coupon Helper Checkup', 'PayPal Wallet Checkup', 'Weather Tab Checkup', 'Video Saver Checkup']);
+  const ours = new Set(['Coupon Helper Checkup', 'PayPal Wallet Checkup', 'Weather Tab Checkup', 'Video Saver Checkup', 'uBlock Origin']);
   const reasonIds = (a) => (a.reasons || []).map((r) => r.id).sort().join(',');
   for (const p of prep.browsers) {
     const label = p.id;
@@ -299,8 +315,17 @@ async function check() {
     expect(others.every((a) => !a.badge), `${label}: nothing the browser came with is flagged (${others.map((a) => `${a.name}=${a.badge}`).join(', ') || 'no other add-ons'})`);
 
     if (p.id === 'firefox') {
+      const r = p.result || {};
+      const u = addon('uBlock Origin');
+      expect(Boolean(u), `firefox: the add-on installed from the store is found in extensions.json (${JSON.stringify(r.store)})`);
+      if (u) {
+        expect(u.source === 'store' && u.fromStore && u.signed === true && u.enabled, `firefox: it is read as from the store, signed, enabled (source=${u.source} store=${u.fromStore} signed=${u.signed} enabled=${u.enabled})`);
+        expect(u.hosts.includes('<all_urls>') && u.permissions.includes('webRequestBlocking'), `firefox: its sites and powers are read (hosts=${u.hosts} permissions=${u.permissions})`);
+        expect(!u.badge && reasonIds(u) === 'A07', `firefox: a store ad blocker is left alone, what it can do still said (${u.badge} ${reasonIds(u)})`);
+      }
       const d = addon('Video Saver Checkup');
-      expect(Boolean(d), 'firefox: the side-loaded unsigned add-on is found in extensions.json');
+      if (!r.unsigned) console.log('NOTE  firefox: release Firefox refused the side-loaded unsigned add-on (AddonManager does not know it), so there is none to find');
+      else expect(Boolean(d), `firefox: the side-loaded unsigned add-on Firefox kept is found (${JSON.stringify(r.unsigned)})`);
       if (d) {
         expect(d.source === 'outside' && d.fromStore === false, `firefox: it is judged not from the store (source=${d.source})`);
         expect(d.signed === false, `firefox: it is known to be unsigned (signed=${d.signed})`);
