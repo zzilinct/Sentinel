@@ -60,6 +60,21 @@ function WaitUp { $up = $false; for ($i = 0; $i -lt 90 -and -not $up; $i++) { St
 function StartSentinel { Start-Process $exe -ArgumentList '--remote-debugging-port=9333', '--inspect=9334'; return (Until 120 { (Cdp '127.0.0.1:4782' '1').value -eq 1 }) }
 
 Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
+# 0. A start that breaks inside a require (boot.js): a throwaway copy of the app with one module broken on purpose,
+# under its own name so it never touches the real app's data. It must log why and show a message, not vanish.
+$broken = Join-Path $env:RUNNER_TEMP 'sentinel-broken'
+$brokenData = "$env:APPDATA\SentinelBrokenStart"
+Remove-Item -Recurse -Force $broken, $brokenData -ErrorAction SilentlyContinue
+Copy-Item -Recurse (Join-Path $PSScriptRoot '..\desktop\src') "$broken\src"
+[IO.File]::WriteAllText("$broken\src\downloads.js", "throw new Error('broken on purpose by desktop-e2e');")
+[IO.File]::WriteAllText("$broken\package.json", '{"name":"sentinel-broken-start","productName":"SentinelBrokenStart","main":"src/boot.js"}')
+$bp = Start-Process (Join-Path $PSScriptRoot '..\desktop\node_modules\electron\dist\electron.exe') -ArgumentList "`"$broken`"" -PassThru
+$logged = Until 40 { (Get-Content "$brokenData\logs\app.log" -Raw -ErrorAction SilentlyContinue) -match 'could not start: Error: broken on purpose' }
+$told = Until 20 { (Get-Process -Id $bp.Id -ErrorAction SilentlyContinue).MainWindowTitle -eq 'Sentinel could not start' }
+Check 'broken-start-logged' $logged 'a require that throws at start is in app.log'
+Check 'broken-start-told' $told "the person sees 'Sentinel could not start'"
+if (-not $told) { Shot 'broken-start' }
+Stop-Process -Id $bp.Id -Force -ErrorAction SilentlyContinue
 # 1. Install, as live-e2e.ps1 does, with chat safety on.
 Start-Process $Installer -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"

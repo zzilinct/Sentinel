@@ -3,7 +3,7 @@
   "productName": "Sentinel",
   "version": "1.12.2",
   "description": "Sentinel - scam, virus and malware protection that runs on your own computer",
-  "main": "src/main.js",
+  "main": "src/boot.js",
   "author": "Sentinel",
   "license": "UNLICENSED",
   "private": true,

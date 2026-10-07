@@ -19,6 +19,8 @@
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session, powerMonitor, screen } = require('electron');
+// The app's own log (logs/app.log), set up in boot.js before anything here loads.
+const { appLog } = require('./boot');
 const downloads = require('./downloads');
 const browsers = require('./browsers');
 const watch = require('./watch');
@@ -68,22 +70,6 @@ const startHidden = (() => {
     return Date.now() - at < 10 * 60 * 1000;
   } catch { return false; }
 })();
-
-/**
- * The app's own log (logs/app.log, beside the server's). Every startup stage
- * and every error lands here, so a start that goes wrong always leaves a trace.
- */
-function appLog(text) {
-  try {
-    const fs = require('fs');
-    const file = path.join(app.getPath('userData'), 'logs', 'app.log');
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    try { if (fs.statSync(file).size > 1024 * 1024) fs.renameSync(file, file.replace(/\.log$/, '.previous.log')); } catch { /* no log yet */ }
-    fs.appendFileSync(file, `[${new Date().toISOString()}] ${text}\n`);
-  } catch { /* logging must never break the app */ }
-}
-process.on('uncaughtException', (err) => appLog(`uncaught exception: ${err && err.stack || err}`));
-process.on('unhandledRejection', (err) => appLog(`unhandled rejection: ${err && err.stack || err}`));
 
 /** Append one line to a file in logs/. `capBytes` empties a file that has grown past it. Logging never throws. */
 function appendLog(name, line, capBytes) {

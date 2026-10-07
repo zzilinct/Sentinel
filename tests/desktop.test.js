@@ -819,3 +819,37 @@ test('live scanning looks settled: the corner mask steps back after a moment, an
   assert.equal(out.length, 1);
   assert.equal(out[0].y, 390, 'beside the title, not the site name or the description');
 });
+
+test('a start that breaks inside a require still leaves its reason in app.log and tells the person', async () => {
+  const Module = require('module');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-boot-'));
+  fs.copyFileSync(path.join(__dirname, '..', 'desktop', 'src', 'boot.js'), path.join(dir, 'boot.js'));
+  fs.writeFileSync(path.join(dir, 'main.js'), "require('./boot').appLog('main loading'); require('./missing-on-purpose');\n");
+  const shown = [];
+  let exitCode = null;
+  const fake = {
+    app: { getPath: () => dir, whenReady: () => Promise.resolve(), exit: (code) => { exitCode = code; } },
+    dialog: { showErrorBox: (title, body) => shown.push({ title, body }) }
+  };
+  const load = Module._load;
+  const before = { u: process.listeners('uncaughtException'), r: process.listeners('unhandledRejection') };
+  Module._load = function (req, ...rest) { return req === 'electron' ? fake : load.call(this, req, ...rest); };
+  try {
+    require(path.join(dir, 'boot.js'));
+    await new Promise((r) => setImmediate(r));
+  } finally {
+    Module._load = load;
+    for (const [ev, keep] of [['uncaughtException', before.u], ['unhandledRejection', before.r]]) {
+      for (const l of process.listeners(ev)) if (!keep.includes(l)) process.removeListener(ev, l);
+    }
+  }
+  const log = fs.readFileSync(path.join(dir, 'logs', 'app.log'), 'utf8');
+  assert.match(log, /main loading/, 'main.js logs through boot.js');
+  assert.match(log, /could not start: Error: Cannot find module '\.\/missing-on-purpose'/);
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].title, 'Sentinel could not start');
+  assert.match(shown[0].body, /app\.log/);
+  assert.equal(exitCode, 1);
+  assert.equal(require('../desktop/package.json').main, 'src/boot.js', 'the app starts from boot.js');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
