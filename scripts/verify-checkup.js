@@ -113,16 +113,12 @@ const STEPS = {
     if (!k.engines && !k.cr) throw new Error('this settings page has neither a search engines proxy nor cr.js');
     const list = () => k.engines ? k.engines.getSearchEnginesList() : k.cr.sendWithPromise('getSearchEnginesList');
     const all = (l) => [...(l.defaults || []), ...(l.actives || []), ...(l.others || []), ...(l.extensions || [])];
-    await list();   // lets the handler talk to the page first
-    if (k.engines) { k.engines.searchEngineEditStarted(-1); k.engines.searchEngineEditCompleted(C.searchName, C.keyword, C.searchUrl); }
-    else { chrome.send('searchEngineEditStarted', [-1]); chrome.send('searchEngineEditCompleted', [C.searchName, C.keyword, C.searchUrl]); }
-    let mine = null;
-    for (let i = 0; i < 12 && !mine; i++) { await k.wait(250); mine = all(await list()).find((e) => String(e.url).includes(C.searchHost)); }
-    // Not added (the browser may only take new engines from its own dialog): another engine than the one it came
-    // with, then, so the file still holds a choice the person made.
-    const custom = Boolean(mine);
-    if (!mine) mine = all(await list()).find((e) => /bing\\.com/.test(String(e.url)));
-    if (!mine) throw new Error('neither the made-up engine nor Bing could be chosen; engines: ' + all(await list()).map((e) => e.url).join(' '));
+    // A made-up engine cannot be added from script: Chrome 154 ignores the edit messages, or crashes on them once
+    // the handler is live (seen on CI). Another engine than the one it came with, then, so the file holds a choice
+    // the person made; unknown engines are judged by the add-on that sets one.
+    const custom = false;
+    const mine = all(await list()).find((e) => /bing\\.com/.test(String(e.url)));
+    if (!mine) throw new Error('Bing is not among the engines: ' + all(await list()).map((e) => e.url).join(' '));
     if (k.engines) k.engines.setDefaultSearchEngine(mine.modelIndex, 0, false);
     else chrome.send('setDefaultSearchEngine', [mine.modelIndex, 0]);
     await k.wait(800);
