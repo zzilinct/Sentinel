@@ -92,7 +92,7 @@ function summarize(v, extra = {}) {
     reasons: (v.reasons || []).slice(0, 5).map((r) => ({ threat: r.threat, text: r.text })),
     known: Boolean(v.knowledge && v.knowledge.known),
     discounted: Boolean(v.knowledge && v.knowledge.discountApplied),
-    checks: { total: v.checklist.total, failed: v.checklist.failed, warned: v.checklist.warned, passed: v.checklist.passed }
+    checks: { total: v.checklist.total, failed: v.checklist.failed, warned: v.checklist.warned, passed: v.checklist.passed, skipped: v.checklist.skipped || 0 }
   };
 }
 

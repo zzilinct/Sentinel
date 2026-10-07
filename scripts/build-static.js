@@ -179,15 +179,18 @@ const builtins = {
 const sources = {
 ${modules}
 };
-const loaded = {};
-function load(name) {
-  if (name in builtins) return builtins[name];
-  if (!loaded[name]) {
-    const module = { exports: {} };
-    loaded[name] = module;
-    sources[name](module, module.exports, load, '');
-  }
-  return loaded[name].exports;
+/** A fresh set of the engine's modules. url.js keeps its word list once read, so a set made without one is thrown away. */
+function loader() {
+  const loaded = {};
+  return function load(name) {
+    if (name in builtins) return builtins[name];
+    if (!loaded[name]) {
+      const module = { exports: {} };
+      loaded[name] = module;
+      sources[name](module, module.exports, load, '');
+    }
+    return loaded[name].exports;
+  };
 }
 async function fetchWords() {
   const res = await fetch(wordsUrl);
@@ -198,12 +201,19 @@ async function fetchWords() {
   return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
 }
 let ready = null;
+let engine = null;
 window.SentinelEngine = {
-  /** The fast check of one address, here in the browser: the same shape as the server's demo scan, plus local: true. */
+  /**
+   * The fast check of one address, here in the browser: the same shape as the server's demo scan, plus local: true.
+   * If the word list could not be fetched, names are not read as words and the result says so (partial: true); the
+   * next check fetches it again rather than running without it for the rest of the visit.
+   */
   scan(raw) {
-    // Without the word list, names are not read as words; every other check still runs.
-    ready = ready || fetchWords().then((text) => { words = text; }, () => {});
-    return ready.then(() => load('./offline').scanAddress(raw));
+    const got = ready || (ready = fetchWords().then((text) => { words = text; return true; }, () => { ready = null; return false; }));
+    return got.then((ok) => {
+      const v = (ok ? (engine = engine || loader()('./offline')) : loader()('./offline')).scanAddress(raw);
+      return ok || !v.ok ? v : { ...v, partial: true };
+    });
   }
 };
 })();
