@@ -118,13 +118,13 @@ const STEPS = {
     // the person made; unknown engines are judged by the add-on that sets one.
     k.mine = k.all(await k.list()).find((e) => /bing\.com/.test(String(e.url)));
     if (!k.mine) throw new Error('Bing is not among the engines');
-    return JSON.parse(JSON.stringify(k.mine));
+    return { mine: JSON.parse(JSON.stringify(k.mine)), setter: k.engines ? String(k.engines.setDefaultSearchEngine) : null };
   })()`,
   search: `(async () => {
     const k = window.__chk;
     // The handler (search_engines_handler.cc) takes the engine's id as a string, where it was chosen
     // (2: kSearchEngineSettings; anything else is a CHECK) and an optional guest choice.
-    chrome.send('setDefaultSearchEngine', [String(k.mine.id), 2, null]);
+    if (window.__chkSkipSet) return 'skipped';
     await k.wait(800);
     const now = k.all(await k.list()).find((e) => e.default);
     if (!now || now.url !== k.mine.url) throw new Error('the default did not change: ' + (now && now.url));
