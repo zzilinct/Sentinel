@@ -10,6 +10,7 @@ const rg = require('../desktop/src/remoteguard.js');
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const MIN = 60 * 1000;
+const watchSrc = () => require('../desktop/src/watch.js')._test.SCRIPT;
 
 test('remote-control programs are recognised by their process names', () => {
   assert.deepEqual([...rg.toolsRunning(['chrome', 'anydesk', 'screenconnect.windowsclient'])].sort(), ['anydesk', 'screenconnect']);
@@ -128,7 +129,9 @@ test('the shield\'s window: a neutral way out first, trusting behind a second st
 test('main: trusting a program needs the PIN under a parent lock, and the way out takes the keyboard', () => {
   const main = read('desktop/src/main.js');
   assert.match(main, /if \(action === 'trust-tool'\) \{[\s\S]{0,300}lock\.guard\(`asking about \$\{tool\.name\} off`, true\)/);
-  assert.match(main, /if \(guardMode === 'escape'\) \{ guardWin\.show\(\); guardWin\.focus\(\); \} else guardWin\.showInactive\(\);/);
+  assert.match(main, /if \(guardMode === 'escape'\) takeKeyboard\(\); else guardWin\.showInactive\(\);/);
+  assert.match(main, /function takeKeyboard\(\) \{[\s\S]{0,200}watch\.front\(/);
+  assert.ok(watchSrc().includes("if ($cmd -match '^front (\\d{1,20})$') { [SW]::Front("), 'the reader brings a window to the front by its handle only');
   assert.match(main, /badPage = \{ key: escapeKey\(v\.page\), browser: v\.page\.browser, support: Boolean\(v\.support\) \}/, 'keyed on the site');
   assert.match(main, /if \(action === 'recover'\) \{\n\s+\/\/[^\n]*\n\s+closeGuard\(\);\n\s+showWindow\(recoverRoute\(arg, 'remote'\)\);/);
   assert.match(main, /`\$\{inApp \? '\/app\/recover' : '\/recover'\}\?happened=\$\{RECOVER_HAPPENED\.has\(happened\) \? happened : fallback\}`/, 'signed out, the website\'s guide, not a sign-in page');

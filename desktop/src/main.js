@@ -454,7 +454,7 @@ function showGuard(mode, data = {}) {
     // takes the keyboard there, and Tab and Escape reach it.
     guardWin.once('ready-to-show', () => {
       if (!guardWin) return;
-      if (guardMode === 'escape') { guardWin.show(); guardWin.focus(); } else guardWin.showInactive();
+      if (guardMode === 'escape') takeKeyboard(); else guardWin.showInactive();
     });
     guardWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     guardWin.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -462,7 +462,14 @@ function showGuard(mode, data = {}) {
   guardMode = mode;
   if (mode === 'escape') placeOnPage();
   guardWin.loadFile(path.join(__dirname, 'pages', 'guard.html'), { query: { mode, ...data } });
-  if (guardWin.isVisible()) { guardWin.moveTop(); if (mode === 'escape') guardWin.focus(); }
+  if (guardWin.isVisible()) { guardWin.moveTop(); if (mode === 'escape') takeKeyboard(); }
+}
+/** The shield's window in front with the keyboard. focus() alone loses to a full-screen browser: the reader asks. */
+function takeKeyboard() {
+  guardWin.show();
+  guardWin.focus();
+  const b = guardWin.getNativeWindowHandle();
+  watch.front(b.length >= 8 ? b.readBigUInt64LE(0).toString() : String(b.readUInt32LE(0)));
 }
 /** The shield's window in the middle of the display the browser in front is on, where the full-screen page is. */
 function placeOnPage() {

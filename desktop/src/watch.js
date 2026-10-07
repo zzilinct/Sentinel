@@ -68,7 +68,8 @@ public static class SW {
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
   // Restore if minimised, maximise, and bring to the front. Windows only lets the program in front hand over the
   // foreground, so Alt is tapped first (the documented way to be allowed).
-  public static void Raise(IntPtr h) { ShowWindow(h, 3); keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); SetForegroundWindow(h); }
+  public static void Raise(IntPtr h) { ShowWindow(h, 3); Front(h); }
+  public static void Front(IntPtr h) { keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); SetForegroundWindow(h); }
   [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
   [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);
   [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int index);
@@ -458,6 +459,8 @@ while ($true) {
       $rp = Get-Process -Name $Matches[1] | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
       if ($rp) { [SW]::Raise($rp.MainWindowHandle); Write-Output ('{"raised":"' + $Matches[1] + '"}') } else { Write-Output ('{"noWindow":"' + $Matches[1] + '"}') }
     }
+    # The shield's way out of a full-screen page takes the keyboard from it (main.js showGuard).
+    if ($cmd -match '^front (\d{1,20})$') { [SW]::Front([IntPtr][long]$Matches[1]) }
     # The person pressed "Get me out of this page": the browser window last watched is asked to close.
     if ($cmd -eq 'close') {
       $gone = [SW]::Close($browserH)
@@ -717,6 +720,12 @@ function closeBrowser() {
     closeWaiters.push(done);
     if (!send('close')) { closeWaiters.pop(); clearTimeout(timer); resolve(null); }
   });
+}
+
+/** Bring one of Sentinel's own windows (its handle, a decimal string) to the front, keyboard included. Windows lets
+ * only the program in front hand that over, so the reader, which taps Alt first as Raise does, asks for it. */
+function front(handle) {
+  if (/^\d{1,20}$/.test(String(handle || ''))) send(`front ${handle}`);
 }
 
 /** The overlay's window handle (a decimal string): the reader keeps it directly above the browser, never above
@@ -1341,4 +1350,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, closeBrowser, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, SCRIPT } };

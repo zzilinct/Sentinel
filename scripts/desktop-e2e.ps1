@@ -227,7 +227,7 @@ Say "Edge in front: $(Front 'msedge')"
 $ok = Until 45 { [K]::Tap(0x11); ([regex]::Matches((AppLog), 'flagged page took the whole screen')).Count -ge 2 }
 Shot 'escape-neutral'
 $g = (Cdp 'guard.html' "location.search + '|' + document.body.innerText").value
-Check 'escape-neutral' ($ok -and $g -match 'mode=escape' -and $g -notmatch 'support=1' -and $g -match 'A flagged page fills the screen' -and $g -notmatch 'virus alert|Microsoft') "the shield's window: $(([string]$g).Substring(0, [Math]::Min(200, ([string]$g).Length)))"
+Check 'escape-neutral' ($ok -and $g -match 'mode=escape' -and $g -notmatch 'support=1' -and $g -match 'A flagged page fills the screen' -and $g -notmatch 'virus alert|no real company') "the shield's window: $(([string]$g).Substring(0, [Math]::Min(200, ([string]$g).Length)))"
 [K]::Tap(0x1B); Start-Sleep 1
 [K]::Tap(0x7A)
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
