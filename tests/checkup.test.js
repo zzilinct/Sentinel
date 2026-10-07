@@ -122,6 +122,8 @@ function fixtureRoots() {
     { id: 'ublock@example', type: 'extension', location: 'app-profile', active: true, signedState: 2, sourceURI: 'https://addons.mozilla.org/firefox/downloads/file/1/x.xpi', defaultLocale: { name: 'uBlock Origin' }, userPermissions: { permissions: ['webRequest'], origins: ['<all_urls>'] } },
     { id: 'shop@example', type: 'extension', location: 'winreg-app-user', active: true, signedState: 0, defaultLocale: { name: 'Shopping Deals' }, userPermissions: { permissions: ['cookies'], origins: ['<all_urls>'] } },
     { id: 'screenshots@mozilla.org', type: 'extension', location: 'app-builtin', active: true },
+    // As Firefox 156 writes its own add-ons (seen on CI): no signedState, no isBuiltin, only the location says so.
+    { id: 'webcompat@mozilla.org', type: 'extension', location: 'app-builtin-addons', active: true, sourceURI: null, rootURI: 'resource://builtin-addons/webcompat/', defaultLocale: { name: 'Web Compatibility Interventions' }, userPermissions: { permissions: ['webRequestBlocking'], origins: ['<all_urls>'] } },
     { id: 'theme@example', type: 'theme', location: 'app-profile', active: true }
   ] });
   fs.writeFileSync(path.join(fox, 'prefs.js'), 'user_pref("browser.startup.homepage", "https://home.example/|about:home");\n');

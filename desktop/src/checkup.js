@@ -47,8 +47,9 @@ function places(b) {
 // browser's own and are left out.
 const LOCATION = { 1: 'store', 2: 'external', 3: 'external', 4: 'unpacked', 6: 'external', 7: 'policy', 8: 'commandline', 9: 'policy' };
 const BUILT_IN = new Set([5, 10]);
-// Gecko locations that are the browser's own.
-const GECKO_BUILT_IN = /^app-(builtin|system-defaults|system-addons|system-share|system-local)$/;
+// Gecko locations that are the browser's own. Firefox 15x keeps its own add-ons (New Tab, Form Autofill,
+// Picture-in-Picture, webcompat) in "app-builtin-addons".
+const GECKO_BUILT_IN = /^app-(builtin|builtin-addons|system-defaults|system-addons|system-share|system-local)$/;
 
 const MAX_JSON = 32 * 1024 * 1024;
 function readJson(file) {
