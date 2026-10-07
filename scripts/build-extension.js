@@ -31,6 +31,9 @@ fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SR
 fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'clickfix.js'), path.join(SRC, 'src', 'content', 'clickfix.js'));
 // And for what to do after a scam: the password alarm gives the same steps as the site and the Windows app.
 fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), path.join(SRC, 'src', 'content', 'steps.js'));
+// The warning, once more for the page's own world: the browser runs a file only once per frame, and alarm.js
+// already runs there in the companion's world (the block page and the password alarm).
+fs.copyFileSync(path.join(SRC, 'src', 'content', 'alarm.js'), path.join(SRC, 'src', 'content', 'alarm.page.js'));
 // And for the typeface the popup shares with the website, with its licence.
 fs.mkdirSync(path.join(SRC, 'src', 'fonts'), { recursive: true });
 for (const file of ['geist-normal-300-700.woff2', 'geist-OFL.txt']) {

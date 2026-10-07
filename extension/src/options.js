@@ -12,7 +12,8 @@
     notifications: true,
     minimumBadge: 'yellow',
     markSafe: true,
-    scanOverlay: true
+    scanOverlay: true,
+    commandGuard: true
   };
   const Masks = window.SentinelMasks;
   const saved = document.getElementById('saved');
@@ -55,7 +56,13 @@
   /* Password alarm: the worker keeps the hashes; this page only ever sees names and switches. */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const pwSend = (msg) => Promise.resolve(ext.runtime.sendMessage(msg)).catch(() => null);
-  const status = (a) => (!a || !a.on ? 'Off' : a.learned ? 'Protected' : 'Sign in once on its own site to finish');
+  const day = (t) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  /** What the person sees under an account: protected since when, or what to do to finish. */
+  function status(a, home) {
+    if (!a || !a.on) return 'Off';
+    if (a.learned) return a.learnedAt ? `Protected since ${day(a.learnedAt)}` : 'Protected';
+    return `Waiting for you to sign in once on ${home}. Not signed in lately? Sign out of ${a.name}, then sign in again there.`;
+  }
   function allowedRow(a) {
     if (!a || !a.allowed.length) return '';
     return `<div class="pw-allowed">${a.allowed.map((h) => `<button class="btn" type="button" data-unallow="${esc(a.id)}" data-host="${esc(h)}" title="Protect this site again">Allowed on ${esc(h)} &times;</button>`).join('')}</div>`;
@@ -63,12 +70,13 @@
   function paintPw(data) {
     if (!data || !data.ok) return;
     const byId = new Map(data.accounts.map((a) => [a.id, a]));
+    // Not a <label> round the row: the "Allowed on" buttons inside it would also flip the switch.
     document.getElementById('pwPresets').innerHTML = data.presets.map((p) => {
       const a = byId.get(p.id);
-      return `<label class="opt"><span><b>${esc(p.name)}</b><small>${esc(status(a))}</small>${allowedRow(a)}</span><input type="checkbox" data-pw="${esc(p.id)}" ${a && a.on ? 'checked' : ''}></label>`;
+      return `<div class="opt"><span><b>${esc(p.name)}</b><small>${esc(status(a, p.home))}</small>${allowedRow(a)}</span><input type="checkbox" data-pw="${esc(p.id)}" aria-label="Protect my ${esc(p.name)} password" ${a && a.on ? 'checked' : ''}></div>`;
     }).join('');
     document.getElementById('pwBanks').innerHTML = data.accounts.filter((a) => a.bank).map((a) => `
-      <div class="opt"><span><b>${esc(a.name)}</b><small>${esc(status(a))}</small>${allowedRow(a)}</span><span class="pw-actions"><button class="btn" type="button" data-forget="${esc(a.id)}">Remove</button></span></div>`).join('');
+      <div class="opt"><span><b>${esc(a.name)}</b><small>${esc(status(a, a.home || a.name))}</small>${allowedRow(a)}</span><span class="pw-actions"><button class="btn" type="button" data-forget="${esc(a.id)}">Remove</button></span></div>`).join('');
   }
   const pwSaved = (res) => {
     if (res && res.ok) { saved.style.color = 'var(--green)'; saved.textContent = 'Saved'; paintPw(res); }

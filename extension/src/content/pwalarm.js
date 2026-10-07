@@ -7,27 +7,44 @@
  * password, asks the worker whether it is that password, and on a match empties the box and shows the alarm. While
  * the worker is answering, a sign-in press is held back and replayed if the password was not a protected one.
  *
- * The alarm lives in a closed shadow root, like guard.js, so the page cannot restyle, remove or press it.
+ * The alarm is drawn by alarm.js in a closed shadow root, like guard.js, so the page cannot restyle, remove or press it.
  */
 (() => {
   'use strict';
   const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
   const send = (msg) => Promise.resolve(ext.runtime.sendMessage(msg)).catch(() => null);
-  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let config = null;          // { learn, lengths } from the worker
   let pending = 0;            // checks the worker has not answered yet
   let held = null;            // the sign-in press held back while a check runs: { form, submitter, click }
   const checked = new WeakMap();   // password box -> the value last checked, so a box is not hashed twice for one value
 
+  // A box stays a password box after "Show password" turns it into plain text, and a text box drawn with dots
+  // (-webkit-text-security) is one too.
+  const seen = new WeakSet();
+  function isPassword(el) {
+    if (!el || el.tagName !== 'INPUT') return false;
+    const type = String(el.type).toLowerCase();
+    if (type === 'password') { seen.add(el); return true; }
+    if (type !== 'text') return false;
+    if (seen.has(el)) return true;
+    try {
+      const style = getComputedStyle(el);
+      return Boolean(style.webkitTextSecurity && style.webkitTextSecurity !== 'none');
+    } catch { return false; }
+  }
   const passwordBox = (ev) => {
     const el = ev.composedPath ? ev.composedPath()[0] : ev.target;
-    return el && el.tagName === 'INPUT' && String(el.type).toLowerCase() === 'password' ? el : null;
+    return isPassword(el) ? el : null;
   };
-  const boxes = () => [...document.querySelectorAll('input[type=password]')].filter((el) => el.value);
+  const boxes = () => [...document.querySelectorAll('input')].filter((el) => el.value && isPassword(el));
 
+  /** Asks the worker only when an account is protected: with the alarm off, a page never messages it. */
   function load() {
-    return send({ type: 'pw-config' }).then((res) => {
+    return new Promise((resolve) => resolve(ext.storage.local.get('pwalarmOn'))).catch(() => ({})).then((got) => {
+      if (got && got.pwalarmOn === 0) return { ok: true, learn: false, lengths: [] };
+      return send({ type: 'pw-config' });
+    }).then((res) => {
       config = res && res.ok ? { learn: res.learn, lengths: res.lengths || [] } : { learn: false, lengths: [] };
     });
   }
@@ -83,11 +100,15 @@
 
   /* ---------------------------------------------------------------- wiring */
 
+  const active = () => Boolean(config && (config.learn || config.lengths.length));
+
   window.addEventListener('input', (ev) => {
+    if (!active() || config.learn) return;
     const box = passwordBox(ev);
-    if (!box || !config) return;
-    if (!config.learn && config.lengths.length) check(box);
+    if (box) check(box);
   }, true);
+
+  window.addEventListener('focusin', (ev) => { if (active()) passwordBox(ev); }, true);
 
   window.addEventListener('change', (ev) => {
     if (config && config.learn && passwordBox(ev)) learn();
@@ -97,7 +118,8 @@
     if (ev.key !== 'Enter' || !config) return;
     const box = passwordBox(ev);
     if (config.learn) { if (box) learn(); return; }
-    if (box) hold(ev, box.form, null, null);
+    // Without a form, Enter is the page's own key handler, which cannot be replayed: the check still empties the box.
+    if (box && box.form) hold(ev, box.form, null, null);
   }, true);
 
   window.addEventListener('submit', (ev) => {
@@ -115,7 +137,7 @@
 
   load();
   // A protected account added or learned while this page is open counts from then on.
-  ext.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.pwalarm) load(); });
+  ext.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.pwalarmOn) load(); });
 
   /* ----------------------------------------------------------------- alarm */
 
@@ -127,85 +149,52 @@
     globalThis.SentinelSteps.text.twostep
   ];
 
-  let shown = null;
   function alarm(msg) {
-    if (shown) shown.remove();
-    const host = document.createElement('div');
-    host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483647;';
-    const root = host.attachShadow({ mode: 'closed' });
-    const accent = '#e5484d';
+    const Alarm = globalThis.SentinelAlarm;
+    const Masks = globalThis.SentinelMasks || window.SentinelMasks;
     const verdict = msg.verdict && msg.verdict.overall && msg.verdict.overall.badge ? msg.verdict.overall.label : '';
     const real = msg.bank ? msg.name : `${/^[aeiou]/i.test(msg.name) ? 'an' : 'a'} ${msg.name} site`;
-    root.innerHTML = `
-      <style>
-        :host{all:initial}
-        .wrap{position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:rgba(9,10,12,.96);
-          font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#ecebe7;animation:f .25s ease}
-        @keyframes f{from{opacity:0}to{opacity:1}}
-        .panel{width:min(560px,100%);background:#131519;border:1px solid #2a2d33;border-radius:22px;padding:36px 36px 28px;box-shadow:0 40px 100px rgba(0,0,0,.6);animation:r .35s cubic-bezier(.2,.8,.2,1)}
-        @keyframes r{from{transform:translateY(14px) scale(.98);opacity:0}to{transform:none;opacity:1}}
-        @media (prefers-reduced-motion: reduce){.panel{animation:f .25s ease}}
-        .ring{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;background:${accent}1f;box-shadow:inset 0 0 0 1px ${accent}66;color:${accent};margin-bottom:20px}
-        .ring svg{width:38px;height:38px}
-        h1{font-size:26px;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px;font-weight:700}
-        .host{display:inline-block;font:600 13px ui-monospace,Menlo,Consolas,monospace;color:#b3b8bf;background:#1b1e23;border:1px solid #2a2d33;padding:6px 10px;border-radius:9px;margin-bottom:18px;word-break:break-all}
-        .verdict{color:${accent};font-weight:650;margin:0 0 12px}
-        ol{margin:0 0 24px;padding-left:20px;display:grid;gap:8px;color:#c7cad0}
-        .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-        button{all:unset;cursor:pointer;font-weight:650;font-size:14px;padding:12px 18px;border-radius:12px;background:#1f2227;color:#ecebe7}
-        button:hover{background:#272a30}
-        button:focus-visible{outline:2px solid #d6b25a;outline-offset:2px}
-        .go{background:#d6b25a;color:#131519}.go:hover{background:#e2c47f}
-        .on{background:none;color:#80868f;text-decoration:underline;padding:12px 6px}.on:hover{background:none;color:#c7cad0}
-        .sure{margin:16px 0 0;padding:14px 16px;border-radius:12px;background:#1b1e23;color:#c7cad0}
-        .sure[hidden]{display:none}
-        .foot{margin-top:24px;padding-top:16px;border-top:1px solid #23262b;display:flex;justify-content:space-between;gap:12px;color:#6e747c;font-size:12px}
-        .foot b{color:#c9a64e;letter-spacing:.22em;font-size:11px}
-      </style>
-      <div class="wrap" role="alertdialog" aria-modal="true" aria-labelledby="t" aria-describedby="d">
-        <div class="panel">
-          <div class="ring">${(globalThis.SentinelMasks || window.SentinelMasks) ? (globalThis.SentinelMasks || window.SentinelMasks).svg('scam') : ''}</div>
-          <h1 id="t">This is your ${esc(msg.name)} password, and this is not ${esc(real)}</h1>
-          <div class="host">${esc(msg.host)}</div>
-          ${verdict ? `<p class="verdict">Sentinel: ${esc(verdict)}</p>` : ''}
-          <ol id="d">${LOGIN_STEPS(msg.name).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-          <div class="row">
-            <button class="go">Take me back to safety</button>
-            <button class="rep">Report this site</button>
-            <button class="on real">This is a real ${esc(msg.name)} site</button>
-          </div>
-          <div class="sure" hidden>
-            <p>Only if you are sure. From now on Sentinel will not stop your ${esc(msg.name)} password on <b>${esc(msg.host)}</b>. You can undo this in the companion's settings.</p>
-            <div class="row"><button class="allow">Yes, it is real</button><button class="on keep">Keep protecting me</button></div>
-          </div>
-          <div class="foot"><span><b>SENTINEL</b></span><span>Your password never leaves this computer. Sentinel keeps only a scrambled form of it.</span></div>
-        </div>
-      </div>`;
-    document.documentElement.appendChild(host);
-    shown = host;
-    const $ = (sel) => root.querySelector(sel);
-    // Only the person's own presses count: a page script cannot reach into a closed shadow root, and an
-    // untrusted event is ignored all the same.
-    const on = (sel, fn) => { $(sel).addEventListener('click', (ev) => { if (ev.isTrusted) fn(ev); }); };
-    on('.go', () => { if (history.length > 1) history.back(); else location.replace('about:blank'); });
-    on('.rep', (ev) => {
-      ev.target.textContent = 'Reporting...';
-      send({ type: 'report', url: location.href, category: 'phishing' })
-        .then((res) => { ev.target.textContent = res && res.ok ? 'Reported. Thank you.' : 'Could not report'; });
+    const name = Alarm.esc(msg.name);
+    return Alarm.show({
+      icon: Masks ? Masks.svg('scam') : '',
+      title: `This is your ${msg.name} password, and this is not ${real}`,
+      chip: msg.host,
+      verdict,
+      steps: LOGIN_STEPS(msg.name),
+      ordered: true,
+      buttons: [
+        { text: 'Take me back to safety', kind: 'go', on: Alarm.leave },
+        { text: 'Report this site', on: (ev) => {
+          ev.target.textContent = 'Reporting...';
+          send({ type: 'report', url: location.href, category: 'phishing' })
+            .then((res) => { ev.target.textContent = res && res.ok ? 'Reported. Thank you.' : 'Could not report'; });
+        } },
+        { text: 'I use this password here on purpose', kind: 'quiet', on: (ev, ctl) => { ctl.$('.sure').hidden = false; ctl.$('.allow').focus(); } }
+      ],
+      // Wired below: the buttons in this box are not in the list above.
+      extra: `<div class="sure" hidden>
+          <p>Only if you are sure this site is yours or your company's. From now on Sentinel will not stop your ${name} password on <b>${Alarm.esc(msg.host)}</b>. You can undo this in the companion's settings.</p>
+          <div class="row"><button type="button" class="allow">Yes, I use it here</button><button type="button" class="quiet keep">Keep protecting me</button></div>
+        </div>`,
+      link: msg.recover ? { href: msg.recover, text: 'Typed it on a site like this before? Open the recovery guide' } : null,
+      foot: 'Your password never leaves this computer. Sentinel keeps only a scrambled form of it.'
     });
-    on('.real', () => { $('.sure').hidden = false; $('.allow').focus(); });
-    on('.keep', () => { $('.sure').hidden = true; });
-    on('.allow', () => {
+  }
+
+  // The "are you sure" box's own buttons: only the person's presses count, as in alarm.js.
+  function wireSure(ctl) {
+    ctl.$('.keep').addEventListener('click', (ev) => { if (ev.isTrusted) ctl.$('.sure').hidden = true; });
+    ctl.$('.allow').addEventListener('click', (ev) => {
+      if (!ev.isTrusted) return;
       send({ type: 'pw-allow' }).then((res) => {
-        if (res && res.ok && res.allowed) { host.remove(); shown = null; } else $('.sure p').textContent = 'Sentinel could not save that. Reload the page and try again.';
+        if (res && res.ok && res.allowed) ctl.close(); else ctl.$('.sure p').textContent = 'Sentinel could not save that. Reload the page and try again.';
       });
     });
-    $('.go').focus();
   }
 
   ext.runtime.onMessage.addListener((msg, sender) => {
     if (sender.id !== ext.runtime.id || !msg || msg.type !== 'sentinel:pw-alarm' || window !== window.top) return;
-    const show = () => alarm(msg);
+    const show = () => wireSure(alarm(msg));
     if (document.documentElement) show();
     else document.addEventListener('DOMContentLoaded', show, { once: true });
   });

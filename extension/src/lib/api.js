@@ -14,7 +14,8 @@ export const DEFAULTS = {
   notifications: true,
   minimumBadge: 'yellow',
   markSafe: true,          // a quiet tick beside results that came back clean
-  scanOverlay: true        // the golden line and tint while results are being checked
+  scanOverlay: true,       // the golden line and tint while results are being checked
+  commandGuard: true       // Stop pasted commands: a page cannot copy a command only a trick would ask you to paste
 };
 
 export const COLORS = { yellow: '#f5c542', orange: '#f08a24', red: '#e5484d' };

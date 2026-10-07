@@ -339,17 +339,47 @@ async function checkCompanion() {
     /* (b) pasted-command guard */
     await browser.send('Browser.grantPermissions', { origin: `https://${CLIP}`, permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] });
     await goto(browser, s, `https://${CLIP}/`);
-    const write = (t) => evalIn(browser, s, `navigator.clipboard.writeText(${JSON.stringify(t)}).then(() => navigator.clipboard.readText())`, { userGesture: true }).catch((err) => `error: ${err.message}`);
+    // Each write answers "<how the page's call ended>|<what is on the clipboard after it>".
+    const settle = "then(() => 'ok', (e) => e.name).then((r) => navigator.clipboard.readText().then((c) => r + '|' + c))";
+    const write = (t) => evalIn(browser, s, `navigator.clipboard.writeText(${JSON.stringify(t)}).${settle}`, { userGesture: true }).catch((err) => `error: ${err.message}`);
+    const writeItem = (t) => evalIn(browser, s, `navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([${JSON.stringify(t)}], { type: 'text/plain' }) })]).${settle}`, { userGesture: true }).catch((err) => `error: ${err.message}`);
     const wrapped = await evalIn(browser, s, "!/\\[native code\\]/.test(Function.prototype.toString.call(navigator.clipboard.writeText))");
+    // What the worker registered, and what reached the page: printed with the first result, to tell why if it fails.
+    const registered = await evalIn(browser, opt.sessionId, 'chrome.scripting.getRegisteredContentScripts().then((r) => JSON.stringify(r))').catch((err) => `error: ${err.message}`);
+    const inPage = await evalIn(browser, s, "JSON.stringify({ rules: typeof SentinelClickFix, alarm: typeof SentinelAlarm, guard: Boolean(window.__sentinelClipGuard) })");
     const afterFine = await write(FINE);
-    const warnedFine = /stopped a copied command/.test(await pageText(browser, s));
-    result(`companion: an ordinary command (${FINE}) is copied, with no warning`, afterFine === FINE && !warnedFine, { wrapped, clipboard: afterFine, warned: warnedFine });
+    const warnedFine = /stopped this page from copying a command/.test(await pageText(browser, s));
+    result(`companion: an ordinary command (${FINE}) is copied, with no warning, and the guard is in the page`, wrapped && afterFine === `ok|${FINE}` && !warnedFine, { wrapped, registered, inPage, clipboard: afterFine, warned: warnedFine });
     const afterBad = await write(BAD);
     let clipText = '';
     for (let i = 0; i < 20 && !/stopped a copied command/.test(clipText); i++) { await sleep(150); clipText = await pageText(browser, s); }
     await shot(browser, s, 'companion-clipguard');
-    const warnedBad = /Sentinel stopped a copied command/.test(clipText) && /hidden window/.test(clipText);
-    result('companion: a ClickFix-shaped command is not copied, and the warning shows', afterBad === FINE && warnedBad, { clipboard: afterBad, warned: warnedBad, onScreen: clipText.slice(0, 300) });
+    const warnedBad = /Sentinel stopped this page from copying a command/.test(clipText) && /hidden window/.test(clipText);
+    result('companion: a ClickFix-shaped command is not copied, the page is told so, and the warning shows', afterBad === `NotAllowedError|${FINE}` && warnedBad, { clipboard: afterBad, warned: warnedBad, onScreen: clipText.slice(0, 300) });
+
+    // The warning has the keyboard: Escape closes it.
+    for (const type of ['keyDown', 'keyUp']) await browser.send('Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }, s);
+    await sleep(300);
+    const closed = !/stopped this page from copying a command/.test(await pageText(browser, s));
+    result('companion: Escape closes the pasted-command warning', closed, { closed });
+
+    const afterItem = await writeItem(BAD);
+    result('companion: navigator.clipboard.write() with the same command is stopped too', afterItem === `NotAllowedError|${FINE}`, { clipboard: afterItem });
+    for (const type of ['keyDown', 'keyUp']) await browser.send('Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }, s);
+    await sleep(300);
+
+    // The person's own Ctrl+C on text they selected: held back with a small notice that can copy it anyway.
+    await evalIn(browser, s, `(() => { const pre = document.createElement('pre'); pre.id = 'cmd'; pre.textContent = ${JSON.stringify(BAD)}; document.body.appendChild(pre);
+      const r = document.createRange(); r.selectNodeContents(pre); getSelection().removeAllRanges(); getSelection().addRange(r); return true; })()`);
+    await browser.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', modifiers: 2, windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, commands: ['copy'] }, s);
+    await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', modifiers: 2, windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67 }, s);
+    let ownText = '';
+    for (let i = 0; i < 20 && !/Sentinel did not copy this/.test(ownText); i++) { await sleep(150); ownText = await pageText(browser, s); }
+    await shot(browser, s, 'companion-clipguard-own-copy');
+    const ownClip = await evalIn(browser, s, 'navigator.clipboard.readText()', { userGesture: true }).catch((err) => `error: ${err.message}`);
+    result('companion: the person\'s own copy of a command gets the small notice with "Copy it anyway", not the full-screen block',
+      /Sentinel did not copy this/.test(ownText) && /Copy it anyway/.test(ownText) && !/stopped this page from copying/.test(ownText) && ownClip === FINE,
+      { clipboard: ownClip, onScreen: ownText.slice(0, 300) });
   } finally {
     await close();
     server.close();

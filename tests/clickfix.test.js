@@ -71,12 +71,76 @@ test('everyday copied text and ordinary commands are left alone', () => {
 test('the Windows app and the companion carry the same rules', () => {
   assert.equal(read('extension/src/content/clickfix.js'), read('server/lib/scan/clickfix.js'), 'scripts/build-extension.js copies it; commit the copy');
   assert.match(read('desktop/scripts/sync-shared.js'), /'clickfix\.js'/);
+  // The companion's guard is registered by its worker while "Stop pasted commands" is on, not listed in the manifest.
   const manifest = JSON.parse(read('extension/manifest.json'));
-  const entry = manifest.content_scripts.find((c) => c.js.includes('src/content/clipguard.js'));
-  assert.ok(entry, 'the guard is a content script');
-  assert.deepEqual(entry.js, ['src/content/clickfix.js', 'src/content/clipguard.js'], 'the rules load first');
-  assert.equal(entry.world, 'MAIN', 'it must wrap the page\'s own clipboard calls');
-  assert.equal(entry.run_at, 'document_start', 'before the page\'s scripts');
+  assert.ok(!manifest.content_scripts.some((c) => c.js.includes('src/content/clipguard.js')), 'registered by the worker, so the switch can turn it off');
+  assert.ok(manifest.permissions.includes('scripting'));
+  const bg = read('extension/src/background.js');
+  const reg = bg.slice(bg.indexOf('const CLIPGUARD = {'), bg.indexOf('};', bg.indexOf('const CLIPGUARD = {')));
+  assert.match(reg, /js: \['src\/content\/clickfix\.js', 'src\/content\/alarm\.page\.js', 'src\/content\/clipguard\.js'\]/, 'the rules and the warning load first');
+  assert.equal(read('extension/src/content/alarm.page.js'), read('extension/src/content/alarm.js'), 'scripts/build-extension.js copies it; commit the copy');
+  assert.match(reg, /world: 'MAIN'/, "it must wrap the page's own clipboard calls");
+  assert.match(reg, /runAt: 'document_start'/, "before the page's scripts");
+  assert.match(read('extension/src/lib/api.js'), /commandGuard: true/, 'on unless the person turns it off');
+  assert.match(read('extension/src/options.html'), /id="commandGuard"/);
+});
+
+/** The companion's guard in a page of its own: the clipboard calls it wraps, and what it shows. */
+function page() {
+  const shown = [];
+  const clipboard = { text: '', writeText(t) { this.text = t; return Promise.resolve(); }, write(items) { return items[0].getType('text/plain').then((b) => b.text()).then((t) => { this.text = t; }); } };
+  const listeners = {};
+  class Document { execCommand(cmd) { if (cmd === 'copy') listeners.copy(this.nextCopy); return true; } }
+  const ctx = {
+    navigator: { clipboard }, Document, DOMException, Promise, String, RegExp,
+    SentinelAlarm: { show: (o) => { shown.push(o); return { close() {} }; }, leave() {} },
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    getSelection: () => ctx.selection,
+    document: { activeElement: null },
+    selection: ''
+  };
+  ctx.globalThis = ctx;
+  require('vm').createContext(ctx);
+  require('vm').runInContext(read('extension/src/content/clickfix.js'), ctx);
+  require('vm').runInContext(read('extension/src/content/clipguard.js'), ctx);
+  const copy = (text, isTrusted, scripted) => {
+    ctx.selection = text;
+    const ev = { isTrusted, prevented: false, preventDefault() { this.prevented = true; } };
+    if (scripted) ctx.Document.prototype.execCommand.call({ nextCopy: ev }, 'copy'); else listeners.copy(ev);
+    return ev.prevented;
+  };
+  return { ctx, clipboard, shown, copy };
+}
+
+const LURE = 'powershell -w hidden -enc SQBFAFgAIAAoAGkAdwByACAAaAB0AHQAcAA=';
+
+test('companion: a page cannot copy a strong command, and is told the write was not allowed', async () => {
+  const p = page();
+  await p.ctx.navigator.clipboard.writeText('npm i x');
+  assert.equal(p.clipboard.text, 'npm i x');
+  await assert.rejects(p.ctx.navigator.clipboard.writeText(LURE), (err) => err.name === 'NotAllowedError');
+  assert.equal(p.clipboard.text, 'npm i x', 'not copied');
+  assert.equal(p.shown.length, 1);
+  assert.match(p.shown[0].title, /stopped this page from copying a command/);
+  assert.equal(typeof p.shown[0].escape, 'function', 'Escape closes it');
+
+  const item = (t) => ({ types: ['text/plain'], getType: async () => ({ text: async () => t }) });
+  await assert.rejects(p.ctx.navigator.clipboard.write([item(LURE)]), (err) => err.name === 'NotAllowedError', 'clipboard.write is wrapped too');
+  assert.equal(p.clipboard.text, 'npm i x');
+  await p.ctx.navigator.clipboard.write([item('echo hi')]);
+  assert.equal(p.clipboard.text, 'echo hi');
+});
+
+test("companion: the person's own copy gets the small notice; a script's copy gets the full warning", () => {
+  const p = page();
+  assert.equal(p.copy('just some text', true), false);
+  assert.equal(p.copy(LURE, true), true, 'held back');
+  assert.equal(p.shown.at(-1).small, true);
+  assert.ok(p.shown.at(-1).buttons.some((b) => /Copy it anyway/.test(b.text)));
+  assert.equal(p.copy(LURE, false), true);
+  assert.notEqual(p.shown.at(-1).small, true, 'an untrusted copy event is a script');
+  assert.equal(p.copy(LURE, true, true), true);
+  assert.notEqual(p.shown.at(-1).small, true, "execCommand('copy') from a script fires a trusted event, and is still the page's");
 });
 
 test('the app swaps a stopped command for a harmless line, and never logs or sends copied text', () => {

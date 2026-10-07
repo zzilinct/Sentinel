@@ -56,16 +56,25 @@ test('the same password hashes the same with its salt, and a different one does 
 });
 
 /** The real worker, flattened as for Firefox, with a browser that keeps storage in memory. */
-function worker() {
-  const store = {};
+/** A storage area kept in a plain object. */
+const area = (store) => ({
+  get: async (k) => { const keys = typeof k === 'string' ? [k] : Array.isArray(k) ? k : Object.keys(k || {}); return Object.fromEntries(keys.filter((x) => x in store).map((x) => [x, JSON.parse(JSON.stringify(store[x]))])); },
+  set: async (o) => { Object.assign(store, JSON.parse(JSON.stringify(o))); },
+  remove: async (k) => { delete store[k]; }
+});
+
+/** The worker; pass the storage of an earlier one to start it again, as the browser does after it idles. */
+function worker(store = {}, session = {}) {
   const sent = [];
   const noop = () => {};
   const listener = { addListener: noop };
   const ext = {
     runtime: { id: 'me', getURL: (p) => `chrome-extension://me/${p}`, getManifest: () => ({ content_scripts: [], version: '1' }), onMessage: listener, onMessageExternal: listener, onInstalled: listener, onStartup: listener, lastError: null },
     storage: {
-      local: { get: async (k) => { const keys = typeof k === 'string' ? [k] : Array.isArray(k) ? k : Object.keys(k || {}); return Object.fromEntries(keys.filter((x) => x in store).map((x) => [x, JSON.parse(JSON.stringify(store[x]))])); }, set: async (o) => { Object.assign(store, JSON.parse(JSON.stringify(o))); }, remove: async (k) => { delete store[k]; } },
-      sync: { get: async (d) => ({ ...d }), set: async () => {} }
+      local: area(store),
+      session: area(session),
+      sync: { get: async (d) => ({ ...d }), set: async () => {} },
+      onChanged: listener
     },
     tabs: { sendMessage: async (tabId, msg, opts) => { sent.push({ tabId, msg, opts }); }, get: async () => null, create: noop },
     action: { setBadgeText: noop, setBadgeBackgroundColor: noop, setTitle: noop },
@@ -84,7 +93,7 @@ function worker() {
   const options = { id: 'me', url: 'chrome-extension://me/src/options.html', tab: { id: 1, url: 'chrome-extension://me/src/options.html' } };
   // Answers come from another realm: compared as plain data.
   const call = async (type, msg, sender) => JSON.parse(JSON.stringify(await ctx.handlers[type]({ type, ...msg }, sender)));
-  return { store, sent, call, page, options };
+  return { store, session, sent, call, page, options };
 }
 
 test('learn on the sign-in site, alarm on a look-alike, never store the password', async () => {
@@ -108,7 +117,7 @@ test('learn on the sign-in site, alarm on a look-alike, never store the password
   assert.deepEqual(await w.call('pw-learn', { password: 'attacker-chosen' }, evil), { learned: false });
 });
 
-test('"This is a real site" allows only the host the alarm was raised on, and settings come only from the options page', async () => {
+test('"I use this password here on purpose" allows only the host the alarm was raised on, and settings come only from the options page', async () => {
   const w = worker();
   await w.call('pw-set', { id: 'paypal', on: true }, w.options);
   await w.call('pw-learn', { password: 'pa55word-pp' }, w.page('https://www.paypal.com/signin'));
@@ -176,4 +185,71 @@ test('the page script empties the box on a match, and holds then replays a sign-
   box.value = 'short';
   handlers.input(ev(box));
   assert.equal(replies.length, 0);
+
+  // "Show password" turns the box into plain text: it is still a password box.
+  box.type = 'text';
+  box.value = 'yyyyyyyy';
+  handlers.input(ev(box));
+  assert.equal(replies.length, 1, 'still checked after Show password');
+  // Enter in a box with no form is the page's own key handler: never held, since it could not be replayed.
+  const enter = ev(box, { key: 'Enter' });
+  handlers.keydown(enter);
+  assert.equal(enter.prevented, false);
+  answer = { ok: true, match: null };
+  replies.shift()();
+  await new Promise((r) => setImmediate(r));
+});
+
+test('with nothing protected, a page never messages the worker', async () => {
+  const asked = [];
+  const ext = {
+    runtime: { id: 'me', sendMessage: async (msg) => { asked.push(msg.type); return { ok: true, learn: false, lengths: [] }; }, onMessage: { addListener() {} } },
+    storage: { local: { get: async () => ({ pwalarmOn: 0 }) }, onChanged: { addListener() {} } }
+  };
+  const ctx = { chrome: ext, window: { addEventListener() {} }, document: { querySelectorAll: () => [] }, WeakMap, WeakSet, Promise };
+  ctx.window.top = ctx.window;
+  vm.createContext(ctx);
+  vm.runInContext(read('content/pwalarm.js'), ctx);
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(asked, []);
+});
+
+test('"I use this password here on purpose" still works after the worker was stopped and started again', async () => {
+  const w = worker();
+  await w.call('pw-set', { id: 'google', on: true }, w.options);
+  await w.call('pw-learn', { password: 'hunter2hunter2' }, w.page('https://accounts.google.com/'));
+  assert.ok(w.store.pwalarmOn > 0, 'pages are told something is protected');
+  const corp = w.page('https://sso.mycompany.example/', 5);
+  await w.call('pw-check', { password: 'hunter2hunter2' }, corp);
+  assert.match(w.sent[0].msg.recover, /\/recover\?happened=password$/, 'the alarm links to the recovery guide');
+  const again = worker(w.store, w.session);   // the browser stopped the idle worker; a new one starts
+  assert.deepEqual(await again.call('pw-allow', {}, corp), { allowed: true });
+  assert.deepEqual(await again.call('pw-allow', {}, corp), { allowed: false }, 'once');
+});
+
+test('the last three passwords are kept per account, and AWS is not an Amazon sign-in site', async () => {
+  const w = worker();
+  await w.call('pw-set', { id: 'google', on: true }, w.options);
+  const home = w.page('https://accounts.google.com/');
+  for (const pw of ['first-account-pw', 'second-account', 'third-account-pw', 'second-account']) await w.call('pw-learn', { password: pw }, home);
+  const hashes = w.store.pwalarm.accounts.google.hashes;
+  assert.equal(hashes.length, 3, 'the same password signed in again is not kept twice');
+  const evil = w.page('https://google-login.evil.top/');
+  for (const pw of ['first-account-pw', 'second-account', 'third-account-pw']) {
+    assert.deepEqual(await w.call('pw-check', { password: pw }, evil), { match: { name: 'Google' } }, pw);
+  }
+  await w.call('pw-learn', { password: 'fourth-account!' }, home);
+  assert.deepEqual(await w.call('pw-check', { password: 'first-account-pw' }, evil), { match: null }, 'the oldest is let go');
+  assert.ok((await w.call('pw-list', {}, w.options)).accounts[0].learnedAt, 'protected since');
+
+  // A password kept before this change (one hash on the account) still counts.
+  const L = lib();
+  const salt = L.newSalt();
+  const old = { accounts: { paypal: { id: 'paypal', name: 'PayPal', homes: ['paypal.com'], on: true, allowed: [], salt, hash: await L.hashPassword('old-style-pw', salt), length: 12, learnedAt: 1 } } };
+  assert.equal(L.guardedHere(old, 'evil.top').length, 1);
+
+  const amazon = L.PRESETS.find((p) => p.id === 'amazon');
+  assert.equal(L.isHome('signin.aws.amazon.com', amazon.homes, amazon.except), false);
+  assert.equal(L.isHome('www.amazon.com', amazon.homes, amazon.except), true);
+  assert.equal(L.homeAccount({ accounts: { amazon: { id: 'amazon', on: true, homes: amazon.homes } } }, 'signin.aws.amazon.com'), null, 'an account saved before this change gets the preset\'s exception too');
 });

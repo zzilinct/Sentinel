@@ -13,7 +13,8 @@
     "alarms",
     "notifications",
     "contextMenus",
-    "permissions"
+    "permissions",
+    "scripting"
   ],
   "host_permissions": [
     "https://www.usesentinel.technology/*",
@@ -91,6 +92,7 @@
       ],
       "js": [
         "src/content/masks.js",
+        "src/content/alarm.js",
         "src/content/guard.js"
       ],
       "run_at": "document_start"
@@ -102,23 +104,10 @@
       ],
       "js": [
         "src/content/steps.js",
+        "src/content/alarm.js",
         "src/content/pwalarm.js"
       ],
       "all_frames": true,
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "http://*/*",
-        "https://*/*"
-      ],
-      "js": [
-        "src/content/clickfix.js",
-        "src/content/clipguard.js"
-      ],
-      "world": "MAIN",
-      "all_frames": true,
-      "match_about_blank": true,
       "run_at": "document_start"
     }
   ],

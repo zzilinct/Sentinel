@@ -10,7 +10,7 @@
  * appear instantly from the checklist, then upgrade once research finishes.
  */
 import { ext, apiFetch, getSettings, setToken, siteUrl, COLORS, ApiError } from './lib/api.js';
-import { PRESETS, MIN_LENGTH, bankDomain, newSalt, hashPassword, sameHash, homeAccount, guardedHere } from './lib/pwalarm.js';
+import { PRESETS, MIN_LENGTH, KEEP, bankDomain, newSalt, hashPassword, sameHash, homeAccount, guardedHere, hashesOf } from './lib/pwalarm.js';
 
 const TTL = { quick: 15 * 60 * 1000, research: 60 * 60 * 1000 };
 const cache = new Map();                  // `${phase}|${url}` -> { verdict, at }
@@ -203,7 +203,9 @@ async function onNavigate(details) {
   warned.set(key, Date.now());
   if (warned.size > 300) warned.clear();
 
-  Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:warn', verdict })).catch(() => {});
+  // The recovery guide; the block page adds what happened.
+  const recover = siteUrl(settings.apiBase, '/recover');
+  Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:warn', verdict, recover })).catch(() => {});
   if (verdict.overall.badge === 'red' && settings.notifications) {
     Promise.resolve(ext.notifications.create(`sentinel-${Date.now()}`, {
       type: 'basic',
@@ -223,9 +225,22 @@ async function pwState() {
   const { pwalarm } = await ext.storage.local.get('pwalarm');
   return pwalarm && pwalarm.accounts ? pwalarm : { accounts: {} };
 }
-const pwSave = (state) => ext.storage.local.set({ pwalarm: state });
+// pwalarmOn tells every page's content script whether to ask this worker anything at all: 0 when nothing is
+// protected, otherwise a stamp that changes on every save so open pages load the new lengths.
+const pwOn = (state) => (Object.values(state.accounts).some((a) => a.on) ? Date.now() : 0);
+const pwSave = (state) => ext.storage.local.set({ pwalarm: state, pwalarmOn: pwOn(state) });
 const frameHost = (sender) => { try { return new URL(sender.url).hostname.toLowerCase(); } catch { return ''; } };
-const lastAlarm = new Map();   // tabId -> { id, host }: what "This is a real site" may allow, decided here, not by the page
+
+// What "I use this password here on purpose" may allow on a tab ({ id, host }), decided here, not by the page. Kept in
+// session storage: this worker is stopped after about 30 seconds idle, and an in-memory map went with it.
+const alarmKey = (tabId) => `pwAlarm:${tabId}`;
+const session = () => ext.storage.session || null;
+async function lastAlarmGet(tabId) {
+  if (!session()) return null;
+  const got = await session().get(alarmKey(tabId));
+  return (got && got[alarmKey(tabId)]) || null;
+}
+const lastAlarmSet = (tabId, value) => (session() ? (value ? session().set({ [alarmKey(tabId)]: value }) : session().remove(alarmKey(tabId))) : null);
 
 /** Settings messages come only from the extension's own pages (a content script's sender.url is its web page). */
 function fromOptions(sender) {
@@ -239,9 +254,10 @@ function fromPage(sender) {
 /** What the options page shows: never the hashes. */
 function pwList(state) {
   const accounts = Object.values(state.accounts).map((a) => ({
-    id: a.id, name: a.name, on: Boolean(a.on), bank: Boolean(a.bank), learned: Boolean(a.hash), learnedAt: a.learnedAt || null, allowed: a.allowed || []
+    id: a.id, name: a.name, on: Boolean(a.on), bank: Boolean(a.bank), learned: hashesOf(a).length > 0,
+    learnedAt: a.since || a.learnedAt || null, home: (a.homes || [])[0] || null, allowed: a.allowed || []
   }));
-  return { presets: PRESETS.map(({ id, name }) => ({ id, name })), accounts };
+  return { presets: PRESETS.map(({ id, name, homes }) => ({ id, name, home: homes[0] })), accounts };
 }
 
 const pwHandlers = {
@@ -285,17 +301,29 @@ const pwHandlers = {
     fromPage(sender);
     const state = await pwState();
     const host = frameHost(sender);
-    return { learn: Boolean(homeAccount(state, host)), lengths: [...new Set(guardedHere(state, host).map((a) => a.length))] };
+    return { learn: Boolean(homeAccount(state, host)), lengths: [...new Set(guardedHere(state, host).flatMap((a) => hashesOf(a).map((h) => h.length)))] };
   },
-  /** A sign-in on the account's own site: keep the hash of what was typed (the latest sign-in wins). */
+  /**
+   * A sign-in on the account's own site: keep the hash of what was typed. The last KEEP different passwords are kept,
+   * so a second Google account, or a password changed lately, is protected too.
+   */
   async 'pw-learn'({ password }, sender) {
     fromPage(sender);
     if (typeof password !== 'string' || password.length < MIN_LENGTH || password.length > 512) return { learned: false };
     const state = await pwState();
     const account = homeAccount(state, frameHost(sender));
     if (!account) return { learned: false };
-    const salt = newSalt();
-    Object.assign(account, { salt, hash: await hashPassword(password, salt), length: password.length, learnedAt: Date.now() });
+    const kept = [];
+    let same = null;
+    for (const h of hashesOf(account)) {
+      if (!same && h.length === password.length && sameHash(await hashPassword(password, h.salt), h.hash)) same = h;
+      else kept.push(h);
+    }
+    const salt = same ? same.salt : newSalt();
+    const fresh = same ? { ...same, at: Date.now() } : { salt, hash: await hashPassword(password, salt), length: password.length, at: Date.now() };
+    account.hashes = [fresh, ...kept].slice(0, KEEP);
+    account.since = account.since || account.learnedAt || Date.now();
+    for (const old of ['salt', 'hash', 'length', 'learnedAt']) delete account[old];
     await pwSave(state);
     return { learned: true };
   },
@@ -306,21 +334,27 @@ const pwHandlers = {
     const state = await pwState();
     const host = frameHost(sender);
     for (const a of guardedHere(state, host)) {
-      if (a.length !== password.length || !sameHash(await hashPassword(password, a.salt), a.hash)) continue;
-      lastAlarm.set(sender.tab.id, { id: a.id, host });
+      let match = false;
+      for (const h of hashesOf(a)) {
+        if (h.length === password.length && sameHash(await hashPassword(password, h.salt), h.hash)) { match = true; break; }
+      }
+      if (!match) continue;
+      await lastAlarmSet(sender.tab.id, { id: a.id, host });
       const tabUrl = sender.tab.url || sender.url;
       const verdict = localVerdict(tabUrl) || cacheGet('research', tabUrl) || cacheGet('quick', tabUrl);
-      Promise.resolve(ext.tabs.sendMessage(sender.tab.id, { type: 'sentinel:pw-alarm', name: a.name, host, bank: Boolean(a.bank), verdict: verdict || null }, { frameId: 0 })).catch(() => {});
+      const { apiBase } = await getSettings();
+      const recover = siteUrl(apiBase, '/recover?happened=password');
+      Promise.resolve(ext.tabs.sendMessage(sender.tab.id, { type: 'sentinel:pw-alarm', name: a.name, host, bank: Boolean(a.bank), verdict: verdict || null, recover }, { frameId: 0 })).catch(() => {});
       return { match: { name: a.name } };
     }
     return { match: null };
   },
-  /** "This is a real site", confirmed twice by the person: stop sounding the alarm for this account on that host. */
+  /** "I use this password here on purpose", confirmed twice by the person: stop sounding the alarm for this account on that host. */
   async 'pw-allow'(msg, sender) {
     fromPage(sender);
-    const alarm = lastAlarm.get(sender.tab.id);
+    const alarm = await lastAlarmGet(sender.tab.id);
     if (!alarm) return { allowed: false };
-    lastAlarm.delete(sender.tab.id);
+    await lastAlarmSet(sender.tab.id, null);
     const state = await pwState();
     const a = state.accounts[alarm.id];
     if (!a) return { allowed: false };
@@ -472,6 +506,44 @@ ext.runtime.onInstalled.addListener(async (details) => {
 });
 
 ext.runtime.onStartup.addListener(restore);
+
+/*
+ * Stop pasted commands: content/clipguard.js runs in the page's own world, where it cannot read the settings, so it
+ * is registered here only while the switch is on (and is not in the manifest).
+ */
+const CLIPGUARD = {
+  id: 'sentinel-clipguard',
+  // alarm.page.js is alarm.js under another name (scripts/build-extension.js): a file already run in the frame in the
+  // companion's world is not run again in the page's.
+  js: ['src/content/clickfix.js', 'src/content/alarm.page.js', 'src/content/clipguard.js'],
+  matches: ['http://*/*', 'https://*/*'],
+  world: 'MAIN',
+  allFrames: true,
+  runAt: 'document_start'
+};
+async function syncClipGuard() {
+  if (!ext.scripting || !ext.scripting.registerContentScripts) return;
+  const { commandGuard } = await getSettings();
+  const [old] = await ext.scripting.getRegisteredContentScripts({ ids: [CLIPGUARD.id] });
+  let there = Boolean(old);
+  try {
+    // Registered by an earlier version with other files: register it again.
+    if (old && String(old.js) !== String(CLIPGUARD.js)) { await ext.scripting.unregisterContentScripts({ ids: [CLIPGUARD.id] }); there = false; }
+    if (commandGuard && !there) {
+      // Frames a page opens on about:blank too, where the browser can do that.
+      await Promise.resolve().then(() => ext.scripting.registerContentScripts([{ ...CLIPGUARD, matchOriginAsFallback: true }]))
+        .catch(() => ext.scripting.registerContentScripts([CLIPGUARD]));
+    }
+    if (!commandGuard && there) await ext.scripting.unregisterContentScripts({ ids: [CLIPGUARD.id] });
+  } catch { /* registered meanwhile by another start of this worker */ }
+}
+ext.storage.onChanged.addListener((changes, area) => { if (area === 'sync' && changes.commandGuard) syncClipGuard(); });
+syncClipGuard();
+// Pages wait for this flag before asking anything; set it once (a new stamp at every start would reload every page).
+Promise.all([pwState(), ext.storage.local.get('pwalarmOn')]).then(([state, got]) => {
+  const on = pwOn(state);
+  if (!got || got.pwalarmOn === undefined || Boolean(got.pwalarmOn) !== Boolean(on)) ext.storage.local.set({ pwalarmOn: on });
+});
 
 ext.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'sentinel:intel') syncIntel();
