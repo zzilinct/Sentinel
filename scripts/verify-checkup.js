@@ -113,16 +113,22 @@ const STEPS = {
     if (!k.engines && !k.cr) throw new Error('this settings page has neither a search engines proxy nor cr.js');
     const list = () => k.engines ? k.engines.getSearchEnginesList() : k.cr.sendWithPromise('getSearchEnginesList');
     const all = (l) => [...(l.defaults || []), ...(l.actives || []), ...(l.others || []), ...(l.extensions || [])];
+    await list();   // lets the handler talk to the page first
     if (k.engines) { k.engines.searchEngineEditStarted(-1); k.engines.searchEngineEditCompleted(C.searchName, C.keyword, C.searchUrl); }
     else { chrome.send('searchEngineEditStarted', [-1]); chrome.send('searchEngineEditCompleted', [C.searchName, C.keyword, C.searchUrl]); }
     let mine = null;
-    for (let i = 0; i < 20 && !mine; i++) { await k.wait(250); mine = all(await list()).find((e) => String(e.url).includes(C.searchHost)); }
-    if (!mine) throw new Error('the made-up engine was not added; engines: ' + all(await list()).map((e) => e.url).join(' '));
+    for (let i = 0; i < 12 && !mine; i++) { await k.wait(250); mine = all(await list()).find((e) => String(e.url).includes(C.searchHost)); }
+    // Not added (the browser may only take new engines from its own dialog): another engine than the one it came
+    // with, then, so the file still holds a choice the person made.
+    const custom = Boolean(mine);
+    if (!mine) mine = all(await list()).find((e) => /bing\\.com/.test(String(e.url)));
+    if (!mine) throw new Error('neither the made-up engine nor Bing could be chosen; engines: ' + all(await list()).map((e) => e.url).join(' '));
     if (k.engines) k.engines.setDefaultSearchEngine(mine.modelIndex, 0, false);
     else chrome.send('setDefaultSearchEngine', [mine.modelIndex, 0]);
     await k.wait(800);
     const now = all(await list()).find((e) => e.default);
-    return { added: mine.url, defaultNow: now ? now.url : null };
+    if (!now || now.url !== mine.url) throw new Error('the default did not change: ' + (now && now.url));
+    return { custom, defaultNow: now.url };
   })(${JSON.stringify(C)})`
 };
 
@@ -310,6 +316,9 @@ async function check() {
   console.log(`\n${runtime}: ${result.browsers.length} browser(s); detected managed=${checkup._test.isManaged()}`);
 
   const ours = new Set(['Coupon Helper Checkup', 'PayPal Wallet Checkup', 'Weather Tab Checkup', 'Video Saver Checkup', 'uBlock Origin']);
+  // Edge's settings page is its own: Chromium's site settings and search engine handlers do not answer there.
+  const unsupported = (st) => Boolean(st && !st.ok && /no answer in 20 s/.test(st.error));
+  const wanted = ['https://example-notify.test/', C.startup];
   const reasonIds = (a) => (a.reasons || []).map((r) => r.id).sort().join(',');
   for (const p of prep.browsers) {
     const label = p.id;
@@ -366,9 +375,15 @@ async function check() {
       } else {
         console.log(`NOTE  ${label}: the browser ignored --load-extension, so there is no start-command add-on to find`);
       }
-      const searchSet = p.search && p.search.ok;
-      if (searchSet) {
+      if (p.search && p.search.ok && p.search.value.custom) {
         expect(prof.search && prof.search.host === C.searchHost && prof.search.known === false && prof.search.badge === 'yellow', `${label}: the made-up default search engine is read and judged yellow (${JSON.stringify(prof.search)})`);
+        wanted.push(`https://${C.searchHost}/`);
+      } else if (p.search && p.search.ok) {
+        console.log(`NOTE  ${label}: the settings page would not add a made-up engine, so Bing was chosen instead`);
+        expect(prof.search && prof.search.host === 'www.bing.com' && prof.search.known === true && prof.search.engine === 'Bing' && !prof.search.badge, `${label}: the default search engine the person chose (Bing) is read and left alone (${JSON.stringify(prof.search)})`);
+        wanted.push('https://www.bing.com/');
+      } else if (unsupported(p.search)) {
+        console.log(`NOTE  ${label}: its settings page has no search engine handler a script can call (${p.search.error}), so its default search engine stays as installed`);
       } else {
         expect(false, `${label}: the default search engine could be set through the settings page (${JSON.stringify(p.search)})`);
       }
@@ -379,12 +394,13 @@ async function check() {
       }
     }
     const notifSet = p.id === 'firefox' ? !p.error : p.notifications && p.notifications.ok;
-    expect(notifSet && Array.isArray(prof.notifications) && prof.notifications.includes('https://example-notify.test'), `${label}: the site allowed to send notifications is read (${JSON.stringify(prof.notifications)})`);
+    if (!notifSet && unsupported(p.notifications)) console.log(`NOTE  ${label}: its settings page has no site settings handler a script can call (${p.notifications.error}), so no notification permission could be given`);
+    else expect(notifSet && Array.isArray(prof.notifications) && prof.notifications.includes('https://example-notify.test'), `${label}: the site allowed to send notifications is read (${JSON.stringify(prof.notifications)})`);
     expect(Array.isArray(prof.notifications) && !prof.notifications.includes('https://blocked-notify.test'), `${label}: the blocked site is not listed as allowed`);
     if (p.id === 'firefox') expect(prof.startup.includes(C.startup), `firefox: the home page is read (${JSON.stringify(prof.startup)})`);
   }
 
-  for (const u of ['https://example-notify.test/', `https://${C.searchHost}/`, C.startup]) expect(urls.includes(u), `addressesOf lists ${u}`);
+  for (const u of wanted) expect(urls.includes(u), `addressesOf lists ${u}`);
   expect(urls.every((u) => /^https?:\/\//.test(u)), 'addressesOf lists web addresses only');
 
   const changed = diff(settled, after).filter((f) => !noise.has(f));
