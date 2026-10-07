@@ -46,7 +46,7 @@ function AppLog { return (Get-Content "$data\logs\app.log" -Raw -ErrorAction Sil
 # A window of this process to the front, maximised (Windows lets the program in front hand it over after an Alt tap).
 function Front($proc) {
   $script:p = $null
-  [void](Until 20 { $script:p = Get-Process $proc -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1; [bool]$script:p })
+  [void](Until 40 { $script:p = Get-Process $proc -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1; [bool]$script:p })
   if (-not $script:p) { Say "no window for $proc"; return $false }
   [K]::Tap(0x12); [K]::ShowWindow($script:p.MainWindowHandle, 3) | Out-Null; [K]::SetForegroundWindow($script:p.MainWindowHandle) | Out-Null
   Start-Sleep 1
@@ -76,6 +76,23 @@ Check 'restart' (StartSentinel) 'started again with its debugging port'
 Start-Sleep 10
 $i = Info 'info()'
 Say "chat safety: $($i.chatSafety | ConvertTo-Json -Compress -Depth 4)"
+Say "command shield: $($i.commandShield), browsers running: $($i.browsers.running -join ',')"
+if (-not $i.chatSafety.running) {
+  # The chat reader is not running: start the same script the same way, and keep what it said on the way out.
+  $diag = Join-Path $env:RUNNER_TEMP 'reader-diag.js'
+  @'
+const { spawn } = require('child_process');
+const { SCRIPT } = require(process.argv[2])._test;
+const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '[ScriptBlock]::Create([Console]::In.ReadLine() | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) }).Invoke()'], { windowsHide: true });
+let out = '', err = '';
+child.stdout.on('data', (d) => { out += d; });
+child.stderr.on('data', (d) => { err += d; });
+child.stdin.write(`${Buffer.from(SCRIPT, 'utf8').toString('base64')}\napps discord,roblox\n`);
+child.on('exit', (code) => { console.log(`reader exited ${code}\nstdout: ${out.slice(0, 600)}\nstderr: ${err.slice(0, 3000)}`); process.exit(0); });
+setTimeout(() => { console.log(`reader still running after 15 s\nstdout: ${out.slice(0, 600)}\nstderr: ${err.slice(0, 3000)}`); child.kill(); process.exit(0); }, 15000);
+'@ | Set-Content -Path $diag -Encoding utf8
+  node $diag (Resolve-Path (Join-Path $PSScriptRoot '..\desktop\src\chatwatch.js')).Path | ForEach-Object { Say "  $_" }
+}
 
 # 2. Chat safety in "Discord": Chrome under the name Discord.exe, showing a page with Discord's message list.
 $chromeDir = "$env:ProgramFiles\Google\Chrome\Application"
@@ -120,6 +137,7 @@ $command = 'powershell -w hidden -enc ' + [Convert]::ToBase64String([Text.Encodi
 Set-Clipboard -Value $command
 $clip = ''
 $ok = Until 10 { $script:clip = Get-Clipboard -Raw; $script:clip -like 'Sentinel stopped a command*' }
+if (-not $ok) { $i = Info 'info()'; Say "  command shield: $($i.commandShield), browsers running: $($i.browsers.running -join ',')" }
 Check 'clickfix-stopped' $ok "clipboard after copying the command: $clip"
 Check 'clickfix-log' ((AppLog) -match 'copied command stopped') 'app.log: copied command stopped'
 Set-Clipboard -Value 'eggs, milk, bread'
