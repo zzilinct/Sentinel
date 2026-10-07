@@ -1,0 +1,45 @@
+# The browser checkup (desktop/src/checkup.js) against the real default profiles of Chrome, Edge and Firefox on a
+# GitHub-hosted Windows runner (scripts/verify-checkup.js). It changes those profiles, so it never runs on a
+# person's computer.
+name: Browser checkup end to end
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['work/e2e**']
+
+permissions:
+  contents: read
+
+jobs:
+  checkup:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Electron, for its own Node
+        working-directory: desktop
+        run: npm ci
+      - run: node desktop/scripts/sync-shared.js
+      - name: Set things up in each browser's default profile
+        run: node scripts/verify-checkup.js prepare --out e2e-checkup
+      - name: Checkup, in Node
+        run: node scripts/verify-checkup.js check --out e2e-checkup
+      - name: Checkup, in the Node that ships inside the app (Electron)
+        if: always()
+        shell: pwsh
+        run: |
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          & desktop/node_modules/electron/dist/electron.exe scripts/verify-checkup.js check --out e2e-checkup
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: checkup-e2e
+          path: e2e-checkup/
+          retention-days: 7
