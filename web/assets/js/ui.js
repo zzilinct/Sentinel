@@ -329,12 +329,22 @@ window.UI = (() => {
     notification: ['Do not click "Allow". If you already did, remove the site from your browser\'s notification settings.'],
     hidden: ['Close the page. It hides what it does, which is how drive-by attacks start.']
   };
+  // What to tick in the recovery guide (recover.js SITUATIONS) for each kind of threat, so it opens on the right steps.
+  const HAPPENED = {
+    phishing: 'password', impersonation: 'password', address: 'password', blocked: 'password', crypto: 'crypto',
+    delivery: 'card', prize: 'card', store: 'card', government: 'card', investment: 'bank', romance: 'bank', support: 'remote'
+  };
+  /** The recovery guide, inside the app when this is the app, ticked for what the warning was about. */
+  function recoverHref(head) {
+    const happened = HAPPENED[head.kind] || (head.threat === 'scam' ? 'password' : 'file');
+    return `${location.pathname.startsWith('/app') ? '/app/recover' : '/recover'}?happened=${happened}`;
+  }
   function nextSteps(head) {
     if (!head || (head.tone !== 'red' && head.tone !== 'orange' && head.tone !== 'yellow')) return '';
     const steps = NEXT_STEPS[head.kind] || (head.threat === 'scam' ? LOGIN : FILE);
     const title = head.tone === 'yellow' ? 'If you are not sure' : 'What to do now';
     // Past the first steps (money sent, an ID number given, someone let in), the recovery guide puts everything in order.
-    const more = head.tone === 'yellow' ? '' : '<p class="next-steps__more">Already clicked, paid or let someone in? <a href="/recover">Open the recovery guide</a> for every step, in order.</p>';
+    const more = head.tone === 'yellow' ? '' : `<p class="next-steps__more">Already clicked, paid or let someone in? <a href="${recoverHref(head)}">Open the recovery guide</a> for every step, in order.</p>`;
     return `<div class="next-steps next-steps--${head.tone}"><h3>${title}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${more}</div>`;
   }
 

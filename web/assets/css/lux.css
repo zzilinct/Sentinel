@@ -170,6 +170,8 @@ h2 em, .page-head h1 em { color: var(--text-2); }
 .card, .tile, .plan, .cta, .window, .float { background: var(--relief), var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--raise); }
 .prose h2 { font-size: 40px; }
 .prose-wrap .card { border-radius: 26px; padding: 34px; }
+.tile .notes { margin: 10px 0 0; padding-left: 20px; color: var(--text-2); font-size: 15px; max-width: 64ch; }
+.tile .notes li { margin-top: 4px; }
 .compare-wrap { margin-top: 56px; padding: 10px 24px; border-radius: 26px; background: var(--relief), var(--surface); box-shadow: var(--raise); }
 .compare { margin-top: 0; }
 .compare th { font: 400 13px var(--display); letter-spacing: .18em; text-transform: uppercase; color: var(--gold-400); }
@@ -191,31 +193,6 @@ h2 em, .page-head h1 em { color: var(--text-2); }
   .motes, body::after { display: none; }
   .page-head__mask { animation: none; }
 }
-
-/* Recovery guide: tick what happened, then one ordered list of steps. */
-.page-head--recover { padding-bottom: 40px; }
-.recover { color: var(--text-2); }
-.recover__what { margin: 0; padding: 0; border: 0; }
-.recover__what legend { padding: 0; margin-bottom: 16px; }
-.recover__what legend h2 { margin: 0; font-size: 36px; color: var(--text); }
-.recover__what legend span { color: var(--muted); }
-.recover__picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
-.recover__pick, .recover__steps label { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; line-height: 1.5; }
-.recover__pick { padding: 14px 16px; border-radius: var(--r-lg); background: var(--relief), var(--surface); box-shadow: var(--raise-sm); }
-.recover__pick:has(input:checked) { box-shadow: var(--raise-sm), inset 0 0 0 1px var(--gold-400); color: var(--text); }
-.recover input[type="checkbox"] { flex: none; width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--gold-400); }
-.recover__bar { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; justify-content: space-between; margin: 26px 0 8px; }
-.recover__country { display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
-.recover__country select { min-height: 40px; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--line-2); background: var(--surface); color: var(--text); font: inherit; font-size: 15px; }
-.recover__actions { display: flex; gap: 10px; }
-.recover__plan h3 { margin: 30px 0 10px; font-size: 24px; color: var(--text); }
-.recover__steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
-.recover__steps label:has(input:checked) span { color: var(--muted); text-decoration: line-through; text-decoration-color: rgb(var(--gold-rgb) / .5); }
-.recover__report { margin: 10px 0 0 30px; padding-left: 18px; }
-.recover__report li { margin-bottom: 6px; }
-.recover__report a { color: var(--gold-300); text-decoration: underline; text-underline-offset: 3px; }
-.recover__progress { margin: 18px 0 0; font-family: var(--mono); font-size: 13px; color: var(--muted); }
-.recover__empty { margin: 24px 0 0; color: var(--muted); }
 
 @media print {
   .nav, .footer, .skip-link, .recover__bar, .recover__what, .page-head .orn-rule, .motes { display: none !important; }

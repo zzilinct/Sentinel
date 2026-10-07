@@ -390,7 +390,7 @@ test('password reset: emailed one-time link, sessions revoked, unknown emails ge
 });
 
 test('new pages are served and partials are not directly reachable', async () => {
-  for (const path of ['/', '/pricing', '/download', '/login', '/signup', '/forgot', '/reset', '/connect', '/app', '/app/protection', '/privacy', '/terms', '/refunds', '/recover']) {
+  for (const path of ['/', '/pricing', '/download', '/login', '/signup', '/forgot', '/reset', '/connect', '/app', '/app/protection', '/app/recover', '/privacy', '/terms', '/refunds', '/recover']) {
     const r = await fetch(app.base + path);
     assert.equal(r.status, 200, path);
     const html = await r.text();

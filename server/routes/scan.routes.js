@@ -243,7 +243,7 @@ function register(router) {
     // remembered as a keyed hash for 14 days, in case a list names it later. Never a page in a private window.
     const badge = verdict && verdict.overall && verdict.overall.badge;
     if (body.remember === true && body.private !== true && badge !== 'red' && badge !== 'orange') {
-      try { exposure.remember(user.id, String(url)); } catch { /* best effort, like history */ }
+      try { exposure.remember(user.id, String(url), now(), Number(body.tz)); } catch { /* best effort, like history */ }
     }
     sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan) });
   });

@@ -722,8 +722,30 @@
     return null;
   }
 
+  /* ------------------------------------------------------------ secrets */
+
+  // To say what a code does, Sentinel needs its kind, never the secret in it. A sign-in token, a two-step secret, a
+  // Wi-Fi password and a wallet connection's key are taken out here, before the text is sent anywhere; what is left
+  // is still recognised for what it is (server/lib/scan/qr.js classify).
+  var SECRETS = [
+    [/^(otpauth:\/\/[^?]*\?(?:.*&)?)secret=[^&]*&?/i, '$1'],
+    [/((?:^WIFI:|;)P:)(?:\\.|[^;])*/i, '$1'],
+    [/^(tg:\/\/login\?token=).*$/i, '$1'],
+    [/^(sgnl:\/\/linkdevice\?|tsdevice:\/?\?).*$/i, '$1'],
+    [/^(\d@)[^,]+,[^,]+,.*$/, '$1xxxxxxxx,xxxxxxxx,'],
+    [/^(https?:\/\/(?:www\.|ptb\.|canary\.)?discord(?:app)?\.com\/ra\/).*$/i, '$1x'],
+    [/^(https?:\/\/s\.team\/q\/)\d+\/\d+.*$/i, function (m, a) { return a + '0/0'; }],
+    [/^wc:[0-9a-f-]{8,}@(\d).*$/i, 'wc:00000000@$1']
+  ];
+  function redact(text) {
+    var t = String(text == null ? '' : text).trim();
+    for (var i = 0; i < SECRETS.length; i++) t = t.replace(SECRETS[i][0], SECRETS[i][1]);
+    return t;
+  }
+
   var api = {
     decode: decode,
+    redact: redact,
     // For the tests: the same tables and arithmetic, to make codes with.
     _internal: { ECC_PER_BLOCK: ECC_PER_BLOCK, NUM_BLOCKS: NUM_BLOCKS, LEVEL_OF_BITS: LEVEL_OF_BITS, alignmentPositions: alignmentPositions, rawDataModules: rawDataModules,
       formatWord: formatWord, formatPositions: formatPositions, maskBit: maskBit, functionModules: functionModules, rsEncode: rsEncode, rsCorrect: rsCorrect, decodeGrid: decodeGrid, binarize: binarize, findFinders: findFinders, finderTriples: finderTriples, tryTriple: tryTriple, findAlignment: findAlignment }

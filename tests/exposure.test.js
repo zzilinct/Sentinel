@@ -100,6 +100,37 @@ test('told once, dismissed for good, and switching off erases every remembered v
   assert.deepEqual(hosts(user), [], 'nothing left to match');
 });
 
+test('switching off erases the alerts already found too, since they name the sites in plain words', async () => {
+  const user = newUser();
+  exposure.remember(user, 'https://found-then-forgotten.example/');
+  await feeds.importLines(feed('phishing_database', 'exp_forget_found'), ['found-then-forgotten.example']);
+  assert.deepEqual(hosts(user), ['found-then-forgotten.example']);
+  exposure.forget(user);
+  assert.equal(db.prepare('SELECT COUNT(*) AS c FROM exposures WHERE user_id = ?').get(user).c, 0);
+});
+
+test('the day kept is the visit\'s own calendar day where the person was', async () => {
+  const user = newUser();
+  // Tuesday 6 October 2026, 9 pm in New York (UTC-4) is already Wednesday in UTC.
+  const at = Date.UTC(2026, 9, 7, 1, 0);
+  exposure.remember(user, 'https://evening-visit.example/', at, 240);
+  exposure.remember(user, 'https://morning-in-sydney.example/', Date.UTC(2026, 9, 6, 20, 0), -600);
+  const days = db.prepare('SELECT day FROM visit_marks WHERE user_id = ? ORDER BY day').all(user).map((r) => new Date(r.day).toISOString().slice(0, 10));
+  assert.deepEqual(days, ['2026-10-06', '2026-10-07']);
+  // A visit marked with a day ahead of UTC still matches a listing made the same moment.
+  const kiribati = newUser();
+  exposure.remember(kiribati, 'https://ahead-of-utc.example/', Date.now(), -14 * 60);
+  await feeds.importLines(feed('phishing_database', 'exp_ahead'), ['ahead-of-utc.example']);
+  assert.deepEqual(hosts(kiribati), ['ahead-of-utc.example']);
+});
+
+test('turning exposure alerts off waits for the erasing, and retries it at start until it goes through', () => {
+  const m = read('desktop/src/main.js');
+  assert.match(m, /store\.set\('exposureForgetPending', true\);\s*return forgetExposures\(\)/);
+  assert.match(m, /else forgetExposures\(\)/, 'tried again at start');
+  assert.match(read('desktop/src/watch.js'), /remember: true, tz: new Date\(\)\.getTimezoneOffset\(\)/);
+});
+
 test('the hourly sweep keeps visits 14 days and exposures 30', () => {
   const user = newUser();
   db.prepare('INSERT INTO visit_marks (user_id, host_hash, reg_hash, day) VALUES (?, ?, ?, ?)').run(user, 'old', 'old', Date.now() - 15 * DAY);

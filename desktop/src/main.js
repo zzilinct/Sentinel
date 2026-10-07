@@ -867,15 +867,29 @@ function setExposureAlerts(enabled) {
   clearTimeout(exposureFirst);
   exposureTimer = exposureFirst = null;
   if (enabled) {
+    // Marks an earlier "off" could not erase go now, before new ones are made.
+    forgetExposures().catch(() => {});
     exposureTimer = setInterval(() => checkExposures().catch(() => {}), EXPOSURE_EVERY_MS);
     exposureFirst = setTimeout(() => checkExposures().catch(() => {}), EXPOSURE_FIRST_MS);
     exposureTimer.unref();
     exposureFirst.unref();
-  } else if (ORIGIN) {
-    // Off means forgotten: every remembered visit is removed from the server at once.
-    apiCall('/api/v1/live/exposures/forget', {}).catch(() => {});
+  } else {
+    // Off means forgotten: every remembered visit is removed from the server at once. If the server cannot be reached
+    // yet, the erasing waits in the store and is tried again at every start until it goes through.
+    store.set('exposureForgetPending', true);
+    return forgetExposures().then((erased) => ({ exposureAlerts: false, erased }));
   }
   return { exposureAlerts: Boolean(enabled) };
+}
+
+async function forgetExposures() {
+  if (!store.get('exposureForgetPending', false)) return true;
+  if (!ORIGIN) return false;
+  try {
+    await apiCall('/api/v1/live/exposures/forget', {});
+    store.set('exposureForgetPending', false);
+    return true;
+  } catch { return false; }
 }
 
 /**
@@ -1309,7 +1323,7 @@ async function boot() {
   }
 
   step('copied links and commands', () => syncClipboard());
-  step('exposure alerts', () => { if (store.get('exposureAlerts', false)) setExposureAlerts(true); });
+  step('exposure alerts', () => { if (store.get('exposureAlerts', false)) setExposureAlerts(true); else forgetExposures().catch(() => {}); });
   step('tray refresh', () => refreshTray());
   // In the tray (started with Windows, or after an update) there is no window until someone opens one.
   if (win) openApp();
