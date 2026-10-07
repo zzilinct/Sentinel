@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- A stand-in for Phone Link's Messages tab (scripts/desktop-e2e.ps1), opened as ?c=scam, ?c=code or ?c=calls: the
+     tabs and the list of conversations on the left, the open conversation on the right with received texts against its
+     left side and sent ones against its right, and the message box under it. The real Phone Link layout is not this
+     page: it is a guess at the same accessible shape. -->
+<html lang="en"><head><meta charset="utf-8"><title>Phone Link</title>
+<style>
+body{margin:0;font:17px Segoe UI,sans-serif;background:#202020;color:#eee;display:flex;height:100vh}
+aside{width:28%;border-right:1px solid #333;padding:16px;box-sizing:border-box}
+[role=tablist]{display:flex;gap:8px;margin-bottom:16px}[role=tab]{padding:6px 10px;border-radius:6px}[aria-selected=true]{background:#3a3a3a}
+aside ul{list-style:none;margin:0;padding:0}aside li{padding:10px 0;color:#bbb}
+section{flex:1;display:flex;flex-direction:column;padding:0 24px}
+h2{margin:20px 0 12px;font-size:20px}
+ol{list-style:none;margin:0;padding:0;flex:1}
+ol li{display:flex;margin:10px 0}ol li.sent{justify-content:flex-end}
+.b{max-width:60%;padding:10px 14px;border-radius:14px;background:#333}.sent .b{background:#2b5fb0}
+input{margin:16px 0 24px;padding:12px;font:inherit;background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:8px}
+</style></head>
+<body>
+<aside>
+  <div role="tablist" aria-label="Phone Link"><span role="tab" id="t-msg">Messages</span><span role="tab" id="t-calls">Calls</span></div>
+  <ul role="list" aria-label="Conversations" id="convs"></ul>
+</aside>
+<section aria-label="Conversation">
+  <h2 id="who"></h2>
+  <ol role="list" aria-label="Messages with" id="msgs"></ol>
+  <input type="text" aria-label="Send a message" placeholder="Send a message">
+</section>
+<script>
+  var C = {
+    // A scam text, an ordinary one, and a message sent from this phone that would be flagged if it were ever judged.
+    scam: { who: '+1 (415) 555-0199', msgs: [
+      ['in', 'USPS: Your package is on hold due to an unpaid redelivery fee of $1.99. Pay at https://usps-redeliver.top/pay'],
+      ['out', 'Hi Mum, this is my new number, my phone broke. Can you send me money for a bill today?'],
+      ['in', 'We will deliver it tomorrow between 9 and 12.']] },
+    // A real sign-up text from a short code.
+    code: { who: '72166', msgs: [
+      ['in', 'Reply Y to activate text alerts. Msg & data rates may apply. Reply STOP to cancel'],
+      ['out', 'Y']] },
+    // The Calls tab is open: nothing here is read, even a scam.
+    calls: { who: '+44 7700 900123', tab: 'calls', msgs: [
+      ['in', 'Hi Mum, this is my new number, my phone broke. Can you send me money for a bill today?']] }
+  };
+  var c = C[new URLSearchParams(location.search).get('c')] || C.scam;
+  document.getElementById(c.tab === 'calls' ? 't-calls' : 't-msg').setAttribute('aria-selected', 'true');
+  document.getElementById(c.tab === 'calls' ? 't-msg' : 't-calls').setAttribute('aria-selected', 'false');
+  document.getElementById('who').textContent = c.who;
+  document.getElementById('convs').innerHTML = Object.keys(C).map(function (k) { return '<li>' + C[k].who + '</li>'; }).join('');
+  document.getElementById('msgs').innerHTML = c.msgs.map(function (m, i) {
+    return '<li id="m' + i + '" class="' + (m[0] === 'out' ? 'sent' : 'received') + '"><div class="b">' + m[1].replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</div></li>';
+  }).join('');
+</script>
+</body></html>
