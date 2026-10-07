@@ -204,4 +204,5 @@ async function main() {
   return ok ? 0 : 1;
 }
 
-main().then((code) => process.exit(code), (err) => { console.log(`FAIL  ${BROWSER}: ${err.message}`); process.exit(1); });
+module.exports = { cdpPipe, CANDIDATES, expand };
+if (require.main === module) main().then((code) => process.exit(code), (err) => { console.log(`FAIL  ${BROWSER}: ${err.message}`); process.exit(1); });

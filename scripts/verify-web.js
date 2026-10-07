@@ -1,0 +1,369 @@
+'use strict';
+/**
+ * Proves, in a real headless Chrome, three things that unit tests cannot:
+ *
+ *   site      Try a link on the static website (npm run build:static) gives real verdicts in the browser, with no
+ *             console errors and no request that carries the typed link.
+ *   qr        qr.js reads real QR pictures made by another encoder (scripts/verify-web-qr.py), loaded and called the
+ *             way the app does it (app.js qrFromFile).
+ *   companion The companion's password alarm stops a protected password on another site, and its clipboard guard
+ *             stops a ClickFix-shaped command but not an ordinary one.
+ *
+ *   node scripts/verify-web.js [--only site,qr,companion] [--static dist-static] [--qr qr-samples] [--out verify-web]
+ *
+ * Meant for CI (.github/workflows/verify-web.yml), never a person's computer. Every page is local: the sign-in sites
+ * are this script's own HTTPS server, reached through --host-resolver-rules with a throwaway self-signed certificate.
+ * Exits 1 if any check fails.
+ */
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const http = require('http');
+const https = require('https');
+const { spawn, spawnSync } = require('child_process');
+const { cdpPipe, CANDIDATES, expand } = require('./verify-companion');
+
+const arg = (name, fallback) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : fallback; };
+const ROOT = path.join(__dirname, '..');
+const ONLY = arg('--only', 'site,qr,companion').split(',');
+const STATIC = path.resolve(ROOT, arg('--static', 'dist-static'));
+const QR = path.resolve(ROOT, arg('--qr', 'qr-samples'));
+const OUT = path.resolve(ROOT, arg('--out', 'verify-web'));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+fs.mkdirSync(OUT, { recursive: true });
+
+const report = [];
+function result(check, ok, detail) {
+  report.push({ check, ok, detail });
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${check}`);
+  for (const line of [].concat(detail || [])) console.log(`      ${typeof line === 'string' ? line : JSON.stringify(line)}`);
+}
+
+/* ------------------------------------------------------------------ servers */
+
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.json': 'application/json', '.gz': 'application/gzip', '.glb': 'model/gltf-binary', '.txt': 'text/plain', '.xml': 'application/xml', '.webmanifest': 'application/manifest+json' };
+
+/** A static file server on 127.0.0.1 over the given folders ({ '/prefix/': dir }), logging every request. */
+function serveFiles(mounts, extra = {}) {
+  const log = [];
+  const server = http.createServer((req, res) => {
+    log.push(req.url);
+    const url = decodeURIComponent(req.url.split('?')[0]);
+    if (extra[url]) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(extra[url]); return; }
+    for (const [prefix, dir] of Object.entries(mounts)) {
+      if (!url.startsWith(prefix)) continue;
+      let file = path.join(dir, url.slice(prefix.length));
+      if (!file.startsWith(dir)) break;
+      if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
+      if (!fs.existsSync(file)) break;
+      res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
+      fs.createReadStream(file).pipe(res);
+      return;
+    }
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('not found');
+  });
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, log, base: `http://127.0.0.1:${server.address().port}` })));
+}
+
+/* ------------------------------------------------------------------ browser */
+
+async function launch(extraArgs = []) {
+  const exe = CANDIDATES.chrome.map(expand).find((p) => fs.existsSync(p));
+  if (!exe) throw new Error('Chrome is not installed here');
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-verify-web-'));
+  const child = spawn(exe, [
+    '--headless=new', `--user-data-dir=${profile}`, '--remote-debugging-pipe', '--enable-unsafe-extension-debugging',
+    '--no-first-run', '--no-default-browser-check', '--window-size=1366,900', ...extraArgs, 'about:blank'
+  ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+  const browser = cdpPipe(child);
+  const version = await Promise.race([browser.send('Browser.getVersion'), sleep(90000).then(() => { throw new Error('Chrome did not answer on its DevTools pipe'); })]);
+  const close = async () => { child.kill(); await sleep(800); try { fs.rmSync(profile, { recursive: true, force: true }); } catch { /* still letting go */ } };
+  return { browser, version: version.product, close };
+}
+
+async function evalIn(browser, sessionId, expression, opts = {}) {
+  const r = await browser.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true, ...opts }, sessionId);
+  if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception ? r.exceptionDetails.exception.description : r.exceptionDetails.text);
+  return r.result.value;
+}
+
+async function openPage(browser) {
+  const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank' });
+  const sessionId = (await browser.send('Target.attachToTarget', { targetId, flatten: true })).sessionId;
+  await browser.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
+  await browser.send('Page.enable', {}, sessionId);
+  return { targetId, sessionId };
+}
+
+async function goto(browser, sessionId, url, ready = 'true') {
+  await browser.send('Page.navigate', { url }, sessionId);
+  for (let i = 0; i < 120; i++) {
+    await sleep(250);
+    const ok = await evalIn(browser, sessionId, `location.href !== 'about:blank' && document.readyState === 'complete' && Boolean(${ready})`).catch(() => false);
+    if (ok) return;
+  }
+  throw new Error(`${url} did not finish loading`);
+}
+
+/** Everything a person would read on the page, closed shadow roots included (where the companion's warnings live). */
+async function pageText(browser, sessionId) {
+  const { root } = await browser.send('DOM.getDocument', { depth: -1, pierce: true }, sessionId);
+  const out = [];
+  const walk = (n) => {
+    if (n.nodeType === 3 && n.nodeValue.trim()) out.push(n.nodeValue.trim());
+    if (n.nodeName === 'STYLE' || n.nodeName === 'SCRIPT') return;
+    for (const c of [...(n.shadowRoots || []), ...(n.children || []), ...(n.contentDocument ? [n.contentDocument] : [])]) walk(c);
+  };
+  walk(root);
+  return out.join(' ');
+}
+
+async function shot(browser, sessionId, name) {
+  try {
+    const { data } = await browser.send('Page.captureScreenshot', { format: 'png' }, sessionId);
+    fs.writeFileSync(path.join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
+  } catch { /* a picture is a nicety */ }
+}
+
+async function typeText(browser, sessionId, text) {
+  await browser.send('Input.insertText', { text }, sessionId);
+}
+async function pressEnter(browser, sessionId) {
+  for (const type of ['keyDown', 'keyUp']) {
+    await browser.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) }, sessionId);
+  }
+}
+
+/* -------------------------------------------------------------- 1. the site */
+
+const SCAM = 'paypa1-account-verify.top';
+const HONEST = 'https://www.wikipedia.org';
+
+async function checkSite() {
+  if (!fs.existsSync(path.join(STATIC, 'assets', 'js', 'engine.js'))) throw new Error(`no static build in ${STATIC}: run npm run build:static`);
+  const files = await serveFiles({ '/': STATIC });
+  const { browser, version, close } = await launch();
+  try {
+    const { sessionId } = await openPage(browser);
+    const requests = [];
+    const errors = [];
+    browser.on('Network.requestWillBeSent', (p) => requests.push({ url: p.request.url, post: p.request.postData || '' }));
+    browser.on('Runtime.exceptionThrown', (p) => errors.push(`exception: ${p.exceptionDetails.exception ? p.exceptionDetails.exception.description : p.exceptionDetails.text}`));
+    browser.on('Runtime.consoleAPICalled', (p) => { if (p.type === 'error' || p.type === 'assert') errors.push(`console.${p.type}: ${p.args.map((a) => a.value || a.description || '').join(' ')}`); });
+    browser.on('Log.entryAdded', (p) => { if (p.entry.level === 'error') errors.push(`${p.entry.source}: ${p.entry.text} ${p.entry.url || ''}`); });
+    await browser.send('Network.enable', {}, sessionId);
+    await browser.send('Runtime.enable', {}, sessionId);
+    await browser.send('Log.enable', {}, sessionId);
+    await goto(browser, sessionId, `${files.base}/index.html`, "document.querySelector('[data-try-form]') && window.SENTINEL_STATIC");
+    await sleep(1500);   // the page's own start-up (3D masks, demo) has its say in the console first
+
+    const before = requests.length;
+    const verdicts = {};
+    for (const link of [SCAM, HONEST]) {
+      await evalIn(browser, sessionId, `(() => { const f = document.querySelector('[data-try-form]'); document.querySelector('[data-try-out]').innerHTML = ''; f.elements.url.value = ''; f.elements.url.scrollIntoView({ block: 'center' }); f.elements.url.focus(); })()`);
+      await typeText(browser, sessionId, link);
+      await pressEnter(browser, sessionId);
+      let v = null;
+      for (let i = 0; i < 60 && !v; i++) {
+        await sleep(250);
+        v = await evalIn(browser, sessionId, `(() => {
+          const r = document.querySelector('[data-try-out] .try__result');
+          if (!r) { const e = document.querySelector('[data-try-out] .try__empty'); return e ? { error: e.textContent.trim() } : null; }
+          return { title: r.querySelector('h3').textContent, host: r.querySelector('.try__head p').textContent, colour: r.style.getPropertyValue('--c'),
+            threats: [...r.querySelectorAll('.try__threat')].map((t) => t.textContent.trim().replace(/\\s+/g, ' ')),
+            why: [...r.querySelectorAll('.try__why li')].map((li) => li.textContent), foot: r.querySelector('.try__foot span').textContent };
+        })()`);
+      }
+      verdicts[link] = v;
+      await shot(browser, sessionId, `site-${link.replace(/\W+/g, '-')}`);
+    }
+
+    const scam = verdicts[SCAM] || {};
+    const honest = verdicts[HONEST] || {};
+    const needles = ['paypa1', 'account-verify', 'wikipedia'];
+    const leaks = requests.slice(before).filter((r) => needles.some((n) => (r.url + r.post).toLowerCase().includes(n)));
+    // Requests after typing: only the checker itself (engine.js and its word list) may load, from this host.
+    const offHost = requests.slice(before).filter((r) => !r.url.startsWith(files.base) && !r.url.startsWith('data:'));
+    result(`site: ${SCAM} gets a warning`, Boolean(scam.title) && scam.title !== 'No threats found' && !/green/.test(scam.colour), scam);
+    result(`site: ${HONEST} gets a clear verdict`, honest.title === 'No threats found' && /green/.test(honest.colour), honest);
+    result('site: no request carries the typed link, and none leaves the page\'s host', !leaks.length && !offHost.length,
+      [`requests after typing: ${requests.slice(before).map((r) => r.url.replace(files.base, '')).join(', ') || 'none'}`, ...leaks.map((r) => `leak: ${r.url}`), ...offHost.map((r) => `off host: ${r.url}`)]);
+    result('site: no console errors', !errors.length, errors.length ? errors : `${version}, ${requests.length} requests`);
+  } finally {
+    await close();
+    files.server.close();
+  }
+}
+
+/* ------------------------------------------------------------------ 2. QR */
+
+async function checkQr() {
+  const manifest = path.join(QR, 'manifest.json');
+  if (!fs.existsSync(manifest)) throw new Error(`no QR pictures in ${QR}: run python scripts/verify-web-qr.py ${path.relative(ROOT, QR)}`);
+  const samples = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+  // The app's own reading code, taken from app.js so this checks what ships: qrFrom (two sizes) and qrFromFile.
+  const app = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'app.js'), 'utf8');
+  const start = app.indexOf('  function qrFrom(');
+  const end = app.indexOf('\n  /** What a QR code does');
+  if (start < 0 || end < start) throw new Error('could not find qrFrom and qrFromFile in web/assets/js/app.js');
+  const page = `<!doctype html><meta charset="utf-8"><title>QR</title><script src="/assets/js/qr.js"></script><script>\n${app.slice(start, end)}\nwindow.qrFromFile = qrFromFile;</script>`;
+  const files = await serveFiles({ '/samples/': QR, '/': path.join(ROOT, 'web') }, { '/qr.html': page });
+  const { browser, close } = await launch();
+  try {
+    const { sessionId } = await openPage(browser);
+    await goto(browser, sessionId, `${files.base}/qr.html`, 'window.SentinelQR && window.qrFromFile');
+    for (const s of samples) {
+      const t0 = Date.now();
+      const got = await evalIn(browser, sessionId, `fetch('/samples/${s.file}').then((r) => r.blob()).then((b) => qrFromFile(b))`).catch((err) => `error: ${err.message}`);
+      result(`qr: ${s.file} (${s.what})`, got === s.text, got === s.text ? `read "${got}" in ${Date.now() - t0} ms` : `expected "${s.text}", got ${JSON.stringify(got)}`);
+    }
+  } finally {
+    await close();
+    files.server.close();
+  }
+}
+
+/* ------------------------------------------------------------ 3. companion */
+
+const HOME = 'accounts.google.com';
+const PHISH = 'accounts-google.verify-session.top';
+const CLIP = 'robot-check.verify-session.top';
+const PASSWORD = 'Test-only-pw-7731';
+const OTHER = 'Another-pw-0000-x';   // the same length, so it is hashed and compared, and must not match
+const BAD = `powershell -w hidden -enc ${Buffer.from('Write-Output hi', 'utf16le').toString('base64')}`;   // harmless, shaped like ClickFix
+const FINE = 'npm i x';
+
+function openssl() {
+  for (const exe of ['openssl', 'C:\\Program Files\\Git\\usr\\bin\\openssl.exe', 'C:\\Program Files\\Git\\mingw64\\bin\\openssl.exe']) {
+    if (spawnSync(exe, ['version']).status === 0) return exe;
+  }
+  throw new Error('openssl was not found (Git for Windows ships one)');
+}
+
+function signInPage(host) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Sign in</title></head><body>
+    <h1>Sign in</h1><p>${host}</p>
+    <form method="post" action="/signin"><input name="email" value="test@example.com"><input type="password" name="password" autocomplete="current-password"><button>Sign in</button></form>
+  </body></html>`;
+}
+
+async function checkCompanion() {
+  const ext = path.join(ROOT, 'extension');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-tls-'));
+  const r = spawnSync(openssl(), ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(dir, 'key.pem'), '-out', path.join(dir, 'cert.pem'),
+    '-days', '1', '-subj', '/CN=sentinel-verify', '-addext', `subjectAltName=DNS:${HOME},DNS:${PHISH},DNS:${CLIP}`], { encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`openssl could not make a certificate: ${r.stderr}`);
+
+  const posts = [];
+  const server = https.createServer({ key: fs.readFileSync(path.join(dir, 'key.pem')), cert: fs.readFileSync(path.join(dir, 'cert.pem')) }, (req, res) => {
+    const host = String(req.headers.host || '').split(':')[0];
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (d) => { body += d; });
+      req.on('end', () => { posts.push({ host, body }); res.writeHead(200, { 'Content-Type': 'text/html' }); res.end('<!doctype html><title>Signed in</title><p>Signed in</p>'); });
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(host === CLIP ? `<!doctype html><title>Verify you are human</title><p>Press the button to verify.</p>` : signInPage(host));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  const rules = [HOME, PHISH, CLIP].map((h) => `MAP ${h} 127.0.0.1:${port}`).join(',');
+  const { browser, version, close } = await launch([`--host-resolver-rules=${rules}`, '--ignore-certificate-errors']);
+  try {
+    const loaded = await browser.send('Extensions.loadUnpacked', { path: ext });
+    let sw;
+    for (let i = 0; i < 40 && !sw; i++) {
+      const { targetInfos } = await browser.send('Target.getTargets');
+      sw = targetInfos.find((t) => t.type === 'service_worker' && t.url.startsWith(`chrome-extension://${loaded.id}/`));
+      if (!sw) await sleep(250);
+    }
+    if (!sw) throw new Error('the companion loaded but its service worker never started');
+
+    // Protect the Google account from the companion's own settings page, as a person would.
+    const opt = await openPage(browser);
+    await goto(browser, opt.sessionId, `chrome-extension://${loaded.id}/src/options.html`, "typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id");
+    const worker = (msg) => evalIn(browser, opt.sessionId, `chrome.runtime.sendMessage(${JSON.stringify(msg)})`);
+    const set = await worker({ type: 'pw-set', id: 'google', on: true });
+    if (!set || !set.ok) throw new Error(`could not protect the Google account: ${JSON.stringify(set)}`);
+
+    /* (a) password alarm */
+    const tab = await openPage(browser);
+    const s = tab.sessionId;
+    const signIn = async (host, password) => {
+      await goto(browser, s, `https://${host}/`, "document.querySelector('input[type=password]')");
+      await sleep(1000);   // the content script asks the worker for its settings at start
+      await evalIn(browser, s, "document.querySelector('input[type=password]').focus()");
+      await typeText(browser, s, password);
+      await pressEnter(browser, s);
+    };
+
+    await signIn(HOME, PASSWORD);
+    let learned = false;
+    for (let i = 0; i < 40 && !learned; i++) {
+      await sleep(250);
+      const list = await worker({ type: 'pw-list' });
+      learned = Boolean(list && list.accounts && list.accounts.some((a) => a.id === 'google' && a.learned));
+    }
+    const homePosted = posts.some((p) => p.host === HOME);
+    result(`companion: signing in on ${HOME} teaches the password alarm (and the sign-in goes through)`, learned && homePosted, { learned, homePosted, browser: version });
+
+    const before = posts.length;
+    await signIn(PHISH, PASSWORD);
+    let text = '';
+    for (let i = 0; i < 40 && !/This is your Google password/.test(text); i++) {
+      await sleep(250);
+      text = await pageText(browser, s);
+    }
+    await sleep(3000);   // long enough for a form that was going to be sent to be sent
+    await shot(browser, s, 'companion-password-alarm');
+    const box = await evalIn(browser, s, "(document.querySelector('input[type=password]') || {}).value");
+    const sent = posts.slice(before).filter((p) => p.host === PHISH);
+    const alarm = /This is your Google password, and this is not a Google site/.test(text);
+    result(`companion: the same password typed on ${PHISH} sounds the alarm and is not sent`, alarm && !sent.length && box === '',
+      { alarm, formSent: sent.length > 0, boxValue: box, onScreen: text.slice(0, 300) });
+
+    // An ordinary password of the same length on the same page: checked, no alarm, and the press goes through.
+    const before2 = posts.length;
+    await signIn(PHISH, OTHER);
+    let through = false;
+    for (let i = 0; i < 40 && !through; i++) { await sleep(250); through = posts.slice(before2).some((p) => p.host === PHISH && p.body.includes(encodeURIComponent(OTHER))); }
+    const text2 = await pageText(browser, s);
+    result('companion: a different password on that page is let through, with no alarm', through && !/This is your Google password/.test(text2), { through });
+
+    /* (b) pasted-command guard */
+    await browser.send('Browser.grantPermissions', { origin: `https://${CLIP}`, permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] });
+    await goto(browser, s, `https://${CLIP}/`);
+    const write = (t) => evalIn(browser, s, `navigator.clipboard.writeText(${JSON.stringify(t)}).then(() => navigator.clipboard.readText())`, { userGesture: true }).catch((err) => `error: ${err.message}`);
+    const wrapped = await evalIn(browser, s, "!/\\[native code\\]/.test(Function.prototype.toString.call(navigator.clipboard.writeText))");
+    const afterFine = await write(FINE);
+    const warnedFine = /stopped this page from copying a command/.test(await pageText(browser, s));
+    result(`companion: an ordinary command (${FINE}) is copied, with no warning`, afterFine === FINE && !warnedFine, { wrapped, clipboard: afterFine, warned: warnedFine });
+    const afterBad = await write(BAD);
+    let clipText = '';
+    for (let i = 0; i < 20 && !/stopped this page from copying a command/.test(clipText); i++) { await sleep(150); clipText = await pageText(browser, s); }
+    await shot(browser, s, 'companion-clipguard');
+    const warnedBad = /Sentinel stopped this page from copying a command/.test(clipText) && /hidden window/.test(clipText);
+    result('companion: a ClickFix-shaped command is not copied, and the warning shows', afterBad === FINE && warnedBad, { clipboard: afterBad, warned: warnedBad, onScreen: clipText.slice(0, 300) });
+  } finally {
+    await close();
+    server.close();
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* temp */ }
+  }
+}
+
+/* --------------------------------------------------------------------- run */
+
+async function main() {
+  const checks = { site: checkSite, qr: checkQr, companion: checkCompanion };
+  for (const name of ONLY) {
+    try { await checks[name](); } catch (err) { result(`${name}: the check itself could not run`, false, err.stack || err.message); }
+  }
+  fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 2));
+  const failed = report.filter((r) => !r.ok).length;
+  console.log(`\n${report.length - failed} passed, ${failed} failed`);
+  return failed ? 1 : 0;
+}
+
+main().then((code) => process.exit(code), (err) => { console.log(`FAIL  ${err.stack || err.message}`); process.exit(1); });
