@@ -393,21 +393,8 @@ Stop-Process -Name Sentinel -Force -ErrorAction SilentlyContinue; Start-Sleep 3
 [void](StartSentinel); Start-Sleep 10
 $r = Info "lockUnlock('2468')"
 Check 'lock-stopped-without-pin' (($r.record | ForEach-Object { $_.text }) -match 'stopped without the PIN') "record after being ended: $(($r.record | ForEach-Object { $_.text }) -join '; ')"
-# Signing out in the web app while locked: refused, said so, and still signed in on both sides. Open: signed out.
-$em = "e2e-lock-$(Get-Random)@example.com"
-$r = Cdp '127.0.0.1:4782' "(async () => { const post = (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); return (await post('/api/v1/auth/signup', { email: '$em', password: 'Quiet-river-lock-7Kq2', firstName: 'Ada', ageConfirmed: true, termsAccepted: true })) + ' ' + (await post('/api/v1/auth/login', { email: '$em', password: 'Quiet-river-lock-7Kq2' })); })()"
-[void](Cdp '127.0.0.1:4782' "location.href = '/app'; 1")
-$paired = Until 40 { [bool](Info 'info()').pairedUserId }
-Check 'signout-paired' $paired "signed in to the web app and paired (signup and sign-in: $($r.value))"
-[void](Info 'lockRelock()')
-$click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); await wait(1500); const b = document.querySelector('[data-signout]'); b.click(); await wait(300); b.click(); await wait(2000); return location.pathname + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / '); })()"
-$r = (Cdp '127.0.0.1:4782' $click).value
-$me = (Cdp '127.0.0.1:4782' "fetch('/api/v1/auth/me').then((x) => x.status)").value
-Check 'signout-locked' ($r -match '^/app[^|]*\|.*Still signed in\. Locked by a parent' -and $me -eq 200 -and [bool](Info 'info()').pairedUserId) "locked: '$r', web app session $me"
-[void](Info "lockUnlock('2468')")
-[void](Cdp '127.0.0.1:4782' $click)
-Check 'signout-open' (Until 20 { -not (Info 'info()').pairedUserId }) 'with the lock open, signing out goes through'
-[void](Info 'lockRemove()')
+# The parent lock from section 6 comes off first: pairing another account would need its PIN.
+[void](Info "lockUnlock('2468')"); [void](Info 'lockRemove()')
 
 # 7. The browser checkup and "Check my texts", as the app's own pages show them, signed in to this computer's
 # account. A Vivaldi profile laid out as Vivaldi keeps it: three add-ons from the store, and one loaded from a folder
@@ -435,6 +422,23 @@ Check 'checkup-folds-clean-addons' ($ok -and $c -eq '3 more add-ons, nothing to 
 $t = ''
 $ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; [bool]$script:t }
 Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -match 'English texts for now' -and $t -match 'left-to-right') "Check my texts panel: $(([string]$t).Substring(0, [Math]::Min(200, ([string]$t).Length)))"
+
+# 8. Signing out: it ends the session (and the window the checks drive), so it comes last.
+[void](Info "lockSet('2468')"); [void](Info "lockUnlock('2468')")
+$em = "e2e-lock-$(Get-Random)@example.com"
+$r = Cdp '127.0.0.1:4782' "(async () => { const post = (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); return (await post('/api/v1/auth/signup', { email: '$em', password: 'Quiet-river-lock-7Kq2', firstName: 'Ada', ageConfirmed: true, termsAccepted: true })) + ' ' + (await post('/api/v1/auth/login', { email: '$em', password: 'Quiet-river-lock-7Kq2' })); })()"
+[void](Cdp '127.0.0.1:4782' "location.href = '/app'; 1")
+$paired = Until 40 { [bool](Info 'info()').pairedUserId }
+Check 'signout-paired' $paired "signed in to the web app and paired (signup and sign-in: $($r.value))"
+[void](Info 'lockRelock()')
+$click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); await wait(1500); const b = document.querySelector('[data-signout]'); b.click(); await wait(300); b.click(); await wait(2000); return location.pathname + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / '); })()"
+$r = (Cdp '127.0.0.1:4782' $click).value
+$me = (Cdp '127.0.0.1:4782' "fetch('/api/v1/auth/me').then((x) => x.status)").value
+Check 'signout-locked' ($r -match '^/app[^|]*\|.*Still signed in\. Locked by a parent' -and $me -eq 200 -and [bool](Info 'info()').pairedUserId) "locked: '$r', web app session $me"
+[void](Info "lockUnlock('2468')")
+[void](Cdp '127.0.0.1:4782' $click)
+Check 'signout-open' (Until 20 { -not (Info 'info()').pairedUserId }) 'with the lock open, signing out goes through'
+[void](Info 'lockRemove()')
 
 if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 60 | ForEach-Object { Say "  $_" }
