@@ -100,7 +100,9 @@ $cache = New-Object System.Windows.Automation.CacheRequest
 $cache.Add($A::NameProperty); $cache.Add($A::BoundingRectangleProperty); $cache.Add($A::AutomationIdProperty); $cache.Add($A::LocalizedControlTypeProperty)
 $itemCache = New-Object System.Windows.Automation.CacheRequest
 $itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdProperty); $itemCache.Add($A::NameProperty)
-$stdin = [Console]::In
+# The launcher's reader (LAUNCH, below), over the raw input stream: Console.In's ReadLineAsync runs synchronously in
+# Windows PowerShell, so the loop would stop at the first read until the app sent its next command.
+$stdin = $in
 $pending = $stdin.ReadLineAsync()
 $lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''
 # Which apps were switched on: the others are never read, even in front.
@@ -390,7 +392,7 @@ let child = null;
 let lines = null;
 const chats = new Map();      // a conversation per chat: game or channel
 const told = new Map();       // what was already pointed out, so a message is flagged once
-let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true };
+let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true, flags: [] };
 let logTimer = null;
 // How many messages were checked and flagged in each app since chat safety started: numbers only, never what they said.
 const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0 }, app: null, reading: false, at: 0 });
@@ -498,7 +500,8 @@ function onMessage(msg) {
     return;
   }
   if (msg.app === 'roblox') {
-    if (typeof msg.menu === 'boolean') { roblox.menu = msg.menu; opts.onState(robloxState([])); return; }
+    // The Esc menu opened or closed: the badge changes, and the warnings by the chat box stay.
+    if (typeof msg.menu === 'boolean') { roblox.menu = msg.menu; opts.onState(robloxState(roblox.flags)); return; }
     const { open, messages } = robloxMessages(msg.lines);
     // A closed chat box is not read: the reader is told, and looks only for it coming back.
     if (open !== roblox.open) { roblox.open = open; send(open ? 'chat open' : 'chat closed'); }
@@ -506,9 +509,10 @@ function onMessage(msg) {
     seen.reading = open;
     noteSeen();
     roblox.area = msg.area;
-    if (!open) { opts.onState(robloxState([])); return; }
+    if (!open) { roblox.flags = []; opts.onState(robloxState([])); return; }
     const ctx = roblox.inGame ? { ...(roblox.info || {}), place: roblox.placeId } : { game: 'Roblox app', description: 'friends and chat' };
     const flags = judge('roblox', `roblox|${roblox.inGame ? roblox.placeId : 'app'}`, ctx, messages);
+    roblox.flags = flags;
     opts.onState(robloxState(flags));
   }
 }
@@ -564,12 +568,17 @@ function setApps(list) {
  * @param {{ log: (s: string) => void, onState: (s: object) => void, onSeen?: () => void, apps?: string[],
  *   api?: (path: string, body: object) => Promise<object> }} o  api: checks the addresses of links in texts
  */
+// How the reader starts: its script arrives as the first line on its input (too long for a command line), read with a
+// plain reader over the raw stream ($in, which the script goes on reading its commands from), and runs with `&` so
+// each line it writes reaches Sentinel at once (a script block's Invoke() would hold them all until it ends).
+const LAUNCH = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command',
+  '$in = New-Object System.IO.StreamReader([Console]::OpenStandardInput()); & ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($in.ReadLine()))))'];
+
 function start(o) {
   if (process.platform !== 'win32' || child) return;
   opts = o;
   if (o.apps) apps = o.apps.filter((a) => NAMES[a]);
-  child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '[ScriptBlock]::Create([Console]::In.ReadLine() | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) }).Invoke()'],
-    { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  child = spawn('powershell.exe', LAUNCH, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdin.write(`${Buffer.from(SCRIPT, 'utf8').toString('base64')}\n`);
   send(`apps ${apps.join(',')}`);
   lines = require('readline').createInterface({ input: child.stdout });
@@ -594,5 +603,5 @@ function stop() {
 
 module.exports = {
   start, stop, setApps, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)),
-  _test: { SCRIPT, robloxMessages, readLog, discordContext, judge, phonelinkMessages, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
+  _test: { SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
 };
