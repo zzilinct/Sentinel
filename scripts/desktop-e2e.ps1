@@ -148,6 +148,34 @@ Set-Clipboard -Value 'eggs, milk, bread'
 Start-Sleep 4
 $clip = Get-Clipboard -Raw
 Check 'clickfix-ordinary' ($clip.Trim() -eq 'eggs, milk, bread') "clipboard after copying ordinary text: $clip"
+# A developer's snippet copied with the browser in front is left alone: a shell prompt, a "human-readable" or
+# "verify the checksum" comment is not a fake check.
+Say "Edge in front: $(Front 'msedge')"
+$flaggedBefore = ([regex]::Matches((AppLog), 'copied command (stopped|flagged)')).Count
+foreach ($snippet in @('$ df -h  # human-readable', 'curl -LO https://downloads.test/tool.tar.gz  # then verify the checksum')) {
+  Set-Clipboard -Value $snippet
+  Start-Sleep 4
+  $clip = (Get-Clipboard -Raw) + ''
+  Check 'clickfix-snippet' ($clip.Trim() -eq $snippet) "clipboard after copying a developer snippet in the browser: $clip"
+}
+Check 'clickfix-snippet-log' (([regex]::Matches((AppLog), 'copied command (stopped|flagged)')).Count -eq $flaggedBefore) 'app.log: no copied command stopped or flagged for the snippets'
+# The clipboard is read every half second only while a browser is in front; with another program in front, every 1.5 s.
+function ClipStatus { return (Cdp 'main' "process.mainModule.require('./clipwatch').status()").value }
+$a = ClipStatus; Start-Sleep 6; $b = ClipStatus
+Check 'clickfix-fast-in-browser' ($b.every -eq 500 -and ($b.reads - $a.reads) -ge 8) "browser in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
+Start-Process notepad
+Start-Sleep 3
+Say "Notepad in front: $(Front 'notepad')"
+Start-Sleep 3
+$a = ClipStatus; Start-Sleep 6; $b = ClipStatus
+Check 'clickfix-slow-elsewhere' ($b.every -eq 1500 -and ($b.reads - $a.reads) -le 5) "another program in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
+# The same kind of command copied in another program is the person's own: told about, never taken off the clipboard.
+$command2 = 'powershell -w hidden -enc ' + [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes('Write-Output there'))
+Set-Clipboard -Value $command2
+$ok = Until 10 { (AppLog) -match 'copied command flagged \(copied in a program\)' }
+$clip = (Get-Clipboard -Raw) + ''
+Check 'clickfix-program-told' ($ok -and $clip.Trim() -eq $command2) "copied in Notepad: told ($ok), clipboard left alone: $($clip.Substring(0, [Math]::Min(40, $clip.Length)))"
+Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 # 5. Tech-support scam shield: the real AnyDesk, downloaded and started.
 $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null

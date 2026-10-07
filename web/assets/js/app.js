@@ -2014,7 +2014,8 @@
             <input class="switch" type="checkbox" data-defense ${df.active ? 'checked' : ''} ${df.supported ? '' : 'disabled'}></label>
           <label class="setting"><div><b>Download protection</b><span>${esc(info.downloads.active ? `Watching ${info.downloads.folder || 'Downloads'}` : info.downloads.reason || 'Off')}</span></div><input class="switch" type="checkbox" data-dl ${info.downloads.active ? 'checked' : ''}></label>
           ${desktop.setClipboardCheck ? `<label class="setting"><div><b>Check links I copy</b><span>Copy a link from a text message, a chat or a PDF and Sentinel checks it, and warns you only if it is dangerous. Only copied web links are read; nothing else on your clipboard is sent or kept.</span></div><input class="switch" type="checkbox" data-clip ${info.clipboardCheck ? 'checked' : ''}></label>` : ''}
-          ${desktop.setCommandShield && info.platform === 'win32' ? `<label class="setting"><div><b>Stop pasted commands</b><span>Fake "I am not a robot" pages copy a command and ask you to paste it into Windows. While a browser is open, Sentinel takes such a command off your clipboard and tells you, with a way to put it back. Copied text is checked on this computer and never sent or kept.</span></div><input class="switch" type="checkbox" data-shield ${info.commandShield ? 'checked' : ''}></label>` : ''}
+          ${desktop.setCommandShield && info.platform === 'win32' ? `<label class="setting"><div><b>Stop pasted commands</b><span>Fake "I am not a robot" pages copy a command and ask you to paste it into Windows. When you copy such a command in a browser, Sentinel takes it off your clipboard and tells you, with a way to put it back. Copied in another program, it only tells you. Copied text is checked on this computer and never sent or kept.</span></div><input class="switch" type="checkbox" data-shield ${info.commandShield ? 'checked' : ''}></label>
+          ${desktop.commandPutBack ? '<div class="setting" data-held hidden><div><b>Stopped command</b><span data-held-text></span></div><button class="btn btn--sm" data-put-back>Put it back</button></div>' : ''}` : ''}
           ${desktop.setRemoteGuard && info.remoteGuard && info.remoteGuard.supported ? `<label class="setting"><div><b>Tech-support scam shield</b><span>When a page flagged as a scam takes the whole screen, Sentinel offers to close it. When a remote-control program such as AnyDesk or TeamViewer starts soon after a flagged page, or soon after it was downloaded, Sentinel asks whether someone on the phone told you to install it. Nothing is stopped unless you say so.${info.remoteGuard.trusted.length ? ` You use ${esc(info.remoteGuard.trusted.join(', '))} yourself.` : ''}</span></div><input class="switch" type="checkbox" data-remote-guard ${info.remoteGuard.enabled ? 'checked' : ''}></label>
           ${info.remoteGuard.trusted.length ? '<div class="setting"><div><b>Programs you use yourself</b><span>Sentinel does not ask about these.</span></div><button class="btn btn--sm" data-forget-remote>Ask again</button></div>' : ''}` : ''}
           <label class="setting"><div><b>Start with my computer</b><span>Keep protection running from the moment you sign in.</span></div><input class="switch" type="checkbox" data-login ${info.openAtLogin ? 'checked' : ''}></label>
@@ -2180,6 +2181,27 @@
         toast(shieldSwitch.checked ? 'Stop pasted commands is on.' : 'Stop pasted commands is off.', 'success');
       } catch (err) { shieldSwitch.checked = !shieldSwitch.checked; toast(desktopError(err), 'error'); }
     });
+    // "Put it back" under the switch, for the two minutes Sentinel holds a stopped command (the notification has it too).
+    const heldRow = $('[data-held]', slot);
+    if (heldRow) {
+      let hideTimer = null;
+      const showHeld = (h) => {
+        clearTimeout(hideTimer);
+        heldRow.hidden = !h || h.until <= Date.now();
+        if (heldRow.hidden) return;
+        const at = new Date(h.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        $('[data-held-text]', heldRow).textContent = `Taken off your clipboard at ${at}${h.host ? `, copied from ${h.host}` : ''}. ${h.reason}. If you trust it, you can put it back for two minutes.`;
+        hideTimer = setTimeout(() => { heldRow.hidden = true; }, h.until - Date.now());
+      };
+      showHeld(info.commandHeld);
+      if (desktop.onCommand) slot._off.push(desktop.onCommand((h) => { if (slot.isConnected) showHeld(h); }));
+      $('[data-put-back]', heldRow).addEventListener('click', async () => {
+        try {
+          const r = await desktop.commandPutBack();
+          toast(r.ok ? `The command is back on your clipboard. ${r.message}` : r.message, r.ok ? 'success' : 'info');
+        } catch (err) { toast(desktopError(err), 'error'); }
+      });
+    }
     const shield = $('[data-remote-guard]', slot);
     if (shield) shield.addEventListener('change', async () => {
       try {
