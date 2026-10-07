@@ -39,9 +39,9 @@
       </style>
       <div class="wrap" role="alertdialog" aria-modal="true" aria-labelledby="t">
         <div class="panel">
-          <h1 id="t">Sentinel stopped this page from copying a command</h1>
+          <h1 id="t">Sentinel stopped a copied command</h1>
           <div class="why"></div>
-          <p>No real check, CAPTCHA or fix ever asks you to paste a command into Windows (Windows key + R), PowerShell or a terminal. Nothing was copied.</p>
+          <p>No real check, CAPTCHA or fix ever asks you to paste a command into Windows (Windows key + R), PowerShell or a terminal. Sentinel kept the command off your clipboard.</p>
           <div class="row"><button class="go">Take me back to safety</button><button class="on">Close</button></div>
           <div class="foot"><b>SENTINEL</b></div>
         </div>

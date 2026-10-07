@@ -62,7 +62,7 @@ test('offline: shipped threats are confirmed, verified sites trusted, and a list
   const plain = scanAddress('https://example-bakery.com/');
   assert.equal(plain.discounted, false);
   assert.ok(!checksOf('https://example-bakery.com/').some((c) => NOT_RUN.has(c.group) && c.status === 'pass'), 'no list or comparison check reads as passed');
-  assert.deepEqual(scanAddress('not a link at all'), { ok: false, message: 'That doesn’t look like a web address.' });
+  assert.deepEqual(scanAddress('not a link at all'), { ok: false, message: 'That does not look like a web address.' });
   assert.equal(scanAddress('').ok, false);
 });
 

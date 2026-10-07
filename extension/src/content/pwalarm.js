@@ -119,10 +119,12 @@
 
   /* ----------------------------------------------------------------- alarm */
 
+  // The password steps are the shared ones (steps.js, loaded just before this), the same words the site and the
+  // Windows app use.
   const LOGIN_STEPS = (name) => [
     'Sentinel emptied the password box. Do not type it here again.',
-    `This page may have read some of it as you typed. To be safe, change your ${name} password now on the real site (type its address yourself), and anywhere else you use it.`,
-    `Turn on two-step sign-in for your ${name} account.`
+    `This page may have read some of your ${name} password as you typed. ${globalThis.SentinelSteps.text.password}`,
+    globalThis.SentinelSteps.text.twostep
   ];
 
   let shown = null;

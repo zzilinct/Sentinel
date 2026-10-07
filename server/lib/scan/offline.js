@@ -46,7 +46,7 @@ function shippedKnowledge(p) {
 function scanAddress(raw) {
   const url = typeof raw === 'string' && raw.trim() ? typedUrl(raw) : null;
   const p = url ? analyze(url) : null;
-  if (!p) return { ok: false, message: 'That doesn’t look like a web address.' };
+  if (!p) return { ok: false, message: 'That does not look like a web address.' };
   return assess(p).verdict;
 }
 

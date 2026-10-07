@@ -342,13 +342,13 @@ async function checkCompanion() {
     const write = (t) => evalIn(browser, s, `navigator.clipboard.writeText(${JSON.stringify(t)}).then(() => navigator.clipboard.readText())`, { userGesture: true }).catch((err) => `error: ${err.message}`);
     const wrapped = await evalIn(browser, s, "!/\\[native code\\]/.test(Function.prototype.toString.call(navigator.clipboard.writeText))");
     const afterFine = await write(FINE);
-    const warnedFine = /stopped this page from copying a command/.test(await pageText(browser, s));
+    const warnedFine = /stopped a copied command/.test(await pageText(browser, s));
     result(`companion: an ordinary command (${FINE}) is copied, with no warning`, afterFine === FINE && !warnedFine, { wrapped, clipboard: afterFine, warned: warnedFine });
     const afterBad = await write(BAD);
     let clipText = '';
-    for (let i = 0; i < 20 && !/stopped this page from copying a command/.test(clipText); i++) { await sleep(150); clipText = await pageText(browser, s); }
+    for (let i = 0; i < 20 && !/stopped a copied command/.test(clipText); i++) { await sleep(150); clipText = await pageText(browser, s); }
     await shot(browser, s, 'companion-clipguard');
-    const warnedBad = /Sentinel stopped this page from copying a command/.test(clipText) && /hidden window/.test(clipText);
+    const warnedBad = /Sentinel stopped a copied command/.test(clipText) && /hidden window/.test(clipText);
     result('companion: a ClickFix-shaped command is not copied, and the warning shows', afterBad === FINE && warnedBad, { clipboard: afterBad, warned: warnedBad, onScreen: clipText.slice(0, 300) });
   } finally {
     await close();

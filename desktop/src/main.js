@@ -536,7 +536,10 @@ async function guardAction(action, arg) {
     return { ok };
   }
   if (action === 'trust-tool') {
-    if (!remoteguard.byId[arg]) return { ok: false };
+    const tool = remoteguard.byId[arg];
+    if (!tool) return { ok: false };
+    // Never asking about a program again weakens the shield: on a locked computer it needs the PIN, as in the tray.
+    if (!trayGuard(`asking about ${tool.name} off`, true)) return { ok: false, locked: true };
     store.set('remoteTrusted', [...new Set([...trustedRemote(), arg])]);
     return { ok: true };
   }
@@ -583,7 +586,7 @@ function refreshTray() {
     ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => { if (trayGuard('auto scanning off', !item.checked)) setAutoScan(item.checked).catch(() => {}); } }] : []),
     ...(process.platform === 'win32' ? [{ label: 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { if (trayGuard('chat safety off', !item.checked)) { setChatSafety(item.checked); refreshTray(); } } }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => { if (trayGuard('starting with the computer off', !item.checked)) setOpenAtLogin(item.checked); } },
-    ...(process.platform === 'win32' ? [{ label: 'Check my texts (Phone Link)', type: 'checkbox', checked: store.get('textSafety', false), click: (item) => { if (trayGuard('text checks off', !item.checked)) { setTextSafety(item.checked); refreshTray(); } } }] : []),
+    ...(process.platform === 'win32' ? [{ label: 'Check my texts', type: 'checkbox', checked: store.get('textSafety', false), click: (item) => { if (trayGuard('Check my texts off', !item.checked)) { setTextSafety(item.checked); refreshTray(); } } }] : []),
     { type: 'separator' },
     updateItem(up),
     { label: 'Open log folder', click: () => shell.showItemInFolder(server.logPath()) },
@@ -809,7 +812,7 @@ function syncClipboard() {
     page: () => (pageInFront && Date.now() - pageInFront.at < 10 * 60 * 1000 ? pageInFront : undefined),
     onDanger: (d) => notify(`Careful: the link you copied is a ${d.label.toLowerCase()}`, `${d.host}${d.reason ? ` - ${d.reason}` : ''}. Click to see why.`, () => showWindow(`/app/scan?url=${encodeURIComponent(d.url)}`)),
     onCommand: (c) => (c.action === 'stop'
-      ? notify('Sentinel stopped a command you copied', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Never paste a command a website gives you into Windows. Click to put it back if you trust it.`, () => { clipwatch.putBack().then((ok) => { if (ok) notify('The command is back on your clipboard', 'Only run it if you know exactly what it does.'); }); })
+      ? notify('Sentinel stopped a copied command', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Sentinel took the command off your clipboard. Never paste a command a website gives you into Windows. Click to put it back if you trust it.`, () => { clipwatch.putBack().then((ok) => { if (ok) notify('The command is back on your clipboard', 'Only run it if you know exactly what it does.'); }); })
       : notify('Careful with the command you copied', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Only run it if you know exactly what it does and who it came from.`))
   });
 }
@@ -1022,7 +1025,7 @@ function registerBridge() {
   handle('sentinel:chat-safety', (enabled) => { lock.guard('chat safety off', !enabled); return setChatSafety(Boolean(enabled)); });
   handle('sentinel:set-remote-guard', (enabled) => { lock.guard('the tech-support scam shield off', !enabled); store.set('remoteGuard', Boolean(enabled)); if (!enabled) closeGuard(); return remoteGuardStatus(); });
   handle('sentinel:forget-trusted-remote', () => { store.set('remoteTrusted', []); return remoteGuardStatus(); });
-  handle('sentinel:text-safety', (enabled) => { lock.guard('text checks off', !enabled); return setTextSafety(Boolean(enabled)); });
+  handle('sentinel:text-safety', (enabled) => { lock.guard('Check my texts off', !enabled); return setTextSafety(Boolean(enabled)); });
   handle('sentinel:live-start', () => { setAutoSession(false); return startScanning(); });
   handle('sentinel:live-stop', () => { lock.guard('live scanning off', true); return setLiveScanning(false, { byPerson: true }); });
   handle('sentinel:auto-scan', (enabled) => { lock.guard('auto scanning off', !enabled); return setAutoScan(Boolean(enabled)); });
@@ -1069,13 +1072,13 @@ function registerBridge() {
   handle('sentinel:check-updates', () => updater.check());
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
   handle('sentinel:set-clipboard-check', (enabled) => { lock.guard('checking copied links off', !enabled); return setClipboardCheck(Boolean(enabled)); });
-  handle('sentinel:set-command-shield', (enabled) => { lock.guard('the command shield off', !enabled); return setCommandShield(Boolean(enabled)); });
+  handle('sentinel:set-command-shield', (enabled) => { lock.guard('Stop pasted commands off', !enabled); return setCommandShield(Boolean(enabled)); });
   handle('sentinel:set-defense', (enabled) => { lock.guard('defense off', !enabled); store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
   handle('sentinel:set-exposure-alerts', (enabled) => { lock.guard('exposure alerts off', !enabled); return setExposureAlerts(Boolean(enabled)); });
   handle('sentinel:exposures', async () => (ORIGIN ? (await apiCall('/api/v1/live/exposures')).items || [] : []));
   handle('sentinel:exposure-dismiss', async (host) => (await apiCall('/api/v1/live/exposures/dismiss', { host: String(host).slice(0, 253) })).ok);
   handle('sentinel:exposure-downloads', (day) => checkDownloadsFrom(day));
-  handle('sentinel:defense-restore', (id) => defense.restore(String(id)));
+  handle('sentinel:defense-restore', (id) => { lock.guard('a quarantined file back', true, ['put', 'Put']); return defense.restore(String(id)); });
   handle('sentinel:defense-act', (id) => defense.act(String(id)));
   handle('sentinel:install-update', () => updater.install());
   // The text of an email screenshot, read on this computer by Windows (ocr.js); the images are not kept.
@@ -1093,6 +1096,8 @@ function registerBridge() {
   handle('sentinel:set-token', (token, userId) => {
     if (typeof token !== 'string' || token.length < 20 || token.length > 200) throw new Error('Invalid token');
     if (typeof userId !== 'string' || !/^usr_[a-f0-9]{24}$/.test(userId)) throw new Error('Invalid account');
+    // Another account may have a smaller plan (no Pro download protection, fewer live minutes).
+    lock.guard('to another account', Boolean(store.getSecret('token')) && store.get('pairedUserId', null) !== userId);
     store.setSecret('token', token);
     store.set('pairedUserId', userId);
     downloads.restart();
@@ -1102,6 +1107,7 @@ function registerBridge() {
   });
 
   handle('sentinel:clear-token', () => {
+    lock.guard('to this computer\'s own account', Boolean(store.getSecret('token')));
     store.setSecret('token', null);
     store.set('pairedUserId', null);
     // Protection carries on under this computer's own account.

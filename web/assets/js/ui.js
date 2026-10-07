@@ -288,15 +288,18 @@ window.UI = (() => {
    * scam"; the first thing a frightened person asks is "I already typed my password, what now?". No phone numbers
    * of our own: where a call is right, it is to the number on the person's card or the company's own site.
    */
+  // The steps several places share (tech support, passwords) come from steps.js, so they never disagree. Pages that
+  // never show a result do not load it.
+  const S = (window.SentinelSteps && window.SentinelSteps.text) || {};
   const LOGIN = [
     'Do not type anything on this page.',
-    'Already entered a password? Change it now on the real site (type its address yourself), and anywhere else you use it.',
-    'Turn on two-step sign-in for that account.',
+    S.password && `Already entered a password? ${S.password}`,
+    S.twostep,
     'Entered card details? Call the number on the back of your card and ask for a new one.'
   ];
   const FILE = [
     'Do not open the file. Delete it, or let Sentinel Defense quarantine it.',
-    'Already opened it? Disconnect from the internet and run a full scan in Windows Security.',
+    'Already opened it? Turn off Wi-Fi or unplug the cable, and run a full scan in Windows Security.',
     'Then change important passwords (email, bank) from another device.'
   ];
   const NEXT_STEPS = {
@@ -311,11 +314,7 @@ window.UI = (() => {
       'Check your parcel on the carrier\'s own site by typing its address yourself.',
       'Already paid? Call your bank or card issuer, using the number on your card, and report the charge.'
     ],
-    support: [
-      'Close the page. Real companies never put a phone number in a warning like this.',
-      'Do not call the number, and do not let anyone connect to your computer.',
-      'Already let someone in? Disconnect from the internet, run a full scan, and change passwords from another device.'
-    ],
+    support: ['Close the page.', S['no-call'], S['no-connect'], S['let-in']],
     prize: ['You did not win anything you never entered. Close the page.', 'Never pay a "fee" or give card details to claim a prize.'],
     store: ['Do not buy here: prices this low with no real contact details are how fake stores work.', 'Already paid? Ask your card issuer for a chargeback, using the number on your card.'],
     government: ['Government services never ask for payment through a link like this.', 'Go to the official site by typing its address yourself, or call the number printed on your letters.'],
@@ -324,7 +323,7 @@ window.UI = (() => {
     disguised: FILE, macro: [...FILE.slice(0, 1), 'Never click "Enable editing" or "Enable content" on a document you did not expect.', ...FILE.slice(1)],
     archive: FILE, program: FILE, sample: FILE, stealer: FILE, drop: FILE, known: FILE,
     fake_update: ['Your browser updates itself from its own settings, never from a web page. Close this page.', ...FILE.slice(1)],
-    paste_command: ['Do not paste anything into Run, PowerShell or Terminal: that is how this page would install malware.', 'Already did? Restart the computer, run a full scan in Windows Security, and change passwords from another device.'],
+    paste_command: ['Do not paste anything into Run, PowerShell or Terminal: that is how this page would install malware.', S['ran-it']],
     miner: ['Close the page: it uses your computer to mine cryptocurrency.'],
     notification: ['Do not click "Allow". If you already did, remove the site from your browser\'s notification settings.'],
     hidden: ['Close the page. It hides what it does, which is how drive-by attacks start.']
@@ -345,7 +344,7 @@ window.UI = (() => {
     const title = head.tone === 'yellow' ? 'If you are not sure' : 'What to do now';
     // Past the first steps (money sent, an ID number given, someone let in), the recovery guide puts everything in order.
     const more = head.tone === 'yellow' ? '' : `<p class="next-steps__more">Already clicked, paid or let someone in? <a href="${recoverHref(head)}">Open the recovery guide</a> for every step, in order.</p>`;
-    return `<div class="next-steps next-steps--${head.tone}"><h3>${title}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${more}</div>`;
+    return `<div class="next-steps next-steps--${head.tone}"><h3>${title}</h3><ol>${steps.filter(Boolean).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${more}</div>`;
   }
 
   function verdict(v, { lockedLabel } = {}) {

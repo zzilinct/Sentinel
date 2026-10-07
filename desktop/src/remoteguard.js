@@ -11,7 +11,8 @@
  * file names download protection already lists. It reads no screen, window, page or file, and it never stops a
  * program by itself: only the person's "End the connection" does that.
  */
-const { BRANDS } = require('../shared/brands');
+const { MONEY_DOMAINS } = require('../shared/brands');
+const { analyze } = require('../shared/url');
 
 // The programs these scams ask people to install. Process names as Windows reports them, without ".exe", lower case.
 const TOOLS = [
@@ -44,20 +45,19 @@ function reasonFor(tool, { flaggedAt = 0, downloads = [], now = Date.now() } = {
   return fresh ? 'download' : null;
 }
 
-// Banks, payment services and exchanges, from the brands Sentinel already knows. A remote-control program running
-// while one of these is open is the moment the money moves.
-const MONEY = new Set(['paypal', 'venmo', 'zelle', 'cashapp', 'wise', 'revolut', 'chase', 'wellsfargo', 'bankofamerica', 'citibank',
-  'capitalone', 'americanexpress', 'usaa', 'truist', 'santander', 'hsbc', 'barclays', 'natwest', 'lloyds', 'interac', 'mercadopago',
-  'navyfederal', 'monzo', 'desjardins', 'scotiabank', 'tdbank', 'commbank', 'westpac', 'schwab', 'etrade', 'axisbank', 'coinbase', 'binance', 'kraken']);
-const MONEY_DOMAINS = BRANDS.filter((b) => MONEY.has(b.token)).flatMap((b) => b.domains);
-
-/** Is this address a bank's or a payment service's own site? */
+/**
+ * Is this address a bank's or a payment service's own site? A remote-control program running while one of these is
+ * open is the moment the money moves. The list is shared (brands.js MONEY_DOMAINS). Banks it does not name count when
+ * the site's own name says so as a word of its own (example-bank.com, river-cu.org) or the address ends in .bank or
+ * .creditunion, which only banks can register. "bank" inside a longer word (bankrate.com, databank.com) does not.
+ */
 function moneySite(url) {
   let host;
   try { host = new URL(String(url)).hostname.toLowerCase().replace(/\.$/, ''); } catch { return false; }
   if (MONEY_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`))) return true;
-  // Banks Sentinel has no list for: "bank" in the site's own name (usbank.com, onlinebanking.example-cu.org).
-  return /bank|creditunion/.test(host);
+  if (/\.(bank|creditunion)$/.test(host)) return true;
+  const p = analyze(`http://${host}/`);
+  return Boolean(p) && /^(.+-)?(bank|banking|cu|fcu|creditunion)(-.+)?$/.test(p.sld);
 }
 
 /**

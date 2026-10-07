@@ -21,21 +21,24 @@
     { id: 'identity', label: 'I gave my ID number (Social Security, National Insurance, SIN, TFN or passport)' }
   ];
 
+  // The steps other places give too come from steps.js, so the shield, the results and this guide never disagree.
+  const T = (typeof SentinelSteps !== 'undefined' ? SentinelSteps : require('./steps.js')).text;
+
   // when: 0 right now, 1 today, 2 this week. A step with no `for` is for everyone.
   const STEPS = [
     { id: 'stop', when: 0, text: 'Stop all contact. Do not reply, call back or pay anything more, whatever they say will happen.' },
-    { id: 'offline', when: 0, for: ['remote', 'file'], text: 'Disconnect this computer from the internet: turn off Wi-Fi or unplug the cable.' },
-    { id: 'remote-off', when: 0, for: ['remote'], text: 'Close and uninstall the program they had you open (AnyDesk, TeamViewer, Quick Assist or similar). If you cannot, shut the computer down.' },
+    { id: 'offline', when: 0, for: ['remote', 'file'], text: T.offline },
+    { id: 'remote-off', when: 0, for: ['remote'], text: T['remote-off'] },
     { id: 'card', when: 0, for: ['card'], text: 'Call the number on the back of your card. Say the details were stolen, ask them to block the card and send a new one, and ask about any payments you did not make.' },
     { id: 'bank', when: 0, for: ['bank'], text: 'Call your bank or payment app, using the number on your card or in the real app. Say you were scammed and ask them to stop or recall the payment. Call now: a payment is easier to stop before it settles.' },
     { id: 'giftcard', when: 0, for: ['giftcard'], text: 'Contact the company that issued the gift cards, using the number on the card or its own site. Give them the card numbers and ask them to freeze what is left. Keep the cards and receipts.' },
     { id: 'crypto-move', when: 0, for: ['crypto'], text: 'Gave a recovery phrase? Make a new wallet with a new phrase and move what is left there now. The old wallet is not safe any more.' },
     { id: 'crypto-revoke', when: 1, for: ['crypto'], text: 'Signed an approval on a site? Revoke it from your wallet. Sent crypto from an exchange? Report the transfer to that exchange through its own site.' },
-    { id: 'password', when: 0, for: ['password', 'code'], text: 'Change the password on the real site (type its address yourself), and anywhere else you use the same password.' },
+    { id: 'password', when: 0, for: ['password', 'code'], text: T.password },
     { id: 'sessions', when: 1, for: ['password', 'code', 'remote'], text: 'In that account\'s security settings, sign out every other device, and remove any recovery email, phone number or mail forwarding you do not recognise.' },
-    { id: 'twostep', when: 1, for: ['password', 'code'], text: 'Turn on two-step sign-in, and never read a code out to anyone: a real company never asks for one.' },
-    { id: 'scan', when: 1, for: ['remote', 'file'], text: 'Run a full scan: open Windows Security, then Virus & threat protection, Scan options, Full scan. Sentinel can check the file they sent too.' },
-    { id: 'other-device', when: 1, for: ['remote', 'file'], text: 'From another phone or computer, change the passwords for your email and your bank first, then the rest.' },
+    { id: 'twostep', when: 1, for: ['password', 'code'], text: T.twostep },
+    { id: 'scan', when: 1, for: ['remote', 'file'], text: `${T.scan} Sentinel can check the file they sent too.` },
+    { id: 'other-device', when: 1, for: ['remote', 'file'], text: T['other-device'] },
     { id: 'identity', when: 1, for: ['identity'], text: 'Ask for a fraud alert or a credit freeze, so nobody can open accounts or borrow in your name. Where to do that is in the reporting list below.' },
     { id: 'statements', when: 1, for: ['card', 'bank', 'identity'], text: 'Read your statements for the last few weeks and the next few months, and report anything you do not recognise.' },
     { id: 'notes', when: 1, text: 'Write down what happened while you remember it: dates, amounts, names, phone numbers, website addresses and how you paid. Keep screenshots, emails and receipts.' },
