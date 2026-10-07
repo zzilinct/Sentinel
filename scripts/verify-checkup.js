@@ -172,18 +172,26 @@ async function prepareChromium(b) {
     // does not take what was set before it along.
     await sleep(11000);
 
-    const { targetId } = await send('Target.createTarget', { url: `${b.settings}/content/notifications` });
-    const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-    let ready = false;
-    for (let i = 0; i < 80 && !ready; i++) {
-      await sleep(250);
-      ready = await send('Runtime.evaluate', { expression: "document.readyState === 'complete' && typeof chrome !== 'undefined' && typeof chrome.send === 'function'", returnByValue: true }, sessionId).then((r) => r.result.value, () => false);
-    }
-    out.settingsPage = ready;
+    // Each setting on its own page of the browser's settings, the way a person gets there, so the page itself
+    // has started the handler it needs (Chrome crashes when a handler is driven before its page started it).
+    const open = async (page) => {
+      const { targetId } = await send('Target.createTarget', { url: `${b.settings}/${page}` });
+      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+      let ready = false;
+      for (let i = 0; i < 80 && !ready; i++) {
+        await sleep(250);
+        ready = await send('Runtime.evaluate', { expression: "document.readyState === 'complete' && typeof chrome !== 'undefined' && typeof chrome.send === 'function'", returnByValue: true }, sessionId).then((r) => r.result.value, () => false);
+      }
+      await sleep(1500);
+      return sessionId;
+    };
+    let sessionId = await open('content/notifications');
     await step('init', () => evalIn(sessionId, STEPS.init));
     await step('notifications', () => evalIn(sessionId, STEPS.notifications(C)));
     await step('startup', () => evalIn(sessionId, STEPS.startup(C)));
     await sleep(11000);
+    sessionId = await open('searchEngines');
+    await step('initSearch', () => evalIn(sessionId, STEPS.init));
     await step('search', () => evalIn(sessionId, STEPS.search(C)));
     await step('extC', () => send('Extensions.loadUnpacked', { path: extDir('C') }).then((r) => r.id));
     await sleep(2000);
