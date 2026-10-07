@@ -293,7 +293,7 @@ window.UI = (() => {
   const S = (window.SentinelSteps && window.SentinelSteps.text) || {};
   const LOGIN = [
     'Do not type anything on this page.',
-    `Already entered a password? ${S.password}`,
+    S.password && `Already entered a password? ${S.password}`,
     S.twostep,
     'Entered card details? Call the number on the back of your card and ask for a new one.'
   ];
