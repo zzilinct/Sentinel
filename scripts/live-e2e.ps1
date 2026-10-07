@@ -60,6 +60,8 @@ Start-Process $exe -ArgumentList '--hidden'
 $up = $false
 for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }
 Say "scanner up: $up"
+# A start that failed: what was on the screen (a crash dialog says why; app.log is uploaded either way).
+if (-not $up) { Shot 'not-started' }
 Start-Sleep 20
 # Pro for this test desktop's account (inbox and download protection are Pro features), then a fresh start so
 # download protection sees the plan.
