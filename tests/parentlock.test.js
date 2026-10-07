@@ -130,7 +130,7 @@ test('a quarantined file, the shield\'s "I use it myself" and the account need t
   assert.equal(store.data.parentLockRecord[0].text, 'Put a quarantined file back with the PIN');
   const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'desktop', 'src', 'main.js'), 'utf8');
   assert.match(main, /handle\('sentinel:defense-restore', \(id\) => \{ lock\.guard\('a quarantined file back', true, \['put', 'Put'\]\);/);
-  assert.match(main, /action === 'trust-tool'[\s\S]{0,300}trayGuard\(`asking about \$\{tool\.name\} off`, true\)/);
+  assert.match(main, /action === 'trust-tool'[\s\S]{0,300}lock\.guard\(`asking about \$\{tool\.name\} off`, true\)/);
   assert.match(main, /handle\('sentinel:set-token'[\s\S]{0,400}lock\.guard\('to another account'/);
   assert.match(main, /handle\('sentinel:clear-token', \(\) => \{\s*lock\.guard\('to this computer\\'s own account'/);
 });
