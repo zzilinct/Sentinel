@@ -930,15 +930,17 @@ async function checkDownloadsFrom(day) {
  * is changed: the person removes what they choose, in the browser.
  */
 async function runCheckup() {
-  const result = await checkup.collect();
+  const result = await checkup.collectAside();
   const urls = checkup.addressesOf(result);
   const byUrl = {};
-  let sitesChecked = true;
+  let sitesWhy = null;
   for (let i = 0; i < urls.length; i += 60) {
     try {
-      Object.assign(byUrl, (await apiCall('/api/v1/live/batch', { urls: urls.slice(i, i + 60), private: true, mode: 'fast' })).byUrl || {});
+      // `purpose`: a checkup is not browsing, so it spends no live-scanning minutes.
+      Object.assign(byUrl, (await apiCall('/api/v1/live/batch', { urls: urls.slice(i, i + 60), private: true, mode: 'fast', purpose: 'checkup' })).byUrl || {});
     } catch (err) {
-      sitesChecked = false;
+      // Said in the app as it is: signed out, the server's own words (a limit), or no connection.
+      sitesWhy = err.status === 401 ? 'Sentinel is not signed in.' : err.status ? String(err.message) : 'Sentinel could not reach its scanner just now.';
       appLog(`checkup: site addresses could not be checked: ${err.status || ''} ${err.code || err.message}`);
       break;
     }
@@ -946,7 +948,7 @@ async function runCheckup() {
   const addons = result.browsers.reduce((n, b) => n + b.profiles.reduce((m, p) => m + p.addons.length, 0), 0);
   // Counts only: no add-on, site or address is written to the log.
   appLog(`checkup: ${result.browsers.length} browser(s), ${addons} add-on(s), ${urls.length} site address(es) read`);
-  return { ...checkup.attach(result, byUrl), sitesChecked: sitesChecked || !urls.length, at: Date.now() };
+  return { ...checkup.attach(result, byUrl), sitesChecked: !sitesWhy, sitesWhy, at: Date.now() };
 }
 
 // A file in Downloads is checked by download protection and by Defense: one notification about it, not two.

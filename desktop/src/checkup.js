@@ -4,35 +4,30 @@
  * computer, looked over for the ones scammers and unwanted software plant.
  *
  * What it reads, only when the person runs the checkup, and only to read: each browser profile's own settings files.
- *   Chrome, Edge, Brave, Vivaldi   Preferences and Secure Preferences (installed add-ons, the sites allowed to send
- *                                  notifications, the search engine, the pages it opens on start), and each add-on's
+ *   Chrome, Edge, Brave, Vivaldi,  Preferences and Secure Preferences (installed add-ons, the sites allowed to send
+ *   Opera, Opera GX                notifications, the search engine, the pages it opens on start), and each add-on's
  *                                  manifest.json (its name and what it may do).
- *   Firefox, LibreWolf             extensions.json, prefs.js (the home page), and permissions.sqlite (notification
+ *   Firefox, LibreWolf             profiles.ini (which profiles are in use), extensions.json, prefs.js (the home page),
+ *                                  search.json.mozlz4 (the search engine), and permissions.sqlite (notification
  *                                  permissions), read from a copy in a private temporary folder that is deleted at once.
  *   Windows                        the browser policy keys in the registry (HKCU and HKLM\Software\Policies).
+ * The browsers, and where each keeps its settings, are browsers.js BROWSERS: one list for the whole app. One it cannot
+ * read yet (DuckDuckGo) is named in the result as not checked, never silently left out.
  * History, passwords, cookies, form data and open tabs are never opened. Nothing is written: a browser checks its
  * own settings files, and one half-written by another program is worse than a bad add-on. Removing anything is the
  * person's own click, in the browser, where it can be undone.
  * Add-ons are judged on this computer (server/lib/scan/addons.js, loaded here directly). The site addresses found are
  * returned to main.js, which checks them the fast way, by address only: no site is ever opened.
+ * main.js runs it on a worker thread (collectAside): many profiles and large settings files are read without holding
+ * up the app.
  */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
+const { BROWSERS, installed } = require('./browsers');
 const { judgeAddon, judgeSearch, judgePolicies, fromStoreUpdate } = require('../shared/addons');
-
-// Each browser's profiles, under %LOCALAPPDATA% (Chromium) or %APPDATA% (Gecko), and where it keeps its own pages.
-const CHROMIUM = [
-  { id: 'chrome', name: 'Google Chrome', dir: ['Google', 'Chrome', 'User Data'], scheme: 'chrome', policy: 'Google\\Chrome' },
-  { id: 'edge', name: 'Microsoft Edge', dir: ['Microsoft', 'Edge', 'User Data'], scheme: 'edge', policy: 'Microsoft\\Edge' },
-  { id: 'brave', name: 'Brave', dir: ['BraveSoftware', 'Brave-Browser', 'User Data'], scheme: 'brave', policy: 'BraveSoftware\\Brave' },
-  { id: 'vivaldi', name: 'Vivaldi', dir: ['Vivaldi', 'User Data'], scheme: 'vivaldi', policy: null }
-];
-const GECKO = [
-  { id: 'firefox', name: 'Firefox', dir: ['Mozilla', 'Firefox', 'Profiles'], policy: 'Mozilla\\Firefox' },
-  { id: 'librewolf', name: 'LibreWolf', dir: ['librewolf', 'Profiles'], policy: null }
-];
 
 // Where the person goes to look and remove, in each browser. Typed or pasted: a browser does not let another
 // program open its own pages for it.
@@ -155,14 +150,15 @@ function geckoNotifications(profile) {
   }
 }
 
-/** One Gecko profile folder: { addons, notifications, search, startup }. */
-function readGeckoProfile(profile) {
+/** One Gecko profile folder: { addons, notifications, search, startup }. `listedName`: its name in profiles.ini. */
+function readGeckoProfile(profile, listedName = null) {
   const data = readJson(path.join(profile, 'extensions.json')) || {};
   const addons = [];
   for (const a of data.addons || []) {
     if (!a || a.type !== 'extension' || GECKO_BUILT_IN.test(String(a.location || '')) || a.isBuiltin) continue;
     const src = get(a, ['installTelemetryInfo', 'source']);
-    const fromStore = /^https:\/\/addons\.mozilla\.org\//i.test(String(a.sourceURI || '')) || ['amo', 'disco'].includes(src);
+    // 'sync': brought over by Firefox Sync from the person's other computer, which only carries store add-ons.
+    const fromStore = /^https:\/\/addons\.mozilla\.org\//i.test(String(a.sourceURI || '')) || ['amo', 'disco', 'sync'].includes(src);
     const source = a.location === 'temporary-addon' ? 'unpacked'
       : src === 'enterprise-policy' ? 'policy'
         : /^(winreg-app-|app-global$|app-system-user$)/.test(String(a.location || '')) ? 'external'
@@ -183,12 +179,87 @@ function readGeckoProfile(profile) {
     const m = /user_pref\("browser\.startup\.homepage",\s*"((?:[^"\\]|\\.)*)"\)/.exec(prefs);
     if (m) startup = m[1].split('|').map(webOnly).filter(Boolean);
   } catch { /* no prefs yet */ }
-  const name = path.basename(profile).replace(/^[a-z0-9]{8}\./i, '');
-  return { name, addons, notifications: geckoNotifications(profile), search: null, startup };
+  return { name: listedName || path.basename(profile).replace(/^[a-z0-9]{8}\./i, ''), addons, notifications: geckoNotifications(profile), search: geckoSearch(profile), startup };
+}
+
+/** Mozilla's "mozLz40" file: an 8-byte magic, the decompressed size, then one LZ4 block. */
+function mozLz4(buf) {
+  if (buf.length < 12 || buf.toString('latin1', 0, 8) !== 'mozLz40\0') throw new Error('not a mozLz4 file');
+  const size = buf.readUInt32LE(8);
+  if (size > MAX_JSON) throw new Error('too large');
+  const out = Buffer.alloc(size);
+  let i = 12;
+  let o = 0;
+  const more = (n) => { let b; do { b = buf[i++]; n += b; } while (b === 255 && i < buf.length); return n; };
+  while (i < buf.length) {
+    const token = buf[i++];
+    let n = token >> 4;
+    if (n === 15) n = more(n);
+    buf.copy(out, o, i, i + n);
+    i += n;
+    o += n;
+    if (i >= buf.length) break;            // the last sequence is literals only
+    const offset = buf.readUInt16LE(i);
+    i += 2;
+    if (!offset || offset > o) throw new Error('bad block');
+    let m = token & 15;
+    if (m === 15) m = more(m);
+    for (let end = Math.min(o + m + 4, size); o < end; o++) out[o] = out[o - offset];
+  }
+  return out.subarray(0, o);
+}
+
+/**
+ * Firefox's default search engine, from search.json.mozlz4: { name, url, builtIn }, or null when the person kept the
+ * browser's own default. builtIn: one of the engines Firefox itself ships (its list, not ours, says it is known).
+ * Firefox ignores a choice another program wrote without its hash; this reads the choice as written, so one still shows.
+ */
+function geckoSearch(profile) {
+  let data;
+  try {
+    const file = path.join(profile, 'search.json.mozlz4');
+    if (fs.statSync(file).size > MAX_JSON) return null;
+    data = JSON.parse(mozLz4(fs.readFileSync(file)).toString('utf8'));
+  } catch { return null; }
+  const md = (data && data.metaData) || {};
+  const want = (e) => e && ((md.defaultEngineId && e.id === md.defaultEngineId) || (md.current && e._name === md.current));
+  const e = (Array.isArray(data.engines) ? data.engines : []).find(want);
+  if (!e) return null;
+  const u = (Array.isArray(e._urls) ? e._urls : []).find((x) => x && (!x.type || x.type === 'text/html')) || {};
+  return { name: String(e._name || ''), url: String(u.template || ''), builtIn: e._isAppProvided === true || /^\[app\]/.test(String(e._loadPath || '')) };
 }
 
 function subdirs(dir) {
   try { return fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path.join(dir, e.name)); } catch { return []; }
+}
+
+/** Chromium profiles under a "User Data" folder; Opera keeps its one profile in the folder itself (`flat`). */
+function chromiumProfiles(root, flat) {
+  const dirs = subdirs(root).filter((d) => /^(Default|Profile \d+)$/.test(path.basename(d)));
+  if (flat) dirs.unshift(root);
+  return dirs.filter((d) => fs.existsSync(path.join(d, 'Preferences')));
+}
+
+/**
+ * The Gecko profiles in use: the ones profiles.ini lists, with the names the person gave them. A folder it no
+ * longer lists is a leftover the browser never opens, and its old add-ons are not the person's to worry about.
+ * Without profiles.ini (a portable copy), every folder under Profiles.
+ */
+function geckoProfiles(root) {
+  let ini = null;
+  try { ini = fs.readFileSync(path.join(root, 'profiles.ini'), 'utf8'); } catch { /* none */ }
+  const listed = [];
+  if (ini !== null) {
+    for (const section of ini.split(/^\s*\[/m).slice(1)) {
+      const [head, ...lines] = section.split(/\r?\n/);
+      if (!/^Profile\d+\]/i.test(head)) continue;
+      const kv = {};
+      for (const l of lines) { const m = /^\s*([^=;#\s][^=]*?)\s*=\s*(.*?)\s*$/.exec(l); if (m) kv[m[1]] = m[2]; }
+      if (kv.Path) listed.push({ dir: kv.IsRelative === '0' ? kv.Path : path.join(root, ...kv.Path.split(/[\\/]/)), name: kv.Name || null });
+    }
+  }
+  const found = ini !== null ? listed : subdirs(path.join(root, 'Profiles')).map((dir) => ({ dir, name: null }));
+  return found.filter((p) => fs.existsSync(path.join(p.dir, 'extensions.json')) || fs.existsSync(path.join(p.dir, 'prefs.js')));
 }
 
 /** Windows: the policy names set for a browser, from HKCU and HKLM. */
@@ -219,40 +290,55 @@ function isManaged(env = process.env) {
 }
 
 /**
- * Every browser profile on this computer, judged. `roots` replaces %LOCALAPPDATA% and %APPDATA% (tests).
- * Returns { managed, browsers: [{ id, name, places, policies, profiles: [{ name, addons, notifications, search,
- * startup }] }] }, add-ons carrying their verdict, and the site addresses still to be checked by address.
+ * Every browser profile on this computer, judged. `local` and `roaming` replace %LOCALAPPDATA% and %APPDATA% (tests).
+ * Returns { managed, looked, unchecked, browsers: [{ id, open, name, places, policies, profiles: [{ name, addons,
+ * notifications, search, startup }] }] }, add-ons carrying their verdict, and the site addresses still to be checked
+ * by address. `looked`: every browser looked for; `unchecked`: browsers installed here that it cannot read yet.
+ * `open`: the browsers.js id that "Open" brings forward (Opera GX is Opera's).
  */
-async function collect({ local = process.env.LOCALAPPDATA, roaming = process.env.APPDATA, policies = readPolicies, managed = isManaged() } = {}) {
+async function collect({ local = process.env.LOCALAPPDATA, roaming = process.env.APPDATA, policies = readPolicies, managed = isManaged(), present = installed } = {}) {
   const out = [];
-  const add = async (b, profiles) => {
-    const names = b.policy ? await policies(b.policy).catch(() => []) : [];
-    if (!profiles.length && !names.length) return;
-    for (const p of profiles) {
-      for (const a of p.addons) Object.assign(a, judgeAddon(a, { managed }));
-      if (p.search) {
-        const s = judgeSearch(p.search.url);
-        p.search = { ...p.search, ...s, badge: s.host && !s.known ? 'yellow' : null };
+  const looked = [];
+  for (const b of BROWSERS) {
+    for (const [i, d] of (b.data || []).entries()) {
+      const base = d.local ? local : roaming;
+      if (!base) continue;
+      looked.push(d.name || b.name);
+      const root = path.join(base, ...(d.local || d.roaming));
+      const profiles = b.engine === 'gecko'
+        ? geckoProfiles(root).map((p) => readGeckoProfile(p.dir, p.name))
+        : chromiumProfiles(root, d.flat).map((dir) => readChromiumProfile(dir));
+      const names = b.policy && i === 0 ? await policies(b.policy).catch(() => []) : [];
+      if (!profiles.length && !names.length) continue;
+      for (const p of profiles) {
+        for (const a of p.addons) Object.assign(a, judgeAddon(a, { managed }));
+        if (p.search) {
+          const s = judgeSearch(p.search.url);
+          const known = s.known || Boolean(p.search.builtIn);
+          p.search = { ...p.search, ...s, known, badge: s.host && !known ? 'yellow' : null };
+        }
       }
+      out.push({ id: d.id || b.id, open: b.id, name: d.name || b.name, places: places(b), policies: judgePolicies(names, { managed }), profiles });
     }
-    out.push({ id: b.id, name: b.name, places: places(b), policies: judgePolicies(names, { managed }), profiles });
-  };
-  for (const b of CHROMIUM) {
-    if (!local) break;
-    const root = path.join(local, ...b.dir);
-    const profiles = subdirs(root)
-      .filter((d) => /^(Default|Profile \d+)$/.test(path.basename(d)) && fs.existsSync(path.join(d, 'Preferences')))
-      .map((d) => readChromiumProfile(d));
-    await add(b, profiles);
   }
-  for (const b of GECKO) {
-    if (!roaming) break;
-    const profiles = subdirs(path.join(roaming, ...b.dir))
-      .filter((d) => fs.existsSync(path.join(d, 'extensions.json')) || fs.existsSync(path.join(d, 'prefs.js')))
-      .map((d) => readGeckoProfile(d));
-    await add(b, profiles);
-  }
-  return { managed, browsers: out };
+  const unchecked = (await Promise.resolve().then(present).catch(() => [])).filter((b) => !b.data).map((b) => b.name);
+  return { managed, looked, unchecked, browsers: out };
+}
+
+/**
+ * collect() on a worker thread, so reading many profiles and large settings files never holds up the app's main
+ * process (the live-scanning overlay and the tray keep answering). Takes collect's plain options.
+ */
+function collectAside(opts = {}) {
+  return new Promise((resolve, reject) => {
+    const w = new Worker(__filename, { workerData: { checkup: opts } });
+    w.once('message', (m) => (m && m.error ? reject(new Error(m.error)) : resolve(m)));
+    w.once('error', reject);
+    w.once('exit', (code) => reject(new Error(`the checkup stopped (${code})`)));   // after a message: ignored
+  });
+}
+if (!isMainThread && workerData && workerData.checkup) {
+  collect(workerData.checkup).then((r) => parentPort.postMessage(r), (err) => parentPort.postMessage({ error: String(err && err.message) }));
 }
 
 /** The web addresses a checkup found, for the fast scan: notification sites, search engines, startup pages. */
@@ -287,4 +373,4 @@ function attach(result, byUrl = {}) {
   return result;
 }
 
-module.exports = { collect, addressesOf, attach, _test: { readChromiumProfile, readGeckoProfile, patternOrigin, isManaged, places } };
+module.exports = { collect, collectAside, addressesOf, attach, _test: { readChromiumProfile, readGeckoProfile, geckoProfiles, geckoSearch, mozLz4, patternOrigin, isManaged, places } };
