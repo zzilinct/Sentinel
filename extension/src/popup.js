@@ -14,6 +14,22 @@
 
   document.getElementById('settings').onclick = () => ext.runtime.openOptionsPage();
 
+  /** One line on the password alarm, with a link to its setting: what it protects, or that nothing is chosen yet. */
+  async function pwLine() {
+    const el = document.getElementById('pwLine');
+    let accounts = [];
+    try { const { pwalarm } = await ext.storage.local.get('pwalarm'); accounts = Object.values((pwalarm && pwalarm.accounts) || {}).filter((a) => a.on); } catch { /* storage unreadable */ }
+    const learned = (a) => (Array.isArray(a.hashes) ? a.hashes.length > 0 : Boolean(a.hash));
+    const names = (list) => list.map((a) => esc(a.name)).join(', ');
+    const done = accounts.filter(learned);
+    const waiting = accounts.filter((a) => !learned(a));
+    el.innerHTML = !accounts.length ? 'Password alarm is off. <a href="#" class="link" id="pwLink">Choose accounts to protect</a>'
+      : `${done.length ? `Password alarm protects your ${names(done)} password${done.length > 1 ? 's' : ''}.` : 'Password alarm:'}${waiting.length ? ` ${done.length ? 'Sign' : 'sign'} in to ${names(waiting)} once to protect ${waiting.length > 1 ? 'them' : 'it'}.` : ''} <a href="#" class="link" id="pwLink">Password alarm settings</a>`;
+    el.hidden = false;
+    document.getElementById('pwLink').onclick = (ev) => { ev.preventDefault(); ext.tabs.create({ url: ext.runtime.getURL('src/options.html#pw') }); window.close(); };
+  }
+  pwLine();
+
   let state;
 
   async function main() {

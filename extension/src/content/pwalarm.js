@@ -46,7 +46,31 @@
       return send({ type: 'pw-config' });
     }).then((res) => {
       config = res && res.ok ? { learn: res.learn, lengths: res.lengths || [] } : { learn: false, lengths: [] };
+      if (res && res.tell && window === window.top) tellProtected(res.tell);
     });
+  }
+
+  /**
+   * Once, after the first sign-in an account's password was learned from: a quiet note in the corner. It counts as
+   * said after a few seconds on screen, so a sign-in page that moves on at once says it on the next page instead.
+   */
+  let telling = false;
+  function tellProtected(name) {
+    if (telling) return;
+    telling = true;
+    const show = () => {
+      const ctl = globalThis.SentinelAlarm.show({
+        small: true,
+        accent: '#d6b25a',
+        title: `Your ${name} password is now protected`,
+        lead: 'If you type it on any other site, Sentinel empties the box and warns you. You can change this in the companion\'s settings.',
+        buttons: [{ text: 'OK', kind: 'quiet', on: (ev, c) => c.close() }]
+      });
+      setTimeout(() => send({ type: 'pw-told' }), 3000);
+      setTimeout(() => ctl.close(), 12000);
+    };
+    if (document.body) show();
+    else document.addEventListener('DOMContentLoaded', show, { once: true });
   }
 
   /* -------------------------------------------------------- learning at home */

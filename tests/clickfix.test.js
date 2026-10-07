@@ -155,6 +155,7 @@ test('the Windows app and the companion carry the same rules', () => {
   const manifest = JSON.parse(read('extension/manifest.json'));
   assert.ok(!manifest.content_scripts.some((c) => c.js.includes('src/content/clipguard.js')), 'registered by the worker, so the switch can turn it off');
   assert.ok(manifest.permissions.includes('scripting'));
+  assert.equal(manifest.version, '1.5.0', 'a new permission, the password alarm and the command guard came in a new companion version');
   const bg = read('extension/src/background.js');
   const reg = bg.slice(bg.indexOf('const CLIPGUARD = {'), bg.indexOf('};', bg.indexOf('const CLIPGUARD = {')));
   assert.match(reg, /js: \['src\/content\/clickfix\.js', 'src\/content\/alarm\.page\.js', 'src\/content\/clipguard\.js'\]/, 'the rules and the warning load first');

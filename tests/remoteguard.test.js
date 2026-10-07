@@ -142,3 +142,32 @@ test('main: trusting a program needs the PIN under a parent lock, and the way ou
   assert.match(main, /if \(action === 'recover'\) \{\n\s+\/\/[^\n]*\n\s+closeGuard\(\);\n\s+showWindow\(recoverRoute\(arg, 'remote'\)\);/);
   assert.match(main, /`\$\{inApp \? '\/app\/recover' : '\/recover'\}\?happened=\$\{RECOVER_HAPPENED\.has\(happened\) \? happened : fallback\}`/, 'signed out, the website\'s guide, not a sign-in page');
 });
+
+test('a new connection in a program that was already running gets a question too: by its session process, or by its log\'s time', () => {
+  const now = Date.now();
+  const g = rg.create();
+  g.update(['teamviewer', 'anydesk'], { traces: { anydesk: 0 } });
+  g.flaggedPage(now - 5 * MIN);
+  assert.deepEqual(g.update(['teamviewer', 'anydesk'], { traces: { anydesk: 0 }, now }), [], 'still running, nobody connected');
+  const tv = g.update(['teamviewer', 'teamviewer_desktop', 'anydesk'], { traces: { anydesk: 0 }, now });
+  assert.deepEqual(tv.map((a) => [a.tool.id, a.session, a.reason]), [['teamviewer', true, 'page']]);
+  assert.deepEqual(g.update(['teamviewer', 'teamviewer_desktop', 'anydesk'], { traces: { anydesk: 0 }, now }), [], 'the same connection is asked about once');
+  const ad = g.update(['teamviewer', 'anydesk'], { traces: { anydesk: now - 1000 }, now });
+  assert.deepEqual(ad.map((a) => [a.tool.id, a.session]), [['anydesk', true]], 'AnyDesk wrote its connection log');
+  assert.deepEqual(g.update(['teamviewer', 'anydesk'], { traces: { anydesk: now - 1000 }, now }), []);
+  assert.deepEqual(g.update(['teamviewer', 'anydesk'], { traces: { anydesk: now }, now, trusted: ['anydesk'] }), [], 'never for a trusted program');
+
+  // Without a flagged page or a fresh download, a connection is someone's own business, as a start is.
+  const calm = rg.create();
+  calm.update(['teamviewer']);
+  assert.deepEqual(calm.update(['teamviewer', 'teamviewer_desktop'], { now }), []);
+  // The first report is a starting point for connections too.
+  const first = rg.create();
+  first.flaggedPage(now);
+  assert.deepEqual(first.update(['teamviewer', 'teamviewer_desktop'], { traces: { anydesk: now }, now }), []);
+
+  const main = read('desktop/src/main.js');
+  assert.match(main, /traces: remoteTraces\(\)/);
+  assert.match(main, /statSync\(path\.join\(dir, t\.trace\)\)\.mtimeMs/, 'only the log\'s time is read, never what it says');
+  assert.match(read('desktop/src/pages/guard.html'), /Someone connected to this computer through \$\{toolName\}/);
+});

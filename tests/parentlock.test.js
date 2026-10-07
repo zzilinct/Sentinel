@@ -133,6 +133,9 @@ test('a quarantined file, the shield\'s "I use it myself" and the account need t
   assert.match(main, /action === 'trust-tool'[\s\S]{0,300}lock\.guard\(`asking about \$\{tool\.name\} off`, true\)/);
   assert.match(main, /handle\('sentinel:set-token'[\s\S]{0,400}lock\.guard\('to another account'/);
   assert.match(main, /handle\('sentinel:clear-token', \(\) => \{\s*lock\.guard\('to this computer\\'s own account'/);
+  // Signing out in the web app asks the Sentinel app first, and a refusal stops the sign-out and is shown.
+  const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'web', 'assets', 'js', 'app.js'), 'utf8');
+  assert.match(app, /await desktop\.clearToken\(\); \} catch \(err\) \{ toast\(`Still signed in\. \$\{desktopError\(err\)\}`, 'error'\); return; \}[\s\S]{0,40}\s*try \{ await api\('\/auth\/logout'/);
 });
 
 test('after an administrator removes a forgotten PIN, the record is still there for the parent to read', () => {

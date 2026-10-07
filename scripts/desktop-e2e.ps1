@@ -64,6 +64,33 @@ Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
 Start-Process $Installer -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"
 Say "installed -> $((Get-Item $exe).VersionInfo.ProductVersion)"
+# 1a. A start that breaks inside a require (boot.js): a copy of the installed app whose code is this commit's, as a
+# folder instead of app.asar, with one module broken on purpose and its own name, so it never touches the real app's
+# data. It must log why and show a message, not vanish.
+$broken = Join-Path $env:RUNNER_TEMP 'sentinel-broken'
+$brokenData = "$env:APPDATA\SentinelBrokenStart"
+Remove-Item -Recurse -Force $broken, $brokenData -ErrorAction SilentlyContinue
+Copy-Item -Recurse (Split-Path $exe) $broken
+Remove-Item -Force "$broken\resources\app.asar"
+Copy-Item -Recurse (Join-Path $PSScriptRoot '..\desktop\src') "$broken\resources\app\src"
+[IO.File]::WriteAllText("$broken\resources\app\src\downloads.js", "throw new Error('broken on purpose by desktop-e2e');")
+[IO.File]::WriteAllText("$broken\resources\app\package.json", '{"name":"sentinel-broken-start","productName":"SentinelBrokenStart","main":"src/boot.js"}')
+$bp = Start-Process "$broken\Sentinel.exe" -PassThru
+$logged = Until 40 { (Get-Content "$brokenData\logs\app.log" -Raw -ErrorAction SilentlyContinue) -match 'could not start: Error: broken on purpose' }
+# Windows titles the box "Error"; the words inside it are read through UI Automation.
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+function WindowWords($procId) {
+  $A = [Windows.Automation.AutomationElement]
+  $w = $A::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, (New-Object Windows.Automation.PropertyCondition($A::ProcessIdProperty, $procId)))
+  if (-not $w) { return '' }
+  return (@($w.Current.Name) + @($w.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name })) -join ' | '
+}
+$told = Until 20 { (WindowWords $bp.Id) -match 'Sentinel could not start' }
+Say "  the box: $(WindowWords $bp.Id)"
+Check 'broken-start-logged' $logged 'a require that throws at start is in app.log'
+Check 'broken-start-told' $told "the person sees 'Sentinel could not start'"
+if (-not $told) { Shot 'broken-start' }
+Stop-Process -Id $bp.Id -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $data | Out-Null
 [IO.File]::WriteAllText("$data\settings.json", '{"liveScanning":true,"autoScan":true,"openAtLogin":false,"chatSafety":true,"textSafety":true}')
 $pages = Start-Process python -ArgumentList '-m', 'http.server', '47910', '--directory', (Join-Path $PSScriptRoot 'e2e-chat') -PassThru -WindowStyle Hidden
@@ -276,6 +303,34 @@ if (Test-Path $anydesk) {
   Get-Process AnyDesk -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 } else { Check 'remote-noticed' $false 'AnyDesk could not be downloaded on this runner' }
 
+# 5a. A connection in a remote-control program that was already running (as an installed one always is). Stand-ins:
+# copies of ping.exe named like TeamViewer's and AnyDesk's programs, and a line added to AnyDesk's connection log.
+$ping = "$env:WINDIR\System32\PING.EXE"
+$standin = Join-Path $env:TEMP 'remote-standins'; New-Item -ItemType Directory -Force $standin | Out-Null
+Copy-Item $ping (Join-Path $dl 'TeamViewer.exe')
+[void](Until 90 { (AppLog) -match 'download scanned: TeamViewer\.exe' })
+$tv = Start-Process (Join-Path $dl 'TeamViewer.exe') -ArgumentList '-n', '900', '127.0.0.1' -WindowStyle Hidden -PassThru
+$ok = Until 60 { (AppLog) -match 'tech-support scam shield: TeamViewer started' }
+Check 'session-start-first' $ok 'TeamViewer (a stand-in) started: asked about the start'
+[void](Press 'Not now'); Start-Sleep 5
+Copy-Item $ping (Join-Path $standin 'TeamViewer_Desktop.exe')
+$tvd = Start-Process (Join-Path $standin 'TeamViewer_Desktop.exe') -ArgumentList '-n', '900', '127.0.0.1' -WindowStyle Hidden -PassThru
+$ok = Until 60 { (AppLog) -match 'tech-support scam shield: someone connected to TeamViewer' }
+$t = (Cdp 'guard.html' "document.getElementById('title').textContent").value
+Check 'session-process' ($ok -and $t -match 'ask to connect to this computer') "TeamViewer's connection program appeared while it ran: logged ($ok), the shield asks: '$t'"
+[void](Press 'Not now')
+foreach ($p in @($tv, $tvd)) { if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
+Copy-Item $ping (Join-Path $standin 'AnyDesk.exe')
+$ad = Start-Process (Join-Path $standin 'AnyDesk.exe') -ArgumentList '-n', '900', '127.0.0.1' -WindowStyle Hidden -PassThru
+[void](Until 60 { ([regex]::Matches((AppLog), 'tech-support scam shield: AnyDesk started')).Count -ge 2 })
+[void](Press 'Not now'); Start-Sleep 20
+New-Item -ItemType Directory -Force "$env:APPDATA\AnyDesk" | Out-Null
+Add-Content "$env:APPDATA\AnyDesk\connection_trace.txt" 'Incoming    2026-10-07, 12:00    User    123456789    123456789'
+$ok = Until 60 { (AppLog) -match 'tech-support scam shield: someone connected to AnyDesk' }
+Check 'session-trace' $ok 'AnyDesk (a stand-in) kept running and its connection log changed: the shield asks'
+[void](Press 'Not now')
+if ($ad) { Stop-Process -Id $ad.Id -Force -ErrorAction SilentlyContinue }
+
 # 5b. A page shaped like a fake virus alert, full screen in Edge, on an address that reads like one.
 Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 defender-virusalert-helpline.test"
 Start-Process msedge -ArgumentList 'http://defender-virusalert-helpline.test:47910/alert.html'
@@ -338,6 +393,20 @@ Stop-Process -Name Sentinel -Force -ErrorAction SilentlyContinue; Start-Sleep 3
 [void](StartSentinel); Start-Sleep 10
 $r = Info "lockUnlock('2468')"
 Check 'lock-stopped-without-pin' (($r.record | ForEach-Object { $_.text }) -match 'stopped without the PIN') "record after being ended: $(($r.record | ForEach-Object { $_.text }) -join '; ')"
+# Signing out in the web app while locked: refused, said so, and still signed in on both sides. Open: signed out.
+$em = "e2e-lock-$(Get-Random)@example.com"
+$r = Cdp '127.0.0.1:4782' "(async () => { const post = (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); return (await post('/api/v1/auth/signup', { email: '$em', password: 'Quiet-river-lock-7Kq2', firstName: 'Ada', ageConfirmed: true, termsAccepted: true })) + ' ' + (await post('/api/v1/auth/login', { email: '$em', password: 'Quiet-river-lock-7Kq2' })); })()"
+[void](Cdp '127.0.0.1:4782' "location.href = '/app'; 1")
+$paired = Until 40 { [bool](Info 'info()').pairedUserId }
+Check 'signout-paired' $paired "signed in to the web app and paired (signup and sign-in: $($r.value))"
+[void](Info 'lockRelock()')
+$click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); await wait(1500); const b = document.querySelector('[data-signout]'); b.click(); await wait(300); b.click(); await wait(2000); return location.pathname + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / '); })()"
+$r = (Cdp '127.0.0.1:4782' $click).value
+$me = (Cdp '127.0.0.1:4782' "fetch('/api/v1/auth/me').then((x) => x.status)").value
+Check 'signout-locked' ($r -match '^/app[^|]*\|.*Still signed in\. Locked by a parent' -and $me -eq 200 -and [bool](Info 'info()').pairedUserId) "locked: '$r', web app session $me"
+[void](Info "lockUnlock('2468')")
+[void](Cdp '127.0.0.1:4782' $click)
+Check 'signout-open' (Until 20 { -not (Info 'info()').pairedUserId }) 'with the lock open, signing out goes through'
 [void](Info 'lockRemove()')
 
 # 7. The browser checkup and "Check my texts", as the app's own pages show them, signed in to this computer's

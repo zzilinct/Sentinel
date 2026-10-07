@@ -86,6 +86,7 @@ body {
 .lock svg { flex: none; width: 18px; height: 18px; color: var(--gold); margin-top: 1px; }
 .lock p { margin: 0 0 10px; color: var(--text-2); }
 
+.pw-line { margin: 0; padding: 0 16px 11px; }
 .foot { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); }
 .foot a, .link { all: unset; cursor: pointer; color: var(--gold); font-weight: 600; font-size: 12px; }
 .foot a:hover, .link:hover { color: var(--gold-hi); }
