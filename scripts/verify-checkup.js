@@ -124,7 +124,9 @@ const STEPS = {
     const k = window.__chk;
     // The handler (search_engines_handler.cc) takes the engine's id as a string, where it was chosen
     // (2: kSearchEngineSettings; anything else is a CHECK) and an optional guest choice.
-    if (window.__chkSkipSet) return 'skipped';
+    // As the page itself calls it: setDefaultSearchEngine(id, choiceMadeLocation, saveGuestChoice), the id as the
+    // number the list gives (Chrome 154 crashes on a string), 2 = kSearchEngineSettings (anything else is a CHECK).
+    k.engines.setDefaultSearchEngine(k.mine.id, 2, null);
     await k.wait(800);
     const now = k.all(await k.list()).find((e) => e.default);
     if (!now || now.url !== k.mine.url) throw new Error('the default did not change: ' + (now && now.url));
