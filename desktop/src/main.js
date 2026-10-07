@@ -809,7 +809,7 @@ function syncClipboard() {
     page: () => (pageInFront && Date.now() - pageInFront.at < 10 * 60 * 1000 ? pageInFront : undefined),
     onDanger: (d) => notify(`Careful: the link you copied is a ${d.label.toLowerCase()}`, `${d.host}${d.reason ? ` - ${d.reason}` : ''}. Click to see why.`, () => showWindow(`/app/scan?url=${encodeURIComponent(d.url)}`)),
     onCommand: (c) => (c.action === 'stop'
-      ? notify('Sentinel stopped a command you copied', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Never paste a command a website gives you into Windows. Click to put it back if you trust it.`, () => { if (clipwatch.putBack()) notify('The command is back on your clipboard', 'Only run it if you know exactly what it does.'); })
+      ? notify('Sentinel stopped a command you copied', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Never paste a command a website gives you into Windows. Click to put it back if you trust it.`, () => { clipwatch.putBack().then((ok) => { if (ok) notify('The command is back on your clipboard', 'Only run it if you know exactly what it does.'); }); })
       : notify('Careful with the command you copied', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Only run it if you know exactly what it does and who it came from.`))
   });
 }
