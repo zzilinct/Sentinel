@@ -382,7 +382,7 @@ async function check() {
         console.log(`NOTE  ${label}: the settings page would not add a made-up engine, so Bing was chosen instead`);
         expect(prof.search && prof.search.host === 'www.bing.com' && prof.search.known === true && prof.search.engine === 'Bing' && !prof.search.badge, `${label}: the default search engine the person chose (Bing) is read and left alone (${JSON.stringify(prof.search)})`);
         wanted.push('https://www.bing.com/');
-      } else if (unsupported(p.search)) {
+      } else if (p.id === 'edge' && unsupported(p.search)) {
         console.log(`NOTE  ${label}: its settings page has no search engine handler a script can call (${p.search.error}), so its default search engine stays as installed`);
       } else {
         expect(false, `${label}: the default search engine could be set through the settings page (${JSON.stringify(p.search)})`);
@@ -394,7 +394,7 @@ async function check() {
       }
     }
     const notifSet = p.id === 'firefox' ? !p.error : p.notifications && p.notifications.ok;
-    if (!notifSet && unsupported(p.notifications)) console.log(`NOTE  ${label}: its settings page has no site settings handler a script can call (${p.notifications.error}), so no notification permission could be given`);
+    if (!notifSet && p.id === 'edge' && unsupported(p.notifications)) console.log(`NOTE  ${label}: its settings page has no site settings handler a script can call (${p.notifications.error}), so no notification permission could be given`);
     else expect(notifSet && Array.isArray(prof.notifications) && prof.notifications.includes('https://example-notify.test'), `${label}: the site allowed to send notifications is read (${JSON.stringify(prof.notifications)})`);
     expect(Array.isArray(prof.notifications) && !prof.notifications.includes('https://blocked-notify.test'), `${label}: the blocked site is not listed as allowed`);
     if (p.id === 'firefox') expect(prof.startup.includes(C.startup), `firefox: the home page is read (${JSON.stringify(prof.startup)})`);
