@@ -81,13 +81,18 @@ const STEPS = {
     const k = window.__chk = {};
     try { k.settings = await import(location.origin + '/settings.js'); } catch (e) { k.settingsError = String(e.message || e); }
     for (const u of [location.protocol + '//resources/js/cr.js', 'chrome://resources/js/cr.js']) { try { k.cr = await import(u); break; } catch { /* next */ } }
-    k.site = k.settings && k.settings.SiteSettingsPrefsBrowserProxyImpl ? k.settings.SiteSettingsPrefsBrowserProxyImpl.getInstance() : null;
+    try { k.lazy = await import(location.origin + '/lazy_load.js'); } catch { /* none */ }
+    const SiteProxy = (k.settings && k.settings.SiteSettingsPrefsBrowserProxyImpl) || (k.lazy && k.lazy.SiteSettingsPrefsBrowserProxyImpl);
+    k.site = SiteProxy ? SiteProxy.getInstance() : null;
     k.engines = k.settings && k.settings.SearchEnginesBrowserProxyImpl ? k.settings.SearchEnginesBrowserProxyImpl.getInstance() : null;
     k.wait = (ms) => new Promise((r) => setTimeout(r, ms));
     return { settingsModule: k.settingsError || 'ok', cr: Boolean(k.cr), site: Boolean(k.site), engines: Boolean(k.engines), settingsPrivate: Boolean(chrome.settingsPrivate) };
   })()`,
   notifications: (C) => `(async (C) => {
     const k = window.__chk;
+    // Read first: that is what lets the handler answer the page at all (a handler that may not yet talk to its
+    // page takes the browser down when it tries).
+    await (k.site ? k.site.getExceptionList('notifications') : k.cr.sendWithPromise('getExceptionList', 'notifications'));
     for (const [p, v] of [[C.allow, 'allow'], [C.block, 'block']]) {
       if (k.site) k.site.setCategoryPermissionForPattern(p, '', 'notifications', v, false);
       else chrome.send('setCategoryPermissionForPattern', [p, '', 'notifications', v, false]);
@@ -146,7 +151,7 @@ async function prepareChromium(b) {
   // A browser that dies takes its pipe with it: every call still waiting fails then, instead of waiting forever.
   const send = (...a) => Promise.race([raw(...a), gone.then((code) => { throw new Error(`the browser exited (${code}) during ${a[0]}`); })]);
   const evalIn = async (sessionId, expression) => {
-    const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
+    const r = await Promise.race([send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId), sleep(20000).then(() => { throw new Error('no answer in 20 s'); })]);
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception ? r.exceptionDetails.exception.description : r.exceptionDetails.text);
     return r.result.value;
   };
@@ -165,7 +170,7 @@ async function prepareChromium(b) {
     // does not take what was set before it along.
     await sleep(11000);
 
-    const { targetId } = await send('Target.createTarget', { url: b.settings });
+    const { targetId } = await send('Target.createTarget', { url: `${b.settings}/content/notifications` });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
     let ready = false;
     for (let i = 0; i < 80 && !ready; i++) {
