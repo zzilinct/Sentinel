@@ -151,8 +151,11 @@
       }, 4050);
       return;
     }
+    // The Sentinel app first: when the parent lock refuses, nothing is signed out and the person is told why.
+    if (desktop) {
+      try { await desktop.clearToken(); } catch (err) { toast(`Still signed in. ${desktopError(err)}`, 'error'); return; }
+    }
     try { await api('/auth/logout', { method: 'POST', body: {} }); } catch { /* ignore */ }
-    if (desktop) { try { await desktop.clearToken(); } catch { /* ignore */ } }
     location.href = '/';
   }
 

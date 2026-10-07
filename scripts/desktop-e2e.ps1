@@ -353,6 +353,20 @@ Stop-Process -Name Sentinel -Force -ErrorAction SilentlyContinue; Start-Sleep 3
 [void](StartSentinel); Start-Sleep 10
 $r = Info "lockUnlock('2468')"
 Check 'lock-stopped-without-pin' (($r.record | ForEach-Object { $_.text }) -match 'stopped without the PIN') "record after being ended: $(($r.record | ForEach-Object { $_.text }) -join '; ')"
+# Signing out in the web app while locked: refused, said so, and still signed in on both sides. Open: signed out.
+$em = "e2e-lock-$(Get-Random)@example.com"
+$r = Cdp '127.0.0.1:4782' "(async () => { const post = (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); return (await post('/api/v1/auth/signup', { email: '$em', password: 'Quiet-river-lock-7Kq2', firstName: 'Ada', ageConfirmed: true, termsAccepted: true })) + ' ' + (await post('/api/v1/auth/login', { email: '$em', password: 'Quiet-river-lock-7Kq2' })); })()"
+[void](Cdp '127.0.0.1:4782' "location.href = '/app'; 1")
+$paired = Until 40 { [bool](Info 'info()').pairedUserId }
+Check 'signout-paired' $paired "signed in to the web app and paired (signup and sign-in: $($r.value))"
+[void](Info 'lockRelock()')
+$click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); await wait(1500); const b = document.querySelector('[data-signout]'); b.click(); await wait(300); b.click(); await wait(2000); return location.pathname + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / '); })()"
+$r = (Cdp '127.0.0.1:4782' $click).value
+$me = (Cdp '127.0.0.1:4782' "fetch('/api/v1/auth/me').then((x) => x.status)").value
+Check 'signout-locked' ($r -match '^/app[^|]*\|.*Still signed in\. Locked by a parent' -and $me -eq 200 -and [bool](Info 'info()').pairedUserId) "locked: '$r', web app session $me"
+[void](Info "lockUnlock('2468')")
+[void](Cdp '127.0.0.1:4782' $click)
+Check 'signout-open' (Until 20 { -not (Info 'info()').pairedUserId }) 'with the lock open, signing out goes through'
 [void](Info 'lockRemove()')
 
 if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
