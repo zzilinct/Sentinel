@@ -340,6 +340,33 @@ $r = Info "lockUnlock('2468')"
 Check 'lock-stopped-without-pin' (($r.record | ForEach-Object { $_.text }) -match 'stopped without the PIN') "record after being ended: $(($r.record | ForEach-Object { $_.text }) -join '; ')"
 [void](Info 'lockRemove()')
 
+# 7. The browser checkup and "Check my texts", as the app's own pages show them, signed in to this computer's
+# account. A Vivaldi profile laid out as Vivaldi keeps it: three add-ons from the store, and one loaded from a folder
+# that can read every site and its cookies. The flagged one is listed; the three clean ones fold behind one line.
+$viv = "$env:LOCALAPPDATA\Vivaldi\User Data\Default"
+New-Item -ItemType Directory -Force $viv | Out-Null
+[IO.File]::WriteAllText("$viv\Preferences", '{"profile":{"name":"Checkup e2e"}}')
+$crx = 'https://clients2.google.com/service/update2/crx'
+$addons = @{
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = @{ location = 1; manifest = @{ name = 'Dark Reader E2E'; version = '1'; update_url = $crx; permissions = @('storage') } }
+  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb = @{ location = 1; manifest = @{ name = 'Tab Notes E2E'; version = '1'; update_url = $crx; permissions = @('storage') } }
+  cccccccccccccccccccccccccccccccc = @{ location = 1; manifest = @{ name = 'Word Count E2E'; version = '1'; update_url = $crx; permissions = @('storage') } }
+  dddddddddddddddddddddddddddddddd = @{ location = 4; path = "$env:RUNNER_TEMP\coupon-e2e"; manifest = @{ name = 'Coupon Helper E2E'; version = '1'; permissions = @('cookies'); host_permissions = @('<all_urls>') } }
+}
+[IO.File]::WriteAllText("$viv\Secure Preferences", (@{ extensions = @{ settings = $addons } } | ConvertTo-Json -Depth 8 -Compress))
+$r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); const a = { email: 'checkup-e2e@example.com', password: 'Checkup-Sentinel-2026!' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Alex', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', a)].join(','); })()"
+Check 'app-signed-in' ($r.value -match ',200$') "sign-up, sign-in: $($r.value)"
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app/checkup', 1)")
+$ok = Until 30 { (Cdp '127.0.0.1:4782' "(() => { const b = document.querySelector('[data-run-checkup]'); if (b) b.click(); return Boolean(b); })()").value -eq $true }
+$c = ''
+$ok = $ok -and (Until 90 { $script:c = (Cdp '127.0.0.1:4782' "(() => { const p = [...document.querySelectorAll('[data-checkup-out] .panel')].find((x) => (x.querySelector('h2') || {}).textContent === 'Vivaldi'); if (!p) return ''; const d = p.querySelector('details[data-clean-addons]'); const names = (els) => [...els].map((b) => b.textContent).sort().join('/'); return [d ? d.querySelector('summary').textContent.trim() : 'no fold', d && d.open ? 'open' : 'closed', names([...p.querySelectorAll('ul.list b')].filter((b) => !b.closest('details'))), d ? names(d.querySelectorAll('b')) : '', /and you can add it back/.test(document.querySelector('[data-checkup-out]').textContent)].join('|'); })()").value; [bool]$script:c })
+Shot 'checkup'
+Check 'checkup-folds-clean-addons' ($ok -and $c -eq '3 more add-ons, nothing to look at|closed|Coupon Helper E2E|Dark Reader E2E/Tab Notes E2E/Word Count E2E|true') "Vivaldi: $c"
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection', 1)")
+$t = ''
+$ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; [bool]$script:t }
+Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -match 'English texts for now' -and $t -match 'left-to-right') "Check my texts panel: $(([string]$t).Substring(0, [Math]::Min(200, ([string]$t).Length)))"
+
 if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 60 | ForEach-Object { Say "  $_" }
 Say "checks failed: $failed"

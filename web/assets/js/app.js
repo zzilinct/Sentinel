@@ -1545,14 +1545,20 @@
       if (pol && pol.badge) flagged++;
       const profiles = b.profiles.map((p) => {
         const addons = [...p.addons].sort((x, y) => (rank[y.badge] || 0) - (rank[x.badge] || 0));
+        // Flagged add-ons are listed; the clean ones fold away behind one line.
+        const bad = addons.filter((a) => a.badge);
+        const clean = addons.filter((a) => !a.badge);
+        const addonRow = (a) => row(a.badge ? Masks.svg('malware') : ICON.check, a.badge, `${a.name}${a.enabled ? '' : ' (turned off)'}`,
+          a.reasons.length ? a.reasons.map((x) => x.text).join(' ') : (a.notes[0] || (a.fromStore ? 'From the browser\'s add-on store.' : 'Nothing about it needs your attention.')),
+          a.badge ? removal(b, a, short) : '');
         const sites = (p.notifications || []).slice().sort((x, y) => (rank[siteBadge(y)] || 0) - (rank[siteBadge(x)] || 0));
         const searchBadge = p.search ? worse(p.search.badge, siteBadge(p.search)) : null;
-        flagged += addons.filter((a) => a.badge).length + sites.filter(siteBadge).length + (searchBadge ? 1 : 0) + p.startup.filter(siteBadge).length;
+        flagged += bad.length + sites.filter(siteBadge).length + (searchBadge ? 1 : 0) + p.startup.filter(siteBadge).length;
         return `${b.profiles.length > 1 ? `<h3 class="u-mt">${esc(p.name)}</h3>` : ''}
           <h4 class="u-mt">Add-ons</h4>
-          ${addons.length ? `<ul class="list">${addons.map((a) => row(a.badge ? Masks.svg('malware') : ICON.check, a.badge, `${a.name}${a.enabled ? '' : ' (turned off)'}`,
-            a.reasons.length ? a.reasons.map((x) => x.text).join(' ') : (a.notes[0] || (a.fromStore ? 'From the browser\'s add-on store.' : 'Nothing about it needs your attention.')),
-            a.badge ? removal(b, a, short) : '')).join('')}</ul>`
+          ${addons.length ? `${bad.length ? `<ul class="list">${bad.map(addonRow).join('')}</ul>` : ''}
+            ${clean.length ? `<details class="group" data-clean-addons><summary><span>${clean.length}${bad.length ? ' more' : ''} add-on${clean.length === 1 ? '' : 's'}, nothing to look at</span><i></i></summary>
+              <ul class="list">${clean.map(addonRow).join('')}</ul></details>` : ''}`
             : '<div class="empty"><p>No add-ons.</p></div>'}
           <h4 class="u-mt">Sites allowed to send notifications</h4>
           ${p.notifications === null ? '<div class="empty"><p>These could not be read.</p></div>'
@@ -1578,7 +1584,7 @@
     const notChecked = (r.unchecked || []).length ? `<p class="muted">Not checked: ${esc(r.unchecked.join(', '))}. Sentinel cannot read ${r.unchecked.length === 1 ? 'its' : 'their'} settings yet.</p>` : '';
     out.innerHTML = r.browsers.length ? `<div class="panel u-mt">
         <h2>${flagged ? `${flagged} thing${flagged === 1 ? '' : 's'} to look at` : 'Nothing here needs your attention'}</h2>
-        <p class="muted">Checked ${esc(ago(r.at))}. Sentinel changed nothing. Removing anything is your choice, in the browser, and the browser can add it back.${r.sitesChecked ? '' : ` Site addresses were not checked, so only add-ons, search engines and policies were judged. ${esc(r.sitesWhy || 'Sentinel could not reach its scanner just now.')}`}</p>
+        <p class="muted">Checked ${esc(ago(r.at))}. Sentinel changed nothing. Removing anything is your choice, in the browser, and you can add it back.${r.sitesChecked ? '' : ` Site addresses were not checked, so only add-ons, search engines and policies were judged. ${esc(r.sitesWhy || 'Sentinel could not reach its scanner just now.')}`}</p>
         ${notChecked}
       </div>${panels}`
       : `<div class="panel u-mt"><div class="empty"><p>No ${esc(list(r.looked || []))} settings were found on this computer.</p>${notChecked}</div></div>`;
@@ -1779,13 +1785,14 @@
     if (!desktop || !desktop.setTextSafety) return '';
     return `<div class="panel u-mt" id="text-safety">
       <div class="panel__head"><div><h2>Check my texts</h2>
-        <p>If your phone's texts show on this computer through Phone Link, Sentinel points out scam texts (unpaid tolls, parcel fees, "Hi Mum, this is my new number", task jobs, "your account is locked") right beside the message, while Phone Link is in front.</p></div>
+        <p>If your phone's texts show on this computer through Phone Link, Sentinel points out English scam texts (unpaid tolls, parcel fees, "Hi Mum, this is my new number", task jobs, "your account is locked") right beside the message, while Phone Link is in front.</p></div>
         <input class="switch" type="checkbox" data-text-safety aria-label="Check my texts" ${ts.enabled ? 'checked' : ''} ${ts.supported ? '' : 'disabled'}></div>
       <p class="muted u-mt-sm" data-text-seen>${textSeenText(ts)}</p>
       <ul class="list">
         <li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>Read on this computer only</b><span>The conversation on screen is read as it appears, judged here and forgotten. No text, name or number is sent to Sentinel or anyone else, saved, or logged.</span></span></li>
         <li><span class="list__icon">${ICON.globe}</span><span class="list__main"><b>Links checked, never opened</b><span>A link in a text is checked by its address, the way a copied link is. Sentinel never opens it, and it is not added to your history.</span></span></li>
         <li><span class="list__icon">${ICON.check}</span><span class="list__main"><b>Never in the way</b><span>Only texts you received are checked. Sentinel never changes Phone Link, never types, clicks or replies in it, and only speaks up when a text looks like a scam.</span></span></li>
+        <li><span class="list__icon">${ICON.globe}</span><span class="list__main"><b>English texts for now</b><span>Sentinel knows the wording of scam texts in English only. It tells the texts you received from the ones you sent by which side they are on, so Phone Link needs to show a left-to-right language, such as English.</span></span></li>
       </ul>
     </div>`;
   }
@@ -1893,7 +1900,7 @@
     const malware = e.kind === 'malware';
     return `<li class="exposure">
       <span class="list__icon" style="color:${esc(color(malware ? 'red' : 'orange'))}">${Masks.svg(malware ? 'malware' : 'scam')}</span>
-      <span class="list__main"><b>${esc(e.host)}</b><span>${esc(EXPOSURE_WHAT[e.kind] || 'Listed')} &middot; you visited it on ${esc(day)}, and a threat list named it ${esc(ago(e.listedAt))}.</span>
+      <span class="list__main"><b>${esc(e.host)}</b><span>${esc(EXPOSURE_WHAT[e.kind] || 'Listed')} &middot; you visited it on ${esc(day)}, and ${e.page ? 'a page on this site was listed' : 'a threat list named it'} ${esc(ago(e.listedAt))}.</span>
         <span>${exposureSteps(e)}</span>
         <span>Already paid or let someone in? <a href="/app/recover?happened=${EXPOSURE_HAPPENED[e.kind] || 'card'}">Open the recovery guide</a></span>
         <span class="exposure__actions">
