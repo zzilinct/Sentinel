@@ -95,20 +95,33 @@ async function installed() {
  * printing the browsers only when they change. Starting tasklist every four seconds cost a new process (and its
  * console host) fifteen times a minute, the one thing Sentinel's main process did while nothing else was going on.
  * It ends by itself when Sentinel does: its standard input closes.
+ * It also says which program owns the window in front, when that changes ("front:msedge"), looked at twice a second:
+ * "Stop pasted commands" looks at the clipboard often only while a browser is in front.
  */
 const WATCH_SCRIPT = `
 $ErrorActionPreference = 'SilentlyContinue'
+Add-Type -Namespace SB -Name F -MemberDefinition '[DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p);'
 $names = @(__NAMES__)
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
 $pending = $stdin.ReadLineAsync()
-$last = $null
+$last = $null; $front = $null; $hwnd = [IntPtr]::Zero; $n = 0
 while ($true) {
-  $now = (@(Get-Process -Name $names | ForEach-Object { $_.ProcessName.ToLower() }) | Sort-Object -Unique) -join ','
-  if ($now -ne $last) { $last = $now; [Console]::Out.WriteLine('running:' + $now); [Console]::Out.Flush() }
-  if ($pending.Wait(3000)) { if ($null -eq $pending.Result) { exit }; $pending = $stdin.ReadLineAsync() }
+  if ($n % 6 -eq 0) {
+    $now = (@(Get-Process -Name $names | ForEach-Object { $_.ProcessName.ToLower() }) | Sort-Object -Unique) -join ','
+    if ($now -ne $last) { $last = $now; [Console]::Out.WriteLine('running:' + $now); [Console]::Out.Flush() }
+  }
+  $n++
+  $h = [SB.F]::GetForegroundWindow()
+  if ($h -ne $hwnd) {
+    $hwnd = $h; $id = 0; [void][SB.F]::GetWindowThreadProcessId($h, [ref]$id); $f = ''
+    try { $f = [Diagnostics.Process]::GetProcessById($id).ProcessName.ToLower() } catch {}
+    if ($f -ne $front) { $front = $f; [Console]::Out.WriteLine('front:' + $f); [Console]::Out.Flush() }
+  }
+  if ($pending.Wait(500)) { if ($null -eq $pending.Result) { exit }; $pending = $stdin.ReadLineAsync() }
 }`;
 let watcherChild = null;
 let watcherRunning = null;   // the helper's latest answer: process names, or null before it has one
+let watcherFront = null;     // the program whose window is in front ('' for none), or null before the helper says
 
 function startProcessWatcher(onNames, extra = []) {
   if (process.platform !== 'win32' || watcherChild) return;
@@ -129,15 +142,23 @@ function startProcessWatcher(onNames, extra = []) {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (line.startsWith('running:')) { watcherRunning = new Set(line.slice(8).split(',').filter(Boolean)); onNames(); }
+      else if (line.startsWith('front:')) watcherFront = line.slice(6);
     }
   });
-  const gone = () => { watcherChild = null; watcherRunning = null; };
+  const gone = () => { watcherChild = null; watcherRunning = null; watcherFront = null; };
   watcherChild.on('exit', gone);
   watcherChild.on('error', gone);
 }
 function stopProcessWatcher() {
   if (watcherChild) { try { watcherChild.stdin.end(); watcherChild.kill(); } catch { /* gone */ } }
-  watcherChild = null; watcherRunning = null;
+  watcherChild = null; watcherRunning = null; watcherFront = null;
+}
+
+/** The id of the browser whose window is in front, null when another program's is, undefined when not known. */
+function inFront() {
+  if (!watcherChild || watcherFront === null) return undefined;
+  const b = BROWSERS.find((x) => x.process === watcherFront);
+  return b ? b.id : null;
 }
 
 /** Ids of the browsers running right now. */
@@ -281,4 +302,4 @@ function watch({ onChange, everyMs = 15000, others = null }) {
 }
 
 module.exports = {
-  defaultBrowser, preferred, BROWSERS, installed, running, bringForward, watch, _test: { WATCH_SCRIPT } };
+  defaultBrowser, preferred, BROWSERS, installed, running, inFront, bringForward, watch, _test: { WATCH_SCRIPT } };

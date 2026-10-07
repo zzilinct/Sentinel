@@ -29,7 +29,8 @@
     [/\bconhost(\.exe)?\s+[^\n]{0,40}--headless\b/i, 'Runs a command with its window hidden'],
     [/frombase64string[\s\S]{0,400}\b(iex|invoke-expression)\b|\b(iex|invoke-expression)\b[\s\S]{0,400}frombase64string/i, 'Decodes a hidden command and runs it'],
     // The trick that shows in the Run box: the real command scrolls out of sight and a reassuring comment is left.
-    [/(#|\brem\b|::)[^\n]{0,120}\b(robot|captcha|human|verif\w*|cloudflare|ray id|recaptcha)\b/i, 'Hides the command behind a "verification" comment'],
+    // Only the words of a fake check: "# human-readable" or "# then verify the checksum" in a developer's snippet is not.
+    [/(#|\brem\b|::)[^\n]{0,120}(\b(robot|captcha|recaptcha|cloudflare|ray id|i am (a )?human|human verification)\b|\bverif(y|ication)\s+(id|code)\b|\bverify (that )?you are (a )?human\b)/i, 'Hides the command behind a "verification" comment'],
     [/\S {30,}\S/, 'Hides the start of the command behind a run of spaces']
   ];
 
@@ -45,8 +46,12 @@
   // A sentence about such a command, copied from an article, does not.
   const isCommand = (t) => LAUNCHER.test(t) || /^\s*(iex|invoke-expression|irm|iwr|\$|&\s|\.\s)/i.test(t);
 
+  // The Run box takes one line, and a fake check page copies one. A snippet of several lines, copied from
+  // documentation, is judged by its first line only, and a "$ " shell prompt in front of it is not part of it.
+  const firstLine = (text) => (String(text || '').split(/\r?\n/).find((l) => l.trim()) || '').replace(/^\s*\$\s+/, '');
+
   function classify(text) {
-    const t = String(text || '');
+    const t = firstLine(text);
     if (!t.trim() || t.length > MAX || !isCommand(t)) return null;
     for (const [re, reason] of STRONG) if (re.test(t)) return { level: 'strong', reason };
     for (const [re, reason] of MEDIUM) if (re.test(t)) return { level: 'medium', reason };

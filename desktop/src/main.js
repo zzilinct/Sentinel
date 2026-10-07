@@ -806,12 +806,31 @@ function syncClipboard() {
     links,
     commands,
     browserOpen: () => (browserState.running || []).length > 0,
-    page: () => (pageInFront && Date.now() - pageInFront.at < 10 * 60 * 1000 ? pageInFront : undefined),
+    browserInFront: () => browsers.inFront(),
+    // The page is named only when live scanning is watching the browser in front now: then it is where the copy came from.
+    page: () => (watch.status().window && pageInFront && Date.now() - pageInFront.at < 10 * 60 * 1000 ? pageInFront : undefined),
     onDanger: (d) => notify(`Careful: the link you copied is a ${d.label.toLowerCase()}`, `${d.host}${d.reason ? ` - ${d.reason}` : ''}. Click to see why.`, () => showWindow(`/app/scan?url=${encodeURIComponent(d.url)}`)),
-    onCommand: (c) => (c.action === 'stop'
-      ? notify('Sentinel stopped a command you copied', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Never paste a command a website gives you into Windows. Click to put it back if you trust it.`, () => { clipwatch.putBack().then((ok) => { if (ok) notify('The command is back on your clipboard', 'Only run it if you know exactly what it does.'); }); })
-      : notify('Careful with the command you copied', `${c.host ? `From ${c.host}. ` : ''}${c.reason}. Only run it if you know exactly what it does and who it came from.`))
+    onCommand: (c) => {
+      const from = c.host ? `From ${c.host}. ` : c.from === 'program' ? 'Copied in a program, not a web page. ' : '';
+      if (c.action === 'stop') notify('Sentinel stopped a command you copied', `${from}${c.reason}. Never paste a command a website gives you into Windows. Click to put it back if you trust it.`, () => putBackCommand().then((r) => notify(r.ok ? 'The command is back on your clipboard' : 'The command was not put back', r.message)));
+      else notify('Careful with the command you copied', `${from}${c.reason}. Only run it if you know exactly what it does and who it came from.`);
+      push('sentinel:command', clipwatch.heldCommand());
+    }
   });
+}
+
+/** "Put it back", from the notification or the app. Answers { ok, message }; the parent lock covers it. */
+async function putBackCommand() {
+  try { lock.guard('a stopped command back on the clipboard', true); } catch (err) { return { ok: false, message: err.message }; }
+  const r = await clipwatch.putBack();
+  push('sentinel:command', clipwatch.heldCommand());
+  return {
+    ok: r.ok,
+    message: r.ok ? 'Only run it if you know exactly what it does.'
+      : r.why === 'newer' ? 'You copied something else since, so Sentinel left your clipboard alone. Copy the command again and Sentinel will not stop it.'
+        : r.why === 'failed' ? 'Windows did not let Sentinel change the clipboard. Copy the command again and Sentinel will not stop it.'
+          : 'Sentinel holds a stopped command for two minutes only, and that time is up. Copy it again and choose Put it back straight away.'
+  };
 }
 
 /** "Check links I copy": its switch. */
@@ -957,10 +976,18 @@ function notifyAboutFile(file, title, body, onClick) {
   notify(title, body, onClick);
 }
 
+// A notification nothing refers to can be garbage-collected while it is still on screen, and its click then does
+// nothing ("Put it back" among them). Each is kept until it is clicked or closed, ten minutes at most.
+const shownNotes = new Set();
 function notify(title, body, onClick) {
   if (!Notification.isSupported()) return;
   const n = new Notification({ title, body, icon: ICON });
-  if (onClick) n.on('click', onClick);
+  shownNotes.add(n);
+  const release = () => shownNotes.delete(n);
+  setTimeout(release, 10 * 60 * 1000).unref();
+  n.on('close', release);
+  n.on('failed', release);
+  n.on('click', () => { release(); if (onClick) onClick(); });
   n.show();
 }
 
@@ -1001,6 +1028,7 @@ function registerBridge() {
     openAtLogin: store.get('openAtLogin', true),
     clipboardCheck: store.get('clipboardCheck', false),
     commandShield: process.platform === 'win32' && store.get('commandShield', true),
+    commandHeld: clipwatch.heldCommand(),
     exposureAlerts: store.get('exposureAlerts', false),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
@@ -1070,6 +1098,7 @@ function registerBridge() {
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
   handle('sentinel:set-clipboard-check', (enabled) => { lock.guard('checking copied links off', !enabled); return setClipboardCheck(Boolean(enabled)); });
   handle('sentinel:set-command-shield', (enabled) => { lock.guard('the command shield off', !enabled); return setCommandShield(Boolean(enabled)); });
+  handle('sentinel:command-put-back', () => putBackCommand());
   handle('sentinel:set-defense', (enabled) => { lock.guard('defense off', !enabled); store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
   handle('sentinel:set-exposure-alerts', (enabled) => { lock.guard('exposure alerts off', !enabled); return setExposureAlerts(Boolean(enabled)); });
   handle('sentinel:exposures', async () => (ORIGIN ? (await apiCall('/api/v1/live/exposures')).items || [] : []));
