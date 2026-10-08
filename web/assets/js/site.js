@@ -22,6 +22,9 @@
   $$('[data-glyph]').forEach((el) => { if (Masks && !el.firstElementChild) el.innerHTML = Masks.svg(el.dataset.glyph); });
   $$('[data-kind]').forEach((el) => { if (Masks && !el.firstElementChild) el.innerHTML = Masks.kindIcon(el.dataset.kind); });
 
+  // The big headings that rise letter by letter (split below); the rest keep their words and their binary decode.
+  if (!reduced) $$('.section__head h2[data-split], .page-head h1[data-split], .section h2[data-split], .cta h2[data-split]').forEach((h) => h.classList.add('rise'));
+
   /* ---------------------------------------------------------------- nav */
 
   const nav = $('[data-nav]');
@@ -185,7 +188,7 @@
   // Binary (binary.js): each chapter's heading arrives out of binary the first time it scrolls in, and cards show a
   // lens of binary around the pointer.
   if (window.SentinelBinary && !reduced && 'IntersectionObserver' in window) {
-    const heads = $$('.section h2, .page-head h1, .kicker__n');
+    const heads = $$('.section h2:not(.rise), .page-head h1:not(.rise), .kicker__n');
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
         if (!e.isIntersecting) continue;
@@ -258,8 +261,12 @@
 
   /* ------------------------------------------------------ split headings */
 
+  // Chapter titles rise letter by letter instead (each clipped, blurred upward, settling); the binary decode above
+  // stays on the headings that are not split this way, so no heading gets both.
   for (const el of $$('[data-split]')) {
     let i = 0;
+    const rise = !reduced && el.classList.contains('rise');
+    if (rise) el.setAttribute('aria-label', el.textContent.replace(/\s+/g, ' ').trim());
     const walk = (node) => {
       for (const child of [...node.childNodes]) {
         if (child.nodeType === 3) {
@@ -269,6 +276,18 @@
             if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); continue; }
             const span = document.createElement('span');
             span.className = 'word';
+            if (rise) {
+              span.setAttribute('aria-hidden', 'true');
+              for (const ch of part) {
+                const c = document.createElement('span');
+                c.className = 'ch';
+                c.style.setProperty('--d', `${Math.min(0.75, 0.04 + i++ * 0.024).toFixed(3)}s`);
+                c.textContent = ch;
+                span.appendChild(c);
+              }
+              frag.appendChild(span);
+              continue;
+            }
             span.style.setProperty('--d', `${0.05 + i++ * 0.055}s`);
             span.textContent = part;
             frag.appendChild(span);
@@ -284,6 +303,78 @@
       }
     };
     walk(el);
+  }
+
+  /* ------------------------------------------- long paragraphs, word by word */
+
+  // A chapter's opening paragraph comes up a word at a time as it arrives, from faint to full.
+  if (!reduced) for (const p of $$('.section__head > p[data-reveal]')) {
+    if (p.textContent.trim().length < 100) continue;
+    let i = 0;
+    const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      const frag = document.createDocumentFragment();
+      for (const part of node.nodeValue.split(/(\s+)/)) {
+        if (!part) continue;
+        if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); continue; }
+        const w = document.createElement('span');
+        w.className = 'wd';
+        w.style.setProperty('--d', `${Math.min(1.1, i++ * 0.03).toFixed(2)}s`);
+        w.textContent = part;
+        frag.appendChild(w);
+      }
+      node.replaceWith(frag);
+    }
+    p.dataset.reveal = 'words';
+  }
+
+  /* ------------------------------------------------- the laser line */
+
+  // As a chapter's head arrives, the gold scan line crosses a faint dot grid above it: wavy, then straight, then
+  // thick and flaring, and the heading rises after it (its letters wait --lz). Once per chapter. Decoration only:
+  // nothing waits on it to be shown.
+  if (!reduced) {
+    const heads = $$('.section__head');
+    const WAVE = 'M0 20' + Array.from({ length: 8 }, (_, k) => ` Q${k * 125 + 62.5} ${k % 2 ? 36 : 4} ${(k + 1) * 125} 20`).join('');
+    heads.forEach((h) => {
+      const l = document.createElement('span');
+      l.className = 'laser';
+      l.setAttribute('aria-hidden', 'true');
+      l.innerHTML = `<svg viewBox="0 0 1000 40" preserveAspectRatio="none"><path d="${WAVE}"/></svg><i></i>`;
+      h.prepend(l);
+      h.classList.add('has-laser');
+    });
+    const lio = new Observer((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        lio.unobserve(e.target);
+        // A chapter arrived at by a tab is sighted through the scope instead; the laser stays out of its way.
+        if (!e.target.closest('.is-sighted')) e.target.classList.add('is-lasered');
+      }
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
+    const watch = () => heads.forEach((h) => lio.observe(h));
+    if (document.documentElement.classList.contains('intro')) document.addEventListener('sentinel:intro-done', watch, { once: true });
+    else watch();
+  }
+
+  /* ------------------------------------------------- stacked chapters */
+
+  // A chosen chapter slides up over the one before, which holds still (CSS sticky) once its foot reaches the bottom
+  // of the screen. Here only: its height for that, and a mark that says when it is fully covered, so it can rest.
+  if (!reduced && 'ResizeObserver' in window && 'IntersectionObserver' in window) {
+    for (const s of $$('[data-stack]')) {
+      const [under, over] = s.children;
+      if (!under || !over) continue;
+      new ResizeObserver(() => s.style.setProperty('--h', `${under.offsetHeight}px`)).observe(under);
+      const mark = document.createElement('i');
+      mark.className = 'stack__mark';
+      mark.setAttribute('aria-hidden', 'true');
+      over.prepend(mark);
+      new IntersectionObserver(([e]) => s.classList.toggle('is-over', !e.isIntersecting && e.boundingClientRect.top < 0)).observe(mark);
+      s.classList.add('is-stacked');
+    }
   }
 
   /* ------------------------------------------------------------ reveals */
@@ -334,9 +425,17 @@
         if (stats && e.target.dataset.live === 'checks' && stats.checks) n = stats.checks;
         if (stats && e.target.dataset.live === 'kinds' && stats.kinds) n = stats.kinds;
         countUp(e.target, n);
+        // Its bar grows with the count, on the same curve (lux.css).
+        const stat = e.target.closest('.stat');
+        if (stat) stat.classList.add('is-counting');
       }
     }, { threshold: 0.6 });
-    counters.forEach((c) => cio.observe(c));
+    counters.forEach((c) => {
+      const stat = c.closest('.stat');
+      const num = c.closest('.stat__n');
+      if (stat && num && !stat.querySelector('.stat__bar')) num.insertAdjacentHTML('afterend', '<i class="stat__bar" aria-hidden="true"></i>');
+      cio.observe(c);
+    });
   }
 
   /* -------------------------------------------------------- plan finder */

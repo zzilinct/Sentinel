@@ -31,7 +31,10 @@
 <main id="main">
 
   <!-- ================================================================ hero -->
-  <section class="hero" id="top" data-chapter="Welcome">
+  <!-- The demo slides up over the hero (site.js, stacked chapters); the wrapper carries the chapter so a jump lands
+       on its true place rather than where the held hero sits. -->
+  <div class="stack" data-stack id="top" data-chapter="Welcome">
+  <section class="hero">
     <div class="vframe" aria-hidden="true"><svg viewBox="0 0 74 74"><g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 66V22C8 14 14 8 22 8h44"/><path d="M15 66V28c0-7 6-13 13-13h38"/><path d="M28 28c-6 0-10 4-10 9 0 4 3 7 6 7 3 0 5-2 5-5 0-2-2-4-4-4"/><path d="M38 8c0 6 4 10 10 10M8 38c6 0 10 4 10 10"/><circle cx="8" cy="8" r="3"/></g></svg><svg viewBox="0 0 74 74"><g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 66V22C8 14 14 8 22 8h44"/><path d="M15 66V28c0-7 6-13 13-13h38"/><path d="M28 28c-6 0-10 4-10 9 0 4 3 7 6 7 3 0 5-2 5-5 0-2-2-4-4-4"/><path d="M38 8c0 6 4 10 10 10M8 38c6 0 10 4 10 10"/><circle cx="8" cy="8" r="3"/></g></svg><svg viewBox="0 0 74 74"><g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 66V22C8 14 14 8 22 8h44"/><path d="M15 66V28c0-7 6-13 13-13h38"/><path d="M28 28c-6 0-10 4-10 9 0 4 3 7 6 7 3 0 5-2 5-5 0-2-2-4-4-4"/><path d="M38 8c0 6 4 10 10 10M8 38c6 0 10 4 10 10"/><circle cx="8" cy="8" r="3"/></g></svg><svg viewBox="0 0 74 74"><g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 66V22C8 14 14 8 22 8h44"/><path d="M15 66V28c0-7 6-13 13-13h38"/><path d="M28 28c-6 0-10 4-10 9 0 4 3 7 6 7 3 0 5-2 5-5 0-2-2-4-4-4"/><path d="M38 8c0 6 4 10 10 10M8 38c6 0 10 4 10 10"/><circle cx="8" cy="8" r="3"/></g></svg></div>
     <p class="hero__kicker caps" data-reveal="blur"><b>No. I</b><span>Scam &middot; Virus &middot; Malware, marked before you click</span></p>
     <div class="hero__stage" aria-hidden="true">
@@ -159,8 +162,10 @@
       </div>
     </div>
   </section>
+  </div>
 
   <!-- =============================================================== stats -->
+  <div class="stack" data-stack>
   <section class="stats" aria-label="Sentinel in numbers">
     <div class="wrap stats__grid">
       <div class="stat" data-reveal="flip" data-tilt="8"><div class="stat__n tabular"><span data-count="1200000" data-live="threats">1,200,000</span><span class="unit">+</span></div><div class="stat__l">known threats tracked from live public feeds</div></div>
@@ -313,6 +318,7 @@
       </div>
     </div>
   </section>
+  </div>
 
   <!-- ========================================================== everywhere -->
   <section class="section sec-everywhere" id="everywhere" data-chapter="Where it works">

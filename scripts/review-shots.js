@@ -260,6 +260,37 @@ async function main() {
         await move(1340, 880, 10); await sleep(700); await shoot('gaze-away');
         await sleep(3200); await shoot('gaze-rest');
       }
+      // The hero unmasked (home.js): the pointer swept across, then the smoke lingering and fading, frame by frame.
+      {
+        await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
+        await sleep(500);
+        await move(260, 420, 8);
+        await move(700, 300, 14);
+        await move(1080, 470, 14);
+        const t0 = Date.now();
+        for (const ms of [0, 450, 900, 1500, 2200]) {
+          await sleep(Math.max(0, ms - (Date.now() - t0)));
+          await shoot(`unmask-${String(ms).padStart(4, '0')}ms`);
+        }
+      }
+      // The demo sliding up over the held hero (stacked chapters), half way.
+      {
+        await move(1340, 880, 4);
+        await send('Runtime.evaluate', { expression: 'scrollTo(0, Math.round(innerHeight * 0.55))' }, sessionId);
+        await sleep(700);
+        await shoot('stack-half');
+      }
+      // A chapter's laser line (site.js) as its head arrives: wavy, straight, flaring, then the heading rising.
+      {
+        await send('Runtime.evaluate', { expression: "document.querySelector('#how .section__head').scrollIntoView({ block: 'center' })" }, sessionId);
+        const t0 = Date.now();
+        for (const ms of [120, 380, 650, 850, 1150, 1700]) {
+          await sleep(Math.max(0, ms - (Date.now() - t0)));
+          await shoot(`laser-${String(ms).padStart(4, '0')}ms`);
+        }
+        await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
+        await sleep(800);
+      }
       // A tab clicked: the panels, then the chapter sighted through the scope (site.js arrive), frame by frame.
       {
         await send('Runtime.evaluate', { expression: "scrollTo(0, 0); document.querySelector('.nav__links a[href=\"/#how\"]').click()" }, sessionId);

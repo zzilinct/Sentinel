@@ -655,4 +655,370 @@
     addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(pick); } }, { passive: true });
     pick();
   }
+
+  /* ============================================== the hero: unmask and dots */
+
+  // Two canvases in the hero's stage. Underneath the mask, a field of gold dots that ripples away from the pointer.
+  // Over it, what Sentinel sees: binary, scam marks and warnings, shown only where the pointer brushes a soft, smoky
+  // mask that lingers a second and fades. Both draw only while something moves, never offscreen, never while the
+  // page scrolls. A finger gets one slow wipe instead of a brush and no dots; reduced motion gets a still split view.
+  const heroStage = $('.hero__stage');
+  if (heroStage && window.HTMLCanvasElement) {
+    const stage = heroStage;
+    const hero = stage.closest('.hero');
+    const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const now = () => performance.now();
+    let seen = false;
+    let scrollingUntil = 0;
+    let rect = null;
+    const measure = () => { rect = stage.getBoundingClientRect(); };
+    const canvas = (cls) => {
+      const c = document.createElement('canvas');
+      c.className = cls;
+      c.setAttribute('aria-hidden', 'true');
+      return c;
+    };
+    const loops = [];
+    const kick = () => loops.forEach((l) => l.wake());
+    new Site.Observer((entries) => { seen = entries[0].isIntersecting; if (seen) kick(); }).observe(stage);
+    addEventListener('scroll', () => { scrollingUntil = now() + 180; loops.forEach((l) => l.still && l.still()); }, { passive: true });
+
+    /* -------- the dot field */
+
+    if (fine) {
+      const dots = canvas('hero__dots');
+      stage.prepend(dots);
+      const ctx = dots.getContext('2d');
+      const GAP = 24;
+      let w = 0;
+      let h = 0;
+      let dpr = 1;
+      let px = -1e4;
+      let py = -1e4;
+      let tx = px;
+      let ty = py;
+      let energy = 0;
+      let movedAt = 0;
+      let raf = 0;
+      const gold = getComputedStyle(document.documentElement).getPropertyValue('--gold-rgb').trim().split(/\s+/).join(',') || '210,172,99';
+      const draw = (t) => {
+        ctx.clearRect(0, 0, w, h);
+        const R = 170;
+        const s = 1.6 * dpr;
+        const base = new Path2D();
+        const lit = new Path2D();
+        for (let y = GAP / 2; y < h / dpr; y += GAP) {
+          for (let x = GAP / 2; x < w / dpr; x += GAP) {
+            let dx = x - px;
+            let dy = y - py;
+            const d = Math.sqrt(dx * dx + dy * dy) || 1;
+            let ox = 0;
+            let oy = 0;
+            if (energy > 0.01 && d < 420) {
+              // Pushed out of the pointer's way, and a ring of ripples travelling outward from it.
+              const push = d < R ? (1 - d / R) * (1 - d / R) * 22 : 0;
+              const wave = Math.sin(d * 0.06 - t * 0.009) * 5 * Math.exp(-d / 160);
+              const k = energy * (push + wave) / d;
+              ox = dx * k;
+              oy = dy * k;
+            }
+            (energy > 0.01 && d < R ? lit : base).rect((x + ox) * dpr - s / 2, (y + oy) * dpr - s / 2, s, s);
+          }
+        }
+        ctx.fillStyle = `rgba(${gold},.16)`;
+        ctx.fill(base);
+        ctx.fillStyle = `rgba(${gold},${(0.16 + 0.5 * energy).toFixed(3)})`;
+        ctx.fill(lit);
+      };
+      const frame = (t) => {
+        raf = 0;
+        if (!seen || document.hidden) return;
+        if (t < scrollingUntil) { energy = 0; draw(t); return; }
+        px += (tx - px) * 0.2;
+        py += (ty - py) * 0.2;
+        // Full while the pointer moves, gone about a second after it stops.
+        energy += ((t - movedAt < 120 ? 1 : 0) - energy) * (t - movedAt < 120 ? 0.12 : 0.05);
+        draw(t);
+        if (energy > 0.01) raf = requestAnimationFrame(frame);
+        else { energy = 0; draw(t); }
+      };
+      const size = () => {
+        dpr = Math.min(devicePixelRatio || 1, 2);
+        w = dots.width = Math.round(stage.clientWidth * dpr);
+        h = dots.height = Math.round(stage.clientHeight * dpr);
+        energy = 0;
+        draw(0);
+      };
+      const loop = {
+        wake() { if (!raf && seen && energy > 0.01) raf = requestAnimationFrame(frame); },
+        point(x, y) {
+          if (reduced) return;
+          if (px < -1e3) { px = x; py = y; }
+          tx = x; ty = y; movedAt = now();
+          if (energy < 0.02) energy = 0.02;
+          loop.wake();
+        }
+      };
+      loops.push(loop);
+      if ('ResizeObserver' in window) new ResizeObserver(size).observe(stage); else size();
+    }
+
+    /* -------- what Sentinel sees */
+
+    const view = canvas('hero__unmask');
+    stage.appendChild(view);
+    const vctx = view.getContext('2d');
+    const under = document.createElement('canvas');
+    const trail = document.createElement('canvas');
+    const tctx = trail.getContext('2d');
+    const TRAIL = 0.5;          // the brush is soft: its mask is kept at half size and drawn scaled up
+    let vw = 0;
+    let vh = 0;
+    let vdpr = 1;
+    let ready = false;
+
+    // One puff of smoke, drawn once: a cluster of soft blobs, so each dab has a cloudy, uneven edge.
+    const puff = document.createElement('canvas');
+    puff.width = puff.height = 128;
+    {
+      const p = puff.getContext('2d');
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      for (let i = 0; i < 14; i++) {
+        const r = 18 + rnd() * 30;
+        const a = rnd() * Math.PI * 2;
+        const d = rnd() * 30;
+        const x = 64 + Math.cos(a) * d;
+        const y = 64 + Math.sin(a) * d;
+        const g = p.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, 'rgba(0,0,0,.34)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        p.fillStyle = g;
+        p.fillRect(0, 0, 128, 128);
+      }
+    }
+
+    // The page underneath: binary in the lacquer, the three masks, and the warnings Sentinel would raise here.
+    const C = (Masks && Masks.COLORS) || { yellow: '#f5c542', orange: '#f08a24', red: '#e5484d' };
+    const marks = [['scam', C.red], ['virus', C.orange], ['malware', C.yellow]].map(([t, c]) => {
+      const img = new Image();
+      if (Masks) img.src = `data:image/svg+xml,${encodeURIComponent(Masks.svg(t, `xmlns="http://www.w3.org/2000/svg" width="128" height="128" style="color:${c}"`))}`;
+      return { img, c };
+    });
+    const WARN = [
+      ['Confirmed scam', C.red], ['Fake login page', C.red], ['Look-alike domain', C.orange],
+      ['Program disguised as a document', C.orange], ['Probably dangerous', C.orange], ['Look closer', C.yellow],
+      ['Fake browser update', C.yellow], ['Brand impersonation', C.red]
+    ];
+    const HOSTS = ['paypa1-secure-login.com', 'Invoice_March.pdf.exe', 'paypal.com.secure-verify-login.xyz', 'coinbase-airdrop-claim.tk'];
+    const css = getComputedStyle(document.documentElement);
+    const MONO = css.getPropertyValue('--mono').trim() || 'monospace';
+    const SERIF = css.getPropertyValue('--display').trim() || 'serif';
+    function paintUnder() {
+      under.width = vw;
+      under.height = vh;
+      const u = under.getContext('2d');
+      const W = vw / vdpr;
+      const H = vh / vdpr;
+      u.setTransform(vdpr, 0, 0, vdpr, 0, 0);
+      const bg = u.createRadialGradient(W / 2, H * 0.4, 0, W / 2, H * 0.4, Math.max(W, H) * 0.7);
+      bg.addColorStop(0, '#1c160d');
+      bg.addColorStop(1, '#0b0906');
+      u.fillStyle = bg;
+      u.fillRect(0, 0, W, H);
+      let seed = 11;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      // Binary, row by row.
+      u.font = `12px ${MONO}`;
+      u.textBaseline = 'top';
+      const cols = Math.ceil(W / 14);
+      for (let y = 6, row = 0; y < H; y += 17, row++) {
+        let line = '';
+        for (let i = 0; i < cols; i++) line += (rnd() < 0.5 ? '0' : '1') + ' ';
+        u.fillStyle = `rgba(210,172,99,${row % 3 ? 0.16 : 0.3})`;
+        u.fillText(line, (row % 2) * 7, y);
+      }
+      // Marks and warnings, scattered on a loose grid so they never pile up.
+      const gc = W > 900 ? 4 : 2;
+      const gr = H > 700 ? 3 : 2;
+      let n = 0;
+      for (let r = 0; r < gr; r++) {
+        for (let c = 0; c < gc; c++, n++) {
+          const cx = (c + 0.2 + rnd() * 0.5) * (W / gc);
+          const cy = (r + 0.25 + rnd() * 0.5) * (H / gr);
+          if (n % 3 === 0) {
+            const m = marks[(n / 3) % 3];
+            const s = 52 + rnd() * 40;
+            u.save();
+            u.shadowColor = m.c;
+            u.shadowBlur = 28;
+            if (m.img.complete && m.img.naturalWidth) u.drawImage(m.img, cx - s / 2, cy - s / 2, s, s);
+            u.restore();
+          } else {
+            const [label, col] = WARN[n % WARN.length];
+            u.font = `500 13px ${MONO}`;
+            const tw = u.measureText(label.toUpperCase()).width;
+            u.save();
+            u.strokeStyle = col;
+            u.fillStyle = 'rgba(11,9,6,.85)';
+            u.shadowColor = col;
+            u.shadowBlur = 16;
+            u.beginPath();
+            if (u.roundRect) u.roundRect(cx - 14, cy - 16, tw + 40, 32, 16); else u.rect(cx - 14, cy - 16, tw + 40, 32);
+            u.fill();
+            u.stroke();
+            u.restore();
+            u.fillStyle = col;
+            u.beginPath();
+            u.arc(cx + 2, cy, 4, 0, Math.PI * 2);
+            u.fill();
+            u.textBaseline = 'middle';
+            u.fillText(label.toUpperCase(), cx + 14, cy + 1);
+            const host = HOSTS[n % HOSTS.length];
+            u.font = `italic 17px ${SERIF}`;
+            u.fillStyle = 'rgba(239,230,212,.55)';
+            u.fillText(host, cx - 10, cy + 34);
+            const hw = u.measureText(host).width;
+            u.fillStyle = col;
+            u.fillRect(cx - 12, cy + 34, hw + 4, 1.5);
+            u.textBaseline = 'top';
+          }
+        }
+      }
+    }
+
+    // Reduced motion: a still split, the right of the stage seen through, behind a gold seam.
+    function paintSplit() {
+      vctx.clearRect(0, 0, vw, vh);
+      vctx.drawImage(under, 0, 0);
+      vctx.globalCompositeOperation = 'destination-in';
+      const g = vctx.createLinearGradient(vw * 0.5, 0, vw * 0.62, 0);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, 'rgba(0,0,0,.92)');
+      vctx.fillStyle = g;
+      vctx.fillRect(0, 0, vw, vh);
+      vctx.globalCompositeOperation = 'source-over';
+      vctx.fillStyle = 'rgba(226,194,127,.7)';
+      vctx.fillRect(Math.round(vw * 0.56), 0, Math.max(1, vdpr), vh);
+    }
+
+    let last = null;      // the brush's previous point, in stage pixels
+    let next = null;      // where the pointer is now
+    let lastDab = 0;
+    let vraf = 0;
+    let prevT = 0;
+    const dab = (x, y) => {
+      const s = (120 + Math.random() * 70) * TRAIL;
+      tctx.save();
+      tctx.translate(x * TRAIL, y * TRAIL);
+      tctx.rotate(Math.random() * Math.PI * 2);
+      tctx.drawImage(puff, -s / 2, -s / 2, s, s);
+      tctx.restore();
+    };
+    const clearAll = () => {
+      tctx.clearRect(0, 0, trail.width, trail.height);
+      vctx.clearRect(0, 0, vw, vh);
+      last = next = null;
+    };
+    const vframe = (t) => {
+      vraf = 0;
+      if (!ready || document.hidden) return;
+      if (!seen || t < scrollingUntil) { clearAll(); return; }
+      const dt = Math.min(64, prevT ? t - prevT : 16);
+      prevT = t;
+      // It lingers, then fades: a half-life of a third of a second, and wiped clean once it has gone quiet.
+      tctx.globalCompositeOperation = 'destination-out';
+      tctx.fillStyle = `rgba(0,0,0,${(1 - Math.pow(0.5, dt / 330)).toFixed(4)})`;
+      tctx.fillRect(0, 0, trail.width, trail.height);
+      tctx.globalCompositeOperation = 'source-over';
+      if (next) {
+        const from = last || next;
+        const dist = Math.hypot(next.x - from.x, next.y - from.y);
+        const steps = Math.max(1, Math.ceil(dist / 22));
+        for (let i = 1; i <= steps; i++) dab(from.x + (next.x - from.x) * i / steps, from.y + (next.y - from.y) * i / steps);
+        last = next;
+        next = null;
+        lastDab = t;
+      }
+      if (t - lastDab > 1700) { clearAll(); prevT = 0; return; }
+      vctx.clearRect(0, 0, vw, vh);
+      vctx.globalCompositeOperation = 'source-over';
+      vctx.drawImage(under, 0, 0);
+      vctx.globalCompositeOperation = 'destination-in';
+      vctx.drawImage(trail, 0, 0, vw, vh);
+      vctx.globalCompositeOperation = 'source-over';
+      vraf = requestAnimationFrame(vframe);
+    };
+    const brush = {
+      wake() { if (!vraf && ready && seen && lastDab && now() - lastDab < 1700) vraf = requestAnimationFrame(vframe); },
+      still() { if (last || next) { clearAll(); lastDab = 0; } },
+      point(x, y) {
+        next = { x, y };
+        lastDab = now();
+        if (!last) prevT = 0;
+        if (!vraf && ready && seen) vraf = requestAnimationFrame(vframe);
+      }
+    };
+    loops.push(brush);
+
+    const vsize = () => {
+      vdpr = Math.min(devicePixelRatio || 1, 1.5);
+      vw = view.width = Math.round(stage.clientWidth * vdpr);
+      vh = view.height = Math.round(stage.clientHeight * vdpr);
+      trail.width = Math.round(stage.clientWidth * TRAIL);
+      trail.height = Math.round(stage.clientHeight * TRAIL);
+      if (!vw || !vh) return;
+      paintUnder();
+      ready = true;
+      if (reduced) paintSplit(); else clearAll();
+    };
+    // Fonts and the three marks first, so the page underneath is drawn once, complete.
+    Promise.all([document.fonts ? document.fonts.ready : null, ...marks.map((m) => (m.img.decode ? m.img.decode().catch(() => {}) : null))]).then(() => {
+      if ('ResizeObserver' in window) new ResizeObserver(vsize).observe(stage); else vsize();
+    });
+
+    // The pointer, read once a frame, in the stage's own pixels.
+    if (fine && !reduced) {
+      let queued = null;
+      hero.addEventListener('pointermove', (e) => {
+        if (e.pointerType === 'touch') return;
+        const first = !queued;
+        queued = e;
+        if (!first) return;
+        requestAnimationFrame(() => {
+          const ev = queued;
+          queued = null;
+          if (now() < scrollingUntil) return;
+          measure();
+          const x = ev.clientX - rect.left;
+          const y = ev.clientY - rect.top;
+          loops.forEach((l) => l.point && l.point(x, y));
+        });
+      }, { passive: true });
+    } else if (!fine && !reduced) {
+      // A finger: one slow wipe across the stage, the first time it is seen once the page has opened.
+      const wipe = () => {
+        let t0 = 0;
+        const run = (t) => {
+          if (!ready) { requestAnimationFrame(run); return; }
+          if (!t0) t0 = t;
+          const p = Math.min(1, (t - t0) / 2600);
+          const W = stage.clientWidth;
+          const H = stage.clientHeight;
+          const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+          brush.point(W * (-0.05 + 1.1 * e), H * (0.5 + 0.28 * Math.sin(e * Math.PI * 2.2)));
+          if (p < 1) requestAnimationFrame(run);
+        };
+        requestAnimationFrame(run);
+      };
+      const once = new Site.Observer((entries) => {
+        if (!entries[0].isIntersecting) return;
+        once.disconnect();
+        setTimeout(wipe, 900);
+      });
+      const arm = () => once.observe(stage);
+      if (document.documentElement.classList.contains('intro')) document.addEventListener('sentinel:intro-done', arm, { once: true });
+      else arm();
+    }
+  }
 })();
