@@ -799,6 +799,13 @@
         p.fillStyle = g;
         p.fillRect(0, 0, 128, 128);
       }
+      // A solid core, so the middle of the stroke shows what is underneath in full and only the edge is smoke.
+      const core = p.createRadialGradient(64, 64, 0, 64, 64, 50);
+      core.addColorStop(0, 'rgba(0,0,0,1)');
+      core.addColorStop(0.55, 'rgba(0,0,0,.85)');
+      core.addColorStop(1, 'rgba(0,0,0,0)');
+      p.fillStyle = core;
+      p.fillRect(0, 0, 128, 128);
     }
 
     // The page underneath: binary in the lacquer, the three masks, and the warnings Sentinel would raise here.

@@ -301,9 +301,9 @@ async function main() {
         await sleep(600);
         const revealed = async () => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
           const c = document.querySelector('.hero__unmask'); if (!c || !c.width) return 'no canvas';
-          const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0;
-          for (let i = 3; i < d.length; i += 64) if (d[i] > 128) n++;
-          return (100 * n / (d.length / 64)).toFixed(1) + '% revealed';
+          const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let solid = 0; let any = 0; const all = d.length / 64;
+          for (let i = 3; i < d.length; i += 64) { if (d[i] > 200) solid++; if (d[i] > 24) any++; }
+          return (100 * solid / all).toFixed(1) + '% of the hero shown solid, ' + (100 * any / all).toFixed(1) + '% touched';
         })()` }, sessionId)).result.value;
         await move(90, 260, 6);
         const path = [[240, 330], [380, 250], [520, 380], [400, 520], [220, 470], [330, 360]];
