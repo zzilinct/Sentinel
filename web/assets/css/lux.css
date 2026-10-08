@@ -189,7 +189,82 @@ h2 em, .page-head h1 em { color: var(--text-2); }
 /* The tab change sweeps lacquer panels with gold edges. */
 .wipe > i:nth-child(n) { --c: var(--gold-400); }
 
+/* --------------------------------------------- rising headings (site.js) */
+
+/* Each letter rises from under its word's clipped foot, stretched and blurred upward as if moving fast, and settles.
+   The word holds still: only its letters move. --lz is the laser's lead, where a laser plays first. */
+.ch { display: inline-block; }
+.js .rise .word:not(.gold-text) { transform: none; clip-path: inset(-.4em -.3em -.16em -.3em); transition: none; }
+.js .rise .ch { transform: translateY(118%); opacity: 0;
+  transition: transform 1s var(--ease-out), opacity .35s linear; transition-delay: calc(var(--lz, 0s) + var(--d, 0s)); }
+/* With a mouse (a computer, not a phone): stretched and blurred upward as it rises. */
+@media (hover: hover) and (pointer: fine) {
+  .js .rise .ch { transform: translateY(118%) scaleY(1.7); transform-origin: 50% 100%; filter: blur(6px);
+    transition: transform 1s var(--ease-out), filter .9s var(--ease-out), opacity .35s linear; transition-delay: calc(var(--lz, 0s) + var(--d, 0s)); }
+}
+.js .rise.is-in .ch, .no-io .rise .ch { transform: none; filter: none; opacity: 1; }
+
+/* ------------------------------------- paragraphs, word by word (site.js) */
+
+.js [data-reveal="words"]:not(.is-in) { clip-path: none; }
+.wd { display: inline-block; }
+.js [data-reveal="words"] .wd { opacity: .1; transform: translateY(.4em); transition: opacity .7s var(--ease-out), transform .8s var(--ease-out); transition-delay: calc(var(--lz, 0s) + .2s + var(--d, 0s)); }
+.js [data-reveal="words"].is-in .wd, .no-io .wd { opacity: 1; transform: none; }
+
+/* ------------------------------------------------ the laser (site.js) */
+
+/* Over a faint dot grid, the gold scan line comes in wavy, straightens, thickens and flares, and is gone. */
+.has-laser { position: relative; --lz: .62s; }
+.laser { position: absolute; left: -6%; right: -6%; top: -64px; height: 44px; pointer-events: none; opacity: 0; }
+.section__head--center .laser { left: -12%; right: -12%; }
+.laser::before { content: ''; position: absolute; inset: -40px 0; opacity: 0;
+  background: radial-gradient(circle, rgb(var(--gold-rgb) / .55) 1px, transparent 1.5px) 0 0 / 18px 18px;
+  -webkit-mask: radial-gradient(closest-side, #000, transparent); mask: radial-gradient(closest-side, #000, transparent); }
+.laser svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform-origin: 0 50%; }
+/* Only transforms and opacity animate here, so the compositor plays it all; the glow is a wider, fainter stroke. */
+.laser path { fill: none; stroke: var(--gold-300); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.laser path:first-child { stroke: rgb(var(--gold-rgb) / .3); stroke-width: 7; }
+.laser i { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; border-radius: 2px; opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--gold-300) 12%, #fff6dc 50%, var(--gold-300) 88%, transparent);
+  box-shadow: 0 0 12px rgb(var(--gold-rgb) / .9), 0 0 30px rgb(var(--gold-rgb) / .5); }
+.laser i::after { content: ''; position: absolute; left: 50%; top: 50%; width: 46%; height: 70px; translate: -50% -50%; border-radius: 50%; opacity: 0;
+  background: radial-gradient(closest-side, rgb(255 244 214 / .9), rgb(var(--gold-rgb) / .35) 45%, transparent); }
+.is-lasered > .laser { animation: laser-on 1.3s linear both; }
+.is-lasered > .laser::before { animation: laser-grid 1.3s ease-out both; }
+.is-lasered > .laser svg { animation: laser-wave 1.3s cubic-bezier(.3, .7, .2, 1) both; }
+.is-lasered > .laser i { animation: laser-core 1.3s cubic-bezier(.3, .7, .2, 1) both; }
+.is-lasered > .laser i::after { animation: laser-flare 1.3s ease-out both; }
+@keyframes laser-on { 0%, 96% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes laser-grid { 0% { opacity: 0; } 25%, 70% { opacity: .5; } 100% { opacity: 0; } }
+@keyframes laser-wave { 0% { transform: scale(0, 1); opacity: 1; } 30% { transform: scale(1, .85); } 52% { transform: scale(1, .02); opacity: 1; } 60%, 100% { transform: scale(1, 0); opacity: 0; } }
+@keyframes laser-core { 0%, 46% { opacity: 0; transform: scaleY(1); } 54% { opacity: 1; transform: scaleY(1); } 70% { opacity: 1; transform: scaleY(3.2); } 82% { opacity: 1; transform: scaleY(2); } 100% { opacity: 0; transform: scaleY(.5) scaleX(1.04); } }
+@keyframes laser-flare { 0%, 62% { opacity: 0; transform: scale(.2, .4); } 74% { opacity: 1; transform: scale(1, 1); } 100% { opacity: 0; transform: scale(1.8, .6); } }
+
+/* ------------------------------------------------ stacked chapters (site.js) */
+
+/* The chapter before holds still once its foot is at the bottom of the screen (or at once, if it is shorter than the
+   screen); the next slides up over it as a lacquer sheet. Wide screens only: on a phone the page simply scrolls. */
+@media (min-width: 861px) {
+  .is-stacked > :first-child { position: sticky; top: min(0px, 100vh - var(--h, 100vh)); }
+  .is-stacked > :nth-child(2) { position: relative; z-index: 3; border-radius: 40px 40px 0 0;
+    background: linear-gradient(var(--bg) calc(100vh + 40px), transparent calc(100vh + 260px));
+    box-shadow: 0 -40px 80px -30px rgb(0 0 0 / .6), inset 0 1px 0 rgb(var(--gold-rgb) / .28); }
+  .is-stacked.is-over > :first-child { visibility: hidden; }
+}
+.is-stacked > :nth-child(2) { position: relative; }
+.stack__mark { position: absolute; left: 0; top: 0; width: 1px; height: 1px; pointer-events: none; }
+
+/* ------------------------------------------- stat bars (site.js counters) */
+
+/* A short gold bar under each number, growing with the count on the same curve and over the same 1.6 s. */
+.stat__bar { display: block; width: 64px; height: 2px; margin: 14px auto 0; border-radius: 2px; background: var(--metal);
+  box-shadow: 0 0 10px rgb(var(--gold-rgb) / .6); transform: scaleX(0); transform-origin: 0 50%; }
+.stat.is-counting .stat__bar { transform: scaleX(1); transition: transform 1.6s cubic-bezier(.165, .84, .44, 1); }
+
 @media (prefers-reduced-motion: reduce) {
+  .ch, .wd { opacity: 1 !important; transform: none !important; filter: none !important; }
+  .laser { display: none; }
+  .stat__bar { transform: none; }
   .motes, body::after { display: none; }
   .page-head__mask { animation: none; }
 }

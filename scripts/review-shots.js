@@ -203,6 +203,24 @@ async function main() {
       console.log(`intro-${name}: 8 frames`);
       await send('Target.closeTarget', { targetId });
     }
+    // A phone's one slow unmasking wipe across the hero (home.js), frame by frame.
+    {
+      const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+      await send('Page.enable', {}, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }, { name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
+      await send('Page.navigate', { url: BASE + '/' }, sessionId);
+      const t0 = Date.now();
+      for (const ms of [1400, 2000, 2600, 3200, 3800, 4800]) {
+        await sleep(Math.max(0, ms - (Date.now() - t0)));
+        const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+        fs.writeFileSync(path.join(OUT, `wipe-phone-${String(ms).padStart(4, '0')}ms.png`), Buffer.from(shot.data, 'base64'));
+      }
+      console.log('wipe-phone: 6 frames');
+      await send('Target.closeTarget', { targetId });
+    }
     // Each app page's entrance, caught mid-way: open the overview, then click through the sidebar.
     {
       const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
@@ -274,6 +292,37 @@ async function main() {
         await move(cx - 280, cy + 120, 20); await sleep(1400); await shoot('gaze-left');
         await move(1340, 880, 10); await sleep(700); await shoot('gaze-away');
         await sleep(3200); await shoot('gaze-rest');
+      }
+      // The hero unmasked (home.js): the pointer swept across, then the smoke lingering and fading, frame by frame.
+      {
+        await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
+        await sleep(500);
+        await move(260, 420, 8);
+        await move(700, 300, 14);
+        await move(1080, 470, 14);
+        const t0 = Date.now();
+        for (const ms of [0, 450, 900, 1500, 2200]) {
+          await sleep(Math.max(0, ms - (Date.now() - t0)));
+          await shoot(`unmask-${String(ms).padStart(4, '0')}ms`);
+        }
+      }
+      // The demo sliding up over the held hero (stacked chapters), half way.
+      {
+        await move(1340, 880, 4);
+        await send('Runtime.evaluate', { expression: 'scrollTo(0, Math.round(innerHeight * 0.55))' }, sessionId);
+        await sleep(700);
+        await shoot('stack-half');
+      }
+      // A chapter's laser line (site.js) as its head arrives: wavy, straight, flaring, then the heading rising.
+      {
+        await send('Runtime.evaluate', { expression: "document.querySelector('#how .section__head').scrollIntoView({ block: 'center' })" }, sessionId);
+        const t0 = Date.now();
+        for (const ms of [120, 380, 650, 850, 1150, 1700]) {
+          await sleep(Math.max(0, ms - (Date.now() - t0)));
+          await shoot(`laser-${String(ms).padStart(4, '0')}ms`);
+        }
+        await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
+        await sleep(800);
       }
       // A tab clicked: the panels, then the chapter sighted through the scope (site.js arrive), frame by frame.
       {

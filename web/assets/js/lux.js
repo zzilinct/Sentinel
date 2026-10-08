@@ -56,10 +56,13 @@
     // After the opening (intro.js) when it plays, so the entrance is seen rather than spent under the cover.
     const entrance = () => {
       createTimeline({ defaults: { ease: 'outExpo' } })
-        .add(word.children, { translateY: ['100%', '0%'], clipPath: ['inset(0% 0% 100% 0%)', 'inset(0% 0% 0% 0%)'], duration: 1400, delay: stagger(60) }, 0)
+        // Stretched and blurred upward as it rises, as if caught moving fast, settling sharp.
+        .add(word.children, { translateY: ['100%', '0%'], scaleY: [1.6, 1], filter: ['blur(10px)', 'blur(0px)'], clipPath: ['inset(0% 0% 100% 0%)', 'inset(0% 0% 0% 0%)'], duration: 1400, delay: stagger(60) }, 0)
         .add($('[data-hero-mask]'), { translateY: [-150, 0], rotate: [-28, 0], scale: [.82, 1], duration: 1900, ease: 'outElastic(1, .78)' }, 380)
         // The mask is lit up out of the dark rather than faded in (on the inner wrapper: the holder keeps its shadow).
-        .add($('[data-hero-mask] .m3'), { filter: ['brightness(0)', 'brightness(1)'], duration: 1500, ease: 'outQuad' }, 380);
+        .add($('[data-hero-mask] .m3'), { filter: ['brightness(0)', 'brightness(1)'], duration: 1500, ease: 'outQuad' }, 380)
+        // Nothing left on the letters once settled (a filter, even at nothing, keeps each one on its own layer).
+        .call(() => { for (const c of word.children) { c.style.filter = ''; c.style.transform = ''; } });
       draw($$('[data-sketch] :not(text)'), { duration: 2000, delay: stagger(70, { start: 300 }) });
       animate($$('[data-sketch] text'), { clipPath: ['inset(0% 100% 0% 0%)', 'inset(0% 0% 0% 0%)'], duration: 1100, ease: 'inOutQuad', delay: stagger(140, { start: 1500 }) });
       draw($$('.vframe path, .vframe circle', hero), { duration: 1500, delay: stagger(25) });
