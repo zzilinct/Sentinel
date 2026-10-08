@@ -61,6 +61,11 @@ function Frame($part, $setup, $ms, $name, [switch]$Layer) {
   Say "  frame $name ($part at $ms ms): $first"
   $v = ''; try { $v = [string](([string]$first | ConvertFrom-Json).value) } catch {}
   $f = $v -split '\|'
+  if ($layerPng -and (Test-Path $layerPng)) {
+    # Where the window is, from the main process (the page's own screenX is 0 in a frameless tool window).
+    $at = ([string](Cdp 'main' "(() => { const w = process.mainModule.require('electron').BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('$part')); const b = w.getBounds(); return b.x + '|' + b.y; })()").value) -split '\|'
+    if ($at.Count -eq 2) { $f = @($f[0], $at[0], $at[1]) }
+  }
   if ($layerPng -and (Test-Path $layerPng) -and $f.Count -eq 3) {
     $screen = [System.Drawing.Image]::FromFile($script:lastShot); $bmp = New-Object System.Drawing.Bitmap $screen; $screen.Dispose()
     $over = [System.Drawing.Image]::FromFile($layerPng); $g = [System.Drawing.Graphics]::FromImage($bmp)

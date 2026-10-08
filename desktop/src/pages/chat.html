@@ -96,10 +96,6 @@
         x = Math.max(10, Math.min(r.x + r.w - w - 16, W - w - 10));
         y = r.y;
       }
-      // Cards do not cover each other.
-      taken.forEach(function (t) { if (Math.abs(t - y) < 74) y = t + 74; });
-      y = Math.max(8, Math.min(y, H - 90));
-      taken.push(y);
       // A card already showing stays the same element and only moves: it opens once, not again at every read.
       var key = [f.level, f.family, f.title, f.detail].join('|');
       while (next.has(key)) key += '+';
@@ -111,6 +107,12 @@
           + '</b><div class="what">' + esc(f.detail) + '</div><div class="do">' + esc(f.advice) + '</div></div>';
         cards.appendChild(el);
       }
+      // Cards do not cover each other: each goes below any card it would overlap, by its real height (a long piece of
+      // advice made a card taller than the 74 px once assumed, and the next card hid its words).
+      var h = el.offsetHeight;
+      taken.forEach(function (t) { if (y < t.y + t.h + 8 && y + h + 8 > t.y) y = t.y + t.h + 8; });
+      y = Math.max(8, Math.min(y, H - h - 8));
+      taken.push({ y: y, h: h });
       el.style.cssText = '--c:' + (COLORS[f.level] || COLORS.warn) + ';left:' + Math.round(x) + 'px;top:' + Math.round(y) + 'px';
       next.set(key, el);
     });

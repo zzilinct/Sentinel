@@ -57,6 +57,7 @@
   .corner__label > span { position: absolute; right: 0; top: 50%; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     opacity: 0; transform: translate(10px, -50%); transition: opacity .2s ease .16s, transform .5s var(--spring) .04s; }
   .corner__label > span.is-in { opacity: 1; transform: translate(0, -50%); }
+  .corner__label > span.is-swap { transition-delay: .07s, 0s; }
   .corner__label > span.is-out { opacity: 0; transform: translate(0, calc(-50% - 7px)); transition: opacity .14s ease, transform .2s ease; }
   .corner__label b { font-weight: 600; color: var(--c, #e2c47f); }
   @keyframes breathe { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
@@ -153,6 +154,8 @@
     var s = document.createElement('span');
     s.style.setProperty('--c', color || '#e2c47f');
     s.innerHTML = html;
+    // Already open: the new words come in sooner, as the old ones leave (the card only changes width).
+    if (islandW > 46) s.classList.add('is-swap');
     cornerLabel.appendChild(s);
     // One layout read per message (its width), which also fixes the start state, so the class below transitions.
     island(Math.min(s.offsetWidth, 320) + 46 + 10 + 14);
