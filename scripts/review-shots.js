@@ -215,7 +215,8 @@ async function main() {
       for (const route of ['protection', 'scan', 'threats', 'history', 'sites', 'plan', 'security', 'assistants', 'home']) {
         await send('Runtime.evaluate', { expression: `document.querySelector('.side__link[data-route="${route}"]').click()` }, sessionId);
         const t0 = Date.now();
-        for (const at of [180, 450]) {
+        // The wipe from the link is over by about 420 ms; tiles and counts are still moving at 450 ms.
+        for (const at of [90, 220, 450]) {
           await sleep(Math.max(0, at - (Date.now() - t0)));
           const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
           fs.writeFileSync(path.join(OUT, `motion-${route}-${at}ms.png`), Buffer.from(shot.data, 'base64'));
@@ -223,6 +224,20 @@ async function main() {
         await sleep(1400);
       }
       console.log('motion: entrances photographed');
+      // Toasts, as the island: one opening, a second morphing out of it, then the island folding away.
+      const island = async (name) => {
+        const shot = await send('Page.captureScreenshot', { format: 'png', clip: { x: 383, y: 0, width: 1000, height: 160, scale: 1 } }, sessionId);
+        fs.writeFileSync(path.join(OUT, `motion-island-${name}.png`), Buffer.from(shot.data, 'base64'));
+      };
+      await send('Runtime.evaluate', { expression: "UI.toast('Copied. Paste it into the browser\\'s address bar.', 'success', 1600)" }, sessionId);
+      for (const at of [60, 180, 600]) { await sleep(at === 60 ? 60 : at === 180 ? 120 : 420); await island(`open-${at}ms`); }
+      await send('Runtime.evaluate', { expression: "UI.toast('One file at a time. This one is still being checked, so the next one waits until it is done.', 'info', 1200)" }, sessionId);
+      for (const at of [120, 600]) { await sleep(at === 120 ? 120 : 480); await island(`morph-${at}ms`); }
+      await sleep(1000);
+      await island('closing');
+      await sleep(900);
+      await island('gone');
+      console.log('motion: island photographed');
       await send('Target.closeTarget', { targetId });
     }
     // Hover (hover.js): a real pointer moved round the home page, photographed as it goes.

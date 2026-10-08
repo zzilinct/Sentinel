@@ -92,15 +92,49 @@ html.lux-app[data-theme="light"] {
 .lux-app .shell { position: relative; z-index: 1; }
 .lux-app .main { position: relative; }
 
-/* ------------------------------------------- a sweep when the page changes */
+/* Springs, sampled from a damped spring (stiff enough to settle quickly, with a slight overshoot). Browsers without
+   linear() easing fall back to a cubic overshoot. */
+.lux-app { --lux-bounce: cubic-bezier(.34, 1.36, .64, 1); --lux-settle: cubic-bezier(.3, 1.18, .5, 1); }
+@supports (transition-timing-function: linear(0, 1)) {
+  .lux-app {
+    /* damping .6: about 9% past, then back */
+    --lux-bounce: linear(0, 0.047, 0.163, 0.315, 0.479, 0.635, 0.772, 0.885, 0.971, 1.032, 1.07, 1.09, 1.095, 1.09, 1.079, 1.064, 1.049, 1.034, 1.021, 1.01, 1.002, 0.997, 0.993, 0.991, 0.991, 0.992, 0.993, 0.994, 1);
+    /* damping .72: about 4% past */
+    --lux-settle: linear(0, 0.033, 0.115, 0.224, 0.346, 0.468, 0.583, 0.687, 0.776, 0.849, 0.908, 0.954, 0.987, 1.011, 1.026, 1.034, 1.038, 1.038, 1.036, 1.032, 1.028, 1.023, 1.018, 1.014, 1.01, 1.007, 1.005, 1.003, 1);
+  }
+}
 
-/* Three threads, gold, orange and red, race across the top of the page: the site's tab wipe, in a line. */
-.lux-sweep { position: absolute; left: 0; right: 0; top: 0; height: 3px; overflow: hidden; pointer-events: none; z-index: 5; }
-.lux-sweep i { position: absolute; inset: 0; transform: translateX(-101%); animation: lux-sweep .75s var(--lux-io) forwards; }
-.lux-sweep i:nth-child(1) { background: linear-gradient(90deg, transparent, var(--gold-300) 60%, var(--gold-200)); box-shadow: 0 0 14px rgb(var(--gold-rgb) / .8); }
-.lux-sweep i:nth-child(2) { background: linear-gradient(90deg, transparent, var(--orange)); animation-delay: .06s; }
-.lux-sweep i:nth-child(3) { background: linear-gradient(90deg, transparent, var(--red)); animation-delay: .12s; }
-@keyframes lux-sweep { 60% { transform: translateX(0); } to { transform: translateX(101%); } }
+/* ------------------------------------------- a wipe when the page changes */
+
+/* A soft dark circle grows from the pressed sidebar link and passes over the new page (already drawn, and answering
+   the pointer through it): dark at its edge with a faint gold rim, clear in its middle, as the black hole is. It
+   is drawn small and scaled up (app-lux.js sets --x, --y and --s), which only moves a layer and softens the edge. */
+.lux-wipe { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; overflow: hidden; pointer-events: none; contain: strict; }
+.lux-wipe i {
+  position: absolute; left: 0; top: 0; width: 200px; height: 200px; border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 54%, rgb(7 5 3 / .55) 64%, rgb(7 5 3 / .9) 78%, rgb(var(--gold-rgb) / .28) 90%, transparent 100%);
+  transform: translate(var(--x), var(--y)) scale(0); will-change: transform;
+  animation: lux-wipe .42s cubic-bezier(.45, 0, .25, 1) forwards;
+}
+@keyframes lux-wipe {
+  70% { opacity: 1; }
+  to { transform: translate(var(--x), var(--y)) scale(var(--s)); opacity: 0; }
+}
+
+/* With reduced motion a new page only fades in. */
+.lux-calm { animation: lux-calm .18s ease-out; }
+@keyframes lux-calm { from { opacity: .4; } }
+
+/* ------------------------------------------------ label over headline */
+
+/* A small tracked label over each page's headline. When the page changes the old pair (.lux-ghost) fades up and
+   out where it stood while the new pair rises into its place. */
+.lux-label { display: block; margin-bottom: 10px; font: 600 11px/1.2 var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--gold-300); }
+.lux-app .page-title .lux-label { animation: lux-label .6s var(--lux-out) .06s backwards; }
+@keyframes lux-label { from { opacity: 0; transform: translateY(6px); letter-spacing: .42em; } }
+.lux-ghost { position: absolute; z-index: 2; pointer-events: none; animation: lux-ghost .28s var(--lux-out) forwards; }
+.lux-ghost > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes lux-ghost { to { opacity: 0; transform: translateY(-10px); } }
 
 /* ----------------------------------------------------- page headings */
 
@@ -162,11 +196,21 @@ html.lux-app[data-theme="light"] {
 /* Everything else (and the page title on every page) rises gently. */
 .lux-in.lux-title { animation-name: lux-pop; animation-duration: .7s; animation-timing-function: var(--lux-out); animation-delay: 0s; }
 
+/* Tiles, cards and icon grids, on every page: a short staggered spring, a little past full size and back, with
+   each one's icon popping just after. Once per page view (app-lux.js stages each only once). */
+[data-tab] .lux-in.lux-tile { animation-name: lux-tile; animation-duration: .6s; animation-timing-function: var(--lux-bounce); animation-delay: calc(var(--li, 0) * 45ms); }
+@keyframes lux-tile { from { opacity: 0; transform: translateY(14px) scale(.9); } 30% { opacity: 1; } }
+.lux-in.lux-tile :is(.usage-row__icon, .feature__icon, .list__icon) { animation: lux-icon .48s var(--lux-bounce) calc(var(--li, 0) * 45ms + 90ms) backwards; }
+@keyframes lux-icon { from { opacity: 0; transform: scale(.4) rotate(-14deg); } }
+
 /* ------------------------------------------------ small moments */
 
 /* Meters fill from empty when they appear, so a page shows how much is left rather than just stating it. */
 .lux-app .meter i { transform-origin: 0 50%; animation: lux-fill 1.2s var(--lux-out) .25s backwards; }
 @keyframes lux-fill { from { transform: scaleX(0); } }
+/* A meter beside a figure that counts up fills again as the count starts (it may have been off screen before). */
+.lux-app .lux-grow .meter i { animation: lux-grow 1.2s var(--lux-out) .25s backwards; }
+@keyframes lux-grow { from { transform: scaleX(0); } }
 /* A verdict's mask is read by a gold scan line as it lands, as the opening reads the onyx mask. */
 .lux-app .result__glyph { position: relative; overflow: hidden; }
 .lux-app .result__glyph::after { content: ''; position: absolute; left: -10%; right: -10%; height: 2px; top: 0; pointer-events: none;
@@ -228,10 +272,40 @@ html.lux-app[data-theme="light"] {
 /* Numbers counting up hold their width, so nothing beside them shifts. */
 .lux-count { font-variant-numeric: tabular-nums; }
 
+/* ------------------------------------------------------- the island */
+
+/* Toasts, as one dark island at the top (app-lux.js). Their own box stays in the page, out of sight, as the live
+   region a screen reader hears. The island is dark in both themes, as the reel's is. */
+.lux-island-host { position: fixed !important; left: 0 !important; bottom: 0 !important; right: auto !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.lux-island {
+  position: fixed; z-index: 1000; top: 12px; left: 50%; width: 120px; height: 34px; border-radius: 22px; overflow: hidden; pointer-events: none;
+  background: #0b0906; color: #efe6d4; box-shadow: 0 18px 44px rgb(0 0 0 / .45), inset 0 0 0 1px rgb(210 172 99 / .22);
+  opacity: 0; transform: translateX(-50%) translateY(-8px) scale(.6);
+  transition: opacity .2s ease, transform .5s var(--lux-settle), width .52s var(--lux-settle), height .52s var(--lux-settle);
+}
+@media (min-width: 901px) { .lux-island { left: calc(50% + 128px); } }
+.lux-island.is-open { opacity: 1; transform: translateX(-50%); }
+.lux-island__msg {
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: max-content; max-width: min(420px, calc(100vw - 32px));
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 18px; font-size: 14px; line-height: 1.4;
+  animation: lux-msg-in .32s var(--lux-out) .12s backwards;
+}
+.lux-island__msg i { flex: none; width: 7px; height: 7px; margin-top: 6.5px; border-radius: 50%; background: #e2c27f; box-shadow: 0 0 10px rgb(226 194 127 / .8); }
+.lux-island__msg.is-success i { background: #4cb782; box-shadow: 0 0 10px rgb(76 183 130 / .8); }
+.lux-island__msg.is-error i { background: #e5484d; box-shadow: 0 0 10px rgb(229 72 77 / .8); }
+.lux-island__msg.is-out { animation: lux-msg-out .2s ease-in forwards; }
+@keyframes lux-msg-in { from { opacity: 0; transform: translateY(6px) scale(.96); filter: blur(3px); } }
+@keyframes lux-msg-out { to { opacity: 0; transform: translateY(-6px) scale(.96); filter: blur(3px); } }
+
 /* ----------------------------------------------------- reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
-  .lux-atmos i, .lux-sweep, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .result__glyph::after, .lux-app .empty svg { animation: none !important; }
+  .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .result__glyph::after, .lux-app .empty svg,
+  .lux-wipe, .lux-ghost, .lux-app .page-title .lux-label, .lux-tile, .lux-tile *, .lux-island__msg { animation: none !important; }
+  .lux-wipe, .lux-ghost { display: none; }
+  /* The island only fades in and out, at its size, and swaps its words in place. */
+  .lux-island { transform: translateX(-50%); transition: opacity .15s ease; }
+  .lux-island__msg.is-out { display: none; }
   .lux-app .result__glyph::after { display: none; }
   .lux-atmos i { display: none; }
   .lux-word { transform: none; clip-path: none; }
