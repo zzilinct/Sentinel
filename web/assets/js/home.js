@@ -923,7 +923,7 @@
     let vraf = 0;
     let prevT = 0;
     const dab = (x, y) => {
-      const s = (200 + Math.random() * 90) * TRAIL;
+      const s = (250 + Math.random() * 100) * TRAIL;
       tctx.save();
       tctx.translate(x * TRAIL, y * TRAIL);
       tctx.rotate(Math.random() * Math.PI * 2);

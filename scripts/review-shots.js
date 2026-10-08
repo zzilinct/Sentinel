@@ -308,9 +308,11 @@ async function main() {
         await move(90, 260, 6);
         const path = [[240, 330], [380, 250], [520, 380], [400, 520], [220, 470], [330, 360]];
         for (let i = 0; i < path.length; i++) {
-          await move(path[i][0], path[i][1], 8);
+          await move(path[i][0], path[i][1], 16);
+          // Read the canvas first (a screenshot on this software renderer takes a second or two, while it fades).
+          const share = await revealed();
           await shoot(`unmask-drag-${i + 1}`);
-          console.log(`unmask-drag-${i + 1}: ${await revealed()}`);
+          console.log(`unmask-drag-${i + 1}: ${share}`);
         }
         const t0 = Date.now();
         for (const ms of [700, 2600]) {
