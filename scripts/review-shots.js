@@ -293,17 +293,30 @@ async function main() {
         await move(1340, 880, 10); await sleep(700); await shoot('gaze-away');
         await sleep(3200); await shoot('gaze-rest');
       }
-      // The hero unmasked (home.js): the pointer swept across, then the smoke lingering and fading, frame by frame.
+      // The hero unmasked (home.js): the pointer dragged across the left half of the hero, photographed mid-drag after
+      // each stretch (the pointer still moving), then twice after it stops. Each frame also logs how much of the
+      // canvas is revealed, so a blank frame says whether the brush painted at all.
       {
         await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
-        await sleep(500);
-        await move(260, 420, 8);
-        await move(700, 300, 14);
-        await move(1080, 470, 14);
+        await sleep(600);
+        const revealed = async () => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+          const c = document.querySelector('.hero__unmask'); if (!c || !c.width) return 'no canvas';
+          const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0;
+          for (let i = 3; i < d.length; i += 64) if (d[i] > 128) n++;
+          return (100 * n / (d.length / 64)).toFixed(1) + '% revealed';
+        })()` }, sessionId)).result.value;
+        await move(90, 260, 6);
+        const path = [[240, 330], [380, 250], [520, 380], [400, 520], [220, 470], [330, 360]];
+        for (let i = 0; i < path.length; i++) {
+          await move(path[i][0], path[i][1], 8);
+          await shoot(`unmask-drag-${i + 1}`);
+          console.log(`unmask-drag-${i + 1}: ${await revealed()}`);
+        }
         const t0 = Date.now();
-        for (const ms of [0, 450, 900, 1500, 2200]) {
+        for (const ms of [700, 2600]) {
           await sleep(Math.max(0, ms - (Date.now() - t0)));
-          await shoot(`unmask-${String(ms).padStart(4, '0')}ms`);
+          await shoot(`unmask-after-${String(ms).padStart(4, '0')}ms`);
+          console.log(`unmask-after-${ms}ms: ${await revealed()}`);
         }
       }
       // The demo sliding up over the held hero (stacked chapters), half way.

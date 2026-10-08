@@ -771,6 +771,9 @@
     const under = document.createElement('canvas');
     const trail = document.createElement('canvas');
     const tctx = trail.getContext('2d');
+    // The trail again, in gold: added over the reveal so its soft edge glows gold instead of greying the hero.
+    const haze = document.createElement('canvas');
+    const hctx = haze.getContext('2d');
     const TRAIL = 0.5;          // the brush is soft: its mask is kept at half size and drawn scaled up
     let vw = 0;
     let vh = 0;
@@ -791,7 +794,7 @@
         const x = 64 + Math.cos(a) * d;
         const y = 64 + Math.sin(a) * d;
         const g = p.createRadialGradient(x, y, 0, x, y, r);
-        g.addColorStop(0, 'rgba(0,0,0,.5)');
+        g.addColorStop(0, 'rgba(0,0,0,.62)');
         g.addColorStop(1, 'rgba(0,0,0,0)');
         p.fillStyle = g;
         p.fillRect(0, 0, 128, 128);
@@ -822,8 +825,9 @@
       const H = vh / vdpr;
       u.setTransform(vdpr, 0, 0, vdpr, 0, 0);
       const bg = u.createRadialGradient(W / 2, H * 0.4, 0, W / 2, H * 0.4, Math.max(W, H) * 0.7);
-      bg.addColorStop(0, '#1c160d');
-      bg.addColorStop(1, '#0b0906');
+      bg.addColorStop(0, '#2c210f');
+      bg.addColorStop(0.55, '#140f08');
+      bg.addColorStop(1, '#090705');
       u.fillStyle = bg;
       u.fillRect(0, 0, W, H);
       let seed = 11;
@@ -835,7 +839,7 @@
       for (let y = 6, row = 0; y < H; y += 17, row++) {
         let line = '';
         for (let i = 0; i < cols; i++) line += (rnd() < 0.5 ? '0' : '1') + ' ';
-        u.fillStyle = `rgba(210,172,99,${row % 3 ? 0.16 : 0.3})`;
+        u.fillStyle = `rgba(226,194,127,${row % 3 ? 0.34 : 0.62})`;
         u.fillText(line, (row % 2) * 7, y);
       }
       // Marks and warnings, scattered on a loose grid so they never pile up.
@@ -848,10 +852,10 @@
           const cy = (r + 0.25 + rnd() * 0.5) * (H / gr);
           if (n % 3 === 0) {
             const m = marks[(n / 3) % 3];
-            const s = 52 + rnd() * 40;
+            const s = 78 + rnd() * 44;
             u.save();
             u.shadowColor = m.c;
-            u.shadowBlur = 28;
+            u.shadowBlur = 36;
             if (m.img.complete && m.img.naturalWidth) u.drawImage(m.img, cx - s / 2, cy - s / 2, s, s);
             u.restore();
           } else {
@@ -908,6 +912,7 @@
     let last = null;      // the brush's previous point, in stage pixels
     let next = null;      // where the pointer is now
     let lastDab = 0;
+    let quiet = 0;        // ms of drawn frames since the last dab (a stalled machine must not skip the linger)
     let vraf = 0;
     let prevT = 0;
     const dab = (x, y) => {
@@ -931,7 +936,8 @@
       prevT = t;
       // It lingers while the pointer moves and a moment after (a slow half-life), then fades quickly, and is wiped
       // clean once it has gone quiet.
-      const half = t - lastDab < 600 ? 1200 : 300;
+      quiet += dt;
+      const half = quiet < 600 ? 1200 : 300;
       tctx.globalCompositeOperation = 'destination-out';
       tctx.fillStyle = `rgba(0,0,0,${(1 - Math.pow(0.5, dt / half)).toFixed(4)})`;
       tctx.fillRect(0, 0, trail.width, trail.height);
@@ -944,13 +950,21 @@
         last = next;
         next = null;
         lastDab = t;
+        quiet = 0;
       }
-      if (t - lastDab > 2000) { clearAll(); prevT = 0; return; }
+      if (quiet > 2000) { clearAll(); prevT = 0; return; }
       vctx.clearRect(0, 0, vw, vh);
       vctx.globalCompositeOperation = 'source-over';
       vctx.drawImage(under, 0, 0);
       vctx.globalCompositeOperation = 'destination-in';
       vctx.drawImage(trail, 0, 0, vw, vh);
+      hctx.globalCompositeOperation = 'copy';
+      hctx.drawImage(trail, 0, 0);
+      hctx.globalCompositeOperation = 'source-in';
+      hctx.fillStyle = 'rgba(226,194,127,.26)';
+      hctx.fillRect(0, 0, haze.width, haze.height);
+      vctx.globalCompositeOperation = 'lighter';
+      vctx.drawImage(haze, 0, 0, vw, vh);
       vctx.globalCompositeOperation = 'source-over';
       vraf = requestAnimationFrame(vframe);
     };
@@ -960,6 +974,7 @@
       point(x, y) {
         next = { x, y };
         lastDab = now();
+        quiet = 0;
         if (!last) prevT = 0;
         if (!vraf && ready && seen) vraf = requestAnimationFrame(vframe);
       }
@@ -972,6 +987,8 @@
       vh = view.height = Math.round(stage.clientHeight * vdpr);
       trail.width = Math.round(stage.clientWidth * TRAIL);
       trail.height = Math.round(stage.clientHeight * TRAIL);
+      haze.width = trail.width;
+      haze.height = trail.height;
       if (!vw || !vh) return;
       paintUnder();
       ready = true;
