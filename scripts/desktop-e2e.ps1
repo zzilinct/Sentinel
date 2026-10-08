@@ -42,6 +42,23 @@ function Shot($name) {
 function Cdp($part, $expr) { $j = node (Join-Path $PSScriptRoot 'e2e-cdp.js') $(if ($part -eq 'main') { 9334 } else { 9333 }) $part $expr; Say "  cdp $part -> $(([string]$j).Substring(0, [Math]::Min(400, ([string]$j).Length)))"; return ($j | ConvertFrom-Json) }
 # Press a button in the shield's window by its words.
 function Press($label) { return (Cdp 'guard.html' "(() => { const b = [...document.querySelectorAll('#row button')].find((x) => x.textContent === '$label'); if (b) b.click(); return Boolean(b); })()").value }
+# Motion, photographed mid-animation. The runner's Windows asks for reduced motion, so the window is asked for full
+# motion while connected (E2E_MOTION_HOLD_MS, scripts/e2e-cdp.js). $setup starts what is to be seen (single quotes
+# only); then every animation in the window is paused $ms in, and the screen is photographed while it holds there.
+# Returns how many animations were paused: 0 means there was no motion to see.
+function Frame($part, $setup, $ms, $name) {
+  $expr = "(async () => { $setup; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const a = document.getAnimations(); a.forEach((x) => { x.pause(); x.currentTime = $ms; }); return a.length; })()"
+  $job = Start-Job -ScriptBlock { param($js, $part, $expr) $env:E2E_MOTION_HOLD_MS = '4000'; node $js 9333 $part $expr } -ArgumentList (Join-Path $PSScriptRoot 'e2e-cdp.js'), $part, $expr
+  $first = $null
+  for ($i = 0; $i -lt 150 -and -not $first -and $job.State -in 'NotStarted', 'Running'; $i++) { Start-Sleep -Milliseconds 100; $first = @(Receive-Job $job -Keep) | Select-Object -First 1 }
+  Start-Sleep -Milliseconds 250
+  Shot $name
+  [void](Wait-Job $job -Timeout 20); if (-not $first) { $first = @(Receive-Job $job) | Select-Object -First 1 }; Remove-Job $job -Force
+  Say "  frame $name ($part at $ms ms): $first"
+  # Let go: everything paused plays to its end, so nothing is left frozen half open.
+  [void](Cdp $part "document.getAnimations().forEach((x) => { try { x.finish(); } catch (e) {} }), 1")
+  try { return [int](([string]$first | ConvertFrom-Json).value) } catch { return 0 }
+}
 function Info($expr) { return (Cdp '127.0.0.1:4782' "window.sentinelDesktop.$expr").value }
 function Until($seconds, [scriptblock]$test) { $end = (Get-Date).AddSeconds($seconds); while ((Get-Date) -lt $end) { if (& $test) { return $true }; Start-Sleep 2 }; return [bool](& $test) }
 $data = "$env:APPDATA\Sentinel"
@@ -143,6 +160,10 @@ Check 'chat-discord-read' ($seen.discord.checked -ge 3) "messages checked in Dis
 Check 'chat-discord-flagged' $ok "messages flagged in Discord: $($seen.discord.flagged) (the phone number and the secret)"
 $o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + getComputedStyle(document.getElementById('badge')).display + '|' + document.body.className").value
 Check 'chat-discord-overlay' ($o -match '^[1-9]\d*\|(?!none)') "chat overlay over Discord (warnings|badge|app): $o"
+# The island in chat: the badge springs open from its mask tile, and each card opens out of its tile beside the message.
+$replay = "const b = document.getElementById('badge'); b.classList.remove('is-on'); b.getAnimations({ subtree: true }).forEach((x) => { try { x.finish(); } catch (e) {} }); b.classList.add('is-on')"
+$n = @(80, 180, 700 | ForEach-Object { Frame 'chat.html' $replay $_ "motion-chat-$($_)ms" })
+Check 'motion-chat' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations paused mid-spring in the chat overlay, per frame: $($n -join ', ')"
 Get-Process Discord -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep 3
 
@@ -264,6 +285,18 @@ $clip = (Get-Clipboard -Raw) + ''
 Check 'clickfix-program-told' ($ok -and $clip.Trim() -eq $command2) "copied in Notepad: told ($ok), clipboard left alone: $($clip.Substring(0, [Math]::Min(40, $clip.Length)))"
 Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
+# 4a. The live-scanning corner as an island, over Edge: the mask springs open into a card with the words, a new
+# message morphs the card, and it closes back into the mask. Photographed mid-spring (bottom right of each frame).
+Say "Edge in front: $(Front 'msedge')"
+Start-Sleep 7   # past the corner's own timers (its words leave at 4.2 s, the mask rests at 5 s)
+$isl = "const c = document.getElementById('corner'); c.classList.add('is-on'); c.classList.remove('is-rested', 'is-quiet', 'is-shy'); const I = window.sentinelIsland; const settle = () => document.getAnimations().forEach((x) => { try { x.finish(); } catch (e) {} })"
+$scan = "I.say('<b>Sentinel is scanning</b> this browser.', '#e2c47f', true)"
+$n = @()
+$n += @(70, 160, 320, 800 | ForEach-Object { Frame 'overlay.html' "$isl; I.hush(); settle(); $scan" $_ "motion-island-open-$($_)ms" })
+$n += Frame 'overlay.html' "$isl; $scan; settle(); I.say('<b>Phishing.</b> Do not enter anything here.', '#e5484d', true)" 160 'motion-island-morph-160ms'
+$n += Frame 'overlay.html' "$isl; $scan; settle(); I.hush()" 140 'motion-island-close-140ms'
+Check 'motion-island' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations paused mid-spring in the corner island, per frame: $($n -join ', ')"
+
 # 5. Tech-support scam shield: the real AnyDesk, downloaded and started.
 $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null
 $anydesk = Join-Path $dl 'AnyDesk.exe'
@@ -279,6 +312,9 @@ if (Test-Path $anydesk) {
   # The neutral way out comes before "End the connection"; trusting is a quiet link, and only a second step.
   $b = (Cdp 'guard.html' "[...document.querySelectorAll('#row button')].map((x) => x.textContent).join('|')").value
   Check 'remote-buttons' ($b -eq 'I use AnyDesk myself|Not now|End the connection') "buttons, left to right: $b"
+  # The shield's window opens softly: the mask springs in and the words settle after it.
+  $n = @(90, 220, 900 | ForEach-Object { Frame 'guard.html' '1' $_ "motion-guard-$($_)ms" })
+  Check 'motion-guard' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations paused mid-spring in the shield's window, per frame: $($n -join ', ')"
   # Under a parent lock, "I use it myself" needs the PIN.
   [void](Info "lockSet('2468')")
   [void](Press 'I use AnyDesk myself'); Start-Sleep 1

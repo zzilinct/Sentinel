@@ -853,3 +853,21 @@ test('a start that breaks inside a require still leaves its reason in app.log an
   assert.equal(require('../desktop/package.json').main, 'src/boot.js', 'the app starts from boot.js');
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('the corner island, chat cards and shield window move with transforms only, once, never in a loop', () => {
+  const overlay = read('desktop/src/pages/overlay.html');
+  const chat = read('desktop/src/pages/chat.html');
+  const guard = read('desktop/src/pages/guard.html');
+  // Over games and browsers: nothing in these windows animates forever (pending marks wait for their verdict only).
+  assert.deepEqual(overlay.match(/infinite/g), ['infinite'], 'only the pending mark loops, until its verdict');
+  assert.match(overlay, /\.mark\.is-pending \{[^}]*infinite/);
+  assert.doesNotMatch(chat, /infinite/);
+  assert.doesNotMatch(guard, /infinite/);
+  // The island opens by transforms of its cap and middle strip, never by animating width.
+  assert.match(overlay, /\.isl__cap, \.isl__mid \{[^}]*transition: transform /);
+  assert.doesNotMatch(overlay + chat + guard, /transition:[^;]*\b(width|height|left|top|box-shadow)\b/);
+  // It still steps aside from the pointer, over its whole open width.
+  assert.match(overlay, /var near = ev\.clientX > cr\.right - islandW - 60 && ev\.clientY > cr\.top - 60;/);
+  // A calm version for reduced motion, in each window.
+  for (const html of [overlay, chat, guard]) assert.match(html, /@media \(prefers-reduced-motion: reduce\)/);
+});

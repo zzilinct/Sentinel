@@ -14,10 +14,17 @@ async function main() {
   if (!t) return { error: `no window at ${part}`, windows: targets.map((x) => x.url.split('?')[0]) };
   const ws = new WebSocket(t.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = () => reject(new Error('could not connect')); });
-  const reply = await new Promise((resolve) => {
-    ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id === 1) resolve(d); };
-    ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
+  const call = (id, method, params) => new Promise((resolve) => {
+    ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id === id) resolve(d); };
+    ws.send(JSON.stringify({ id, method, params }));
   });
+  // E2E_MOTION_HOLD_MS: the runner's Windows asks for reduced motion, so for photographs of the motion this session
+  // asks for full motion, evaluates, and stays connected this long (the request ends with the session) while the
+  // script takes its screenshot.
+  const hold = Number(process.env.E2E_MOTION_HOLD_MS) || 0;
+  if (hold) await call(0, 'Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+  const reply = await call(1, 'Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+  if (hold) { const r = reply.result || {}; console.log(JSON.stringify(r.exceptionDetails ? { error: 'threw' } : { value: r.result ? r.result.value : null })); await new Promise((r) => setTimeout(r, hold)); }
   ws.close();
   const r = reply.result || {};
   if (r.exceptionDetails) return { error: (r.exceptionDetails.exception && r.exceptionDetails.exception.description || r.exceptionDetails.text || '').split('\n')[0] };
