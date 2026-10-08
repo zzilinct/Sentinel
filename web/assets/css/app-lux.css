@@ -132,7 +132,7 @@ html.lux-app[data-theme="light"] {
 .lux-label { display: block; margin-bottom: 10px; font: 600 11px/1.2 var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--gold-300); }
 .lux-app .page-title .lux-label { animation: lux-label .6s var(--lux-out) .06s backwards; }
 @keyframes lux-label { from { opacity: 0; transform: translateY(6px); letter-spacing: .42em; } }
-.lux-ghost { position: absolute; z-index: 2; pointer-events: none; animation: lux-ghost .3s ease-in forwards; }
+.lux-ghost { position: absolute; z-index: 2; pointer-events: none; animation: lux-ghost .28s var(--lux-out) forwards; }
 .lux-ghost > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @keyframes lux-ghost { to { opacity: 0; transform: translateY(-10px); } }
 
