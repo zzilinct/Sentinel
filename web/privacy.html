@@ -140,11 +140,12 @@
 </main>
 <!-- @include footer -->
 <script src="/assets/js/masks.js"></script>
-<script src="/assets/js/site.js"></script>
+<!-- Deferred, so they run after site.js; before it in the page, so site.js can see they are coming. -->
 <script src="/assets/js/vendor/gsap.min.js" defer></script>
 <script src="/assets/js/vendor/ScrollTrigger.min.js" defer></script>
 <script src="/assets/js/vendor/lenis.min.js" defer></script>
 <script src="/assets/js/motion.js" defer></script>
+<script src="/assets/js/site.js"></script>
 <script src="/assets/js/anime.min.js" defer></script>
 <script src="/assets/js/lux.js" defer></script>
 </body>

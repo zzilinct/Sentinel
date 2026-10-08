@@ -66,7 +66,8 @@
       lenis,
       // Where the page jumps (a tab's chapter, under its wipe), it lands exactly, at once; a smooth one glides there.
       to(top, smooth) {
-        if (!smooth) lenis.reset();
+        // From where the page really is: a native scroll earlier in this frame has not reached Lenis yet.
+        lenis.reset();
         lenis.scrollTo(top, { immediate: !smooth, force: true });
         wake();
       },
@@ -84,8 +85,9 @@
       const target = document.getElementById(decodeURIComponent(url.hash.slice(1)));
       if (!target) return;
       ev.preventDefault();
-      lenis.scrollTo(target);
-      wake();
+      // Its place measured now, honouring its scroll margin as a native jump would.
+      const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+      window.SentinelScroll.to(Math.max(0, target.getBoundingClientRect().top + scrollY - margin), true);
       if (history.pushState) history.pushState(null, '', url.hash);
       if (!target.matches('a, button, input, select, textarea, [tabindex]')) target.tabIndex = -1;
       target.focus({ preventScroll: true });

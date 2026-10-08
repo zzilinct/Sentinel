@@ -131,7 +131,7 @@ test('boot: hidden reveals fail open when a script errors or site.js never becom
   assert.match(fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'site.js'), 'utf8'), /window\.Site\.ready = true/);
 });
 
-test('scroll motion: GSAP, ScrollTrigger and Lenis ship with their licences and load, deferred, before motion.js', () => {
+test('scroll motion: GSAP, ScrollTrigger and Lenis ship with their licences and load, deferred, before motion.js (and are in the page before site.js looks for them)', () => {
   const web = path.join(ROOT, 'web');
   const vendor = path.join(web, 'assets', 'js', 'vendor');
   assert.match(fs.readFileSync(path.join(vendor, 'gsap.min.js'), 'utf8').slice(0, 400), /gsap\.com\/standard-license/);
@@ -143,7 +143,7 @@ test('scroll motion: GSAP, ScrollTrigger and Lenis ship with their licences and 
     const html = fs.readFileSync(path.join(web, page), 'utf8');
     const at = (f) => html.indexOf(`<script src="/assets/js/${f}" defer></script>`);
     const order = ['vendor/gsap.min.js', 'vendor/ScrollTrigger.min.js', 'vendor/lenis.min.js', 'motion.js'].map(at);
-    assert.ok(order.every((i, k) => i > html.indexOf('assets/js/site.js') && (k === 0 || i > order[k - 1])), `${page}: the scroll motion scripts are missing, not deferred, or out of order`);
+    assert.ok(order.every((i, k) => i > 0 && i < html.indexOf('assets/js/site.js') && (k === 0 || i > order[k - 1])), `${page}: the scroll motion scripts are missing, not deferred, or out of order`);
   }
   for (const page of ['app.html', 'login.html', 'signup.html']) {
     assert.ok(!fs.readFileSync(path.join(web, page), 'utf8').includes('vendor/gsap'), `${page} has no scroll motion to load`);
