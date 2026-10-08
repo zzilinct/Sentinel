@@ -110,6 +110,11 @@ const ADVICE = {
   sextortion: 'This is a threat, and it is never your fault. Do not pay or send anything. Keep the messages, block the person, and tell a parent or another adult you trust straight away. You can also report it at report.cybertip.org (in the US) or to CEOP (in the UK).',
   scam: 'This looks like a scam. Nobody gives away free Robux, V-Bucks or Nitro, real staff never ask for your password or a code, and in a trade the person who asks you to go first is the one who keeps both. Do not click, scan or send anything.'
 };
+// When this message is about a phone number, the general advice (free Robux, trades) does not fit: say what to do about a number.
+const PHONE_ADVICE = {
+  scam: 'Do not call or text this number. Numbers like this can charge you by the minute or lead to a scammer. Block the person, and tell a parent or another adult you trust.',
+  grooming: 'Someone you met in a game or chat sharing a phone number wants to reach you outside it. Do not call or text it, and never send yours. Tell a parent or another adult you trust, and use Block and Report.'
+};
 const TITLE = {
   grooming: 'This person may not be safe to talk to',
   sextortion: 'Someone is threatening you',
@@ -173,7 +178,7 @@ function conversation(context = {}) {
         family,
         title: TITLE[family],
         detail: `${m.who ? `${String(m.who).slice(0, 40)} ` : 'Someone '}${done.slice(0, 3).join(', ')}.`,
-        advice: ADVICE[family],
+        advice: found.every((s) => s.id === 'number' || s.id === 'scamnum') && PHONE_ADVICE[family] ? PHONE_ADVICE[family] : ADVICE[family],
         signs: [...kindsSeen.keys()]
       };
     }

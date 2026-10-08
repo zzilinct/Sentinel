@@ -102,3 +102,9 @@ test('a phone number said in chat is flagged; one from a scam area code is a sca
   for (const t of ['my number is 212-555-0147', 'hmu +447700900123']) assert.equal(r(t) && r(t).level, 'warn', t);
   for (const t of ['place 1818 id 4924922222', 'i have 1500 robux and 20 pets', 'score 99-100', 'join code 4821']) assert.equal(r(t), null, t);
 });
+
+test('a phone number gets advice about the number, not about Robux or trades', () => {
+  const r = conversation({ server: 'Gaming' }).add({ who: 'x', text: 'call me 876-555-0123', at: 1 });
+  assert.match(r.advice, /Do not call or text this number/);
+  assert.doesNotMatch(r.advice, /Robux|V-Bucks/);
+});
