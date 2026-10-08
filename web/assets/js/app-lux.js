@@ -232,7 +232,8 @@
     label.className = 'lux-label';
     label.textContent = LABELS[was] || '';
     const words = document.createElement('div');
-    words.style.cssText = `font:${cs.font};letter-spacing:${cs.letterSpacing};color:${cs.color}`;
+    // Property by property: the computed `font` shorthand is empty when the heading sets a longhand it cannot express.
+    for (const p of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontStretch', 'lineHeight', 'letterSpacing', 'color']) words.style[p] = cs[p];
     words.textContent = before.getAttribute('aria-label') || before.textContent;
     g.append(label, words);
     main.appendChild(g);
