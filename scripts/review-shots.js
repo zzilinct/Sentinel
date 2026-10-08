@@ -203,6 +203,24 @@ async function main() {
       console.log(`intro-${name}: 8 frames`);
       await send('Target.closeTarget', { targetId });
     }
+    // A phone's one slow unmasking wipe across the hero (home.js), frame by frame.
+    {
+      const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+      await send('Page.enable', {}, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }, { name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
+      await send('Page.navigate', { url: BASE + '/' }, sessionId);
+      const t0 = Date.now();
+      for (const ms of [1400, 2000, 2600, 3200, 3800, 4800]) {
+        await sleep(Math.max(0, ms - (Date.now() - t0)));
+        const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+        fs.writeFileSync(path.join(OUT, `wipe-phone-${String(ms).padStart(4, '0')}ms.png`), Buffer.from(shot.data, 'base64'));
+      }
+      console.log('wipe-phone: 6 frames');
+      await send('Target.closeTarget', { targetId });
+    }
     // Each app page's entrance, caught mid-way: open the overview, then click through the sidebar.
     {
       const { targetId } = await send('Target.createTarget', { url: 'about:blank' });

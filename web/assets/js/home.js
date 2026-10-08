@@ -791,7 +791,7 @@
         const x = 64 + Math.cos(a) * d;
         const y = 64 + Math.sin(a) * d;
         const g = p.createRadialGradient(x, y, 0, x, y, r);
-        g.addColorStop(0, 'rgba(0,0,0,.34)');
+        g.addColorStop(0, 'rgba(0,0,0,.5)');
         g.addColorStop(1, 'rgba(0,0,0,0)');
         p.fillStyle = g;
         p.fillRect(0, 0, 128, 128);
@@ -844,7 +844,7 @@
       let n = 0;
       for (let r = 0; r < gr; r++) {
         for (let c = 0; c < gc; c++, n++) {
-          const cx = (c + 0.2 + rnd() * 0.5) * (W / gc);
+          let cx = (c + 0.2 + rnd() * 0.5) * (W / gc);
           const cy = (r + 0.25 + rnd() * 0.5) * (H / gr);
           if (n % 3 === 0) {
             const m = marks[(n / 3) % 3];
@@ -858,6 +858,8 @@
             const [label, col] = WARN[n % WARN.length];
             u.font = `500 13px ${MONO}`;
             const tw = u.measureText(label.toUpperCase()).width;
+            // Kept whole inside the stage, however narrow.
+            cx = Math.max(24, Math.min(cx, W - tw - 34));
             u.save();
             u.strokeStyle = col;
             u.fillStyle = 'rgba(11,9,6,.85)';
@@ -877,10 +879,11 @@
             const host = HOSTS[n % HOSTS.length];
             u.font = `italic 17px ${SERIF}`;
             u.fillStyle = 'rgba(239,230,212,.55)';
-            u.fillText(host, cx - 10, cy + 34);
             const hw = u.measureText(host).width;
+            const hx = Math.max(8, Math.min(cx - 10, W - hw - 10));
+            u.fillText(host, hx, cy + 34);
             u.fillStyle = col;
-            u.fillRect(cx - 12, cy + 34, hw + 4, 1.5);
+            u.fillRect(hx - 2, cy + 34, hw + 4, 1.5);
             u.textBaseline = 'top';
           }
         }
@@ -908,7 +911,7 @@
     let vraf = 0;
     let prevT = 0;
     const dab = (x, y) => {
-      const s = (120 + Math.random() * 70) * TRAIL;
+      const s = (200 + Math.random() * 90) * TRAIL;
       tctx.save();
       tctx.translate(x * TRAIL, y * TRAIL);
       tctx.rotate(Math.random() * Math.PI * 2);
@@ -926,9 +929,11 @@
       if (!seen || t < scrollingUntil) { clearAll(); return; }
       const dt = Math.min(64, prevT ? t - prevT : 16);
       prevT = t;
-      // It lingers, then fades: a half-life of a third of a second, and wiped clean once it has gone quiet.
+      // It lingers while the pointer moves and a moment after (a slow half-life), then fades quickly, and is wiped
+      // clean once it has gone quiet.
+      const half = t - lastDab < 350 ? 900 : 240;
       tctx.globalCompositeOperation = 'destination-out';
-      tctx.fillStyle = `rgba(0,0,0,${(1 - Math.pow(0.5, dt / 330)).toFixed(4)})`;
+      tctx.fillStyle = `rgba(0,0,0,${(1 - Math.pow(0.5, dt / half)).toFixed(4)})`;
       tctx.fillRect(0, 0, trail.width, trail.height);
       tctx.globalCompositeOperation = 'source-over';
       if (next) {
