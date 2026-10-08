@@ -9,10 +9,9 @@
 
   const A = window.anime;
   if (!A || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const { animate, stagger, createTimeline, createDrawable, onScroll, utils } = A;
+  const { animate, stagger, createTimeline, createDrawable, utils } = A;
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
 
   // Run a function the first time an element comes on screen.
   const whenSeen = (el, fn, margin = '0px 0px -12% 0px') => {
@@ -72,20 +71,7 @@
 
     const mask = $('[data-hero-mask] img');
     if (mask) animate(mask, { translateY: [-8, 8], rotate: [-1.2, 1.2], duration: 3800, alternate: true, loop: true, ease: 'inOutSine' });
-    // The mask itself watches the pointer (hover.js); the name drifts the other way a little, for depth.
-    if (finePointer) {
-      let pending = false;
-      addEventListener('pointermove', (e) => {
-        if (pending || scrollY > innerHeight) return;
-        pending = true;
-        requestAnimationFrame(() => {
-          pending = false;
-          animate(word, { x: (e.clientX / innerWidth - 0.5) * -18, duration: 1400, ease: 'outQuart' });
-        });
-      }, { passive: true });
-    }
-    // The name drifts up and the mask sinks a little as the hero scrolls away.
-    animate(word, { translateY: ['0%', '-18%'], ease: 'linear', autoplay: onScroll({ target: hero, sync: 0.35, enter: 'top top', leave: 'top bottom' }) });
+    // The name's drift with the pointer and with the scroll, and the mask's sink, are motion.js's (GSAP).
   }
 
   /* ------------------------------------------------- mask plates */
@@ -93,10 +79,7 @@
   for (const plate of $$('.plate')) {
     const art = $('.plate__art', plate);
     whenSeen(art, () => draw($$('.cartouche :not(text)', art), { duration: 1600 }));
-    // The cartouche turns a few degrees as the plate passes, the opposite way on alternate plates.
-    const turn = plate.classList.contains('plate--flip') ? -4 : 4;
-    const cart = $('.cartouche', art);
-    if (cart) animate(cart, { rotate: [-turn, turn], ease: 'linear', autoplay: onScroll({ target: plate, sync: 0.5, enter: 'bottom top', leave: 'top bottom' }) });
+    // The cartouche's turn as the plate passes is motion.js's (ScrollTrigger).
     // A change of severity flares the light behind the mask.
     $$('[data-sev]', plate).forEach((b) => b.addEventListener('click', () => {
       animate($('.plate__glow', plate), { opacity: [0.95, 0.5], scale: [1.25, 1], duration: 1100, ease: 'outExpo' });

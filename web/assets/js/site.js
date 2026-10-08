@@ -15,7 +15,24 @@
     disconnect() {}
   };
 
+  // The scroll motion (motion.js, with GSAP and ScrollTrigger) is on this page when its scripts are: then a chapter's
+  // head is revealed by its laser timeline there, not by the reveals here. A page without them keeps the reveals.
+  const gs = !reduced && Boolean(document.querySelector('script[src*="vendor/gsap"]'));
+
   window.Site = { $, $$, reduced, Observer };
+
+  // Shown: its entrance plays (CSS), and a split heading's gold comes alive.
+  function reveal(el) {
+    el.classList.add('is-in');
+    if (el.matches('[data-split]')) $$('.gold-text', el).forEach((g) => g.classList.add('is-live'));
+  }
+  Site.reveal = reveal;
+  // Every scroll the page makes goes through here: through Lenis when it is smoothing the wheel (motion.js), so its
+  // idea of where the page is never drifts from where the page is; natively otherwise. Lands exactly unless smooth.
+  Site.scrollTo = (top, smooth) => {
+    if (window.SentinelScroll) window.SentinelScroll.to(top, smooth);
+    else scrollTo({ top, behavior: smooth && !reduced ? 'smooth' : 'instant' });
+  };
 
   /* ------------------------------------------------------------- glyphs */
 
@@ -116,14 +133,14 @@
   // "/", "/index.html" and a static copy's "/sentinel/" are all the home page.
   const pageOf = (p) => p.replace(/\/index\.html$/, '/').replace(/\/$/, '');
   const samePage = (url) => url.origin === location.origin && pageOf(url.pathname) === pageOf(location.pathname);
+  Site.samePage = samePage;
   const labelOf = (a, target) => (target && target.dataset.chapter) || a.dataset.label || a.textContent.trim();
 
   function jump(target, hash) {
     // Everything in the chapter is shown at once, so the page never lands on held-back content.
-    [target, ...$$('[data-reveal], [data-split], [data-stagger], [data-pipeline]', target)].forEach((el) => el.classList.add('is-in'));
-    $$('.gold-text', target).forEach((g) => g.classList.add('is-live'));
+    [target, ...$$('[data-reveal], [data-split], [data-stagger], [data-pipeline]', target)].forEach(reveal);
     const top = target.getBoundingClientRect().top + scrollY - (nav ? nav.offsetHeight : 0) - 8;
-    scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+    Site.scrollTo(Math.max(0, top));
     if (history.pushState) history.pushState(null, '', hash); else location.hash = hash;
     // Keyboard focus follows, as a native jump to a fragment would move it.
     if (!target.hasAttribute('tabindex')) target.tabIndex = -1;
@@ -206,7 +223,7 @@
   toTop.type = 'button';
   toTop.setAttribute('aria-label', 'Back to top');
   toTop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m0 0-6 6m6-6 6 6"/></svg>';
-  toTop.addEventListener('click', () => scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }));
+  toTop.addEventListener('click', () => Site.scrollTo(0, true));
   document.body.appendChild(toTop);
 
   // How far down the page the reader is.
@@ -307,10 +324,9 @@
 
   /* ------------------------------------------- long paragraphs, word by word */
 
-  // A chapter's opening paragraph comes up a word at a time as it arrives, from faint to full.
-  if (!reduced) for (const p of $$('.section__head > p[data-reveal]')) {
+  // A chapter's opening paragraph is split into words here; motion.js brings them from faint to full with the scroll.
+  if (gs) for (const p of $$('.section__head > p[data-reveal]')) {
     if (p.textContent.trim().length < 100) continue;
-    let i = 0;
     const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
@@ -321,42 +337,12 @@
         if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); continue; }
         const w = document.createElement('span');
         w.className = 'wd';
-        w.style.setProperty('--d', `${Math.min(1.1, i++ * 0.03).toFixed(2)}s`);
         w.textContent = part;
         frag.appendChild(w);
       }
       node.replaceWith(frag);
     }
     p.dataset.reveal = 'words';
-  }
-
-  /* ------------------------------------------------- the laser line */
-
-  // As a chapter's head arrives, the gold scan line crosses a faint dot grid above it: wavy, then straight, then
-  // thick and flaring, and the heading rises after it (its letters wait --lz). Once per chapter. Decoration only:
-  // nothing waits on it to be shown.
-  if (!reduced) {
-    const heads = $$('.section__head');
-    const WAVE = 'M0 20' + Array.from({ length: 8 }, (_, k) => ` Q${k * 125 + 62.5} ${k % 2 ? 36 : 4} ${(k + 1) * 125} 20`).join('');
-    heads.forEach((h) => {
-      const l = document.createElement('span');
-      l.className = 'laser';
-      l.setAttribute('aria-hidden', 'true');
-      l.innerHTML = `<svg viewBox="0 0 1000 40" preserveAspectRatio="none"><path d="${WAVE}"/><path d="${WAVE}"/></svg><i></i>`;
-      h.prepend(l);
-      h.classList.add('has-laser');
-    });
-    const lio = new Observer((entries) => {
-      for (const e of entries) {
-        if (!e.isIntersecting) continue;
-        lio.unobserve(e.target);
-        // A chapter arrived at by a tab is sighted through the scope instead; the laser stays out of its way.
-        if (!e.target.closest('.is-sighted')) e.target.classList.add('is-lasered');
-      }
-    }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
-    const watch = () => heads.forEach((h) => lio.observe(h));
-    if (document.documentElement.classList.contains('intro')) document.addEventListener('sentinel:intro-done', watch, { once: true });
-    else watch();
   }
 
   /* ------------------------------------------------- stacked chapters */
@@ -379,64 +365,44 @@
 
   /* ------------------------------------------------------------ reveals */
 
+  // A chapter's heading and opening paragraph are motion.js's to reveal (after its laser), so they are held here.
+  const held = gs ? $$('.section__head h2[data-split], .section__head > p[data-reveal="words"]') : [];
   const io = new Observer((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
-      e.target.classList.add('is-in');
-      if (e.target.matches('[data-split]')) $$('.gold-text', e.target).forEach((g) => g.classList.add('is-live'));
+      reveal(e.target);
       io.unobserve(e.target);
     }
   }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
   // Groups reveal their children one after another.
   $$('[data-stagger]').forEach((g) => [...g.children].forEach((c, i) => c.style.setProperty('--i', i)));
   // Under the opening (intro.js) the page is covered: what is on screen reveals as the curtain lifts, not unseen.
-  const observeAll = () => $$('[data-reveal], [data-split], [data-pipeline], [data-stagger]').forEach((el) => io.observe(el));
+  const observeAll = () => $$('[data-reveal], [data-split], [data-pipeline], [data-stagger]').forEach((el) => { if (!held.includes(el)) io.observe(el); });
   if (document.documentElement.classList.contains('intro')) document.addEventListener('sentinel:intro-done', observeAll, { once: true });
   else observeAll();
+  // Fail open: if the motion never started (its script failed or was blocked), what it held is shown.
+  if (held.length) addEventListener('load', () => { if (!window.SentinelMotion) held.forEach(reveal); });
   // boot.js stops its fail-open timer once this is set.
   window.Site.ready = true;
 
   /* ----------------------------------------------------------- counters */
 
-  function countUp(el, target) {
-    if (reduced) { el.textContent = target.toLocaleString(); return; }
-    el.textContent = '0';
-    const start = performance.now();
-    const tick = (now) => {
-      const t = Math.min(1, (now - start) / 1600);
-      el.textContent = Math.round(target * (1 - Math.pow(1 - t, 4))).toLocaleString();
-      if (t < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }
-
+  // The figures in the markup are true; live ones replace them when the server (or the static demo) has them. The
+  // count up from nothing as they arrive is motion.js's, which waits for Site.live first.
   const counters = $$('[data-count]');
-  if (counters.length) {
-    const live = window.SENTINEL_STATIC
-      ? Promise.resolve(window.SENTINEL_DEMO && window.SENTINEL_DEMO.stats)
-      : fetch('/api/v1/threat-stats').then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    const cio = new Observer(async (entries) => {
-      const stats = await live;
-      for (const e of entries) {
-        if (!e.isIntersecting) continue;
-        cio.unobserve(e.target);
-        let n = Number(e.target.dataset.count);
-        if (stats && e.target.dataset.live === 'threats' && stats.trackedThreats > 1000) n = stats.trackedThreats;
-        if (stats && e.target.dataset.live === 'checks' && stats.checks) n = stats.checks;
-        if (stats && e.target.dataset.live === 'kinds' && stats.kinds) n = stats.kinds;
-        countUp(e.target, n);
-        // Its bar grows with the count, on the same curve (lux.css).
-        const stat = e.target.closest('.stat');
-        if (stat) stat.classList.add('is-counting');
-      }
-    }, { threshold: 0.6 });
-    counters.forEach((c) => {
-      const stat = c.closest('.stat');
-      const num = c.closest('.stat__n');
-      if (stat && num && !stat.querySelector('.stat__bar')) num.insertAdjacentHTML('afterend', '<i class="stat__bar" aria-hidden="true"></i>');
-      cio.observe(c);
-    });
-  }
+  Site.live = !counters.length ? Promise.resolve() : (window.SENTINEL_STATIC
+    ? Promise.resolve(window.SENTINEL_DEMO && window.SENTINEL_DEMO.stats)
+    : fetch('/api/v1/threat-stats').then((r) => (r.ok ? r.json() : null)).catch(() => null)
+  ).then((stats) => {
+    for (const el of counters) {
+      let n = Number(el.dataset.count);
+      if (stats && el.dataset.live === 'threats' && stats.trackedThreats > 1000) n = stats.trackedThreats;
+      if (stats && el.dataset.live === 'checks' && stats.checks) n = stats.checks;
+      if (stats && el.dataset.live === 'kinds' && stats.kinds) n = stats.kinds;
+      el.dataset.count = n;
+      el.textContent = n.toLocaleString();
+    }
+  });
 
   /* -------------------------------------------------------- plan finder */
 

@@ -36,6 +36,8 @@ const RECORDER = `(() => {
   };
 })();`;
 
+const MOUSE = `(() => { const mm = window.matchMedia.bind(window); window.matchMedia = (q) => /hover: hover|pointer: fine/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : mm(q); })();`;
+
 function stats(frames, long, from, to) {
   const f = frames.filter(([t]) => t >= from && t < to).map(([, d]) => d).sort((a, b) => a - b);
   const l = long.filter(([t]) => t >= from && t < to);
@@ -60,6 +62,9 @@ async function probe(send, name, { width, height, mobile, cpu }) {
   await s('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'no-preference' }] });
   if (cpu > 1) await s('Emulation.setCPUThrottlingRate', { rate: cpu });
   await s('Page.addScriptToEvaluateOnNewDocument', { source: RECORDER });
+  // A computer has a mouse, which a headless browser does not report: said here, so what a mouse turns on (the hover
+  // effects, Lenis's smooth wheel) is measured too, on the released site and this one alike.
+  if (!mobile) await s('Page.addScriptToEvaluateOnNewDocument', { source: MOUSE });
   const now = async () => (await s('Runtime.evaluate', { returnByValue: true, expression: 'performance.now()' })).result.value;
   const shot = async (file, clip) => {
     const r = await s('Page.captureScreenshot', { format: 'jpeg', quality: 70, ...(clip ? { clip: { ...clip, scale: 1 } } : {}) });

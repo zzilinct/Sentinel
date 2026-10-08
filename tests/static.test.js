@@ -131,6 +131,25 @@ test('boot: hidden reveals fail open when a script errors or site.js never becom
   assert.match(fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'site.js'), 'utf8'), /window\.Site\.ready = true/);
 });
 
+test('scroll motion: GSAP, ScrollTrigger and Lenis ship with their licences and load, deferred, before motion.js', () => {
+  const web = path.join(ROOT, 'web');
+  const vendor = path.join(web, 'assets', 'js', 'vendor');
+  assert.match(fs.readFileSync(path.join(vendor, 'gsap.min.js'), 'utf8').slice(0, 400), /gsap\.com\/standard-license/);
+  assert.match(fs.readFileSync(path.join(vendor, 'ScrollTrigger.min.js'), 'utf8').slice(0, 400), /gsap\.com\/standard-license/);
+  assert.match(fs.readFileSync(path.join(vendor, 'lenis.min.js'), 'utf8').slice(0, 400), /@license MIT/);
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.ok(!['gsap', 'lenis'].some((d) => (pkg.dependencies || {})[d] || (pkg.devDependencies || {})[d]), 'vendored, not dependencies');
+  for (const page of ['index.html', 'pricing.html', 'download.html', '404.html', 'privacy.html', 'terms.html', 'refunds.html', 'recover.html']) {
+    const html = fs.readFileSync(path.join(web, page), 'utf8');
+    const at = (f) => html.indexOf(`<script src="/assets/js/${f}" defer></script>`);
+    const order = ['vendor/gsap.min.js', 'vendor/ScrollTrigger.min.js', 'vendor/lenis.min.js', 'motion.js'].map(at);
+    assert.ok(order.every((i, k) => i > html.indexOf('assets/js/site.js') && (k === 0 || i > order[k - 1])), `${page}: the scroll motion scripts are missing, not deferred, or out of order`);
+  }
+  for (const page of ['app.html', 'login.html', 'signup.html']) {
+    assert.ok(!fs.readFileSync(path.join(web, page), 'utf8').includes('vendor/gsap'), `${page} has no scroll motion to load`);
+  }
+});
+
 test('home masks: every rendered mask the pages point at exists, and anime.js loads before the motion', () => {
   const web = path.join(ROOT, 'web');
   for (const page of ['index.html', 'pricing.html', 'download.html', '404.html']) {

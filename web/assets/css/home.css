@@ -39,6 +39,11 @@
 .hero__fine { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; font-size: 13.5px; color: var(--text-2); }
 .hero__fine li { display: grid; grid-template-columns: 18px 1fr; }
 .hero__fine li::before { content: '\2766' / ''; color: var(--gold-400); font-size: 12px; }
+/* ShinyText (React Bits, ported in motion.js): a band of light crosses the gold, letter after letter, now and again.
+   A second background layer over the metal; only while .is-shining is on, so nothing repaints at rest. */
+.hero__word.is-shining span { background-image: linear-gradient(105deg, transparent 42%, rgb(255 249 232 / .85) 50%, transparent 58%), linear-gradient(var(--sheen, 176deg), var(--metal-stops));
+  background-size: 250% 100%, 100% 100%; background-repeat: no-repeat; animation: word-shine 1.3s cubic-bezier(.45, .05, .35, 1) calc(var(--i, 0) * 80ms) both; }
+@keyframes word-shine { from { background-position: 150% 0, 0 0; } to { background-position: -50% 0, 0 0; } }
 /* The dot field under the mask, and what Sentinel sees over it, brushed in by the pointer (home.js). */
 .hero__dots, .hero__unmask { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .hero__unmask { z-index: 1; }

@@ -6,10 +6,12 @@
  *             console errors and no request that carries the typed link.
  *   qr        qr.js reads real QR pictures made by another encoder (scripts/verify-web-qr.py), loaded and called the
  *             way the app does it (app.js qrFromFile).
+ *   motion    The scroll motion (motion.js): Lenis smooths the wheel on a computer, never on a touch screen or under
+ *             reduced motion, and every scroll the page makes (a tab's jump, an anchor, back to top) lands exactly.
  *   companion The companion's password alarm stops a protected password on another site, and its clipboard guard
  *             stops a ClickFix-shaped command but not an ordinary one.
  *
- *   node scripts/verify-web.js [--only site,qr,companion] [--static dist-static] [--qr qr-samples] [--out verify-web]
+ *   node scripts/verify-web.js [--only site,motion,qr,companion] [--static dist-static] [--qr qr-samples] [--out verify-web]
  *
  * Meant for CI (.github/workflows/verify-web.yml), never a person's computer. Every page is local: the sign-in sites
  * are this script's own HTTPS server, reached through --host-resolver-rules with a throwaway self-signed certificate.
@@ -25,7 +27,7 @@ const { cdpPipe, CANDIDATES, expand } = require('./verify-companion');
 
 const arg = (name, fallback) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : fallback; };
 const ROOT = path.join(__dirname, '..');
-const ONLY = arg('--only', 'site,qr,companion').split(',');
+const ONLY = arg('--only', 'site,motion,qr,companion').split(',');
 const STATIC = path.resolve(ROOT, arg('--static', 'dist-static'));
 const QR = path.resolve(ROOT, arg('--qr', 'qr-samples'));
 const OUT = path.resolve(ROOT, arg('--out', 'verify-web'));
@@ -194,6 +196,83 @@ async function checkSite() {
     result('site: no request carries the typed link, and none leaves the page\'s host', !leaks.length && !offHost.length,
       [`requests after typing: ${requests.slice(before).map((r) => r.url.replace(files.base, '')).join(', ') || 'none'}`, ...leaks.map((r) => `leak: ${r.url}`), ...offHost.map((r) => `off host: ${r.url}`)]);
     result('site: no console errors', !errors.length, errors.length ? errors : `${version}, ${requests.length} requests`);
+  } finally {
+    await close();
+    files.server.close();
+  }
+}
+
+/* ------------------------------------------------------- 1b. scroll motion */
+
+// A headless browser reports no mouse; this says there is one, as a desktop browser would (as review-shots does).
+const MOUSE = `(() => { const mm = window.matchMedia.bind(window); window.matchMedia = (q) => /hover: hover|pointer: fine/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : mm(q); })();`;
+
+async function checkMotion() {
+  if (!fs.existsSync(path.join(STATIC, 'assets', 'js', 'vendor', 'gsap.min.js'))) throw new Error(`no static build with the scroll motion in ${STATIC}: run npm run build:static`);
+  const files = await serveFiles({ '/': STATIC });
+  const { browser, close } = await launch();
+  const errors = [];
+  browser.on('Runtime.exceptionThrown', (p) => errors.push(`exception: ${p.exceptionDetails.exception ? p.exceptionDetails.exception.description : p.exceptionDetails.text}`));
+  browser.on('Runtime.consoleAPICalled', (p) => { if (p.type === 'error' || p.type === 'assert') errors.push(`console.${p.type}: ${p.args.map((a) => a.value || a.description || '').join(' ')}`); });
+  const open = async ({ mouse, touch, reduce }) => {
+    const { sessionId } = await openPage(browser);
+    await browser.send('Runtime.enable', {}, sessionId);
+    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: reduce ? 'reduce' : 'no-preference' }] }, sessionId);
+    if (touch) {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, sessionId);
+      await browser.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }, sessionId);
+    }
+    if (mouse) await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: MOUSE }, sessionId);
+    await goto(browser, sessionId, `${files.base}/index.html`, 'window.SentinelMotion');
+    await sleep(1200);
+    return { s: sessionId, ev: (expr) => evalIn(browser, sessionId, expr) };
+  };
+  const state = "({ lenis: document.documentElement.classList.contains('lenis'), scroller: Boolean(window.SentinelScroll), coarse: matchMedia('(pointer: coarse)').matches, lasers: document.querySelectorAll('.laser').length })";
+  try {
+    /* A computer: Lenis glides the wheel, rests when done, and every scroll the page makes lands where it should. */
+    const d = await open({ mouse: true });
+    const on = await d.ev(state);
+    result('motion: on a computer, Lenis smooths the scroll', on.lenis && on.scroller, on);
+    await browser.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 683, y: 450, deltaX: 0, deltaY: 600 }, d.s);
+    await sleep(90);
+    const mid = await d.ev('scrollY');
+    await sleep(1800);
+    const end = await d.ev('({ y: scrollY, ticking: window.SentinelScroll.ticking })');
+    result('motion: a turn of the wheel glides (part way after 90 ms), lands, and Lenis stops ticking', mid > 0 && mid < 590 && Math.abs(end.y - 600) <= 2 && !end.ticking, { after90ms: mid, ...end });
+
+    const lands = async (name, setup, measure, want) => {
+      await d.ev(setup);
+      await sleep(2200);
+      const got = await d.ev(measure);
+      result(`motion: ${name}`, Math.abs(got - want(got)) <= 2, { got, want: want(got) });
+    };
+    await lands('a tab\'s jump (under its wipe) lands its chapter just under the header', "scrollTo(0, 0); document.querySelector('.nav__links a[href*=\"#how\"]').click(); true",
+      "document.getElementById('how').getBoundingClientRect().top - document.querySelector('[data-nav]').offsetHeight - 8", () => 0);
+    await lands('an anchor link (the scroll cue) glides to its place', "scrollTo(0, 0); document.querySelector('.scroll-cue').click(); true",
+      "document.getElementById('stage-demo').getBoundingClientRect().top - parseFloat(getComputedStyle(document.getElementById('stage-demo')).scrollMarginTop)", () => 0);
+    await lands('back to top glides to the top', "scrollTo(0, 4000); setTimeout(() => document.querySelector('.to-top').click(), 300); true", 'scrollY', () => 0);
+    // A chapter's head, scrolled to: the laser has played and gone, the heading has risen, the paragraph is full.
+    await d.ev("document.querySelector('#masks .section__head').scrollIntoView({ block: 'start' }); true");
+    await sleep(2500);
+    const head = await d.ev(`(() => { const h = document.querySelector('#masks .section__head');
+      return { risen: h.querySelector('h2').classList.contains('is-in'), laser: getComputedStyle(h.querySelector('.laser')).opacity,
+        words: Math.min(...[...h.querySelectorAll('.wd')].map((w) => Number(getComputedStyle(w).opacity))) }; })()`);
+    result('motion: a chapter scrolled to has its laser played and gone, its heading risen and its paragraph in full', head.risen && head.laser === '0' && head.words > 0.95, head);
+    await d.ev("document.querySelector('.stats').scrollIntoView({ block: 'center' }); true");
+    await sleep(2600);
+    const stats = await d.ev("[...document.querySelectorAll('[data-count]')].map((el) => [el.textContent, Number(el.dataset.count).toLocaleString(), el.closest('.stat').querySelector('.stat__bar').getBoundingClientRect().width])");
+    result('motion: the figures count up to their real numbers, with their bars grown', stats.length && stats.every(([t, n, w]) => t === n && w > 60), stats);
+
+    /* A phone: its own scroll, untouched. Reduced motion: the browser's own scroll and no laser. */
+    const t = await open({ touch: true });
+    const tOn = await t.ev(state);
+    // coarse says whether this browser's touch emulation also reports a coarse pointer, as a real phone does.
+    result('motion: on a touch screen, Lenis stays off', !tOn.lenis && !tOn.scroller, tOn);
+    const r = await open({ mouse: true, reduce: true });
+    const rOn = await r.ev(state);
+    const rStats = await r.ev("[...document.querySelectorAll('[data-count]')].every((el) => el.textContent === Number(el.dataset.count).toLocaleString())");
+    result('motion: with reduced motion, Lenis and the lasers stay off and the figures stand at their numbers', !rOn.lenis && !rOn.scroller && !rOn.lasers && rStats, { ...rOn, figures: rStats });
+    result('motion: no console errors', !errors.length, errors);
   } finally {
     await close();
     files.server.close();
@@ -404,7 +483,7 @@ async function checkCompanion() {
 /* --------------------------------------------------------------------- run */
 
 async function main() {
-  const checks = { site: checkSite, qr: checkQr, companion: checkCompanion };
+  const checks = { site: checkSite, motion: checkMotion, qr: checkQr, companion: checkCompanion };
   for (const name of ONLY) {
     try { await checks[name](); } catch (err) { result(`${name}: the check itself could not run`, false, err.stack || err.message); }
   }

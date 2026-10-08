@@ -328,7 +328,27 @@ async function main() {
         await sleep(700);
         await shoot('stack-half');
       }
-      // A chapter's laser line (site.js) as its head arrives: wavy, straight, flaring, then the heading rising.
+      // motion.js: a chapter's paragraph half way through its word-by-word scrub, the figures counting with their bars,
+      // and the band of light (ShinyText) crossing the wordmark.
+      {
+        await send('Runtime.evaluate', { expression: "(() => { const s = document.querySelector('.stats').closest('[data-stack]'); scrollTo(0, Math.round(s.getBoundingClientRect().top + scrollY - innerHeight * 0.6)); })()" }, sessionId);
+        const t0 = Date.now();
+        for (const ms of [350, 800, 2200]) {
+          await sleep(Math.max(0, ms - (Date.now() - t0)));
+          await shoot(`count-${String(ms).padStart(4, '0')}ms`);
+        }
+        await send('Runtime.evaluate', { expression: "(() => { const p = document.querySelector('#masks .section__head > p'); scrollTo(0, Math.round(p.getBoundingClientRect().top + scrollY - innerHeight * 0.7)); })()" }, sessionId);
+        await sleep(900);
+        await shoot('words-scrub-half');
+        await send('Runtime.evaluate', { expression: "scrollTo(0, 0); const w = document.querySelector('[data-hero-word]'); [...w.children].forEach((c, i) => c.style.setProperty('--i', i)); w.classList.remove('is-shining'); void w.offsetWidth; w.classList.add('is-shining'); true" }, sessionId);
+        const t1 = Date.now();
+        for (const ms of [450, 900]) {
+          await sleep(Math.max(0, ms - (Date.now() - t1)));
+          await shoot(`shine-${String(ms).padStart(4, '0')}ms`);
+        }
+        await sleep(1200);
+      }
+      // A chapter's laser line (motion.js) as its head arrives: wavy, straight, flaring, then the heading rising.
       {
         await send('Runtime.evaluate', { expression: "document.querySelector('#how .section__head').scrollIntoView({ block: 'center' })" }, sessionId);
         const t0 = Date.now();
