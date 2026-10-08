@@ -48,6 +48,7 @@ html.lux-app {
     --glass: rgb(241 234 221 / .8);
     --metal: linear-gradient(176deg, #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%);
     --sketch: rgb(60 45 20 / .28); --sketch-gold: rgb(138 100 32 / .6);
+    --wipe-dark: .26;
   }
 }
 html.lux-app[data-theme="light"] {
@@ -62,6 +63,7 @@ html.lux-app[data-theme="light"] {
   --glass: rgb(241 234 221 / .8);
   --metal: linear-gradient(176deg, #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%);
   --sketch: rgb(60 45 20 / .28); --sketch-gold: rgb(138 100 32 / .6);
+  --wipe-dark: .26;
 }
 
 /* ------------------------------------------------------- atmosphere */
@@ -112,7 +114,8 @@ html.lux-app[data-theme="light"] {
 .lux-wipe { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; overflow: hidden; pointer-events: none; contain: strict; }
 .lux-wipe i {
   position: absolute; left: 0; top: 0; width: 200px; height: 200px; border-radius: 50%;
-  background: radial-gradient(closest-side, transparent 54%, rgb(7 5 3 / .55) 64%, rgb(7 5 3 / .9) 78%, rgb(var(--gold-rgb) / .28) 90%, transparent 100%);
+  /* A thin ring, not a band: on the light theme a wide dark band read as a smudge across the page (review frames). */
+  background: radial-gradient(closest-side, transparent 72%, rgb(7 5 3 / calc(var(--wipe-dark, .7) * .6)) 80%, rgb(7 5 3 / var(--wipe-dark, .7)) 87%, rgb(var(--gold-rgb) / .34) 93%, transparent 100%);
   transform: translate(var(--x), var(--y)) scale(0); will-change: transform;
   animation: lux-wipe .42s cubic-bezier(.45, 0, .25, 1) forwards;
 }
