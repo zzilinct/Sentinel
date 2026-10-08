@@ -931,7 +931,7 @@
       prevT = t;
       // It lingers while the pointer moves and a moment after (a slow half-life), then fades quickly, and is wiped
       // clean once it has gone quiet.
-      const half = t - lastDab < 350 ? 900 : 240;
+      const half = t - lastDab < 600 ? 1200 : 300;
       tctx.globalCompositeOperation = 'destination-out';
       tctx.fillStyle = `rgba(0,0,0,${(1 - Math.pow(0.5, dt / half)).toFixed(4)})`;
       tctx.fillRect(0, 0, trail.width, trail.height);
@@ -945,7 +945,7 @@
         next = null;
         lastDab = t;
       }
-      if (t - lastDab > 1700) { clearAll(); prevT = 0; return; }
+      if (t - lastDab > 2000) { clearAll(); prevT = 0; return; }
       vctx.clearRect(0, 0, vw, vh);
       vctx.globalCompositeOperation = 'source-over';
       vctx.drawImage(under, 0, 0);
@@ -955,7 +955,7 @@
       vraf = requestAnimationFrame(vframe);
     };
     const brush = {
-      wake() { if (!vraf && ready && seen && lastDab && now() - lastDab < 1700) vraf = requestAnimationFrame(vframe); },
+      wake() { if (!vraf && ready && seen && lastDab && now() - lastDab < 2000) vraf = requestAnimationFrame(vframe); },
       still() { if (last || next) { clearAll(); lastDab = 0; } },
       point(x, y) {
         next = { x, y };

@@ -342,7 +342,7 @@
       const l = document.createElement('span');
       l.className = 'laser';
       l.setAttribute('aria-hidden', 'true');
-      l.innerHTML = `<svg viewBox="0 0 1000 40" preserveAspectRatio="none"><path d="${WAVE}"/></svg><i></i>`;
+      l.innerHTML = `<svg viewBox="0 0 1000 40" preserveAspectRatio="none"><path d="${WAVE}"/><path d="${WAVE}"/></svg><i></i>`;
       h.prepend(l);
       h.classList.add('has-laser');
     });

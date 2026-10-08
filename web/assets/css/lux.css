@@ -195,9 +195,13 @@ h2 em, .page-head h1 em { color: var(--text-2); }
    The word holds still: only its letters move. --lz is the laser's lead, where a laser plays first. */
 .ch { display: inline-block; }
 .js .rise .word:not(.gold-text) { transform: none; clip-path: inset(-.4em -.3em -.16em -.3em); transition: none; }
-.js .rise .ch { transform: translateY(118%) scaleY(1.7); transform-origin: 50% 100%; filter: blur(6px); opacity: 0;
-  transition: transform 1s var(--ease-out), filter .9s var(--ease-out), opacity .35s linear;
-  transition-delay: calc(var(--lz, 0s) + var(--d, 0s)); }
+.js .rise .ch { transform: translateY(118%); opacity: 0;
+  transition: transform 1s var(--ease-out), opacity .35s linear; transition-delay: calc(var(--lz, 0s) + var(--d, 0s)); }
+/* With a mouse (a computer, not a phone): stretched and blurred upward as it rises. */
+@media (hover: hover) and (pointer: fine) {
+  .js .rise .ch { transform: translateY(118%) scaleY(1.7); transform-origin: 50% 100%; filter: blur(6px);
+    transition: transform 1s var(--ease-out), filter .9s var(--ease-out), opacity .35s linear; transition-delay: calc(var(--lz, 0s) + var(--d, 0s)); }
+}
 .js .rise.is-in .ch, .no-io .rise .ch { transform: none; filter: none; opacity: 1; }
 
 /* ------------------------------------- paragraphs, word by word (site.js) */
@@ -216,8 +220,10 @@ h2 em, .page-head h1 em { color: var(--text-2); }
 .laser::before { content: ''; position: absolute; inset: -40px 0; opacity: 0;
   background: radial-gradient(circle, rgb(var(--gold-rgb) / .55) 1px, transparent 1.5px) 0 0 / 18px 18px;
   -webkit-mask: radial-gradient(closest-side, #000, transparent); mask: radial-gradient(closest-side, #000, transparent); }
-.laser svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 50%; }
-.laser path { fill: none; stroke: var(--gold-300); stroke-width: 1.5; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 4px rgb(var(--gold-rgb) / .9)); }
+.laser svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform-origin: 0 50%; }
+/* Only transforms and opacity animate here, so the compositor plays it all; the glow is a wider, fainter stroke. */
+.laser path { fill: none; stroke: var(--gold-300); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.laser path:first-child { stroke: rgb(var(--gold-rgb) / .3); stroke-width: 7; }
 .laser i { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; border-radius: 2px; opacity: 0;
   background: linear-gradient(90deg, transparent, var(--gold-300) 12%, #fff6dc 50%, var(--gold-300) 88%, transparent);
   box-shadow: 0 0 12px rgb(var(--gold-rgb) / .9), 0 0 30px rgb(var(--gold-rgb) / .5); }
@@ -230,7 +236,7 @@ h2 em, .page-head h1 em { color: var(--text-2); }
 .is-lasered > .laser i::after { animation: laser-flare 1.3s ease-out both; }
 @keyframes laser-on { 0%, 96% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes laser-grid { 0% { opacity: 0; } 25%, 70% { opacity: .5; } 100% { opacity: 0; } }
-@keyframes laser-wave { 0% { clip-path: inset(0 100% 0 0); transform: scaleY(1) translateX(-3%); opacity: 1; } 30% { clip-path: inset(0 0 0 0); transform: scaleY(.85) translateX(0); } 52% { transform: scaleY(.02); opacity: 1; } 60%, 100% { transform: scaleY(0); opacity: 0; clip-path: inset(0 0 0 0); } }
+@keyframes laser-wave { 0% { transform: scale(0, 1); opacity: 1; } 30% { transform: scale(1, .85); } 52% { transform: scale(1, .02); opacity: 1; } 60%, 100% { transform: scale(1, 0); opacity: 0; } }
 @keyframes laser-core { 0%, 46% { opacity: 0; transform: scaleY(1); } 54% { opacity: 1; transform: scaleY(1); } 70% { opacity: 1; transform: scaleY(3.2); } 82% { opacity: 1; transform: scaleY(2); } 100% { opacity: 0; transform: scaleY(.5) scaleX(1.04); } }
 @keyframes laser-flare { 0%, 62% { opacity: 0; transform: scale(.2, .4); } 74% { opacity: 1; transform: scale(1, 1); } 100% { opacity: 0; transform: scale(1.8, .6); } }
 
