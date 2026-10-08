@@ -51,10 +51,11 @@
   .corner.is-on.is-flagged .corner__mask::after { animation: breathe 1.8s ease-in-out 1.5 forwards; }   /* 1.5 runs: it ends lit */
   .corner__mask svg { width: 30px; height: 30px; display: block; }
   /* The words sit inside the card, left of the mask. Each message is its own line: the old one rises out as the new one
-     rises in, while the card springs to the new width. */
+     rises in, while the card springs to the new width. They show once the card is nearly open (at 160 ms they still
+     stood out past its edge in the e2e frames). */
   .corner__label { position: absolute; right: 56px; top: 0; height: 46px; color: #e9e6df; font-size: 12.5px; }
   .corner__label > span { position: absolute; right: 0; top: 50%; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    opacity: 0; transform: translate(10px, -50%); transition: opacity .22s ease .08s, transform .5s var(--spring) .04s; }
+    opacity: 0; transform: translate(10px, -50%); transition: opacity .2s ease .16s, transform .5s var(--spring) .04s; }
   .corner__label > span.is-in { opacity: 1; transform: translate(0, -50%); }
   .corner__label > span.is-out { opacity: 0; transform: translate(0, calc(-50% - 7px)); transition: opacity .14s ease, transform .2s ease; }
   .corner__label b { font-weight: 600; color: var(--c, #e2c47f); }

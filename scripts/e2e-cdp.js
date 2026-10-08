@@ -24,6 +24,13 @@ async function main() {
   const hold = Number(process.env.E2E_MOTION_HOLD_MS) || 0;
   if (hold) await call(0, 'Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
   const reply = await call(1, 'Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+  // E2E_SHOT: also save what the window itself shows, transparent around it, for a window left out of screen copies
+  // (the chat overlay: setContentProtection), so the script can lay it over its screenshot.
+  if (process.env.E2E_SHOT) {
+    await call(2, 'Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
+    const s = await call(3, 'Page.captureScreenshot', { format: 'png' });
+    if (s.result && s.result.data) require('fs').writeFileSync(process.env.E2E_SHOT, Buffer.from(s.result.data, 'base64'));
+  }
   if (hold) { const r = reply.result || {}; console.log(JSON.stringify(r.exceptionDetails ? { error: 'threw' } : { value: r.result ? r.result.value : null })); await new Promise((r) => setTimeout(r, hold)); }
   ws.close();
   const r = reply.result || {};

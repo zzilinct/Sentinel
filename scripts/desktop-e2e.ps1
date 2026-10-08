@@ -35,7 +35,8 @@ function Shot($name) {
   $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
   $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
   $script:shot++
-  $bmp.Save(("{0}\{1:D2}-{2}.png" -f $Out, $script:shot, $name), [System.Drawing.Imaging.ImageFormat]::Png)
+  $script:lastShot = "{0}\{1:D2}-{2}.png" -f $Out, $script:shot, $name
+  $bmp.Save($script:lastShot, [System.Drawing.Imaging.ImageFormat]::Png)
   $g.Dispose(); $bmp.Dispose()
 }
 # Ask one of Sentinel's windows (by part of its address) to evaluate an expression. Single quotes only inside it.
@@ -46,18 +47,29 @@ function Press($label) { return (Cdp 'guard.html' "(() => { const b = [...docume
 # motion while connected (E2E_MOTION_HOLD_MS, scripts/e2e-cdp.js). $setup starts what is to be seen (single quotes
 # only); then every animation in the window is paused $ms in, and the screen is photographed while it holds there.
 # Returns how many animations were paused: 0 means there was no motion to see.
-function Frame($part, $setup, $ms, $name) {
-  $expr = "(async () => { $setup; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const a = document.getAnimations(); a.forEach((x) => { x.pause(); x.currentTime = $ms; }); return a.length; })()"
-  $job = Start-Job -ScriptBlock { param($js, $part, $expr) $env:E2E_MOTION_HOLD_MS = '4000'; node $js 9333 $part $expr } -ArgumentList (Join-Path $PSScriptRoot 'e2e-cdp.js'), $part, $expr
+function Frame($part, $setup, $ms, $name, [switch]$Layer) {
+  # -Layer: a window left out of screen copies (the chat overlay) is photographed on its own and laid over the screen.
+  $expr = "(async () => { $setup; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const a = document.getAnimations(); a.forEach((x) => { x.pause(); x.currentTime = $ms; }); return a.length + '|' + window.screenX + '|' + window.screenY; })()"
+  $layerPng = $(if ($Layer) { Join-Path $env:RUNNER_TEMP 'layer.png' } else { '' })
+  if ($layerPng) { Remove-Item $layerPng -ErrorAction SilentlyContinue }
+  $job = Start-Job -ScriptBlock { param($js, $part, $expr, $shot) $env:E2E_MOTION_HOLD_MS = '4000'; $env:E2E_SHOT = $shot; node $js 9333 $part $expr } -ArgumentList (Join-Path $PSScriptRoot 'e2e-cdp.js'), $part, $expr, $layerPng
   $first = $null
   for ($i = 0; $i -lt 150 -and -not $first -and $job.State -in 'NotStarted', 'Running'; $i++) { Start-Sleep -Milliseconds 100; $first = @(Receive-Job $job -Keep) | Select-Object -First 1 }
   Start-Sleep -Milliseconds 250
   Shot $name
   [void](Wait-Job $job -Timeout 20); if (-not $first) { $first = @(Receive-Job $job) | Select-Object -First 1 }; Remove-Job $job -Force
   Say "  frame $name ($part at $ms ms): $first"
+  $v = ''; try { $v = [string](([string]$first | ConvertFrom-Json).value) } catch {}
+  $f = $v -split '\|'
+  if ($layerPng -and (Test-Path $layerPng) -and $f.Count -eq 3) {
+    $screen = [System.Drawing.Image]::FromFile($script:lastShot); $bmp = New-Object System.Drawing.Bitmap $screen; $screen.Dispose()
+    $over = [System.Drawing.Image]::FromFile($layerPng); $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.DrawImage($over, [int]$f[1], [int]$f[2], $over.Width, $over.Height); $g.Dispose(); $over.Dispose()
+    $bmp.Save($script:lastShot, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+  }
   # Let go: everything paused plays to its end, so nothing is left frozen half open.
   [void](Cdp $part "document.getAnimations().forEach((x) => { try { x.finish(); } catch (e) {} }), 1")
-  try { return [int](([string]$first | ConvertFrom-Json).value) } catch { return 0 }
+  try { return [int]$f[0] } catch { return 0 }
 }
 function Info($expr) { return (Cdp '127.0.0.1:4782' "window.sentinelDesktop.$expr").value }
 function Until($seconds, [scriptblock]$test) { $end = (Get-Date).AddSeconds($seconds); while ((Get-Date) -lt $end) { if (& $test) { return $true }; Start-Sleep 2 }; return [bool](& $test) }
@@ -162,7 +174,7 @@ $o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + 
 Check 'chat-discord-overlay' ($o -match '^[1-9]\d*\|(?!none)') "chat overlay over Discord (warnings|badge|app): $o"
 # The island in chat: the badge springs open from its mask tile, and each card opens out of its tile beside the message.
 $replay = "const b = document.getElementById('badge'); b.classList.remove('is-on'); b.getAnimations({ subtree: true }).forEach((x) => { try { x.finish(); } catch (e) {} }); b.classList.add('is-on')"
-$n = @(80, 180, 700 | ForEach-Object { Frame 'chat.html' $replay $_ "motion-chat-$($_)ms" })
+$n = @(80, 180, 700 | ForEach-Object { Frame 'chat.html' $replay $_ "motion-chat-$($_)ms" -Layer })
 Check 'motion-chat' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations paused mid-spring in the chat overlay, per frame: $($n -join ', ')"
 Get-Process Discord -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep 3
