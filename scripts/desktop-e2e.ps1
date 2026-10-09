@@ -178,7 +178,7 @@ function Fake($name, $page) {
   if (-not $r) { FakeDiag $name $fp $page }
   return $r
 }
-# DIAG (ci-steady): why a stand-in has no window.
+# When a stand-in has no window: what there is instead, so the log says why.
 function FakeDiag($name, $fp, $page) {
   Say "  diag: started pid $($fp.Id), exited: $($fp.HasExited) $(if ($fp.HasExited) { "code $($fp.ExitCode)" })"
   Get-Process $name -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag: $name $($_.Id) hwnd $($_.MainWindowHandle) title '$($_.MainWindowTitle)' cpu $($_.CPU) start $($_.StartTime.ToString('HH:mm:ss'))" }
@@ -216,7 +216,7 @@ Check 'chat-roblox-read' ($seen.roblox.checked -ge 1) "messages checked in Roblo
 Check 'chat-roblox-flagged' $ok "messages flagged in Roblox: $($seen.roblox.flagged) (the free Robux offer)"
 $o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className").value
 Check 'chat-roblox-overlay' ($o -match '^[1-9]\d*\|roblox in-game') "chat overlay over Roblox (warnings|app): $o"
-# DIAG (ci-steady)
+# When the overlay does not say in-game: the Roblox log as Sentinel reads it.
 if (-not ($o -match '^[1-9]\d*\|roblox in-game')) {
   Get-ChildItem $rlogs | ForEach-Object { Say "  diag: roblox log $($_.Name) $($_.Length) bytes, written $($_.LastWriteTime.ToString('HH:mm:ss.fff'))" }
   $d = (Cdp 'main' "(() => { const fs = process.mainModule.require('fs'); const c = process.mainModule.require('./chatwatch'); const d = process.env.LOCALAPPDATA + '\\Roblox\\logs'; return JSON.stringify(fs.readdirSync(d).map((f) => [f, c._test.readLog(fs.readFileSync(d + '\\' + f, 'utf8'))])) + ' ' + JSON.stringify(c.stats().roblox) + ' now ' + new Date().toISOString(); })()")
@@ -316,9 +316,6 @@ foreach ($snippet in @('$ df -h  # human-readable', 'curl -LO https://downloads.
 Check 'clickfix-snippet-log' (([regex]::Matches((AppLog), 'copied command (stopped|flagged)')).Count -eq $flaggedBefore) 'app.log: no copied command stopped or flagged for the snippets'
 # The clipboard is read every half second only while a browser is in front; with another program in front, every 1.5 s.
 function ClipStatus { return (Cdp 'main' "process.mainModule.require('./clipwatch').status()").value }
-# DIAG (ci-steady): the same 6 s, measured inside Sentinel, with which program the helper says is in front.
-$d = (Cdp 'main' "(async () => { const m = process.mainModule; const c = m.require('./clipwatch'); const b = m.require('./browsers'); const ses = new (m.require('inspector').Session)(); ses.connect(); const post = (k, p) => new Promise((r, j) => ses.post(k, p || {}, (e, v) => e ? j(e) : r(v))); await post('Profiler.enable'); await post('Profiler.setSamplingInterval', { interval: 2000 }); await post('Profiler.start'); const a = c.status(); const t0 = Date.now(); const st = []; const fr = []; while (Date.now() - t0 < 6000) { const t = Date.now(); await new Promise((r) => setTimeout(r, 250)); const g = Date.now() - t - 250; if (g > 150) st.push([t - t0, g]); fr.push(String(b.inFront())); } const z = c.status(); const { profile } = await post('Profiler.stop'); ses.disconnect(); const byId = new Map(profile.nodes.map((n) => [n.id, n])); const parent = new Map(); profile.nodes.forEach((n) => (n.children || []).forEach((k) => parent.set(k, n.id))); const name = (id) => { const f = byId.get(id).callFrame; return (f.functionName || '(anon)') + '@' + f.url.split(/[\\/]/).pop() + ':' + f.lineNumber; }; const self = new Map(); let at = 0; const when = []; profile.samples.forEach((id, i) => { at += profile.timeDeltas[i] || 0; when.push([at / 1000, id]); const k = name(id); self.set(k, (self.get(k) || 0) + (profile.timeDeltas[i] || 0)); }); const top = [...self].sort((x, y) => y[1] - x[1]).slice(0, 8).map(([k, v]) => k + '=' + Math.round(v / 1000)); const stacks = st.map(([s0, g]) => { const hit = when.filter(([w]) => w > s0 + 250 && w < s0 + 250 + g); const counts = new Map(); hit.forEach(([, id]) => counts.set(id, (counts.get(id) || 0) + 1)); const best = [...counts].sort((x, y) => y[1] - x[1])[0]; if (!best) return s0 + '+' + g + ' no samples'; const chain = []; for (let id = best[0]; id && chain.length < 14; id = parent.get(id)) chain.push(name(id)); return s0 + '+' + g + ' (' + best[1] + '/' + hit.length + '): ' + chain.join(' < '); }); return JSON.stringify({ every: z.every, reads: z.reads - a.reads, front: [...new Set(fr)].join(','), stalls: stacks, top }); })()")
-Say "  diag: $($d.value)$($d.error)"
 $a = ClipStatus; Start-Sleep 6; $b = ClipStatus
 Check 'clickfix-fast-in-browser' ($b.every -eq 500 -and ($b.reads - $a.reads) -ge 6) "browser in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
 Start-Process notepad
@@ -428,7 +425,7 @@ Shot 'escape'
 $verdict = (Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String 'defender-virusalert' | Select-Object -Last 1)
 Say "live scanning's verdict: $verdict"
 Check 'escape-offered' $ok 'app.log: a flagged page took the whole screen; offered a way out'
-# DIAG (ci-steady)
+# When no way out is offered: what Sentinel knows of the page and its windows.
 if (-not $ok) {
   $d = (Cdp 'main' "(() => { const m = process.mainModule; const e = m.require('electron'); const o = m.require('./overlay'); const s = m.require('./watch').status(); const ws = e.BrowserWindow.getAllWindows().map((w) => w.webContents.getURL().split('/').pop().split('?')[0] + ' ' + JSON.stringify(w.getBounds()) + ' ' + w.isVisible()); return JSON.stringify({ full: o.isFullscreen(), window: s.window, current: s.current && { badge: s.current.badge, support: s.current.support }, display: e.screen.getPrimaryDisplay().bounds, ws }); })()")
   Say "  diag: $($d.value)$($d.error)"
