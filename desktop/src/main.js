@@ -1540,6 +1540,7 @@ async function boot() {
     onPage: (page) => {
       pageInFront = null;
       overlay.setVerdict(null);
+      overlay.setPay(null);
       overlay.setMarks({ marks: [] });
       // A new page: an escape still on offer was for the page before. If that page comes back, it is offered again.
       badPage = null;
@@ -1560,6 +1561,8 @@ async function boot() {
         offerEscape();
       }
     },
+    // Before you pay: a shop's checkout whose address is young or unknown (server/lib/scan/paycheck.js).
+    onPay: (pay) => overlay.setPay(pay ? pay.text : null),
     onMarks: (m) => overlay.setMarks(m),
     onShift: (s) => overlay.shift(s),
     onWheel: (w) => overlay.wheel(w),

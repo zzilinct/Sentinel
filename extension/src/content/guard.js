@@ -50,7 +50,27 @@
     });
   }
 
+  // Before you pay: a shop's checkout whose address is young or unknown. A quiet note in the corner, never a block.
+  let paid = false;
+  function payNote(text) {
+    if (paid || mounted) return;
+    paid = true;
+    globalThis.SentinelAlarm.show({
+      small: true,
+      accent: '#d6b25a',
+      title: 'Before you pay',
+      lead: text,
+      buttons: [{ text: 'OK', kind: 'quiet', on: (ev, c) => c.close() }]
+    });
+  }
+
   ext.runtime.onMessage.addListener((msg, sender) => {
+    if (sender.id === ext.runtime.id && msg && msg.type === 'sentinel:pay' && typeof msg.text === 'string') {
+      const show = () => payNote(msg.text.slice(0, 300));
+      if (document.body) show();
+      else document.addEventListener('DOMContentLoaded', show, { once: true });
+      return;
+    }
     if (sender.id !== ext.runtime.id || !msg || msg.type !== 'sentinel:warn' || !msg.verdict) return;
     const show = () => mount(msg.verdict, typeof msg.recover === 'string' ? msg.recover : '');
     if (document.documentElement) show();

@@ -593,7 +593,43 @@ Shot 'my-sites-warning'
 Check 'my-sites-lookalike' $ok "the warning: $($w.Substring(0, [Math]::Min(300, $w.Length)) -replace '\s+', ' ')"
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
-# 5e. Your week: what sections 2 to 5d did reaches the week, as numbers only. The app counts chat messages, the stopped
+# 5e. Before you pay: a shop's checkout. A young shop (registered 3 weeks ago) gets a calm card beside the page, found
+# by its address (/checkout/) and, on another page, by its title alone; a shop registered years ago gets nothing. Both
+# shops are harmless local pages behind a hosts mapping. Their ages are put where an earlier lookup would have left
+# them (scripts/e2e-pay.js): live scanning here is fast, and fast looks nothing up.
+Say (node (Join-Path $PSScriptRoot 'e2e-pay.js') "$data\sentinel.db")
+# 5d's warning is still open: out of the way, so the photographs show the card.
+[void](Cdp 'warn.html' 'window.close(), 1')
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 youngshop.test`r`n127.0.0.1 oldshop.test"
+function PayCard { return [string](Cdp 'overlay.html' "(document.getElementById('pay').classList.contains('is-on') ? 'on|' : 'off|') + document.getElementById('payText').textContent").value }
+function PayLog { return ([regex]::Matches((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '', 'before you pay: shown')).Count }
+function Shop($url) {
+  Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 2
+  Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble', $url
+  Start-Sleep 8
+  Say "Edge in front: $(Front 'msedge')"
+  [void][K]::SetCursorPos(400, 500)
+}
+$c = ''
+$before = PayLog
+Shop 'http://youngshop.test:47910/checkout/'
+$ok = Until 45 { [K]::Tap(0x11); $script:c = PayCard; $script:c -match '^on\|This shop.s address was registered 3 weeks ago\. Pay with a credit card or PayPal, not a bank transfer, gift card or crypto' }
+Shot 'pay-young-shop'
+Check 'pay-young-checkout' ($ok -and (PayLog) -gt $before) "a young shop's /checkout/: the card '$c', watch.log says shown: $((PayLog) -gt $before)"
+if (-not $ok) { Say "  diag: $(WatchLine 'youngshop\.test')"; Get-Content "$data\logs\watch.log" -Tail 6 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag watch.log: $_" } }
+$before = PayLog
+Shop 'http://youngshop.test:47910/order.html'
+$ok = Until 45 { [K]::Tap(0x11); $script:c = PayCard; $script:c -match '^on\|This shop.s address was registered 3 weeks ago' }
+Check 'pay-young-by-title' ($ok -and (PayLog) -gt $before) "a young shop's page titled Secure Checkout (an address that says nothing): the card '$c'"
+$before = PayLog
+Shop 'http://oldshop.test:47910/checkout/'
+$ok = Until 45 { [bool](WatchLine 'msedge \S+ .* http://oldshop\.test:47910/checkout/') }
+Start-Sleep 5
+$c = PayCard
+Shot 'pay-old-shop'
+Check 'pay-old-shop-nothing' ($ok -and $c -match '^off\|' -and (PayLog) -eq $before) "a shop registered 9 years ago: checked $ok, the card '$c', shown again: $((PayLog) -ne $before)"
+Check 'pay-log-private' (-not ((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) -match 'before you pay:[^\r\n]*(\.test|https?:)')) 'watch.log says the card was shown, never where'
+# 5f. Your week: what sections 2 to 5e did reaches the week, as numbers only. The app counts chat messages, the stopped
 # command, the wallet swap and AnyDesk's download on this computer and hands them over (week() hands them over at once);
 # live scanning's pages and the look-alike of 5d are counted by the scanner. Asked before section 6 ends the app.
 $cs = (Info 'info()')
@@ -605,7 +641,7 @@ Check 'week-app-counts' ($c.commands_stopped -ge 1 -and $c.wallet_swaps -ge 1 -a
 Check 'week-live-counts' ($c.live_links -ge 3 -and $c.live_flagged -ge 2 -and $c.lookalikes -ge 1) "live links $($c.live_links), flagged $($c.live_flagged), look-alikes $($c.lookalikes)"
 Check 'week-biggest' ($w.weeks[-1].biggest -match 'wallet address') "biggest catch: $($w.weeks[-1].biggest)"
 Check 'week-numbers-only' (-not (($w | ConvertTo-Json -Depth 6) -match 'AnyDesk|1A1zP1|harbourcu|powershell|https?:')) 'the week holds no file, address, command or link'
-# 5f. Check something on screen: the shortcut (Windows key + Alt + S) over Edge showing a scam text with a link and a
+# 5g. Check something on screen: the shortcut (Windows key + Alt + S) over Edge showing a scam text with a link and a
 # callback number, and a QR code to a listed scam (made here with another encoder, as verify-web's codes are). A box
 # is drawn over them with the mouse, and the verdict card names all three. Then the shortcut again, and Escape.
 python -m pip install --quiet --disable-pip-version-check qrcode pillow 2>&1 | Out-Null

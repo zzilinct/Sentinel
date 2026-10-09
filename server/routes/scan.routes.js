@@ -19,6 +19,7 @@ const { db, now } = require('../lib/db');
 const engine = require('../lib/scan/engine');
 const exposure = require('../lib/scan/exposure');
 const mySites = require('../lib/scan/mysites');
+const { payCheck } = require('../lib/scan/paycheck');
 const feeds = require('../lib/scan/feeds');
 const { analyze, typedUrl } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
@@ -316,7 +317,13 @@ function register(router) {
     if (body.learn === true && body.private !== true && !badge && local(req)) {
       try { mySites.seen(user.id, String(url), now(), Number(body.tz)); } catch { /* best effort */ }
     }
-    sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan) });
+    // Before you pay: at a shop's checkout, a calm word when the shop's address is young or its age unknown. Uses only
+    // what is already known (a delicate scan's lookup above, or an earlier one); nothing is looked up for it.
+    const pay = payCheck(String(url), {
+      verdict, checkout: body.checkout === true,
+      mine: () => local(req) && mySites.list(user.id).some((s) => s.host === mySites.siteOf(String(url)))
+    });
+    sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan), ...(pay ? { pay } : {}) });
   });
 
   /* ------------------------------------------------- exposure alerts */

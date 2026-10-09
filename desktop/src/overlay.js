@@ -131,6 +131,9 @@ function sweep(kind, opts = {}) {
 /** The verdict on the page in front, shown by the corner mask. */
 function setVerdict(v) { send('overlay:verdict', v || { badge: null }); }
 
+/** Before you pay: the card's words for the checkout in front, or null to take it away. */
+function setPay(text) { send('overlay:pay', text ? { text: String(text) } : null); }
+
 /** Marks beside results. Positions arrive in screen pixels and leave relative to the overlay. */
 function setMarks({ marks, checking, epoch, clip, ends }) {
   if (!area) return;
@@ -189,4 +192,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { handle, setWindow, isFullscreen, sweep, setVerdict, setMarks, shift, wheel, pixels, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { handle, setWindow, isFullscreen, sweep, setVerdict, setPay, setMarks, shift, wheel, pixels, destroy, setDryRun: (logger) => { dryRun = logger || null; } };

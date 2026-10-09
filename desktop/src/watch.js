@@ -336,6 +336,9 @@ $anchor = $null; $anchorX = 0; $anchorY = 0; $lastDx = 0; $lastDy = 0; $moved = 
 $appCheckFor = [IntPtr]::Zero; $isApp = $false
 $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
 $private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
+# A shop's checkout, by the page's title (the window's title, already read above): only whether it reads like one leaves
+# this script, never the title. Its address is judged by the scanner (server/lib/scan/paycheck.js).
+$checkoutTitle = '\b(check ?out|place (your )?order|kasse|paiement)\b'
 $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
 $last = ''; $lastFront = ''; $lastWin = ''; $lastLinks = ''; $wasIdle = $false; $noDoc = ''; $pause = 450
 $lastPid = 0; $lastProc = $null; $cachedDoc = $null; $cachedFor = [IntPtr]::Zero; $cachedTitle = ''; $cachedAt = 0
@@ -551,10 +554,13 @@ while ($true) {
     Write-Output (@{ win = @{ browser = $fname; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; private = [bool]$isPrivate } } | ConvertTo-Json -Compress)
   }
 
-  $key = $fname + '|' + $url
+  # A title that turns into a checkout's after the address changed (a page still loading, or a shop's steps on one
+  # address) counts as a new page, so it is looked at again.
+  $pay = [bool]($title -match $checkoutTitle)
+  $key = $fname + '|' + $url + '|' + $pay
   if ($key -ne $last) {
     $last = $key; $lastLinks = ''; $anchor = $null; $forceRead = $true; $hoverEl = $null; $hoverTried = ''
-    Write-Output (@{ browser = $fname; url = $url; private = [bool]$isPrivate; search = [bool]($url -match $search) } | ConvertTo-Json -Compress)
+    Write-Output (@{ browser = $fname; url = $url; private = [bool]$isPrivate; search = [bool]($url -match $search); pay = $pay } | ConvertTo-Json -Compress)
   }
 
   # Reading every link on a page is the expensive part (hundreds of milliseconds on a slow machine). Read again only
@@ -972,7 +978,7 @@ function onLine(line) {
   if (!/^https?:\/\//i.test(msg.url)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
   // Sentinel's own pages and the app's server are not "sites".
   if (opts.origin && msg.url.startsWith(opts.origin)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
-  const page = { browser: msg.browser, url: msg.url, private: Boolean(msg.private), search: Boolean(msg.search), at: Date.now() };
+  const page = { browser: msg.browser, url: msg.url, private: Boolean(msg.private), search: Boolean(msg.search), checkout: msg.pay === true, at: Date.now() };
   // What a private window shows is never kept, not even in memory the app's window can read.
   state.current = page.private ? { browser: page.browser, url: null, private: true, at: page.at } : page;
   if (opts.onPage) opts.onPage(page);
@@ -986,14 +992,14 @@ async function check(page) {
   if (page.search) { if (opts.onVerdict) opts.onVerdict({ page, badge: null, label: 'Search results' }); return; }
 
   let verdict;
+  let answer;
   try {
-    let answer;
     // Exposure alerts (switched on by the person) ask the server to remember a clean page; a private window never.
     const remember = !page.private && Boolean(opts.remember && opts.remember());
     // Your sites (on unless switched off): a clean page counts towards learning the sites the person uses.
     const learn = !page.private && Boolean(opts.learn && opts.learn());
     const tz = remember || learn ? { tz: new Date().getTimezoneOffset() } : {};
-    ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode(), ...(remember ? { remember: true } : {}), ...(learn ? { learn: true } : {}), ...tz }));
+    ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode(), ...(page.checkout ? { checkout: true } : {}), ...(remember ? { remember: true } : {}), ...(learn ? { learn: true } : {}), ...tz }));
     noteMode(answer);
   } catch (err) {
     log(`check failed${page.private ? '' : ` for ${host}`}: ${err.status || ''} ${err.code || err.message}`);
@@ -1010,6 +1016,9 @@ async function check(page) {
   // A fake virus alert (kinds.js "Tech support scam") of any colour: the tech-support scam shield watches for it.
   const support = Boolean(verdict && verdict.threats && verdict.threats.scam && verdict.threats.scam.kind === 'support');
   if (opts.onVerdict && stillThere) opts.onVerdict({ page, badge, label, kind: worstKind(verdict), support });
+  // Before you pay: a shop's checkout whose address is young or unknown (the scanner decides). The log says that it
+  // was shown, never where.
+  if (answer.pay && stillThere) { log(`before you pay: shown (${answer.pay.young ? 'a young shop' : 'a shop of unknown age'})`); if (opts.onPay) opts.onPay(answer.pay); }
   count(page.private, badge);
   if (opts.onChecked && !page.private) opts.onChecked({ browser: page.browser, url: page.url, host, badge, label, at: Date.now() });
   if (badge !== 'red' && badge !== 'orange') return;

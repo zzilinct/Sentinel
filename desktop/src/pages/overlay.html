@@ -88,7 +88,21 @@
   .tip b { display: block; font-weight: 600; color: var(--c, #e9e6df); margin-bottom: 2px; }
   .tip span { color: #b9b5ab; font-size: 12.5px; }
 
+  /* Before you pay: a calm card at the top right of a shop's checkout whose address is young or unknown. It springs in
+     (transforms and opacity only) and stays while the page does; the pointer near it makes it step aside, like the
+     corner mask, so the page under it can be read and clicked. */
+  .pay { position: absolute; right: 18px; top: 18px; width: 300px; padding: 12px 14px 12px 50px; border-radius: 12px; background: #0c0d10;
+    border: 1px solid color-mix(in srgb, #d6b25a 34%, transparent); box-shadow: 0 10px 30px rgba(0, 0, 0, .4); pointer-events: none;
+    opacity: 0; transform: translateY(-8px) scale(.97); transform-origin: 100% 0; transition: opacity .22s ease, transform .5s var(--spring); }
+  .pay.is-on { opacity: 1; transform: none; }
+  .pay.is-on.is-shy { opacity: .12; transition-duration: .18s; }
+  .pay__mask { position: absolute; left: 12px; top: 12px; width: 26px; height: 26px; color: #d6b25a; }
+  .pay__mask svg { width: 26px; height: 26px; display: block; }
+  .pay b { display: block; font-weight: 600; color: #e2c47f; margin-bottom: 3px; }
+  .pay span { color: #cfcbc1; font-size: 12.5px; }
+
   @media (prefers-reduced-motion: reduce) {
+    .pay, .pay.is-on { transform: none; transition: opacity .2s ease; }
     body.sweeping .line { animation: none; }
     body.sweeping .tint { animation: tint 1.2s ease-out forwards; }
     /* Calm: the card still opens and the words still change (that is the message), with no spring and no travel. */
@@ -106,6 +120,7 @@
   <div class="line"></div>
   <div id="clip"><div id="marks"></div></div>
   <div class="tip" id="tip"><b></b><span></span></div>
+  <div class="pay" id="pay" role="status"><i class="pay__mask" id="payMask"></i><b>Before you pay</b><span id="payText"></span></div>
   <div class="corner" id="corner">
     <i class="isl__mid"></i><i class="isl__cap"></i>
     <div class="corner__mask" id="cornerMask"></div>
@@ -124,6 +139,8 @@
   var cornerLabel = document.getElementById('cornerLabel');
   var marksEl = document.getElementById('marks');
   var tip = document.getElementById('tip');
+  var pay = document.getElementById('pay');
+  document.getElementById('payMask').innerHTML = M.svg('scam');
   // One element per result, kept by the result's key: when scrolling brings new results in and takes others out,
   // the marks that stay are the same elements, untouched, and only newcomers pop in.
   var nodes = new Map();
@@ -306,6 +323,8 @@
     var cr = corner.getBoundingClientRect();
     var near = ev.clientX > cr.right - islandW - 60 && ev.clientY > cr.top - 60;
     corner.classList.toggle('is-shy', near);
+    var pr = pay.getBoundingClientRect();
+    pay.classList.toggle('is-shy', ev.clientX > pr.left - 40 && ev.clientY < pr.bottom + 40);
     var hit = null;
     for (var i = 0; i < current.length; i++) {
       var m = current[i];
@@ -326,7 +345,7 @@
     tip.style.top = top + 'px';
     tip.classList.add('is-on');
   });
-  window.addEventListener('mouseleave', function () { tip.classList.remove('is-on'); corner.classList.remove('is-shy'); });
+  window.addEventListener('mouseleave', function () { tip.classList.remove('is-on'); corner.classList.remove('is-shy'); pay.classList.remove('is-shy'); });
 
   var api = window.sentinelOverlay;
   var restTimer = null;
@@ -562,7 +581,12 @@
   });
   api.on('overlay:wheel', function (p) { if (p && p.epoch === epoch) onWheel(p); });
   api.on('overlay:px', function (p) { if (p && p.epoch === epoch) onPixels(p); });
-  api.on('overlay:clear', function () { endDig(); stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); corner.classList.remove('is-on'); hush(); flagged = false; });
+  // Before you pay: the words come from the scanner (plain text), or null when the page in front is not such a checkout.
+  api.on('overlay:pay', function (p) {
+    document.getElementById('payText').textContent = p && p.text ? String(p.text) : '';
+    pay.classList.toggle('is-on', Boolean(p && p.text));
+  });
+  api.on('overlay:clear', function () { pay.classList.remove('is-on'); endDig(); stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); corner.classList.remove('is-on'); hush(); flagged = false; });
 })();
 </script>
 </body>
