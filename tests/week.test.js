@@ -94,7 +94,7 @@ test('the biggest catch is the most serious one, in plain words', () => {
   const b = (c) => week.biggest({ ...zero, ...c });
   assert.equal(b({}), null);
   assert.match(b({ chat_flagged: 3, wallet_swaps: 1 }), /^Something on this PC swapped a wallet address you copied/);
-  assert.match(b({ files_quarantined: 2, commands_stopped: 1 }), /moved 2 dangerous files into quarantine before they/);
+  assert.match(b({ files_quarantined: 2, commands_stopped: 1 }), /^Sentinel moved 2 dangerous files into quarantine\.$/);
   assert.match(b({ commands_stopped: 1, live_flagged: 5 }), /stopped a risky command you copied before it/);
   assert.match(b({ lookalikes: 1, live_flagged: 1 }), /a fake copy of a site you use/);
   assert.match(b({ exposures: 2, live_flagged: 1 }), /^2 sites you visited were put on a threat list/);

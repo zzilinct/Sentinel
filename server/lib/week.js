@@ -44,7 +44,7 @@ const plural = (n, one, many) => (n === 1 ? one : `${n} ${many}`);
  */
 function biggest(c) {
   if (c.wallet_swaps) return `Something on this PC swapped ${plural(c.wallet_swaps, 'a wallet address', 'wallet addresses')} you copied, and Sentinel caught it.`;
-  if (c.files_quarantined) return `Sentinel moved ${plural(c.files_quarantined, 'a dangerous file', 'dangerous files')} into quarantine before ${c.files_quarantined === 1 ? 'it' : 'they'} could do harm.`;
+  if (c.files_quarantined) return `Sentinel moved ${plural(c.files_quarantined, 'a dangerous file', 'dangerous files')} into quarantine.`;
   if (c.commands_stopped) return `Sentinel stopped ${plural(c.commands_stopped, 'a risky command', 'risky commands')} you copied before ${c.commands_stopped === 1 ? 'it' : 'they'} could be pasted into Windows.`;
   if (c.lookalikes) return `Sentinel spotted ${plural(c.lookalikes, 'a fake copy', 'fake copies')} of a site you use.`;
   if (c.exposures) return `${c.exposures === 1 ? 'A site you visited was' : `${c.exposures} sites you visited were`} put on a threat list afterwards, and Sentinel told you.`;

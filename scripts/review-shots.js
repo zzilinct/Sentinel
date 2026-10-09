@@ -93,7 +93,10 @@ async function signUp() {
   const post = (p, body, cookie) => fetch(`${BASE}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: BASE, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) });
   const r = await post('/api/v1/auth/signup', { email, password: PASSWORD, firstName: 'Alex', ageConfirmed: true, termsAccepted: true });
   if (!r.ok) throw new Error(`sign-up was refused: ${r.status} ${await r.text()}`);
-  const cookie = (r.headers.getSetCookie ? r.headers.getSetCookie() : [r.headers.get('set-cookie')]).filter(Boolean).map((c) => c.split(';')[0]).join('; ');
+  // Signing up signs nobody in: a session of its own, for the calls below.
+  const s = await post('/api/v1/auth/login', { email, password: PASSWORD });
+  if (!s.ok) throw new Error(`sign-in was refused: ${s.status} ${await s.text()}`);
+  const cookie = (s.headers.getSetCookie ? s.headers.getSetCookie() : [s.headers.get('set-cookie')]).filter(Boolean).map((c) => c.split(';')[0]).join('; ');
   await post('/api/v1/billing/plan', { plan: 'max' }, cookie);
   await seedWeek(post, cookie, email);
   return email;
