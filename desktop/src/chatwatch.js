@@ -613,9 +613,13 @@ async function followLog() {
     try { await fh.read(buf, 0, buf.length, start); } finally { await fh.close(); }
     roblox.logAt = size;
     const before = roblox.placeId;
+    const wasInGame = roblox.inGame;
     const s = readLog(buf.toString('utf8'), { inGame: roblox.inGame, placeId: roblox.placeId });
     roblox.inGame = s.inGame;
     roblox.placeId = s.placeId;
+    // Joined or left while Roblox is in front, after its chat was last read: the overlay changes now (in a game the
+    // badge waits for the Esc menu), not at the next new message, which may be a long time coming.
+    if (s.inGame !== wasInGame && seen.app === 'roblox' && opts) opts.onState(robloxState(roblox.flags));
     if (s.placeId && s.placeId !== before) {
       roblox.info = null;
       gameInfo(s.placeId).then((info) => { if (roblox.placeId === s.placeId) roblox.info = info; });
@@ -679,5 +683,5 @@ function stop() {
 
 module.exports = {
   start, stop, setApps, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)),
-  _test: { state: () => ({ inGame: roblox.inGame, placeId: roblox.placeId, logFile: roblox.logFile, logAt: roblox.logAt, following, timer: Boolean(logTimer), child: Boolean(child) }), SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, receivedSide, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
+  _test: { followLog, state: () => ({ inGame: roblox.inGame, placeId: roblox.placeId, logFile: roblox.logFile, logAt: roblox.logAt, following, timer: Boolean(logTimer), child: Boolean(child) }), SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, receivedSide, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
 };

@@ -215,14 +215,15 @@ Start-Sleep 3
 # 3. Chat safety in "Roblox": in a game (its log says so), the chat box read with the text recogniser.
 $rlogs = "$env:LOCALAPPDATA\Roblox\logs"; New-Item -ItemType Directory -Force $rlogs | Out-Null
 Set-Content -Path "$rlogs\0.0.1_e2e_Player_last.log" -Value "2026-10-07T12:00:00.000Z,0.0,1,6 [FLog::Output] ! Joining game 'x' place 123 at 10.0.0.1" -Encoding ascii
-Start-Sleep 3
 Say "  the Roblox log, as Sentinel follows it: $((Cdp 'main' "JSON.stringify(process.mainModule.require('./chatwatch')._test.state())").value)"
 Say "Roblox in front: $(Fake 'RobloxPlayerBeta' 'roblox.html')"
 $ok = Until 40 { $script:seen = (Info 'info()').chatSafety.seen; $script:seen.roblox.flagged -ge 1 }
 Shot 'roblox'
 Check 'chat-roblox-read' ($seen.roblox.checked -ge 1) "messages checked in Roblox: $($seen.roblox.checked) (2 on screen)"
 Check 'chat-roblox-flagged' $ok "messages flagged in Roblox: $($seen.roblox.flagged) (the free Robux offer)"
-$o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className").value
+# The game is known from Roblox's log, followed every 2 s; the overlay changes when it is (not only at the next message).
+$o = ''
+[void](Until 10 { $script:o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className").value; $script:o -match '^[1-9]\d*\|roblox in-game' })
 Check 'chat-roblox-overlay' ($o -match '^[1-9]\d*\|roblox in-game') "chat overlay over Roblox (warnings|app): $o"
 # When the overlay does not say in-game: the Roblox log as Sentinel reads it.
 if (-not ($o -match '^[1-9]\d*\|roblox in-game')) {
