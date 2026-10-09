@@ -675,7 +675,10 @@ $t = ''
 $ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; [bool]$script:t }
 Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -match 'English texts for now' -and $t -match 'left-to-right') "Check my texts panel: $(([string]$t).Substring(0, [Math]::Min(200, ([string]$t).Length)))"
 
-# 4c, seen in the app (signed in since 7): the fake installer in Recent downloads, with the real site named.
+# 4c, seen in the app (signed in since 7; the restart before it emptied the list): a Discord installer someone
+# uploaded to a Discord chat arrives, and Recent downloads lists it as a fake, with the real site named.
+Arrive 'DiscordSetup.exe' 'https://cdn.discordapp.com/attachments/1180000000000000000/1190000000000000000/DiscordSetup.exe' 'https://discord.com/channels/@me'
+[void](Until 90 { (AppLog) -match 'download source: DiscordSetup\.exe not from Discord.s own site' })
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection#downloads', 1)")
 if (-not (Until 60 { (Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).textContent || ''").value -match 'Possible fake installer' })) {
   Say "  the app shows: $((Cdp '127.0.0.1:4782' "location.href + ' | ' + document.body.innerText.slice(0, 300)").value)"
@@ -683,7 +686,7 @@ if (-not (Until 60 { (Cdp '127.0.0.1:4782' "(document.getElementById('downloads'
 [void](Cdp '127.0.0.1:4782' "(document.getElementById('downloads').scrollIntoView(), 1)"); Start-Sleep 1
 Shot 'download-source'
 $t = [string](Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).innerText || ''").value
-Check 'download-source-listed' ($t -match 'Possible fake installer' -and $t -match 'Get Zoom from zoom\.us') "Recent downloads: $(($t.Substring(0, [Math]::Min(300, $t.Length))) -replace '\s+', ' ')"
+Check 'download-source-listed' ($t -match 'Possible fake installer' -and $t -match 'This says it is Discord, but it came from cdn\.discordapp\.com, not discord\.com\. Get Discord from discord\.com\.') "Recent downloads: $(($t.Substring(0, [Math]::Min(300, $t.Length))) -replace '\s+', ' ')"
 
 # 7b. Your sites, in Live protection: a site added with the form is listed as added by you (5d proves the warning).
 $ok = Until 30 { (Cdp '127.0.0.1:4782' "Boolean(document.querySelector('[data-my-sites-add]'))").value -eq $true }
