@@ -391,7 +391,7 @@ function Covered($el, $b) {
     return $true
   } catch { return $false }
 }
-function Off($why) { $script:anchor = $null; $script:hoverEl = $null; $script:hoverTried = ''; try { [Wheel]::Enabled = $false; [Glide]::Enabled = $false } catch { }; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
+function Off($why) { $script:anchor = $null; try { [Wheel]::Enabled = $false; [Glide]::Enabled = $false } catch { }; $script:hoverEl = $null; $script:hoverTried = ''; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
   # Between full looks: follow the anchor about 60 times a second and report how far the page has moved, so the
   # marks move while the page scrolls instead of jumping after it. Wake at once for a command.
@@ -1314,13 +1314,12 @@ async function checkLinks(links, page, forUrl) {
     // Delicate is shown in two steps: the quick answer (lists and checklist, a few ms) goes on screen at once, and
     // the researched answer replaces it when it lands. Nobody waits five seconds for a mark.
     if (mode === 'delicate' && !page.private) {
-      const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true, hints: page.hover ? undefined : hintsFor(links, missing, forUrl) });
+      const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true, hints: hintsFor(links, missing, forUrl) });
       store(quick.byUrl, false, false);   // shown until the researched answer replaces it
       publishMarks();
       log(`results marked: ${missing.length} in ${Date.now() - started} ms (quick pass)`);
     }
-    // A hovered link has no search behind it to give hints.
-    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode, hints: page.private || page.hover ? undefined : hintsFor(links, missing, forUrl) });
+    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode, hints: page.private ? undefined : hintsFor(links, missing, forUrl) });
     noteMode(answer);
     if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
     store(byUrl, true, (answer.mode || mode) !== 'delicate');
@@ -1365,7 +1364,8 @@ async function onHover(h) {
   if (!cur || (latestLinks && !latestLinks.hover)) return;
   const link = hoverLink(h, cur.url);
   if (!link) return;
-  const page = { private: Boolean(cur.private), hover: true };
+  const page = { private: Boolean(cur.private) };
+  // Not an address: no search words or titles go along as hints for a hovered link (see hintsFor).
   const forUrl = `hover:${markKey(link.u)}`;
   latestLinks = { for: forUrl, links: [link], epoch: ++linkEpoch, hover: true };
   publishMarks();
