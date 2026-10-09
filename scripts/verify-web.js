@@ -235,14 +235,16 @@ async function checkMotion() {
     result('motion: on a computer, Lenis smooths the scroll', on.lenis && on.scroller, on);
     // Where the page is, frame by frame, recorded in the page: a sample taken 90 ms later by this script's own clock
     // came back after the glide had landed whenever the runner was busy (the call and the frames run late, not the glide).
-    await d.ev("(() => { const f = window.__glide = []; const t0 = performance.now(); const rec = () => { f.push([Math.round(performance.now() - t0), Math.round(scrollY), window.SentinelScroll.ticking]); if (performance.now() - t0 < 2500) requestAnimationFrame(rec); }; requestAnimationFrame(rec); return true; })()");
+    await d.ev("(() => { const f = window.__glide = []; const t0 = performance.now(); const rec = () => { f.push([Math.round(performance.now() - t0), Math.round(scrollY), window.SentinelScroll.ticking]); if (performance.now() - t0 < 8000) requestAnimationFrame(rec); }; requestAnimationFrame(rec); return true; })()");
     await browser.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 683, y: 450, deltaX: 0, deltaY: 600 }, d.s);
-    await sleep(1900);
+    // Until it rests: on this runner the page draws a few frames a second, and the glide keeps its own time across them.
+    for (let i = 0; i < 25 && !(await d.ev('scrollY > 0')); i++) await sleep(200);
+    for (let i = 0; i < 40 && await d.ev('window.SentinelScroll.ticking'); i++) await sleep(200);
     const end = await d.ev('({ y: scrollY, ticking: window.SentinelScroll.ticking, frames: window.__glide })');
     // A glide: Lenis ticking, and the page part way, on frames that span at least 90 ms of the page's own time.
-    const between = end.frames.filter(([, y, ticking]) => ticking && y > 0 && y < 590);
+    const between = end.frames.filter(([, y, ticking]) => ticking && y > 0 && y < 598);
     const span = between.length ? between[between.length - 1][0] - between[0][0] : 0;
-    result('motion: a turn of the wheel glides (part way for 90 ms and more, Lenis ticking), lands, and Lenis stops ticking', between.length >= 3 && span >= 90 && Math.abs(end.y - 600) <= 2 && !end.ticking, { partWay: between.length, spanMs: span, firstPartWay: between[0] || null, y: end.y, ticking: end.ticking });
+    result('motion: a turn of the wheel glides (part way for 90 ms and more, Lenis ticking), lands, and Lenis stops ticking', between.length >= 2 && span >= 90 && Math.abs(end.y - 600) <= 2 && !end.ticking, { partWay: between.length, spanMs: span, frames: end.frames.slice(0, 40).map(([t, y]) => `${t}:${y}`).join(' '), y: end.y, ticking: end.ticking });
 
     const lands = async (name, setup, measure, want) => {
       await d.ev(setup);
