@@ -1289,13 +1289,14 @@ async function boot() {
   if (booting) return;
   booting = true;
   clearTimeout(retryTimer);
-  const remote = process.env.SENTINEL_ORIGIN || (DEV ? 'http://localhost:8787' : store.get('serverOrigin', null));
+  // Not "remote": that name is the tech-support scam shield (remoteguard.create()), which onVerdict below calls.
+  const serverOrigin = process.env.SENTINEL_ORIGIN || (DEV ? 'http://localhost:8787' : store.get('serverOrigin', null));
   if (win) win.loadFile(path.join(__dirname, 'pages', 'loading.html'));
-  appLog(`boot: ${remote ? `using ${remote}` : 'starting the embedded scanner'} (app ${app.getVersion()})`);
+  appLog(`boot: ${serverOrigin ? `using ${serverOrigin}` : 'starting the embedded scanner'} (app ${app.getVersion()})`);
 
   try {
-    ORIGIN = remote
-      ? remote.replace(/\/$/, '')
+    ORIGIN = serverOrigin
+      ? serverOrigin.replace(/\/$/, '')
       : await server.start(store, {
         onDown: (reason) => showError(reason),
         onRestart: (origin) => { ORIGIN = origin; if (win && win.isVisible()) openApp(); }
@@ -1313,8 +1314,8 @@ async function boot() {
   // the embedded server issues this computer its own. That token is ONLY for the
   // background services. It never signs the app window in and never replaces a
   // person's session: whoever signs in here stays signed in as themselves.
-  embedded = !remote;
-  if (!remote) {
+  embedded = !serverOrigin;
+  if (!serverOrigin) {
     // Older builds kept the device token where the person's pairing belongs.
     if (store.get('deviceAccount')) {
       try {
