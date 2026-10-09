@@ -421,6 +421,12 @@ Shot 'escape'
 $verdict = (Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String 'defender-virusalert' | Select-Object -Last 1)
 Say "live scanning's verdict: $verdict"
 Check 'escape-offered' $ok 'app.log: a flagged page took the whole screen; offered a way out'
+# DIAG (ci-steady)
+if (-not $ok) {
+  $d = (Cdp 'main' "(() => { const m = process.mainModule; const e = m.require('electron'); const o = m.require('./overlay'); const s = m.require('./watch').status(); const ws = e.BrowserWindow.getAllWindows().map((w) => w.webContents.getURL().split('/').pop().split('?')[0] + ' ' + JSON.stringify(w.getBounds()) + ' ' + w.isVisible()); return JSON.stringify({ full: o.isFullscreen(), window: s.window, current: s.current && { badge: s.current.badge, support: s.current.support }, display: e.screen.getPrimaryDisplay().bounds, ws }); })()")
+  Say "  diag: $($d.value)$($d.error)"
+  Get-Content "$data\logs\watch.log" -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag watch.log: $_" }
+}
 $g = (Cdp 'guard.html' "location.search + '|' + document.hasFocus() + '|' + document.body.getAttribute('role') + '|' + document.getElementById('title').textContent").value
 Check 'escape-window' ($g -match 'mode=escape') "the shield's window: $g"
 Check 'escape-words' ($g -match 'support=1' -and $g -match 'trying to scare you') 'a fake virus alert gets the scare-page words'
