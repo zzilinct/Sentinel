@@ -438,9 +438,11 @@ Say "Edge in front: $(Front 'msedge')"
 $ok = Until 45 { [bool](WatchLine 'msedge \S+ .* http://harbourcu\.test:47910/') }
 $real = WatchLine 'msedge \S+ .* http://harbourcu\.test:47910/'
 Check 'my-sites-real-site' ($ok -and $real -notmatch ' (orange|red) ') "the real site: $real"
-Start-Process msedge -ArgumentList 'http://harbourcu-secure-login.test:47910/plain.html'
-Start-Sleep 4
-[void](Front 'msedge')
+# A fresh Edge, as in 5c: a tab added to a window already open is not always reported as a new page.
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 2
+Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', 'http://harbourcu-secure-login.test:47910/plain.html'
+Start-Sleep 8
+Say "Edge in front: $(Front 'msedge')"
 $ok = Until 45 { [bool](WatchLine 'msedge (orange|red) .* http://harbourcu-secure-login\.test:47910/') }
 Say "the copy: $(WatchLine 'harbourcu-secure-login\.test:47910/')"
 $w = ''
