@@ -489,9 +489,11 @@ while ($true) {
   if (-not $testName -and [SW]::IdleMs() -gt 120000) { if (-not $wasIdle) { $wasIdle = $true; Write-Output '{"idle":true}' }; Off 'idle'; continue }
   if ($wasIdle) { $wasIdle = $false; Write-Output '{"awake":true}' }
   # An app installed from the browser (Instagram, WhatsApp, YouTube as a window of their own) runs as the browser's
-  # own process, but it is an app, not a browser: it has no address bar. Looked for once per window.
-  if ($h -ne $appCheckFor) {
-    $appCheckFor = $h; $isApp = $false
+  # own process, but it is an app, not a browser: it has no address bar. Looked for once per window, and again every
+  # few seconds while none is found: a browser that has only just started can answer before its address bar is
+  # there, and that once left a whole Edge window unwatched for minutes.
+  if ($h -ne $appCheckFor -or ($isApp -and ([Environment]::TickCount - $appCheckAt) -gt 5000)) {
+    $appCheckFor = $h; $appCheckAt = [Environment]::TickCount; $isApp = $false
     if (@('chrome', 'msedge', 'brave') -contains $fname) {
       try { $isApp = -not $A::FromHandle($h).FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition($A::ClassNameProperty, 'OmniboxViewViews'))) } catch { $isApp = $false }
     }

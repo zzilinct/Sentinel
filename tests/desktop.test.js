@@ -324,6 +324,7 @@ test('the reader follows the tab in front and moves marks with the page between 
   assert.ok(s.includes("Write-Output ('{\"shift\":{\"dx\":'"), 'page movement is reported between full reads');
   assert.ok(s.includes('$wait = if ([Environment]::TickCount -lt $stillAt) { 8 } elseif ($sinceMove -lt 1500) { 15 } elseif ($sinceMove -lt 10000) { 40 } else { 90 }'), 'every 8 ms while it moves, then less and less often while the page is being read');
   assert.ok(s.includes('$stillAt = [Environment]::TickCount + 350'), 'the full read waits until the page has been still for 350 ms');
+  assert.ok(s.includes('if ($h -ne $appCheckFor -or ($isApp -and ([Environment]::TickCount - $appCheckAt) -gt 5000))'), 'a browser window taken for an app (no address bar found yet) is looked at again, not left unwatched');
 });
 
 test('the updater installs the file it downloaded, into its own folder, and notices an update that did not take', () => {
