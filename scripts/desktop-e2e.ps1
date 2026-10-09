@@ -165,9 +165,24 @@ New-Item -ItemType HardLink -Path "$chromeDir\Discord.exe" -Target "$chromeDir\c
 New-Item -ItemType HardLink -Path "$chromeDir\RobloxPlayerBeta.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 New-Item -ItemType HardLink -Path "$chromeDir\PhoneExperienceHost.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 function Fake($name, $page) {
-  Start-Process "$chromeDir\$name.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\$name-profile", '--start-maximized', "--app=http://127.0.0.1:47910/$page"
+  $fp = Start-Process "$chromeDir\$name.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\$name-profile", '--start-maximized', "--app=http://127.0.0.1:47910/$page" -PassThru
   Start-Sleep 8
-  return (Front $name)
+  $r = Front $name
+  if (-not $r) { FakeDiag $name $fp $page }
+  return $r
+}
+# DIAG (ci-steady): why a stand-in has no window.
+function FakeDiag($name, $fp, $page) {
+  Say "  diag: started pid $($fp.Id), exited: $($fp.HasExited) $(if ($fp.HasExited) { "code $($fp.ExitCode)" })"
+  Get-Process $name -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag: $name $($_.Id) hwnd $($_.MainWindowHandle) title '$($_.MainWindowTitle)' cpu $($_.CPU) start $($_.StartTime.ToString('HH:mm:ss'))" }
+  Get-Process chrome, updater, setup, GoogleUpdate*, MsMpEng, TiWorker, TrustedInstaller -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag: other $($_.ProcessName) $($_.Id) cpu $($_.CPU) start $(try { $_.StartTime.ToString('HH:mm:ss') } catch { '?' })" }
+  Say "  diag: chrome dir: $((Get-ChildItem $chromeDir | ForEach-Object { "$($_.Name)@$($_.LastWriteTime.ToString('HH:mm:ss'))" }) -join ', ')"
+  Say "  diag: chrome.exe $((Get-Item "$chromeDir\chrome.exe").VersionInfo.ProductVersion), $name.exe $((Get-Item "$chromeDir\$name.exe").VersionInfo.ProductVersion)"
+  try { Say "  diag: page answers $((Invoke-WebRequest "http://127.0.0.1:47910/$page" -UseBasicParsing -TimeoutSec 5).StatusCode)" } catch { Say "  diag: page does not answer: $($_.Exception.Message)" }
+  $cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
+  Say "  diag: cpu load $cpu%"
+  Get-Process | Sort-Object CPU -Descending | Select-Object -First 8 | ForEach-Object { Say "  diag: top $($_.ProcessName) $($_.Id) cpu $([int]$_.CPU)" }
+  Shot "diag-$name"
 }
 Say "Discord in front: $(Fake 'Discord' 'discord.html')"
 $seen = $null
@@ -194,6 +209,14 @@ Check 'chat-roblox-read' ($seen.roblox.checked -ge 1) "messages checked in Roblo
 Check 'chat-roblox-flagged' $ok "messages flagged in Roblox: $($seen.roblox.flagged) (the free Robux offer)"
 $o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className").value
 Check 'chat-roblox-overlay' ($o -match '^[1-9]\d*\|roblox in-game') "chat overlay over Roblox (warnings|app): $o"
+# DIAG (ci-steady)
+if (-not ($o -match '^[1-9]\d*\|roblox in-game')) {
+  Get-ChildItem $rlogs | ForEach-Object { Say "  diag: roblox log $($_.Name) $($_.Length) bytes, written $($_.LastWriteTime.ToString('HH:mm:ss.fff'))" }
+  $d = (Cdp 'main' "(() => { const fs = process.mainModule.require('fs'); const c = process.mainModule.require('./chatwatch'); const d = process.env.LOCALAPPDATA + '\\Roblox\\logs'; return JSON.stringify(fs.readdirSync(d).map((f) => [f, c._test.readLog(fs.readFileSync(d + '\\' + f, 'utf8'))])) + ' ' + JSON.stringify(c.stats().roblox) + ' now ' + new Date().toISOString(); })()")
+  Say "  diag: $($d.value)$($d.error)"
+  Start-Sleep 5
+  [void](Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className")
+}
 Get-Process RobloxPlayerBeta -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 # 3b. "Check my texts" in "Phone Link": Chrome under the name PhoneExperienceHost.exe, showing a page shaped like its
 # Messages tab (scripts/e2e-chat/phonelink.html). This proves the reader and the judging; the real Phone Link's
@@ -286,6 +309,9 @@ foreach ($snippet in @('$ df -h  # human-readable', 'curl -LO https://downloads.
 Check 'clickfix-snippet-log' (([regex]::Matches((AppLog), 'copied command (stopped|flagged)')).Count -eq $flaggedBefore) 'app.log: no copied command stopped or flagged for the snippets'
 # The clipboard is read every half second only while a browser is in front; with another program in front, every 1.5 s.
 function ClipStatus { return (Cdp 'main' "process.mainModule.require('./clipwatch').status()").value }
+# DIAG (ci-steady): the same 6 s, measured inside Sentinel, with which program the helper says is in front.
+$d = (Cdp 'main' "(async () => { const m = process.mainModule; const c = m.require('./clipwatch'); const b = m.require('./browsers'); const a = c.status(); const t0 = Date.now(); const s = []; let lag = 0; while (Date.now() - t0 < 6000) { const t = Date.now(); await new Promise((r) => setTimeout(r, 250)); lag = Math.max(lag, Date.now() - t - 250); s.push(String(b.inFront()) + ':' + c.status().every + ':' + c.status().reads); } const z = c.status(); return JSON.stringify({ every: z.every, reads: z.reads - a.reads, ms: Date.now() - t0, lag, s: s.join(' ') }); })()")
+Say "  diag: $($d.value)$($d.error)"
 $a = ClipStatus; Start-Sleep 6; $b = ClipStatus
 Check 'clickfix-fast-in-browser' ($b.every -eq 500 -and ($b.reads - $a.reads) -ge 6) "browser in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
 Start-Process notepad
