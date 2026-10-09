@@ -476,6 +476,35 @@ $t = ''
 $ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; [bool]$script:t }
 Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -match 'English texts for now' -and $t -match 'left-to-right') "Check my texts panel: $(([string]$t).Substring(0, [Math]::Min(200, ([string]$t).Length)))"
 
+# 7b. Your sites: a small credit union's site added in Live protection's form, then in Edge the real site and an
+# address made to look like it, both mapped to a harmless local page. The real one is left alone, the copy is called
+# what it is.
+$ok = Until 30 { (Cdp '127.0.0.1:4782' "Boolean(document.querySelector('[data-my-sites-add]'))").value -eq $true }
+[void](Cdp '127.0.0.1:4782' "(() => { const f = document.querySelector('[data-my-sites-add]'); f.elements.host.value = 'harbourcu.test'; f.requestSubmit(); return 1; })()")
+$s = ''
+$ok = $ok -and (Until 30 { $script:s = [string](Cdp '127.0.0.1:4782' "(document.getElementById('my-sites') || {}).innerText || ''").value; $script:s -match 'harbourcu\.test\s+Added by you' })
+[void](Cdp '127.0.0.1:4782' "(document.getElementById('my-sites').scrollIntoView(), 1)"); Start-Sleep 1
+Shot 'my-sites'
+Check 'my-sites-added' $ok "Your sites panel: $($s.Substring(0, [Math]::Min(300, $s.Length)) -replace '\s+', ' ')"
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 harbourcu.test`r`n127.0.0.1 harbourcu-secure-login.test"
+function WatchLine($pattern) { return [string](Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String $pattern | Select-Object -Last 1) }
+Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', 'http://harbourcu.test:47910/plain.html'
+Start-Sleep 8
+Say "Edge in front: $(Front 'msedge')"
+$ok = Until 45 { [bool](WatchLine 'msedge \S+ .* http://harbourcu\.test:47910/') }
+$real = WatchLine 'msedge \S+ .* http://harbourcu\.test:47910/'
+Check 'my-sites-real-site' ($ok -and $real -notmatch ' (orange|red) ') "the real site: $real"
+Start-Process msedge -ArgumentList 'http://harbourcu-secure-login.test:47910/plain.html'
+Start-Sleep 4
+[void](Front 'msedge')
+$ok = Until 45 { [bool](WatchLine 'msedge (orange|red) .* http://harbourcu-secure-login\.test:47910/') }
+Say "the copy: $(WatchLine 'harbourcu-secure-login\.test:47910/')"
+$w = ''
+$ok = $ok -and (Until 30 { $script:w = [string](Cdp 'warn.html' "document.body.innerText").value; $script:w -match 'This is not harbourcu\.test\. You usually go to harbourcu\.test' })
+Shot 'my-sites-warning'
+Check 'my-sites-lookalike' $ok "the warning: $($w.Substring(0, [Math]::Min(300, $w.Length)) -replace '\s+', ' ')"
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
 # 8. Signing out: it ends the session (and the window the checks drive), so it comes last.
 [void](Info "lockSet('2468')"); [void](Info "lockUnlock('2468')")
 $em = "e2e-lock-$(Get-Random)@example.com"

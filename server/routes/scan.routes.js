@@ -17,6 +17,7 @@ const security = require('../lib/security');
 const { db, now } = require('../lib/db');
 const engine = require('../lib/scan/engine');
 const exposure = require('../lib/scan/exposure');
+const mySites = require('../lib/scan/mysites');
 const feeds = require('../lib/scan/feeds');
 const { analyze, typedUrl } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
@@ -27,6 +28,8 @@ const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
 const { ALL_CHECKS } = require('../lib/scan/checklist');
 
 const ALL = ['scam', 'virus', 'malware'];
+/** Asked from this same computer (the Windows app and its own server). */
+const local = (req) => /^(127\.|::1$)/.test(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''));
 const UNMETERED = new Set(['texts', 'checkup', 'clipboard']);
 
 const REPORT_CATEGORIES = new Set([
@@ -206,7 +209,7 @@ function register(router) {
     // are not browsing: they get the fast, private check against the lists and never spend live-scanning minutes.
     // Only the Windows app's own scanner, on the same computer, may ask this way: anywhere else it would be a way
     // around the live-scanning meter.
-    if (UNMETERED.has(body.purpose) && /^(127\.|::1$)/.test(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''))) {
+    if (UNMETERED.has(body.purpose) && local(req)) {
       security.rateLimit(`links:${user.id}`, 30, 60 * 1000, 'Too many links to check in a minute. Wait a moment, then try again.');
       const plan = plans.planFor(user);
       const verdicts = await engine.scanUrls(urls, { userId: user.id, planId: plan.id, research: false, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: false });
@@ -259,6 +262,10 @@ function register(router) {
     if (body.remember === true && body.private !== true && badge !== 'red' && badge !== 'orange') {
       try { exposure.remember(user.id, String(url), now(), Number(body.tz)); } catch { /* best effort, like history */ }
     }
+    // Your sites, while that is on: a clean page counts towards learning its site (mysites.js). Never a private window.
+    if (body.learn === true && body.private !== true && !badge && local(req)) {
+      try { mySites.seen(user.id, String(url), now(), Number(body.tz)); } catch { /* best effort */ }
+    }
     sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan) });
   });
 
@@ -288,6 +295,37 @@ function register(router) {
     const user = A.requireAgreedUser(req);
     await readJson(req);
     sendJson(res, 200, { ok: true, forgotten: exposure.forget(user.id) });
+  });
+
+  /* ------------------------------------------------------- your sites */
+
+  // The sites this person uses, for look-alike checks (scan/mysites.js). Kept only by the app's own server on the
+  // person's computer: asked from anywhere else, there is nothing to show and nothing is kept.
+  router.get('/api/v1/my-sites', (req, res) => {
+    const user = A.requireAgreedUser(req);
+    sendJson(res, 200, { items: local(req) ? mySites.list(user.id) : [], learnDays: mySites.LEARN_DAYS });
+  });
+
+  router.post('/api/v1/my-sites/add', async (req, res) => {
+    const user = A.requireAgreedUser(req);
+    const body = await readJson(req);
+    if (!local(req)) throw new HttpError(403, 'local_only', 'Your sites are kept by Sentinel on your own computer.');
+    const site = mySites.add(user.id, String(body.host || '').slice(0, 300));
+    if (!site) throw new HttpError(400, 'bad_site', 'That does not look like a web address. Try one like mycu.org.');
+    sendJson(res, 200, { ok: true, host: site, items: mySites.list(user.id) });
+  });
+
+  router.post('/api/v1/my-sites/remove', async (req, res) => {
+    const user = A.requireAgreedUser(req);
+    const body = await readJson(req);
+    mySites.remove(user.id, String(body.host || '').slice(0, 300));
+    sendJson(res, 200, { ok: true, items: mySites.list(user.id) });
+  });
+
+  router.post('/api/v1/my-sites/forget', async (req, res) => {
+    const user = A.requireAgreedUser(req);
+    await readJson(req);
+    sendJson(res, 200, { ok: true, forgotten: mySites.forget(user.id) });
   });
 
   router.post('/api/v1/live/email', async (req, res) => {

@@ -565,6 +565,8 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .live__facts { margin: 20px 0 0; padding: 16px 0 0; list-style: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 28px;
   border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.5; }
 .live__facts li { padding-left: 14px; position: relative; }
+.my-sites__add { display: flex; gap: 10px; margin-top: 14px; }
+.my-sites__add .input { flex: 1; min-width: 0; }
 .live__facts li::before { content: ""; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 1px; background: var(--gold-500); }
 /* Exposure alerts: a listed site, what it means, and what to do. */
 .exposure { align-items: flex-start; }

@@ -970,6 +970,31 @@ function setExposureAlerts(enabled) {
   return { exposureAlerts: Boolean(enabled) };
 }
 
+/**
+ * Your sites: look-alikes of the sites the person uses (server/lib/scan/mysites.js). On unless switched off; off means
+ * forgotten, as with exposure alerts, and an erase the server could not take yet is tried again at every start.
+ */
+async function forgetMySites() {
+  if (!store.get('mySitesForgetPending', false)) return true;
+  if (!ORIGIN) return false;
+  try {
+    await apiCall('/api/v1/my-sites/forget', {});
+    store.set('mySitesForgetPending', false);
+    return true;
+  } catch { return false; }
+}
+
+async function setMySites(enabled) {
+  if (enabled) {
+    await forgetMySites();
+    store.set('mySites', true);
+    return { mySites: true };
+  }
+  store.set('mySites', false);
+  store.set('mySitesForgetPending', true);
+  return { mySites: false, erased: await forgetMySites() };
+}
+
 async function forgetExposures() {
   if (!store.get('exposureForgetPending', false)) return true;
   if (!ORIGIN) return false;
@@ -1101,6 +1126,7 @@ function registerBridge() {
     commandShield: process.platform === 'win32' && store.get('commandShield', true),
     commandHeld: clipwatch.heldCommand(),
     exposureAlerts: store.get('exposureAlerts', false),
+    mySites: store.get('mySites', true),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
@@ -1172,6 +1198,18 @@ function registerBridge() {
   handle('sentinel:command-put-back', () => putBackCommand());
   handle('sentinel:set-defense', (enabled) => { lock.guard('defense off', !enabled); store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
   handle('sentinel:set-exposure-alerts', (enabled) => { lock.guard('exposure alerts off', !enabled); return setExposureAlerts(Boolean(enabled)); });
+  handle('sentinel:set-my-sites', (enabled) => { lock.guard('Your sites off', !enabled); return setMySites(Boolean(enabled)); });
+  handle('sentinel:my-sites', async () => (ORIGIN && store.get('mySites', true) ? (await apiCall('/api/v1/my-sites')).items || [] : []));
+  handle('sentinel:my-sites-add', async (host) => (await apiCall('/api/v1/my-sites/add', { host: String(host).slice(0, 300) })).items);
+  handle('sentinel:my-sites-remove', async (host) => {
+    lock.guard(`${String(host).slice(0, 253)} off Your sites`, true, ['take', 'Took']);
+    return (await apiCall('/api/v1/my-sites/remove', { host: String(host).slice(0, 300) })).items;
+  });
+  handle('sentinel:my-sites-forget', async () => {
+    lock.guard('every site off Your sites', true, ['take', 'Took']);
+    store.set('mySitesForgetPending', true);
+    return { erased: await forgetMySites() };
+  });
   handle('sentinel:exposures', async () => (ORIGIN ? (await apiCall('/api/v1/live/exposures')).items || [] : []));
   handle('sentinel:exposure-dismiss', async (host) => (await apiCall('/api/v1/live/exposures/dismiss', { host: String(host).slice(0, 253) })).ok);
   handle('sentinel:exposure-downloads', (day) => checkDownloadsFrom(day));
@@ -1346,6 +1384,8 @@ async function boot() {
     enabled: () => store.get('liveScanning', false),
     // Exposure alerts: clean pages are remembered (as keyed hashes, 14 days) only while this is switched on.
     remember: () => store.get('exposureAlerts', false),
+    // Your sites: clean pages count towards learning the sites the person uses, unless switched off.
+    learn: () => store.get('mySites', true),
     // Auto scanning starts fast scanning; scanning the person started uses the mode they chose.
     mode: () => (autoSession ? 'fast' : store.get('liveMode', 'fast')),
     // The reader's helper types are compiled once into here and loaded from then on.
@@ -1428,6 +1468,7 @@ async function boot() {
 
   step('copied links and commands', () => syncClipboard());
   step('exposure alerts', () => { if (store.get('exposureAlerts', false)) setExposureAlerts(true); else forgetExposures().catch(() => {}); });
+  step('your sites', () => { forgetMySites().catch(() => {}); });
   step('tray refresh', () => refreshTray());
   // In the tray (started with Windows, or after an update) there is no window until someone opens one.
   if (win) openApp();

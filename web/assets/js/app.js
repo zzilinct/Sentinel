@@ -1965,6 +1965,68 @@
     })));
     if (desktop.onExposures) slot._off.push(desktop.onExposures(() => { if (slot.isConnected) renderDesktopControls(slot); }));
   }
+  /* Your sites: look-alikes of the sites this person uses, not only of the big brands (server/lib/scan/mysites.js). */
+  function mySitesPanel(info, sites) {
+    if (!desktop || !desktop.setMySites) return '';
+    const on = Boolean(info && info.mySites !== false);
+    // Kept only by the app's own server on this computer: with another server there is nothing to keep them in.
+    const local = Boolean(info && info.embeddedServer);
+    const row = (s) => `<li>
+      <span class="list__icon">${ICON.globe}</span>
+      <span class="list__main"><b class="mono">${esc(s.host)}</b><span>${s.source === 'you' ? 'Added by you' : 'Learned: you use it often'}</span></span>
+      <button class="btn btn--sm" data-my-site-remove="${esc(s.host)}">Remove</button>
+    </li>`;
+    const body = !local ? '<p class="muted u-mt-sm">Available when the app uses its own scanner on this computer.</p>'
+      : !on ? '<p class="muted u-mt-sm">Off. No sites are learned or kept.</p>'
+        : `<form class="my-sites__add" data-my-sites-add>
+            <input class="input mono" name="host" placeholder="mycu.org" aria-label="A site you use" autocomplete="off" spellcheck="false" maxlength="300" required>
+            <button class="btn btn--gold" type="submit">Add site</button>
+          </form>
+          ${sites.length ? `<ul class="list u-mt-sm">${sites.map(row).join('')}</ul>
+            <div class="report__foot"><span class="muted">${sites.length} site${sites.length === 1 ? '' : 's'}</span><button class="btn btn--sm" data-my-sites-forget>Forget all</button></div>`
+            : '<p class="muted u-mt-sm">None yet. A site you visit on three different days is added by itself, or add one now.</p>'}`;
+    return `<div class="panel u-mt" id="my-sites">
+      <div class="panel__head"><div><h2>Your sites</h2>
+        <p>Sentinel knows the big brands. Here it learns yours: your bank or credit union, your school portal, your work sign-in. A link or page made to look like one of them gets a warning, in live scanning, copied links, email and link scans.</p></div>
+        <input class="switch" type="checkbox" data-my-sites aria-label="Your sites" ${on ? 'checked' : ''} ${local ? '' : 'disabled'}></div>
+      ${body}
+      <ul class="live__facts">
+        <li>Kept on this computer only, as plain site names you can read here. A site you passed through is never written down: until a site has been seen on three days, only a scrambled code of it is kept.</li>
+        <li>Learned only from pages live scanning found safe, never from a private window. Turning this off forgets every site.</li>
+      </ul>
+    </div>`;
+  }
+  function bindMySites(slot) {
+    const sw = $('[data-my-sites]', slot);
+    if (sw && !sw.disabled) sw.addEventListener('change', async () => {
+      try {
+        const r = await desktop.setMySites(sw.checked);
+        toast(sw.checked ? 'Your sites: on. Sentinel will learn the sites you use.' : r && r.erased === false ? 'Your sites: off. The sites could not be erased just now, so Sentinel will try again each time it starts.' : 'Your sites: off. Every site is forgotten.', 'success');
+      } catch (err) { sw.checked = !sw.checked; toast(desktopError(err), 'error'); }
+      renderDesktopControls(slot);
+    });
+    const form = $('[data-my-sites-add]', slot);
+    if (form) form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const input = form.elements.host;
+      try {
+        await desktop.addMySite(input.value);
+        toast('Added. Look-alikes of it now get a warning.', 'success');
+        renderDesktopControls(slot);
+      } catch (err) { input.setAttribute('aria-invalid', 'true'); toast(desktopError(err), 'error'); }
+    });
+    $$('[data-my-site-remove]', slot).forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await desktop.removeMySite(b.dataset.mySiteRemove); renderDesktopControls(slot); }
+      catch (err) { b.disabled = false; toast(desktopError(err), 'error'); }
+    }));
+    const forget = $('[data-my-sites-forget]', slot);
+    if (forget) forget.addEventListener('click', async () => {
+      try { await desktop.forgetMySites(); toast('Every site is forgotten.', 'success'); renderDesktopControls(slot); }
+      catch (err) { toast(desktopError(err), 'error'); }
+    });
+  }
+
   // Asked once, in the Windows app, once live scanning is in use: what exposure alerts do, then Turn on or Not now.
   async function askExposureAlerts(slot) {
     if (!slot || !desktop || !desktop.setExposureAlerts || asked('exposure')) return;
@@ -1992,6 +2054,8 @@
     try { ledger = (await desktop.defense()).ledger || []; } catch { /* none */ }
     let exposures = [];
     try { if (desktop.exposures) exposures = await desktop.exposures(); } catch { /* none */ }
+    let mine = [];
+    try { if (desktop.mySites) mine = await desktop.mySites(); } catch { /* none */ }
     // Left the page while waiting: subscribing now would leave listeners behind that nothing ever removes.
     if (!slot.isConnected) return;
     const browsers = (info.browsers && info.browsers.installed) || [];
@@ -2059,6 +2123,7 @@
       </div>
 
       ${exposurePanel(info, exposures)}
+      ${mySitesPanel(info, mine)}
 
       ${chatSafetyPanel(info)}
       ${textSafetyPanel(info)}
@@ -2106,6 +2171,7 @@
     }
     bindChatSafety(slot);
     bindExposures(slot);
+    bindMySites(slot);
     bindTextSafety(slot);
     const defEl = $('[data-defense]', slot);
     if (defEl && !defEl.disabled) defEl.addEventListener('change', async (ev) => {

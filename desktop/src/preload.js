@@ -30,6 +30,12 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   dismissExposure: (host) => ipcRenderer.invoke('sentinel:exposure-dismiss', String(host)),
   checkDownloadsFrom: (day) => ipcRenderer.invoke('sentinel:exposure-downloads', Number(day)),
   onExposures: (callback) => on('sentinel:exposures', callback),
+  // Your sites: look-alikes of the sites the person uses. Kept by the app's own server on this computer.
+  setMySites: (enabled) => ipcRenderer.invoke('sentinel:set-my-sites', Boolean(enabled)),
+  mySites: () => ipcRenderer.invoke('sentinel:my-sites'),
+  addMySite: (host) => ipcRenderer.invoke('sentinel:my-sites-add', String(host)),
+  removeMySite: (host) => ipcRenderer.invoke('sentinel:my-sites-remove', String(host)),
+  forgetMySites: () => ipcRenderer.invoke('sentinel:my-sites-forget'),
   recentDownloads: () => ipcRenderer.invoke('sentinel:recent-downloads'),
   quarantine: (id) => ipcRenderer.invoke('sentinel:quarantine', String(id)),
   // Live scanning: one switch, and "Scan with <browser>".

@@ -358,6 +358,21 @@ const MIGRATIONS = [
     PRIMARY KEY (user_id, host)
   );
   CREATE INDEX IF NOT EXISTS idx_exposures_listed ON exposures(listed_at);
+  `,
+
+  // 11 - your sites (scan/mysites.js): the sites a person uses, as plain hosts, and keyed-hash day counts of the ones
+  //      live scanning has not yet seen on enough days to learn
+  `
+  CREATE TABLE IF NOT EXISTS my_sites (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    host TEXT NOT NULL, source TEXT NOT NULL, added_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, host)
+  );
+  CREATE TABLE IF NOT EXISTS site_days (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    site_hash TEXT NOT NULL, days INTEGER NOT NULL, last_day INTEGER NOT NULL,
+    PRIMARY KEY (user_id, site_hash)
+  );
   `
 ];
 
@@ -523,6 +538,8 @@ function sweep() {
   // Exposure alerts: a visit is remembered 14 days, a site found on a list afterwards 30.
   db.prepare('DELETE FROM visit_marks WHERE day < ?').run(t - 14 * day);
   db.prepare('DELETE FROM exposures WHERE listed_at < ?').run(t - 30 * day);
+  // Your sites: a site not seen again for 30 days starts its count over (last_day is a day number, not a time).
+  db.prepare('DELETE FROM site_days WHERE last_day < ?').run(Math.floor(t / day) - 30);
 }
 
 module.exports = { db, now, sweep, acquireLock, backupAccounts, verifyFeeds, resetFeeds, FEEDS_PATH, BACKUP_PATH };

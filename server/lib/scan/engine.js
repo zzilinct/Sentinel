@@ -24,6 +24,7 @@ const researchMod = require('./research');
 const { runChecklist } = require('./checklist');
 const { analyze, brandInfo, hostWords } = require('./url');
 const kinds = require('./kinds');
+const mySites = require('./mysites');
 const { scanFile, MAX_FILE_BYTES } = require('./filescan');
 const { analyzeEmail } = require('./email');
 const { THREATS, LABELS, SEVERITY, score, evidenceFrom, trustedChecks, tallyOf, reasonsOf } = require('./verdict');
@@ -216,7 +217,18 @@ function shape(core, { threats: visible, userId, mode, detail = 'full', planId }
     threats.scam = { level: 'confirmed', badge: 'red', label: 'Blocked by you', score: 100, evidence: 'You blocked this site', ...kinds.describe('blocked') };
   }
 
-  const shownChecks = core.checks.filter((c) => visible.includes(c.threat));
+  // Your sites (mysites.js): an address made to look like a site this person uses. Never on a site they trust, nor
+  // on one Sentinel has verified.
+  const checks = core.checks.slice();
+  const copy = userId && override !== 'allow' && !core.knowledge.trusted ? mySites.lookalike(userId, core.url) : null;
+  if (copy) {
+    checks.unshift({ id: 'Y01', group: 'Your sites', threat: 'scam', title: 'Not a look-alike of a site you use', research: false,
+      status: 'fail', points: 70, detail: mySites.warning(copy) });
+    if (threats.scam && SEVERITY[threats.scam.level] < SEVERITY.likely) {
+      threats.scam = { level: 'likely', badge: 'orange', label: 'Look-alike of your site', score: Math.max(threats.scam.score, 70), evidence: null, ...kinds.describe('impersonation') };
+    }
+  }
+  const shownChecks = checks.filter((c) => visible.includes(c.threat));
   const tally = tallyOf(shownChecks);
   const reasons = reasonsOf(shownChecks);
 
