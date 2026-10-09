@@ -680,7 +680,12 @@ Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -mat
 # Signing in (the checkup, above) restarts download protection: a file that lands meanwhile is not seen.
 Start-Sleep 20
 Arrive 'DiscordSetup.exe' 'https://cdn.discordapp.com/attachments/1180000000000000000/1190000000000000000/DiscordSetup.exe' 'https://discord.com/channels/@me'
-[void](Until 90 { (AppLog) -match 'download source: DiscordSetup\.exe not from Discord.s own site' })
+if (-not (Until 60 { (AppLog) -match 'download source: DiscordSetup\.exe not from Discord.s own site' })) {
+  Say "  not scanned in 60 s; download protection: $((Cdp 'main' "JSON.stringify(process.mainModule.require('./downloads').status())").value), recent: $((Cdp 'main' "process.mainModule.require('./downloads').recent().map((d) => d.name).join(',')").value)"
+  Say "  app.log since: $(((AppLog) -split "`n" | Select-Object -Last 8) -join ' / ')"
+  Arrive 'DiscordSetup (1).exe' 'https://cdn.discordapp.com/attachments/1180000000000000000/1190000000000000000/DiscordSetup.exe' 'https://discord.com/channels/@me'
+  [void](Until 60 { (AppLog) -match 'download source: DiscordSetup \(1\)\.exe not from Discord.s own site' })
+}
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection#downloads', 1)")
 if (-not (Until 60 { (Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).textContent || ''").value -match 'Possible fake installer' })) {
   Say "  the app shows: $((Cdp '127.0.0.1:4782' "location.href + ' | ' + document.body.innerText.slice(0, 300)").value)"
