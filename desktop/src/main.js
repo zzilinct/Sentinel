@@ -18,7 +18,7 @@
  */
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session, powerMonitor, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session, powerMonitor, screen, globalShortcut } = require('electron');
 // The app's own log (logs/app.log), set up in boot.js before anything here loads.
 const { appLog } = require('./boot');
 const downloads = require('./downloads');
@@ -33,6 +33,7 @@ const clipwatch = require('./clipwatch');
 const remoteguard = require('./remoteguard');
 const defense = require('./defense');
 const checkup = require('./checkup');
+const snip = require('./snip');
 const store = require('./store');
 const parentlock = require('./parentlock');
 const server = require('./server');
@@ -653,6 +654,7 @@ function refreshTray() {
     ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => { if (trayGuard('auto scanning off', !item.checked)) setAutoScan(item.checked).catch(() => {}); } }] : []),
     ...(process.platform === 'win32' ? [{ label: 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { if (trayGuard('chat safety off', !item.checked)) { setChatSafety(item.checked); refreshTray(); } } }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => { if (trayGuard('starting with the computer off', !item.checked)) setOpenAtLogin(item.checked); } },
+    ...(snipOn() ? [{ label: 'Check something on screen', click: () => snip.open(300) }] : []),
     ...(process.platform === 'win32' ? [{ label: 'Check my texts', type: 'checkbox', checked: store.get('textSafety', false), click: (item) => { if (trayGuard('Check my texts off', !item.checked)) { setTextSafety(item.checked); refreshTray(); } } }] : []),
     { type: 'separator' },
     updateItem(up),
@@ -929,6 +931,29 @@ function setWalletGuard(enabled) {
   store.set('walletGuard', Boolean(enabled));
   syncClipboard();
   return { walletGuard: Boolean(enabled) };
+}
+
+/**
+ * "Check something on screen" (snip.js): a shortcut, and a line in the tray. On unless turned off; the parent lock does
+ * not cover it, because it only adds a check the person asks for. The shortcut is registered while it is on, so it
+ * takes no key from other programs once it is off.
+ */
+function snipOn() { return process.platform === 'win32' && store.get('snipCheck', true); }
+function snipKey() { const k = store.get('snipKey', snip.DEFAULT_KEY); return snip.KEYS[k] ? k : snip.DEFAULT_KEY; }
+let snipRegistered = null;   // the shortcut Windows gave Sentinel, or null
+function syncSnip() {
+  if (snipRegistered) { globalShortcut.unregister(snipRegistered); snipRegistered = null; }
+  if (snipOn()) {
+    let ok = false;
+    try { ok = globalShortcut.register(snipKey(), () => snip.open()); } catch { /* refused */ }
+    if (ok) snipRegistered = snipKey();
+    else appLog(`check on screen: the shortcut ${snipKey()} is taken by another program`);
+  }
+  refreshTray();
+  return snipStatus();
+}
+function snipStatus() {
+  return { supported: process.platform === 'win32', enabled: snipOn(), key: snipKey(), registered: snipRegistered === snipKey(), keys: Object.entries(snip.KEYS).map(([id, label]) => ({ id, label })) };
 }
 
 /** "Stop pasted commands": its switch. */
@@ -1210,6 +1235,7 @@ function registerBridge() {
     commandShield: process.platform === 'win32' && store.get('commandShield', true),
     commandHeld: clipwatch.heldCommand(),
     walletGuard: process.platform === 'win32' && store.get('walletGuard', true),
+    snip: snipStatus(),
     exposureAlerts: store.get('exposureAlerts', false),
     mySites: store.get('mySites', true),
     weekRecap: store.get('weekRecap', false),
@@ -1281,6 +1307,12 @@ function registerBridge() {
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
   handle('sentinel:set-clipboard-check', (enabled) => { lock.guard('checking copied links off', !enabled); return setClipboardCheck(Boolean(enabled)); });
   handle('sentinel:set-wallet-guard', (enabled) => { lock.guard('wallet guard off', !enabled); return setWalletGuard(Boolean(enabled)); });
+  // Not behind the parent lock: turning it off takes no protection away that was not asked for each time.
+  handle('sentinel:set-snip', (enabled, key) => {
+    store.set('snipCheck', Boolean(enabled));
+    if (snip.KEYS[key]) store.set('snipKey', key);
+    return syncSnip();
+  });
   handle('sentinel:set-command-shield', (enabled) => { lock.guard('Stop pasted commands off', !enabled); return setCommandShield(Boolean(enabled)); });
   handle('sentinel:command-put-back', () => putBackCommand());
   handle('sentinel:set-defense', (enabled) => { lock.guard('defense off', !enabled); store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
@@ -1561,6 +1593,7 @@ async function boot() {
   }
 
   step('copied links and commands', () => syncClipboard());
+  step('check on screen', () => { snip.init({ api: (pathname, body) => (ORIGIN ? apiCall(pathname, body) : Promise.reject(new Error('scanner not ready'))), log: appLog }); syncSnip(); });
   step('exposure alerts', () => { if (store.get('exposureAlerts', false)) setExposureAlerts(true); else forgetExposures().catch(() => {}); });
   step('your sites', () => { forgetMySites().catch(() => {}); });
   step('your week', () => startWeek());
@@ -1627,7 +1660,7 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => { quitting = true; heartbeat(true); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
+app.on('before-quit', () => { quitting = true; heartbeat(true); snip.close(); globalShortcut.unregisterAll(); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 

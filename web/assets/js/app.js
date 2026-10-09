@@ -2321,6 +2321,9 @@
           ${desktop.setCommandShield && info.platform === 'win32' ? `<label class="setting"><div><b>Stop pasted commands</b><span>Fake "I am not a robot" pages copy a command and ask you to paste it into Windows. When you copy such a command in a browser, Sentinel takes it off your clipboard and tells you, with a way to put it back. Copied in another program, it only tells you. Copied text is checked on this computer and never sent or kept.</span></div><input class="switch" type="checkbox" data-shield ${info.commandShield ? 'checked' : ''}></label>
           ${desktop.commandPutBack ? '<div class="setting" data-held hidden><div><b>Stopped command</b><span data-held-text></span></div><button class="btn btn--sm" data-put-back>Put it back</button></div>' : ''}` : ''}
           ${desktop.setWalletGuard && info.platform === 'win32' ? `<label class="setting"><div><b>Wallet guard</b><span>Some malware waits for you to copy a crypto wallet address or an IBAN and swaps in its own. If the address you copied changes by itself a moment later, Sentinel puts yours back and tells you. Addresses are compared on this computer, in memory, and never sent, saved or logged.</span></div><input class="switch" type="checkbox" data-wallet-guard ${info.walletGuard ? 'checked' : ''}></label>` : ''}
+          ${desktop.setSnip && info.snip && info.snip.supported ? `<div class="setting"><div><b>Check something on screen</b><span>Press the shortcut, or choose Check something on screen in the tray menu, then draw a box around a pop-up, an ad, a message, a QR code or a phone number. Sentinel reads it on this computer and tells you whether it looks like a scam. Only the links it finds are checked; the picture and the words are never sent, kept or logged.${info.snip.enabled && !info.snip.registered ? ' <strong>Another program already uses this shortcut. Choose another one.</strong>' : ''}</span>
+            <select class="input u-mt-sm" data-snip-key aria-label="Shortcut" ${info.snip.enabled ? '' : 'disabled'}>${info.snip.keys.map((k) => `<option value="${esc(k.id)}" ${k.id === info.snip.key ? 'selected' : ''}>${esc(k.label)}</option>`).join('')}</select></div>
+            <input class="switch" type="checkbox" data-snip aria-label="Check something on screen" ${info.snip.enabled ? 'checked' : ''}></div>` : ''}
           ${desktop.setRemoteGuard && info.remoteGuard && info.remoteGuard.supported ? `<label class="setting"><div><b>Tech-support scam shield</b>${info.remoteGuard.enabled && !live.enabled ? '<span class="status is-locked">Needs live scanning</span>' : ''}<span>When a page flagged as a scam takes the whole screen, Sentinel offers to close it. When a remote-control program such as AnyDesk or TeamViewer starts soon after a flagged page, or soon after it was downloaded, Sentinel asks whether someone on the phone told you to install it. Nothing is stopped unless you say so. The way out of a full-screen page and the bank warning work while live scanning is on.${info.remoteGuard.trusted.length ? ` You use ${esc(info.remoteGuard.trusted.join(', '))} yourself.` : ''}</span></div><input class="switch" type="checkbox" data-remote-guard ${info.remoteGuard.enabled ? 'checked' : ''}></label>
           ${info.remoteGuard.trusted.length ? '<div class="setting"><div><b>Programs you use yourself</b><span>Sentinel does not ask about these.</span></div><button class="btn btn--sm" data-forget-remote>Ask again</button></div>' : ''}` : ''}
           <label class="setting"><div><b>Start with my computer</b><span>Keep protection running from the moment you sign in.</span></div><input class="switch" type="checkbox" data-login ${info.openAtLogin ? 'checked' : ''}></label>
@@ -2483,6 +2486,18 @@
         toast(walletSwitch.checked ? 'Wallet guard is on.' : 'Wallet guard is off.', 'success');
       } catch (err) { walletSwitch.checked = !walletSwitch.checked; toast(desktopError(err), 'error'); }
     });
+    const snipSwitch = $('[data-snip]', slot);
+    const snipKey = $('[data-snip-key]', slot);
+    const setSnip = async (said) => {
+      try {
+        const s = await desktop.setSnip(snipSwitch.checked, snipKey.value);
+        snipKey.disabled = !s.enabled;
+        if (s.enabled && !s.registered) toast('Another program already uses this shortcut. Choose another one.', 'error');
+        else toast(said(s), 'success');
+      } catch (err) { toast(desktopError(err), 'error'); }
+    };
+    if (snipSwitch) snipSwitch.addEventListener('change', () => setSnip((s) => (s.enabled ? 'Check something on screen is on.' : 'Check something on screen is off.')));
+    if (snipKey) snipKey.addEventListener('change', () => setSnip(() => 'Shortcut changed.'));
     const shieldSwitch = $('[data-shield]', slot);
     if (shieldSwitch) shieldSwitch.addEventListener('change', async () => {
       try {
