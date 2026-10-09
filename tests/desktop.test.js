@@ -198,6 +198,16 @@ function sandbox() {
   return { dir, threats, file: (name, body) => { const p = path.join(dir, 'dl', name); fs.writeFileSync(p, body); return p; } };
 }
 
+test('defense: its status never waits on the disk (one folder check held the main thread for 4.8 s)', () => {
+  sandbox();
+  const saved = {};
+  for (const k of ['existsSync', 'statSync', 'readdirSync', 'accessSync']) { saved[k] = fs[k]; fs[k] = () => { throw new Error(`${k} on the main thread`); }; }
+  try {
+    const s = defense.status();
+    assert.ok(Array.isArray(s.watched));
+  } finally { Object.assign(fs, saved); }
+});
+
 test('defense: a guess never outranks a valid publisher signature (Discord\'s updater is not malware)', async () => {
   const box = sandbox();
   try {

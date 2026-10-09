@@ -42,6 +42,7 @@ let watchers = [];
 let persistTimer = null;
 let firstPersistTimer = null;
 let sweepTimer = null;
+let watched = [];                // the folders a watch was set on: what status() says, without asking the disk
 let state = { active: false, reason: 'Starting', supported: process.platform === 'win32' };
 const timers = new Map();
 const seen = new Map();          // sha256 -> path
@@ -56,7 +57,7 @@ function ps(script, timeout = 20000) {
   return run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], timeout);
 }
 
-function status() { return { ...state, watched: folders().map((f) => f.label), cleanCount }; }
+function status() { return { ...state, watched: [...watched], cleanCount }; }
 function setState(active, reason) { state = { ...state, active, reason }; if (opts && opts.onChange) opts.onChange(); }
 
 function ledgerPath() { return path.join(opts.dataDir, 'defense.json'); }
@@ -89,7 +90,10 @@ function folders() {
     { label: 'Desktop', dir: opts.desktop || path.join(home, 'Desktop') },
     { label: 'Startup', dir: path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup') }
   ];
-  return list.filter((f) => f.dir && fs.existsSync(f.dir));
+  // Not looked up on the disk here: this runs on the main thread, every sweep and every status, and one check that a
+  // folder exists once held it for 4.8 seconds (a busy disk, or a Desktop kept in the cloud). A folder that is not
+  // there fails its watch and its read, and is left out then.
+  return list.filter((f) => f.dir);
 }
 
 function init(options) {
@@ -107,7 +111,8 @@ async function restart() {
       const w = fs.watch(f.dir, { persistent: true }, (event, filename) => filename && schedule(path.join(f.dir, filename)));
       w.on('error', () => {});
       watchers.push(w);
-    } catch { /* a folder we cannot watch */ }
+      watched.push(f.label);
+    } catch { /* a folder we cannot watch, or not there */ }
   }
   persistTimer = setInterval(() => checkPersistence().catch(() => {}), PERSIST_EVERY_MS);
   sweepTimer = setInterval(sweep, SWEEP_EVERY_MS);
@@ -146,6 +151,7 @@ async function sweepOnce() {
 function stop(reason, silent) {
   for (const w of watchers) { try { w.close(); } catch { /* closed */ } }
   watchers = [];
+  watched = [];
   clearInterval(persistTimer);
   clearInterval(sweepTimer);
   clearTimeout(firstPersistTimer);
@@ -512,7 +518,9 @@ async function checkPersistence() {
     }
   }
   const startup = folders().find((f) => f.label === 'Startup');
-  if (startup) for (const name of fs.readdirSync(startup.dir)) launches.push({ where: `Startup\\${name}`, cmd: path.join(startup.dir, name) });
+  let names = [];
+  try { names = await fs.promises.readdir(startup.dir); } catch { /* no Startup folder */ }
+  for (const name of names) launches.push({ where: `Startup\\${name}`, cmd: path.join(startup.dir, name) });
 
   for (const l of launches) {
     const key = `${l.where}|${l.cmd}`;
