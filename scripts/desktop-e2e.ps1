@@ -470,18 +470,12 @@ Check 'download-source-genuine' ($ok -and $r -and -not $r.badge) "from cdn.zoom.
 $ok = Until 90 { (AppLog) -match 'download source: ZoomInstaller\.exe not from Zoom.s own site' }
 $r = Recent 'ZoomInstaller.exe'
 Check 'download-source-fake' ($ok -and $r.label -eq 'Possible fake installer' -and $r.reason -eq 'This says it is Zoom, but it came from zoom-download-free.site, not zoom.us. Get Zoom from zoom.us.') "from the look-alike: '$($r.label)' ($($r.badge)): $($r.reason)"
-$line = ([regex]::Match((AppLog), 'download source: ZoomInstaller\.exe[^\r\n]*')).Value
-Check 'download-source-site' ($line -match 'its site is flagged (orange|red)' -and $r.badge -in @('orange', 'red')) "the look-alike site judged by the fast check: $line"
-Check 'download-source-private' (-not ((AppLog) -match 'download source:[^\r\n]*(https?:|zoom-download-free|cdn\.zoom)')) 'app.log names the file, never where it came from'
-[void](Front 'Sentinel')
-[void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection#downloads', 1)")
-if (-not (Until 60 { (Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).textContent || ''").value -match 'Possible fake installer' })) {
-  Say "  the app shows: $((Cdp '127.0.0.1:4782' "location.href + ' | ' + document.body.innerText.slice(0, 300)").value)"
-}
-[void](Cdp '127.0.0.1:4782' "(document.getElementById('downloads').scrollIntoView(), 1)"); Start-Sleep 1
-Shot 'download-source'
-$t = [string](Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).innerText || ''").value
-Check 'download-source-listed' ($t -match 'Possible fake installer' -and $t -match 'Get Zoom from zoom\.us') "Recent downloads: $(($t.Substring(0, [Math]::Min(300, $t.Length))) -replace '\s+', ' ')"
+# The site itself, by the fast check on this computer: any program from a site Sentinel flags is flagged with it.
+Arrive 'FreeVideoConverter.exe' 'https://paypa1-secure-login.com/download/FreeVideoConverter.exe' 'https://paypa1-secure-login.com/'
+$ok = Until 90 { (AppLog) -match 'download source: FreeVideoConverter\.exe[^\r\n]*its site is flagged' }
+$r = Recent 'FreeVideoConverter.exe'
+Check 'download-source-site' ($ok -and $r.label -eq 'From a dangerous site' -and $r.badge -in @('orange', 'red') -and $r.reason -match '^This came from paypa1-secure-login\.com, which Sentinel flags: ') "from a listed scam site: '$($r.label)' ($($r.badge)): $($r.reason)"
+Check 'download-source-private' (-not ((AppLog) -match 'download source:[^\r\n]*(https?:|zoom-download-free|cdn\.zoom|paypa1)')) 'app.log names the file, never where it came from'
 
 # 5. Tech-support scam shield: the real AnyDesk, downloaded and started.
 $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null
@@ -680,6 +674,16 @@ Check 'checkup-folds-clean-addons' ($ok -and $c -eq '3 more add-ons, nothing to 
 $t = ''
 $ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; [bool]$script:t }
 Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -match 'English texts for now' -and $t -match 'left-to-right') "Check my texts panel: $(([string]$t).Substring(0, [Math]::Min(200, ([string]$t).Length)))"
+
+# 4c, seen in the app (signed in since 7): the fake installer in Recent downloads, with the real site named.
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection#downloads', 1)")
+if (-not (Until 60 { (Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).textContent || ''").value -match 'Possible fake installer' })) {
+  Say "  the app shows: $((Cdp '127.0.0.1:4782' "location.href + ' | ' + document.body.innerText.slice(0, 300)").value)"
+}
+[void](Cdp '127.0.0.1:4782' "(document.getElementById('downloads').scrollIntoView(), 1)"); Start-Sleep 1
+Shot 'download-source'
+$t = [string](Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).innerText || ''").value
+Check 'download-source-listed' ($t -match 'Possible fake installer' -and $t -match 'Get Zoom from zoom\.us') "Recent downloads: $(($t.Substring(0, [Math]::Min(300, $t.Length))) -replace '\s+', ' ')"
 
 # 7b. Your sites, in Live protection: a site added with the form is listed as added by you (5d proves the warning).
 $ok = Until 30 { (Cdp '127.0.0.1:4782' "Boolean(document.querySelector('[data-my-sites-add]'))").value -eq $true }
