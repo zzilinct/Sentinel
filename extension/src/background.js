@@ -187,7 +187,8 @@ async function onNavigate(details) {
       const url = isPrivate ? details.url.replace(/[?#].*$/, '') : details.url;
       const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url, private: isPrivate }, timeout: 30000 });
       noteLive(data.live);
-      verdict = data.verdict;
+      // Before you pay (server/lib/scan/paycheck.js): kept with the verdict, so a checkout opened again says it again.
+      verdict = data.pay ? { ...data.verdict, pay: data.pay } : data.verdict;
       cacheSet(features().liveResearch ? 'research' : 'quick', details.url, verdict);
     } catch (err) {
       handleApiError(err);
@@ -195,6 +196,8 @@ async function onNavigate(details) {
     }
   }
   paint(details.tabId, verdict);
+  // A shop's checkout whose address is young or unknown: a calm note in the corner, the same rules as the Windows app.
+  if (verdict.pay && verdict.pay.text) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:pay', text: String(verdict.pay.text) })).catch(() => {});
 
   const severe = verdict.overall && (verdict.overall.badge === 'red' || (verdict.overall.badge === 'orange' && settings.minimumBadge !== 'red'));
   if (!severe || !settings.warnOnNavigate) return;

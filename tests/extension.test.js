@@ -181,3 +181,12 @@ test('the search overlay is a shadow-root overlay that never takes a click, and 
   assert.doesNotMatch(serp, /fetch\(/, 'engine calls stay in the background worker');
   assert.doesNotMatch(serp, /sentinel-mask--red[^'"]*['"]\s*\)/, 'red is never assigned by the page script');
 });
+
+test('before you pay: the scanner decides, the guard shows a quiet corner note with the words as text', () => {
+  const bg = strip(fs.readFileSync(path.join(SRC, 'background.js'), 'utf8'));
+  const guard = strip(fs.readFileSync(path.join(SRC, 'content', 'guard.js'), 'utf8'));
+  assert.match(bg, /verdict = data\.pay \? \{ \.\.\.data\.verdict, pay: data\.pay \} : data\.verdict/, 'kept with the cached verdict');
+  assert.match(bg, /type: 'sentinel:pay', text: String\(verdict\.pay\.text\)/);
+  assert.match(guard, /msg\.type === 'sentinel:pay' && typeof msg\.text === 'string'/);
+  assert.match(guard, /small: true,[\s\S]{0,80}title: 'Before you pay',[\s\S]{0,20}lead: text/, 'a corner note (alarm.js escapes lead), never a block');
+});

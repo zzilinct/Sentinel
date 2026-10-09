@@ -55,6 +55,9 @@ test('the reader only works on a browser that is in front and in use, and reads 
   const allowed = (i) => i > mailBlock || (i > searchBlock && i < mailBlock) || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);');
   assert.ok(names.every(allowed), 'names are read only for a webmail inbox and a results page\'s links');
   assert.ok(s.includes('InPrivate|Incognito|Private Browsing'), 'private windows are recognised by their title');
+  // Before you pay: whether the title reads like a checkout leaves the reader, as true or false, never the title.
+  assert.ok(s.includes('$pay = [bool]($title -match $checkoutTitle)') && s.includes('; pay = $pay }'), 'a checkout by its title, as a yes or no');
+  assert.ok(!/title = \$title|\$title\s*}/.test(s), 'the window title itself is never written out');
   for (const b of ['chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf']) assert.ok(s.includes(`'${b}'`), b);
 });
 
