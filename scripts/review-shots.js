@@ -35,7 +35,7 @@ const PAGES = [
   ['app-scan-empty', '/app/scan'],
   ['app-scan-phishing', `/app/scan?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, { wait: 6000 }],
   ['app-scan-clean', `/app/scan?url=${encodeURIComponent('https://www.wikipedia.org/')}`, { wait: 6000 }],
-  ['app-files', '/app/threats'], ['app-email', '/app/email'], ['app-history', '/app/history'], ['app-sites', '/app/sites'],
+  ['app-files', '/app/threats'], ['app-email', '/app/email'], ['app-text', '/app/text'], ['app-history', '/app/history'], ['app-sites', '/app/sites'],
   ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-security', '/app/security'], ['app-assistants', '/app/assistants']
 ];
 // Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.
@@ -433,12 +433,107 @@ async function main() {
       console.log('hover: photographed');
       await send('Target.closeTarget', { targetId });
     }
+    await textScan(send);
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
     browser.kill();
     server.kill();
     await sleep(500);
     try { fs.rmSync(profile, { recursive: true, force: true }); } catch { /* locked briefly */ }
+  }
+}
+
+// What Windows' text recognition returns for a phone screenshot of a scam text (desktop/src/ocr.js: lines, top to bottom).
+const TEXT_SHOT = ['9:41', '5G 87', '<', '+1 (415) 555-0199 >', 'Text Message', 'Today 10:32 AM',
+  'USPS: Your package is on hold due to an', 'unpaid redelivery fee of $1.99. Pay at', 'https://usps-redeliver.top/pay', 'Delivered', 'Text Message'];
+
+/**
+ * The text scan (app.js textView), at a computer's size and a phone's: a phone screenshot read the way the Windows app
+ * reads one (its text recognition stood in for by what it returns for such a picture, TEXT_SHOT), then that scam text
+ * and an ordinary one checked by the real server. Every step is asserted, so a broken page fails this job.
+ */
+async function textScan(send) {
+  const check = (ok, what, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  text scan: ${what}${ok ? '' : `  got ${JSON.stringify(got)}`}`); if (!ok) throw new Error(`text scan: ${what}`); };
+  for (const [size, width, height, mobile] of [['desktop', 1366, 900, false], ['phone', 390, 844, true]]) {
+    const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+    const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+    await send('Page.enable', {}, sessionId);
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.sentinelDesktop = { info: () => Promise.reject(new Error('stand-in')), readScreenshot: (slices) => Promise.resolve(slices.map((s, i) => (i ? '' : ${JSON.stringify(TEXT_SHOT.join('\n'))}))) };` }, sessionId);
+    await send('Page.navigate', { url: BASE + '/app/text' }, sessionId);
+    await sleep(3500);
+    const run = async (expression) => {
+      const { result, exceptionDetails } = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
+      if (exceptionDetails) throw new Error(`text scan: ${exceptionDetails.exception ? exceptionDetails.exception.description : exceptionDetails.text}`);
+      return result.value;
+    };
+    const page = async (name) => {
+      const tall = await run(`(() => {
+        let tallest = document.documentElement.scrollHeight;
+        for (const el of document.querySelectorAll('main, .main, .app__main, [data-view], .view')) {
+          if (el.scrollHeight > el.clientHeight + 20) { el.style.overflow = 'visible'; el.style.height = 'auto'; el.style.maxHeight = 'none'; tallest = Math.max(tallest, el.scrollHeight + el.getBoundingClientRect().top); }
+        }
+        document.documentElement.style.height = 'auto'; document.body.style.height = 'auto'; document.body.style.overflow = 'visible';
+        return tallest;
+      })()`);
+      await sleep(1200);
+      const full = Math.min(Math.max(height, Math.ceil(Number(tall) || 0)), 6000);
+      const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: full, scale: 1 } }, sessionId);
+      fs.writeFileSync(path.join(OUT, `text-${size}-${name}.png`), Buffer.from(shot.data, 'base64'));
+      console.log(`text-${size}-${name}.png`);
+    };
+    check(await run("document.title === 'Text scan · Sentinel' && Boolean(document.querySelector('.side__link[data-route=\"text\"][aria-current=\"page\"]'))"), 'its own page, title and sidebar link');
+    await run("document.querySelector('[data-tmode=\"shot\"]').click()");
+    await page('screenshot-tab');
+    // A phone screenshot, drawn here and chosen in the file picker; the stand-in "reads" it as TEXT_SHOT.
+    await run(`(async () => {
+      const c = document.createElement('canvas'); c.width = 390; c.height = 420;
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 390, 420); g.fillStyle = '#111'; g.font = '16px sans-serif';
+      ${JSON.stringify(TEXT_SHOT)}.forEach((t, i) => g.fillText(t, 16, 30 + i * 34));
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      const dt = new DataTransfer(); dt.items.add(new File([blob], 'text.png', { type: 'image/png' }));
+      const input = document.querySelector('[data-shot-file]'); input.files = dt.files; input.dispatchEvent(new Event('change'));
+    })()`);
+    await sleep(2000);
+    const read = await run("[document.querySelector('#t-from').value, document.querySelector('#t-text').value, !document.querySelector('[data-form]').hidden]");
+    check(read[0] === '+1 (415) 555-0199' && read[1].startsWith('USPS: Your package') && read[1].endsWith('usps-redeliver.top/pay') && !/Delivered|Text Message|9:41/.test(read[1]) && read[2], 'the screenshot is read into its sender and message, without the phone\'s own words', read);
+    await page('screenshot-read');
+    await run("document.querySelector('[data-form]').requestSubmit()");
+    await sleep(3500);
+    const scam = await run(`(() => { const r = document.querySelector('[data-text-result]'); const a = r && r.querySelector('a[href^="/app/recover?happened="]');
+      return r && [r.dataset.textResult, r.querySelector('h2').textContent, a ? a.getAttribute('href') : '', r.querySelector('.reasons') ? r.querySelector('.reasons').textContent : '']; })()`);
+    check(scam && ['orange', 'red'].includes(scam[0]) && scam[1] === 'This text looks like a scam' && scam[2].startsWith('/app/recover?happened=') && /usps-redeliver\.top/.test(scam[3]), 'the scam text gets a scam verdict, its reasons and the recovery guide', scam);
+    const left = await run("document.querySelector('[data-left]').textContent");
+    check(/fast scans left this week\. A text counts as one fast link scan/.test(left), 'the page says how it counts against the plan', left);
+    await page('scam');
+    await run("(() => { const f = document.querySelector('[data-form]'); f.from.value = 'Mom'; f.text.value = 'can you pick me up at 5'; f.requestSubmit(); })()");
+    await sleep(3000);
+    const clear = await run("[document.querySelector('[data-text-result]').dataset.textResult, document.querySelectorAll('[data-text-result] a[href^=\"/app/recover\"]').length]");
+    check(clear[0] === 'clear' && clear[1] === 0, 'an ordinary text is left alone', clear);
+    await page('clear');
+    await send('Target.closeTarget', { targetId });
+  }
+  // From the command palette, by name.
+  {
+    const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+    const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+    await send('Page.enable', {}, sessionId);
+    await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await send('Page.navigate', { url: BASE + '/app' }, sessionId);
+    await sleep(3500);
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'k', code: 'KeyK', modifiers: 2, windowsVirtualKeyCode: 75 }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'k', code: 'KeyK', modifiers: 2, windowsVirtualKeyCode: 75 }, sessionId);
+    await sleep(400);
+    await send('Input.insertText', { text: 'text' }, sessionId);
+    await sleep(600);
+    const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+    fs.writeFileSync(path.join(OUT, 'text-palette.png'), Buffer.from(shot.data, 'base64'));
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
+    await sleep(1500);
+    const { result } = await send('Runtime.evaluate', { returnByValue: true, expression: 'location.pathname' }, sessionId);
+    check(result.value === '/app/text', 'the command palette finds Text scan and opens it', result.value);
+    await send('Target.closeTarget', { targetId });
   }
 }
 
