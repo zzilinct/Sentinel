@@ -6,7 +6,8 @@
  *                      pro:  + research, + virus & malware               40/wk
  *                      max:  same as pro                                 100/wk
  *  virus/malware scan  free 5/wk (no research) | pro 40 | max 100 (research)
- *  manual email scan   max only, counts as a link scan
+ *  manual email scan   max only, researched: counts as a delicate scan
+ *  text message scan   every plan, links checked by address only: counts as a fast link scan
  *  live scanning       pro 24h/wk (no research) | max 96h/wk (research)
  *  live email marking  pro + max, uses live hours
  */
@@ -22,6 +23,7 @@ const { analyze, typedUrl } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
 const { KINDS } = require('../lib/scan/kinds');
 const { classify: classifyQr } = require('../lib/scan/qr');
+const texts = require('../lib/scan/texts');
 // Kinds the engine can name from evidence; "blocked" is a rule the user set, not a threat kind.
 const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
 const { ALL_CHECKS } = require('../lib/scan/checklist');
@@ -188,6 +190,40 @@ function register(router) {
     // A pasted email is researched (its links and sender): a delicate scan.
     const verdict = await metered(user, 'deepScans', () => engine.scanEmail(mail, { userId: user.id, planId: plan.id, research: true, mode: 'manual', record: true }));
     sendJson(res, 200, withUsage(user, { verdict }));
+  });
+
+  /* ---------------------------------------------------- text message scan */
+
+  // A text (SMS, WhatsApp, a DM), pasted in or read from a phone screenshot on the person's device. Judged by the same
+  // rules as texts in Phone Link (scan/texts.js); its links are checked by their address only, never opened. Like a
+  // pasted email it is counted by the checks it gets: an email is researched (a delicate scan), a text is not, so it
+  // is one fast link scan, on every plan. The message is read in memory: not stored, not in the history, not logged.
+  router.post('/api/v1/scan/text', async (req, res) => {
+    const user = A.requireAgreedUser(req);
+    security.rateLimit(`scan-minute:${user.id}`, 30, 60 * 1000, 'Too many scans in a minute. Wait a moment, then try again.');
+    const body = await readJson(req, 16 * 1024);
+    const text = String(body.text || '').slice(0, 2000);
+    const from = String(body.from || '').slice(0, 80);
+    if (!text.trim()) throw new HttpError(400, 'empty_text', 'Paste the text message you want checked');
+    const plan = plans.planFor(user);
+    const result = await metered(user, 'linkScans', async () => {
+      const r = texts.judgeText({ from, text });
+      const verdicts = r.links.length ? await engine.scanUrls(r.links, {
+        userId: user.id, planId: plan.id, research: false, threats: plan.features.virusMalwareOnLinks ? ALL : ['scam'], mode: 'manual', detail: 'compact', recordFlagged: false
+      }) : [];
+      const byUrl = {};
+      for (const v of verdicts) byUrl[v.requested] = v;
+      return {
+        flag: texts.withLinks(r, byUrl),
+        sender: texts.senderKind(from),
+        links: r.links.map((url) => {
+          const v = byUrl[url];
+          const ok = v && v.ok;
+          return { url, host: ok ? v.host : null, badge: ok ? v.overall.badge : null, label: ok ? v.overall.label : 'Not checked', reason: ok && v.reasons[0] ? v.reasons[0].text : null };
+        })
+      };
+    });
+    sendJson(res, 200, withUsage(user, { text: result }));
   });
 
   /* --------------------------------------------------------- live scanning */

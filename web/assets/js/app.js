@@ -166,6 +166,7 @@
     '/app/scan': ['scan', scanView],
     '/app/threats': ['threats', threatsView],
     '/app/email': ['email', emailView],
+    '/app/text': ['text', textView],
     '/app/history': ['history', historyView],
     '/app/protection': ['protection', protectionView],
     '/app/download': ['protection', protectionView],
@@ -197,7 +198,7 @@
     fn(el, new URLSearchParams(location.search));
     // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
     restoreDrafts();
-    document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide' }[name]} · Sentinel`;
+    document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', text: 'Text scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide' }[name]} · Sentinel`;
   }
 
   /** Render a verdict with its checklist tools and follow-up actions. */
@@ -228,7 +229,7 @@
 
   const PAGES = [
     ['Overview', '/app', 'home'], ['Link scan', '/app/scan', 'scan'], ['Virus & malware scan', '/app/threats', 'threats'],
-    ['Email scan', '/app/email', 'email'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
+    ['Email scan', '/app/email', 'email'], ['Text scan', '/app/text', 'text'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
     ['Live protection', '/app/protection', 'protection'], ['Plan & usage', '/app/plan', 'plan'], ['Security', '/app/security', 'security'],
     ['AI assistants', '/app/assistants', 'assistants'], ['Recovery guide', '/app/recover', 'recover']
   ];
@@ -1285,6 +1286,132 @@
         forgetShotQr();
       } catch (err) { stop(); out.innerHTML = friendlyError(err); }
     });
+  }
+
+  /* ===================================================== text message scan */
+
+  // A text, WhatsApp message or DM, pasted in or read from a phone screenshot on this computer (the way the email scan
+  // reads one, then textshot.js picks out the sender and the messages). Judged on the server by the rules Phone Link
+  // checking uses (server/lib/scan/texts.js); links are checked by their address only. Nothing is kept.
+  function textView(el) {
+    const canRead = Boolean(desktop && desktop.readScreenshot);
+    const allowance = () => `${scanLeftText('fast')}. A text counts as one fast link scan, on every plan: its links are checked by their address only, not researched like a pasted email. Nothing is stored.`;
+    el.innerHTML = `
+      ${title('Text scan', 'Got a text, a WhatsApp message or a DM you are not sure about? Paste it in, or a screenshot of it, and Sentinel says if it looks like a scam and what to do.',
+        '<div class="segmented" role="tablist"><button role="tab" data-tmode="paste" aria-selected="true">Paste the text</button><button role="tab" data-tmode="shot" aria-selected="false">Screenshot</button></div>')}
+      <div class="panel" data-shot hidden>
+        <label class="drop" data-shot-drop>
+          <input type="file" accept="image/png,image/jpeg" data-shot-file aria-label="Choose a screenshot of the message">
+          <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a screenshot from your phone, or click to choose</h3><p>Or press Ctrl+V to paste one. PNG or JPEG.</p></div>
+        </label>
+        <figure class="shot" data-shot-preview hidden><img alt="The screenshot to read"><figcaption data-shot-status></figcaption></figure>
+        <p class="field__hint u-mt-sm">${canRead
+          ? 'Read on this computer by Windows. The image is not uploaded or kept. If you replied in the conversation, crop the screenshot to the message you were sent.'
+          : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>, or paste the text instead.'}</p>
+      </div>
+      <form class="panel" data-form>
+        <div class="field"><label for="t-from">From <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="t-from" name="from" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
+        <div class="field"><label for="t-text">Message</label><textarea class="textarea" id="t-text" name="text" rows="6" maxlength="2000" placeholder="Paste the message, including any links"></textarea></div>
+        <div class="report__foot">
+          <span class="muted" data-left>${esc(allowance())}</span>
+          <button class="btn btn--gold" type="submit">Check this text</button>
+        </div>
+      </form>
+      <div data-out aria-live="polite"></div>`;
+
+    const form = $('[data-form]', el);
+    const out = $('[data-out]', el);
+    const shotBox = $('[data-shot]', el);
+    const setMode = (mode) => {
+      $$('[data-tmode]', el).forEach((x) => x.setAttribute('aria-selected', String(x.dataset.tmode === mode)));
+      shotBox.hidden = mode !== 'shot';
+      form.hidden = mode === 'shot';
+    };
+    $$('[data-tmode]', el).forEach((b) => b.addEventListener('click', () => setMode(b.dataset.tmode)));
+
+    const preview = $('[data-shot-preview]', el);
+    const shotStatus = $('[data-shot-status]', el);
+    let reading = false;
+    const readShot = async (file) => {
+      if (!file || reading) return;
+      if (!/^image\/(png|jpeg)$/.test(file.type)) { toast('Screenshots must be PNG or JPEG images.', 'error'); return; }
+      if (file.size > 20 * 1024 * 1024) { toast('That screenshot is too large.', 'error'); return; }
+      const url = URL.createObjectURL(file);
+      $('img', preview).src = url;
+      preview.hidden = false;
+      if (!canRead) { shotStatus.textContent = 'Reading screenshots needs the Sentinel app for Windows.'; return; }
+      reading = true;
+      preview.classList.add('is-reading');
+      shotStatus.textContent = 'Reading the screenshot…';
+      try {
+        const m = window.SentinelTextShot.read(joinSlices(await desktop.readScreenshot(await sliceImage(file))));
+        if (!m.text) { shotStatus.textContent = 'No message was found in that image.'; return; }
+        shotStatus.textContent = m.from ? `Read a message from ${m.from}.` : 'Read the message.';
+        form.from.value = m.from;
+        form.text.value = m.text;
+        setMode('paste');
+        toast('Check what was read, then press Check this text.', 'info', 5000);
+        form.text.focus();
+      } catch (err) {
+        shotStatus.textContent = desktopError(err);
+      } finally {
+        reading = false;
+        preview.classList.remove('is-reading');
+        URL.revokeObjectURL(url);
+      }
+    };
+    const shotInput = $('[data-shot-file]', el);
+    shotInput.addEventListener('change', () => { readShot(shotInput.files[0]); shotInput.value = ''; });
+    const shotDrop = $('[data-shot-drop]', el);
+    ['dragenter', 'dragover'].forEach((t) => shotDrop.addEventListener(t, (ev) => { ev.preventDefault(); shotDrop.classList.add('is-over'); }));
+    ['dragleave', 'drop'].forEach((t) => shotDrop.addEventListener(t, (ev) => { ev.preventDefault(); shotDrop.classList.remove('is-over'); }));
+    shotDrop.addEventListener('drop', (ev) => readShot(ev.dataTransfer.files[0]));
+    // Ctrl+V with an image on the clipboard, on either tab: pasted words still go into the message box.
+    const onPaste = (ev) => {
+      if (!el.isConnected) { document.removeEventListener('paste', onPaste); return; }
+      const item = [...(ev.clipboardData ? ev.clipboardData.items : [])].find((i) => i.kind === 'file' && /^image\/(png|jpeg)$/.test(i.type));
+      if (item) { ev.preventDefault(); setMode('shot'); readShot(item.getAsFile()); }
+    };
+    document.addEventListener('paste', onPaste);
+
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (!form.text.value.trim()) { toast('Paste the message you want checked.', 'error'); form.text.focus(); return; }
+      try {
+        const data = await busy($('button[type=submit]', form), 'Checking', () => api('/scan/text', { method: 'POST', body: { from: form.from.value, text: form.text.value } }));
+        applyUsage(data.usage);
+        $('[data-left]', el).textContent = allowance();
+        out.innerHTML = textResult(data.text, form.from.value.trim());
+        out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      } catch (err) { out.innerHTML = friendlyError(err); }
+    });
+  }
+
+  /** The verdict card for a text: what it is, why, what to do, and each link's own result. */
+  function textResult(r, from) {
+    const f = r.flag;
+    const red = r.links.some((l) => l.badge === 'red');
+    const tone = !f ? 'clear' : red ? 'red' : f.level === 'danger' ? 'orange' : 'yellow';
+    const who = !from ? 'No sender given' : `From ${from}${r.sender === 'number' ? ', a phone number' : r.sender === 'shortcode' ? ', a business short code' : r.sender === 'email' ? ', an email address' : ''}`;
+    const linkLine = (l) => `${l.host || l.url}: ${l.badge ? `${l.label}${l.reason ? `. ${l.reason}` : ''}` : l.label === 'Not checked' ? 'could not be checked just now' : 'no threat found'}`;
+    const reasons = [...(f ? [[f.detail, tone]] : []), ...r.links.map((l) => [linkLine(l), l.badge])];
+    // Family on a "new number" wants money sent; the rest want a card number or a sign-in.
+    const happened = f && /family/i.test(f.title) ? 'bank' : 'card,password';
+    const scam = f && (f.level === 'danger' || red);
+    const steps = f ? [f.advice] : ['Nothing in this text matches the scams Sentinel knows, and its links are on no threat list.', 'Still unsure? Contact the company or person through their own app, website or a number you already have, not the one in the text.'];
+    return `<article class="result result--${tone}" data-result data-text-result="${tone}">
+      <header class="result__head">
+        <div class="result__glyph" style="--c:${color(tone === 'clear' ? null : tone)}">${Masks.svg('scam')}</div>
+        <div class="result__title">
+          <h2>${esc(f ? f.title : 'No signs of a scam in this text')}</h2>
+          <p class="result__sub">${esc(who)}</p>
+        </div>
+      </header>
+      <div class="next-steps next-steps--${tone}"><h3>${f ? 'What to do now' : 'Good to know'}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
+        ${scam ? `<p class="next-steps__more">Already tapped the link, paid or replied? <a href="/app/recover?happened=${happened}">Open the recovery guide</a> for every step, in order.</p>` : ''}</div>
+      ${reasons.length ? `<div class="reasons"><h3>Why</h3><ul>${reasons.map(([t, badge]) => `<li><span class="dot" style="--c:${color(badge || null)}"></span>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+      <div class="notes"><p>${r.links.length ? 'Links were checked by their address only and were not opened. ' : ''}The text was checked in memory and not kept, and it is not in your history.</p></div>
+    </article>`;
   }
 
   /** PNG slices of an image, at most 2000 wide and 1600 tall, overlapping by 60 so no line is cut in half. */
