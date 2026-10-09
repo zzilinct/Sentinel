@@ -302,30 +302,34 @@ $clip = (Get-Clipboard -Raw) + ''
 Check 'clickfix-program-told' ($ok -and $clip.Trim() -eq $command2) "copied in Notepad: told ($ok), clipboard left alone: $($clip.Substring(0, [Math]::Min(40, $clip.Length)))"
 Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
-# 4b. Wallet guard: a test Bitcoin address copied, then a small helper standing in for a clipboard hijacker (harmless:
-# it only sets the clipboard) puts a different Bitcoin address there a moment later, with no key pressed.
+# 4b. Wallet guard: a small helper standing in for a clipboard hijacker (harmless: it only sets the clipboard) copies a
+# test Bitcoin address and, straight after, with no pause and no key pressed, puts a different one in its place, as
+# real hijackers do within milliseconds. Sentinel hears both changes as they happen and puts the first back.
 $btcA = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'; $btcB = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2'
 $swapper = Join-Path $env:RUNNER_TEMP 'swapper.ps1'
-"Start-Sleep -Milliseconds 2500; Set-Clipboard -Value '$btcB'; Start-Sleep 8" | Set-Content -Path $swapper -Encoding utf8
+$gapFile = Join-Path $env:RUNNER_TEMP 'swap-gap.txt'
+"Get-Clipboard | Out-Null; Set-Clipboard -Value '$btcA'; `$t = [Diagnostics.Stopwatch]::StartNew(); Set-Clipboard -Value '$btcB'; `$t.ElapsedMilliseconds | Set-Content '$gapFile'; Start-Sleep 8" | Set-Content -Path $swapper -Encoding utf8
+$hearing = (ClipStatus).hearing
+Check 'wallet-hearing' ($hearing -eq $true) "clipboard changes heard as they happen (not only read on a timer): $hearing"
 $catches = { ([regex]::Matches((AppLog), 'wallet address swap caught')).Count }
-Set-Clipboard -Value $btcA
+Set-Clipboard -Value 'a shopping list'
+Start-Sleep 2
 $sw = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $swapper -WindowStyle Hidden -PassThru
 $ok = Until 20 { (& $catches) -ge 1 }
 Start-Sleep 1
 $clip = (Get-Clipboard -Raw) + ''
-$pace = ClipStatus
 Shot 'wallet-swap'
+Say "  the swap came $((Get-Content $gapFile -ErrorAction SilentlyContinue) -join '') ms after the copy"
 Check 'wallet-swap-restored' ($ok -and $clip.Trim() -eq $btcA) "caught ($ok); clipboard after the swap is the copied address: $($clip.Trim() -eq $btcA)"
 Check 'wallet-swap-log' $ok "app.log: $(([regex]::Match((AppLog), 'wallet address swap caught[^\r\n]*')).Value)"
-Check 'wallet-pace' ($pace.every -eq 500) "read every $($pace.every) ms for a few seconds after an address"
 [void]$sw.WaitForExit(15000)
-# Two different addresses the person copies, with Ctrl+C pressed between them: left alone.
+# Two different addresses the person copies, less than a second apart, with Ctrl+C pressed between them: left alone.
 Start-Sleep 11
 Start-Process notepad
 Start-Sleep 3
 Say "Notepad in front: $(Front 'notepad')"
 Set-Clipboard -Value $btcB
-Start-Sleep 3
+Start-Sleep -Milliseconds 800
 [K]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero); [K]::Tap(0x43); [K]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
 Set-Clipboard -Value $btcA
 Start-Sleep 5

@@ -44,8 +44,10 @@ let reads = 0;
 const allowed = new Set();    // commands the person put back: not stopped again while Sentinel runs
 let wallet = null;            // { kind, text, at, restores }: the address last copied, in memory only
 
-// A swap comes within seconds of the copy. The clipboard is read every half second for this long after an address.
+// A swap comes within seconds of the copy. Read on the timer, the clipboard is read every half second for this long
+// after an address. Heard as it changes, a swap comes within this much of the copy.
 const WALLET_MS = 10 * 1000;
+const LISTEN_MS = 1500;
 // Keys and mouse used this long after the address was seen mean the person copied again (the copy's own key-up is earlier).
 const TOUCH_MS = 300;
 // A hijacker swaps again each time the clipboard changes: Sentinel puts the address back this many times, then stops.
@@ -117,32 +119,57 @@ function walletIn(text) {
 }
 
 /**
- * The clipboard now holds `text`. When it is an address that replaced the one just copied, of the same kind, with no
- * key or mouse touched since, the copied one goes back. True when it did (or tried).
+ * A swap: `now` (an address of some kind at time `at`, with a key or the mouse last used at `inputAt`, written by
+ * `owner`) replaced `before`, of the same kind, within `windowMs`, with nothing touched since `before` was seen.
+ */
+function isSwap(before, now, windowMs) {
+  return Boolean(before && now.kind && before.kind === now.kind && before.text !== now.text && now.at - before.at <= windowMs &&
+    now.inputAt <= before.at + TOUCH_MS && before.restores < MAX_RESTORES && !SHARED_CLIPBOARD.has(now.owner));
+}
+
+/**
+ * The clipboard now holds `now` ({ kind, text, at, inputAt, owner }). When it swapped out the address just copied,
+ * that address goes back. True when it did (or tried). `at` and `inputAt` are on one clock, whichever the caller has.
+ */
+async function judge(now, windowMs) {
+  const before = wallet;
+  // The same address again (or Sentinel's own write putting it back): still the one to guard, from now.
+  if (before && now.text === before.text) { wallet = { ...before, at: now.at }; return false; }
+  wallet = now.kind ? { kind: now.kind, text: now.text, at: now.at, restores: 0 } : null;
+  if (!isSwap(before, now, windowMs)) return false;
+  // Set before writing: the echo of Sentinel's own write must not look like a swap.
+  wallet = { ...before, at: now.at, restores: before.restores + 1 };
+  last = before.text;
+  let putBack = true;
+  try { await clipboard().writeText(before.text); } catch { putBack = false; }
+  const program = now.owner && now.owner !== 'electron' && now.owner !== 'sentinel' ? now.owner : null;
+  if (opts.log) opts.log(`wallet address swap caught (${now.kind})${program ? `, written by ${program}` : ''}${putBack ? '' : ', could not put it back'}`);
+  if (opts.onWallet && before.restores === 0) opts.onWallet({ kind: now.kind, program, putBack });
+  return true;
+}
+
+/** A clipboard change heard the moment it happened (browsers.js): { tick, idle, owner, text }, text only for an address. */
+function heard(e) {
+  if (!opts || !opts.wallets || !opts.wallets()) return;
+  const text = String(e.text || '');
+  judge({ kind: walletIn(text), text, at: e.tick, inputAt: e.tick - e.idle, owner: e.owner }, LISTEN_MS).catch(() => {});
+}
+
+/**
+ * The fallback, while changes are not heard as they happen: the clipboard, read on the timer, holds `text`. Who wrote
+ * it and when a key was last used are asked only when it could be a swap; not known, nothing is touched.
  */
 async function guardWallet(text) {
   const kind = walletIn(text);
-  const before = wallet;
-  wallet = kind ? { kind, text, at: Date.now(), restores: 0 } : null;
   if (kind) every = SHIELD_EVERY_MS;
-  if (!kind || !before || before.kind !== kind || before.text === text || Date.now() - before.at > WALLET_MS) return false;
-  if (before.restores >= MAX_RESTORES) return false;
-  // Who wrote the clipboard, and how long ago a key or the mouse was last used. Not known (the helper that says is
-  // not running): nothing is touched, as the person may have copied again.
-  const who = opts.clipOwner ? await opts.clipOwner().catch(() => null) : null;
-  if (!who || !Number.isFinite(who.idle)) return false;
-  if (Date.now() - who.idle > before.at + TOUCH_MS) return false;
-  if (SHARED_CLIPBOARD.has(who.owner)) return false;
-  let putBack = true;
-  try { await clipboard().writeText(before.text); } catch { putBack = false; }
-  if (putBack) {
-    last = before.text;
-    wallet = { ...before, at: Date.now(), restores: before.restores + 1 };
+  const at = Date.now();
+  const now = { kind, text, at, inputAt: Infinity, owner: null };
+  const before = wallet;
+  if (kind && before && before.kind === kind && before.text !== text && at - before.at <= WALLET_MS) {
+    const who = opts.clipOwner ? await opts.clipOwner().catch(() => null) : null;
+    if (who && Number.isFinite(who.idle)) { now.inputAt = Date.now() - who.idle; now.owner = who.owner; }
   }
-  const program = who.owner && who.owner !== 'electron' && who.owner !== 'sentinel' ? who.owner : null;
-  if (opts.log) opts.log(`wallet address swap caught (${kind})${program ? `, written by ${program}` : ''}${putBack ? '' : ', could not put it back'}`);
-  if (opts.onWallet && before.restores === 0) opts.onWallet({ kind, program, putBack });
-  return true;
+  return judge(now, WALLET_MS);
 }
 
 /**
@@ -205,7 +232,8 @@ async function tick() {
   const links = opts.links();
   const shieldOn = opts.commands() && opts.browserOpen();
   const browser = shieldOn && fromBrowser();
-  const wallets = Boolean(opts.wallets && opts.wallets());
+  // While clipboard changes are heard as they happen, the timer has nothing to do for wallet guard.
+  const wallets = Boolean(opts.wallets && opts.wallets()) && !(opts.listening && opts.listening());
   every = browser || (wallets && wallet && Date.now() - wallet.at < WALLET_MS) ? SHIELD_EVERY_MS : EVERY_MS;
   // The shield alone reads nothing while no browser is open: a command only comes from a page.
   if (!links && !shieldOn && !wallets) return;
@@ -233,7 +261,8 @@ async function tick() {
 
 /**
  * Started (or restarted) whenever a switch changes. options: api, log, links(), commands() and wallets() (the three
- * switches), clipOwner() (who wrote the clipboard, and ms since the last key or mouse use: { owner, idle }), browserOpen(), browserInFront() (the browser in front, null for another program, undefined when not known),
+ * switches), clipOwner() (who wrote the clipboard, and ms since the last key or mouse use: { owner, idle }), listen(handler)
+ * and listening() (clipboard changes heard as they happen, from the running-browsers helper), browserOpen(), browserInFront() (the browser in front, null for another program, undefined when not known),
  * page() (the page in front: { host, badge }), onDanger (a dangerous link), onCommand (a command), onWallet (a swap).
  */
 function start(options) {
@@ -242,6 +271,7 @@ function start(options) {
   // Whatever is on the clipboard when this starts was copied before: it is not checked.
   last = null;
   wallet = null;
+  if (opts.listen) opts.listen(opts.wallets && opts.wallets() ? heard : null);
   Promise.resolve().then(() => clipboard().readText()).then((t) => { if (last === null) last = String(t); }, () => { if (last === null) last = ''; });
   const loop = async () => {
     if (last !== null) await tick().catch(() => {});
@@ -254,11 +284,12 @@ function start(options) {
 }
 
 function stop() {
+  if (opts && opts.listen) opts.listen(null);
   if (timer) clearTimeout(timer);
   timer = null;
 }
 
 /** How often the clipboard is looked at now, and how many times it was read: for the end-to-end check. */
-const status = () => ({ every, reads, running: Boolean(timer) });
+const status = () => ({ every, reads, running: Boolean(timer), hearing: Boolean(opts && opts.listening && opts.listening()) });
 
-module.exports = { start, stop, putBack, heldCommand, status, _test: { linkIn, stoppedLine, tick, walletIn } };
+module.exports = { start, stop, putBack, heldCommand, status, _test: { linkIn, stoppedLine, tick, walletIn, heard } };

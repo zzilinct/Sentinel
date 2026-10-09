@@ -106,11 +106,81 @@ async function installed() {
  * It also says which program owns the window in front, when that changes ("front:msedge"), looked at twice a second:
  * "Stop pasted commands" looks at the clipboard often only while a browser is in front.
  * Asked "clip" on its input, it answers which program wrote the clipboard and how many milliseconds ago a key or the
- * mouse was last used ("clip:powershell|5230"), for wallet guard (clipwatch.js). Nothing on the clipboard is read here.
+ * mouse was last used ("clip:powershell|5230"), for wallet guard (clipwatch.js).
+ * Told "listen", it hears every clipboard change the moment it happens (a message-only window registered with
+ * AddClipboardFormatListener, on its own thread) and says "clipboard:<sequence>|<tick>|<idle ms>|<owner>|<text>". The
+ * text is given only when it is shaped like a wallet address or an IBAN, and is otherwise dropped on the spot: a
+ * hijacker swaps the address within milliseconds of the copy, far quicker than any look at the clipboard on a timer.
+ * "quiet" stops it hearing. "clipboard:on" or "clipboard:off" says whether it is listening.
  */
 const WATCH_SCRIPT = `
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -Namespace SB -Name F -MemberDefinition '[DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p); [DllImport("user32.dll")] public static extern System.IntPtr GetClipboardOwner(); [DllImport("user32.dll")] public static extern bool GetLastInputInfo([In, Out] int[] p);'
+Add-Type -TypeDefinition @'
+using System; using System.Diagnostics; using System.Runtime.InteropServices; using System.Text.RegularExpressions; using System.Threading;
+namespace SB {
+public static class Clip {
+  delegate IntPtr WndProc(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] struct WNDCLASS { public uint style; public WndProc proc; public int cls, wnd; public IntPtr inst, icon, cursor, bg; public string menu, name; }
+  [StructLayout(LayoutKind.Sequential)] struct MSG { public IntPtr h; public uint m; public IntPtr w, l; public uint t; public int x, y; }
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern ushort RegisterClassW(ref WNDCLASS c);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr CreateWindowExW(int ex, string cls, string name, int style, int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr inst, IntPtr p);
+  [DllImport("user32.dll")] static extern IntPtr DefWindowProcW(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [DllImport("user32.dll")] static extern bool AddClipboardFormatListener(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetMessageW(out MSG m, IntPtr h, uint a, uint b);
+  [DllImport("user32.dll")] static extern IntPtr DispatchMessageW(ref MSG m);
+  [DllImport("user32.dll")] static extern bool OpenClipboard(IntPtr h);
+  [DllImport("user32.dll")] static extern bool CloseClipboard();
+  [DllImport("user32.dll")] static extern IntPtr GetClipboardData(uint f);
+  [DllImport("user32.dll")] static extern uint GetClipboardSequenceNumber();
+  [DllImport("user32.dll")] static extern IntPtr GetClipboardOwner();
+  [DllImport("user32.dll")] static extern int GetWindowThreadProcessId(IntPtr h, out int p);
+  [DllImport("user32.dll")] static extern bool GetLastInputInfo([In, Out] int[] p);
+  [DllImport("kernel32.dll")] static extern IntPtr GlobalLock(IntPtr h);
+  [DllImport("kernel32.dll")] static extern bool GlobalUnlock(IntPtr h);
+  static readonly Regex Shape = new Regex("^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{25,106}|(bc1|ltc1|BC1|LTC1)[0-9a-zA-Z]{11,71}|[A-Za-z]{2}[0-9]{2}[A-Za-z0-9 ]{11,40})$");
+  static WndProc keep; static IntPtr hwnd; static Thread pump; static volatile bool on;
+  public static void Listen(bool yes) {
+    on = yes;
+    if (yes && pump == null) { pump = new Thread(Run); pump.IsBackground = true; pump.Start(); }
+    else Say(yes && hwnd != IntPtr.Zero ? "clipboard:on" : "clipboard:off");
+  }
+  static void Run() {
+    keep = Proc;
+    WNDCLASS c = new WNDCLASS(); c.proc = keep; c.name = "SentinelClipboard";
+    RegisterClassW(ref c);
+    hwnd = CreateWindowExW(0, "SentinelClipboard", "", 0, 0, 0, 0, 0, new IntPtr(-3), IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+    if (hwnd == IntPtr.Zero || !AddClipboardFormatListener(hwnd)) { hwnd = IntPtr.Zero; Say("clipboard:off"); return; }
+    Say(on ? "clipboard:on" : "clipboard:off");
+    MSG m; while (GetMessageW(out m, IntPtr.Zero, 0, 0) > 0) DispatchMessageW(ref m);
+  }
+  static IntPtr Proc(IntPtr h, uint m, IntPtr w, IntPtr l) { if (m == 0x031D && on) Changed(); return DefWindowProcW(h, m, w, l); }
+  static void Changed() {
+    int tick = Environment.TickCount; uint seq = GetClipboardSequenceNumber();
+    int[] li = new int[] { 8, 0 }; GetLastInputInfo(li);
+    string owner = ""; IntPtr o = GetClipboardOwner();
+    if (o != IntPtr.Zero) { int pid; GetWindowThreadProcessId(o, out pid); try { owner = Process.GetProcessById(pid).ProcessName.ToLower(); } catch {} }
+    string t = (Read() ?? "").Trim();
+    if (t.Length > 120 || !Shape.IsMatch(t)) t = "";
+    Say("clipboard:" + seq + "|" + (uint)tick + "|" + unchecked((uint)(tick - li[1])) + "|" + owner + "|" + t);
+  }
+  static string Read() {
+    for (int i = 0; i < 20; i++) {
+      if (OpenClipboard(hwnd)) {
+        try {
+          IntPtr d = GetClipboardData(13); if (d == IntPtr.Zero) return null;
+          IntPtr p = GlobalLock(d); if (p == IntPtr.Zero) return null;
+          try { return Marshal.PtrToStringUni(p); } finally { GlobalUnlock(d); }
+        } finally { CloseClipboard(); }
+      }
+      Thread.Sleep(5);
+    }
+    return null;
+  }
+  static void Say(string s) { lock (Shape) { Console.Out.WriteLine(s); Console.Out.Flush(); } }
+}
+}
+'@
 $names = @(__NAMES__)
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
 $pending = $stdin.ReadLineAsync()
@@ -135,6 +205,8 @@ while ($true) {
       $li = [int[]](8, 0); [void][SB.F]::GetLastInputInfo($li)
       [Console]::Out.WriteLine('clip:' + $c + '|' + (([int64][Environment]::TickCount - $li[1]) -band 4294967295)); [Console]::Out.Flush()
     }
+    elseif ($pending.Result -eq 'listen') { [SB.Clip]::Listen($true) }
+    elseif ($pending.Result -eq 'quiet') { [SB.Clip]::Listen($false) }
     $pending = $stdin.ReadLineAsync()
   }
 }`;
@@ -142,6 +214,8 @@ let watcherChild = null;
 let watcherRunning = null;   // the helper's latest answer: process names, or null before it has one
 let watcherFront = null;     // the program whose window is in front ('' for none), or null before the helper says
 const clipWaiters = [];      // answers owed for "clip"
+let clipHandler = null;      // wallet guard's ear for clipboard changes, or null when it does not want them
+let clipHearing = false;     // the helper said "clipboard:on"
 
 function startProcessWatcher(onNames, extra = []) {
   if (process.platform !== 'win32' || watcherChild) return;
@@ -163,6 +237,12 @@ function startProcessWatcher(onNames, extra = []) {
       buf = buf.slice(i + 1);
       if (line.startsWith('running:')) { watcherRunning = new Set(line.slice(8).split(',').filter(Boolean)); onNames(); }
       else if (line.startsWith('front:')) watcherFront = line.slice(6);
+      else if (line.startsWith('clipboard:')) {
+        const rest = line.slice(10);
+        if (rest === 'on' || rest === 'off') { clipHearing = rest === 'on'; continue; }
+        const [seq, tick, idle, owner, ...text] = rest.split('|');
+        if (clipHandler) { try { clipHandler({ seq: Number(seq), tick: Number(tick), idle: Number(idle), owner: owner || null, text: text.join('|') }); } catch { /* keep going */ } }
+      }
       else if (line.startsWith('clip:')) {
         const [owner, idle] = line.slice(5).split('|');
         const answer = { owner: owner || null, idle: Number(idle) };
@@ -170,14 +250,30 @@ function startProcessWatcher(onNames, extra = []) {
       }
     }
   });
-  const gone = () => { watcherChild = null; watcherRunning = null; watcherFront = null; clipWaiters.splice(0).forEach((done) => done(null)); };
+  if (clipHandler) tellHelper('listen');
+  const gone = () => { watcherChild = null; watcherRunning = null; watcherFront = null; clipHearing = false; clipWaiters.splice(0).forEach((done) => done(null)); };
   watcherChild.on('exit', gone);
   watcherChild.on('error', gone);
 }
 function stopProcessWatcher() {
   if (watcherChild) { try { watcherChild.stdin.end(); watcherChild.kill(); } catch { /* gone */ } }
-  watcherChild = null; watcherRunning = null; watcherFront = null;
+  watcherChild = null; watcherRunning = null; watcherFront = null; clipHearing = false;
 }
+function tellHelper(word) {
+  if (!watcherChild) return;
+  try { watcherChild.stdin.write(`${word}\n`); } catch { /* gone: told again when it starts */ }
+}
+
+/**
+ * Wallet guard hears each clipboard change as it happens: handler({ seq, tick, idle, owner, text }), text only for a
+ * wallet-shaped one. null stops it. Asked again each time the helper starts.
+ */
+function clipListen(handler) {
+  clipHandler = handler || null;
+  tellHelper(clipHandler ? 'listen' : 'quiet');
+}
+/** True while the helper hears clipboard changes as they happen. */
+const clipListening = () => Boolean(watcherChild && clipHearing && clipHandler);
 
 /** The id of the browser whose window is in front, null when another program's is, undefined when not known. */
 function inFront() {
@@ -341,4 +437,4 @@ function watch({ onChange, everyMs = 15000, others = null }) {
 }
 
 module.exports = {
-  defaultBrowser, preferred, BROWSERS, installed, running, inFront, clipOwner, bringForward, watch, _test: { WATCH_SCRIPT } };
+  defaultBrowser, preferred, BROWSERS, installed, running, inFront, clipOwner, clipListen, clipListening, bringForward, watch, _test: { WATCH_SCRIPT } };

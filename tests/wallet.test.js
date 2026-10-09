@@ -99,6 +99,42 @@ test('two addresses the person copied, with a key pressed between them, are left
   } finally { blind.restore(); }
 });
 
+test('heard as it happens, a swap 5 ms after the copy is caught; the echo of Sentinel\'s own write and a second copy are not', async () => {
+  const { cw, fake, restore } = load();
+  const swaps = [];
+  let ear = null;
+  try {
+    cw.start({ links: () => false, commands: () => false, wallets: () => true, browserOpen: () => false, listen: (h) => { ear = h; }, listening: () => Boolean(ear), log: () => {}, onWallet: (w) => swaps.push(w) });
+    assert.equal(typeof ear, 'function', 'wallet guard asks to hear clipboard changes');
+    const flush = () => new Promise((r) => setImmediate(r));
+    // Copied at tick 1000 (the key was pressed just before), swapped at 1005 with nothing touched since.
+    ear({ tick: 1000, idle: 40, owner: 'notepad', text: BTC_A });
+    fake.board = BTC_B;
+    ear({ tick: 1005, idle: 45, owner: 'stealer', text: BTC_B });
+    await flush();
+    assert.equal(fake.board, BTC_A);
+    assert.deepEqual(swaps, [{ kind: 'btc', program: 'stealer', putBack: true }]);
+    ear({ tick: 1010, idle: 50, owner: 'sentinel', text: BTC_A });   // Sentinel's own write, heard back
+    await flush();
+    assert.equal(swaps.length, 1);
+    // Later, the person copies another address: a key pressed after the first was heard.
+    ear({ tick: 5000, idle: 30, owner: 'notepad', text: BTC_B });
+    ear({ tick: 5600, idle: 20, owner: 'notepad', text: BTC_A });
+    // Something that is not an address in between ends the watch too.
+    ear({ tick: 9000, idle: 9000, owner: 'notepad', text: '' });
+    ear({ tick: 9005, idle: 9005, owner: 'stealer', text: BTC_B });
+    await flush();
+    assert.equal(swaps.length, 1);
+    // Too long after the copy (over 1.5 s) is not taken for a swap.
+    ear({ tick: 20000, idle: 50, owner: 'notepad', text: BTC_A });
+    ear({ tick: 22000, idle: 2050, owner: 'stealer', text: BTC_B });
+    await flush();
+    assert.equal(swaps.length, 1);
+    assert.equal(cw.status().hearing, true);
+  } finally { restore(); }
+  assert.equal(ear, null, 'stopped: no longer listening');
+});
+
 test('wallet guard is on by default on Windows, its off switch is behind the parent lock, and privacy says so', () => {
   const main = read('desktop/src/main.js');
   assert.match(main, /store\.get\('walletGuard', true\)/);

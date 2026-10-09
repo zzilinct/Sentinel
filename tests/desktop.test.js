@@ -490,6 +490,13 @@ test('the running-browsers helper answers without starting a process each time, 
     child.stdin.write('clip\n');
   });
   assert.match(clip, /^clip:[a-z0-9_.-]*\|\d+$/);
+  // Told "listen", it hears clipboard changes as they happen, from a window of its own.
+  const hearing = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`no answer to "listen" in 10 s: ${said}`)), 10000);
+    child.stdout.on('data', () => { const m = /clipboard:(on|off)/.exec(said); if (m) { clearTimeout(timer); resolve(m[1]); } });
+    child.stdin.write('listen\n');
+  });
+  assert.equal(hearing, 'on');
   const exited = new Promise((resolve) => child.once('exit', resolve));
   child.stdin.end();   // Sentinel is gone
   const code = await Promise.race([exited, new Promise((r) => setTimeout(() => r('still running'), 10000))]);

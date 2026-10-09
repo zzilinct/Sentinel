@@ -877,6 +877,8 @@ function syncClipboard() {
     commands,
     wallets,
     clipOwner: () => browsers.clipOwner(),
+    listen: (handler) => browsers.clipListen(handler),
+    listening: () => browsers.clipListening(),
     browserOpen: () => (browserState.running || []).length > 0,
     browserInFront: () => browsers.inFront(),
     // The page is named only when live scanning is watching the browser in front now: then it is where the copy came from.
