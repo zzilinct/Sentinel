@@ -236,11 +236,33 @@ async function checkMotion() {
     // Where the page is, frame by frame, recorded in the page: a sample taken 90 ms later by this script's own clock
     // came back after the glide had landed whenever the runner was busy (the call and the frames run late, not the glide).
     await d.ev("(() => { const f = window.__glide = []; const t0 = performance.now(); const rec = () => { f.push([Math.round(performance.now() - t0), Math.round(scrollY), window.SentinelScroll.ticking]); if (performance.now() - t0 < 8000) requestAnimationFrame(rec); }; requestAnimationFrame(rec); return true; })()");
+    // DIAG (ci-steady): what the page does in the long frame after the wheel.
+    await browser.send('Profiler.enable', {}, d.s);
+    await browser.send('Profiler.setSamplingInterval', { interval: 1000 }, d.s);
+    await browser.send('Profiler.start', {}, d.s);
     await browser.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 683, y: 450, deltaX: 0, deltaY: 600 }, d.s);
     // Until it rests: on this runner the page draws a few frames a second, and the glide keeps its own time across them.
     for (let i = 0; i < 25 && !(await d.ev('scrollY > 0')); i++) await sleep(200);
     for (let i = 0; i < 40 && await d.ev('window.SentinelScroll.ticking'); i++) await sleep(200);
     const end = await d.ev('({ y: scrollY, ticking: window.SentinelScroll.ticking, frames: window.__glide })');
+    {
+      const { profile } = await browser.send('Profiler.stop', {}, d.s);
+      const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+      const parent = new Map();
+      profile.nodes.forEach((n) => (n.children || []).forEach((k) => parent.set(k, n.id)));
+      const name = (id) => { const f = byId.get(id).callFrame; return `${f.functionName || '(anon)'}@${f.url.split('/').pop()}:${f.lineNumber}`; };
+      const self = new Map();
+      const incl = new Map();
+      profile.samples.forEach((id, i) => {
+        const dt = profile.timeDeltas[i] || 0;
+        self.set(name(id), (self.get(name(id)) || 0) + dt);
+        const seen = new Set();
+        for (let p = id; p; p = parent.get(p)) { const k = name(p); if (!seen.has(k)) { seen.add(k); incl.set(k, (incl.get(k) || 0) + dt); } }
+      });
+      const top = (m) => [...m].filter(([k]) => !/^\((idle|root)\)/.test(k)).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => `${k}=${Math.round(v / 1000)}ms`).join(' | ');
+      console.log(`      DIAG self: ${top(self)}`);
+      console.log(`      DIAG inclusive: ${top(incl)}`);
+    }
     // A glide: Lenis ticking, and the page part way, on frames that span at least 90 ms of the page's own time.
     const between = end.frames.filter(([, y, ticking]) => ticking && y > 0 && y < 598);
     const span = between.length ? between[between.length - 1][0] - between[0][0] : 0;
