@@ -30,6 +30,7 @@ const DEFAULT_KEY = 'Super+Alt+S';
 const NUMBER = SIGNS.find((s) => s.id === 'number').re;
 const SCAM_NUMBER = SIGNS.find((s) => s.id === 'scamnum').re;
 const PHONE_WORDS = /\b(call|text|txt|number|phone|cell|whats ?app|dial|ring|helpline|hotline|support)\b/i;
+const FOUND = 'What Sentinel found in it:';
 const RANK = { danger: 3, warn: 2, info: 1, safe: 0, pending: 1 };
 
 /** The phone numbers in some words, as written. A run of bare digits is a number only next to phone words (as in chat). */
@@ -112,8 +113,8 @@ function judge(text, codes = [], verdicts = {}, why = null) {
   const pending = findings.some((f) => f.level === 'pending');
   const worst = top && (top.level === 'danger' || top.level === 'warn') ? top.level : 'safe';
   const advice = (findings.find((f) => f.advice && (f.level === 'danger' || f.level === 'warn')) || {}).advice || null;
-  if (worst === 'danger') return { level: 'danger', title: 'This looks like a scam', detail: top.title, advice, findings, links, pending };
-  if (worst === 'warn') return { level: 'warn', title: 'Be careful with this', detail: top.title, advice, findings, links, pending };
+  if (worst === 'danger') return { level: 'danger', title: 'This looks like a scam', detail: FOUND, advice, findings, links, pending };
+  if (worst === 'warn') return { level: 'warn', title: 'Be careful with this', detail: FOUND, advice, findings, links, pending };
   return {
     level: 'safe', title: pending ? 'Checking...' : 'Nothing dangerous found',
     detail: pending ? 'Sentinel is checking the links it found.' : 'Sentinel found no sign of a scam here. If something asks for money, a code or your password, check with the person or company another way first.',
