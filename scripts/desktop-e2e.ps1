@@ -127,6 +127,13 @@ if (-not $told) { Shot 'broken-start' }
 Stop-Process -Id $bp.Id -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $data | Out-Null
 [IO.File]::WriteAllText("$data\settings.json", '{"liveScanning":true,"autoScan":true,"openAtLogin":false,"chatSafety":true,"textSafety":true}')
+# Chrome's first start on a fresh runner once took minutes (no window for the Discord stand-in, a blank Roblox one),
+# while every later start took a second. It is paid here, while Sentinel starts, and how long it took is written down.
+$warm = Get-Date
+Start-Process "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\warm-profile", 'about:blank'
+$warmed = Until 180 { [bool](Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 }) }
+Say "Chrome's first window: $warmed after $([int]((Get-Date) - $warm).TotalSeconds) s; Defender real-time: $(try { (Get-MpComputerStatus).RealTimeProtectionEnabled } catch { '?' })"
+Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 $pages = Start-Process python -ArgumentList '-m', 'http.server', '47910', '--directory', (Join-Path $PSScriptRoot 'e2e-chat') -PassThru -WindowStyle Hidden
 Start-Process $exe -ArgumentList '--hidden'
 $up = WaitUp
