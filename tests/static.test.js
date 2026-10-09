@@ -168,3 +168,14 @@ test('home masks: every rendered mask the pages point at exists, and anime.js lo
     assert.equal((plate.match(/data-tint="[a-z]+"[^>]*class="is-on"/g) || []).length, 1, `${threat} shows exactly one colour`);
   }
 });
+
+test('account forms: Sign in and friends start disabled, and their script enables them once it has bound the form', () => {
+  // Pressed before the script is ready, a plain form post lands on an error page and the submit is lost.
+  const web = path.join(ROOT, 'web');
+  for (const [page, script] of [['login.html', 'auth.js'], ['signup.html', 'auth.js'], ['forgot.html', 'reset.js'], ['reset.html', 'reset.js']]) {
+    const html = fs.readFileSync(path.join(web, page), 'utf8');
+    const form = html.slice(html.indexOf('<form data-form'), html.indexOf('</form>', html.indexOf('<form data-form')));
+    assert.match(form, /<button[^>]*type="submit" disabled>/, `${page}: the submit button can be pressed before ${script} is ready`);
+    assert.match(fs.readFileSync(path.join(web, 'assets', 'js', script), 'utf8'), /\.disabled = false/, `${script} never enables the button`);
+  }
+});

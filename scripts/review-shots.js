@@ -136,7 +136,15 @@ async function seedWeek(post, cookie, email) {
 async function signIn(send, email) {
   const { targetId } = await send('Target.createTarget', { url: BASE + '/login' });
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-  await sleep(2500);
+  // As a person would: wait until Sign in can be pressed. The page enables it once its script has bound the form.
+  const started = Date.now();
+  let ready = { value: false };
+  for (let i = 0; i < 120 && ready.value !== true; i++) {
+    await sleep(250);
+    ({ result: ready } = await send('Runtime.evaluate', { expression: "(() => { const b = document.querySelector('[data-form] button[type=submit]'); return Boolean(b && !b.disabled); })()" }, sessionId));
+  }
+  if (ready.value !== true) { await send('Target.closeTarget', { targetId }); throw new Error('the sign-in button never became ready'); }
+  console.log(`sign-in form ready after ${Date.now() - started} ms`);
   await send('Runtime.evaluate', { expression: `(() => { const f = document.querySelector('[data-form]'); f.email.value = ${JSON.stringify(email)}; f.password.value = ${JSON.stringify(PASSWORD)}; f.requestSubmit(); })()` }, sessionId);
   // A slow runner can take a while to answer: wait for the app rather than a fixed time.
   let result = { value: '' };
@@ -146,7 +154,7 @@ async function signIn(send, email) {
   }
   if (!String(result.value).startsWith('/app')) {
     // Say what the page said, so a failed run explains itself.
-    const { result: why } = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify({ url: location.href, note: (document.querySelector('[data-note]') || {}).textContent || '', toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '), fields: [...document.querySelectorAll('.field__error')].map((t) => t.textContent).filter(Boolean).join(' | '), ready: document.readyState })` }, sessionId);
+    const { result: why } = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify({ url: location.href, note: (document.querySelector('[data-note]') || {}).textContent || '', toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '), fields: [...document.querySelectorAll('.field__error')].map((t) => t.textContent).filter(Boolean).join(' | '), ready: document.readyState, type: document.contentType, body: document.body ? document.body.innerText.slice(0, 160) : '', nav: (performance.getEntriesByType('navigation')[0] || {}).type })` }, sessionId);
     await send('Target.closeTarget', { targetId });
     throw new Error(`sign-in did not reach the app: ${why.value}`);
   }
@@ -163,11 +171,11 @@ async function main() {
     { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], windowsHide: true });
   const send = cdpPipe(browser);
   try {
-    // A slow runner sometimes submits before the sign-in script has loaded (the plain form post lands back on
-    // /login with nothing said): try again, up to three times, before giving up.
+    // signIn waits for the form to be ready, so the first attempt should do. A retry is still allowed for a runner
+    // hiccup, and the count is logged so a regression shows instead of hiding.
     const email = await signUp();
     for (let attempt = 1; ; attempt++) {
-      try { await signIn(send, email); break; } catch (err) {
+      try { await signIn(send, email); console.log(`signed in on attempt ${attempt}`); break; } catch (err) {
         if (attempt >= 3) throw err;
         console.log(`sign-in attempt ${attempt} failed (${err.message}); trying again`);
         await sleep(2000 * attempt);
