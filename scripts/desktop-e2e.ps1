@@ -308,7 +308,21 @@ Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAc
 $btcA = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'; $btcB = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2'
 $swapper = Join-Path $env:RUNNER_TEMP 'swapper.ps1'
 $gapFile = Join-Path $env:RUNNER_TEMP 'swap-gap.txt'
-"Get-Clipboard | Out-Null; Set-Clipboard -Value '$btcA'; `$t = [Diagnostics.Stopwatch]::StartNew(); Set-Clipboard -Value '$btcB'; `$t.ElapsedMilliseconds | Set-Content '$gapFile'; Start-Sleep 8" | Set-Content -Path $swapper -Encoding utf8
+# It writes the clipboard the way hijackers do, straight through Windows' own calls, the second address 20 ms after the first.
+@'
+Add-Type -Namespace W -Name C -MemberDefinition '[DllImport("user32.dll")] public static extern bool OpenClipboard(System.IntPtr h); [DllImport("user32.dll")] public static extern bool EmptyClipboard(); [DllImport("user32.dll")] public static extern System.IntPtr SetClipboardData(uint f, System.IntPtr d); [DllImport("user32.dll")] public static extern bool CloseClipboard();'
+function Put($s) {
+  $p = [Runtime.InteropServices.Marshal]::StringToHGlobalUni($s)
+  for ($i = 0; $i -lt 200 -and -not [W.C]::OpenClipboard([IntPtr]::Zero); $i++) { Start-Sleep -Milliseconds 1 }
+  [void][W.C]::EmptyClipboard(); [void][W.C]::SetClipboardData(13, $p); [void][W.C]::CloseClipboard()
+}
+Put '__A__'
+$t = [Diagnostics.Stopwatch]::StartNew()
+Start-Sleep -Milliseconds 20
+Put '__B__'
+$t.ElapsedMilliseconds | Set-Content '__GAP__'
+Start-Sleep 8
+'@.Replace('__A__', $btcA).Replace('__B__', $btcB).Replace('__GAP__', $gapFile) | Set-Content -Path $swapper -Encoding utf8
 $hearing = (ClipStatus).hearing
 Check 'wallet-hearing' ($hearing -eq $true) "clipboard changes heard as they happen (not only read on a timer): $hearing"
 $catches = { ([regex]::Matches((AppLog), 'wallet address swap caught')).Count }

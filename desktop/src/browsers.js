@@ -117,7 +117,7 @@ const WATCH_SCRIPT = `
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -Namespace SB -Name F -MemberDefinition '[DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p); [DllImport("user32.dll")] public static extern System.IntPtr GetClipboardOwner(); [DllImport("user32.dll")] public static extern bool GetLastInputInfo([In, Out] int[] p);'
 Add-Type -TypeDefinition @'
-using System; using System.Diagnostics; using System.Runtime.InteropServices; using System.Text.RegularExpressions; using System.Threading;
+using System; using System.Diagnostics; using System.Runtime.InteropServices; using System.Text; using System.Text.RegularExpressions; using System.Threading;
 namespace SB {
 public static class Clip {
   delegate IntPtr WndProc(IntPtr h, uint m, IntPtr w, IntPtr l);
@@ -136,6 +136,7 @@ public static class Clip {
   [DllImport("user32.dll")] static extern IntPtr GetClipboardOwner();
   [DllImport("user32.dll")] static extern int GetWindowThreadProcessId(IntPtr h, out int p);
   [DllImport("user32.dll")] static extern bool GetLastInputInfo([In, Out] int[] p);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassNameW(IntPtr h, StringBuilder s, int n);
   [DllImport("kernel32.dll")] static extern IntPtr GlobalLock(IntPtr h);
   [DllImport("kernel32.dll")] static extern bool GlobalUnlock(IntPtr h);
   static readonly Regex Shape = new Regex("^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{25,106}|(bc1|ltc1|BC1|LTC1)[0-9a-zA-Z]{11,71}|[A-Za-z]{2}[0-9]{2}[A-Za-z0-9 ]{11,40})$");
@@ -160,6 +161,10 @@ public static class Clip {
     int[] li = new int[] { 8, 0 }; GetLastInputInfo(li);
     string owner = ""; IntPtr o = GetClipboardOwner();
     if (o != IntPtr.Zero) { int pid; GetWindowThreadProcessId(o, out pid); try { owner = Process.GetProcessById(pid).ProcessName.ToLower(); } catch {} }
+    // A program copying through OLE (WPF, Windows Forms, Office) is still finishing its copy when the change is heard:
+    // reading straight away would make it wait, or fail. Its copy is given a moment first.
+    StringBuilder cls = new StringBuilder(64);
+    if (o != IntPtr.Zero && GetClassNameW(o, cls, 64) > 0 && cls.ToString() == "CLIPBRDWNDCLASS") Thread.Sleep(20);
     string t = (Read() ?? "").Trim();
     if (t.Length > 120 || !Shape.IsMatch(t)) t = "";
     Say("clipboard:" + seq + "|" + (uint)tick + "|" + unchecked((uint)(tick - li[1])) + "|" + owner + "|" + t);
