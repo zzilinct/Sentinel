@@ -24,6 +24,7 @@
         } catch (err) { note(esc(err.message)); }
       });
     });
+    $('button', form).disabled = false;   // disabled in the page until this script has bound the form
     return;
   }
 
@@ -82,4 +83,5 @@
       }
     });
   });
+  $('button', form).disabled = false;
 })();

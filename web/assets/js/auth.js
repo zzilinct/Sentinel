@@ -143,6 +143,9 @@
       }
     });
   });
+  // The button starts disabled in the page: pressed before this script was ready, the form would post plainly
+  // and land on an error page. It can be pressed from here on.
+  $('button[type=submit]', form).disabled = false;
 
   /* ------------------------------------------------------------- 2FA */
 
