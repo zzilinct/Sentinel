@@ -465,6 +465,32 @@ Check 'escape-neutral' ($ok -and $g -match 'mode=escape' -and $g -notmatch 'supp
 [K]::Tap(0x7A)
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
+# 5d. Your sites: a small credit union's site added (the call Live protection's form makes), then in Edge the real site
+# and an address made to look like it, both mapped to a harmless local page. The real one is left alone, the copy is
+# called what it is.
+$r = Info "addMySite('harbourcu.test')"
+Check 'my-sites-add' ((@($r) | ForEach-Object { $_.host }) -contains 'harbourcu.test') "the list: $($r | ConvertTo-Json -Compress)"
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 harbourcu.test`r`n127.0.0.1 harbourcu-secure-login.test"
+function WatchLine($pattern) { return [string](Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String $pattern | Select-Object -Last 1) }
+Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', 'http://harbourcu.test:47910/plain.html'
+Start-Sleep 8
+Say "Edge in front: $(Front 'msedge')"
+$ok = Until 45 { [bool](WatchLine 'msedge \S+ .* http://harbourcu\.test:47910/') }
+$real = WatchLine 'msedge \S+ .* http://harbourcu\.test:47910/'
+Check 'my-sites-real-site' ($ok -and $real -notmatch ' (orange|red) ') "the real site: $real"
+# A fresh Edge, as in 5c: a tab added to a window already open is not always reported as a new page.
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 2
+Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', 'http://harbourcu-secure-login.test:47910/plain.html'
+Start-Sleep 8
+Say "Edge in front: $(Front 'msedge')"
+$ok = Until 45 { [bool](WatchLine 'msedge (orange|red) .* http://harbourcu-secure-login\.test:47910/') }
+Say "the copy: $(WatchLine 'harbourcu-secure-login\.test:47910/')"
+$w = ''
+$ok = $ok -and (Until 30 { $script:w = [string](Cdp 'warn.html' "document.body.innerText").value; $script:w -match 'This is not harbourcu\.test\. You usually go to harbourcu\.test' })
+Shot 'my-sites-warning'
+Check 'my-sites-lookalike' $ok "the warning: $($w.Substring(0, [Math]::Min(300, $w.Length)) -replace '\s+', ' ')"
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
 # 6. Parent lock, through the app's own window (the same calls its Parent lock panel makes).
 $r = Info "lockSet('2468')"
 Check 'lock-set' ($r.set -and $r.locked) "set with a PIN: $($r | ConvertTo-Json -Compress)"
@@ -515,6 +541,15 @@ Check 'checkup-folds-clean-addons' ($ok -and $c -eq '3 more add-ons, nothing to 
 $t = ''
 $ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; [bool]$script:t }
 Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -match 'English texts for now' -and $t -match 'left-to-right') "Check my texts panel: $(([string]$t).Substring(0, [Math]::Min(200, ([string]$t).Length)))"
+
+# 7b. Your sites, in Live protection: a site added with the form is listed as added by you (5d proves the warning).
+$ok = Until 30 { (Cdp '127.0.0.1:4782' "Boolean(document.querySelector('[data-my-sites-add]'))").value -eq $true }
+[void](Cdp '127.0.0.1:4782' "(() => { const f = document.querySelector('[data-my-sites-add]'); f.elements.host.value = 'harbourcu.test'; f.requestSubmit(); return 1; })()")
+$s = ''
+$ok = $ok -and (Until 30 { $script:s = [string](Cdp '127.0.0.1:4782' "(document.getElementById('my-sites') || {}).innerText || ''").value; $script:s -match 'harbourcu\.test\s+Added by you' })
+[void](Cdp '127.0.0.1:4782' "(document.getElementById('my-sites').scrollIntoView(), 1)"); Start-Sleep 1
+Shot 'my-sites'
+Check 'my-sites-added' $ok "Your sites panel: $($s.Substring(0, [Math]::Min(300, $s.Length)) -replace '\s+', ' ')"
 
 # 8. Signing out: it ends the session (and the window the checks drive), so it comes last.
 [void](Info "lockSet('2468')"); [void](Info "lockUnlock('2468')")

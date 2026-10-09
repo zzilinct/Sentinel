@@ -895,3 +895,10 @@ test('the corner island, chat cards and shield window move with transforms only,
   // A calm version for reduced motion, in each window.
   for (const html of [overlay, chat, guard]) assert.match(html, /@media \(prefers-reduced-motion: reduce\)/);
 });
+
+test('boot() does not hide the tech-support scam shield behind a local "remote": a flagged page still logs and warns', () => {
+  const main = read('desktop/src/main.js');
+  const boot = main.slice(main.indexOf('async function boot()'), main.indexOf('\n}\n', main.indexOf('async function boot()')));
+  assert.match(boot, /remote\.flaggedPage\(\)/);
+  assert.doesNotMatch(boot, /\b(const|let|var) remote\b/);
+});

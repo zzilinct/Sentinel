@@ -179,12 +179,15 @@ test('every way to switch protection off or quit goes through the lock: the app,
   const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'desktop', 'src', 'main.js'), 'utf8');
   // The app's switches.
   for (const [channel, what] of [['chat-safety', 'chat safety off'], ['auto-scan', 'auto scanning off'], ['set-clipboard-check', 'checking copied links off'],
-    ['set-defense', 'defense off'], ['set-open-at-login', 'starting with the computer off']]) {
+    ['set-defense', 'defense off'], ['set-open-at-login', 'starting with the computer off'], ['set-my-sites', 'Your sites off']]) {
     assert.ok(main.includes(`handle('sentinel:${channel}', (enabled) => { lock.guard('${what}', !enabled);`), channel);
   }
   assert.match(main, /handle\('sentinel:live-stop', \(\) => \{ lock\.guard\('live scanning off', true\);/);
   assert.match(main, /lock\.guard\('download protection off', !enabled\);/);
   assert.match(main, /lock\.guard\('to another Sentinel version', true\);/);
+  // Your sites: taking one site off, or all of them.
+  assert.match(main, /lock\.guard\(`\$\{String\(host\)\.slice\(0, 253\)\} off Your sites`, true, \['take', 'Took'\]\);/);
+  assert.match(main, /lock\.guard\('every site off Your sites', true, \['take', 'Took'\]\);/);
   assert.match(main, /handle\('sentinel:quit', \(\) => \{ lock\.guard\('Sentinel off', true\);/);
   // The tray: chat safety's own switch (since 1.11.1), auto scanning, Stop scanning, starting with the computer, Quit.
   assert.match(main, /if \(trayGuard\('chat safety off', !item\.checked\)\) \{ setChatSafety\(item\.checked\);/);
