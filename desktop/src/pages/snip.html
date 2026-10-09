@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' file:">
+<title>Sentinel: check something on screen</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #ece8df; }
+  * { box-sizing: border-box; }
+  :root { --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
+  /* The whole screen, lightly dimmed (never fully clear: a clear pixel would let the pointer through to what is below). */
+  #sheet { position: fixed; inset: 0; cursor: crosshair; background: rgba(8, 8, 10, .32); transition: background .2s ease; }
+  body.drawing #sheet, body.picked #sheet { background: rgba(255, 255, 255, .004); }
+  /* The box: clear inside, the dimming moved around it. */
+  #box { position: fixed; display: none; border: 1.5px solid #d6b25a; border-radius: 3px; box-shadow: 0 0 0 100vmax rgba(8, 8, 10, .38); pointer-events: none; }
+  body.drawing #box, body.picked #box { display: block; }
+  body.picked #box { animation: settle .35s var(--spring) both; }
+  .hint { position: fixed; left: 50%; top: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 6px;
+    border-radius: 12px; background: #0c0d10; border: 1px solid rgba(214, 178, 90, .45); box-shadow: 0 6px 20px rgba(0, 0, 0, .4); color: #e2c47f;
+    pointer-events: none; animation: drop .45s var(--spring) both; white-space: nowrap; }
+  .hint span:last-child { color: #b9b4a9; }
+  .tile { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: #0c0d10; border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 60%, transparent); flex: none; }
+  .tile svg { width: 20px; height: 20px; display: block; color: var(--c, #d6b25a); }
+  body.drawing .hint, body.picked .hint { opacity: 0; transition: opacity .15s ease; }
+  /* The verdict: a card that opens out of its mask tile beside the box, as chat safety's cards do. */
+  #card { position: fixed; width: 360px; max-height: calc(100vh - 24px); overflow: auto; padding: 12px 14px 12px 50px; cursor: default; display: none; }
+  #card.is-on { display: block; }
+  .card__bg { position: absolute; inset: 0; border-radius: 12px; background: rgba(14, 14, 18, .96);
+    border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); box-shadow: 0 12px 34px rgba(0, 0, 0, .5), 0 0 18px -4px var(--c);
+    transform-origin: 0 0; animation: open .52s var(--spring) both; }
+  #card .tile { position: absolute; left: 10px; top: 11px; animation: pop .45s var(--spring) both; }
+  .card__body { position: relative; animation: words .3s ease .12s both; }
+  #card h1 { margin: 0 0 2px; font-size: 15px; color: var(--c); }
+  #card .what { color: #ece8df; }
+  #card ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 7px; }
+  #card li { padding-left: 12px; position: relative; }
+  #card li::before { content: ""; position: absolute; left: 0; top: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--d, #8a857b); }
+  #card li b { display: block; font-weight: 600; color: #ece8df; overflow-wrap: anywhere; }
+  #card li span { color: #b9b4a9; font-size: 12px; }
+  #card .do { margin-top: 10px; color: #e2c47f; font-size: 12.5px; }
+  #card .row { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
+  #card button { font: inherit; color: #0c0d10; background: #d6b25a; border: 0; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+  #card button:focus-visible { outline: 2px solid #ece8df; outline-offset: 2px; }
+  #card.reading .card__body { animation: none; }
+  @keyframes open { from { transform: scale(.12, .3); } }
+  @keyframes pop { from { opacity: 0; transform: scale(.6); } }
+  @keyframes words { from { opacity: 0; transform: translateX(-6px); } }
+  @keyframes drop { from { opacity: 0; transform: translate(-50%, -10px) scale(.9); } }
+  @keyframes settle { from { transform: scale(1.02); } }
+  @keyframes fade { from { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .card__bg, #card .tile, .card__body, body.picked #box { animation: fade .2s ease both; }
+    .hint { animation: none; }
+    #sheet { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div id="sheet"></div>
+  <div id="box"></div>
+  <div class="hint" role="status"><span class="tile" id="hintMask"></span><span>Draw a box around what you want checked</span><span>Esc to cancel</span></div>
+  <div id="card" role="dialog" aria-live="polite" aria-labelledby="title"><i class="card__bg"></i><span class="tile" id="cardMask"></span>
+    <div class="card__body"><h1 id="title"></h1><div class="what" id="what"></div><ul id="list"></ul><div class="do" id="advice"></div>
+      <div class="row"><button type="button" id="done">Done</button></div></div></div>
+<script src="../../shared/masks.js"></script>
+<script>
+(function () {
+  'use strict';
+  var M = window.SentinelMasks;
+  var COLORS = { danger: '#e5484d', warn: '#f08a24', safe: '#4cb782', empty: '#d6b25a', info: '#8a857b', pending: '#d6b25a' };
+  var $ = function (id) { return document.getElementById(id); };
+  var box = $('box'), card = $('card');
+  var start = null, rect = null;
+  $('hintMask').innerHTML = M.svg('logo');
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function close() { window.sentinelSnip.close(); }
+
+  function draw(r) { box.style.cssText = 'left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px'; }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); close(); } });
+  $('done').addEventListener('click', close);
+  $('sheet').addEventListener('pointerdown', function (e) {
+    if (rect) { close(); return; }   // a click beside the verdict puts it away
+    start = { x: e.clientX, y: e.clientY };
+    document.body.classList.add('drawing');
+    draw({ x: start.x, y: start.y, w: 0, h: 0 });
+    $('sheet').setPointerCapture(e.pointerId);
+  });
+  $('sheet').addEventListener('pointermove', function (e) {
+    if (!start || rect) return;
+    draw({ x: Math.min(start.x, e.clientX), y: Math.min(start.y, e.clientY), w: Math.abs(e.clientX - start.x), h: Math.abs(e.clientY - start.y) });
+  });
+  $('sheet').addEventListener('pointerup', function (e) {
+    if (!start || rect) return;
+    var r = { x: Math.min(start.x, e.clientX), y: Math.min(start.y, e.clientY), w: Math.abs(e.clientX - start.x), h: Math.abs(e.clientY - start.y) };
+    start = null;
+    if (r.w < 6 || r.h < 6) { document.body.classList.remove('drawing'); return; }   // a click, not a box
+    rect = r;
+    draw(r);
+    document.body.classList.remove('drawing');
+    document.body.classList.add('picked');
+    show({ phase: 'reading' });
+    window.sentinelSnip.pick(r);
+  });
+
+  // Beside the box: on its right if there is room, else on its left, else over its lower part.
+  function place() {
+    var W = window.innerWidth, H = window.innerHeight, w = card.offsetWidth, h = card.offsetHeight;
+    var x = rect.x + rect.w + 14 + w <= W - 12 ? rect.x + rect.w + 14 : rect.x - w - 14 >= 12 ? rect.x - w - 14 : Math.max(12, Math.min(rect.x + rect.w - w, W - w - 12));
+    var y = Math.max(12, Math.min(rect.y, H - h - 12));
+    card.style.left = Math.round(x) + 'px'; card.style.top = Math.round(y) + 'px';
+  }
+
+  function show(s) {
+    if (!rect) return;
+    var r = s.result;
+    var level = s.error ? 'empty' : s.phase === 'reading' ? 'pending' : r.level;
+    var opening = !card.classList.contains('is-on') || card.dataset.level !== level;
+    card.style.setProperty('--c', COLORS[level] || COLORS.info);
+    card.classList.toggle('reading', s.phase === 'reading');
+    $('cardMask').innerHTML = M.svg(level === 'danger' || level === 'warn' ? 'scam' : 'logo');
+    $('title').textContent = s.error ? 'This could not be read' : s.phase === 'reading' ? 'Reading...' : r.title;
+    $('what').textContent = s.error ? s.error : s.phase === 'reading' ? 'Sentinel is reading it on this computer.' : r.detail;
+    $('list').innerHTML = r ? r.findings.map(function (f) {
+      return '<li style="--d:' + (COLORS[f.level] || COLORS.info) + '" data-level="' + esc(f.level) + '" data-kind="' + esc(f.kind) + '"><b>' + esc(f.title) + '</b><span>' + esc(f.detail) + '</span></li>';
+    }).join('') : '';
+    $('advice').textContent = (r && r.advice) || '';
+    card.dataset.level = level;
+    card.dataset.pending = r && r.pending ? '1' : '';
+    // A new level opens the card again; more found at the same level only changes the words.
+    if (opening) { card.classList.remove('is-on'); void card.offsetWidth; }
+    card.classList.add('is-on');
+    place();
+    if (s.phase === 'done') $('done').focus();
+  }
+  window.sentinelSnip.onState(show);
+})();
+</script>
+</body>
+</html>

@@ -34,3 +34,4 @@ dist-static/
 /resources/
 desktop/.sync-lock/
 desktop/.sync-stamp
+scripts/e2e-chat/snip-qr.png

@@ -27,6 +27,7 @@ public static class K {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out int pid);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int x, int y, uint data, UIntPtr extra);
   public static void Tap(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
 }
 "@
@@ -590,6 +591,61 @@ $w = ''
 $ok = $ok -and (Until 30 { $script:w = [string](Cdp 'warn.html' "document.body.innerText").value; $script:w -match 'This is not harbourcu\.test\. You usually go to harbourcu\.test' })
 Shot 'my-sites-warning'
 Check 'my-sites-lookalike' $ok "the warning: $($w.Substring(0, [Math]::Min(300, $w.Length)) -replace '\s+', ' ')"
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+# 5e. Check something on screen: the shortcut (Windows key + Alt + S) over Edge showing a scam text with a link and a
+# callback number, and a QR code to a listed scam (made here with another encoder, as verify-web's codes are). A box
+# is drawn over them with the mouse, and the verdict card names all three. Then the shortcut again, and Escape.
+python -m pip install --quiet --disable-pip-version-check qrcode pillow 2>&1 | Out-Null
+python -c "import qrcode, sys; qrcode.make(sys.argv[1], box_size=6, border=4).save(sys.argv[2])" 'https://paypa1-secure-login.com/account' (Join-Path $PSScriptRoot 'e2e-chat\snip-qr.png')
+Say "QR code made: $(Test-Path (Join-Path $PSScriptRoot 'e2e-chat\snip-qr.png'))"
+function SnipKey { [K]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero); [K]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [K]::Tap(0x53); [K]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero); [K]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero) }
+function SnipGone { return [string](Cdp 'snip.html' '1').error -match 'no window' }
+function SnipLines { return ([regex]::Matches((AppLog), 'check on screen: ')).Count }
+$s = (Info 'info()').snip
+Check 'snip-shortcut' ($s.enabled -and $s.registered -and $s.key -eq 'Super+Alt+S') "on by default, its shortcut registered: $($s | ConvertTo-Json -Compress -Depth 3)"
+Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', '--start-maximized', 'http://127.0.0.1:47910/snip.html'
+Start-Sleep 8
+Say "Edge in front: $(Front 'msedge')"
+Start-Sleep 2
+# Where the page is on screen, as Windows describes it to screen readers.
+$A = [Windows.Automation.AutomationElement]
+$doc = $A::FromHandle([K]::GetForegroundWindow()).FindFirst([Windows.Automation.TreeScope]::Descendants, (New-Object Windows.Automation.PropertyCondition($A::ControlTypeProperty, [Windows.Automation.ControlType]::Document)))
+$at = $(if ($doc) { $doc.Current.BoundingRectangle } else { $null })
+Say "the page on screen: $at"
+SnipKey
+$open = Until 20 { (Cdp 'snip.html' 'document.readyState').value -eq 'complete' }
+Start-Sleep 1
+Shot 'snip-sheet'
+Check 'snip-opens' $open 'the shortcut opened the sheet over the screen'
+if (-not $open) { (AppLog) -split "`n" | Select-String 'check on screen' | Select-Object -Last 5 | ForEach-Object { Say "  diag app.log: $_" } }
+if ($open -and $at) {
+  $x1 = [int]$at.X + 8; $y1 = [int]$at.Y + 8
+  $x2 = [int]([Math]::Min($at.X + 740, $at.X + $at.Width - 10)); $y2 = [int]([Math]::Min($at.Y + 300, $at.Y + $at.Height - 10))
+  [void][K]::SetCursorPos($x1, $y1); Start-Sleep -Milliseconds 300
+  [K]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+  for ($i = 1; $i -le 12; $i++) { [void][K]::SetCursorPos([int]($x1 + ($x2 - $x1) * $i / 12), [int]($y1 + ($y2 - $y1) * $i / 12)); Start-Sleep -Milliseconds 40 }
+  [K]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+  Say "box drawn from $x1,$y1 to $x2,$y2"
+  $card = ''
+  $ok = Until 60 { $script:card = [string](Cdp 'snip.html' "(() => { const c = document.getElementById('card'); return c.dataset.level + '|' + c.dataset.pending + '|' + c.innerText.replace(/\s+/g, ' '); })()").value; $script:card -match '^danger\|\|' }
+  Start-Sleep 1
+  Shot 'snip-verdict'
+  Check 'snip-verdict' $ok "the card: $($card.Substring(0, [Math]::Min(600, $card.Length)))"
+  Check 'snip-finds-message' ($card -match 'This message (looks like|may be) a scam') 'the text itself is judged a scam'
+  Check 'snip-finds-qr' ($card -match 'The QR code leads to a dangerous site: paypa1-secure-login\.com') 'the QR code was read and its link checked'
+  Check 'snip-finds-phone' ($card -match 'A number to call back: [^|]*876') 'the callback number is named'
+  Check 'snip-log-private' (-not ((AppLog) -match 'redeliver|paypa1|555-0142')) "app.log says only that a check happened: $(((AppLog) -split "`n" | Select-String 'check on screen') -join ' / ')"
+  [K]::Tap(0x1B)
+  Check 'snip-escape-card' (Until 10 { SnipGone }) 'Escape put the verdict away'
+} else { Check 'snip-verdict' $false 'no sheet, or the page was not found on screen' }
+# Escape before a box is drawn: nothing is read.
+$lines = SnipLines
+SnipKey
+$open = Until 20 { (Cdp 'snip.html' 'document.readyState').value -eq 'complete' }
+Start-Sleep 1
+[K]::Tap(0x1B)
+Check 'snip-escape' ($open -and (Until 10 { SnipGone }) -and (SnipLines) -eq $lines) "opened: $open; Escape closed it and nothing was read"
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 # 6. Parent lock, through the app's own window (the same calls its Parent lock panel makes).
