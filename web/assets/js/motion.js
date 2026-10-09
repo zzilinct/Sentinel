@@ -47,14 +47,14 @@
     const lenis = new window.Lenis({ lerp: 0.1, smoothWheel: true, syncTouch: false, anchors: false });
     lenis.on('scroll', ST.update);
     G.ticker.lagSmoothing(0);
-    // GSAP's clock drives Lenis only while it glides. Its own time runs on a clock that never jumps, so the first
-    // frame after a rest is not one long step (which would land the glide at once).
+    // GSAP's clock drives Lenis only while it glides. Lenis keeps time on its own clock, which skips the rests, so
+    // the first frame after one is a frame long, not the whole rest (which would land the glide at once).
     let ticking = false;
     let clock = 0;
     let prev = 0;
     const tick = (time) => {
       const ms = time * 1000;
-      clock += prev ? Math.min(ms - prev, 50) : 1000 / 60;
+      clock += prev ? ms - prev : 1000 / 60;
       prev = ms;
       lenis.raf(clock);
       if (!lenis.animate.isRunning) { G.ticker.remove(tick); ticking = false; prev = 0; }
