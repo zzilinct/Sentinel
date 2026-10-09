@@ -677,6 +677,8 @@ Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -mat
 
 # 4c, seen in the app (signed in since 7; the restart before it emptied the list): a Discord installer someone
 # uploaded to a Discord chat arrives, and Recent downloads lists it as a fake, with the real site named.
+# Signing in (the checkup, above) restarts download protection: a file that lands meanwhile is not seen.
+Start-Sleep 20
 Arrive 'DiscordSetup.exe' 'https://cdn.discordapp.com/attachments/1180000000000000000/1190000000000000000/DiscordSetup.exe' 'https://discord.com/channels/@me'
 [void](Until 90 { (AppLog) -match 'download source: DiscordSetup\.exe not from Discord.s own site' })
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection#downloads', 1)")

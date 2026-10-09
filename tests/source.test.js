@@ -48,6 +48,10 @@ test('a product\'s installer from anywhere else is flagged, and the warning name
   assert.equal(r.reason, 'This says it is Zoom, but it came from zoom-download-free.site, not zoom.us. Get Zoom from zoom.us.');
   const fakes = [
     ['DiscordSetup.exe', zone('https://cdn.discordapp.com/attachments/1234/5678/DiscordSetup.exe'), 'cdn.discordapp.com'],
+    // Shared in a chat: the page that started it is discord.com or web.whatsapp.com, which proves nothing.
+    ['DiscordSetup.exe', zone('https://cdn.discordapp.com/attachments/1234/5678/DiscordSetup.exe', 'https://discord.com/channels/@me'), 'cdn.discordapp.com'],
+    ['ZoomInstaller.exe', zone('https://files.example-share.net/ZoomInstaller.exe', 'https://web.whatsapp.com/'), 'files.example-share.net'],
+    ['ZoomInstaller.exe', zone('https://zoom-download-free.site/ZoomInstaller.exe', 'https://zoom.us/j/123456789'), 'zoom-download-free.site'],
     ['OBS_Studio_Setup_Full.exe', zone('blob:https://obs-studio.download/6f1c2e9a-1b2c-4d5e-8f90-1234567890ab'), 'obs-studio.download'],
     ['AnyDesk.exe', zone('https://anydesk-app.com/AnyDesk.exe', 'https://www.bing.com/')],
     ['ChromeSetup.exe', zone('https://sites.google.com/view/chrome-update/ChromeSetup.exe')],

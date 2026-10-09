@@ -82,11 +82,9 @@ function official(product, url) {
   if (!url) return false;
   const host = url.hostname.toLowerCase().replace(/\.$/, '');
   if (UPLOADS.includes(host)) return false;
-  if (within(host, product.domains) || within(host, MIRRORS)) return true;
-  // The product's own GitHub releases: the page (github.com/obsproject/...) is the proof; the file itself comes
-  // from GitHub's shared storage.
-  return Boolean(product.github) && host === 'github.com' && url.pathname.toLowerCase().startsWith(`/${product.github}/`);
+  return within(host, product.domains) || within(host, MIRRORS) || ownGithub(product, url);
 }
+const ownGithub = (product, url) => Boolean(product.github && url) && url.hostname.toLowerCase() === 'github.com' && url.pathname.toLowerCase().startsWith(`/${product.github}/`);
 
 /**
  * Judge a download by its source. `zipHasProgram`: the file is a zip with a program inside (an installer too).
@@ -99,7 +97,9 @@ function judge(fileName, zone, { zipHasProgram = false } = {}) {
   const from = zone && web(zone.hostUrl);
   if (!product || !from) return null;
   const host = from.hostname.toLowerCase();
-  const genuine = official(product, from) || official(product, web(zone.referrerUrl));
+  // The page that started a download is no proof by itself: a fake shared in a Discord or WhatsApp chat starts from
+  // discord.com. It counts only for the product's own GitHub releases, whose files come from GitHub's shared storage.
+  const genuine = official(product, from) || (within(host, ['github.com', 'githubusercontent.com']) && ownGithub(product, web(zone.referrerUrl)));
   return {
     product: product.name,
     home: product.home,
