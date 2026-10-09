@@ -32,6 +32,7 @@ const PAGES = [
   ['home', '/'], ['pricing', '/pricing'], ['download', '/download'], ['privacy', '/privacy'], ['terms', '/terms'], ['refunds', '/refunds'], ['recover', '/recover'],
   ['signup', '/signup', { anonymous: true }], ['login', '/login', { anonymous: true }], ['not-found', '/no-such-page'],
   ['app-overview', '/app'],
+  ['app-week', '/app/week'],
   ['app-scan-empty', '/app/scan'],
   ['app-scan-phishing', `/app/scan?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, { wait: 6000 }],
   ['app-scan-clean', `/app/scan?url=${encodeURIComponent('https://www.wikipedia.org/')}`, { wait: 6000 }],
@@ -66,8 +67,10 @@ function cdpPipe(child, onEvent) {
   });
 }
 
+let dbFile = null;
 async function startServer() {
   const db = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-shots-'));
+  dbFile = path.join(db, 'sentinel.db');
   const child = spawn(process.execPath, [path.join(process.env.SENTINEL_ROOT || ROOT, 'server', 'index.js')], {
     env: { ...process.env, NODE_ENV: 'development', PORT: String(PORT), DB_PATH: path.join(db, 'sentinel.db'), FEED_REFRESH_HOURS: '0', RESEARCH_ENABLED: '0', BILLING_MODE: 'demo', SESSION_SECRET: 'review-shots-secret-000000000000000000000' },
     stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
@@ -92,7 +95,38 @@ async function signUp() {
   if (!r.ok) throw new Error(`sign-up was refused: ${r.status} ${await r.text()}`);
   const cookie = (r.headers.getSetCookie ? r.headers.getSetCookie() : [r.headers.get('set-cookie')]).filter(Boolean).map((c) => c.split(';')[0]).join('; ');
   await post('/api/v1/billing/plan', { plan: 'max' }, cookie);
+  await seedWeek(post, cookie, email);
   return email;
+}
+
+/**
+ * Your week (server/lib/week.js) with something in it. This week's counts come through the real endpoints: live
+ * scanning checks a few results and a page, and the Windows app's numbers arrive the way the app hands them over.
+ * The three weeks before cannot be made to happen now, so they are written straight into this throwaway database,
+ * into the same counters a real account's past weeks come from.
+ */
+async function seedWeek(post, cookie, email) {
+  const live = await post('/api/v1/live/batch', { urls: ['https://paypa1-secure-login.com/account/verify', 'https://github.com/', 'https://www.wikipedia.org/', 'https://www.bbc.co.uk/news', 'https://example.com/'], mode: 'fast' }, cookie);
+  const visit = await post('/api/v1/live/visit', { url: 'https://paypa1-secure-login.com/account/verify', mode: 'fast' }, cookie);
+  const app = await post('/api/v1/week/count', { counts: { files_checked: 37, files_quarantined: 1, commands_stopped: 1, chat_checked: 212, chat_flagged: 2 } }, cookie);
+  if (!live.ok || !visit.ok || !app.ok) throw new Error(`your week could not be filled in: ${live.status} ${visit.status} ${app.status} ${await app.text()}`);
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(dbFile);
+  try {
+    db.exec('PRAGMA busy_timeout = 5000');
+    const { id } = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const d = new Date();
+    const thisWeek = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    const put = db.prepare('INSERT INTO usage_counters (user_id, week, metric, used) VALUES (?, ?, ?, ?)');
+    const past = [
+      { live_links: 412, live_flagged: 1, files_checked: 25, chat_checked: 160 },
+      { live_links: 288, files_checked: 12, chat_checked: 95, commands_stopped: 1 },
+      { live_links: 530, live_flagged: 3, files_checked: 41, chat_checked: 240, chat_flagged: 1, wallet_swaps: 1 }
+    ];
+    past.forEach((counts, i) => {
+      for (const [metric, n] of Object.entries(counts)) put.run(id, thisWeek - (3 - i) * 7 * 24 * 60 * 60 * 1000, metric, n);
+    });
+  } finally { db.close(); }
 }
 
 /** Sign in through the real form, as a person would, so the browser holds a real session. */
@@ -230,7 +264,7 @@ async function main() {
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
       await send('Page.navigate', { url: BASE + '/app' }, sessionId);
       await sleep(3000);
-      for (const route of ['protection', 'scan', 'threats', 'history', 'sites', 'plan', 'security', 'assistants', 'home']) {
+      for (const route of ['week', 'protection', 'scan', 'threats', 'history', 'sites', 'plan', 'security', 'assistants', 'home']) {
         await send('Runtime.evaluate', { expression: `document.querySelector('.side__link[data-route="${route}"]').click()` }, sessionId);
         const t0 = Date.now();
         // The wipe from the link is over by about 420 ms; tiles and counts are still moving at 450 ms.
@@ -434,6 +468,7 @@ async function main() {
       await send('Target.closeTarget', { targetId });
     }
     await textScan(send);
+    await weekCheck(send);
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
     browser.kill();
@@ -535,6 +570,37 @@ async function textScan(send) {
     check(result.value === '/app/text', 'the command palette finds Text scan and opens it', result.value);
     await send('Target.closeTarget', { targetId });
   }
+}
+
+/**
+ * Your week (app.js weekView) says exactly what the server counted: the headline, a row for each count, four bars,
+ * and the card on the overview. Asserted, so a page that shows anything else fails this job.
+ */
+async function weekCheck(send) {
+  const check = (ok, what, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  your week: ${what}${ok ? '' : `  got ${JSON.stringify(got)}`}`); if (!ok) throw new Error(`your week: ${what}`); };
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  await send('Page.enable', {}, sessionId);
+  await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const run = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId)).result.value;
+  await send('Page.navigate', { url: BASE + '/app/week' }, sessionId);
+  await sleep(3500);
+  const got = await run(`fetch('/api/v1/week').then((r) => r.json()).then((d) => {
+    const w = d.weeks[d.weeks.length - 1];
+    return { api: w, h: document.querySelector('[data-week-n]')?.textContent, rows: [...document.querySelectorAll('.week-rows .usage-row')].map((r) => [r.querySelector('.usage-row__l').firstChild.textContent.trim(), r.querySelector('.usage-row__n').textContent]),
+      bars: [...document.querySelectorAll('.week-bars__col b')].map((b) => b.textContent), catch: document.querySelector('.week-hero__catch')?.textContent || '' };
+  })`);
+  check(got.h === got.api.headline && /^Sentinel caught \d+ things this week$/.test(got.h), 'the headline is the count the server keeps', [got.h, got.api.headline]);
+  check(got.catch.includes(got.api.biggest) && /quarantine/.test(got.api.biggest), 'the biggest catch is the quarantined file, in plain words', got.catch);
+  const row = (label) => (got.rows.find((r) => r[0] === label) || [])[1];
+  check(row('Files quarantined') === String(got.api.counts.files_quarantined) && row('Links checked by live scanning') === String(got.api.counts.live_links), 'each row shows its count', got.rows);
+  check(row('Wallet swaps caught') === '0' && !row('Look-alikes of your sites caught') && !row('Exposure alerts'), 'a row for each kind of count the four weeks hold, and none for what never happened', got.rows);
+  check(got.bars.length === 4 && got.bars[3] === String(got.api.caught), 'four weeks of bars, this week last', got.bars);
+  await send('Page.navigate', { url: BASE + '/app' }, sessionId);
+  await sleep(3500);
+  const card = await run("document.querySelector('.week-card h2')?.textContent || ''");
+  check(card === got.api.headline, 'the overview carries the same headline', card);
+  await send('Target.closeTarget', { targetId });
 }
 
 // Its browser and server helpers are shared with scripts/perf-probe.js.

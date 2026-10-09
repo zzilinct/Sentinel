@@ -185,8 +185,14 @@ async function hashFile(full) {
   });
 }
 
-/** Scan a file on this computer and respond if it is dangerous. */
+/** Scan a file on this computer and respond if it is dangerous. A file really checked is told to onChecked (counted for the person's week). */
 async function inspect(full, how) {
+  const item = await inspectFile(full, how);
+  if (item && opts.onChecked) opts.onChecked(item);
+  return item;
+}
+
+async function inspectFile(full, how) {
   let stat;
   try { stat = fs.statSync(full); } catch { return null; }
   if (!stat.isFile() || stat.size === 0) return null;
@@ -594,7 +600,7 @@ async function act(id) {
   const item = { path: entry.path, name: entry.name, sha256: entry.sha256, badge: entry.badge, label: entry.label, entryId: entry.id };
   const actions = await respond(item);
   amend(entry.id, { kind: 'threat', actions: [{ did: 'quarantined at your request' }, ...actions], quarantined: item.quarantined || null });
-  return { ok: true };
+  return { ok: true, quarantined: Boolean(item.quarantined) };
 }
 
 module.exports = {

@@ -159,6 +159,7 @@ async function scan(full, stat) {
   };
   recent.unshift(item);
   if (recent.length > 50) recent.pop();
+  if (opts.onChecked) opts.onChecked(item);
   if (item.badge) opts.onThreat(item);
 }
 

@@ -25,6 +25,7 @@ const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
 const { KINDS } = require('../lib/scan/kinds');
 const { classify: classifyQr } = require('../lib/scan/qr');
 const texts = require('../lib/scan/texts');
+const week = require('../lib/week');
 // Kinds the engine can name from evidence; "blocked" is a rule the user set, not a threat kind.
 const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
 const { ALL_CHECKS } = require('../lib/scan/checklist');
@@ -33,6 +34,15 @@ const ALL = ['scam', 'virus', 'malware'];
 /** Asked from this same computer (the Windows app and its own server). */
 const local = (req) => /^(127\.|::1$)/.test(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''));
 const UNMETERED = new Set(['texts', 'checkup', 'clipboard']);
+
+/** Your week (week.js): how many links live scanning checked, how many were dangerous, how many copied your sites. */
+const lookalike = (v) => Boolean(v && v.ok && v.checklist && v.checklist.items.some((c) => c.id === 'Y01'));
+const dangerous = (v) => Boolean(v && v.ok && (v.overall.badge === 'red' || v.overall.badge === 'orange'));
+function countLive(userId, verdicts) {
+  week.bump(userId, 'live_links', verdicts.filter((v) => v && v.ok).length);
+  week.bump(userId, 'live_flagged', verdicts.filter(dangerous).length);
+  week.bump(userId, 'lookalikes', verdicts.filter(lookalike).length);
+}
 
 const REPORT_CATEGORIES = new Set([
   'phishing', 'fake_store', 'crypto_scam', 'tech_support_scam', 'investment_scam',
@@ -120,6 +130,7 @@ function register(router) {
       mode: 'manual',
       record: true
     }));
+    if (lookalike(verdict)) week.bump(user.id, 'lookalikes');
     sendJson(res, 200, withUsage(user, { verdict, scanMode }));
   });
 
@@ -276,6 +287,8 @@ function register(router) {
     const verdicts = await engine.scanUrls(urls, {
       userId: user.id, planId: plan.id, research, budgetMs: DELICATE_BUDGET_MS, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: !isPrivate, hints
     });
+    // Counted once per link: a delicate scan's quick first pass is followed by the researched one. Never a private window.
+    if (!isPrivate && body.quick !== true) countLive(user.id, verdicts);
     const byUrl = {};
     for (const v of verdicts) byUrl[v.requested] = v;
     sendJson(res, 200, { byUrl, mode, fellBack, researched: research, tookMs: Date.now() - started, live: liveUsage(user, plan) });
@@ -295,6 +308,7 @@ function register(router) {
     // Exposure alerts, when the person switched them on: a page that was not a likely or confirmed threat is
     // remembered as a keyed hash for 14 days, in case a list names it later. Never a page in a private window.
     const badge = verdict && verdict.overall && verdict.overall.badge;
+    if (body.private !== true) countLive(user.id, [verdict]);
     if (body.remember === true && body.private !== true && badge !== 'red' && badge !== 'orange') {
       try { exposure.remember(user.id, String(url), now(), Number(body.tz)); } catch { /* best effort, like history */ }
     }

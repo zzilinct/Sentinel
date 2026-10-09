@@ -140,6 +140,7 @@ function startChatSafety() {
     log: (text) => appLog(text),
     onState: (s) => chatoverlay.show(s),
     onSeen: () => { push('sentinel:chat-safety', chatSafetyStatus()); push('sentinel:text-safety', textSafetyStatus()); },
+    onCounted: (c) => { tally('chat_checked', c.checked); tally('chat_flagged', c.flagged); },
     // Links in texts, by address only. The scanner may still be starting: the words still count without it.
     api: (pathname, body) => (ORIGIN ? apiCall(pathname, body) : Promise.reject(new Error('scanner not ready')))
   });
@@ -886,15 +887,19 @@ function syncClipboard() {
     onDanger: (d) => notify(`Careful: the link you copied is a ${d.label.toLowerCase()}`, `${d.host}${d.reason ? ` - ${d.reason}` : ''}. Click to see why.`, () => showWindow(`/app/scan?url=${encodeURIComponent(d.url)}`)),
     onCommand: (c) => {
       const from = c.host ? `From ${c.host}. ` : c.from === 'program' ? 'Copied in a program, not a web page. ' : '';
+      if (c.action === 'stop') tally('commands_stopped');
       if (c.action === 'stop') notify('Sentinel stopped a copied command', `${from}${c.reason}. Never paste a command a website gives you into Windows. Click to put it back if you trust it.`, () => putBackCommand().then((r) => notify(r.ok ? 'The command is back on your clipboard' : 'The command was not put back', r.message)));
       else notify('Careful with the command you copied', `${from}${c.reason}. Only run it if you know exactly what it does and who it came from.`);
       push('sentinel:command', clipwatch.heldCommand());
     },
     // Wallet guard: an address swapped on the clipboard. The addresses themselves never leave clipwatch.
-    onWallet: (w) => notify(
+    onWallet: (w) => {
+      tally('wallet_swaps');
+      notify(
       w.putBack ? 'Sentinel put back the wallet address you copied' : 'The wallet address you copied was replaced',
       `${w.putBack ? 'Something on this PC replaced the wallet address you copied. Sentinel put yours back. Check every character before you send.' : 'Something on this PC replaced the wallet address you copied, and Windows did not let Sentinel put it back. Copy it again and check every character before you send.'}${w.program ? ` It looks like ${w.program} did it.` : ''} Click to check this PC with Defense.`,
-      () => showWindow('/app/protection#defense'))
+      () => showWindow('/app/protection#defense'));
+    }
   });
 }
 
@@ -985,6 +990,68 @@ function setExposureAlerts(enabled) {
     return forgetExposures().then((erased) => ({ exposureAlerts: false, erased }));
   }
   return { exposureAlerts: Boolean(enabled) };
+}
+
+/*
+ * Your week with Sentinel (server/lib/week.js). What the app sees on this computer is counted here as numbers (files
+ * checked, a command stopped, a wallet swap caught, chat messages checked) and handed to the app's own server every
+ * few minutes: never a file name, a command, an address or a message. Counts not yet handed over when the app is
+ * ended are lost, never guessed at.
+ */
+const weekPending = {};
+const WEEK_FLUSH_MS = 5 * 60 * 1000;
+const WEEK_RECAP_EVERY_MS = 60 * 60 * 1000;
+let weekTimers = null;
+function tally(metric, n = 1) {
+  if (n > 0) weekPending[metric] = (weekPending[metric] || 0) + n;
+}
+// A file in Downloads is checked by download protection and by Defense: counted once.
+const checkedFiles = new Map();
+function fileChecked(file) {
+  const key = String(file || '').toLowerCase();
+  const t = Date.now();
+  for (const [k, at] of checkedFiles) if (t - at > 10 * 60 * 1000) checkedFiles.delete(k);
+  if (checkedFiles.has(key)) return;
+  checkedFiles.set(key, t);
+  tally('files_checked');
+}
+async function flushWeek() {
+  if (!ORIGIN || !Object.keys(weekPending).length) return;
+  const counts = { ...weekPending };
+  for (const k of Object.keys(counts)) delete weekPending[k];
+  try { await apiCall('/api/v1/week/count', { counts }); } catch (err) {
+    // A server that will never take them (one this computer does not run) is not asked again with the same numbers.
+    if (err.status !== 403) for (const [k, n] of Object.entries(counts)) tally(k, n);
+  }
+}
+
+/** The weekly note, when the person turned it on: last week in one line, once, and never over a game. */
+async function weekRecap() {
+  if (!store.get('weekRecap', false) || !ORIGIN) return;
+  let s;
+  try { s = await apiCall('/api/v1/week'); } catch { return; }
+  const w = s.weeks[s.weeks.length - 2];
+  if (!w || w.startsAt <= store.get('weekRecapFor', 0)) return;
+  // A week with nothing in it is not news.
+  if (!w.checked && !w.caught) { store.set('weekRecapFor', w.startsAt); return; }
+  if (await fullscreenInFront()) return;   // asked again in an hour
+  store.set('weekRecapFor', w.startsAt);
+  notify(`Your week with Sentinel: ${w.headline}`,
+    `${w.biggest || `Sentinel checked ${w.checked.toLocaleString()} links, files and messages, and found nothing dangerous.`} Click to see your week.`,
+    () => showWindow('/app/week'));
+}
+
+function startWeek() {
+  if (weekTimers) return;
+  weekTimers = [setInterval(() => flushWeek().catch(() => {}), WEEK_FLUSH_MS), setInterval(() => weekRecap().catch(() => {}), WEEK_RECAP_EVERY_MS)];
+  weekTimers.forEach((t) => t.unref());
+}
+
+function setWeekRecap(enabled) {
+  // Turned on: the first note is about the week now running, once it is over. Never one straight away.
+  if (enabled && !store.get('weekRecap', false)) store.set('weekRecapFor', Date.now() - 7 * 24 * 60 * 60 * 1000);
+  store.set('weekRecap', Boolean(enabled));
+  return { weekRecap: Boolean(enabled) };
 }
 
 /**
@@ -1145,6 +1212,7 @@ function registerBridge() {
     walletGuard: process.platform === 'win32' && store.get('walletGuard', true),
     exposureAlerts: store.get('exposureAlerts', false),
     mySites: store.get('mySites', true),
+    weekRecap: store.get('weekRecap', false),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
@@ -1233,7 +1301,10 @@ function registerBridge() {
   handle('sentinel:exposure-dismiss', async (host) => (await apiCall('/api/v1/live/exposures/dismiss', { host: String(host).slice(0, 253) })).ok);
   handle('sentinel:exposure-downloads', (day) => checkDownloadsFrom(day));
   handle('sentinel:defense-restore', (id) => { lock.guard('a quarantined file back', true, ['put', 'Put']); return defense.restore(String(id)); });
-  handle('sentinel:defense-act', (id) => defense.act(String(id)));
+  handle('sentinel:defense-act', async (id) => { const r = await defense.act(String(id)); if (r.quarantined) tally('files_quarantined'); return r; });
+  handle('sentinel:set-week-recap', (enabled) => setWeekRecap(Boolean(enabled)));
+  // The week as the app's own account has it, with what the app counted since the last hand-over handed over first.
+  handle('sentinel:week', async () => { await flushWeek(); return apiCall('/api/v1/week'); });
   handle('sentinel:install-update', () => updater.install());
   // The text of an email screenshot, read on this computer by Windows (ocr.js); the images are not kept.
   handle('sentinel:read-screenshot', (images) => require('./ocr').read(Array.isArray(images) ? images : []));
@@ -1283,7 +1354,7 @@ function registerBridge() {
 
   handle('sentinel:recent-downloads', () => downloads.recent());
 
-  handle('sentinel:quarantine', (id) => downloads.quarantine(String(id)));
+  handle('sentinel:quarantine', async (id) => { const r = await downloads.quarantine(String(id)); tally('files_quarantined'); return r; });
 
   handle('sentinel:retry-server', () => { retryCount = 0; boot(); return { ok: true }; }, trustedLocal);
   handle('sentinel:open-logs', () => { shell.showItemInFolder(server.logPath()); return { ok: true }; }, trustedLocal);
@@ -1366,7 +1437,9 @@ async function boot() {
     selfDir: path.dirname(process.execPath),
     enabled: () => store.get('defense', true),
     onChange: () => { refreshTray(); push('sentinel:defense', defense.status()); },
+    onChecked: (item) => fileChecked(item.path),
     onThreat: (item) => {
+      if (item.quarantined) tally('files_quarantined');
       const did = item.actions.map((a) => a.did).filter((d, i, arr) => arr.indexOf(d) === i).join(', ');
       if (item.suspect) notify('Sentinel: a startup program looks suspicious', `${item.name}\nNothing was changed. Open Sentinel to quarantine it if you do not recognise it.`, () => showWindow('/app/protection'));
       else notifyAboutFile(item.path, `Sentinel stopped ${item.label}`, `${item.name}\n${did || 'Flagged'}`, () => showWindow('/app/protection'));
@@ -1383,6 +1456,7 @@ async function boot() {
     enabled: () => store.get('downloadProtection', true),
     log: appLog,
     onChange: refreshTray,
+    onChecked: (item) => fileChecked(item.path),
     onThreat: (item) => {
       // To the list of recent downloads, where the file's Quarantine button is (not the file scanner's drop zone).
       notifyAboutFile(item.path, `Sentinel: ${item.label}`, `${item.name}\n${item.reason}`, () => showWindow('/app/protection#downloads'));
@@ -1489,6 +1563,7 @@ async function boot() {
   step('copied links and commands', () => syncClipboard());
   step('exposure alerts', () => { if (store.get('exposureAlerts', false)) setExposureAlerts(true); else forgetExposures().catch(() => {}); });
   step('your sites', () => { forgetMySites().catch(() => {}); });
+  step('your week', () => startWeek());
   step('tray refresh', () => refreshTray());
   // In the tray (started with Windows, or after an update) there is no window until someone opens one.
   if (win) openApp();

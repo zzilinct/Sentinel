@@ -285,6 +285,19 @@ body.app::before { opacity: .6; }
 button.usage-row { width: 100%; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; }
 button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow: inset 3px 0 0 var(--gold-400); }
 
+/* ----------------------------------------------------------- your week */
+
+.week-hero__k { font: 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--gold-300); }
+.week-hero h2 { font: 400 clamp(28px, 4vw, 40px)/1.1 var(--serif); letter-spacing: -.02em; margin-top: 10px; }
+.week-hero__catch { margin-top: 14px; color: var(--muted); font-size: 15px; max-width: 62ch; }
+.week-hero__catch b { display: block; font: 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text); margin-bottom: 4px; }
+.week-bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; height: 180px; align-items: end; }
+.week-bars__col { display: grid; grid-template-rows: auto 1fr auto; gap: 8px; height: 100%; text-align: center; }
+.week-bars__col b { font: 400 18px/1 var(--serif); }
+.week-bars__col i { align-self: end; min-height: 3px; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, var(--gold-300), var(--gold-400)); }
+.week-bars__col:last-child i { box-shadow: 0 0 18px rgb(var(--gold-rgb) / .35); }
+.week-bars__col span { font: 12px var(--mono); color: var(--muted); }
+
 /* --------------------------------------------------------------- lists */
 
 .list { list-style: none; margin: 0; padding: 0; }

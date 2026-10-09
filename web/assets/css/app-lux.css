@@ -196,6 +196,10 @@ html.lux-app[data-theme="light"] {
 /* AI assistants: each part pops forward, as a reply does. */
 [data-tab="assistants"] .lux-in { animation-name: lux-pop; animation-timing-function: var(--lux-spring); animation-duration: .7s; }
 @keyframes lux-pop { from { opacity: 0; transform: translateY(12px) scale(.94); } }
+/* Your week: each part springs forward, and the bars grow up from the floor, one week after another. */
+[data-tab="week"] .lux-in { animation-name: lux-pop; animation-timing-function: var(--lux-spring); animation-duration: .7s; }
+.lux-app .week-bars__col i { transform-origin: 50% 100%; animation: lux-bar .9s var(--lux-bounce) calc(var(--li, 0) * 90ms + .3s) backwards; }
+@keyframes lux-bar { from { transform: scaleY(0); } }
 /* Everything else (and the page title on every page) rises gently. */
 .lux-in.lux-title { animation-name: lux-pop; animation-duration: .7s; animation-timing-function: var(--lux-out); animation-delay: 0s; }
 
@@ -304,7 +308,7 @@ html.lux-app[data-theme="light"] {
 
 @media (prefers-reduced-motion: reduce) {
   .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .result__glyph::after, .lux-app .empty svg,
-  .lux-wipe, .lux-ghost, .lux-app .page-title .lux-label, .lux-tile, .lux-tile *, .lux-island__msg { animation: none !important; }
+  .lux-wipe, .lux-ghost, .lux-app .page-title .lux-label, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i { animation: none !important; }
   .lux-wipe, .lux-ghost { display: none; }
   /* The island only fades in and out, at its size, and swaps its words in place. */
   .lux-island { transform: translateX(-50%); transition: opacity .15s ease; }

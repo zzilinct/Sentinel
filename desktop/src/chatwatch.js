@@ -459,6 +459,8 @@ let seenTimer = null;
 let apps = ['discord', 'roblox'];
 let lastPhone = null;          // Phone Link's latest reading, drawn again when a link check comes back
 let saidNoList = false;
+// The person's week (main.js counts it): one message checked, and whether it was pointed out. Numbers only.
+function counted(checked, flagged) { if (opts && opts.onCounted) opts.onCounted({ checked, flagged }); }
 function noteSeen() { if (!seenTimer) seenTimer = setTimeout(() => { seenTimer = null; if (opts && opts.onSeen) opts.onSeen(); }, 3000); }
 
 function chatFor(key, context) {
@@ -478,6 +480,7 @@ function judge(app, key, context, messages) {
     told.set(id, f ? { ...f, app } : null);
     seen[app].checked++;
     if (f) seen[app].flagged++;
+    counted(1, f ? 1 : 0);
     noteSeen();
     if (told.size > 2000) told.delete(told.keys().next().value);
     if (f) flags.push({ ...f, app, rect: { x: m.x, y: m.y, w: m.w, h: m.h } });
@@ -503,6 +506,7 @@ function judgeTexts(who, messages) {
       told.set(id, entry);
       seen.phonelink.checked++;
       if (r.flag) seen.phonelink.flagged++;
+      counted(1, r.flag ? 1 : 0);
       noteSeen();
       if (told.size > 2000) told.delete(told.keys().next().value);
       if (r.links.length && opts && opts.api) checkLinks(id, r);
@@ -519,7 +523,7 @@ function checkLinks(id, result) {
     if (!entry) return;
     const flag = texts.withLinks(result, res && res.byUrl);
     if (flag === entry.flag) return;
-    if (!entry.flag && flag) seen.phonelink.flagged++;
+    if (!entry.flag && flag) { seen.phonelink.flagged++; counted(0, 1); }
     if (entry.flag && !flag) seen.phonelink.flagged--;
     entry.flag = flag;
     noteSeen();

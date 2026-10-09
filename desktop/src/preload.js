@@ -38,7 +38,10 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   addMySite: (host) => ipcRenderer.invoke('sentinel:my-sites-add', String(host)),
   removeMySite: (host) => ipcRenderer.invoke('sentinel:my-sites-remove', String(host)),
   forgetMySites: () => ipcRenderer.invoke('sentinel:my-sites-forget'),
-  recentDownloads: () => ipcRenderer.invoke('sentinel:recent-downloads'),
+  // Your week with Sentinel: a note once a week, off until turned on.
+  setWeekRecap: (enabled) => ipcRenderer.invoke('sentinel:set-week-recap', Boolean(enabled)),
+  week: () => ipcRenderer.invoke('sentinel:week'),
+  recentDownloads:() => ipcRenderer.invoke('sentinel:recent-downloads'),
   quarantine: (id) => ipcRenderer.invoke('sentinel:quarantine', String(id)),
   // Live scanning: one switch, and "Scan with <browser>".
   liveStart: () => ipcRenderer.invoke('sentinel:live-start'),

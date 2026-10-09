@@ -175,7 +175,7 @@
   const RULE = '<svg class="lux-rule" viewBox="0 0 260 26" aria-hidden="true" focusable="false"><path pathLength="1" d="M130 13H0M130 13h130"/><path class="lux-rule__c" pathLength="1" d="M130 3l10 10-10 10-10-10z"/><path pathLength="1" d="M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0"/></svg>';
 
   // The small tracked label over each page's headline, as the reel's "AGENTS" sits over "9 new agents".
-  const LABELS = { home: 'Overview', protection: 'Always on', scan: 'Check a link', threats: 'Check a file', email: 'Check an email', history: 'Your record', sites: 'Your rules', recover: 'Recovery', checkup: 'Your browsers', plan: 'Account', security: 'Account', assistants: 'Account' };
+  const LABELS = { home: 'Overview', week: 'Your week', protection: 'Always on', scan: 'Check a link', threats: 'Check a file', email: 'Check an email', history: 'Your record', sites: 'Your rules', recover: 'Recovery', checkup: 'Your browsers', plan: 'Account', security: 'Account', assistants: 'Account' };
 
   // Put on as soon as the page is drawn, before anything is laid out around it, so nothing shifts when it appears.
   function addLabel() {
@@ -255,7 +255,7 @@
   // Usage figures, live minutes and the counts of what was checked run up from 0 to the real figure as they come on
   // screen, while the meter beside them fills over the same time. Only the text app.js wrote is used: if it writes
   // a newer figure mid-count (a live count refreshing), the count stops and its figure stands.
-  const COUNTS = '.usage-row__n, .meters__head .mono, .intel__total b, [data-live-counts], [data-chat-seen], [data-text-seen]';
+  const COUNTS = '.usage-row__n, .meters__head .mono, .intel__total b, [data-live-counts], [data-chat-seen], [data-text-seen], [data-week-n]';
   const COUNT_MS = 1200;   // the meters' fill (app-lux.css, lux-fill) takes as long, after the same delay
   const COUNT_DELAY = 250;
   const countIo = !reduced && 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {

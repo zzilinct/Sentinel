@@ -4,6 +4,7 @@ const A = require('../lib/auth');
 const security = require('../lib/security');
 const plans = require('../lib/plans');
 const models = require('../lib/models');
+const week = require('../lib/week');
 const { db } = require('../lib/db');
 const config = require('../config');
 
@@ -64,6 +65,28 @@ function register(router) {
       // ?limit= asks for fewer (the overview shows 6); never more than 200.
       items: q.history.all(user.id, since, Math.min(200, Math.max(1, Number(new URL(req.url, 'http://x').searchParams.get('limit')) || 200)))
     });
+  });
+
+  // Your week with Sentinel (week.js): the last four weeks, in numbers only.
+  router.get('/api/v1/week', (req, res) => {
+    const user = A.requireUser(req);
+    sendJson(res, 200, week.summary(user.id));
+  });
+
+  // What the Windows app saw on this computer (files checked, a command stopped, ...), as numbers for this week.
+  // Only the app's own server takes them, from the same computer: { counts: { files_checked: 3, ... } }.
+  router.post('/api/v1/week/count', async (req, res) => {
+    const user = A.requireUser(req);
+    const body = await readJson(req, 4 * 1024);
+    if (!/^(127\.|::1$)/.test(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''))) throw new HttpError(403, 'local_only', 'Only the Sentinel app on this computer can add to your week.');
+    security.rateLimit(`week-count:${user.id}`, 60, 60 * 60 * 1000);
+    const counts = body && typeof body.counts === 'object' && body.counts ? body.counts : {};
+    let added = 0;
+    for (const metric of week.DESKTOP) {
+      const n = Number(counts[metric]);
+      if (Number.isInteger(n) && n > 0 && n <= 100000) { week.bump(user.id, metric, n); added++; }
+    }
+    sendJson(res, 200, { ok: true, added });
   });
 
   router.post('/api/v1/account/name', async (req, res) => {

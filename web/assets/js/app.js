@@ -163,6 +163,7 @@
 
   const ROUTES = {
     '/app': ['home', home],
+    '/app/week': ['week', weekView],
     '/app/scan': ['scan', scanView],
     '/app/threats': ['threats', threatsView],
     '/app/email': ['email', emailView],
@@ -198,7 +199,7 @@
     fn(el, new URLSearchParams(location.search));
     // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
     restoreDrafts();
-    document.title = `${{ home: 'Overview', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', text: 'Text scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide' }[name]} · Sentinel`;
+    document.title = `${{ home: 'Overview', week: 'Your week', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', text: 'Text scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide' }[name]} · Sentinel`;
   }
 
   /** Render a verdict with its checklist tools and follow-up actions. */
@@ -228,7 +229,7 @@
   /* ========================================================== shortcuts */
 
   const PAGES = [
-    ['Overview', '/app', 'home'], ['Link scan', '/app/scan', 'scan'], ['Virus & malware scan', '/app/threats', 'threats'],
+    ['Overview', '/app', 'home'], ['Your week', '/app/week', 'week'], ['Link scan', '/app/scan', 'scan'], ['Virus & malware scan', '/app/threats', 'threats'],
     ['Email scan', '/app/email', 'email'], ['Text scan', '/app/text', 'text'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
     ['Live protection', '/app/protection', 'protection'], ['Plan & usage', '/app/plan', 'plan'], ['Security', '/app/security', 'security'],
     ['AI assistants', '/app/assistants', 'assistants'], ['Recovery guide', '/app/recover', 'recover']
@@ -654,6 +655,7 @@
       </div>
 
       <div class="u-mt">${protectionTeaser()}</div>
+      <div data-week-card></div>
       <div data-chat-ask></div>
       <div data-exposure-ask></div>
 
@@ -662,6 +664,7 @@
         <div data-recent><div class="skeleton u-h-md" ></div></div>
       </div>`;
 
+    weekCard($('[data-week-card]', el));
     // One offer at a time: exposure alerts are offered only while chat safety's question is not showing.
     const chatAsk = $('[data-chat-ask]', el);
     askChatSafety(chatAsk).then(() => { if (!chatAsk.innerHTML) askExposureAlerts($('[data-exposure-ask]', el)); }).catch(() => {});
@@ -690,6 +693,84 @@
       const slot = $('[data-recent]', el);
       if (slot) slot.innerHTML = '<p class="muted">Recent scans could not be loaded. They will be back next time you open this page.</p>';
     }
+  }
+
+  /* ============================================================ your week */
+
+  // What Sentinel did for you, week by week (server/lib/week.js): numbers only, and only what really happened.
+  // The rows are shown when any of the four weeks has something in them; most serious first.
+  const WEEK_ROWS = [
+    ['wallet_swaps', 'Wallet swaps caught', 'shield'], ['files_quarantined', 'Files quarantined', 'file'], ['commands_stopped', 'Copied commands stopped', 'shield'],
+    ['lookalikes', 'Look-alikes of your sites caught', 'globe'], ['exposures', 'Exposure alerts', 'clock'], ['live_flagged', 'Dangerous pages and results flagged', 'link'],
+    ['manual_flagged', 'Scan results flagged', 'search'], ['chat_flagged', 'Chat messages flagged', 'mail'],
+    ['live_links', 'Links checked by live scanning', 'link'], ['manual_scans', 'Scans you ran', 'search'], ['files_checked', 'Files checked', 'file'], ['chat_checked', 'Chat messages checked', 'mail']
+  ];
+  const weekLabel = (w, i, all) => (i === all.length - 1 ? 'This week' : new Date(w.startsAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }));
+
+  // In the Windows app, the week is asked of the app: what it counted on this computer is handed over first.
+  const loadWeek = () => (desktop && desktop.week ? desktop.week() : api('/week'));
+
+  async function weekCard(slot) {
+    let data;
+    try { data = await loadWeek(); } catch { return; }
+    const w = data.weeks[data.weeks.length - 1];
+    if (!slot.isConnected || (!w.checked && !w.caught)) return;
+    slot.innerHTML = `<div class="panel u-mt week-card"><div class="panel__head"><div><h2>${esc(w.headline)}</h2>
+      <p>${esc(w.biggest || `Sentinel checked ${w.checked.toLocaleString()} links, files and messages for you, and found nothing dangerous.`)}</p></div>
+      <a class="btn btn--sm" href="/app/week">See your week</a></div></div>`;
+  }
+
+  async function weekView(el) {
+    el.innerHTML = `${title('Your week with Sentinel', 'What Sentinel did for you, Monday to Sunday. Only real counts, never what the links, files or messages were.')}
+      <div data-week><div class="skeleton u-h-md"></div></div>`;
+    const slot = $('[data-week]', el);
+    let data;
+    try { data = await loadWeek(); } catch {
+      slot.innerHTML = '<p class="muted">Your week could not be loaded. It will be back next time you open this page.</p>';
+      return;
+    }
+    if (!slot.isConnected) return;
+    const weeks = data.weeks;
+    const w = weeks[weeks.length - 1];
+    const before = weeks[weeks.length - 2];
+    const rows = WEEK_ROWS.filter(([k]) => weeks.some((x) => x.counts[k] > 0));
+    // The bars show what was caught; in weeks that were all quiet, how much was checked.
+    const caughtAny = weeks.some((x) => x.caught > 0);
+    const val = (x) => (caughtAny ? x.caught : x.checked);
+    const top = Math.max(1, ...weeks.map(val));
+    const info = state.desktopInfo;
+    slot.innerHTML = `
+      <div class="panel week-hero">
+        <p class="week-hero__k">${esc(weekLabel(w, weeks.length - 1, weeks))}, so far</p>
+        <h2 data-week-n>${esc(w.headline)}</h2>
+        ${w.biggest ? `<p class="week-hero__catch"><b>Biggest catch</b>${esc(w.biggest)}</p>`
+          : w.checked ? `<p class="week-hero__catch">Sentinel checked ${w.checked.toLocaleString()} links, files and messages, and none of them was dangerous.</p>` : ''}
+      </div>
+      ${rows.length ? `<div class="usage-list u-mt week-rows">${rows.map(([k, label, icon]) => `<div class="usage-row">
+          <span class="usage-row__icon">${ICON[icon]}</span>
+          <span class="usage-row__l">${esc(label)}<small>last week: ${before.counts[k].toLocaleString()}</small></span>
+          <b class="usage-row__n tabular">${w.counts[k].toLocaleString()}</b></div>`).join('')}</div>`
+        : `<div class="empty u-mt">${Masks.svg('scam')}<p>Nothing yet. As Sentinel checks links, files and messages for you, your week fills in here.</p></div>`}
+      ${caughtAny || weeks.some((x) => x.checked) ? `<div class="panel u-mt">
+        <div class="panel__head"><div><h2>${caughtAny ? 'Caught, week by week' : 'Checked, week by week'}</h2><p>The last four weeks. Each week starts on Monday.</p></div></div>
+        <div class="week-bars" role="img" aria-label="${esc(weeks.map((x, i) => `${weekLabel(x, i, weeks)}: ${val(x)}`).join(', '))}">
+          ${weeks.map((x, i) => `<div class="week-bars__col" style="--li:${i}"><b class="tabular">${val(x).toLocaleString()}</b><i style="height:${Math.round((val(x) / top) * 100)}%"></i><span>${esc(weekLabel(x, i, weeks))}</span></div>`).join('')}
+        </div></div>` : ''}
+      ${desktop && desktop.setWeekRecap ? `<div class="panel u-mt"><label class="setting"><div><b>A note about your week</b>
+          <span>Once a week, a Windows notification with last week in one line. Never while a game or video is full screen.</span></div>
+          <input class="switch" type="checkbox" data-week-recap aria-label="A note about your week" ${info && info.weekRecap ? 'checked' : ''}></label></div>` : ''}
+      <ul class="live__facts u-mt">
+        <li>Counted as numbers for each week and kept for five weeks. Sentinel never keeps which links, files, commands or messages they were for this page.</li>
+        <li>Private browser windows are not counted.${desktop ? '' : ' Files, copied commands, wallet swaps and chat messages are counted by the Sentinel app for Windows.'}</li>
+      </ul>`;
+    const sw = $('[data-week-recap]', slot);
+    if (sw) sw.addEventListener('change', async () => {
+      try {
+        await desktop.setWeekRecap(sw.checked);
+        if (state.desktopInfo) state.desktopInfo.weekRecap = sw.checked;
+        toast(sw.checked ? 'Done. Your first note comes after this week is over.' : 'No more weekly notes.', 'success');
+      } catch (err) { sw.checked = !sw.checked; toast(desktopError(err), 'error'); }
+    });
   }
 
   function protectionTeaser() {

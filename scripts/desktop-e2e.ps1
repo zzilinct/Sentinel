@@ -592,6 +592,19 @@ Shot 'my-sites-warning'
 Check 'my-sites-lookalike' $ok "the warning: $($w.Substring(0, [Math]::Min(300, $w.Length)) -replace '\s+', ' ')"
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
+# 5e. Your week: what sections 2 to 5d did reaches the week, as numbers only. The app counts chat messages, the stopped
+# command, the wallet swap and AnyDesk's download on this computer and hands them over (week() hands them over at once);
+# live scanning's pages and the look-alike of 5d are counted by the scanner. Asked before section 6 ends the app.
+$cs = (Info 'info()')
+$seenChat = $cs.chatSafety.seen.discord.checked + $cs.chatSafety.seen.roblox.checked + $cs.textSafety.seen.checked
+$w = Info 'week()'
+$c = $w.weeks[-1].counts
+Say "  your week: $($c | ConvertTo-Json -Compress) caught $($w.weeks[-1].caught): $($w.weeks[-1].headline) / $($w.weeks[-1].biggest)"
+Check 'week-app-counts' ($c.commands_stopped -ge 1 -and $c.wallet_swaps -ge 1 -and $c.files_checked -ge 1 -and $c.chat_checked -ge $seenChat -and $c.chat_flagged -ge 3) "stopped $($c.commands_stopped), wallet swaps $($c.wallet_swaps), files checked $($c.files_checked), chat checked $($c.chat_checked) (the app saw $seenChat) and flagged $($c.chat_flagged)"
+Check 'week-live-counts' ($c.live_links -ge 3 -and $c.live_flagged -ge 2 -and $c.lookalikes -ge 1) "live links $($c.live_links), flagged $($c.live_flagged), look-alikes $($c.lookalikes)"
+Check 'week-biggest' ($w.weeks[-1].biggest -match 'wallet address') "biggest catch: $($w.weeks[-1].biggest)"
+Check 'week-numbers-only' (-not (($w | ConvertTo-Json -Depth 6) -match 'AnyDesk|1A1zP1|harbourcu|powershell|https?:')) 'the week holds no file, address, command or link'
+
 # 6. Parent lock, through the app's own window (the same calls its Parent lock panel makes).
 $r = Info "lockSet('2468')"
 Check 'lock-set' ($r.set -and $r.locked) "set with a PIN: $($r | ConvertTo-Json -Compress)"
