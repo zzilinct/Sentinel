@@ -337,7 +337,7 @@ async function main() {
           await sleep(Math.max(0, ms - (Date.now() - t0)));
           await shoot(`count-${String(ms).padStart(4, '0')}ms`);
         }
-        await send('Runtime.evaluate', { expression: "(() => { const p = document.querySelector('#masks .section__head > p'); scrollTo(0, Math.round(p.getBoundingClientRect().top + scrollY - innerHeight * 0.7)); })()" }, sessionId);
+        await send('Runtime.evaluate', { expression: "(() => { const p = document.querySelector('#masks .section__head > p'); scrollTo(0, Math.round(p.getBoundingClientRect().top + scrollY - innerHeight * 0.78)); })()" }, sessionId);
         await sleep(900);
         await shoot('words-scrub-half');
         await send('Runtime.evaluate', { expression: "scrollTo(0, 0); const w = document.querySelector('[data-hero-word]'); [...w.children].forEach((c, i) => c.style.setProperty('--i', i)); w.classList.remove('is-shining'); void w.offsetWidth; w.classList.add('is-shining'); true" }, sessionId);

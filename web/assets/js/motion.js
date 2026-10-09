@@ -159,7 +159,8 @@
     });
   };
 
-  // The paragraph under it, word by word, from faint to full as it rises up the screen, and back if scrolled back.
+  // The paragraph under it, word by word, from faint to full as it rises up the screen (full by the lower third, where
+  // it starts to be read), and back if scrolled back.
   const paragraphs = $$('.section__head > p[data-reveal="words"]');
 
   /* ---------------------------------------------------------- counters */
@@ -184,7 +185,7 @@
       if (st.scroll() > st.start) fire(h);
     }
     for (const p of paragraphs) {
-      G.timeline({ scrollTrigger: { trigger: p, start: 'top 88%', end: 'top 52%', scrub: true } })
+      G.timeline({ scrollTrigger: { trigger: p, start: 'top 92%', end: 'top 64%', scrub: true } })
         .fromTo($$('.wd', p), { opacity: 0.12, yPercent: 35 }, { opacity: 1, yPercent: 0, stagger: 0.08, ease: 'power1.out' });
     }
     for (const [group, items] of groups) {
