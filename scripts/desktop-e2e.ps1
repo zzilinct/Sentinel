@@ -318,12 +318,16 @@ foreach ($snippet in @('$ df -h  # human-readable', 'curl -LO https://downloads.
 Check 'clickfix-snippet-log' (([regex]::Matches((AppLog), 'copied command (stopped|flagged)')).Count -eq $flaggedBefore) 'app.log: no copied command stopped or flagged for the snippets'
 # The clipboard is read every half second only while a browser is in front; with another program in front, every 1.5 s.
 function ClipStatus { return (Cdp 'main' "process.mainModule.require('./clipwatch').status()").value }
+[void](Until 10 { (ClipStatus).every -eq 500 })
 $a = ClipStatus; Start-Sleep 6; $b = ClipStatus
 Check 'clickfix-fast-in-browser' ($b.every -eq 500 -and ($b.reads - $a.reads) -ge 6) "browser in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
 Start-Process notepad
 Start-Sleep 3
 Say "Notepad in front: $(Front 'notepad')"
 Start-Sleep 3
+# Measured once Sentinel has seen the change of program (its helper looks twice a second, at low priority, and a
+# copy just after a browser left still counts as the browser's for 2 s), so the 6 s are all spent in one mode.
+[void](Until 10 { (ClipStatus).every -eq 1500 })
 $a = ClipStatus; Start-Sleep 6; $b = ClipStatus
 Check 'clickfix-slow-elsewhere' ($b.every -eq 1500 -and ($b.reads - $a.reads) -le 5) "another program in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
 # The same kind of command copied in another program is the person's own: told about, never taken off the clipboard.
@@ -522,7 +526,9 @@ $r = Cdp '127.0.0.1:4782' "(async () => { const post = (u, b) => fetch(u, { meth
 $paired = Until 40 { [bool](Info 'info()').pairedUserId }
 Check 'signout-paired' $paired "signed in to the web app and paired (signup and sign-in: $($r.value))"
 [void](Info 'lockRelock()')
-$click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); await wait(1500); const b = document.querySelector('[data-signout]'); b.click(); await wait(300); b.click(); await wait(2000); return location.pathname + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / '); })()"
+# The button answers only once the app has finished starting (a restarted scanner took 18 s once): it is pressed
+# until it asks to be pressed again, then pressed again, and the answer is waited for.
+$click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); let b = null; for (let i = 0; i < 30; i++) { b = document.querySelector('[data-signout]'); if (b) { b.click(); await wait(300); if (b.getAttribute('aria-label') === 'Press again to sign out') break; } await wait(500); } b.click(); for (let i = 0; i < 20 && location.pathname.startsWith('/app') && !document.querySelector('.toast'); i++) await wait(500); return location.pathname + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / '); })()"
 $r = (Cdp '127.0.0.1:4782' $click).value
 $me = (Cdp '127.0.0.1:4782' "fetch('/api/v1/auth/me').then((x) => x.status)").value
 Check 'signout-locked' ($r -match '^/app[^|]*\|.*Still signed in\. Locked by a parent' -and $me -eq 200 -and [bool](Info 'info()').pairedUserId) "locked: '$r', web app session $me"
