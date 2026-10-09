@@ -32,7 +32,7 @@ const { ALL_CHECKS } = require('../lib/scan/checklist');
 const ALL = ['scam', 'virus', 'malware'];
 /** Asked from this same computer (the Windows app and its own server). */
 const local = (req) => /^(127\.|::1$)/.test(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''));
-const UNMETERED = new Set(['texts', 'checkup', 'clipboard']);
+const UNMETERED = new Set(['texts', 'checkup', 'clipboard', 'download']);
 
 const REPORT_CATEGORIES = new Set([
   'phishing', 'fake_store', 'crypto_scam', 'tech_support_scam', 'investment_scam',
@@ -241,7 +241,7 @@ function register(router) {
     const body = await readJson(req);
     const urls = Array.isArray(body.urls) ? body.urls.map(String).filter((u) => u.length < 4096).slice(0, 60) : [];
     if (!urls.length) throw new HttpError(400, 'missing_urls', 'Provide urls: string[]');
-    // Links found by the Windows app outside the browser (a text in Phone Link, the browser checkup, a copied link)
+    // Links found by the Windows app outside the browser (a text in Phone Link, the browser checkup, a copied link, the site a download came from)
     // are not browsing: they get the fast, private check against the lists and never spend live-scanning minutes.
     // Only the Windows app's own scanner, on the same computer, may ask this way: anywhere else it would be a way
     // around the live-scanning meter.

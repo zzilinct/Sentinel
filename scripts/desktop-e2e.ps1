@@ -449,6 +449,37 @@ if ($scamAt -and $safeAt) {
 } else { Check 'hover-scam' $false 'the test page''s links were not found on screen'; Shot 'hover-no-links' }
 Check 'hover-log-private' (-not ((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) -match 'link under the pointer: \S*\s*https?:')) 'watch.log says whether a hovered link was flagged, never its address'
 
+# 4c. Where a download came from: two harmless copies of whoami.exe, each with the Zone.Identifier stream a browser
+# writes, made beside Downloads and moved in whole. "ZoomInstaller.exe" from a look-alike site is flagged before it
+# is run, naming zoom.us; "ZoomInstallerFull.exe" from Zoom's own download server is left alone.
+$dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null
+$stage = Join-Path $env:TEMP 'dl-source'; New-Item -ItemType Directory -Force $stage | Out-Null
+function Arrive($name, $hostUrl, $referrer) {
+  $f = Join-Path $stage $name
+  Copy-Item "$env:WINDIR\System32\whoami.exe" $f -Force
+  Set-Content -LiteralPath $f -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3`r`nReferrerUrl=$referrer`r`nHostUrl=$hostUrl"
+  Move-Item $f (Join-Path $dl $name) -Force
+  Say "  $name in Downloads, its stream: $((Get-Content -LiteralPath (Join-Path $dl $name) -Stream Zone.Identifier) -join ' | ')"
+}
+function Recent($name) { return (Cdp 'main' "JSON.stringify(process.mainModule.require('./downloads').recent().find((d) => d.name === '$name') || null)").value | ConvertFrom-Json }
+Arrive 'ZoomInstallerFull.exe' 'https://cdn.zoom.us/prod/6.2.5.48557/ZoomInstallerFull.exe' 'https://zoom.us/download'
+Arrive 'ZoomInstaller.exe' 'https://zoom-download-free.site/files/ZoomInstaller.exe' 'https://zoom-download-free.site/'
+$ok = Until 90 { (AppLog) -match 'download source: ZoomInstallerFull\.exe from Zoom.s own site' }
+$r = Recent 'ZoomInstallerFull.exe'
+Check 'download-source-genuine' ($ok -and $r -and -not $r.badge) "from cdn.zoom.us: logged as Zoom's own ($ok), listed as '$($r.label)' with badge '$($r.badge)'"
+$ok = Until 90 { (AppLog) -match 'download source: ZoomInstaller\.exe not from Zoom.s own site' }
+$r = Recent 'ZoomInstaller.exe'
+Check 'download-source-fake' ($ok -and $r.label -eq 'Possible fake installer' -and $r.reason -eq 'This says it is Zoom, but it came from zoom-download-free.site, not zoom.us. Get Zoom from zoom.us.') "from the look-alike: '$($r.label)' ($($r.badge)): $($r.reason)"
+$line = ([regex]::Match((AppLog), 'download source: ZoomInstaller\.exe[^\r\n]*')).Value
+Check 'download-source-site' ($line -match 'its site is flagged (orange|red)' -and $r.badge -in @('orange', 'red')) "the look-alike site judged by the fast check: $line"
+Check 'download-source-private' (-not ((AppLog) -match 'download source:[^\r\n]*(https?:|zoom-download-free|cdn\.zoom)')) 'app.log names the file, never where it came from'
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection#downloads', 1)")
+[void](Until 30 { (Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).textContent || ''").value -match 'Possible fake installer' })
+[void](Cdp '127.0.0.1:4782' "(document.getElementById('downloads').scrollIntoView(), 1)"); Start-Sleep 1
+Shot 'download-source'
+$t = [string](Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).innerText || ''").value
+Check 'download-source-listed' ($t -match 'Possible fake installer' -and $t -match 'Get Zoom from zoom\.us') "Recent downloads: $(($t.Substring(0, [Math]::Min(300, $t.Length))) -replace '\s+', ' ')"
+
 # 5. Tech-support scam shield: the real AnyDesk, downloaded and started.
 $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null
 $anydesk = Join-Path $dl 'AnyDesk.exe'

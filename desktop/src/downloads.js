@@ -15,6 +15,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { Worker } = require('worker_threads');
 const { scanFile, MAX_FILE_BYTES } = require('../shared/filescan');
+const source = require('./source');
 
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
 const SETTLE_MS = 2500;
@@ -147,6 +148,9 @@ async function scan(full, stat) {
     try { report = await analyze(full, name, known); } catch (err) { log(`download scan of ${name} failed: ${err.message}`); }
   }
   const threats = summarize(report, known);
+  const origin = await checkSource(full, name, report).catch(() => null);
+  const rank = { yellow: 1, orange: 2, red: 3 };
+  if (origin && (rank[origin.badge] || 0) > (rank[threats.badge] || 0)) Object.assign(threats, origin);
   log(`download scanned: ${name} (${Math.round(stat.size / 1024)} KB) - ${threats.label}${threats.reason ? ` (${threats.reason})` : ''}, ${Date.now() - started} ms`);
   const item = {
     id: crypto.randomBytes(8).toString('hex'),
@@ -160,6 +164,45 @@ async function scan(full, stat) {
   recent.unshift(item);
   if (recent.length > 50) recent.pop();
   if (item.badge) opts.onThreat(item);
+}
+
+/**
+ * Where the file came from (its Zone.Identifier stream, read on this computer): a program named for Zoom or Discord
+ * that came from another site is a likely fake, and a file from a site Sentinel flags is flagged with it. The source's
+ * address is never logged; only the fast check on this computer sees it, without opening it.
+ */
+async function checkSource(full, name, report) {
+  if (!source.RISKY.test(name)) return null;
+  const zone = source.readZone(full);
+  if (!zone) return null;
+  const zipHasProgram = Boolean(report && report.checks.some((c) => c.id === 'F11' && c.status === 'fail'));
+  const claim = source.judge(name, zone, { zipHasProgram });
+  let flag = null;
+  let said = 'source checked';
+  if (claim && claim.genuine) said = `from ${claim.product}'s own site`;
+  else if (claim) {
+    // A genuine installer someone else hosts (a company's software portal) still carries its maker's signature.
+    const publisher = /\.zip$/i.test(name) || !opts.signedBy ? null : await opts.signedBy(full).catch(() => null);
+    if (publisher && claim.signer.test(publisher)) said = `signed by ${publisher}`;
+    else { flag = { badge: 'orange', label: 'Possible fake installer', reason: claim.reason }; said = `not from ${claim.product}'s own site`; }
+  }
+  const from = source.web(zone.hostUrl);
+  if (from && !(claim && claim.genuine)) {
+    const url = from.origin + from.pathname;
+    try {
+      const { byUrl } = await api('/api/v1/live/batch', { urls: [url], private: true, mode: 'fast', purpose: 'download' });
+      const v = byUrl && byUrl[url];
+      const badge = v && v.overall ? v.overall.badge : null;
+      if (badge === 'red' || badge === 'orange') {
+        said += `, and its site is flagged ${badge}`;
+        const why = (v.reasons && v.reasons[0] && v.reasons[0].text) || v.overall.label;
+        if (flag) flag.badge = badge;
+        else flag = { badge, label: 'From a dangerous site', reason: `This came from ${from.hostname}, which Sentinel flags: ${why}. Do not open it.` };
+      }
+    } catch { /* offline: the name check stands */ }
+  }
+  log(`download source: ${name} ${said}`);
+  return flag;
 }
 
 function hashStream(file) {
@@ -225,4 +268,4 @@ async function quarantine(id) {
   return { ok: true, movedTo: target };
 }
 
-module.exports = { init, restart, stop, status, recent: () => recent.map(({ path: p, ...rest }) => ({ ...rest, folder: path.dirname(p) })), quarantine, summarize, analyze };
+module.exports = { init, restart, stop, status, recent: () => recent.map(({ path: p, ...rest }) => ({ ...rest, folder: path.dirname(p) })), quarantine, summarize, analyze, _test: { checkSource, configure: (o) => { opts = o; } } };
