@@ -155,7 +155,8 @@ test('turning exposure alerts off waits for the erasing, and retries it at start
   const m = read('desktop/src/main.js');
   assert.match(m, /store\.set\('exposureForgetPending', true\);\s*return forgetExposures\(\)/);
   assert.match(m, /else forgetExposures\(\)/, 'tried again at start');
-  assert.match(read('desktop/src/watch.js'), /remember: true, tz: new Date\(\)\.getTimezoneOffset\(\)/);
+  // The time zone goes with a remembered page (and with one counted for Your sites, mysites.js).
+  assert.match(read('desktop/src/watch.js'), /const tz = remember \|\| learn \? \{ tz: new Date\(\)\.getTimezoneOffset\(\) \} : \{\};/);
 });
 
 test('the hourly sweep keeps visits 14 days and exposures 30', () => {
