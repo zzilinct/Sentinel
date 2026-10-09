@@ -1398,7 +1398,7 @@
     // Family on a "new number" wants money sent; the rest want a card number or a sign-in.
     const happened = f && /family/i.test(f.title) ? 'bank' : 'card,password';
     const scam = f && (f.level === 'danger' || red);
-    const steps = f ? [f.advice] : ['Nothing in this text matches the scams Sentinel knows, and its links are on no threat list.', 'Still unsure? Contact the company or person through their own app, website or a number you already have, not the one in the text.'];
+    const steps = f ? [f.advice] : [`Nothing in this text matches the scams Sentinel knows${r.links.length ? ', and its links are on no threat list' : ''}.`, 'Still unsure? Contact the company or person through their own app, website or a number you already have, not the one in the text.'];
     return `<article class="result result--${tone}" data-result data-text-result="${tone}">
       <header class="result__head">
         <div class="result__glyph" style="--c:${color(tone === 'clear' ? null : tone)}">${Masks.svg('scam')}</div>
