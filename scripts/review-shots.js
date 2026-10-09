@@ -100,7 +100,8 @@ async function signIn(send, email) {
   const { targetId } = await send('Target.createTarget', { url: BASE + '/login' });
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
   await sleep(2500);
-  await send('Runtime.evaluate', { expression: `(() => { const f = document.querySelector('[data-form]'); f.email.value = ${JSON.stringify(email)}; f.password.value = ${JSON.stringify(PASSWORD)}; f.requestSubmit(); })()` }, sessionId);
+  const at = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const s = JSON.stringify({ ready: document.readyState, form: Boolean(document.querySelector('[data-form]')), ui: Boolean(window.UI), scripts: [...document.scripts].map((x) => x.src.split('/').pop()) }); const f = document.querySelector('[data-form]'); f.email.value = ${JSON.stringify(email)}; f.password.value = ${JSON.stringify(PASSWORD)}; f.requestSubmit(); return s; })()` }, sessionId);
+  console.log(`DIAG submit: ${at.result && at.result.value} ${at.exceptionDetails ? at.exceptionDetails.exception.description : ''}`);
   // A slow runner can take a while to answer: wait for the app rather than a fixed time.
   let result = { value: '' };
   for (let i = 0; i < 30 && !String(result.value).startsWith('/app'); i++) {
@@ -109,7 +110,7 @@ async function signIn(send, email) {
   }
   if (!String(result.value).startsWith('/app')) {
     // Say what the page said, so a failed run explains itself.
-    const { result: why } = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify({ url: location.href, note: (document.querySelector('[data-note]') || {}).textContent || '', toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '), fields: [...document.querySelectorAll('.field__error')].map((t) => t.textContent).filter(Boolean).join(' | '), ready: document.readyState })` }, sessionId);
+    const { result: why } = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify({ url: location.href, note: (document.querySelector('[data-note]') || {}).textContent || '', toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '), fields: [...document.querySelectorAll('.field__error')].map((t) => t.textContent).filter(Boolean).join(' | '), ready: document.readyState, type: document.contentType, body: document.body ? document.body.innerText.slice(0, 160) : '', nav: (performance.getEntriesByType('navigation')[0] || {}).type })` }, sessionId);
     await send('Target.closeTarget', { targetId });
     throw new Error(`sign-in did not reach the app: ${why.value}`);
   }
