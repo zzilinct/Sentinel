@@ -482,6 +482,14 @@ test('the running-browsers helper answers without starting a process each time, 
     child.stdout.once('data', (d) => { clearTimeout(timer); resolve(String(d)); });
   });
   assert.match(first, /^running:/);
+  // Wallet guard asks who wrote the clipboard and how long since a key or the mouse was used.
+  let said = '';
+  const clip = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`no answer to "clip" in 10 s: ${said}`)), 10000);
+    child.stdout.on('data', (d) => { said += d; const m = /clip:[^\r\n]*/.exec(said); if (m) { clearTimeout(timer); resolve(m[0]); } });
+    child.stdin.write('clip\n');
+  });
+  assert.match(clip, /^clip:[a-z0-9_.-]*\|\d+$/);
   const exited = new Promise((resolve) => child.once('exit', resolve));
   child.stdin.end();   // Sentinel is gone
   const code = await Promise.race([exited, new Promise((r) => setTimeout(() => r('still running'), 10000))]);

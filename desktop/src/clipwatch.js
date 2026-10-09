@@ -14,10 +14,16 @@
  * The same command copied in another program is only told about. The clipboard is read every half second while a
  * browser is in front, every 1.5 seconds otherwise. The command is judged here, on the computer: it is never sent,
  * logged or kept, except in memory for two minutes, for "Put it back".
+ *
+ * "Wallet guard" shares it too: clipboard hijackers wait for a copied crypto address (or an IBAN) and put their own
+ * in its place. When a copied address turns into a different one of the same kind within a few seconds, and no key
+ * or mouse button was touched since (so the person did not copy again), Sentinel puts theirs back and tells them.
+ * Addresses are compared in memory only: never sent, logged or kept beyond the last one copied.
  */
 // Loaded when the check starts, so the link rules can be tested without Electron. Electron's clipboard answers with a
 // promise (it did not always): every read and write is awaited.
 const clipboard = () => require('electron').clipboard;
+const crypto = require('crypto');
 const clickfix = require('../shared/clickfix');
 
 const EVERY_MS = 1500;
@@ -36,6 +42,16 @@ let browserAt = 0;            // when a browser was last seen in front
 let every = EVERY_MS;
 let reads = 0;
 const allowed = new Set();    // commands the person put back: not stopped again while Sentinel runs
+let wallet = null;            // { kind, text, at, restores }: the address last copied, in memory only
+
+// A swap comes within seconds of the copy. The clipboard is read every half second for this long after an address.
+const WALLET_MS = 10 * 1000;
+// Keys and mouse used this long after the address was seen mean the person copied again (the copy's own key-up is earlier).
+const TOUCH_MS = 300;
+// A hijacker swaps again each time the clipboard changes: Sentinel puts the address back this many times, then stops.
+const MAX_RESTORES = 3;
+// Clipboards shared on purpose: a remote desktop session's.
+const SHARED_CLIPBOARD = new Set(['rdpclip']);
 
 /** What goes on the clipboard instead. Pasted into the Run box it is only words Windows cannot find. */
 const stoppedLine = (host) => `Sentinel stopped a command copied from ${host || 'a web page'}. It could have taken over this computer.`;
@@ -53,6 +69,80 @@ function linkIn(text) {
     const u = new URL(candidate);
     return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
   } catch { return null; }
+}
+
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function base58(s) {
+  let n = 0n;
+  for (const c of s) { const i = B58.indexOf(c); if (i < 0) return null; n = n * 58n + BigInt(i); }
+  const hex = n ? n.toString(16).padStart(Math.ceil(n.toString(16).length / 2) * 2, '0') : '';
+  return Buffer.concat([Buffer.alloc(/^1*/.exec(s)[0].length), Buffer.from(hex, 'hex')]);
+}
+const sha256 = (b) => crypto.createHash('sha256').update(b).digest();
+/** Base58Check (Bitcoin, Litecoin, Tron): the payload when the checksum holds, else null. */
+function base58check(s) {
+  const b = base58(s);
+  if (!b || b.length < 5) return null;
+  const body = b.subarray(0, -4);
+  return sha256(sha256(body)).subarray(0, 4).equals(b.subarray(-4)) ? body : null;
+}
+/** An IBAN's check digits hold (ISO 13616, mod 97). */
+function ibanOk(t) {
+  let rem = 0;
+  for (const c of t.slice(4) + t.slice(0, 4)) for (const d of String(parseInt(c, 36))) rem = (rem * 10 + Number(d)) % 97;
+  return rem === 1;
+}
+
+/**
+ * The kind of wallet address the clipboard holds, alone: 'btc', 'ltc', 'evm' (Ethereum and the chains that share its
+ * addresses), 'trx', 'sol', 'xmr' or 'iban'. null for anything else.
+ */
+function walletIn(text) {
+  const t = String(text || '').trim();
+  if (!t || t.length > 120) return null;
+  if (/^0x[0-9a-f]{40}$/i.test(t)) return 'evm';
+  // ponytail: bech32 is matched by shape, not checksum; base58 ones are checksummed, so a Solana key is never taken for Bitcoin.
+  if (/^bc1[02-9ac-hj-np-z]{11,71}$/i.test(t)) return 'btc';
+  if (/^ltc1[02-9ac-hj-np-z]{11,71}$/i.test(t)) return 'ltc';
+  if (/^[48][1-9A-HJ-NP-Za-km-z]{94}([1-9A-HJ-NP-Za-km-z]{11})?$/.test(t)) return 'xmr';
+  if (/^[1-9A-HJ-NP-Za-km-z]{25,44}$/.test(t)) {
+    const body = base58check(t);
+    if (body && body.length === 21) return { 0x00: 'btc', 0x05: 'btc', 0x30: 'ltc', 0x32: 'ltc', 0x41: 'trx' }[body[0]] || null;
+    if (t.length >= 32 && base58(t).length === 32) return 'sol';
+    return null;
+  }
+  const iban = t.replace(/ /g, '').toUpperCase();
+  if (/^[A-Z]{2}\d{2}( ?[A-Z0-9]{1,4})+$/i.test(t) && /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban) && ibanOk(iban)) return 'iban';
+  return null;
+}
+
+/**
+ * The clipboard now holds `text`. When it is an address that replaced the one just copied, of the same kind, with no
+ * key or mouse touched since, the copied one goes back. True when it did (or tried).
+ */
+async function guardWallet(text) {
+  const kind = walletIn(text);
+  const before = wallet;
+  wallet = kind ? { kind, text, at: Date.now(), restores: 0 } : null;
+  if (kind) every = SHIELD_EVERY_MS;
+  if (!kind || !before || before.kind !== kind || before.text === text || Date.now() - before.at > WALLET_MS) return false;
+  if (before.restores >= MAX_RESTORES) return false;
+  // Who wrote the clipboard, and how long ago a key or the mouse was last used. Not known (the helper that says is
+  // not running): nothing is touched, as the person may have copied again.
+  const who = opts.clipOwner ? await opts.clipOwner().catch(() => null) : null;
+  if (!who || !Number.isFinite(who.idle)) return false;
+  if (Date.now() - who.idle > before.at + TOUCH_MS) return false;
+  if (SHARED_CLIPBOARD.has(who.owner)) return false;
+  let putBack = true;
+  try { await clipboard().writeText(before.text); } catch { putBack = false; }
+  if (putBack) {
+    last = before.text;
+    wallet = { ...before, at: Date.now(), restores: before.restores + 1 };
+  }
+  const program = who.owner && who.owner !== 'electron' && who.owner !== 'sentinel' ? who.owner : null;
+  if (opts.log) opts.log(`wallet address swap caught (${kind})${program ? `, written by ${program}` : ''}${putBack ? '' : ', could not put it back'}`);
+  if (opts.onWallet && before.restores === 0) opts.onWallet({ kind, program, putBack });
+  return true;
 }
 
 /**
@@ -115,15 +205,17 @@ async function tick() {
   const links = opts.links();
   const shieldOn = opts.commands() && opts.browserOpen();
   const browser = shieldOn && fromBrowser();
-  every = browser ? SHIELD_EVERY_MS : EVERY_MS;
+  const wallets = Boolean(opts.wallets && opts.wallets());
+  every = browser || (wallets && wallet && Date.now() - wallet.at < WALLET_MS) ? SHIELD_EVERY_MS : EVERY_MS;
   // The shield alone reads nothing while no browser is open: a command only comes from a page.
-  if (!links && !shieldOn) return;
+  if (!links && !shieldOn && !wallets) return;
   let text = '';
   reads++;
   try { text = String(await clipboard().readText()); } catch { return; }
   if (text === last) return;
   last = text;
   if (held && Date.now() > held.until) held = null;
+  if (wallets && await guardWallet(text)) return;
   if (shieldOn && await shield(text, browser)) return;
   if (!links) return;
   const url = linkIn(text);
@@ -140,15 +232,16 @@ async function tick() {
 }
 
 /**
- * Started (or restarted) whenever either switch changes. options: api, log, links() and commands() (the two switches),
- * browserOpen(), browserInFront() (the browser in front, null for another program, undefined when not known),
- * page() (the page in front: { host, badge }), onDanger (a dangerous link), onCommand (a command).
+ * Started (or restarted) whenever a switch changes. options: api, log, links(), commands() and wallets() (the three
+ * switches), clipOwner() (who wrote the clipboard, and ms since the last key or mouse use: { owner, idle }), browserOpen(), browserInFront() (the browser in front, null for another program, undefined when not known),
+ * page() (the page in front: { host, badge }), onDanger (a dangerous link), onCommand (a command), onWallet (a swap).
  */
 function start(options) {
   opts = options;
   stop();
   // Whatever is on the clipboard when this starts was copied before: it is not checked.
   last = null;
+  wallet = null;
   Promise.resolve().then(() => clipboard().readText()).then((t) => { if (last === null) last = String(t); }, () => { if (last === null) last = ''; });
   const loop = async () => {
     if (last !== null) await tick().catch(() => {});
@@ -168,4 +261,4 @@ function stop() {
 /** How often the clipboard is looked at now, and how many times it was read: for the end-to-end check. */
 const status = () => ({ every, reads, running: Boolean(timer) });
 
-module.exports = { start, stop, putBack, heldCommand, status, _test: { linkIn, stoppedLine, tick } };
+module.exports = { start, stop, putBack, heldCommand, status, _test: { linkIn, stoppedLine, tick, walletIn } };

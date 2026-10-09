@@ -105,10 +105,12 @@ async function installed() {
  * It ends by itself when Sentinel does: its standard input closes.
  * It also says which program owns the window in front, when that changes ("front:msedge"), looked at twice a second:
  * "Stop pasted commands" looks at the clipboard often only while a browser is in front.
+ * Asked "clip" on its input, it answers which program wrote the clipboard and how many milliseconds ago a key or the
+ * mouse was last used ("clip:powershell|5230"), for wallet guard (clipwatch.js). Nothing on the clipboard is read here.
  */
 const WATCH_SCRIPT = `
 $ErrorActionPreference = 'SilentlyContinue'
-Add-Type -Namespace SB -Name F -MemberDefinition '[DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p);'
+Add-Type -Namespace SB -Name F -MemberDefinition '[DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p); [DllImport("user32.dll")] public static extern System.IntPtr GetClipboardOwner(); [DllImport("user32.dll")] public static extern bool GetLastInputInfo([In, Out] int[] p);'
 $names = @(__NAMES__)
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
 $pending = $stdin.ReadLineAsync()
@@ -125,11 +127,21 @@ while ($true) {
     try { $f = [Diagnostics.Process]::GetProcessById($id).ProcessName.ToLower() } catch {}
     if ($f -ne $front) { $front = $f; [Console]::Out.WriteLine('front:' + $f); [Console]::Out.Flush() }
   }
-  if ($pending.Wait(500)) { if ($null -eq $pending.Result) { exit }; $pending = $stdin.ReadLineAsync() }
+  if ($pending.Wait(500)) {
+    if ($null -eq $pending.Result) { exit }
+    if ($pending.Result -eq 'clip') {
+      $o = [SB.F]::GetClipboardOwner(); $c = ''
+      if ($o -ne [IntPtr]::Zero) { $id = 0; [void][SB.F]::GetWindowThreadProcessId($o, [ref]$id); try { $c = [Diagnostics.Process]::GetProcessById($id).ProcessName.ToLower() } catch {} }
+      $li = [int[]](8, 0); [void][SB.F]::GetLastInputInfo($li)
+      [Console]::Out.WriteLine('clip:' + $c + '|' + (([int64][Environment]::TickCount - $li[1]) -band 4294967295)); [Console]::Out.Flush()
+    }
+    $pending = $stdin.ReadLineAsync()
+  }
 }`;
 let watcherChild = null;
 let watcherRunning = null;   // the helper's latest answer: process names, or null before it has one
 let watcherFront = null;     // the program whose window is in front ('' for none), or null before the helper says
+const clipWaiters = [];      // answers owed for "clip"
 
 function startProcessWatcher(onNames, extra = []) {
   if (process.platform !== 'win32' || watcherChild) return;
@@ -151,9 +163,14 @@ function startProcessWatcher(onNames, extra = []) {
       buf = buf.slice(i + 1);
       if (line.startsWith('running:')) { watcherRunning = new Set(line.slice(8).split(',').filter(Boolean)); onNames(); }
       else if (line.startsWith('front:')) watcherFront = line.slice(6);
+      else if (line.startsWith('clip:')) {
+        const [owner, idle] = line.slice(5).split('|');
+        const answer = { owner: owner || null, idle: Number(idle) };
+        clipWaiters.splice(0).forEach((done) => done(answer));
+      }
     }
   });
-  const gone = () => { watcherChild = null; watcherRunning = null; watcherFront = null; };
+  const gone = () => { watcherChild = null; watcherRunning = null; watcherFront = null; clipWaiters.splice(0).forEach((done) => done(null)); };
   watcherChild.on('exit', gone);
   watcherChild.on('error', gone);
 }
@@ -167,6 +184,20 @@ function inFront() {
   if (!watcherChild || watcherFront === null) return undefined;
   const b = BROWSERS.find((x) => x.process === watcherFront);
   return b ? b.id : null;
+}
+
+/**
+ * Who wrote the clipboard and how long since a key or the mouse was used: { owner, idle } (owner is a process name,
+ * or null), from the running helper. null when the helper is not running or does not answer within a second.
+ */
+function clipOwner() {
+  if (!watcherChild) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const done = (answer) => { clearTimeout(timer); resolve(answer); };
+    const timer = setTimeout(() => { const i = clipWaiters.indexOf(done); if (i >= 0) clipWaiters.splice(i, 1); resolve(null); }, 1000);
+    clipWaiters.push(done);
+    try { watcherChild.stdin.write('clip\n'); } catch { done(null); }
+  });
 }
 
 /** Ids of the browsers running right now. */
@@ -310,4 +341,4 @@ function watch({ onChange, everyMs = 15000, others = null }) {
 }
 
 module.exports = {
-  defaultBrowser, preferred, BROWSERS, installed, running, inFront, bringForward, watch, _test: { WATCH_SCRIPT } };
+  defaultBrowser, preferred, BROWSERS, installed, running, inFront, clipOwner, bringForward, watch, _test: { WATCH_SCRIPT } };

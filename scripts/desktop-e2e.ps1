@@ -302,6 +302,38 @@ $clip = (Get-Clipboard -Raw) + ''
 Check 'clickfix-program-told' ($ok -and $clip.Trim() -eq $command2) "copied in Notepad: told ($ok), clipboard left alone: $($clip.Substring(0, [Math]::Min(40, $clip.Length)))"
 Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
+# 4b. Wallet guard: a test Bitcoin address copied, then a small helper standing in for a clipboard hijacker (harmless:
+# it only sets the clipboard) puts a different Bitcoin address there a moment later, with no key pressed.
+$btcA = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'; $btcB = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2'
+$swapper = Join-Path $env:RUNNER_TEMP 'swapper.ps1'
+"Start-Sleep -Milliseconds 2500; Set-Clipboard -Value '$btcB'; Start-Sleep 8" | Set-Content -Path $swapper -Encoding utf8
+$catches = { ([regex]::Matches((AppLog), 'wallet address swap caught')).Count }
+Set-Clipboard -Value $btcA
+$sw = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $swapper -WindowStyle Hidden -PassThru
+$ok = Until 20 { (& $catches) -ge 1 }
+Start-Sleep 1
+$clip = (Get-Clipboard -Raw) + ''
+$pace = ClipStatus
+Shot 'wallet-swap'
+Check 'wallet-swap-restored' ($ok -and $clip.Trim() -eq $btcA) "caught ($ok); clipboard after the swap is the copied address: $($clip.Trim() -eq $btcA)"
+Check 'wallet-swap-log' $ok "app.log: $(([regex]::Match((AppLog), 'wallet address swap caught[^\r\n]*')).Value)"
+Check 'wallet-pace' ($pace.every -eq 500) "read every $($pace.every) ms for a few seconds after an address"
+[void]$sw.WaitForExit(15000)
+# Two different addresses the person copies, with Ctrl+C pressed between them: left alone.
+Start-Sleep 11
+Start-Process notepad
+Start-Sleep 3
+Say "Notepad in front: $(Front 'notepad')"
+Set-Clipboard -Value $btcB
+Start-Sleep 3
+[K]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero); [K]::Tap(0x43); [K]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
+Set-Clipboard -Value $btcA
+Start-Sleep 5
+$clip = (Get-Clipboard -Raw) + ''
+Check 'wallet-own-copy' ($clip.Trim() -eq $btcA -and (& $catches) -eq 1) "after copying two addresses with Ctrl+C between: clipboard is the second ($($clip.Trim() -eq $btcA)), swaps caught still 1 ($(& $catches))"
+Check 'wallet-log-private' (-not ((AppLog) -match '1A1zP1|1BvBMS')) 'app.log holds no wallet address'
+Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
 # 4a. The live-scanning corner as an island, over Edge: the mask springs open into a card with the words, a new
 # message morphs the card, and it closes back into the mask. Photographed mid-spring (bottom right of each frame).
 Say "Edge in front: $(Front 'msedge')"
@@ -431,6 +463,8 @@ Check 'lock-set' ($r.set -and $r.locked) "set with a PIN: $($r | ConvertTo-Json 
 $r = Cdp '127.0.0.1:4782' 'window.sentinelDesktop.setChatSafety(false)'
 Check 'lock-refuses' ($r.error -match 'Locked by a parent') "chat safety off without the PIN: $($r.error)"
 Check 'lock-kept-on' ((Info 'info()').chatSafety.enabled -eq $true) 'chat safety is still on'
+$r = Cdp '127.0.0.1:4782' 'window.sentinelDesktop.setWalletGuard(false)'
+Check 'lock-wallet-guard' ($r.error -match 'Locked by a parent' -and (Info 'info()').walletGuard -eq $true) "wallet guard off without the PIN: $($r.error)"
 $r = Cdp '127.0.0.1:4782' "window.sentinelDesktop.lockUnlock('1357')"
 Check 'lock-wrong-pin' ($r.error -match 'Wrong PIN') "a wrong PIN: $($r.error)"
 $r = Info "lockUnlock('2468')"

@@ -868,12 +868,15 @@ function cpuProfileOnRequest() {
 function syncClipboard() {
   const links = () => store.get('clipboardCheck', false);
   const commands = () => process.platform === 'win32' && store.get('commandShield', true);
-  if (!ORIGIN || (!links() && !commands())) { clipwatch.stop(); return; }
+  const wallets = () => process.platform === 'win32' && store.get('walletGuard', true);
+  if (!ORIGIN || (!links() && !commands() && !wallets())) { clipwatch.stop(); return; }
   clipwatch.start({
     api: apiCall,
     log: appLog,
     links,
     commands,
+    wallets,
+    clipOwner: () => browsers.clipOwner(),
     browserOpen: () => (browserState.running || []).length > 0,
     browserInFront: () => browsers.inFront(),
     // The page is named only when live scanning is watching the browser in front now: then it is where the copy came from.
@@ -884,7 +887,12 @@ function syncClipboard() {
       if (c.action === 'stop') notify('Sentinel stopped a copied command', `${from}${c.reason}. Never paste a command a website gives you into Windows. Click to put it back if you trust it.`, () => putBackCommand().then((r) => notify(r.ok ? 'The command is back on your clipboard' : 'The command was not put back', r.message)));
       else notify('Careful with the command you copied', `${from}${c.reason}. Only run it if you know exactly what it does and who it came from.`);
       push('sentinel:command', clipwatch.heldCommand());
-    }
+    },
+    // Wallet guard: an address swapped on the clipboard. The addresses themselves never leave clipwatch.
+    onWallet: (w) => notify(
+      w.putBack ? 'Sentinel put back the wallet address you copied' : 'The wallet address you copied was replaced',
+      `${w.putBack ? 'Something on this PC replaced the wallet address you copied. Sentinel put yours back. Check every character before you send.' : 'Something on this PC replaced the wallet address you copied, and Windows did not let Sentinel put it back. Copy it again and check every character before you send.'}${w.program ? ` It looks like ${w.program} did it.` : ''} Click to check this PC with Defense.`,
+      () => showWindow('/app/protection#defense'))
   });
 }
 
@@ -907,6 +915,13 @@ function setClipboardCheck(enabled) {
   store.set('clipboardCheck', Boolean(enabled));
   syncClipboard();
   return { clipboardCheck: Boolean(enabled) };
+}
+
+/** Wallet guard: its switch. */
+function setWalletGuard(enabled) {
+  store.set('walletGuard', Boolean(enabled));
+  syncClipboard();
+  return { walletGuard: Boolean(enabled) };
 }
 
 /** "Stop pasted commands": its switch. */
@@ -1100,6 +1115,7 @@ function registerBridge() {
     clipboardCheck: store.get('clipboardCheck', false),
     commandShield: process.platform === 'win32' && store.get('commandShield', true),
     commandHeld: clipwatch.heldCommand(),
+    walletGuard: process.platform === 'win32' && store.get('walletGuard', true),
     exposureAlerts: store.get('exposureAlerts', false),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
     downloads: downloads.status(),
@@ -1168,6 +1184,7 @@ function registerBridge() {
   handle('sentinel:check-updates', () => updater.check());
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
   handle('sentinel:set-clipboard-check', (enabled) => { lock.guard('checking copied links off', !enabled); return setClipboardCheck(Boolean(enabled)); });
+  handle('sentinel:set-wallet-guard', (enabled) => { lock.guard('wallet guard off', !enabled); return setWalletGuard(Boolean(enabled)); });
   handle('sentinel:set-command-shield', (enabled) => { lock.guard('Stop pasted commands off', !enabled); return setCommandShield(Boolean(enabled)); });
   handle('sentinel:command-put-back', () => putBackCommand());
   handle('sentinel:set-defense', (enabled) => { lock.guard('defense off', !enabled); store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
