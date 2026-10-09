@@ -308,7 +308,7 @@ Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAc
 $btcA = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'; $btcB = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2'
 $swapper = Join-Path $env:RUNNER_TEMP 'swapper.ps1'
 $gapFile = Join-Path $env:RUNNER_TEMP 'swap-gap.txt'
-# It writes the clipboard the way hijackers do, straight through Windows' own calls, the second address 20 ms after the first.
+# It writes the clipboard the way hijackers do, straight through Windows' own calls, the second address 10 ms after the first.
 @'
 Add-Type -Namespace W -Name C -MemberDefinition '[DllImport("user32.dll")] public static extern bool OpenClipboard(System.IntPtr h); [DllImport("user32.dll")] public static extern bool EmptyClipboard(); [DllImport("user32.dll")] public static extern System.IntPtr SetClipboardData(uint f, System.IntPtr d); [DllImport("user32.dll")] public static extern bool CloseClipboard();'
 function Put($s) {
@@ -318,7 +318,7 @@ function Put($s) {
 }
 Put '__A__'
 $t = [Diagnostics.Stopwatch]::StartNew()
-Start-Sleep -Milliseconds 20
+while ($t.ElapsedMilliseconds -lt 10) { }
 Put '__B__'
 $t.ElapsedMilliseconds | Set-Content '__GAP__'
 Start-Sleep 8
