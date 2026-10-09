@@ -303,6 +303,56 @@ $clip = (Get-Clipboard -Raw) + ''
 Check 'clickfix-program-told' ($ok -and $clip.Trim() -eq $command2) "copied in Notepad: told ($ok), clipboard left alone: $($clip.Substring(0, [Math]::Min(40, $clip.Length)))"
 Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
+# 4b. Wallet guard: a small helper standing in for a clipboard hijacker (harmless: it only sets the clipboard) copies a
+# test Bitcoin address and, straight after, with no pause and no key pressed, puts a different one in its place, as
+# real hijackers do within milliseconds. Sentinel hears both changes as they happen and puts the first back.
+$btcA = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'; $btcB = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2'
+$swapper = Join-Path $env:RUNNER_TEMP 'swapper.ps1'
+$gapFile = Join-Path $env:RUNNER_TEMP 'swap-gap.txt'
+# It writes the clipboard the way hijackers do, straight through Windows' own calls, the second address 10 ms after the first.
+@'
+Add-Type -Namespace W -Name C -MemberDefinition '[DllImport("user32.dll")] public static extern bool OpenClipboard(System.IntPtr h); [DllImport("user32.dll")] public static extern bool EmptyClipboard(); [DllImport("user32.dll")] public static extern System.IntPtr SetClipboardData(uint f, System.IntPtr d); [DllImport("user32.dll")] public static extern bool CloseClipboard();'
+function Put($s) {
+  $p = [Runtime.InteropServices.Marshal]::StringToHGlobalUni($s)
+  for ($i = 0; $i -lt 200 -and -not [W.C]::OpenClipboard([IntPtr]::Zero); $i++) { Start-Sleep -Milliseconds 1 }
+  [void][W.C]::EmptyClipboard(); [void][W.C]::SetClipboardData(13, $p); [void][W.C]::CloseClipboard()
+}
+Put '__A__'
+$t = [Diagnostics.Stopwatch]::StartNew()
+while ($t.ElapsedMilliseconds -lt 10) { }
+Put '__B__'
+$t.ElapsedMilliseconds | Set-Content '__GAP__'
+Start-Sleep 8
+'@.Replace('__A__', $btcA).Replace('__B__', $btcB).Replace('__GAP__', $gapFile) | Set-Content -Path $swapper -Encoding utf8
+$hearing = (ClipStatus).hearing
+Check 'wallet-hearing' ($hearing -eq $true) "clipboard changes heard as they happen (not only read on a timer): $hearing"
+$catches = { ([regex]::Matches((AppLog), 'wallet address swap caught')).Count }
+Set-Clipboard -Value 'a shopping list'
+Start-Sleep 2
+$sw = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $swapper -WindowStyle Hidden -PassThru
+$ok = Until 20 { (& $catches) -ge 1 }
+Start-Sleep 1
+$clip = (Get-Clipboard -Raw) + ''
+Shot 'wallet-swap'
+Say "  the swap came $((Get-Content $gapFile -ErrorAction SilentlyContinue) -join '') ms after the copy"
+Check 'wallet-swap-restored' ($ok -and $clip.Trim() -eq $btcA) "caught ($ok); clipboard after the swap is the copied address: $($clip.Trim() -eq $btcA)"
+Check 'wallet-swap-log' $ok "app.log: $(([regex]::Match((AppLog), 'wallet address swap caught[^\r\n]*')).Value)"
+[void]$sw.WaitForExit(15000)
+# Two different addresses the person copies, less than a second apart, with Ctrl+C pressed between them: left alone.
+Start-Sleep 11
+Start-Process notepad
+Start-Sleep 3
+Say "Notepad in front: $(Front 'notepad')"
+Set-Clipboard -Value $btcB
+Start-Sleep -Milliseconds 800
+[K]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero); [K]::Tap(0x43); [K]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
+Set-Clipboard -Value $btcA
+Start-Sleep 5
+$clip = (Get-Clipboard -Raw) + ''
+Check 'wallet-own-copy' ($clip.Trim() -eq $btcA -and (& $catches) -eq 1) "after copying two addresses with Ctrl+C between: clipboard is the second ($($clip.Trim() -eq $btcA)), swaps caught still 1 ($(& $catches))"
+Check 'wallet-log-private' (-not ((AppLog) -match '1A1zP1|1BvBMS')) 'app.log holds no wallet address'
+Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
 # 4a. The live-scanning corner as an island, over Edge: the mask springs open into a card with the words, a new
 # message morphs the card, and it closes back into the mask. Photographed mid-spring (bottom right of each frame).
 Say "Edge in front: $(Front 'msedge')"
@@ -497,6 +547,8 @@ Check 'lock-set' ($r.set -and $r.locked) "set with a PIN: $($r | ConvertTo-Json 
 $r = Cdp '127.0.0.1:4782' 'window.sentinelDesktop.setChatSafety(false)'
 Check 'lock-refuses' ($r.error -match 'Locked by a parent') "chat safety off without the PIN: $($r.error)"
 Check 'lock-kept-on' ((Info 'info()').chatSafety.enabled -eq $true) 'chat safety is still on'
+$r = Cdp '127.0.0.1:4782' 'window.sentinelDesktop.setWalletGuard(false)'
+Check 'lock-wallet-guard' ($r.error -match 'Locked by a parent' -and (Info 'info()').walletGuard -eq $true) "wallet guard off without the PIN: $($r.error)"
 $r = Cdp '127.0.0.1:4782' "window.sentinelDesktop.lockUnlock('1357')"
 Check 'lock-wrong-pin' ($r.error -match 'Wrong PIN') "a wrong PIN: $($r.error)"
 $r = Info "lockUnlock('2468')"

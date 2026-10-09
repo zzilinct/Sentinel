@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   setOpenAtLogin: (enabled) => ipcRenderer.invoke('sentinel:set-open-at-login', Boolean(enabled)),
   setClipboardCheck: (enabled) => ipcRenderer.invoke('sentinel:set-clipboard-check', Boolean(enabled)),
   setCommandShield: (enabled) => ipcRenderer.invoke('sentinel:set-command-shield', Boolean(enabled)),
+  // Wallet guard: a copied wallet address swapped by malware is put back.
+  setWalletGuard: (enabled) => ipcRenderer.invoke('sentinel:set-wallet-guard', Boolean(enabled)),
   // "Put it back": the command "Stop pasted commands" took off the clipboard. Its text never reaches the page.
   commandPutBack: () => ipcRenderer.invoke('sentinel:command-put-back'),
   onCommand: (callback) => on('sentinel:command', callback),

@@ -2239,6 +2239,7 @@
           ${desktop.setClipboardCheck ? `<label class="setting"><div><b>Check links I copy</b><span>Copy a link from a text message, a chat or a PDF and Sentinel checks it, and warns you only if it is dangerous. Only copied web links are read; nothing else on your clipboard is sent or kept.</span></div><input class="switch" type="checkbox" data-clip ${info.clipboardCheck ? 'checked' : ''}></label>` : ''}
           ${desktop.setCommandShield && info.platform === 'win32' ? `<label class="setting"><div><b>Stop pasted commands</b><span>Fake "I am not a robot" pages copy a command and ask you to paste it into Windows. When you copy such a command in a browser, Sentinel takes it off your clipboard and tells you, with a way to put it back. Copied in another program, it only tells you. Copied text is checked on this computer and never sent or kept.</span></div><input class="switch" type="checkbox" data-shield ${info.commandShield ? 'checked' : ''}></label>
           ${desktop.commandPutBack ? '<div class="setting" data-held hidden><div><b>Stopped command</b><span data-held-text></span></div><button class="btn btn--sm" data-put-back>Put it back</button></div>' : ''}` : ''}
+          ${desktop.setWalletGuard && info.platform === 'win32' ? `<label class="setting"><div><b>Wallet guard</b><span>Some malware waits for you to copy a crypto wallet address or an IBAN and swaps in its own. If the address you copied changes by itself a moment later, Sentinel puts yours back and tells you. Addresses are compared on this computer, in memory, and never sent, saved or logged.</span></div><input class="switch" type="checkbox" data-wallet-guard ${info.walletGuard ? 'checked' : ''}></label>` : ''}
           ${desktop.setRemoteGuard && info.remoteGuard && info.remoteGuard.supported ? `<label class="setting"><div><b>Tech-support scam shield</b>${info.remoteGuard.enabled && !live.enabled ? '<span class="status is-locked">Needs live scanning</span>' : ''}<span>When a page flagged as a scam takes the whole screen, Sentinel offers to close it. When a remote-control program such as AnyDesk or TeamViewer starts soon after a flagged page, or soon after it was downloaded, Sentinel asks whether someone on the phone told you to install it. Nothing is stopped unless you say so. The way out of a full-screen page and the bank warning work while live scanning is on.${info.remoteGuard.trusted.length ? ` You use ${esc(info.remoteGuard.trusted.join(', '))} yourself.` : ''}</span></div><input class="switch" type="checkbox" data-remote-guard ${info.remoteGuard.enabled ? 'checked' : ''}></label>
           ${info.remoteGuard.trusted.length ? '<div class="setting"><div><b>Programs you use yourself</b><span>Sentinel does not ask about these.</span></div><button class="btn btn--sm" data-forget-remote>Ask again</button></div>' : ''}` : ''}
           <label class="setting"><div><b>Start with my computer</b><span>Keep protection running from the moment you sign in.</span></div><input class="switch" type="checkbox" data-login ${info.openAtLogin ? 'checked' : ''}></label>
@@ -2260,7 +2261,7 @@
           <div class="panel__head"><div><h2>Live, right now</h2><p>${live.active ? 'Pages show up here as they are checked. Private windows never do.' : 'Start scanning to see pages as they are checked.'}</p></div><span class="live-dot${live.active ? ' is-on' : ''}" aria-hidden="true"></span></div>
           <ul class="list feed" data-feed>${live.current && live.current.url ? `<li class="feed__item"><span class="list__icon">${ICON.globe}</span><span class="list__main"><b>${esc(live.current.url)}</b><span>In front now</span></span></li>` : '<li class="feed__empty muted">Nothing checked yet. Open a page in your browser.</li>'}</ul>
         </div>
-        <div class="panel">
+        <div class="panel" id="defense">
           <div class="panel__head"><div><h2>Defense log</h2><p>What arrived, what was scanned, what was stopped.</p></div></div>
           ${ledger.length ? `<ul class="list">${ledger.slice(0, 8).map((e) => `<li>
             <span class="list__icon" style="${e.kind === 'threat' ? 'color:var(--red)' : e.kind === 'suspect' ? 'color:var(--orange)' : e.kind === 'restored' ? 'color:var(--gold-300)' : ''}">${ICON.file}</span>
@@ -2284,17 +2285,12 @@
       const again = $$(`[data-${focusKey.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}]`, slot).find((el2) => el2.dataset[focusKey] === focusValue);
       if (again) again.focus({ preventScroll: true });
     }
-    // Opened from a "dangerous download" notification: straight to the file and its Quarantine button, once.
-    if (location.hash === '#downloads' && !state.scrolledToDownloads) {
-      state.scrolledToDownloads = true;
-      const dl = $('#downloads', slot);
-      if (dl) dl.scrollIntoView({ block: 'start' });
-    }
-    // Opened from an exposure notification: straight to the sites and what to do, once.
-    if (location.hash === '#exposures' && !state.scrolledToExposures) {
-      state.scrolledToExposures = true;
-      const ex = $('#exposures', slot);
-      if (ex) ex.scrollIntoView({ block: 'start' });
+    // Opened from a notification (a dangerous download, an exposure, a swapped wallet address): straight to its part, once.
+    for (const id of ['downloads', 'exposures', 'defense']) {
+      if (location.hash !== `#${id}` || state[`scrolledTo${id}`]) continue;
+      state[`scrolledTo${id}`] = true;
+      const part = $(`#${id}`, slot);
+      if (part) part.scrollIntoView({ block: 'start' });
     }
     bindChatSafety(slot);
     bindExposures(slot);
@@ -2398,6 +2394,13 @@
         await desktop.setClipboardCheck(clip.checked);
         toast(clip.checked ? 'Check links I copy is on. Copy a link and Sentinel checks it.' : 'Check links I copy is off.', 'success');
       } catch (err) { clip.checked = !clip.checked; toast(desktopError(err), 'error'); }
+    });
+    const walletSwitch = $('[data-wallet-guard]', slot);
+    if (walletSwitch) walletSwitch.addEventListener('change', async () => {
+      try {
+        await desktop.setWalletGuard(walletSwitch.checked);
+        toast(walletSwitch.checked ? 'Wallet guard is on.' : 'Wallet guard is off.', 'success');
+      } catch (err) { walletSwitch.checked = !walletSwitch.checked; toast(desktopError(err), 'error'); }
     });
     const shieldSwitch = $('[data-shield]', slot);
     if (shieldSwitch) shieldSwitch.addEventListener('change', async () => {
