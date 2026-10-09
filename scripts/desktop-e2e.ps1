@@ -597,12 +597,14 @@ Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAct
 # shops are harmless local pages behind a hosts mapping. Their ages are put where an earlier lookup would have left
 # them (scripts/e2e-pay.js): live scanning here is fast, and fast looks nothing up.
 Say (node (Join-Path $PSScriptRoot 'e2e-pay.js') "$data\sentinel.db")
+# 5d's warning is still open: out of the way, so the photographs show the card.
+[void](Cdp 'warn.html' 'window.close(), 1')
 Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 youngshop.test`r`n127.0.0.1 oldshop.test"
 function PayCard { return [string](Cdp 'overlay.html' "(document.getElementById('pay').classList.contains('is-on') ? 'on|' : 'off|') + document.getElementById('payText').textContent").value }
 function PayLog { return ([regex]::Matches((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '', 'before you pay: shown')).Count }
 function Shop($url) {
   Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 2
-  Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', $url
+  Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble', $url
   Start-Sleep 8
   Say "Edge in front: $(Front 'msedge')"
   [void][K]::SetCursorPos(400, 500)
