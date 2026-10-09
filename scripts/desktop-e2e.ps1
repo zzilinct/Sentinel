@@ -26,6 +26,7 @@ public static class K {
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out int pid);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   public static void Tap(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
 }
 "@
@@ -313,6 +314,45 @@ $n += @(70, 160, 320, 800 | ForEach-Object { Frame 'overlay.html' "$isl; I.hush(
 $n += Frame 'overlay.html' "$isl; $scan; settle(); I.say('<b>Phishing.</b> Do not enter anything here.', '#e5484d', true)" 160 'motion-island-morph-160ms'
 $n += Frame 'overlay.html' "$isl; $scan; settle(); I.hush()" 140 'motion-island-close-140ms'
 Check 'motion-island' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations paused mid-spring in the corner island, per frame: $($n -join ', ')"
+
+# 4b. Hover a link: Edge in front on a forum-shaped page. The pointer rests on a link to a listed scam, then on an
+# honest one, then on nothing; live scanning puts one mark beside the link it rests on, and takes it away after.
+Start-Process msedge -ArgumentList '--no-first-run', '--start-maximized', 'http://127.0.0.1:47910/hover.html'
+Start-Sleep 8
+Say "Edge in front: $(Front 'msedge')"
+Start-Sleep 3
+# Where a link is on screen, as Windows describes it to screen readers (the same way the app finds it).
+function LinkAt($name) {
+  $A = [Windows.Automation.AutomationElement]
+  $l = $A::FromHandle([K]::GetForegroundWindow()).FindFirst([Windows.Automation.TreeScope]::Descendants, (New-Object Windows.Automation.AndCondition(
+    (New-Object Windows.Automation.PropertyCondition($A::ControlTypeProperty, [Windows.Automation.ControlType]::Hyperlink)),
+    (New-Object Windows.Automation.PropertyCondition($A::NameProperty, $name)))))
+  if (-not $l) { return $null }
+  $b = $l.Current.BoundingRectangle
+  return @([int]($b.X + $b.Width / 2), [int]($b.Y + $b.Height / 2))
+}
+function HoverMarks { return [string](Cdp 'overlay.html' "[...document.querySelectorAll('#marks .mark')].map((n) => n.dataset.state || 'pending').join(',')").value }
+function HoverLog($badge) { return ([regex]::Matches((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '', "link under the pointer: $badge")).Count }
+$scamAt = LinkAt 'PayPal account review'; $safeAt = LinkAt 'Wikipedia'
+Say "links on screen: scam at $($scamAt -join ','), safe at $($safeAt -join ',')"
+if ($scamAt -and $safeAt) {
+  [void][K]::SetCursorPos($scamAt[0] - 300, $scamAt[1] + 200); Start-Sleep 1
+  $before = HoverLog 'red'
+  [void][K]::SetCursorPos($scamAt[0], $scamAt[1])
+  $marks = ''
+  $ok = Until 20 { $script:marks = HoverMarks; (HoverLog 'red') -gt $before -and $script:marks -eq 'red:scam' }
+  Shot 'hover-scam'
+  Check 'hover-scam' $ok "resting on a link to a listed scam: overlay marks '$marks', watch.log says red: $((HoverLog 'red') -gt $before)"
+  $before = HoverLog 'clean'
+  [void][K]::SetCursorPos($safeAt[0], $safeAt[1])
+  $ok = Until 20 { $script:marks = HoverMarks; (HoverLog 'clean') -gt $before -and $script:marks -eq 'clear' }
+  Shot 'hover-safe'
+  Check 'hover-safe' $ok "resting on a link to an honest site: overlay marks '$marks' (one quiet mark)"
+  [void][K]::SetCursorPos($safeAt[0], $safeAt[1] + 150)
+  $ok = Until 10 { $script:marks = HoverMarks; $script:marks -eq '' }
+  Check 'hover-gone' $ok "pointer moved off the link: overlay marks '$marks'"
+} else { Check 'hover-scam' $false 'the test page''s links were not found on screen'; Shot 'hover-no-links' }
+Check 'hover-log-private' (-not ((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) -match 'link under the pointer: \S*\s*https?:')) 'watch.log says whether a hovered link was flagged, never its address'
 
 # 5. Tech-support scam shield: the real AnyDesk, downloaded and started.
 $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null

@@ -87,6 +87,9 @@ public static class SW {
     IntPtr after = (prev == IntPtr.Zero || (GetWindowLong(prev, -20) & 0x8) != 0) ? IntPtr.Zero : prev;
     return SetWindowPos(overlay, after, 0, 0, 0, 0, 0x1 | 0x2 | 0x10 | 0x200);
   }
+  // Where the pointer is, in the same screen pixels UI Automation uses (hover a link: the link under it).
+  [StructLayout(LayoutKind.Sequential)] public struct PT { public int X; public int Y; }
+  [DllImport("user32.dll")] public static extern bool GetPhysicalCursorPos(out PT p);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
   [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
   // "Get me out of this page" (the tech-support scam shield): ask the browser window to close, as its own close
@@ -339,7 +342,10 @@ $lastPid = 0; $lastProc = $null; $cachedDoc = $null; $cachedFor = [IntPtr]::Zero
 $forceRead = $true; $readAt = 0; $lastCount = 0
 # The overlay's window (sent by the app once it exists) and the browser it belongs over.
 $overlayH = [IntPtr]::Zero; $browserH = [IntPtr]::Zero; $browserPid = 0
-$lastFocus = ''; $recheckAt = 0; $lastMoveAt = 0# Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
+$lastFocus = ''; $recheckAt = 0; $lastMoveAt = 0
+# Hover: the link the pointer rests on (outside results pages and inboxes), where it was, and where the pointer was.
+$hoverEl = $null; $hoverB = $null; $lastCur = ''; $hoverTried = ''
+# Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
 # so the loop would stop at the first read until the app sent a command. A plain reader over the raw stream is
 # truly asynchronous.
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
@@ -385,7 +391,7 @@ function Covered($el, $b) {
     return $true
   } catch { return $false }
 }
-function Off($why) { $script:anchor = $null; try { [Wheel]::Enabled = $false; [Glide]::Enabled = $false } catch { }; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
+function Off($why) { $script:anchor = $null; $script:hoverEl = $null; $script:hoverTried = ''; try { [Wheel]::Enabled = $false; [Glide]::Enabled = $false } catch { }; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
   # Between full looks: follow the anchor about 60 times a second and report how far the page has moved, so the
   # marks move while the page scrolls instead of jumping after it. Wake at once for a command.
@@ -545,7 +551,7 @@ while ($true) {
 
   $key = $fname + '|' + $url
   if ($key -ne $last) {
-    $last = $key; $lastLinks = ''; $anchor = $null; $forceRead = $true
+    $last = $key; $lastLinks = ''; $anchor = $null; $forceRead = $true; $hoverEl = $null; $hoverTried = ''
     Write-Output (@{ browser = $fname; url = $url; private = [bool]$isPrivate; search = [bool]($url -match $search) } | ConvertTo-Json -Compress)
   }
 
@@ -560,6 +566,46 @@ while ($true) {
   if ($recheckAt -and $tick -ge $recheckAt) { $recheckAt = 0; $forceRead = $true }
   $needRead = $forceRead -or $moved -or -not $anchor -or $lastCount -eq 0 -or ($tick - $readAt) -gt 2500
   if ($needRead -and ($url -match $search -or $url -match $mail)) { $forceRead = $false; $readAt = $tick }
+
+  # Hover a link, on any other page (results and inboxes have their marks already). Where the pointer is costs
+  # nothing; Windows is asked what is under it only when the pointer has stayed put since the last pass (300 ms or
+  # more), once per place it rests. Only the link's address and box are read. A mark already shown goes when the
+  # pointer leaves the link or the link moves (the page scrolled).
+  if ($url -notmatch $search -and $url -notmatch $mail) {
+    $cp = New-Object SW+PT
+    if ([SW]::GetPhysicalCursorPos([ref]$cp)) {
+      $cur = "$($cp.X),$($cp.Y)"
+      if ($hoverEl) {
+        $hb = $null
+        try { $hb = $hoverEl.Current.BoundingRectangle } catch { $hb = $null }
+        $gone = -not $hb -or [double]::IsInfinity($hb.Width) -or [Math]::Abs($hb.X - $hoverB.X) -gt 3 -or [Math]::Abs($hb.Y - $hoverB.Y) -gt 3 -or $cp.X -lt $hb.Left - 4 -or $cp.X -gt $hb.Right + 4 -or $cp.Y -lt $hb.Top - 4 -or $cp.Y -gt $hb.Bottom + 4
+        if ($gone) { $hoverEl = $null; $hoverTried = ''; Write-Output '{"hover":null}' }
+      }
+      if (-not $hoverEl -and $cur -eq $lastCur -and $cur -ne $hoverTried -and $cp.X -ge $r.Left -and $cp.X -le $r.Right -and $cp.Y -ge $r.Top -and $cp.Y -le $r.Bottom) {
+        $hoverTried = $cur
+        try {
+          $hl = $A::FromPoint((New-Object System.Windows.Point($cp.X, $cp.Y)))
+          if ($hl -and $hl.Current.ProcessId -ne $fp) { $hl = $null }
+          # The words of a link, or a picture in it, are inside it: a few steps up at most, never past the page.
+          for ($i = 0; $hl -and $i -lt 5; $i++) {
+            $ct = $hl.Current.ControlType
+            if ($ct -eq [System.Windows.Automation.ControlType]::Hyperlink) { break }
+            if ($ct -eq [System.Windows.Automation.ControlType]::Document) { $hl = $null; break }
+            $hl = $walker.GetParent($hl)
+          }
+          if ($hl -and $hl.Current.ControlType -eq [System.Windows.Automation.ControlType]::Hyperlink) {
+            $hu = $hl.GetCurrentPattern($VP::Pattern).Current.Value
+            $hb = $hl.Current.BoundingRectangle
+            if ($hu -is [string] -and $hu -match '^https?://' -and -not [double]::IsInfinity($hb.Width) -and $hb.Width -ge 1) {
+              $hoverEl = $hl; $hoverB = $hb
+              Write-Output (@{ hover = @{ u = $hu; x = [int]$hb.X; y = [int]$hb.Y; w = [int]$hb.Width; h = [int]$hb.Height } } | ConvertTo-Json -Compress)
+            }
+          }
+        } catch { }
+      }
+      $lastCur = $cur
+    }
+  }
 
   # On a results page: every link on screen, with where it is. Addresses and rectangles only.
   if ($needRead -and $url -match $search) {
@@ -914,6 +960,7 @@ function onLine(line) {
   // The page's own pixels moved by dy since the last frame (Glide): the surest word on a scroll, a frame late.
   if (msg.px) { if (opts.onPixels && latestLinks) opts.onPixels({ epoch: latestLinks.epoch, dy: msg.px.dy, t: msg.px.t }); return; }
   if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t }); return; }
+  if ('hover' in msg) return onHover(msg.hover);
   if (msg.links) return onLinks(msg);
   if (msg.mail) return onMail(msg);
   if (!msg.url) return;
@@ -1052,6 +1099,11 @@ function unwrapResult(u, name) {
     } else if (/(^|\.)search\.yahoo\.com$/.test(host)) {
       const m = /\/RU=([^/]+)\//.exec(u.pathname);
       if (m) target = decodeURIComponent(m[1]);
+    } else if (/(^|\.)facebook\.com$/.test(host) && u.pathname === '/l.php') {
+      // Links shared on Facebook, and Outlook's "safe links" in mail: the address rides along (hover a link).
+      target = u.searchParams.get('u');
+    } else if (/(^|\.)safelinks\.protection\.outlook\.com$/.test(host)) {
+      target = u.searchParams.get('url');
     }
     if (!target) return null;
     const t = new URL(target);
@@ -1262,12 +1314,13 @@ async function checkLinks(links, page, forUrl) {
     // Delicate is shown in two steps: the quick answer (lists and checklist, a few ms) goes on screen at once, and
     // the researched answer replaces it when it lands. Nobody waits five seconds for a mark.
     if (mode === 'delicate' && !page.private) {
-      const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true, hints: hintsFor(links, missing, forUrl) });
+      const quick = await opts.api('/api/v1/live/batch', { urls: missing, private: false, mode, quick: true, hints: page.hover ? undefined : hintsFor(links, missing, forUrl) });
       store(quick.byUrl, false, false);   // shown until the researched answer replaces it
       publishMarks();
       log(`results marked: ${missing.length} in ${Date.now() - started} ms (quick pass)`);
     }
-    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode, hints: page.private ? undefined : hintsFor(links, missing, forUrl) });
+    // A hovered link has no search behind it to give hints.
+    const { byUrl, ...answer } = await opts.api('/api/v1/live/batch', { urls: missing, private: page.private, mode, hints: page.private || page.hover ? undefined : hintsFor(links, missing, forUrl) });
     noteMode(answer);
     if (!page.private) log(`results checked: ${missing.length} in ${Date.now() - started} ms (${answer.mode || 'fast'})`);
     store(byUrl, true, (answer.mode || mode) !== 'delicate');
@@ -1284,6 +1337,42 @@ async function checkLinks(links, page, forUrl) {
     missing.forEach((u) => pending.delete(u));
   }
   publishMarks();
+}
+
+/**
+ * Hover a link: the link the pointer rests on, on a page that is not a results page or an inbox, gets one mark beside
+ * it, checked like a result. Where it really leads is read through the redirect wrappers sites put around links. A
+ * link within the site in front is left alone: the page itself was checked when it opened.
+ */
+function hoverLink(h, pageUrl) {
+  let u;
+  try { u = new URL(h.u); } catch { return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  u = unwrapResult(u) || u;
+  u = trackerTarget(u) || u;
+  let pageHost = '';
+  try { pageHost = new URL(pageUrl).hostname; } catch { /* a private window: its address is not kept */ }
+  if (pageHost && siteOf(u.hostname.replace(/^www\./, '')) === siteOf(pageHost.replace(/^www\./, ''))) return null;
+  return { u: u.href, x: h.x, y: h.y, w: h.w, h: h.h };
+}
+
+async function onHover(h) {
+  const cur = state.current;
+  if (!h) {
+    if (latestLinks && latestLinks.hover) { latestLinks = { ...latestLinks, links: [], epoch: ++linkEpoch }; publishMarks(); }
+    return;
+  }
+  if (!cur || (latestLinks && !latestLinks.hover)) return;
+  const link = hoverLink(h, cur.url);
+  if (!link) return;
+  const page = { private: Boolean(cur.private), hover: true };
+  const forUrl = `hover:${markKey(link.u)}`;
+  latestLinks = { for: forUrl, links: [link], epoch: ++linkEpoch, hover: true };
+  publishMarks();
+  await checkLinks([link], page, forUrl);
+  const mark = markFor(link.u);
+  // Whether it was flagged, never the address.
+  if (!page.private) log(`link under the pointer: ${mark ? mark.badge || 'clean' : 'not checked'}`);
 }
 
 /**
@@ -1350,4 +1439,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, _test: { resultLinks, unwrapResult, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, _test: { resultLinks, unwrapResult, hoverLink, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, SCRIPT } };

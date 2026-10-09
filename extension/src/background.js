@@ -424,6 +424,17 @@ const handlers = {
     // A private window is protected like any other; the server keeps nothing about it.
     return liveBatch((urls || []).slice(0, 60), phase, Boolean(sender && sender.tab && sender.tab.incognito));
   },
+  /** A link the pointer rests on (content/hover.js): the cache and the threat list first, then the fast check when live scanning allows it. */
+  async 'hover-check'({ url }, sender) {
+    fromPage(sender);
+    const settings = await getSettings();
+    if (!settings.enabled) return { locked: 'disabled' };
+    if (typeof url !== 'string' || url.length > 2048 || !/^https?:\/\//i.test(url)) return { verdict: null };
+    const known = localVerdict(url) || cacheGet('research', url) || cacheGet('quick', url);
+    if (known) return { verdict: known };
+    const { verdicts, locked } = await liveBatch([url], 'quick', Boolean(sender.tab && sender.tab.incognito));
+    return { verdict: (verdicts && verdicts[url]) || null, locked: locked || null };
+  },
   async 'live-email'({ emails }) {
     const settings = await getSettings();
     if (!settings.enabled || !settings.emailProtection) return { locked: 'disabled' };

@@ -128,6 +128,48 @@ test('the companion unwraps search engines\' links the way the desktop app does 
   assert.equal(watch.unwrapResult(new URL(cases[3][0]), cases[3][1].innerText).href, cases[3][2]);
 });
 
+test('hovering a link: the real address behind redirect wrappers, a closed shadow root, and nothing listened to while the companion is off', () => {
+  const src = fs.readFileSync(path.join(SRC, 'content', 'hover.js'), 'utf8');
+  const start = src.indexOf('function realUrl');
+  const end = src.indexOf('/* -------------------------------------------------------------- tip */');
+  assert.ok(start > 0 && end > start);
+  const ctx = { URL };
+  vm.createContext(ctx);
+  vm.runInContext(`${src.slice(start, end)}; this.realUrl = realUrl;`, ctx);
+  const dest = 'https://paypa1-secure-login.com/account?x=1';
+  const base = 'https://forum.example/thread/1';
+  const cases = [
+    [`https://www.google.com/url?q=${encodeURIComponent(dest)}&sa=D`, dest],
+    [`https://l.facebook.com/l.php?u=${encodeURIComponent(dest)}&h=AT0`, dest],
+    [`https://eur01.safelinks.protection.outlook.com/?url=${encodeURIComponent(dest)}&data=05`, dest],
+    [`https://duckduckgo.com/l/?uddg=${encodeURIComponent(dest)}`, dest],
+    ['/thread/2', 'https://forum.example/thread/2'],
+    ['https://www.google.com/url?q=javascript:alert(1)', 'https://www.google.com/url?q=javascript:alert(1)'],
+    ['javascript:alert(1)', null],
+    ['mailto:a@b.example', null]
+  ];
+  for (const [href, want] of cases) assert.equal(ctx.realUrl(href, base), want, href.slice(0, 60));
+
+  const code = strip(src);
+  assert.match(code, /attachShadow\(\{ mode: 'closed' \}\)/);
+  assert.match(code, /pointer-events:none/);
+  assert.match(code, /prefers-reduced-motion/);
+  assert.match(code, /globalThis\.SentinelMasks/);
+  assert.doesNotMatch(code, /fetch\(/, 'engine calls stay in the background worker');
+  // Listeners go on only once the settings say the companion is on, and come off with it.
+  assert.match(code, /toggle\(Boolean\(settings\.enabled\)\)/);
+  assert.match(code, /removeEventListener/);
+  assert.match(code, /setTimeout\(\(\) => look\(a\), DWELL_MS\)/, 'one check per rest, not per mouse move');
+  const top = chromium.content_scripts.find((c) => c.js.includes('src/content/hover.js'));
+  assert.ok(top && !top.all_frames && top.js.includes('src/content/masks.js'), 'top frames, with the masks');
+  const worker = fs.readFileSync(path.join(SRC, 'background.js'), 'utf8');
+  const handler = worker.slice(worker.indexOf("async 'hover-check'"), worker.indexOf("async 'live-email'"));
+  assert.match(handler, /fromPage\(sender\)/);
+  assert.match(handler, /if \(!settings\.enabled\) return/);
+  assert.match(handler, /localVerdict\(url\) \|\| cacheGet\('research', url\) \|\| cacheGet\('quick', url\)/, 'the cache and the list come first');
+  assert.match(handler, /liveBatch\(\[url\], 'quick'/, 'then the fast check, which keeps to live scanning\'s own limits');
+});
+
 test('the search overlay is a shadow-root overlay that never takes a click, and live hours are only spent on a tab in use', () => {
   const serp = strip(fs.readFileSync(path.join(SRC, 'content', 'serp.js'), 'utf8'));
   assert.match(serp, /attachShadow\(\{ mode: 'closed' \}\)/);

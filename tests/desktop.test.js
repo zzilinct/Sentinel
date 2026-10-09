@@ -538,6 +538,30 @@ test('the reader script is valid PowerShell (a syntax slip there silently ends l
   }
 });
 
+test('hover a link: the link under the resting pointer gets one mark, through redirect wrappers, never a link within the site', () => {
+  const { hoverLink, SCRIPT } = watch._test;
+  const box = { x: 100, y: 200, w: 180, h: 22 };
+  const scam = 'https://paypa1-secure-login.com/account';
+  const page = 'https://forum.example/thread/7';
+  assert.deepEqual(hoverLink({ u: scam, ...box }, page), { u: scam, ...box });
+  for (const wrapped of [
+    `https://www.google.com/url?q=${encodeURIComponent(scam)}&sa=D`,
+    `https://l.facebook.com/l.php?u=${encodeURIComponent(scam)}&h=AT0`,
+    `https://nam12.safelinks.protection.outlook.com/?url=${encodeURIComponent(scam)}&data=05`
+  ]) assert.equal(hoverLink({ u: wrapped, ...box }, page).u, scam, wrapped.slice(0, 50));
+  assert.equal(hoverLink({ u: 'https://www.forum.example/thread/8', ...box }, page), null, 'a link within the site in front');
+  assert.equal(hoverLink({ u: 'javascript:void(0)', ...box }, page), null);
+  // A private window keeps no address: its links are still checked.
+  assert.equal(hoverLink({ u: scam, ...box }, null).u, scam);
+
+  // The reader asks Windows what is under the pointer only once it has rested, once per place, and never on a
+  // results page or an inbox (their links have marks already).
+  assert.match(SCRIPT, /if \(\$url -notmatch \$search -and \$url -notmatch \$mail\) \{\s+\$cp = New-Object SW\+PT/);
+  assert.match(SCRIPT, /-not \$hoverEl -and \$cur -eq \$lastCur -and \$cur -ne \$hoverTried/);
+  assert.equal((SCRIPT.match(/FromPoint\(/g) || []).length, 2, 'one hit test for covered results, one for hover');
+  assert.match(SCRIPT, /GetPhysicalCursorPos/);
+});
+
 test('the reader reads links only when something can have changed, and reuses the page between passes', () => {
   const { SCRIPT } = watch._test;
   assert.match(SCRIPT, /\$needRead = \$forceRead -or \$moved -or -not \$anchor -or \$lastCount -eq 0 -or \(\$tick - \$readAt\) -gt 2500/);
