@@ -415,6 +415,23 @@ function hashTree(roots) {
   return map;
 }
 const diff = (a, b) => [...new Set([...a.keys(), ...b.keys()])].filter((k) => a.get(k) !== b.get(k));
+
+/**
+ * Firefox's own background tasks (its default-browser agent, started by Task Scheduler) wake up on their own and write
+ * to "Background Tasks Profiles" (parent.lock, prefs.js, Glean pings), and once did so while the checkup read the
+ * profiles. On this runner they are switched off and any that is running is let finish, so a file that changes during
+ * the checkup can only have been changed by the checkup.
+ */
+async function quietFirefox() {
+  let tasks = '';
+  try { tasks = execFileSync('schtasks', ['/query', '/fo', 'csv', '/nh'], { encoding: 'utf8' }); } catch { /* none */ }
+  for (const name of new Set([...tasks.matchAll(/"(\\Mozilla\\[^"]+)"/g)].map((m) => m[1]))) {
+    try { execFileSync('schtasks', ['/change', '/tn', name, '/disable'], { stdio: 'ignore' }); console.log(`      switched off the scheduled task ${name}`); } catch { /* not ours to change */ }
+  }
+  const running = () => { try { return /firefox\.exe/i.test(execFileSync('tasklist', ['/fi', 'imagename eq firefox.exe', '/fo', 'csv', '/nh'], { encoding: 'utf8' })); } catch { return false; } };
+  for (let i = 0; i < 60 && running(); i++) await sleep(1000);
+  if (running()) { console.log('      a Firefox was still running after a minute: ended'); try { execFileSync('taskkill', ['/f', '/im', 'firefox.exe'], { stdio: 'ignore' }); } catch { /* gone */ } await sleep(2000); }
+}
 const tempLeftovers = () => fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('sentinel-checkup-'));
 
 async function check() {
@@ -428,6 +445,7 @@ async function check() {
   const POLICY = 'HKCU\\Software\\Policies\\Google\\Chrome\\ExtensionInstallForcelist';
   execFileSync('reg', ['add', POLICY, '/v', '1', '/t', 'REG_SZ', '/d', 'abcdefghijklmnopabcdefghijklmnop;https://updates.checkup.test/u.xml', '/f']);
 
+  await quietFirefox();
   const roots = [...BROWSERS.map((b) => b.userData), FF_ROOT, path.join(OUT, 'ext')];
   const before = hashTree(roots);
   await sleep(3000);

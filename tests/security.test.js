@@ -123,14 +123,16 @@ test('two-factor authentication: setup, login challenge, replay protection', asy
   assert.equal((await fresh.get('/api/v1/auth/me')).status, 401, 'password alone does not sign you in');
 
   assert.equal((await fresh.post('/api/v1/auth/login/2fa', { challenge: step1.data.challenge, code: '123456' })).status, 401);
-  const step2 = await fresh.post('/api/v1/auth/login/2fa', { challenge: step1.data.challenge, code: codeAt(Date.now()) });
+  // One code, kept: asked for twice, a 30-second step can turn between the two and the second is a new, valid code.
+  const used = codeAt(Date.now());
+  const step2 = await fresh.post('/api/v1/auth/login/2fa', { challenge: step1.data.challenge, code: used });
   assert.equal(step2.status, 200, JSON.stringify(step2.data));
   assert.equal((await fresh.get('/api/v1/auth/me')).status, 200);
 
   // The same code cannot be used twice.
   const other = client(app.base);
   const again = await other.post('/api/v1/auth/login', { email: c.email, password: 'Correct-Horse-42' });
-  const replay = await other.post('/api/v1/auth/login/2fa', { challenge: again.data.challenge, code: codeAt(Date.now()) });
+  const replay = await other.post('/api/v1/auth/login/2fa', { challenge: again.data.challenge, code: used });
   assert.equal(replay.status, 401);
 });
 

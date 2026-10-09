@@ -235,12 +235,23 @@ async function checkMotion() {
     const d = await open({ mouse: true });
     const on = await d.ev(state);
     result('motion: on a computer, Lenis smooths the scroll', on.lenis && on.scroller, on);
+    // The first 3D mask is built in a quiet moment after load (mask3d.js): its shaders and studio light took 1 to 2
+    // seconds of one frame in this runner's software WebGL, and a wheel turned then landed in that one frame. The
+    // glide is looked at once the first mask is up.
+    for (let i = 0; i < 100 && !(await d.ev("!document.querySelector('[data-mask3d]') || Boolean(document.querySelector('.mask3d--ready'))")); i++) await sleep(200);
+    await sleep(500);
+    // Where the page is, frame by frame, recorded in the page: a sample taken 90 ms later by this script's own clock
+    // came back after the glide had landed whenever the runner was busy (the call and the frames run late, not the glide).
+    await d.ev("(() => { const f = window.__glide = []; const t0 = performance.now(); addEventListener('wheel', () => { window.__wheelAt = Math.round(performance.now() - t0); }, { once: true, capture: true }); const rec = () => { f.push([Math.round(performance.now() - t0), Math.round(scrollY), window.SentinelScroll.ticking]); if (performance.now() - t0 < 20000) requestAnimationFrame(rec); }; requestAnimationFrame(rec); return true; })()");
     await browser.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 683, y: 450, deltaX: 0, deltaY: 600 }, d.s);
-    await sleep(90);
-    const mid = await d.ev('scrollY');
-    await sleep(1800);
-    const end = await d.ev('({ y: scrollY, ticking: window.SentinelScroll.ticking })');
-    result('motion: a turn of the wheel glides (part way after 90 ms), lands, and Lenis stops ticking', mid > 0 && mid < 590 && Math.abs(end.y - 600) <= 2 && !end.ticking, { after90ms: mid, ...end });
+    // From the page's own state, not a fixed wait: the page can take the wheel seconds late on a busy runner.
+    for (let i = 0; i < 75 && !(await d.ev('scrollY > 0')); i++) await sleep(200);
+    for (let i = 0; i < 40 && await d.ev('window.SentinelScroll.ticking'); i++) await sleep(200);
+    const end = await d.ev('({ y: scrollY, ticking: window.SentinelScroll.ticking, frames: window.__glide, wheelAt: window.__wheelAt })');
+    // A glide: Lenis ticking, and the page part way, on frames that span at least 90 ms of the page's own time.
+    const between = end.frames.filter(([, y, ticking]) => ticking && y > 0 && y < 598);
+    const span = between.length ? between[between.length - 1][0] - between[0][0] : 0;
+    result('motion: a turn of the wheel glides (part way for 90 ms and more, Lenis ticking), lands, and Lenis stops ticking', between.length >= 2 && span >= 90 && Math.abs(end.y - 600) <= 2 && !end.ticking, { wheelAt: end.wheelAt, partWay: between.length, spanMs: span, frames: end.frames.slice(Math.max(0, end.frames.findIndex(([, y]) => y > 0) - 3)).slice(0, 30).map(([t, y]) => `${t}:${y}`).join(' '), y: end.y, ticking: end.ticking });
 
     const lands = async (name, setup, measure, want) => {
       await d.ev(setup);

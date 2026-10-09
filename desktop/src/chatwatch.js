@@ -394,11 +394,14 @@ function readLog(text, state = { inGame: false, placeId: null }) {
   return s;
 }
 
-function newestLog() {
+// Asynchronous, like everything this does on a timer: a busy disk once held the main thread (the clipboard shield, the
+// live marks) for 3 seconds in one look at this folder.
+async function newestLog() {
   const dir = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Roblox', 'logs');
   try {
-    return fs.readdirSync(dir).filter((f) => f.endsWith('.log')).map((f) => path.join(dir, f))
-      .map((f) => ({ f, t: fs.statSync(f).mtimeMs })).sort((a, b) => b.t - a.t)[0] || null;
+    const files = (await fs.promises.readdir(dir)).filter((f) => f.endsWith('.log')).map((f) => path.join(dir, f));
+    const dated = await Promise.all(files.map((f) => fs.promises.stat(f).then((st) => ({ f, t: st.mtimeMs, size: st.size }), () => null)));
+    return dated.filter(Boolean).sort((a, b) => b.t - a.t)[0] || null;
   } catch { return null; }
 }
 
@@ -593,29 +596,35 @@ function robloxState(flags) {
   return { app: 'roblox', win: roblox.win, area: roblox.area, indicator: !roblox.inGame || roblox.menu, inGame: roblox.inGame, flags };
 }
 
-function followLog() {
-  const newest = newestLog();
-  if (!newest) return;
-  if (newest.f !== roblox.logFile) { roblox.logFile = newest.f; roblox.logAt = 0; }
+let following = false;
+async function followLog() {
+  if (following) return;
+  following = true;
   try {
-    const size = fs.statSync(newest.f).size;
+    const newest = await newestLog();
+    if (!newest) return;
+    if (newest.f !== roblox.logFile) { roblox.logFile = newest.f; roblox.logAt = 0; }
+    const size = newest.size;
     if (size < roblox.logAt) roblox.logAt = 0;
     if (size === roblox.logAt) return;
     const start = Math.max(roblox.logAt, size - 2 * 1024 * 1024);
-    const fd = fs.openSync(newest.f, 'r');
+    const fh = await fs.promises.open(newest.f, 'r');
     const buf = Buffer.alloc(size - start);
-    fs.readSync(fd, buf, 0, buf.length, start);
-    fs.closeSync(fd);
+    try { await fh.read(buf, 0, buf.length, start); } finally { await fh.close(); }
     roblox.logAt = size;
     const before = roblox.placeId;
+    const wasInGame = roblox.inGame;
     const s = readLog(buf.toString('utf8'), { inGame: roblox.inGame, placeId: roblox.placeId });
     roblox.inGame = s.inGame;
     roblox.placeId = s.placeId;
+    // Joined or left while Roblox is in front, after its chat was last read: the overlay changes now (in a game the
+    // badge waits for the Esc menu), not at the next new message, which may be a long time coming.
+    if (s.inGame !== wasInGame && seen.app === 'roblox' && opts) opts.onState(robloxState(roblox.flags));
     if (s.placeId && s.placeId !== before) {
       roblox.info = null;
       gameInfo(s.placeId).then((info) => { if (roblox.placeId === s.placeId) roblox.info = info; });
     }
-  } catch { /* the log is being rotated: next time */ }
+  } catch { /* the log is being rotated: next time */ } finally { following = false; }
 }
 
 function send(line) { try { if (child && child.stdin.writable) child.stdin.write(`${line}\n`); } catch { /* gone */ } }
@@ -674,5 +683,5 @@ function stop() {
 
 module.exports = {
   start, stop, setApps, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)),
-  _test: { SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, receivedSide, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
+  _test: { followLog, state: () => ({ inGame: roblox.inGame, placeId: roblox.placeId, logFile: roblox.logFile, logAt: roblox.logAt, following, timer: Boolean(logTimer), child: Boolean(child) }), SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, receivedSide, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
 };

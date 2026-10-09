@@ -69,8 +69,10 @@ function startServerProcess(dbPath, port) {
   child.stdout.on('data', (d) => { out += d; });
   child.stderr.on('data', (d) => { out += d; });
   const base = `http://127.0.0.1:${port}`;
+  // A minute, by the clock: a second server only refuses after server/lib/dblock.js has asked Windows when the first
+  // one started, a PowerShell it gives up to 20 s, and a busy runner takes most of that. A count of tries ran out first.
   const ready = (async () => {
-    for (let i = 0; i < 150; i++) {
+    for (const end = Date.now() + 60000; Date.now() < end;) {
       if (child.exitCode !== null) throw new Error(`server exited early:\n${out}`);
       try { if ((await fetch(`${base}/api/v1/auth/config`, { signal: AbortSignal.timeout(2000) })).ok) return; } catch { /* not yet */ }
       await new Promise((r) => setTimeout(r, 100));

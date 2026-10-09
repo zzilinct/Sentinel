@@ -163,3 +163,32 @@ test('Phone Link: nothing is read off the Messages tab, and links that could not
     assert.match(s.why, /Too many links/);
   } finally { setOpts(null); }
 });
+
+test('joining a Roblox game after its chat was read changes the overlay at once, and so does leaving', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-roblox-'));
+  const was = process.env.LOCALAPPDATA;
+  process.env.LOCALAPPDATA = dir;
+  const states = [];
+  setOpts({ log: () => {}, onState: (st) => states.push(st) });
+  try {
+    const logs = path.join(dir, 'Roblox', 'logs');
+    fs.mkdirSync(logs, { recursive: true });
+    const log = path.join(logs, '0.0.1_test_Player_last.log');
+    fs.writeFileSync(log, '2026-10-09 [FLog::Output] Roblox app started\n');
+    await chatwatch._test.followLog();
+    onMessage({ app: 'roblox', win: [0, 0, 1000, 700], area: [0, 0, 450, 350], lines: [{ t: '[Player2]: hi', x: 24, y: 70, w: 120, h: 20 }] });
+    assert.equal(states.at(-1).inGame, false);
+    const n = states.length;
+    fs.appendFileSync(log, "2026-10-09 [FLog::Output] ! Joining game 'x' place 123 at 10.0.0.1\n");
+    await chatwatch._test.followLog();
+    assert.equal(states.length, n + 1, 'a new state, without a new message');
+    assert.equal(states.at(-1).inGame, true);
+    fs.appendFileSync(log, '2026-10-09 [FLog::SingleSurfaceApp] leaveUGCGameInternal\n');
+    await chatwatch._test.followLog();
+    assert.equal(states.at(-1).inGame, false);
+  } finally {
+    setOpts(null);
+    if (was === undefined) delete process.env.LOCALAPPDATA; else process.env.LOCALAPPDATA = was;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

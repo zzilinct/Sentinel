@@ -128,7 +128,20 @@ if (-not $told) { Shot 'broken-start' }
 Stop-Process -Id $bp.Id -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $data | Out-Null
 [IO.File]::WriteAllText("$data\settings.json", '{"liveScanning":true,"autoScan":true,"openAtLogin":false,"chatSafety":true,"textSafety":true}')
-$pages = Start-Process python -ArgumentList '-m', 'http.server', '47910', '--directory', (Join-Path $PSScriptRoot 'e2e-chat') -PassThru -WindowStyle Hidden
+# Chrome's first start on a fresh runner once took minutes (no window for the Discord stand-in, a blank Roblox one),
+# while every later start took a second. It is paid here, while Sentinel starts, and how long it took is written down.
+$warm = Get-Date
+Start-Process "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\warm-profile", 'about:blank'
+$warmed = Until 180 { [bool](Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 }) }
+Say "Chrome's first window: $warmed after $([int]((Get-Date) - $warm).TotalSeconds) s; Defender real-time: $(try { (Get-MpComputerStatus).RealTimeProtectionEnabled } catch { '?' })"
+Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# Its log (every request, on stderr) is kept, so a stand-in whose page never came can be told apart from a page never asked for.
+$pagesLog = Join-Path $Out 'pages.log'
+$pages = Start-Process python -ArgumentList '-u', '-m', 'http.server', '47910', '--directory', (Join-Path $PSScriptRoot 'e2e-chat') -PassThru -NoNewWindow -RedirectStandardError $pagesLog -RedirectStandardOutput "$pagesLog.out"
+function PagesDiag($page) {
+  try { Say "  diag: page answers $((Invoke-WebRequest "http://127.0.0.1:47910/$page" -UseBasicParsing -TimeoutSec 5).StatusCode)" } catch { Say "  diag: page does not answer: $($_.Exception.Message)" }
+  Get-Content $pagesLog -Tail 6 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag pages.log: $_" }
+}
 Start-Process $exe -ArgumentList '--hidden'
 $up = WaitUp
 Check 'start' $up 'the installed app started and its scanner answers'
@@ -166,9 +179,24 @@ New-Item -ItemType HardLink -Path "$chromeDir\Discord.exe" -Target "$chromeDir\c
 New-Item -ItemType HardLink -Path "$chromeDir\RobloxPlayerBeta.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 New-Item -ItemType HardLink -Path "$chromeDir\PhoneExperienceHost.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 function Fake($name, $page) {
-  Start-Process "$chromeDir\$name.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\$name-profile", '--start-maximized', "--app=http://127.0.0.1:47910/$page"
+  $fp = Start-Process "$chromeDir\$name.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\$name-profile", '--start-maximized', "--app=http://127.0.0.1:47910/$page" -PassThru
   Start-Sleep 8
-  return (Front $name)
+  $r = Front $name
+  if (-not $r) { FakeDiag $name $fp $page }
+  return $r
+}
+# When a stand-in has no window: what there is instead, so the log says why.
+function FakeDiag($name, $fp, $page) {
+  Say "  diag: started pid $($fp.Id), exited: $($fp.HasExited) $(if ($fp.HasExited) { "code $($fp.ExitCode)" })"
+  Get-Process $name -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag: $name $($_.Id) hwnd $($_.MainWindowHandle) title '$($_.MainWindowTitle)' cpu $($_.CPU) start $($_.StartTime.ToString('HH:mm:ss'))" }
+  Get-Process chrome, updater, setup, GoogleUpdate*, MsMpEng, TiWorker, TrustedInstaller -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag: other $($_.ProcessName) $($_.Id) cpu $($_.CPU) start $(try { $_.StartTime.ToString('HH:mm:ss') } catch { '?' })" }
+  Say "  diag: chrome dir: $((Get-ChildItem $chromeDir | ForEach-Object { "$($_.Name)@$($_.LastWriteTime.ToString('HH:mm:ss'))" }) -join ', ')"
+  Say "  diag: chrome.exe $((Get-Item "$chromeDir\chrome.exe").VersionInfo.ProductVersion), $name.exe $((Get-Item "$chromeDir\$name.exe").VersionInfo.ProductVersion)"
+  PagesDiag $page
+  $cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
+  Say "  diag: cpu load $cpu%"
+  Get-Process | Sort-Object CPU -Descending | Select-Object -First 8 | ForEach-Object { Say "  diag: top $($_.ProcessName) $($_.Id) cpu $([int]$_.CPU)" }
+  Shot "diag-$name"
 }
 Say "Discord in front: $(Fake 'Discord' 'discord.html')"
 $seen = $null
@@ -188,13 +216,26 @@ Start-Sleep 3
 # 3. Chat safety in "Roblox": in a game (its log says so), the chat box read with the text recogniser.
 $rlogs = "$env:LOCALAPPDATA\Roblox\logs"; New-Item -ItemType Directory -Force $rlogs | Out-Null
 Set-Content -Path "$rlogs\0.0.1_e2e_Player_last.log" -Value "2026-10-07T12:00:00.000Z,0.0,1,6 [FLog::Output] ! Joining game 'x' place 123 at 10.0.0.1" -Encoding ascii
+Say "  the Roblox log, as Sentinel follows it: $((Cdp 'main' "JSON.stringify(process.mainModule.require('./chatwatch')._test.state())").value)"
 Say "Roblox in front: $(Fake 'RobloxPlayerBeta' 'roblox.html')"
 $ok = Until 40 { $script:seen = (Info 'info()').chatSafety.seen; $script:seen.roblox.flagged -ge 1 }
 Shot 'roblox'
 Check 'chat-roblox-read' ($seen.roblox.checked -ge 1) "messages checked in Roblox: $($seen.roblox.checked) (2 on screen)"
 Check 'chat-roblox-flagged' $ok "messages flagged in Roblox: $($seen.roblox.flagged) (the free Robux offer)"
-$o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className").value
+# The game is known from Roblox's log, followed every 2 s; the overlay changes when it is (not only at the next message).
+$o = ''
+[void](Until 10 { $script:o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className").value; $script:o -match '^[1-9]\d*\|roblox in-game' })
 Check 'chat-roblox-overlay' ($o -match '^[1-9]\d*\|roblox in-game') "chat overlay over Roblox (warnings|app): $o"
+# When the overlay does not say in-game: the Roblox log as Sentinel reads it.
+if (-not ($o -match '^[1-9]\d*\|roblox in-game')) {
+  PagesDiag 'roblox.html'
+  Shot 'diag-roblox'
+  Get-ChildItem $rlogs | ForEach-Object { Say "  diag: roblox log $($_.Name) $($_.Length) bytes, written $($_.LastWriteTime.ToString('HH:mm:ss.fff'))" }
+  $d = (Cdp 'main' "(() => { const fs = process.mainModule.require('fs'); const c = process.mainModule.require('./chatwatch'); const d = process.env.LOCALAPPDATA + '\\Roblox\\logs'; return JSON.stringify(fs.readdirSync(d).map((f) => [f, c._test.readLog(fs.readFileSync(d + '\\' + f, 'utf8'))])) + ' ' + JSON.stringify(c.stats().roblox) + ' ' + JSON.stringify(c._test.state()) + ' now ' + new Date().toISOString(); })()")
+  Say "  diag: $($d.value)$($d.error)"
+  Start-Sleep 5
+  [void](Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + document.body.className")
+}
 Get-Process RobloxPlayerBeta -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 # 3b. "Check my texts" in "Phone Link": Chrome under the name PhoneExperienceHost.exe, showing a page shaped like its
 # Messages tab (scripts/e2e-chat/phonelink.html). This proves the reader and the judging; the real Phone Link's
@@ -287,12 +328,16 @@ foreach ($snippet in @('$ df -h  # human-readable', 'curl -LO https://downloads.
 Check 'clickfix-snippet-log' (([regex]::Matches((AppLog), 'copied command (stopped|flagged)')).Count -eq $flaggedBefore) 'app.log: no copied command stopped or flagged for the snippets'
 # The clipboard is read every half second only while a browser is in front; with another program in front, every 1.5 s.
 function ClipStatus { return (Cdp 'main' "process.mainModule.require('./clipwatch').status()").value }
+[void](Until 10 { (ClipStatus).every -eq 500 })
 $a = ClipStatus; Start-Sleep 6; $b = ClipStatus
 Check 'clickfix-fast-in-browser' ($b.every -eq 500 -and ($b.reads - $a.reads) -ge 6) "browser in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
 Start-Process notepad
 Start-Sleep 3
 Say "Notepad in front: $(Front 'notepad')"
 Start-Sleep 3
+# Measured once Sentinel has seen the change of program (its helper looks twice a second, at low priority, and a
+# copy just after a browser left still counts as the browser's for 2 s), so the 6 s are all spent in one mode.
+[void](Until 10 { (ClipStatus).every -eq 1500 })
 $a = ClipStatus; Start-Sleep 6; $b = ClipStatus
 Check 'clickfix-slow-elsewhere' ($b.every -eq 1500 -and ($b.reads - $a.reads) -le 5) "another program in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
 # The same kind of command copied in another program is the person's own: told about, never taken off the clipboard.
@@ -485,6 +530,12 @@ Shot 'escape'
 $verdict = (Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String 'defender-virusalert' | Select-Object -Last 1)
 Say "live scanning's verdict: $verdict"
 Check 'escape-offered' $ok 'app.log: a flagged page took the whole screen; offered a way out'
+# When no way out is offered: what Sentinel knows of the page and its windows.
+if (-not $ok) {
+  $d = (Cdp 'main' "(() => { const m = process.mainModule; const e = m.require('electron'); const o = m.require('./overlay'); const s = m.require('./watch').status(); const ws = e.BrowserWindow.getAllWindows().map((w) => w.webContents.getURL().split('/').pop().split('?')[0] + ' ' + JSON.stringify(w.getBounds()) + ' ' + w.isVisible()); return JSON.stringify({ full: o.isFullscreen(), window: s.window, current: s.current && { badge: s.current.badge, support: s.current.support }, display: e.screen.getPrimaryDisplay().bounds, ws }); })()")
+  Say "  diag: $($d.value)$($d.error)"
+  Get-Content "$data\logs\watch.log" -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag watch.log: $_" }
+}
 $g = (Cdp 'guard.html' "location.search + '|' + document.hasFocus() + '|' + document.body.getAttribute('role') + '|' + document.getElementById('title').textContent").value
 Check 'escape-window' ($g -match 'mode=escape') "the shield's window: $g"
 Check 'escape-words' ($g -match 'support=1' -and $g -match 'trying to scare you') 'a fake virus alert gets the scare-page words'
@@ -611,7 +662,9 @@ $r = Cdp '127.0.0.1:4782' "(async () => { const post = (u, b) => fetch(u, { meth
 $paired = Until 40 { [bool](Info 'info()').pairedUserId }
 Check 'signout-paired' $paired "signed in to the web app and paired (signup and sign-in: $($r.value))"
 [void](Info 'lockRelock()')
-$click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); await wait(1500); const b = document.querySelector('[data-signout]'); b.click(); await wait(300); b.click(); await wait(2000); return location.pathname + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / '); })()"
+# The button answers only once the app has finished starting (a restarted scanner took 18 s once): it is pressed
+# until it asks to be pressed again, then pressed again, and the answer is waited for.
+$click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); let b = null; for (let i = 0; i < 30; i++) { b = document.querySelector('[data-signout]'); if (b) { b.click(); await wait(300); if (b.getAttribute('aria-label') === 'Press again to sign out') break; } await wait(500); } b.click(); for (let i = 0; i < 20 && location.pathname.startsWith('/app') && !document.querySelector('.toast'); i++) await wait(500); return location.pathname + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / '); })()"
 $r = (Cdp '127.0.0.1:4782' $click).value
 $me = (Cdp '127.0.0.1:4782' "fetch('/api/v1/auth/me').then((x) => x.status)").value
 Check 'signout-locked' ($r -match '^/app[^|]*\|.*Still signed in\. Locked by a parent' -and $me -eq 200 -and [bool](Info 'info()').pairedUserId) "locked: '$r', web app session $me"
