@@ -125,11 +125,17 @@ test('heard as it happens, a swap 5 ms after the copy is caught; the echo of Sen
     ear({ tick: 9005, idle: 9005, owner: 'stealer', text: BTC_B });
     await flush();
     assert.equal(swaps.length, 1);
-    // Too long after the copy (over 1.5 s) is not taken for a swap.
+    // A clipper that waits two seconds, with nothing touched since the copy, is caught too.
     ear({ tick: 20000, idle: 50, owner: 'notepad', text: BTC_A });
+    fake.board = BTC_B;
     ear({ tick: 22000, idle: 2050, owner: 'stealer', text: BTC_B });
     await flush();
-    assert.equal(swaps.length, 1);
+    assert.equal(swaps.length, 2);
+    // Too long after the copy (over 10 s) is not taken for a swap.
+    ear({ tick: 40000, idle: 50, owner: 'notepad', text: BTC_A });
+    ear({ tick: 51000, idle: 11050, owner: 'stealer', text: BTC_B });
+    await flush();
+    assert.equal(swaps.length, 2);
     assert.equal(cw.status().hearing, true);
   } finally { restore(); }
   assert.equal(ear, null, 'stopped: no longer listening');
