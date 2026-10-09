@@ -473,8 +473,11 @@ Check 'download-source-fake' ($ok -and $r.label -eq 'Possible fake installer' -a
 $line = ([regex]::Match((AppLog), 'download source: ZoomInstaller\.exe[^\r\n]*')).Value
 Check 'download-source-site' ($line -match 'its site is flagged (orange|red)' -and $r.badge -in @('orange', 'red')) "the look-alike site judged by the fast check: $line"
 Check 'download-source-private' (-not ((AppLog) -match 'download source:[^\r\n]*(https?:|zoom-download-free|cdn\.zoom)')) 'app.log names the file, never where it came from'
+[void](Front 'Sentinel')
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection#downloads', 1)")
-[void](Until 30 { (Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).textContent || ''").value -match 'Possible fake installer' })
+if (-not (Until 60 { (Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).textContent || ''").value -match 'Possible fake installer' })) {
+  Say "  the app shows: $((Cdp '127.0.0.1:4782' "location.href + ' | ' + document.body.innerText.slice(0, 300)").value)"
+}
 [void](Cdp '127.0.0.1:4782' "(document.getElementById('downloads').scrollIntoView(), 1)"); Start-Sleep 1
 Shot 'download-source'
 $t = [string](Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).innerText || ''").value
@@ -535,7 +538,9 @@ Check 'session-start-first' $ok 'TeamViewer (a stand-in) started: asked about th
 Copy-Item $ping (Join-Path $standin 'TeamViewer_Desktop.exe')
 $tvd = Start-Process (Join-Path $standin 'TeamViewer_Desktop.exe') -ArgumentList '-n', '900', '127.0.0.1' -WindowStyle Hidden -PassThru
 $ok = Until 60 { (AppLog) -match 'tech-support scam shield: someone connected to TeamViewer' }
-$t = (Cdp 'guard.html' "document.getElementById('title').textContent").value
+# The shield's window changes its question a moment after the log line.
+$t = ''
+[void](Until 15 { $script:t = (Cdp 'guard.html' "document.getElementById('title').textContent").value; $script:t -match 'ask to connect to this computer' })
 Check 'session-process' ($ok -and $t -match 'ask to connect to this computer') "TeamViewer's connection program appeared while it ran: logged ($ok), the shield asks: '$t'"
 [void](Press 'Not now')
 foreach ($p in @($tv, $tvd)) { if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }

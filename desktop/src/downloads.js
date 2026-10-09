@@ -193,13 +193,14 @@ async function checkSource(full, name, report) {
       const { byUrl } = await api('/api/v1/live/batch', { urls: [url], private: true, mode: 'fast', purpose: 'download' });
       const v = byUrl && byUrl[url];
       const badge = v && v.overall ? v.overall.badge : null;
-      if (badge === 'red' || badge === 'orange') {
+      if (badge !== 'red' && badge !== 'orange') said += `, its site is not flagged (${badge || 'clear'})`;
+      else {
         said += `, and its site is flagged ${badge}`;
         const why = (v.reasons && v.reasons[0] && v.reasons[0].text) || v.overall.label;
         if (flag) flag.badge = badge;
         else flag = { badge, label: 'From a dangerous site', reason: `This came from ${from.hostname}, which Sentinel flags: ${why}. Do not open it.` };
       }
-    } catch { /* offline: the name check stands */ }
+    } catch (err) { said += `, its site could not be checked (${(err && (err.status || err.code)) || 'offline'})`; }   // the name check stands
   }
   log(`download source: ${name} ${said}`);
   return flag;
