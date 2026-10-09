@@ -134,7 +134,13 @@ Start-Process "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" -Argument
 $warmed = Until 180 { [bool](Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 }) }
 Say "Chrome's first window: $warmed after $([int]((Get-Date) - $warm).TotalSeconds) s; Defender real-time: $(try { (Get-MpComputerStatus).RealTimeProtectionEnabled } catch { '?' })"
 Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-$pages = Start-Process python -ArgumentList '-m', 'http.server', '47910', '--directory', (Join-Path $PSScriptRoot 'e2e-chat') -PassThru -WindowStyle Hidden
+# Its log (every request, on stderr) is kept, so a stand-in whose page never came can be told apart from a page never asked for.
+$pagesLog = Join-Path $Out 'pages.log'
+$pages = Start-Process python -ArgumentList '-u', '-m', 'http.server', '47910', '--directory', (Join-Path $PSScriptRoot 'e2e-chat') -PassThru -NoNewWindow -RedirectStandardError $pagesLog -RedirectStandardOutput "$pagesLog.out"
+function PagesDiag($page) {
+  try { Say "  diag: page answers $((Invoke-WebRequest "http://127.0.0.1:47910/$page" -UseBasicParsing -TimeoutSec 5).StatusCode)" } catch { Say "  diag: page does not answer: $($_.Exception.Message)" }
+  Get-Content $pagesLog -Tail 6 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag pages.log: $_" }
+}
 Start-Process $exe -ArgumentList '--hidden'
 $up = WaitUp
 Check 'start' $up 'the installed app started and its scanner answers'
@@ -185,7 +191,7 @@ function FakeDiag($name, $fp, $page) {
   Get-Process chrome, updater, setup, GoogleUpdate*, MsMpEng, TiWorker, TrustedInstaller -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag: other $($_.ProcessName) $($_.Id) cpu $($_.CPU) start $(try { $_.StartTime.ToString('HH:mm:ss') } catch { '?' })" }
   Say "  diag: chrome dir: $((Get-ChildItem $chromeDir | ForEach-Object { "$($_.Name)@$($_.LastWriteTime.ToString('HH:mm:ss'))" }) -join ', ')"
   Say "  diag: chrome.exe $((Get-Item "$chromeDir\chrome.exe").VersionInfo.ProductVersion), $name.exe $((Get-Item "$chromeDir\$name.exe").VersionInfo.ProductVersion)"
-  try { Say "  diag: page answers $((Invoke-WebRequest "http://127.0.0.1:47910/$page" -UseBasicParsing -TimeoutSec 5).StatusCode)" } catch { Say "  diag: page does not answer: $($_.Exception.Message)" }
+  PagesDiag $page
   $cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
   Say "  diag: cpu load $cpu%"
   Get-Process | Sort-Object CPU -Descending | Select-Object -First 8 | ForEach-Object { Say "  diag: top $($_.ProcessName) $($_.Id) cpu $([int]$_.CPU)" }
@@ -220,6 +226,8 @@ $o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + 
 Check 'chat-roblox-overlay' ($o -match '^[1-9]\d*\|roblox in-game') "chat overlay over Roblox (warnings|app): $o"
 # When the overlay does not say in-game: the Roblox log as Sentinel reads it.
 if (-not ($o -match '^[1-9]\d*\|roblox in-game')) {
+  PagesDiag 'roblox.html'
+  Shot 'diag-roblox'
   Get-ChildItem $rlogs | ForEach-Object { Say "  diag: roblox log $($_.Name) $($_.Length) bytes, written $($_.LastWriteTime.ToString('HH:mm:ss.fff'))" }
   $d = (Cdp 'main' "(() => { const fs = process.mainModule.require('fs'); const c = process.mainModule.require('./chatwatch'); const d = process.env.LOCALAPPDATA + '\\Roblox\\logs'; return JSON.stringify(fs.readdirSync(d).map((f) => [f, c._test.readLog(fs.readFileSync(d + '\\' + f, 'utf8'))])) + ' ' + JSON.stringify(c.stats().roblox) + ' ' + JSON.stringify(c._test.state()) + ' now ' + new Date().toISOString(); })()")
   Say "  diag: $($d.value)$($d.error)"
