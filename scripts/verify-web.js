@@ -236,6 +236,11 @@ async function checkMotion() {
     // Where the page is, frame by frame, recorded in the page: a sample taken 90 ms later by this script's own clock
     // came back after the glide had landed whenever the runner was busy (the call and the frames run late, not the glide).
     await d.ev("(() => { const f = window.__glide = []; const t0 = performance.now(); const rec = () => { f.push([Math.round(performance.now() - t0), Math.round(scrollY), window.SentinelScroll.ticking]); if (performance.now() - t0 < 8000) requestAnimationFrame(rec); }; requestAnimationFrame(rec); return true; })()");
+    // The first 3D mask is built in a quiet moment after load (mask3d.js): its shaders and studio light took 1 to 2
+    // seconds of one frame in this runner's software WebGL, and a wheel turned then landed in that one frame. The
+    // glide is looked at once the first mask is up.
+    for (let i = 0; i < 100 && !(await d.ev("!document.querySelector('[data-mask3d]') || Boolean(document.querySelector('.mask3d--ready'))")); i++) await sleep(200);
+    await sleep(500);
     // DIAG (ci-steady): what the page does in the long frame after the wheel.
     await browser.send('Profiler.enable', {}, d.s);
     await browser.send('Profiler.setSamplingInterval', { interval: 1000 }, d.s);
