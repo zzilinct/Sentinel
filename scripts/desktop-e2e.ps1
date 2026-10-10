@@ -98,7 +98,8 @@ function FreshEdge([string[]]$a) {
   for ($try = 1; $try -le 2; $try++) {
     Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     [void](Until 20 { -not (Get-Process msedge -ErrorAction SilentlyContinue) })
-    Start-Process msedge -ArgumentList $a
+    # A fresh Edge after a forced close offers its first-run page or "Restore pages" over the page unless told not to.
+    Start-Process msedge -ArgumentList (@('--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble') + ($a | Where-Object { $_ -notin '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble' }))
     Start-Sleep 8
     if (Front 'msedge') { return $true }
     Say "  Edge did not come to the front (try $try)"
