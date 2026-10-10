@@ -187,17 +187,26 @@ async function scrollThrough() {
     }
     el.scrollTo({ top: 0, behavior: 'instant' });
   }
+  // (A paragraph revealed word by word is motion.js's, scrubbed with the scroll, and never marked as played.)
   // An entrance still unplayed after that is brought to the middle of the screen once, as a person stopping there
   // would; one that still does not play is reported (its box is moved and hidden for good).
-  const late = [...document.querySelectorAll('[data-reveal]:not(.is-in)')].filter((el) => el.getClientRects().length);
+  const late = [...document.querySelectorAll('[data-reveal]:not(.is-in):not([data-reveal="words"])')].filter((el) => el.getClientRects().length);
   const said = (el) => el.tagName.toLowerCase() + [...el.classList].slice(0, 2).map((c) => `.${c}`).join('') + ` (${el.dataset.reveal || 'unveil'})`;
   for (const el of late) {
     el.scrollIntoView({ block: 'center', behavior: 'instant' });
     await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
     await wait(150);
   }
-  if (late.length) document.scrollingElement.scrollTo({ top: 0, behavior: 'instant' });
-  return { late: late.filter((el) => el.classList.contains('is-in')).map(said), never: late.filter((el) => !el.classList.contains('is-in')).map(said) };
+  // What an intersection observer (as site.js sets one up) says of each that never played, brought to the middle.
+  const never = [];
+  for (const el of late.filter((e) => !e.classList.contains('is-in'))) {
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    const seen = await new Promise((res) => { const io = new IntersectionObserver((es) => { io.disconnect(); res(es[0]); }, { rootMargin: '0px 0px -8% 0px', threshold: 0 }); io.observe(el); setTimeout(() => res(null), 2000); });
+    const q = (b) => b ? [b.left, b.top, b.right, b.bottom].map(Math.round).join(',') : '-';
+    never.push(`${said(el)}; observer: ${seen ? `intersecting ${seen.isIntersecting}, box ${q(seen.boundingClientRect)}, seen ${q(seen.intersectionRect)}` : 'no answer'}; played since: ${el.classList.contains('is-in')}`);
+  }
+  document.scrollingElement.scrollTo({ top: 0, behavior: 'instant' });
+  return { late: late.filter((el) => el.classList.contains('is-in')).map(said), never };
 }
 
 /* ------------------------------------------------------------------ driving */
