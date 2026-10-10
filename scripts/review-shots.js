@@ -622,9 +622,21 @@ async function heroCentred(send) {
     const s = document.querySelector('.hero__stage').getBoundingClientRect();
     return { off: Math.round((w.left + w.right) / 2 - (s.left + s.right) / 2), word: [Math.round(w.left), Math.round(w.right)], stage: [Math.round(s.left), Math.round(s.right)] };
   })()` }, sessionId)).result.value;
+  // GSAP first takes hold of the name when it moves it: with the pointer, and with the scroll. Both, as a person would,
+  // then the pointer rests at the middle (no drift) and the page back at the top.
+  for (const [x, y] of [[300, 400], [1100, 300], [683, 450]]) {
+    for (let i = 0; i < 8; i++) { await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x - 40 + i * 10, y }, sessionId); await sleep(16); }
+  }
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 683, y: 450 }, sessionId);
+  await send('Runtime.evaluate', { expression: 'scrollTo(0, 300)' }, sessionId);
+  await sleep(800);
+  await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
+  await sleep(1600);
   for (const [width, height] of [[1366, 900], [1920, 1080], [1100, 800]]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await sleep(1200);
+    // The pointer at the middle of the new width, so the name's drift with it is nothing.
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: width / 2, y: height / 2 }, sessionId);
+    await sleep(2000);
     const r = await off();
     check(Math.abs(r.off) <= 4, `at ${width}x${height} the name is centred over the hero (off by ${r.off} px)`, r);
     const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
