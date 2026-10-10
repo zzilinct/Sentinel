@@ -74,7 +74,7 @@ function judgeConversation(text) {
   return {
     level, family: 'scam', words: true,
     title: level === 'danger' ? 'This conversation follows a slow scam' : 'This conversation may be the start of a slow scam',
-    detail: `It has ${found.length} of the five steps slow scams follow: ${found.slice(0, -1).map((s) => s.seen).join(', ')} and ${at.seen}.`,
+    detail: `It has ${['', 'one', 'two', 'three', 'four', 'all'][found.length]} of the five steps slow scams follow: ${found.slice(0, -1).map((s) => s.seen).join(', ')} and ${at.seen}.`,
     advice: ADVICE[level],
     stages: STAGES.map((s) => ({ id: s.id, label: s.label, seen: seen.has(s.id) })),
     at: at.id,

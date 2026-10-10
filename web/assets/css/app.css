@@ -627,13 +627,15 @@ select.input option { background: var(--surface-3); color: var(--text); }
 /* The auto scanning switch sits under the main row; .setting:first-child would otherwise drop its divider. */
 .live__auto.setting { margin-top: 18px; padding: 16px 0 0; border-top: 1px solid var(--line); }
 /* The real site, for a result that imitates one (ui.js realSite). */
-.real-site { margin: 0; padding: 0 30px 22px; }
+.real-site { margin: 0; padding: 0 30px 22px 118px; }
 @media (max-width: 560px) { .real-site { padding: 0 20px 18px; } }
 /* What to do now: the first thing someone looks for on a dangerous result. */
 .next-steps { margin: 0; padding: 18px 26px 20px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--c, var(--red)) 7%, transparent); }
 .next-steps--red { --c: var(--red); } .next-steps--orange { --c: var(--orange); } .next-steps--yellow { --c: var(--yellow); } .next-steps--clear { --c: var(--green); }
 .next-steps h3 { margin: 0 0 10px; font: 600 15px/1.3 var(--sans); color: var(--c); }
 .next-steps ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+/* One step is a sentence, not a list of one. */
+.next-steps ol:has(> li:only-child) { padding-left: 0; list-style: none; }
 .next-steps li { line-height: 1.5; }
 .next-steps__more { margin: 12px 0 0; font-size: 14px; color: var(--text-2); }
 .next-steps__more a { color: var(--c); text-decoration: underline; text-underline-offset: 3px; }
