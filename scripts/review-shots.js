@@ -621,7 +621,9 @@ async function heroCentred(send) {
     const w = document.querySelector('[data-hero-word]').getBoundingClientRect();
     const s = document.querySelector('.hero__stage').getBoundingClientRect();
     const el = document.querySelector('[data-hero-word]'); const cs = getComputedStyle(el);
-    return { off: Math.round((w.left + w.right) / 2 - (s.left + s.right) / 2), word: [Math.round(w.left), Math.round(w.right)], stage: [Math.round(s.left), Math.round(s.right)],
+    // Its middle sits on its own top line (33% down the hero), as it was drawn: the old translate's -50% upward was
+    // dropped by GSAP's parallax (yPercent 0), which put it half its height too low.
+    return { off: Math.round((w.left + w.right) / 2 - (s.left + s.right) / 2), offY: Math.round((w.top + w.bottom) / 2 - (s.top + parseFloat(cs.top))), word: [Math.round(w.left), Math.round(w.right)], stage: [Math.round(s.left), Math.round(s.right)],
       inline: [el.style.translate, el.style.transform], computed: [cs.translate, cs.transform], gsap: typeof gsap, x: typeof gsap === 'object' ? gsap.getProperty(el, 'x') : null,
       y: typeof gsap === 'object' ? gsap.getProperty(el, 'y') : null, fine: matchMedia('(hover: hover) and (pointer: fine)').matches, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches };
   })()` }, sessionId)).result.value;
@@ -642,7 +644,8 @@ async function heroCentred(send) {
     await sleep(2000);
     const r = await off();
     console.log(`hero state at ${width}x${height}: ${JSON.stringify(r)}`);
-    check(Math.abs(r.off) <= 4, `at ${width}x${height} the name is centred over the hero (off by ${r.off} px)`, r);
+    check(Math.abs(r.off) <= 4, `at ${width}x${height} the name is centred across the hero (off by ${r.off} px)`, r);
+    check(Math.abs(r.offY) <= 4, `at ${width}x${height} the name sits on its line, not pushed down (off by ${r.offY} px)`, r);
     const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
     fs.writeFileSync(path.join(OUT, `hero-${width}.png`), Buffer.from(shot.data, 'base64'));
   }
