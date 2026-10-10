@@ -684,6 +684,8 @@ $s = (Info 'info()').snip
 Check 'snip-shortcut' ($s.enabled -and $s.registered -and $s.key -eq 'Super+Alt+S') "on by default, its shortcut registered: $($s | ConvertTo-Json -Compress -Depth 3)"
 # Nothing else over the page: 5d's warning is put away, and a fresh Edge profile offers no "Restore pages".
 [void](Cdp 'warn.html' "window.sentinelDesktop.warnAction('close'), 1")
+# 5e's shop is still open in another Edge, and Front would pick it: close every Edge first.
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 2
 Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', '--start-maximized', "--user-data-dir=$env:RUNNER_TEMP\snip-profile", 'http://127.0.0.1:47910/snip.html'
 Start-Sleep 8
 Say "Edge in front: $(Front 'msedge')"
