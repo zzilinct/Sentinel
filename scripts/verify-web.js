@@ -1183,7 +1183,8 @@ async function checkSender() {
           return r && { proof: p ? p.dataset.proof : null, text: p ? p.querySelector('b').textContent : '', marked: [...document.querySelectorAll('[data-email-marks] .emark__tag')].map((t) => t.textContent),
             body: document.querySelector('form[data-form]').body.value, from: document.querySelector('form[data-form]').from.value, subject: document.querySelector('form[data-form]').subject.value }; })()`);
       }
-      await evalIn(browser, s, "(document.querySelector('[data-sender-proof]') || document.querySelector('#view .result') || document.body).scrollIntoView({ block: 'start' }), true");
+      // The picture shows the verdict and the proof line under it, without the toast over them.
+      await evalIn(browser, s, "document.querySelectorAll('.toast').forEach((t) => t.remove()), (document.querySelector('#view .result') || document.body).scrollIntoView({ block: 'start' }), true");
       await sleep(600);
       await shot(browser, s, `sender-${name}`);
       const sent = requests.slice(before).filter((r) => r.method === 'POST' && r.url.endsWith('/api/v1/scan/email'));
