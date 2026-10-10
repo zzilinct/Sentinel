@@ -203,7 +203,15 @@ async function scrollThrough() {
     el.scrollIntoView({ block: 'center', behavior: 'instant' });
     const seen = await new Promise((res) => { const io = new IntersectionObserver((es) => { io.disconnect(); res(es[0]); }, { rootMargin: '0px 0px -8% 0px', threshold: 0 }); io.observe(el); setTimeout(() => res(null), 2000); });
     const q = (b) => b ? [b.left, b.top, b.right, b.bottom].map(Math.round).join(',') : '-';
-    never.push(`${said(el)}; observer: ${seen ? `intersecting ${seen.isIntersecting}, box ${q(seen.boundingClientRect)}, seen ${q(seen.intersectionRect)}` : 'no answer'}; played since: ${el.classList.contains('is-in')}`);
+    // And without its clip-path, then without its transform: which of the two hides it from the observer.
+    const ask = () => new Promise((res) => { const io = new IntersectionObserver((es) => { io.disconnect(); res(es[0].isIntersecting); }, { rootMargin: '0px 0px -8% 0px', threshold: 0 }); io.observe(el); setTimeout(() => res(null), 2000); });
+    el.style.clipPath = 'none';
+    const noClip = await ask();
+    el.style.clipPath = '';
+    el.style.transform = 'none';
+    const noMove = await ask();
+    el.style.transform = '';
+    never.push(`${said(el)}; observer: ${seen ? `intersecting ${seen.isIntersecting}, box ${q(seen.boundingClientRect)}, seen ${q(seen.intersectionRect)}` : 'no answer'}; without its clip-path ${noClip}, without its transform ${noMove}; played since: ${el.classList.contains('is-in')}`);
   }
   document.scrollingElement.scrollTo({ top: 0, behavior: 'instant' });
   return { late: late.filter((el) => el.classList.contains('is-in')).map(said), never };
