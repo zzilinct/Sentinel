@@ -168,6 +168,7 @@
     '/app/threats': ['threats', threatsView],
     '/app/email': ['email', emailView],
     '/app/text': ['text', textView],
+    '/app/call': ['call', callView],
     '/app/history': ['history', historyView],
     '/app/protection': ['protection', protectionView],
     '/app/download': ['protection', protectionView],
@@ -199,7 +200,7 @@
     fn(el, new URLSearchParams(location.search));
     // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
     restoreDrafts();
-    document.title = `${{ home: 'Overview', week: 'Your week', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', text: 'Text scan', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide' }[name]} · Sentinel`;
+    document.title = `${{ home: 'Overview', week: 'Your week', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', text: 'Text scan', call: 'Is this call a scam?', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide' }[name]} · Sentinel`;
   }
 
   /** Render a verdict with its checklist tools and follow-up actions. */
@@ -230,7 +231,7 @@
 
   const PAGES = [
     ['Overview', '/app', 'home'], ['Your week', '/app/week', 'week'], ['Link scan', '/app/scan', 'scan'], ['Virus & malware scan', '/app/threats', 'threats'],
-    ['Email scan', '/app/email', 'email'], ['Text scan', '/app/text', 'text'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
+    ['Email scan', '/app/email', 'email'], ['Text scan', '/app/text', 'text'], ['Is this call a scam?', '/app/call', 'call'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
     ['Live protection', '/app/protection', 'protection'], ['Plan & usage', '/app/plan', 'plan'], ['Security', '/app/security', 'security'],
     ['AI assistants', '/app/assistants', 'assistants'], ['Recovery guide', '/app/recover', 'recover']
   ];
@@ -1671,6 +1672,45 @@
   }
 
   /* ====================================================== browser checkup */
+
+  /* ========================================================== call check */
+
+  // "Is this call a scam?" for while someone is on the phone. The answer is worked out here, by callcheck.js, from what
+  // is ticked; nothing is sent or kept, so leaving the page forgets the call.
+  function callView(el) {
+    const C = window.SentinelCallCheck;
+    const picks = (list, name) => list.map((x) => `<label class="call__pick"><input type="checkbox" name="${name}" value="${x.id}"><span>${esc(x.label)}</span></label>`).join('');
+    el.innerHTML = `
+      ${title('Is this call a scam?', 'On the phone right now? Tick what the caller is saying. Sentinel answers at once, on this device. Nothing you tick is sent anywhere or kept.')}
+      <form class="call" data-call>
+        <fieldset class="panel call__group">
+          <legend><h2>What are they asking for or saying?</h2><span>Tick everything that fits.</span></legend>
+          <div class="call__picks">${picks(C.ASKS, 'ask')}</div>
+        </fieldset>
+        <fieldset class="panel call__group">
+          <legend><h2>Who do they say they are?</h2></legend>
+          <div class="call__picks">${picks(C.WHO, 'who')}</div>
+        </fieldset>
+        <div class="call__answer" data-call-answer aria-live="polite"></div>
+        <button type="reset" class="btn btn--ghost btn--sm">Start over</button>
+      </form>`;
+    const form = $('[data-call]', el);
+    const out = $('[data-call-answer]', el);
+    const draw = () => {
+      const ticked = (name) => $$(`input[name="${name}"]:checked`, form).map((i) => i.value);
+      const r = C.judge(ticked('ask'), ticked('who'));
+      out.dataset.verdict = r ? r.verdict : '';
+      out.innerHTML = !r ? '<p class="call__empty">Tick what the caller says, and the answer appears here.</p>'
+        : `<p class="call__verdict">${r.verdict === 'hangup' ? 'Hang up now.' : 'This is probably fine.'}</p>
+          <p class="call__reason">${esc(r.reason)}</p>
+          <p class="call__next"><b>What to do next:</b> ${esc(r.next)}</p>
+          ${r.happened.length ? `<p class="call__more">Already did what they asked? <a href="/app/recover?happened=${r.happened.join(',')}">Open the recovery guide</a> for every step, in order.</p>` : ''}`;
+    };
+    form.addEventListener('change', draw);
+    form.addEventListener('reset', () => setTimeout(draw));
+    form.addEventListener('submit', (ev) => ev.preventDefault());
+    draw();
+  }
 
   /* ====================================================== recovery guide */
 
