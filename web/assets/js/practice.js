@@ -196,12 +196,13 @@
     let round = 0;
     let answers = {};
 
-    // The next message starts where the reader's eyes go back to: the top of the inbox, if it has scrolled away.
+    // The next message starts where the reader's eyes go back to: the top of the inbox, if it has scrolled up under the header.
     // Through Site.scrollTo, so Lenis (motion.js) never loses track of where the page is.
     const toTop = () => {
       const top = root.getBoundingClientRect().top;
-      if (top >= 0) return;
-      const at = top + scrollY - (parseFloat(getComputedStyle(root).scrollMarginTop) || 0);
+      const margin = parseFloat(getComputedStyle(root).scrollMarginTop) || 0;   // clear of the fixed header
+      if (top >= margin) return;
+      const at = top + scrollY - margin;
       if (window.Site && Site.scrollTo) Site.scrollTo(at, false); else scrollTo(0, at);
     };
     // The static export has no /download route, only its file.
