@@ -754,7 +754,7 @@ async function emailMarks(send) {
       // A long label wraps: its first line is the one that must sit with the words, and no line of it runs past the email.
       const tagEl = m.querySelector('.emark__tag'); const tag = tagEl.getClientRects()[0];
       const edge = m.closest('.email-marks__v').getBoundingClientRect().right;
-      if ([...tagEl.getClientRects()].some((x) => x.right > edge + 1)) return [m.textContent, 'runs past the edge', Math.round(edge)];
+      if ([...tagEl.getClientRects()].some((x) => x.right > edge + 1)) return [m.textContent, 'runs past the edge', Math.round(edge), [...tagEl.getClientRects()].map((x) => [Math.round(x.left), Math.round(x.right), Math.round(x.top)])];
       const r = document.createRange(); r.setStart(m, 0); r.setEndBefore(tagEl);
       const lines = [...r.getClientRects()].filter((x) => x.width > 0);
       const last = lines[lines.length - 1];
