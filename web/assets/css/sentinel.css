@@ -300,6 +300,9 @@ p { text-wrap: pretty; }
 .hero__lede { margin: 28px auto 0; max-width: 620px; font-size: clamp(17px, 2vw, 19.5px); color: var(--text-2); line-height: 1.55; }
 .hero__cta { margin-top: 38px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
 .hero__fine { margin-top: 18px; font-size: 13px; color: var(--muted); }
+/* The installer's facts (download.js) are separate spans: spaced apart, each kept whole, never run together. */
+p.hero__fine { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; }
+p.hero__fine span { white-space: nowrap; }
 
 /* ------------------------------------------------------------ hero stage */
 

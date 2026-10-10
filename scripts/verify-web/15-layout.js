@@ -22,6 +22,8 @@ const APP = ['/app', '/app/week', '/app/scan', '/app/threats', '/app/email', '/a
 
 // Deliberate, each with its reason. A finding matches when its kind is the same and `el` is found in its description.
 const ALLOWED = [
+  { kind: 'clipped', el: 'button.usage-row', size: (w) => w > 900,
+    why: 'a usage row under the pointer nudges 3 px right (app-lux.css); its 18 px padding keeps its words inside, only its plain edge slips under the list\'s rounded corner' },
   { kind: 'past-edge', el: '[data-hero-word]', size: (w) => w < 768,
     why: 'the hero\'s gold name is wider than a phone on purpose, cropped evenly on both sides by the hero\'s frame (12 px clip margin past its 2.6vw inset)' }
 ];
@@ -94,7 +96,7 @@ function measure(width) {
       let b = box(el.getBoundingClientRect());
       for (const c of clippers(el)) b = cut(b, c.b);
       return { el, b };
-    }).filter(({ b }) => !empty(b) && (b.right > W + 1 || b.left < -1)).sort((x, y) => y.b.right - x.b.right).slice(0, 5);
+    }).filter(({ b }) => !empty(b) && (b.right > width + 1 || b.left < -1)).sort((x, y) => y.b.right - x.b.right).slice(0, 8);
     out.push({ kind: 'overflow', el: 'page', text: '', detail: `scrollWidth ${sw}, innerWidth ${W}; widest: ${wide.map((w) => `${name(w.el)} [${r(w.b.left)}, ${r(w.b.right)}]`).join('; ') || 'none found'}` });
   }
 
@@ -171,7 +173,8 @@ async function scrollThrough() {
     const step = Math.max(200, el.clientHeight * 0.8);
     for (let y = step, n = 0; y < el.scrollHeight && n < 30; y += step, n++) {
       if (el === document.scrollingElement) scrollTo(0, y); else el.scrollTop = y;
-      await wait(110);
+      await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));   // a frame drawn here, so what reveals on scroll has seen it
+      await wait(80);
     }
     if (el === document.scrollingElement) scrollTo(0, 0); else el.scrollTop = 0;
   }
@@ -231,7 +234,8 @@ async function checkLayout() {
     const { browserContextId: anonymous } = await browser.send('Target.createBrowserContext', {});
 
     const started = Date.now();
-    for (const theme of THEMES) {
+    // Dark and light side by side, each in its own tabs, to keep the sweep inside the job's time.
+    await Promise.all(THEMES.map(async (theme) => {
       for (const size of SIZES) {
         const [w, h] = size;
         const at = `${w}x${h} ${theme}`;
@@ -277,7 +281,7 @@ async function checkLayout() {
           await closeTab();
         }
       }
-    }
+    }));
     for (const [page, list] of Object.entries(found)) {
       // The same problem at several sizes is one line, with every size it was seen at.
       const lines = {};
