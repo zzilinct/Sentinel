@@ -349,7 +349,7 @@ $clip = (Get-Clipboard -Raw) + ''
 Check 'clickfix-program-told' ($ok -and $clip.Trim() -eq $command2) "copied in Notepad: told ($ok), clipboard left alone: $($clip.Substring(0, [Math]::Min(40, $clip.Length)))"
 Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
-# 4b. Wallet guard: a small helper standing in for a clipboard hijacker (harmless: it only sets the clipboard) copies a
+# 4a. Wallet guard: a small helper standing in for a clipboard hijacker (harmless: it only sets the clipboard) copies a
 # test Bitcoin address and, straight after, with no pause and no key pressed, puts a different one in its place, as
 # real hijackers do within milliseconds. Sentinel hears both changes as they happen and puts the first back.
 $btcA = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'; $btcB = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2'
@@ -399,7 +399,7 @@ Check 'wallet-own-copy' ($clip.Trim() -eq $btcA -and (& $catches) -eq 1) "after 
 Check 'wallet-log-private' (-not ((AppLog) -match '1A1zP1|1BvBMS')) 'app.log holds no wallet address'
 Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
-# 4a. The live-scanning corner as an island, over Edge: the mask springs open into a card with the words, a new
+# 4b. The live-scanning corner as an island, over Edge: the mask springs open into a card with the words, a new
 # message morphs the card, and it closes back into the mask. Photographed mid-spring (bottom right of each frame).
 Say "Edge in front: $(Front 'msedge')"
 Start-Sleep 7   # past the corner's own timers (its words leave at 4.2 s, the mask rests at 5 s)
@@ -411,7 +411,7 @@ $n += Frame 'overlay.html' "$isl; $scan; settle(); I.say('<b>Phishing.</b> Do no
 $n += Frame 'overlay.html' "$isl; $scan; settle(); I.hush()" 140 'motion-island-close-140ms'
 Check 'motion-island' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations paused mid-spring in the corner island, per frame: $($n -join ', ')"
 
-# 4b. Hover a link: Edge in front on a forum-shaped page. The pointer rests on a link to a listed scam, then on an
+# 4c. Hover a link: Edge in front on a forum-shaped page. The pointer rests on a link to a listed scam, then on an
 # honest one, then on nothing; live scanning puts one mark beside the link it rests on, and takes it away after.
 Start-Process msedge -ArgumentList '--no-first-run', '--start-maximized', 'http://127.0.0.1:47910/hover.html'
 Start-Sleep 8
@@ -449,6 +449,34 @@ if ($scamAt -and $safeAt) {
   Check 'hover-gone' $ok "pointer moved off the link: overlay marks '$marks'"
 } else { Check 'hover-scam' $false 'the test page''s links were not found on screen'; Shot 'hover-no-links' }
 Check 'hover-log-private' (-not ((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) -match 'link under the pointer: \S*\s*https?:')) 'watch.log says whether a hovered link was flagged, never its address'
+
+# 4d. Where a download came from: two harmless copies of whoami.exe, each with the Zone.Identifier stream a browser
+# writes, made beside Downloads and moved in whole. "ZoomInstaller.exe" from a look-alike site is flagged before it
+# is run, naming zoom.us; "ZoomInstallerFull.exe" from Zoom's own download server is left alone.
+$dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null
+$stage = Join-Path $env:TEMP 'dl-source'; New-Item -ItemType Directory -Force $stage | Out-Null
+function Arrive($name, $hostUrl, $referrer) {
+  $f = Join-Path $stage $name
+  Copy-Item "$env:WINDIR\System32\whoami.exe" $f -Force
+  Set-Content -LiteralPath $f -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3`r`nReferrerUrl=$referrer`r`nHostUrl=$hostUrl"
+  Move-Item $f (Join-Path $dl $name) -Force
+  Say "  $name in Downloads, its stream: $((Get-Content -LiteralPath (Join-Path $dl $name) -Stream Zone.Identifier) -join ' | ')"
+}
+function Recent($name) { return (Cdp 'main' "JSON.stringify(process.mainModule.require('./downloads').recent().find((d) => d.name === '$name') || null)").value | ConvertFrom-Json }
+Arrive 'ZoomInstallerFull.exe' 'https://cdn.zoom.us/prod/6.2.5.48557/ZoomInstallerFull.exe' 'https://zoom.us/download'
+Arrive 'ZoomInstaller.exe' 'https://zoom-download-free.site/files/ZoomInstaller.exe' 'https://zoom-download-free.site/'
+$ok = Until 90 { (AppLog) -match 'download source: ZoomInstallerFull\.exe from Zoom.s own site' }
+$r = Recent 'ZoomInstallerFull.exe'
+Check 'download-source-genuine' ($ok -and $r -and -not $r.badge) "from cdn.zoom.us: logged as Zoom's own ($ok), listed as '$($r.label)' with badge '$($r.badge)'"
+$ok = Until 90 { (AppLog) -match 'download source: ZoomInstaller\.exe not from Zoom.s own site' }
+$r = Recent 'ZoomInstaller.exe'
+Check 'download-source-fake' ($ok -and $r.label -eq 'Possible fake installer' -and $r.reason -eq 'This says it is Zoom, but it came from zoom-download-free.site, not zoom.us. Get Zoom from zoom.us.') "from the look-alike: '$($r.label)' ($($r.badge)): $($r.reason)"
+# The site itself, by the fast check on this computer: any program from a site Sentinel flags is flagged with it.
+Arrive 'FreeVideoConverter.exe' 'https://paypa1-secure-login.com/download/FreeVideoConverter.exe' 'https://paypa1-secure-login.com/'
+$ok = Until 90 { (AppLog) -match 'download source: FreeVideoConverter\.exe[^\r\n]*its site is flagged' }
+$r = Recent 'FreeVideoConverter.exe'
+Check 'download-source-site' ($ok -and $r.label -eq 'From a dangerous site' -and $r.badge -in @('orange', 'red') -and $r.reason -match '^This came from paypa1-secure-login\.com, which Sentinel flags: ') "from a listed scam site: '$($r.label)' ($($r.badge)): $($r.reason)"
+Check 'download-source-private' (-not ((AppLog) -match 'download source:[^\r\n]*(https?:|zoom-download-free|cdn\.zoom|paypa1)')) 'app.log names the file, never where it came from'
 
 # 5. Tech-support scam shield: the real AnyDesk, downloaded and started.
 $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Force $dl | Out-Null
@@ -505,7 +533,9 @@ Check 'session-start-first' $ok 'TeamViewer (a stand-in) started: asked about th
 Copy-Item $ping (Join-Path $standin 'TeamViewer_Desktop.exe')
 $tvd = Start-Process (Join-Path $standin 'TeamViewer_Desktop.exe') -ArgumentList '-n', '900', '127.0.0.1' -WindowStyle Hidden -PassThru
 $ok = Until 60 { (AppLog) -match 'tech-support scam shield: someone connected to TeamViewer' }
-$t = (Cdp 'guard.html' "document.getElementById('title').textContent").value
+# The shield's window changes its question a moment after the log line.
+$t = ''
+[void](Until 15 { $script:t = (Cdp 'guard.html' "document.getElementById('title').textContent").value; $script:t -match 'ask to connect to this computer' })
 Check 'session-process' ($ok -and $t -match 'ask to connect to this computer') "TeamViewer's connection program appeared while it ran: logged ($ok), the shield asks: '$t'"
 [void](Press 'Not now')
 foreach ($p in @($tv, $tvd)) { if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
@@ -750,6 +780,25 @@ Check 'checkup-folds-clean-addons' ($ok -and $c -eq '3 more add-ons, nothing to 
 $t = ''
 $ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; [bool]$script:t }
 Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -match 'English texts for now' -and $t -match 'left-to-right') "Check my texts panel: $(([string]$t).Substring(0, [Math]::Min(200, ([string]$t).Length)))"
+
+# 4c, seen in the app (signed in since 7; the restart before it emptied the list): a Discord installer someone
+# uploaded to a Discord chat arrives, and Recent downloads lists it as a fake, with the real site named.
+# The account signed in for the checkup (above) is new, so download protection is off for it (a Pro feature): it is
+# given Pro too, and download protection started again.
+Say (node (Join-Path $PSScriptRoot 'e2e-pro.js') "$data\sentinel.db")
+[void](Cdp 'main' "(process.mainModule.require('./downloads').restart(), 1)")
+$ok = Until 30 { (Cdp 'main' "process.mainModule.require('./downloads').status().active").value -eq $true }
+Say "download protection for the new account: $((Cdp 'main' "JSON.stringify(process.mainModule.require('./downloads').status())").value)"
+Arrive 'DiscordSetup.exe' 'https://cdn.discordapp.com/attachments/1180000000000000000/1190000000000000000/DiscordSetup.exe' 'https://discord.com/channels/@me'
+[void](Until 90 { (AppLog) -match 'download source: DiscordSetup\.exe not from Discord.s own site' })
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection#downloads', 1)")
+if (-not (Until 60 { (Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).textContent || ''").value -match 'Possible fake installer' })) {
+  Say "  the app shows: $((Cdp '127.0.0.1:4782' "location.href + ' | ' + document.body.innerText.slice(0, 300)").value)"
+}
+[void](Cdp '127.0.0.1:4782' "(document.getElementById('downloads').scrollIntoView(), 1)"); Start-Sleep 1
+Shot 'download-source'
+$t = [string](Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).innerText || ''").value
+Check 'download-source-listed' ($t -match 'Possible fake installer' -and $t -match 'This says it is Discord, but it came from cdn\.discordapp\.com, not discord\.com\. Get Discord from discord\.com\.') "Recent downloads: $(($t.Substring(0, [Math]::Min(300, $t.Length))) -replace '\s+', ' ')"
 
 # 7b. Your sites, in Live protection: a site added with the form is listed as added by you (5d proves the warning).
 $ok = Until 30 { (Cdp '127.0.0.1:4782' "Boolean(document.querySelector('[data-my-sites-add]'))").value -eq $true }

@@ -604,7 +604,7 @@ async function act(id) {
 }
 
 module.exports = {
-  init, restart, stop, status, inspect, restore, act, ledger: () => ledger.slice(0, 50),
+  init, restart, stop, status, inspect, restore, act, ledger: () => ledger.slice(0, 50), signedBy: (full) => signer(full),
   // For tests: set the options without starting any watcher, and stand in for the signature check.
   _test: { removeRunKeys, signedBy, configure: (options) => { opts = options; ledger = []; }, setSigner: (fn) => { signer = fn || ((full) => signedBy(full)); } }
 };

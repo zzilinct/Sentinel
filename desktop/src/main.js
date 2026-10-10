@@ -1486,6 +1486,8 @@ async function boot() {
     quarantineDir: path.join(app.getPath('userData'), 'quarantine'),
     getToken: () => activeToken(),
     enabled: () => store.get('downloadProtection', true),
+    // A program named for a product but from another site: its maker's signature still vouches for it.
+    signedBy: (file) => defense.signedBy(file),
     log: appLog,
     onChange: refreshTray,
     onChecked: (item) => fileChecked(item.path),
