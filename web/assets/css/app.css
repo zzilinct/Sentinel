@@ -175,6 +175,30 @@ body.app::before { opacity: .6; }
 .reasons li { display: flex; gap: 12px; font-size: 15px; }
 .reasons .dot { width: 8px; height: 8px; margin-top: 8px; border-radius: 50%; flex: none; background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
 
+/* A conversation on the path of a slow scam (app.js slowSteps): the five steps, the ones seen lit, where it is now ringed. */
+.slow { --c: var(--orange); padding: 22px 30px; border-bottom: 1px solid var(--line); }
+.slow--yellow { --c: var(--yellow); }
+@media (max-width: 560px) { .slow { padding: 20px; } }
+.slow h3 { font: 500 11.5px/1.3 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+.slow__steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.slow__step { position: relative; display: grid; justify-items: center; gap: 10px; text-align: center; font-size: 13.5px; line-height: 1.35; color: var(--faint); animation: rise-in .35s var(--ease-out) both; animation-delay: calc(var(--i) * 60ms); }
+.slow__step::before { content: ''; position: absolute; top: 7px; left: calc(-50% - 8px); width: calc(100% + 8px); height: 2px; background: var(--line-2); }
+.slow__step:first-child::before { display: none; }
+.slow__step.is-seen { color: var(--text); }
+.slow__step.is-seen + .slow__step.is-seen::before { background: color-mix(in srgb, var(--c) 55%, var(--line-2)); }
+.slow__dot { position: relative; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--line-2); }
+.slow__step.is-seen .slow__dot { background: var(--c); box-shadow: none; }
+.slow__step.is-at .slow__dot { box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 25%, transparent); }
+.slow__step.is-at { font-weight: 600; }
+.slow__next { margin: 18px 0 0; padding: 12px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--c) 8%, var(--surface)); box-shadow: inset 3px 0 0 var(--c); font-size: 15px; line-height: 1.5; }
+.slow__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 560px) {
+  .slow__steps { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .slow__step { grid-template-columns: 16px minmax(0, 1fr); justify-items: start; align-items: center; gap: 12px; text-align: left; }
+  .slow__step::before { top: -12px; left: 7px; width: 2px; height: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .slow__step { animation: none; } }
+
 /* The scanned email, each warning sign marked where it is (app.js showMarks). */
 .email-marks { padding: 22px 30px; border-bottom: 1px solid var(--line); }
 @media (max-width: 560px) { .email-marks { padding: 20px; } }

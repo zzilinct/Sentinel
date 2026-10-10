@@ -128,4 +128,4 @@ function withLinks(result, verdicts) {
   return { level, family: 'scam', title: level === 'danger' ? 'This text links to a dangerous site' : 'This text links to a risky site', detail: `${worst.v.host || 'The link'}: ${reason}`, advice: ADVICE[level] };
 }
 
-module.exports = { judgeText, withLinks, senderKind };
+module.exports = { judgeText, withLinks, senderKind, WRONG_NUMBER };

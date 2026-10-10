@@ -1532,7 +1532,7 @@
     const canRead = Boolean(desktop && desktop.readScreenshot);
     const allowance = () => `${scanLeftText('fast')}. A text counts as one fast link scan, on every plan: its links are checked by their address only, not researched like a pasted email. Nothing is stored.`;
     el.innerHTML = `
-      ${title('Text scan', 'Got a text, a WhatsApp message or a DM you are not sure about? Paste it in, or a screenshot of it, and Sentinel says if it looks like a scam and what to do.',
+      ${title('Text scan', 'Got a text, a WhatsApp message or a DM you are not sure about? Paste it in, or a screenshot of it, and Sentinel says if it looks like a scam and what to do. A whole conversation works too: Sentinel shows if it follows the steps of a slow scam.',
         '<div class="segmented" role="tablist"><button role="tab" data-tmode="paste" aria-selected="true">Paste the text</button><button role="tab" data-tmode="shot" aria-selected="false">Screenshot</button></div>')}
       <div class="panel" data-shot hidden>
         <label class="drop" data-shot-drop>
@@ -1541,12 +1541,12 @@
         </label>
         <figure class="shot" data-shot-preview hidden><img alt="The screenshot to read"><figcaption data-shot-status></figcaption></figure>
         <p class="field__hint u-mt-sm">${canRead
-          ? 'Read on this computer by Windows. The image is not uploaded or kept. If you replied in the conversation, crop the screenshot to the message you were sent.'
+          ? 'Read on this computer by Windows. The image is not uploaded or kept. A screenshot of a whole conversation works too.'
           : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>, or paste the text instead.'}</p>
       </div>
       <form class="panel" data-form>
         <div class="field"><label for="t-from">From <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="t-from" name="from" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
-        <div class="field"><label for="t-text">Message</label><textarea class="textarea" id="t-text" name="text" rows="6" maxlength="2000" placeholder="Paste the message, including any links"></textarea></div>
+        <div class="field"><label for="t-text">Message or conversation</label><textarea class="textarea" id="t-text" name="text" rows="6" maxlength="8000" placeholder="Paste the message, or the whole conversation, including any links"></textarea></div>
         <div class="report__foot">
           <span class="muted" data-left>${esc(allowance())}</span>
           <button class="btn btn--gold" type="submit">Check this text</button>
@@ -1632,8 +1632,8 @@
     const who = !from ? 'No sender given' : `From ${from}${r.sender === 'number' ? ', a phone number' : r.sender === 'shortcode' ? ', a business short code' : r.sender === 'email' ? ', an email address' : ''}`;
     const linkLine = (l) => `${l.host || l.url}: ${l.badge ? `${l.label}${l.reason ? `. ${l.reason}` : ''}` : l.label === 'Not checked' ? 'could not be checked just now' : 'no threat found'}`;
     const reasons = [...(f ? [[f.detail, tone]] : []), ...r.links.map((l) => [linkLine(l), l.badge])];
-    // Family on a "new number" wants money sent; the rest want a card number or a sign-in.
-    const happened = f && /family/i.test(f.title) ? 'bank' : 'card,password';
+    // Family on a "new number" and slow scams want money sent; the rest want a card number or a sign-in.
+    const happened = f && (/family/i.test(f.title) || r.conversation) ? 'bank' : 'card,password';
     const scam = f && (f.level === 'danger' || red);
     const steps = f ? [f.advice] : [`Nothing in this text matches the scams Sentinel knows${r.links.length ? ', and its links are on no threat list' : ''}.`, 'Still unsure? Contact the company or person through their own app, website or a number you already have, not the one in the text.'];
     return `<article class="result result--${tone}" data-result data-text-result="${tone}">
@@ -1646,9 +1646,20 @@
       </header>
       <div class="next-steps next-steps--${tone}"><h3>${f ? 'What to do now' : 'Good to know'}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
         ${scam ? `<p class="next-steps__more">Already tapped the link, paid or replied? <a href="/app/recover?happened=${happened}">Open the recovery guide</a> for every step, in order.</p>` : ''}</div>
+      ${r.conversation ? slowSteps(r.conversation) : ''}
       ${reasons.length ? `<div class="reasons"><h3>Why</h3><ul>${reasons.map(([t, badge]) => `<li><span class="dot" style="--c:${color(badge || null)}"></span>${esc(t)}</li>`).join('')}</ul></div>` : ''}
       <div class="notes"><p>${r.links.length ? 'Links were checked by their address only and were not opened. ' : ''}The text was checked in memory and not kept, and it is not in your history.</p></div>
     </article>${scam && canWarn(tone) ? warnRow() : ''}`;
+  }
+
+  /** Where a conversation is on the path of a slow scam (server/lib/scan/slowscam.js), and what usually comes next. */
+  function slowSteps(c) {
+    return `<div class="slow slow--${c.level === 'danger' ? 'orange' : 'yellow'}" data-slow="${esc(c.at)}">
+      <h3>Where this conversation is</h3>
+      <ol class="slow__steps">${c.stages.map((s, i) => `<li class="slow__step${s.seen ? ' is-seen' : ''}${s.id === c.at ? ' is-at' : ''}" style="--i:${i}"${s.id === c.at ? ' aria-current="step"' : ''}>
+        <span class="slow__dot" aria-hidden="true"></span><span>${esc(s.label)}</span><span class="slow__sr">${s.seen ? ' (seen in this conversation)' : ''}</span></li>`).join('')}</ol>
+      <p class="slow__next"><b>What usually comes next.</b> ${esc(c.next)}</p>
+    </div>`;
   }
 
   /** PNG slices of an image, at most 2000 wide and 1600 tall, overlapping by 60 so no line is cut in half. */

@@ -26,6 +26,7 @@ const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
 const { KINDS } = require('../lib/scan/kinds');
 const { classify: classifyQr } = require('../lib/scan/qr');
 const texts = require('../lib/scan/texts');
+const slowscam = require('../lib/scan/slowscam');
 const week = require('../lib/week');
 // Kinds the engine can name from evidence; "blocked" is a rule the user set, not a threat kind.
 const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
@@ -213,11 +214,12 @@ function register(router) {
   // rules as texts in Phone Link (scan/texts.js); its links are checked by their address only, never opened. Like a
   // pasted email it is counted by the checks it gets: an email is researched (a delicate scan), a text is not, so it
   // is one fast link scan, on every plan. The message is read in memory: not stored, not in the history, not logged.
+  // A whole conversation can be pasted too: it is also read for the steps of a slow scam (scan/slowscam.js).
   router.post('/api/v1/scan/text', async (req, res) => {
     const user = A.requireAgreedUser(req);
     security.rateLimit(`scan-minute:${user.id}`, 30, 60 * 1000, 'Too many scans in a minute. Wait a moment, then try again.');
-    const body = await readJson(req, 16 * 1024);
-    const text = String(body.text || '').slice(0, 2000);
+    const body = await readJson(req, 64 * 1024);
+    const text = String(body.text || '').slice(0, 8000);
     const from = String(body.from || '').slice(0, 80);
     if (!text.trim()) throw new HttpError(400, 'empty_text', 'Paste the text message you want checked');
     const plan = plans.planFor(user);
@@ -228,8 +230,12 @@ function register(router) {
       }) : [];
       const byUrl = {};
       for (const v of verdicts) byUrl[v.requested] = v;
+      const flag = texts.withLinks(r, byUrl);
+      const convo = slowscam.judgeConversation(text);
+      const stronger = convo && (!flag || (convo.level === 'danger' && flag.level !== 'danger'));
       return {
-        flag: texts.withLinks(r, byUrl),
+        flag: stronger ? { level: convo.level, family: convo.family, words: true, title: convo.title, detail: convo.detail, advice: convo.advice } : flag,
+        conversation: convo ? { stages: convo.stages, at: convo.at, next: convo.next, level: convo.level } : null,
         sender: texts.senderKind(from),
         links: r.links.map((url) => {
           const v = byUrl[url];
