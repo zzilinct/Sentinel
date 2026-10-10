@@ -1275,6 +1275,14 @@
     ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (ev) => { ev.preventDefault(); drop.classList.add('is-over'); }));
     ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (ev) => { ev.preventDefault(); drop.classList.remove('is-over'); }));
     drop.addEventListener('drop', (ev) => scanFile(ev.dataTransfer.files[0]));
+    // A file chosen with "Scan with Sentinel" in the Windows right-click menu, handed over once by the app.
+    if (desktop && desktop.takeMenuFile) desktop.takeMenuFile().then((m) => {
+      if (!m || !el.isConnected) return;
+      if (!m.data) { toast(`${m.name} is too big. Files up to 25 MB can be scanned.`, 'error'); return; }
+      scanFile(new File([m.data], m.name));
+      // The answer is what the person came for: below the drop zone it was out of sight.
+      out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    },() => toast('That file could not be opened. Drop it here instead.', 'error'));
   }
 
   /* ========================================================= email scan */
@@ -2515,6 +2523,7 @@
             <input class="switch" type="checkbox" data-snip aria-label="Check something on screen" ${info.snip.enabled ? 'checked' : ''}></div>` : ''}
           ${desktop.setRemoteGuard && info.remoteGuard && info.remoteGuard.supported ? `<label class="setting"><div><b>Tech-support scam shield</b>${info.remoteGuard.enabled && !live.enabled ? '<span class="status is-locked">Needs live scanning</span>' : ''}<span>When a page flagged as a scam takes the whole screen, Sentinel offers to close it. When a remote-control program such as AnyDesk or TeamViewer starts soon after a flagged page, or soon after it was downloaded, Sentinel asks whether someone on the phone told you to install it. Nothing is stopped unless you say so. The way out of a full-screen page and the bank warning work while live scanning is on.${info.remoteGuard.trusted.length ? ` You use ${esc(info.remoteGuard.trusted.join(', '))} yourself.` : ''}</span></div><input class="switch" type="checkbox" data-remote-guard ${info.remoteGuard.enabled ? 'checked' : ''}></label>
           ${info.remoteGuard.trusted.length ? '<div class="setting"><div><b>Programs you use yourself</b><span>Sentinel does not ask about these.</span></div><button class="btn btn--sm" data-forget-remote>Ask again</button></div>' : ''}` : ''}
+          ${desktop.setScanMenu && info.scanMenu && info.scanMenu.supported ? `<label class="setting"><div><b>Scan with Sentinel in the right-click menu</b><span>Right-click any file, choose Show more options, then Scan with Sentinel. The file is checked on this computer and the answer opens here.</span></div><input class="switch" type="checkbox" data-scan-menu ${info.scanMenu.enabled ? 'checked' : ''}></label>` : ''}
           <label class="setting"><div><b>Start with my computer</b><span>Keep protection running from the moment you sign in.</span></div><input class="switch" type="checkbox" data-login ${info.openAtLogin ? 'checked' : ''}></label>
           <div class="setting"><div><b>Sentinel ${esc(info.version)}</b><span>${esc(updateText(up))}</span></div>
             ${up.status === 'ready' ? '<button class="btn btn--sm btn--gold" data-install-update>Restart now</button>'
@@ -2660,6 +2669,13 @@
     });
     $('[data-login]', slot).addEventListener('change', async (ev) => {
       try { await desktop.setOpenAtLogin(ev.target.checked); } catch (err) { ev.target.checked = !ev.target.checked; toast(desktopError(err), 'error'); }
+    });
+    const scanMenu = $('[data-scan-menu]', slot);
+    if (scanMenu) scanMenu.addEventListener('change', async () => {
+      try {
+        await desktop.setScanMenu(scanMenu.checked);
+        toast(scanMenu.checked ? 'Scan with Sentinel is in the right-click menu.' : 'Scan with Sentinel is out of the right-click menu.', 'success');
+      } catch (err) { scanMenu.checked = !scanMenu.checked; toast(desktopError(err), 'error'); }
     });
     const clip = $('[data-clip]', slot);
     if (clip) clip.addEventListener('change', async () => {
