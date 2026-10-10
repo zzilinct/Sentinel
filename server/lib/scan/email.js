@@ -7,6 +7,7 @@
 const L = require('./lists');
 const { analyze, brandInfo, hostWords } = require('./url');
 const { classify: classifyQr } = require('./qr');
+const { senderProof } = require('./sender');
 
 const fail = (points, detail) => ({ status: 'fail', points, detail });
 const warn = (points, detail) => ({ status: 'warn', points, detail });
@@ -173,6 +174,16 @@ function analyzeEmail(mail, how = {}) {
   // paypal.com) is not claiming to be it: only the sender's name counts then.
   const claimed = brandIn(from.name) || (senderBrand.official ? null : brandIn(subject, { asName: true }));
 
+  // Pasted with its headers: whether the mail service that received it found it really came from the From domain.
+  const proof = senderProof(mail.headers, from.domain);
+  add('E31', 'scam', 'Really sent by the domain it says it is from', (() => {
+    if (!proof) return skip(mail.headers ? 'The pasted headers hold no sender checks' : 'No headers pasted');
+    if (proof.status === 'really') return pass(proof.text);
+    if (proof.status === 'unknown') return skip(proof.text);
+    // A brand's own domain, or one whose checks failed: someone else wrote its name on the message.
+    return senderBrand.official || proof.checksFailed ? fail(44, proof.text) : warn(12, proof.text);
+  })(), () => inFrom(from.domain));
+
   add('E01', 'scam', 'Sender name matches the sending domain', (() => {
     if (!claimed) return pass('Sender does not claim a brand');
     if (!from.domain) return skip('No sender address');
@@ -205,7 +216,8 @@ function analyzeEmail(mail, how = {}) {
   // Sent from the brand's own domain (as the mail provider delivered it): "verify", "security alert", "confirm
   // your account" are how Google, Canva or a bank write to their own users. Those words say nothing more there.
   // Not a free mailbox: gmail.com and outlook.com belong to Google and Microsoft, but anyone can write from them.
-  const fromOfficial = Boolean(from.domain && !L.FREE_MAIL_PROVIDERS.has(from.domain) && (senderBrand.official || (claimed && claimed.domains.some((d) => from.domain === d || from.domain.endsWith('.' + d)))));
+  // Not when the pasted headers show the message did not come from there.
+  const fromOfficial = Boolean(from.domain && !L.FREE_MAIL_PROVIDERS.has(from.domain) && !(proof && proof.status === 'not') && (senderBrand.official || (claimed && claimed.domains.some((d) => from.domain === d || from.domain.endsWith('.' + d)))));
   const wording = (check) => (fromOfficial && check.status !== 'pass' ? pass(`Sent from ${from.domain}: ${check.detail}`) : check);
   add('E05', 'scam', 'Subject is not built to rush you', wording(URGENT_SUBJECT.test(subject) ? warn(10, `"${subject.slice(0, 80)}"`) : pass('Calm subject')), () => locate(URGENT_SUBJECT, [SUBJECT]));
   add('E06', 'scam', 'Does not ask you to confirm login or payment details', wording(CREDENTIAL_ASK.test(subject + ' ' + body)
@@ -330,7 +342,7 @@ function analyzeEmail(mail, how = {}) {
 
   return {
     checks,
-    sender: { name: from.name, address: from.address, domain: from.domain },
+    sender: { name: from.name, address: from.address, domain: from.domain, ...(proof ? { proof: { status: proof.status, text: proof.text } } : {}) },
     links: targets.slice(0, 60),
     linksTruncated: targets.length > 60 || (Array.isArray(mail.links) && mail.links.length > 60) || mail.linksTruncated === true,
     senderUrl: senderUrl ? senderUrl.url : null
