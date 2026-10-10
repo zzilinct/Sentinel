@@ -50,6 +50,8 @@ function measure(width) {
   const box = (b) => ({ left: b.left, right: b.right, top: b.top, bottom: b.bottom });
   const cut = (a, b) => ({ left: Math.max(a.left, b.left), right: Math.min(a.right, b.right), top: Math.max(a.top, b.top), bottom: Math.min(a.bottom, b.bottom) });
   const empty = (b) => b.right - b.left < 1 || b.bottom - b.top < 1;
+  // Fixed boxes (the header, the motes) span whatever width the page has: they show sideways scroll, never cause it.
+  const fixed = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) if (getComputedStyle(e).position === 'fixed') return true; return false; };
   const seen = (el) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
 
   // The boxes that clip an element: ancestors with overflow other than visible that are on its containing-block chain
@@ -92,7 +94,7 @@ function measure(width) {
   // 1. Sideways scroll.
   const sw = document.documentElement.scrollWidth;
   if (sw > W || W !== width) {
-    const wide = [...document.body.querySelectorAll('*')].filter(seen).map((el) => {
+    const wide = [...document.body.querySelectorAll('*')].filter((el) => !fixed(el)).map((el) => {
       let b = box(el.getBoundingClientRect());
       for (const c of clippers(el)) b = cut(b, c.b);
       return { el, b };
@@ -171,12 +173,12 @@ async function scrollThrough() {
     .filter((el, i, all) => all.indexOf(el) === i && el.scrollHeight > el.clientHeight + 20 && (el === document.scrollingElement || /auto|scroll/.test(getComputedStyle(el).overflowY)));
   for (const el of parts) {
     const step = Math.max(200, el.clientHeight * 0.8);
-    for (let y = step, n = 0; y < el.scrollHeight && n < 30; y += step, n++) {
-      if (el === document.scrollingElement) scrollTo(0, y); else el.scrollTop = y;
+    for (let y = step, n = 0; y < el.scrollHeight && n < 80; y += step, n++) {
+      el.scrollTo({ top: y, behavior: 'instant' });   // the site's scroll is smooth (CSS), which would lag a screen behind each step
       await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));   // a frame drawn here, so what reveals on scroll has seen it
       await wait(80);
     }
-    if (el === document.scrollingElement) scrollTo(0, 0); else el.scrollTop = 0;
+    el.scrollTo({ top: 0, behavior: 'instant' });
   }
   return parts.length;
 }
