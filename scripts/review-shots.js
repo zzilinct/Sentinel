@@ -37,7 +37,8 @@ const PAGES = [
   ['app-scan-phishing', `/app/scan?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, { wait: 6000 }],
   ['app-scan-clean', `/app/scan?url=${encodeURIComponent('https://www.wikipedia.org/')}`, { wait: 6000 }],
   ['app-files', '/app/threats'], ['app-email', '/app/email'], ['app-text', '/app/text'], ['app-history', '/app/history'], ['app-sites', '/app/sites'],
-  ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-security', '/app/security'], ['app-assistants', '/app/assistants']
+  ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-security', '/app/security'], ['app-assistants', '/app/assistants'],
+  ['app-call', '/app/call'], ['practice', '/practice']
 ];
 // Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.
 const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light']];
@@ -478,6 +479,7 @@ async function main() {
       console.log('hover: photographed');
       await send('Target.closeTarget', { targetId });
     }
+    await featureShots(send);
     await textScan(send);
     await emailMarks(send);
     await weekCheck(send);
@@ -487,6 +489,76 @@ async function main() {
     server.kill();
     await sleep(500);
     try { fs.rmSync(profile, { recursive: true, force: true }); } catch { /* locked briefly */ }
+  }
+}
+
+// A conversation on the path of a slow scam (server/lib/scan/slowscam.js), and an email pasted with headers that show it
+// was not sent by the brand in From (server/lib/scan/sender.js). The same stand-ins verify-web uses.
+const SLOW_CHAT = ['+1 917 555 0101: Hi, is this Linda?', 'Me: No, sorry, wrong number',
+  '+1 917 555 0101: Oh I am so sorry! You seem kind though. I am Amy, I live in Singapore.',
+  '+1 917 555 0101: I rarely use this app, add me on WhatsApp so we can keep talking',
+  '+1 917 555 0101: My uncle is a financial analyst, he taught me crypto trading. I made $4,000 profit last week on a trading platform.',
+  '+1 917 555 0101: I can teach you how to invest, start small'].join('\n');
+const SPOOFED = ['Authentication-Results: mx.google.com;',
+  '       spf=pass (google.com: domain of bounce@mailer-xyz.ru designates 198.51.100.7 as permitted sender) smtp.mailfrom=bounce@mailer-xyz.ru;',
+  '       dmarc=fail (p=REJECT sp=REJECT dis=QUARANTINE) header.from=paypal.com',
+  'Return-Path: <bounce@mailer-xyz.ru>', 'From: PayPal <service@paypal.com>', 'Subject: Your account is limited', '',
+  'Hello Alex,', 'We could not confirm a recent payment. Please review your account to restore full access.'].join('\n');
+
+/**
+ * The newest features in the state a person sees them in (an answer, a result, an open card), at every size in SIZES,
+ * so each has a picture at phone width and in the light theme: feature-<size>-<name>.png, clipped to the feature.
+ */
+async function featureShots(send) {
+  const CASES = [
+    ['call', '/app/call', "document.querySelector('[data-call-answer]')",
+      "document.querySelector('input[name=who][value=bank]').click(); document.querySelector('input[name=ask][value=code]').click();",
+      "document.querySelector('[data-call-answer][data-verdict]')", '[data-call-answer]'],
+    ['practice', '/practice', "document.querySelector('[data-practice] [data-pick]')",
+      "document.querySelector('[data-pick=\"scam\"]').click();", "document.querySelector('[data-practice-verdict]')", '[data-practice]'],
+    ['slow-scam', '/app/text', "document.querySelector('#view [data-form] textarea')",
+      `const f = document.querySelector('[data-form]'); f.from.value = ''; f.text.value = ${JSON.stringify(SLOW_CHAT)}; f.requestSubmit();`,
+      "document.querySelector('[data-slow]')", '[data-text-result]'],
+    ['real-site', `/app/scan?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, "document.querySelector('#view [data-form]')",
+      '', "document.querySelector('[data-warn]')", '.result__head', 260],
+    ['warn-card', `/app/scan?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, "document.querySelector('#view [data-form]')",
+      "document.querySelector('[data-warn]').click();", "document.querySelector('[data-warn-card] canvas') && document.querySelector('[data-warn-card] canvas').width", '[data-warn-card]'],
+    ['who-sent-it', '/app/email', "document.querySelector('#view [data-emode=\"paste\"]')",
+      `document.querySelector('[data-emode="paste"]').click(); document.querySelector('[data-paste] textarea').value = ${JSON.stringify(SPOOFED)}; document.querySelector('[data-parse]').click(); document.querySelector('form[data-form]').requestSubmit();`,
+      "document.querySelector('[data-sender-proof]')", '#view .result']
+  ];
+  for (const [size, width, height, mobile, scheme] of SIZES) {
+    for (const [name, url, ready, act, done, target, extra = 0] of CASES) {
+      const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+      const run = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId)).result.value;
+      const until = async (expression, tries = 80) => { for (let i = 0; i < tries; i++) { if (await run(`Boolean(${expression})`)) return true; await sleep(250); } return false; };
+      await send('Page.enable', {}, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, sessionId);
+      await send('Page.navigate', { url: BASE + url }, sessionId);
+      if (!(await until(ready, 60))) { console.log(`feature-${size}-${name}: the page did not get ready`); await send('Target.closeTarget', { targetId }); continue; }
+      await sleep(1200);   // the page's entrance (app-lux.js) settles
+      if (act) await run(`(() => { ${act} })()`);
+      if (!(await until(done))) { console.log(`feature-${size}-${name}: never showed`); await send('Target.closeTarget', { targetId }); continue; }
+      await sleep(1200);   // the answer's own entrance settles
+      // The app scrolls inside its panel: laid out at full height, so the clip is in page coordinates.
+      const clip = await run(`(() => {
+        document.querySelectorAll('.toast').forEach((t) => t.remove());
+        for (const el of document.querySelectorAll('main, .main, .app__main, [data-view], .view')) {
+          if (el.scrollHeight > el.clientHeight + 20) { el.style.overflow = 'visible'; el.style.height = 'auto'; el.style.maxHeight = 'none'; }
+        }
+        document.documentElement.style.height = 'auto'; document.body.style.height = 'auto'; document.body.style.overflow = 'visible';
+        const el = document.querySelector(${JSON.stringify(target)}).closest('.panel, article, [data-practice], [data-call-answer]') || document.querySelector(${JSON.stringify(target)});
+        const r = (${JSON.stringify(target)} === '.result__head' ? document.querySelector('.result__head') : el).getBoundingClientRect();
+        return { x: Math.max(0, r.left + scrollX - 12), y: Math.max(0, r.top + scrollY - 12), width: Math.min(r.width + 24, innerWidth), height: Math.min(r.height + 24 + ${extra}, 5000) };
+      })()`);
+      await sleep(300);
+      const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { ...clip, scale: 1 } }, sessionId);
+      fs.writeFileSync(path.join(OUT, `feature-${size}-${name}.png`), Buffer.from(shot.data, 'base64'));
+      console.log(`feature-${size}-${name}.png`);
+      await send('Target.closeTarget', { targetId });
+    }
   }
 }
 

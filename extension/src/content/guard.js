@@ -41,7 +41,7 @@
       steps: (v.reasons || []).slice(0, 4).map((r) => r.text),
       buttons: [
         // The real site, when the scanner knows for certain which one this page imitates. The worker opens it.
-        ...(v.realSite && v.realSite.host ? [{ text: `Go to the real ${v.realSite.host}`, kind: 'go', on: () => {
+        ...(v.realSite && v.realSite.host ? [{ text: `Go to the real ${v.realSite.host}`, kind: 'go', cls: 'wide', on: () => {
           Promise.resolve(ext.runtime.sendMessage({ type: 'real-site' })).catch(() => {});
         } }] : []),
         { text: 'Take me back to safety', kind: v.realSite && v.realSite.host ? '' : 'go', on: globalThis.SentinelAlarm.leave },

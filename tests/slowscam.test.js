@@ -43,7 +43,7 @@ test('a wrong number that moves apps and turns to crypto profits is a slow scam 
   assert.equal(r.at, 'invest');
   assert.deepEqual(r.stages.filter((s) => s.seen).map((s) => s.id), ['opener', 'move', 'invest']);
   assert.match(r.next, /fee or a tax/);
-  assert.match(r.detail, /3 of the five steps/);
+  assert.match(r.detail, /three of the five steps/);
 });
 
 test('a far-away friend who cannot video call and then needs money is at the money step', () => {

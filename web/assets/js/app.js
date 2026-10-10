@@ -1506,6 +1506,10 @@
     const checklist = $('.result__checklist', out);
     if (!sender || !sender.proof || !checklist) return;
     checklist.before(h(`<section class="sender-proof" data-sender-proof data-proof="${esc(sender.proof.status)}"><span class="sender-proof__k">Who sent it</span><b>${esc(sender.proof.text)}</b></section>`));
+    // Said once: the same words under Why would repeat the line just added.
+    $$('.reasons li', out).filter((li) => li.textContent === sender.proof.text).forEach((li) => li.remove());
+    const why = $('.reasons', out);
+    if (why && !why.querySelector('li')) why.remove();
   }
 
   function showMarks(out, mail, items) {
@@ -1678,7 +1682,7 @@
         </div>
       </header>
       <div class="next-steps next-steps--${tone}"><h3>${f ? 'What to do now' : 'Good to know'}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-        ${scam ? `<p class="next-steps__more">Already tapped the link, paid or replied? <a href="/app/recover?happened=${happened}">Open the recovery guide</a> for every step, in order.</p>` : ''}</div>
+        ${scam ? `<p class="next-steps__more">${r.links.length ? 'Already tapped the link, paid or replied?' : 'Already paid or replied?'} <a href="/app/recover?happened=${happened}">Open the recovery guide</a> for every step, in order.</p>` : ''}</div>
       ${r.conversation ? slowSteps(r.conversation) : ''}
       ${reasons.length ? `<div class="reasons"><h3>Why</h3><ul>${reasons.map(([t, badge]) => `<li><span class="dot" style="--c:${color(badge || null)}"></span>${esc(t)}</li>`).join('')}</ul></div>` : ''}
       <div class="notes"><p>${r.links.length ? 'Links were checked by their address only and were not opened. ' : ''}The text was checked in memory and not kept, and it is not in your history.</p></div>

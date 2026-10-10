@@ -76,7 +76,7 @@
       what: card.what === 'A link' ? 'Do not open this link or type anything on it.' : `${card.what}${card.link ? ' with this link' : ''}. Do not open it, reply or pay.`,
       link: card.link ? shortLink(card.link) : null,
       from: card.from ? `From ${defang(card.from)}` : null,
-      why: 'Why it is a scam',
+      why: card.tone && card.tone !== 'red' ? 'Why it looks like a scam' : 'Why it is a scam',
       tells: card.tells.filter(Boolean).map(defang),
       foot: 'Checked with Sentinel. This picture was made on the device and the link is written so it cannot be tapped.'
     };
@@ -165,14 +165,14 @@
     g.fillRect(0, 0, W, canvas.height);
     g.fillStyle = tone;
     g.fillRect(0, 0, W, 14);
-    if (mask) g.drawImage(mask, PAD - 12, PAD, 176, 176);
+    if (mask) g.drawImage(mask, PAD - 48, PAD, 176, 176);
     g.textBaseline = 'top';
     g.font = `700 30px ${SANS}`;
     g.fillStyle = tone;
-    g.fillText(w.label.toUpperCase(), PAD + 196, PAD + 56);
+    g.fillText(w.label.toUpperCase(), PAD + 124, PAD + 56);
     g.font = `400 30px ${SANS}`;
     g.fillStyle = '#9aa0ab';
-    g.fillText(new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }), PAD + 196, PAD + 100);
+    g.fillText(new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }), PAD + 124, PAD + 100);
 
     for (const b of blocks) {
       if (b.box) {

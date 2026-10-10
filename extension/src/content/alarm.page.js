@@ -46,6 +46,7 @@
       .verdict{color:${accent};font-weight:650;margin:0 0 12px}
       p{margin:0 0 14px;color:#c7cad0}
       .small p{font-size:13.5px;margin:0 0 12px}
+      .small ol,.small ul{font-size:13.5px;margin-bottom:14px}
       ol,ul{margin:0 0 24px;padding-left:20px;display:grid;gap:8px;color:#c7cad0}
       ul{padding:0;list-style:none}
       ul li{display:flex;gap:10px}ul li:before{content:"";flex:none;width:6px;height:6px;margin-top:9px;border-radius:50%;background:${accent}}
@@ -54,6 +55,7 @@
       .small button{font-size:13px;padding:8px 12px;border-radius:10px}
       button:hover{background:#272a30}
       button:focus-visible,a:focus-visible{outline:2px solid #d6b25a;outline-offset:2px}
+      .wide{flex-basis:100%;box-sizing:border-box;text-align:center}
       .go{background:#d6b25a;color:#131519}.go:hover{background:#e2c47f}
       .quiet{background:none;color:#80868f;text-decoration:underline;padding:12px 6px}.quiet:hover{background:none;color:#c7cad0}
       .small .quiet{padding:8px 4px}

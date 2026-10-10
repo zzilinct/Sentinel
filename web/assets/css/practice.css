@@ -14,7 +14,8 @@
 /* The message, as the app it came in would show it. */
 .pmsg__h { margin: 0 0 6px; font: 600 13px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .pmsg__h:focus { outline: none; }
-.pmsg__h:focus-visible { outline: 2px solid var(--gold-300); }
+.pmsg__h:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 4px; border-radius: 4px; }
+.pmsg__h { width: fit-content; }
 .pmsg__context { margin: 0 0 10px; font-style: italic; color: var(--muted); }
 .pmsg__card { padding: 20px 22px; border-radius: var(--r-lg); background: var(--relief), var(--surface); box-shadow: var(--raise-sm); color: var(--text); line-height: 1.6; overflow-wrap: anywhere; animation: pmsg-in .45s var(--ease-out) both; }
 @keyframes pmsg-in { from { opacity: 0; transform: translateY(10px); } }
@@ -45,7 +46,7 @@
 .practice__verdict { margin-top: 22px; padding: 22px; border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); animation: pmsg-in .4s var(--ease-out) both; }
 .practice__verdict h3 { margin: 0 0 6px; font-size: 26px; color: var(--text); }
 .practice__verdict h3:focus { outline: none; }
-.practice__verdict h3:focus-visible { outline: 2px solid var(--gold-300); }
+.practice__verdict h3:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 6px; border-radius: 6px; }
 .practice__verdict p { margin: 0 0 8px; }
 .practice__clues { margin: 0 0 18px; padding-left: 22px; display: grid; gap: 8px; line-height: 1.55; }
 .practice__clues b { color: var(--text); }
