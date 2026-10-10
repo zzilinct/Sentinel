@@ -457,6 +457,17 @@ function showGuard(mode, data = {}) {
     });
     guardWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     guardWin.webContents.on('will-navigate', (e) => e.preventDefault());
+    // As tall as what it says: a short question (did you type anything, the pay pause) left a band of empty window
+    // above its buttons. Between 240 and 600 px; longer still scrolls inside.
+    guardWin.webContents.on('did-finish-load', async () => {
+      try {
+        const h = await guardWin.webContents.executeJavaScript(`(() => { const r = document.documentElement, b = document.body; r.style.height = b.style.height = 'auto';
+          const h = Math.ceil(b.getBoundingClientRect().height); r.style.height = b.style.height = ''; return h; })()`);
+        if (!guardWin || guardWin.isDestroyed()) return;
+        guardWin.setContentSize(480, Math.max(240, Math.min(600, h)));
+        if (guardMode === 'escape') placeOnPage(); else guardWin.center();
+      } catch { /* closed while loading */ }
+    });
   }
   guardMode = mode;
   if (mode === 'escape') placeOnPage();
