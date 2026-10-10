@@ -185,7 +185,7 @@ body.app::before { opacity: .6; }
 .slow__step::before { content: ''; position: absolute; top: 7px; left: calc(-50% - 8px); width: calc(100% + 8px); height: 2px; background: var(--line-2); }
 .slow__step:first-child::before { display: none; }
 .slow__step.is-seen { color: var(--text); }
-.slow__step.is-seen::before { background: color-mix(in srgb, var(--c) 55%, var(--line-2)); }
+.slow__step.is-seen + .slow__step.is-seen::before { background: color-mix(in srgb, var(--c) 55%, var(--line-2)); }
 .slow__dot { position: relative; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--line-2); }
 .slow__step.is-seen .slow__dot { background: var(--c); box-shadow: none; }
 .slow__step.is-at .slow__dot { box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 25%, transparent); }
