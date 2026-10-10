@@ -797,6 +797,12 @@ p.hero__fine span { white-space: nowrap; }
 .js:not(.no-io) [data-reveal="rise"]:not(.is-in) { clip-path: inset(0 0 100% 0); transform: translateY(60px); }
 .js:not(.no-io) [data-reveal="doors"]:not(.is-in) { clip-path: inset(0 0 100% 0); }
 .js:not(.no-io) [data-reveal="doors"]:not(.is-in) > * { clip-path: inset(0 0 100% 0); }
+/* Waiting, a block keeps a 1 px strip of its top edge, made transparent instead. Chrome's IntersectionObserver looks
+   at what a clip-path leaves, and a strip of no height that ran past the screen's left edge was never seen: on a
+   phone or tablet the threat plate pushed in from the left (and the vault's lines, and the privacy page's text,
+   whose unveil reaches 80 px past each side) stayed hidden for good. The entrance still opens from no height. */
+.js:not(.no-io) [data-reveal]:not(.is-in):not([data-reveal="words"]):not([data-reveal="iris"]) { clip-path: inset(0 0 calc(100% - 1px) 0); opacity: 0; }
+.js:not(.no-io) :is([data-reveal=""], [data-reveal="scale"]):not(.is-in):not([data-reveal="words"]):not([data-reveal="iris"]) { clip-path: inset(-80px -80px calc(100% - 1px) -80px); }
 
 .js [data-reveal="flip"].is-in { animation: rv-flip 1.1s var(--ease-out) var(--d, 0s) backwards; }
 .js [data-reveal="left"].is-in { animation: rv-left 1.1s var(--ease-out) var(--d, 0s) backwards; }

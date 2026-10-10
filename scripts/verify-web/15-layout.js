@@ -193,14 +193,14 @@ async function scrollThrough() {
   const late = [...document.querySelectorAll('[data-reveal]:not(.is-in):not([data-reveal="words"])')].filter((el) => el.getClientRects().length);
   const said = (el) => el.tagName.toLowerCase() + [...el.classList].slice(0, 2).map((c) => `.${c}`).join('') + ` (${el.dataset.reveal || 'unveil'})`;
   for (const el of late) {
-    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    document.scrollingElement.scrollBy({ top: el.getBoundingClientRect().top - innerHeight / 2, behavior: 'instant' });   // its top edge, where it opens from
     await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
     await wait(150);
   }
   // What an intersection observer (as site.js sets one up) says of each that never played, brought to the middle.
   const never = [];
   for (const el of late.filter((e) => !e.classList.contains('is-in'))) {
-    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    document.scrollingElement.scrollBy({ top: el.getBoundingClientRect().top - innerHeight / 2, behavior: 'instant' });   // its top edge, where it opens from
     const seen = await new Promise((res) => { const io = new IntersectionObserver((es) => { io.disconnect(); res(es[0]); }, { rootMargin: '0px 0px -8% 0px', threshold: 0 }); io.observe(el); setTimeout(() => res(null), 2000); });
     const q = (b) => b ? [b.left, b.top, b.right, b.bottom].map(Math.round).join(',') : '-';
     // And without its clip-path, then without its transform: which of the two hides it from the observer.
@@ -292,11 +292,11 @@ async function checkLayout() {
               await browser.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: 500 }, s);
               await sleep(600);
               const entrances = await evalIn(browser, s, `(${scrollThrough})()`);
-              if (entrances.late.length) lateNotes.push(`${page} ${at}: played only once brought to the middle: ${entrances.late.join(', ')}`);
+              if (entrances.late.length) lateNotes.push(`${page} ${at}: played only once its top was brought to the middle: ${entrances.late.join(', ')}`);
               await browser.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: -500 }, s);
               await sleep(1800);
               let problems = await evalIn(browser, s, `(${measure})(${w})`);
-              for (const el of entrances.never) problems.push({ kind: 'never-shown', el, text: '', detail: 'its entrance did not play, even brought to the middle of the screen' });
+              for (const el of entrances.never) problems.push({ kind: 'never-shown', el, text: '', detail: 'its entrance did not play, even with its top brought to the middle of the screen' });
               if (url === '/app') {
                 await evalIn(browser, s, "document.querySelector('[data-palette]').click()");
                 await sleep(500);
