@@ -480,6 +480,7 @@ async function main() {
     }
     await textScan(send);
     await emailMarks(send);
+    await heroCentred(send);
     await weekCheck(send);
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
@@ -603,6 +604,35 @@ const EXPECTED_MARKS = [
  * The email scan (app.js showMarks) shows the email itself inside the result, each warning sign marked where it is
  * and labelled, and a tap on a mark says why. Asserted at a computer's size and a phone's, and photographed.
  */
+// The hero's name stays centred over the hero after the window changes size. GSAP (motion.js) drifts it, and once
+// froze a CSS translate into pixels from the first width: on a wider screen it slid right and was cut off.
+async function heroCentred(send) {
+  const check = (ok, what, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  hero: ${what}${ok ? '' : `  got ${JSON.stringify(got)}`}`); if (!ok) throw new Error(`hero: ${what}`); };
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  await send('Page.enable', {}, sessionId);
+  await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }, { name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
+  // A mouse, as on a desktop: motion.js only drifts the name with a fine pointer.
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: "(() => { const mm = window.matchMedia.bind(window); window.matchMedia = (q) => /hover: hover|pointer: fine/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : mm(q); })()" }, sessionId);
+  await send('Page.navigate', { url: BASE + '/' }, sessionId);
+  await sleep(6000);
+  const off = async () => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    const w = document.querySelector('[data-hero-word]').getBoundingClientRect();
+    const s = document.querySelector('.hero__stage').getBoundingClientRect();
+    return { off: Math.round((w.left + w.right) / 2 - (s.left + s.right) / 2), word: [Math.round(w.left), Math.round(w.right)], stage: [Math.round(s.left), Math.round(s.right)] };
+  })()` }, sessionId)).result.value;
+  for (const [width, height] of [[1366, 900], [1920, 1080], [1100, 800]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await sleep(1200);
+    const r = await off();
+    check(Math.abs(r.off) <= 4, `at ${width}x${height} the name is centred over the hero (off by ${r.off} px)`, r);
+    const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+    fs.writeFileSync(path.join(OUT, `hero-${width}.png`), Buffer.from(shot.data, 'base64'));
+  }
+  await send('Target.closeTarget', { targetId });
+}
+
 async function emailMarks(send) {
   const check = (ok, what, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  email marks: ${what}${ok ? '' : `  got ${JSON.stringify(got)}`}`); if (!ok) throw new Error(`email marks: ${what}`); };
   for (const [size, width, height, mobile, scheme] of [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light']]) {
