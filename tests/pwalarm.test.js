@@ -81,7 +81,7 @@ function worker(store = {}, session = {}) {
     alarms: { create: noop, onAlarm: listener },
     contextMenus: { create: noop, onClicked: listener },
     notifications: { create: noop },
-    webNavigation: { onCommitted: listener, onCompleted: listener },
+    webNavigation: { onCommitted: listener, onCompleted: listener, onHistoryStateUpdated: listener, onReferenceFragmentUpdated: listener },
     permissions: { contains: async () => true }
   };
   const ctx = { chrome: ext, crypto: globalThis.crypto, TextEncoder, URL, btoa, atob, Uint8Array, AbortController, setTimeout, clearTimeout, console, Promise,

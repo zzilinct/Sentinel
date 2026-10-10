@@ -300,7 +300,13 @@ async function typedFlagged(tabId, url) {
   const host = hostOf(url);
   const was = await sessionGet(typedKey(tabId));
   if (!was || was.host !== host) await sessionSet(typedKey(tabId), { host, pw: false, card: false });
-  Promise.resolve(ext.tabs.sendMessage(tabId, { type: 'sentinel:typed-watch' }, { frameId: 0 })).catch(() => {});
+  typedWatch(tabId);
+}
+
+/** Every frame of the flagged page looks for the boxes: a card box is often in a payment provider's frame. */
+function typedWatch(tabId, frameId) {
+  const msg = { type: 'sentinel:typed-watch' };
+  Promise.resolve(frameId === undefined ? ext.tabs.sendMessage(tabId, msg) : ext.tabs.sendMessage(tabId, msg, { frameId })).catch(() => {});
 }
 
 /** The flagged page's tab went somewhere: another site means the page was left. */
@@ -581,12 +587,11 @@ const handlers = {
     return data;
   },
   ...pwHandlers,
-  /** content/typed.js found a password or card box on the flagged page in this tab. */
+  /** content/typed.js found a password or card box on the flagged page in this tab, in the page or one of its frames. */
   async 'typed-fields'({ pw, card }, sender) {
     fromPage(sender);
-    if (sender.frameId !== 0) return { kept: false };
     const was = await sessionGet(typedKey(sender.tab.id));
-    if (!was || was.host !== hostOf(sender.url)) return { kept: false };
+    if (!was || was.host !== hostOf(sender.tab.url || '')) return { kept: false };
     await sessionSet(typedKey(sender.tab.id), { ...was, pw: was.pw || pw === true, card: was.card || card === true });
     return { kept: true };
   },
@@ -752,7 +757,27 @@ ext.contextMenus.onClicked.addListener(async (info, tab) => {
   Promise.resolve(ext.notifications.create({ type: 'basic', iconUrl: ext.runtime.getURL('icons/icon128.png'), title, message })).catch(() => {});
 });
 
+/**
+ * A page that changes without loading (history.pushState or a #fragment, as most web apps and wallets do): the same
+ * tab and the same site, so nothing new is asked of the scanner. A flagged page's boxes are looked for again, and any
+ * other page gets the pay pause's rules again, within the hour after a warning as on a full load. Nothing more is read.
+ */
+async function onSameDocument(details) {
+  if (details.frameId !== 0 || !/^https?:/i.test(details.url)) return;
+  const settings = await getSettings();
+  if (!settings.enabled || liveBlockReason()) return;
+  const flagged = await sessionGet(typedKey(details.tabId));
+  if (flagged && flagged.host === hostOf(details.url)) { typedWatch(details.tabId); return; }
+  const verdict = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url);
+  const badge = verdict && verdict.overall && verdict.overall.badge;
+  if (badge === 'red' || badge === 'orange') return;
+  if (verdict && verdict.paypage) await payPause(details.tabId, details.url, verdict.paypage);
+  else await payLook(details.tabId, details.url);
+}
+
 ext.webNavigation.onCommitted.addListener(onNavigate);
+ext.webNavigation.onHistoryStateUpdated.addListener(onSameDocument);
+ext.webNavigation.onReferenceFragmentUpdated.addListener(onSameDocument);
 // "Did you type anything?": a flagged tab closed counts as leaving it; the question waits for the next page shown.
 ext.tabs.onRemoved.addListener(async (tabId, info) => {
   const was = await sessionGet(typedKey(tabId));
@@ -763,9 +788,14 @@ ext.tabs.onRemoved.addListener(async (tabId, info) => {
 });
 ext.tabs.onActivated.addListener((info) => { typedDeliver(info.tabId); });
 ext.webNavigation.onCompleted.addListener(async (details) => {
-  if (details.frameId !== 0) return;
+  // A frame of a flagged page (a payment provider's card box, often added late) looks for the boxes too.
+  if (details.frameId !== 0) {
+    const was = await sessionGet(typedKey(details.tabId));
+    if (was) typedWatch(details.tabId, details.frameId);
+    return;
+  }
   // A flagged page that loaded before its content script could hear the first word is told again.
-  if (await sessionGet(typedKey(details.tabId))) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:typed-watch' }, { frameId: 0 })).catch(() => {});
+  if (await sessionGet(typedKey(details.tabId))) typedWatch(details.tabId);
   else typedDeliver(details.tabId);
 });
 

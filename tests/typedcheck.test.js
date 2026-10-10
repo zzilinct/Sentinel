@@ -88,6 +88,7 @@ const area = (store) => ({
 function worker({ tabs = {} } = {}) {
   const sent = [];
   const created = [];
+  const injected = [];
   const on = {};
   const listener = (name) => ({ addListener: (f) => { on[name] = f; } });
   const store = {
@@ -110,7 +111,8 @@ function worker({ tabs = {} } = {}) {
     alarms: { create: () => {}, onAlarm: listener('alarm') },
     contextMenus: { create: () => {}, onClicked: listener('menu') },
     notifications: { create: async () => {} },
-    webNavigation: { onCommitted: listener('committed'), onCompleted: listener('completed') },
+    webNavigation: { onCommitted: listener('committed'), onCompleted: listener('completed'), onHistoryStateUpdated: listener('history'), onReferenceFragmentUpdated: listener('fragment') },
+    scripting: { executeScript: async (o) => { injected.push(o); } },
     permissions: { contains: async () => true }
   };
   const ctx = { chrome: ext, crypto: globalThis.crypto, TextEncoder, URL, btoa, atob, Uint8Array, AbortController, setTimeout, clearTimeout, console, Promise,
@@ -118,12 +120,13 @@ function worker({ tabs = {} } = {}) {
   vm.createContext(ctx);
   const code = [flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n');
   vm.runInContext(`${code}\n;this.handlers = handlers;`, ctx);
-  const call = async (type, msg, tabId) => {
+  // A frame's message carries its own address; the tab's is the page in front.
+  const call = async (type, msg, tabId, frame = { frameId: 0 }) => {
     const url = tabs[tabId].url;
-    return JSON.parse(JSON.stringify(await ctx.handlers[type]({ type, ...msg }, { id: 'me', url, frameId: 0, tab: { id: tabId, url } })));
+    return JSON.parse(JSON.stringify(await ctx.handlers[type]({ type, ...msg }, { id: 'me', url: frame.url || url, frameId: frame.frameId, tab: { id: tabId, url } })));
   };
   const settle = () => new Promise((r) => setTimeout(r, 30));
-  return { on, sent, created, session, call, settle, tabs };
+  return { on, sent, created, injected, session, call, settle, tabs };
 }
 
 test('companion: a flagged sign-in page closed asks once, on the page in front, and Yes opens the matching guide', async () => {
@@ -187,4 +190,50 @@ test('companion: leaving a flagged card page for another site asks on that next 
   tabs[9] = { id: 9, windowId: 3, active: true, url: 'https://paypa1-secure-login.com/', incognito: true };
   await w.on.committed({ frameId: 0, tabId: 9, url: tabs[9].url });
   assert.equal(w.session['typed:9'], undefined);
+});
+
+test('companion: a card box in a payment frame of a flagged page counts, and the frame is told to look', async () => {
+  const tabs = { 3: { id: 3, windowId: 2, active: true, url: 'https://netflix-billing-update.top/checkout', incognito: false } };
+  const w = worker({ tabs });
+  await w.settle();
+  await w.on.committed({ frameId: 0, tabId: 3, url: tabs[3].url });
+  // The provider's frame finished loading: it alone is told to look for the boxes.
+  await w.on.completed({ frameId: 7, tabId: 3 });
+  assert.ok(w.sent.some((s) => s.tabId === 3 && s.msg.type === 'sentinel:typed-watch' && s.opts && s.opts.frameId === 7), JSON.stringify(w.sent));
+  assert.deepEqual(await w.call('typed-fields', { card: true }, 3, { frameId: 7, url: 'https://js.payments.example/elements' }), { kept: true });
+  assert.equal(w.session['typed:3'].card, true);
+  assert.doesNotMatch(JSON.stringify(w.session), /payments\.example/, "the frame's address is not kept");
+  // A frame on a page nobody flagged is never told anything.
+  tabs[4] = { id: 4, windowId: 2, active: false, url: 'https://example.org/shop', incognito: false };
+  await w.on.committed({ frameId: 0, tabId: 4, url: tabs[4].url });
+  await w.on.completed({ frameId: 2, tabId: 4 });
+  assert.ok(!w.sent.some((s) => s.tabId === 4 && s.msg.type === 'sentinel:typed-watch'));
+  assert.deepEqual(await w.call('typed-fields', { card: true }, 4, { frameId: 2, url: 'https://js.payments.example/elements' }), { kept: false });
+});
+
+test('companion: a web app that changes screens without loading gets the same rules, with nothing new sent out', async () => {
+  const tabs = {
+    3: { id: 3, windowId: 2, active: true, url: 'https://paypa1-secure-login.com/', incognito: false },
+    5: { id: 5, windowId: 2, active: false, url: 'https://wallet.example/home', incognito: false }
+  };
+  const w = worker({ tabs });
+  await w.settle();
+  // The wallet tab was open before any warning: nothing is read there.
+  await w.on.committed({ frameId: 0, tabId: 5, url: tabs[5].url });
+  await w.on.history({ frameId: 0, tabId: 5, url: 'https://wallet.example/portfolio' });
+  assert.equal(w.injected.length, 0, 'no warning yet, nothing read');
+  // A warning in another tab; then the open wallet moves to its send screen by pushState: its wording is read.
+  await w.on.committed({ frameId: 0, tabId: 3, url: tabs[3].url });
+  await w.on.history({ frameId: 0, tabId: 5, url: 'https://wallet.example/send' });
+  assert.equal(w.injected.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(w.injected[0].target)), { tabId: 5, frameIds: [0] });
+  // A #fragment app the same way; a frame's own history changes are not the page's.
+  await w.on.fragment({ frameId: 0, tabId: 5, url: 'https://wallet.example/send#btc' });
+  await w.on.history({ frameId: 4, tabId: 5, url: 'https://ads.example/x' });
+  assert.equal(w.injected.length, 2);
+  // The flagged page moving to another screen is looked at for boxes again, and its wording is not read.
+  const watches = w.sent.filter((s) => s.tabId === 3 && s.msg.type === 'sentinel:typed-watch').length;
+  await w.on.history({ frameId: 0, tabId: 3, url: 'https://paypa1-secure-login.com/verify' });
+  assert.equal(w.sent.filter((s) => s.tabId === 3 && s.msg.type === 'sentinel:typed-watch').length, watches + 1);
+  assert.ok(!w.injected.some((o) => o.target.tabId === 3));
 });

@@ -94,8 +94,7 @@
         "src/content/masks.js",
         "src/content/alarm.js",
         "src/content/guard.js",
-        "src/content/hover.js",
-        "src/content/typed.js"
+        "src/content/hover.js"
       ],
       "run_at": "document_start"
     },
@@ -108,6 +107,17 @@
         "src/content/steps.js",
         "src/content/alarm.js",
         "src/content/pwalarm.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "src/content/typed.js"
       ],
       "all_frames": true,
       "run_at": "document_start"

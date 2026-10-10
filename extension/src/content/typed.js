@@ -4,7 +4,7 @@
  *
  * On a page the companion flagged, this looks for a password box or a box made for a card number, by the box's type
  * and its own labels (autocomplete, name, id, placeholder, label): never what is in it. It tells the worker which kinds
- * it found. Later, on another page, the worker may ask it to show one calm question in the corner: "Did you type a
+ * it found. It runs in every frame, since a card box is often in a payment provider's frame; only the top page asks. Later, on another page, the worker may ask it to show one calm question in the corner: "Did you type a
  * password on that page?". Yes asks the worker to open the recovery guide; No closes it. Never while the page is full
  * screen (a game or a video): the question waits until it is not.
  */
@@ -35,26 +35,26 @@
   }
 
   if (typeof module === 'object' && module.exports) { module.exports = { fields, words, CARD }; return; }
-  if (window !== window.top) return;
   const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
   const send = (msg) => Promise.resolve(ext.runtime.sendMessage(msg)).catch(() => null);
 
-  // Watch for the boxes about once a second for two minutes (a sign-in form often appears after a moment).
-  let watching = false;
+  // Watch for the boxes about once a second for two minutes (a sign-in form often appears after a moment). Told again
+  // (a web app moved to another screen without loading), the two minutes start over.
+  let timer = 0;
+  let n = 0;
+  let told = { pw: false, card: false };
+  function look() {
+    const f = fields(document);
+    if ((f.pw && !told.pw) || (f.card && !told.card)) {
+      told = { pw: told.pw || f.pw, card: told.card || f.card };
+      send({ type: 'typed-fields', ...told });
+    }
+    if ((told.pw && told.card) || ++n >= 120) { clearInterval(timer); timer = 0; }
+  }
   function watch() {
-    if (watching) return;
-    watching = true;
-    let told = { pw: false, card: false };
-    let n = 0;
-    const look = () => {
-      const f = fields(document);
-      if ((f.pw && !told.pw) || (f.card && !told.card)) {
-        told = { pw: told.pw || f.pw, card: told.card || f.card };
-        send({ type: 'typed-fields', ...told });
-      }
-      if ((told.pw && told.card) || ++n >= 120) clearInterval(timer);
-    };
-    const timer = setInterval(look, 1000);
+    n = 0;
+    if (timer || (told.pw && told.card)) return;
+    timer = setInterval(look, 1000);
     if (document.body) look(); else document.addEventListener('DOMContentLoaded', look, { once: true });
   }
 
@@ -85,7 +85,7 @@
   ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (sender.id !== ext.runtime.id || !msg) return false;
     if (msg.type === 'sentinel:typed-watch') { watch(); return false; }
-    if (msg.type === 'sentinel:typed-ask' && typeof msg.happened === 'string') {
+    if (msg.type === 'sentinel:typed-ask' && typeof msg.happened === 'string' && window === window.top) {
       ask(msg.happened.slice(0, 40), typeof msg.site === 'string' ? msg.site.slice(0, 200) : '');
       sendResponse({ shown: true });
     }
