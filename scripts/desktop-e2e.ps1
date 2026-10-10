@@ -91,6 +91,20 @@ function Front($proc) {
   Start-Sleep 1
   return [K]::GetForegroundWindow() -eq $script:p.MainWindowHandle
 }
+# Edge on its own, in front. Started while the last Edge is still closing, the new one hands its page to the dying one
+# and no window comes (my-sites-real-site, and the screen check reading the last section's shop): so every Edge is gone
+# first, and a start that shows no window is tried once more.
+function FreshEdge([string[]]$a) {
+  for ($try = 1; $try -le 2; $try++) {
+    Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    [void](Until 20 { -not (Get-Process msedge -ErrorAction SilentlyContinue) })
+    Start-Process msedge -ArgumentList $a
+    Start-Sleep 8
+    if (Front 'msedge') { return $true }
+    Say "  Edge did not come to the front (try $try)"
+  }
+  return $false
+}
 function WaitUp { $up = $false; for ($i = 0; $i -lt 90 -and -not $up; $i++) { Start-Sleep 2; try { $up = (Invoke-WebRequest 'http://127.0.0.1:47821/api/v1/auth/config' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {} }; return $up }
 # Its scanner may come up on the next port when the last one's is not yet free: the window says where.
 function StartSentinel { Start-Process $exe -ArgumentList '--remote-debugging-port=9333', '--inspect=9334'; return (Until 120 { (Cdp '127.0.0.1:4782' '1').value -eq 1 }) }
@@ -179,12 +193,27 @@ $chromeDir = "$env:ProgramFiles\Google\Chrome\Application"
 New-Item -ItemType HardLink -Path "$chromeDir\Discord.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 New-Item -ItemType HardLink -Path "$chromeDir\RobloxPlayerBeta.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 New-Item -ItemType HardLink -Path "$chromeDir\PhoneExperienceHost.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
+# Something drawn on screen below the title bar: a stand-in Chrome sometimes shows its window and never paints the page
+# (Roblox read nothing from a blank white window), so a blank one is started again.
+function Painted {
+  $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+  $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+  $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+  $colours = @{}
+  for ($y = 60; $y -lt $b.Height - 60; $y += 6) { for ($x = 0; $x -lt $b.Width; $x += 6) { $colours[$bmp.GetPixel($x, $y).ToArgb()] = 1 } }
+  $g.Dispose(); $bmp.Dispose()
+  return $colours.Count -gt 1
+}
 function Fake($name, $page) {
-  $fp = Start-Process "$chromeDir\$name.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\$name-profile", '--start-maximized', "--app=http://127.0.0.1:47910/$page" -PassThru
-  Start-Sleep 8
-  $r = Front $name
-  if (-not $r) { FakeDiag $name $fp $page }
-  return $r
+  for ($try = 1; $try -le 2; $try++) {
+    $fp = Start-Process "$chromeDir\$name.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\$name-profile", '--start-maximized', "--app=http://127.0.0.1:47910/$page" -PassThru
+    Start-Sleep 8
+    $r = Front $name
+    if ($r -and (Until 15 { Painted })) { return $true }
+    if ($r) { Say "  $name's window stayed blank (try $try)"; Shot "blank-$name" } else { FakeDiag $name $fp $page }
+    if ($try -lt 2) { Get-Process $name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 3 }
+  }
+  return $false
 }
 # When a stand-in has no window: what there is instead, so the log says why.
 function FakeDiag($name, $fp, $page) {
@@ -552,9 +581,7 @@ if ($ad) { Stop-Process -Id $ad.Id -Force -ErrorAction SilentlyContinue }
 
 # 5b. A page shaped like a fake virus alert, full screen in Edge, on an address that reads like one.
 Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 defender-virusalert-helpline.test"
-Start-Process msedge -ArgumentList 'http://defender-virusalert-helpline.test:47910/alert.html'
-Start-Sleep 8
-Say "Edge in front: $(Front 'msedge')"
+Say "Edge in front: $(FreshEdge 'http://defender-virusalert-helpline.test:47910/alert.html')"
 [K]::Tap(0x7A)   # F11: full screen
 $ok = Until 45 { [K]::Tap(0x11); (AppLog) -match 'flagged page took the whole screen' }
 Shot 'escape'
@@ -585,9 +612,7 @@ Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAct
 
 # 5c. Any other flagged page in full screen (a video, say) gets plain words, not "fake virus alert".
 Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 paypal-account-verify-login.test"
-Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', 'http://paypal-account-verify-login.test:47910/plain.html'
-Start-Sleep 8
-Say "Edge in front: $(Front 'msedge')"
+Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', 'http://paypal-account-verify-login.test:47910/plain.html')"
 [K]::Tap(0x7A)
 $ok = Until 45 { [K]::Tap(0x11); ([regex]::Matches((AppLog), 'flagged page took the whole screen')).Count -ge 2 }
 Shot 'escape-neutral'
@@ -604,17 +629,12 @@ $r = Info "addMySite('harbourcu.test')"
 Check 'my-sites-add' ((@($r) | ForEach-Object { $_.host }) -contains 'harbourcu.test') "the list: $($r | ConvertTo-Json -Compress)"
 Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 harbourcu.test`r`n127.0.0.1 harbourcu-secure-login.test"
 function WatchLine($pattern) { return [string](Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String $pattern | Select-Object -Last 1) }
-Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', 'http://harbourcu.test:47910/plain.html'
-Start-Sleep 8
-Say "Edge in front: $(Front 'msedge')"
+Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', 'http://harbourcu.test:47910/plain.html')"
 $ok = Until 45 { [bool](WatchLine 'msedge \S+ .* http://harbourcu\.test:47910/') }
 $real = WatchLine 'msedge \S+ .* http://harbourcu\.test:47910/'
 Check 'my-sites-real-site' ($ok -and $real -notmatch ' (orange|red) ') "the real site: $real"
 # A fresh Edge, as in 5c: a tab added to a window already open is not always reported as a new page.
-Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 2
-Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', 'http://harbourcu-secure-login.test:47910/plain.html'
-Start-Sleep 8
-Say "Edge in front: $(Front 'msedge')"
+Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', 'http://harbourcu-secure-login.test:47910/plain.html')"
 $ok = Until 45 { [bool](WatchLine 'msedge (orange|red) .* http://harbourcu-secure-login\.test:47910/') }
 Say "the copy: $(WatchLine 'harbourcu-secure-login\.test:47910/')"
 $w = ''
@@ -634,10 +654,7 @@ Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 youngshop.te
 function PayCard { return [string](Cdp 'overlay.html' "(document.getElementById('pay').classList.contains('is-on') ? 'on|' : 'off|') + document.getElementById('payText').textContent").value }
 function PayLog { return ([regex]::Matches((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '', 'before you pay: shown')).Count }
 function Shop($url) {
-  Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 2
-  Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble', $url
-  Start-Sleep 8
-  Say "Edge in front: $(Front 'msedge')"
+  Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble', $url)"
   [void][K]::SetCursorPos(400, 500)
 }
 $c = ''
@@ -684,11 +701,8 @@ $s = (Info 'info()').snip
 Check 'snip-shortcut' ($s.enabled -and $s.registered -and $s.key -eq 'Super+Alt+S') "on by default, its shortcut registered: $($s | ConvertTo-Json -Compress -Depth 3)"
 # Nothing else over the page: 5d's warning is put away, and a fresh Edge profile offers no "Restore pages".
 [void](Cdp 'warn.html' "window.sentinelDesktop.warnAction('close'), 1")
-# 5e's shop is still open in another Edge, and Front would pick it: close every Edge first.
-Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 2
-Start-Process msedge -ArgumentList '--no-first-run', '--no-default-browser-check', '--start-maximized', "--user-data-dir=$env:RUNNER_TEMP\snip-profile", 'http://127.0.0.1:47910/snip.html'
-Start-Sleep 8
-Say "Edge in front: $(Front 'msedge')"
+# 5e's shop is still open in another Edge, and Front would pick it: FreshEdge closes it first.
+Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', '--start-maximized', "--user-data-dir=$env:RUNNER_TEMP\snip-profile", 'http://127.0.0.1:47910/snip.html')"
 Start-Sleep 2
 # Where the page is on screen, as Windows describes it to screen readers.
 $A = [Windows.Automation.AutomationElement]
