@@ -989,7 +989,8 @@
   async function explainQr(out, text, { focus = false } = {}) {
     try {
       const { qr } = await api('/scan/qr', { method: 'POST', body: { text: window.SentinelQR.redact(text) } });
-      out.innerHTML = qrCard(qr);
+      out.innerHTML = qrCard(qr) + (canWarn(qr.tone) ? warnRow() : '');
+      wireWarn(out, () => window.SentinelWarnCard.fromQr(qr));
       // Read from a picture, the result is somewhere new on the page: keyboard and screen reader users are taken to it.
       const heading = focus && $('h2', out);
       if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: false }); }
@@ -1092,7 +1093,7 @@
   ];
 
   function actionsFor(v) {
-    const copy = '<button class="btn btn--sm" data-copy-report>Copy report</button>';
+    const copy = `<button class="btn btn--sm" data-copy-report>Copy report</button>${v.kind !== 'file' && canWarn(window.UI.headline(v).tone) ? WARN_BTN : ''}`;
     if (v.kind !== 'url') return `<div class="panel actions"><span class="muted">Share what Sentinel found.</span><span class="actions__btns">${copy}</span></div>`;
     const trusted = v.override === 'allow';
     const blocked = v.override === 'block';
@@ -1115,6 +1116,7 @@
   }
 
   function wireActions(root, v) {
+    wireWarn(root, () => window.SentinelWarnCard.fromVerdict(v, window.UI.headline(v)));
     const report = $('[data-act="report"]', root);
     const form = $('[data-report-form]', root);
     if (report) report.addEventListener('click', () => {
@@ -1147,6 +1149,61 @@
         window.UI.wireCopy(root, v);
       } catch (err) { toast(err.message, 'error'); }
     })));
+  }
+
+  /* ======================================================= warn a friend */
+
+  // A picture of a scam that was found, for someone who may get the same one: drawn on this device (warncard.js),
+  // with the link written so it cannot be tapped, and never uploaded. Only for a likely or confirmed scam.
+  const WARN_BTN = '<button class="btn btn--sm" type="button" data-warn aria-expanded="false">Warn a friend</button>';
+  const warnRow = () => `<div class="panel actions"><span class="muted">Someone you know might get this one too.</span><span class="actions__btns">${WARN_BTN}</span></div>`;
+  const canWarn = (tone) => tone === 'red' || tone === 'orange';
+
+  function wireWarn(root, make) {
+    const btn = $('[data-warn]', root);
+    const W = window.SentinelWarnCard;
+    if (!btn || !W) return;
+    btn.addEventListener('click', async () => {
+      const row = btn.closest('.actions');
+      const open = $('[data-warn-card]', row);
+      if (open) { open.remove(); btn.setAttribute('aria-expanded', 'false'); return; }
+      const card = make();
+      const canvas = document.createElement('canvas');
+      let blob = null;
+      try {
+        await W.draw(canvas, card);
+        blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      } catch { /* told below */ }
+      if (!blob) { toast('The picture could not be made in this browser.', 'error'); return; }
+      const file = new File([blob], 'sentinel-scam-warning.png', { type: 'image/png' });
+      const share = Boolean(navigator.canShare && navigator.canShare({ files: [file] }));
+      const copy = Boolean(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write);
+      const panel = h(`<div class="warn-card" data-warn-card>
+        <div class="warn-card__pic"></div>
+        <div class="warn-card__side">
+          <p>Send this picture to anyone who might get the same scam. The link on it is written so it cannot be tapped. The picture was made on this device and is not uploaded.</p>
+          <span class="actions__btns">
+            ${share ? '<button class="btn btn--gold btn--sm" type="button" data-warn-share>Share</button>' : ''}
+            ${copy ? '<button class="btn btn--sm" type="button" data-warn-copy>Copy picture</button>' : ''}
+            <a class="btn btn--sm" data-warn-save download="sentinel-scam-warning.png" href="${canvas.toDataURL('image/png')}">Save picture</a>
+          </span>
+        </div>
+      </div>`);
+      canvas.setAttribute('role', 'img');
+      canvas.setAttribute('aria-label', W.text(card));
+      $('.warn-card__pic', panel).appendChild(canvas);
+      const shareBtn = $('[data-warn-share]', panel);
+      if (shareBtn) shareBtn.addEventListener('click', () => navigator.share({ files: [file], text: W.text(card) }).catch((err) => {
+        if (err.name !== 'AbortError') toast('That could not be shared. Save the picture and send it instead.', 'error');
+      }));
+      const copyBtn = $('[data-warn-copy]', panel);
+      if (copyBtn) copyBtn.addEventListener('click', () => navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+        .then(() => toast('Picture copied. Paste it into a message.', 'success'), () => toast('Couldn’t access the clipboard. Save the picture instead.', 'error')));
+      row.appendChild(panel);
+      btn.setAttribute('aria-expanded', 'true');
+      $('a, button', panel).focus({ preventScroll: true });
+      panel.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
+    });
   }
 
   /* ====================================================== virus & malware */
@@ -1551,6 +1608,8 @@
         applyUsage(data.usage);
         $('[data-left]', el).textContent = allowance();
         out.innerHTML = textResult(data.text, form.from.value.trim());
+        const from = form.from.value.trim();
+        wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, $('[data-text-result]', out).dataset.textResult));
         out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
       } catch (err) { out.innerHTML = friendlyError(err); }
     });
@@ -1580,7 +1639,7 @@
         ${scam ? `<p class="next-steps__more">Already tapped the link, paid or replied? <a href="/app/recover?happened=${happened}">Open the recovery guide</a> for every step, in order.</p>` : ''}</div>
       ${reasons.length ? `<div class="reasons"><h3>Why</h3><ul>${reasons.map(([t, badge]) => `<li><span class="dot" style="--c:${color(badge || null)}"></span>${esc(t)}</li>`).join('')}</ul></div>` : ''}
       <div class="notes"><p>${r.links.length ? 'Links were checked by their address only and were not opened. ' : ''}The text was checked in memory and not kept, and it is not in your history.</p></div>
-    </article>`;
+    </article>${scam && canWarn(tone) ? warnRow() : ''}`;
   }
 
   /** PNG slices of an image, at most 2000 wide and 1600 tall, overlapping by 60 so no line is cut in half. */

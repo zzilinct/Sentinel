@@ -493,6 +493,10 @@ kbd { font: 11px var(--mono); color: var(--muted); padding: 2px 6px; border-radi
 .actions { margin-top: 14px; display: flex; gap: 10px 14px; flex-wrap: wrap; align-items: center; justify-content: space-between; font-size: 14px; }
 .actions__btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .report { flex-basis: 100%; padding-top: 16px; border-top: 1px solid var(--line); animation: rise-in .3s var(--ease-out) both; }
+.warn-card { flex-basis: 100%; display: grid; grid-template-columns: minmax(0, 300px) 1fr; gap: 18px; align-items: start; padding-top: 16px; border-top: 1px solid var(--line); }
+.warn-card canvas { display: block; width: 100%; height: auto; border-radius: var(--r-sm); box-shadow: 0 12px 40px rgba(0, 0, 0, .35); }
+.warn-card__side p { margin: 0 0 14px; }
+@media (max-width: 640px) { .warn-card { grid-template-columns: 1fr; } .warn-card canvas { max-width: 360px; } }
 .report__foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; font-size: 13px; }
 select.input { appearance: none; -webkit-appearance: none; padding-right: 34px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a9a59b' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; background-size: 14px; cursor: pointer; }
 select.input option { background: var(--surface-3); color: var(--text); }
