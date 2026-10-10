@@ -1062,6 +1062,8 @@ async function check(page) {
   // Before you pay: a shop's checkout whose address is young or unknown (the scanner decides). The log says that it
   // was shown, never where.
   if (answer.pay && stillThere) { log(`before you pay: shown (${answer.pay.young ? 'a young shop' : 'a shop of unknown age'})`); if (opts.onPay) opts.onPay(answer.pay); }
+  // Pay pause: a page that sells gift cards or sends crypto (main.js decides whether something recent calls for it).
+  if (answer.paypage && stillThere && opts.onPayPage) opts.onPayPage({ page, kind: answer.paypage === 'crypto' ? 'crypto' : 'gift' });
   count(page.private, badge);
   if (opts.onChecked && !page.private) opts.onChecked({ browser: page.browser, url: page.url, host, badge, label, at: Date.now() });
   // A flagged page: the reader looks for a password or card box on it, and says when it is closed or left.

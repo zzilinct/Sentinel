@@ -32,6 +32,7 @@ const models = require('./models');
 const clipwatch = require('./clipwatch');
 const remoteguard = require('./remoteguard');
 const typedcheck = require('./typedcheck');
+const paypause = require('./paypause');
 const defense = require('./defense');
 const checkup = require('./checkup');
 const snip = require('./snip');
@@ -142,7 +143,7 @@ function startChatSafety() {
     log: (text) => appLog(text),
     onState: (s) => chatoverlay.show(s),
     onSeen: () => { push('sentinel:chat-safety', chatSafetyStatus()); push('sentinel:text-safety', textSafetyStatus()); },
-    onCounted: (c) => { tally('chat_checked', c.checked); tally('chat_flagged', c.flagged); },
+    onCounted: (c) => { tally('chat_checked', c.checked); tally('chat_flagged', c.flagged); if (c.flagged) pause.sign('chat'); },
     // Links in texts, by address only. The scanner may still be starting: the words still count without it.
     api: (pathname, body) => (ORIGIN ? apiCall(pathname, body) : Promise.reject(new Error('scanner not ready')))
   });
@@ -508,6 +509,7 @@ function remoteSeen(names) {
   if (tracing && !traceTimer) traceTimer = setInterval(() => remoteSeen(remoteNames), 15000);
   if (!tracing && traceTimer) { clearInterval(traceTimer); traceTimer = null; }
   if (!remoteGuardOn() || !alarms.length) return;
+  pause.sign('remote');
   const a = alarms[0];
   // The program's name and why, never a page or a file name.
   appLog(`tech-support scam shield: ${a.session ? `someone connected to ${a.tool.name}` : `${a.tool.name} started`} ${a.reason === 'page' ? 'soon after a flagged page' : 'soon after it was downloaded'}`);
@@ -572,6 +574,22 @@ async function showTyped(data, since) {
     return;
   }
   showGuard('typed', data);
+}
+
+/**
+ * Pay pause: a page that sells gift cards or sends crypto, soon after something scam-shaped (paypause.js). Shown once
+ * per site in the shield's window, never over a question the shield is asking. The log says which kind of page and
+ * which sign, never where.
+ */
+const pause = paypause.create();
+const PAUSE_SIGNS = { remote: 'a remote-control program', page: 'a flagged page', chat: 'a chat warning', call: 'the call check said hang up' };
+function askPause({ page, kind }) {
+  const { sign, again } = pause.ask(escapeKey(page), { remoteNow: remoteGuardOn() && remote.running(trustedRemote()).length > 0 });
+  const what = kind === 'crypto' ? 'a crypto page' : 'a gift card page';
+  appLog(`pay pause: ${what}, ${!sign ? 'no recent sign; nothing shown' : again ? 'already shown for this site' : `after ${PAUSE_SIGNS[sign]}; shown`}`);
+  if (!sign || again) return;
+  if (guardWin && !guardWin.isDestroyed() && (guardMode === 'remote' || guardMode === 'bank')) return;
+  showGuard('pause', { kind, sign });
 }
 
 // What a warning may tick in the recovery guide (web/assets/js/recover.js reads ?happened=).
@@ -1428,6 +1446,8 @@ function registerBridge() {
     return { ok: true };
   }, trustedLocal);
   handle('sentinel:guard-action', (action, arg) => guardAction(String(action), String(arg || '')), trustedLocal);
+  // The call check answered "Hang up" (only that, never what was ticked): a sign for the pay pause.
+  handle('sentinel:call-hangup', () => { pause.sign('call'); return { ok: true }; });
 }
 
 /* --------------------------------------------------------------- startup */
@@ -1590,12 +1610,15 @@ async function boot() {
       if (v.support || v.badge === 'orange' || v.badge === 'red') {
         badPage = { key: escapeKey(v.page), browser: v.page.browser, support: Boolean(v.support) };
         remote.flaggedPage();
+        pause.sign('page');
         offerEscape();
       }
     },
     // Before you pay: a shop's checkout whose address is young or unknown (server/lib/scan/paycheck.js).
     onPay: (pay) => overlay.setPay(pay ? pay.text : null),
     onTyped: (t) => askTyped(t),
+    // Pay pause: gift cards or crypto, soon after something scam-shaped.
+    onPayPage: (p) => askPause(p),
     onMarks: (m) => overlay.setMarks(m),
     onShift: (s) => overlay.shift(s),
     onWheel: (w) => overlay.wheel(w),

@@ -236,7 +236,28 @@
       });
     }
 
+    // Pay pause: a gift card or crypto page soon after something scam-shaped (main.js askPause). One thing to say, one
+    // way to close it; nothing is stopped.
+    function pause() {
+      const why = {
+        remote: 'a remote-control program was running on this computer',
+        page: 'it warned you about a page',
+        chat: 'it warned you about a chat message',
+        call: 'the call check said to hang up'
+      }[q.get('sign')] || 'it warned you about something';
+      show({
+        title: 'A moment before you pay',
+        sub: q.get('kind') === 'crypto' ? 'Sending crypto' : 'Buying gift cards',
+        lead: '<b>No real company, government office or bank asks to be paid in gift cards or crypto.</b> Once paid this way, the money is almost always gone.',
+        steps: ['Is someone on the phone telling you to do this? Hang up. Then call your bank on the number on the back of your card.'],
+        note: `Sentinel shows this because ${why} in the last hour.`,
+        color: '#e2c47f',
+        buttons: [{ label: 'I am buying this for myself', primary: true, cancel: true, run: () => act('dismiss') }]
+      });
+    }
+
     if (mode === 'escape') escape();
+    else if (mode === 'pause') pause();
     else if (mode === 'typed') typed();
     else if (mode === 'remote') remote();
     else if (mode === 'bank') bank();

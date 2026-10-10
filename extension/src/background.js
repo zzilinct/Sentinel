@@ -191,6 +191,7 @@ async function onNavigate(details) {
       noteLive(data.live);
       // Before you pay (server/lib/scan/paycheck.js): kept with the verdict, so a checkout opened again says it again.
       verdict = data.pay ? { ...data.verdict, pay: data.pay } : data.verdict;
+      if (data.paypage) verdict = { ...verdict, paypage: data.paypage };
       cacheSet(features().liveResearch ? 'research' : 'quick', details.url, verdict);
     } catch (err) {
       handleApiError(err);
@@ -203,6 +204,8 @@ async function onNavigate(details) {
 
   const severe = verdict.overall && (verdict.overall.badge === 'red' || (verdict.overall.badge === 'orange' && settings.minimumBadge !== 'red'));
   if (severe) await typedFlagged(details.tabId, details.url);
+  if (severe) await sessionSet('paySign', Date.now());
+  else if (verdict.paypage) await payPause(details.tabId, details.url, verdict.paypage);
   if (!severe || !settings.warnOnNavigate) return;
   const key = `${details.tabId}|${verdict.host}`;
   if (warned.has(key)) return;
@@ -221,6 +224,23 @@ async function onNavigate(details) {
       priority: 2
     })).catch(() => {});
   }
+}
+
+/* ------------------------------------------------------------- pay pause */
+
+// A page that sells gift cards or sends crypto (the scanner says which: server/lib/scan/paycheck.js payPage), within
+// an hour of the companion warning about a page: a calm note in the corner, once per site, never a block. Kept in
+// session storage only (gone when the browser closes): when the last warning was, and the sites already told, never a
+// private window's. The Windows app also counts remote-control programs, chat warnings and the call check.
+const PAUSE_HOUR = 60 * 60 * 1000;
+async function payPause(tabId, url, kind) {
+  const at = await sessionGet('paySign');
+  if (!at || Date.now() - at > PAUSE_HOUR) return;
+  const tab = await Promise.resolve(ext.tabs.get(tabId)).catch(() => null);
+  const key = `paused:${tab && tab.incognito ? 'private' : hostOf(url)}`;
+  if (await sessionGet(key)) return;
+  await sessionSet(key, 1);
+  Promise.resolve(ext.tabs.sendMessage(tabId, { type: 'sentinel:paypause', kind: kind === 'crypto' ? 'crypto' : 'gift' }, { frameId: 0 })).catch(() => {});
 }
 
 /* ------------------------------------------------- did you type anything? */

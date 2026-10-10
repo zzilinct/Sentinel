@@ -1847,6 +1847,8 @@
       const ticked = (name) => $$(`input[name="${name}"]:checked`, form).map((i) => i.value);
       const r = C.judge(ticked('ask'), ticked('who'));
       out.dataset.verdict = r ? r.verdict : '';
+      // In the Windows app, only that the answer was "Hang up" goes to the app (an hour's pay pause sign, paypause.js).
+      if (r && r.verdict === 'hangup' && window.sentinelDesktop && window.sentinelDesktop.callHangUp) window.sentinelDesktop.callHangUp().catch(() => {});
       out.innerHTML = !r ? '<p class="call__empty">Tick what the caller says, and the answer appears here.</p>'
         : `<p class="call__verdict">${r.verdict === 'hangup' ? 'Hang up now.' : 'This is probably fine.'}</p>
           <p class="call__reason">${esc(r.reason)}</p>

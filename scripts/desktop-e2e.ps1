@@ -190,6 +190,16 @@ setTimeout(() => { console.log(`reader still running after 15 s\nstdout: ${out.s
   node $diag (Resolve-Path (Join-Path $PSScriptRoot '..\desktop\src\chatwatch.js')).Path | ForEach-Object { Say "  $_" }
 }
 
+# 1b. Pay pause, before anything scam-shaped happened on this computer: a page that sells gift cards (a harmless local
+# page behind a hosts mapping, known by its address /gift-cards/) is noticed, and nothing is shown. 5e2 comes back.
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 giftshop.test`r`n127.0.0.1 coinshop.test"
+function PauseLines($what) { return ([regex]::Matches((AppLog), "pay pause: $what")).Count }
+Say "Edge in front: $(FreshEdge 'http://giftshop.test:47910/gift-cards/')"
+$ok = Until 45 { [K]::Tap(0x11); (PauseLines 'a gift card page, no recent sign; nothing shown') -gt 0 }
+Check 'pay-pause-no-sign' ($ok -and [string](Cdp 'guard.html' '1').error -match 'no window') "a gift card page before any sign: noticed $ok, and no window"
+if (-not $ok) { Get-Content "$data\logs\watch.log" -Tail 6 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag watch.log: $_" } }
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
 # 2. Chat safety in "Discord": Chrome under the name Discord.exe, showing a page with Discord's message list.
 $chromeDir = "$env:ProgramFiles\Google\Chrome\Application"
 New-Item -ItemType HardLink -Path "$chromeDir\Discord.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
@@ -715,6 +725,42 @@ $c = PayCard
 Shot 'pay-old-shop'
 Check 'pay-old-shop-nothing' ($ok -and $c -match '^off\|' -and (PayLog) -eq $before) "a shop registered 9 years ago: checked $ok, the card '$c', shown again: $((PayLog) -ne $before)"
 Check 'pay-log-private' (-not ((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) -match 'before you pay:[^\r\n]*(\.test|https?:)')) 'watch.log says the card was shown, never where'
+# 5e2. Pay pause: 1b's gift card page again, now that Sentinel warned about pages and chat messages in the last hour.
+# The shield's window says the one thing, without taking the keyboard from the browser; "I am buying this for myself"
+# closes it, and the same site does not get it twice. Then a crypto ATM locator on another site, just after the call
+# check said "Hang up" (the call the app's call page makes through its bridge): the pause names that sign.
+$before = PauseLines 'a gift card page, after'
+Say "Edge in front: $(FreshEdge 'http://giftshop.test:47910/gift-cards/')"
+$ok = Until 45 { [K]::Tap(0x11); (PauseLines 'a gift card page, after') -gt $before }
+$q = ''
+$shown = $ok -and (Until 20 { $script:q = [string](Cdp 'guard.html' "location.search + '|' + document.body.innerText").value; $script:q -match 'mode=pause' })
+Start-Sleep 1
+Shot 'pay-pause-gift'
+Say "  app.log: $(([regex]::Matches((AppLog), 'pay pause: [^\r\n]*') | ForEach-Object { $_.Value }) -join ' / ')"
+Check 'pay-pause-shown' ($shown -and $q -match 'No real company, government office or bank asks to be paid in gift cards or crypto\.' -and $q -match 'Buying gift cards' -and $q -match 'call your bank on the number on the back of your card' -and $q -match 'in the last hour' -and $q -notmatch [char]0x2014) "the shield's window: $(([string]$q).Substring(0, [Math]::Min(500, ([string]$q).Length)) -replace '\s+', ' ')"
+$b = (Cdp 'guard.html' "[...document.querySelectorAll('#row button')].map((x) => x.textContent).join('|')").value
+Check 'pay-pause-one-button' ($b -eq 'I am buying this for myself') "buttons: $b"
+$fg = 0; [void][K]::GetWindowThreadProcessId([K]::GetForegroundWindow(), [ref]$fg)
+$front = (Get-Process -Id $fg -ErrorAction SilentlyContinue).ProcessName
+Check 'pay-pause-no-block' ($front -eq 'msedge') "in front while the pause shows: $front"
+[void](Press 'I am buying this for myself')
+Check 'pay-pause-closed' (Until 10 { [string](Cdp 'guard.html' '1').error -match 'no window' }) '"I am buying this for myself" closed it'
+$again = PauseLines 'a gift card page, already shown for this site'
+Say "Edge in front: $(FreshEdge 'http://giftshop.test:47910/gift-cards/')"
+$ok = Until 45 { [K]::Tap(0x11); (PauseLines 'a gift card page, already shown for this site') -gt $again }
+Start-Sleep 3
+Check 'pay-pause-once' ($ok -and [string](Cdp 'guard.html' '1').error -match 'no window') "the same site again: noticed $ok, and no window"
+[void](Info 'callHangUp()')
+$before = PauseLines 'a crypto page, after the call check said hang up; shown'
+Say "Edge in front: $(FreshEdge 'http://coinshop.test:47910/bitcoin-atm/')"
+$ok = Until 45 { [K]::Tap(0x11); (PauseLines 'a crypto page, after the call check said hang up; shown') -gt $before }
+$q = ''
+$shown = $ok -and (Until 20 { $script:q = [string](Cdp 'guard.html' "location.search + '|' + document.body.innerText").value; $script:q -match 'mode=pause' })
+Start-Sleep 1
+Shot 'pay-pause-crypto'
+Check 'pay-pause-crypto-call' ($shown -and $q -match 'Sending crypto' -and $q -match 'the call check said to hang up in the last hour') "a crypto ATM locator after Hang up: $(([string]$q).Substring(0, [Math]::Min(500, ([string]$q).Length)) -replace '\s+', ' ')"
+[void](Press 'I am buying this for myself')
+Check 'pay-pause-log-private' (-not ((AppLog) -match 'pay pause:[^\r\n]*(\.test|https?:)')) 'app.log says which kind of page and sign, never where'
 # 5f. Your week: what sections 2 to 5e did reaches the week, as numbers only. The app counts chat messages, the stopped
 # command, the wallet swap and AnyDesk's download on this computer and hands them over (week() hands them over at once);
 # live scanning's pages and the look-alike of 5d are counted by the scanner. Asked before section 6 ends the app.

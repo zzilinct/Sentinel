@@ -53,4 +53,33 @@ function payCheck(url, { verdict = null, checkout = false, mine = () => false, a
   return { young: true, days, text: `This shop's address was registered ${ago(days)}. ${ADVICE}` };
 }
 
-module.exports = { payCheck, isCheckout, ago };
+/*
+ * Pay pause: a page that sells gift cards or sends crypto. Scammers on the phone ask to be paid this way because the
+ * money cannot come back. The scanner only says what kind of page it is; the client shows the pause only when
+ * something scam-shaped happened recently on that device (desktop/src/paypause.js, the companion's background.js).
+ */
+const GIFT_HOSTS = new Set(['cardcash.com', 'raise.com', 'egifter.com', 'gyft.com', 'prezzee.com', 'bitrefill.com']);
+const GIFT_PATH = /gift[-_]?cards?|(^|[^a-z])e-?gift/i;
+const EXCHANGES = new Set(['coinbase.com', 'binance.com', 'binance.us', 'kraken.com', 'crypto.com', 'gemini.com', 'kucoin.com', 'bybit.com',
+  'okx.com', 'bitstamp.net', 'bitfinex.com', 'blockchain.com', 'gate.io', 'mexc.com', 'bitget.com', 'htx.com']);
+const SEND_PATH = /(^|\/)(send|withdraw|withdrawals?|transfer)([/_.-]|$)/i;
+const ATM_HOSTS = new Set(['coinatmradar.com', 'bitcoindepot.com', 'coinflip.tech', 'athenabitcoin.com', 'coinme.com', 'libertyx.com',
+  'rockitcoin.com', 'bitcoinofamerica.org', 'bytefederal.com', 'coinsource.net']);
+const ATM_PATH = /(bitcoin|crypto|btc)[-_]?atms?([/_.-]|$)/i;
+
+/** 'gift', 'crypto' or null for the page in front. A page flagged orange or red has its own warning, which says more. */
+function payPage(url, verdict = null) {
+  const badge = verdict && verdict.overall && verdict.overall.badge;
+  if (badge === 'red' || badge === 'orange') return null;
+  let path;
+  try { path = new URL(url).pathname; } catch { return null; }
+  const p = analyze(String(url));
+  if (!p || p.isIp) return null;
+  const site = p.registrable;
+  if (EXCHANGES.has(site) && SEND_PATH.test(path)) return 'crypto';
+  if (ATM_HOSTS.has(site) || /bitcoinatm|cryptoatm/i.test(site) || ATM_PATH.test(path)) return 'crypto';
+  if (GIFT_HOSTS.has(site) || /giftcard/i.test(site) || GIFT_PATH.test(path)) return 'gift';
+  return null;
+}
+
+module.exports = { payCheck, isCheckout, ago, payPage };

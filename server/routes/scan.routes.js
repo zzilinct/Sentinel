@@ -19,7 +19,7 @@ const { db, now } = require('../lib/db');
 const engine = require('../lib/scan/engine');
 const exposure = require('../lib/scan/exposure');
 const mySites = require('../lib/scan/mysites');
-const { payCheck } = require('../lib/scan/paycheck');
+const { payCheck, payPage } = require('../lib/scan/paycheck');
 const feeds = require('../lib/scan/feeds');
 const { analyze, typedUrl } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
@@ -323,7 +323,9 @@ function register(router) {
       verdict, checkout: body.checkout === true,
       mine: () => local(req) && mySites.list(user.id).some((s) => s.host === mySites.siteOf(String(url)))
     });
-    sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan), ...(pay ? { pay } : {}) });
+    // Pay pause: a page that sells gift cards or sends crypto. The client decides whether to pause (a recent sign).
+    const paypage = payPage(String(url), verdict);
+    sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan), ...(pay ? { pay } : {}), ...(paypage ? { paypage } : {}) });
   });
 
   /* ------------------------------------------------- exposure alerts */
