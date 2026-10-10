@@ -50,6 +50,8 @@ test('every word on a card from a link, an email, a text and a QR code is safe t
     W.fromQr({ tone: 'red', title: 'A sign-in code', detail: 'It signs a phone in to your account at web.whatsapp.com.' })
   ];
   assert.equal(cards[1].link, 'http://bad.top/x', 'an email card carries its flagged link');
+  assert.equal(W.words(cards[0]).what, 'Do not open this link or type anything on it.');
+  assert.equal(W.words(cards[2]).what, 'A text message with this link. Do not open it, reply or pay.');
   for (const c of cards) {
     const w = W.words(c);
     const all = [w.label, w.title, w.what, w.link, w.from, w.why, ...w.tells, w.foot, W.text(c)].filter(Boolean);

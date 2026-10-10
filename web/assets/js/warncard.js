@@ -73,7 +73,7 @@
     return {
       label: 'Scam warning from Sentinel',
       title: defang(card.title),
-      what: `${card.what}${card.link ? ' with this link' : ''}. Do not open it, reply or pay.`,
+      what: card.what === 'A link' ? 'Do not open this link or type anything on it.' : `${card.what}${card.link ? ' with this link' : ''}. Do not open it, reply or pay.`,
       link: card.link ? shortLink(card.link) : null,
       from: card.from ? `From ${defang(card.from)}` : null,
       why: 'Why it is a scam',
@@ -108,6 +108,9 @@
       while (g.measureText(rest).width > width) {
         let n = rest.length;
         while (n > 1 && g.measureText(rest.slice(0, n)).width > width) n--;
+        // A link breaks after a slash where one is near the end of the line, not in the middle of a word.
+        const slash = rest.lastIndexOf('/', n - 1) + 1;
+        if (slash > n * 0.6) n = slash;
         lines.push(rest.slice(0, n));
         rest = rest.slice(n);
       }
