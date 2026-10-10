@@ -751,7 +751,10 @@ async function emailMarks(send) {
     check(await run("!/\\u2014/.test(document.querySelector('[data-email-marks]').textContent)"), `${size}: no em dashes in the marks`);
     // Each label sits on the line of the words it marks (the last line of them, when they wrap), never on a line alone.
     const apart = await run(`[...document.querySelectorAll('[data-emark]')].map((m) => {
-      const tagEl = m.querySelector('.emark__tag'); const tag = tagEl.getBoundingClientRect();
+      // A long label wraps: its first line is the one that must sit with the words, and no line of it runs past the email.
+      const tagEl = m.querySelector('.emark__tag'); const tag = tagEl.getClientRects()[0];
+      const edge = m.closest('.email-marks__v').getBoundingClientRect().right;
+      if ([...tagEl.getClientRects()].some((x) => x.right > edge + 1)) return [m.textContent, 'runs past the edge', Math.round(edge)];
       const r = document.createRange(); r.setStart(m, 0); r.setEndBefore(tagEl);
       const lines = [...r.getClientRects()].filter((x) => x.width > 0);
       const last = lines[lines.length - 1];
