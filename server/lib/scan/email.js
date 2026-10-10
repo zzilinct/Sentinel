@@ -154,7 +154,8 @@ function analyzeEmail(mail, how = {}) {
   const fromRaw = String(mail.from || '');
   const SUBJECT = ['subject', subject];
   const BODY = ['body', body];
-  const inFrom = (part) => { const i = part ? fromRaw.toLowerCase().lastIndexOf(part.toLowerCase()) : -1; return i < 0 ? [] : span('from', fromRaw, i, i + part.length); };
+  // The name is found from the front, a domain from the back (after the @).
+  const inFrom = (part, name = false) => { const i = part ? fromRaw.toLowerCase()[name ? 'indexOf' : 'lastIndexOf'](part.toLowerCase()) : -1; return i < 0 ? [] : span('from', fromRaw, i, i + part.length); };
   const linkAt = (l) => {
     if (l.at) return l.at;
     const shown = markHost({ body }, String(l.text || ''));
@@ -177,7 +178,7 @@ function analyzeEmail(mail, how = {}) {
     if (!from.domain) return skip('No sender address');
     const official = claimed.domains.some((d) => from.domain === d || from.domain.endsWith('.' + d));
     return official ? pass(`Really from ${from.domain}`) : fail(38, `Claims to be ${claimed.token} but was sent from ${from.domain}`);
-  })(), () => inFrom(from.name));
+  })(), () => inFrom(from.name, true));
 
   add('E02', 'scam', 'Sending domain is not a brand look-alike', (() => {
     if (!senderUrl) return skip('No sender domain');
