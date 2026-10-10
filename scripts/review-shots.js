@@ -479,6 +479,7 @@ async function main() {
       await send('Target.closeTarget', { targetId });
     }
     await textScan(send);
+    await emailMarks(send);
     await weekCheck(send);
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
@@ -579,6 +580,85 @@ async function textScan(send) {
     await sleep(1500);
     const { result } = await send('Runtime.evaluate', { returnByValue: true, expression: 'location.pathname' }, sessionId);
     check(result.value === '/app/text', 'the command palette finds Text scan and opens it', result.value);
+    await send('Target.closeTarget', { targetId });
+  }
+}
+
+// A phishing email typed into the email scan's fields, with each warning sign the result must mark in it.
+const MARKED_EMAIL = {
+  from: 'PayPal Security <alerts.paypal.security@gmail.com>',
+  replyTo: 'recovery@paypal-account-verify.com',
+  subject: 'URGENT: Your account has been suspended',
+  body: 'Dear customer,\n\nWe detected unusual activity on your account.\nSign in at www.paypal.com <https://paypal-account-verify.com/login> to keep access.\n\nTo lift the hold, pay the $200 release fee with Google Play gift cards and send us the codes.\n\nPayPal Security Team'
+};
+const EXPECTED_MARKS = [
+  ['subject', 'URGENT', 'Rushes you'],
+  ['from', 'PayPal Security', 'Name is not the address'],
+  ['replyTo', 'recovery@paypal-account-verify.com', 'Replies go elsewhere'],
+  ['body', 'www.paypal.com <https://paypal-account-verify.com/login', 'Link goes somewhere else'],
+  ['body', 'gift cards', 'Asks for gift cards or crypto']
+];
+
+/**
+ * The email scan (app.js showMarks) shows the email itself inside the result, each warning sign marked where it is
+ * and labelled, and a tap on a mark says why. Asserted at a computer's size and a phone's, and photographed.
+ */
+async function emailMarks(send) {
+  const check = (ok, what, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  email marks: ${what}${ok ? '' : `  got ${JSON.stringify(got)}`}`); if (!ok) throw new Error(`email marks: ${what}`); };
+  for (const [size, width, height, mobile, scheme] of [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light']]) {
+    const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+    const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+    await send('Page.enable', {}, sessionId);
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, sessionId);
+    const run = async (expression) => {
+      const { result, exceptionDetails } = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
+      if (exceptionDetails) throw new Error(`email marks: ${exceptionDetails.exception ? exceptionDetails.exception.description : exceptionDetails.text}`);
+      return result.value;
+    };
+    await send('Page.navigate', { url: BASE + '/app/email' }, sessionId);
+    await sleep(3500);
+    await run(`(() => { const f = document.querySelector('[data-form]'); const m = ${JSON.stringify(MARKED_EMAIL)};
+      f.from.value = m.from; f.replyTo.value = m.replyTo; f.subject.value = m.subject; f.body.value = m.body; f.attachments.value = ''; f.requestSubmit(); })()`);
+    let ready = false;
+    for (let i = 0; i < 40 && !ready; i++) { await sleep(500); ready = await run("Boolean(document.querySelector('[data-email-marks]'))"); }
+    check(ready, `${size}: the result shows the email, marked`);
+    const marks = await run(`[...document.querySelectorAll('[data-email-marks] [data-emark]')].map((m) => [m.closest('[data-efield]').dataset.efield, m.firstChild.textContent, m.querySelector('.emark__tag').textContent])`);
+    for (const [field, words, label] of EXPECTED_MARKS) {
+      check(marks.some((m) => m[0] === field && m[1].includes(words) && m[2].includes(label)), `${size}: "${label}" marks ${words} in ${field}`, marks);
+    }
+    check(await run("!/\\u2014/.test(document.querySelector('[data-email-marks]').textContent)"), `${size}: no em dashes in the marks`);
+    // A real tap (or click) on the mismatched link's mark, at its place on the screen.
+    // The first line of the mark: a long mark wraps, and the middle of its box can fall outside it.
+    const box = await run(`(() => { const m = [...document.querySelectorAll('[data-emark]')].find((x) => x.textContent.includes('Link goes somewhere else')); m.scrollIntoView({ block: 'center' }); const r = m.getClientRects()[0]; return { x: r.left + Math.min(r.width / 2, 30), y: r.top + r.height / 2 }; })()`);
+    await sleep(300);
+    for (const type of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 }, sessionId);
+    await sleep(700);
+    const why = await run(`(() => { const w = document.querySelector('[data-emark-why]'); const open = document.querySelector('[data-emark][aria-expanded="true"]');
+      return w && [w.previousElementSibling && w.previousElementSibling.dataset.efield, w.textContent, open ? open.textContent : '']; })()`);
+    check(why && why[0] === 'body' && /The words show one address, but the link opens a different one/.test(why[1]) && /paypal-account-verify\.com/.test(why[1]) && why[2].includes('Link goes somewhere else'), `${size}: tapping the link's mark says why, under the message`, why);
+    const shoot = async (name, clip) => {
+      const shot = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 }, captureBeyondViewport: true } : {}) }, sessionId);
+      fs.writeFileSync(path.join(OUT, `email-marks-${size}-${name}.png`), Buffer.from(shot.data, 'base64'));
+      console.log(`email-marks-${size}-${name}.png`);
+    };
+    await shoot('why');
+    // Tapped again, the explanation closes.
+    for (const type of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 }, sessionId);
+    await sleep(400);
+    check(await run("!document.querySelector('[data-emark-why]') && !document.querySelector('[data-emark][aria-expanded=\"true\"]')"), `${size}: tapping the mark again closes it`);
+    // The whole marked email, with the gift card ask opened, laid out at full height so all of it is in the picture.
+    const clip = await run(`(() => {
+      [...document.querySelectorAll('[data-emark]')].find((x) => x.textContent.includes('Asks for gift cards')).click();
+      for (const el of document.querySelectorAll('main, .main, .app__main, [data-view], .view')) {
+        if (el.scrollHeight > el.clientHeight + 20) { el.style.overflow = 'visible'; el.style.height = 'auto'; el.style.maxHeight = 'none'; }
+      }
+      document.documentElement.style.height = 'auto'; document.body.style.height = 'auto'; document.body.style.overflow = 'visible';
+      const r = document.querySelector('[data-email-marks]').getBoundingClientRect();
+      return { x: Math.max(0, r.left + scrollX), y: Math.max(0, r.top + scrollY), width: Math.min(r.width, ${width}), height: Math.min(r.height, 4000) };
+    })()`);
+    await sleep(800);
+    await shoot('section', clip);
     await send('Target.closeTarget', { targetId });
   }
 }

@@ -26,7 +26,7 @@ const { analyze, brandInfo, hostWords } = require('./url');
 const kinds = require('./kinds');
 const mySites = require('./mysites');
 const { scanFile, MAX_FILE_BYTES } = require('./filescan');
-const { analyzeEmail } = require('./email');
+const { analyzeEmail, markHost } = require('./email');
 const { THREATS, LABELS, SEVERITY, score, evidenceFrom, trustedChecks, tallyOf, reasonsOf } = require('./verdict');
 
 const q = {
@@ -349,7 +349,7 @@ async function scanEmail(mail, opts = {}) {
       status: incomplete || !linkVerdicts.length ? 'skip' : 'pass', points: 0,
       detail: incomplete ? `${linkVerdicts.length - failedLinks} address(es) checked; ${failedLinks} failed${analysis.linksTruncated ? '; additional links exceed the 60-link limit' : ''}` : `${linkVerdicts.length} address(es) checked` };
     if (w.threat.level === 'confirmed') evidence[t] = `${w.v.host}: ${w.threat.evidence || w.threat.label}`;
-    return { id: `EL-${t}`, group: 'Email links', threat: t, title, status: 'fail', points: Math.round(w.threat.score * 0.8), detail: `${w.v.host}: ${w.threat.label}` };
+    return { id: `EL-${t}`, group: 'Email links', threat: t, title, status: 'fail', points: Math.round(w.threat.score * 0.8), detail: `${w.v.host}: ${w.threat.label}`, marks: markHost(mail, w.v.host) };
   };
   checks.push(linkCheck('scam', 'Links and sender domain are not scams'));
   checks.push(linkCheck('malware', 'Links do not lead to malware'));

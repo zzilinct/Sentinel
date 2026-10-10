@@ -1363,9 +1363,97 @@
         stop();
         applyUsage(data.usage);
         showVerdict(out, data.verdict);
+        showMarks(out, payload, data.verdict.checklist.items);
         // Scanned with this email. The next email typed in here is another one, without this screenshot's code.
         forgetShotQr();
       } catch (err) { stop(); out.innerHTML = friendlyError(err); }
+    });
+  }
+
+  // What each finding is called on its mark, and why it matters, in plain words. Keyed by the check (server/lib/scan/email.js).
+  const EMAIL_MARKS = {
+    E01: ['Name is not the address', 'The name says one company, but the address it came from belongs to someone else. Anyone can type any name.'],
+    E02: ['Look-alike address', 'The address is made to look like a real company\'s, with a small change that is easy to miss.'],
+    E03: ['Replies go elsewhere', 'If you press Reply, your answer goes to a different address than the one this came from.'],
+    E04: ['Company on a free mailbox', 'A company or office writing from a free mailbox anyone can open. Real ones write from their own address.'],
+    E05: ['Rushes you', 'Words meant to hurry you, so you act before you stop to check.'],
+    E06: ['Asks for your details', 'Asks you to confirm a password, an account or card details. Real companies do not ask for these by email.'],
+    E07: ['Asks for gift cards or crypto', 'Asks to be paid in a way that cannot be undone, like gift cards, crypto or a wire transfer. This is how scammers get paid.'],
+    E08: ['Does not use your name', 'A greeting that does not use your name. Companies you deal with usually do.'],
+    E09: ['A threat', 'Threatens to close your account or take action against you, to scare you into acting.'],
+    E10: ['Link goes somewhere else', 'The words show one address, but the link opens a different one.'],
+    E11: ['Hidden link address', 'A shortened link hides where it really goes.'],
+    E12: ['QR code lure', 'Asks you to scan a code with your phone, where it is harder to see where it leads.'],
+    E13: ['A program', 'This attachment is a program. Opening it would run it on your computer.'],
+    E14: ['Hides its real type', 'The name ends like a document, but the file is something else.'],
+    E15: ['Macro document', 'A document that can run code when you open it.'],
+    E16: ['Archive with its password', 'An archive sent with its password: a way to get past virus scanners.'],
+    E17: ['Invoice lure', 'An invoice or receipt sent with a risky attachment.'],
+    E18: ['Made-up address', 'The sender\'s address is several words stitched together, often a new address made for a scam.'],
+    E19: ['Untraceable payment', 'Presents as a company or office and asks for gift cards, crypto or a wire transfer. No real one does.'],
+    E20: ['Parcel fee', 'Asks for a fee to release a parcel. Check on the courier\'s own site instead.'],
+    E21: ['Call this number', 'Asks you to phone a number about a charge or a problem. The person who answers is the scammer.'],
+    E22: ['Asks for private details', 'Asks you to send an ID, bank details or a password by reply.'],
+    E23: ['Urgent favour', 'An urgent, private favour with gift cards or a wire transfer. Check with the person another way first.'],
+    E24: ['Money for a stranger', 'Asks for money for travel, or offers a fortune you have to pay to claim.'],
+    E25: ['Toll or fine', 'Demands an unpaid toll or fine from an address that is not the agency\'s own.'],
+    E27: ['Web page attached', 'A web page sent as a file, often a sign-in page made to catch your password.'],
+    E28: ['Paid tasks offer', 'Promises daily pay for simple tasks. It ends with you paying to get "earnings" out.'],
+    E29: ['Voicemail lure', 'A voicemail you can only hear through a link, which leads to a sign-in page.'],
+    'EL-scam': ['Scam link', 'Sentinel checked where this link goes, and it looks like a scam.'],
+    'EL-malware': ['Malware link', 'Sentinel checked where this link goes, and it leads to malware.'],
+    'EL-virus': ['Virus download', 'Sentinel checked where this link goes, and it downloads a virus.']
+  };
+
+  /**
+   * The email as it was scanned, inside the result, with each finding marked where it is (the server says where, by
+   * offsets into each field) and labelled. Tapping a mark says why. Shown only when something was found.
+   */
+  function showMarks(out, mail, items) {
+    const found = items.filter((c) => (c.status === 'fail' || c.status === 'warn') && c.marks && c.marks.length);
+    const checklist = $('.result__checklist', out);
+    if (!found.length || !checklist) return;
+    const whys = [];
+    const fields = [['from', 'From', mail.from], ['replyTo', 'Reply-to', mail.replyTo], ['subject', 'Subject', mail.subject], ['attachments', 'Attachments', mail.attachments.join(', ')], ['body', 'Message', mail.body]];
+    const rows = fields.filter(([, , text]) => text).map(([key, label, text]) => {
+      // Findings in the same words become one mark that carries each of them.
+      const spans = found.flatMap((c) => c.marks.filter((m) => m.field === key && m.start >= 0 && m.end <= text.length && m.end > m.start).map((m) => ({ start: m.start, end: m.end, checks: [c] })))
+        .sort((a, b) => a.start - b.start);
+      const merged = [];
+      for (const s of spans) {
+        const last = merged[merged.length - 1];
+        if (last && s.start < last.end) {
+          last.end = Math.max(last.end, s.end);
+          if (!last.checks.includes(s.checks[0])) last.checks.push(s.checks[0]);
+        } else merged.push(s);
+      }
+      let html = '';
+      let at = 0;
+      for (const s of merged) {
+        const fail = s.checks.some((c) => c.status === 'fail');
+        whys.push({ fail, checks: s.checks });
+        html += `${esc(text.slice(at, s.start))}<mark class="emark${fail ? ' is-fail' : ''}" tabindex="0" role="button" aria-expanded="false" data-emark="${whys.length - 1}">${esc(text.slice(s.start, s.end))}<span class="emark__tag">${esc(s.checks.map((c) => (EMAIL_MARKS[c.id] || [c.title])[0]).join(', '))}</span></mark>`;
+        at = s.end;
+      }
+      return `<div class="email-marks__row" data-efield="${key}"><span class="email-marks__k">${label}</span><div class="email-marks__v${key === 'body' ? ' email-marks__body' : ''}">${html}${esc(text.slice(at))}</div></div>`;
+    });
+    const section = h(`<section class="email-marks" data-email-marks><h3>The email, marked</h3><p class="email-marks__hint">Each warning sign is marked where it is. Tap a mark to see why.</p>${rows.join('')}</section>`);
+    checklist.before(section);
+    const why = h('<div class="email-marks__why" role="status" data-emark-why></div>');
+    const toggle = (mark) => {
+      const open = mark.getAttribute('aria-expanded') !== 'true';
+      $$('[data-emark]', section).forEach((m) => m.setAttribute('aria-expanded', 'false'));
+      if (!open) { why.remove(); return; }
+      const w = whys[Number(mark.dataset.emark)];
+      mark.setAttribute('aria-expanded', 'true');
+      why.classList.toggle('is-fail', w.fail);
+      why.innerHTML = w.checks.map((c) => { const [label, text] = EMAIL_MARKS[c.id] || [c.title, '']; return `<b>${esc(label)}</b>${text ? `<p>${esc(text)}</p>` : ''}<small>${esc(c.detail)}</small>`; }).join('');
+      mark.closest('[data-efield]').after(why);
+    };
+    section.addEventListener('click', (ev) => { const m = ev.target.closest('[data-emark]'); if (m) toggle(m); });
+    section.addEventListener('keydown', (ev) => {
+      const m = ev.target.closest('[data-emark]');
+      if (m && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); toggle(m); }
     });
   }
 

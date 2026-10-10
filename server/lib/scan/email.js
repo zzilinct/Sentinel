@@ -47,6 +47,43 @@ const STRANGER_MONEY = /\b(help|lend|send|need)\b[^.!?]{0,40}\b(small amount|mon
 const TOLL_FINE = /\b(unpaid|outstanding|overdue)\b[^.!?]{0,30}\btolls?\b|\btoll (balance|notice|violation|invoice)\b|\btraffic (violation|citation|ticket|fine)\b|\b(dmv|motor vehicles?)\b[^.!?]{0,60}\b(fine|citation|fee|suspend)/i;
 const OFFICIAL_NAME =/\b(bank|support|security|billing|invoice|account|hr|human resources|recruit(ment|er|ing)?|careers?|payroll|windows|defender|microsoft|apple|amazon|irs|revenue|power|utility|electric|water|gas company|dept|department|office|police|court|customs)\b/i;
 const ARCHIVE_PASSWORD =/(password|pwd|pass)\s*[:=]\s*\S{3,}/i;
+const INVOICE = /invoice|receipt|payment advice|remittance|purchase order/i;
+const VOICEMAIL = /\bvoice ?mail\b|\bvoice message\b|\bmissed call\b/i;
+
+/**
+ * Where a finding sits in the message, so the app can mark it in the email itself: [{ field, start, end }], with
+ * offsets into the field as it was sent (from, replyTo, subject, body, and attachments joined with ", "). Only
+ * offsets: no text of the message goes back in them.
+ */
+function span(field, text, start, end) {
+  while (start < end && /\s/.test(text[start])) start++;
+  while (end > start && /\s/.test(text[end - 1])) end--;
+  return end > start ? [{ field, start, end }] : [];
+}
+/** The first match of `re` in the first of `fields` ([name, text] pairs) that has one. */
+function locate(re, fields) {
+  for (const [field, text] of fields) {
+    const m = re.exec(text);
+    if (m) return span(field, text, m.index, m.index + m[0].length);
+  }
+  return [];
+}
+/** A host named in the message: the whole address it is part of in the body, else where the sender's address has it. */
+function markHost(mail, host) {
+  const needle = String(host || '').toLowerCase();
+  if (!needle) return [];
+  for (const field of ['body', 'from']) {
+    const text = String(mail[field] || '');
+    const i = text.toLowerCase().indexOf(needle);
+    if (i < 0) continue;
+    if (field === 'from') return span(field, text, i, i + needle.length);
+    let start = i; let end = i + needle.length;
+    while (start > 0 && !/[\s<>"'(\[]/.test(text[start - 1])) start--;
+    while (end < text.length && !/[\s<>"')\]]/.test(text[end])) end++;
+    return span(field, text, start, end);
+  }
+  return [];
+}
 
 function parseAddress(raw) {
   const s = String(raw || '').trim();
@@ -92,12 +129,15 @@ function analyzeEmail(mail, how = {}) {
   const body = String(mail.body || '').slice(0, 20000);
   const links = (Array.isArray(mail.links) ? mail.links : []).slice(0, 60).filter(l => l && typeof l === 'object');
   // The API and mailbox previews may provide plain text without parsed anchors.
-  for (let href of body.match(/https?:\/\/[^\s<>"']+/gi) || []) {
-    href = href.replace(/[.,;!?]+$/, '');
+  for (const m of body.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
+    let href = m[0].replace(/[.,;!?]+$/, '');
     for (const [open, close] of [['(', ')'], ['[', ']']]) {
       while (href.endsWith(close) && href.split(close).length > href.split(open).length) href = href.slice(0, -1);
     }
-    links.push({ href, text: '' });
+    // A plain-text or printed email writes a link as its words, then its address: "www.paypal.com <https://...>".
+    const shown = /(\S+)\s*[<[(]$/.exec(body.slice(Math.max(0, m.index - 200), m.index));
+    const start = shown ? m.index - shown[0].length : m.index;
+    links.push({ href, text: shown ? shown[1] : '', at: span('body', body, start, m.index + href.length) });
   }
   // QR codes read from a screenshot of the email, on the person's device: what each holds. A link in one is checked
   // like any other link in the message; that is how a "scan to view your document" email hides its page.
@@ -106,7 +146,25 @@ function analyzeEmail(mail, how = {}) {
   const targets = [...new Set(links.map(l => analyze(String(l.href || ''))?.url).filter(Boolean))];
   const attachments = (Array.isArray(mail.attachments) ? mail.attachments : []).map(String).slice(0, 30);
   const checks = [];
-  const add = (id, threat, title, result) => checks.push({ id, threat, group: 'Email', title, ...result });
+  // `where` says where a finding is in the message (see span), asked only of a check that failed or warned.
+  const add = (id, threat, title, result, where) => {
+    const marks = where && (result.status === 'fail' || result.status === 'warn') ? where() : [];
+    checks.push({ id, threat, group: 'Email', title, ...result, ...(marks.length ? { marks } : {}) });
+  };
+  const fromRaw = String(mail.from || '');
+  const SUBJECT = ['subject', subject];
+  const BODY = ['body', body];
+  const inFrom = (part) => { const i = part ? fromRaw.toLowerCase().lastIndexOf(part.toLowerCase()) : -1; return i < 0 ? [] : span('from', fromRaw, i, i + part.length); };
+  const linkAt = (l) => {
+    if (l.at) return l.at;
+    const shown = markHost({ body }, String(l.text || ''));
+    return shown.length ? shown : markHost({ body }, (analyze(String(l.href || '')) || {}).host);
+  };
+  const attachmentAt = (name) => {
+    const i = attachments.indexOf(name);
+    const start = attachments.slice(0, i).reduce((n, a) => n + a.length + 2, 0);
+    return i < 0 ? [] : [{ field: 'attachments', start, end: start + name.length }];
+  };
 
   const senderUrl = from.domain ? analyze(`https://${from.domain}`) : null;
   const senderBrand = senderUrl ? brandInfo(senderUrl) : { official: null };
@@ -119,7 +177,7 @@ function analyzeEmail(mail, how = {}) {
     if (!from.domain) return skip('No sender address');
     const official = claimed.domains.some((d) => from.domain === d || from.domain.endsWith('.' + d));
     return official ? pass(`Really from ${from.domain}`) : fail(38, `Claims to be ${claimed.token} but was sent from ${from.domain}`);
-  })());
+  })(), () => inFrom(from.name));
 
   add('E02', 'scam', 'Sending domain is not a brand look-alike', (() => {
     if (!senderUrl) return skip('No sender domain');
@@ -128,39 +186,39 @@ function analyzeEmail(mail, how = {}) {
     if (senderBrand.inDomain) return fail(34, `${from.domain} borrows the ${senderBrand.inDomain.token} name`);
     if (senderBrand.inSubdomain) return fail(34, `${from.domain} plants ${senderBrand.inSubdomain.token} in a subdomain`);
     return pass('No look-alike');
-  })());
+  })(), () => inFrom(from.domain));
 
   add('E03', 'scam', 'Replies go back to the sender', (() => {
     if (!replyTo || !replyTo.domain) return skip('No separate reply-to');
     // The same company's own addresses (news@email.nytimes.com replying to help@nytimes.com) are one sender.
     const site = (d) => (analyze(`https://${d}`) || {}).registrable || d;
     return site(replyTo.domain) !== site(from.domain) ? fail(22, `Replies are redirected to ${replyTo.address}`) : pass('Same organisation');
-  })());
+  })(), () => span('replyTo', String(mail.replyTo), 0, String(mail.replyTo).length));
 
   add('E04', 'scam', 'A company is not writing from a free mailbox', (() => {
     if (!L.FREE_MAIL_PROVIDERS.has(from.domain)) return pass('Not a free mailbox');
     return claimed || OFFICIAL_NAME.test(from.name) || AUTHORITY.test(from.name)
       ? fail(26, `"${from.name}" writing from a free ${from.domain} address`) : pass('Personal mailbox');
-  })());
+  })(), () => inFrom(from.domain));
 
   // Sent from the brand's own domain (as the mail provider delivered it): "verify", "security alert", "confirm
   // your account" are how Google, Canva or a bank write to their own users. Those words say nothing more there.
   // Not a free mailbox: gmail.com and outlook.com belong to Google and Microsoft, but anyone can write from them.
   const fromOfficial = Boolean(from.domain && !L.FREE_MAIL_PROVIDERS.has(from.domain) && (senderBrand.official || (claimed && claimed.domains.some((d) => from.domain === d || from.domain.endsWith('.' + d)))));
   const wording = (check) => (fromOfficial && check.status !== 'pass' ? pass(`Sent from ${from.domain}: ${check.detail}`) : check);
-  add('E05', 'scam', 'Subject is not built to rush you', wording(URGENT_SUBJECT.test(subject) ? warn(10, `"${subject.slice(0, 80)}"`) : pass('Calm subject')));
+  add('E05', 'scam', 'Subject is not built to rush you', wording(URGENT_SUBJECT.test(subject) ? warn(10, `"${subject.slice(0, 80)}"`) : pass('Calm subject')), () => locate(URGENT_SUBJECT, [SUBJECT]));
   add('E06', 'scam', 'Does not ask you to confirm login or payment details', wording(CREDENTIAL_ASK.test(subject + ' ' + body)
     // A preview has no sender address to hold the request against: noted, never decisive on its own.
     ? (how.preview ? warn(12, 'Asks you to verify or re-enter account details')
       // Real refunds go back to the card you paid with: none needs your card details first.
       : /\b(refund|overcharg\w*|reimburse\w*)\b/i.test(subject + ' ' + body) ? fail(34, 'Offers a refund but first wants your card or account details: real refunds go back to how you paid')
       : fail(24, 'Asks you to verify or re-enter account details'))
-    : pass('No credential request')));
+    : pass('No credential request')), () => locate(CREDENTIAL_ASK, [SUBJECT, BODY]));
   // Gift cards, crypto, wire transfers, "release fees": the one request a real company never makes by email. Weighted to
   // mark on its own, even in an inbox preview.
-  add('E07', 'scam', 'Does not ask for untraceable payment', MONEY_ASK.test(body) || MONEY_ASK.test(subject) ? fail(44, 'Asks for payment in gift cards, crypto, a wire transfer or a release fee') : pass('No payment demand'));
-  add('E08', 'scam', 'Addresses you personally', wording(GENERIC_GREETING.test(body) ? warn(6, 'Generic greeting') : pass('No generic greeting')));
-  add('E09', 'scam', 'No threats of closure or legal action', wording(THREAT.test(subject + ' ' + body) ? warn(12, 'Threatens your account or legal consequences if you do not act') : pass('No threats')));
+  add('E07', 'scam', 'Does not ask for untraceable payment', MONEY_ASK.test(body) || MONEY_ASK.test(subject) ? fail(44, 'Asks for payment in gift cards, crypto, a wire transfer or a release fee') : pass('No payment demand'), () => locate(MONEY_ASK, [BODY, SUBJECT]));
+  add('E08', 'scam', 'Addresses you personally', wording(GENERIC_GREETING.test(body) ? warn(6, 'Generic greeting') : pass('No generic greeting')), () => locate(GENERIC_GREETING, [BODY]));
+  add('E09', 'scam', 'No threats of closure or legal action', wording(THREAT.test(subject + ' ' + body) ? warn(12, 'Threatens your account or legal consequences if you do not act') : pass('No threats')), () => locate(THREAT, [SUBJECT, BODY]));
 
   const mismatched = links.filter((l) => {
     const shown = /(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}/i.exec(String(l.text || ''));
@@ -171,11 +229,11 @@ function analyzeEmail(mail, how = {}) {
   });
   add('E10', 'scam', 'Links go where they say they go', mismatched.length
     ? fail(30, `Link text shows ${String(mismatched[0].text).slice(0, 40)} but opens ${(analyze(mismatched[0].href) || {}).host}`)
-    : pass(links.length ? `${links.length} link(s) checked` : 'No links'));
+    : pass(links.length ? `${links.length} link(s) checked` : 'No links'), () => mismatched.flatMap(linkAt));
 
   const shortLinks = links.filter((l) => { const a = analyze(String(l.href || '')); return a && L.URL_SHORTENERS.has(a.registrable); });
-  add('E11', 'scam', 'Links are not disguised with shorteners', shortLinks.length ? warn(12, `${shortLinks.length} shortened link(s)`) : pass('None'));
-  add('E12', 'scam', 'No QR code phishing lure', QR.test(body) ? warn(14, 'Asks you to scan a QR code: a way to move you off a protected computer') : pass('None'));
+  add('E11', 'scam', 'Links are not disguised with shorteners', shortLinks.length ? warn(12, `${shortLinks.length} shortened link(s)`) : pass('None'), () => shortLinks.flatMap(linkAt));
+  add('E12', 'scam', 'No QR code phishing lure', QR.test(body) ? warn(14, 'Asks you to scan a QR code: a way to move you off a protected computer') : pass('None'), () => locate(QR, [BODY]));
   if (codes.length) {
     // A code that signs someone into your account, connects your wallet or takes a crypto payment is the scam itself.
     const signIn = codes.find((c) => c.kind === 'signin');
@@ -190,24 +248,24 @@ function analyzeEmail(mail, how = {}) {
   }
 
   const risky = attachments.filter((n) => { const x = n.toLowerCase().split('.'); return x.length > 1 && (L.EXECUTABLE_EXT.has(x.pop()) ); });
-  add('E13', 'virus', 'No program attachments', risky.length ? fail(45, `Attached program: ${risky[0]}`) : pass(attachments.length ? `${attachments.length} attachment(s), none programs` : 'No attachments'));
+  add('E13', 'virus', 'No program attachments', risky.length ? fail(45, `Attached program: ${risky[0]}`) : pass(attachments.length ? `${attachments.length} attachment(s), none programs` : 'No attachments'), () => risky.flatMap(attachmentAt));
 
   const doubled = attachments.filter((n) => { const x = n.toLowerCase().split('.'); return x.length > 2 && L.DOC_EXT.has(x[x.length - 2]) && (L.EXECUTABLE_EXT.has(x[x.length - 1]) || L.ARCHIVE_EXT.has(x[x.length - 1])); });
-  add('E14', 'virus', 'No disguised attachment names', doubled.length ? fail(50, `"${doubled[0]}" hides its real type`) : pass('Honest names'));
+  add('E14', 'virus', 'No disguised attachment names', doubled.length ? fail(50, `"${doubled[0]}" hides its real type`) : pass('Honest names'), () => doubled.flatMap(attachmentAt));
 
   const macro = attachments.filter((n) => L.MACRO_DOC_EXT.has(n.toLowerCase().split('.').pop()));
   const html = attachments.filter((n) => /\.(html?|shtml|svg)$/i.test(n));
-  add('E15', 'malware', 'No macro-enabled documents', macro.length ? fail(34, `Macro-enabled document: ${macro[0]}`) : pass('None'));
+  add('E15', 'malware', 'No macro-enabled documents', macro.length ? fail(34, `Macro-enabled document: ${macro[0]}`) : pass('None'), () => macro.flatMap(attachmentAt));
   // A web page sent as a file opens a sign-in form from your own computer, where no address bar can give it away.
-  add('E27', 'scam', 'No web page sent as an attachment', html.length ? fail(34, `HTML/SVG attachment ${html[0]}: often a hidden login page`) : pass('None'));
+  add('E27', 'scam', 'No web page sent as an attachment', html.length ? fail(34, `HTML/SVG attachment ${html[0]}: often a hidden login page`) : pass('None'), () => html.flatMap(attachmentAt));
 
   const archived = attachments.some((n) => L.ARCHIVE_EXT.has(n.toLowerCase().split('.').pop()));
   add('E16', 'malware', 'No password-protected archive trick', archived && ARCHIVE_PASSWORD.test(body)
-    ? fail(40, 'Sends an archive together with its password: used to hide malware from scanners') : pass('None'));
+    ? fail(40, 'Sends an archive together with its password: used to hide malware from scanners') : pass('None'), () => locate(ARCHIVE_PASSWORD, [BODY]));
 
   add('E17', 'scam', 'Invoice lure does not pair with a risky attachment',
-    /invoice|receipt|payment advice|remittance|purchase order/i.test(subject + ' ' + body) && (risky.length || macro.length || html.length || archived)
-      ? fail(38, 'Invoice-themed message with a risky attachment') : pass('No invoice lure'));
+    INVOICE.test(subject + ' ' + body) && (risky.length || macro.length || html.length || archived)
+      ? fail(38, 'Invoice-themed message with a risky attachment') : pass('No invoice lure'), () => locate(INVOICE, [SUBJECT, BODY]));
 
   // What the message asks you to do, whoever sent it: a scam needs no link when it can get you to call, reply or pay.
   // Not softened for a company's own address: scammers send real PayPal invoices that carry their phone number.
@@ -221,26 +279,26 @@ function analyzeEmail(mail, how = {}) {
     if (fromOfficial) return /\binvoice\b|money request|payment request/i.test(text) ? fail(44, `An invoice sent through ${from.domain} that asks you to phone a number to cancel or get a refund: the callback scam`) : pass(`Sent from ${from.domain}`);
     if (how.preview) return warn(14, 'Asks you to phone a number about a charge or refund');
     return fail(44, 'Asks you to phone a number about a charge, refund or cut-off: the callback scam');
-  })());
+  })(), () => locate(PHONE, [SUBJECT, BODY]));
   add('E22', 'scam', 'Does not ask for private details by reply', wording(SENSITIVE_REPLY.test(text) && !NEVER_ASK.test(text.match(SENSITIVE_REPLY)[0])
-    ? fail(44, 'Asks you to send your ID, bank details, Social Security number or password') : pass('No request for private details')));
+    ? fail(44, 'Asks you to send your ID, bank details, Social Security number or password') : pass('No request for private details')), () => locate(SENSITIVE_REPLY, [SUBJECT, BODY]));
   add('E23', 'scam', 'Not an urgent favour with gift cards or a wire', FAVOR.test(text)
-    ? fail(44, 'An urgent, private favour involving gift cards or a wire transfer: how impostors of a boss or colleague work') : pass('No favour request'));
+    ? fail(44, 'An urgent, private favour involving gift cards or a wire transfer: how impostors of a boss or colleague work') : pass('No favour request'), () => locate(FAVOR, [SUBJECT, BODY]));
   add('E25', 'scam', 'No toll or fine demanded from an unofficial address', (() => {
     if (!TOLL_FINE.test(text) || !/\b(pay(ment|ing)?|settle(ment)?)\b/i.test(text)) return pass('No toll or fine demand');
     const gov = /\.gov(\.[a-z]{2})?$|\.us$/.test(from.domain || '');
     if (fromOfficial || gov) return pass(`Sent from ${from.domain}`);
     return fail(44, `Demands an unpaid toll or fine, but writes from ${from.domain || 'an unknown address'}: toll agencies and courts use their own addresses`);
-  })());
+  })(), () => locate(TOLL_FINE, [SUBJECT, BODY]));
   add('E24', 'scam', 'No stranger asking for money or offering a fortune', STRANGER_MONEY.test(text)
-    ? fail(44, 'Asks for money for travel, or offers an unclaimed fortune') : pass('None'));
+    ? fail(44, 'Asks for money for travel, or offers an unclaimed fortune') : pass('None'), () => locate(STRANGER_MONEY, [SUBJECT, BODY]));
 
   // What no real company or agency does: an inbox preview has no sender address, but "Apple Support" or "IRS Tax
   // Refund Department" telling you to pay in gift cards or crypto needs none.
   const presentsAs = claimed ? `${claimed.token} (as "${from.name || subject.slice(0, 40)}")` : (AUTHORITY.test(from.name) || AUTHORITY.test(subject)) ? `"${from.name || subject.slice(0, 40)}"` : null;
   add('E19', 'scam', 'Nobody official asks for untraceable payment', wording(PAY_UNTRACEABLY.test(subject + ' ' + body) && presentsAs
     ? fail(40, `Presents as ${presentsAs} and asks to be paid in gift cards, crypto or a wire transfer: no real company or agency does`)
-    : pass('No official-looking payment demand')));
+    : pass('No official-looking payment demand')), () => locate(PAY_UNTRACEABLY, [SUBJECT, BODY]));
 
   add('E20', 'scam', 'No fee to release a parcel', wording((() => {
     const text = subject + ' ' + body;
@@ -248,7 +306,7 @@ function analyzeEmail(mail, how = {}) {
     const usps = (claimed && claimed.token === 'usps') || /\b(usps|postal service)\b/i.test(from.name + ' ' + subject);
     if (usps) return fail(70, 'Claims to be USPS and asks for a delivery fee: USPS never emails or texts to charge one');
     return COURIER.test(from.name + ' ' + subject) ? warn(18, 'Asks for a fee to release a parcel') : pass('No courier fee');
-  })()));
+  })()), () => locate(PARCEL_FEE, [SUBJECT, BODY]));
 
   // "Earn $300-$800 daily rating products, message me on WhatsApp": the task scam, which ends in "deposits" to
   // unlock your earnings. Real offers do not quote daily pay for liking or rating things.
@@ -256,18 +314,18 @@ function analyzeEmail(mail, how = {}) {
   const TASKS = /\b(rate|rating|review|reviewing|like|liking|boost|boosting)\s+(products?|videos?|apps?|hotels?|movies?)\b|\bsimple (online )?tasks?\b/i;   // not "no experience needed": real gig ads say it too
   const OFF_PLATFORM = /\b(whatsapp|telegram|signal)\b/i;
   add('E28', 'scam', 'Not a "paid tasks" job offer', PAY_CLAIM.test(text) && (TASKS.test(text) || OFF_PLATFORM.test(text))
-    ? fail(40, 'Promises daily pay for simple online tasks: the task scam, which ends with you paying to unlock "earnings"') : pass('None'));
+    ? fail(40, 'Promises daily pay for simple online tasks: the task scam, which ends with you paying to unlock "earnings"') : pass('None'), () => locate(PAY_CLAIM, [SUBJECT, BODY]));
 
   // A voicemail you can only hear through a link, which will be "deleted" soon: the sign-in page waiting behind it.
   // Office phone systems do email voicemail with a link, so the link alone is only noted.
-  const voicemail = /\bvoice ?mail\b|\bvoice message\b|\bmissed call\b/i.test(text) && links.length && !fromOfficial;
+  const voicemail = VOICEMAIL.test(text) && links.length && !fromOfficial;
   add('E29', 'scam', 'Not a voicemail lure', voicemail
     ? (/\b(deleted|expire[sd]?|removed)\b.{0,40}\b(\d+\s*(hours?|days?)|today|soon)\b/i.test(text) ? fail(30, 'A voicemail behind a link that will "expire": a sign-in page posing as a message') : warn(10, 'A voicemail you can only hear through a link'))
-    : pass('None'));
+    : pass('None'), () => locate(VOICEMAIL, [SUBJECT, BODY]));
 
   add('E18', 'scam', 'Sender domain is not freshly invented',
     senderUrl && hostWords(senderUrl.sld).size >= 3 && /-/.test(senderUrl.sld) && !senderBrand.official
-      ? warn(8, `${from.domain} is a stitched-together multi-word domain`) : pass('Ordinary sender domain'));
+      ? warn(8, `${from.domain} is a stitched-together multi-word domain`) : pass('Ordinary sender domain'), () => inFrom(from.domain));
 
   return {
     checks,
@@ -278,4 +336,4 @@ function analyzeEmail(mail, how = {}) {
   };
 }
 
-module.exports = { analyzeEmail };
+module.exports = { analyzeEmail, markHost };
