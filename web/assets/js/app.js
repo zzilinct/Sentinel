@@ -2779,7 +2779,7 @@
     if (scanMenu) scanMenu.addEventListener('change', async () => {
       try {
         await desktop.setScanMenu(scanMenu.checked);
-        toast(scanMenu.checked ? 'Scan with Sentinel is in the right-click menu.' : 'Scan with Sentinel is out of the right-click menu.', 'success');
+        toast(scanMenu.checked ? 'Scan with Sentinel is in the right-click menu.' : 'Scan with Sentinel is no longer in the right-click menu.', 'success');
       } catch (err) { scanMenu.checked = !scanMenu.checked; toast(desktopError(err), 'error'); }
     });
     const clip = $('[data-clip]', slot);
