@@ -304,11 +304,14 @@ html.lux-app[data-theme="light"] {
 @keyframes lux-msg-in { from { opacity: 0; transform: translateY(6px) scale(.96); filter: blur(3px); } }
 @keyframes lux-msg-out { to { opacity: 0; transform: translateY(-6px) scale(.96); filter: blur(3px); } }
 
+/* A warn-a-friend picture settles in under its button, like a card laid on the table. */
+.lux-app .warn-card { animation: lux-settle .6s var(--lux-settle) both; }
+
 /* ----------------------------------------------------- reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
   .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .result__glyph::after, .lux-app .empty svg,
-  .lux-wipe, .lux-ghost, .lux-app .page-title .lux-label, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i { animation: none !important; }
+  .lux-wipe, .lux-ghost, .lux-app .page-title .lux-label, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i, .lux-app .warn-card { animation: none !important; }
   .lux-wipe, .lux-ghost { display: none; }
   /* The island only fades in and out, at its size, and swaps its words in place. */
   .lux-island { transform: translateX(-50%); transition: opacity .15s ease; }
