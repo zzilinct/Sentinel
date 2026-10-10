@@ -10,6 +10,7 @@ Sentinel has a Windows app with live scanning (marks beside search results in Ch
 - [Download](https://www.usesentinel.technology/download): the Windows app, release notes, the optional browser companion
 - [Pricing](https://www.usesentinel.technology/pricing): Free, Pro, Max and Ultimate, and what each includes
 - [Recovery guide](https://www.usesentinel.technology/recover): think you have been scammed? Tick what happened and get an ordered checklist of what to do and where to report it
+- [Spot the scam](https://www.usesentinel.technology/practice): a practice inbox of twelve made-up messages; sort each as scam or real, then see the clues that give it away
 - [Privacy Policy](https://www.usesentinel.technology/privacy): what Sentinel reads, keeps and never does
 - [Terms](https://www.usesentinel.technology/terms): the terms of use
 - [Refund Policy](https://www.usesentinel.technology/refunds): refunds, in plain words

@@ -1,0 +1,63 @@
+/* Spot the scam, the practice inbox (practice.html, practice.js). */
+.page-head--practice { padding-bottom: 40px; }
+.practice { color: var(--text-2); scroll-margin-top: 96px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+.practice__top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
+.practice__dots { display: flex; gap: 5px; }
+.practice__dots i { width: 18px; height: 5px; border-radius: var(--r-sm); background: rgb(var(--ink) / .1); transition: background .3s; }
+.practice__dots i.is-current { background: var(--gold-300); }
+.practice__dots i.is-right { background: var(--green); }
+/* Missed is not red: a missed one is a clue learned, not a mistake to shame. */
+.practice__dots i.is-missed { background: transparent; box-shadow: inset 0 0 0 1px var(--gold-400); }
+
+/* The message, as the app it came in would show it. */
+.pmsg__h { margin: 0 0 6px; font: 600 13px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.pmsg__h:focus { outline: none; }
+.pmsg__h:focus-visible { outline: 2px solid var(--gold-300); }
+.pmsg__context { margin: 0 0 10px; font-style: italic; color: var(--muted); }
+.pmsg__card { padding: 20px 22px; border-radius: var(--r-lg); background: var(--relief), var(--surface); box-shadow: var(--raise-sm); color: var(--text); line-height: 1.6; overflow-wrap: anywhere; animation: pmsg-in .45s var(--ease-out) both; }
+@keyframes pmsg-in { from { opacity: 0; transform: translateY(10px); } }
+.pmsg__meta { display: grid; gap: 4px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--text-2); }
+.pmsg__subject { font-weight: 600; color: var(--text); font-size: 16px; }
+.pmsg__meta--dm { display: flex; gap: 10px; align-items: center; }
+.pmsg__avatar { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--surface-3); color: var(--text); font-weight: 600; }
+.pmsg__body p { margin: 0 0 10px; }
+.pmsg__body p:last-child { margin-bottom: 0; }
+.pmsg--text .pmsg__body, .pmsg--dm .pmsg__body { display: grid; justify-items: start; }
+.pmsg--text .pmsg__body p { max-width: 92%; padding: 10px 14px; border-radius: 18px 18px 18px 6px; background: var(--surface-3); }
+
+/* Clues: plain words until the answer, then marked, each with its number. */
+.pmark { border-radius: 4px; transition: background .35s, box-shadow .35s; }
+.pmark__n { display: none; }
+.is-marked .pmark { --mk: var(--red); background: color-mix(in srgb, var(--mk) 18%, transparent); box-shadow: 0 2px 0 var(--mk); padding: 0 2px; }
+.is-marked.is-real .pmark { --mk: var(--green); }
+.is-marked .pmark__n { display: inline-grid; place-items: center; min-width: 17px; height: 17px; margin-left: 3px; padding: 0 4px; border-radius: 9px; background: var(--mk); color: var(--on-status); font: 600 11px/1 var(--mono); vertical-align: 2px; }
+.pmark__sr { display: none; }
+.is-marked .pmark__sr { display: inline; }
+
+.practice__ask { margin: 20px 0 0; text-align: center; }
+.practice__ask p { margin: 0 0 10px; font-size: 18px; color: var(--text); }
+.practice__picks { display: flex; gap: 12px; justify-content: center; }
+.practice__pick { min-width: 140px; min-height: 48px; font-size: 17px; }
+.practice__pick.is-picked { box-shadow: var(--press), inset 0 0 0 1px var(--gold-400); color: var(--text); opacity: 1; }
+
+.practice__verdict { margin-top: 22px; padding: 22px; border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); animation: pmsg-in .4s var(--ease-out) both; }
+.practice__verdict h3 { margin: 0 0 6px; font-size: 26px; color: var(--text); }
+.practice__verdict h3:focus { outline: none; }
+.practice__verdict h3:focus-visible { outline: 2px solid var(--gold-300); }
+.practice__verdict p { margin: 0 0 8px; }
+.practice__clues { margin: 0 0 18px; padding-left: 22px; display: grid; gap: 8px; line-height: 1.55; }
+.practice__clues b { color: var(--text); }
+
+.practice__end h2 { margin: 0 0 8px; font-size: 34px; color: var(--text); }
+.practice__end h2:focus { outline: none; }
+.practice__end h3 { margin: 26px 0 8px; font-size: 22px; color: var(--text); }
+.practice__missed, .practice__rules { margin: 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.55; }
+.practice__again { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+
+@media (max-width: 560px) {
+  .pmsg__card { padding: 16px; }
+  .practice__pick { flex: 1; min-width: 0; }
+  .practice__end h2 { font-size: 28px; }
+}
