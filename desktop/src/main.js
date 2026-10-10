@@ -50,6 +50,7 @@ let win = null;
 let tray = null;
 let quitting = false;
 let warnWin = null;
+let warnReal = null;          // the real site the open warning offers (the server's realSite), never one the page names
 let guardWin = null;
 let booting = false;
 let retryTimer = null;
@@ -389,8 +390,12 @@ function showWarning(item) {
     browser: { chrome: 'Chrome', msedge: 'Microsoft Edge', brave: 'Brave', firefox: 'Firefox' }[item.browser] || item.browser,
     badge: v.overall.badge,
     label: v.overall.label,
-    reasons: (v.reasons || []).slice(0, 4).map((r) => r.text).join('\n')
+    reasons: (v.reasons || []).slice(0, 4).map((r) => r.text).join('\n'),
+    real: ''
   };
+  // "Go to the real paypal.com": only the server's realSite (brands.js, or the person's own site), a bare https address.
+  warnReal = v.realSite && /^https:\/\/[a-z0-9.-]+\/$/.test(v.realSite.url) ? v.realSite.url : null;
+  if (warnReal) query.real = v.realSite.host;
   if (!warnWin || warnWin.isDestroyed()) {
     warnWin = new BrowserWindow({
       width: 480, height: 380, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
@@ -403,6 +408,7 @@ function showWarning(item) {
     warnWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     warnWin.webContents.on('will-navigate', (e) => e.preventDefault());
   }
+  warnWin.setSize(480, query.real ? 430 : 380);
   warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
   if (warnWin.isVisible()) warnWin.moveTop();
 }
@@ -1425,6 +1431,8 @@ function registerBridge() {
     if (warnWin && !warnWin.isDestroyed()) warnWin.close();
     if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`/app/scan?url=${encodeURIComponent(url)}`);
     if (action === 'recover') showWindow(recoverRoute(url, 'password'));
+    // The real site: the address kept when the warning was made, opened fresh in the browser. What the page sends is ignored.
+    if (action === 'real' && warnReal) { appLog('warning: opened the real site'); shell.openExternal(warnReal); }
     return { ok: true };
   }, trustedLocal);
   handle('sentinel:guard-action', (action, arg) => guardAction(String(action), String(arg || '')), trustedLocal);

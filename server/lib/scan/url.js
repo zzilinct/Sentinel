@@ -342,8 +342,10 @@ function brandInfo(p) {
     // Six letters or more: a shorter brand is made by ordinary words meeting at a hyphen ("my-app-lessons" is not Apple).
     const split = (label) => t.length >= 6 && /[-_]/.test(label) && !label.split(/[-_]/).some((part) => deskin(part).includes(t)) && deskin(label.replace(/[-_]/g, '')).includes(t);
     if (!inDomain && split(p.sld)) inDomain = brand;
-    // The name of one of the brand's own sites as a part of this one ("ezpassnj-toll" borrows ezpassnj.com).
-    if (!inDomain && hyphenParts.length > 1 && brand.domains.some((d) => { const n = deskin(d.split('.')[0]); return n.length >= 6 && hyphenParts.includes(n); })) inDomain = brand;
+    // The name of one of the brand's own sites as a part of this one ("ezpassnj-toll" borrows ezpassnj.com). A site
+    // that is a part of another of the brand's sites is not a name: "update.microsoft.com" made every "-update" Microsoft.
+    const ownName = (d) => !brand.domains.some((o) => d.endsWith(`.${o}`)) && deskin(d.split('.')[0]);
+    if (!inDomain && hyphenParts.length > 1 && brand.domains.some((d) => { const n = ownName(d); return n && n.length >= 6 && hyphenParts.includes(n); })) inDomain = brand;
     if (!inSubdomain && p.subdomains.some(split)) inSubdomain = brand;
 
     // Characters swapped for look-alikes ("paypa1", "g00gle", "micr0soft"): the name as written is not the brand, but

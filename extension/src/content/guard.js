@@ -37,7 +37,11 @@
       chip: v.host,
       steps: (v.reasons || []).slice(0, 4).map((r) => r.text),
       buttons: [
-        { text: 'Take me back to safety', kind: 'go', on: globalThis.SentinelAlarm.leave },
+        // The real site, when the scanner knows for certain which one this page imitates. The worker opens it.
+        ...(v.realSite && v.realSite.host ? [{ text: `Go to the real ${v.realSite.host}`, kind: 'go', on: () => {
+          Promise.resolve(ext.runtime.sendMessage({ type: 'real-site' })).catch(() => {});
+        } }] : []),
+        { text: 'Take me back to safety', kind: v.realSite && v.realSite.host ? '' : 'go', on: globalThis.SentinelAlarm.leave },
         { text: 'Report', on: (ev) => {
           ev.target.textContent = 'Reporting...';
           Promise.resolve(ext.runtime.sendMessage({ type: 'report', url: v.url, category: threat === 'scam' ? 'phishing' : 'malware' }))

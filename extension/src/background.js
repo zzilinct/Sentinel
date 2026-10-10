@@ -547,6 +547,21 @@ const handlers = {
     await ext.tabs.create({ url: siteUrl(apiBase, `/recover?happened=${happened}`) });
     return { opened: true };
   },
+  /**
+   * "Go to the real paypal.com" on the block page: the tab goes to the real site the scanner named for this page
+   * (brands.js, or one of the person's own sites), looked up here again. Nothing the page sends is used.
+   */
+  async 'real-site'(msg, sender) {
+    fromPage(sender);
+    const url = sender.tab.url || sender.url;
+    let verdict = localVerdict(url) || cacheGet('research', url) || cacheGet('quick', url);
+    // The worker may have been asleep since the warning was drawn, its cache gone: ask again.
+    if (!verdict) verdict = ((await liveBatch([url], 'quick', Boolean(sender.tab.incognito))).verdicts || {})[url];
+    const real = verdict && verdict.realSite && verdict.realSite.url;
+    if (typeof real !== 'string' || !/^https:\/\/[a-z0-9.-]+\/$/.test(real)) return { opened: false };
+    await ext.tabs.update(sender.tab.id, { url: real });
+    return { opened: true };
+  },
   async 'typed-no'(msg, sender) {
     fromPage(sender);
     await sessionSet(`typedShown:${sender.tab.id}`, null);

@@ -162,6 +162,7 @@ async function coreScan(p, { research: wanted, budgetMs, hint }) {
       },
       research: ctx.research ? summarizeResearch(ctx.research) : null,
       file: fileReport ? { name: fileReport.name, sha256: fileReport.sha256, size: fileReport.size, type: fileReport.type } : null,
+      realSite: realSiteOf(checks, ctx.brand),
       checks
     };
     const facts = ctx.research;
@@ -179,6 +180,18 @@ async function coreScan(p, { research: wanted, budgetMs, hint }) {
   }
 }
 
+
+// Warnings that lead to the real site: the brand a page imitates, taken from the impersonation checks that failed.
+// Only when exactly one brand is named; a page that borrows two, or none, gets no button.
+const IMPERSONATION = { U22: 'inDomain', U23: 'inSubdomain', U24: 'lookalike' };
+function realSiteOf(checks, brand) {
+  const named = new Set();
+  for (const c of checks) {
+    const b = c.status === 'fail' && IMPERSONATION[c.id] && brand[IMPERSONATION[c.id]];
+    if (b) named.add(b.domains[0]);
+  }
+  return named.size === 1 ? [...named][0] : null;
+}
 
 function summarizeResearch(r) {
   const reg = r.registration || {};
@@ -228,6 +241,10 @@ function shape(core, { threats: visible, userId, mode, detail = 'full', planId }
       threats.scam = { level: 'likely', badge: 'orange', label: 'Look-alike of your site', score: Math.max(threats.scam.score, 70), evidence: null, ...kinds.describe('impersonation') };
     }
   }
+  // The real site, for a page flagged as an imitation: the person's own site it copies, or the brand's official
+  // address (brands.js). Never built from the page's own address, and never for a site the person trusts.
+  const flagged = threats.scam && (threats.scam.badge === 'orange' || threats.scam.badge === 'red');
+  const real = override === 'allow' || !flagged ? null : copy ? copy.site : core.realSite || null;
   const shownChecks = checks.filter((c) => visible.includes(c.threat));
   const tally = tallyOf(shownChecks);
   const reasons = reasonsOf(shownChecks);
@@ -253,6 +270,7 @@ function shape(core, { threats: visible, userId, mode, detail = 'full', planId }
     comparison: core.comparison,
     research: core.research,
     file: core.file,
+    realSite: real ? { host: real, url: `https://${real}/` } : null,
     checklist: {
       ...tally,
       items: detail === 'full' ? shownChecks : shownChecks.filter((c) => c.status === 'fail' || c.status === 'warn')
