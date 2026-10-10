@@ -1280,7 +1280,9 @@
       if (!m || !el.isConnected) return;
       if (!m.data) { toast(`${m.name} is too big. Files up to 25 MB can be scanned.`, 'error'); return; }
       scanFile(new File([m.data], m.name));
-    }, () => toast('That file could not be opened. Drop it here instead.', 'error'));
+      // The answer is what the person came for: below the drop zone it was out of sight.
+      out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    },() => toast('That file could not be opened. Drop it here instead.', 'error'));
   }
 
   /* ========================================================= email scan */
