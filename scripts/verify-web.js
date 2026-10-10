@@ -1175,7 +1175,8 @@ async function checkRealSite() {
       const a = await post('/api/v1/auth/signup', { email, password, firstName: 'Kim', ageConfirmed: true, termsAccepted: true });
       const b = await post('/api/v1/auth/login', { email, password });
       const c = await post('/api/v1/my-sites/add', { host: 'harbourcu.org' });
-      return a.ok && b.ok && c.ok;
+      const d = await post('/api/v1/billing/plan', { plan: 'max' });   // the newest model is on the paid plans (demo billing)
+      return a.ok && b.ok && c.ok && d.ok;
     })()`);
     if (!signed) throw new Error('the test account could not sign in and add its site');
     const scan = async (link, name) => {

@@ -13,6 +13,7 @@
     malware: ['This site may try to infect your device', 'This site spreads malware']
   };
   let mounted = false;
+  let dismissed = false;
 
   function worst(v) {
     const rank = { yellow: 1, orange: 2, red: 3 };
@@ -21,8 +22,10 @@
       .sort((a, b) => rank[v.threats[b].badge] - rank[v.threats[a].badge])[0] || 'scam';
   }
 
-  function mount(v, recover) {
-    if (mounted) return;
+  // `again`: the same warning, now knowing the real site (background.js realSiteFor). Drawn over the first one, unless
+  // the person already chose to continue.
+  function mount(v, recover, again) {
+    if (mounted && (!again || dismissed)) return;
     mounted = true;
     const threat = worst(v);
     const th = v.threats[threat];
@@ -47,7 +50,7 @@
           Promise.resolve(ext.runtime.sendMessage({ type: 'report', url: v.url, category: threat === 'scam' ? 'phishing' : 'malware' }))
             .then((res) => { ev.target.textContent = res && res.ok ? 'Reported. Thank you.' : 'Could not report'; }, () => { ev.target.textContent = 'Could not report'; });
         } },
-        { text: 'Continue anyway', kind: 'quiet', on: (ev, ctl) => ctl.close() }
+        { text: 'Continue anyway', kind: 'quiet', on: (ev, ctl) => { dismissed = true; ctl.close(); } }
       ],
       link: recover ? { href: threat === 'scam' ? recover : `${recover}?happened=file`, text: 'Already paid or let someone in? Open the recovery guide' } : null,
       foot: 'Never enter passwords, card numbers or wallet phrases here.'
@@ -76,7 +79,7 @@
       return;
     }
     if (sender.id !== ext.runtime.id || !msg || msg.type !== 'sentinel:warn' || !msg.verdict) return;
-    const show = () => mount(msg.verdict, typeof msg.recover === 'string' ? msg.recover : '');
+    const show = () => mount(msg.verdict, typeof msg.recover === 'string' ? msg.recover : '', msg.again === true);
     if (document.documentElement) show();
     else document.addEventListener('DOMContentLoaded', show, { once: true });
   });
