@@ -637,7 +637,10 @@ async function checkCall() {
       return a.ok && b.ok;
     })()`);
     if (!signed) throw new Error('the test account could not sign in');
-    await goto(browser, s, `${base}/app/call`, "document.querySelector('[data-call-answer] .call__empty')");
+    await goto(browser, s, `${base}/app/call`, "document.querySelector('[data-call-answer] .call__empty')").catch(async (err) => {
+      const where = await evalIn(browser, s, "location.href + ' | ' + (document.body ? document.body.innerText.slice(0, 300) : '')").catch(() => '');
+      throw new Error(`${err.message}: ${where} | ${errors.join(' | ')}`);
+    });
     await sleep(1200);   // the page's entrance (app-lux.js) settles
     const answer = () => evalIn(browser, s, `(() => { const a = document.querySelector('[data-call-answer]');
       const t = (sel) => (a.querySelector(sel) || {}).textContent || '';
