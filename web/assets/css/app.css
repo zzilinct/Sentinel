@@ -214,6 +214,7 @@ body.app::before { opacity: .6; }
 .emark:hover, .emark[aria-expanded="true"] { background: color-mix(in srgb, var(--c) 32%, transparent); }
 .emark:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
 .emark__tag { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font: 600 11px/1.65 var(--sans); white-space: nowrap; vertical-align: 1px; color: var(--on-status); background: var(--c); }
+.emark__end { white-space: nowrap; }
 .email-marks__why { --c: var(--orange); margin: 2px 0 10px; padding: 12px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--c) 8%, var(--surface)); box-shadow: inset 3px 0 0 var(--c); animation: rise-in .25s var(--ease-out) both; }
 .email-marks__why.is-fail { --c: var(--red); }
 .email-marks__why b { display: block; font-size: 14.5px; }
@@ -242,6 +243,10 @@ body.app::before { opacity: .6; }
 .result__checklist-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .result__checklist-head h3 { margin: 0; }
 .result__checklist-head span { font-size: 12px; }
+.result__tally span { white-space: nowrap; }
+.result__tally i { font-style: normal; }
+/* A phone: two whole lines ("12 checks · 2 failed" over "3 warnings · 1 skipped"), never a count cut from its word. */
+@media (max-width: 560px) { .result__tally { text-align: right; } .result__tally i { display: none; } .result__tally span { display: block; } }
 .group { border-top: 1px solid var(--line); }
 .group summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 0; font-size: 14.5px; font-weight: 500; }
 .group summary::-webkit-details-marker { display: none; }

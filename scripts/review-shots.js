@@ -744,11 +744,28 @@ async function emailMarks(send) {
     let ready = false;
     for (let i = 0; i < 40 && !ready; i++) { await sleep(500); ready = await run("Boolean(document.querySelector('[data-email-marks]'))"); }
     check(ready, `${size}: the result shows the email, marked`);
-    const marks = await run(`[...document.querySelectorAll('[data-email-marks] [data-emark]')].map((m) => [m.closest('[data-efield]').dataset.efield, m.firstChild.textContent, m.querySelector('.emark__tag').textContent])`);
+    const marks = await run(`[...document.querySelectorAll('[data-email-marks] [data-emark]')].map((m) => [m.closest('[data-efield]').dataset.efield, m.textContent.slice(0, -m.querySelector('.emark__tag').textContent.length), m.querySelector('.emark__tag').textContent])`);
     for (const [field, words, label] of EXPECTED_MARKS) {
       check(marks.some((m) => m[0] === field && m[1].includes(words) && m[2].includes(label)), `${size}: "${label}" marks ${words} in ${field}`, marks);
     }
     check(await run("!/\\u2014/.test(document.querySelector('[data-email-marks]').textContent)"), `${size}: no em dashes in the marks`);
+    // Each label sits on the line of the words it marks (the last line of them, when they wrap), never on a line alone.
+    const apart = await run(`[...document.querySelectorAll('[data-emark]')].map((m) => {
+      const tagEl = m.querySelector('.emark__tag'); const tag = tagEl.getBoundingClientRect();
+      const r = document.createRange(); r.setStart(m, 0); r.setEndBefore(tagEl);
+      const lines = [...r.getClientRects()].filter((x) => x.width > 0);
+      const last = lines[lines.length - 1];
+      return last && Math.abs((last.top + last.bottom) / 2 - (tag.top + tag.bottom) / 2) > 6 ? [m.textContent, Math.round(last.top), Math.round(tag.top)] : null;
+    }).filter(Boolean)`);
+    check(!apart.length, `${size}: every mark's label is on the line of its words`, apart);
+    // The checklist's tally: each half on one line (on a phone, one under the other), no count cut from its word.
+    const tally = await run(`[...document.querySelectorAll('[data-tally] > span')].map((s) => [s.textContent, s.getClientRects().length, Math.round(s.getBoundingClientRect().right)])`);
+    check(tally.length === 2 && tally.every((t) => t[1] === 1 && t[2] <= width), `${size}: the checklist tally reads in whole parts`, tally);
+    // Advice for an email, by what this one has: a reply-to elsewhere, a link, a gift card ask; no attachment, no number.
+    const steps = await run("[...document.querySelectorAll('.next-steps li')].map((li) => li.textContent)");
+    const has = (re) => steps.some((t) => re.test(t));
+    check(!has(/on this page/) && has(/^Do not reply\. Your answer would go/) && has(/^Do not open its links/) && has(/gift cards/) && has(/Contact the company the way you normally do/)
+      && !has(/attachment/) && !has(/call the number/) && steps.every((t) => !t.includes('—')), `${size}: the steps are about this email`, steps);
     // A real tap (or click) on the mismatched link's mark, at its place on the screen.
     // The first line of the mark: a long mark wraps, and the middle of its box can fall outside it.
     const box = await run(`(() => { const m = [...document.querySelectorAll('[data-emark]')].find((x) => x.textContent.includes('Link goes somewhere else')); m.scrollIntoView({ block: 'center' }); const r = m.getClientRects()[0]; return { x: r.left + Math.min(r.width / 2, 30), y: r.top + r.height / 2 }; })()`);
@@ -780,6 +797,13 @@ async function emailMarks(send) {
     })()`);
     await sleep(800);
     await shoot('section', clip);
+    // The result's top: the steps for this email and the checklist's tally, as a person reads them.
+    const top = await run(`(() => {
+      const a = document.querySelector('#view .result').getBoundingClientRect(); const b = document.querySelector('.result__checklist-head').getBoundingClientRect();
+      const s = document.querySelector('.next-steps').getBoundingClientRect();
+      return { x: Math.max(0, a.left + scrollX), y: Math.max(0, s.top + scrollY - 12), width: Math.min(a.width, ${width}), height: Math.min(b.bottom - s.top + 24, 4000) };
+    })()`);
+    await shoot('result', top);
     await send('Target.closeTarget', { targetId });
   }
 }
