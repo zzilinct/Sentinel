@@ -187,7 +187,17 @@ async function scrollThrough() {
     }
     el.scrollTo({ top: 0, behavior: 'instant' });
   }
-  return parts.length;
+  // An entrance still unplayed after that is brought to the middle of the screen once, as a person stopping there
+  // would; one that still does not play is reported (its box is moved and hidden for good).
+  const late = [...document.querySelectorAll('[data-reveal]:not(.is-in)')].filter((el) => el.getClientRects().length);
+  const said = (el) => el.tagName.toLowerCase() + [...el.classList].slice(0, 2).map((c) => `.${c}`).join('') + ` (${el.dataset.reveal || 'unveil'})`;
+  for (const el of late) {
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    await wait(150);
+  }
+  if (late.length) document.scrollingElement.scrollTo({ top: 0, behavior: 'instant' });
+  return { late: late.filter((el) => el.classList.contains('is-in')).map(said), never: late.filter((el) => !el.classList.contains('is-in')).map(said) };
 }
 
 /* ------------------------------------------------------------------ driving */
@@ -227,6 +237,7 @@ async function checkLayout() {
   const { browser, close } = await launch(['--hide-scrollbars']);
   const found = {};   // page -> [{ at, kind, el, text, detail }]
   const allowed = [];
+  const lateNotes = [];
   try {
     // A throwaway account, signed in from the page itself in the default context; public pages open signed out.
     const { s: first, close: done } = await tab(browser, null, [1366, 900], 'dark');
@@ -263,10 +274,12 @@ async function checkLayout() {
               }
               await browser.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: 500 }, s);
               await sleep(600);
-              await evalIn(browser, s, `(${scrollThrough})()`);
+              const entrances = await evalIn(browser, s, `(${scrollThrough})()`);
+              if (entrances.late.length) lateNotes.push(`${page} ${at}: played only once brought to the middle: ${entrances.late.join(', ')}`);
               await browser.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: -500 }, s);
               await sleep(1800);
               let problems = await evalIn(browser, s, `(${measure})(${w})`);
+              for (const el of entrances.never) problems.push({ kind: 'never-shown', el, text: '', detail: 'its entrance did not play, even brought to the middle of the screen' });
               if (url === '/app') {
                 await evalIn(browser, s, "document.querySelector('[data-palette]').click()");
                 await sleep(500);
@@ -298,6 +311,7 @@ async function checkLayout() {
       result(`layout: ${page} fits every size and theme (no sideways scroll, nothing past the edge or cut, centred things centred)`, !list.length,
         Object.entries(lines).map(([k, at]) => `${k} at ${at.join(' | ')}`));
     }
+    result('layout: entrances that played only when brought to the middle (not a failure: a stepped scroll can pass them)', true, lateNotes);
     result('layout: the allowed exceptions, each with its reason', true, [...new Set(allowed.map((a) => a.replace(/ \d+x\d+ \w+:/, ':')))].concat(`${Math.round((Date.now() - started) / 1000)} s for ${SIZES.length * THEMES.length * (PUBLIC.length + APP.length)} page loads`));
   } finally {
     await close();
