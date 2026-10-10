@@ -23,9 +23,9 @@
   }
 
   // `again`: the same warning, now knowing the real site (background.js realSiteFor). Drawn over the first one, unless
-  // the person already chose to continue.
+  // the person already chose to continue. Never on a page that had no warning: the tab may have moved on meanwhile.
   function mount(v, recover, again) {
-    if (mounted && (!again || dismissed)) return;
+    if (again ? !mounted || dismissed || v.host !== location.hostname : mounted) return;
     mounted = true;
     const threat = worst(v);
     const th = v.threats[threat];
