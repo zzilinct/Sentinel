@@ -748,3 +748,28 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .model-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold-300); box-shadow: 0 0 8px var(--gold-300); animation: model-pulse 2.6s ease-in-out infinite; }
 @keyframes model-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .model-badge__dot { animation: none; } }
+
+/* ---------------------------------------------- is this call a scam? */
+
+.call { display: grid; gap: 18px; justify-items: start; }
+.call > * { width: 100%; }
+.call > button { width: auto; }
+.call__group { margin: 0; min-width: 0; border: 0; }
+.call__group legend { float: left; width: 100%; padding: 0; margin-bottom: 14px; }
+.call__group legend h2 { margin: 0 0 2px; }
+.call__group legend span { color: var(--muted); }
+.call__picks { clear: both; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.call__pick { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--r-lg); background: var(--relief), var(--surface-2); box-shadow: var(--raise-sm); cursor: pointer; font-size: 17px; line-height: 1.45; }
+.call__pick:has(input:checked) { box-shadow: var(--raise-sm), inset 0 0 0 1px var(--gold-400); color: var(--text); }
+.call__pick input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--gold-400); }
+.call__answer { --c: var(--gold-400); padding: 26px 28px; border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), inset 4px 0 0 var(--c); }
+.call__answer[data-verdict="hangup"] { --c: var(--red); }
+.call__answer[data-verdict="fine"] { --c: var(--green); }
+.call__verdict { margin: 0 0 10px; font: 400 clamp(40px, 7vw, 64px)/1.05 var(--display); color: var(--c); animation: call-land .35s var(--ease) both; }
+.call__reason { margin: 0 0 14px; font-size: 21px; line-height: 1.45; color: var(--text); }
+.call__next { margin: 0; font-size: 19px; line-height: 1.5; }
+.call__more { margin: 14px 0 0; color: var(--muted); }
+.call__more a { color: var(--gold-300); text-decoration: underline; text-underline-offset: 3px; }
+.call__empty { margin: 0; font-size: 19px; color: var(--muted); }
+@keyframes call-land { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .call__verdict { animation: none; } }

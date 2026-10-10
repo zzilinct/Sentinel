@@ -200,6 +200,8 @@ html.lux-app[data-theme="light"] {
 [data-tab="week"] .lux-in { animation-name: lux-pop; animation-timing-function: var(--lux-spring); animation-duration: .7s; }
 .lux-app .week-bars__col i { transform-origin: 50% 100%; animation: lux-bar .9s var(--lux-bounce) calc(var(--li, 0) * 90ms + .3s) backwards; }
 @keyframes lux-bar { from { transform: scaleY(0); } }
+/* Is this call a scam?: set down calmly, nothing that startles someone already on a tense call. */
+[data-tab="call"] .lux-in { animation-name: lux-settle; animation-duration: .6s; }
 /* Everything else (and the page title on every page) rises gently. */
 .lux-in.lux-title { animation-name: lux-pop; animation-duration: .7s; animation-timing-function: var(--lux-out); animation-delay: 0s; }
 

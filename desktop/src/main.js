@@ -677,6 +677,7 @@ function refreshTray() {
     { label: status.active ? 'Download protection: on' : status.reason || 'Download protection: off', enabled: false },
     { label: pw.active ? (pw.window ? 'Live scanning: watching the browser in front' : 'Live scanning: ready') : pw.reason || 'Live scanning is off', enabled: false },
     { label: 'Scan a file...', click: () => showWindow('/app/threats') },
+    { label: 'Is this call a scam?', click: () => showWindow('/app/call') },
     { type: 'separator' },
     { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? trayGuard('live scanning off', true) && setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
     ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
