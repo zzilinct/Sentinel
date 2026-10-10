@@ -94,7 +94,8 @@
         "src/content/masks.js",
         "src/content/alarm.js",
         "src/content/guard.js",
-        "src/content/hover.js"
+        "src/content/hover.js",
+        "src/content/typed.js"
       ],
       "run_at": "document_start"
     },

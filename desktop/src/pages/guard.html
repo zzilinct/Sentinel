@@ -213,7 +213,31 @@
       });
     }
 
+    // "Did you type anything?" after a flagged page with a password or card box was closed or left (main.js askTyped).
+    function typed() {
+      const ticks = (q.get('happened') || '').split(',');
+      const pw = ticks.includes('password');
+      const card = ticks.includes('card');
+      const what = pw && card ? 'a password or card number' : card ? 'a card number' : 'a password';
+      const site = plain(q.get('site'));
+      const next = pw && card
+        ? 'change that password and call the number on your card'
+        : card ? 'call the number on your card' : 'change that password';
+      show({
+        title: `Did you type ${what} on that page?`,
+        sub: site || 'The page Sentinel warned you about',
+        lead: `<b>Sentinel warned you about that page, and it asked for ${what}.</b> If you typed one there, the recovery guide shows what to do now: ${next}, most urgent first.`,
+        note: 'Sentinel never sees what you type. It only noticed the box on the page.',
+        color: '#e2c47f',
+        buttons: [
+          { label: 'No', cancel: true, run: () => act('dismiss') },
+          { label: 'Yes, I did', primary: true, run: () => act('typed-yes', [pw && 'password', card && 'card'].filter(Boolean).join(',') || 'password') }
+        ]
+      });
+    }
+
     if (mode === 'escape') escape();
+    else if (mode === 'typed') typed();
     else if (mode === 'remote') remote();
     else if (mode === 'bank') bank();
   </script>

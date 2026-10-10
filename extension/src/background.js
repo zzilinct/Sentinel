@@ -174,7 +174,9 @@ async function paint(tabId, verdict) {
 const warned = new Map();
 
 async function onNavigate(details) {
-  if (details.frameId !== 0 || !/^https?:/i.test(details.url)) return;
+  if (details.frameId !== 0) return;
+  await typedNavigated(details.tabId, details.url);
+  if (!/^https?:/i.test(details.url)) return;
   const settings = await getSettings();
   if (!settings.enabled || liveBlockReason()) return;
 
@@ -200,6 +202,7 @@ async function onNavigate(details) {
   if (verdict.pay && verdict.pay.text) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:pay', text: String(verdict.pay.text) })).catch(() => {});
 
   const severe = verdict.overall && (verdict.overall.badge === 'red' || (verdict.overall.badge === 'orange' && settings.minimumBadge !== 'red'));
+  if (severe) await typedFlagged(details.tabId, details.url);
   if (!severe || !settings.warnOnNavigate) return;
   const key = `${details.tabId}|${verdict.host}`;
   if (warned.has(key)) return;
@@ -218,6 +221,62 @@ async function onNavigate(details) {
       priority: 2
     })).catch(() => {});
   }
+}
+
+/* ------------------------------------------------- did you type anything? */
+
+// A page flagged red or orange that has a password or card box (content/typed.js finds them by their type and labels,
+// never what is in them). When its tab is closed or moves on to another site, one calm question asks, in the corner of
+// the next page the person sees, whether they typed a password or card number there. Yes opens the recovery guide with
+// that ticked; No closes it. Once per site. Kept in session storage only (gone when the browser closes), and never for
+// a private window. The Windows app asks the same question for live scanning (desktop/src/typedcheck.js).
+const typedKey = (tabId) => `typed:${tabId}`;
+const TYPED_WAIT = 10 * 60 * 1000;   // a question nobody saw is dropped after this long
+async function sessionGet(key) {
+  if (!session()) return null;
+  const got = await session().get(key);
+  return (got && got[key]) || null;
+}
+const sessionSet = (key, value) => (session() ? (value ? session().set({ [key]: value }) : session().remove(key)) : null);
+/** What the recovery guide ticks: 'password', 'card' or both. */
+const typedHappened = (f) => [f.pw && 'password', f.card && 'card'].filter(Boolean).join(',');
+
+async function typedFlagged(tabId, url) {
+  const tab = await Promise.resolve(ext.tabs.get(tabId)).catch(() => null);
+  if (!session() || !tab || tab.incognito) return;
+  const host = hostOf(url);
+  const was = await sessionGet(typedKey(tabId));
+  if (!was || was.host !== host) await sessionSet(typedKey(tabId), { host, pw: false, card: false });
+  Promise.resolve(ext.tabs.sendMessage(tabId, { type: 'sentinel:typed-watch' }, { frameId: 0 })).catch(() => {});
+}
+
+/** The flagged page's tab went somewhere: another site means the page was left. */
+async function typedNavigated(tabId, url) {
+  const was = await sessionGet(typedKey(tabId));
+  if (was && hostOf(url) !== was.host) await typedLeft(tabId, was);
+}
+
+async function typedLeft(tabId, was) {
+  await sessionSet(typedKey(tabId), null);
+  if (!was.pw && !was.card) return;
+  const asked = (await sessionGet('typedAsked')) || [];
+  if (asked.includes(was.host)) return;
+  await sessionSet('typedAsked', [...asked, was.host].slice(-200));
+  await sessionSet('typedAsk', { happened: typedHappened(was), site: was.host, at: Date.now() });
+}
+
+/** The question, on this tab's page if it is an ordinary page that is not itself a flagged one. */
+async function typedDeliver(tabId) {
+  const ask = await sessionGet('typedAsk');
+  if (!ask) return;
+  if (Date.now() - ask.at > TYPED_WAIT) { await sessionSet('typedAsk', null); return; }
+  if (await sessionGet(typedKey(tabId))) return;
+  const tab = await Promise.resolve(ext.tabs.get(tabId)).catch(() => null);
+  if (!tab || tab.incognito || !/^https?:/i.test(tab.url || '')) return;
+  const res = await Promise.resolve(ext.tabs.sendMessage(tabId, { type: 'sentinel:typed-ask', happened: ask.happened, site: ask.site }, { frameId: 0 })).catch(() => null);
+  if (!res || !res.shown) return;
+  await sessionSet('typedAsk', null);
+  await sessionSet(`typedShown:${tabId}`, ask.happened);
 }
 
 /* --------------------------------------------------------- password alarm */
@@ -469,6 +528,30 @@ const handlers = {
     return data;
   },
   ...pwHandlers,
+  /** content/typed.js found a password or card box on the flagged page in this tab. */
+  async 'typed-fields'({ pw, card }, sender) {
+    fromPage(sender);
+    if (sender.frameId !== 0) return { kept: false };
+    const was = await sessionGet(typedKey(sender.tab.id));
+    if (!was || was.host !== hostOf(sender.url)) return { kept: false };
+    await sessionSet(typedKey(sender.tab.id), { ...was, pw: was.pw || pw === true, card: was.card || card === true });
+    return { kept: true };
+  },
+  /** "Yes, I did": the recovery guide, with what the page asked for ticked (decided here, not by the page). */
+  async 'typed-yes'(msg, sender) {
+    fromPage(sender);
+    const happened = await sessionGet(`typedShown:${sender.tab.id}`);
+    if (!happened) return { opened: false };
+    await sessionSet(`typedShown:${sender.tab.id}`, null);
+    const { apiBase } = await getSettings();
+    await ext.tabs.create({ url: siteUrl(apiBase, `/recover?happened=${happened}`) });
+    return { opened: true };
+  },
+  async 'typed-no'(msg, sender) {
+    fromPage(sender);
+    await sessionSet(`typedShown:${sender.tab.id}`, null);
+    return { ok: true };
+  },
   async 'sign-out'() {
     try { await apiFetch('/api/v1/auth/logout', { method: 'POST', body: {} }); } catch { /* already signed out */ }
     await setToken(null);
@@ -592,5 +675,20 @@ ext.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 ext.webNavigation.onCommitted.addListener(onNavigate);
+// "Did you type anything?": a flagged tab closed counts as leaving it; the question waits for the next page shown.
+ext.tabs.onRemoved.addListener(async (tabId, info) => {
+  const was = await sessionGet(typedKey(tabId));
+  if (!was) return;
+  await typedLeft(tabId, was);
+  const [front] = await Promise.resolve(ext.tabs.query({ active: true, windowId: info.windowId })).catch(() => []);
+  if (front) typedDeliver(front.id);
+});
+ext.tabs.onActivated.addListener((info) => { typedDeliver(info.tabId); });
+ext.webNavigation.onCompleted.addListener(async (details) => {
+  if (details.frameId !== 0) return;
+  // A flagged page that loaded before its content script could hear the first word is told again.
+  if (await sessionGet(typedKey(details.tabId))) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:typed-watch' }, { frameId: 0 })).catch(() => {});
+  else typedDeliver(details.tabId);
+});
 
 restore();

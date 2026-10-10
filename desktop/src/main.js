@@ -31,6 +31,7 @@ const updater = require('./updater');
 const models = require('./models');
 const clipwatch = require('./clipwatch');
 const remoteguard = require('./remoteguard');
+const typedcheck = require('./typedcheck');
 const defense = require('./defense');
 const checkup = require('./checkup');
 const snip = require('./snip');
@@ -551,8 +552,30 @@ function toolStillRunning(tool) {
       (err, out) => resolve(!err && remoteguard.toolsRunning(remoteguard.namesFromTasklist(out)).has(tool.id)));
   });
 }
+/**
+ * "Did you type anything?": a flagged page with a password or card box was closed or left (watch.js onTyped). Asked
+ * once per site, in the shield's window, never over a game or over a question the shield is asking. The log says
+ * that it was asked, never where.
+ */
+const typed = typedcheck.create();
+function askTyped(t) {
+  const happened = typed.ask(t.host, t);
+  if (!happened) return;
+  appLog(`typed check: a flagged page with a ${happened.replace(',', ' and ')} box was ${t.how === 'closed' ? 'closed' : 'left'}; asking once`);
+  showTyped({ happened, ...(t.private ? {} : { site: t.host }) }, Date.now());
+}
+async function showTyped(data, since) {
+  // A way out of the page (escape) is moot once the page is gone; a question about a remote-control program is not.
+  const busy = guardWin && !guardWin.isDestroyed() && (guardMode === 'remote' || guardMode === 'bank');
+  if (busy || (!watch.status().window && await fullscreenInFront())) {
+    if (Date.now() - since < 30 * 60 * 1000) setTimeout(() => showTyped(data, since), 20000);
+    return;
+  }
+  showGuard('typed', data);
+}
+
 // What a warning may tick in the recovery guide (web/assets/js/recover.js reads ?happened=).
-const RECOVER_HAPPENED = new Set(['remote', 'password']);
+const RECOVER_HAPPENED = new Set(['remote', 'password', 'card', 'password,card']);
 /** The recovery guide inside the app when the app is signed in; otherwise the website's, which needs no account. */
 function recoverRoute(happened, fallback) {
   let inApp = false;
@@ -609,6 +632,12 @@ async function guardAction(action, arg) {
     // The recovery guide in the app, with what happened already ticked.
     closeGuard();
     showWindow(recoverRoute(arg, 'remote'));
+    return { ok: true };
+  }
+  if (action === 'typed-yes') {
+    // "Did you type anything?" answered yes: the recovery guide, with the password or the card ticked.
+    closeGuard();
+    showWindow(recoverRoute(arg, 'password'));
     return { ok: true };
   }
   if (action === 'dismiss') closeGuard();
@@ -1565,6 +1594,7 @@ async function boot() {
     },
     // Before you pay: a shop's checkout whose address is young or unknown (server/lib/scan/paycheck.js).
     onPay: (pay) => overlay.setPay(pay ? pay.text : null),
+    onTyped: (t) => askTyped(t),
     onMarks: (m) => overlay.setMarks(m),
     onShift: (s) => overlay.shift(s),
     onWheel: (w) => overlay.wheel(w),
