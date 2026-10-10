@@ -646,6 +646,10 @@ $ok = Until 60 { [K]::Tap(0x11); (BoxLines) -gt $boxes }
 Say "live scanning's verdict: $(Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String 'paypal-account-verify-login\.test:47910/signin' | Select-Object -Last 1)"
 Check 'typed-box-seen' $ok 'watch.log: the flagged page has a password box'
 if (-not $ok) { Get-Content "$data\logs\watch.log" -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag watch.log: $_" } }
+# The warning on this PayPal look-alike leads to the real paypal.com (brands.js), not to anything made from the page.
+$pb = ''
+[void](Until 20 { $script:pb = [string](Cdp 'warn.html' "document.getElementById('real').textContent").value; $script:pb -ne '' })
+Check 'real-site-brand' ($pb -eq 'Go to the real paypal.com') "the warning on a PayPal look-alike offers: '$pb'"
 [void](Cdp 'warn.html' 'window.close(), 1')
 CloseEdge
 $asked = Until 30 { (AskLines) -gt $asks }
@@ -690,6 +694,18 @@ $w = ''
 $ok = $ok -and (Until 30 { $script:w = [string](Cdp 'warn.html' "document.body.innerText").value; $script:w -match 'This is not harbourcu\.test\. You usually go to harbourcu\.test' })
 Shot 'my-sites-warning'
 Check 'my-sites-lookalike' $ok "the warning: $($w.Substring(0, [Math]::Min(300, $w.Length)) -replace '\s+', ' ')"
+# Warnings that lead to the real site: the warning offers the person's own site, and pressing it opens exactly that
+# address, kept by the app when the warning was made. The browser's opening is stood in for in the main process, so
+# nothing else comes to the front; the log says that it was opened, never which.
+$rb = [string](Cdp 'warn.html' "(document.getElementById('realRow').hidden ? 'hidden' : 'shown') + '|' + document.getElementById('real').textContent").value
+Check 'real-site-offered' ($rb -eq 'shown|Go to the real harbourcu.test') "the warning's button: $rb"
+$stub = (Cdp 'main' "(() => { const s = process.mainModule.require('electron').shell; global.e2eOpened = []; global.e2eOpen = s.openExternal; s.openExternal = (u) => { global.e2eOpened.push(String(u)); return Promise.resolve(); }; return s.openExternal !== global.e2eOpen; })()").value
+[void](Cdp 'warn.html' "document.getElementById('real').click(), 1")
+$opened = ''
+[void](Until 15 { $script:opened = [string](Cdp 'main' 'JSON.stringify(global.e2eOpened)').value; $script:opened -ne '[]' })
+[void](Cdp 'main' "(() => { if (global.e2eOpen) process.mainModule.require('electron').shell.openExternal = global.e2eOpen; return 1; })()")
+Check 'real-site-opens' ($stub -and $opened -eq '["https://harbourcu.test/"]' -and (AppLog) -match 'warning: opened the real site' -and (AppLog) -notmatch 'opened the real site[^\r\n]*harbourcu') "stood in: $stub; opened: $opened"
+Check 'real-site-closes' (Until 10 { [string](Cdp 'warn.html' '1').error -match 'no window' }) 'the warning closed after the button'
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 # 5e. Before you pay: a shop's checkout. A young shop (registered 3 weeks ago) gets a calm card beside the page, found

@@ -619,6 +619,9 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .live__button { flex: none; min-width: 150px; }
 /* The auto scanning switch sits under the main row; .setting:first-child would otherwise drop its divider. */
 .live__auto.setting { margin-top: 18px; padding: 16px 0 0; border-top: 1px solid var(--line); }
+/* The real site, for a result that imitates one (ui.js realSite). */
+.real-site { margin: 0; padding: 0 30px 22px; }
+@media (max-width: 560px) { .real-site { padding: 0 20px 18px; } }
 /* What to do now: the first thing someone looks for on a dangerous result. */
 .next-steps { margin: 0; padding: 18px 26px 20px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--c, var(--red)) 7%, transparent); }
 .next-steps--red { --c: var(--red); } .next-steps--orange { --c: var(--orange); } .next-steps--yellow { --c: var(--yellow); } .next-steps--clear { --c: var(--green); }

@@ -215,6 +215,11 @@ async function onNavigate(details) {
   // The recovery guide; the block page adds what happened.
   const recover = siteUrl(settings.apiBase, '/recover');
   Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:warn', verdict, recover })).catch(() => {});
+  // A confirmed host is blocked at once from the cached list, which cannot say which brand the page imitates. The
+  // scanner can: when it names the real site, the block page is drawn again with "Go to the real ...".
+  if (verdict.offline) realSiteFor(details).then((full) => {
+    if (full && full.realSite) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:warn', verdict: { ...verdict, realSite: full.realSite }, recover, again: true })).catch(() => {});
+  });
   if (verdict.overall.badge === 'red' && settings.notifications) {
     Promise.resolve(ext.notifications.create(`sentinel-${Date.now()}`, {
       type: 'basic',
@@ -241,6 +246,20 @@ async function payPause(tabId, url, kind) {
   if (await sessionGet(key)) return;
   await sessionSet(key, 1);
   Promise.resolve(ext.tabs.sendMessage(tabId, { type: 'sentinel:paypause', kind: kind === 'crypto' ? 'crypto' : 'gift' }, { frameId: 0 })).catch(() => {});
+}
+
+/** The scanner's own verdict for a page the cached list already blocked, kept for the real-site button. Null on any failure. */
+async function realSiteFor(details) {
+  const known = cacheGet('research', details.url) || cacheGet('quick', details.url);
+  if (known) return known;
+  try {
+    const tab = await ext.tabs.get(details.tabId).catch(() => null);
+    const isPrivate = Boolean(tab && tab.incognito);
+    const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: isPrivate ? details.url.replace(/[?#].*$/, '') : details.url, private: isPrivate }, timeout: 30000 });
+    noteLive(data.live);
+    cacheSet(features().liveResearch ? 'research' : 'quick', details.url, data.verdict);
+    return data.verdict;
+  } catch { return null; }
 }
 
 /* ------------------------------------------------- did you type anything? */
@@ -565,6 +584,20 @@ const handlers = {
     await sessionSet(`typedShown:${sender.tab.id}`, null);
     const { apiBase } = await getSettings();
     await ext.tabs.create({ url: siteUrl(apiBase, `/recover?happened=${happened}`) });
+    return { opened: true };
+  },
+  /**
+   * "Go to the real paypal.com" on the block page: the tab goes to the real site the scanner named for this page
+   * (brands.js, or one of the person's own sites), looked up here again. Nothing the page sends is used.
+   */
+  async 'real-site'(msg, sender) {
+    fromPage(sender);
+    // The scanner's verdict, not the cached list's (which names no brand). The worker may have been asleep since the
+    // warning was drawn, its cache gone: then it is asked again.
+    const verdict = await realSiteFor({ url: sender.tab.url || sender.url, tabId: sender.tab.id });
+    const real = verdict && verdict.realSite && verdict.realSite.url;
+    if (typeof real !== 'string' || !/^https:\/\/[a-z0-9.-]+\/$/.test(real)) return { opened: false };
+    await ext.tabs.update(sender.tab.id, { url: real });
     return { opened: true };
   },
   async 'typed-no'(msg, sender) {

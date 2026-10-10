@@ -23,6 +23,9 @@
   button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }
   small { display: block; margin-top: 12px; color: #8d8a82; font-size: 12px; }
   .body .recover { margin: 10px 0 0; font-size: 13px; color: #b9b5ab; }
+  .real { margin: 16px 0 0; }
+  .real[hidden] { display: none; }
+  .real button { width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   button.link { height: auto; padding: 0; background: none; border-radius: 4px; color: #e2c47f; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
 </style>
 </head>
@@ -40,6 +43,7 @@
     <small id="browser"></small>
     <p class="recover">Already typed a password or paid on it? <button class="link" id="recover">Open the recovery guide</button></p>
   </div>
+  <p class="real" id="realRow" hidden><button class="primary" id="real"></button></p>
   <div class="row">
     <button id="details">Open in Sentinel</button>
     <button class="primary" id="close">Got it</button>
@@ -59,6 +63,14 @@
       const li = document.createElement('li');
       li.textContent = r;
       ul.appendChild(li);
+    }
+    // The real site (the brand's official address, or one of the person's own sites), never this page's address.
+    const real = q.get('real');
+    if (real) {
+      document.getElementById('real').textContent = `Go to the real ${real}`;
+      document.getElementById('realRow').hidden = false;
+      document.getElementById('close').classList.remove('primary');
+      document.getElementById('real').onclick = () => window.sentinelDesktop.warnAction('real');
     }
     const b = q.get('browser');
     document.getElementById('browser').textContent = b ? `Seen in ${b}. Sentinel watched the address of the page in front; it did not read the page.` : '';

@@ -13,6 +13,7 @@
     malware: ['This site may try to infect your device', 'This site spreads malware']
   };
   let mounted = false;
+  let dismissed = false;
 
   function worst(v) {
     const rank = { yellow: 1, orange: 2, red: 3 };
@@ -21,8 +22,10 @@
       .sort((a, b) => rank[v.threats[b].badge] - rank[v.threats[a].badge])[0] || 'scam';
   }
 
-  function mount(v, recover) {
-    if (mounted) return;
+  // `again`: the same warning, now knowing the real site (background.js realSiteFor). Drawn over the first one, unless
+  // the person already chose to continue. Never on a page that had no warning: the tab may have moved on meanwhile.
+  function mount(v, recover, again) {
+    if (again ? !mounted || dismissed || v.host !== location.hostname : mounted) return;
     mounted = true;
     const threat = worst(v);
     const th = v.threats[threat];
@@ -37,13 +40,17 @@
       chip: v.host,
       steps: (v.reasons || []).slice(0, 4).map((r) => r.text),
       buttons: [
-        { text: 'Take me back to safety', kind: 'go', on: globalThis.SentinelAlarm.leave },
+        // The real site, when the scanner knows for certain which one this page imitates. The worker opens it.
+        ...(v.realSite && v.realSite.host ? [{ text: `Go to the real ${v.realSite.host}`, kind: 'go', on: () => {
+          Promise.resolve(ext.runtime.sendMessage({ type: 'real-site' })).catch(() => {});
+        } }] : []),
+        { text: 'Take me back to safety', kind: v.realSite && v.realSite.host ? '' : 'go', on: globalThis.SentinelAlarm.leave },
         { text: 'Report', on: (ev) => {
           ev.target.textContent = 'Reporting...';
           Promise.resolve(ext.runtime.sendMessage({ type: 'report', url: v.url, category: threat === 'scam' ? 'phishing' : 'malware' }))
             .then((res) => { ev.target.textContent = res && res.ok ? 'Reported. Thank you.' : 'Could not report'; }, () => { ev.target.textContent = 'Could not report'; });
         } },
-        { text: 'Continue anyway', kind: 'quiet', on: (ev, ctl) => ctl.close() }
+        { text: 'Continue anyway', kind: 'quiet', on: (ev, ctl) => { dismissed = true; ctl.close(); } }
       ],
       link: recover ? { href: threat === 'scam' ? recover : `${recover}?happened=file`, text: 'Already paid or let someone in? Open the recovery guide' } : null,
       foot: 'Never enter passwords, card numbers or wallet phrases here.'
@@ -93,7 +100,7 @@
       return;
     }
     if (sender.id !== ext.runtime.id || !msg || msg.type !== 'sentinel:warn' || !msg.verdict) return;
-    const show = () => mount(msg.verdict, typeof msg.recover === 'string' ? msg.recover : '');
+    const show = () => mount(msg.verdict, typeof msg.recover === 'string' ? msg.recover : '', msg.again === true);
     if (document.documentElement) show();
     else document.addEventListener('DOMContentLoaded', show, { once: true });
   });

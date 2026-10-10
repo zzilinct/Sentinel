@@ -347,6 +347,14 @@ window.UI = (() => {
     return `<div class="next-steps next-steps--${head.tone}"><h3>${title}</h3><ol>${steps.filter(Boolean).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${more}</div>`;
   }
 
+  // A page flagged as an imitation of a brand or of one of the person's own sites: one way to the real one, the
+  // address the scanner named (brands.js, mysites.js), never one made from the scanned link.
+  function realSite(v) {
+    const r = v.realSite;
+    if (!r || typeof r.url !== 'string' || !/^https:[/][/][a-z0-9.-]+[/]$/.test(r.url)) return '';
+    return `<p class="real-site"><a class="btn btn--gold btn--sm" data-real-site href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Go to the real ${esc(r.host)}</a></p>`;
+  }
+
   function verdict(v, { lockedLabel } = {}) {
     const head = headline(v);
     const subject = v.kind === 'file' ? v.file.name : v.kind === 'email' ? (v.sender.address || 'Email') : v.host;
@@ -388,6 +396,7 @@ window.UI = (() => {
           <p class="result__sub">${esc(head.sub)}</p>
         </div>
       </header>
+      ${realSite(v)}
       ${threatTiles(v, { lockedLabel })}
       ${nextSteps(head)}
       ${v.reasons && v.reasons.length ? `<div class="reasons"><h3>Why</h3><ul>${v.reasons.map((r) => `<li><span class="dot" style="--c:${color(v.threats[r.threat] && v.threats[r.threat].badge)}"></span>${esc(r.text)}</li>`).join('')}</ul></div>` : ''}
