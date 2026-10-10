@@ -620,7 +620,10 @@ async function heroCentred(send) {
   const off = async () => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
     const w = document.querySelector('[data-hero-word]').getBoundingClientRect();
     const s = document.querySelector('.hero__stage').getBoundingClientRect();
-    return { off: Math.round((w.left + w.right) / 2 - (s.left + s.right) / 2), word: [Math.round(w.left), Math.round(w.right)], stage: [Math.round(s.left), Math.round(s.right)] };
+    const el = document.querySelector('[data-hero-word]'); const cs = getComputedStyle(el);
+    return { off: Math.round((w.left + w.right) / 2 - (s.left + s.right) / 2), word: [Math.round(w.left), Math.round(w.right)], stage: [Math.round(s.left), Math.round(s.right)],
+      inline: [el.style.translate, el.style.transform], computed: [cs.translate, cs.transform], gsap: typeof gsap, x: typeof gsap === 'object' ? gsap.getProperty(el, 'x') : null,
+      y: typeof gsap === 'object' ? gsap.getProperty(el, 'y') : null, fine: matchMedia('(hover: hover) and (pointer: fine)').matches, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches };
   })()` }, sessionId)).result.value;
   // GSAP first takes hold of the name when it moves it: with the pointer, and with the scroll. Both, as a person would,
   // then the pointer rests at the middle (no drift) and the page back at the top.
@@ -638,6 +641,7 @@ async function heroCentred(send) {
     await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: width / 2, y: height / 2 }, sessionId);
     await sleep(2000);
     const r = await off();
+    console.log(`hero state at ${width}x${height}: ${JSON.stringify(r)}`);
     check(Math.abs(r.off) <= 4, `at ${width}x${height} the name is centred over the hero (off by ${r.off} px)`, r);
     const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
     fs.writeFileSync(path.join(OUT, `hero-${width}.png`), Buffer.from(shot.data, 'base64'));
