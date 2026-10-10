@@ -44,7 +44,8 @@ function Shot($name) {
 # Ask one of Sentinel's windows (by part of its address) to evaluate an expression. Single quotes only inside it.
 function Cdp($part, $expr) { $j = node (Join-Path $PSScriptRoot 'e2e-cdp.js') $(if ($part -eq 'main') { 9334 } else { 9333 }) $part $expr; Say "  cdp $part -> $(([string]$j).Substring(0, [Math]::Min(400, ([string]$j).Length)))"; return ($j | ConvertFrom-Json) }
 # Press a button in the shield's window by its words.
-function Press($label) { return (Cdp 'guard.html' "(() => { const b = [...document.querySelectorAll('#row button')].find((x) => x.textContent === '$label'); if (b) b.click(); return Boolean(b); })()").value }
+# The click waits for the answer to be sent: a button that closes the window (Yes, I did) would take the reply with it.
+function Press($label) { return (Cdp 'guard.html' "(() => { const b = [...document.querySelectorAll('#row button')].find((x) => x.textContent === '$label'); if (b) setTimeout(() => b.click(), 50); return Boolean(b); })()").value }
 # Motion, photographed mid-animation. The runner's Windows asks for reduced motion, so the window is asked for full
 # motion while connected (E2E_MOTION_HOLD_MS, scripts/e2e-cdp.js). $setup starts what is to be seen (single quotes
 # only); then every animation in the window is paused $ms in, and the screen is photographed while it holds there.
