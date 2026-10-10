@@ -20,7 +20,10 @@
 .hero__stage { position: absolute; inset: 0; pointer-events: none; }
 /* The wordmark in cast gold; each letter carries the metal, because a clipped gradient does not reach into the
    letters once they are split for the entrance. */
-.hero__word { position: absolute; left: 50%; top: 33%; translate: -50% -50%; font: 400 clamp(130px, 21vw, 360px)/.8 var(--wordmark); letter-spacing: .005em; white-space: nowrap; user-select: none;
+/* Centred by layout, never by `translate`: GSAP (motion.js drifts it with the scroll and the pointer) folds a CSS
+   translate into its own transform as pixels, measured once, so the name slid right when the font or the window
+   later made it wider. Flex centring spills an over-wide name evenly both ways, as the translate did. */
+.hero__word { position: absolute; left: 0; right: 0; top: 33%; margin-top: -.4em; display: flex; justify-content: center; align-items: flex-start; font: 400 clamp(130px, 21vw, 360px)/.8 var(--wordmark); letter-spacing: .005em; white-space: nowrap; user-select: none;
   background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 30px 60px rgb(0 0 0 / .45)); }
 /* Room above and below each letter (taken back by the margin): the gold is painted only inside the box, and the S rises
    past a line height of .8. */

@@ -180,8 +180,11 @@ function analyzeEmail(mail, how = {}) {
     if (!proof) return skip(mail.headers ? 'The pasted headers hold no sender checks' : 'No headers pasted');
     if (proof.status === 'really') return pass(proof.text);
     if (proof.status === 'unknown') return skip(proof.text);
-    // A brand's own domain, or one whose checks failed: someone else wrote its name on the message.
-    return senderBrand.official || proof.checksFailed ? fail(44, proof.text) : warn(12, proof.text);
+    // Checks the domain set up that failed: someone else wrote its name on the message. Passed only for another
+    // domain, with no DMARC answer, is how a mailing service sends for a company that never set DMARC up: noted, and
+    // more firmly for a brand's own domain, but not called a forgery.
+    if (proof.checksFailed) return fail(44, proof.text);
+    return warn(senderBrand.official ? 24 : 12, proof.text);
   })(), () => inFrom(from.domain));
 
   add('E01', 'scam', 'Sender name matches the sending domain', (() => {

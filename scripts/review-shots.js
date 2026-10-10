@@ -482,6 +482,7 @@ async function main() {
     await featureShots(send);
     await textScan(send);
     await emailMarks(send);
+    await heroCentred(send);
     await weekCheck(send);
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
@@ -675,6 +676,54 @@ const EXPECTED_MARKS = [
  * The email scan (app.js showMarks) shows the email itself inside the result, each warning sign marked where it is
  * and labelled, and a tap on a mark says why. Asserted at a computer's size and a phone's, and photographed.
  */
+// The hero's name stays centred over the hero after the window changes size. GSAP (motion.js) drifts it, and once
+// froze a CSS translate into pixels from the first width: on a wider screen it slid right and was cut off.
+async function heroCentred(send) {
+  const check = (ok, what, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  hero: ${what}${ok ? '' : `  got ${JSON.stringify(got)}`}`); if (!ok) throw new Error(`hero: ${what}`); };
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  await send('Page.enable', {}, sessionId);
+  await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }, { name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
+  // A mouse, as on a desktop: motion.js only drifts the name with a fine pointer.
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: "(() => { const mm = window.matchMedia.bind(window); window.matchMedia = (q) => /hover: hover|pointer: fine/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : mm(q); })()" }, sessionId);
+  await send('Page.navigate', { url: BASE + '/' }, sessionId);
+  await sleep(6000);
+  const off = async () => (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    const w = document.querySelector('[data-hero-word]').getBoundingClientRect();
+    const s = document.querySelector('.hero__stage').getBoundingClientRect();
+    const el = document.querySelector('[data-hero-word]'); const cs = getComputedStyle(el);
+    // Its middle sits on its own top line (33% down the hero), as it was drawn: the old translate's -50% upward was
+    // dropped by GSAP's parallax (yPercent 0), which put it half its height too low.
+    return { off: Math.round((w.left + w.right) / 2 - (s.left + s.right) / 2), offY: Math.round((w.top + w.bottom) / 2 - (s.top + parseFloat(cs.top))), word: [Math.round(w.left), Math.round(w.right)], stage: [Math.round(s.left), Math.round(s.right)],
+      inline: [el.style.translate, el.style.transform], computed: [cs.translate, cs.transform], gsap: typeof gsap, x: typeof gsap === 'object' ? gsap.getProperty(el, 'x') : null,
+      y: typeof gsap === 'object' ? gsap.getProperty(el, 'y') : null, fine: matchMedia('(hover: hover) and (pointer: fine)').matches, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches };
+  })()` }, sessionId)).result.value;
+  // GSAP first takes hold of the name when it moves it: with the pointer, and with the scroll. Both, as a person would,
+  // then the pointer rests at the middle (no drift) and the page back at the top.
+  for (const [x, y] of [[300, 400], [1100, 300], [683, 450]]) {
+    for (let i = 0; i < 8; i++) { await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x - 40 + i * 10, y }, sessionId); await sleep(16); }
+  }
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 683, y: 450 }, sessionId);
+  await send('Runtime.evaluate', { expression: 'scrollTo(0, 300)' }, sessionId);
+  await sleep(800);
+  await send('Runtime.evaluate', { expression: 'scrollTo(0, 0)' }, sessionId);
+  await sleep(1600);
+  for (const [width, height] of [[1366, 900], [1920, 1080], [1100, 800]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+    // The pointer at the middle of the new width, so the name's drift with it is nothing.
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: width / 2, y: height / 2 }, sessionId);
+    await sleep(2000);
+    const r = await off();
+    console.log(`hero state at ${width}x${height}: ${JSON.stringify(r)}`);
+    check(Math.abs(r.off) <= 4, `at ${width}x${height} the name is centred across the hero (off by ${r.off} px)`, r);
+    check(Math.abs(r.offY) <= 4, `at ${width}x${height} the name sits on its line, not pushed down (off by ${r.offY} px)`, r);
+    const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+    fs.writeFileSync(path.join(OUT, `hero-${width}.png`), Buffer.from(shot.data, 'base64'));
+  }
+  await send('Target.closeTarget', { targetId });
+}
+
 async function emailMarks(send) {
   const check = (ok, what, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  email marks: ${what}${ok ? '' : `  got ${JSON.stringify(got)}`}`); if (!ok) throw new Error(`email marks: ${what}`); };
   for (const [size, width, height, mobile, scheme] of [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light']]) {

@@ -122,6 +122,13 @@ test('a small shop sending through a mail service is only noted', () => {
   assert.equal(check({ from: 'Tiny Shop <hello@tinyshop.example>', subject: 'New in', body: 'Hi', headers: SHOP_VIA_SERVICE }).status, 'warn');
 });
 
+test('a brand sending through a mail service with no DMARC answer is warned about, not called a forgery', () => {
+  const viaService = 'Authentication-Results: mx.google.com; dkim=pass header.i=@mcsv.example; spf=pass smtp.mailfrom=bounce@mail.mcsv.example';
+  const c = check({ ...PAYPAL_MAIL, headers: viaService });
+  assert.equal(c.status, 'warn');
+  assert.equal(c.detail, 'Not sent by paypal.com: it came from mcsv.example');
+});
+
 test('without headers the check is skipped and says why', () => {
   const c = check(PAYPAL_MAIL);
   assert.equal(c.status, 'skip');
