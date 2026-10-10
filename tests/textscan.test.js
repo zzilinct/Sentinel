@@ -80,6 +80,21 @@ test('text scan: family on a new number, an ordinary text, and a link on a threa
   assert.equal(listed.data.usage.linkScans.used, 3);
 });
 
+test('text scan: a whole conversation is read for the steps of a slow scam, past the length of one text', async () => {
+  const c = await newUser();
+  const chat = ['Hi, is this Linda?', 'No, wrong number', `${'We talked about the weather a lot. '.repeat(70)}`, 'I rarely use this app, add me on WhatsApp',
+    'My uncle taught me crypto trading, I made $4,000 profit last week on a trading platform'].join('\n');
+  assert.ok(chat.length > 2000);
+  const r = await c.post('/api/v1/scan/text', { from: '', text: chat });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.text.flag.level, 'danger');
+  assert.equal(r.data.text.flag.title, 'This conversation follows a slow scam');
+  assert.equal(r.data.text.conversation.at, 'invest');
+  assert.deepEqual(r.data.text.conversation.stages.filter((s) => s.seen).map((s) => s.id), ['opener', 'move', 'invest']);
+  assert.equal(r.data.usage.linkScans.used, 1);
+  assert.equal((await c.post('/api/v1/scan/text', { text: 'can you pick me up at 5' })).data.text.conversation, null);
+});
+
 test('text scan: an empty text costs nothing, and nothing about a text is kept', async () => {
   const c = await newUser();
   const empty = await c.post('/api/v1/scan/text', { from: '12345', text: '   ' });
