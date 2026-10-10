@@ -623,6 +623,43 @@ Check 'escape-neutral' ($ok -and $g -match 'mode=escape' -and $g -notmatch 'supp
 [K]::Tap(0x7A)
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
+# 5c2. "Did you type anything?": 5c's look-alike again, now a sign-in page with a password box (scripts/e2e-chat/signin.html,
+# a harmless stand-in), then Edge closed. One calm question asks whether a password was typed there; Yes opens the
+# recovery guide with the password ticked. Asked once per site, and the logs never say which.
+function BoxLines { return ([regex]::Matches((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '', 'typed check: the flagged page has a password box')).Count }
+function AskLines { return ([regex]::Matches((AppLog), 'typed check: a flagged page with a password box was closed; asking once')).Count }
+function CloseEdge { Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object { [void]$_.CloseMainWindow() } }
+$boxes = BoxLines; $asks = AskLines
+Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', 'http://paypal-account-verify-login.test:47910/signin.html')"
+$ok = Until 60 { [K]::Tap(0x11); (BoxLines) -gt $boxes }
+Say "live scanning's verdict: $(Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String 'paypal-account-verify-login\.test:47910/signin' | Select-Object -Last 1)"
+Check 'typed-box-seen' $ok 'watch.log: the flagged page has a password box'
+if (-not $ok) { Get-Content "$data\logs\watch.log" -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag watch.log: $_" } }
+[void](Cdp 'warn.html' 'window.close(), 1')
+CloseEdge
+$asked = Until 30 { (AskLines) -gt $asks }
+$q = ''
+$shown = $asked -and (Until 20 { $script:q = [string](Cdp 'guard.html' "location.search + '|' + document.getElementById('title').textContent + '|' + document.body.innerText").value; $script:q -match 'mode=typed' })
+Shot 'typed-question'
+Check 'typed-asked' ($asked -and $shown -and $q -match 'happened=password' -and $q -match '\|Did you type a password on that page\?\|') "Edge closed on the flagged sign-in page: $(([string]$q).Substring(0, [Math]::Min(300, ([string]$q).Length)) -replace '\s+', ' ')"
+Check 'typed-calm-words' ($q -match 'Sentinel never sees what you type' -and $q -notmatch [char]0x2014) 'it says nothing typed is seen, in plain words'
+$pressed = $shown -and (Press 'Yes, I did')
+$guide = ''
+$opened = $pressed -and (Until 30 { $script:guide = [string](Cdp '127.0.0.1:4782' "location.pathname + location.search + '|' + Boolean((document.querySelector('[data-recover-picks] input[value=password]') || {}).checked)").value; $script:guide -match 'recover\?happened=password\|true$' })
+Shot 'typed-recover'
+Check 'typed-yes-recover' $opened "Yes opened the recovery guide with the password ticked: $guide"
+Check 'typed-question-gone' (Until 10 { [string](Cdp 'guard.html' '1').error -match 'no window' }) 'the question closed after Yes'
+# The same site again, closed again: not asked twice.
+$boxes = BoxLines; $asks = AskLines
+Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', 'http://paypal-account-verify-login.test:47910/signin.html')"
+$seenAgain = Until 60 { [K]::Tap(0x11); (BoxLines) -gt $boxes }
+[void](Cdp 'warn.html' 'window.close(), 1')
+CloseEdge
+Start-Sleep 20
+Check 'typed-once' ($seenAgain -and (AskLines) -eq $asks -and [string](Cdp 'guard.html' '1').error -match 'no window') "the box seen again: $seenAgain; asked again: $((AskLines) -ne $asks)"
+Check 'typed-log-private' (-not ((AppLog) + (Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) -match 'typed check:[^\r\n]*(\.test|https?:)')) 'the logs say a box was seen and a question asked, never where'
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
 # 5d. Your sites: a small credit union's site added (the call Live protection's form makes), then in Edge the real site
 # and an address made to look like it, both mapped to a harmless local page. The real one is left alone, the copy is
 # called what it is.

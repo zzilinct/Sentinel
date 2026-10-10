@@ -76,12 +76,12 @@ function worker(store = {}, session = {}) {
       sync: { get: async (d) => ({ ...d }), set: async () => {} },
       onChanged: listener
     },
-    tabs: { sendMessage: async (tabId, msg, opts) => { sent.push({ tabId, msg, opts }); }, get: async () => null, create: noop },
+    tabs: { sendMessage: async (tabId, msg, opts) => { sent.push({ tabId, msg, opts }); }, get: async () => null, create: noop, query: async () => [], onRemoved: listener, onActivated: listener },
     action: { setBadgeText: noop, setBadgeBackgroundColor: noop, setTitle: noop },
     alarms: { create: noop, onAlarm: listener },
     contextMenus: { create: noop, onClicked: listener },
     notifications: { create: noop },
-    webNavigation: { onCommitted: listener },
+    webNavigation: { onCommitted: listener, onCompleted: listener },
     permissions: { contains: async () => true }
   };
   const ctx = { chrome: ext, crypto: globalThis.crypto, TextEncoder, URL, btoa, atob, Uint8Array, AbortController, setTimeout, clearTimeout, console, Promise,

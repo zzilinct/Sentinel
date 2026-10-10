@@ -346,6 +346,14 @@ $forceRead = $true; $readAt = 0; $lastCount = 0
 # The overlay's window (sent by the app once it exists) and the browser it belongs over.
 $overlayH = [IntPtr]::Zero; $browserH = [IntPtr]::Zero; $browserPid = 0
 $lastFocus = ''; $recheckAt = 0; $lastMoveAt = 0
+# "Did you type anything?" (typedcheck.js): the window and site of a page the app flagged, and whether it has a password
+# box or a box labelled for a card number. Only the kind of box and its label are asked for, never what is in it.
+$flagH = [IntPtr]::Zero; $flagHost = ''; $flagPw = $false; $flagCard = $false; $flagAt = 0; $flagLook = 0; $pageUrl = ''
+$editCond = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
+$editCache = New-Object System.Windows.Automation.CacheRequest
+$editCache.Add($A::IsPasswordProperty); $editCache.Add($A::NameProperty); $editCache.Add($A::AutomationIdProperty)
+$cardWords = '(?i)card ?num|cc-?(number|num|csc)|credit ?card|debit ?card|\bcvv|\bcvc|security code|kartennummer|num.ro de (la )?carte|n.mero de (la )?tarjeta'
+function HostOf($u) { if ([string]$u -match '^https?://([^/:?#]+)') { return $Matches[1].ToLower() }; return '' }
 # Hover: the link the pointer rests on (outside results pages and inboxes), where it was, and where the pointer was.
 $hoverEl = $null; $hoverB = $null; $lastCur = ''; $hoverTried = ''
 # Not the console's own reader (Console.In): in Windows PowerShell it is synchronized, and its ReadLineAsync runs synchronously,
@@ -475,9 +483,16 @@ while ($true) {
       $gone = [SW]::Close($browserH)
       Write-Output ('{"closed":' + $(if ($gone) { 'true' } else { 'false' }) + ',"pid":' + [int]$browserPid + '}')
     }
+    # The page in front was flagged: watch it for a password or card box, and say when it is closed or left.
+    if ($cmd -eq 'flag' -and $browserH -ne [IntPtr]::Zero) {
+      $fh = HostOf $pageUrl
+      if ($browserH -ne $flagH -or $fh -ne $flagHost) { $flagPw = $false; $flagCard = $false }
+      $flagH = $browserH; $flagHost = $fh; $flagAt = [Environment]::TickCount; $flagLook = 0
+    }
     continue
   }
   $pause = 300
+  if ($flagH -ne [IntPtr]::Zero -and -not [SW]::IsWindow($flagH)) { $flagH = [IntPtr]::Zero; Write-Output '{"left":"closed"}' }
   # A menu or popup the browser opened is in front of the browser's own window, which is the one that holds the page.
   $h = [SW]::Owner([SW]::GetForegroundWindow())
   # Development builds only (see start()): look at a named browser wherever it is, so the whole chain can be
@@ -543,6 +558,28 @@ while ($true) {
     Off 'no page'; continue
   }
   $noDoc = ''
+  $pageUrl = $url
+  # The flagged page: another site in its window means it was left. Until then, about once a second for two minutes,
+  # whether it has a password box or a box labelled for a card number (a sign-in form often appears after a moment).
+  if ($flagH -ne [IntPtr]::Zero -and $h -eq $flagH) {
+    if ((HostOf $url) -ne $flagHost) { $flagH = [IntPtr]::Zero; Write-Output '{"left":"away"}' }
+    elseif (-not ($flagPw -and $flagCard) -and ($tick - $flagAt) -lt 120000 -and ($tick - $flagLook) -gt 1000) {
+      $flagLook = $tick
+      $edits = $null
+      $escope = $editCache.Activate()
+      try { $edits = $doc.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCond) } catch { $edits = $null } finally { $escope.Dispose() }
+      $pw = $flagPw; $card = $flagCard
+      foreach ($e in @($edits)) {
+        if (-not $e) { continue }
+        if ($e.GetCachedPropertyValue($A::IsPasswordProperty) -eq $true) { $pw = $true }
+        elseif ("$($e.GetCachedPropertyValue($A::NameProperty)) $($e.GetCachedPropertyValue($A::AutomationIdProperty))" -match $cardWords) { $card = $true }
+      }
+      if ($pw -ne $flagPw -or $card -ne $flagCard) {
+        $flagPw = $pw; $flagCard = $card
+        Write-Output ('{"fields":{"pw":' + "$pw".ToLower() + ',"card":' + "$card".ToLower() + '}}')
+      }
+    }
+  }
   $isPrivate = $title -match $private
   # Over this browser, and only just: anything opened on top of it stays on top of the marks.
   $browserH = $h; $browserPid = $fp
@@ -733,6 +770,9 @@ let retryTimer = null;        // a failed results check, tried again (see checkL
 let latestLinks = null;       // the last list of on-screen links, so late verdicts land where the links are now
 let seenResults = { for: null, map: new Map() };   // which result each sitelink on this results page belongs to
 let pending = new Set();
+// The flagged page last asked about: { host, private, pw, card }. When it is closed or left with a password or card
+// box on it, onTyped asks whether anything was typed there (typedcheck.js). In memory only.
+let flagged = null;
 let linkEpoch = 0;          // one per full read of the links; page movement is reported relative to it
 
 let readerReady = false;
@@ -928,6 +968,7 @@ function stop(reason, silent) {
   if (old) { try { old.kill(); } catch { /* gone */ } }
   state.current = null;
   latestLinks = null;
+  flagged = null;
   setWindow(null);
   generation++;
   if (!silent) setState(false, reason || 'Live scanning is off');
@@ -971,6 +1012,8 @@ function onLine(line) {
   if ('hover' in msg) return onHover(msg.hover);
   if (msg.links) return onLinks(msg);
   if (msg.mail) return onMail(msg);
+  if (msg.fields) return onFields(msg.fields);
+  if (msg.left) return onLeft(msg.left);
   if (!msg.url) return;
 
   clearTimeout(settleTimer);
@@ -1021,6 +1064,11 @@ async function check(page) {
   if (answer.pay && stillThere) { log(`before you pay: shown (${answer.pay.young ? 'a young shop' : 'a shop of unknown age'})`); if (opts.onPay) opts.onPay(answer.pay); }
   count(page.private, badge);
   if (opts.onChecked && !page.private) opts.onChecked({ browser: page.browser, url: page.url, host, badge, label, at: Date.now() });
+  // A flagged page: the reader looks for a password or card box on it, and says when it is closed or left.
+  if ((badge === 'red' || badge === 'orange') && stillThere && opts.onTyped) {
+    if (!flagged || flagged.host !== host) flagged = { host, private: page.private, pw: false, card: false };
+    send('flag');
+  }
   if (badge !== 'red' && badge !== 'orange') return;
   const last = warned.get(host);
   if (last && Date.now() - last < RECHECK_MS) return;
@@ -1350,6 +1398,24 @@ async function checkLinks(links, page, forUrl) {
     missing.forEach((u) => pending.delete(u));
   }
   publishMarks();
+}
+
+/** The flagged page has a password box or a card box (the reader's word: only the kind of box, never what is in it). */
+function onFields(f) {
+  if (!flagged) return;
+  const pw = flagged.pw || f.pw === true;
+  const card = flagged.card || f.card === true;
+  // Which kind of box, never the site.
+  if (pw && !flagged.pw) log('typed check: the flagged page has a password box');
+  if (card && !flagged.card) log('typed check: the flagged page has a card number box');
+  flagged = { ...flagged, pw, card };
+}
+
+/** The flagged page was closed, or its window moved on to another site. */
+function onLeft(how) {
+  const f = flagged;
+  flagged = null;
+  if (f && (f.pw || f.card) && opts.onTyped) opts.onTyped({ ...f, how: how === 'closed' ? 'closed' : 'away' });
 }
 
 /**

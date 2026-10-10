@@ -52,8 +52,12 @@ test('the reader only works on a browser that is in front and in use, and reads 
   const searchBlock = s.indexOf('if ($needRead -and $url -match $search)');
   const names = [...s.matchAll(/(?<!Class)NameProperty/g)].map((m) => m.index);
   assert.ok(names.length >= 1 && mailBlock > 0 && searchBlock > 0 && searchBlock < mailBlock);
-  const allowed = (i) => i > mailBlock || (i > searchBlock && i < mailBlock) || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);');
-  assert.ok(names.every(allowed), 'names are read only for a webmail inbox and a results page\'s links');
+  // And a box's own label on a page the app flagged ("Did you type anything?"): is it made for a card number.
+  const flagBlock = s.indexOf('# The flagged page: another site');
+  const flagEnd = s.indexOf('$isPrivate = $title -match $private');
+  const allowed = (i) => i > mailBlock || (i > searchBlock && i < mailBlock) || (i > flagBlock && i < flagEnd) || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);') || s.slice(Math.max(0, i - 60), i).includes('$editCache.Add($A::IsPasswordProperty);');
+  assert.ok(flagBlock > 0 && flagEnd > flagBlock);
+  assert.ok(names.every(allowed), 'names are read only for a webmail inbox, a results page\'s links and a flagged page\'s boxes');
   assert.ok(s.includes('InPrivate|Incognito|Private Browsing'), 'private windows are recognised by their title');
   // Before you pay: whether the title reads like a checkout leaves the reader, as true or false, never the title.
   assert.ok(s.includes('$pay = [bool]($title -match $checkoutTitle)') && s.includes('; pay = $pay }'), 'a checkout by its title, as a yes or no');
