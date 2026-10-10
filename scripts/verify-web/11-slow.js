@@ -53,7 +53,8 @@ async function checkSlow() {
     await sleep(1000);   // the page's entrance (app-lux.js) settles
 
     const scan = async (text) => {
-      await evalIn(browser, s, `(() => { const f = document.querySelector('[data-form]'); f.from.value = ''; f.text.value = ${JSON.stringify(text)}; f.requestSubmit(); })()`);
+      // The last scan's result goes first: read too soon, it was taken for this one's (an ordinary chat "flagged").
+      await evalIn(browser, s, `(() => { document.querySelectorAll('#view [data-result]').forEach((r) => r.remove()); const f = document.querySelector('[data-form]'); f.from.value = ''; f.text.value = ${JSON.stringify(text)}; f.requestSubmit(); })()`);
       let r = null;
       for (let i = 0; i < 80 && !r; i++) {
         await sleep(250);
