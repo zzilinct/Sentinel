@@ -731,7 +731,9 @@ if ($open -and $at) {
   Check 'snip-finds-message' ($card -match 'This message (looks like|may be) a scam') 'the text itself is judged a scam'
   Check 'snip-finds-qr' ($card -match 'The QR code leads to a dangerous site: paypa1-secure-login\.com') 'the QR code was read and its link checked'
   Check 'snip-finds-phone' ($card -match 'A number to call back: [^|]*876') 'the callback number is named'
-  Check 'snip-log-private' (-not ((AppLog) -match 'redeliver|paypa1|555-0142')) "app.log says only that a check happened: $(((AppLog) -split "`n" | Select-String 'check on screen') -join ' / ')"
+  # Only the screen check's own lines: 5d's download from the same look-alike site is logged by name, as it should be.
+  $snipLog = ((AppLog) -split "`n" | Select-String 'check on screen') -join ' / '
+  Check 'snip-log-private' ($snipLog -and $snipLog -notmatch 'redeliver|paypa1|555-0142') "app.log says only that a check happened: $snipLog"
   [K]::Tap(0x1B)
   Check 'snip-escape-card' (Until 10 { SnipGone }) 'Escape put the verdict away'
 } else { Check 'snip-verdict' $false 'no sheet, or the page was not found on screen' }
