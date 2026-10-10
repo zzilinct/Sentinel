@@ -29,6 +29,8 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SRC, 'src', 'content', 'masks.js'));
 // And for the ClickFix command rules: the engine's copy, the same one the Windows app uses.
 fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'clickfix.js'), path.join(SRC, 'src', 'content', 'clickfix.js'));
+// And for the pay pause's wording rules (gift cards and crypto by title and labels), the same the Windows app uses.
+fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'paywords.js'), path.join(SRC, 'src', 'content', 'paywords.js'));
 // And for what to do after a scam: the password alarm gives the same steps as the site and the Windows app.
 fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), path.join(SRC, 'src', 'content', 'steps.js'));
 // The warning, once more for the page's own world: the browser runs a file only once per frame, and alarm.js

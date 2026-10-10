@@ -206,6 +206,7 @@ async function onNavigate(details) {
   if (severe) await typedFlagged(details.tabId, details.url);
   if (severe) await sessionSet('paySign', Date.now());
   else if (verdict.paypage) await payPause(details.tabId, details.url, verdict.paypage);
+  else await payLook(details.tabId, details.url);
   if (!severe || !settings.warnOnNavigate) return;
   const key = `${details.tabId}|${verdict.host}`;
   if (warned.has(key)) return;
@@ -246,6 +247,19 @@ async function payPause(tabId, url, kind) {
   if (await sessionGet(key)) return;
   await sessionSet(key, 1);
   Promise.resolve(ext.tabs.sendMessage(tabId, { type: 'sentinel:paypause', kind: kind === 'crypto' ? 'crypto' : 'gift' }, { frameId: 0 })).catch(() => {});
+}
+/**
+ * An address that says nothing (a wallet's send dialog, a store's gift card page under a generic path): only within
+ * the hour after a warning, and only on a site not yet paused, content/payread.js reads the page's title and labels in
+ * the tab and answers 'gift' or 'crypto' (the 'paywords' handler). Nothing is read on any other page, nothing is sent.
+ */
+async function payLook(tabId, url) {
+  if (!ext.scripting) return;
+  const at = await sessionGet('paySign');
+  if (!at || Date.now() - at > PAUSE_HOUR) return;
+  const tab = await Promise.resolve(ext.tabs.get(tabId)).catch(() => null);
+  if (await sessionGet(`paused:${tab && tab.incognito ? 'private' : hostOf(url)}`)) return;
+  Promise.resolve(ext.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: ['src/content/paywords.js', 'src/content/payread.js'] })).catch(() => {});
 }
 
 /** The scanner's own verdict for a page the cached list already blocked, kept for the real-site button. Null on any failure. */
@@ -599,6 +613,17 @@ const handlers = {
     if (typeof real !== 'string' || !/^https:\/\/[a-z0-9.-]+\/$/.test(real)) return { opened: false };
     await ext.tabs.update(sender.tab.id, { url: real });
     return { opened: true };
+  },
+  /** payread.js saw a gift card or crypto page by its wording: only the kind comes. A flagged page has its own warning. */
+  async paywords(msg, sender) {
+    fromPage(sender);
+    if (msg.kind !== 'gift' && msg.kind !== 'crypto') return { ok: false };
+    const url = sender.tab.url || sender.url;
+    const verdict = localVerdict(url) || cacheGet('research', url) || cacheGet('quick', url);
+    const badge = verdict && verdict.overall && verdict.overall.badge;
+    if (badge === 'red' || badge === 'orange') return { ok: false };
+    await payPause(sender.tab.id, url, msg.kind);
+    return { ok: true };
   },
   async 'typed-no'(msg, sender) {
     fromPage(sender);

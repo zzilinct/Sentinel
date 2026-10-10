@@ -192,7 +192,7 @@ setTimeout(() => { console.log(`reader still running after 15 s\nstdout: ${out.s
 
 # 1b. Pay pause, before anything scam-shaped happened on this computer: a page that sells gift cards (a harmless local
 # page behind a hosts mapping, known by its address /gift-cards/) is noticed, and nothing is shown. 5e2 comes back.
-Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 giftshop.test`r`n127.0.0.1 coinshop.test"
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 giftshop.test`r`n127.0.0.1 coinshop.test`r`n127.0.0.1 walletapp.test"
 function PauseLines($what) { return ([regex]::Matches((AppLog), "pay pause: $what")).Count }
 Say "Edge in front: $(FreshEdge 'http://giftshop.test:47910/gift-cards/')"
 $ok = Until 45 { [K]::Tap(0x11); (PauseLines 'a gift card page, no recent sign; nothing shown') -gt 0 }
@@ -775,6 +775,17 @@ $shown = $ok -and (Until 20 { $script:q = [string](Cdp 'guard.html' "location.se
 Start-Sleep 1
 Shot 'pay-pause-crypto'
 Check 'pay-pause-crypto-call' ($shown -and $q -match 'Sending crypto' -and $q -match 'the call check said to hang up in the last hour') "a crypto ATM locator after Hang up: $(([string]$q).Substring(0, [Math]::Min(500, ([string]$q).Length)) -replace '\s+', ' ')"
+[void](Press 'I am buying this for myself')
+[void](Until 10 { [string](Cdp 'guard.html' '1').error -match 'no window' })
+# A wallet whose address says nothing (/home.html) and whose title says "Send Bitcoin": known by the window's title.
+$before = PauseLines 'a crypto page, after the call check said hang up; shown'
+Say "Edge in front: $(FreshEdge 'http://walletapp.test:47910/home.html')"
+$ok = Until 45 { [K]::Tap(0x11); (PauseLines 'a crypto page, after the call check said hang up; shown') -gt $before }
+$q = ''
+$shown = $ok -and (Until 20 { $script:q = [string](Cdp 'guard.html' "location.search + '|' + document.body.innerText").value; $script:q -match 'mode=pause' })
+Start-Sleep 1
+Shot 'pay-pause-by-title'
+Check 'pay-pause-by-title' ($shown -and $q -match 'Sending crypto') "a page titled Send Bitcoin at /home.html: noticed $ok, $(([string]$q).Substring(0, [Math]::Min(300, ([string]$q).Length)) -replace '\s+', ' ')"
 [void](Press 'I am buying this for myself')
 Check 'pay-pause-log-private' (-not ((AppLog) -match 'pay pause:[^\r\n]*(\.test|https?:)')) 'app.log says which kind of page and sign, never where'
 # 5f. Your week: what sections 2 to 5e did reaches the week, as numbers only. The app counts chat messages, the stopped

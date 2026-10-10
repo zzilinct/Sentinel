@@ -339,6 +339,9 @@ $private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fens
 # A shop's checkout, by the page's title (the window's title, already read above): only whether it reads like one leaves
 # this script, never the title. Its address is judged by the scanner (server/lib/scan/paycheck.js).
 $checkoutTitle = '\b(check ?out|place (your )?order|kasse|paiement)\b'
+# Pay pause: a gift card or crypto page whose address says nothing, by its title (shared/paywords.js TITLE, written in
+# when the reader starts). Only 'gift' or 'crypto' leaves this script, never the title.
+$payGift = '__PAY_GIFT__'; $payNotGift = '__PAY_NOT_GIFT__'; $payCrypto = '__PAY_CRYPTO__'
 $search = '^https?://([a-z0-9-]+\.)*(google\.[a-z.]{2,6}/search|bing\.com/search|duckduckgo\.com/(\?|html)|search\.brave\.com/search|search\.yahoo\.com/search|ecosia\.org/search|startpage\.com/(do|sp)/|yandex\.[a-z.]{2,6}/search|mojeek\.com/search)'
 $last = ''; $lastFront = ''; $lastWin = ''; $lastLinks = ''; $wasIdle = $false; $noDoc = ''; $pause = 450
 $lastPid = 0; $lastProc = $null; $cachedDoc = $null; $cachedFor = [IntPtr]::Zero; $cachedTitle = ''; $cachedAt = 0
@@ -594,10 +597,11 @@ while ($true) {
   # A title that turns into a checkout's after the address changed (a page still loading, or a shop's steps on one
   # address) counts as a new page, so it is looked at again.
   $pay = [bool]($title -match $checkoutTitle)
-  $key = $fname + '|' + $url + '|' + $pay
+  $payKind = if ($title -match $payCrypto) { 'crypto' } elseif ($title -match $payGift -and $title -notmatch $payNotGift) { 'gift' } else { '' }
+  $key = $fname + '|' + $url + '|' + $pay + '|' + $payKind
   if ($key -ne $last) {
     $last = $key; $lastLinks = ''; $anchor = $null; $forceRead = $true; $hoverEl = $null; $hoverTried = ''
-    Write-Output (@{ browser = $fname; url = $url; private = [bool]$isPrivate; search = [bool]($url -match $search); pay = $pay } | ConvertTo-Json -Compress)
+    Write-Output (@{ browser = $fname; url = $url; private = [bool]$isPrivate; search = [bool]($url -match $search); pay = $pay; paykind = $payKind } | ConvertTo-Json -Compress)
   }
 
   # Reading every link on a page is the expensive part (hundreds of milliseconds on a slow machine). Read again only
@@ -871,6 +875,13 @@ async function restart() {
   start();
 }
 
+/** The pay pause's title rules (shared/paywords.js), written into the reader as single-quoted PowerShell strings. */
+function payTitles(body) {
+  const { TITLE } = require('../shared/paywords');
+  const q = (t) => t.replace(/'/g, "''");
+  return body.replace('__PAY_GIFT__', () => q(TITLE.gift)).replace('__PAY_NOT_GIFT__', () => q(TITLE.notGift)).replace('__PAY_CRYPTO__', () => q(TITLE.crypto));
+}
+
 /**
  * The reader is too long for a command line (Windows allows 32,767 characters, and -EncodedCommand more than
  * doubles its size), so it is written to a file and a short loader runs it. The loader carries the file's SHA-256
@@ -900,7 +911,7 @@ function start() {
   // The end-to-end run (scripts/live-e2e.ps1) serves a stand-in inbox on this computer, since a test desktop cannot
   // sign in to real webmail. Only a page on 127.0.0.1 can be added this way.
   const inboxPort = /^\d{2,5}$/.test(String(process.env.SENTINEL_TEST_INBOX || '')) ? process.env.SENTINEL_TEST_INBOX : '';
-  let body = SCRIPT.replace('__TEST_PROCESS__', () => testProcess).replace('__HELPER_DLL__', () => helper);
+  let body = payTitles(SCRIPT.replace('__TEST_PROCESS__', () => testProcess).replace('__HELPER_DLL__', () => helper));
   if (inboxPort) body = body.replace("$mail = '^https://(", () => `$mail = '^http://127\\.0\\.0\\.1:${inboxPort}/mail/|^https://(`);
   try {
     const { file, args } = readerLaunch(body, opts.helperDll ? path.dirname(String(opts.helperDll)) : os.tmpdir());
@@ -1021,7 +1032,7 @@ function onLine(line) {
   if (!/^https?:\/\//i.test(msg.url)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
   // Sentinel's own pages and the app's server are not "sites".
   if (opts.origin && msg.url.startsWith(opts.origin)) { state.current = null; if (opts.onPage) opts.onPage(null); return; }
-  const page = { browser: msg.browser, url: msg.url, private: Boolean(msg.private), search: Boolean(msg.search), checkout: msg.pay === true, at: Date.now() };
+  const page = { browser: msg.browser, url: msg.url, private: Boolean(msg.private), search: Boolean(msg.search), checkout: msg.pay === true, paykind: msg.paykind === 'gift' || msg.paykind === 'crypto' ? msg.paykind : '', at: Date.now() };
   // What a private window shows is never kept, not even in memory the app's window can read.
   state.current = page.private ? { browser: page.browser, url: null, private: true, at: page.at } : page;
   if (opts.onPage) opts.onPage(page);
@@ -1042,7 +1053,7 @@ async function check(page) {
     // Your sites (on unless switched off): a clean page counts towards learning the sites the person uses.
     const learn = !page.private && Boolean(opts.learn && opts.learn());
     const tz = remember || learn ? { tz: new Date().getTimezoneOffset() } : {};
-    ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode(), ...(page.checkout ? { checkout: true } : {}), ...(remember ? { remember: true } : {}), ...(learn ? { learn: true } : {}), ...tz }));
+    ({ verdict, ...answer } = await opts.api('/api/v1/live/visit', { url: page.url, private: page.private, mode: currentMode(), ...(page.checkout ? { checkout: true } : {}), ...(page.paykind ? { paykind: page.paykind } : {}), ...(remember ? { remember: true } : {}), ...(learn ? { learn: true } : {}), ...tz }));
     noteMode(answer);
   } catch (err) {
     log(`check failed${page.private ? '' : ` for ${host}`}: ${err.status || ''} ${err.code || err.message}`);
@@ -1521,4 +1532,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, _test: { resultLinks, unwrapResult, hoverLink, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, _test: { resultLinks, unwrapResult, hoverLink, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, payTitles, SCRIPT } };

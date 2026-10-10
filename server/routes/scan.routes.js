@@ -332,8 +332,9 @@ function register(router) {
       verdict, checkout: body.checkout === true,
       mine: () => local(req) && mySites.list(user.id).some((s) => s.host === mySites.siteOf(String(url)))
     });
-    // Pay pause: a page that sells gift cards or sends crypto. The client decides whether to pause (a recent sign).
-    const paypage = payPage(String(url), verdict);
+    // Pay pause: a page that sells gift cards or sends crypto, by its address or by what the client saw in its title
+    // (body.paykind, only the kind). The client decides whether to pause (a recent sign).
+    const paypage = payPage(String(url), verdict, body.paykind);
     sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan), ...(pay ? { pay } : {}), ...(paypage ? { paypage } : {}) });
   });
 

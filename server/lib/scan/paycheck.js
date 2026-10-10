@@ -67,8 +67,12 @@ const ATM_HOSTS = new Set(['coinatmradar.com', 'bitcoindepot.com', 'coinflip.tec
   'rockitcoin.com', 'bitcoinofamerica.org', 'bytefederal.com', 'coinsource.net']);
 const ATM_PATH = /(bitcoin|crypto|btc)[-_]?atms?([/_.-]|$)/i;
 
-/** 'gift', 'crypto' or null for the page in front. A page flagged orange or red has its own warning, which says more. */
-function payPage(url, verdict = null) {
+/**
+ * 'gift', 'crypto' or null for the page in front. A page flagged orange or red has its own warning, which says more.
+ * `seen`: what the client saw in the page's title or wording ('gift' or 'crypto', paywords.js), for an address that
+ * says nothing. Only that word comes; the title and wording stay on the device.
+ */
+function payPage(url, verdict = null, seen = null) {
   const badge = verdict && verdict.overall && verdict.overall.badge;
   if (badge === 'red' || badge === 'orange') return null;
   let path;
@@ -79,7 +83,7 @@ function payPage(url, verdict = null) {
   if (EXCHANGES.has(site) && SEND_PATH.test(path)) return 'crypto';
   if (ATM_HOSTS.has(site) || /bitcoinatm|cryptoatm/i.test(site) || ATM_PATH.test(path)) return 'crypto';
   if (GIFT_HOSTS.has(site) || /giftcard/i.test(site) || GIFT_PATH.test(path)) return 'gift';
-  return null;
+  return seen === 'gift' || seen === 'crypto' ? seen : null;
 }
 
 module.exports = { payCheck, isCheckout, ago, payPage };
