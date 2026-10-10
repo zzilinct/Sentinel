@@ -104,6 +104,9 @@ function cleanMail(body) {
     attachments: (Array.isArray(m.attachments) ? m.attachments : []).slice(0, 30).map((a) => String(a).slice(0, 255)),
     // What QR codes in a screenshot of the email hold, read on the person's device. Never the picture.
     qr: (Array.isArray(m.qr) ? m.qr : []).slice(0, 5).map((t) => String(t || '').slice(0, 4096)).filter(Boolean),
+    // Only the headers that say who sent it (the app picks them out): Authentication-Results, Received-SPF,
+    // DKIM-Signature and Return-Path. Read in memory, never stored.
+    headers: String(m.headers || '').slice(0, 16000),
     linksTruncated: Array.isArray(m.links) && m.links.length > 60
   };
 }

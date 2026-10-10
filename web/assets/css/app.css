@@ -198,6 +198,13 @@ body.app::before { opacity: .6; }
 .email-marks__why p { font-size: 14px; color: var(--text-2); }
 .email-marks__why small { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .emark { transition: none; } .email-marks__why { animation: none; } }
+/* Who really sent it, from the pasted headers (sender-xray): one plain line above the marked email. */
+.sender-proof { --c: var(--muted); display: flex; gap: 12px; align-items: baseline; padding: 18px 30px; border-bottom: 1px solid var(--line); box-shadow: inset 3px 0 0 var(--c); }
+@media (max-width: 560px) { .sender-proof { padding: 16px 20px; flex-direction: column; gap: 2px; } }
+.sender-proof[data-proof="really"] { --c: var(--green); }
+.sender-proof[data-proof="not"] { --c: var(--red); }
+.sender-proof__k { font: 500 11.5px/1.3 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.sender-proof b { font-weight: 500; color: var(--text); font-size: 15.5px; }
 
 .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px 24px; margin: 0; }
 .facts dt { font-size: 12px; color: var(--faint); }

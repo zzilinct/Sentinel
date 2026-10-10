@@ -1301,8 +1301,12 @@
           : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>'}</p>
       </div>
       <form class="panel" data-paste data-draft="email-paste" hidden>
-        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" name="raw" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check.</span></div>
-        <div class="report__foot"><span></span><button class="btn btn--gold" type="button" data-parse>Read this email</button></div>
+        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" name="raw" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check. With its headers, it also shows who really sent it.</span></div>
+        <div data-header-help>
+          <p class="field__hint"><b>Gmail:</b> open the email, click the three dots, choose Show original, then Copy to clipboard.</p>
+          <p class="field__hint"><b>Outlook:</b> open the email, click the three dots, choose View, then View message source, and copy it all.</p>
+        </div>
+        <div class="report__foot"><span><button class="btn" type="button" data-eml-open>Open an .eml file</button><input type="file" accept=".eml,message/rfc822" data-eml hidden></span><button class="btn btn--gold" type="button" data-parse>Read this email</button></div>
       </form>
       <form class="panel" data-form data-draft="email-scan">
         <div data-email-qr></div>
@@ -1332,8 +1336,12 @@
       // Pasting a whole email starts another one: a code from an earlier screenshot does not go with it.
       if (!pasteBox.hidden) { forgetShotQr(); $('textarea', pasteBox).focus(); }
     }));
+    // The sender-check headers of the email last pasted or opened, sent with its scan while its From is unchanged.
+    // Not kept in the draft.
+    let pasted = { from: '', headers: '' };
     const fill = (raw) => {
       const m = parseEmail(raw);
+      pasted = { from: m.from, headers: m.headers };
       form.from.value = m.from; form.replyTo.value = m.replyTo; form.subject.value = m.subject; form.body.value = m.body; form.attachments.value = m.attachments.join(', ');
       $$('[data-emode]', el).forEach((x) => x.setAttribute('aria-selected', String(x.dataset.emode === 'fields')));
       pasteBox.hidden = true;
@@ -1347,6 +1355,21 @@
       const raw = $('textarea', pasteBox).value;
       if (raw.trim()) fill(raw);
     });
+    // An .eml file (saved from Outlook or Thunderbird, or dragged out of one), read here as text like a paste.
+    const emlInput = $('[data-eml]', el);
+    const readEml = async (file) => {
+      if (!file) return;
+      if (!/\.eml$/i.test(file.name) && file.type !== 'message/rfc822') { toast('Choose an email saved as an .eml file.', 'error'); return; }
+      if (file.size > 10 * 1024 * 1024) { toast('That email is too large to read here.', 'error'); return; }
+      const raw = await file.text();
+      $('textarea', pasteBox).value = raw;
+      fill(raw);
+    };
+    $('[data-eml-open]', el).addEventListener('click', () => emlInput.click());
+    emlInput.addEventListener('change', () => { readEml(emlInput.files[0]); emlInput.value = ''; });
+    const rawBox = $('textarea', pasteBox);
+    rawBox.addEventListener('dragover', (ev) => { if ([...ev.dataTransfer.types].includes('Files')) ev.preventDefault(); });
+    rawBox.addEventListener('drop', (ev) => { if (ev.dataTransfer.files.length) { ev.preventDefault(); readEml(ev.dataTransfer.files[0]); } });
 
     // A screenshot: cut into slices the recogniser can take (it has a maximum size), read on this computer, and
     // put through the same reading as a pasted email.
@@ -1412,7 +1435,8 @@
       const links = [...new Set(found)].map((href) => ({ href, text: '' }));
       const payload = {
         from: form.from.value, replyTo: form.replyTo.value, subject: form.subject.value, body,
-        links, attachments: form.attachments.value.split(',').map((s) => s.trim()).filter(Boolean), qr: shotQr
+        links, attachments: form.attachments.value.split(',').map((s) => s.trim()).filter(Boolean), qr: shotQr,
+        headers: pasted.headers && form.from.value === pasted.from ? pasted.headers : ''
       };
       out.innerHTML = stagesView(true);
       const stop = runStages(out, true);
@@ -1421,6 +1445,7 @@
         stop();
         applyUsage(data.usage);
         showVerdict(out, data.verdict);
+        showProof(out, data.verdict.sender);
         showMarks(out, payload, data.verdict.checklist.items);
         // Scanned with this email. The next email typed in here is another one, without this screenshot's code.
         forgetShotQr();
@@ -1458,6 +1483,7 @@
     E27: ['Web page attached', 'A web page sent as a file, often a sign-in page made to catch your password.'],
     E28: ['Paid tasks offer', 'Promises daily pay for simple tasks. It ends with you paying to get "earnings" out.'],
     E29: ['Voicemail lure', 'A voicemail you can only hear through a link, which leads to a sign-in page.'],
+    E31: ['Not really from here', 'The email\'s own headers show it was not sent by the address in From. Anyone can write any address there.'],
     'EL-scam': ['Scam link', 'Sentinel checked where this link goes, and it looks like a scam.'],
     'EL-malware': ['Malware link', 'Sentinel checked where this link goes, and it leads to malware.'],
     'EL-virus': ['Virus download', 'Sentinel checked where this link goes, and it downloads a virus.']
@@ -1467,6 +1493,13 @@
    * The email as it was scanned, inside the result, with each finding marked where it is (the server says where, by
    * offsets into each field) and labelled. Tapping a mark says why. Shown only when something was found.
    */
+  // Who really sent it, when the email was pasted with its headers (server/lib/scan/sender.js): one line, in words.
+  function showProof(out, sender) {
+    const checklist = $('.result__checklist', out);
+    if (!sender || !sender.proof || !checklist) return;
+    checklist.before(h(`<section class="sender-proof" data-sender-proof data-proof="${esc(sender.proof.status)}"><span class="sender-proof__k">Who sent it</span><b>${esc(sender.proof.text)}</b></section>`));
+  }
+
   function showMarks(out, mail, items) {
     const found = items.filter((c) => (c.status === 'fail' || c.status === 'warn') && c.marks && c.marks.length);
     const checklist = $('.result__checklist', out);
@@ -1685,22 +1718,79 @@
 
   /** Pull the useful parts out of a pasted email: headers first, then the body. */
   function parseEmail(raw) {
-    const text = raw.replace(/\r\n?/g, '\n');
-    const out = { from: '', replyTo: '', subject: '', body: text, attachments: [] };
+    let text = raw.replace(/\r\n?/g, '\n');
+    const out = { from: '', replyTo: '', subject: '', body: text, attachments: [], headers: '' };
+    // Gmail's Show original page, copied whole, starts with a summary: the message itself is the block with the
+    // headers a mail service writes.
+    const delivered = text.search(/^(Received|Authentication-Results|Received-SPF|DKIM-Signature|Return-Path|Delivered-To)[ \t]*:/im);
+    if (delivered > 0 && /\n\s*\n/.test(text.slice(0, delivered))) text = text.slice(text.lastIndexOf('\n', delivered - 1) + 1);
     const headerEnd = text.search(/\n\s*\n/);
     const headBlock = headerEnd > 0 ? text.slice(0, headerEnd) : text.slice(0, 1200);
-    const header = (name) => {
-      const m = headBlock.match(new RegExp(`^${name}\\s*:\\s*(.+(?:\\n[ \\t]+.+)*)`, 'im'));
-      return m ? m[1].replace(/\n[ \t]+/g, ' ').trim() : '';
+    const header = (name, block = headBlock) => {
+      const m = block.match(new RegExp(`^${name}\\s*:\\s*(.+(?:\\n[ \\t]+.+)*)`, 'im'));
+      return m ? words(m[1].replace(/\n[ \t]+/g, ' ').trim()) : '';
     };
     out.from = header('From') || header('Sender');
     out.replyTo = header('Reply-To');
     out.subject = header('Subject');
-    if (out.from || out.subject) out.body = headerEnd > 0 ? text.slice(headerEnd).trim() : text;
+    // Only the headers that say who really sent it go with the scan: not the route it took, with its addresses.
+    out.headers = (headBlock.match(/^(Authentication-Results|Received-SPF|DKIM-Signature|Return-Path)[ \t]*:.*(\n[ \t]+.*)*/gim) || []).join('\n');
+    if (out.from || out.subject) out.body = headerEnd > 0 ? (readable(headBlock, text.slice(headerEnd).replace(/^\s*\n/, '')) ?? text.slice(headerEnd)).trim() : text;
     // Gmail / Outlook "printed" emails put attachments at the end as bare file names.
     const files = text.match(/\b[\w][\w .()-]{0,80}\.(pdf|exe|zip|rar|7z|docm?|xlsm?|xlsx|pptx?|js|vbs|scr|iso|img|html?|lnk|msi|bat|cmd|apk|dmg)\b/gi) || [];
     out.attachments = [...new Set(files.map((f) => f.trim()))].filter((f) => !/^https?:/i.test(f)).slice(0, 10);
     return out;
+  }
+
+  /** Bytes as text in the part's character set (UTF-8 when it names none this browser knows). */
+  function decodeBytes(bytes, charset) {
+    try { return new TextDecoder(charset || 'utf-8').decode(bytes); } catch { return new TextDecoder().decode(bytes); }
+  }
+  /** A header's encoded words ("=?UTF-8?B?UGF5UGFs?=") as the words they are. */
+  function words(s) {
+    return s.replace(/\?=\s+=\?/g, '?==?').replace(/=\?([^?]+)\?([BQ])\?([^?]*)\?=/gi, (all, charset, how, data) => {
+      try { return decodeBytes(how.toUpperCase() === 'B' ? Uint8Array.from(atob(data), (c) => c.charCodeAt(0)) : qp(data.replace(/_/g, ' ')), charset); } catch { return all; }
+    });
+  }
+  function qp(s) {
+    const bytes = [];
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '=' && /^[0-9A-F]{2}$/i.test(s.substr(i + 1, 2))) { bytes.push(parseInt(s.substr(i + 1, 2), 16)); i += 2; } else bytes.push(s.charCodeAt(i) & 255);
+    }
+    return Uint8Array.from(bytes);
+  }
+  /**
+   * The readable text of a raw message (an .eml file, or Show original): its plain text part, else its web page part
+   * as text with each link written "words <address>", decoded. Null when the message is not in parts or encoded.
+   * The page part is only parsed, never shown or loaded.
+   */
+  function readable(head, body, depth = 0) {
+    const field = (name) => { const m = head.match(new RegExp(`^${name}\\s*:\\s*(.+(?:\\n[ \\t]+.+)*)`, 'im')); return m ? m[1].replace(/\n[ \t]+/g, ' ') : ''; };
+    const type = field('Content-Type');
+    const enc = field('Content-Transfer-Encoding').trim().toLowerCase();
+    const boundary = /boundary\s*=\s*"?([^";]+)"?/i.exec(type);
+    if (/^\s*multipart\//i.test(type) && boundary && depth < 5) {
+      const parts = body.split(`--${boundary[1].trim()}`).slice(1).filter((p) => !p.startsWith('--')).map((p) => {
+        const s = p.replace(/^[ \t]*\n/, '');
+        const end = s.search(/\n\s*\n/);
+        return end < 0 ? null : { head: s.slice(0, end), body: s.slice(end).replace(/^\s*\n/, '') };
+      }).filter(Boolean);
+      const pick = parts.find((p) => /^content-type\s*:\s*text\/plain/im.test(p.head)) || parts.find((p) => /^content-type\s*:\s*(text\/html|multipart\/)/im.test(p.head));
+      return pick ? readable(pick.head, pick.body, depth + 1) : null;
+    }
+    if (!type && !enc) return null;
+    const charset = (/charset\s*=\s*"?([^";\s]+)/i.exec(type) || [])[1];
+    let textOut = body;
+    try {
+      if (enc === 'base64') textOut = decodeBytes(Uint8Array.from(atob(body.replace(/[^A-Za-z0-9+/=]/g, '')), (c) => c.charCodeAt(0)), charset);
+      else if (enc === 'quoted-printable') textOut = decodeBytes(qp(body.replace(/=\n/g, '')), charset);
+    } catch { return null; }
+    if (!/^\s*text\/html/i.test(type)) return textOut;
+    const doc = new DOMParser().parseFromString(textOut, 'text/html');
+    doc.querySelectorAll('script, style').forEach((n) => n.remove());
+    doc.querySelectorAll('a[href]').forEach((a) => a.replaceWith(`${a.textContent.trim()} <${a.getAttribute('href')}> `));
+    doc.querySelectorAll('br, p, div, tr, li, h1, h2, h3').forEach((n) => n.append('\n'));
+    return doc.body ? doc.body.textContent.replace(/[ \t ]+/g, ' ').replace(/\n\s*\n\s*/g, '\n\n').trim() : null;
   }
 
   /* ============================================================ history */
