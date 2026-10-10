@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   setWalletGuard: (enabled) => ipcRenderer.invoke('sentinel:set-wallet-guard', Boolean(enabled)),
   // "Check something on screen": the switch and the shortcut (one of info().snip.keys).
   setSnip: (enabled, key) => ipcRenderer.invoke('sentinel:set-snip', Boolean(enabled), String(key || '')),
+  // "Scan with Sentinel" in the right-click menu for files: the switch, and the file it handed over ({ name, size, data }), once.
+  setScanMenu: (enabled) => ipcRenderer.invoke('sentinel:set-scan-menu', Boolean(enabled)),
+  takeMenuFile: () => ipcRenderer.invoke('sentinel:take-menu-file'),
   // "Put it back": the command "Stop pasted commands" took off the clipboard. Its text never reaches the page.
   commandPutBack: () => ipcRenderer.invoke('sentinel:command-put-back'),
   onCommand: (callback) => on('sentinel:command', callback),

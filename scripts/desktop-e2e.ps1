@@ -866,6 +866,26 @@ $ok = $ok -and (Until 30 { $script:s = [string](Cdp '127.0.0.1:4782' "(document.
 Shot 'my-sites'
 Check 'my-sites-added' $ok "Your sites panel: $($s.Substring(0, [Math]::Min(300, $s.Length)) -replace '\s+', ' ')"
 
+# 7c. "Scan with Sentinel" in the right-click menu for files: registered for this Windows user by the installed app,
+# and its own command line, run as Explorer runs it on a harmless file, opens the file scan with the verdict.
+$menuKey = 'HKCU:\Software\Classes\*\shell\SentinelScan'
+$menuLabel = [string](Get-ItemProperty -LiteralPath $menuKey -ErrorAction SilentlyContinue).'(default)'
+$menuCmd = [string](Get-ItemProperty -LiteralPath "$menuKey\command" -ErrorAction SilentlyContinue).'(default)'
+Check 'menu-registered' ($menuLabel -eq 'Scan with Sentinel' -and $menuCmd -eq "`"$exe`" `"--scan-file=%1`"") "label '$menuLabel', command '$menuCmd'"
+$menuFile = Join-Path $env:RUNNER_TEMP 'right click e2e\Shopping list.txt'
+New-Item -ItemType Directory -Force (Split-Path $menuFile) | Out-Null
+[IO.File]::WriteAllText($menuFile, "Milk`r`nBread`r`nApples`r`n")
+if ($menuCmd -match '^"([^"]+)"\s+(.+)$') { Start-Process -FilePath $Matches[1] -ArgumentList $Matches[2].Replace('%1', $menuFile) }
+$v = ''
+$ok = Until 60 { $script:v = [string](Cdp '127.0.0.1:4782' "location.pathname + '|' + ((document.querySelector('[data-out] [data-result]') || {}).innerText || '').replace(/\s+/g, ' ')").value; $script:v -match '^/app/threats\|.*Shopping list\.txt' }
+Shot 'right-click-verdict'
+Check 'menu-scan-verdict' $ok "the app shows: $($v.Substring(0, [Math]::Min(300, $v.Length)))"
+Check 'menu-log-private' ((AppLog) -match 'right-click menu: a file was handed over' -and (AppLog) -notmatch 'Shopping list') 'app.log says a file was handed over, not which'
+$r = Info 'setScanMenu(false)'
+$off = -not (Test-Path -LiteralPath $menuKey)
+$r = Info 'setScanMenu(true)'
+Check 'menu-switch' ($off -and (Test-Path -LiteralPath "$menuKey\command") -and $r.enabled) "off took it out of the menu: $off; on put it back: $(Test-Path -LiteralPath "$menuKey\command")"
+
 # 8. Signing out: it ends the session (and the window the checks drive), so it comes last.
 [void](Info "lockSet('2468')"); [void](Info "lockUnlock('2468')")
 $em = "e2e-lock-$(Get-Random)@example.com"
@@ -887,5 +907,10 @@ Check 'signout-open' (Until 20 { -not (Info 'info()').pairedUserId }) 'with the 
 
 if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 60 | ForEach-Object { Say "  $_" }
+# 9. Uninstalling takes "Scan with Sentinel" out of the right-click menu. The uninstaller hands itself to a copy in
+# the temp folder, so its end is waited for by the key going.
+Stop-Process -Name Sentinel -Force -ErrorAction SilentlyContinue; Start-Sleep 3
+Start-Process (Join-Path (Split-Path $exe) 'Uninstall Sentinel.exe') -ArgumentList '/S' -Wait
+Check 'menu-uninstall' (Until 60 { -not (Test-Path -LiteralPath $menuKey) }) "the key after uninstall: $(Test-Path -LiteralPath $menuKey); Sentinel.exe left: $(Test-Path $exe)"
 Say "checks failed: $failed"
 exit [int]($failed -gt 0)

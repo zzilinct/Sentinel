@@ -27,3 +27,11 @@
   RMDir /r "$INSTDIR\resources"
   RMDir "$INSTDIR"
 !macroend
+
+; "Scan with Sentinel" in the right-click menu for files, registered for this Windows user by the app itself
+; (desktop/src/scanmenu.js). Removed on uninstall; an update keeps it, and the new copy registers it again anyway.
+!macro customUnInstall
+  ${ifNot} ${isUpdated}
+    DeleteRegKey HKCU "Software\Classes\*\shell\SentinelScan"
+  ${endIf}
+!macroend

@@ -35,6 +35,7 @@ const typedcheck = require('./typedcheck');
 const defense = require('./defense');
 const checkup = require('./checkup');
 const snip = require('./snip');
+const scanmenu = require('./scanmenu');
 const store = require('./store');
 const parentlock = require('./parentlock');
 const server = require('./server');
@@ -60,6 +61,8 @@ let browserState = { installed: [], running: [] };
 let pageInFront = null;
 let browserWatcher = null;
 let lock = null;   // the parent lock (parentlock.js), made once the settings are read
+// A file chosen with "Scan with Sentinel" in the right-click menu ({ file, at }), until the app's file scan takes it.
+let menuFile = null;
 
 /** Started without a window: from the startup entry, or brought back in the tray after an automatic update. */
 const startHidden = (() => {
@@ -287,7 +290,7 @@ async function apiCall(pathname, body) {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => { showWindow(); if (!ORIGIN && !booting) boot(); });
+  app.on('second-instance', (_event, argv) => { showWindow(askedToScan(argv)); if (!ORIGIN && !booting) boot(); });
 }
 
 app.setAppUserModelId('com.usesentinel.desktop');
@@ -839,18 +842,53 @@ function installedDir() {
   } catch { return null; }
 }
 
+/** True for a packaged copy that is the installed one (or when no install is recorded). */
+function installedCopy(what) {
+  if (!app.isPackaged) return false;
+  const installed = installedDir();
+  const here = path.dirname(process.execPath);
+  if (installed && path.resolve(installed).toLowerCase() !== path.resolve(here).toLowerCase()) {
+    appLog(`not the installed copy (installed in ${installed}); leaving ${what} alone`);
+    return false;
+  }
+  return true;
+}
+
 function setOpenAtLogin(enabled) {
   store.set('openAtLogin', enabled);
-  if (app.isPackaged) {
-    const installed = installedDir();
-    const here = path.dirname(process.execPath);
-    if (installed && path.resolve(installed).toLowerCase() !== path.resolve(here).toLowerCase()) {
-      appLog(`not the installed copy (installed in ${installed}); leaving the startup entry alone`);
-    } else {
-      app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
-    }
-  }
+  if (installedCopy('the startup entry')) app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
   refreshTray();
+}
+
+/* "Scan with Sentinel" in the right-click menu for files (scanmenu.js). */
+function scanMenuStatus() { return { supported: process.platform === 'win32', enabled: store.get('scanMenu', true) }; }
+async function setScanMenu(enabled) {
+  store.set('scanMenu', enabled);
+  if (process.platform === 'win32' && installedCopy('the right-click menu')) {
+    const ok = await (enabled ? scanmenu.register(process.execPath) : scanmenu.unregister());
+    appLog(`right-click menu: ${enabled ? (ok ? 'registered' : 'could not be registered') : 'removed'}`);
+  }
+  return scanMenuStatus();
+}
+/** A command line from the right-click menu: keeps its file for the app's file scan and says where to open. */
+function askedToScan(argv) {
+  const file = scanmenu.fileFrom(argv);
+  if (!file) return undefined;
+  menuFile = { file, at: Date.now() };
+  appLog('right-click menu: a file was handed over for a scan');
+  return '/app/threats';
+}
+/** The file from the right-click menu, once, for the file scan page: { name, size, data }, data only up to 25 MB. */
+async function takeMenuFile() {
+  const m = menuFile;
+  menuFile = null;
+  if (!m || Date.now() - m.at > 10 * 60 * 1000) return null;
+  const fs = require('fs');
+  const stat = await fs.promises.stat(m.file);
+  if (!stat.isFile()) return null;
+  const name = path.basename(m.file);
+  if (stat.size > require('../shared/filescan').MAX_FILE_BYTES) return { name, size: stat.size, data: null };
+  return { name, size: stat.size, data: await fs.promises.readFile(m.file) };
 }
 
 /**
@@ -1266,6 +1304,7 @@ function registerBridge() {
     commandHeld: clipwatch.heldCommand(),
     walletGuard: process.platform === 'win32' && store.get('walletGuard', true),
     snip: snipStatus(),
+    scanMenu: scanMenuStatus(),
     exposureAlerts: store.get('exposureAlerts', false),
     mySites: store.get('mySites', true),
     weekRecap: store.get('weekRecap', false),
@@ -1343,6 +1382,9 @@ function registerBridge() {
     if (snip.KEYS[key]) store.set('snipKey', key);
     return syncSnip();
   });
+  // Not behind the parent lock either: like the screen check, it only scans what the person picks, when they pick it.
+  handle('sentinel:set-scan-menu', (enabled) => setScanMenu(Boolean(enabled)));
+  handle('sentinel:take-menu-file', () => takeMenuFile());
   handle('sentinel:set-command-shield', (enabled) => { lock.guard('Stop pasted commands off', !enabled); return setCommandShield(Boolean(enabled)); });
   handle('sentinel:command-put-back', () => putBackCommand());
   handle('sentinel:set-defense', (enabled) => { lock.guard('defense off', !enabled); store.set('defense', Boolean(enabled)); if (enabled) defense.restart(); else defense.stop('Turned off'); return { ...defense.status(), enabled: Boolean(enabled) }; });
@@ -1635,7 +1677,7 @@ async function boot() {
   step('your week', () => startWeek());
   step('tray refresh', () => refreshTray());
   // In the tray (started with Windows, or after an update) there is no window until someone opens one.
-  if (win) openApp();
+  if (win) openApp(menuFile ? '/app/threats' : undefined);
 }
 
 app.whenReady().then(() => {
@@ -1660,6 +1702,7 @@ app.whenReady().then(() => {
   // Scanning that auto scanning had started before a restart is still its to switch off.
   autoSession = Boolean(store.get('autoScan', false) && store.get('autoSession', false));
   step('bridge', () => registerBridge());
+  step('right-click file', () => askedToScan(process.argv));
   // Started in the tray, no window is made: a hidden window still loaded the whole app and kept a process for it
   // all day, for someone who may never open it.
   step('window', () => { if (!startHidden) createWindow(); });
@@ -1688,6 +1731,7 @@ app.whenReady().then(() => {
   // Re-registered on every start, so the entry always points at the copy that is
   // actually installed (an update or a move must not leave it aimed at an old one).
   step('login item', () => { if (app.isPackaged) setOpenAtLogin(store.get('openAtLogin', true)); });
+  step('right-click menu', () => { if (app.isPackaged) setScanMenu(store.get('scanMenu', true)); });
   step('background priority', () => {
     stayInBackground();
     // Helpers (the scanner, a window's renderer) start later and restart: lower them too.
