@@ -52,6 +52,13 @@ function measure(width) {
   const empty = (b) => b.right - b.left < 1 || b.bottom - b.top < 1;
   // Fixed boxes (the header, the motes) span whatever width the page has: they show sideways scroll, never cause it.
   const fixed = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) if (getComputedStyle(e).position === 'fixed') return true; return false; };
+  // What may be moving it: an entrance still to play, or a transform on it or above it.
+  const moving = (el) => {
+    const rv = el.closest('[data-reveal]');
+    let t = '';
+    for (let e = el; e && e !== document.body && !t; e = e.parentElement) { const x = getComputedStyle(e).transform; if (x !== 'none') t = `; ${name(e)} has transform ${x}`; }
+    return (rv ? `; its entrance (${rv.dataset.reveal || 'unveil'}) ${rv.classList.contains('is-in') ? 'played' : 'not played'}` : '') + t;
+  };
   const seen = (el) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
 
   // The boxes that clip an element: ancestors with overflow other than visible that are on its containing-block chain
@@ -121,7 +128,7 @@ function measure(width) {
     const by = cs.find((c) => c.hides && (b.left < c.b.left - 1 || b.right > c.b.right + 1 || b.top < c.b.top - 1 || b.bottom > c.b.bottom + 1));
     if (by) {
       out.push({ kind: 'clipped', el: name(el), text: words(el),
-        detail: `[${r(b.left)}, ${r(b.top)}, ${r(b.right)}, ${r(b.bottom)}] cut by ${name(by.a)} [${r(by.b.left)}, ${r(by.b.top)}, ${r(by.b.right)}, ${r(by.b.bottom)}]` });
+        detail: `[${r(b.left)}, ${r(b.top)}, ${r(b.right)}, ${r(b.bottom)}] cut by ${name(by.a)} [${r(by.b.left)}, ${r(by.b.top)}, ${r(by.b.right)}, ${r(by.b.bottom)}]${moving(el)}` });
     }
   }
 
