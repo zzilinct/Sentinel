@@ -659,6 +659,9 @@ async function checkPractice() {
       const pick = choose(m);
       const heading = await evalIn(browser, s, "document.activeElement && document.activeElement.id === 'pmsg-h' ? document.activeElement.textContent : ''");
       if (!heading.startsWith(`Message ${i + 1} of 12`)) problems.push(`${m.id}: focus was not on the message's heading (${heading})`);
+      // In sight, and not under the fixed header: the reader starts each message at its top.
+      const seen = await evalIn(browser, s, "(() => { const h = document.getElementById('pmsg-h').getBoundingClientRect(); return { top: Math.round(h.top), nav: Math.round(document.querySelector('[data-nav]').getBoundingClientRect().bottom), screen: innerHeight }; })()");
+      if (seen.top < seen.nav || seen.top > seen.screen - 40) problems.push(`${m.id}: the message's heading is out of sight ${JSON.stringify(seen)}`);
       if (shots[m.id] === 'before') await snap(s, `practice-${label}-${m.id}`);
       for (let t = 0; t < (pick === 'scam' ? 1 : 2); t++) await tab(s);
       const onButton = await evalIn(browser, s, 'document.activeElement && document.activeElement.dataset.pick');
