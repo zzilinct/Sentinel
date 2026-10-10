@@ -1187,6 +1187,7 @@ async function checkRealSite() {
         got = await evalIn(browser, app.sessionId, `(() => { if (!document.querySelector('[data-result]')) return null; const a = document.querySelector('[data-real-site]');
           return { title: document.querySelector('[data-result] h2').textContent, text: a ? a.textContent.trim() : null, href: a ? a.getAttribute('href') : null, target: a ? a.target : null }; })()`);
       }
+      await evalIn(browser, app.sessionId, "(document.querySelector('[data-result]') || document.body).scrollIntoView({ block: 'start' }), 1");
       await sleep(700);   // the result settles in (app-lux.css) before its picture
       await shot(browser, app.sessionId, `real-site-app-${name}`);
       return got || {};
