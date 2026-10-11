@@ -72,6 +72,9 @@ body::after {
 /* Motes of light (lux.js places them), rising slowly. */
 .motes { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 #main, .footer { position: relative; z-index: 2; }
+/* A chapter head's laser runs 12% past the head on both sides: on a phone or tablet that widened the page past the
+   screen (download page, 390 px wide laid out at 426). Clipped sideways here, as the home page already was. */
+#main { overflow-x: clip; }
 .motes span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--gold-200); box-shadow: 0 0 8px 2px rgb(243 220 164 / .55); opacity: 0;
   animation: mote-rise 9s ease-in-out infinite both; will-change: transform, opacity; }
 @keyframes mote-rise { 0% { opacity: 0; transform: translate3d(0, 0, 0); } 50% { opacity: var(--o, .5); } 100% { opacity: 0; transform: translate3d(var(--dx, 0), var(--rise, -200px), 0); } }
