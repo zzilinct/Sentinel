@@ -173,9 +173,19 @@ async function paint(tabId, verdict) {
 
 const warned = new Map();
 
+// "Did you type anything?" steps for one tab, one after another. Leaving a flagged page (onCommitted) and the next
+// page finishing (onCompleted) are separate listeners; a fast page finished first, still looked flagged, and the
+// question was lost.
+const typedOrder = new Map();
+function inTabOrder(tabId, step) {
+  const next = (typedOrder.get(tabId) || Promise.resolve()).then(step).catch(() => {});
+  typedOrder.set(tabId, next);
+  return next;
+}
+
 async function onNavigate(details) {
   if (details.frameId !== 0) return;
-  await typedNavigated(details.tabId, details.url);
+  await inTabOrder(details.tabId, () => typedNavigated(details.tabId, details.url));
   if (!/^https?:/i.test(details.url)) return;
   const settings = await getSettings();
   if (!settings.enabled || liveBlockReason()) return;
@@ -780,6 +790,7 @@ ext.webNavigation.onHistoryStateUpdated.addListener(onSameDocument);
 ext.webNavigation.onReferenceFragmentUpdated.addListener(onSameDocument);
 // "Did you type anything?": a flagged tab closed counts as leaving it; the question waits for the next page shown.
 ext.tabs.onRemoved.addListener(async (tabId, info) => {
+  typedOrder.delete(tabId);
   const was = await sessionGet(typedKey(tabId));
   if (!was) return;
   await typedLeft(tabId, was);
@@ -787,7 +798,7 @@ ext.tabs.onRemoved.addListener(async (tabId, info) => {
   if (front) typedDeliver(front.id);
 });
 ext.tabs.onActivated.addListener((info) => { typedDeliver(info.tabId); });
-ext.webNavigation.onCompleted.addListener(async (details) => {
+ext.webNavigation.onCompleted.addListener((details) => inTabOrder(details.tabId, async () => {
   // A frame of a flagged page (a payment provider's card box, often added late) looks for the boxes too.
   if (details.frameId !== 0) {
     const was = await sessionGet(typedKey(details.tabId));
@@ -796,7 +807,7 @@ ext.webNavigation.onCompleted.addListener(async (details) => {
   }
   // A flagged page that loaded before its content script could hear the first word is told again.
   if (await sessionGet(typedKey(details.tabId))) typedWatch(details.tabId);
-  else typedDeliver(details.tabId);
-});
+  else await typedDeliver(details.tabId);
+}));
 
 restore();
