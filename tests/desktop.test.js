@@ -698,8 +698,8 @@ test('"Check links I copy" acts on a single web link only: other clipboard text 
 
 test('a dangerous result says what to do now, in plain steps for its kind of threat', () => {
   const ui = read('web/assets/js/ui.js');
-  assert.match(ui, /function nextSteps\(head\)/);
-  assert.match(ui, /\$\{nextSteps\(head\)\}/);
+  assert.match(ui, /function nextSteps\(head, v\)/);
+  assert.match(ui, /\$\{nextSteps\(head, v\)\}/);
   for (const kind of ['phishing', 'crypto', 'delivery', 'support', 'paste_command', 'fake_update']) assert.match(ui, new RegExp(`\\b${kind}:`), kind);
 });
 

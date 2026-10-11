@@ -338,9 +338,29 @@ window.UI = (() => {
     const happened = HAPPENED[head.kind] || (head.threat === 'scam' ? 'password' : 'file');
     return `${location.pathname.startsWith('/app') ? '/app/recover' : '/recover'}?happened=${happened}`;
   }
-  function nextSteps(head) {
+  /**
+   * An email's steps, by what its checks found (server/lib/scan/email.js ids): "Do not type anything on this page" is
+   * about web pages. Each step only when its part of the email raised a concern; reply and how to check always.
+   */
+  const EMAIL_FOUND = {
+    replyTo: /^E(03|22)$/, link: /^(E1[012]|E29|EL-)/, attachment: /^E(1[3-7]|27)$/, phone: /^E21$/, money: /^E(07|19|2[03-5])$/
+  };
+  function emailSteps(v) {
+    const ids = ((v.checklist && v.checklist.items) || []).filter((c) => c.status === 'fail' || c.status === 'warn').map((c) => c.id);
+    const found = (k) => ids.some((id) => EMAIL_FOUND[k].test(id));
+    return [
+      found('replyTo') ? 'Do not reply. Your answer would go to the people who sent it, not to the company.' : 'Do not reply to it.',
+      ...(found('link') ? ['Do not open its links. To check your account, type the company\'s address yourself.', S.password && `Already entered a password? ${S.password}`] : []),
+      ...(found('attachment') ? ['Do not open the attachment. Delete the email.', FILE[1]] : []),
+      found('phone') && 'Do not call the number in the email. The person who answers is the scammer.',
+      found('money') && 'Do not send money, gift cards or codes, whatever the email says will happen.',
+      'Not sure? Contact the company the way you normally do: its own app, its site typed in yourself, or the number on your card or statement.'
+    ].filter(Boolean);
+  }
+
+  function nextSteps(head, v) {
     if (!head || (head.tone !== 'red' && head.tone !== 'orange' && head.tone !== 'yellow')) return '';
-    const steps = NEXT_STEPS[head.kind] || (head.threat === 'scam' ? LOGIN : FILE);
+    const steps = v && v.kind === 'email' ? emailSteps(v) : NEXT_STEPS[head.kind] || (head.threat === 'scam' ? LOGIN : FILE);
     const title = head.tone === 'yellow' ? 'If you are not sure' : 'What to do now';
     // Past the first steps (money sent, an ID number given, someone let in), the recovery guide puts everything in order.
     const more = head.tone === 'yellow' ? '' : `<p class="next-steps__more">Already clicked, paid or let someone in? <a href="${recoverHref(head)}">Open the recovery guide</a> for every step, in order.</p>`;
@@ -398,12 +418,12 @@ window.UI = (() => {
       </header>
       ${realSite(v)}
       ${threatTiles(v, { lockedLabel })}
-      ${nextSteps(head)}
+      ${nextSteps(head, v)}
       ${v.reasons && v.reasons.length ? `<div class="reasons"><h3>Why</h3><ul>${v.reasons.map((r) => `<li><span class="dot" style="--c:${color(v.threats[r.threat] && v.threats[r.threat].badge)}"></span>${esc(r.text)}</li>`).join('')}</ul></div>` : ''}
       ${facts.length ? `<dl class="facts">${facts.map(([k, val]) => `<div><dt>${esc(k)}</dt><dd>${esc(val)}</dd></div>`).join('')}</dl>` : ''}
       ${notes.length ? `<div class="notes">${notes.map((n) => `<p>${esc(n)}</p>`).join('')}</div>` : ''}
       <div class="result__checklist">
-        <div class="result__checklist-head"><h3>Checklist</h3><span class="mono muted">${v.checklist.total} checks &middot; ${v.checklist.failed} failed &middot; ${v.checklist.warned} warnings &middot; ${v.checklist.skipped} skipped</span></div>
+        <div class="result__checklist-head"><h3>Checklist</h3><span class="mono muted result__tally" data-tally><span>${v.checklist.total} checks &middot; ${v.checklist.failed} failed</span><i> &middot; </i><span>${v.checklist.warned} warnings &middot; ${v.checklist.skipped} skipped</span></span></div>
         <div class="tools" data-check-tools>
           <div class="tools__group" role="group" aria-label="Show">
             <button type="button" class="fchip" data-status-filter="all" aria-pressed="true">All</button>
@@ -423,5 +443,5 @@ window.UI = (() => {
     </article>`;
   }
 
-  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, wireVerdict, wireCopy, reportText, headline, threatTiles, color, THREATS, SEV };
+  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
 })();

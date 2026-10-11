@@ -1535,7 +1535,11 @@
       for (const s of merged) {
         const fail = s.checks.some((c) => c.status === 'fail');
         whys.push({ fail, checks: s.checks });
-        html += `${esc(text.slice(at, s.start))}<mark class="emark${fail ? ' is-fail' : ''}" tabindex="0" role="button" aria-expanded="false" data-emark="${whys.length - 1}">${esc(text.slice(s.start, s.end))}<span class="emark__tag">${esc(s.checks.map((c) => (EMAIL_MARKS[c.id] || [c.title])[0]).join(', '))}</span></mark>`;
+        // The label stays on the line of its last word (up to 12 letters of it, so a long link can still wrap): on a
+        // phone it used to drop to a line of its own, away from what it marks.
+        const words = text.slice(s.start, s.end);
+        const tail = words.length - words.match(/\S{0,12}$/)[0].length;
+        html += `${esc(text.slice(at, s.start))}<mark class="emark${fail ? ' is-fail' : ''}" tabindex="0" role="button" aria-expanded="false" data-emark="${whys.length - 1}">${esc(words.slice(0, tail))}<span class="emark__end">${esc(words.slice(tail))}<span class="emark__tag">${esc(s.checks.map((c) => (EMAIL_MARKS[c.id] || [c.title])[0]).join(', '))}</span></span></mark>`;
         at = s.end;
       }
       return `<div class="email-marks__row" data-efield="${key}"><span class="email-marks__k">${label}</span><div class="email-marks__v${key === 'body' ? ' email-marks__body' : ''}">${html}${esc(text.slice(at))}</div></div>`;
