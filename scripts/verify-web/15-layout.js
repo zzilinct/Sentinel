@@ -211,6 +211,8 @@ async function scrollThrough() {
     el.style.transform = 'none';
     const noMove = await ask();
     el.style.transform = '';
+    // Played while it was being asked about (a slow runner): it does play, a moment late, so it is only late.
+    if (el.classList.contains('is-in')) continue;
     never.push(`${said(el)}; observer: ${seen ? `intersecting ${seen.isIntersecting}, box ${q(seen.boundingClientRect)}, seen ${q(seen.intersectionRect)}` : 'no answer'}; without its clip-path ${noClip}, without its transform ${noMove}; played since: ${el.classList.contains('is-in')}`);
   }
   document.scrollingElement.scrollTo({ top: 0, behavior: 'instant' });
