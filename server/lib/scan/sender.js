@@ -20,6 +20,14 @@ function readHeaders(text) {
 }
 
 const site = (d) => (analyze(`https://${d}`) || {}).registrable || d;
+
+// Mail services that send only for a From address or domain the sender proved is theirs: a club's newsletter through
+// Mailchimp, a school app through Amazon SES, a small business on Google Workspace or Microsoft 365 that never set up
+// its own signature. Passed for one of these only, the mail is not a forgery, it just does not prove more.
+const SERVICES = ['mcsv.net', 'mailchimpapp.net', 'rsgsv.net', 'mandrillapp.com', 'sendgrid.net', 'amazonses.com', 'mailgun.org',
+  'sparkpostmail.com', 'mtasv.net', 'mailjet.com', 'sendinblue.com', 'brevosend.com', 'klaviyomail.com', 'createsend.com',
+  'ccsend.com', 'hubspotemail.net', 'mktomail.com', 'exacttarget.com', 'gappssmtp.com', 'onmicrosoft.com'];
+const serviceOf = (d) => SERVICES.find((s) => d === s || d.endsWith(`.${s}`));
 /** The domain in an address or a bare domain: "<bounce@mailer.example.ru>" is mailer.example.ru. */
 const domainOf = (s) => String(s || '').replace(/[<>"\s]/g, '').split('@').pop().toLowerCase().replace(/\.$/, '');
 
@@ -69,8 +77,9 @@ function senderProof(headers, fromDomain) {
 
   const mine = (d) => Boolean(d) && site(d) === site(domain);
   const passed = [...res.dkim, res.spf].filter((r) => r && r.result === 'pass' && r.domain);
-  const proof = (status, cameFrom = '', checksFailed = false) => ({ status, domain, cameFrom, checksFailed,
+  const proof = (status, cameFrom = '', checksFailed = false, via = '') => ({ status, domain, cameFrom, checksFailed,
     text: status === 'really' ? `Really sent by ${domain}`
+      : via ? `Sent for ${domain} through ${via}`
       : status === 'unknown' ? `The headers do not prove whether ${domain} sent it`
         : cameFrom ? `Not sent by ${domain}: it came from ${cameFrom}` : `Not sent by ${domain}: it failed the checks ${domain} set up` });
 
@@ -78,7 +87,14 @@ function senderProof(headers, fromDomain) {
   const elsewhere = [...passed.map((r) => r.domain), returnPath].find((d) => d && !mine(d)) || '';
   const failed = (res.dmarc && /^(fail|reject|quarantine)$/.test(res.dmarc.result))
     || [...res.dkim, res.spf].some((r) => r && /^(fail|softfail)$/.test(r.result) && mine(r.domain));
-  if (failed) return proof('not', elsewhere, true);
+  // A mailing list the reader joined, passed for the list's own domain. Its footer breaks the author's signature, so
+  // DMARC fails, and a domain whose owner asked for nothing to be done about that (p=none) is not forged by it.
+  const list = domainOf((/<([^>]+)>/.exec(all('list-id')[0] || '') || [])[1] || '');
+  const viaList = list && passed.find((r) => site(r.domain) === site(list));
+  const lax = /\bdmarc\s*=\s*fail\s*\(\s*p\s*=\s*none\b/i.test(ar[0] || '') && ![...res.dkim, res.spf].some((r) => r && /^(fail|softfail)$/.test(r.result) && mine(r.domain));
+  if (failed && !(lax && viaList)) return proof('not', elsewhere, true);
+  if (viaList) return proof('unknown', viaList.domain, false, `the mailing list ${viaList.domain}`);
+  if (passed.length && passed.every((r) => serviceOf(r.domain))) return proof('unknown', serviceOf(passed[0].domain), false, `the mail service ${serviceOf(passed[0].domain)}`);
   // Passed for another domain only: the message proves where it came from, and that is not here.
   if (passed.length) return proof('not', elsewhere);
   return proof('unknown');

@@ -11,7 +11,10 @@
  */
 const { WRONG_NUMBER } = require('./texts');
 
-const APPS = String.raw`(whats ?app|telegram|signal|wechat|line|kik|viber|snapchat|hangouts|google chat)`;
+// Not "my signal is terrible" or "my line of work".
+const APPS = String.raw`(whats ?app|telegram|signal(?! (is|was|keeps|dropped|died|went)\b)|wechat|line(?! (is|was|of|up|manager)\b)|kik|viber|snapchat|hangouts|google chat)`;
+// "Is this Linda?" answered "Yes, it is!" was meant for this person after all: a new number, not a wrong one.
+const AFFIRM = /^(yes|yeah|yep|yup|it is|that'?s me|speaking)\b/i;
 
 // In order: the steps these scams follow. `next`: what usually happens after this step, in calm words.
 const STAGES = [
@@ -19,7 +22,7 @@ const STAGES = [
     id: 'opener', label: 'A wrong number',
     seen: 'a message meant for someone else',
     next: 'Next they usually stay friendly for a few days, then ask to move the chat to WhatsApp, Telegram or another app.',
-    re: /\b(sorry,? (i think )?(wrong number|i (must have |have )?(got|texted|messaged|added) the wrong)|wrong (number|person),? sorry|(got|found) your (number|contact|profile) (from|in|on)|your number (was|is) (in|saved in|on) my (phone|contacts)|is this (still )?\w+'?s number)/i
+    re: /\b(sorry,? (i think )?(wrong number|i (must have |have )?(got|texted|messaged|added) the wrong)|wrong (number|person),? sorry|(got|found) your (number|contact|profile) (from|in|on|through) (a |an |the |my )?(\w+ )?(group|list|app|site|website|contacts|linkedin|facebook|instagram|tiktok|directory)|your number (was|is) (in|saved in|on) my (phone|contacts)|is this (still )?\w+'?s number)/i
   },
   {
     id: 'move', label: 'A move to another app',
@@ -31,19 +34,21 @@ const STAGES = [
     id: 'bond', label: 'A friend far away',
     seen: 'a new friend far away who cannot video call',
     next: 'Next they usually mention an investment, often crypto or gold, that made them money, and offer to show you how.',
-    re: /\b(oil rig|offshore (platform|rig)|deployed (in|to|overseas)|on (a )?(deployment|peacekeeping mission)|un (peacekeeping|doctor)|working (abroad|overseas|in (dubai|syria|yemen|the middle east))|stationed (in|at|overseas)|(cargo|container) ship|(can'?t|cannot|can not|unable to|not allowed to|not able to) (video|facetime|video call|video chat|turn on (my|the) camera)|camera (is )?(broken|not working)|(my )?camera does(n'?t| not) work|video calls? (are|is) not allowed)\b/i
+    // Not just working abroad or stationed somewhere: friends do. The places and jobs these stories use.
+    re: /\b(oil rig|offshore (platform|rig)|deployed (overseas|(in|to) (syria|yemen|iraq|afghanistan))|on (a )?(deployment|peacekeeping mission)|un (peacekeeping|doctor)|working in (syria|yemen)|stationed overseas|(cargo|container) ship|(can'?t|cannot|can not|unable to|not allowed to|not able to) (video|facetime|video call|video chat|turn on (my|the) camera)|camera (is )?(broken|not working)|(my )?camera does(n'?t| not) work|video calls? (are|is) not allowed)\b/i
   },
   {
     id: 'invest', label: 'An investment',
     seen: 'talk of an investment platform or crypto profits',
     next: 'Next they usually let you make a small profit you can see, then push you to put in more. When you try to take money out, there is a fee or a tax to pay first, and the money does not come back.',
-    re: /\b(trading (platform|app|account)|investment (platform|app|opportunity)|crypto (platform|exchange|investment|trading)|(bitcoin|btc|usdt|eth|crypto|forex|gold|futures) (trading|investment|investing|mining|contracts?|platform)|liquidity mining|my (uncle|aunt|aunty|mentor|teacher|cousin)\b[^.!?]{0,40}\b(analyst|insider|expert|taught|teaches|trades|signals)|(made|earned|profit(ed)?|returns? of) [$£€]?\d[\d,.]*k?\s*(%|percent|dollars|usd|usdt|profit|in (a|one|two|\d+) (day|week|month)s?)|guaranteed (profit|returns?)|(i can|let me|i will|i'll) (teach|show|guide) you (how )?(to )?(invest|trade|make (money|profit)))/i
+    re: /\b(trading (platform|app|account)|investment (platform|app|opportunity)|crypto (platform|exchange|investment|trading)|(bitcoin|btc|usdt|eth|crypto|forex|gold|futures) (trading|investment|investing|mining|contracts?|platform)|liquidity mining|my (uncle|aunt|aunty|mentor|teacher|cousin)\b[^.!?]{0,40}\b(analyst|insider|(taught|teaches) me (how )?(to )?(trade|invest|crypto|forex|gold)|trades (crypto|forex|gold|futures)|signals)|(made|earned|profit(ed)?|returns? of) [$£€]?\d[\d,.]*k?\s*(%|percent|usdt|((dollars|usd) )?(profit|in (a|one|two|\d+) (day|week|month)s?))|guaranteed (profit|returns?)|(i can|let me|i will|i'll) (teach|show|guide) you (how )?(to )?(invest|trade|make (money|profit)))/i
   },
   {
     id: 'money', label: 'A sudden need for money',
     seen: 'a sudden emergency or a fee that needs your money',
     next: 'Next they usually ask again, for another fee, ticket or fine, each time with a new reason. Paying once leads to more requests.',
-    re: /\b(hospital bills?|medical bills?|surgery|stuck (at|in) (the )?(airport|customs|border)|customs (fee|charge|clearance)|(account|card) (is |got |has been |was )?(frozen|blocked)|(send|lend|wire|transfer) (me )?(some )?(money|cash|funds|crypto|usdt|bitcoin)|(send|lend|wire|transfer) (me )?[$£€]\s?\d|gift ?cards?|plane ticket|flight ticket|visa fee|(withdraw(al)?|release|unlock)\b[^.!?]{0,30}\b(fee|tax|deposit)|pay (the |a )?(tax|fee) (first|before)|(i|we)( will|'ll) pay you back)\b/i
+    // A need or an ask, not a family talking about Grandpa's surgery or a birthday gift card.
+    re: /\b((need|needs|money for|pay for|help (me )?(with|pay)|afford)\b[^.!?]{0,30}\b(hospital|medical|surgery|operation|plane ticket|flight|visa|lawyer)|stuck (at|in) (the )?(customs|border)|customs (fee|charge|clearance)|account (is |got |has been |was )?(frozen|blocked)|(send|lend|wire|transfer) (me|us) (some |the )?(money|cash|funds|crypto|usdt|bitcoin)|(send|lend|wire|transfer) (me|us) [$£€]\s?\d|(buy|send|get) (me |us )?(some |a few |the |\d+ )?(\w+ )?gift ?cards?|gift ?card (codes?|numbers?|pins?)|(withdraw(al)?|release|unlock)\b[^.!?]{0,30}\b(fee|tax|deposit)|pay (the |a )?(tax|fee) (first|before)|(i|we)( will|'ll) pay you back)\b/i
   }
 ];
 
@@ -65,8 +70,8 @@ function judgeConversation(text) {
   const lines = String(text || '').slice(0, 8000).split(/\r?\n/).map((l) => l.replace(LABEL, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
   if (!lines.length) return null;
   const all = lines.join('\n');
-  const seen = new Set(STAGES.filter((s) => s.re.test(all)).map((s) => s.id));
-  if (lines.some((l) => WRONG_NUMBER.test(l))) seen.add('opener');
+  const seen = new Set(STAGES.filter((s) => s.id !== 'opener' && s.re.test(all)).map((s) => s.id));
+  if (lines.some((l, i) => (STAGES[0].re.test(l) || WRONG_NUMBER.test(l)) && !AFFIRM.test(lines[i + 1] || ''))) seen.add('opener');
   if (seen.size < 2) return null;
   const found = STAGES.filter((s) => seen.has(s.id));
   const at = found[found.length - 1];
