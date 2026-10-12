@@ -54,6 +54,7 @@ let quitting = false;
 let warnWin = null;
 let warnReal = null;          // the real site the open warning offers (the server's realSite), never one the page names
 let guardWin = null;
+let menuWin = null;           // the right-click scan's own result window, signed out (pages/filescan.html)
 let booting = false;
 let retryTimer = null;
 let retryCount = 0;
@@ -292,7 +293,11 @@ async function apiCall(pathname, body) {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', (_event, argv) => { showWindow(askedToScan(argv)); if (!ORIGIN && !booting) boot(); });
+  app.on('second-instance', (_event, argv) => {
+    const route = askedToScan(argv);
+    if (route !== null) showWindow(route);
+    if (!ORIGIN && !booting) boot();
+  });
 }
 
 app.setAppUserModelId('com.usesentinel.desktop');
@@ -905,10 +910,14 @@ async function setScanMenu(enabled) {
   }
   return scanMenuStatus();
 }
-/** A command line from the right-click menu: keeps its file for the app's file scan and says where to open. */
+/**
+ * A command line from the right-click menu: signed in, keeps its file for the app's file scan and says where to open.
+ * Signed out, checks the file on this computer and shows the verdict in its own window: returns null (nothing to open).
+ */
 function askedToScan(argv) {
   const file = scanmenu.fileFrom(argv);
   if (!file) return undefined;
+  if (!store.getSecret('token')) { scanHere(file).catch(() => {}); return null; }
   menuFile = { file, at: Date.now() };
   appLog('right-click menu: a file was handed over for a scan');
   return '/app/threats';
@@ -924,6 +933,53 @@ async function takeMenuFile() {
   const name = path.basename(m.file);
   if (stat.size > require('../shared/filescan').MAX_FILE_BYTES) return { name, size: stat.size, data: null };
   return { name, size: stat.size, data: await fs.promises.readFile(m.file) };
+}
+/**
+ * Signed out: the file is checked by download protection's on-device scanner, without the known-threat lookup (that
+ * asks the account), and nothing about it leaves this computer. The log says only the verdict, never the file.
+ */
+let menuResultFile = null;     // the file the result window is about, for "Sign in for a deeper check"
+async function scanHere(file) {
+  const fs = require('fs');
+  appLog('right-click menu: a file was checked on this computer (signed out)');
+  let size = 0;
+  let report = null;
+  let problem = null;
+  try {
+    const stat = await fs.promises.stat(file);
+    size = stat.size;
+    if (!stat.isFile()) problem = 'unreadable';
+    else if (size > require('../shared/filescan').MAX_FILE_BYTES) problem = 'big';
+    else report = await downloads.analyze(file, path.basename(file), null);
+  } catch { problem = 'unreadable'; }
+  const summary = downloads.summarize(report, null);
+  appLog(`right-click menu: ${problem ? `not checked (${problem === 'big' ? 'over 25 MB' : 'could not be read'})` : summary.label}`);
+  menuResultFile = file;
+  const query = scanmenu.offlineResult(file, size, summary, report, problem);
+  if (!menuWin || menuWin.isDestroyed()) {
+    menuWin = new BrowserWindow({
+      width: 480, height: 440, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
+      show: false, backgroundColor: '#111215', title: 'Sentinel', icon: ICON, autoHideMenuBar: true,
+      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false }
+    });
+    menuWin.on('closed', () => { menuWin = null; menuResultFile = null; });
+    // Asked for with a right-click, so it comes to the front with the keyboard.
+    menuWin.once('ready-to-show', () => { if (menuWin) { menuWin.show(); menuWin.focus(); } });
+    menuWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    menuWin.webContents.on('will-navigate', (e) => e.preventDefault());
+  }
+  menuWin.loadFile(path.join(__dirname, 'pages', 'filescan.html'), { query });
+  if (menuWin.isVisible()) { menuWin.moveTop(); menuWin.focus(); }
+}
+/** The result window's buttons. "Sign in" hands the file to the app's account scan, the way a signed-in right-click does. */
+function menuResultAction(action) {
+  const file = menuResultFile;
+  if (menuWin && !menuWin.isDestroyed()) menuWin.close();
+  if (action === 'signin' && file) {
+    menuFile = { file, at: Date.now() };
+    showWindow('/app/threats');
+  }
+  return { ok: true };
 }
 
 /**
@@ -1315,7 +1371,7 @@ function trusted(event) {
 function trustedLocal(event) {
   try {
     const from = BrowserWindow.fromWebContents(event.sender);
-    return event.senderFrame && event.senderFrame.url.startsWith(PAGES) && (from === win || (warnWin && from === warnWin) || (guardWin && from === guardWin));
+    return event.senderFrame && event.senderFrame.url.startsWith(PAGES) && (from === win || (warnWin && from === warnWin) || (guardWin && from === guardWin) || (menuWin && from === menuWin));
   } catch {
     return false;
   }
@@ -1507,6 +1563,7 @@ function registerBridge() {
     return { ok: true };
   }, trustedLocal);
   handle('sentinel:guard-action', (action, arg) => guardAction(String(action), String(arg || '')), trustedLocal);
+  handle('sentinel:menu-result-action', (action) => menuResultAction(String(action)), trustedLocal);
   // The call check answered "Hang up" (only that, never what was ticked): a sign for the pay pause.
   handle('sentinel:call-hangup', () => { pause.sign('call'); return { ok: true }; });
 }
