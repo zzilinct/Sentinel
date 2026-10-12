@@ -46,8 +46,11 @@ async function measure(browser, s, width, height) {
   const all = await nodes(browser, s);
   const panel = all.find((n) => n.nodeName === 'DIV' && /\bpanel\b/.test(attr(n, 'class') || ''));
   if (!panel) return { ok: false, why: 'no warning on the page' };
-  const p = await box(browser, s, panel);
   const parts = all.filter((n) => n.nodeName === 'BUTTON' || n.nodeName === 'H1' || (n.nodeName === 'A' && attr(n, 'href')));
+  // Scrolled to the panel's top corner first: that top must be reachable, not above the window.
+  await browser.send('DOM.scrollIntoViewIfNeeded', { nodeId: panel.nodeId, rect: { x: 0, y: 0, width: 1, height: 1 } }, s).catch(() => {});
+  await sleep(150);
+  const p = await box(browser, s, panel);
   const bad = [];
   if (p.left < 0 || p.right > width) bad.push({ panel: p });
   if (p.top < 0) bad.push({ panelTopCut: p.top });
@@ -244,6 +247,13 @@ async function checkCompanionPolish() {
     const blockFit = await measure(browser, phone.sessionId, W, H);
     await shot(browser, phone.sessionId, 'companion-polish-block-phone-light-end');   // scrolled to its last button
     result('companion-polish: the block page at phone width in the light theme: nothing cut, every button on screen when scrolled to', blockFit.ok, blockFit);
+    // A shorter window than the panel: it scrolls from its top instead of being cut at both ends.
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: W, height: 480, deviceScaleFactor: 1, mobile: false }, phone.sessionId);
+    await sleep(400);
+    const shortFit = await measure(browser, phone.sessionId, W, 480);
+    await shot(browser, phone.sessionId, 'companion-polish-block-short-end');
+    result('companion-polish: in a window shorter than the block page, its top and every button can still be reached', shortFit.ok && shortFit.panel.bottom - shortFit.panel.top > 480, shortFit);
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false }, phone.sessionId);
 
     // The pay pause, after that warning, on an honest gift card page at the same size.
     await goto(browser, phone.sessionId, 'http://giftshop.test/gift-cards/');
