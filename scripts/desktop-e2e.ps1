@@ -978,6 +978,27 @@ Check 'signout-locked' ($r -match '^/app[^|]*\|.*Still signed in\. Locked by a p
 Check 'signout-open' (Until 20 { -not (Info 'info()').pairedUserId }) 'with the lock open, signing out goes through'
 [void](Info 'lockRemove()')
 
+# 8b. "Scan with Sentinel" signed out (7c was signed in): the same command on a harmless file is checked on this
+# computer and its verdict shown in a small window of its own within seconds, nothing handed to the account's scan,
+# and the log names neither the file nor its folder.
+$handed = ([regex]::Matches((AppLog), 'right-click menu: a file was handed over')).Count
+$outFile = Join-Path $env:RUNNER_TEMP 'signed out e2e\Packing list.txt'
+New-Item -ItemType Directory -Force (Split-Path $outFile) | Out-Null
+[IO.File]::WriteAllText($outFile, "Socks`r`nToothbrush`r`nCharger`r`n")
+$signedOut = -not (Info 'info()').pairedUserId
+$asked = Get-Date
+if ($menuCmd -match '^"([^"]+)"\s+(.+)$') { Start-Process -FilePath $Matches[1] -ArgumentList $Matches[2].Replace('%1', $outFile) }
+$v = ''
+$ok = Until 20 { $script:v = [string](Cdp 'filescan.html' "[document.getElementById('label').textContent, document.getElementById('name').textContent, document.getElementById('lead').textContent, document.getElementById('where').textContent, document.getElementById('signin').textContent].join('|')").value; $script:v -match '^No threats found\|Packing list\.txt' }
+$took = [int]((Get-Date) - $asked).TotalSeconds
+Start-Sleep 1
+Shot 'right-click-signed-out'
+Check 'menu-offline-verdict' ($signedOut -and $ok -and $v -match 'found nothing harmful' -and $v -match 'Nothing about the file left it' -and $v -match 'Sign in for a deeper check') "signed out: $signedOut; after $took s the window shows: $v"
+$log = AppLog
+Check 'menu-offline-log-private' ($log -match 'right-click menu: a file was checked on this computer \(signed out\)' -and $log -match 'right-click menu: No threats found' -and $log -notmatch 'Packing list' -and $log -notmatch 'signed out e2e' -and ([regex]::Matches($log, 'right-click menu: a file was handed over')).Count -eq $handed) "app.log says a file was checked here and the answer, not which file; handed to the account scan again: $(([regex]::Matches($log, 'right-click menu: a file was handed over')).Count - $handed)"
+[void](Cdp 'filescan.html' "(document.getElementById('close').click(), 1)")
+Check 'menu-offline-done' (Until 10 { [bool](Cdp 'filescan.html' '1').error }) 'Done closes the result window'
+
 if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 60 | ForEach-Object { Say "  $_" }
 # 9. Uninstalling takes "Scan with Sentinel" out of the right-click menu. The uninstaller hands itself to a copy in

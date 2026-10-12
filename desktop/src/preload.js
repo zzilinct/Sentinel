@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   // "Scan with Sentinel" in the right-click menu for files: the switch, and the file it handed over ({ name, size, data }), once.
   setScanMenu: (enabled) => ipcRenderer.invoke('sentinel:set-scan-menu', Boolean(enabled)),
   takeMenuFile: () => ipcRenderer.invoke('sentinel:take-menu-file'),
+  // Its result window when signed out (pages/filescan.html): 'close', or 'signin' for the account's deeper check.
+  menuResultAction: (action) => ipcRenderer.invoke('sentinel:menu-result-action', String(action)),
   // "Put it back": the command "Stop pasted commands" took off the clipboard. Its text never reaches the page.
   commandPutBack: () => ipcRenderer.invoke('sentinel:command-put-back'),
   onCommand: (callback) => on('sentinel:command', callback),

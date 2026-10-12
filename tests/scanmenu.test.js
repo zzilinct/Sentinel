@@ -31,3 +31,31 @@ test('anything that is not a full path is ignored', () => {
   assert.equal(fileFrom([EXE, '--hidden']), null);
   assert.equal(fileFrom(undefined), null);
 });
+
+// Signed out, the file is checked on this computer and the result window gets only these words: never the folder.
+const { offlineResult } = require('../desktop/src/scanmenu.js');
+const FILE = 'C:\\Users\\Ada Lovelace\\Documents\\Private\\Invoice 2026.pdf.exe';
+
+test('the result window is told the file name and the verdict, never where the file is', () => {
+  const report = { checks: [
+    { status: 'pass', points: 0, detail: 'Hash not in any threat list' },
+    { status: 'warn', points: 18, detail: 'PE executable: only run programs from publishers you trust' },
+    { status: 'fail', points: 45, detail: '"Invoice 2026.pdf.exe" hides a .exe behind .pdf' },
+    { status: 'skip', points: 0, detail: 'Not an executable' }
+  ] };
+  const r = offlineResult(FILE, 52224, { badge: 'orange', label: 'Likely virus' }, report, null);
+  assert.deepEqual(r, {
+    name: 'Invoice 2026.pdf.exe', size: '52224', badge: 'orange', label: 'Likely virus', problem: '',
+    found: '"Invoice 2026.pdf.exe" hides a .exe behind .pdf\nPE executable: only run programs from publishers you trust'
+  });
+  assert.ok(!JSON.stringify(r).includes('Ada Lovelace') && !JSON.stringify(r).includes('Private'));
+});
+
+test('a clean file is green, and a file not checked says so instead of a verdict', () => {
+  const clean = offlineResult('D:\\notes.txt', 12, { badge: null, label: 'No threats found' }, { checks: [] }, null);
+  assert.equal(clean.badge, 'green');
+  assert.equal(clean.label, 'No threats found');
+  assert.equal(clean.found, '');
+  const big = offlineResult('D:\\film.mkv', 40 * 1024 * 1024, { badge: null, label: 'No threats found' }, null, 'big');
+  assert.deepEqual([big.badge, big.label, big.problem, big.found], ['none', 'Not checked', 'big', '']);
+});

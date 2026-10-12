@@ -6,6 +6,9 @@
  * points at that copy; taken away by the switch in the app and by the uninstaller (build/installer.nsh).
  * Choosing it starts Sentinel.exe with --scan-file=<the file>; a Sentinel already running gets that as a second
  * instance, and the app's Virus & malware scan checks the file with the scanner on this computer.
+ * Signed out, there is no account to scan with: the file is checked by the on-device file scanner (the one download
+ * protection uses) and the verdict shown in a small window of its own (pages/filescan.html). Nothing about the file
+ * leaves the computer then.
  */
 const path = require('path');
 const { execFile } = require('child_process');
@@ -38,4 +41,23 @@ async function register(exe) {
 
 function unregister() { return reg(['delete', KEY, '/f']); }
 
-module.exports = { KEY, LABEL, command, fileFrom, register, unregister };
+/**
+ * What the small result window shows for a file checked on this computer: its name (never its folder), the verdict in
+ * download protection's words (downloads.summarize), and up to four things found. problem: 'big' (over the 25 MB the
+ * scanner reads) or 'unreadable', when it was not checked at all.
+ */
+function offlineResult(file, size, summary, report, problem) {
+  const found = report && !problem
+    ? report.checks.filter((c) => c.status === 'fail' || c.status === 'warn').sort((a, b) => b.points - a.points).slice(0, 4).map((c) => c.detail)
+    : [];
+  return {
+    name: path.win32.basename(String(file)),
+    size: String(Number(size) || 0),
+    badge: problem ? 'none' : summary.badge || 'green',
+    label: problem ? 'Not checked' : summary.label,
+    problem: problem || '',
+    found: found.join('\n')
+  };
+}
+
+module.exports = { KEY, LABEL, command, fileFrom, register, unregister, offlineResult };
