@@ -91,7 +91,8 @@ test('the companion reads wording only when asked, in the hour after a warning, 
   assert.match(look, /files: \['src\/content\/paywords\.js', 'src\/content\/payread\.js'\]/);
   const handler = bg.slice(bg.indexOf('async paywords('), bg.indexOf("async 'typed-no'"));
   assert.ok(!/apiFetch|fetch\(/.test(handler), 'nothing is sent');
-  assert.match(handler, /badge === 'red' \|\| badge === 'orange'/);
+  assert.match(handler, /if \(isFlagged\(verdict\) \|\| cacheForHost\(hostOf\(url\), isFlagged\)\) return \{ ok: false \};/);
+  assert.match(bg, /const isFlagged = \(v\) => Boolean\(v && v\.overall && \(v\.overall\.badge === 'red' \|\| v\.overall\.badge === 'orange'\)\);/);
   const reader = read('extension/src/content/payread.js');
   assert.match(reader, /sendMessage\(\{ type: 'paywords', kind \}\)/);
   assert.ok(!/\.value\b/.test(reader), 'never what is typed');

@@ -117,6 +117,7 @@ async function checkCompanionPolish() {
       window.goSend = () => { history.pushState({}, '', '/wallet/send'); document.getElementById('screen').innerHTML = ${JSON.stringify(send)}; };
     </script>`),
     '/signin.html': page('Sign in', '<h1>Sign in to your account</h1><form onsubmit="return false"><p><label>Password <input type="password"></label></p></form>'),
+    '/start': page('Start', '<p>A private window</p>'),
     '/account.html': page('Account', '<h1>Your account</h1><p>Confirm your details.</p>'),
     '/gift-cards/': page('Gift cards', '<h1>Gift cards</h1><p>Store gift card, 50.00</p>')
   });
@@ -155,9 +156,15 @@ async function checkCompanionPolish() {
     }
     result('companion-polish: the scanner flags a wallet look-alike that is not on the cached list', Boolean(FLAG), badges);
     if (FLAG) {
-      const { browserContextId } = await browser.send('Target.createBrowserContext');
-      const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank', browserContextId });
-      const priv = { targetId, sessionId: (await browser.send('Target.attachToTarget', { targetId, flatten: true })).sessionId };
+      // A real private window, opened by the companion's own page (a DevTools browser context runs no extensions).
+      const allowed = await evalIn(browser, opt.sessionId, 'chrome.extension.isAllowedIncognitoAccess()');
+      await evalIn(browser, opt.sessionId, "chrome.windows.create({ incognito: true, url: 'http://giftshop.test/start' }).then(() => 1)");
+      let target = null;
+      for (let i = 0; i < 40 && !target; i++) { await sleep(250); target = (await browser.send('Target.getTargets')).targetInfos.find((t) => t.type === 'page' && t.url === 'http://giftshop.test/start') || null; }
+      const incognito = await evalIn(browser, opt.sessionId, "chrome.tabs.query({}).then((t) => t.filter((x) => x.incognito).length)");
+      result('companion-polish: the companion is allowed in a private window, and one is open', allowed === true && Boolean(target) && incognito >= 1, { allowed, target: Boolean(target), incognito });
+      if (!target) throw new Error('no private window');
+      const priv = { targetId: target.targetId, sessionId: (await browser.send('Target.attachToTarget', { targetId: target.targetId, flatten: true })).sessionId };
       await browser.send('Page.enable', {}, priv.sessionId);
       await goto(browser, priv.sessionId, `http://${FLAG}/wallet/home`);
       const block = await waitText(priv.sessionId, /Take me back to safety/, 80);
@@ -174,14 +181,14 @@ async function checkCompanionPolish() {
       await shot(browser, priv.sessionId, 'companion-polish-private-flagged-send');
       const store = await kept();
       result('companion-polish: the flagged page moving to its send screen by pushState gets no pay pause, and nothing about it is kept',
-        noBlock && where === '/wallet/send' && /Send/.test(after) && !after.includes(SAYS) && !JSON.stringify(store).includes(FLAG) && !store['paused:private'] && !Object.keys(store).some((k) => k.startsWith('typed:')),
+        /Take me back to safety/.test(block) && noBlock && where === '/wallet/send' && /Send/.test(after) && !after.includes(SAYS) && !JSON.stringify(store).includes(FLAG) && !store['paused:private'] && !Object.keys(store).some((k) => k.startsWith('typed:')),
         { noBlock, where, paused: after.includes(SAYS), kept: Object.keys(store) });
       // The pause itself still works in a private window, on an honest gift card page.
       await goto(browser, priv.sessionId, 'http://giftshop.test/gift-cards/');
       const gift = await waitText(priv.sessionId, saysRe);
       await shot(browser, priv.sessionId, 'companion-polish-private-gift');
       result('companion-polish: an honest gift card page in the same private window still gets the pause', gift.includes(SAYS));
-      await browser.send('Target.disposeBrowserContext', { browserContextId }).catch(() => {});
+      await browser.send('Target.closeTarget', { targetId: priv.targetId }).catch(() => {});
     }
 
     /* 2. The block page's real-site lookup. */
@@ -226,7 +233,7 @@ async function checkCompanionPolish() {
     const H = 640;
     await browser.send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false }, phone.sessionId);
     await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] }, phone.sessionId);
-    await goto(browser, phone.sessionId, `http://${TYPED_PW}/signin.html?phone=1`);
+    await goto(browser, phone.sessionId, `http://${TYPED_PW}/account.html?phone=1`);
     await waitText(phone.sessionId, /Go to the real paypal\.com/, 60);
     await sleep(600);   // the entrance settles before its picture
     await shot(browser, phone.sessionId, 'companion-polish-block-phone-light');
