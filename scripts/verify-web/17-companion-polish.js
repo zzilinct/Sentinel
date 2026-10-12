@@ -123,7 +123,9 @@ async function checkCompanionPolish() {
   });
   const filesPort = new URL(files.base).port;
   const hosts = [...FLAG_CANDIDATES, ...AWAY_CANDIDATES, TYPED_PW, 'giftshop.test'];
-  const { browser, close } = await launch([`--host-resolver-rules=${hosts.map((h) => `MAP ${h} 127.0.0.1:${filesPort}`).join(',')},MAP paypal.com 127.0.0.1:9`]);
+  // A private window tries https first and these local pages are http only.
+  const { browser, close } = await launch([`--host-resolver-rules=${hosts.map((h) => `MAP ${h} 127.0.0.1:${filesPort}`).join(',')},MAP paypal.com 127.0.0.1:9`,
+    '--disable-features=HttpsFirstModeIncognito,HttpsUpgrades,HttpsFirstBalancedModeAutoEnable']);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api} (see companion-polish-server.log)`);
     const visit = async (url) => (await (await fetch(`${api}/api/v1/live/visit`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ url }) })).json()).verdict || {};
@@ -168,7 +170,9 @@ async function checkCompanionPolish() {
       await browser.send('Page.enable', {}, priv.sessionId);
       await goto(browser, priv.sessionId, `http://${FLAG}/wallet/home`);
       const block = await waitText(priv.sessionId, /Take me back to safety/, 80);
-      result(`companion-polish: ${FLAG} in a private window gets the block page`, /Take me back to safety/.test(block), block.slice(0, 200));
+      await shot(browser, priv.sessionId, 'companion-polish-private-flagged');
+      const href = await evalIn(browser, priv.sessionId, 'location.href').catch((e) => e.message);
+      result(`companion-polish: ${FLAG} in a private window gets the block page`, /Take me back to safety/.test(block), { href, text: block.slice(0, 200) });
       // The same page again in that tab: the block page is not drawn twice per tab and site, so only the page itself
       // knows it is flagged. The worker's memory of the page is then dropped too (as when the browser stops it).
       await goto(browser, priv.sessionId, `http://${FLAG}/wallet/home`);
