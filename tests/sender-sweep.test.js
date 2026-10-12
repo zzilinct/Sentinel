@@ -129,8 +129,8 @@ for (const [name, from, headers] of HONEST) {
 test('the sweep is at least 15 header sets', () => assert.ok(HONEST.length >= 15, String(HONEST.length)));
 
 test('a mail service or a mailing list is named, calmly', () => {
-  assert.equal(senderProof(HONEST[0][2], 'tinybakery.example').text, 'Sent for tinybakery.example through the mail service mcsv.net');
-  assert.equal(senderProof(HONEST[10][2], 'smallclub.example').text, 'Sent for smallclub.example through the mailing list lists.birders.example');
+  assert.equal(senderProof(HONEST[0][2], 'tinybakery.example').text, 'Came through the mail service mcsv.net, which does not prove whether tinybakery.example sent it');
+  assert.equal(senderProof(HONEST[10][2], 'smallclub.example').text, 'Came through the mailing list lists.birders.example, which does not prove whether smallclub.example sent it');
 });
 
 test('forgeries through the same services and lists are still caught', () => {

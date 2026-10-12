@@ -79,7 +79,9 @@ function senderProof(headers, fromDomain) {
   const passed = [...res.dkim, res.spf].filter((r) => r && r.result === 'pass' && r.domain);
   const proof = (status, cameFrom = '', checksFailed = false, via = '') => ({ status, domain, cameFrom, checksFailed,
     text: status === 'really' ? `Really sent by ${domain}`
-      : via ? `Sent for ${domain} through ${via}`
+      // Not "sent for": a forger can send through a mail service or add a list header too, for a domain that never
+      // set DMARC up. Where it came from, and that it proves nothing either way.
+      : via ? `Came through ${via}, which does not prove whether ${domain} sent it`
       : status === 'unknown' ? `The headers do not prove whether ${domain} sent it`
         : cameFrom ? `Not sent by ${domain}: it came from ${cameFrom}` : `Not sent by ${domain}: it failed the checks ${domain} set up` });
 
