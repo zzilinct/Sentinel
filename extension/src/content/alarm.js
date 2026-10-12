@@ -29,11 +29,13 @@
   function css(accent, small) {
     return `
       :host{all:initial}
-      .wrap{position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:rgba(9,10,12,.96);
-        font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#ecebe7;animation:f .25s ease}
-      .wrap.small{inset:auto 16px 16px auto;display:block;padding:0;background:none;max-width:calc(100vw - 32px)}
+      /* A flex row with an auto margin centres the panel, and a panel taller than the window scrolls from its top
+         instead of being cut at both ends (a phone-width or short window). */
+      .wrap{position:fixed;inset:0;display:flex;padding:24px;overflow-y:auto;overscroll-behavior:contain;box-sizing:border-box;
+        background:rgba(9,10,12,.96);font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#ecebe7;animation:f .25s ease}
+      .wrap.small{inset:auto 16px 16px auto;display:block;padding:0;background:none;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px)}
       @keyframes f{from{opacity:0}to{opacity:1}}
-      .panel{width:min(560px,100%);box-sizing:border-box;background:#131519;border:1px solid #2a2d33;border-radius:22px;padding:36px 36px 28px;box-shadow:0 40px 100px rgba(0,0,0,.6);animation:r .35s cubic-bezier(.2,.8,.2,1)}
+      .panel{width:min(560px,100%);margin:auto;box-sizing:border-box;background:#131519;border:1px solid #2a2d33;border-radius:22px;padding:36px 36px 28px;box-shadow:0 40px 100px rgba(0,0,0,.6);animation:r .35s cubic-bezier(.2,.8,.2,1)}
       .small .panel{width:380px;max-width:100%;border-top:3px solid ${accent};border-radius:16px;padding:18px 18px 14px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
       @keyframes r{from{transform:translateY(14px) scale(.98);opacity:0}to{transform:none;opacity:1}}
       @media (prefers-reduced-motion: reduce){.wrap,.panel{animation:f .25s ease}}
@@ -51,7 +53,7 @@
       ul{padding:0;list-style:none}
       ul li{display:flex;gap:10px}ul li:before{content:"";flex:none;width:6px;height:6px;margin-top:9px;border-radius:50%;background:${accent}}
       .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-      button{all:unset;cursor:pointer;font-weight:650;font-size:14px;padding:12px 18px;border-radius:12px;background:#1f2227;color:#ecebe7}
+      button{all:unset;cursor:pointer;overflow-wrap:anywhere;font-weight:650;font-size:14px;padding:12px 18px;border-radius:12px;background:#1f2227;color:#ecebe7}
       .small button{font-size:13px;padding:8px 12px;border-radius:10px}
       button:hover{background:#272a30}
       button:focus-visible,a:focus-visible{outline:2px solid #d6b25a;outline-offset:2px}
@@ -65,7 +67,14 @@
       .help a{color:#d6b25a;text-decoration:underline}
       .foot{margin-top:24px;padding-top:16px;border-top:1px solid #23262b;display:flex;justify-content:space-between;gap:12px;color:#6e747c;font-size:12px}
       .small .foot{margin-top:12px;padding-top:10px}
-      .foot b{color:#c9a64e;letter-spacing:.22em;font-size:11px}`;
+      .foot b{color:#c9a64e;letter-spacing:.22em;font-size:11px}
+      @media (max-width:480px){
+        .wrap{padding:12px}
+        .panel{padding:24px 20px 20px;border-radius:18px}
+        .ring{width:52px;height:52px;border-radius:15px;margin-bottom:14px}.ring svg{width:30px;height:30px}
+        h1{font-size:22px}
+        .foot{flex-wrap:wrap;margin-top:18px}
+      }`;
   }
 
   let shown = null;

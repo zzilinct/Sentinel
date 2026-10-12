@@ -31,6 +31,16 @@ function cacheSet(phase, url, verdict) {
   if (cache.size > 3000) cache.clear();
   cache.set(`${phase}|${url}`, { verdict, at: Date.now() });
 }
+/** A scanner verdict still cached for any page of this host (a search result, the page before a pushState), that `want`s. */
+function cacheForHost(host, want = () => true) {
+  if (!host) return null;
+  for (const [key, hit] of cache) {
+    const phase = key.slice(0, key.indexOf('|'));
+    if (Date.now() - hit.at < TTL[phase] && hostOf(key.slice(phase.length + 1)) === host && want(hit.verdict)) return hit.verdict;
+  }
+  return null;
+}
+const isFlagged = (v) => Boolean(v && v.overall && (v.overall.badge === 'red' || v.overall.badge === 'orange'));
 
 const features = () => (account.plan && account.plan.features) || {};
 /** Fast live scanning is on every plan; delicate (liveScanning) from Pro up. */
@@ -213,6 +223,9 @@ async function onNavigate(details) {
   if (verdict.pay && verdict.pay.text) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:pay', text: String(verdict.pay.text) })).catch(() => {});
 
   const severe = verdict.overall && (verdict.overall.badge === 'red' || (verdict.overall.badge === 'orange' && settings.minimumBadge !== 'red'));
+  // The page itself keeps that it is flagged, for as long as it is open: a later pay pause on it is declined there,
+  // in a private window too, with nothing about the page kept here (a warning is not drawn twice per tab and site).
+  if (isFlagged(verdict)) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:flagged' }, { frameId: 0 })).catch(() => {});
   if (severe) await typedFlagged(details.tabId, details.url);
   if (severe) await sessionSet('paySign', Date.now());
   else if (verdict.paypage) await payPause(details.tabId, details.url, verdict.paypage);
@@ -256,7 +269,9 @@ async function payPause(tabId, url, kind) {
   const key = `paused:${tab && tab.incognito ? 'private' : hostOf(url)}`;
   if (await sessionGet(key)) return;
   await sessionSet(key, 1);
-  Promise.resolve(ext.tabs.sendMessage(tabId, { type: 'sentinel:paypause', kind: kind === 'crypto' ? 'crypto' : 'gift' }, { frameId: 0 })).catch(() => {});
+  // A page the companion flagged declines it (guard.js): the site is not counted as told.
+  const res = await Promise.resolve(ext.tabs.sendMessage(tabId, { type: 'sentinel:paypause', kind: kind === 'crypto' ? 'crypto' : 'gift' }, { frameId: 0 })).catch(() => null);
+  if (res && res.flagged) await sessionSet(key, null);
 }
 /**
  * An address that says nothing (a wallet's send dialog, a store's gift card page under a generic path): only within
@@ -272,18 +287,29 @@ async function payLook(tabId, url) {
   Promise.resolve(ext.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: ['src/content/paywords.js', 'src/content/payread.js'] })).catch(() => {});
 }
 
-/** The scanner's own verdict for a page the cached list already blocked, kept for the real-site button. Null on any failure. */
+/**
+ * The scanner's own verdict for a page the cached list already blocked, kept for the real-site button. Any verdict
+ * already cached for the site is used as it is (one look-alike, one answer). When the scanner cannot be reached it is
+ * not asked again for a few minutes: the block page simply has no real-site button. Null on any failure.
+ */
+let scannerAway = 0;
+const AWAY_WAIT = 5 * 60 * 1000;
 async function realSiteFor(details) {
-  const known = cacheGet('research', details.url) || cacheGet('quick', details.url);
+  const known = cacheGet('research', details.url) || cacheGet('quick', details.url)
+    || cacheForHost(hostOf(details.url), (v) => v.realSite) || cacheForHost(hostOf(details.url));
   if (known) return known;
+  if (Date.now() - scannerAway < AWAY_WAIT) return null;
   try {
     const tab = await ext.tabs.get(details.tabId).catch(() => null);
     const isPrivate = Boolean(tab && tab.incognito);
-    const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: isPrivate ? details.url.replace(/[?#].*$/, '') : details.url, private: isPrivate }, timeout: 30000 });
+    const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: isPrivate ? details.url.replace(/[?#].*$/, '') : details.url, private: isPrivate }, timeout: 8000 });
     noteLive(data.live);
     cacheSet(features().liveResearch ? 'research' : 'quick', details.url, data.verdict);
     return data.verdict;
-  } catch { return null; }
+  } catch (err) {
+    if (err.code === 'offline') scannerAway = Date.now();
+    return null;
+  }
 }
 
 /* ------------------------------------------------- did you type anything? */
@@ -635,8 +661,7 @@ const handlers = {
     if (msg.kind !== 'gift' && msg.kind !== 'crypto') return { ok: false };
     const url = sender.tab.url || sender.url;
     const verdict = localVerdict(url) || cacheGet('research', url) || cacheGet('quick', url);
-    const badge = verdict && verdict.overall && verdict.overall.badge;
-    if (badge === 'red' || badge === 'orange') return { ok: false };
+    if (isFlagged(verdict) || cacheForHost(hostOf(url), isFlagged)) return { ok: false };
     await payPause(sender.tab.id, url, msg.kind);
     return { ok: true };
   },
@@ -779,8 +804,8 @@ async function onSameDocument(details) {
   const flagged = await sessionGet(typedKey(details.tabId));
   if (flagged && flagged.host === hostOf(details.url)) { typedWatch(details.tabId); return; }
   const verdict = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url);
-  const badge = verdict && verdict.overall && verdict.overall.badge;
-  if (badge === 'red' || badge === 'orange') return;
+  // The new address was never scanned; the site's page before it may have been (a private window keeps no record).
+  if (isFlagged(verdict) || cacheForHost(hostOf(details.url), isFlagged)) return;
   if (verdict && verdict.paypage) await payPause(details.tabId, details.url, verdict.paypage);
   else await payLook(details.tabId, details.url);
 }
@@ -806,6 +831,9 @@ ext.webNavigation.onCompleted.addListener((details) => inTabOrder(details.tabId,
     return;
   }
   // A flagged page that loaded before its content script could hear the first word is told again.
+  if (isFlagged(localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url))) {
+    Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:flagged' }, { frameId: 0 })).catch(() => {});
+  }
   if (await sessionGet(typedKey(details.tabId))) typedWatch(details.tabId);
   else await typedDeliver(details.tabId);
 }));
