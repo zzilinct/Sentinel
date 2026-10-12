@@ -190,3 +190,42 @@ test('before you pay: the scanner decides, the guard shows a quiet corner note w
   assert.match(guard, /msg\.type === 'sentinel:pay' && typeof msg\.text === 'string'/);
   assert.match(guard, /small: true,[\s\S]{0,80}title: 'Before you pay',[\s\S]{0,20}lead: text/, 'a corner note (alarm.js escapes lead), never a block');
 });
+
+test('the pay pause is declined on a page the companion flagged, kept only in that page', () => {
+  const run = () => {
+    let listener = null;
+    const shown = [];
+    const ctx = {
+      chrome: { runtime: { id: 'me', onMessage: { addListener: (f) => { listener = f; } } } },
+      document: { body: {}, documentElement: {}, addEventListener() {} },
+      location: { hostname: 'shop.example' },
+      SentinelAlarm: { show: (o) => shown.push(o.title), leave() {} }
+    };
+    ctx.globalThis = ctx;
+    vm.createContext(ctx);
+    vm.runInContext(fs.readFileSync(path.join(SRC, 'content', 'guard.js'), 'utf8'), ctx);
+    const send = (msg) => { let answer; listener(msg, { id: 'me' }, (r) => { answer = r; }); return answer; };
+    return { send, shown };
+  };
+  const honest = run();
+  assert.equal(honest.send({ type: 'sentinel:paypause', kind: 'gift' }), undefined);
+  assert.deepEqual(honest.shown, ['A moment before you pay']);
+
+  const flagged = run();
+  flagged.send({ type: 'sentinel:flagged' });
+  assert.equal(flagged.send({ type: 'sentinel:paypause', kind: 'crypto' }).flagged, true);
+  assert.deepEqual(flagged.shown, [], 'nothing drawn over a flagged page');
+
+  // The worker forgets a declined site, and finds a flagged sibling page in its cache by host (background.js).
+  const bg = strip(fs.readFileSync(path.join(SRC, 'background.js'), 'utf8'));
+  assert.match(bg, /if \(res && res\.flagged\) await sessionSet\(key, null\)/);
+  assert.match(bg, /cacheForHost\(hostOf\(details\.url\), isFlagged\)\) return;/);
+});
+
+test('the block page and its notes scroll instead of being cut in a small window', () => {
+  const alarm = fs.readFileSync(path.join(SRC, 'content', 'alarm.js'), 'utf8');
+  assert.equal(alarm, fs.readFileSync(path.join(SRC, 'content', 'alarm.page.js'), 'utf8'), 'alarm.page.js is a copy of alarm.js');
+  assert.match(alarm, /\.wrap\{position:fixed;inset:0;display:flex;[^}]*overflow-y:auto/);
+  assert.match(alarm, /\.panel\{width:min\(560px,100%\);margin:auto;/);
+  assert.doesNotMatch(alarm, /\.wrap\{[^}]*place-items/, 'a centred grid cuts a tall panel at both ends');
+});

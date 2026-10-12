@@ -14,6 +14,9 @@
   };
   let mounted = false;
   let dismissed = false;
+  // The worker flagged this page (background.js onNavigate). Kept only here, for as long as the page is open, so a
+  // private window keeps nothing anywhere else.
+  let flagged = false;
 
   function worst(v) {
     const rank = { yellow: 1, orange: 2, red: 3 };
@@ -74,7 +77,7 @@
   // Pay pause: gift cards or crypto soon after a warning. The one thing to know, and one way to close it.
   let paused = false;
   function pauseNote() {
-    if (paused || mounted) return;
+    if (paused || mounted || flagged) return;
     paused = true;
     globalThis.SentinelAlarm.show({
       small: true,
@@ -87,8 +90,11 @@
     });
   }
 
-  ext.runtime.onMessage.addListener((msg, sender) => {
+  ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (sender.id === ext.runtime.id && msg && msg.type === 'sentinel:flagged') { flagged = true; return; }
     if (sender.id === ext.runtime.id && msg && msg.type === 'sentinel:paypause') {
+      // Never over a page the companion is warning about: it says so, and the worker does not count the site as told.
+      if (flagged || mounted) { sendResponse({ flagged: true }); return; }
       if (document.body) pauseNote();
       else document.addEventListener('DOMContentLoaded', pauseNote, { once: true });
       return;
@@ -100,6 +106,7 @@
       return;
     }
     if (sender.id !== ext.runtime.id || !msg || msg.type !== 'sentinel:warn' || !msg.verdict) return;
+    flagged = true;
     const show = () => mount(msg.verdict, typeof msg.recover === 'string' ? msg.recover : '', msg.again === true);
     if (document.documentElement) show();
     else document.addEventListener('DOMContentLoaded', show, { once: true });
