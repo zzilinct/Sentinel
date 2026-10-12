@@ -46,7 +46,10 @@ async function measure(browser, s, width, height) {
   const all = await nodes(browser, s);
   const panel = all.find((n) => n.nodeName === 'DIV' && /\bpanel\b/.test(attr(n, 'class') || ''));
   if (!panel) return { ok: false, why: 'no warning on the page' };
-  const parts = all.filter((n) => n.nodeName === 'BUTTON' || n.nodeName === 'H1' || (n.nodeName === 'A' && attr(n, 'href')));
+  const inside = [];
+  const walk = (n) => { inside.push(n); for (const c of n.children || []) walk(c); };
+  walk(panel);
+  const parts = inside.filter((n) => n.nodeName === 'BUTTON' || n.nodeName === 'H1' || (n.nodeName === 'A' && attr(n, 'href')));
   // Scrolled to the panel's top corner first: that top must be reachable, not above the window.
   await browser.send('DOM.scrollIntoViewIfNeeded', { nodeId: panel.nodeId, rect: { x: 0, y: 0, width: 1, height: 1 } }, s).catch(() => {});
   await sleep(150);
