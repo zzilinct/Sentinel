@@ -32,6 +32,14 @@ test('ordinary pages, a send page off an exchange, and flagged pages are not pay
   assert.equal(payPage('https://shop.example/gift-cards', { overall: { badge: 'yellow' } }), 'gift');
 });
 
+test('pages about gift cards or crypto are not pay pages, by their address alone', () => {
+  for (const u of ['https://consumer.ftc.gov/articles/avoiding-and-reporting-gift-card-scams', 'https://www.aarp.org/money/scams-fraud/info-2019/gift-card.html',
+    'https://www.bbc.com/news/gift-card-scam-warning', 'https://www.target.com/guest/gift-card-balance', 'https://www.walmart.com/help/article/gift-card-scams/1',
+    'https://help.coinbase.com/en/coinbase/trading-and-funding/sending-or-receiving-cryptocurrency/send-crypto', 'https://www.coinbase.com/learn/tips-and-tutorials/how-to-send-crypto',
+    'https://www.example-bank.com/fraud/bitcoin-atm-scams', 'https://blog.example.com/gift-cards-for-teachers']) assert.equal(payPage(u, null, 'gift'), null, u);
+  assert.equal(payPage('https://www.amazon.com/Best-Buy-Gift-Card/dp/B01N1M3K0P'), 'gift', 'a shop named Best is still a shop');
+});
+
 test('the pause speaks only after a sign in the last hour, the latest sign, once per site', () => {
   const t0 = 1_000_000_000;
   const p = paypause.create();

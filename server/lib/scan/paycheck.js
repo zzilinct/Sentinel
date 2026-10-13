@@ -66,6 +66,11 @@ const SEND_PATH = /(^|\/)(send|withdraw|withdrawals?|transfer)([/_.-]|$)/i;
 const ATM_HOSTS = new Set(['coinatmradar.com', 'bitcoindepot.com', 'coinflip.tech', 'athenabitcoin.com', 'coinme.com', 'libertyx.com',
   'rockitcoin.com', 'bitcoinofamerica.org', 'bytefederal.com', 'coinsource.net']);
 const ATM_PATH = /(bitcoin|crypto|btc)[-_]?atms?([/_.-]|$)/i;
+// A page about gift cards or crypto, not one selling them or sending it: an article on gift card scams, a balance
+// check, a help page on sending crypto. Known by its address too (the words in paywords.js, less "best", which names
+// shops: "Best Buy gift card"), or by a help, news or blog host.
+const ABOUT_PATH = /\b(scams?|scammers?|fraud|never|balance|redeem|terms|lost|stolen|how|what|why|tips|ideas|guide|news|faq|help|explained|articles?|blog|learn|support|stories|press)\b/i;
+const ABOUT_HOST = /^(help|support|blog|news|learn|community|docs)\./i;
 
 /**
  * 'gift', 'crypto' or null for the page in front. A page flagged orange or red has its own warning, which says more.
@@ -80,6 +85,7 @@ function payPage(url, verdict = null, seen = null) {
   const p = analyze(String(url));
   if (!p || p.isIp) return null;
   const site = p.registrable;
+  if (ABOUT_HOST.test(p.host) || ABOUT_PATH.test(path)) return null;
   if (EXCHANGES.has(site) && SEND_PATH.test(path)) return 'crypto';
   if (ATM_HOSTS.has(site) || /bitcoinatm|cryptoatm/i.test(site) || ATM_PATH.test(path)) return 'crypto';
   if (GIFT_HOSTS.has(site) || /giftcard/i.test(site) || GIFT_PATH.test(path)) return 'gift';
