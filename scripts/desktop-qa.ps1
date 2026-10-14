@@ -9,121 +9,15 @@ $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 New-Item -ItemType Directory -Force $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
-# Windows, their sizes and the display's scaling, read and set the way the Settings app does. Measured in real pixels
-# (per-monitor aware), so screenshots and window sizes stay true at 125% and 150%.
-Add-Type @"
-using System; using System.Runtime.InteropServices; using System.Text; using System.Collections.Generic;
-public static class Qa {
-  [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr v);
-  [DllImport("user32.dll")] public static extern int GetSystemMetrics(int i);
-  delegate bool EnumProc(IntPtr h, IntPtr l);
-  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
-  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
-  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out int pid);
-  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
-  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
-  public struct RECT { public int L, T, R, B; }
-  // Visible top-level windows of these processes, one per line: "front|title|left,top,width,height".
-  public static string Windows(int[] pids) {
-    var set = new HashSet<int>(pids); var lines = new List<string>(); IntPtr fg = GetForegroundWindow();
-    EnumWindows((h, l) => {
-      int pid; GetWindowThreadProcessId(h, out pid);
-      if (set.Contains(pid) && IsWindowVisible(h)) {
-        var sb = new StringBuilder(256); GetWindowText(h, sb, 256); RECT r; GetWindowRect(h, out r);
-        if (r.R - r.L > 40 && r.B - r.T > 40) lines.Add((h == fg ? "front" : "back") + "|" + sb + "|" + r.L + "," + r.T + "," + (r.R - r.L) + "," + (r.B - r.T));
-      }
-      return true;
-    }, IntPtr.Zero);
-    return string.Join("\n", lines);
-  }
-  [DllImport("user32.dll")] static extern int GetDisplayConfigBufferSizes(uint flags, out uint paths, out uint modes);
-  [DllImport("user32.dll")] static extern int QueryDisplayConfig(uint flags, ref uint paths, byte[] pathArr, ref uint modes, byte[] modeArr, IntPtr topo);
-  [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(byte[] packet);
-  [DllImport("user32.dll")] static extern int DisplayConfigSetDeviceInfo(byte[] packet);
-  static readonly int[] Steps = { 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500 };
-  static byte[] Packet(int type, int size) {
-    uint p, m; GetDisplayConfigBufferSizes(2, out p, out m);
-    var pa = new byte[p * 72]; var ma = new byte[m * 64];
-    int r = QueryDisplayConfig(2, ref p, pa, ref m, ma, IntPtr.Zero);
-    if (r != 0) throw new Exception("QueryDisplayConfig " + r);
-    var k = new byte[size]; BitConverter.GetBytes(type).CopyTo(k, 0); BitConverter.GetBytes(size).CopyTo(k, 4); Array.Copy(pa, 0, k, 8, 12);
-    return k;
-  }
-  // The primary display's scaling in percent: "current|recommended|largest allowed".
-  public static string Scale() {
-    var k = Packet(-3, 32); int r = DisplayConfigGetDeviceInfo(k); if (r != 0) return "unreadable " + r;
-    int min = BitConverter.ToInt32(k, 20), cur = BitConverter.ToInt32(k, 24), max = BitConverter.ToInt32(k, 28), rec = Math.Abs(min);
-    return Steps[rec + cur] + "|" + Steps[rec] + "|" + Steps[Math.Min(Steps.Length - 1, rec + max)];
-  }
-  public static int SetScale(int percent) {
-    var g = Packet(-3, 32); int r = DisplayConfigGetDeviceInfo(g); if (r != 0) return r;
-    int rec = Math.Abs(BitConverter.ToInt32(g, 20));
-    var k = Packet(-4, 24); BitConverter.GetBytes(Array.IndexOf(Steps, percent) - rec).CopyTo(k, 20);
-    return DisplayConfigSetDeviceInfo(k);
-  }
-  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-  public struct DEVMODE {
-    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
-    public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra; public int dmFields;
-    public int dmPositionX, dmPositionY, dmDisplayOrientation, dmDisplayFixedOutput;
-    public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
-    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
-    public short dmLogPixels; public int dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency;
-    public int dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2, dmPanningWidth, dmPanningHeight;
-  }
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool EnumDisplaySettings(string dev, int mode, ref DEVMODE dm);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int ChangeDisplaySettings(ref DEVMODE dm, int flags);
-  public static string Modes() {
-    var seen = new List<string>(); var dm = new DEVMODE(); dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
-    for (int i = 0; EnumDisplaySettings(null, i, ref dm); i++) { var s = dm.dmPelsWidth + "x" + dm.dmPelsHeight; if (!seen.Contains(s)) seen.Add(s); }
-    return string.Join(",", seen);
-  }
-  public static int Resolution(int w, int h) {
-    var dm = new DEVMODE(); dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE)); EnumDisplaySettings(null, -1, ref dm);
-    dm.dmPelsWidth = w; dm.dmPelsHeight = h; dm.dmFields = 0x80000 | 0x100000;
-    return ChangeDisplaySettings(ref dm, 0);
-  }
-}
-"@
-$aware = [Qa]::SetProcessDpiAwarenessContext([IntPtr](-4))
 . (Join-Path $PSScriptRoot 'desktop-e2e-lib.ps1')
-# The whole screen as it is now: Windows Forms keeps the size it saw first, and the screen changes size below.
-function Shot($name) {
-  $w = [Qa]::GetSystemMetrics(0); $h = [Qa]::GetSystemMetrics(1)
-  $bmp = New-Object System.Drawing.Bitmap $w, $h
-  $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen(0, 0, 0, 0, (New-Object System.Drawing.Size $w, $h))
-  $script:shot++
-  $bmp.Save(("{0}\{1:D2}-{2}.png" -f $Out, $script:shot, $name), [System.Drawing.Imaging.ImageFormat]::Png)
-  $g.Dispose(); $bmp.Dispose()
-}
 Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds); per-monitor aware: $aware; scaling (now|recommended|largest): $([Qa]::Scale()); modes: $([Qa]::Modes())"
 
-# Sentinel's own main processes (not its helpers): one, however many times the right-click menu starts it.
-function MainProcs { return @(Get-CimInstance Win32_Process -Filter "Name='Sentinel.exe'" | Where-Object { $_.CommandLine -notmatch '--type=' }) }
-function SentinelWindows { $ids = @(Get-Process Sentinel -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }); if (-not $ids.Count) { return @() }; return @(([Qa]::Windows([int[]]$ids)) -split "`n" | Where-Object { $_ }) }
-function Starts { return ([regex]::Matches((AppLog), 'starting Sentinel')).Count }
-function StopSentinel { Get-Process Sentinel -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; [void](Until 20 { -not (Get-Process Sentinel -ErrorAction SilentlyContinue) }); Start-Sleep 2 }
 # "Scan with Sentinel" as Explorer runs it: the shell's own verb on the file. A file Explorer could not hand over this
 # way (gone, or a path too long for the shell) gets the registered command line itself.
 function RightClick($file) {
   try { Start-Process -FilePath $file -Verb SentinelScan -ErrorAction Stop; return 'verb' } catch {
     Start-Process -FilePath $exe -ArgumentList "`"--scan-file=$file`""; return "command ($($_.Exception.Message))"
   }
-}
-# How a window fits its words and the screen: its inside, the words' own height, buttons out of view, and wider than itself.
-$fitExpr = "(() => { const r = document.documentElement, b = document.body; const out = [...document.querySelectorAll('button')].filter((x) => x.offsetParent).filter((x) => { const q = x.getBoundingClientRect(); return q.bottom > innerHeight + 1 || q.right > innerWidth + 1 || q.top < 0 || q.left < 0; }).map((x) => x.textContent).join('/'); r.style.height = b.style.height = 'auto'; const h = Math.ceil(b.getBoundingClientRect().height); r.style.height = b.style.height = ''; return [innerWidth, innerHeight, h, out, r.scrollWidth > innerWidth + 1 ? 'wide' : 'ok'].join('|'); })()"
-$boundsExpr = "(() => { const e = process.mainModule.require('electron'); const d = e.screen.getPrimaryDisplay(); return JSON.stringify({ scale: d.scaleFactor, work: d.workArea, wins: e.BrowserWindow.getAllWindows().filter((w) => w.isVisible()).map((w) => ({ page: w.webContents.getURL().split('?')[0], b: w.getBounds() })) }); })()"
-# One window, by part of its address: on screen in full, its buttons in view, and how much empty space it has.
-function Fit($part, $name) {
-  $f = ([string](Cdp $part $fitExpr).value) -split '\|'
-  $j = $null; try { $j = (Cdp 'main' $boundsExpr).value | ConvertFrom-Json } catch {}
-  $w = $null; if ($j) { $w = @($j.wins | Where-Object { $_.page -like "*$part*" }) | Select-Object -First 1 }
-  $a = $(if ($j) { $j.work } else { $null })
-  $on = $w -and $a -and $w.b.x -ge $a.x - 1 -and $w.b.y -ge $a.y - 1 -and ($w.b.x + $w.b.width) -le ($a.x + $a.width + 1) -and ($w.b.y + $w.b.height) -le ($a.y + $a.height + 1)
-  $r = @{ ok = ($f.Count -eq 5 -and -not $f[3] -and $f[4] -eq 'ok' -and $on); view = "$($f[0])x$($f[1])"; words = $f[2]; outOfView = $f[3]; wide = $f[4]; onScreen = [bool]$on; gap = $(if ($f.Count -eq 5) { [int]$f[1] - [int]$f[2] } else { 0 }); bounds = $(if ($w) { "$($w.b.x),$($w.b.y) $($w.b.width)x$($w.b.height)" }); work = $(if ($a) { "$($a.x),$($a.y) $($a.width)x$($a.height) at $($j.scale)x" }) }
-  Say "  fit ${name}: inside $($r.view), words $($r.words) px tall (empty $($r.gap) px), buttons out of view '$($r.outOfView)', $($r.wide), window $($r.bounds) in work area $($r.work): on screen $($r.onScreen)"
-  return $r
 }
 $scanExpr = "[document.getElementById('label').textContent, document.getElementById('name').textContent, document.getElementById('lead').textContent, document.getElementById('found').innerText.replace(/\s+/g, ' ')].join('|')"
 
