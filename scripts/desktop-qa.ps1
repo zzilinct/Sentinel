@@ -338,7 +338,10 @@ foreach ($c in $inCases) {
   Check "menu-$($c.id)" ($ok -and $front) "by $how, after $took s, in front '$front': $v"
   Check "menu-$($c.id)-one-start" ((Starts) -eq $starts -and @(MainProcs).Count -eq 1) "Sentinel started again for it: $((Starts) - $starts) time(s); main processes now: $(@(MainProcs).Count)"
 }
-# Signed in and started cold from the right-click: the app opens on the file's answer.
+# Signed in and started cold from the right-click: the app opens on the file's answer. Sentinel is quit the way a person
+# quits it, not ended: ended within half a minute of signing in, the browser part never wrote "Stay signed in" to disk.
+[void](Cdp 'main' "(process.mainModule.require('electron').app.quit(), 1)")
+[void](Until 30 { -not (Get-Process Sentinel -ErrorAction SilentlyContinue) })
 StopSentinel
 $p = Join-Path $home2 'Tax return 2026 (final copy).txt'
 Say "right-click, cold and signed in: $(RightClick $p)"
