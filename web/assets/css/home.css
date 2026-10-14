@@ -158,6 +158,10 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 /* ------------------------------------- VII. a technical drawing */
 
 .sec-how { background: repeating-linear-gradient(0deg, transparent 0 39px, rgb(var(--gold-rgb) / .035) 39px 40px); }
+/* The glyph field (glyphs.js): Sentinel reading a page's code, behind the chapter, fading out at its top and bottom. */
+.sec-how > .glyph-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(180deg, transparent, #000 14%, #000 86%, transparent); }
+.sec-how > .wrap { position: relative; z-index: 1; }
 .pipeline__rail { height: 1px; background: repeating-linear-gradient(90deg, var(--sketch) 0 6px, transparent 6px 12px); }
 .pipeline__rail i { background: var(--metal); height: 2px; top: -.5px; }
 .step__num { font: 400 18px var(--display); }
