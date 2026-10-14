@@ -271,3 +271,43 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   .try { grid-template-columns: minmax(0, 1fr); gap: 26px; padding: 30px 20px; }
   .try__form { padding-left: 12px; }
 }
+
+/* ------------------------------------------- the galaxy: every scam wears a mask (galaxy.js) */
+.sec-galaxy { padding-bottom: 40px; }
+.sec-galaxy .section__head { margin-bottom: 0; }
+.galaxy { --galaxy-line: var(--gold-rgb); --galaxy-card: var(--surface-2); --galaxy-dark: 1; --core: var(--gold-400);
+  position: relative; height: clamp(520px, 86vh, 940px); margin-top: -10px; overflow: hidden; touch-action: pan-y; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .galaxy { --galaxy-line: 60 45 20; --galaxy-dark: 0; --core: var(--gold-600, #8a6420); } }
+:root[data-theme="light"] .galaxy { --galaxy-line: 60 45 20; --galaxy-dark: 0; --core: var(--gold-600, #8a6420); }
+/* The cards fly out past the stage's edges: they dissolve into the page there rather than being cut. */
+.galaxy__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: default;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent); }
+/* Sentinel's mark at the centre, over the pocket where the cards are born; it takes the held card's colour. */
+.galaxy__core { position: absolute; inset: 0; margin: auto; width: 150px; height: 150px; display: grid; place-items: center; pointer-events: none;
+  border-radius: 50%; background: radial-gradient(closest-side, var(--bg) 46%, color-mix(in srgb, var(--bg) 70%, transparent) 66%, transparent); color: var(--core);
+  transition: color .5s ease; }
+.galaxy__core svg { width: 74px; height: 74px; filter: drop-shadow(0 0 18px color-mix(in srgb, var(--core) 45%, transparent)); transition: filter .5s ease; }
+/* The verdict tag over the held card, and the caption under an enlarged one. Placed by galaxy.js (a transform). */
+.galaxy__tag { position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px;
+  border-radius: 999px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line-2);
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / .6); font: 600 13px/1.2 var(--sans, system-ui); color: var(--text); white-space: nowrap;
+  pointer-events: none; opacity: 0; transition: opacity .18s ease; z-index: 2; }
+.galaxy__tag.is-on { opacity: 1; }
+.galaxy__tag .m { width: 24px; height: 24px; transform: none; opacity: 1; }
+.galaxy__tag .m svg { width: 15px; height: 15px; }
+.galaxy__caption { position: absolute; left: 0; top: 0; max-width: min(340px, calc(100% - 16px)); margin: 0; padding: 8px 14px; border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--line-2); font-size: 14px; line-height: 1.45; color: var(--text);
+  pointer-events: none; opacity: 0; transition: opacity .2s ease; z-index: 2; }
+.galaxy__caption.is-on { opacity: 1; }
+/* The same scenes as a list, for the keyboard and screen readers: unseen, and the canvas shows the focused card. */
+.galaxy__list { position: absolute; left: 50%; top: 50%; width: 1px; height: 1px; margin: 0; padding: 0; list-style: none; overflow: hidden; opacity: 0; pointer-events: none; }
+.galaxy__hint { position: absolute; left: 0; right: 0; bottom: 14px; margin: 0; padding: 0 16px; text-align: center; font-size: 13px; color: var(--muted); pointer-events: none; }
+.galaxy__hint--touch { display: none; }
+@media (hover: none) { .galaxy__hint--mouse { display: none; } .galaxy__hint--touch { display: inline; } }
+@media (max-width: 640px) {
+  .galaxy { height: clamp(480px, 80vh, 760px); }
+  .galaxy__core { width: 112px; height: 112px; }
+  .galaxy__core svg { width: 54px; height: 54px; }
+}
+@media (prefers-reduced-motion: reduce) { .galaxy__tag, .galaxy__caption, .galaxy__core, .galaxy__core svg { transition: none; } }
