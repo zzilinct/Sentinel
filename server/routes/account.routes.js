@@ -16,7 +16,9 @@ const q = {
       SUM(CASE WHEN virus IN ('suspicious','likely','confirmed') THEN 1 ELSE 0 END) AS viruses,
       SUM(CASE WHEN malware IN ('suspicious','likely','confirmed') THEN 1 ELSE 0 END) AS malware,
       COUNT(*) AS total
-    FROM scan_history WHERE user_id = ? AND created_at > ?`)
+    FROM scan_history WHERE user_id = ? AND created_at > ?`),
+  forgetOne: db.prepare('DELETE FROM scan_history WHERE user_id = ? AND id = ?'),
+  forgetAll: db.prepare('DELETE FROM scan_history WHERE user_id = ?')
 };
 
 /**
@@ -65,6 +67,15 @@ function register(router) {
       // ?limit= asks for fewer (the overview shows 6); never more than 200.
       items: q.history.all(user.id, since, Math.min(200, Math.max(1, Number(new URL(req.url, 'http://x').searchParams.get('limit')) || 200)))
     });
+  });
+
+  // Deleting history: one entry ({ id }) or all of it ({ all: true }), older entries the page no longer shows included.
+  router.post('/api/v1/account/history/delete', async (req, res) => {
+    const user = A.requireUser(req);
+    const body = await readJson(req);
+    if (body.all !== true && !Number.isInteger(body.id)) throw new HttpError(400, 'bad_request', 'Say which entry to delete');
+    const removed = body.all === true ? q.forgetAll.run(user.id).changes : q.forgetOne.run(user.id, body.id).changes;
+    sendJson(res, 200, { ok: true, removed });
   });
 
   // Your week with Sentinel (week.js): the last four weeks, in numbers only.

@@ -77,10 +77,12 @@ const q = {
 };
 
 /** Run a metered scan, refunding the use if it fails on our side. */
-async function metered(user, key, fn) {
+async function metered(user, key, fn, charged = () => true) {
   const refund = plans.consume(user, key);
   try {
-    return await fn();
+    const result = await fn();
+    if (!charged(result)) refund();
+    return result;
   } catch (err) {
     // No result, no charge: a file too large or empty is refused without using up one of the week's scans.
     refund();
@@ -134,7 +136,12 @@ function register(router) {
       threats: plan.features.virusMalwareOnLinks ? ALL : ['scam'],
       mode: 'manual',
       record: true
-    }));
+    }), (v) => {
+      // A delicate scan that researched nothing (a well-known, verified site skips research) is a fast scan: it is
+      // counted as one while fast scans are left, and the delicate scan goes back.
+      if (scanMode !== 'delicate' || v.researched) return true;
+      try { plans.consume(user, 'linkScans'); return false; } catch { return true; }
+    });
     if (lookalike(verdict)) week.bump(user.id, 'lookalikes');
     sendJson(res, 200, withUsage(user, { verdict, scanMode }));
   });

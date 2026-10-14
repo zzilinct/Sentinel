@@ -189,7 +189,8 @@ function serveStatic(root, urlPath, req, res, status = 200) {
   let rel;
   try { rel = decodeURIComponent(urlPath.split('?')[0]); } catch { send(res, 400, 'Bad request'); return true; }
   if (rel.includes('\0')) { send(res, 400, 'Bad request'); return true; }
-  if (rel.endsWith('/')) rel += 'index.html';
+  // /pricing/ is the page /pricing (a trailing slash typed or pasted), and a folder's / is its index.html.
+  if (rel.endsWith('/')) rel = rel.length > 1 && !rel.includes('..') && fs.existsSync(path.join(root, `${rel.slice(0, -1)}.html`)) ? rel.slice(0, -1) : `${rel}index.html`;
 
   const base = path.resolve(root);
   let file = path.resolve(base, '.' + path.posix.normalize('/' + rel.replace(/\\/g, '/')));

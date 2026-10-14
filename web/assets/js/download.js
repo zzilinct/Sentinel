@@ -9,7 +9,8 @@
   const mb = (n) => `${(n / 1048576).toFixed(0)} MB`;
 
   fetch(`https://api.github.com/repos/${button.dataset.releases}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } })
-    .then((r) => (r.ok ? r.json() : null))
+    // Only GitHub saying there is no release (404) means none; refused (403, rate-limited) or failing, the link stays.
+    .then((r) => (r.ok ? r.json() : r.status === 404 ? null : Promise.reject(new Error(`GitHub answered ${r.status}`))))
     .then((release) => {
       const asset = release && (release.assets || []).find((a) => a.name === 'Sentinel-Setup.exe');
       if (asset) {

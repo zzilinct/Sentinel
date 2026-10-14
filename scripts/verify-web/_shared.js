@@ -146,4 +146,76 @@ async function clickButton(browser, sessionId, text) {
   return true;
 }
 
-module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton };
+/* ------------------------------------------------- the real server, signed in */
+
+/**
+ * The real Sentinel server (server/index.js) on a free port, with a throwaway accounts file and its output (where
+ * development prints the emails it would send) in <name>-server.log. PUBLIC_ORIGIN is this address, so the links in
+ * those emails open here.
+ */
+async function startServer(name, env = {}) {
+  const net = require('net');
+  const port = await new Promise((resolve) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), `sentinel-${name}-db-`));
+  const logPath = path.join(OUT, `${name}-server.log`);
+  const log = fs.openSync(logPath, 'w');
+  const base = `http://127.0.0.1:${port}`;
+  const dbPath = path.join(data, 'sentinel.db');
+  const child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
+    cwd: ROOT,
+    stdio: ['ignore', log, log],
+    env: { ...process.env, NODE_ENV: 'development', PORT: String(port), HOST: '127.0.0.1', DB_PATH: dbPath, FEED_REFRESH_HOURS: '0', RESEARCH_ENABLED: '0', BILLING_MODE: 'demo', PUBLIC_ORIGIN: base, ...env }
+  });
+  let up = false;
+  for (let i = 0; i < 120 && !up; i++) { await sleep(500); try { up = (await fetch(`${base}/api/v1/auth/config`)).ok; } catch { /* still starting */ } }
+  const stop = async () => { child.kill(); await sleep(500); try { fs.rmSync(data, { recursive: true, force: true }); } catch { /* temp */ } };
+  if (!up) { await stop(); throw new Error(`the Sentinel server did not start on ${base} (see ${name}-server.log)`); }
+  return { base, dbPath, logPath, stop, log: () => fs.readFileSync(logPath, 'utf8') };
+}
+
+/** Every exception, console error and failed load on the page, collected as they happen. */
+async function watchErrors(browser, sessionId) {
+  const errors = [];
+  browser.on('Runtime.exceptionThrown', (p, sid) => { if (!sid || sid === sessionId) errors.push(`exception: ${p.exceptionDetails.exception ? p.exceptionDetails.exception.description : p.exceptionDetails.text}`); });
+  browser.on('Runtime.consoleAPICalled', (p, sid) => { if ((!sid || sid === sessionId) && (p.type === 'error' || p.type === 'assert')) errors.push(`console.${p.type}: ${p.args.map((a) => a.value || a.description || '').join(' ')}`); });
+  // Chrome logs every 4xx answer from the API as a failed load; those are answers the page shows in words (a wrong
+  // password, a used link), not faults, so only other failed loads count.
+  browser.on('Log.entryAdded', (p, sid) => {
+    if ((!sid || sid === sessionId) && p.entry.level === 'error' && !(p.entry.source === 'network' && /status of 4\d\d/.test(p.entry.text) && /\/api\/v1\//.test(p.entry.url || ''))) errors.push(`${p.entry.source}: ${p.entry.text} ${p.entry.url || ''}`);
+  });
+  await browser.send('Runtime.enable', {}, sessionId);
+  await browser.send('Log.enable', {}, sessionId);
+  return errors;
+}
+
+/** A real click in the middle of the first element matching `selector`, after bringing it into view. */
+async function clickSel(browser, sessionId, selector) {
+  const at = await evalIn(browser, sessionId, `(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) return null;
+    e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
+  if (!at) throw new Error(`nothing on the page matches ${selector}`);
+  for (const type of ['mousePressed', 'mouseReleased']) await browser.send('Input.dispatchMouseEvent', { type, x: at[0], y: at[1], button: 'left', clickCount: 1 }, sessionId);
+}
+
+/** A key pressed and let go, as the keyboard sends it (Tab, Escape, Enter, ArrowDown, or a letter with ctrl). */
+async function pressKey(browser, sessionId, key, { ctrl = false, shift = false } = {}) {
+  const codes = { Tab: 9, Enter: 13, Escape: 27, ArrowDown: 40, ArrowUp: 38, ' ': 32 };
+  const code = codes[key] || key.toUpperCase().charCodeAt(0);
+  const modifiers = (ctrl ? 2 : 0) | (shift ? 8 : 0);
+  const text = key === 'Enter' ? '\r' : key.length === 1 && !ctrl ? key : undefined;
+  await browser.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key.length === 1 ? `Key${key.toUpperCase()}` : key, windowsVirtualKeyCode: code, modifiers, ...(text ? { text } : {}) }, sessionId);
+  await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key.length === 1 ? `Key${key.toUpperCase()}` : key, windowsVirtualKeyCode: code, modifiers }, sessionId);
+}
+
+/** Wait until `expression` is truthy in the page (up to `ms`), returning its last value. */
+async function until(browser, sessionId, expression, ms = 15000) {
+  let v = null;
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    v = await evalIn(browser, sessionId, expression).catch(() => null);
+    if (v) return v;
+    await sleep(150);
+  }
+  return v;
+}
+
+module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton,
+  startServer, watchErrors, clickSel, pressKey, until };

@@ -22,14 +22,23 @@
     return params.get('plan') ? '/app/plan' : '/app';
   };
 
+  // A note is read out as it appears: an error at once (alert), good news politely (status).
   const note = (slot, html, kind = 'error') => {
-    $(slot).innerHTML = html ? `<div class="banner${kind === 'error' ? ' banner--error' : ''}" style="margin:22px 0 0"><div>${html}</div></div>` : '';
+    $(slot).innerHTML = html ? `<div class="banner${kind === 'error' ? ' banner--error' : ''}" role="${kind === 'error' ? 'alert' : 'status'}" style="margin:22px 0 0"><div>${html}</div></div>` : '';
   };
 
   function clearErrors(form) {
     $$('[data-error]', form).forEach((e) => { e.textContent = ''; });
     $$('.input', form).forEach((i) => i.removeAttribute('aria-invalid'));
   }
+
+  // Each field's error is tied to it, so a screen reader says it with the field.
+  $$('[data-error]').forEach((slot) => {
+    const input = slot.closest('form') && slot.closest('form').elements[slot.dataset.error];
+    if (!input || !input.setAttribute) return;
+    slot.id = `${slot.dataset.error}-error`;
+    input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), slot.id].filter(Boolean).join(' '));
+  });
 
   function showErrors(form, errors) {
     let first = null;
@@ -39,6 +48,8 @@
       if (slot) slot.textContent = message;
       if (input) { input.setAttribute('aria-invalid', 'true'); first = first || input; }
     }
+    // The cursor goes to the first field with a problem as the form reads, top to bottom.
+    first = [...form.elements].find((e) => e.getAttribute && e.getAttribute('aria-invalid') === 'true') || first;
     if (first) first.focus();
     return Boolean(first);
   }

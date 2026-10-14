@@ -10,7 +10,7 @@
   $$('[data-glyph]').forEach((el) => { el.innerHTML = Masks.svg(el.dataset.glyph); });
 
   const note = (html, ok) => {
-    $('[data-note]').innerHTML = `<div class="banner${ok ? '' : ' banner--error'}" style="margin:22px 0 0"><div>${html}</div></div>`;
+    $('[data-note]').innerHTML = `<div class="banner${ok ? '' : ' banner--error'}" role="${ok ? 'status' : 'alert'}" style="margin:22px 0 0"><div>${html}</div></div>`;
   };
 
   if (page === 'forgot') {

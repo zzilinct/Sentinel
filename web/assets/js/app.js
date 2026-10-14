@@ -216,6 +216,9 @@
     wireVerdict(out, v);
     wireActions(out, v);
     restoreDrafts();
+    // The answer is somewhere new on the page: keyboard and screen reader users are taken to its heading.
+    const heading = opts.focus && $('h2', out);
+    if (heading) { heading.tabIndex = -1; heading.focus(); }
   }
 
   // The views are drawn after the page loads, so boot.js cannot put drafts back by itself: each view asks it to.
@@ -245,12 +248,16 @@
   const looksLikeUrl = (s) => /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(\/\S*)?$/i.test(s.trim()) || /^https?:\/\/\S+$/i.test(s.trim());
 
   let palette = null;
+  let paletteFrom = null;
   function openPalette(prefill = '') {
     if (palette) { palette.remove(); palette = null; }
+    // Focus goes back where it was when the palette closes.
+    paletteFrom = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+    // A combobox whose choice is read out as it moves (aria-activedescendant), as a screen reader expects.
     palette = h(`<div class="palette" role="dialog" aria-modal="true" aria-label="Search or scan">
       <div class="palette__box">
-        <div class="palette__input">${ICON.search}<input type="text" placeholder="Paste a link to scan, or jump to a page" aria-label="Search" autocomplete="off" spellcheck="false"><kbd>Esc</kbd></div>
-        <ul class="palette__list" role="listbox"></ul>
+        <div class="palette__input">${ICON.search}<input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" placeholder="Paste a link to scan, or jump to a page" aria-label="Search pages, or paste a link to scan" autocomplete="off" spellcheck="false"><kbd>Esc</kbd></div>
+        <ul class="palette__list" id="palette-list" role="listbox" aria-label="Pages and links"></ul>
         <div class="palette__foot"><span><kbd>&uarr;</kbd><kbd>&darr;</kbd> move</span><span><kbd>&crarr;</kbd> open</span><span><kbd>/</kbd> scan box &middot; <kbd>?</kbd> shortcuts</span></div>
       </div>
     </div>`);
@@ -268,17 +275,24 @@
       if (q && looksLikeUrl(q)) items.push({ label: `Scan ${q}`, hint: 'Link scan', href: `/app/scan?url=${encodeURIComponent(q)}`, icon: ICON.link });
       for (const [label, href] of PAGES) if (!q || label.toLowerCase().includes(q.toLowerCase())) items.push({ label, hint: 'Page', href, icon: ICON.shield });
       for (const r of recent) if (q && r.target.toLowerCase().includes(q.toLowerCase())) items.push({ label: r.target, hint: 'Scan again', href: `/app/scan?url=${encodeURIComponent(r.target)}`, icon: ICON.clock });
-      items = items.slice(0, 9);
+      if (!q || 'sign out'.includes(q.toLowerCase())) items.push({ label: 'Sign out', hint: 'Account', run: () => signOut(), icon: ICON.lock });
+      // Opened empty it lists every page (on a phone it is the More menu); a search shows the best few.
+      if (q) items = items.slice(0, 9);
       active = Math.min(active, Math.max(0, items.length - 1));
-      list.innerHTML = items.length ? items.map((it, i) => `<li role="option" aria-selected="${i === active}" data-i="${i}"><span class="palette__icon">${it.icon}</span><span class="palette__label">${esc(it.label)}</span><span class="palette__hint">${esc(it.hint)}</span></li>`).join('')
-        : '<li class="palette__empty">Nothing matches. Paste a link to scan it.</li>';
+      list.innerHTML = items.length ? items.map((it, i) => `<li role="option" id="palette-${i}" aria-selected="${i === active}" data-i="${i}"><span class="palette__icon">${it.icon}</span><span class="palette__label">${esc(it.label)}</span><span class="palette__hint">${esc(it.hint)}</span></li>`).join('')
+        : '<li class="palette__empty" role="option" aria-disabled="true">Nothing matches. Paste a link to scan it.</li>';
+      if (items.length) input.setAttribute('aria-activedescendant', `palette-${active}`); else input.removeAttribute('aria-activedescendant');
+      const on = $(`#palette-${active}`, list);
+      if (on) on.scrollIntoView({ block: 'nearest' });
     };
-    const go = () => { const it = items[active]; if (!it) return; closePalette(); navigate(it.href); };
+    const go = () => { const it = items[active]; if (!it) return; paletteFrom = null; closePalette(); if (it.run) it.run(); else navigate(it.href); };
     input.addEventListener('input', () => { active = 0; paint(); });
     input.addEventListener('keydown', (ev) => {
       if (ev.key === 'ArrowDown') { ev.preventDefault(); active = (active + 1) % Math.max(1, items.length); paint(); }
       else if (ev.key === 'ArrowUp') { ev.preventDefault(); active = (active - 1 + items.length) % Math.max(1, items.length); paint(); }
       else if (ev.key === 'Enter') { ev.preventDefault(); go(); }
+      // The box is the palette's only stop: Tab stays in it, as in any dialog that holds the focus.
+      else if (ev.key === 'Tab') ev.preventDefault();
     });
     list.addEventListener('click', (ev) => { const li = ev.target.closest('[data-i]'); if (li) { active = Number(li.dataset.i); go(); } });
     palette.addEventListener('click', (ev) => { if (ev.target === palette) closePalette(); });
@@ -287,7 +301,13 @@
     input.focus();
     input.select();
   }
-  function closePalette() { if (palette) { palette.remove(); palette = null; } }
+  function closePalette() {
+    if (!palette) return;
+    palette.remove();
+    palette = null;
+    if (paletteFrom && paletteFrom.isConnected) paletteFrom.focus();
+    paletteFrom = null;
+  }
 
   function showShortcuts() {
     toast('Shortcuts: / focuses the scan box, Ctrl+K opens search, Esc closes, ? shows this.', 'info', 6000);
@@ -352,7 +372,7 @@
 
   function verifyBar() {
     const bar = h(`<div class="verify-bar" role="status">
-      <span><b>Confirm your email address.</b> We sent a link to ${esc(state.me.user.email)}. Until it's confirmed you can't recover this account if you forget your password.</span>
+      <span><b>Confirm your email address.</b> We sent a link to ${esc(state.me.user.email)}. Confirming it shows the address is yours, so nobody else can claim this account with it.</span>
       <button class="btn btn--sm" type="button" data-resend>Resend email</button>
     </div>`);
     $('[data-resend]', bar).addEventListener('click', (ev) => busy(ev.currentTarget, 'Sending', async () => {
@@ -422,13 +442,17 @@
     if (!items.length) {
       return `<div class="empty">${Masks.svg('scam')}<p>No scans yet. Paste a link above to run your first one.</p></div>`;
     }
+    // On the History page a link's address is a real link (the keyboard reaches it; the whole row answers the mouse),
+    // and every entry has its own Delete beside it.
     return `<ul class="list">${items.map((it) => {
       const link = clickable && it.kind === 'url';
+      const target = link ? `<a class="list__target" href="/app/scan?url=${encodeURIComponent(it.target)}" title="Scan again">${esc(it.target)}</a>` : esc(it.target);
       return `
-      <li class="${link ? 'is-link' : ''}" ${link ? `data-rescan="${esc(it.target)}" tabindex="0" role="button" title="Scan again"` : ''}>
+      <li class="${link ? 'is-link' : ''}" ${link ? `data-rescan="${esc(it.target)}"` : ''}>
         <span class="list__icon">${it.kind === 'file' ? ICON.file : it.kind === 'email' ? ICON.mail : ICON.link}</span>
-        <span class="list__main"><b class="${it.kind === 'url' ? 'mono' : ''}">${esc(it.target)}</b><span>${esc(it.mode === 'live' ? 'Live' : 'Manual')} ${esc({ url: 'link', file: 'file', email: 'email' }[it.kind] || it.kind)} scan &middot; ${ago(it.created_at)}</span></span>
+        <span class="list__main"><b class="${it.kind === 'url' ? 'mono' : ''}">${target}</b><span>${esc(it.mode === 'live' ? 'Live' : 'Manual')} ${esc({ url: 'link', file: 'file', email: 'email' }[it.kind] || it.kind)} scan &middot; ${ago(it.created_at)}</span></span>
         <span class="list__masks">${masksFor(it) || '<span class="status is-on">Clear</span>'}</span>
+        ${clickable ? `<button type="button" class="list__forget" data-forget="${it.id}" aria-label="Delete ${esc(it.target)} from history" title="Delete from history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>` : ''}
         ${link ? '<span class="list__go" aria-hidden="true">&rarr;</span>' : ''}
       </li>`;
     }).join('')}</ul>`;
@@ -634,7 +658,8 @@
       return `<div class="banner"><div><b>${esc(err.message)}</b> Choose a model above, or <a href="/app/plan" class="u-gold">compare plans</a>.</div></div>`;
     }
     if (err.code === 'weekly_limit_reached') {
-      return `<div class="banner"><div><b>You have used this week's scans.</b> Your ${esc(err.extra.plan)} plan resets ${until(err.extra.resetsAt)}. <a href="/app/plan" class="u-gold">See plans</a></div></div>`;
+      // Which allowance ran out (the server's sentence names it); with the delicate ones gone, fast scans still work.
+      return `<div class="banner"><div><b>${esc(err.message)}</b> They come back ${until(err.extra.resetsAt)}. ${/delicate/.test(err.message) && location.pathname === '/app/scan' ? 'Fast scans still work: choose Fast above. ' : ''}<a href="/app/plan" class="u-gold">See plans</a></div></div>`;
     }
     if (err.code === 'plan_required') {
       return `<div class="banner"><div><b>${esc(err.message)}</b> <a href="/app/plan" class="u-gold">Compare plans</a></div></div>`;
@@ -886,6 +911,8 @@
     });
 
     async function scanLink(url, fromQr) {
+      // A second press while a scan runs (an example clicked twice) leaves the running scan alone.
+      if ($('button[type=submit]', form).dataset.busy) return;
       // A link typed after a QR code is a scan of its own: the code's card goes.
       if (!fromQr) qrOut.innerHTML = '';
       // Remembered in the history entry, so Back and reload show the address without spending another scan.
@@ -902,7 +929,7 @@
         stop();
         applyUsage(data.usage);
         if (dig) await dig.finish(data.verdict);
-        showVerdict(out, data.verdict, { lockedLabel: 'Pro & up' });
+        showVerdict(out, data.verdict, { lockedLabel: 'Pro & up', focus: !fromQr });
         $('[data-left]', el).textContent = scanLeftText(mode);
       } catch (err) {
         stop();
@@ -930,7 +957,7 @@
         <span class="qr-in__icon">${ICON.qr}</span>
         <div class="qr-in__text"><b>Got a QR code?</b><span>Choose, drop or paste (Ctrl+V) a picture of it${camera ? ', or hold it up to the camera' : ''}. It is read on this device and not uploaded.</span></div>
         <span class="qr-in__btns">
-          <button class="btn btn--sm" type="button" data-qr-pick>Choose a picture</button><input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" data-qr-file hidden>
+          <button class="btn btn--sm" type="button" data-qr-pick>Choose a picture</button><input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" aria-label="Picture of a QR code" data-qr-file hidden>
           ${camera ? '<button class="btn btn--sm" type="button" data-qr-cam>Use the camera</button>' : ''}
         </span>
         <div class="qr-cam" data-qr-camview hidden><video muted playsinline aria-label="Camera view"></video><p class="muted">Hold the QR code up to the camera. It is read here, and the camera turns off as soon as a code is found.</p></div>
@@ -1279,7 +1306,7 @@
         const data = await api('/scan/file', { method: 'POST', raw: file, headers: { 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' } });
         applyUsage(data.usage);
         updateLeft();
-        showVerdict(out, data.verdict);
+        showVerdict(out, data.verdict, { focus: true });
       } catch (err) { out.innerHTML = friendlyError(err); }
       fileInput.value = '';
       scanning = false;
@@ -1873,8 +1900,9 @@
     const flaggedLevel = (lvl) => ['suspicious', 'likely', 'confirmed'].includes(lvl);
     const hs = { filter: params.get('filter') || 'all', q: '' };
     const list = $('[data-list]', el);
-    list.innerHTML = `<div class="panel__head"><div><h2>${s.total} scan${s.total === 1 ? '' : 's'}</h2><p>${s.flagged} flagged</p></div>
-        <label class="tools__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Search history" aria-label="Search history" data-q></label></div>
+    list.innerHTML = `<div class="panel__head"><div><h2 data-total>${s.total} scan${s.total === 1 ? '' : 's'}</h2><p>${s.flagged} flagged</p></div>
+        <span class="tools__end"><button type="button" class="btn btn--sm btn--ghost" data-history-clear ${data.items.length ? '' : 'hidden'}>Clear history</button>
+        <label class="tools__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Search history" aria-label="Search history" data-q></label></span></div>
       <div class="tools" data-filters>${FILTERS.map(([id, label]) => `<button type="button" class="fchip" data-filter="${id}" aria-pressed="${id === hs.filter}">${label}</button>`).join('')}<span class="mono muted" data-count></span></div>
       <div data-rows></div>`;
 
@@ -1898,13 +1926,62 @@
     $$('[data-filter]', list).forEach((b) => b.addEventListener('click', () => { hs.filter = b.dataset.filter; paint(); }));
     $$('[data-stat]', el).forEach((b) => b.addEventListener('click', () => { hs.filter = hs.filter === b.dataset.stat ? 'all' : b.dataset.stat; paint(); }));
     $('[data-q]', list).addEventListener('input', (ev) => { hs.q = ev.target.value.trim(); paint(); });
+    const forget = (body) => api('/account/history/delete', { method: 'POST', body });
+    // After a delete the numbers are counted again from what is left.
+    const recount = () => {
+      const n = (f) => data.items.filter(f).length;
+      const counts = { scam: n((it) => flaggedLevel(it.scam)), virus: n((it) => flaggedLevel(it.virus)), malware: n((it) => flaggedLevel(it.malware)) };
+      $$('[data-stat]', el).forEach((b) => { $('.usage-row__n', b).textContent = counts[b.dataset.stat]; });
+      $('[data-total]', list).textContent = `${data.items.length} scan${data.items.length === 1 ? '' : 's'}`;
+      $('[data-total] + p', list).textContent = `${n((it) => flaggedLevel(it.scam) || flaggedLevel(it.virus) || flaggedLevel(it.malware))} flagged`;
+      $('[data-history-clear]', list).hidden = !data.items.length;
+    };
     list.addEventListener('click', (ev) => {
+      const del = ev.target.closest('[data-forget]');
+      if (del) {
+        busy(del, '', async () => {
+          try {
+            const id = Number(del.dataset.forget);
+            const gone = data.items.find((it) => it.id === id);
+            await forget({ id });
+            data.items = data.items.filter((it) => it.id !== id);
+            recount();
+            // The focus goes on to the next entry's Delete (or the search box), not back to the top of the page.
+            const next = del.closest('li').nextElementSibling || del.closest('li').previousElementSibling;
+            const nextId = next && $('[data-forget]', next) ? next.querySelector('[data-forget]').dataset.forget : null;
+            paint();
+            const to = nextId && $(`[data-forget="${nextId}"]`, list);
+            (to || $('[data-q]', list)).focus();
+            toast(`Deleted ${gone ? gone.target : 'that entry'} from your history.`, 'success');
+          } catch (err) { toast(err.message, 'error'); }
+        });
+        return;
+      }
+      // The address is a link of its own (the app's link handler opens it); the rest of the row does the same.
+      if (ev.target.closest('a')) return;
       const row = ev.target.closest('[data-rescan]');
       if (row) navigate(`/app/scan?url=${encodeURIComponent(row.dataset.rescan)}`);
     });
-    list.addEventListener('keydown', (ev) => {
-      const row = ev.target.closest('[data-rescan]');
-      if (row && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); row.click(); }
+    // Clearing everything asks first: one press says what a second press does.
+    let clearArmed = 0;
+    const clear = $('[data-history-clear]', list);
+    clear.addEventListener('click', () => {
+      if (Date.now() - clearArmed > 4000) {
+        clearArmed = Date.now();
+        clear.textContent = 'Press again to delete all';
+        setTimeout(() => { if (Date.now() - clearArmed >= 3900) clear.textContent = 'Clear history'; }, 4000);
+        return;
+      }
+      busy(clear, 'Clearing', async () => {
+        try {
+          await forget({ all: true });
+          data.items = [];
+          recount();
+          paint();
+          $('[data-q]', list).focus();
+          toast('Your history is cleared.', 'success');
+        } catch (err) { toast(err.message, 'error'); }
+      }).then(() => { clear.textContent = 'Clear history'; });
     });
     paint();
   }
@@ -3050,7 +3127,7 @@
           <ul class="list">${sessions.map((s) => `<li>
             <span class="list__icon">${s.kind === 'web' ? ICON.link : s.kind === 'desktop' ? ICON.download : ICON.shield}</span>
             <span class="list__main"><b>${esc(s.device)}${s.current ? ' <span class="status is-on u-ml">This device</span>' : ''}</b><span>${esc(s.kind === 'web' ? 'Browser' : s.kind === 'desktop' ? 'Sentinel app' : 'Browser companion')} &middot; ${s.ip ? esc(s.ip) + ' &middot; ' : ''}active ${ago(s.lastSeenAt || s.createdAt)} &middot; ${s.kind === 'web' ? (s.staySignedIn ? 'stays signed in, ends after 30 days unused' : 'ends when the browser closes') : 'ends after 90 days unused'}</span></span>
-            ${s.current ? '' : `<button class="btn btn--sm" data-revoke-one="${esc(s.id)}">Sign out</button>`}
+            ${s.current ? '<button class="btn btn--sm" data-signout-here>Sign out</button>' : `<button class="btn btn--sm" data-revoke-one="${esc(s.id)}">Sign out</button>`}
           </li>`).join('')}</ul>`;
         $$('[data-revoke-one]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Signing out', async () => {
           try {
@@ -3059,6 +3136,9 @@
           } catch (err) { toast(err.message, 'error'); }
           loadSessions();
         })));
+        // This device: the same as the account button, here too because a phone has no side bar.
+        const here = $('[data-signout-here]', slot);
+        if (here) here.addEventListener('click', () => busy(here, 'Signing out', () => signOut()));
         const revoke = $('[data-revoke]', slot);
         if (revoke) revoke.addEventListener('click', () => busy(revoke, 'Signing out', async () => {
           try {
@@ -3128,18 +3208,19 @@
 
   async function assistantsView(el, params) {
     el.innerHTML = `${title('AI assistants', 'Optional. Ask ChatGPT, Claude, Gemini or DeepSeek about anything. Sentinel\'s scans never depend on them.')}
-      <div data-tabs><div class="skeleton skeleton--tabs"></div></div><div class="panel" data-pane><div class="skeleton u-h-lg"></div></div>`;
+      <div data-tabs><div class="skeleton skeleton--tabs"></div></div><div class="panel" data-pane id="ai-pane" role="tabpanel"><div class="skeleton u-h-lg"></div></div>`;
     let providers;
     try { ({ providers } = await api('/ai/providers')); } catch (err) { $('[data-pane]', el).innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; return; }
     const active = providers.find((p) => p.id === params.get('ai')) || providers[0];
 
     $('[data-tabs]', el).innerHTML = `<div class="ai-tabs" role="tablist">${providers.map((p) => `
-      <button class="ai-tab" role="tab" style="--accent:${esc(p.accent)}" aria-selected="${p.id === active.id}" data-ai="${p.id}">
+      <button class="ai-tab" role="tab" id="ai-tab-${p.id}" aria-controls="ai-pane" style="--accent:${esc(p.accent)}" aria-selected="${p.id === active.id}" data-ai="${p.id}">
         <span class="ai-tab__mark">${MARKS[p.id]}</span>${esc(p.name)}<span class="ai-tab__dot${p.connected ? ' is-on' : ''}"></span>
       </button>`).join('')}</div>`;
     $$('[data-ai]', el).forEach((b) => b.addEventListener('click', () => navigate(`/app/assistants?ai=${b.dataset.ai}`)));
 
     const pane = $('[data-pane]', el);
+    pane.setAttribute('aria-labelledby', `ai-tab-${active.id}`);
     pane.style.setProperty('--accent', active.accent);
     if (active.connected) renderChat(pane, active, el);
     else renderConnect(pane, active);

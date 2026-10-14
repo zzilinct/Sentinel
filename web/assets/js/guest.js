@@ -16,7 +16,8 @@
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const url = form.url.value.trim();
-    if (!url) return;
+    // A second press while a scan runs (an example clicked twice) leaves the running scan alone.
+    if (!url || $('button[type=submit]', form).dataset.busy) return;
     out.innerHTML = '<div class="panel scanning"><div class="scanning__rings">' + Masks.svg('scam') + '</div><h3>Scanning</h3><p class="muted" style="margin-top:6px">Known threats, the checklist and the comparison with known scams.</p></div>';
     try {
       const data = await busy($('button[type=submit]', form), 'Scanning', () => api('/guest/scan', { method: 'POST', body: { url } }));
