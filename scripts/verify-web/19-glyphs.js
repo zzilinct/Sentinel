@@ -2,8 +2,8 @@
 /**
  * glyphs    The glyph field behind "How it works" (glyphs.js), at a computer's and a phone's size, dark and light:
  *           it draws and moves while the chapter is on screen, the pointer brightens it, scrolling moves its bands
- *           on, it stops once the chapter is off screen, it stays under its brightness cap, so every line of text in
- *           front of it keeps its contrast (worked out on the real colours), and under reduced motion it is one still
+ *           on, it stops once the chapter is off screen, it stays under its brightness cap and clear of the kicker, so
+ *           every line of text in front of it keeps its contrast (worked out on the real colours), and under reduced motion it is one still
  *           field. Frames are photographed mid-motion to look at.
  */
 const fs = require('fs');
@@ -47,8 +47,12 @@ const CONTRAST = `(() => {
     const fg = rgb(st.color);
     if (covered || fg.a < 0.5) continue;
     const size = parseFloat(st.fontSize), large = size >= 24 || (size >= 18.66 && Number(st.fontWeight) >= 700);
-    const worst = Math.min(...inks.map((ink) => ratio(fg, mix(bg, ink, S.max))));
-    out.push({ text: walker.currentNode.nodeValue.trim().slice(0, 30), ratio: Math.round(worst * 100) / 100, need: large ? 3 : 4.5 });
+    // The field behind this line at its brightest: the cap, times how much of the field shows there.
+    const top = document.getElementById('how').getBoundingClientRect().top, box = el.getBoundingClientRect();
+    let shows = 0;
+    for (let i = 0; i <= 8; i++) shows = Math.max(shows, window.SentinelGlyphs.veil(box.top - top + (box.height * i) / 8, S.h, S.clear));
+    const worst = Math.min(...inks.map((ink) => ratio(fg, mix(bg, ink, S.max * shows))));
+    out.push({ text: walker.currentNode.nodeValue.trim().slice(0, 30), shows: Math.round(shows * 100) / 100, ratio: Math.round(worst * 100) / 100, need: large ? 3 : 4.5 });
   }
   return out;
 })()`;

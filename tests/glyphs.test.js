@@ -30,3 +30,16 @@ test('glyph field: the bands move on with the phase, and come back after the lon
   assert.deepEqual(a.map(([, x]) => x.toFixed(4)), c.map(([, x]) => x.toFixed(4)));
   assert.ok(bands(1e7, 0, level).length <= 161, 'the stops are capped on a huge section');
 });
+
+test('glyph field: nothing behind the kicker, coming in below it, full in the middle, gone at the bottom', () => {
+  const { veil } = require('../web/assets/js/glyphs.js');
+  const h = 1200, clear = 170;
+  assert.equal(veil(0, h, clear), 0);
+  assert.equal(veil(clear, h, clear), 0);
+  assert.ok(veil(clear + 70, h, clear) > 0.4 && veil(clear + 70, h, clear) < 0.6, 'half way up its ramp');
+  assert.equal(veil(600, h, clear), 1);
+  assert.equal(veil(h, h, clear), 0);
+  assert.ok(veil(h * 0.95, h, clear) < 0.5, 'fading at the bottom');
+  // A short section: the ramp never runs past the fade at the bottom.
+  for (let y = 0; y <= 300; y += 10) { const v = veil(y, 300, 200); assert.ok(v >= 0 && v <= 1, `${y}: ${v}`); }
+});

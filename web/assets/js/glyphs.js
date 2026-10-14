@@ -4,9 +4,9 @@
  * pointer brightens the glyphs near it a little, and scrolling moves the bands on a little.
  *
  * Cheap by design: the glyphs are drawn once, into a sheet the size of the section (from a sheet of single glyphs,
- * as binary.js does), and a frame is five whole-canvas copies: the bands as one gradient, the pointer's glow as
- * another, the glyph sheet cut through them, and the colour laid on. A few glyphs change each frame. It draws at
- * most 30 times a second, only while the section is on screen and the tab is showing.
+ * as binary.js does), and a frame is six whole-canvas copies: the bands as one gradient, the pointer's glow as
+ * another, the fade at the top and bottom, the glyph sheet cut through them, and the colour laid on. A few glyphs
+ * change each frame. It draws at most 30 times a second, only while the section is on screen and the tab is showing.
  *
  * Reduced motion: one still field, drawn again only when the size or the theme changes.
  *
@@ -53,13 +53,36 @@
     return out;
   }
 
-  const api = { bands, LEVELS, MAX, PERIOD };
+  const RAMP = 140;        // px over which the field comes in under the chapter's kicker
+  const FOOT = 0.86;       // and where it starts to fade out at the bottom
+
+  /**
+   * How much of the field shows at `y` CSS pixels down a section `h` tall, 0..1: none behind the kicker (gold on
+   * paper is already right at 4.5:1 with nothing behind it), coming in below it, and fading out at the bottom.
+   * Straight lines between these points, as the canvas gradient draws it.
+   */
+  function veilStops(h, clear) {
+    const at = (y) => Math.min(1, Math.max(0, y / h));
+    const top = at(clear), full = Math.max(top, Math.min(at(clear + RAMP), FOOT));
+    return [[0, 0], [top, 0], [full, 1], [Math.max(full, FOOT), 1], [1, 0]];
+  }
+  function veil(y, h, clear) {
+    const st = veilStops(h, clear), u = y / h;
+    if (u <= 0 || u >= 1) return 0;
+    for (let i = 1; i < st.length; i++) {
+      const [u0, a0] = st[i - 1], [u1, a1] = st[i];
+      if (u <= u1) return u1 > u0 ? a0 + ((a1 - a0) * (u - u0)) / (u1 - u0) : a1;
+    }
+    return 0;
+  }
+
+  const api = { bands, veil, veilStops, LEVELS, MAX, PERIOD };
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pointerFine = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const root = document.documentElement;
-  const state = { running: false, frames: 0, phase: 0, scroll: 0, glow: 0, dpr: 1, max: 0, theme: 'dark' };
+  const state = { running: false, frames: 0, phase: 0, scroll: 0, glow: 0, dpr: 1, max: 0, theme: 'dark', h: 0, clear: 0 };
   api.state = () => ({ ...state });
   window.SentinelGlyphs = api;
 
@@ -72,7 +95,7 @@
     const sheet = document.createElement('canvas');
     const sg = sheet.getContext('2d');
     let atlas = null;
-    let W = 0, H = 0, dpr = 1, cw = 0, ch = 0, cols = 0, rows = 0;
+    let W = 0, H = 0, dpr = 1, cw = 0, ch = 0, cols = 0, rows = 0, clear = 0;
     let colors = ['#ecd499', '#c09647'];
     let level = LEVELS.dark;
     let visible = false, raf = 0, last = 0, t0 = performance.now();
@@ -120,6 +143,11 @@
       W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
       dpr = Math.min(window.devicePixelRatio || 1, Math.sqrt(BUDGET / (W * H)));
       state.dpr = dpr;
+      // The kicker's bottom, by layout offsets (an entrance's transform must not move it).
+      const k = section.querySelector('.kicker');
+      clear = 0;
+      if (k) { for (let e = k; e && e !== section; e = e.offsetParent) clear += e.offsetTop; clear += k.offsetHeight + 12; }
+      state.h = H; state.clear = clear;
       cw = Math.round(CW * dpr); ch = Math.round(CH * dpr);
       canvas.width = sheet.width = Math.round(W * dpr);
       canvas.height = sheet.height = Math.round(H * dpr);
@@ -153,6 +181,11 @@
         ctx.fillStyle = rg;
         ctx.fillRect(x - R, y - R, R * 2, R * 2);
       }
+      ctx.globalCompositeOperation = 'destination-in';
+      const vg = ctx.createLinearGradient(0, 0, 0, chei);
+      for (const [u, a] of veilStops(H, clear)) vg.addColorStop(u, `rgba(0,0,0,${a})`);
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, cwid, chei);
       // The glyphs, cut through the light; then their colour, a gentle gradient across the section.
       ctx.globalCompositeOperation = 'destination-in';
       ctx.drawImage(sheet, 0, 0);
