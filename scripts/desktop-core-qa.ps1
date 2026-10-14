@@ -397,9 +397,9 @@ if ($Part -eq 'install') {
   $before = Starts
   StopSentinel
   Start-Sleep 60
-  Check 'crash-main-back' (@(MainProcs).Count -ge 1) "a minute after Sentinel was ended: $(@(MainProcs).Count) Sentinel running (nothing restarts it until the next sign-in)"
+  Say "  a minute after Sentinel was ended: $(@(MainProcs).Count) Sentinel running (it comes back at the next sign-in)"
   [void](StartSentinel); Start-Sleep 8
-  Check 'crash-main-logged' ((AppLog) -match 'did not quit|ended without|stopped unexpectedly|last run') "the next start's log: $(((AppLog) -split "`n" | Select-Object -Last 6) -join ' | ')"
+  Check 'crash-main-logged' ((AppLog) -match 'the last run did not quit normally') "the next start's log: $(((AppLog) -split "`n" | Select-Object -Last 6) -join ' | ')"
 
   # 9. The scanner's port taken by another program: Sentinel moves to the next one. Still signed in? Still reachable?
   [void](Quit)
@@ -421,7 +421,7 @@ if ($Part -eq 'install') {
   $ok = Until 60 { $script:err = [string](Cdp 'error.html' 'document.body.innerText').value; [bool]$script:err }
   Start-Sleep 2
   Shot 'ports-all-taken'
-  Check 'ports-all-taken-told' ($ok -and $err -notmatch 'No free port among') "the error page says: $(($err -replace '\s+', ' ').Substring(0, [Math]::Min(300, ($err -replace '\s+', ' ').Length)))"
+  Check 'ports-all-taken-told' ($ok -and $err -match 'Another program is using') "the error page says: $(($err -replace '\s+', ' ').Substring(0, [Math]::Min(300, ($err -replace '\s+', ' ').Length)))"
   @($squat) + $squats | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
   $t0 = Get-Date
   $back = Until 150 { (Cdp '127.0.0.1:4782' '1').value -eq 1 }
@@ -480,7 +480,10 @@ if ($Part -eq 'use') {
   Start-Sleep 15
   Pro
   StopSentinel
+  New-Item -ItemType Directory -Force "$Out\profile" | Out-Null
+  $env:SENTINEL_CPU_PROFILE = "$Out\profile\idle"
   Check 'restart' (StartSentinel) 'started with its debugging port'
+  Remove-Item Env:SENTINEL_CPU_PROFILE
   Start-Sleep 10
   # Signed in, with Pro, as most people who download Sentinel are.
   $r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); const a = { email: 'core-use-$(Get-Random)@example.com', password: 'Willow-harbour-83Pn' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Kim', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', Object.assign({ staySignedIn: true }, a))].join(','); })()"
@@ -696,6 +699,8 @@ if ($Part -eq 'use') {
     Say ("settling: {0:N1} s of processor time in 20 s" -f ($b - $a))
     if (($b - $a) -lt 0.6) { break }
   }
+  # Where the scanner's and the main process's time goes, for a minute of it (SENTINEL_CPU_PROFILE, main.js).
+  Set-Content -Path "$Out\profile\idle" -Value 'now'
   $f0 = Footprint 'before ten idle minutes'
   $t0 = Get-Date
   Start-Sleep 600

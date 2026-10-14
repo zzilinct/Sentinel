@@ -2767,7 +2767,7 @@
       }));
     }
     // The defense row, the update row and the downloads list redraw when the desktop says something changed.
-    for (const name of ['onDefense', 'onUpdate', 'onDownloadThreat']) {
+    for (const name of ['onDefense', 'onUpdate', 'onDownloadThreat', 'onSettings']) {
       if (desktop[name]) slot._off.push(desktop[name](() => { if (slot.isConnected) renderDesktopControls(slot); }));
     }
     $('[data-dl]', slot).addEventListener('change', async (ev) => {

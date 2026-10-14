@@ -191,6 +191,7 @@ function runPowerShell(script, timeout = 15000) {
 // While the lock is set, a small file says once a minute that Sentinel is running, and on quitting that it quit.
 // Found unfinished at the next start, with no Windows restart or shutdown since, Sentinel was ended without
 // the PIN (from Task Manager, or a crash), and the parent's record says when. Only times are written.
+const runningFile = () => path.join(app.getPath('userData'), 'running');
 const heartbeatFile = () => path.join(app.getPath('userData'), 'parent-lock-heartbeat.json');
 function heartbeat(clean = false) {
   if (!lock || !lock.isSet()) return;
@@ -834,6 +835,7 @@ async function setAutoScan(enabled) {
   if (enabled) await autoScanFollow(browserState.running || []);
   else if (autoSession) { setAutoSession(false); await setLiveScanning(false); }
   refreshTray();
+  push('sentinel:settings', { autoScan: Boolean(enabled) });
   return { autoScan: Boolean(enabled), live: { ...watch.status(), enabled: store.get('liveScanning', false) } };
 }
 /** Is a fullscreen game, video or presentation in front? (SHQueryUserNotificationState: busy, Direct3D fullscreen, presentation.) */
@@ -918,6 +920,8 @@ function setOpenAtLogin(enabled) {
   store.set('openAtLogin', enabled);
   if (installedCopy('the startup entry')) app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
   refreshTray();
+  // Changed from the tray, the app's switch went on showing the old state.
+  push('sentinel:settings', { openAtLogin: enabled });
 }
 
 /* "Scan with Sentinel" in the right-click menu for files (scanmenu.js). */
@@ -1826,6 +1830,12 @@ app.whenReady().then(() => {
   cpuProfileOnRequest();
   store.init(app.getPath('userData'), safeStorage);
   lock = parentlock.create(store);
+  // A run that ended without quitting (Windows shutting down, Task Manager, or a crash) left nothing in the log at all.
+  step('last run', () => {
+    const fsx = require('fs');
+    if (fsx.existsSync(runningFile())) appLog('the last run did not quit normally (Windows shut down, it was ended from Task Manager, or it crashed)');
+    fsx.writeFileSync(runningFile(), String(Date.now()));
+  });
   step('parent lock', () => { checkHeartbeat().catch(() => {}); setInterval(() => heartbeat(), 60 * 1000).unref(); });
   // Scanning that auto scanning had started before a restart is still its to switch off.
   autoSession = Boolean(store.get('autoScan', false) && store.get('autoSession', false));
@@ -1870,11 +1880,25 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => { if (!primary) return; quitting = true; heartbeat(true); snip.close(); globalShortcut.unregisterAll(); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
+app.on('before-quit', () => { if (!primary) return; quitting = true; heartbeat(true); try { require('fs').unlinkSync(runningFile()); } catch { /* none */ } snip.close(); globalShortcut.unregisterAll(); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 
 // Refuse to attach webviews or navigate any other contents to foreign origins.
 app.on('web-contents-created', (event, contents) => {
   contents.on('will-attach-webview', (e) => e.preventDefault());
+  // A window's page process ended (out of memory, a graphics driver): the app's window was left blank, and the live
+  // scanning overlay drew nothing more until Sentinel restarted. The app's page loads again; any other window goes,
+  // and the overlay is made again over the browser in front.
+  contents.on('render-process-gone', (_e, details) => {
+    if (!details || details.reason === 'clean-exit') return;
+    const w = BrowserWindow.fromWebContents(contents);
+    if (!w || w.isDestroyed()) return;
+    const isOverlay = /\/overlay\.html/.test(contents.getURL());
+    appLog(`a window's page stopped (${details.reason}); ${w === win ? 'loading it again' : isOverlay ? 'making the overlay again' : 'closing that window'}`);
+    if (w === win) { contents.reload(); return; }
+    w.destroy();
+    const rect = isOverlay && watch.status().window;
+    if (rect) setTimeout(() => { overlay.setWindow(rect); watch.keepAbove(overlay.handle()); }, 500);
+  });
 });

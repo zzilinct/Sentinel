@@ -358,6 +358,19 @@ test('uninstalling leaves no startup entry, no downloaded updates and no uninsta
   assert.match(read('web/assets/js/guest.js'), /get\('url'\)[\s\S]*requestSubmit\(\)/);
 });
 
+test('a window whose page process ends comes back; a run that did not quit is logged; the tray\'s changes reach the app', () => {
+  const main = read('desktop/src/main.js');
+  assert.match(main, /contents\.on\('render-process-gone'[\s\S]*if \(w === win\) \{ contents\.reload\(\); return; \}[\s\S]*overlay\.setWindow\(rect\); watch\.keepAbove\(overlay\.handle\(\)\)/);
+  assert.match(main, /the last run did not quit normally/);
+  assert.match(main, /app\.on\('before-quit'[^\n]*unlinkSync\(runningFile\(\)\)/);
+  assert.equal((main.match(/push\('sentinel:settings'/g) || []).length, 2, 'Start with my computer and Auto scanning');
+  assert.match(read('desktop/src/preload.js'), /onSettings: \(callback\) => on\('sentinel:settings', callback\)/);
+  assert.match(read('web/assets/js/app.js'), /'onDownloadThreat', 'onSettings'\]/);
+  const host = read('desktop/src/server-host.js');
+  assert.match(host, /Another program is using the connections/);
+  assert.doesNotMatch(host, /No free port/);
+});
+
 test('the reader starts from a file: its command line stays far under the Windows limit, and a changed file is refused', () => {
   const { readerLaunch, SCRIPT } = watch._test;
   const body = SCRIPT.replace('__TEST_PROCESS__', () => '').replace('__HELPER_DLL__', () => "C:\\Users\\o'brien\\AppData\\Roaming\\Sentinel\\helper.dll");

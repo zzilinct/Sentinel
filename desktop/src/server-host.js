@@ -54,7 +54,8 @@ async function main() {
   for (const p of candidates) {
     if (await isFree(p)) { port = p; break; }
   }
-  if (!port) throw new Error(`No free port among ${candidates.join(', ')}`);
+  // Said in the error window as it is, in words a person can act on.
+  if (!port) throw new Error(`Another program is using the connections Sentinel's scanner needs (ports ${candidates[0]} to ${candidates[candidates.length - 1]}). Restarting the computer frees them.`);
 
   // The server reads its configuration at require time, so settle it first.
   process.env.PORT = String(port);

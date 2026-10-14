@@ -26,6 +26,8 @@
   Delete "$INSTDIR\Uninstall Sentinel.exe"
   RMDir /r "$INSTDIR\locales"
   RMDir /r "$INSTDIR\resources"
+  ; The uninstaller works from inside the folder (un.onInit), which keeps it from being removed: step out first.
+  SetOutPath $TEMP
   RMDir "$INSTDIR"
 !macroend
 
