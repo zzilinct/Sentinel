@@ -76,7 +76,7 @@ jobs:
   # scanning on real sites, downloads, chat, ten idle minutes, display scaling).
   core:
     runs-on: windows-latest
-    timeout-minutes: 55
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:

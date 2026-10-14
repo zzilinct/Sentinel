@@ -38,4 +38,6 @@ async function main() {
   return { value: r.result ? r.result.value : null };
 }
 
+// A window that goes away mid-answer (it navigated, or its page process ended) never replies: give up, never hang the run.
+setTimeout(() => { console.log(JSON.stringify({ error: 'no answer in 45 s' })); process.exit(0); }, 45000 + (Number(process.env.E2E_MOTION_HOLD_MS) || 0)).unref();
 main().then((r) => console.log(JSON.stringify(r)), (err) => console.log(JSON.stringify({ error: String(err && err.message || err) })));

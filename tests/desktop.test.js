@@ -345,6 +345,19 @@ test('the updater installs the file it downloaded, into its own folder, and noti
   assert.doesNotMatch(read('desktop/build/installer.nsh'), /RMDir \/r "\$INSTDIR"(\s|$)/, 'never the whole install folder');
 });
 
+test('uninstalling leaves no startup entry, no downloaded updates and no uninstaller; an installed update clears its download', () => {
+  const nsh = read('desktop/build/installer.nsh');
+  const un = nsh.slice(nsh.indexOf('!macro customUnInstall'));
+  assert.match(un, /\$\{ifNot\} \$\{isUpdated\}[\s\S]*DeleteRegValue HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "com\.usesentinel\.desktop"[\s\S]*\$\{endIf\}/);
+  assert.match(un, /DeleteRegValue HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run" "com\.usesentinel\.desktop"/);
+  assert.match(un, /RMDir \/r "\$LOCALAPPDATA\\sentinel-desktop-updater"/, 'the cache folder updater.js names');
+  assert.match(read('desktop/src/updater.js'), /'sentinel-desktop-updater'/);
+  assert.match(nsh, /Delete "\$INSTDIR\\Uninstall Sentinel\.exe"/);
+  assert.match(read('desktop/src/updater.js'), /log\(`updated to \$\{current\}`\);\s*\/\/[^\n]*\n\s*clearCache\(/);
+  assert.match(read('desktop/src/main.js'), /store\.getSecret\('token'\) \? '\/app\/scan' : '\/guest'/, 'signed out, Open in Sentinel goes to the guest scan');
+  assert.match(read('web/assets/js/guest.js'), /get\('url'\)[\s\S]*requestSubmit\(\)/);
+});
+
 test('the reader starts from a file: its command line stays far under the Windows limit, and a changed file is refused', () => {
   const { readerLaunch, SCRIPT } = watch._test;
   const body = SCRIPT.replace('__TEST_PROCESS__', () => '').replace('__HELPER_DLL__', () => "C:\\Users\\o'brien\\AppData\\Roaming\\Sentinel\\helper.dll");

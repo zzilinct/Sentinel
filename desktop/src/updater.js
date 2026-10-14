@@ -86,6 +86,8 @@ function reviewLastAttempt() {
     clearCache('a previous install did not take');
   } else {
     log(`updated to ${current}`);
+    // The installer that did it, and any older one, are no longer needed: over 200 MB stayed on disk for good.
+    clearCache('the update is installed');
   }
 }
 

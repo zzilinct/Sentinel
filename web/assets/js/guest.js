@@ -30,4 +30,7 @@
       if (err.status === 429) left.textContent = 'No guest scans left today';
     }
   });
+  // Opened with an address (the Sentinel app's "Open in Sentinel" on a warning, signed out): scanned straight away.
+  const asked = new URLSearchParams(location.search).get('url');
+  if (asked && /^https?:\/\//i.test(asked) && asked.length < 2000) { form.url.value = asked; form.requestSubmit(); }
 })();

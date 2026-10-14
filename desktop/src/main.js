@@ -625,6 +625,7 @@ async function showTyped(data, since) {
  * which sign, never where.
  */
 const pause = paypause.create();
+let pauseFor = null;   // the site the pay pause is about: it closes once another site is in front
 const PAUSE_SIGNS = { remote: 'a remote-control program', page: 'a flagged page', chat: 'a chat warning', call: 'the call check said hang up' };
 function askPause({ page, kind }) {
   const { sign, again } = pause.ask(escapeKey(page), { remoteNow: remoteGuardOn() && remote.running(trustedRemote()).length > 0 });
@@ -632,6 +633,7 @@ function askPause({ page, kind }) {
   appLog(`pay pause: ${what}, ${!sign ? 'no recent sign; nothing shown' : again ? 'already shown for this site' : `after ${PAUSE_SIGNS[sign]}; shown`}`);
   if (!sign || again) return;
   if (guardWin && !guardWin.isDestroyed() && (guardMode === 'remote' || guardMode === 'bank')) return;
+  pauseFor = escapeKey(page);
   showGuard('pause', { kind, sign });
 }
 
@@ -1576,7 +1578,8 @@ function registerBridge() {
   handle('sentinel:quit', () => { lock.guard('Sentinel off', true); quitting = true; app.quit(); return { ok: true }; }, trustedLocal);
   handle('sentinel:warn-action', (action, url) => {
     if (warnWin && !warnWin.isDestroyed()) warnWin.close();
-    if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`/app/scan?url=${encodeURIComponent(url)}`);
+    // Signed out, the app's scan asked for an account first: the guest scan says why without one.
+    if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`${store.getSecret('token') ? '/app/scan' : '/guest'}?url=${encodeURIComponent(url)}`);
     if (action === 'recover') showWindow(recoverRoute(url, 'password'));
     // The real site: the address kept when the warning was made, opened fresh in the browser. What the page sends is ignored.
     if (action === 'real' && warnReal) { appLog('warning: opened the real site'); shell.openExternal(warnReal); }
@@ -1718,6 +1721,8 @@ async function boot() {
       // A warning about a dangerous page stays on top only while a browser is in front: switch to a game or any other
       // program and it waits behind it like an ordinary window, instead of floating over everything.
       if (warnWin && !warnWin.isDestroyed()) warnWin.setAlwaysOnTop(Boolean(rect));
+      // The same for the pay pause: above the shop's page, never above a game or a chat once the browser is left.
+      if (guardWin && !guardWin.isDestroyed() && guardMode === 'pause') guardWin.setAlwaysOnTop(Boolean(rect), 'screen-saver');
       if (rect && sweepOnNextWindow) { sweepOnNextWindow = false; overlay.sweep('start'); }
       // Tell the tray and the app only when a browser arrives or leaves, not every time its window moves.
       if (Boolean(rect) !== watchingWindow) {
@@ -1735,6 +1740,9 @@ async function boot() {
       // A new page: an escape still on offer was for the page before. If that page comes back, it is offered again.
       badPage = null;
       if (guardMode === 'escape' && escapeKey(page) !== escapeOfferedFor) { closeGuard(); escapeOfferedFor = null; }
+      // The pay pause is about one shop: another site in front, and it has nothing left to say. It used to stay up, on
+      // top of every program, over Discord or the next page.
+      if (guardMode === 'pause' && page && escapeKey(page) !== pauseFor) closeGuard();
       checkMoneyPage(page);
       // Delicate scanning (the person's choice, not auto scanning's fast) digs into the results in binary.
       if (page && page.search) overlay.sweep('search', { binary: !autoSession && store.get('liveMode', 'fast') === 'delicate' });

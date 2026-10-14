@@ -23,7 +23,7 @@ $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Forc
 $pagesLog = Join-Path $Out 'pages.log'
 $pages = Start-Process python -ArgumentList '-u', '-m', 'http.server', '47910', '--directory', (Join-Path $PSScriptRoot 'e2e-chat') -PassThru -NoNewWindow -RedirectStandardError $pagesLog -RedirectStandardOutput "$pagesLog.out"
 function PagesDiag($page) { Get-Content $pagesLog -Tail 6 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag pages.log: $_" } }
-Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 paypal-account-verify-login.test`r`n127.0.0.1 paypal-resolution-center-secure.test`r`n127.0.0.1 defender-virusalert-helpline.test`r`n127.0.0.1 amazon-giftcard-claim-reward.test`r`n127.0.0.1 microsoft-account-unlock-verify.test"
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 paypal-account-verify-login.test`r`n127.0.0.1 paypal-resolution-center-secure.test`r`n127.0.0.1 defender-virusalert-helpline.test`r`n127.0.0.1 amazon-giftcard-claim-reward.test`r`n127.0.0.1 microsoft-account-unlock-verify.test`r`n127.0.0.1 paypal-wallet-limited-review.test`r`n127.0.0.1 apple-id-locked-support.test"
 
 # The update feed every part points the installed app at: this runner, never GitHub. Outside -Part update it offers
 # the version already installed, so a release published meanwhile cannot replace the build under test.
@@ -51,6 +51,12 @@ function Footprint($when) {
   $ps = Everything
   $r = @{ n = $ps.Count; mb = [math]::Round((($ps | Measure-Object WorkingSet64 -Sum).Sum) / 1MB); priv = [math]::Round((($ps | Measure-Object PrivateMemorySize64 -Sum).Sum) / 1MB); cpu = [math]::Round((($ps | Measure-Object CPU -Sum).Sum), 1) }
   Say "footprint ${when}: $($r.n) processes, $($r.mb) MB in memory ($($r.priv) MB private), $($r.cpu) s of processor time so far"
+  $cmd = @{}; Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(Sentinel|powershell)\.exe$' } | ForEach-Object { $cmd[[int]$_.ProcessId] = [string]$_.CommandLine }
+  foreach ($p in $ps) {
+    $c = $cmd[[int]$p.Id]
+    $role = if ($p.ProcessName -eq 'powershell') { 'helper ' + $(if ($c -match 'EncodedCommand') { 'encoded' } else { ($c -split ' ' | Select-Object -Last 1) }) } elseif ($c -match '--type=([a-z-]+)') { $Matches[1] + $(if ($c -match '--utility-sub-type=([^\s]+)') { " ($($Matches[1]))" } else { '' }) } else { 'main' }
+    Say ("  {0,-44} {1,6} MB {2,6} MB private {3,8} s" -f $role, [math]::Round($p.WorkingSet64 / 1MB), [math]::Round($p.PrivateMemorySize64 / 1MB), [math]::Round($p.CPU, 1))
+  }
   return $r
 }
 function Quit { [void](Cdp 'main' "(process.mainModule.require('electron').app.quit(), 1)"); return (Until 30 { -not (Get-Process Sentinel -ErrorAction SilentlyContinue) }) }
@@ -58,6 +64,7 @@ function Page($path) { [void](Cdp '127.0.0.1:4782' "(location.href = '$path', 1)
 function Toasts { return [string](Cdp '127.0.0.1:4782' "[...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / ')").value }
 function DlLines($name) { return ([regex]::Matches((AppLog), "download scanned: $([regex]::Escape($name)) ")).Count }
 function Recent($name) { return (Cdp 'main' "JSON.stringify(process.mainModule.require('./downloads').recent().find((d) => d.name === '$name') || null)").value | ConvertFrom-Json }
+function GuardMode { return [string](Cdp 'guard.html' 'location.search').value }
 function WatchLog { return (Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '' }
 
 # The tray's menu, as Sentinel last built it: Tray.setContextMenu is watched from here on, and the menu rebuilt.
@@ -100,11 +107,13 @@ Start-Sleep 8
 '@.Replace('__A__', $btcA).Replace('__B__', $btcB) | Set-Content -Path $swapper -Encoding utf8
 function Swap { $sw = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $swapper -WindowStyle Hidden -PassThru; Start-Sleep 4; $c = ((Get-Clipboard -Raw) + '').Trim(); [void]$sw.WaitForExit(15000); return $c }
 
+# A file's version as the app says it (1.17.4, not Windows' 1.17.4.0).
+function Ver($file) { try { return ([version](Get-Item $file).VersionInfo.ProductVersion).ToString(3) } catch { return '' } }
 function Install {
   $t0 = Get-Date
   Start-Process $Installer -ArgumentList '/S' -Wait
   $script:installSeconds = [int]((Get-Date) - $t0).TotalSeconds
-  $script:version = (Get-Item $exe -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
+  $script:version = Ver $exe
   Say "installed $script:version in $script:installSeconds s"
   PointUpdater
 }
@@ -158,9 +167,34 @@ if ($Part -eq 'install') {
     StopSentinel
   } else { Check 'login-start-hidden' $false "no startup entry to run: $($run.command)" }
 
-  # 4. The tray menu, line by line, and what each line really does.
   Check 'restart' (StartSentinel) 'started with its debugging port'
   Start-Sleep 12
+  # 4. Signing in on the app's own sign-in page, as a person types it (signing out comes last).
+  $em = "core-qa-$(Get-Random)@example.com"; $pw = 'Lantern-orchard-62Wb'
+  $r = Cdp '127.0.0.1:4782' "(async () => { const r = await fetch('/api/v1/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: '$em', password: '$pw', firstName: 'Robin', ageConfirmed: true, termsAccepted: true }) }); await fetch('/api/v1/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); return r.status; })()"
+  Say "an account made: $($r.value)"
+  [void](Cdp '127.0.0.1:4782' "(location.href = '/login', 1)"); Start-Sleep 4
+  $fill = { param($p) "(() => { const f = document.querySelector('[data-form]'); f.elements.email.value = '$em'; f.elements.password.value = '$p'; f.querySelector('button[type=submit]').click(); return 1; })()" }
+  [void](Cdp '127.0.0.1:4782' (& $fill 'Not-the-password-1'))
+  $msg = ''
+  [void](Until 15 { $script:msg = [string](Cdp '127.0.0.1:4782' "[...document.querySelectorAll('.banner, [data-error]')].map((e) => e.textContent.trim()).filter(Boolean).join(' / ')").value; [bool]$script:msg })
+  Shot 'signin-wrong'
+  Check 'signin-wrong-password' ($msg -and $msg -notmatch 'HTTP|undefined|null|Error:|\{') "a wrong password says: '$msg'"
+  [void](Cdp '127.0.0.1:4782' (& $fill $pw))
+  $paired = Until 40 { [bool](Info 'info()').pairedUserId }
+  Check 'signin' $paired "signed in on the sign-in page: the app is at $(AppWindow), paired $paired"
+  $dlIn = Until 30 { (Info 'info()').downloads.active -or (Info 'info()').downloads.reason }
+  Say "download protection for a new free account: $((Info 'info()').downloads | ConvertTo-Json -Compress)"
+  # Signed in survives a normal quit and start.
+  [void](Quit); [void](StartSentinel); Start-Sleep 10
+  $still = (Cdp '127.0.0.1:4782' "fetch('/api/v1/auth/me').then((x) => x.status)").value
+  Check 'signin-kept' ($still -eq 200 -and [bool](Info 'info()').pairedUserId) "after quitting and starting again: session $still, paired $([bool](Info 'info()').pairedUserId)"
+  # Pro for the new account (download protection is a Pro feature), as a person who pays would have it.
+  Pro
+  [void](Cdp 'main' "(process.mainModule.require('./downloads').restart(), 1)")
+  [void](Until 30 { (Info 'info()').downloads.active })
+
+  # 4b. The tray menu, line by line, and what each line really does.
   [void](Cdp 'main' $trayHook)
   [void](Until 20 { (TrayItems) -match 'up to date|Check for updates' })
   $items = TrayItems
@@ -333,39 +367,6 @@ if ($Part -eq 'install') {
   Shot 'lock-tray'
   [void](Info "lockUnlock('2468')"); [void](Info 'lockRemove()'); [void](Info 'setChatSafety(false)')
 
-  # 7. Signing in and out on the app's own pages, as a person types it.
-  Page '/app'
-  $em = "core-qa-$(Get-Random)@example.com"; $pw = 'Lantern-orchard-62Wb'
-  $r = Cdp '127.0.0.1:4782' "(async () => { const r = await fetch('/api/v1/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: '$em', password: '$pw', firstName: 'Robin', ageConfirmed: true, termsAccepted: true }) }); await fetch('/api/v1/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); return r.status; })()"
-  Say "an account made: $($r.value)"
-  [void](Cdp '127.0.0.1:4782' "(location.href = '/login', 1)"); Start-Sleep 4
-  $fill = { param($p) "(() => { const f = document.querySelector('[data-form]'); f.elements.email.value = '$em'; f.elements.password.value = '$p'; f.querySelector('button[type=submit]').click(); return 1; })()" }
-  [void](Cdp '127.0.0.1:4782' (& $fill 'Not-the-password-1'))
-  $msg = ''
-  [void](Until 15 { $script:msg = [string](Cdp '127.0.0.1:4782' "[...document.querySelectorAll('.banner, [data-error]')].map((e) => e.textContent.trim()).filter(Boolean).join(' / ')").value; [bool]$script:msg })
-  Shot 'signin-wrong'
-  Check 'signin-wrong-password' ($msg -and $msg -notmatch 'HTTP|undefined|null|Error:|\{') "a wrong password says: '$msg'"
-  [void](Cdp '127.0.0.1:4782' (& $fill $pw))
-  $paired = Until 40 { [bool](Info 'info()').pairedUserId }
-  Check 'signin' $paired "signed in on the sign-in page: the app is at $(AppWindow), paired $paired"
-  $dlIn = Until 30 { (Info 'info()').downloads.active -or (Info 'info()').downloads.reason }
-  Say "download protection for a new free account: $((Info 'info()').downloads | ConvertTo-Json -Compress)"
-  # Signed in survives a normal quit and start.
-  [void](Quit); [void](StartSentinel); Start-Sleep 10
-  $still = (Cdp '127.0.0.1:4782' "fetch('/api/v1/auth/me').then((x) => x.status)").value
-  Check 'signin-kept' ($still -eq 200 -and [bool](Info 'info()').pairedUserId) "after quitting and starting again: session $still, paired $([bool](Info 'info()').pairedUserId)"
-  # Signing out: both presses on the account button.
-  Page '/app'
-  $click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); let b = null; for (let i = 0; i < 30; i++) { b = document.querySelector('[data-signout]'); if (b) { b.click(); await wait(300); if (b.getAttribute('aria-label') === 'Press again to sign out') break; } await wait(500); } b.click(); return 1; })()"
-  [void](Cdp '127.0.0.1:4782' $click)
-  $out = Until 20 { -not (Info 'info()').pairedUserId }
-  Start-Sleep 4
-  $where = AppWindow
-  $after = Info 'info()'
-  Shot 'signed-out'
-  Check 'signout' ($out -and $where -match '/login') "signed out: unpaired $out; the app shows $where"
-  Check 'signout-still-protected' ($after.deviceProtection -and $after.live -and $after.defense.enabled) "protection carries on under this computer's own account: $($after.deviceProtection); defense $($after.defense.active); downloads '$($after.downloads.reason)'"
-
   # 8. Crashes. A mistake in Sentinel's own code is written down and Sentinel carries on.
   [void](Cdp 'main' "(setTimeout(() => { throw new Error('core-qa: a mistake on purpose'); }), 1)")
   Start-Sleep 3
@@ -446,6 +447,19 @@ if ($Part -eq 'install') {
   Say "  updater with no network: $((Cdp 'main' "JSON.stringify(process.mainModule.require('./updater').status())").value); tray: $(TrayItems)"
   Remove-NetFirewallRule -DisplayName 'core-qa no network for Sentinel'
 
+  # 10b. Signing out: both presses on the account button.
+  Page '/app'
+  $click = "(async () => { const wait = (ms) => new Promise((r) => setTimeout(r, ms)); let b = null; for (let i = 0; i < 30; i++) { b = document.querySelector('[data-signout]'); if (b) { b.click(); await wait(300); if (b.getAttribute('aria-label') === 'Press again to sign out') break; } await wait(500); } b.click(); return 1; })()"
+  [void](Cdp '127.0.0.1:4782' $click)
+  $out = Until 20 { -not (Info 'info()').pairedUserId }
+  Start-Sleep 4
+  $where = AppWindow
+  $after = Info 'info()'
+  Shot 'signed-out'
+  Check 'signout' ($out -and $where -match '/login') "signed out: unpaired $out; the app shows $where"
+  Check 'signout-still-protected' ($after.deviceProtection -and $after.live -and $after.defense.enabled) "protection carries on under this computer's own account: $($after.deviceProtection); defense $($after.defense.active); downloads '$($after.downloads.reason)'"
+
+
   # 11. Quit from the tray: everything Sentinel started goes with it.
   [void](Cdp 'main' $trayHook); Start-Sleep 3
   Say "tray click: $(TrayClick 'Quit Sentinel')"
@@ -468,6 +482,13 @@ if ($Part -eq 'use') {
   StopSentinel
   Check 'restart' (StartSentinel) 'started with its debugging port'
   Start-Sleep 10
+  # Signed in, with Pro, as most people who download Sentinel are.
+  $r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); const a = { email: 'core-use-$(Get-Random)@example.com', password: 'Willow-harbour-83Pn' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Kim', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', Object.assign({ staySignedIn: true }, a))].join(','); })()"
+  [void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
+  Check 'signed-in' (Until 40 { [bool](Info 'info()').pairedUserId }) "sign-up, sign-in: $($r.value)"
+  Pro
+  [void](Cdp 'main' "(process.mainModule.require('./downloads').restart(), 1)")
+  [void](Until 30 { (Info 'info()').downloads.active })
   HideApp
 
   # 1. Live scanning in Edge: real honest sites, typed into the address bar. Each should be checked and left alone.
@@ -556,6 +577,16 @@ if ($Part -eq 'use') {
     [void](Cdp 'warn.html' "(document.getElementById('close').click(), 1)")
     Check 'warning-got-it' (Until 10 { -not [bool](Cdp 'warn.html' '1').value }) 'Got it closes the warning'
   }
+  # The pay pause on a real gift card page, now that pages were flagged: it is about that page, and leaves with it.
+  Say "Edge in front: $(Front 'msedge')"
+  Visit 'https://www.amazon.com/gift-cards/b?node=2238192011'
+  $shown = Until 40 { [K]::Tap(0x11); (GuardMode) -match 'mode=pause' }
+  Shot 'pay-pause'
+  Visit 'https://en.wikipedia.org/wiki/Banana_bread'
+  $gone = Until 20 { [K]::Tap(0x11); (GuardMode) -notmatch 'mode=pause' }
+  Shot 'pay-pause-after-leaving'
+  Check 'pay-pause-leaves-with-page' ($shown -and $gone) "shown on the gift card page $shown; gone once another site was open $gone"
+  if ($shown -and -not $gone) { [void](Cdp 'guard.html' "window.sentinelDesktop.guardAction('dismiss'), 1") }
   Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
   # 2. The same in Chrome, with its own profile, as a person who uses Chrome.
@@ -563,7 +594,7 @@ if ($Part -eq 'use') {
   Start-Sleep 10
   Say "Chrome in front: $(Front 'chrome')"
   Sites 'chrome' @('https://en.wikipedia.org/wiki/Phishing', 'https://www.paypal.com/signin', 'https://accounts.google.com/', 'https://www.amazon.com/gift-cards/b?node=2238192011')
-  $w = Warned 'http://paypal-account-verify-login.test:47910/signin.html?chrome'
+  $w = Warned 'http://paypal-wallet-limited-review.test:47910/signin.html'
   Shot 'chrome-warning'
   Check 'chrome-scam-warned' ($w.ok -and $w.took -le 10 -and $w.words -match 'Chrome') "a PayPal look-alike in Chrome: warned after $($w.took) s: $($w.words)"
   [void](Cdp 'warn.html' 'window.close(), 1')
@@ -653,9 +684,9 @@ if ($Part -eq 'use') {
   Say "Discord in front, chat safety off: $(Fake 'Discord' 'discord.html')"
   Start-Sleep 15
   $after = (Info 'info()').chatSafety.seen.discord.checked
-  $cards = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + getComputedStyle(document.getElementById('badge')).display").value
+  $cards = [string](Cdp 'main' "(() => { const w = process.mainModule.require('electron').BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('chat.html')); return w ? (w.isVisible() ? 'shown' : 'hidden') : 'none'; })()").value
   Shot 'discord-off'
-  Check 'chat-off-reads-nothing' ($after -eq $before -and -not ((Info 'info()').chatSafety.running)) "chat safety off: messages checked $before then $after; overlay: '$cards'"
+  Check 'chat-off-reads-nothing' ($after -eq $before -and -not ((Info 'info()').chatSafety.running) -and $cards -ne 'shown') "chat safety off: messages checked $before then $after; the chat overlay: $cards"
   Get-Process Discord -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
   # 5. Ten quiet minutes, live scanning on and nothing in front: what Sentinel costs at rest, and whether it grows.
@@ -706,6 +737,20 @@ if ($Part -eq 'use') {
     Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   }
   [void][Qa]::SetScale(100)
+  Start-Sleep 5
+
+  # 7. Signed out, "Open in Sentinel" on a warning still says why, without asking for an account first.
+  [void](Info 'clearToken()')
+  [void](Cdp '127.0.0.1:4782' "fetch('/api/v1/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(() => 1)")
+  HideApp
+  Say "Edge in front: $(FreshEdge 'about:blank')"
+  $w = Warned 'http://apple-id-locked-support.test:47910/signin.html'
+  [void](Cdp 'warn.html' "(document.getElementById('details').click(), 1)")
+  $res = ''
+  $ok = Until 30 { $script:res = [string](Cdp '127.0.0.1:4782' "location.pathname + '|' + ((document.querySelector('[data-out]') || {}).innerText || '').replace(/\s+/g, ' ').slice(0, 200)").value; $script:res -match '^/[^|]*\|.*(Phishing|Dangerous|Suspicious|scam)' }
+  Shot 'warning-open-signed-out'
+  Check 'warning-open-signed-out' ($w.ok -and $ok) "signed out, Open in Sentinel shows: $res"
+  Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
 # ------------------------------------------------------------------------------------------------------------- update
@@ -731,13 +776,13 @@ if ($Part -eq 'update') {
 
   # 2. A newer build of this commit appears on the feed. Nobody touches anything.
   Feed $Next
-  $want = (Get-Item $Next).VersionInfo.ProductVersion
+  $want = Ver $Next
   $t0 = Get-Date
   $updated = $false
   $deadline = (Get-Date).AddMinutes(15)
   while ((Get-Date) -lt $deadline -and -not $updated) {
     Start-Sleep 15
-    $v = (Get-Item $exe -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
+    $v = Ver $exe
     $updated = $v -eq $want -and @(MainProcs).Count -ge 1
     Say "installed $v, Sentinel processes: $(@(Get-Process Sentinel -ErrorAction SilentlyContinue).Count); $(((AppLog) -split "`n" | Where-Object { $_ -match 'updat' } | Select-Object -Last 1))"
   }
