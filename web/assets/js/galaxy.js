@@ -189,6 +189,10 @@
       cards.push({ k: k, item: o ? o.item : items[k], arm: sl.arm, u0: sl.u, t: clock, spin: spin, own: 1, s: 0, asp: 1, x: 0, y: 0,
         wob: [Math.random() * TAU, Math.random() * TAU], flare: 0, wa: 1, boost: 1, focus: false, gone: 0, alpha: 0, lean: 0, rect: null });
     }
+    // The order cards are shed in, spread over the arms and the journey (golden-ratio steps), so the few that stay
+    // still fill the spiral.
+    cards.map(function (c) { return c; }).sort(function (a, b) { return frac(a.k * 0.618034) - frac(b.k * 0.618034); })
+      .forEach(function (c, r) { c.rank = r; });
     gov = new Governor(pr.n);
     held = boosted = null;
     cards.forEach(function (c) { load(c.item); });
@@ -226,7 +230,7 @@
       c.t += dt * P.idle * burst * c.own;
       c.spin += dt * P.spin * c.own;
       if (!isHeld) { var k = ease(dt, 1.5); c.t += (clock - c.t) * k; c.spin += (spin - c.spin) * k; }
-      c.gone += ((i < n ? 0 : 1) - c.gone) * ease(dt, 0.4);
+      c.gone += ((c.rank < n ? 0 : 1) - c.gone) * ease(dt, 0.4);
       var u = frac(c.u0 + c.t + scroll);
       var p = spiral(pr, c.arm, u, c.spin);
       var x = cx + p.x, y = cy + p.y;
@@ -548,10 +552,11 @@
 
   // The list: tabbing to a scene holds its card (bringing it on screen if it is not), Enter enlarges it.
   function cardFor(item) {
-    var c = cards.find(function (k, i) { return k.item === item && i < (reduced ? pr.n : gov.n); });
+    var n = reduced ? pr.n : gov.n;
+    var c = cards.find(function (k) { return k.item === item && k.rank < n; });
     if (c) return c;
     // Not riding the arms now (a phone, or shed): it takes the place of the card most in view.
-    c = cards.slice(0, reduced ? pr.n : gov.n).sort(function (a, b) { return Math.abs(a.u - 0.42) - Math.abs(b.u - 0.42); })[0];
+    c = cards.filter(function (k) { return k.rank < n; }).sort(function (a, b) { return Math.abs(a.u - 0.42) - Math.abs(b.u - 0.42); })[0];
     if (c) { c.item = item; load(item); }
     return c;
   }
