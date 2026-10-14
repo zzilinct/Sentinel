@@ -3083,7 +3083,7 @@
           <ul class="list">${sessions.map((s) => `<li>
             <span class="list__icon">${s.kind === 'web' ? ICON.link : s.kind === 'desktop' ? ICON.download : ICON.shield}</span>
             <span class="list__main"><b>${esc(s.device)}${s.current ? ' <span class="status is-on u-ml">This device</span>' : ''}</b><span>${esc(s.kind === 'web' ? 'Browser' : s.kind === 'desktop' ? 'Sentinel app' : 'Browser companion')} &middot; ${s.ip ? esc(s.ip) + ' &middot; ' : ''}active ${ago(s.lastSeenAt || s.createdAt)} &middot; ${s.kind === 'web' ? (s.staySignedIn ? 'stays signed in, ends after 30 days unused' : 'ends when the browser closes') : 'ends after 90 days unused'}</span></span>
-            ${s.current ? '' : `<button class="btn btn--sm" data-revoke-one="${esc(s.id)}">Sign out</button>`}
+            ${s.current ? '<button class="btn btn--sm" data-signout-here>Sign out</button>' : `<button class="btn btn--sm" data-revoke-one="${esc(s.id)}">Sign out</button>`}
           </li>`).join('')}</ul>`;
         $$('[data-revoke-one]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Signing out', async () => {
           try {
@@ -3092,6 +3092,9 @@
           } catch (err) { toast(err.message, 'error'); }
           loadSessions();
         })));
+        // This device: the same as the account button, here too because a phone has no side bar.
+        const here = $('[data-signout-here]', slot);
+        if (here) here.addEventListener('click', () => busy(here, 'Signing out', () => signOut()));
         const revoke = $('[data-revoke]', slot);
         if (revoke) revoke.addEventListener('click', () => busy(revoke, 'Signing out', async () => {
           try {
