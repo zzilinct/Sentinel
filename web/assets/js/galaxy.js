@@ -271,7 +271,7 @@
       var cc = cards[m];
       if (cc.skip) { cc.s = 0; continue; }   // reborn at the centre at its new size, not grown down from its old one
       // Born small in the pocket round the mark: never wider than the card is far from the centre.
-      var cap = Math.min(pr.capH * (P.innerCap + (1 - P.innerCap) * smooth(0, 0.6, cc.u)), cc.r * 0.8);
+      var cap = Math.min(pr.capH * (P.innerCap + (1 - P.innerCap) * smooth(0, 0.6, cc.u)), cc.r * 0.8, W * 0.6 / cc.asp);
       var want = Math.max(6, Math.min(cap, pr.density * room(cards, m)));
       cc.s += (want - cc.s) * (cc.s && !reduced ? ease(dt, 0.2) : 1);
       cc.boost += (((cc === boosted) ? P.boost : 1) - cc.boost) * (reduced ? 1 : ease(dt, P.boostTau));
@@ -509,19 +509,28 @@
     if (c !== held) hold(c, false);
   }
 
-  host.addEventListener('pointermove', function (e) {
-    if (e.pointerType !== 'mouse') return;
-    var r = host.getBoundingClientRect();
-    pointer = { x: e.clientX - r.left, y: e.clientY - r.top };
-    touchHold = false;
-    if (reduced) { hover(); still(); }
-  }, { passive: true });
-  host.addEventListener('pointerleave', function (e) {
-    if (e.pointerType !== 'mouse') return;
+  // The pointer is followed over the whole window and measured against the stage, so whatever floats over the
+  // stage (the chapter rail, the back-to-top button) does not hide it, and a scroll under a still pointer counts.
+  var client = null;
+  function locate() {
+    var was = pointer;
     pointer = null;
-    if (held && !held.focus) hold(null);
-    if (reduced) still();
-  });
+    if (client) {
+      var r = host.getBoundingClientRect();
+      var x = client.x - r.left, y = client.y - r.top;
+      if (x >= 0 && y >= 0 && x <= r.width && y <= r.height) pointer = { x: x, y: y };
+    }
+    if (was && !pointer && held && !held.focus && !touchHold) hold(null);
+    if (reduced) { if (pointer) hover(); still(); }
+  }
+  addEventListener('pointermove', function (e) {
+    if (e.pointerType !== 'mouse') return;
+    client = { x: e.clientX, y: e.clientY };
+    touchHold = false;
+    locate();
+  }, { passive: true });
+  addEventListener('scroll', function () { if (client) locate(); }, { passive: true });
+  document.documentElement.addEventListener('pointerleave', function () { client = null; locate(); });
   host.addEventListener('click', function (e) {
     var r = host.getBoundingClientRect();
     var x = e.clientX - r.left, y = e.clientY - r.top;

@@ -31,7 +31,8 @@ function turns(a, b) {
 // The best card to point at: whole, clear of the stage's edges and the mark, and large.
 function pick(st) {
   const { width: W, height: H } = st.stage;
-  return st.cards.filter((c) => c.alpha > 0.9 && c.w > 40 && c.r > 110 && c.x - c.w / 2 > 40 && c.x + c.w / 2 < W - 40 && c.y - c.h / 2 > H * 0.16 && c.y + c.h / 2 < H * 0.84)
+  const m = W < 600 ? 4 : 40;
+  return st.cards.filter((c) => c.alpha > 0.9 && c.w > 40 && c.r > (W < 600 ? 70 : 110) && c.x - c.w / 2 > m && c.x + c.w / 2 < W - m && c.y - c.h / 2 > H * 0.16 && c.y + c.h / 2 < H * 0.84)
     .sort((a, b) => b.w * b.h - a.w * a.h)[0];
 }
 
@@ -112,7 +113,7 @@ async function checkGalaxy() {
           await shot(browser, p.s, `${name}-hover`);
           result(`galaxy (${at}): the card under the pointer stops and shows Sentinel's verdict`,
             h2.held !== null && h1.held === h2.held && moved >= 0 && moved < 3 && h2.tag && h2.tag === (k2 && k2.tag),
-            { aimedAt: c.k, held: h2.held, movedPx: +moved.toFixed(2), tag: h2.tag, want: k2 && k2.tag });
+            { aimedAt: c.k, under: await p.ev(`(() => { const e = document.elementFromPoint(${x}, ${y}); return e ? e.tagName + '.' + e.className : ''; })()`), held: h2.held, movedPx: +moved.toFixed(2), tag: h2.tag, want: k2 && k2.tag });
           await mouse(p.s, 'mousePressed', x, y);
           await mouse(p.s, 'mouseReleased', x, y);
         } else {
