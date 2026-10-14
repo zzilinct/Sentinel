@@ -4,9 +4,9 @@
  * pointer brightens the glyphs near it a little, and scrolling moves the bands on a little.
  *
  * Cheap by design: the glyphs are drawn once, into a sheet the size of the section (from a sheet of single glyphs,
- * as binary.js does), and a frame is six whole-canvas copies: the bands as one gradient, the pointer's glow as
- * another, the fade at the top and bottom, the glyph sheet cut through them, and the colour laid on. A few glyphs
- * change each frame. It draws at most 30 times a second, only while the section is on screen and the tab is showing.
+ * as binary.js does), already coloured and faded at the top and bottom, and a frame is two whole-canvas passes:
+ * the bands as one gradient (the pointer's glow added over a small square), and the glyph sheet cut through them.
+ * A few glyphs change each frame. It draws at most 30 times a second, only while the section is on screen and the tab is showing.
  *
  * Reduced motion: one still field, drawn again only when the size or the theme changes.
  *
@@ -117,15 +117,33 @@
       return { canvas: c, n: all.length };
     }
 
-    // One cell of the sheet: a random glyph (now and then a bit of punctuation), or a gap, at a random strength.
-    function cell(k) {
+    // One cell of the sheet: a random glyph (now and then a bit of punctuation), or a gap, at a random strength,
+    // fainter where the field fades (the veil). `tint` colours it at once (a glyph changing mid-field).
+    function cell(k, tint) {
       const x = (k % cols) * cw, y = ((k / cols) | 0) * ch;
       sg.clearRect(x, y, cw, ch);
       if (Math.random() < 0.1) return;
+      const v = veil((y + ch / 2) / dpr, H, clear);
+      if (v <= 0) return;
       const i = Math.random() < 0.06 ? CHARS.length + ((Math.random() * CODE.length) | 0) : (Math.random() * CHARS.length) | 0;
-      sg.globalAlpha = 0.35 + Math.random() * 0.65;
+      sg.globalAlpha = (0.35 + Math.random() * 0.65) * v;
       sg.drawImage(atlas.canvas, i * cw, 0, cw, ch, x, y, cw, ch);
       sg.globalAlpha = 1;
+      if (tint) paint(x, y, cw, ch);
+    }
+
+    // The glyphs' colour, a gentle gradient across the section, laid on the sheet (its alpha kept).
+    let tintFill = null;
+    function paint(x, y, w, h) {
+      sg.globalCompositeOperation = 'source-atop';
+      sg.fillStyle = tintFill;
+      sg.fillRect(x, y, w, h);
+      sg.globalCompositeOperation = 'source-over';
+    }
+    function retint() {
+      tintFill = sg.createLinearGradient(0, 0, sheet.width, sheet.height);
+      tintFill.addColorStop(0, colors[0]); tintFill.addColorStop(1, colors[1]);
+      paint(0, 0, sheet.width, sheet.height);
     }
 
     function theme() {
@@ -154,6 +172,7 @@
       cols = Math.ceil(sheet.width / cw); rows = Math.ceil(sheet.height / ch);
       atlas = makeAtlas();
       for (let k = 0; k < cols * rows; k++) cell(k);
+      retint();
       draw(performance.now());
     }
 
@@ -181,19 +200,9 @@
         ctx.fillStyle = rg;
         ctx.fillRect(x - R, y - R, R * 2, R * 2);
       }
-      ctx.globalCompositeOperation = 'destination-in';
-      const vg = ctx.createLinearGradient(0, 0, 0, chei);
-      for (const [u, a] of veilStops(H, clear)) vg.addColorStop(u, `rgba(0,0,0,${a})`);
-      ctx.fillStyle = vg;
-      ctx.fillRect(0, 0, cwid, chei);
-      // The glyphs, cut through the light; then their colour, a gentle gradient across the section.
-      ctx.globalCompositeOperation = 'destination-in';
-      ctx.drawImage(sheet, 0, 0);
+      // The glyphs (coloured and faded already) cut through the light.
       ctx.globalCompositeOperation = 'source-in';
-      const cg = ctx.createLinearGradient(0, 0, cwid, chei);
-      cg.addColorStop(0, colors[0]); cg.addColorStop(1, colors[1]);
-      ctx.fillStyle = cg;
-      ctx.fillRect(0, 0, cwid, chei);
+      ctx.drawImage(sheet, 0, 0);
       ctx.globalCompositeOperation = 'source-over';
       state.frames++;
     }
@@ -207,7 +216,7 @@
       ptr.x += (ptr.tx - ptr.x) * 0.18; ptr.y += (ptr.ty - ptr.y) * 0.18;
       state.glow = ptr.on += ((ptr.target || 0) - ptr.on) * 0.1;
       // A few glyphs change each frame: the code being read.
-      for (let i = Math.max(2, (cols * rows) >> 9); i > 0; i--) cell((Math.random() * cols * rows) | 0);
+      for (let i = Math.max(2, (cols * rows) >> 9); i > 0; i--) cell((Math.random() * cols * rows) | 0, true);
       draw(now);
     }
     function run() {
@@ -225,7 +234,7 @@
       if (pending) return;
       pending = requestAnimationFrame(() => { pending = 0; const r = section.getBoundingClientRect(); if (Math.round(r.width) !== W || Math.round(r.height) !== H) size(); });
     }).observe(section);
-    const retheme = () => { theme(); draw(performance.now()); };
+    const retheme = () => { theme(); retint(); draw(performance.now()); };
     new MutationObserver(retheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
     matchMedia('(prefers-color-scheme: light)').addEventListener('change', retheme);
     if (!reduced && pointerFine) {
