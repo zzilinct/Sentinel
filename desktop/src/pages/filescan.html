@@ -51,7 +51,8 @@
     if (color) document.documentElement.style.setProperty('--c', color);
     document.getElementById('label').textContent = q.get('label') || 'Not checked';
     const size = Number(q.get('size')) || 0;
-    const kb = size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
+    // An empty or tiny file is not "1 KB".
+    const kb = size < 1024 ? `${size} byte${size === 1 ? '' : 's'}` : size < 1024 * 1024 ? `${Math.round(size / 1024)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
     document.getElementById('name').textContent = `${q.get('name') || ''} · ${kb}`;
     const problem = q.get('problem');
     const lead = document.getElementById('lead');

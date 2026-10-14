@@ -151,7 +151,7 @@ Check 'cold-result-shown' ([bool]$first -and $took -le 15) "the result window ap
 $front = $ws | Where-Object { $_ -match '^front\|' }
 Check 'cold-result-in-front' ([bool]$front -and $front -notmatch '\|\d+,\d+,(8\d\d|9\d\d|\d{4}),') "in front once Sentinel finished starting: $front"
 Check 'cold-no-app-window' (@($ws).Count -eq 1) "Sentinel's windows on screen: $(@($ws).Count) (a scan asked for from the right-click needs only its answer)"
-Check 'cold-one-process' ((MainProcs).Count -eq 1) "Sentinel main processes: $((MainProcs).Count)"
+Check 'cold-one-process' (@(MainProcs).Count -eq 1) "Sentinel main processes: $(@(MainProcs).Count)"
 StopSentinel
 
 # 3. Right-click scans while Sentinel runs, signed out: awkward names and awkward files, each as a person would meet it.
@@ -205,7 +205,7 @@ foreach ($c in $cases) {
     $f = Fit 'filescan.html' $c.id
     Check "menu-$($c.id)-fits" ($f.ok -and $f.gap -le 80) "inside $($f.view), words $($f.words) px, empty $($f.gap) px, out of view '$($f.outOfView)', on screen $($f.onScreen)"
   }
-  Check "menu-$($c.id)-one-start" ((Starts) -eq $starts -and (MainProcs).Count -eq 1) "Sentinel started again for it: $((Starts) - $starts) time(s); main processes now: $((MainProcs).Count)"
+  Check "menu-$($c.id)-one-start" ((Starts) -eq $starts -and @(MainProcs).Count -eq 1) "Sentinel started again for it: $((Starts) - $starts) time(s); main processes now: $(@(MainProcs).Count)"
 }
 $log = AppLog
 $leak = @($logNames + 'QA files', 'Archive of family' | Where-Object { $log -match [regex]::Escape($_) })
@@ -236,7 +236,7 @@ foreach ($s in @(@{ pct = 125; w = 1366; h = 768 }, @{ pct = 150; w = 1920; h = 
   Shot "scale-$tag-app"
   Check "scale-$tag-app-window" $f.onScreen "the app's own window $($f.bounds) in the work area $($f.work)"
   # The right-click answer with things found (a long name too).
-  $p = Join-Path $home2 ('Minutes of the residents association meeting about the new parking rules and the garden ' * 2).Trim() + '.txt'
+  $p = Join-Path $home2 (('Minutes of the residents association meeting about the new parking rules and the garden ' * 2).Trim() + '.txt')
   [void](RightClick $p)
   [void](Until 30 { ([string](Cdp 'filescan.html' $scanExpr).value) -match 'Minutes' })
   Start-Sleep 2
@@ -297,10 +297,11 @@ Say "scaling back: $([Qa]::Scale())"
 # 5. Signed in: the right-click hands the file to the app's own scan, with the window brought forward from the tray.
 StopSentinel
 [void](StartSentinel); Start-Sleep 10
-$r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); const a = { email: 'qa-desktop@example.com', password: 'Qa-Desktop-Sentinel-2026!' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Sam', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', a)].join(','); })()"
+$r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(async (x) => x.status + (x.ok ? '' : ' ' + (await x.text()).slice(0, 160))); const a = { email: 'qa-desktop-$(Get-Random)@example.com', password: 'Amber-kettle-river-58Tq' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Sam', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', a)].join(','); })()"
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
 $paired = Until 40 { [bool](Info 'info()').pairedUserId }
 Check 'signed-in' $paired "sign-up, sign-in: $($r.value)"
+if (-not $paired) { Say "  diag: $(Cdp '127.0.0.1:4782' 'location.href')" }
 Say (node (Join-Path $PSScriptRoot 'e2e-pro.js') "$data\sentinel.db")
 $inCases = @(
   @{ id = 'in-emoji'; name = "Holiday $emoji photos list.txt"; want = 'No threats found' },
@@ -325,7 +326,7 @@ foreach ($c in $inCases) {
   $front = (SentinelWindows | Where-Object { $_ -match '^front\|' }) -join ''
   Shot "menu-$($c.id)"
   Check "menu-$($c.id)" ($ok -and $front) "by $how, after $took s, in front '$front': $v"
-  Check "menu-$($c.id)-one-start" ((Starts) -eq $starts -and (MainProcs).Count -eq 1) "Sentinel started again for it: $((Starts) - $starts) time(s); main processes now: $((MainProcs).Count)"
+  Check "menu-$($c.id)-one-start" ((Starts) -eq $starts -and @(MainProcs).Count -eq 1) "Sentinel started again for it: $((Starts) - $starts) time(s); main processes now: $(@(MainProcs).Count)"
 }
 # Signed in and started cold from the right-click: the app opens on the file's answer.
 StopSentinel
@@ -336,7 +337,7 @@ $ok = Until 60 { $script:title = (SentinelWindows | Where-Object { $_ -match '^f
 Start-Sleep 5
 Shot 'cold-signed-in'
 Check 'cold-signed-in' $ok "in front: $title; all: $((SentinelWindows) -join ' / ')"
-Check 'cold-signed-in-one-process' ((MainProcs).Count -eq 1) "Sentinel main processes: $((MainProcs).Count)"
+Check 'cold-signed-in-one-process' (@(MainProcs).Count -eq 1) "Sentinel main processes: $(@(MainProcs).Count)"
 
 if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 80 | ForEach-Object { Say "  $_" }
