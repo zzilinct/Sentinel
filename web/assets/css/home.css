@@ -297,7 +297,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .galaxy__tag .m { width: 24px; height: 24px; transform: none; opacity: 1; }
 .galaxy__tag .m svg { width: 15px; height: 15px; }
 .galaxy__caption { position: absolute; left: 0; top: 0; max-width: min(340px, calc(100% - 16px)); margin: 0; padding: 8px 14px; border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--line-2); font-size: 14px; line-height: 1.45; color: var(--text);
+  background: var(--surface); border: 1px solid var(--line-2); font-size: 14px; line-height: 1.45; color: var(--text);
   pointer-events: none; opacity: 0; transition: opacity .2s ease; z-index: 2; }
 .galaxy__caption.is-on { opacity: 1; }
 /* The same scenes as a list, for the keyboard and screen readers: unseen, and the canvas shows the focused card. */
