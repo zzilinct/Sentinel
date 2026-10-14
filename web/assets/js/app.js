@@ -61,6 +61,13 @@
       ev.preventDefault();
       navigate(a.getAttribute('href'));
     });
+    // Words pasted in Arabic or Hebrew run right to left in the box: set from the first letters, not by dir="auto" or
+    // unicode-bidi: plaintext, which made reading a 5 MB paste take over a minute.
+    const RTL = /^[^\p{L}]*[֐-ࣿיִ-﷿ﹰ-﻿]/u;
+    document.addEventListener('input', (ev) => {
+      const boxes = ev.target.matches('textarea') ? [ev.target] : $$('textarea', ev.target);
+      for (const t of boxes) t.dir = RTL.test(t.value.slice(0, 200)) ? 'rtl' : 'ltr';
+    });
     addEventListener('popstate', render);
     $('[data-signout]').addEventListener('click', signOut);
     wireShortcuts();
