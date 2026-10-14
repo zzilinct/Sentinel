@@ -178,7 +178,11 @@ async function watchErrors(browser, sessionId) {
   const errors = [];
   browser.on('Runtime.exceptionThrown', (p, sid) => { if (!sid || sid === sessionId) errors.push(`exception: ${p.exceptionDetails.exception ? p.exceptionDetails.exception.description : p.exceptionDetails.text}`); });
   browser.on('Runtime.consoleAPICalled', (p, sid) => { if ((!sid || sid === sessionId) && (p.type === 'error' || p.type === 'assert')) errors.push(`console.${p.type}: ${p.args.map((a) => a.value || a.description || '').join(' ')}`); });
-  browser.on('Log.entryAdded', (p, sid) => { if ((!sid || sid === sessionId) && p.entry.level === 'error') errors.push(`${p.entry.source}: ${p.entry.text} ${p.entry.url || ''}`); });
+  // Chrome logs every 4xx answer from the API as a failed load; those are answers the page shows in words (a wrong
+  // password, a used link), not faults, so only other failed loads count.
+  browser.on('Log.entryAdded', (p, sid) => {
+    if ((!sid || sid === sessionId) && p.entry.level === 'error' && !(p.entry.source === 'network' && /status of 4\d\d/.test(p.entry.text) && /\/api\/v1\//.test(p.entry.url || ''))) errors.push(`${p.entry.source}: ${p.entry.text} ${p.entry.url || ''}`);
+  });
   await browser.send('Runtime.enable', {}, sessionId);
   await browser.send('Log.enable', {}, sessionId);
   return errors;

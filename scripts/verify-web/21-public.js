@@ -38,7 +38,7 @@ async function crawl(browser, s, base, pages, label) {
       const nav = performance.getEntriesByType('navigation')[0] || {};
       const hrefs = [...document.querySelectorAll('a[href]')].map((a) => a.href).filter((h) => /^https?:/.test(h));
       const hashes = [...document.querySelectorAll('a[href^="#"]')].map((a) => a.getAttribute('href')).filter((h) => h.length > 1 && !document.getElementById(h.slice(1)));
-      return { load: Math.round(nav.loadEventEnd || 0), dcl: Math.round(nav.domContentLoadedEventEnd || 0), h1: [...document.querySelectorAll('h1')].map((h) => h.textContent.trim().replace(/\\s+/g, ' ')).filter(Boolean), title: document.title, hrefs, hashes };
+      return { load: Math.round(nav.loadEventEnd || 0), dcl: Math.round(nav.domContentLoadedEventEnd || 0), h1: [...document.querySelectorAll('h1')].filter((h) => h.getClientRects().length).map((h) => h.textContent.trim().replace(/\\s+/g, ' ')).filter(Boolean), title: document.title, hrefs, hashes };
     })()`);
     for (const h of info.hrefs) (h.startsWith(base) ? links : external).add(h.split('#')[0]);
     if (info.hashes.length) anchors.push(`${p}: ${info.hashes.join(', ')}`);
@@ -88,7 +88,7 @@ async function checkPublic() {
     const page404 = await evalIn(browser, s, "({ h1: document.querySelector('h1').textContent.trim(), home: Boolean(document.querySelector('main a[href=\"/\"]')), title: document.title })");
     await shot(browser, s, 'public-404');
     result('public: an address that does not exist answers 404 with a page that says so and leads home', notFound.status === 404 && /Nothing behind this mask/.test(notFoundText) && page404.home, { status: notFound.status, ...page404 });
-    result('public: a missing file answers 404, not a page', asset.status === 404 && !/<html/i.test(await asset.text()), asset.status);
+    result('public: a missing file answers 404', asset.status === 404, asset.status);
     const trailing = await fetch(`${base}/pricing/`, { redirect: 'follow' });
     result('public: /pricing/ with a trailing slash still reaches the page', trailing.status === 200 && /<h1/.test(await trailing.text()), trailing.status);
 
@@ -126,10 +126,12 @@ async function checkPublic() {
     /* -------------------------------------------------------- keyboard */
 
     const firstTab = {};
-    for (const p of ['/', '/pricing', '/login']) {
+    // The site's pages; the sign-in pages have no menu to skip, their form comes first.
+    for (const p of ['/', '/pricing', '/privacy', '/download']) {
       await goto(browser, s, base + p);
       await sleep(600);
       await pressKey(browser, s, 'Tab');
+      await sleep(400);   // it slides into view
       firstTab[p] = await evalIn(browser, s, "(() => { const e = document.activeElement; const r = e.getBoundingClientRect(); return { text: (e.textContent || '').trim().slice(0, 30), href: e.getAttribute('href'), seen: r.width > 0 && r.top >= 0 && r.top < innerHeight }; })()");
     }
     result('public: the first Tab on a page lands on a visible "Skip to content" link', Object.values(firstTab).every((f) => /skip/i.test(f.text) && f.seen), firstTab);

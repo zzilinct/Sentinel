@@ -72,9 +72,8 @@ async function checkAppCore() {
     const noisy = pages.filter((p) => p.errors.length);
     result('appcore: no app page logs a console error', !noisy.length, noisy.map((p) => `${p.page}: ${p.errors.join(' ; ')}`));
 
-    const lost = await open('/app/no-such-page', "document.querySelector('#view h1')");
-    const lostInfo = await evalIn(browser, s, "({ h1: document.querySelector('#view h1').textContent, title: document.title, text: document.querySelector('#view').innerText.slice(0, 160) })");
-    result('appcore: a mistyped app address says the page was not found, instead of quietly showing Overview', !/Overview/.test(lostInfo.title) && /not found|does not exist|no page/i.test(lostInfo.text), { ms: lost, ...lostInfo });
+    const lost = await fetch(`${base}/app/no-such-page`);
+    result('appcore: a mistyped app address answers 404 with the site not-found page, not a quiet Overview', lost.status === 404 && /Nothing behind this mask/.test(await lost.text()), lost.status);
 
     /* ------------------------------------------------------- link scan */
 
@@ -146,11 +145,11 @@ async function checkAppCore() {
     if (del.one) {
       const before = await evalIn(browser, s, "document.querySelectorAll('[data-rows] li').length");
       await clickSel(browser, s, '[data-rows] li [data-forget]');
-      await sleep(300);
-      await clickSel(browser, s, '[data-rows] li [data-forget]');
       await until(browser, s, `document.querySelectorAll('[data-rows] li').length === ${before - 1}`, 8000);
       const fromServer = (await api('/account/history')).body.items.length;
-      result('appcore: one History entry can be deleted (asked first), and is gone from the server too', fromServer === before - 1, { before, fromServer, toast: await toasts() });
+      const focusAfter = await evalIn(browser, s, "(document.activeElement.getAttribute('aria-label') || document.activeElement.tagName)");
+      result('appcore: one History entry can be deleted with its own button, is gone from the server too, and the focus stays in the list',
+        fromServer === before - 1 && /Delete .* from history|Search/i.test(focusAfter), { before, fromServer, focusAfter, toast: await toasts() });
     } else result('appcore: one History entry can be deleted', false, 'History has no way to delete an entry');
     if (del.all) {
       await clickSel(browser, s, '[data-history-clear]');

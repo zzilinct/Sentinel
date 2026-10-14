@@ -101,3 +101,11 @@ async function newUser(plan = 'free') {
   return c;
 }
 
+test('a page asked for with a trailing slash is still the page, and a missing one is a 404', async () => {
+  for (const page of ['/pricing', '/pricing/', '/privacy/']) {
+    const r = await fetch(app.base + page);
+    assert.equal(r.status, 200, page);
+    assert.match(await r.text(), /<h1/, page);
+  }
+  assert.equal((await fetch(`${app.base}/no-such-page/`)).status, 404);
+});

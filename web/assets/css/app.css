@@ -53,9 +53,11 @@ body.app::before { opacity: .6; }
 
 @media (max-width: 900px) {
   .side { position: fixed; inset: auto 0 0 0; height: auto; z-index: 50; flex-direction: row; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--line); background: var(--panel); }
-  .side .logo, .side__label, .side__foot, .side__nav .side__link.is-secondary { display: none; }
+  /* A phone's bar holds the four pages used most and More, which lists every page and Sign out (the Ctrl K search). */
+  .side .logo, .side .model-badge, .side__label, .side__foot, .side__nav .side__link:not([data-phone]) { display: none; }
+  .side__nav .side__more { display: flex; }
   .side__nav { display: flex; width: 100%; justify-content: space-around; }
-  .side__link { flex-direction: column; gap: 3px; height: auto; padding: 7px 8px; font-size: 10.5px; }
+  .side__link { flex: 1 1 0; min-width: 0; min-height: 48px; justify-content: center; flex-direction: column; gap: 3px; height: auto; padding: 7px 4px; font-size: 10.5px; text-align: center; }
   .side__link .pill { display: none; }
   .main { padding-bottom: 90px !important; }
   .topbar-mobile { display: flex !important; }
@@ -64,6 +66,7 @@ body.app::before { opacity: .6; }
 /* ------------------------------------------------------------------ main */
 
 .main { min-width: 0; padding: 36px clamp(20px, 4vw, 56px) 80px; }
+.side__more { display: none; width: 100%; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .topbar-mobile { display: none; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 /* Views appear at once: no fade or slide on every page change. */
 .view { max-width: 1040px; margin: 0 auto; }
@@ -290,6 +293,8 @@ body.app::before { opacity: .6; }
 .drop h3 { font-size: 23px; }
 .drop p { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
 .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+/* The file box itself is invisible, so the keyboard's focus shows on the drop zone around it. */
+.drop:focus-within { outline: 2px solid var(--gold-300); outline-offset: 3px; }
 
 .segmented { display: inline-flex; padding: 4px; border-radius: var(--r); background: rgb(var(--ink) / .03); box-shadow: inset 0 0 0 1px var(--line); }
 .segmented button { height: 34px; padding: 0 16px; border: 0; border-radius: var(--r-sm); background: none; cursor: pointer; color: var(--muted); font: 500 13.5px var(--sans); transition: background .2s, color .2s, box-shadow .2s; }
@@ -543,6 +548,15 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .list li.is-link { cursor: pointer; border-radius: var(--r); margin: 0 -10px; padding-left: 10px; padding-right: 10px; transition: background .2s; }
 .list li.is-link:hover, .list li.is-link:focus-visible { background: rgb(var(--ink) / .035); }
 .list li.is-link:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
+/* History: the address is a link of its own, and each entry has a Delete beside it. */
+.list__target { color: inherit; text-decoration: none; }
+.list__target:hover { text-decoration: underline; text-underline-offset: 3px; }
+.list__target:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; border-radius: 3px; }
+.list__forget { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: var(--r-sm); background: none; color: var(--faint); cursor: pointer; transition: color .2s, background .2s; }
+.list__forget svg { width: 15px; height: 15px; }
+.list__forget:hover, .list__forget:focus-visible { color: var(--red); background: rgb(var(--ink) / .05); }
+.list__forget:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 1px; }
+.tools__end { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .list__go { color: var(--faint); font-size: 16px; transition: color .2s, transform .2s; }
 .list li.is-link:hover .list__go { color: var(--gold-300); transform: translateX(3px); }
 
