@@ -221,8 +221,9 @@ function register(router) {
   router.post('/api/v1/scan/text', async (req, res) => {
     const user = A.requireAgreedUser(req);
     security.rateLimit(`scan-minute:${user.id}`, 30, 60 * 1000, 'Too many scans in a minute. Wait a moment, then try again.');
-    const body = await readJson(req, 64 * 1024);
-    const text = String(body.text || '').slice(0, 8000);
+    // A whole conversation, up to 40000 letters (the app sends its start and its newest part when it is longer).
+    const body = await readJson(req, 256 * 1024);
+    const text = String(body.text || '').slice(0, 40000);
     const from = String(body.from || '').slice(0, 80);
     if (!text.trim()) throw new HttpError(400, 'empty_text', 'Paste the text message you want checked');
     const plan = plans.planFor(user);

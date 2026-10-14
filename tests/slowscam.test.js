@@ -72,3 +72,15 @@ test('all five steps are listed in order, with plain words and no em dashes', ()
   assert.ok(r.stages.every((s) => s.seen));
   for (const s of [r.title, r.detail, r.advice, r.next, ...r.stages.map((x) => x.label)]) assert.doesNotMatch(s, /—/);
 });
+
+test('a long conversation is read to its end, quickly, and an iPhone export\'s marks do not hide its opener', () => {
+  const filler = Array.from({ length: 300 }, (_, i) => `[10/2/26, 10:${String(i % 60).padStart(2, '0')}:00] Me: The weather has been lovely here, we went for a long walk by the river ${i}.`);
+  const chat = ['\u200e[10/1/26, 09:00:00] +1 917 555 0101: Hi, is this Linda?', '[10/1/26, 09:05:00] Me: No, sorry, wrong number', ...filler,
+    '[10/25/26, 20:15:00] +1 917 555 0101: My uncle is a financial analyst, he taught me crypto trading.'].join('\n');
+  assert.ok(chat.length > 8000 && chat.length < 40000);
+  const t0 = Date.now();
+  const r = judgeConversation(chat);
+  assert.ok(Date.now() - t0 < 1000);
+  assert.equal(r.at, 'invest');
+  assert.ok(r.stages[0].seen);
+});
