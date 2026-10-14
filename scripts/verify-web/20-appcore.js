@@ -194,7 +194,7 @@ async function checkAppCore() {
     const limit = await until(browser, s, "(() => { const b = document.querySelector('[data-out] .banner'); return b && { text: b.innerText.trim(), link: (b.querySelector('a') || {}).getAttribute && b.querySelector('a').getAttribute('href') }; })()", 10000);
     await shot(browser, s, 'appcore-limit');
     result('appcore: with the week\'s 10 fast scans used, the scan page and the sidebar say 0 left', /^0 of 10/.test(leftText.meta) && /Fast scans 0 left/.test(leftText.side), leftText);
-    result('appcore: an 11th scan says the week\'s scans are used, when they come back, and links to plans', Boolean(limit) && /used this week.s scans/.test(limit.text) && /resets/.test(limit.text) && limit.link === '/app/plan', limit);
+    result('appcore: an 11th scan says the week\'s scans are used, when they come back, and links to plans', Boolean(limit) && /used all 10 fast link scans/.test(limit.text) && /come back in/.test(limit.text) && limit.link === '/app/plan', limit);
     u = await usage();
     const hdr = { 'Content-Type': 'application/octet-stream', 'X-File-Name': 'note.txt' };
     for (let i = u.usage.fileScans.used; i < u.usage.fileScans.limit; i++) {
@@ -203,7 +203,7 @@ async function checkAppCore() {
     await open('/app/threats', "document.querySelector('[data-file]')");
     await setFile('[data-file]', harmless);
     const fileLimit = await until(browser, s, "(() => { const b = document.querySelector('[data-out] .banner'); return b && b.innerText.trim(); })()", 10000);
-    result('appcore: a 6th file scan on Free says the week\'s scans are used, in words', /used this week.s scans/.test(fileLimit || ''), fileLimit);
+    result('appcore: a 6th file scan on Free says the week\'s scans are used, in words', /used all 5 virus/.test(fileLimit || ''), fileLimit);
     const planMs = await open('/app/plan', "document.querySelector('.plans')");
     const planInfo = await evalIn(browser, s, "({ cards: [...document.querySelectorAll('.usage-list .usage-row, .usage-list > *')].map((c) => c.innerText.replace(/\\s+/g, ' ').trim().slice(0, 80)), current: document.querySelector('.plan.is-current .plan__name').textContent })");
     result('appcore: Plan & usage shows what is left of each allowance, here none', planInfo.current === 'Free' && planInfo.cards.some((c) => /\b0\b/.test(c)), { ms: planMs, ...planInfo });
@@ -224,6 +224,17 @@ async function checkAppCore() {
     const deep = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); const b = document.querySelector('[data-out] .banner'); return (r && { title: r.querySelector('h2').textContent.trim(), tone: r.className, facts: r.innerText.includes('Domain age') || r.innerText.includes('Redirects') }) || (b && { banner: b.innerText }); })()", 60000);
     await shot(browser, s, 'appcore-delicate');
     result('appcore: after upgrading to Pro the limit lifts and a delicate scan researches a real site (httpbin.org), in under 30 s', /Pro/.test(upgraded || '') && Boolean(deep) && deep.facts === true && Date.now() - t < 30000, { upgraded, ...deep, ms: Date.now() - t });
+    // Pro's 40 delicate scans used up (set in the accounts file): the page says which ran out and that Fast still works.
+    {
+      const { DatabaseSync } = require('node:sqlite');
+      const d = new DatabaseSync(server.dbPath);
+      d.prepare("UPDATE usage_counters SET used = 40 WHERE metric = 'deep_scans' AND user_id = (SELECT id FROM users WHERE email = ?)").run(email);
+      d.close();
+    }
+    await fill('.scanbox input', 'https://httpbin.org/get');
+    await pressEnter(browser, s);
+    const deepLimit = await until(browser, s, "(() => { const b = document.querySelector('[data-out] .banner'); return b && b.innerText.trim(); })()", 15000);
+    result('appcore: with the delicate scans used up, the page says it is the delicate ones and that Fast still works', /delicate/.test(deepLimit || '') && /Fast scans still work/.test(deepLimit || ''), deepLimit);
 
     /* ---------------------------------------------------------- security */
 

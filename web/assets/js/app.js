@@ -647,7 +647,8 @@
       return `<div class="banner"><div><b>${esc(err.message)}</b> Choose a model above, or <a href="/app/plan" class="u-gold">compare plans</a>.</div></div>`;
     }
     if (err.code === 'weekly_limit_reached') {
-      return `<div class="banner"><div><b>You have used this week's scans.</b> Your ${esc(err.extra.plan)} plan resets ${until(err.extra.resetsAt)}. <a href="/app/plan" class="u-gold">See plans</a></div></div>`;
+      // Which allowance ran out (the server's sentence names it); with the delicate ones gone, fast scans still work.
+      return `<div class="banner"><div><b>${esc(err.message)}</b> They come back ${until(err.extra.resetsAt)}. ${/delicate/.test(err.message) && location.pathname === '/app/scan' ? 'Fast scans still work: choose Fast above. ' : ''}<a href="/app/plan" class="u-gold">See plans</a></div></div>`;
     }
     if (err.code === 'plan_required') {
       return `<div class="banner"><div><b>${esc(err.message)}</b> <a href="/app/plan" class="u-gold">Compare plans</a></div></div>`;
