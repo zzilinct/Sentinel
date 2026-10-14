@@ -124,9 +124,9 @@
   var TINTS = { yellow: '#f5c542', orange: '#f08a24', red: '#e5484d' };
 
   var items = Array.prototype.map.call(listEl.querySelectorAll('button'), function (b, i) {
+    b.dataset.i = i;
     return { i: i, b: b, src: imgBase + b.dataset.img, mask: /^masks\//.test(b.dataset.img), kind: b.dataset.kind, tint: b.dataset.tint,
       tag: b.dataset.tag, caption: b.dataset.caption, img: null, soft: null, ready: false };
-    b.dataset.i = i;
   });
 
   var pr = null;
@@ -357,7 +357,9 @@
       var c = order[i];
       c.rect = null;
       if (c.skip) continue;
-      var h = c.s * c.boost, w = h * c.asp;
+      // Enlarged up to three times, and at most half the stage wide and 60% of it tall.
+      var bmax = Math.max(1, Math.min(P.boost, W * 0.5 / (c.s * c.asp), H * 0.6 / c.s));
+      var h = c.s * (1 + (c.boost - 1) / (P.boost - 1) * (bmax - 1)), w = h * c.asp;
       var x = c.x, y = c.y;
       if (c.boost > 1.01) {
         // An enlarged card keeps inside the stage.
@@ -547,7 +549,8 @@
   listEl.addEventListener('focusin', function (e) {
     var b = e.target.closest('button');
     if (!b || !pr) return;
-    hold(cardFor(items[Number(b.dataset.i)]), true);
+    var c = cardFor(items[Number(b.dataset.i)]);
+    if (c) hold(c, true);
     still();
   });
   listEl.addEventListener('focusout', function () {

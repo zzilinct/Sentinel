@@ -124,7 +124,7 @@ async function checkGalaxy() {
         const big = e.cards.find((k) => k.k === e.boosted);
         await shot(browser, p.s, `${name}-click`);
         result(`galaxy (${at}): ${phone ? 'a tap' : 'a click'} enlarges the card with its caption${phone ? ' and verdict' : ''}`,
-          e.boosted !== null && big && big.w >= c.w * 1.8 && e.caption.length > 20 && (!phone || e.tag),
+          e.boosted !== null && big && big.w >= Math.min(c.w * 1.8, e.stage.width * 0.45) && e.caption.length > 20 && (!phone || e.tag),
           { boosted: e.boosted, was: Math.round(c.w), now: big && Math.round(big.w), caption: e.caption, tag: e.tag });
         if (!phone) { await mouse(p.s, 'mouseMoved', 5, 5); await sleep(600); }
 
