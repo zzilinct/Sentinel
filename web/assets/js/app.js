@@ -619,6 +619,10 @@
   }
 
   function friendlyError(err) {
+    // Signed out in another tab, or the session ran out: a way back here, where what was typed is kept (data-draft).
+    if (err.status === 401) {
+      return `<div class="banner"><div><b>You are signed out.</b> <a href="/login?next=${encodeURIComponent(location.pathname + location.search)}" class="u-gold">Sign in again</a> to scan. What you pasted stays here.</div></div>`;
+    }
     if (err.code === 'model_requires_plan') {
       return `<div class="banner"><div><b>${esc(err.message)}</b> Choose a model above, or <a href="/app/plan" class="u-gold">compare plans</a>.</div></div>`;
     }
@@ -1168,13 +1172,16 @@
       const row = btn.closest('.actions');
       const open = $('[data-warn-card]', row);
       if (open) { open.remove(); btn.setAttribute('aria-expanded', 'false'); return; }
+      // A second press while the picture is still being drawn would add a second card.
+      if (btn.dataset.drawing) return;
+      btn.dataset.drawing = '1';
       const card = make();
       const canvas = document.createElement('canvas');
       let blob = null;
       try {
         await W.draw(canvas, card);
         blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-      } catch { /* told below */ }
+      } catch { /* told below */ } finally { delete btn.dataset.drawing; }
       if (!blob) { toast('The picture could not be made in this browser.', 'error'); return; }
       const file = new File([blob], 'sentinel-scam-warning.png', { type: 'image/png' });
       const share = Boolean(navigator.canShare && navigator.canShare({ files: [file] }));
@@ -1309,7 +1316,7 @@
           : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>'}</p>
       </div>
       <form class="panel" data-paste data-draft="email-paste" hidden>
-        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" name="raw" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check. With its headers, it also shows who really sent it.</span></div>
+        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" name="raw" dir="auto" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check. With its headers, it also shows who really sent it.</span></div>
         <div data-header-help>
           <p class="field__hint"><b>Gmail:</b> open the email, click the three dots, choose Show original, then Copy to clipboard.</p>
           <p class="field__hint"><b>Outlook:</b> open the email, click the three dots, choose View, then View message source, and copy it all.</p>
@@ -1319,11 +1326,11 @@
       <form class="panel" data-form data-draft="email-scan">
         <div data-email-qr></div>
         <div class="row2">
-          <div class="field"><label for="e-from">From</label><input class="input" id="e-from" name="from" placeholder="PayPal Security &lt;alerts@example.com&gt;" autocomplete="off"></div>
+          <div class="field"><label for="e-from">From</label><input class="input" id="e-from" name="from" dir="auto" placeholder="PayPal Security &lt;alerts@example.com&gt;" autocomplete="off"></div>
           <div class="field"><label for="e-reply">Reply-to <span class="opt">(optional)</span></label><input class="input" id="e-reply" name="replyTo" autocomplete="off"></div>
         </div>
-        <div class="field"><label for="e-subject">Subject</label><input class="input" id="e-subject" name="subject" autocomplete="off"></div>
-        <div class="field"><label for="e-body">Message</label><textarea class="textarea" id="e-body" name="body" placeholder="Paste the message text, including any links"></textarea></div>
+        <div class="field"><label for="e-subject">Subject</label><input class="input" id="e-subject" name="subject" dir="auto" autocomplete="off"></div>
+        <div class="field"><label for="e-body">Message</label><textarea class="textarea" id="e-body" name="body" dir="auto" placeholder="Paste the message text, including any links"></textarea></div>
         <div class="field"><label for="e-att">Attachment names <span class="opt">(optional, comma separated)</span></label><input class="input" id="e-att" name="attachments" placeholder="Invoice_2026.pdf.exe, statement.zip" autocomplete="off"></div>
         <div class="report__foot">
           <span class="muted">Uses 1 of your ${left('deepScans')} remaining delicate scans. Nothing is stored.</span>
@@ -1357,6 +1364,8 @@
       // Filled in by script, which raises no input event: say so, so the draft keeps what was filled in.
       form.dispatchEvent(new Event('input', { bubbles: true }));
       toast(m.from ? `Found sender ${m.from}. Check the fields, then scan.` : 'No headers found, so the text went into the message field.', 'info', 5000);
+      // The box just used is hidden now: the keyboard goes on to the fields to check, not back to the top of the page.
+      form.from.focus({ preventScroll: true });
       form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     };
     $('[data-parse]', el).addEventListener('click', () => {
@@ -1437,14 +1446,21 @@
 
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
-      const body = form.body.value;
+      if (![form.from, form.subject, form.body].some((x) => x.value.trim()) && !shotQr.length) {
+        toast('Paste the email you want checked, or at least its sender or message.', 'error');
+        form.body.focus();
+        return;
+      }
+      // What Sentinel reads of an email (server/routes/scan.routes.js cleanMail): a 5 MB paste is cut here, so it is
+      // scanned instead of being refused as too large to send.
+      const body = form.body.value.slice(0, 20000);
       // Typed or read from a screenshot, an address may have no scheme: "www.example.com/login" is a link too.
       const found = [...(body.match(/https?:\/\/[^\s<>"')]+/g) || []), ...(body.match(/(?<![\w./@-])www\.[a-z0-9.-]+\.[a-z]{2,}[^\s<>"')]*/gi) || []).map((u) => `https://${u}`)];
       const links = [...new Set(found)].map((href) => ({ href, text: '' }));
       const payload = {
         from: form.from.value, replyTo: form.replyTo.value, subject: form.subject.value, body,
         links, attachments: form.attachments.value.split(',').map((s) => s.trim()).filter(Boolean), qr: shotQr,
-        headers: pasted.headers && form.from.value === pasted.from ? pasted.headers : ''
+        headers: pasted.headers && form.from.value === pasted.from ? pasted.headers.slice(0, 16000) : ''
       };
       out.innerHTML = stagesView(true);
       const stop = runStages(out, true);
@@ -1542,7 +1558,7 @@
         html += `${esc(text.slice(at, s.start))}<mark class="emark${fail ? ' is-fail' : ''}" tabindex="0" role="button" aria-expanded="false" data-emark="${whys.length - 1}">${esc(words.slice(0, tail))}<span class="emark__end">${esc(words.slice(tail))}<span class="emark__tag">${esc(s.checks.map((c) => (EMAIL_MARKS[c.id] || [c.title])[0]).join(', '))}</span></span></mark>`;
         at = s.end;
       }
-      return `<div class="email-marks__row" data-efield="${key}"><span class="email-marks__k">${label}</span><div class="email-marks__v${key === 'body' ? ' email-marks__body' : ''}">${html}${esc(text.slice(at))}</div></div>`;
+      return `<div class="email-marks__row" data-efield="${key}"><span class="email-marks__k">${label}</span><div dir="auto" class="email-marks__v${key === 'body' ? ' email-marks__body' : ''}">${html}${esc(text.slice(at))}</div></div>`;
     });
     const section = h(`<section class="email-marks" data-email-marks><h3>The email, marked</h3><p class="email-marks__hint">Each warning sign is marked where it is. Tap a mark to see why.</p>${rows.join('')}</section>`);
     checklist.before(section);
@@ -1569,6 +1585,8 @@
   // A text, WhatsApp message or DM, pasted in or read from a phone screenshot on this computer (the way the email scan
   // reads one, then textshot.js picks out the sender and the messages). Judged on the server by the rules Phone Link
   // checking uses (server/lib/scan/texts.js); links are checked by their address only. Nothing is kept.
+  // The most of a pasted conversation sent for a check (server/routes/scan.routes.js reads the same).
+  const TEXT_MAX = 40000;
   function textView(el) {
     const canRead = Boolean(desktop && desktop.readScreenshot);
     const allowance = () => `${scanLeftText('fast')}. A text counts as one fast link scan, on every plan: its links are checked by their address only, not researched like a pasted email. Nothing is stored.`;
@@ -1585,9 +1603,9 @@
           ? 'Read on this computer by Windows. The image is not uploaded or kept. A screenshot of a whole conversation works too.'
           : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>, or paste the text instead.'}</p>
       </div>
-      <form class="panel" data-form>
-        <div class="field"><label for="t-from">From <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="t-from" name="from" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
-        <div class="field"><label for="t-text">Message or conversation</label><textarea class="textarea" id="t-text" name="text" rows="6" maxlength="8000" placeholder="Paste the message, or the whole conversation, including any links"></textarea></div>
+      <form class="panel" data-form data-draft="text-scan">
+        <div class="field"><label for="t-from">From <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="t-from" name="from" dir="auto" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
+        <div class="field"><label for="t-text">Message or conversation</label><textarea class="textarea" id="t-text" name="text" rows="6" dir="auto" placeholder="Paste the message, or the whole conversation, including any links"></textarea></div>
         <div class="report__foot">
           <span class="muted" data-left>${esc(allowance())}</span>
           <button class="btn btn--gold" type="submit">Check this text</button>
@@ -1653,11 +1671,18 @@
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       if (!form.text.value.trim()) { toast('Paste the message you want checked.', 'error'); form.text.focus(); return; }
+      // A long conversation is read up to TEXT_MAX letters: its start (how it began) and its most recent part (where
+      // it is now). It used to be cut at 8000 by the box itself, without a word, losing the newest messages.
+      const all = form.text.value;
+      const cut = all.length > TEXT_MAX;
+      const text = cut ? `${all.slice(0, 10000)}\n${all.slice(-(TEXT_MAX - 10001))}` : all;
       try {
-        const data = await busy($('button[type=submit]', form), 'Checking', () => api('/scan/text', { method: 'POST', body: { from: form.from.value, text: form.text.value } }));
+        const data = await busy($('button[type=submit]', form), 'Checking', () => api('/scan/text', { method: 'POST', body: { from: form.from.value, text } }));
+        if (!data) return;
         applyUsage(data.usage);
         $('[data-left]', el).textContent = allowance();
-        out.innerHTML = textResult(data.text, form.from.value.trim());
+        out.innerHTML = textResult(data.text, form.from.value.trim())
+          + (cut ? `<p class="field__hint u-mt-sm">This conversation is very long, so Sentinel read its first part and its most recent ${(TEXT_MAX - 10000).toLocaleString('en')} letters.</p>` : '');
         const from = form.from.value.trim();
         wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, $('[data-text-result]', out).dataset.textResult));
         out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -1752,7 +1777,10 @@
     const delivered = text.search(/^(Received|Authentication-Results|Received-SPF|DKIM-Signature|Return-Path|Delivered-To)[ \t]*:/im);
     if (delivered > 0 && /\n\s*\n/.test(text.slice(0, delivered))) text = text.slice(text.lastIndexOf('\n', delivered - 1) + 1);
     const headerEnd = text.search(/\n\s*\n/);
-    const headBlock = headerEnd > 0 ? text.slice(0, headerEnd) : text.slice(0, 1200);
+    // Headers on their own (Outlook's Internet headers box) have no blank line and no body: every line is a header,
+    // and the From line comes after a long route, far past the first 1200 letters.
+    const onlyHeaders = headerEnd < 0 && text.trim().split('\n').every((l) => /^([ \t]|[\w-]+[ \t]*:)/.test(l));
+    const headBlock = headerEnd > 0 ? text.slice(0, headerEnd) : onlyHeaders ? text.slice(0, 64 * 1024) : text.slice(0, 1200);
     const header = (name, block = headBlock) => {
       const m = block.match(new RegExp(`^${name}\\s*:\\s*(.+(?:\\n[ \\t]+.+)*)`, 'im'));
       return m ? words(m[1].replace(/\n[ \t]+/g, ' ').trim()) : '';
@@ -1762,7 +1790,7 @@
     out.subject = header('Subject');
     // Only the headers that say who really sent it go with the scan: not the route it took, with its addresses.
     out.headers = (headBlock.match(/^(Authentication-Results|Received-SPF|DKIM-Signature|Return-Path)[ \t]*:.*(\n[ \t]+.*)*/gim) || []).join('\n');
-    if (out.from || out.subject) out.body = headerEnd > 0 ? (readable(headBlock, text.slice(headerEnd).replace(/^\s*\n/, '')) ?? text.slice(headerEnd)).trim() : text;
+    if (out.from || out.subject) out.body = headerEnd > 0 ? (readable(headBlock, text.slice(headerEnd).replace(/^\s*\n/, '')) ?? text.slice(headerEnd)).trim() : onlyHeaders ? '' : text;
     // Gmail / Outlook "printed" emails put attachments at the end as bare file names.
     const files = text.match(/\b[\w][\w .()-]{0,80}\.(pdf|exe|zip|rar|7z|docm?|xlsm?|xlsx|pptx?|js|vbs|scr|iso|img|html?|lnk|msi|bat|cmd|apk|dmg)\b/gi) || [];
     out.attachments = [...new Set(files.map((f) => f.trim()))].filter((f) => !/^https?:/i.test(f)).slice(0, 10);
@@ -1963,6 +1991,7 @@
     const draw = () => {
       const ticked = (name) => $$(`input[name="${name}"]:checked`, form).map((i) => i.value);
       const r = C.judge(ticked('ask'), ticked('who'));
+      const was = out.dataset.verdict;
       out.dataset.verdict = r ? r.verdict : '';
       // In the Windows app, only that the answer was "Hang up" goes to the app (an hour's pay pause sign, paypause.js).
       if (r && r.verdict === 'hangup' && window.sentinelDesktop && window.sentinelDesktop.callHangUp) window.sentinelDesktop.callHangUp().catch(() => {});
@@ -1971,6 +2000,13 @@
           <p class="call__reason">${esc(r.reason)}</p>
           <p class="call__next"><b>What to do next:</b> ${esc(r.next)}</p>
           ${r.happened.length ? `<p class="call__more">Already did what they asked? <a href="/app/recover?happened=${r.happened.join(',')}">Open the recovery guide</a> for every step, in order.</p>` : ''}`;
+      // The answer sits under both lists, below the screen on a phone: "Hang up now." is brought into view the moment
+      // it first appears. The focus stays on the box just ticked.
+      const big = $('.call__verdict', out);
+      if (big && r.verdict === 'hangup' && was !== 'hangup') {
+        const b = big.getBoundingClientRect();
+        if (b.top < 0 || b.bottom > innerHeight) big.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+      }
     };
     form.addEventListener('change', draw);
     form.addEventListener('reset', () => setTimeout(draw));

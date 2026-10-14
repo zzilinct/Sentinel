@@ -58,7 +58,8 @@ const ADVICE = {
 };
 
 // "[10/6/26, 10:31] Anna: Hi" and "10/6/26, 10:31 - Anna: Hi" (WhatsApp), "Anna: Hi": the words without the label.
-const LABEL = /^\s*(\[[^\]]{4,30}\]|\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4},?\s+\d{1,2}[:.]\d{2}(\s?[ap]m)?\s*-)?\s*([^:\n]{1,30}:\s)?/i;
+// WhatsApp on an iPhone puts a left-to-right mark before the lines it writes itself ("image omitted").
+const LABEL = /^[\s‎‏]*(\[[^\]]{4,30}\]|\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4},?\s+\d{1,2}[:.]\d{2}(\s?[ap]m)?\s*-)?\s*([^:\n]{1,30}:\s)?/i;
 
 /**
  * Where a conversation is on the path of a slow scam, or null when it is not on one.
@@ -67,7 +68,7 @@ const LABEL = /^\s*(\[[^\]]{4,30}\]|\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4},?\s+\d{1,2}[
  *   stages: { id: string, label: string, seen: boolean }[], at: string, next: string }}
  */
 function judgeConversation(text) {
-  const lines = String(text || '').slice(0, 8000).split(/\r?\n/).map((l) => l.replace(LABEL, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const lines = String(text || '').slice(0, 40000).split(/\r?\n/).map((l) => l.replace(LABEL, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
   if (!lines.length) return null;
   const all = lines.join('\n');
   const seen = new Set(STAGES.filter((s) => s.id !== 'opener' && s.re.test(all)).map((s) => s.id));
