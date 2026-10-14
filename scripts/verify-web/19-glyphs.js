@@ -52,7 +52,8 @@ const CONTRAST = `(() => {
     let shows = 0;
     for (let i = 0; i <= 8; i++) shows = Math.max(shows, window.SentinelGlyphs.veil(box.top - top + (box.height * i) / 8, S.h, S.clear));
     const worst = Math.min(...inks.map((ink) => ratio(fg, mix(bg, ink, S.max * shows))));
-    out.push({ text: walker.currentNode.nodeValue.trim().slice(0, 30), shows: Math.round(shows * 100) / 100, ratio: Math.round(worst * 100) / 100, need: large ? 3 : 4.5 });
+    out.push({ text: walker.currentNode.nodeValue.trim().slice(0, 30), shows: Math.round(shows * 100) / 100, ratio: Math.round(worst * 100) / 100,
+      plain: Math.round(ratio(fg, bg) * 100) / 100, need: large ? 3 : 4.5 });
   }
   return out;
 })()`;
@@ -100,9 +101,11 @@ async function checkGlyphs() {
         result(`glyphs ${tag}: drawn at the screen's pixel ratio (or near it on a very tall phone section)`, Math.abs(pb.w / pb.cssW - b.dpr) < 0.02 && b.dpr >= (phone ? 1.9 : 1), { dpr: b.dpr, w: pb.w, cssW: pb.cssW });
         const cap = Math.round(b.max * 255) + 2;
         const lines = await p.ev(CONTRAST);
-        const low = lines.filter((l) => l.ratio < l.need);
+        // A line the field takes under the bar fails; one already under it on the bare page (the light theme's gold
+        // kicker, 4.39:1) is the site's own colour, not the field's, and must have nothing behind it.
+        const low = lines.filter((l) => l.ratio < l.need && (l.plain >= l.need || l.shows > 0));
         result(`glyphs ${tag}: never brighter than its cap, and every line in front of it keeps its contrast`, pa.max <= cap && pb.max <= cap && lines.length >= 10 && !low.length,
-          { brightest: [pa.max, pb.max], cap, checked: lines.length, low, sample: lines.slice(0, 4) });
+          { brightest: [pa.max, pb.max], cap, checked: lines.length, low, alreadyLow: lines.filter((l) => l.plain < l.need), sample: lines.slice(0, 4) });
 
         if (!phone) {
           // The pointer brightens the glyphs near it.
