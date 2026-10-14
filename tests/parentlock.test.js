@@ -198,5 +198,6 @@ test('every way to switch protection off or quit goes through the lock: the app,
   // No other tray or IPC path calls these setters with the switch off.
   assert.equal((main.match(/setChatSafety\(/g) || []).length, 3, 'chat safety: defined, the tray, the app, and nothing else');
   // A quit written down as clean, so the next start can tell it from Task Manager.
-  assert.match(main, /app\.on\('before-quit', \(\) => \{ quitting = true; heartbeat\(true\);/);
+  // (A second start that only handed over its command line writes nothing: it never was the running Sentinel.)
+  assert.match(main, /app\.on\('before-quit', \(\) => \{ if \(!primary\) return; quitting = true; heartbeat\(true\);/);
 });

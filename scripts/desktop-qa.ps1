@@ -294,10 +294,10 @@ foreach ($s in @(@{ pct = 125; w = 1366; h = 768 }, @{ pct = 150; w = 1920; h = 
 [void][Qa]::SetScale(100)
 Say "scaling back: $([Qa]::Scale())"
 
-# 5. Signed in: the right-click hands the file to the app's own scan, with the window brought forward from the tray.
+# 5. Signed in (with "Stay signed in", ticked by default on the sign-in page): the right-click hands the file to the app's own scan, with the window brought forward from the tray.
 StopSentinel
 [void](StartSentinel); Start-Sleep 10
-$r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(async (x) => x.status + (x.ok ? '' : ' ' + (await x.text()).slice(0, 160))); const a = { email: 'qa-desktop-$(Get-Random)@example.com', password: 'Amber-kettle-river-58Tq' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Sam', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', a)].join(','); })()"
+$r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(async (x) => x.status + (x.ok ? '' : ' ' + (await x.text()).slice(0, 160))); const a = { email: 'qa-desktop-$(Get-Random)@example.com', password: 'Amber-kettle-river-58Tq' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Sam', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', Object.assign({ staySignedIn: true }, a))].join(','); })()"
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
 $paired = Until 40 { [bool](Info 'info()').pairedUserId }
 Check 'signed-in' $paired "sign-up, sign-in: $($r.value)"
