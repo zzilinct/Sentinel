@@ -15,6 +15,7 @@ Add-Type @"
 using System; using System.Runtime.InteropServices; using System.Text; using System.Collections.Generic;
 public static class Qa {
   [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr v);
+  [DllImport("user32.dll")] public static extern int GetSystemMetrics(int i);
   delegate bool EnumProc(IntPtr h, IntPtr l);
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
   [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
@@ -87,6 +88,15 @@ public static class Qa {
 "@
 $aware = [Qa]::SetProcessDpiAwarenessContext([IntPtr](-4))
 . (Join-Path $PSScriptRoot 'desktop-e2e-lib.ps1')
+# The whole screen as it is now: Windows Forms keeps the size it saw first, and the screen changes size below.
+function Shot($name) {
+  $w = [Qa]::GetSystemMetrics(0); $h = [Qa]::GetSystemMetrics(1)
+  $bmp = New-Object System.Drawing.Bitmap $w, $h
+  $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen(0, 0, 0, 0, (New-Object System.Drawing.Size $w, $h))
+  $script:shot++
+  $bmp.Save(("{0}\{1:D2}-{2}.png" -f $Out, $script:shot, $name), [System.Drawing.Imaging.ImageFormat]::Png)
+  $g.Dispose(); $bmp.Dispose()
+}
 Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds); per-monitor aware: $aware; scaling (now|recommended|largest): $([Qa]::Scale()); modes: $([Qa]::Modes())"
 
 # Sentinel's own main processes (not its helpers): one, however many times the right-click menu starts it.
@@ -228,7 +238,7 @@ foreach ($s in @(@{ pct = 125; w = 1366; h = 768 }, @{ pct = 150; w = 1920; h = 
   $r = [Qa]::SetScale($s.pct)
   Start-Sleep 5
   $now = [Qa]::Scale()
-  Say "scaling ${tag}%: set -> $r, now|recommended|largest: $now; screen $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
+  Say "scaling ${tag}%: set -> $r, now|recommended|largest: $now; screen $([Qa]::GetSystemMetrics(0))x$([Qa]::GetSystemMetrics(1))"
   Check "scale-$tag-set" ($now -match "^$($s.pct)\|") "the display is at $now"
   StopSentinel
   [void](StartSentinel); Start-Sleep 10
