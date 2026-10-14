@@ -173,7 +173,7 @@ async function checkAppCore() {
     const badHost = await toasts();
     await fill('#site-host', 'bad-example.test');
     await clickSel(browser, s, '[data-rule=block]');
-    await pressEnter(browser, s);
+    await clickSel(browser, s, '[data-add] button[type=submit]');
     const blocked = await until(browser, s, "[...document.querySelectorAll('[data-block] li b')].map((b) => b.textContent).join(',')", 8000);
     await shot(browser, s, 'appcore-sites');
     result('appcore: Site rules trusts a pasted address by its site name and blocks another', /example\.org/.test(trusted || '') && /bad-example\.test/.test(blocked || ''), { trusted, blocked });
@@ -211,12 +211,19 @@ async function checkAppCore() {
     const upgraded = await until(browser, s, "(document.querySelector('.plan.is-current .plan__name') || {}).textContent === 'Pro' && document.querySelector('.side [data-plan]').textContent", 10000);
     await open('/app/scan', "document.querySelector('.scanbox input')");
     await clickSel(browser, s, '[data-scan-mode=delicate]');
-    await fill('.scanbox input', 'https://github.com');
+    // A well-known, verified site skips research, so a delicate scan of it counts as a fast one.
+    const u0 = (await usage()).usage;
+    const known = (await api('/scan/link', { url: 'https://github.com', mode: 'delicate' })).body;
+    const u1 = known.usage;
+    result('appcore: a delicate scan of github.com (verified, nothing to research) counts as a fast scan, not a delicate one',
+      known.verdict.researched === false && u1.deepScans.used === u0.deepScans.used && u1.linkScans.used === u0.linkScans.used + 1,
+      { deep: [u0.deepScans.used, u1.deepScans.used], fast: [u0.linkScans.used, u1.linkScans.used] });
+    await fill('.scanbox input', 'https://httpbin.org/');
     t = Date.now();
     await pressEnter(browser, s);
     const deep = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); const b = document.querySelector('[data-out] .banner'); return (r && { title: r.querySelector('h2').textContent.trim(), tone: r.className, facts: r.innerText.includes('Domain age') || r.innerText.includes('Redirects') }) || (b && { banner: b.innerText }); })()", 60000);
     await shot(browser, s, 'appcore-delicate');
-    result('appcore: after upgrading to Pro the limit lifts and a delicate scan researches github.com, in under 30 s', /Pro/.test(upgraded || '') && Boolean(deep) && deep.facts === true && Date.now() - t < 30000, { upgraded, ...deep, ms: Date.now() - t });
+    result('appcore: after upgrading to Pro the limit lifts and a delicate scan researches a real site (httpbin.org), in under 30 s', /Pro/.test(upgraded || '') && Boolean(deep) && deep.facts === true && Date.now() - t < 30000, { upgraded, ...deep, ms: Date.now() - t });
 
     /* ---------------------------------------------------------- security */
 
@@ -251,7 +258,7 @@ async function checkAppCore() {
     /* --------------------------------------------- checkup and recovery */
 
     await open('/app/checkup');
-    const checkup = await evalIn(browser, s, "({ text: document.querySelector('#view').innerText.replace(/\\s+/g, ' ').slice(0, 200), download: Boolean(document.querySelector('#view a[href=\"/download\"]')) })");
+    const checkup = await evalIn(browser, s, "({ text: document.querySelector('#view .view').innerText.replace(/\\s+/g, ' ').slice(0, 300), download: Boolean(document.querySelector('#view a[href=\"/download\"]')) })");
     result('appcore: Browser checkup in a browser says it runs in the Windows app, with a Download link', checkup.download && /Sentinel app/.test(checkup.text), checkup);
     await open('/app/recover', "document.querySelector('[data-recover-picks] input')");
     await clickSel(browser, s, '[data-recover-picks] input');

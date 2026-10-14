@@ -66,7 +66,7 @@ body.app::before { opacity: .6; }
 /* ------------------------------------------------------------------ main */
 
 .main { min-width: 0; padding: 36px clamp(20px, 4vw, 56px) 80px; }
-.side__more { display: none; width: 100%; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.side__more { display: none; width: 100%; border: 0; background: none; font-family: inherit; color: inherit; cursor: pointer; }
 .topbar-mobile { display: none; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 /* Views appear at once: no fade or slide on every page change. */
 .view { max-width: 1040px; margin: 0 auto; }
@@ -548,6 +548,9 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .list li.is-link { cursor: pointer; border-radius: var(--r); margin: 0 -10px; padding-left: 10px; padding-right: 10px; transition: background .2s; }
 .list li.is-link:hover, .list li.is-link:focus-visible { background: rgb(var(--ink) / .035); }
 .list li.is-link:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
+/* A scan's answer takes the focus on its heading (for screen readers); the heading is not a control, so no ring. */
+.result__title h2[tabindex="-1"]:focus { outline: none; }
+
 /* History: the address is a link of its own, and each entry has a Delete beside it. */
 .list__target { color: inherit; text-decoration: none; }
 .list__target:hover { text-decoration: underline; text-underline-offset: 3px; }

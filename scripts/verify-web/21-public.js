@@ -46,8 +46,10 @@ async function crawl(browser, s, base, pages, label) {
   }
   result(`public ${label}: every page loads in under 3 s, with one h1 and a title`, found.every((f) => f.load < 3000 && f.h1.length === 1 && f.title),
     found.map((f) => `${f.page} ${f.load} ms (ready ${f.dcl} ms), h1 ${JSON.stringify(f.h1)}`));
-  const noisy = found.filter((f) => f.errors.filter((e) => !/status of 401/.test(e)).length);
-  result(`public ${label}: no page logs a console error`, !noisy.length, noisy.map((f) => `${f.page}: ${f.errors.join(' ; ')}`));
+  // GitHub's release lookup on /download is refused now and then on a busy network (Chrome logs the 403); the page
+  // copes with that, proven below, so it is noted and not counted.
+  const noisy = found.filter((f) => f.errors.filter((e) => !/status of 401/.test(e) && !/api\.github\.com/.test(e)).length);
+  result(`public ${label}: no page logs a console error`, !noisy.length, noisy.length ? noisy.map((f) => `${f.page}: ${f.errors.join(' ; ')}`) : found.flatMap((f) => f.errors.map((e) => `noted ${f.page}: ${e}`)));
   result(`public ${label}: every link to a part of a page lands on something`, !anchors.length, anchors);
   return { links, external };
 }
@@ -115,13 +117,33 @@ async function checkPublic() {
     const ex = await evalIn(browser, s, "Boolean(document.querySelector('[data-example]'))");
     if (ex) {
       await clickSel(browser, s, '[data-example]');
-      await sleep(60);
       await clickSel(browser, s, '[data-example]');
       const flash = await until(browser, s, "/Scan failed/.test(document.querySelector('[data-out]').innerText) && document.querySelector('[data-out]').innerText.slice(0, 160)", 2500);
       await until(browser, s, "document.querySelector('[data-out] [data-result]')", 20000);
       const left = await evalIn(browser, s, "document.querySelector('[data-left]').textContent");
       result('public: a double press on a guest example scans once, never flashing "Scan failed"', !flash && /8 of 10/.test(left), { flash, left });
     }
+
+    /* ------------------------------------------- the download button */
+
+    // The page asks GitHub for the latest release. Refused (403, as a shared or busy network gets) the button must
+    // still download; only "no release" (404) may say it is not published yet.
+    const download = {};
+    await browser.send('Fetch.enable', { patterns: [{ urlPattern: 'https://api.github.com/*' }] }, s);
+    let answer = 403;
+    browser.on('Fetch.requestPaused', (p, sid) => {
+      if (sid !== s) return;
+      browser.send('Fetch.fulfillRequest', { requestId: p.requestId, responseCode: answer, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }, { name: 'Access-Control-Allow-Origin', value: '*' }], body: Buffer.from('{"message":"refused"}').toString('base64') }, s).catch(() => {});
+    });
+    for (const code of [403, 404]) {
+      answer = code;
+      await goto(browser, s, `${base}/download`);
+      await sleep(1500);
+      download[code] = await evalIn(browser, s, "(() => { const b = document.querySelector('[data-installer]'); return { href: b.getAttribute('href'), words: b.textContent.trim().replace(/\\s+/g, ' ') }; })()");
+    }
+    await browser.send('Fetch.disable', {}, s);
+    result('public: when GitHub refuses the release lookup (403) the download button still downloads; only a missing release (404) says not published yet',
+      /Sentinel-Setup\.exe$/.test(download[403].href || '') && !/not published/.test(download[403].words) && !download[404].href && /not published/.test(download[404].words), download);
 
     /* -------------------------------------------------------- keyboard */
 

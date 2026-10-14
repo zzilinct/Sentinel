@@ -483,3 +483,15 @@ test('history: one entry or all of it can be deleted, and only by its owner', as
   assert.equal((await me.get('/api/v1/account/history')).data.items.length, 0);
   assert.equal((await other.get('/api/v1/account/history')).data.items.length, 1);
 });
+
+test('a delicate scan of a well-known, verified site researches nothing, so it counts as a fast scan', async () => {
+  const c = await newUser('pro');
+  const r = await c.post('/api/v1/scan/link', { url: 'https://github.com/', mode: 'delicate' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.verdict.researched, false);
+  assert.equal(r.data.usage.deepScans.used, 0, 'the delicate scan goes back');
+  assert.equal(r.data.usage.linkScans.used, 1, 'and a fast one is counted');
+  const researched = await c.post('/api/v1/scan/link', { url: 'https://browser-update-center.top/', mode: 'delicate' });
+  assert.equal(researched.data.verdict.researched, true);
+  assert.equal(researched.data.usage.deepScans.used, 1);
+});
