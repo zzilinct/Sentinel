@@ -61,6 +61,13 @@
       ev.preventDefault();
       navigate(a.getAttribute('href'));
     });
+    // Words pasted in Arabic or Hebrew run right to left in the box: set from the first letters, not by dir="auto" or
+    // unicode-bidi: plaintext, which made reading a 5 MB paste take over a minute.
+    const RTL = /^[^\p{L}]*[֐-ࣿיִ-﷿ﹰ-﻿]/u;
+    document.addEventListener('input', (ev) => {
+      const boxes = ev.target.matches('textarea') ? [ev.target] : $$('textarea', ev.target);
+      for (const t of boxes) t.dir = RTL.test(t.value.slice(0, 200)) ? 'rtl' : 'ltr';
+    });
     addEventListener('popstate', render);
     $('[data-signout]').addEventListener('click', signOut);
     wireShortcuts();
@@ -1316,7 +1323,7 @@
           : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>'}</p>
       </div>
       <form class="panel" data-paste data-draft="email-paste" hidden>
-        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" name="raw" dir="auto" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check. With its headers, it also shows who really sent it.</span></div>
+        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" name="raw" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check. With its headers, it also shows who really sent it.</span></div>
         <div data-header-help>
           <p class="field__hint"><b>Gmail:</b> open the email, click the three dots, choose Show original, then Copy to clipboard.</p>
           <p class="field__hint"><b>Outlook:</b> open the email, click the three dots, choose View, then View message source, and copy it all.</p>
@@ -1330,7 +1337,7 @@
           <div class="field"><label for="e-reply">Reply-to <span class="opt">(optional)</span></label><input class="input" id="e-reply" name="replyTo" autocomplete="off"></div>
         </div>
         <div class="field"><label for="e-subject">Subject</label><input class="input" id="e-subject" name="subject" dir="auto" autocomplete="off"></div>
-        <div class="field"><label for="e-body">Message</label><textarea class="textarea" id="e-body" name="body" dir="auto" placeholder="Paste the message text, including any links"></textarea></div>
+        <div class="field"><label for="e-body">Message</label><textarea class="textarea" id="e-body" name="body" placeholder="Paste the message text, including any links"></textarea></div>
         <div class="field"><label for="e-att">Attachment names <span class="opt">(optional, comma separated)</span></label><input class="input" id="e-att" name="attachments" placeholder="Invoice_2026.pdf.exe, statement.zip" autocomplete="off"></div>
         <div class="report__foot">
           <span class="muted">Uses 1 of your ${left('deepScans')} remaining delicate scans. Nothing is stored.</span>
@@ -1605,7 +1612,7 @@
       </div>
       <form class="panel" data-form data-draft="text-scan">
         <div class="field"><label for="t-from">From <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="t-from" name="from" dir="auto" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
-        <div class="field"><label for="t-text">Message or conversation</label><textarea class="textarea" id="t-text" name="text" rows="6" dir="auto" placeholder="Paste the message, or the whole conversation, including any links"></textarea></div>
+        <div class="field"><label for="t-text">Message or conversation</label><textarea class="textarea" id="t-text" name="text" rows="6" placeholder="Paste the message, or the whole conversation, including any links"></textarea></div>
         <div class="report__foot">
           <span class="muted" data-left>${esc(allowance())}</span>
           <button class="btn btn--gold" type="submit">Check this text</button>

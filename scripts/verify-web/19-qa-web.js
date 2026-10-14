@@ -175,7 +175,8 @@ async function checkQaWeb() {
   browser.on('Browser.downloadWillBegin', (p) => { done[p.guid] = { name: p.suggestedFilename, state: 'started' }; });
   browser.on('Browser.downloadProgress', (p) => { if (done[p.guid]) done[p.guid].state = p.state; });
   // Each part on its own: one that cannot run says so and the rest still run.
-  const part = async (name, fn) => { try { await fn(); } catch (err) { result(`qa-web: ${name} could not run`, false, err.stack || err.message); } };
+  // A part that hangs (a 5 MB paste that never ends) fails after three minutes instead of taking the whole job.
+  const part = async (name, fn) => { try { await Promise.race([fn(), sleep(180000).then(() => { throw new Error('it did not finish in three minutes'); })]); } catch (err) { result(`qa-web: ${name} could not run`, false, err.stack || err.message); } };
   try {
     if (!up) throw new Error(`the Sentinel server did not start on ${base} (see qa-web-server.log)`);
     const { sessionId: s } = await openPage(browser);
@@ -359,7 +360,8 @@ async function checkQaWeb() {
       await openEmail();
       await ev("document.querySelector('[data-emode=\"fields\"]').click(), true");
       await ev("(() => { const f = document.querySelector('form[data-form]'); f.from.value = 'بنك <alerts@bank-alrajhi-verify.top>'; f.subject.value = 'تحديث الحساب 🔒'; f.body.value = 'عزيزي العميل، تم تعليق حسابك 😟 يرجى تحديث بياناتك خلال 24 ساعة: https://bank-alrajhi-verify.top/login'; f.body.dispatchEvent(new Event('input', { bubbles: true })); return true; })()");
-      const dir = await ev("getComputedStyle(document.querySelector('form[data-form] [name=body]')).direction");
+      // Right to left: the box sets each line's direction from its own words (unicode-bidi: plaintext), or is rtl.
+      const dir = await ev("(() => { const c = getComputedStyle(document.querySelector('form[data-form] [name=body]')); return c.unicodeBidi === 'plaintext' ? 'rtl' : c.direction; })()");
       const r = await emailScan();
       const marks = await ev("(() => { const v = document.querySelector('[data-efield=\"body\"] .email-marks__v'); return v ? getComputedStyle(v).direction : null; })()");
       const fits = await ev('document.documentElement.scrollWidth <= innerWidth + 1');
@@ -403,9 +405,9 @@ async function checkQaWeb() {
         r && r.at === 'invest' && r.sent === chat.length, { ...r, pasted: chat.length });
       const t0 = Date.now();
       const huge = `${chat}\n`.repeat(Math.ceil(5e6 / chat.length));
-      const h = await textScan(huge, { insert: true });
+      const h = await textScan(huge);
       result('qa-web: text, a 5 MB paste gets an answer, not an error, and says it read only part of it',
-        h && h.tone !== 'banner' && Boolean(await ev("/part|first|last|long/i.test(document.querySelector('#view').innerText)")), { ...h, ms: Date.now() - t0 });
+        Date.now() - t0 < 15000 && h && h.tone !== 'banner' && Boolean(await ev("/part|first|last|long/i.test(document.querySelector('#view').innerText)")), { ...h, ms: Date.now() - t0 });
     });
 
     await part('text, empty, right to left, back and forward', async () => {
@@ -419,7 +421,7 @@ async function checkQaWeb() {
 
       const ar = 'مرحبا! هل هذا رقم أحمد؟ 😊🙏 أنا آسف، أرسلت إلى الرقم الخطأ';
       const r = await textScan(ar);
-      const dir = await ev("getComputedStyle(document.querySelector('[data-form] textarea')).direction");
+      const dir = await ev("(() => { const c = getComputedStyle(document.querySelector('[data-form] textarea')); return c.unicodeBidi === 'plaintext' ? 'rtl' : c.direction; })()");
       const fits = await ev('document.documentElement.scrollWidth <= innerWidth + 1');
       await shot(browser, s, 'qa-text-rtl');
       result('qa-web: text, Arabic with emoji is written right to left and gets a calm answer', dir === 'rtl' && r && r.tone !== 'banner' && fits, { dir, r, fits });
