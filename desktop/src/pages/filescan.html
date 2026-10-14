@@ -12,7 +12,7 @@
   .mark { width: 46px; height: 46px; flex: none; color: var(--c, #8d8a82); }
   .mark svg { width: 100%; height: 100%; }
   h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--c, #8d8a82); }
-  .name { margin: 2px 0 0; font: 13px ui-monospace, Consolas, monospace; color: #c9c5bb; word-break: break-all; }
+  .name { margin: 2px 0 0; font: 13px ui-monospace, Consolas, monospace; color: #c9c5bb; overflow-wrap: anywhere; }
   .body { margin-top: 16px; min-height: 0; overflow-y: auto; }
   .body p { margin: 0 0 10px; color: #b9b5ab; }
   .body b { color: #e9e6df; font-weight: 500; }
@@ -51,7 +51,8 @@
     if (color) document.documentElement.style.setProperty('--c', color);
     document.getElementById('label').textContent = q.get('label') || 'Not checked';
     const size = Number(q.get('size')) || 0;
-    const kb = size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
+    // An empty or tiny file is not "1 KB".
+    const kb = size < 1024 ? `${size} byte${size === 1 ? '' : 's'}` : size < 1024 * 1024 ? `${Math.round(size / 1024)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
     document.getElementById('name').textContent = `${q.get('name') || ''} · ${kb}`;
     const problem = q.get('problem');
     const lead = document.getElementById('lead');

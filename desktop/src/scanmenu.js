@@ -43,11 +43,13 @@ function unregister() { return reg(['delete', KEY, '/f']); }
 
 /**
  * What the small result window shows for a file checked on this computer: its name (never its folder), the verdict in
- * download protection's words (downloads.summarize), and up to four things found. problem: 'big' (over the 25 MB the
+ * download protection's words (downloads.summarize), and up to four things found when it is not clean. problem: 'big' (over the 25 MB the
  * scanner reads) or 'unreadable', when it was not checked at all.
  */
 function offlineResult(file, size, summary, report, problem) {
-  const found = report && !problem
+  // A clean verdict lists nothing: "No threats found" over "Contains the classic process-injection API trio" (Google's
+  // own chrome.exe) left a person unsure which to believe.
+  const found = report && !problem && summary.badge
     ? report.checks.filter((c) => c.status === 'fail' || c.status === 'warn').sort((a, b) => b.points - a.points).slice(0, 4).map((c) => c.detail)
     : [];
   return {

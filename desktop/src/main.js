@@ -290,7 +290,12 @@ async function apiCall(pathname, body) {
   }
 }
 
-if (!app.requestSingleInstanceLock()) {
+// Only one Sentinel runs. A second start (Scan with Sentinel in the right-click menu, or the Start menu while Sentinel
+// runs) hands its command line to the first one (second-instance) and leaves. app.quit() does not stop the code below
+// it: that second start went on to check the file itself, start a scanner of its own and show its error page, so
+// what it would do once ready and on its way out is skipped (`primary`).
+const primary = app.requestSingleInstanceLock();
+if (!primary) {
   app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
@@ -305,11 +310,14 @@ app.setAppUserModelId('com.usesentinel.desktop');
 /* ------------------------------------------------------------- window */
 
 function createWindow() {
+  // Never bigger than the screen: at 1366x768 and 125% the work area is 1093x567, below even the smallest size, and
+  // the bottom of the window sat under the taskbar out of reach.
+  const area = screen.getPrimaryDisplay().workArea;
   win = new BrowserWindow({
-    width: 1280,
-    height: 840,
-    minWidth: 960,
-    minHeight: 640,
+    width: Math.min(1280, area.width),
+    height: Math.min(840, area.height),
+    minWidth: Math.min(960, area.width),
+    minHeight: Math.min(640, area.height),
     show: false,
     backgroundColor: '#0c0d10',
     title: 'Sentinel',
@@ -442,6 +450,19 @@ function remoteGuardStatus() {
   return { supported: process.platform === 'win32', enabled: store.get('remoteGuard', true), trusted: trustedRemote().map((id) => remoteguard.byId[id].name) };
 }
 
+/**
+ * One of Sentinel's small windows made as tall as what it says, between 240 and 600 px and never taller than the screen
+ * it is on; longer words scroll inside. Resolves false when the window closed meanwhile.
+ */
+async function fitToWords(w) {
+  const h = await w.webContents.executeJavaScript(`(() => { const r = document.documentElement, b = document.body; r.style.height = b.style.height = 'auto';
+    const h = Math.ceil(b.getBoundingClientRect().height); r.style.height = b.style.height = ''; return h; })()`);
+  if (!w || w.isDestroyed()) return false;
+  const frame = w.getSize()[1] - w.getContentSize()[1];
+  const room = screen.getDisplayMatching(w.getBounds()).workArea.height - frame;
+  w.setContentSize(480, Math.max(Math.min(240, room), Math.min(600, room, h)));
+  return true;
+}
 /** The shield's own small window. Above everything, a page that has taken the whole screen included. */
 function showGuard(mode, data = {}) {
   if (!guardWin || guardWin.isDestroyed()) {
@@ -463,13 +484,10 @@ function showGuard(mode, data = {}) {
     guardWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     guardWin.webContents.on('will-navigate', (e) => e.preventDefault());
     // As tall as what it says: a short question (did you type anything, the pay pause) left a band of empty window
-    // above its buttons. Between 240 and 600 px; longer still scrolls inside.
+    // above its buttons.
     guardWin.webContents.on('did-finish-load', async () => {
       try {
-        const h = await guardWin.webContents.executeJavaScript(`(() => { const r = document.documentElement, b = document.body; r.style.height = b.style.height = 'auto';
-          const h = Math.ceil(b.getBoundingClientRect().height); r.style.height = b.style.height = ''; return h; })()`);
-        if (!guardWin || guardWin.isDestroyed()) return;
-        guardWin.setContentSize(480, Math.max(240, Math.min(600, h)));
+        if (!(await fitToWords(guardWin))) return;
         if (guardMode === 'escape') placeOnPage(); else guardWin.center();
       } catch { /* closed while loading */ }
     });
@@ -967,6 +985,8 @@ async function scanHere(file) {
     menuWin.once('ready-to-show', () => { if (menuWin) { menuWin.show(); menuWin.focus(); } });
     menuWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     menuWin.webContents.on('will-navigate', (e) => e.preventDefault());
+    // As tall as the answer: a short one left a band of empty window above the buttons.
+    menuWin.webContents.on('did-finish-load', () => { fitToWords(menuWin).then((ok) => { if (ok) menuWin.center(); }).catch(() => {}); });
   }
   menuWin.loadFile(path.join(__dirname, 'pages', 'filescan.html'), { query });
   if (menuWin.isVisible()) { menuWin.moveTop(); menuWin.focus(); }
@@ -1780,6 +1800,7 @@ async function boot() {
 }
 
 app.whenReady().then(() => {
+  if (!primary) return;
   // Deny every browser permission request (microphone, notifications, etc.) from web content. The one exception is
   // the camera alone, for Sentinel's own page in Sentinel's own window: holding a QR code up to it on the link scan.
   // The picture is read in that page and never leaves it.
@@ -1801,10 +1822,12 @@ app.whenReady().then(() => {
   // Scanning that auto scanning had started before a restart is still its to switch off.
   autoSession = Boolean(store.get('autoScan', false) && store.get('autoSession', false));
   step('bridge', () => registerBridge());
-  step('right-click file', () => askedToScan(process.argv));
+  // Started by a right-click scan while signed out, the answer has its own small window: the app's window is not
+  // opened behind it (a full-size sign-in page nobody asked for).
+  const scanOnly = step('right-click file', () => askedToScan(process.argv)) === null;
   // Started in the tray, no window is made: a hidden window still loaded the whole app and kept a process for it
   // all day, for someone who may never open it.
-  step('window', () => { if (!startHidden) createWindow(); });
+  step('window', () => { if (!startHidden && !scanOnly) createWindow(); });
   // The scanner starts before anything decorative, and nothing below can stop it.
   boot().catch((err) => { booting = false; showError(String(err && err.message || err)); });
 
@@ -1839,7 +1862,7 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => { quitting = true; heartbeat(true); snip.close(); globalShortcut.unregisterAll(); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
+app.on('before-quit', () => { if (!primary) return; quitting = true; heartbeat(true); snip.close(); globalShortcut.unregisterAll(); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 

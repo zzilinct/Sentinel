@@ -40,3 +40,33 @@ jobs:
           name: desktop-e2e
           path: e2e-desktop/
           retention-days: 7
+
+  # Real-use QA (scripts/desktop-qa.ps1): "Scan with Sentinel" from the right-click menu started cold, signed out and in,
+  # with awkward names and files, and the shield's windows at 125% and 150% display scaling. Its own runner, in parallel.
+  qa:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Build the Windows installer from this commit
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run dist:win
+      - shell: powershell
+        run: ./scripts/desktop-qa.ps1 -Installer (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-desktop-qa
+      - name: Sentinel's logs
+        if: always()
+        shell: powershell
+        run: New-Item -ItemType Directory -Force e2e-desktop-qa/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-desktop-qa/logs -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-qa
+          path: e2e-desktop-qa/
+          retention-days: 7

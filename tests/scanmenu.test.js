@@ -59,3 +59,12 @@ test('a clean file is green, and a file not checked says so instead of a verdict
   const big = offlineResult('D:\\film.mkv', 40 * 1024 * 1024, { badge: null, label: 'No threats found' }, null, 'big');
   assert.deepEqual([big.badge, big.label, big.problem, big.found], ['none', 'Not checked', 'big', '']);
 });
+
+test('a clean verdict lists no findings, even the minor ones a clean program has', () => {
+  const report = { checks: [
+    { status: 'warn', points: 12, detail: 'Contains the classic process-injection API trio' },
+    { status: 'warn', points: 8, detail: 'PE executable: only run programs from publishers you trust' }
+  ] };
+  const r = offlineResult('C:\Downloads\chrome.exe', 4500000, { badge: null, label: 'No threats found' }, report, null);
+  assert.deepEqual([r.badge, r.label, r.found], ['green', 'No threats found', '']);
+});
