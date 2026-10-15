@@ -26,8 +26,10 @@ const BUDGET = path.join(__dirname, 'perf-budget.json');
 const SLACK = { performance: 8, accessibility: 2, 'best-practices': 5, seo: 2 };
 
 function lighthouse(cli, url, form, headersFile, jsonOut) {
+  // A page that never lets the main thread rest runs Lighthouse to this limit; at 45 s the trace grew too long to read
+  // (NO_NAVSTART), so the limit is shorter and the report says the page was still busy.
   const args = [cli, url, '--quiet', '--output=json', `--output-path=${jsonOut}`, `--only-categories=${CATS.join(',')}`,
-    '--chrome-flags=--headless=new --no-first-run --no-default-browser-check', '--disable-full-page-screenshot', '--max-wait-for-load=45000'];
+    '--chrome-flags=--headless=new --no-first-run --no-default-browser-check', '--disable-full-page-screenshot', '--max-wait-for-load=20000'];
   if (form === 'desktop') args.push('--preset=desktop');
   if (headersFile) args.push(`--extra-headers=${headersFile}`);
   const chrome = CANDIDATES.chrome.map(expand).find((p) => fs.existsSync(p));
@@ -57,29 +59,69 @@ function summarise(lhr) {
   };
 }
 
-async function axeAll(axeSource, base, signIn) {
+// Recorded from the first paint in every page the browser opens: the largest paint, the layout shift and long tasks.
+const OBSERVE = `window.__perf = { lcp: 0, cls: 0, long: 0 };
+  try {
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__perf.lcp = Math.round(e.startTime); }).observe({ type: 'largest-contentful-paint', buffered: true });
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__perf.cls += e.value; }).observe({ type: 'layout-shift', buffered: true });
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__perf.long += Math.max(0, e.duration - 50); }).observe({ type: 'longtask', buffered: true });
+  } catch (e) {}`;
+
+/**
+ * Each page in Chrome's own measures, signed out for the public pages and signed in for the app's: LCP, CLS and the
+ * blocking time from first paint, then how busy the page keeps the main thread once it has settled (5 s, profiled,
+ * with the scripts that take the time), and axe-core in dark and in light.
+ */
+async function browserPass(axeSource, base, email, password) {
   const { browser, close } = await launch();
-  const out = {};
+  const axe = {};
+  const trace = {};
   try {
     const { sessionId: s } = await openPage(browser);
-    await goto(browser, s, `${base}/login`);
-    await signIn((p, body) => evalIn(browser, s, `fetch('/api/v1${p}', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify(body))} }).then((r) => r.status)`));
-    // The app's pages last: signed in, the public sign-in pages may move on to the app.
-    for (const scheme of ['dark', 'light']) {
-      await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, s);
-      for (const p of [...PUBLIC, ...APP]) {
-        try {
-          await goto(browser, s, base + p, APP.includes(p) ? "document.querySelector('#view .page-title h1, #view h1')" : 'true');
-          await sleep(2500); // the entrance motion settles, so colours are read as they rest
-          await evalIn(browser, s, `window.axe || (0, eval)(${JSON.stringify(axeSource)})`);
-          const v = await evalIn(browser, s, `axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] }, resultTypes: ['violations'] })
-            .then((r) => r.violations.map((x) => ({ id: x.id, impact: x.impact, help: x.help, nodes: x.nodes.length, where: x.nodes.slice(0, 5).map((n) => n.target.join(' ') + (n.failureSummary ? ' :: ' + n.failureSummary.replace(/\\s+/g, ' ').slice(0, 200) : '')) })))`);
-          out[`${scheme} ${p}`] = v;
-        } catch (err) { out[`${scheme} ${p}`] = [{ id: 'could-not-run', impact: 'critical', help: err.message, nodes: 0, where: [] }]; }
+    await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: OBSERVE }, s);
+    await browser.send('Profiler.enable', {}, s);
+    await browser.send('Performance.enable', {}, s);
+    const busy = async () => (await browser.send('Performance.getMetrics', {}, s)).metrics.find((m) => m.name === 'TaskDuration').value;
+    const visit = async (p, scheme) => {
+      const t = Date.now();
+      await goto(browser, s, base + p, APP.includes(p) ? "document.querySelector('#view .page-title h1, #view h1')" : 'true');
+      const ready = Date.now() - t;
+      await sleep(2500); // the entrance motion settles, so colours are read as they rest
+      if (scheme === 'dark') {
+        const b0 = await busy();
+        await browser.send('Profiler.start', {}, s);
+        await sleep(5000);
+        const { profile } = await browser.send('Profiler.stop', {}, s);
+        const idleBusy = Math.round(((await busy()) - b0) / 5 * 100);
+        const dt = (profile.endTime - profile.startTime) / 1000 / Math.max(1, profile.samples.length);
+        const by = {};
+        for (const n of profile.nodes) {
+          const u = n.callFrame.url ? n.callFrame.url.replace(base, '') : n.callFrame.functionName ? `(${n.callFrame.functionName})` : '';
+          if (u && !/^((idle|program|root))$/.test(u)) by[u] = (by[u] || 0) + (n.hitCount || 0) * dt;
+        }
+        const perf = await evalIn(browser, s, 'window.__perf');
+        trace[p] = { ready, lcp: perf.lcp, cls: Number(perf.cls.toFixed(3)), tbt: Math.round(perf.long), idleBusy,
+          idleBy: Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([u, ms]) => `${u} ${Math.round(ms)} ms`) };
       }
-    }
+      await evalIn(browser, s, `window.axe || (0, eval)(${JSON.stringify(axeSource)})`);
+      return evalIn(browser, s, `axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] }, resultTypes: ['violations'] })
+        .then((r) => r.violations.map((x) => ({ id: x.id, impact: x.impact, help: x.help, nodes: x.nodes.length, where: x.nodes.slice(0, 5).map((n) => n.target.join(' ') + (n.failureSummary ? ' :: ' + n.failureSummary.replace(/\s+/g, ' ').slice(0, 200) : '')) })))`);
+    };
+    const round = async (pages) => {
+      for (const scheme of ['dark', 'light']) {
+        await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, s);
+        for (const p of pages) {
+          try { axe[`${scheme} ${p}`] = await visit(p, scheme); } catch (err) { axe[`${scheme} ${p}`] = [{ id: 'could-not-run', impact: 'critical', help: err.message, nodes: 0, where: [] }]; }
+        }
+      }
+    };
+    await round(PUBLIC); // signed out: signed in, the sign-in pages move on to the app
+    await goto(browser, s, `${base}/login`);
+    const st = await evalIn(browser, s, `fetch('/api/v1/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify({ email, password, staySignedIn: true }))} }).then((r) => r.status)`);
+    if (st !== 200) throw new Error(`the browser could not sign in: ${st}`);
+    await round(APP);
   } finally { await close(); }
-  return out;
+  return { axe, trace };
 }
 
 async function checkPerfA11y() {
@@ -107,6 +149,17 @@ async function checkPerfA11y() {
     const headersFile = path.join(dir, 'headers.json');
     fs.writeFileSync(headersFile, JSON.stringify({ Cookie: cookie }));
 
+    /* ------------------------------------------- Chrome's own measures, and axe */
+
+    const { axe, trace } = await browserPass(axeSource, base, email, password);
+    fs.writeFileSync(path.join(OUT, 'perf-a11y-trace.json'), JSON.stringify(trace, null, 2));
+    result('perf-a11y: Chrome measured every page (LCP, CLS, blocking time, main thread once settled)', true,
+      Object.entries(trace).map(([p, t]) => `${p}: ready ${t.ready} ms, LCP ${t.lcp} ms, CLS ${t.cls}, TBT ${t.tbt} ms, settled busy ${t.idleBusy}% (${t.idleBy.join(', ')})`));
+    fs.writeFileSync(path.join(OUT, 'perf-a11y-axe.json'), JSON.stringify(axe, null, 2));
+    const found = Object.entries(axe).filter(([, v]) => v.length);
+    result('perf-a11y: axe-core finds no accessibility fault on any page, in dark or light', !found.length,
+      found.flatMap(([k, v]) => v.map((x) => `${k}: ${x.impact} ${x.id} x${x.nodes} (${x.help}) ${x.where.slice(0, 3).join(' | ')}`)));
+
     /* ------------------------------------------------------- Lighthouse */
 
     const rows = {};
@@ -132,14 +185,6 @@ async function checkPerfA11y() {
     const unbudgeted = Object.keys(rows).filter((k) => !budget[k]);
     result('perf-a11y: no page scores much under its floor in perf-budget.json', !under.length && !unbudgeted.length,
       [...under, ...(unbudgeted.length ? [`no floor yet for: ${unbudgeted.join(', ')}`] : [])]);
-
-    /* ------------------------------------------------------------ axe */
-
-    const axe = await axeAll(axeSource, base, async (call) => { await call('/auth/login', { email, password, staySignedIn: true }); });
-    fs.writeFileSync(path.join(OUT, 'perf-a11y-axe.json'), JSON.stringify(axe, null, 2));
-    const found = Object.entries(axe).filter(([, v]) => v.length);
-    result('perf-a11y: axe-core finds no accessibility fault on any page, in dark or light', !found.length,
-      found.flatMap(([k, v]) => v.map((x) => `${k}: ${x.impact} ${x.id} x${x.nodes} (${x.help}) ${x.where.slice(0, 3).join(' | ')}`)));
   } finally { await server.stop(); }
 }
 
