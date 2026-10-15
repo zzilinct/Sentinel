@@ -89,6 +89,9 @@ h2 em, .page-head h1 em { color: var(--text-2); }
 
 /* Section labels: small spaced capitals in gold, a roman numeral, a hairline. */
 .kicker { font: 400 12.5px/1.2 var(--display); letter-spacing: .26em; color: var(--gold-400); }
+/* On paper the light gold-400 is 4.39:1, under the 4.5:1 small text needs; the next gold down reads. */
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .kicker { color: var(--gold-300); } }
+:root[data-theme="light"] .kicker { color: var(--gold-300); }
 .kicker::before { width: 34px; background: linear-gradient(90deg, transparent, currentColor); }
 .kicker__n { padding: 0; border-radius: 0; background: none; color: var(--gold-300); font: 400 14px/1 var(--display); letter-spacing: .08em; margin-right: 2px; }
 .kicker:has(.kicker__n)::before { display: inline-block; }
