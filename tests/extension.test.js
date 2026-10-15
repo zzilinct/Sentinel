@@ -229,3 +229,35 @@ test('the block page and its notes scroll instead of being cut in a small window
   assert.match(alarm, /\.panel\{width:min\(560px,100%\);margin:auto;/);
   assert.doesNotMatch(alarm, /\.wrap\{[^}]*place-items/, 'a centred grid cuts a tall panel at both ends');
 });
+
+test('an inbox first opened in a background tab is checked once the person looks at it, not never', async () => {
+  const src = fs.readFileSync(path.join(SRC, 'content', 'mail.js'), 'utf8');
+  const timers = [];
+  const on = {};
+  const sent = [];
+  let focused = false;
+  const el = (attrs = {}, kids = {}) => ({ getAttribute: (k) => (k in attrs ? attrs[k] : null), textContent: attrs.text || '', querySelector: (s) => kids[s] || null, querySelectorAll: () => [], isConnected: true });
+  const row = el({}, { 'span[email]': el({ email: 'billing@netflix-billing-update.top', name: 'Netflix', text: 'Netflix' }), '.bog': el({ text: 'Payment declined' }), '.y2': el({ text: '- Update your card' }), '.yW': el() });
+  const ctx = {
+    window: { addEventListener: (t, f) => { on[`window:${t}`] = f; } },
+    document: { visibilityState: 'visible', hasFocus: () => focused, body: {}, querySelector: () => null, querySelectorAll: (s) => (s === 'tr.zA' ? [row] : []), addEventListener: (t, f) => { on[t] = f; } },
+    location: { hostname: 'mail.google.com' },
+    MutationObserver: class { observe() {} },
+    setTimeout: (f) => { timers.push(f); return timers.length; },
+    clearTimeout: () => {},
+    chrome: { runtime: { sendMessage: async (m) => { sent.push(m.type); return { ok: true, results: [] }; } } }
+  };
+  ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(src, ctx);
+  const run = async () => { while (timers.length) { timers.shift()(); await new Promise((r) => setImmediate(r)); } };
+  await run();
+  assert.deepEqual(sent, [], 'nothing is asked while the tab is not looked at');
+  focused = true;
+  on['window:focus']();
+  await run();
+  assert.deepEqual(sent, ['live-email'], 'the inbox is checked as soon as it is looked at');
+  // Search results keep what they could not ask for while hidden, for the same moment.
+  const serp = strip(fs.readFileSync(path.join(SRC, 'content', 'serp.js'), 'utf8'));
+  assert.match(serp, /quick\.locked === 'inactive'\) \{ queue = urls\.concat\(queue\); waiting = true; return; \}/);
+});

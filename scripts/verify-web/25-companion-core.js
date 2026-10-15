@@ -37,7 +37,10 @@ const ENGINES = [
   ['bing', 'https://www.bing.com/search?q=banana+bread+recipe&setlang=en', '#b_results li.b_algo h2', /verify you are a human|unusual traffic|captcha/i],
   ['duckduckgo-html', 'https://html.duckduckgo.com/html/?q=how+to+reset+a+wifi+router', 'a.result__a', /anomaly|captcha|bots use duckduckgo/i],
   ['duckduckgo', 'https://duckduckgo.com/?q=paypal+login+help&ia=web', '[data-testid="result-title-a"]', /anomaly|captcha|bots use duckduckgo/i],
-  ['google', 'https://www.google.com/search?q=weather+london&hl=en&gl=us', '#search h3, #rso h3', /unusual traffic|not a robot|recaptcha|before you continue/i]
+  ['google', 'https://www.google.com/search?q=weather+london&hl=en&gl=us', '#search h3, #rso h3', /unusual traffic|not a robot|recaptcha|before you continue/i],
+  ['yahoo', 'https://search.yahoo.com/search?p=how+to+repot+a+plant', '#web h3', /captcha|unusual/i],
+  ['brave', 'https://search.brave.com/search?q=train+times+to+leeds', '#results .snippet .title, #results a .title', /captcha|not a robot|unusual/i],
+  ['mojeek', 'https://www.mojeek.com/search?q=library+opening+hours', '.results-standard li h2', /captcha|automated/i]
 ];
 
 const CLS = `window.__cls = 0; window.__shifts = [];
@@ -97,6 +100,17 @@ async function checkCompanionCore() {
 
     // A web tab the person is on; the popup opens over it (in the background here, so that tab stays the active one).
     const web = await openPage(browser);
+    // A tab opened behind the one in front (a middle click, a pinned tab): not shown, not focused, until it is chosen.
+    async function backgroundPage(b) {
+      const { targetId } = await b.send('Target.createTarget', { url: 'about:blank', background: true });
+      const sessionId = (await b.send('Target.attachToTarget', { targetId, flatten: true })).sessionId;
+      await b.send('Page.enable', {}, sessionId);
+      return { targetId, sessionId };
+    }
+    const lookAt = async (b, t) => {
+      await b.send('Target.activateTarget', { targetId: t.targetId });
+      await b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, t.sessionId);
+    };
     async function popup(name, { width = 360 } = {}) {
       await browser.send('Target.activateTarget', { targetId: web.targetId });
       const t0 = Date.now();
@@ -146,6 +160,7 @@ async function checkCompanionCore() {
     result('companion-core: pairing through the connect page on 127.0.0.1:47821 says "You\'re protected" and the companion follows that server',
       /protected/.test(connected || '') && afterPair.apiBase === base && afterPair.token, { signup: signed, title: connected, body: connectBody, store: afterPair });
 
+    await goto(browser, web.sessionId, 'http://plain.test/plain.html');
     const paired = await popup('paired');
     await paired.close();
     result('companion-core: popup paired shows the plan, this page, the Scan button, Live protection On, and the password alarm line',
@@ -179,19 +194,21 @@ async function checkCompanionCore() {
       badge === '!' && /flagged/i.test(flagged.info.page || '') && flagged.info.host === TYPED_PW, { badge, page: flagged.info.page, text: flagged.info.text });
 
     // A safe page: what live scanning found, then a person's own Scan this page.
-    await goto(browser, web.sessionId, 'https://en.wikipedia.org/wiki/Banana').catch(() => {});
-    await sleep(3000);
-    const safe = await popup('safe-page');
-    const scanned = await (async () => {
-      await click(safe.sessionId, '#scan');
-      const done = await until(browser, safe.sessionId, "!/Scanning/.test(document.getElementById('scan').textContent) && document.getElementById('scan').textContent", 60000);
-      const r = await evalIn(browser, safe.sessionId, "({ result: document.getElementById('result').innerText.replace(/\\s+/g, ' ').trim(), button: document.getElementById('scan').textContent.trim() })");
-      await shot(browser, safe.sessionId, 'companion-core-popup-safe-page-scanned');
-      return { done: Boolean(done), ...r };
-    })();
-    await safe.close();
-    result('companion-core: on a safe page the popup says live scanning found no warning signs, and Scan this page shows the three masks\' answers',
-      /no warning signs/i.test(safe.info.page || '') && safe.info.host === 'en.wikipedia.org' && /Scam/.test(scanned.result) && /left this week/.test(scanned.button), { page: safe.info.page, scanned });
+    async function safePage(label) {
+      await goto(browser, web.sessionId, 'https://en.wikipedia.org/wiki/Banana').catch(() => {});
+      await sleep(3000);
+      const p = await popup(`safe-page-${label}`);
+      await click(p.sessionId, '#scan');
+      await until(browser, p.sessionId, "!/Scanning/.test(document.getElementById('scan').textContent) && document.getElementById('scan').textContent", 60000);
+      const r = await evalIn(browser, p.sessionId, "({ result: document.getElementById('result').innerText.replace(/\\s+/g, ' ').trim(), alert: Boolean(document.querySelector('#result [role=alert]')), button: document.getElementById('scan').textContent.trim(), disabled: document.getElementById('scan').disabled })");
+      await shot(browser, p.sessionId, `companion-core-popup-safe-page-${label}-scanned`);
+      await p.close();
+      return { page: p.info.page, host: p.info.host, ...r };
+    }
+    const safeFree = await safePage('free');
+    result('companion-core: on a safe page the popup says live scanning found no warning signs; a scan the plan does not allow is said beside the button, which stays usable',
+      /no warning signs/i.test(safeFree.page || '') && safeFree.host === 'en.wikipedia.org' && (/Scam/.test(safeFree.result) || (safeFree.alert && /Scan this page/.test(safeFree.button) && !safeFree.disabled)), safeFree);
+
 
     /* -------------------------------------------------------------- 2. options */
 
@@ -240,12 +257,14 @@ async function checkCompanionCore() {
     const pro = await evalIn(browser, web.sessionId, "fetch('/api/v1/billing/plan', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: 'pro' }) }).then((r) => r.status)");
     const refreshed = await evalIn(browser, opt.sessionId, "chrome.runtime.sendMessage({ type: 'refresh' }).then((r) => r.account && r.account.plan && r.account.plan.id)");
     result('companion-core: the account moved to Pro, and the companion picks it up', pro === 200 && refreshed === 'pro', { pro, refreshed });
+    const safePro = await safePage('pro');
+    result('companion-core: on Pro, on a safe page, the popup says no warning signs and Scan this page shows the three masks\' answers',
+      /no warning signs/i.test(safePro.page || '') && /Scam/.test(safePro.result) && /left this week/.test(safePro.button), safePro);
 
     /* ---------------------------------------------------- 3. real search pages */
 
     async function serp(b, [engine, url, sel, botRe], { companion, name, focus = true } = {}) {
-      const t = await openPage(b);
-      if (!focus) await b.send('Emulation.setFocusEmulationEnabled', { enabled: false }, t.sessionId);
+      const t = focus ? await openPage(b) : await backgroundPage(b);
       await b.send('Page.addScriptToEvaluateOnNewDocument', { source: CLS }, t.sessionId);
       const t0 = Date.now();
       await b.send('Page.navigate', { url }, t.sessionId).catch(() => {});
@@ -297,9 +316,8 @@ async function checkCompanionCore() {
     const bgEngine = ENGINES.find((e) => reached.some((x) => x.engine === e[0])) || ENGINES[0];
     const bg = await serp(browser, bgEngine, { companion: true, focus: false });
     await sleep(3000);
-    const before = await evalIn(browser, bg.target.sessionId, "({ marks: document.querySelectorAll('.sentinel-masks').length, focused: document.hasFocus() })");
-    await browser.send('Emulation.setFocusEmulationEnabled', { enabled: true }, bg.target.sessionId);
-    await browser.send('Target.activateTarget', { targetId: bg.target.targetId });
+    const before = await evalIn(browser, bg.target.sessionId, "({ marks: document.querySelectorAll('.sentinel-masks').length, focused: document.hasFocus(), visibility: document.visibilityState })");
+    await lookAt(browser, bg.target);
     const later = await until(browser, bg.target.sessionId, `document.querySelectorAll('.sentinel-masks').length >= Math.max(1, [...document.querySelectorAll(${JSON.stringify(bgEngine[2])})].filter((h) => h.getBoundingClientRect().top < innerHeight + 600).length) && document.querySelectorAll('.sentinel-masks').length`, 15000);
     await shot(browser, bg.target.sessionId, 'companion-core-serp-background-tab');
     await browser.send('Target.closeTarget', { targetId: bg.target.targetId }).catch(() => {});
@@ -309,8 +327,7 @@ async function checkCompanionCore() {
     /* ------------------------------------------------------------- 4. webmail */
 
     async function inbox(url, { focus = true, name } = {}) {
-      const t = await openPage(browser);
-      if (!focus) await browser.send('Emulation.setFocusEmulationEnabled', { enabled: false }, t.sessionId);
+      const t = focus ? await openPage(browser) : await backgroundPage(browser);
       await goto(browser, t.sessionId, url);
       const read = () => evalIn(browser, t.sessionId, `(() => {
         const rows = [...document.querySelectorAll('tr.zA, [role=option]')].map((r) => ({ who: (r.querySelector('[email]') || r.querySelector('[title]') || {}).getAttribute ? (r.querySelector('[email]') ? r.querySelector('[email]').getAttribute('email') : r.querySelector('[title]').getAttribute('title')) : '', masks: [...r.querySelectorAll('.sentinel-mask')].map((m) => m.className.replace(/sentinel-mask ?/g, '')) }));
@@ -337,14 +354,14 @@ async function checkCompanionCore() {
 
     const later2 = await inbox('https://mail.google.com/mail/u/0/#inbox', { focus: false });
     await sleep(3000);
-    const hidden = await evalIn(browser, later2.t.sessionId, "document.querySelectorAll('.sentinel-masks').length");
-    await browser.send('Emulation.setFocusEmulationEnabled', { enabled: true }, later2.t.sessionId);
-    await browser.send('Target.activateTarget', { targetId: later2.t.targetId });
+    const hiddenState = await evalIn(browser, later2.t.sessionId, "({ marks: document.querySelectorAll('.sentinel-masks').length, focused: document.hasFocus(), visibility: document.visibilityState })");
+    const hidden = hiddenState.marks;
+    await lookAt(browser, later2.t);
     const shown = await until(browser, later2.t.sessionId, "document.querySelectorAll('.sentinel-masks').length", 15000);
     await shot(browser, later2.t.sessionId, 'companion-core-gmail-background-tab');
     await browser.send('Target.closeTarget', { targetId: later2.t.targetId }).catch(() => {});
     result('companion-core: an inbox opened in a background tab (a pinned Gmail tab) gets its marks once the person looks at it',
-      hidden === 0 && Boolean(shown), { whileHidden: hidden, afterLooking: shown });
+      hidden === 0 && Boolean(shown), { whileHidden: hiddenState, afterLooking: shown });
 
     /* ------------------------------------------------------ 5. password alarm */
 
@@ -436,7 +453,7 @@ async function checkCompanionCore() {
     await stopWorker(browser, id);
     const robot2 = await robot('after-worker-stop');
     result('companion-core: after the browser stops the worker: the popup still shows the paired account, search marks appear, the password alarm and the pasted-command guard still work',
-      stopped.gone && stopped2.gone && stopped3.gone && again.info.plan === 'Pro' && (!serpAgain || serpAgain.marked >= serpAgain.results) && alarm2.alarm && alarm2.box === '' && robot2.warned && robot2.clipboard === 'shopping list',
+      stopped.was && stopped2.was && stopped3.was && again.info.plan === 'Pro' && (!serpAgain || serpAgain.marked >= serpAgain.results) && alarm2.alarm && alarm2.box === '' && robot2.warned && robot2.clipboard === 'shopping list',
       { stopped: [stopped, stopped2, stopped3], popup: again.info.plan, serp: serpAgain && { engine: serpAgain.engine, results: serpAgain.results, marked: serpAgain.marked }, alarm: alarm2.alarm, robot: robot2 });
     await workerTarget(browser, id);
 

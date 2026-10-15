@@ -434,6 +434,8 @@
     let locked = false;
     try {
       const quick = await send({ type: 'live-batch', urls, phase: 'quick' });
+      // Not looked at yet (opened in the background): kept for when it is, or a tab opened behind another never got its marks.
+      if (quick.locked === 'inactive') { queue = urls.concat(queue); waiting = true; return; }
       if (quick.locked) { queue = []; locked = true; return; }
       apply(quick.verdicts);
       for (const v of Object.values(quick.verdicts || {})) { if (v && v.ok) { checked++; if (v.overall && v.overall.badge) flagged++; } }
@@ -442,13 +444,15 @@
     } finally {
       if (show) scanFinished(checked, flagged, locked);
       busy = false;
-      if (queue.length) setTimeout(flush, 50);
+      if (queue.length && !waiting) setTimeout(flush, 50);
     }
   }
 
   // Masks are filled in as soon as the tab is looked at again.
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') schedule(50); });
-  window.addEventListener('focus', () => schedule(50));
+  let waiting = false;
+  const looked = () => { if (waiting && inUse()) { waiting = false; setTimeout(flush, 50); } schedule(50); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') looked(); });
+  window.addEventListener('focus', looked);
 
   let timer;
   function schedule(delay = 300) {
