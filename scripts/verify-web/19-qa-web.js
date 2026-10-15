@@ -507,7 +507,8 @@ async function checkQaWeb() {
       const kept = await ev("document.querySelector('[data-form] textarea').value.length > 0");
       await shot(browser, s, 'qa-text-limit');
       result('qa-web: free plan, past the week\'s scans the text scan says so in plain words with when it resets, and keeps what was pasted',
-        used === 10 && /used this week/.test(words) && /resets/.test(words) && kept, { used, r, words: words.slice(0, 200), kept });
+        // The limit message names the allowance a text scan draws on (the plan's fast link scans) and when it comes back.
+        used === 10 && /used all 10 fast link scans/.test(words) && /come back/.test(words) && kept, { used, r, words: words.slice(0, 200), kept });
       // Signed out in another tab: the next scan says to sign in again, with a link back here.
       await ev("fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then((r) => r.ok)");
       await textScan('Your parcel is waiting. Pay the fee at https://usps-redeliver.top/pay');
