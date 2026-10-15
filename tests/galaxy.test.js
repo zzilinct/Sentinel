@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const G = require('../web/assets/js/galaxy.js');
 
-test('a computer gets six arms and a card count that follows the stage area; a phone gets three arms and 26 small cards', () => {
+test('a computer gets six arms and a card count that follows the stage area; a phone gets three arms and 36 small cards', () => {
   const big = G.profile(1920, 940, 45);
   const small = G.profile(1100, 600, 45);
   const laptop = G.profile(1366, 780, 45);
@@ -16,7 +16,7 @@ test('a computer gets six arms and a card count that follows the stage area; a p
   assert.ok(small.n < laptop.n && small.n >= 50, `small ${small.n}, laptop ${laptop.n}`);
   assert.equal(phone.mobile, true);
   assert.equal(phone.arms, 3);
-  assert.equal(phone.n, 26);
+  assert.equal(phone.n, 36);
   assert.ok(phone.capW <= 390 * 0.3, 'phone cards stay under a third of the width');
   assert.ok(phone.turns < big.turns, 'straighter arms on a phone');
 });

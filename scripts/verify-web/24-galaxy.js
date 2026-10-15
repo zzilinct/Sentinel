@@ -128,8 +128,8 @@ async function checkGalaxy() {
         const d = turns(a, b);
         const cw = d.filter((t) => t > 0).length;
         const median = d.slice().sort((x, y) => x - y)[Math.floor(d.length / 2)] || 0;
-        result(`galaxy (${at}): it draws frame after frame, with ${phone ? 'the phone profile (3 arms, 26 cards or fewer)' : '6 arms'}`,
-          b.running && b.frames - a.frames >= 15 && (phone ? b.mobile && b.arms === 3 && b.n <= 26 : !b.mobile && b.arms === 6 && b.n >= 20),
+        result(`galaxy (${at}): it draws frame after frame, with ${phone ? 'the phone profile (3 arms, 36 cards or fewer)' : '6 arms'}`,
+          b.running && b.frames - a.frames >= 15 && (phone ? b.mobile && b.arms === 3 && b.n <= 36 : !b.mobile && b.arms === 6 && b.n >= 20),
           { frames: b.frames - a.frames, mobile: b.mobile, arms: b.arms, n: b.n, active: b.active, loaded: b.loaded, stage: b.stage });
         result(`galaxy (${at}): the cards travel clockwise`, d.length >= 4 && cw / d.length >= 0.75 && median > 0,
           { cards: d.length, clockwise: cw, medianDeg: +(median * 180 / Math.PI).toFixed(2) });

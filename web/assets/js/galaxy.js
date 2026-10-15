@@ -11,7 +11,7 @@
  *               verdict (its mask colour and a short reason); the rest of the spiral follows more slowly. A click
  *               sends a ripple through the field and enlarges the card with its caption.
  *   Keyboard    the list of scenes under the canvas is the same cards: tabbing to one holds it, Enter enlarges it.
- *   Phones      three arms and 26 small cards; elsewhere the count follows the stage's area (up to two of each scene).
+ *   Phones      three arms and 36 small cards; elsewhere the count follows the stage's area (up to two of each scene).
  *   Governor    under 30 frames a second, it sheds cards until smooth, and slowly takes them back.
  *   Rest        it draws nothing off screen or in a hidden tab, and under reduced motion it is one still spiral.
  *
@@ -34,7 +34,7 @@
     frameAlpha: 0.22, lineAlpha: 0.32, minCards: 10
   };
   // The phone keeps three straighter arms, with more and much smaller cards than ArtCraft's 14, so the arms show.
-  var MOBILE = { mpx: 0.6, arms: 3, turns: 0.7, cardN: 26, rMaxFrac: 0.8, cardHFrac: 0.085, cardWFrac: 0.27, birthFrac: 0.08, density: 0.82 * 1.15 };
+  var MOBILE = { mpx: 0.6, arms: 3, turns: 0.7, cardN: 36, rMaxFrac: 0.8, cardHFrac: 0.085, cardWFrac: 0.27, birthFrac: 0.08, density: 0.82 * 1.15 };
   var WIDE = 16 / 9;
 
   var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
