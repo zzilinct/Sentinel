@@ -25,6 +25,7 @@ $scanExpr = "[document.getElementById('label').textContent, document.getElementB
 Start-Process $Installer -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"
 Say "installed -> $((Get-Item $exe).VersionInfo.ProductVersion)"
+Feed $Installer; PointUpdater
 New-Item -ItemType Directory -Force $data | Out-Null
 [IO.File]::WriteAllText("$data\settings.json", '{"liveScanning":true,"openAtLogin":false}')
 Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 giftshop.test`r`n127.0.0.1 paypal-account-verify-login.test`r`n127.0.0.1 defender-virusalert-helpline.test"

@@ -16,6 +16,7 @@ Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
 Start-Process $Installer -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"
 Say "installed -> $((Get-Item $exe).VersionInfo.ProductVersion)"
+Feed $Installer; PointUpdater
 # 1a. A start that breaks inside a require (boot.js): a copy of the installed app whose code is this commit's, as a
 # folder instead of app.asar, with one module broken on purpose and its own name, so it never touches the real app's
 # data. It must log why and show a message, not vanish.

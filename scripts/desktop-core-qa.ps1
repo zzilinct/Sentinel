@@ -25,21 +25,6 @@ $pages = Start-Process python -ArgumentList '-u', '-m', 'http.server', '47910', 
 function PagesDiag($page) { Get-Content $pagesLog -Tail 6 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag pages.log: $_" } }
 Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 paypal-account-verify-login.test`r`n127.0.0.1 paypal-resolution-center-secure.test`r`n127.0.0.1 defender-virusalert-helpline.test`r`n127.0.0.1 amazon-giftcard-claim-reward.test`r`n127.0.0.1 microsoft-account-unlock-verify.test`r`n127.0.0.1 paypal-wallet-limited-review.test`r`n127.0.0.1 apple-id-locked-support.test"
 
-# The update feed every part points the installed app at: this runner, never GitHub. Outside -Part update it offers
-# the version already installed, so a release published meanwhile cannot replace the build under test.
-$feed = Join-Path $env:RUNNER_TEMP 'feed'; New-Item -ItemType Directory -Force $feed | Out-Null
-$feedServer = Start-Process python -ArgumentList '-m', 'http.server', '47930', '--bind', '127.0.0.1', '--directory', $feed -PassThru -NoNewWindow -RedirectStandardError (Join-Path $Out 'feed.log') -RedirectStandardOutput (Join-Path $Out 'feed.out.log')
-function Feed($setup) {
-  $v = (Get-Item $setup).VersionInfo.ProductVersion
-  $name = "Sentinel-Setup-$v.exe"
-  if ((Split-Path $setup -Parent) -ne $feed) { Copy-Item $setup (Join-Path $feed $name) -Force }
-  $sha = [Convert]::ToBase64String([Security.Cryptography.SHA512]::Create().ComputeHash([IO.File]::ReadAllBytes((Join-Path $feed $name))))
-  $size = (Get-Item (Join-Path $feed $name)).Length
-  [IO.File]::WriteAllText((Join-Path $feed 'latest.yml'), "version: $v`nfiles:`n  - url: $name`n    sha512: $sha`n    size: $size`npath: $name`nsha512: $sha`nreleaseDate: '$((Get-Date).ToUniversalTime().ToString('o'))'`n")
-  Say "feed offers $v ($size bytes)"
-}
-function PointUpdater { [IO.File]::WriteAllText((Join-Path (Split-Path $exe) 'resources\app-update.yml'), "provider: generic`nurl: http://127.0.0.1:47930/`nupdaterCacheDirName: sentinel-desktop-updater`n") }
-
 # What a person can see of Sentinel, outside its windows.
 function Settings { try { return (Get-Content "$data\settings.json" -Raw | ConvertFrom-Json) } catch { return $null } }
 function RunEntry { $k = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue; if (-not $k) { return $null }; foreach ($p in $k.PSObject.Properties) { if ([string]$p.Value -match 'Sentinel\.exe') { return @{ name = $p.Name; command = [string]$p.Value } } }; return $null }
@@ -500,7 +485,8 @@ if ($Part -eq 'use') {
     'https://github.com/login', 'https://www.irs.gov/', 'https://www.chase.com/'
   )
   function Visit($url) {
-    [K]::Tap(0x11)
+    # A site's own prompt (Chase asks to reach other apps) holds the keyboard: Escape first, as a person would.
+    [K]::Tap(0x1B); [K]::Tap(0x11)
     [System.Windows.Forms.SendKeys]::SendWait('^l'); Start-Sleep -Milliseconds 400
     [System.Windows.Forms.SendKeys]::SendWait($url); Start-Sleep -Milliseconds 200
     [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
@@ -693,6 +679,11 @@ if ($Part -eq 'use') {
 
   # 5. Ten quiet minutes, live scanning on and nothing in front: what Sentinel costs at rest, and whether it grows.
   Get-Process msedge, chrome -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  # A fresh install first fetches its threat lists (a quarter of an hour, in a worker): that is not rest. Waited out,
+  # and what it cost written down.
+  $c0 = @(Everything | Measure-Object CPU -Sum).Sum; $t0 = Get-Date
+  $done = Until 1500 { (Get-Content "$data\logs\server.log" -Raw -ErrorAction SilentlyContinue) -match '\((\d+)/\1, \d+ s\)' }
+  Say ("first threat lists fetched: $done, after a further {0:N0} s, using {1:N0} s of processor time; server.log: {2}" -f ((Get-Date) - $t0).TotalSeconds, (@(Everything | Measure-Object CPU -Sum).Sum - $c0), ((Get-Content "$data\logs\server.log" -ErrorAction SilentlyContinue | Select-String 'feed ' | Select-Object -Last 2) -join ' / '))
   for ($i = 0; $i -lt 18; $i++) {
     $a = @(Everything | Measure-Object CPU -Sum).Sum; Start-Sleep 20; $b = @(Everything | Measure-Object CPU -Sum).Sum
     Say ("settling: {0:N1} s of processor time in 20 s" -f ($b - $a))
@@ -704,7 +695,7 @@ if ($Part -eq 'use') {
   $f1 = Footprint 'after ten idle minutes'
   $secs = ((Get-Date) - $t0).TotalSeconds
   $pct = [math]::Round(($f1.cpu - $f0.cpu) / $secs * 100, 2)
-  Check 'idle-cpu' ($pct -le 3.0) "$([math]::Round($f1.cpu - $f0.cpu, 1)) s of processor time in $([int]$secs) s: $pct% of one core"
+  Check 'idle-cpu' ($pct -le 1.5) "$([math]::Round($f1.cpu - $f0.cpu, 1)) s of processor time in $([int]$secs) s: $pct% of one core"
   Check 'idle-memory' (($f1.priv - $f0.priv) -le 40) "private memory $($f0.priv) MB then $($f1.priv) MB; in use $($f0.mb) MB then $($f1.mb) MB; processes $($f0.n) then $($f1.n)"
 
   # 6. 125% and 150% display scaling: the app's Live protection page, the warning, and the marks on a search.
@@ -832,7 +823,6 @@ if ($Part -eq 'update') {
 }
 
 if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
-if ($feedServer) { Stop-Process -Id $feedServer.Id -Force -ErrorAction SilentlyContinue }
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 80 | ForEach-Object { Say "  $_" }
 Get-Process Sentinel -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Say "checks failed: $failed"

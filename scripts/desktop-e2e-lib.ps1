@@ -234,3 +234,22 @@ function FakeDiag($name, $fp, $page) {
   Get-Process | Sort-Object CPU -Descending | Select-Object -First 8 | ForEach-Object { Say "  diag: top $($_.ProcessName) $($_.Id) cpu $([int]$_.CPU)" }
   Shot "diag-$name"
 }
+# The update feed the installed app is pointed at: this runner, never GitHub. A release published while a run goes on
+# (another contributor tags them) would otherwise replace the build under test in the middle of it: Feed offers the
+# installed version itself, unless a run hands it a newer build. Call PointUpdater after installing ($exe set).
+$feed = Join-Path $env:RUNNER_TEMP 'feed'
+$feedServer = $null
+function Feed($setup) {
+  if (-not $script:feedServer) {
+    New-Item -ItemType Directory -Force $feed | Out-Null
+    $script:feedServer = Start-Process python -ArgumentList '-m', 'http.server', '47930', '--bind', '127.0.0.1', '--directory', $feed -PassThru -NoNewWindow -RedirectStandardError (Join-Path $Out 'feed.log') -RedirectStandardOutput (Join-Path $Out 'feed.out.log')
+  }
+  $v = (Get-Item $setup).VersionInfo.ProductVersion
+  $name = "Sentinel-Setup-$v.exe"
+  Copy-Item $setup (Join-Path $feed $name) -Force
+  $sha = [Convert]::ToBase64String([Security.Cryptography.SHA512]::Create().ComputeHash([IO.File]::ReadAllBytes((Join-Path $feed $name))))
+  $size = (Get-Item (Join-Path $feed $name)).Length
+  [IO.File]::WriteAllText((Join-Path $feed 'latest.yml'), "version: $v`nfiles:`n  - url: $name`n    sha512: $sha`n    size: $size`npath: $name`nsha512: $sha`nreleaseDate: '$((Get-Date).ToUniversalTime().ToString('o'))'`n")
+  Say "feed offers $v ($size bytes)"
+}
+function PointUpdater { [IO.File]::WriteAllText((Join-Path (Split-Path $exe) 'resources\app-update.yml'), "provider: generic`nurl: http://127.0.0.1:47930/`nupdaterCacheDirName: sentinel-desktop-updater`n") }
