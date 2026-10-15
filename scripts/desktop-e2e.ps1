@@ -16,6 +16,7 @@ Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
 Start-Process $Installer -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"
 Say "installed -> $((Get-Item $exe).VersionInfo.ProductVersion)"
+Feed $Installer; PointUpdater
 # 1a. A start that breaks inside a require (boot.js): a copy of the installed app whose code is this commit's, as a
 # folder instead of app.asar, with one module broken on purpose and its own name, so it never touches the real app's
 # data. It must log why and show a message, not vanish.
@@ -105,41 +106,6 @@ $chromeDir = "$env:ProgramFiles\Google\Chrome\Application"
 New-Item -ItemType HardLink -Path "$chromeDir\Discord.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 New-Item -ItemType HardLink -Path "$chromeDir\RobloxPlayerBeta.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
 New-Item -ItemType HardLink -Path "$chromeDir\PhoneExperienceHost.exe" -Target "$chromeDir\chrome.exe" -Force | Out-Null
-# Something drawn on screen below the title bar: a stand-in Chrome sometimes shows its window and never paints the page
-# (Roblox read nothing from a blank white window), so a blank one is started again.
-function Painted {
-  $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-  $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
-  $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-  $colours = @{}
-  for ($y = 60; $y -lt $b.Height - 60; $y += 6) { for ($x = 0; $x -lt $b.Width; $x += 6) { $colours[$bmp.GetPixel($x, $y).ToArgb()] = 1 } }
-  $g.Dispose(); $bmp.Dispose()
-  return $colours.Count -gt 1
-}
-function Fake($name, $page) {
-  for ($try = 1; $try -le 2; $try++) {
-    $fp = Start-Process "$chromeDir\$name.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\$name-profile", '--start-maximized', "--app=http://127.0.0.1:47910/$page" -PassThru
-    Start-Sleep 8
-    $r = Front $name
-    if ($r -and (Until 15 { Painted })) { return $true }
-    if ($r) { Say "  $name's window stayed blank (try $try)"; Shot "blank-$name" } else { FakeDiag $name $fp $page }
-    if ($try -lt 2) { Get-Process $name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 3 }
-  }
-  return $false
-}
-# When a stand-in has no window: what there is instead, so the log says why.
-function FakeDiag($name, $fp, $page) {
-  Say "  diag: started pid $($fp.Id), exited: $($fp.HasExited) $(if ($fp.HasExited) { "code $($fp.ExitCode)" })"
-  Get-Process $name -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag: $name $($_.Id) hwnd $($_.MainWindowHandle) title '$($_.MainWindowTitle)' cpu $($_.CPU) start $($_.StartTime.ToString('HH:mm:ss'))" }
-  Get-Process chrome, updater, setup, GoogleUpdate*, MsMpEng, TiWorker, TrustedInstaller -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag: other $($_.ProcessName) $($_.Id) cpu $($_.CPU) start $(try { $_.StartTime.ToString('HH:mm:ss') } catch { '?' })" }
-  Say "  diag: chrome dir: $((Get-ChildItem $chromeDir | ForEach-Object { "$($_.Name)@$($_.LastWriteTime.ToString('HH:mm:ss'))" }) -join ', ')"
-  Say "  diag: chrome.exe $((Get-Item "$chromeDir\chrome.exe").VersionInfo.ProductVersion), $name.exe $((Get-Item "$chromeDir\$name.exe").VersionInfo.ProductVersion)"
-  PagesDiag $page
-  $cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
-  Say "  diag: cpu load $cpu%"
-  Get-Process | Sort-Object CPU -Descending | Select-Object -First 8 | ForEach-Object { Say "  diag: top $($_.ProcessName) $($_.Id) cpu $([int]$_.CPU)" }
-  Shot "diag-$name"
-}
 Say "Discord in front: $(Fake 'Discord' 'discord.html')"
 $seen = $null
 $ok = Until 40 { $script:seen = (Info 'info()').chatSafety.seen; $script:seen.discord.flagged -ge 2 }

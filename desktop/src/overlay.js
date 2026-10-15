@@ -186,10 +186,19 @@ function wheel({ epoch, delta, t }) {
   if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:wheel', { epoch, delta, t: typeof t === 'number' ? t : null });
 }
 
+/** Made again over the page area it was last over (its page process ended). Resolves true when there was one. */
+function revive() {
+  if (win && !win.isDestroyed()) win.destroy();
+  win = null;
+  if (!area) return false;
+  placeOver(area);
+  return true;
+}
+
 function destroy() {
   area = null;
   if (win && !win.isDestroyed()) win.destroy();
   win = null;
 }
 
-module.exports = { handle, setWindow, isFullscreen, sweep, setVerdict, setPay, setMarks, shift, wheel, pixels, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { handle, revive, setWindow, isFullscreen, sweep, setVerdict, setPay, setMarks, shift, wheel, pixels, destroy, setDryRun: (logger) => { dryRun = logger || null; } };

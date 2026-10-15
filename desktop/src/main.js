@@ -191,6 +191,7 @@ function runPowerShell(script, timeout = 15000) {
 // While the lock is set, a small file says once a minute that Sentinel is running, and on quitting that it quit.
 // Found unfinished at the next start, with no Windows restart or shutdown since, Sentinel was ended without
 // the PIN (from Task Manager, or a crash), and the parent's record says when. Only times are written.
+const runningFile = () => path.join(app.getPath('userData'), 'running');
 const heartbeatFile = () => path.join(app.getPath('userData'), 'parent-lock-heartbeat.json');
 function heartbeat(clean = false) {
   if (!lock || !lock.isSet()) return;
@@ -625,6 +626,7 @@ async function showTyped(data, since) {
  * which sign, never where.
  */
 const pause = paypause.create();
+let pauseFor = null;   // the site the pay pause is about: it closes once another site is in front
 const PAUSE_SIGNS = { remote: 'a remote-control program', page: 'a flagged page', chat: 'a chat warning', call: 'the call check said hang up' };
 function askPause({ page, kind }) {
   const { sign, again } = pause.ask(escapeKey(page), { remoteNow: remoteGuardOn() && remote.running(trustedRemote()).length > 0 });
@@ -632,6 +634,7 @@ function askPause({ page, kind }) {
   appLog(`pay pause: ${what}, ${!sign ? 'no recent sign; nothing shown' : again ? 'already shown for this site' : `after ${PAUSE_SIGNS[sign]}; shown`}`);
   if (!sign || again) return;
   if (guardWin && !guardWin.isDestroyed() && (guardMode === 'remote' || guardMode === 'bank')) return;
+  pauseFor = escapeKey(page);
   showGuard('pause', { kind, sign });
 }
 
@@ -832,6 +835,7 @@ async function setAutoScan(enabled) {
   if (enabled) await autoScanFollow(browserState.running || []);
   else if (autoSession) { setAutoSession(false); await setLiveScanning(false); }
   refreshTray();
+  push('sentinel:settings', { autoScan: Boolean(enabled) });
   return { autoScan: Boolean(enabled), live: { ...watch.status(), enabled: store.get('liveScanning', false) } };
 }
 /** Is a fullscreen game, video or presentation in front? (SHQueryUserNotificationState: busy, Direct3D fullscreen, presentation.) */
@@ -916,6 +920,8 @@ function setOpenAtLogin(enabled) {
   store.set('openAtLogin', enabled);
   if (installedCopy('the startup entry')) app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
   refreshTray();
+  // Changed from the tray, the app's switch went on showing the old state.
+  push('sentinel:settings', { openAtLogin: enabled });
 }
 
 /* "Scan with Sentinel" in the right-click menu for files (scanmenu.js). */
@@ -1576,7 +1582,8 @@ function registerBridge() {
   handle('sentinel:quit', () => { lock.guard('Sentinel off', true); quitting = true; app.quit(); return { ok: true }; }, trustedLocal);
   handle('sentinel:warn-action', (action, url) => {
     if (warnWin && !warnWin.isDestroyed()) warnWin.close();
-    if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`/app/scan?url=${encodeURIComponent(url)}`);
+    // Signed out, the app's scan asked for an account first: the guest scan says why without one.
+    if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`${store.getSecret('token') ? '/app/scan' : '/guest'}?url=${encodeURIComponent(url)}`);
     if (action === 'recover') showWindow(recoverRoute(url, 'password'));
     // The real site: the address kept when the warning was made, opened fresh in the browser. What the page sends is ignored.
     if (action === 'real' && warnReal) { appLog('warning: opened the real site'); shell.openExternal(warnReal); }
@@ -1718,6 +1725,8 @@ async function boot() {
       // A warning about a dangerous page stays on top only while a browser is in front: switch to a game or any other
       // program and it waits behind it like an ordinary window, instead of floating over everything.
       if (warnWin && !warnWin.isDestroyed()) warnWin.setAlwaysOnTop(Boolean(rect));
+      // The same for the pay pause: above the shop's page, never above a game or a chat once the browser is left.
+      if (guardWin && !guardWin.isDestroyed() && guardMode === 'pause') guardWin.setAlwaysOnTop(Boolean(rect), 'screen-saver');
       if (rect && sweepOnNextWindow) { sweepOnNextWindow = false; overlay.sweep('start'); }
       // Tell the tray and the app only when a browser arrives or leaves, not every time its window moves.
       if (Boolean(rect) !== watchingWindow) {
@@ -1735,6 +1744,9 @@ async function boot() {
       // A new page: an escape still on offer was for the page before. If that page comes back, it is offered again.
       badPage = null;
       if (guardMode === 'escape' && escapeKey(page) !== escapeOfferedFor) { closeGuard(); escapeOfferedFor = null; }
+      // The pay pause is about one shop: another site in front, and it has nothing left to say. It used to stay up, on
+      // top of every program, over Discord or the next page.
+      if (guardMode === 'pause' && page && escapeKey(page) !== pauseFor) closeGuard();
       checkMoneyPage(page);
       // Delicate scanning (the person's choice, not auto scanning's fast) digs into the results in binary.
       if (page && page.search) overlay.sweep('search', { binary: !autoSession && store.get('liveMode', 'fast') === 'delicate' });
@@ -1818,6 +1830,12 @@ app.whenReady().then(() => {
   cpuProfileOnRequest();
   store.init(app.getPath('userData'), safeStorage);
   lock = parentlock.create(store);
+  // A run that ended without quitting (Windows shutting down, Task Manager, or a crash) left nothing in the log at all.
+  step('last run', () => {
+    const fsx = require('fs');
+    if (fsx.existsSync(runningFile())) appLog('the last run did not quit normally (Windows shut down, it was ended from Task Manager, or it crashed)');
+    fsx.writeFileSync(runningFile(), String(Date.now()));
+  });
   step('parent lock', () => { checkHeartbeat().catch(() => {}); setInterval(() => heartbeat(), 60 * 1000).unref(); });
   // Scanning that auto scanning had started before a restart is still its to switch off.
   autoSession = Boolean(store.get('autoScan', false) && store.get('autoSession', false));
@@ -1862,11 +1880,24 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => { if (!primary) return; quitting = true; heartbeat(true); snip.close(); globalShortcut.unregisterAll(); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
+app.on('before-quit', () => { if (!primary) return; quitting = true; heartbeat(true); try { require('fs').unlinkSync(runningFile()); } catch { /* none */ } snip.close(); globalShortcut.unregisterAll(); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 
 // Refuse to attach webviews or navigate any other contents to foreign origins.
 app.on('web-contents-created', (event, contents) => {
   contents.on('will-attach-webview', (e) => e.preventDefault());
+  // A window's page process ended (out of memory, a graphics driver): the app's window was left blank, and the live
+  // scanning overlay drew nothing more until Sentinel restarted. The app's page loads again; any other window goes,
+  // and the overlay is made again over the browser in front.
+  contents.on('render-process-gone', (_e, details) => {
+    if (!details || details.reason === 'clean-exit') return;
+    const w = BrowserWindow.fromWebContents(contents);
+    if (!w || w.isDestroyed()) return;
+    const isOverlay = /\/overlay\.html/.test(contents.getURL());
+    appLog(`a window's page stopped (${details.reason}); ${w === win ? 'loading it again' : isOverlay ? 'making the overlay again' : 'closing that window'}`);
+    if (w === win) { contents.reload(); return; }
+    if (isOverlay) { setTimeout(() => { if (overlay.revive()) watch.keepAbove(overlay.handle()); }, 500); return; }
+    w.destroy();
+  });
 });

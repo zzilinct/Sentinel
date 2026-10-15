@@ -89,6 +89,8 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   onLive: (callback) => on('sentinel:live', callback),
   onBrowsers: (callback) => on('sentinel:browsers', callback),
   onUpdate: (callback) => on('sentinel:update', callback),
+  // A setting changed outside the app's window (the tray): its switches are drawn again.
+  onSettings: (callback) => on('sentinel:settings', callback),
   // Answered only for the app's own warning page.
   warnAction: (action, url) => ipcRenderer.invoke('sentinel:warn-action', String(action), url == null ? '' : String(url)),
   // Tech-support scam shield: one switch in the app, and the answers of its own warning page (guard.html).

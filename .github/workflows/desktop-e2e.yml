@@ -70,3 +70,72 @@ jobs:
           name: desktop-qa
           path: e2e-desktop-qa/
           retention-days: 7
+
+  # Real-use QA of the app's core (scripts/desktop-core-qa.ps1), in three parts on their own runners, in parallel:
+  # install (first start, start at login, tray, switches, parent lock, sign-in, crashes, port, network) and use (live
+  # scanning on real sites, downloads, chat, ten idle minutes, display scaling).
+  core:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [install, use]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Build the Windows installer from this commit
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run dist:win
+      - shell: powershell
+        run: ./scripts/desktop-core-qa.ps1 -Part ${{ matrix.part }} -Installer (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-core-${{ matrix.part }}
+      - name: Sentinel's logs
+        if: always()
+        shell: powershell
+        run: New-Item -ItemType Directory -Force e2e-core-${{ matrix.part }}/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-core-${{ matrix.part }}/logs -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: core-${{ matrix.part }}
+          path: e2e-core-${{ matrix.part }}/
+          retention-days: 7
+
+  # The updater, from a feed on the runner offering this same commit built as the next version, then uninstalling.
+  core-update:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Build this commit, and the same commit as the next version
+        working-directory: desktop
+        shell: powershell
+        run: |
+          npm ci
+          npm run dist:win
+          Move-Item dist dist-now
+          $v = (node -p "require('./package.json').version").Split('.'); $v[2] = [int]$v[2] + 1
+          npm version ($v -join '.') --no-git-tag-version
+          npm run dist:win
+      - shell: powershell
+        run: ./scripts/desktop-core-qa.ps1 -Part update -Installer (Get-ChildItem desktop/dist-now/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Next (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-core-update
+      - name: Sentinel's logs
+        if: always()
+        shell: powershell
+        run: New-Item -ItemType Directory -Force e2e-core-update/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-core-update/logs -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: core-update
+          path: e2e-core-update/
+          retention-days: 7

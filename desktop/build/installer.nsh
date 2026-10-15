@@ -23,15 +23,24 @@
   Delete "$INSTDIR\icudtl.dat"
   Delete "$INSTDIR\snapshot_blob.bin"
   Delete "$INSTDIR\v8_context_snapshot.bin"
+  Delete "$INSTDIR\Uninstall Sentinel.exe"
   RMDir /r "$INSTDIR\locales"
   RMDir /r "$INSTDIR\resources"
+  ; The uninstaller works from inside the folder (un.onInit), which keeps it from being removed: step out first.
+  SetOutPath $TEMP
   RMDir "$INSTDIR"
 !macroend
 
 ; "Scan with Sentinel" in the right-click menu for files, registered for this Windows user by the app itself
-; (desktop/src/scanmenu.js). Removed on uninstall; an update keeps it, and the new copy registers it again anyway.
+; (desktop/src/scanmenu.js), the startup entry and the downloaded updates. Removed on uninstall; an update keeps them.
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     DeleteRegKey HKCU "Software\Classes\*\shell\SentinelScan"
+    ; The startup entry the app writes (Electron names it by the app's id). Left behind, Windows went on starting a
+    ; program that was gone at every sign-in, and Task Manager listed it.
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "com.usesentinel.desktop"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "com.usesentinel.desktop"
+    ; Downloaded updates (desktop/src/updater.js cacheDir): over 200 MB once an update has been fetched.
+    RMDir /r "$LOCALAPPDATA\sentinel-desktop-updater"
   ${endIf}
 !macroend
