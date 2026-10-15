@@ -33,3 +33,26 @@ jobs:
             verify-web/
             qr-samples/
           retention-days: 7
+
+  # Speed and accessibility of every public and app page (scripts/verify-web/30-perf-a11y.js): Lighthouse at phone and
+  # desktop size and an axe-core audit in dark and light. Both are installed for this job only, never into the project.
+  perf-a11y:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Lighthouse and axe-core, for this job only
+        shell: bash
+        run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/ci-tools" lighthouse@12.8.2 axe-core@4.10.3
+      - name: Speed and accessibility of every page
+        shell: bash
+        run: CI_TOOLS="$RUNNER_TEMP/ci-tools" node scripts/verify-web.js --only perf-a11y --out perf-a11y
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-a11y
+          path: perf-a11y/
+          retention-days: 7
