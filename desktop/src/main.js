@@ -1897,8 +1897,7 @@ app.on('web-contents-created', (event, contents) => {
     const isOverlay = /\/overlay\.html/.test(contents.getURL());
     appLog(`a window's page stopped (${details.reason}); ${w === win ? 'loading it again' : isOverlay ? 'making the overlay again' : 'closing that window'}`);
     if (w === win) { contents.reload(); return; }
+    if (isOverlay) { setTimeout(() => { if (overlay.revive()) watch.keepAbove(overlay.handle()); }, 500); return; }
     w.destroy();
-    const rect = isOverlay && watch.status().window;
-    if (rect) setTimeout(() => { overlay.setWindow(rect); watch.keepAbove(overlay.handle()); }, 500);
   });
 });

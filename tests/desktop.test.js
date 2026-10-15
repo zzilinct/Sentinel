@@ -360,7 +360,7 @@ test('uninstalling leaves no startup entry, no downloaded updates and no uninsta
 
 test('a window whose page process ends comes back; a run that did not quit is logged; the tray\'s changes reach the app', () => {
   const main = read('desktop/src/main.js');
-  assert.match(main, /contents\.on\('render-process-gone'[\s\S]*if \(w === win\) \{ contents\.reload\(\); return; \}[\s\S]*overlay\.setWindow\(rect\); watch\.keepAbove\(overlay\.handle\(\)\)/);
+  assert.match(main, /contents\.on\('render-process-gone'[\s\S]*if \(w === win\) \{ contents\.reload\(\); return; \}[\s\S]*if \(overlay\.revive\(\)\) watch\.keepAbove\(overlay\.handle\(\)\)/);
   assert.match(main, /the last run did not quit normally/);
   assert.match(main, /app\.on\('before-quit'[^\n]*unlinkSync\(runningFile\(\)\)/);
   assert.equal((main.match(/push\('sentinel:settings'/g) || []).length, 2, 'Start with my computer and Auto scanning');
