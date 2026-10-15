@@ -279,7 +279,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .sec-galaxy { padding-bottom: 40px; }
 .sec-galaxy .section__head { margin-bottom: 0; }
 .galaxy { --galaxy-line: var(--gold-rgb); --galaxy-card: var(--surface-2); --galaxy-dark: 1; --core: var(--gold-400);
-  position: relative; height: clamp(520px, 86vh, 940px); margin-top: -10px; overflow: hidden; touch-action: pan-y; }
+  position: relative; height: clamp(480px, 72vh, 820px); margin-top: 28px; overflow: hidden; touch-action: pan-y; }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .galaxy { --galaxy-line: 60 45 20; --galaxy-dark: 0; --core: var(--gold-600, #8a6420); } }
 :root[data-theme="light"] .galaxy { --galaxy-line: 60 45 20; --galaxy-dark: 0; --core: var(--gold-600, #8a6420); }
 /* The cards fly out past the stage's edges: they dissolve into the page there rather than being cut. */
@@ -305,11 +305,15 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .galaxy__caption.is-on { opacity: 1; }
 /* The same scenes as a list, for the keyboard and screen readers: unseen, and the canvas shows the focused card. */
 .galaxy__list { position: absolute; left: 50%; top: 50%; width: 1px; height: 1px; margin: 0; padding: 0; list-style: none; overflow: hidden; opacity: 0; pointer-events: none; }
-.galaxy__hint { position: absolute; left: 0; right: 0; bottom: 14px; margin: 0; padding: 0 16px; text-align: center; font-size: 13px; color: var(--muted); pointer-events: none; }
+/* Below the stage, on the page, where nothing passes behind it. */
+.galaxy__hint { margin: 14px 0 0; padding: 0 16px; text-align: center; font-size: 14px; color: var(--text-2); }
+/* The chapter rail (site.js) steps aside while the galaxy is on screen, so its dots never sit on the cards. */
+.rail { transition: opacity .3s ease, visibility .3s; }
+.galaxy-in-view .rail { opacity: 0; visibility: hidden; }
 .galaxy__hint--touch { display: none; }
 @media (hover: none) { .galaxy__hint--mouse { display: none; } .galaxy__hint--touch { display: inline; } }
 @media (max-width: 640px) {
-  .galaxy { height: clamp(480px, 80vh, 760px); }
+  .galaxy { height: clamp(440px, 70vh, 640px); margin-top: 20px; }
   .galaxy__core { width: 112px; height: 112px; }
   .galaxy__core svg { width: 54px; height: 54px; }
 }

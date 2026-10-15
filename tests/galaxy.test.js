@@ -6,16 +6,18 @@ const fs = require('fs');
 const path = require('path');
 const G = require('../web/assets/js/galaxy.js');
 
-test('a computer gets six arms and a card count that follows the stage area; a phone gets three arms and 14 cards', () => {
+test('a computer gets six arms and a card count that follows the stage area; a phone gets three arms and 26 small cards', () => {
   const big = G.profile(1920, 940, 45);
+  const small = G.profile(1100, 600, 45);
   const laptop = G.profile(1366, 780, 45);
   const phone = G.profile(390, 700, 45);
   assert.equal(big.arms, 6);
-  assert.equal(big.n, 45, 'a big screen shows every scene');
-  assert.ok(laptop.n < big.n && laptop.n >= 30, `laptop ${laptop.n}`);
+  assert.equal(big.n, 90, 'a big screen shows every scene, twice');
+  assert.ok(small.n < laptop.n && small.n >= 50, `small ${small.n}, laptop ${laptop.n}`);
   assert.equal(phone.mobile, true);
   assert.equal(phone.arms, 3);
-  assert.equal(phone.n, 14);
+  assert.equal(phone.n, 26);
+  assert.ok(phone.capW <= 390 * 0.3, 'phone cards stay under a third of the width');
   assert.ok(phone.turns < big.turns, 'straighter arms on a phone');
 });
 

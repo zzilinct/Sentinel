@@ -87,11 +87,49 @@ async function checkGalaxy() {
         await sleep(1500);
         const b = await p.st();
         await shot(browser, p.s, `${name}-motion`);
+
+        /* The spiral reads: many small cards, their centres on the arms' curves. */
+        const inStage = (c) => c.alpha > 0.5 && c.w > 0 && c.x > 0 && c.y > 0 && c.x < b.stage.width && c.y < b.stage.height;
+        const vis = b.cards.filter(inStage);
+        const onArm = vis.filter((c) => c.armDist !== null && c.armDist <= (phone ? 10 : 12));
+        const widths = vis.map((c) => c.w).sort((x, y) => x - y);
+        const medW = widths[Math.floor(widths.length / 2)] || 0;
+        const share = vis.length ? onArm.length / vis.length : 0;
+        result(`galaxy (${at}): the spiral reads (many small cards, centred on the arms' curves)`,
+          vis.length >= (phone ? 14 : 35) && share >= 0.85 && medW <= b.stage.width * (phone ? 0.27 : 0.15),
+          { visible: vis.length, onArm: onArm.length, share: +share.toFixed(2), medianCardWidth: Math.round(medW), stageWidth: b.stage.width,
+            armDist: vis.map((c) => c.armDist).sort((x, y) => x - y).slice(-5) });
+
+        /* Nothing sits on the cards: the chapter rail, the heading and its words; the hint is below the stage. */
+        const layout = await p.ev(`(() => {
+          const box = (r) => ({ l: r.left, t: r.top, r: r.right, b: r.bottom });
+          const rail = document.querySelector('.rail');
+          const railBox = rail && rail.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ? box(rail.getBoundingClientRect()) : null;
+          const texts = [];
+          for (const el of document.querySelectorAll('#masquerade .section__head h2, #masquerade .section__head p')) {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            for (const r of range.getClientRects()) if (r.width > 1) texts.push(box(r));
+          }
+          const head = document.querySelector('#masquerade .section__head').getBoundingClientRect();
+          const stage = document.querySelector('[data-galaxy]').getBoundingClientRect();
+          const hint = document.querySelector('.galaxy__hint').getBoundingClientRect();
+          return { rail: railBox, railExists: Boolean(rail), texts, headBottom: head.bottom, stageTop: stage.top, stageBottom: stage.bottom, hintTop: hint.top };
+        })()`);
+        const cardBoxes = b.cards.filter((c) => c.alpha > 0.3 && c.w > 0).map((c) => ({ k: c.k, l: b.stage.left + c.x - c.w / 2, t: b.stage.top + c.y - c.h / 2, r: b.stage.left + c.x + c.w / 2, bt: b.stage.top + c.y + c.h / 2 }))
+          .map((c) => ({ k: c.k, l: Math.max(c.l, b.stage.left), r: c.r, t: Math.max(c.t, b.stage.top), b: Math.min(c.bt, b.stage.top + b.stage.height) }));   // the canvas clips what passes its edges
+        const hit = (x, y) => x.l < y.r && y.l < x.r && x.t < y.b && y.t < x.b;
+        const onRail = layout.rail ? cardBoxes.filter((c) => hit(c, layout.rail)).map((c) => c.k) : [];
+        const onText = cardBoxes.filter((c) => layout.texts.some((t) => hit(c, t))).map((c) => c.k);
+        result(`galaxy (${at}): no card under the chapter rail or the heading's words; the stage starts below the heading, the hint below the stage`,
+          !onRail.length && !onText.length && layout.stageTop >= layout.headBottom - 1 && layout.hintTop >= layout.stageBottom - 1,
+          { railShown: Boolean(layout.rail), railExists: layout.railExists, onRail, onText, headBottom: Math.round(layout.headBottom), stageTop: Math.round(layout.stageTop),
+            stageBottom: Math.round(layout.stageBottom), hintTop: Math.round(layout.hintTop) });
         const d = turns(a, b);
         const cw = d.filter((t) => t > 0).length;
         const median = d.slice().sort((x, y) => x - y)[Math.floor(d.length / 2)] || 0;
-        result(`galaxy (${at}): it draws frame after frame, with ${phone ? 'the phone profile (3 arms, 14 cards or fewer)' : '6 arms'}`,
-          b.running && b.frames - a.frames >= 15 && (phone ? b.mobile && b.arms === 3 && b.n <= 14 : !b.mobile && b.arms === 6 && b.n >= 20),
+        result(`galaxy (${at}): it draws frame after frame, with ${phone ? 'the phone profile (3 arms, 26 cards or fewer)' : '6 arms'}`,
+          b.running && b.frames - a.frames >= 15 && (phone ? b.mobile && b.arms === 3 && b.n <= 26 : !b.mobile && b.arms === 6 && b.n >= 20),
           { frames: b.frames - a.frames, mobile: b.mobile, arms: b.arms, n: b.n, active: b.active, loaded: b.loaded, stage: b.stage });
         result(`galaxy (${at}): the cards travel clockwise`, d.length >= 4 && cw / d.length >= 0.75 && median > 0,
           { cards: d.length, clockwise: cw, medianDeg: +(median * 180 / Math.PI).toFixed(2) });
@@ -125,7 +163,7 @@ async function checkGalaxy() {
         const big = e.cards.find((k) => k.k === e.boosted);
         await shot(browser, p.s, `${name}-click`);
         result(`galaxy (${at}): ${phone ? 'a tap' : 'a click'} enlarges the card with its caption${phone ? ' and verdict' : ''}`,
-          e.boosted !== null && big && big.w >= Math.min(c.w * 1.8, e.stage.width * 0.45) && e.caption.length > 20 && (!phone || e.tag),
+          e.boosted !== null && big && big.w >= Math.max(c.w * 1.8, e.stage.width * 0.3) && e.caption.length > 20 && (!phone || e.tag),
           { boosted: e.boosted, was: Math.round(c.w), now: big && Math.round(big.w), caption: e.caption, tag: e.tag });
         if (!phone) { await mouse(p.s, 'mouseMoved', 5, 5); await sleep(600); }
 

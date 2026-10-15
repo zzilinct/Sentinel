@@ -11,7 +11,7 @@
  *               verdict (its mask colour and a short reason); the rest of the spiral follows more slowly. A click
  *               sends a ripple through the field and enlarges the card with its caption.
  *   Keyboard    the list of scenes under the canvas is the same cards: tabbing to one holds it, Enter enlarges it.
- *   Phones      three arms and 14 cards; elsewhere the count follows the stage's area.
+ *   Phones      three arms and 26 small cards; elsewhere the count follows the stage's area (up to two of each scene).
  *   Governor    under 30 frames a second, it sheds cards until smooth, and slowly takes them back.
  *   Rest        it draws nothing off screen or in a hidden tab, and under reduced motion it is one still spiral.
  *
@@ -25,15 +25,16 @@
 
   var TAU = Math.PI * 2;
   var P = {
-    arms: 6, turns: 1.05, rMaxFrac: 0.7, birthFrac: 0.08, cardN: 64, tunedMpx: 1.65, cardHFrac: 0.25, armJitter: 0.76,
+    arms: 6, turns: 1.05, rMaxFrac: 0.7, birthFrac: 0.08, cardN: 96, tunedMpx: 1.1, cardHFrac: 0.12, cardWFrac: 0.15, armJitter: 0.76,
     ticksPerArm: 16, circFrac: 0.56,
     idle: 0.57 / 60, scrub: 0.2 / 1000, spin: (50 / 60) * Math.PI / 180, wobble: 6, wobbleHz: 0.25,
     introDur: 3.2, burstX: 3, burstDur: 2.5, waveBand: 220, flareLag: 0.4, perfFloor: 30,
     field: 320, tug: 8, lean: 4 * Math.PI / 180, holdTau: 0.15, restTau: 1, rippleSpeed: 900, rippleWidth: 140, rippleLife: 1.8, rippleWarp: 22,
-    boost: 3, boostTau: 0.18, density: 0.82, corner: 10, innerCap: 0.45, aspectEnd: 0.3, blurEnd: 0.18, fadeBand: 0.15,
-    frameAlpha: 0.22, lineAlpha: 0.15, minCards: 10
+    boost: 3, boostTau: 0.18, density: 0.82, corner: 8, innerCap: 0.22, aspectEnd: 0.3, blurEnd: 0.18, fadeBand: 0.15,
+    frameAlpha: 0.22, lineAlpha: 0.32, minCards: 10
   };
-  var MOBILE = { mpx: 0.6, arms: 3, turns: 0.7, cardN: 14, rMaxFrac: 0.8, cardHFrac: 0.3, birthFrac: 0.08, density: 0.82 * 1.15 };
+  // The phone keeps three straighter arms, with more and much smaller cards than ArtCraft's 14, so the arms show.
+  var MOBILE = { mpx: 0.6, arms: 3, turns: 0.7, cardN: 26, rMaxFrac: 0.8, cardHFrac: 0.085, cardWFrac: 0.27, birthFrac: 0.08, density: 0.82 * 1.15 };
   var WIDE = 16 / 9;
 
   var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
@@ -52,7 +53,9 @@
     return {
       mobile: mob, W: W, H: H, arms: mob ? MOBILE.arms : P.arms, turns: mob ? MOBILE.turns : P.turns,
       rMax: rMax, rBirth: (mob ? MOBILE.birthFrac : P.birthFrac) * rMax, rEnd: half + capH * WIDE * 0.6,
-      capH: capH, density: mob ? MOBILE.density : P.density, n: Math.min(items, want)
+      capH: capH, capW: (mob ? MOBILE.cardWFrac : P.cardWFrac) * W, density: mob ? MOBILE.density : P.density,
+      // Up to two of each scene: a scene's second card rides an arm half the spiral away (see build).
+      n: Math.min(items * 2, want)
     };
   }
 
@@ -186,7 +189,7 @@
     for (var k = 0; k < pr.n; k++) {
       var sl = slot(k, pr.n, pr.arms);
       var o = old[k];
-      cards.push({ k: k, item: o ? o.item : items[k], arm: sl.arm, u0: sl.u, t: clock, spin: spin, own: 1, s: 0, asp: 1, x: 0, y: 0,
+      cards.push({ k: k, item: o ? o.item : items[k % items.length], arm: sl.arm, u0: sl.u, t: clock, spin: spin, own: 1, s: 0, asp: 1, x: 0, y: 0,
         wob: [Math.random() * TAU, Math.random() * TAU], flare: 0, wa: 1, boost: 1, focus: false, gone: 0, alpha: 0, lean: 0, rect: null });
     }
     // The order cards are shed in, spread over the arms and the journey (golden-ratio steps), so the few that stay
@@ -275,7 +278,7 @@
       var cc = cards[m];
       if (cc.skip) { cc.s = 0; continue; }   // reborn at the centre at its new size, not grown down from its old one
       // Born small in the pocket round the mark: never wider than the card is far from the centre.
-      var cap = Math.min(pr.capH * (P.innerCap + (1 - P.innerCap) * smooth(0, 0.6, cc.u)), cc.r * 0.8, W * 0.6 / cc.asp);
+      var cap = Math.min(pr.capH * (P.innerCap + (1 - P.innerCap) * smooth(0, 0.6, cc.u)), cc.r * 0.5, pr.capW / cc.asp);
       var want = Math.max(6, Math.min(cap, pr.density * room(cards, m)));
       cc.s += (want - cc.s) * (cc.s && !reduced ? ease(dt, 0.2) : 1);
       cc.boost += (((cc === boosted) ? P.boost : 1) - cc.boost) * (reduced ? 1 : ease(dt, P.boostTau));
@@ -304,7 +307,7 @@
   function underlay(now) {
     var cx = W / 2, cy = H / 2;
     var col = 'rgb(' + ink.line + ' / ';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.2;
     ctx.strokeStyle = col + P.lineAlpha + ')';
     for (var a = 0; a < pr.arms; a++) {
       ctx.beginPath();
@@ -336,15 +339,15 @@
     if (reduced) return;
     // Comets: a small light running out along each arm now and then.
     for (var c = 0; c < pr.arms; c++) {
-      var head = frac(now / 1000 / 7 + c * 0.37);
-      if (head > 0.75) continue;
-      for (var tail = 0; tail < 10; tail++) {
-        var uu = head - tail * 0.006;
+      var head = frac(now / 1000 / 5 + c * 0.37);
+      if (head > 0.8) continue;
+      for (var tail = 0; tail < 18; tail++) {
+        var uu = head - tail * 0.004;
         if (uu < 0) break;
         var q = spiral(pr, c, uu, spin);
-        ctx.fillStyle = col + ((1 - tail / 10) * 0.55 * (1 - head / 0.75)) + ')';
+        ctx.fillStyle = col + ((1 - tail / 18) * 0.95 * (1 - head / 0.8)) + ')';
         ctx.beginPath();
-        ctx.arc(cx + q.x, cy + q.y, 1.6 - tail * 0.1, 0, TAU);
+        ctx.arc(cx + q.x, cy + q.y, 2.2 - tail * 0.1, 0, TAU);
         ctx.fill();
       }
     }
@@ -361,8 +364,8 @@
       var c = order[i];
       c.rect = null;
       if (c.skip) continue;
-      // Enlarged up to three times, and at most half the stage wide and 60% of it tall.
-      var bmax = Math.max(1, Math.min(P.boost, W * 0.5 / (c.s * c.asp), H * 0.6 / c.s));
+      // Enlarged to be read: 40% of the stage wide (most of a phone's width), and at most 60% of it tall.
+      var bmax = Math.max(1, Math.min(W * (pr.mobile ? 0.82 : 0.4) / (c.s * c.asp), H * 0.6 / c.s));
       var h = c.s * (1 + (c.boost - 1) / (P.boost - 1) * (bmax - 1)), w = h * c.asp;
       var x = c.x, y = c.y;
       if (c.boost > 1.01) {
@@ -598,11 +601,24 @@
   nearby.observe(host);
   new IntersectionObserver(function (es) {
     seen = es[es.length - 1].isIntersecting;
+    rootEl.classList.toggle('galaxy-in-view', seen);
     if (reduced) still(); else wake();
   }, { threshold: 0 }).observe(host);
   document.addEventListener('visibilitychange', wake);
 
   // For the website checks (scripts/verify-web/19-galaxy.js): what the galaxy is doing, in the stage's pixels.
+  // How far a point is from the nearest arm's curve as it is drawn now (for the checks: does the spiral read).
+  function armDist(x, y) {
+    var best = Infinity;
+    for (var a = 0; a < pr.arms; a++) {
+      for (var i = 0; i <= 400; i++) {
+        var p = spiral(pr, a, i / 400, spin);
+        var d = Math.hypot(W / 2 + p.x - x, H / 2 + p.y - y);
+        if (d < best) best = d;
+      }
+    }
+    return best;
+  }
   root.SentinelGalaxy = {
     state: function () {
       var r = host.getBoundingClientRect();
@@ -611,7 +627,8 @@
         active: reduced ? pr.n : gov.n, loaded: items.filter(function (i) { return i.ready; }).length, stage: { left: r.left, top: r.top, width: W, height: H },
         held: held ? held.k : null, boosted: boosted ? boosted.k : null, tag: tagEl.classList.contains('is-on') ? tagEl.textContent : '',
         caption: capEl.classList.contains('is-on') ? capEl.textContent : '',
-        cards: cards.map(function (c) { return { k: c.k, scene: c.item.i, x: c.rect ? c.rect.cx : c.x, y: c.rect ? c.rect.cy : c.y, w: c.rect ? c.rect.w : 0, h: c.rect ? c.rect.h : 0, alpha: c.alpha, r: c.r, angle: Math.atan2(c.y - H / 2, c.x - W / 2), tag: c.item.tag }; })
+        cards: cards.map(function (c) { return { k: c.k, scene: c.item.i, x: c.rect ? c.rect.cx : c.x, y: c.rect ? c.rect.cy : c.y, w: c.rect ? c.rect.w : 0, h: c.rect ? c.rect.h : 0, alpha: c.alpha, r: c.r, angle: Math.atan2(c.y - H / 2, c.x - W / 2), tag: c.item.tag,
+          armDist: c.rect && c.alpha > 0.5 ? Math.round(armDist(c.rect.cx, c.rect.cy) * 10) / 10 : null }; })
       };
     }
   };
