@@ -164,6 +164,73 @@
   </section>
   </div>
 
+  <!-- ========================================================== the galaxy -->
+  <!-- Scam scenes ride a slow clockwise spiral out of Sentinel's mark (galaxy.js); the list below is the same scenes,
+       for the keyboard and screen readers. The art is drawn in scripts/galaxy/scenes.js. -->
+  <section class="section sec-galaxy" id="masquerade" data-chapter="Every scam">
+    <div class="wrap">
+      <div class="section__head section__head--center">
+        <span class="kicker">An interlude &middot; The masquerade</span>
+        <h2 data-split>Every scam <em>wears a mask</em></h2>
+        <p data-reveal>A sign-in page on the wrong address, a parcel that needs a small fee, a friend who wants gift cards. Each one is dressed to look harmless. Point at one to see what Sentinel sees.</p>
+      </div>
+    </div>
+    <div class="galaxy" data-galaxy>
+      <canvas class="galaxy__canvas" aria-hidden="true"></canvas>
+      <div class="galaxy__core" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M32 2.6 57.4 10v18.6c0 14.6-9.9 24.6-25.4 31.4C16.5 53.2 6.6 43.2 6.6 28.6V10Zm0 4.2L10.6 13v15.6c0 12.2 8 20.7 21.4 26.8 13.4-6.1 21.4-14.6 21.4-26.8V13Z"/><g transform="translate(32 30.5) scale(.70) translate(-32 -30.5)"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/><path fill="currentColor" fill-rule="evenodd" d="M42.8 16.2a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6Z"/></g></svg></div>
+      <div class="galaxy__tag" aria-hidden="true"><span class="m is-on"></span><b></b></div>
+      <p class="galaxy__caption" aria-live="polite"></p>
+      <ol class="galaxy__list" aria-label="Scams Sentinel unmasks">
+        <li><button type="button" data-img="galaxy/signin.webp" data-kind="scam" data-tint="red" data-tag="Look-alike domain" data-caption="A sign-in page on a look-alike address, made to catch a password.">A fake sign-in page. Scam mask, red: Look-alike domain.</button></li>
+        <li><button type="button" data-img="galaxy/toll.webp" data-kind="scam" data-tint="orange" data-tag="Unpaid toll bait" data-caption="A text about a small unpaid toll, with a link that is not the toll road’s.">An unpaid toll text. Scam mask, orange: Unpaid toll bait.</button></li>
+        <li><button type="button" data-img="galaxy/parcel.webp" data-kind="scam" data-tint="orange" data-tag="Parcel fee lure" data-caption="A parcel is held for a tiny fee, so a card number can be taken.">A parcel fee text. Scam mask, orange: Parcel fee lure.</button></li>
+        <li><button type="button" data-img="galaxy/virusalert.webp" data-kind="scam" data-tint="red" data-tag="Fake virus alert" data-caption="A web page dressed as a security warning, with a number to call.">A full-screen fake virus alert. Scam mask, red: Fake virus alert.</button></li>
+        <li><button type="button" data-img="masks/scam-yellow.webp" data-kind="scam" data-tint="yellow" data-tag="Look closer" data-caption="The scam mask. Yellow means look closer.">The scam mask in yellow. Scam mask, yellow: Look closer.</button></li>
+        <li><button type="button" data-img="galaxy/doubler.webp" data-kind="scam" data-tint="red" data-tag="Crypto doubler" data-caption="Send some coins and get twice as many back. Nobody ever does.">A crypto giveaway that doubles your coins. Scam mask, red: Crypto doubler.</button></li>
+        <li><button type="button" data-img="galaxy/giftcards.webp" data-kind="scam" data-tint="orange" data-tag="Asks for gift cards" data-caption="A boss, a friend or a support agent who wants the codes off gift cards.">A chat asking for gift cards. Scam mask, orange: Asks for gift cards.</button></li>
+        <li><button type="button" data-img="galaxy/qrmeter.webp" data-kind="scam" data-tint="yellow" data-tag="QR sticker over the real one" data-caption="A sticker on a parking meter that sends payments to a stranger’s page.">A QR sticker on a parking meter. Scam mask, yellow: QR sticker over the real one.</button></li>
+        <li><button type="button" data-img="galaxy/robux.webp" data-kind="scam" data-tint="orange" data-tag="Free Robux bait" data-caption="Free game money for a password. There is no such generator.">A free Robux generator. Scam mask, orange: Free Robux bait.</button></li>
+        <li><button type="button" data-img="masks/scam-orange.webp" data-kind="scam" data-tint="orange" data-tag="Probably dangerous" data-caption="The scam mask. Orange means it is probably dangerous.">The scam mask in orange. Scam mask, orange: Probably dangerous.</button></li>
+        <li><button type="button" data-img="galaxy/nitro.webp" data-kind="scam" data-tint="orange" data-tag="Nitro gift bait" data-caption="A gift link from a friend’s account, sent to everyone it knows.">A free Discord Nitro gift. Scam mask, orange: Nitro gift bait.</button></li>
+        <li><button type="button" data-img="galaxy/shop.webp" data-kind="scam" data-tint="yellow" data-tag="New shop, too-good prices" data-caption="A shop that opened last week, with every price cut by 90 percent.">A fake shop checkout. Scam mask, yellow: New shop, too-good prices.</button></li>
+        <li><button type="button" data-img="galaxy/invoice.webp" data-kind="scam" data-tint="orange" data-tag="Fake renewal invoice" data-caption="An invoice for something never bought, with a phone number to cancel it.">A fake invoice for a renewal. Scam mask, orange: Fake renewal invoice.</button></li>
+        <li><button type="button" data-img="galaxy/remote.webp" data-kind="scam" data-tint="red" data-tag="Asks for remote access" data-caption="A caller says the computer is broken and asks to install a remote control app.">A call that asks to control your computer. Scam mask, red: Asks for remote access.</button></li>
+        <li><button type="button" data-img="masks/scam-red.webp" data-kind="scam" data-tint="red" data-tag="Sentinel has proof" data-caption="The scam mask. Red means Sentinel has proof.">The scam mask in red. Scam mask, red: Sentinel has proof.</button></li>
+        <li><button type="button" data-img="galaxy/wrongnumber.webp" data-kind="scam" data-tint="yellow" data-tag="Wrong-number opener" data-caption="A friendly message to the wrong number, the start of a long con.">A wrong-number text. Scam mask, yellow: Wrong-number opener.</button></li>
+        <li><button type="button" data-img="galaxy/fakeupdate.webp" data-kind="malware" data-tint="red" data-tag="Fake browser update" data-caption="A page says the browser is out of date and offers a program to download.">A fake browser update. Malware mask, red: Fake browser update.</button></li>
+        <li><button type="button" data-img="galaxy/doubleext.webp" data-kind="virus" data-tint="red" data-tag="Program dressed as a PDF" data-caption="A file called Statement.pdf.exe: a program wearing a document’s name.">A program named like a PDF. Virus mask, red: Program dressed as a PDF.</button></li>
+        <li><button type="button" data-img="galaxy/clickfix.webp" data-kind="malware" data-tint="red" data-tag="Paste-and-run trap" data-caption="A fake robot check that asks you to press Windows+R and paste a command.">A check that asks you to paste a command. Malware mask, red: Paste-and-run trap.</button></li>
+        <li><button type="button" data-img="masks/virus-yellow.webp" data-kind="virus" data-tint="yellow" data-tag="Look closer" data-caption="The virus mask. Yellow means look closer.">The virus mask in yellow. Virus mask, yellow: Look closer.</button></li>
+        <li><button type="button" data-img="galaxy/seedphrase.webp" data-kind="scam" data-tint="red" data-tag="Asks for recovery phrase" data-caption="A wallet “sync” page that wants the twelve secret words.">A page that asks for a wallet’s recovery phrase. Scam mask, red: Asks for recovery phrase.</button></li>
+        <li><button type="button" data-img="galaxy/prize.webp" data-kind="scam" data-tint="orange" data-tag="Prize that costs money" data-caption="A phone won in a survey, if a small shipping fee is paid by card.">A prize you pay to claim. Scam mask, orange: Prize that costs money.</button></li>
+        <li><button type="button" data-img="galaxy/bankalert.webp" data-kind="scam" data-tint="orange" data-tag="Urgent bank alert" data-caption="A text that says a card is blocked, with a link to “verify” it.">A text about a blocked bank card. Scam mask, orange: Urgent bank alert.</button></li>
+        <li><button type="button" data-img="galaxy/job.webp" data-kind="scam" data-tint="yellow" data-tag="Too-easy job offer" data-caption="A job that pays for liking videos, until it asks for a deposit.">A job paying for likes. Scam mask, yellow: Too-easy job offer.</button></li>
+        <li><button type="button" data-img="masks/virus-orange.webp" data-kind="virus" data-tint="orange" data-tag="Probably dangerous" data-caption="The virus mask. Orange means it is probably dangerous.">The virus mask in orange. Virus mask, orange: Probably dangerous.</button></li>
+        <li><button type="button" data-img="galaxy/investment.webp" data-kind="scam" data-tint="orange" data-tag="Guaranteed returns" data-caption="A trading app a new friend recommends, with returns no market gives.">An investment app with sure profits. Scam mask, orange: Guaranteed returns.</button></li>
+        <li><button type="button" data-img="galaxy/notify.webp" data-kind="malware" data-tint="yellow" data-tag="Notification trap" data-caption="A page that says to click Allow to prove you are not a robot.">A page that wants to send notifications. Malware mask, yellow: Notification trap.</button></li>
+        <li><button type="button" data-img="galaxy/taxrefund.webp" data-kind="scam" data-tint="orange" data-tag="Fake government service" data-caption="A refund from the tax office, which only needs your bank login to pay.">A tax refund email. Scam mask, orange: Fake government service.</button></li>
+        <li><button type="button" data-img="galaxy/crack.webp" data-kind="virus" data-tint="orange" data-tag="Archive hiding a program" data-caption="A paid game for free, in a zip with a password and a program inside.">A cracked game download. Virus mask, orange: Archive hiding a program.</button></li>
+        <li><button type="button" data-img="masks/virus-red.webp" data-kind="virus" data-tint="red" data-tag="Sentinel has proof" data-caption="The virus mask. Red means Sentinel has proof.">The virus mask in red. Virus mask, red: Sentinel has proof.</button></li>
+        <li><button type="button" data-img="galaxy/macro.webp" data-kind="virus" data-tint="orange" data-tag="Asks to enable macros" data-caption="A blurry document that says to click Enable Content to read it.">A document asking to enable content. Virus mask, orange: Asks to enable macros.</button></li>
+        <li><button type="button" data-img="galaxy/appeal.webp" data-kind="scam" data-tint="orange" data-tag="Fake account appeal" data-caption="A message that a social account broke the rules, with a form to appeal.">A warning that an account will be deleted. Scam mask, orange: Fake account appeal.</button></li>
+        <li><button type="button" data-img="galaxy/himum.webp" data-kind="scam" data-tint="orange" data-tag="New-number family plea" data-caption="A child on a new number who urgently needs money for a bill.">A text from a child on a new number. Scam mask, orange: New-number family plea.</button></li>
+        <li><button type="button" data-img="galaxy/mailbox.webp" data-kind="scam" data-tint="orange" data-tag="Password expiry bait" data-caption="A mailbox notice that a password expires, with a button to keep it.">An email that says a password expires today. Scam mask, orange: Password expiry bait.</button></li>
+        <li><button type="button" data-img="masks/malware-yellow.webp" data-kind="malware" data-tint="yellow" data-tag="Look closer" data-caption="The malware mask. Yellow means look closer.">The malware mask in yellow. Malware mask, yellow: Look closer.</button></li>
+        <li><button type="button" data-img="galaxy/popup.webp" data-kind="scam" data-tint="red" data-tag="Fake sign-in pop-up" data-caption="A pop-up that looks like a game store’s sign-in, drawn inside the page.">A fake game sign-in window. Scam mask, red: Fake sign-in pop-up.</button></li>
+        <li><button type="button" data-img="galaxy/overpay.webp" data-kind="scam" data-tint="red" data-tag="Refund overpayment trick" data-caption="A caller “refunds” too much and asks for the difference back in gift cards.">A refund that was “too much”. Scam mask, red: Refund overpayment trick.</button></li>
+        <li><button type="button" data-img="galaxy/player.webp" data-kind="malware" data-tint="orange" data-tag="Install a player to watch" data-caption="A free film stream that needs a “player” installed first.">A stream that needs a player installed. Malware mask, orange: Install a player to watch.</button></li>
+        <li><button type="button" data-img="galaxy/inherit.webp" data-kind="scam" data-tint="yellow" data-tag="Inheritance letter" data-caption="A lawyer abroad with millions for you, after a few fees.">A letter about an inheritance. Scam mask, yellow: Inheritance letter.</button></li>
+        <li><button type="button" data-img="masks/malware-orange.webp" data-kind="malware" data-tint="orange" data-tag="Probably dangerous" data-caption="The malware mask. Orange means it is probably dangerous.">The malware mask in orange. Malware mask, orange: Probably dangerous.</button></li>
+        <li><button type="button" data-img="galaxy/extension.webp" data-kind="malware" data-tint="yellow" data-tag="Add-on with too many rights" data-caption="A coupon add-on that asks to read and change everything on every site.">A browser add-on that wants to read every site. Malware mask, yellow: Add-on with too many rights.</button></li>
+        <li><button type="button" data-img="galaxy/threat.webp" data-kind="scam" data-tint="orange" data-tag="Threat with an old password" data-caption="A stranger quotes an old leaked password and demands payment in crypto.">An email that threatens with an old password. Scam mask, orange: Threat with an old password.</button></li>
+        <li><button type="button" data-img="galaxy/payment.webp" data-kind="scam" data-tint="orange" data-tag="Fake payment link" data-caption="A buyer on a marketplace sends a link to “receive” the money.">A buyer’s fake payment link. Scam mask, orange: Fake payment link.</button></li>
+        <li><button type="button" data-img="galaxy/code.webp" data-kind="scam" data-tint="red" data-tag="Asks for your code" data-caption="Someone says they sent you a code by mistake and asks you to read it back.">A message asking for a sign-in code. Scam mask, red: Asks for your code.</button></li>
+        <li><button type="button" data-img="masks/malware-red.webp" data-kind="malware" data-tint="red" data-tag="Sentinel has proof" data-caption="The malware mask. Red means Sentinel has proof.">The malware mask in red. Malware mask, red: Sentinel has proof.</button></li>
+      </ol>
+      <p class="galaxy__hint"><span class="galaxy__hint--mouse">Point at a card for Sentinel&rsquo;s verdict. Click it for a closer look.</span><span class="galaxy__hint--touch">Tap a card for Sentinel&rsquo;s verdict and a closer look.</span></p>
+    </div>
+  </section>
+
   <!-- =============================================================== stats -->
   <div class="stack" data-stack>
   <section class="stats" aria-label="Sentinel in numbers">
@@ -640,6 +707,7 @@
 <script src="/assets/js/masks.js"></script>
 <script src="/assets/js/binary.js"></script>
 <script src="/assets/js/glyphs.js" defer></script>
+<script src="/assets/js/galaxy.js" defer></script>
 <!-- Deferred, so they run after site.js; before it in the page, so site.js can see they are coming. -->
 <script src="/assets/js/vendor/gsap.min.js" defer></script>
 <script src="/assets/js/vendor/ScrollTrigger.min.js" defer></script>
