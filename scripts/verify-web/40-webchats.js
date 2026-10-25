@@ -42,7 +42,7 @@ const PAGES = {
     <li id="chat-messages-42-2"><div><div id="message-content-2">Notes from class: <a id="safe" href="${SAFE}">${SAFE}</a></div></div></li>
     <li id="chat-messages-42-3"><div><div id="message-content-3">See you at 5</div></div></li></ol></main>
     <script>setTimeout(() => { document.getElementById('list').insertAdjacentHTML('beforeend',
-      '<li id="ask"><div><div id="message-content-4">Hi, I sent you a 6 digit code by mistake, can you send it to me?</div></div></li>'); }, 1500);</script>`),
+      '<li id="chat-messages-42-4"><div id="ask"><div id="message-content-4">Hi, I sent you a 6 digit code by mistake, can you send it to me?</div></div></li>'); }, 1500);</script>`),
   'web.whatsapp.com/': page('WhatsApp', `<div id="main">
     <div class="message-in"><div class="copyable-text" data-pre-plain-text="[10:30, 24/10/2026] Mum: "><span class="selectable-text">Hi love, this is my new number</span></div></div>
     <div class="message-in" id="ask"><div class="copyable-text" data-pre-plain-text="[10:31, 24/10/2026] Mum: "><span class="selectable-text">Can you buy me a $200 Apple gift card and send me the numbers on the back of the card?</span></div></div>
