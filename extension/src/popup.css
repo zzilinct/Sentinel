@@ -97,3 +97,10 @@ body {
 
 .lede { margin: 0 0 12px; color: var(--text-2); }
 .meta { margin: 10px 0 12px; }
+
+/* The keyboard's place, seen: .btn and the links are reset with all: unset, which took the browser's own ring too. */
+.btn:focus-visible, .link:focus-visible, .foot a:focus-visible, .threat:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.verdict { margin: 0 0 10px; font-size: 12.5px; }
+.verdict + .reasons { margin: -4px 0 10px; }
+h2.label { margin-top: 0; }
+.scan-error { color: var(--orange); margin: 0 0 10px; }

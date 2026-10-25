@@ -66,7 +66,7 @@ async function launch(extraArgs = []) {
   const browser = cdpPipe(child);
   const version = await Promise.race([browser.send('Browser.getVersion'), sleep(90000).then(() => { throw new Error('Chrome did not answer on its DevTools pipe'); })]);
   const close = async () => { child.kill(); await sleep(800); try { fs.rmSync(profile, { recursive: true, force: true }); } catch { /* still letting go */ } };
-  return { browser, version: version.product, close };
+  return { browser, version: version.product, close, profile };
 }
 
 async function evalIn(browser, sessionId, expression, opts = {}) {

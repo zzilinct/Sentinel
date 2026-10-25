@@ -607,6 +607,12 @@ const handlers = {
       return { error: err.message, locked: err.code === 'live_hours_exhausted' ? 'hours' : null };
     }
   },
+  /** What live scanning already said about the popup's page, from what this worker holds: nothing is scanned for it. */
+  async 'page-verdict'({ url }, sender) {
+    fromOptions(sender);
+    if (typeof url !== 'string' || !/^https?:/i.test(url)) return { verdict: null };
+    return { verdict: localVerdict(url) || cacheGet('research', url) || cacheGet('quick', url) || null };
+  },
   async 'deep-scan'({ url }) {
     const data = await apiFetch('/api/v1/scan/link', { method: 'POST', body: { url }, timeout: 90000 });
     account.usage = data.usage;

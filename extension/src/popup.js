@@ -67,6 +67,33 @@
 
     view.innerHTML = `${pageCard(url)}${liveCard(site)}`;
     wire(url);
+    if (url) pageState(tab, url);
+  }
+
+  /**
+   * What live scanning said about this page, when it said something: the worker's answer, or, when the browser has
+   * stopped the worker since, the "!" or "?" it left on the toolbar icon. Nothing is scanned for this.
+   */
+  async function pageState(tab, url) {
+    const el = document.getElementById('pageState');
+    const res = await send({ type: 'page-verdict', url });
+    const v = res.ok ? res.verdict : null;
+    let badge = v && v.overall ? v.overall.badge : null;
+    let label = badge ? v.overall.label : '';
+    if (!v) {
+      try {
+        const text = await ext.action.getBadgeText({ tabId: tab.id });
+        badge = text === '!' ? 'red' : text === '?' ? 'yellow' : null;
+        label = badge ? String(await ext.action.getTitle({ tabId: tab.id })).replace(/^Sentinel:\s*/, '') : '';
+      } catch { badge = null; }
+      if (!badge) return;
+    }
+    const color = `var(--${{ red: 'red', orange: 'orange', yellow: 'yellow' }[badge] || 'green'})`;
+    const reasons = v ? (v.reasons || []).slice(0, 2).map((r) => `<li>${esc(r.text)}</li>`).join('') : '';
+    el.innerHTML = !badge
+      ? `<p class="verdict" style="color:${color}">Live scanning found no warning signs on this page.</p>`
+      : `<p class="verdict" style="color:${color}"><b>${badge === 'yellow' ? 'Sentinel found warning signs on this page' : 'Sentinel flagged this page'}</b>${label ? `: ${esc(label)}` : ''}</p>${reasons ? `<ul class="reasons">${reasons}</ul>` : ''}`;
+    el.hidden = false;
   }
 
   function signedOut(site) {
@@ -92,6 +119,7 @@
       <div class="card" id="pageCard">
         <div class="label">This page</div>
         <div class="host">${esc(new URL(url).hostname)}</div>
+        <div id="pageState" data-page-state hidden></div>
         <div id="result"></div>
         <button class="btn gold block" id="scan" ${left <= 0 ? 'disabled' : ''}>
           ${left <= 0 ? 'No scans left this week' : `Scan this page &middot; ${left} left this week`}
@@ -137,17 +165,21 @@
     const used = (f.liveScanning ? state.live.usedMinutes : state.live.fastUsedMinutes) || 0;
     const known = f.liveScanning ? state.live.limitMinutes : state.live.fastLimitMinutes;
     const limit = known !== undefined && known !== 0 ? known : (f.liveScanning ? limits.liveMinutes : limits.fastMinutes);
-    const paused = state.locked === 'hours';
+    // A Free account on one of the five newest models gets no live answers (server plans.js assertModel): say so, rather
+    // than "On" in green over a scan that answers nothing.
+    const modelLocked = Boolean(state.account.plan.modelLocked);
+    const paused = state.locked === 'hours' || modelLocked;
     const reset = new Date(state.live.resetsAt || state.account.week.resetsAt);
     return `
       <div class="card">
         <div class="row"><div class="label" style="margin:0">Live protection</div>
-          <span class="small" style="color:${paused ? 'var(--orange)' : 'var(--green)'}">${paused ? 'Paused' : state.settings.enabled ? 'On' : 'Off'}</span></div>
+          <span class="small" style="color:${paused ? 'var(--orange)' : state.settings.enabled ? 'var(--green)' : 'var(--muted)'}">${paused ? 'Paused' : state.settings.enabled ? 'On' : 'Off'}</span></div>
         <div class="meter"><i style="--p:${limit ? Math.min(100, (used / limit) * 100) : 0}"></i></div>
         <div class="row small">
           <span>${f.liveScanning ? 'Delicate: ' : ''}${timeLeftText(used, limit)}</span>
           <span>Resets ${reset.toLocaleDateString(undefined, { weekday: 'short' })}</span>
         </div>
+        ${modelLocked ? `<p class="small" style="margin:8px 0 0;color:var(--orange)">The model Sentinel uses is one of the five newest, which come with Pro, Max and Ultimate. Choose another model in the Sentinel app, or <a href="${esc(site)}/pricing" target="_blank" rel="noopener">upgrade</a>, to turn live scanning back on.</p>` : ''}
         <p class="small" style="margin:8px 0 0">${f.liveResearch ? 'Delicate scanning researches every result.' : 'Results are checked instantly. Delicate scanning, which researches each result, comes with Pro.'}${f.emailLive && state.settings.emailProtection ? ' Email protection is on.' : ''}</p>
       </div>`;
   }
@@ -155,12 +187,16 @@
   function wire(url) {
     const btn = document.getElementById('scan');
     if (!btn) return;
+    const label = btn.innerHTML;
     btn.onclick = async () => {
       btn.disabled = true;
       btn.innerHTML = '<span class="spin" style="width:14px;height:14px"></span> Scanning';
       const res = await send({ type: 'deep-scan', url });
       if (!res.ok) {
-        btn.textContent = res.error || 'Scan failed';
+        // Said beside the button, which goes back to how it was: a sentence crammed into a dead button could not be read or retried.
+        document.getElementById('result').innerHTML = `<p class="small scan-error" role="alert">${esc(res.error || 'Sentinel could not scan this page. Try again in a moment.')}</p>`;
+        btn.innerHTML = label;
+        btn.disabled = false;
         return;
       }
       document.getElementById('result').innerHTML = renderResult(res.verdict);

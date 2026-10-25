@@ -93,7 +93,12 @@
     if (!shown.length) return;
     const group = document.createElement('span');
     group.className = 'sentinel-masks sentinel-masks--mail';
-    group.title = `Sentinel: ${shown.map((t) => verdict.threats[t].label).join(', ')}\n${(verdict.reasons || []).slice(0, 3).map((r) => '- ' + r.text).join('\n')}`;
+    const found = `Sentinel: ${shown.map((t) => verdict.threats[t].label).join(', ')}`;
+    const why = (verdict.reasons || []).slice(0, 3).map((r) => r.text);
+    group.title = `${found}\n${why.map((r) => `- ${r}`).join('\n')}`;
+    // A screen reader hears what was found and why, not only a mouse's tooltip.
+    group.setAttribute('role', 'img');
+    group.setAttribute('aria-label', [found, ...why].map((t) => t.replace(/\.$/, '')).join('. '));
     for (const t of shown) {
       const m = document.createElement('span');
       m.className = `sentinel-mask sentinel-mask--${verdict.threats[t].badge}`;
@@ -127,7 +132,9 @@
     busy = true;
     try {
       const res = await send({ type: 'live-email', emails: pending.map((p) => p.email) });
-      if (res.locked) { locked = res.locked !== 'hours'; return; }
+      // Not looked at yet (a pinned inbox tab, opened behind another): tried again when it is. Only a plan or a
+      // switched-off setting stops this page for good; used-up hours are tried again too.
+      if (res.locked) { locked = res.locked !== 'hours' && res.locked !== 'inactive'; return; }
       for (const r of res.results || []) {
         done.set(r.key, r.verdict);
         const item = pending.find((p) => p.key === r.key);
@@ -143,4 +150,7 @@
   new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(sweep, 900); })
     .observe(document.body, { childList: true, subtree: true });
   setTimeout(sweep, 1500);
+  const looked = () => { if (inUse()) { clearTimeout(timer); timer = setTimeout(sweep, 300); } };
+  document.addEventListener('visibilitychange', looked);
+  window.addEventListener('focus', looked);
 })();
