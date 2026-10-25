@@ -163,8 +163,10 @@ async function checkCompanionCore() {
     await goto(browser, web.sessionId, 'http://plain.test/plain.html');
     const paired = await popup('paired');
     await paired.close();
-    result('companion-core: popup paired shows the plan, this page, the Scan button, Live protection On, and the password alarm line',
-      paired.ready && paired.info.plan === 'Free' && paired.info.host === 'plain.test' && /Scan this page/.test(paired.info.text) && paired.info.live === 'On' && /Password alarm is off/.test(paired.info.pw) && !paired.info.scroll && !paired.errors.length,
+    result('companion-core: popup paired shows the plan, this page, the Scan button, Live protection On (or Paused with why), and the password alarm line',
+      // "On", or, when this server's model is one of the five newest (Free gets no live answers then), "Paused" with why.
+      paired.ready && paired.info.plan === 'Free' && paired.info.host === 'plain.test' && /Scan this page/.test(paired.info.text)
+        && (paired.info.live === 'On' || (paired.info.live === 'Paused' && /five newest/.test(paired.info.text))) && /Password alarm is off/.test(paired.info.pw) && !paired.info.scroll && !paired.errors.length,
       { ...paired.info, errors: paired.errors });
 
     // Live scanning switched off in the options page with a real click, then the popup.

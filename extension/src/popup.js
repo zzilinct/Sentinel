@@ -165,7 +165,10 @@
     const used = (f.liveScanning ? state.live.usedMinutes : state.live.fastUsedMinutes) || 0;
     const known = f.liveScanning ? state.live.limitMinutes : state.live.fastLimitMinutes;
     const limit = known !== undefined && known !== 0 ? known : (f.liveScanning ? limits.liveMinutes : limits.fastMinutes);
-    const paused = state.locked === 'hours';
+    // A Free account on one of the five newest models gets no live answers (server plans.js assertModel): say so, rather
+    // than "On" in green over a scan that answers nothing.
+    const modelLocked = Boolean(state.account.plan.modelLocked);
+    const paused = state.locked === 'hours' || modelLocked;
     const reset = new Date(state.live.resetsAt || state.account.week.resetsAt);
     return `
       <div class="card">
@@ -176,6 +179,7 @@
           <span>${f.liveScanning ? 'Delicate: ' : ''}${timeLeftText(used, limit)}</span>
           <span>Resets ${reset.toLocaleDateString(undefined, { weekday: 'short' })}</span>
         </div>
+        ${modelLocked ? `<p class="small" style="margin:8px 0 0;color:var(--orange)">The model Sentinel uses is one of the five newest, which come with Pro, Max and Ultimate. Choose another model in the Sentinel app, or <a href="${esc(site)}/pricing" target="_blank" rel="noopener">upgrade</a>, to turn live scanning back on.</p>` : ''}
         <p class="small" style="margin:8px 0 0">${f.liveResearch ? 'Delicate scanning researches every result.' : 'Results are checked instantly. Delicate scanning, which researches each result, comes with Pro.'}${f.emailLive && state.settings.emailProtection ? ' Email protection is on.' : ''}</p>
       </div>`;
   }
