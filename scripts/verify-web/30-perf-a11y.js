@@ -19,6 +19,9 @@ const { CANDIDATES, expand } = require('../verify-companion');
 const PUBLIC = ['/', '/pricing', '/download', '/privacy', '/terms', '/refunds', '/recover', '/practice', '/login', '/signup', '/forgot', '/guest', '/connect', '/reset', '/verify', '/no-such-page'];
 const APP = ['/app', '/app/week', '/app/scan', '/app/threats', '/app/email', '/app/text', '/app/call', '/app/history', '/app/sites', '/app/checkup',
   '/app/protection', '/app/plan', '/app/security', '/app/assistants', '/app/recover'];
+// Lighthouse often loses the start of its trace (NO_NAVSTART) when the page moves to a renderer process of its own;
+// kept in one process, it reads every page (runs 40151667784 and 40153531591).
+const ONE_PROCESS = '--disable-site-isolation-trials --disable-features=IsolateOrigins,site-per-process';
 const CATS = ['performance', 'accessibility', 'best-practices', 'seo'];
 const BUDGET = path.join(__dirname, 'perf-budget.json');
 // How far under its floor a score may fall before the check fails: performance moves a few points run to run on a
@@ -105,7 +108,11 @@ async function browserPass(axeSource, base, email, password) {
       }
       await evalIn(browser, s, `window.axe || (0, eval)(${JSON.stringify(axeSource)})`);
       return evalIn(browser, s, `axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] }, resultTypes: ['violations'] })
-        .then((r) => r.violations.map((x) => ({ id: x.id, impact: x.impact, help: x.help, nodes: x.nodes.length, where: x.nodes.slice(0, 5).map((n) => n.target.join(' ') + (n.failureSummary ? ' :: ' + n.failureSummary.replace(/\s+/g, ' ').slice(0, 200) : '')) })))`);
+        .then((r) => r.violations.map((x) => ({ id: x.id, impact: x.impact, help: x.help, nodes: x.nodes.length, where: x.nodes.slice(0, 5).map((n) => n.target.join(' ') + (n.failureSummary ? ' :: ' + n.failureSummary.replace(/\\s+/g, ' ').slice(0, 200) : '')),
+          // For a missing name, what hides the first one's words: its text and every ancestor hidden in any way.
+          why: /-name$/.test(x.id) ? (() => { const e = document.querySelector(x.nodes[0].target[0]); const out = []; for (let n = e; n && n.nodeType === 1; n = n.parentElement) { const c = getComputedStyle(n);
+            if (c.visibility !== 'visible' || c.display === 'none' || c.opacity === '0' || n.inert || n.getAttribute('aria-hidden') || (c.contentVisibility && c.contentVisibility !== 'visible')) out.push(n.tagName + '.' + n.className + ' visibility=' + c.visibility + ' opacity=' + c.opacity + ' cv=' + c.contentVisibility + ' inert=' + n.inert + ' aria-hidden=' + n.getAttribute('aria-hidden')); }
+            return (e ? JSON.stringify(e.textContent.slice(0, 40)) : 'gone') + ' ' + out.join(' | '); })() : undefined })))`);
     };
     const round = async (pages) => {
       for (const scheme of ['dark', 'light']) {
@@ -158,7 +165,7 @@ async function checkPerfA11y() {
     fs.writeFileSync(path.join(OUT, 'perf-a11y-axe.json'), JSON.stringify(axe, null, 2));
     const found = Object.entries(axe).filter(([, v]) => v.length);
     result('perf-a11y: axe-core finds no accessibility fault on any page, in dark or light', !found.length,
-      found.flatMap(([k, v]) => v.map((x) => `${k}: ${x.impact} ${x.id} x${x.nodes} (${x.help}) ${x.where.slice(0, 3).join(' | ')}`)));
+      found.flatMap(([k, v]) => v.map((x) => `${k}: ${x.impact} ${x.id} x${x.nodes} (${x.help}) ${x.where.slice(0, 3).join(' | ')}${x.why ? ` WHY ${x.why}` : ''}`)));
 
     /* ------------------------------------------------------- Lighthouse */
 
@@ -170,7 +177,7 @@ async function checkPerfA11y() {
         // three goes; the later ones keep the page in one renderer process, which is where the start went missing.
         let s = null;
         let tries = 0;
-        for (const flags of ['', '--disable-site-isolation-trials --disable-features=IsolateOrigins,site-per-process', '--disable-site-isolation-trials --disable-features=IsolateOrigins,site-per-process']) {
+        for (const flags of [ONE_PROCESS, ONE_PROCESS, '']) {
           s = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, file, flags));
           tries++;
           if (!s.error && s.scores.performance != null) break;
