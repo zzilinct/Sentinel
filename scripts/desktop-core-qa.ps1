@@ -521,6 +521,12 @@ if ($Part -eq 'use') {
   $ok = Until 30 { [K]::Tap(0x11); $script:marks = [string](Cdp 'overlay.html' "[...document.querySelectorAll('#marks .mark')].map((n) => n.dataset.state || 'pending').join(',')").value; $script:marks -match 'clear|scam|warn' }
   Shot 'edge-search-marks'
   Check 'msedge-search-marks' $ok "marks beside the results: $marks"
+  # When there are none: what Edge was showing (a real search engine may answer a runner with a check page) and what
+  # live scanning last read, so a missing mark is told apart from a page with no results to mark.
+  if (-not $ok) {
+    Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object { Say "  diag: Edge shows '$($_.MainWindowTitle)'" }
+    (WatchLog) -split "`n" | Select-Object -Last 8 | ForEach-Object { Say "  diag watch.log: $_" }
+  }
   # Stand-in scams: how long until the warning, and every button on it.
   function Warned($url) {
     $t0 = Get-Date
