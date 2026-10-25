@@ -1,8 +1,8 @@
-'use strict';
 /**
  * Chat safety: reads messages in Roblox and Discord the way a careful older sibling would, and speaks up only when a
  * message is suspicious. It runs inside the Windows app, on the computer the chat is on (desktop/src/chatwatch.js
- * loads this file directly): no message is sent anywhere, stored, or logged.
+ * loads a copy from desktop/shared), and in the browser companion for chats on the web (extension/src/content/webchat.js
+ * loads the copy scripts/build-extension.js makes): no message is sent anywhere, stored, or logged.
  *
  * Three families of danger, each from what research on online harm to children says to look for:
  *   grooming    an adult working toward a child: questions about age, home and school; checking whether parents are
@@ -11,13 +11,18 @@
  *               Thorn: 65% of minors were asked by an online-only contact to move to a private platform.)
  *   sextortion  threats to share pictures unless paid or obeyed (FBI and allied agencies' warnings).
  *   scams       free Robux, V-Bucks or Nitro; "verify your account"; asking for a password, code or cookie;
- *               "you go first" trades; fake "I reported you by mistake" stories; QR codes to scan.
+ *               "you go first" trades; fake "I reported you by mistake" stories; QR codes to scan; being paid in gift
+ *               cards or crypto.
  *
  * One ordinary question ("how old are you?", common between children) is never enough: signs add up per person over
  * the conversation, and only a clear sign, or several together, is flagged. The game or server it happens in changes
  * what is ordinary: "where do you live" in a role-play town is about a house in the game, "you go first" in a trading
  * game is still the oldest trick there is.
+ *
+ * One file for Node and the browser: in a page it is SentinelChat. The body is left unindented inside the wrapper.
  */
+(function (root) {
+'use strict';
 
 // Each sign: id, family, how strong (1 weak .. 5 decisive), and the words that show it.
 const SIGNS = [
@@ -51,8 +56,12 @@ const SIGNS = [
 
   // Scams.
   { id: 'freebie', family: 'scam', w: 4, re: /\b(free|claim|get|generator|gen)\b.{0,25}\b(robux|r\$|v-?bucks|nitro|premium|limiteds?|headless|korblox)\b|\b(robux|v-?bucks|nitro)\b.{0,25}\b(free|generator|giveaway|claim)\b/i },
-  { id: 'creds', family: 'scam', w: 5, re: /\b((give|send|tell|dm|type) (me )?(your|ur) (password|pass|pw|login|2fa|code|verification code|security code|pin|cookie|\.?roblosecurity|token)|what('?s| is) (your|ur) (password|pass|pw|2fa code|pin))\b/i },
-  { id: 'verify', family: 'scam', w: 4, re: /\b(verify (your|ur) (account|age|identity) (here|at|on|with|by)|(your|ur) account (will be|is going to be|gets) (banned|deleted|terminated|suspended)|(i|someone) (accidentally|mistakenly|by mistake) reported (you|u|your account))\b/i },
+  // A code sent to the person is the key to their account: "I sent you a code by mistake, send it back" is how
+  // WhatsApp, Telegram and Discord accounts are taken over.
+  { id: 'creds', family: 'scam', w: 5, re: /\b((give|send|tell|dm|type) (me )?(your|ur) (password|pass|pw|login|2fa|code|verification code|security code|pin|cookie|\.?roblosecurity|token)|what('?s| is) (your|ur) (password|pass|pw|2fa code|pin)|(give|send|tell|forward|read|share) (me |us )?(the|that) (\d[- ]?digit |six[- ]digit )?(code|verification code|security code|login code|otp)( (you|u) (got|get|received|just got)| (i|we|they) (sent|texted))?|what('?s| is) the code (you|u) (got|received|just got)|(sent|texted) (you|u) (a|an|the|my) (\d[- ]?digit |six[- ]digit )?code (by mistake|accidentally|by accident|on accident))\b/i },
+  { id: 'verify', family: 'scam', w: 4, re: /\b((verify|confirm) (your|ur) (account|age|identity|details) (here|at|on|with|by|now|below|using|through|via|within)|(your|ur) account (will be|is going to be|gets) (banned|deleted|terminated|suspended|locked|closed)|(i|someone) (accidentally|mistakenly|by mistake) reported (you|u|your account))\b/i },
+  // Paid in gift cards or crypto: no real company, bank, government or friend in trouble asks for that.
+  { id: 'pay', family: 'scam', w: 4, re: /\b((buy|get|grab|pick up|send|give) (me|us) (an? |some |the )?((\$|£|€)?\d+ (in |worth of )?)?(\w+ )?(gift ?cards?|itunes cards?|steam cards?|google play cards?)|(send|give|text|tell|read) (me |us )?(the )?(codes?|numbers?|pins?) (on|from|off|of) (the )?(back of )?(the |those |these |that )?(\w+ )?(cards?|gift ?cards?)|(pic|picture|photo) of the back of the (\w+ )?(card|gift ?card)|(pay|send|transfer|deposit)( me| us)?( it| the (\w+ )?(money|fee|fees|rest|amount|deposit|charge|tax)| (\$|£|€)?\d+)? (in|with|via|using|through) (bitcoin|btc|crypto|usdt|tether|ethereum|eth|gift ?cards?)|send (me |us )?((\$|£|€)?\d+ (worth )?(of |in )?|some |the )?(bitcoin|btc|crypto|usdt|tether|eth|ethereum) to|(go to|use|find) (a |the )?(bitcoin|btc|crypto) atm)\b/i },
   { id: 'trade', family: 'scam', w: 3, re: /\b((you|u) (go|give) first|(trust|trust me) trade|send (it|them|the items?) first and i('?ll| will)|i('?ll| will) (give|send) (it )?back (later|after)|middle ?man)\b/i },
   { id: 'qr', family: 'scam', w: 4, re: /\b(scan (this|the|my) (qr|code)|qr code to (claim|get|verify|log ?in))\b/i },
   // A phone number said in chat. Roblox and Discord are no place to hand one out, so any number is worth a warning.
@@ -127,7 +136,7 @@ const WHAT = {
   gift: 'offered gifts in return for something', photo: 'asked for pictures, a video or your camera',
   meet: 'asked to meet in person', sexual: 'said something sexual to you', extort: 'threatened to share pictures',
   threat: 'threatened you in real life', freebie: 'offered free Robux, V-Bucks or Nitro', creds: 'asked for your password or a code',
-  verify: 'said your account is in trouble', trade: 'asked you to trade first', qr: 'asked you to scan a code',
+  verify: 'said your account is in trouble', pay: 'asked to be paid in gift cards or crypto', trade: 'asked you to trade first', qr: 'asked you to scan a code',
   download: 'asked you to download or run something',
   scamnum: 'posted a phone number from an area code known for phone scams (calling back can cost money)', number: 'shared a phone number'
 };
@@ -185,4 +194,7 @@ function conversation(context = {}) {
   };
 }
 
-module.exports = { conversation, placeKinds, signsIn, SIGNS };
+const api = { conversation, placeKinds, signsIn, SIGNS };
+if (typeof module === 'object' && module.exports) module.exports = api;
+else root.SentinelChat = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
