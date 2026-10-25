@@ -182,7 +182,7 @@ const SCENES = [
       text(214, 110, 'Your browser is out of date', { size: 14, bold: true, anchor: 'middle' }) + text(214, 128, 'Update now to keep viewing this page.', { size: 10, anchor: 'middle', fill: '#555' }) + button(214, 140, 130, 'Update', '#1a73e8')) },
   { id: 'doubleext', kind: 'virus', tint: 'red', tag: 'Program dressed as a PDF', title: 'A program named like a PDF',
     caption: 'A file called Statement.pdf.exe: a program wearing a document\u2019s name.',
-    svg: () => email('Accounts <accounts@statements-portal.com>', 'Your statement is ready', ['Please open the attached statement', 'and confirm the payment details.'], filechip(154, 140, 'Statement.pdf.exe') + filechip(154, 182, 'Statement.pdf', '#5a6070'), { bg1: '#e6d6d6', bg2: '#b89b9b', accent: '#c0392b' }) },
+    svg: () => email('Accounts <accounts@statement-ready-portal.top>', 'Your statement is ready', ['Please open the attached statement', 'and confirm the payment details.'], filechip(154, 140, 'Statement.pdf.exe') + filechip(154, 182, 'Statement.pdf', '#5a6070'), { bg1: '#e6d6d6', bg2: '#b89b9b', accent: '#c0392b' }) },
   { id: 'clickfix', kind: 'malware', tint: 'red', tag: 'Paste-and-run trap', title: 'A check that asks you to paste a command',
     caption: 'A fake robot check that asks you to press Windows+R and paste a command.',
     svg: () => browser('cdn-verify-human.live/check', rect(0, 0, 428, 200, '#f5f6f8') + rect(84, 18, 260, 164, '#fff', { r: 6, stroke: '#d5d9e0' }) +
