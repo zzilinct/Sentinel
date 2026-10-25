@@ -7,7 +7,8 @@
  * For CI only (.github/workflows/review-shots.yml): a headless browser plays the home page as a mid-range phone
  * (390 x 844, touch, the processor slowed four times) and as a computer. It records every frame's length, the
  * long tasks that freeze the page, how many 3D drawing contexts are open, and how much work the page does, while
- * it opens, while a finger rests on the hero mask, and while it is scrolled from top to bottom. The hero is
+ * it opens, while it sits settled with nothing happening (how busy the main thread stays), while a finger rests on
+ * the hero mask, and while it is scrolled from top to bottom. The hero is
  * photographed every 120 ms while touched (a mask that spins or leaves its place shows up there), and each screen
  * as the scroll arrives (a section that appears late shows up there).
  */
@@ -75,6 +76,13 @@ async function probe(send, name, { width, height, mobile, cpu }) {
   await s('Page.navigate', { url: `${BASE}/?intro=1` });
   await sleep(9000);
   const tBoot = await now();
+  // Settled: 5 s with nothing happening, and how much of it the main thread was busy (the 3D masks rest then).
+  const task = async () => (await s('Performance.getMetrics')).metrics.find((x) => x.name === 'TaskDuration').value;
+  const k0 = await task();
+  const w0 = Date.now();
+  await sleep(5000);
+  const settledBusy = Math.round(((await task()) - k0) / ((Date.now() - w0) / 1000) * 100);
+  const tSettled = await now();
 
   // 2. A finger on the hero mask, moved a little, then lifted; the hero photographed as it reacts.
   const hero = (await s('Runtime.evaluate', { returnByValue: true, expression: "(() => { const r = document.querySelector('[data-hero-mask]').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()" })).result.value;
@@ -83,7 +91,7 @@ async function probe(send, name, { width, height, mobile, cpu }) {
   const fy = hero.y + hero.h * 0.3;
   const touch = (type, x, y) => s('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
   const pointer = (type, x, y) => s('Input.dispatchMouseEvent', { type, x, y, button: 'none' });
-  const t0 = await now();
+  const t0 = tSettled;
   if (mobile) await touch('touchStart', fx, fy); else await pointer('mouseMoved', fx, fy);
   for (let i = 0; i < 10; i++) {
     const x = fx - i * 12;
@@ -113,6 +121,7 @@ async function probe(send, name, { width, height, mobile, cpu }) {
   return {
     name, cpu, webglContexts: gl,
     boot: stats(frames, long, 0, tBoot),
+    settled: { busyPct: settledBusy, ...stats(frames, long, tBoot, tSettled) },
     heroTouch: stats(frames, long, t0, tHero),
     scroll: stats(frames, long, tHero, tScroll),
     totals: {
@@ -140,7 +149,7 @@ async function main() {
     fs.writeFileSync(path.join(OUT, `${LABEL}-results.json`), JSON.stringify(results, null, 2));
     for (const r of results) {
       console.log(`\n${r.name} (cpu x${r.cpu}), WebGL contexts: ${r.webglContexts}`);
-      for (const phase of ['boot', 'heroTouch', 'scroll']) console.log(`  ${phase.padEnd(9)} ${JSON.stringify(r[phase])}`);
+      for (const phase of ['boot', 'settled', 'heroTouch', 'scroll']) console.log(`  ${phase.padEnd(9)} ${JSON.stringify(r[phase])}`);
       console.log(`  totals    ${JSON.stringify(r.totals)}`);
     }
   } finally {

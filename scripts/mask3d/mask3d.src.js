@@ -353,12 +353,15 @@ async function build(el) {
     ctx.clearRect(0, 0, w, h);
     // WebGL counts rows from the bottom: this mask's picture is the bottom-left w x h of the shared surface.
     ctx.drawImage(r.domElement, 0, S.h - h, w, h, 0, 0, w, h);
+    mask.draws++;
     if (!shown) { shown = true; requestAnimationFrame(() => el.classList.add('mask3d--ready')); }
   };
 
   const mask = {
     el,
     last: performance.now(),
+    draws: 0,
+    onScreen: () => visible,
     // One frame of this mask: 2 while it is moving (every frame wanted), 1 while it only drifts, 0 when it is still.
     step(now, resting) {
       if (!visible) return 0;
@@ -498,5 +501,10 @@ function start() {
   els.forEach((el) => io.observe(el));
 }
 
-window.SentinelMask3D = { mount, get: (el) => masks.get(el) || null, scan: start, FINISH: Object.keys(FINISH) };
+window.SentinelMask3D = {
+  mount, get: (el) => masks.get(el) || null, scan: start, FINISH: Object.keys(FINISH),
+  // For the site's checks (scripts/verify-web/45-mask-rest.js): whether the masks rest, and how often each (or el's) was
+  // drawn.
+  state: (el) => ({ resting: performance.now() > awakeUntil, masks: [...all].filter((m) => !el || m.el === el).map((m) => ({ kind: m.el.dataset.mask3d, draws: m.draws, onScreen: m.onScreen() })) })
+};
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
