@@ -27,6 +27,11 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // How often a mask that is only drifting (breathing, swaying, its eyes flickering) is redrawn: slow motion needs few
 // frames, and on a phone fewer still (the drift is the same, the phone stays cool).
 const IDLE_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;
+// Once nothing has happened for a while (no pointer, no scroll, no turn or colour change, the entrance done), the
+// masks rest: they keep drifting, drawn about fifteen times a second (ten on a phone), and the page's main thread and
+// the battery get the rest. Any pointer move or scroll wakes them at once.
+const SETTLE_MS = 2500;
+const REST_MS = matchMedia('(pointer: coarse)').matches ? 100 : 66;
 
 // Finishes, matching the Blender renders (masks.py LOOKS and TINTS).
 const FINISH = {
@@ -159,16 +164,30 @@ let raf = 0;
 // While the page scrolls, the idle drifting (breathing, swaying) waits: frames go to the scroll, and nothing is lost
 // by a mask holding still for the moment it moves past. Anything that is happening (a turn, the black hole) goes on.
 let scrollingUntil = 0;
-addEventListener('scroll', () => { scrollingUntil = performance.now() + 160; }, { passive: true, capture: true });
-function wake() { if (!raf) raf = requestAnimationFrame(tick); }
+let awakeUntil = 0;
+let rest = 0;
+addEventListener('scroll', () => { scrollingUntil = performance.now() + 160; stir(); }, { passive: true, capture: true });
+function wake() {
+  if (rest) { clearTimeout(rest); rest = 0; }
+  if (!raf) raf = requestAnimationFrame(tick);
+}
+// Something happened: full motion for a while.
+function stir() { awakeUntil = performance.now() + SETTLE_MS; wake(); }
 function tick(now) {
   raf = 0;
   if (document.hidden || (shared && shared.lost)) return;
-  let more = false;
-  for (const m of all) if (m.step(now)) more = true;
-  if (more) wake();
+  const resting = now > awakeUntil;
+  let busy = false;
+  let drift = false;
+  for (const m of all) {
+    const s = m.step(now, resting);
+    if (s === 2) busy = true; else if (s) drift = true;
+  }
+  // At rest, nothing asks for the next frame: a timer does, a few times a second.
+  if (busy || (drift && !resting)) wake();
+  else if (drift) rest = setTimeout(wake, REST_MS);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { for (const m of all) m.last = performance.now(); wake(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { for (const m of all) m.last = performance.now(); stir(); } });
 
 /* --------------------------------------------------------------- a mask */
 
@@ -176,8 +195,8 @@ const masks = new WeakMap();
 // Only a mouse or a pen points: a finger touching the screen is not hovering, and following it made the hero whip
 // round to face every tap.
 let pointer = null;
-addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.pointerType === 'pen') { pointer = { x: e.clientX, y: e.clientY }; wake(); } }, { passive: true });
-document.addEventListener('pointerleave', () => { pointer = null; wake(); });
+addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.pointerType === 'pen') { pointer = { x: e.clientX, y: e.clientY }; stir(); } }, { passive: true });
+document.addEventListener('pointerleave', () => { pointer = null; stir(); });
 
 const mounting = new WeakMap();
 function mount(el) {
@@ -286,11 +305,11 @@ async function build(el) {
     camera.fov = w / h < 0.72 ? 20 * (0.72 / (w / h)) : 20;
     camera.updateProjectionMatrix();
     dirty = true;
-    wake();
+    stir();
   };
   let visible = false;
   new ResizeObserver(resize).observe(el);
-  new IntersectionObserver((e) => { visible = e[0].isIntersecting; if (visible) { mask.last = performance.now(); wake(); } }, { rootMargin: '80px' }).observe(el);
+  new IntersectionObserver((e) => { visible = e[0].isIntersecting; if (visible) { mask.last = performance.now(); stir(); } }, { rootMargin: '80px' }).observe(el);
   resize();
 
   /* -------- motion: a calm spring toward where it should look */
@@ -340,9 +359,9 @@ async function build(el) {
   const mask = {
     el,
     last: performance.now(),
-    // One frame of this mask: true while it wants more frames.
-    step(now) {
-      if (!visible) return false;
+    // One frame of this mask: 2 while it is moving (every frame wanted), 1 while it only drifts, 0 when it is still.
+    step(now, resting) {
+      if (!visible) return 0;
       const dt = Math.min(0.05, Math.max(0, (now - mask.last) / 1000));
       mask.last = now;
       target();
@@ -375,15 +394,17 @@ async function build(el) {
       }
       if (anim && anim(now) === false) anim = null;
       const moving = Math.abs(tx - look.x) + Math.abs(ty - look.y) + Math.abs(tw - look.w) + Math.abs(look.vx) + Math.abs(look.vy) > 0.0005;
-      // Only drifting (breathing, swaying, the eyes' flicker): half the frames are plenty, and none while scrolling.
+      // Only drifting (breathing, swaying, the eyes' flicker): half the frames are plenty, fewer at rest, and none
+      // while scrolling. (At rest the timer is a little late or early: a frame's slack.)
       const idle = !moving && !anim;
       const scrolling = now < scrollingUntil;
-      if (dirty || !idle || (!scrolling && now - drawnAt > IDLE_MS)) { draw(); drawnAt = now; dirty = false; }
-      return moving || Boolean(anim) || !reduced || Boolean(eyes);
+      const every = resting ? REST_MS - 8 : IDLE_MS;
+      if (dirty || !idle || (!scrolling && now - drawnAt > every)) { draw(); drawnAt = now; dirty = false; }
+      return !idle ? 2 : (!reduced || eyes) ? 1 : 0;
     }
   };
   all.add(mask);
-  wake();
+  stir();
 
   /* -------- controls */
 
@@ -402,7 +423,7 @@ async function build(el) {
   const api = {
     el,
     // Straight to a finish (no transition).
-    tint(name) { setFinish(name); dirty = true; wake(); },
+    tint(name) { setFinish(name); dirty = true; stir(); },
     // A smooth change of colour, for the colour reading and the plates' quieter steps.
     blend(name, ms = 900) {
       const fin = FINISH[name] || FINISH.scam;
@@ -415,7 +436,7 @@ async function build(el) {
         if (u >= 1) { setFinish(name); return false; }
         return true;
       };
-      wake();
+      stir();
     },
     // The black hole: the mask is pulled in and vanishes from the outside in (out, ms), then the new one grows from
     // the inside out (in). Returns when the new mask is whole.
@@ -448,7 +469,7 @@ async function build(el) {
           }
           return true;
         };
-        wake();
+        stir();
       });
     }
   };
