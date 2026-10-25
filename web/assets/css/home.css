@@ -304,7 +304,10 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   pointer-events: none; opacity: 0; transition: opacity .2s ease; z-index: 2; }
 .galaxy__caption.is-on { opacity: 1; }
 /* The same scenes as a list, for the keyboard and screen readers: unseen, and the canvas shows the focused card. */
-.galaxy__list { position: absolute; left: 50%; top: 50%; width: 1px; height: 1px; margin: 0; padding: 0; list-style: none; overflow: hidden; clip-path: inset(50%); white-space: nowrap; pointer-events: none; }
+/* Each button is hidden the screen-reader-only way, not the list behind opacity or a 1 px box: hidden like that, axe and
+   some readers treat the buttons as having no name. */
+.galaxy__list { position: absolute; left: 50%; top: 50%; margin: 0; padding: 0; list-style: none; pointer-events: none; }
+.galaxy__list button { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* Below the stage, on the page, where nothing passes behind it. */
 .galaxy__hint { margin: 14px 0 0; padding: 0 16px; text-align: center; font-size: 14px; color: var(--text-2); }
 /* The chapter rail (site.js) steps aside while the galaxy is on screen, so its dots never sit on the cards. */

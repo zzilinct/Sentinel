@@ -25,11 +25,11 @@ const BUDGET = path.join(__dirname, 'perf-budget.json');
 // shared runner, the others hardly at all.
 const SLACK = { performance: 8, accessibility: 2, 'best-practices': 5, seo: 2 };
 
-function lighthouse(cli, url, form, headersFile, jsonOut) {
+function lighthouse(cli, url, form, headersFile, jsonOut, extraFlags = '') {
   // A page that never lets the main thread rest runs Lighthouse to this limit; at 45 s the trace grew too long to read
   // (NO_NAVSTART), so the limit is shorter and the report says the page was still busy.
   const args = [cli, url, '--quiet', '--output=json', `--output-path=${jsonOut}`, `--only-categories=${CATS.join(',')}`,
-    '--chrome-flags=--headless=new --no-first-run --no-default-browser-check', '--disable-full-page-screenshot', '--max-wait-for-load=20000'];
+    `--chrome-flags=--headless=new --no-first-run --no-default-browser-check ${extraFlags}`.trim(), '--disable-full-page-screenshot', '--max-wait-for-load=20000'];
   if (form === 'desktop') args.push('--preset=desktop');
   if (headersFile) args.push(`--extra-headers=${headersFile}`);
   const chrome = CANDIDATES.chrome.map(expand).find((p) => fs.existsSync(p));
@@ -166,15 +166,23 @@ async function checkPerfA11y() {
     for (const form of ['mobile', 'desktop']) {
       for (const p of [...PUBLIC, ...APP].filter((x) => x !== '/no-such-page')) { // Lighthouse will not report on a 404; axe still reads it
         const file = path.join(dir, `${form}${p.replace(/\//g, '_') || '_'}.json`);
-        let s = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, file));
-        if (s.error) s = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, file)); // one more go on a stalled runner
+        // Lighthouse now and then loses the start of its trace (NO_NAVSTART: no performance score). Each page gets up to
+        // three goes; the later ones keep the page in one renderer process, which is where the start went missing.
+        let s = null;
+        let tries = 0;
+        for (const flags of ['', '--disable-site-isolation-trials --disable-features=IsolateOrigins,site-per-process', '--disable-site-isolation-trials --disable-features=IsolateOrigins,site-per-process']) {
+          s = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, file, flags));
+          tries++;
+          if (!s.error && s.scores.performance != null) break;
+        }
+        s.tries = tries;
         rows[`${form} ${p}`] = s;
-        console.log(`      ${form} ${p}: ${s.error ? `ERROR ${s.error}` : `${CATS.map((c) => s.scores[c]).join('/')}  LCP ${s.lcp} ms  CLS ${s.cls}  TBT ${s.tbt} ms  ${s.kb} KB`}`);
+        console.log(`      ${form} ${p}: ${s.error ? `ERROR ${s.error}` : `${CATS.map((c) => s.scores[c]).join('/')}  LCP ${s.lcp} ms  CLS ${s.cls}  TBT ${s.tbt} ms  ${s.kb} KB, ${tries} go(es)`}`);
       }
     }
     fs.writeFileSync(path.join(OUT, 'perf-a11y-lighthouse.json'), JSON.stringify(rows, null, 2));
-    const errored = Object.entries(rows).filter(([, r]) => r.error);
-    result('perf-a11y: Lighthouse measured every page at phone and desktop size', !errored.length, errored.map(([k, r]) => `${k}: ${r.error}`));
+    const errored = Object.entries(rows).filter(([, r]) => r.error || r.scores.performance == null);
+    result('perf-a11y: Lighthouse measured every page at phone and desktop size', !errored.length, errored.map(([k, r]) => `${k}: ${r.error || 'no performance score (NO_NAVSTART)'}`));
 
     const budget = fs.existsSync(BUDGET) ? JSON.parse(fs.readFileSync(BUDGET, 'utf8')) : {};
     const under = [];

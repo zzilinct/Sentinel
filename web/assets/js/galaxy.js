@@ -480,19 +480,27 @@
 
   function running() { return seen && !document.hidden && !reduced; }
 
+  // While nobody is at it (no pointer, no card held or enlarged, no ripple, the arrival over), the spiral only drifts
+  // and turns, slowly: it is drawn at most every IDLE_MS (as the 3D masks are), which halves the work and looks the
+  // same. The governor still counts every frame the browser offers, so it judges the machine, not this pace.
+  var IDLE_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;
+  var lastDraw = 0;
+  function busy(now) { return pointer || held || boosted || ripples.length || now - started < (P.introDur + P.burstDur) * 1000 + 500; }
   function frame(now) {
     raf = 0;
-    if (!running()) { last = 0; return; }
-    var dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / 60;
+    if (!running()) { last = lastDraw = 0; return; }
     var gdt = last ? (now - last) / 1000 : 0;
     last = now;
     if (!started) started = now;
     if (now - started > 2500) gov.tick(gdt);
+    raf = requestAnimationFrame(frame);
+    if (lastDraw && now - lastDraw < IDLE_MS - 4 && !busy(now)) return;
+    var dt = lastDraw ? Math.min(0.1, (now - lastDraw) / 1000) : 1 / 60;
+    lastDraw = now;
     if (pointer) hover();
     step(dt, now);
     draw(now);
     frames++;
-    raf = requestAnimationFrame(frame);
   }
   function wake() { if (!raf && running()) raf = requestAnimationFrame(frame); }
 

@@ -1288,7 +1288,7 @@
 
     input.innerHTML = `<label class="drop" data-drop>
       <input type="file" data-file aria-label="Choose a file to scan">
-      <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a file here, or click to choose</h3><p>Programs, documents, archives, scripts, installers</p></div>
+      <div><div class="drop__icon">${ICON.upload}</div><h2>Drop a file here, or click to choose</h2><p>Programs, documents, archives, scripts, installers</p></div>
     </label>`;
     const drop = $('[data-drop]', input);
     const fileInput = $('[data-file]', input);
@@ -2244,7 +2244,7 @@
 
     const feature = (icon, name, body, status) => `<div class="feature">
       <div class="feature__top"><span class="feature__icon">${icon}</span>${status}</div>
-      <h4>${name}</h4><p>${body}</p></div>`;
+      <h3>${name}</h3><p>${body}</p></div>`;
     const st = (on, lockedText) => (on ? '<span class="status is-on">On</span>' : `<span class="status is-locked">${lockedText}</span>`);
 
     const needsApp = !desktop;
