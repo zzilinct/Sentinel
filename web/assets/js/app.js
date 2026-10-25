@@ -8,6 +8,12 @@
   const desktop = window.sentinelDesktop || null;
 
   const state = { me: null, config: null, plans: null, desktopInfo: null };
+  const Share = window.SentinelShare;
+  // What the phone's Share menu handed over, on its way from /app/share to the check it opens (textView).
+  let shared = null;
+  // iPhones never list a web app in their Share menu.
+  const iphone = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const IPHONE_NOTE = 'On iPhone, web apps cannot be in the Share menu. Press and hold the message or link, choose Copy, then paste it here.';
 
   const ICON = {
     link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>',
@@ -27,6 +33,17 @@
   /* ================================================================ boot */
 
   async function boot() {
+    // A share sent as /app/share?title=&text=&url= waits on this device, off the address bar, so that signing in first
+    // (the address goes to the sign-in page) loses nothing and carries none of it along. Any other page empties the
+    // share box: what was shared is not kept beyond the check it was for.
+    if (location.pathname.replace(/\/$/, '') === '/app/share') {
+      const q = new URLSearchParams(location.search);
+      if (['title', 'text', 'url'].some((k) => q.get(k))) {
+        try { await Share.put({ title: q.get('title') || '', text: q.get('text') || '', url: q.get('url') || '' }); } catch { /* read below, from the address */ }
+        history.replaceState({}, '', '/app/share');
+        if (!q.has('missed')) shared = { query: q };
+      }
+    } else Share.clear();
     try {
       const [me, config] = await Promise.all([api('/auth/me'), api('/auth/config')]);
       state.me = me;
@@ -184,7 +201,8 @@
     '/app/assistants': ['assistants', assistantsView],
     '/app/sites': ['sites', sitesView],
     '/app/checkup': ['checkup', checkupView],
-    '/app/recover': ['recover', recoverView]
+    '/app/recover': ['recover', recoverView],
+    '/app/share': ['share', shareView]
   };
 
   function render() {
@@ -207,7 +225,7 @@
     fn(el, new URLSearchParams(location.search));
     // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
     restoreDrafts();
-    document.title = `${{ home: 'Overview', week: 'Your week', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', text: 'Text scan', call: 'Is this call a scam?', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide' }[name]} · Sentinel`;
+    document.title = `${{ home: 'Overview', week: 'Your week', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', text: 'Text scan', call: 'Is this call a scam?', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide', share: 'Shared with Sentinel' }[name]} · Sentinel`;
   }
 
   /** Render a verdict with its checklist tools and follow-up actions. */
@@ -1614,6 +1632,33 @@
     });
   }
 
+  /* ======================================================= shared from a phone */
+
+  // The phone's Share menu opens /app/share (manifest.webmanifest share_target): a link goes to the link scan, words to
+  // the text scan (their links checked), a picture to the text scan's screenshot reader (share.js decides). The share
+  // box is emptied as it is read, so nothing shared stays on the device after this.
+  function shareView(el, params) {
+    el.innerHTML = `${title('Shared with Sentinel', 'Opening the right check for what you shared.')}<div data-out aria-live="polite"></div>`;
+    const fromQuery = shared && shared.query;
+    shared = null;
+    Share.take().catch(() => null).then((got) => {
+      if (!el.isConnected) return;
+      const q = fromQuery;
+      const share = got || (q ? { title: q.get('title') || '', text: q.get('text') || '', url: q.get('url') || '', image: null } : null);
+      const r = share ? Share.route({ ...share, image: Boolean(share.image) }) : { kind: 'empty' };
+      const go = (href) => { history.replaceState({}, '', href); render(); };
+      if (r.kind === 'link') return go(`/app/scan?url=${encodeURIComponent(r.url)}`);
+      if (r.kind === 'text') { shared = { text: r.text }; return go('/app/text'); }
+      if (r.kind === 'image') { shared = { image: share.image }; return go('/app/text'); }
+      $('[data-out]', el).innerHTML = `<div class="panel" data-share-empty>
+        <p>${params.get('missed') ? 'What you shared did not reach Sentinel. Please share it once more.' : 'Nothing is waiting to be checked.'}
+          In Messages, WhatsApp, Gmail or your browser, press Share and choose Sentinel: a link opens in Link scan, a message in Text scan.</p>
+        <p class="field__hint u-mt-sm" data-iphone-note>${esc(IPHONE_NOTE)}</p>
+        <p class="u-mt-sm"><a class="btn btn--sm" href="/app/text">Text scan</a> <a class="btn btn--sm" href="/app/scan">Link scan</a></p>
+      </div>`;
+    });
+  }
+
   /* ===================================================== text message scan */
 
   // A text, WhatsApp message or DM, pasted in or read from a phone screenshot on this computer (the way the email scan
@@ -1637,6 +1682,7 @@
           ? 'Read on this computer by Windows. The image is not uploaded or kept. A screenshot of a whole conversation works too.'
           : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>, or paste the text instead.'}</p>
       </div>
+      ${iphone ? `<p class="field__hint" data-iphone-note>${esc(IPHONE_NOTE)}</p>` : ''}
       <form class="panel" data-form data-draft="text-scan">
         <div class="field"><label for="t-from">From <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="t-from" name="from" dir="auto" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
         <div class="field"><label for="t-text">Message or conversation</label><textarea class="textarea" id="t-text" name="text" rows="6" placeholder="Paste the message, or the whole conversation, including any links"></textarea></div>
@@ -1721,6 +1767,23 @@
         wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, $('[data-text-result]', out).dataset.textResult));
         out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
       } catch (err) { out.innerHTML = friendlyError(err); }
+    });
+
+    // Shared from the phone's Share menu (shareView): checked at once, as a link shared to Link scan is. After the
+    // drafts are put back (render), so an old draft never takes the place of what was shared.
+    const share = shared;
+    shared = null;
+    if (share) Promise.resolve().then(() => {
+      if (share.text) {
+        form.from.value = '';
+        form.text.value = share.text;
+        form.text.dispatchEvent(new Event('input', { bubbles: true }));
+        form.requestSubmit();
+      } else if (share.image) {
+        setMode('shot');
+        readShot(share.image);
+        if (!canRead) shotStatus.textContent = 'The words in a picture are read by the Sentinel app for Windows, so this phone cannot read them here. Copy the message itself, then share or paste it instead.';
+      }
     });
   }
 

@@ -15,7 +15,7 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  "img-src 'self' data: https://lh3.googleusercontent.com",
+  "img-src 'self' data: blob: https://lh3.googleusercontent.com",   // blob: a screenshot chosen for a scan, shown from this device
   "connect-src 'self' https://api.github.com",
   "media-src 'self'",
   "object-src 'none'",

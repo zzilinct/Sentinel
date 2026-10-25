@@ -25,7 +25,7 @@ function buildRouter() {
 }
 
 // Clean URLs for the app shell: /app/scan, /app/settings ... all serve app.html.
-const APP_ROUTES = /^\/app(\/(scan|week|threats|email|text|call|history|sites|protection|plan|security|assistants|download|checkup|recover))?\/?$/;
+const APP_ROUTES = /^\/app(\/(scan|week|threats|email|text|call|history|sites|protection|plan|security|assistants|download|checkup|recover|share))?\/?$/;
 
 function createServer() {
   const router = buildRouter();
@@ -69,6 +69,10 @@ function createServer() {
         return;
       }
 
+      // A share from the phone's Share menu (manifest.webmanifest share_target) is taken by the service worker on the
+      // phone (sw.js). It reaches this server only when that was not running: nothing in it is read or kept, and the
+      // page asks for the share once more.
+      if (req.method === 'POST' && url.pathname === '/app/share') { send(res, 303, null, { Location: '/app/share?missed=1', Connection: 'close' }); return; }
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed', 'Method not allowed');
 
       if (APP_ROUTES.test(url.pathname)) {
