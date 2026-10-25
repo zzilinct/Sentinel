@@ -34,9 +34,9 @@ async function crawl(browser, s, base, pages, label) {
     const before = errors.length;
     await goto(browser, s, base + p);
     await sleep(900);
-    // The first page of a cold browser on a shared runner is now and then slow (the home page at 3.9 s, 0.8 s the
-    // next time, run 40219707433): a page over the line is opened once more and that time counts, as the app and
-    // accounts checks do. A page that is slow both times still fails.
+    // The first page of a cold browser on a shared runner is now and then slow (the home page at 3.9 s in run
+    // 40219707433, under 3 s in the runs before it): a page over the line is opened once more and that time counts,
+    // as the app and accounts checks do. A page that is slow both times still fails.
     if (await evalIn(browser, s, "((performance.getEntriesByType('navigation')[0] || {}).loadEventEnd || 0) >= 3000")) { await goto(browser, s, base + p); await sleep(900); }
     const info = await evalIn(browser, s, `(() => {
       const nav = performance.getEntriesByType('navigation')[0] || {};
