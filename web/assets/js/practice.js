@@ -38,12 +38,12 @@
       id: 'signin', kind: 'email', scam: true,
       from: 'Microsoft Account Team', address: '{{sender:security-alert@msft-account-verify.com}}',
       subject: 'Unusual sign-in activity',
-      body: 'We detected a sign-in to your account from a new device.\n{{threat:Your account will be closed in 24 hours}} unless you confirm it is yours.\n[ {{button:Verify now}} ]\nThe button opens {{link:login-microsoftonline.account-check.ru}}',
+      body: 'We detected a sign-in to your account from a new device.\n{{threat:Your account will be closed in 24 hours}} unless you confirm it is yours.\n[ {{button:Verify now}} ]\nThe button opens {{link:login-microsoftonline.acct-check-login.ru}}',
       clues: {
         sender: { label: 'The sender is not the company', why: 'The name says Microsoft, but the address belongs to msft-account-verify.com.' },
         threat: { label: 'A threat with a deadline', why: 'Real companies do not close your account in a day for one sign-in.' },
         button: { label: 'A button to sign in', why: 'A real alert says to open the app or type the address yourself. A button is how they get your password.' },
-        link: { label: 'The button\'s real address', why: 'What matters is the end of the address: account-check.ru. That is not Microsoft.' }
+        link: { label: 'The button\'s real address', why: 'What matters is the end of the address: acct-check-login.ru. That is not Microsoft.' }
       }
     },
     {
