@@ -1,4 +1,4 @@
-/* Sentinel masks inside search results and webmail. Scoped so host pages can't restyle them. */
+/* Sentinel masks inside search results, webmail and web chats. Scoped so host pages can't restyle them. */
 
 .sentinel-masks {
   display: inline-flex !important;
@@ -12,7 +12,7 @@
   animation-delay: var(--sentinel-delay, 0ms);
 }
 
-.sentinel-masks--mail { margin-left: 6px; cursor: help; }
+.sentinel-masks--mail, .sentinel-masks--chat { margin-left: 6px; cursor: help; }
 
 .sentinel-mask {
   display: inline-grid !important;

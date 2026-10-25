@@ -3,7 +3,7 @@
   "name": "Sentinel Companion",
   "short_name": "Sentinel",
   "version": "1.5.0",
-  "description": "Live scam, virus and malware masks on search results, in your inbox and beside any link you point at. Part of the Sentinel app. Works in Chrome, Edge, Brave and Firefox.",
+  "description": "Live scam, virus and malware masks on search results, in your inbox, in web chats and beside any link you point at. Part of the Sentinel app. Works in Chrome, Edge, Brave and Firefox.",
   "homepage_url": "https://www.usesentinel.technology",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -79,6 +79,28 @@
       "js": [
         "src/content/masks.js",
         "src/content/mail.js"
+      ],
+      "css": [
+        "src/content/sentinel.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://discord.com/*",
+        "https://ptb.discord.com/*",
+        "https://canary.discord.com/*",
+        "https://web.whatsapp.com/*",
+        "https://www.messenger.com/*",
+        "https://www.facebook.com/*",
+        "https://web.telegram.org/*",
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "src/content/masks.js",
+        "src/content/chat.js",
+        "src/content/webchat.js"
       ],
       "css": [
         "src/content/sentinel.css"
