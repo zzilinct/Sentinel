@@ -98,9 +98,15 @@ async function browserPass(axeSource, base, email, password) {
         const idleBusy = Math.round(((await busy()) - b0) / 5 * 100);
         const dt = (profile.endTime - profile.startTime) / 1000 / Math.max(1, profile.samples.length);
         const by = {};
+        // A browser call (drawImage, a shader compile) counts for the page's own function that made it.
+        const parent = {};
+        for (const n of profile.nodes) for (const c of n.children || []) parent[c] = n;
+        const own = (n) => { for (let x = n; x; x = parent[x.id]) if (x.callFrame.url) return x; return null; };
         for (const n of profile.nodes) {
-          const u = n.callFrame.url ? n.callFrame.url.replace(base, '') : n.callFrame.functionName ? `(${n.callFrame.functionName})` : '';
-          if (u && !/^((idle|program|root))$/.test(u)) by[u] = (by[u] || 0) + (n.hitCount || 0) * dt;
+          if (['(idle)', '(program)', '(root)', '(garbage collector)'].includes(n.callFrame.functionName)) continue;
+          const o = own(n);
+          const u = o ? `${o.callFrame.url.replace(base, '')}:${o.callFrame.lineNumber + 1} ${o.callFrame.functionName || '(anonymous)'}` : `(${n.callFrame.functionName})`;
+          by[u] = (by[u] || 0) + (n.hitCount || 0) * dt;
         }
         const perf = await evalIn(browser, s, 'window.__perf');
         trace[p] = { ready, lcp: perf.lcp, cls: Number(perf.cls.toFixed(3)), tbt: Math.round(perf.long), idleBusy,
