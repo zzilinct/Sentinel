@@ -38,12 +38,14 @@ document.documentElement.classList.add('js');
   const apply = (mode) => {
     if (mode === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = mode;
     for (const b of document.querySelectorAll('[data-theme-toggle]')) {
-      const label = `Theme: ${mode === 'auto' ? 'automatic' : mode}`;
+      // The spoken name holds the word on the button (Auto, Light, Dark), so saying what you see works.
+      const word = mode === 'auto' ? 'Auto' : mode === 'light' ? 'Light' : 'Dark';
+      const label = `Theme: ${word}`;
       b.setAttribute('aria-label', `${label}. Change theme`);
       b.title = label;
       b.dataset.mode = mode;
       const text = b.querySelector('[data-theme-label]');
-      if (text) text.textContent = mode === 'auto' ? 'Auto' : mode === 'light' ? 'Light' : 'Dark';
+      if (text) text.textContent = word;
     }
   };
   apply(read());

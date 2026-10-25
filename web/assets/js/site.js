@@ -39,7 +39,7 @@
   $$('[data-glyph]').forEach((el) => { if (Masks && !el.firstElementChild) el.innerHTML = Masks.svg(el.dataset.glyph); });
   // Only an empty slot gets the icon: the galaxy's scene buttons carry data-kind too, and this used to wipe their
   // words, leaving 45 buttons a screen reader could not name (scripts/verify-web/30-perf-a11y.js).
-  $('[data-kind]').forEach((el) => { if (Masks && !el.firstElementChild && !el.textContent.trim()) el.innerHTML = Masks.kindIcon(el.dataset.kind); });
+  $$('[data-kind]').forEach((el) => { if (Masks && !el.firstElementChild && !el.textContent.trim()) el.innerHTML = Masks.kindIcon(el.dataset.kind); });
 
   // The big headings that rise letter by letter (split below); the rest keep their words and their binary decode.
   if (!reduced) $$('.section__head h2[data-split], .page-head h1[data-split], .section h2[data-split], .cta h2[data-split]').forEach((h) => h.classList.add('rise'));
