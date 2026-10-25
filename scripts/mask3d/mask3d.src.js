@@ -125,6 +125,9 @@ function renderer() {
     r.setPixelRatio(1);   // sizes below are in device pixels already
     r.toneMapping = AgXToneMapping;
     r.toneMappingExposure = 1.05;
+    // Reading each shader's log after it is built made the browser finish every build there and then, in one long
+    // pause (getProgramInfoLog, 0.85 s on a CI runner); the shaders are fixed and known to build.
+    r.debug.checkShaderErrors = false;
     r.outputColorSpace = SRGBColorSpace;
     r.setClearColor(0x000000, 0);
     r.autoClear = false;
