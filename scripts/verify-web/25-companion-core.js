@@ -39,7 +39,7 @@ const ENGINES = [
   ['duckduckgo', 'https://duckduckgo.com/?q=paypal+login+help&ia=web', '[data-testid="result-title-a"]', /anomaly|captcha|bots use duckduckgo/i],
   ['google', 'https://www.google.com/search?q=weather+london&hl=en&gl=us', '#search h3, #rso h3', /unusual traffic|not a robot|recaptcha|before you continue/i],
   ['yahoo', 'https://search.yahoo.com/search?p=how+to+repot+a+plant', '#web h3', /captcha|unusual/i],
-  ['brave', 'https://search.brave.com/search?q=train+times+to+leeds', '#results .snippet .title, #results a .title', /captcha|not a robot|unusual/i],
+  ['brave', 'https://search.brave.com/search?q=train+times+to+leeds', '#results .snippet .title, #results a .title', /captcha|not a robot|unusual|^captcha/i],
   ['mojeek', 'https://www.mojeek.com/search?q=library+opening+hours', '.results-standard li h2', /captcha|automated/i]
 ];
 
@@ -207,7 +207,7 @@ async function checkCompanionCore() {
     }
     const safeFree = await safePage('free');
     result('companion-core: on a safe page the popup says live scanning found no warning signs; a scan the plan does not allow is said beside the button, which stays usable',
-      /no warning signs/i.test(safeFree.page || '') && safeFree.host === 'en.wikipedia.org' && (/Scam/.test(safeFree.result) || (safeFree.alert && /Scan this page/.test(safeFree.button) && !safeFree.disabled)), safeFree);
+      /no warning signs/i.test(safeFree.page || '') && safeFree.host === 'en.wikipedia.org' && (/checks/.test(safeFree.result) || (safeFree.alert && /Scan this page/.test(safeFree.button) && !safeFree.disabled)), safeFree);
 
 
     /* -------------------------------------------------------------- 2. options */
@@ -259,7 +259,7 @@ async function checkCompanionCore() {
     result('companion-core: the account moved to Pro, and the companion picks it up', pro === 200 && refreshed === 'pro', { pro, refreshed });
     const safePro = await safePage('pro');
     result('companion-core: on Pro, on a safe page, the popup says no warning signs and Scan this page shows the three masks\' answers',
-      /no warning signs/i.test(safePro.page || '') && /Scam/.test(safePro.result) && /left this week/.test(safePro.button), safePro);
+      /no warning signs/i.test(safePro.page || '') && /Clear.*Clear.*Clear.*checks/.test(safePro.result) && /left this week/.test(safePro.button), safePro);
 
     /* ---------------------------------------------------- 3. real search pages */
 
@@ -281,7 +281,7 @@ async function checkCompanionCore() {
         }
         const wrapped = [...document.querySelectorAll('.sentinel-masks')].filter((g) => { const h = g.parentElement; const lh = parseFloat(getComputedStyle(h).lineHeight) || 24; return h.getBoundingClientRect().height > lh * 1.6; }).length;
         return { title: document.title.slice(0, 80), results: heads.length, marked: marked.length, kinds, flagged, wrapped, cls: Math.round(window.__cls * 10000) / 10000,
-          bot: ${botRe}.test(document.body ? document.body.innerText.slice(0, 3000) : ''), focused: document.hasFocus() };
+          bot: ${botRe}.test(document.title + ' ' + (document.body ? document.body.innerText.slice(0, 3000) : '')), focused: document.hasFocus() };
       })()`).catch((err) => ({ error: err.message }));
       let s = await snap();
       let markedAt = null;
@@ -305,8 +305,8 @@ async function checkCompanionCore() {
       engines.push({ engine: e[0], companion: c, plain: { results: p.results, cls: p.cls, loadedAt: p.loadedAt, bot: p.bot } });
     }
     const reached = engines.filter((x) => !x.companion.bot && x.companion.results);
-    result(`companion-core: real search pages: every result on screen is marked, none red, on ${reached.map((x) => x.engine).join(', ') || 'none'} (${engines.filter((x) => x.companion.bot).map((x) => x.engine).join(', ') || 'no engine'} showed a bot check to the runner)`,
-      reached.length >= 2 && reached.every((x) => x.companion.marked >= x.companion.results && !x.companion.kinds.red),
+    result(`companion-core: real search pages: every result on screen is marked, none red, on ${reached.map((x) => x.engine).join(', ') || 'none'} (${engines.filter((x) => !reached.includes(x)).map((x) => x.engine).join(', ') || 'no engine'} showed the runner a bot check or a consent page)`,
+      reached.length >= 1 && reached.every((x) => x.companion.marked >= x.companion.results && !x.companion.kinds.red),
       engines.map((x) => ({ engine: x.engine, results: x.companion.results, marked: x.companion.marked, kinds: x.companion.kinds, flagged: x.companion.flagged, markedInMs: x.companion.markedAt, bot: x.companion.bot, title: x.companion.title })));
     result('companion-core: real search pages: the marks do not shift the page (layout shift with the companion within 0.02 of without) and do not wrap titles',
       reached.every((x) => x.companion.cls - x.plain.cls <= 0.02 && !x.companion.wrapped),

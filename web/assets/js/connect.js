@@ -47,6 +47,12 @@
     window.postMessage({ type: 'sentinel:companion-token', token }, location.origin);
   }
 
-  // Give the content script (document_idle) a moment to mark the page.
-  setTimeout(run, 300);
+  // The content script (document_end) marks the page; a browser busy starting the add-on can take a few seconds, and a
+  // fixed 300 ms wait said "Companion not found" with it installed. Waits up to 4 s, going on as soon as it is there.
+  let waited = 0;
+  (function ready() {
+    if (document.documentElement.dataset.sentinelCompanion === '1' || waited >= 4000) { run(); return; }
+    waited += 100;
+    setTimeout(ready, 100);
+  })();
 })();

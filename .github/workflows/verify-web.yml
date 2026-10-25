@@ -52,20 +52,3 @@ jobs:
           name: verify-web-soak
           path: verify-web-soak/
           retention-days: 7
-
-  # TEMPORARY while iterating: the companion-core check alone, for a fast answer.
-  companion-core-only:
-    runs-on: windows-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: node scripts/verify-web.js --only companion-core --out verify-web-core
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: verify-web-core
-          path: verify-web-core/
-          retention-days: 7
