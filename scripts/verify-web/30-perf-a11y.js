@@ -164,7 +164,7 @@ async function checkPerfA11y() {
 
     const rows = {};
     for (const form of ['mobile', 'desktop']) {
-      for (const p of [...PUBLIC, ...APP]) {
+      for (const p of [...PUBLIC, ...APP].filter((x) => x !== '/no-such-page')) { // Lighthouse will not report on a 404; axe still reads it
         const file = path.join(dir, `${form}${p.replace(/\//g, '_') || '_'}.json`);
         let s = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, file));
         if (s.error) s = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, file)); // one more go on a stalled runner

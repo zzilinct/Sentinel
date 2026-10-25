@@ -292,6 +292,24 @@
   }
 
   // A picture into a box: cropped to fill it, or a mask stood whole on the card.
+  // A card's picture at the size cards are drawn, made once: shrinking every full-size picture again on every frame
+  // was most of the page's work (3.3 s of each 5 s on a CI runner, scripts/verify-web/30-perf-a11y.js). An enlarged
+  // card still draws from the full picture, so it stays sharp.
+  function sized(item) {
+    var want = Math.ceil(pr.capH * dpr * 1.2);
+    if (item.sharpH === want) return item.sharp;
+    var img = item.img, k = want / img.naturalHeight;
+    if (k >= 1) { item.sharp = img; item.sharpH = want; return img; }
+    var s = document.createElement('canvas');
+    s.width = Math.max(1, Math.round(img.naturalWidth * k));
+    s.height = want;
+    var g = s.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, 0, 0, s.width, s.height);
+    item.sharp = s; item.sharpH = want;
+    return s;
+  }
+
   function picture(src, item, x, y, w, h) {
     var iw = src.width || src.naturalWidth, ih = src.height || src.naturalHeight;
     if (item.mask) {
@@ -394,7 +412,7 @@
       }
       if (c.item.ready) {
         if (c.blur > 0.01) picture(c.item.soft, c.item, -w / 2, -h / 2, w, h);
-        if (c.blur < 0.99) { ctx.globalAlpha = c.alpha * (1 - c.blur); picture(c.item.img, c.item, -w / 2, -h / 2, w, h); }
+        if (c.blur < 0.99) { ctx.globalAlpha = c.alpha * (1 - c.blur); picture(h <= pr.capH * 1.2 ? sized(c.item) : c.item.img, c.item, -w / 2, -h / 2, w, h); }
       }
       ctx.restore();
       // The hairline frame, and a flash of split colour where a wave or ripple crosses.

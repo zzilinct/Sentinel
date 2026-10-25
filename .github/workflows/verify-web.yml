@@ -46,7 +46,7 @@ jobs:
           node-version: '22'
       - name: Lighthouse and axe-core, for this job only
         shell: bash
-        run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/ci-tools" lighthouse@12.8.2 axe-core@4.10.3
+        run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/ci-tools" lighthouse@13.5.0 axe-core@4.10.3
       - name: Speed and accessibility of every page
         shell: bash
         run: CI_TOOLS="$RUNNER_TEMP/ci-tools" node scripts/verify-web.js --only perf-a11y --out perf-a11y
