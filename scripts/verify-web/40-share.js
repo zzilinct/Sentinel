@@ -100,6 +100,8 @@ async function checkShare() {
     await goto(browser, s, `${base}/app`);
     await post({ title: '', text: '', url: '' }, PICTURE);
     const picOut = await until(browser, s, "(() => { const p = document.querySelector('[data-shot-preview]'); const img = p && p.querySelector('img'); return location.pathname === '/app/text' && p && !p.hidden && img.complete && img.naturalWidth > 0 && (() => { const r = p.getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight - 40; })() && { tab: document.querySelector('[data-tmode=shot]').getAttribute('aria-selected'), status: document.querySelector('[data-shot-status]').textContent.trim(), width: img.naturalWidth }; })()", 20000);
+    // The status settles once the picture has been looked at for a QR code (it says "Looking for a QR code" meanwhile).
+    if (picOut) picOut.status = (await until(browser, s, "(() => { const t = (document.querySelector('[data-shot-status]') || {}).textContent || ''; return /Windows/.test(t) && t; })()")) || picOut.status;
     const picFits = await fits();
     await shot(browser, s, 'share-picture');
     result('share: a shared picture (a multipart POST with a PNG) opens the text scan\'s screenshot reader with the picture in it, on screen, and says plainly a phone cannot read its words here',

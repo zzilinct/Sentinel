@@ -1680,6 +1680,7 @@
           <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a screenshot from your phone, or click to choose</h3><p>Or press Ctrl+V to paste one. PNG or JPEG.</p></div>
         </label>
         <figure class="shot" data-shot-preview hidden><img alt="The screenshot to read"><figcaption data-shot-status></figcaption></figure>
+        <div data-text-qr></div>
         <p class="field__hint u-mt-sm">${canRead
           ? 'Read on this computer by Windows. The image is not uploaded or kept. A screenshot of a whole conversation works too.'
           : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>, or paste the text instead.'}</p>
@@ -1715,7 +1716,21 @@
       const url = URL.createObjectURL(file);
       $('img', preview).src = url;
       preview.hidden = false;
-      if (!canRead) { shotStatus.textContent = 'Reading screenshots needs the Sentinel app for Windows.'; return; }
+      if (!canRead) {
+        // A phone (a picture shared to Sentinel) or a browser without the app: the words need the Windows app, but a QR
+        // code in the picture is read here, on this device, and its link checked, as the email scan does.
+        const qrOut = $('[data-text-qr]', el);
+        qrOut.innerHTML = '';
+        shotStatus.textContent = 'Looking for a QR code in the picture…';
+        let code = null;
+        try { code = await qrFromFile(file); } catch { /* no reader or no code: said below */ }
+        if (code != null && await explainQr(qrOut, code, { focus: true })) {
+          shotStatus.textContent = 'The QR code in this picture was read and checked below. The words in a picture are read by the Sentinel app for Windows.';
+        } else {
+          shotStatus.textContent = 'The words in a picture are read by the Sentinel app for Windows, so they cannot be read here. Copy the message itself, then paste it in Message.';
+        }
+        return;
+      }
       reading = true;
       preview.classList.add('is-reading');
       shotStatus.textContent = 'Reading the screenshot…';
@@ -1784,7 +1799,6 @@
       } else if (share.image) {
         setMode('shot');
         readShot(share.image);
-        if (!canRead) shotStatus.textContent = 'The words in a picture are read by the Sentinel app for Windows, so this phone cannot read them here. Copy the message itself, then share or paste it instead.';
         preview.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
       }
     });
