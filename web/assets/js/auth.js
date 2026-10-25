@@ -73,6 +73,8 @@
     }
   }).catch(() => {});
 
+  // Shared from the phone's Share menu while signed out (app.js keeps it on this device): it is checked after this.
+  if (next() === '/app/share' && !params.get('error')) note('[data-note]', `${isSignup ? 'Create your account' : 'Sign in'} and Sentinel checks what you shared. It waits on this device until then.`, 'ok');
   if (params.get('error')) note('[data-note]', `Google sign-in didn’t complete (${esc(params.get('error'))}). Try again or use your email.`);
 
   /* --------------------------------------------------------- password */

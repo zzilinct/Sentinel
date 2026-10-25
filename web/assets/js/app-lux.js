@@ -101,7 +101,8 @@
   // A new page: app.js replaced #view's contents. Say which page, sweep, and stage what is there.
   function newPage(old) {
     const current = document.querySelector('.side__link[aria-current="page"]');
-    const next = (current && current.dataset.route) || 'home';
+    // A page with no tab of its own (what was shared, on its way to a check) gets no label, not Overview's.
+    const next = (current && current.dataset.route) || (location.pathname.replace(/\/$/, '') === '/app' ? 'home' : 'other');
     const changed = tab && next !== tab;
     const was = tab;
     tab = next;
