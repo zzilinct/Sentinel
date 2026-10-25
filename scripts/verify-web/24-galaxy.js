@@ -135,13 +135,23 @@ async function checkGalaxy() {
           { cards: d.length, clockwise: cw, medianDeg: +(median * 180 / Math.PI).toFixed(2) });
 
         /* Pointing (a computer) or tapping (a phone) at a card stops it and shows its verdict; a click enlarges it. */
-        const c = pick(b) || pick(await p.st());
+        let c = pick(b) || pick(await p.st());
         if (!c) { result(`galaxy (${at}): a card to point at`, false, b.cards.slice(0, 6)); await p.close(); continue; }
-        const x = b.stage.left + c.x;
-        const y = b.stage.top + c.y;
+        let x = b.stage.left + c.x;
+        let y = b.stage.top + c.y;
         if (!phone) {
-          await mouse(p.s, 'mouseMoved', x, y);
-          await sleep(900);
+          // On a busy runner a card can travel off the point aimed at before the pointer lands (runs 38810392580 and
+          // 40222297518): then it is aimed at again where it is now, up to three times.
+          for (let i = 0; i < 3; i++) {
+            await mouse(p.s, 'mouseMoved', x, y);
+            await sleep(900);
+            if ((await p.st()).held !== null) break;
+            await mouse(p.s, 'mouseMoved', 5, 5);
+            await sleep(400);
+            const now = await p.st();
+            const n = pick(now);
+            if (n) { c = n; x = now.stage.left + c.x; y = now.stage.top + c.y; }
+          }
           const h1 = await p.st();
           await sleep(700);
           const h2 = await p.st();
