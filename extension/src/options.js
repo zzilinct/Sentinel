@@ -13,7 +13,8 @@
     minimumBadge: 'yellow',
     markSafe: true,
     scanOverlay: true,
-    commandGuard: true
+    commandGuard: true,
+    chatHints: true
   };
   const Masks = window.SentinelMasks;
   const saved = document.getElementById('saved');

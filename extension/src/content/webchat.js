@@ -18,7 +18,7 @@
   const Chat = globalThis.SentinelChat;
   const RANK = { yellow: 1, orange: 2, red: 3 };
   const THREATS = ['scam', 'virus', 'malware'];
-  const DEFAULTS = { enabled: true, minimumBadge: 'yellow' };
+  const DEFAULTS = { enabled: true, minimumBadge: 'yellow', chatHints: true };
 
   // Each chat site: which pages are chats, what one message is, its words, who sent it, the person's own messages
   // (never judged: they are not the ones asking), and the site's own links (never checked).
@@ -178,14 +178,16 @@
     for (const msg of document.querySelectorAll(site.message)) {
       who = whoSent(msg, who);
       const textEl = msg.querySelector(site.text) || msg;
-      if (!judged.has(msg)) {
+      // Chat hints have their own switch (the options page), as chat safety does in the Windows app; off, no message
+      // words are read at all and only the links are marked.
+      if (settings.chatHints !== false && !judged.has(msg)) {
         judged.add(msg);
         const own = site.out && (msg.matches(site.out) || msg.closest(site.out));
         const r = own ? null : talk().add({ who: who || undefined, text: textEl.textContent || '' });
         if (r && ADVICE[r.family]) flagged.set(msg, r);
       }
       const r = flagged.get(msg);
-      if (r && !msg.querySelector('[data-sentinel-chat]')) hint(textEl === msg ? msg.lastElementChild || msg : textEl, r);
+      if (settings.chatHints !== false && r && !msg.querySelector('[data-sentinel-chat]')) hint(textEl === msg ? msg.lastElementChild || msg : textEl, r);
 
       for (const a of msg.querySelectorAll('a[href]')) {
         const url = realUrl(a.getAttribute('href'), a.textContent, location.href);
@@ -218,5 +220,7 @@
   });
   ext.storage.onChanged.addListener((changes, area) => {
     if (area === 'sync') for (const [k, { newValue }] of Object.entries(changes)) settings[k] = newValue;
+    // Hints switched off: the ones already shown go too.
+    if (area === 'sync' && changes.chatHints && changes.chatHints.newValue === false) document.querySelectorAll('[data-sentinel-chat]').forEach((n) => n.remove());
   });
 })();

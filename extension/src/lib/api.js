@@ -15,7 +15,8 @@ export const DEFAULTS = {
   minimumBadge: 'yellow',
   markSafe: true,          // a quiet tick beside results that came back clean
   scanOverlay: true,       // the golden line and tint while results are being checked
-  commandGuard: true       // Stop pasted commands: a page cannot copy a command only a trick would ask you to paste
+  commandGuard: true,      // Stop pasted commands: a page cannot copy a command only a trick would ask you to paste
+  chatHints: true          // A quiet hint under a web-chat message that asks for a code, gift cards or crypto (read in the page)
 };
 
 export const COLORS = { yellow: '#f5c542', orange: '#f08a24', red: '#e5484d' };
