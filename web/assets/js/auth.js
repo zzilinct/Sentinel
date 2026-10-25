@@ -55,7 +55,7 @@
   }
 
   // Already signed in? Go straight to the app.
-  api('/auth/me').then(() => location.replace(next())).catch(() => {});
+  api('/auth/me?optional=1').then((me) => { if (me && me.user) location.replace(next()); }).catch(() => {});
 
   /* ---------------------------------------------------------- google */
 

@@ -292,6 +292,24 @@
   }
 
   // A picture into a box: cropped to fill it, or a mask stood whole on the card.
+  // A card's picture at the size cards are drawn, made once: shrinking every full-size picture again on every frame
+  // was most of the page's work (3.3 s of each 5 s on a CI runner, scripts/verify-web/30-perf-a11y.js). An enlarged
+  // card still draws from the full picture, so it stays sharp.
+  function sized(item) {
+    var want = Math.ceil(pr.capH * dpr * 1.2);
+    if (item.sharpH === want) return item.sharp;
+    var img = item.img, k = want / img.naturalHeight;
+    if (k >= 1) { item.sharp = img; item.sharpH = want; return img; }
+    var s = document.createElement('canvas');
+    s.width = Math.max(1, Math.round(img.naturalWidth * k));
+    s.height = want;
+    var g = s.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, 0, 0, s.width, s.height);
+    item.sharp = s; item.sharpH = want;
+    return s;
+  }
+
   function picture(src, item, x, y, w, h) {
     var iw = src.width || src.naturalWidth, ih = src.height || src.naturalHeight;
     if (item.mask) {
@@ -394,7 +412,7 @@
       }
       if (c.item.ready) {
         if (c.blur > 0.01) picture(c.item.soft, c.item, -w / 2, -h / 2, w, h);
-        if (c.blur < 0.99) { ctx.globalAlpha = c.alpha * (1 - c.blur); picture(c.item.img, c.item, -w / 2, -h / 2, w, h); }
+        if (c.blur < 0.99) { ctx.globalAlpha = c.alpha * (1 - c.blur); picture(h <= pr.capH * 1.2 ? sized(c.item) : c.item.img, c.item, -w / 2, -h / 2, w, h); }
       }
       ctx.restore();
       // The hairline frame, and a flash of split colour where a wave or ripple crosses.
@@ -462,19 +480,27 @@
 
   function running() { return seen && !document.hidden && !reduced; }
 
+  // While nobody is at it (no pointer, no card held or enlarged, no ripple, the arrival over), the spiral only drifts
+  // and turns, slowly: it is drawn at most every IDLE_MS (as the 3D masks are), which halves the work and looks the
+  // same. The governor still counts every frame the browser offers, so it judges the machine, not this pace.
+  var IDLE_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;
+  var lastDraw = 0;
+  function busy(now) { return pointer || held || boosted || ripples.length || now - started < (P.introDur + P.burstDur) * 1000 + 500; }
   function frame(now) {
     raf = 0;
-    if (!running()) { last = 0; return; }
-    var dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / 60;
+    if (!running()) { last = lastDraw = 0; return; }
     var gdt = last ? (now - last) / 1000 : 0;
     last = now;
     if (!started) started = now;
     if (now - started > 2500) gov.tick(gdt);
+    raf = requestAnimationFrame(frame);
+    if (lastDraw && now - lastDraw < IDLE_MS - 4 && !busy(now)) return;
+    var dt = lastDraw ? Math.min(0.1, (now - lastDraw) / 1000) : 1 / 60;
+    lastDraw = now;
     if (pointer) hover();
     step(dt, now);
     draw(now);
     frames++;
-    raf = requestAnimationFrame(frame);
   }
   function wake() { if (!raf && running()) raf = requestAnimationFrame(frame); }
 

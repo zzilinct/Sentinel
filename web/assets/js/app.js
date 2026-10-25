@@ -410,7 +410,7 @@
 
   function lockedCard({ tag, heading, body, actions }) {
     return `<div class="locked">
-      <div><span class="locked__tag">${ICON.lock}${esc(tag)}</span><h3>${esc(heading)}</h3><p>${body}</p></div>
+      <div><span class="locked__tag">${ICON.lock}${esc(tag)}</span><h2>${esc(heading)}</h2><p>${body}</p></div>
       <div class="locked__actions">${actions}</div>
     </div>`;
   }
@@ -502,7 +502,7 @@
       ? usageCard(ICON.link, 'Unlimited', '', 'Fast link scans', 0, 0, false, 'no weekly limit')
       : usageCard(ICON.link, left('linkScans'), `/ ${fast.limit}`, 'Fast link scans left', fast.used, fast.limit);
     const deepCard = usageCard(ICON.search, deep.limit ? Math.max(0, deep.limit - deep.used) : 0, deep.limit ? `/ ${deep.limit}` : '', 'Delicate link scans left', deep.used, deep.limit, !deep.limit);
-    return `<a class="usage-link" href="/app/scan" aria-label="Link scan">${fastCard}</a><a class="usage-link" href="/app/scan" aria-label="Delicate link scan">${deepCard}</a>`;
+    return `<a class="usage-link" href="/app/scan">${fastCard}</a><a class="usage-link" href="/app/scan">${deepCard}</a>`;
   }
 
   function usageCard(icon, n, unit, label, used, limit, locked, meta) {
@@ -705,8 +705,8 @@
 
       <div class="usage-list u-mt-lg">
         ${scanCards(us)}
-        <a class="usage-link" href="/app/threats" aria-label="Virus and malware scan">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
-        <a class="usage-link" href="/app/protection" aria-label="Live protection">${liveCard(us, f)}</a>
+        <a class="usage-link" href="/app/threats">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
+        <a class="usage-link" href="/app/protection">${liveCard(us, f)}</a>
       </div>
 
       <div class="u-mt">${protectionTeaser()}</div>
@@ -1306,7 +1306,7 @@
 
     input.innerHTML = `<label class="drop" data-drop>
       <input type="file" data-file aria-label="Choose a file to scan">
-      <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a file here, or click to choose</h3><p>Programs, documents, archives, scripts, installers</p></div>
+      <div><div class="drop__icon">${ICON.upload}</div><h2>Drop a file here, or click to choose</h2><p>Programs, documents, archives, scripts, installers</p></div>
     </label>`;
     const drop = $('[data-drop]', input);
     const fileInput = $('[data-file]', input);
@@ -2324,7 +2324,7 @@
 
     const feature = (icon, name, body, status) => `<div class="feature">
       <div class="feature__top"><span class="feature__icon">${icon}</span>${status}</div>
-      <h4>${name}</h4><p>${body}</p></div>`;
+      <h3>${name}</h3><p>${body}</p></div>`;
     const st = (on, lockedText) => (on ? '<span class="status is-on">On</span>' : `<span class="status is-locked">${lockedText}</span>`);
 
     const needsApp = !desktop;

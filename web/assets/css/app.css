@@ -290,7 +290,7 @@ body.app::before { opacity: .6; }
 .drop:hover, .drop.is-over { box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 4px rgb(var(--gold-rgb) / .07); background-color: rgb(var(--gold-rgb) / .03); }
 .drop__icon { width: 54px; height: 54px; margin-inline: auto; border-radius: var(--r-lg); display: grid; place-items: center; color: var(--gold-300); background: rgb(var(--gold-rgb) / .08); box-shadow: inset 0 0 0 1px var(--line-gold); margin-bottom: 14px; }
 .drop__icon svg { width: 24px; height: 24px; }
-.drop h3 { font-size: 23px; }
+.drop h2, .drop h3 { font-size: 23px; }
 .drop p { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
 .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 /* The file box itself is invisible, so the keyboard's focus shows on the drop zone around it. */
@@ -393,7 +393,7 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 @media (max-width: 700px) { .locked { grid-template-columns: 1fr; } }
 .locked__tag { display: inline-flex; align-items: center; gap: 7px; font: 600 11.5px var(--sans); letter-spacing: .01em; text-transform: none; color: var(--gold-300); }
 .locked__tag svg { width: 13px; height: 13px; }
-.locked h3 { margin-top: 10px; font-size: 28px; }
+.locked h2 { margin-top: 10px; font-size: 28px; }
 .locked p { margin-top: 6px; color: var(--text-2); font-size: 14.5px; max-width: 58ch; }
 .locked__actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
@@ -410,7 +410,7 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .status.is-on::before { background: var(--green); box-shadow: 0 0 0 4px rgba(76, 183, 130, .15); }
 .status.is-locked { color: var(--gold-300); }
 .status.is-locked::before { background: var(--gold-400); }
-.feature h4 { margin-top: 16px; font-size: 16px; font-weight: 500; letter-spacing: -.01em; }
+.feature h3 { margin-top: 16px; font-size: 16px; font-weight: 500; letter-spacing: -.01em; }
 .feature p { margin-top: 5px; font-size: 13.5px; color: var(--muted); }
 
 /* -------------------------------------------------------------- plans */
@@ -433,7 +433,7 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .ai-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
 .ai-tab { display: inline-flex; align-items: center; gap: 9px; height: 40px; padding: 0 14px; border-radius: var(--r); border: 0; cursor: pointer; font: 500 14px var(--sans); color: var(--text-2); background: rgb(var(--ink) / .03); box-shadow: inset 0 0 0 1px var(--line); transition: background .2s, color .2s, box-shadow .2s; }
 .ai-tab[aria-selected="true"] { color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.ai-tab__mark { width: 22px; height: 22px; border-radius: var(--r-sm); display: grid; place-items: center; font: 700 10px var(--sans); color: #fff; background: var(--accent); }
+.ai-tab__mark { width: 22px; height: 22px; border-radius: var(--r-sm); display: grid; place-items: center; font: 700 10px var(--sans); color: #fff; background: color-mix(in srgb, var(--accent) 78%, #000); } /* each assistant's own colour, darkened so white letters on it read at 4.5:1 */
 .ai-tab__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
 .ai-tab__dot.is-on { background: var(--green); }
 .chat { display: flex; flex-direction: column; height: min(560px, 62vh); }
@@ -474,6 +474,8 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--line-2); }
 .auth__switch { margin-top: 24px; text-align: center; font-size: 14px; color: var(--muted); }
 .auth__switch a { color: var(--gold-300); }
+/* A link inside a sentence is underlined, not only gold: gold on grey is too close for some eyes to tell apart. */
+.auth__inner a:not(.btn):not(.logo), .consent__row a { text-decoration: underline; text-underline-offset: 2px; }
 .auth__legal { margin-top: 18px; font-size: 12px; color: var(--faint); text-align: center; }
 .auth__legal a { text-decoration: underline; }
 
@@ -593,6 +595,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 
 .consent { display: grid; gap: 4px; margin-top: 18px; }
 .consent__row { display: flex; gap: 11px; align-items: flex-start; padding: 8px 10px; border-radius: var(--r); cursor: pointer; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
+.consent__row small { font-size: 12.5px; }
 .consent__row:hover { background: rgb(var(--ink) / .025); }
 .consent__row input { appearance: none; -webkit-appearance: none; flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: var(--r-sm); background: rgb(var(--ink) / .04); box-shadow: inset 0 0 0 1px var(--line-2); cursor: pointer; display: grid; place-items: center; transition: background .15s, box-shadow .15s; }
 .consent__row input:checked { background: var(--gold-400); box-shadow: inset 0 0 0 1px var(--gold-300); }
@@ -766,7 +769,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .models__seal { width: 30px; height: 30px; flex: none; display: grid; place-items: center; color: var(--gold-400); border-radius: 50%; box-shadow: var(--press); }
 .models__seal svg { width: 18px; height: 18px; }
 .models__now { flex: 1; min-width: 180px; display: grid; }
-.models__k { font: 400 11px/1.2 var(--display); letter-spacing: .22em; text-transform: uppercase; color: var(--gold-400); }
+.models__k { font: 400 11px/1.2 var(--display); letter-spacing: .22em; text-transform: uppercase; color: var(--gold-300); }
 .models__now b { font: 400 22px/1.15 var(--display); letter-spacing: .01em; }
 .models__now small { font-size: 12.5px; color: var(--muted); }
 .models__pick svg { transition: transform .35s var(--ease-out); }
@@ -801,7 +804,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 @keyframes shot-read { from { transform: translateY(0); } to { transform: translateY(156px); } }
 
 /* The model running here, beneath the logo (app.js paintModelBadge). */
-.model-badge { display: inline-flex; align-items: center; gap: 7px; margin: -12px 0 16px 12px; padding: 4px 10px 4px 8px; border-radius: 99px;
+.model-badge { display: inline-flex; align-items: center; gap: 7px; margin: -12px 0 16px 12px; padding: 5px 10px 5px 8px; border-radius: 99px;
   font: 500 11.5px var(--mono); letter-spacing: .02em; color: var(--gold-200); text-decoration: none;
   background: rgb(var(--gold-rgb) / .08); box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .22); transition: box-shadow .3s, background .3s; }
 .model-badge:hover { background: rgb(var(--gold-rgb) / .14); box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .45), 0 0 18px -4px rgb(var(--gold-rgb) / .6); }

@@ -191,6 +191,9 @@ function register(router) {
   router.get('/api/v1/auth/me', (req, res) => {
     const user = A.currentUser(req);
     if (!user) {
+      // ?optional=1: the public pages only ask whether someone is signed in, and a 401 there shows in every visitor's
+      // console as a failed load. Everyone else still gets the 401 they act on.
+      if (parseUrl(req).searchParams.get('optional') === '1') { sendJson(res, 200, { user: null }); return; }
       sendJson(res, 401, { error: { code: 'unauthenticated', message: 'Not signed in' } });
       return;
     }

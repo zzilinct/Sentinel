@@ -37,7 +37,9 @@
   /* ------------------------------------------------------------- glyphs */
 
   $$('[data-glyph]').forEach((el) => { if (Masks && !el.firstElementChild) el.innerHTML = Masks.svg(el.dataset.glyph); });
-  $$('[data-kind]').forEach((el) => { if (Masks && !el.firstElementChild) el.innerHTML = Masks.kindIcon(el.dataset.kind); });
+  // Only an empty slot gets the icon: the galaxy's scene buttons carry data-kind too, and this used to wipe their
+  // words, leaving 45 buttons a screen reader could not name (scripts/verify-web/30-perf-a11y.js).
+  $$('[data-kind]').forEach((el) => { if (Masks && !el.firstElementChild && !el.textContent.trim()) el.innerHTML = Masks.kindIcon(el.dataset.kind); });
 
   // The big headings that rise letter by letter (split below); the rest keep their words and their binary decode.
   if (!reduced) $$('.section__head h2[data-split], .page-head h1[data-split], .section h2[data-split], .cta h2[data-split]').forEach((h) => h.classList.add('rise'));
@@ -268,11 +270,11 @@
 
   // Signed-in visitors get a direct way back into the app. A static export has
   // no API to ask, so the signed-out header stands.
-  if (!window.SENTINEL_STATIC) fetch('/api/v1/auth/me', { credentials: 'same-origin' })
+  if (!window.SENTINEL_STATIC) fetch('/api/v1/auth/me?optional=1', { credentials: 'same-origin' })
     .then((r) => (r.ok ? r.json() : null))
     .then((me) => {
       const slot = $('[data-auth-actions]');
-      if (me && slot) slot.innerHTML = '<a class="btn btn--gold btn--sm" href="/app">Open Sentinel</a>';
+      if (me && me.user && slot) slot.innerHTML = '<a class="btn btn--gold btn--sm" href="/app">Open Sentinel</a>';
     })
     .catch(() => {});
 
