@@ -19,6 +19,10 @@
   const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
   root.classList.add('lux-app');
 
+  // The small tracked label over each page's headline, as the reel's "AGENTS" sits over "9 new agents".
+  const LABELS = { home: 'Overview', week: 'Your week', protection: 'Always on', scan: 'Check a link', threats: 'Check a file', email: 'Check an email', history: 'Your record', sites: 'Your rules', recover: 'Recovery', checkup: 'Your browsers', plan: 'Account', security: 'Account', assistants: 'Account' };
+  // (Defined up here: the first scan() can run before the rest of this file has, and a const is not there yet.)
+
   /* ---------------------------------------------------- atmosphere */
 
   if (!reduced) {
@@ -175,8 +179,6 @@
 
   const RULE = '<svg class="lux-rule" viewBox="0 0 260 26" aria-hidden="true" focusable="false"><path pathLength="1" d="M130 13H0M130 13h130"/><path class="lux-rule__c" pathLength="1" d="M130 3l10 10-10 10-10-10z"/><path pathLength="1" d="M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0"/></svg>';
 
-  // The small tracked label over each page's headline, as the reel's "AGENTS" sits over "9 new agents".
-  const LABELS = { home: 'Overview', week: 'Your week', protection: 'Always on', scan: 'Check a link', threats: 'Check a file', email: 'Check an email', history: 'Your record', sites: 'Your rules', recover: 'Recovery', checkup: 'Your browsers', plan: 'Account', security: 'Account', assistants: 'Account' };
 
   // Put on as soon as the page is drawn, before anything is laid out around it, so nothing shifts when it appears.
   function addLabel() {

@@ -445,9 +445,10 @@ async function checkQaWeb() {
       const { root } = await browser.send('DOM.getDocument', { depth: -1 }, s);
       const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-shot-file]' }, s);
       await browser.send('DOM.setFileInputFiles', { nodeId, files: [shotPng] }, s);
-      const status = await waitFor("document.querySelector('[data-shot-status]').textContent", 40);
+      // The settled status (it says "Looking for a QR code" while the picture is checked for one, on the device).
+      const status = await waitFor("(() => { const t = document.querySelector('[data-shot-status]').textContent; return /Windows/.test(t) && t; })()", 40);
       const sent = requests.slice(before).filter((r) => r.method !== 'GET');
-      result('qa-web: text, a screenshot in the browser (no Windows app) says reading needs the app, and the picture is not uploaded', /needs the Sentinel app/.test(status) && !sent.length, status);
+      result('qa-web: text, a screenshot in the browser (no Windows app) says reading needs the app, and the picture is not uploaded', /Sentinel app for Windows/.test(status || '') && !sent.length, status);
     });
 
     /* -------------------------------------------------- warn a friend */
