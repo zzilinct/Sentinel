@@ -1650,6 +1650,8 @@
       if (r.kind === 'link') return go(`/app/scan?url=${encodeURIComponent(r.url)}`);
       if (r.kind === 'text') { shared = { text: r.text }; return go('/app/text'); }
       if (r.kind === 'image') { shared = { image: share.image }; return go('/app/text'); }
+      const sub = $('.page-title p', el);
+      if (sub) sub.textContent = 'Check a message or a link straight from another app.';
       $('[data-out]', el).innerHTML = `<div class="panel" data-share-empty>
         <p>${params.get('missed') ? 'What you shared did not reach Sentinel. Please share it once more.' : 'Nothing is waiting to be checked.'}
           In Messages, WhatsApp, Gmail or your browser, press Share and choose Sentinel: a link opens in Link scan, a message in Text scan.</p>
@@ -1783,6 +1785,7 @@
         setMode('shot');
         readShot(share.image);
         if (!canRead) shotStatus.textContent = 'The words in a picture are read by the Sentinel app for Windows, so this phone cannot read them here. Copy the message itself, then share or paste it instead.';
+        preview.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
       }
     });
   }

@@ -99,10 +99,10 @@ async function checkShare() {
 
     await goto(browser, s, `${base}/app`);
     await post({ title: '', text: '', url: '' }, PICTURE);
-    const picOut = await until(browser, s, "(() => { const p = document.querySelector('[data-shot-preview]'); const img = p && p.querySelector('img'); return location.pathname === '/app/text' && p && !p.hidden && img.complete && img.naturalWidth > 0 && { tab: document.querySelector('[data-tmode=shot]').getAttribute('aria-selected'), status: document.querySelector('[data-shot-status]').textContent.trim(), width: img.naturalWidth }; })()", 20000);
+    const picOut = await until(browser, s, "(() => { const p = document.querySelector('[data-shot-preview]'); const img = p && p.querySelector('img'); return location.pathname === '/app/text' && p && !p.hidden && img.complete && img.naturalWidth > 0 && (() => { const r = p.getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight - 40; })() && { tab: document.querySelector('[data-tmode=shot]').getAttribute('aria-selected'), status: document.querySelector('[data-shot-status]').textContent.trim(), width: img.naturalWidth }; })()", 20000);
     const picFits = await fits();
     await shot(browser, s, 'share-picture');
-    result('share: a shared picture (a multipart POST with a PNG) opens the text scan\'s screenshot reader with the picture in it, and says plainly a phone cannot read its words here',
+    result('share: a shared picture (a multipart POST with a PNG) opens the text scan\'s screenshot reader with the picture in it, on screen, and says plainly a phone cannot read its words here',
       Boolean(picOut) && picOut.tab === 'true' && picOut.width === 192 && /Windows/.test(picOut.status) && picFits, { ...picOut, fits: picFits });
     const afterPic = await box();
     result('share: the shared picture is not left on the device', !afterPic.data && !afterPic.image, afterPic);
@@ -119,9 +119,10 @@ async function checkShare() {
     const missed = await fetch(`${base}/app/share`, { method: 'POST', body: form, redirect: 'manual' });
     await goto(browser, s, base + missed.headers.get('location'));
     const missedText = await until(browser, s, "(() => { const e = document.querySelector('[data-share-empty]'); return e && e.innerText; })()", 10000);
+    const label = await evalIn(browser, s, "(() => { const l = document.querySelector('#view .lux-label'); return l ? l.textContent : ''; })()");
     await shot(browser, s, 'share-missed');
     result('share: a share the server receives (no service worker yet) is not read, and the page asks for it once more',
-      missed.status === 303 && /did not reach Sentinel/.test(missedText || '') && await fits(), { status: missed.status, location: missed.headers.get('location'), text: missedText });
+      missed.status === 303 && /did not reach Sentinel/.test(missedText || '') && label !== 'Overview' && await fits(), { label, status: missed.status, location: missed.headers.get('location'), text: missedText });
 
     /* ------------------------------------------------ iPhone */
 
