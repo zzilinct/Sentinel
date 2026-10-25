@@ -516,7 +516,12 @@ if ($Part -eq 'use') {
   Say "Edge in front: $(FreshEdge 'about:blank')"
   Sites 'msedge' $honest
   # A search: marks beside the results.
-  Visit 'https://duckduckgo.com/?q=paypal+login+help'
+  # Handed to Edge, not typed: in SendKeys "+" is Shift, which mangled the search address, and a site's own prompt
+  # (Chase asks to open other apps) could swallow the keys, leaving Edge on the last site with nothing to mark.
+  [K]::Tap(0x1B)
+  Start-Process msedge -ArgumentList 'https://duckduckgo.com/?q=paypal%20login%20help'
+  Start-Sleep 3
+  [void](Front 'msedge')
   $marks = ''
   $ok = Until 30 { [K]::Tap(0x11); $script:marks = [string](Cdp 'overlay.html' "[...document.querySelectorAll('#marks .mark')].map((n) => n.dataset.state || 'pending').join(',')").value; $script:marks -match 'clear|scam|warn' }
   Shot 'edge-search-marks'
