@@ -180,17 +180,20 @@ async function checkPerfA11y() {
     for (const form of ['mobile', 'desktop']) {
       for (const p of [...PUBLIC, ...APP].filter((x) => x !== '/no-such-page')) { // Lighthouse will not report on a 404; axe still reads it
         const file = path.join(dir, `${form}${p.replace(/\//g, '_') || '_'}.json`);
-        // Up to three goes: a go with no performance score (a lost trace), or one far under the page's floor (a shared
-        // runner stalled: /terms scored 27 once against its usual 95+, run 40222297518), is measured again and the
-        // better kept. A page that is slow every time still fails.
-        const floor = budget[`${form} ${p}`] ? budget[`${form} ${p}`].performance - SLACK.performance : 0;
+        // Up to three goes: a go with no performance score (a lost trace), or one far under the page's floors (a shared
+        // runner stalled: /terms scored 27 once against its usual 95+, run 40222297518; Lighthouse missed robots.txt
+        // once on /practice, run 40224698227), is measured again and the go closest to its floors kept. A page that
+        // is under them every time still fails.
+        const floors = budget[`${form} ${p}`] || {};
+        const short = (t) => (t.error || t.scores.performance == null ? Infinity
+          : CATS.reduce((n, c) => n + Math.max(0, (floors[c] == null ? 0 : floors[c] - SLACK[c]) - (t.scores[c] == null ? 100 : t.scores[c])), 0));
         let s = null;
         let tries = 0;
         for (const flags of [ONE_PROCESS, ONE_PROCESS, '']) {
           const t = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, file, flags));
           tries++;
-          if (!s || (!t.error && t.scores.performance != null && (s.error || s.scores.performance == null || t.scores.performance > s.scores.performance))) s = t;
-          if (!s.error && s.scores.performance != null && s.scores.performance >= floor) break;
+          if (!s || short(t) < short(s)) s = t;
+          if (short(s) === 0) break;
         }
         s.tries = tries;
         rows[`${form} ${p}`] = s;
