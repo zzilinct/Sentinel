@@ -268,11 +268,11 @@
 
   // Signed-in visitors get a direct way back into the app. A static export has
   // no API to ask, so the signed-out header stands.
-  if (!window.SENTINEL_STATIC) fetch('/api/v1/auth/me', { credentials: 'same-origin' })
+  if (!window.SENTINEL_STATIC) fetch('/api/v1/auth/me?optional=1', { credentials: 'same-origin' })
     .then((r) => (r.ok ? r.json() : null))
     .then((me) => {
       const slot = $('[data-auth-actions]');
-      if (me && slot) slot.innerHTML = '<a class="btn btn--gold btn--sm" href="/app">Open Sentinel</a>';
+      if (me && me.user && slot) slot.innerHTML = '<a class="btn btn--gold btn--sm" href="/app">Open Sentinel</a>';
     })
     .catch(() => {});
 

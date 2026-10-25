@@ -141,6 +141,9 @@ test('login works, and wrong passwords get the same answer for real and unknown 
   const out = await c.post('/api/v1/auth/logout', {});
   assert.equal(out.status, 200);
   assert.equal((await c.get('/api/v1/auth/me')).status, 401);
+  const optional = await c.get('/api/v1/auth/me?optional=1');
+  assert.equal(optional.status, 200);
+  assert.equal(optional.data.user, null);
 
   const good = await c.post('/api/v1/auth/login', { email: c.email, password: 'Correct-Horse-42' });
   assert.equal(good.status, 200);
