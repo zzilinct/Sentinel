@@ -168,7 +168,8 @@
     // A Free account on one of the five newest models gets no live answers (server plans.js assertModel): say so, rather
     // than "On" in green over a scan that answers nothing.
     const modelLocked = Boolean(state.account.plan.modelLocked);
-    const paused = state.locked === 'hours' || modelLocked;
+    // Switched off is Off, whatever else is true.
+    const paused = state.settings.enabled && (state.locked === 'hours' || modelLocked);
     const reset = new Date(state.live.resetsAt || state.account.week.resetsAt);
     return `
       <div class="card">
