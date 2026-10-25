@@ -174,13 +174,13 @@
     return `
       <div class="card">
         <div class="row"><div class="label" style="margin:0">Live protection</div>
-          <span class="small" style="color:${paused ? 'var(--orange)' : state.settings.enabled ? 'var(--green)' : 'var(--muted)'}">${paused ? 'Paused' : state.settings.enabled ? 'On' : 'Off'}</span></div>
+          <span class="small" style="color:${!state.settings.enabled ? 'var(--muted)' : paused ? 'var(--orange)' : 'var(--green)'}">${!state.settings.enabled ? 'Off' : paused ? 'Paused' : 'On'}</span></div>
         <div class="meter"><i style="--p:${limit ? Math.min(100, (used / limit) * 100) : 0}"></i></div>
         <div class="row small">
           <span>${f.liveScanning ? 'Delicate: ' : ''}${timeLeftText(used, limit)}</span>
           <span>Resets ${reset.toLocaleDateString(undefined, { weekday: 'short' })}</span>
         </div>
-        ${modelLocked ? `<p class="small" style="margin:8px 0 0;color:var(--orange)">The model Sentinel uses is one of the five newest, which come with Pro, Max and Ultimate. Choose another model in the Sentinel app, or <a href="${esc(site)}/pricing" target="_blank" rel="noopener">upgrade</a>, to turn live scanning back on.</p>` : ''}
+        ${modelLocked && state.settings.enabled ? `<p class="small" style="margin:8px 0 0;color:var(--orange)">The model Sentinel uses is one of the five newest, which come with Pro, Max and Ultimate. Choose another model in the Sentinel app, or <a href="${esc(site)}/pricing" target="_blank" rel="noopener">upgrade</a>, to turn live scanning back on.</p>` : ''}
         <p class="small" style="margin:8px 0 0">${f.liveResearch ? 'Delicate scanning researches every result.' : 'Results are checked instantly. Delicate scanning, which researches each result, comes with Pro.'}${f.emailLive && state.settings.emailProtection ? ' Email protection is on.' : ''}</p>
       </div>`;
   }
