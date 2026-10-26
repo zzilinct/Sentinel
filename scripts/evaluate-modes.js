@@ -32,6 +32,11 @@ const arg = (name, fallback) => { const i = process.argv.indexOf(name); return i
 const SAMPLE = Number(arg('--sample', '120'));
 // --misses <file>: write the phishing addresses fast mode left unflagged (text only; nothing is opened), to study.
 const MISSES = arg('--misses', '');
+// --save-phish <file> keeps today's phishing addresses; --phish <file> scores those instead of fetching the feed again,
+// so two versions of the rules are measured on the very same addresses. --fast-only skips the delicate mode.
+const SAVE_PHISH = arg('--save-phish', '');
+const PHISH_IN = arg('--phish', '');
+const FAST_ONLY = process.argv.includes('--fast-only');
 const ALL = ['scam', 'virus', 'malware'];
 const pct = (n, d) => (d ? `${((n / d) * 100).toFixed(1)}%` : 'n/a');
 
@@ -48,8 +53,9 @@ async function main() {
   const loaded = db.prepare('SELECT (SELECT COUNT(*) FROM feed_hosts) + (SELECT COUNT(*) FROM feed_urls) AS n').get().n;
   console.log(`  ${loaded.toLocaleString()} listed hosts and addresses loaded; OpenPhish held out\n`);
 
-  const res = await fetch('https://openphish.com/feed.txt', { signal: AbortSignal.timeout(30000) });
-  const phish = [...new Set((await res.text()).split(/\r?\n/).map((s) => s.trim()).filter((u) => /^https?:/.test(u)))].slice(0, 300);
+  const feedText = PHISH_IN ? fs.readFileSync(PHISH_IN, 'utf8') : await (await fetch('https://openphish.com/feed.txt', { signal: AbortSignal.timeout(30000) })).text();
+  const phish = [...new Set(feedText.split(/\r?\n/).map((s) => s.trim()).filter((u) => /^https?:/.test(u)))].slice(0, 300);
+  if (SAVE_PHISH) fs.writeFileSync(SAVE_PHISH, phish.join('\n') + '\n');
   const legit = SAFE.map((h) => `https://${h}/`);
 
   const run = async (name, urls, opts, concurrency) => {
@@ -113,6 +119,7 @@ async function main() {
     console.log(`  ${missed.length} missed addresses written to ${MISSES}\n`);
   }
 
+  if (FAST_ONLY) return;
   const sampleP = phish.filter((_, i) => i % Math.max(1, Math.floor(phish.length / SAMPLE)) === 0).slice(0, SAMPLE);
   const sampleL = legit.slice(0, Math.min(legit.length, Math.round(SAMPLE / 2)));
   const delP = await run('delicate', sampleP, { research: true, budgetMs: 4500 }, 8);

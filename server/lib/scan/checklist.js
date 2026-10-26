@@ -91,6 +91,14 @@ function copiedFrom(p, scamHost) {
   return Boolean(their && their.registrable !== p.registrable && their.sld.replace(/[-\d]/g, '').includes(p.sld));
 }
 
+// A bucket or page name no person chose ("5uq7g34ayvu29t8gc6nk", "czpq_ac9ty7vziox4nslwio9fezt.html"): letters and
+// digits mixed at random. Throwaway phishing pages are uploaded under names like these, one per campaign.
+const randomish = (s) => s.length >= 16 && (s.match(/\d/g) || []).length >= 3 && (s.match(/[a-z]/g) || []).length >= 6 && entropy(s.replace(/[-_]/g, '')) > 3.5;
+const generatedName = (p) => randomish(p.host.split('.')[0]) || randomish((p.path.split('/').pop() || '').toLowerCase().replace(/\.html?$/, ''));
+
+// Default host names of rented servers (Contabo, AWS EC2, Hetzner, Linode, OVH, Hostinger).
+const VPS_NAME = /^(vmi\d+\.contaboserver\.net|ec2-\d+-\d+-\d+-\d+\.([a-z0-9-]+\.)?compute(-1)?\.amazonaws\.com|static\.\d+\.\d+\.\d+\.\d+\.clients\.your-server\.de|li\d+-\d+\.members\.linode\.com|\d+-\d+-\d+-\d+\.ip\.linodeusercontent\.com|vps-[0-9a-f]{6,}\.vps\.ovh\.net|srv\d+\.hstgr\.cloud)$/;
+
 const page = (ctx) => ctx.research && ctx.research.http && ctx.research.http.page;
 const needsResearch = (ctx) => (ctx.research ? null : skip(ctx.researchSkipReason || 'Research is not part of this scan'));
 
@@ -220,12 +228,13 @@ const URL_CHECKS = [
         });
         if (b) return fail(30, `A user-made page on ${p.host} named for ${b.domains[0]} ("${named.slice(0, 30)}")`);
         if (CREDENTIAL_WORDS.some((w) => !PLATFORM_WORDS.has(w) && lower.includes(w))) return fail(20, `User-made page on ${p.host} using login wording`);
-        if (/\.html?$/.test(lower) && L.OBJECT_STORAGE.test(p.host)) return fail(CREDENTIAL_WORDS.some((w) => lower.includes(w)) ? 32 : 22, `Web page served straight from a storage bucket on ${p.host}, where anyone can upload one`);
+        if (/\.html?$/.test(lower) && L.OBJECT_STORAGE.test(p.host)) return fail(CREDENTIAL_WORDS.some((w) => lower.includes(w)) || generatedName(p) ? 32 : 22, `Web page served straight from a storage bucket on ${p.host}, where anyone can upload one`);
         return warn(8, `User-made page on ${p.host}`);
       }
       if (L.OBJECT_STORAGE.test(p.host) && /\.html?$/i.test(p.path)) {
         const login = CREDENTIAL_WORDS.some((w) => p.path.toLowerCase().includes(w));
-        return fail(login ? 32 : 22, `Web page served straight from a storage bucket (${p.host}), where anyone can upload one${login ? ', with login wording' : ''}`);
+        const generated = generatedName(p);
+        return fail(login || generated ? 32 : 22, `Web page served straight from a storage bucket (${p.host}), where anyone can upload one${login ? ', with login wording' : generated ? ', under a generated name' : ''}`);
       }
       const hosted = L.FREE_HOSTING.find((d) => p.host === d || p.host.endsWith('.' + d));
       if (!hosted || p.host === hosted) return pass('Own domain');
@@ -257,7 +266,12 @@ const URL_CHECKS = [
   { id: 'U21', group: 'Hosting', threat: 'malware', title: 'Not a dynamic-DNS throwaway hostname',
     run: ({ p }) => {
       const d = L.DYNAMIC_DNS.find((x) => p.host.endsWith('.' + x));
-      return d ? fail(24, `Dynamic DNS hostname under ${d}`, { scam: 10 }) : pass('Not dynamic DNS');
+      if (!d) return pass('Not dynamic DNS');
+      // A home server's name is a person's or a device's ("plex", "nas"). Sign-in wording in front of a dynamic-DNS
+      // name ("ig-verifica.freemyip.com") is a page that wants an account, on a machine anyone can point it at.
+      const name = p.host.slice(0, -d.length - 1);
+      const bait = /verif|login|signin|logon|secure|account|wallet|bank|confirm|unlock|recover|support|billing/.test(name.replace(/[^a-z]+/g, ''));
+      return fail(24, `Dynamic DNS hostname under ${d}${bait ? ', with sign-in wording in front' : ''}`, { scam: bait ? 38 : 10 });
     } },
 
   { id: 'U22', group: 'Impersonation', threat: 'scam', title: 'Does not borrow a brand name it does not own',
@@ -415,6 +429,13 @@ const KNOWLEDGE_CHECKS = [
       for (const t of lower.split(/[^a-z]+/)) if (t.length >= 3) segments.add(t);
       for (const seg of lower.split(/[^a-z0-9_-]+/)) if (/[-_]/.test(seg)) segments.add(seg.replace(/[-_0-9]/g, ''));
       const hit = L.PROTECTED_BRANDS.find((b) => segments.has(b.token) && !b.domains.includes(p.registrable));
+      if (!hit && isUserContent(p.host)) {
+        // A user's page named for a brand spelled one letter wrong ("x.github.io/l_inshtagram/"): a project named
+        // for a brand spells it right ("netflix-clone"); the misspelling is there to get past filters.
+        const near = [...segments].map((w) => [w, L.PROTECTED_BRANDS.find((b) => b.token.length >= 7 && !w.startsWith(b.token) && levenshtein(w, b.token) === 1)])
+          .find(([w, b]) => b && !L.NOT_LOOKALIKES.has(w) && !isRealWords(w));
+        if (near) return fail(30, `A user-made page named "${near[0]}", one letter from ${near[1].domains[0]}`);
+      }
       if (!hit) return pass('No brand names in the path');
       if (aboutPage(p)) return pass(`A page about ${hit.token} (a review, article, forum or listing)`);
       const login = CREDENTIAL_WORDS.some((w) => words.has(w) || p.path.toLowerCase().includes(w));
@@ -442,6 +463,9 @@ const KNOWLEDGE_CHECKS = [
       // Hosting's temporary address (website-e86d3b7f.….mybluehost.me): what a site is reached by before it has a
       // name of its own. Nobody sends customers there; throwaway pages live there.
       if (p.host.endsWith('.mybluehost.me') && /^(www\.)?website-[0-9a-f]{6,}\./.test(p.host)) return fail(24, 'A hosting company\'s temporary address, not a site\'s own name');
+      // A rented server's factory name ("vmi3694604.contaboserver.net", "ec2-3-1-2-4.compute-1.amazonaws.com"): the
+      // label the provider gives every machine before its owner points a real name at it. No business sends people there.
+      if (VPS_NAME.test(p.host)) return fail(36, `"${p.host}" is the name a server provider gives a rented machine, not a website's name`);
       // Netlify's made-up name for a site its owner never named ("regal-lolly-92b4a1"): fine for a test, odd for a
       // site anyone is sent to.
       if (/^[a-z]+-[a-z]+-[0-9a-f]{6}\.netlify\.app$/.test(p.host)) return fail(18, 'A name Netlify made up for a site its owner never named');
@@ -506,6 +530,15 @@ const KNOWLEDGE_CHECKS = [
       if (brand.owner || p.isIp) return pass('Not applicable');
       // Short numeric names are ordinary in some countries (163.com, 12306.cn). Seven digits and up is a serial number.
       if (/^\d{7,}$/.test(p.sld)) return fail(24, 'The name is only a long number, the mark of domains registered in bulk');
+      // The same with a letter or two in front ("id84359388.shop"): a serial number with a prefix is still a serial number.
+      if (/^[a-z]{1,3}\d{7,}$/.test(p.sld)) return fail(24, `"${p.sld}" is a long serial number, the mark of domains registered in bulk`);
+      // Codes joined by a hyphen ("ph23-ph", "dt68-vn", "ph-tg77") under a throwaway label ("y5fm.ph23-ph.net"): a
+      // campaign's numbered domains, each with machine-made names in front. Nobody names a business this way.
+      const parts = p.sld.split('-');
+      const sub = p.subdomains.filter((s) => s !== 'www');
+      if (sub.length && !parts.includes('k12') && parts.length >= 2 && parts.length <= 3 && parts.every((x) => /^[a-z0-9]{2,4}$/.test(x)) && parts.some((x) => /^[a-z]+\d+$/.test(x)) && parts.some((x) => /^[a-z]{2}$/.test(x))) {
+        return fail(32, `"${p.sld}" is a pair of codes, not a name, with "${sub[0]}" in front: the shape of a campaign's numbered domains`);
+      }
       // A shorter number is only telling on an ending that is sold in bulk for next to nothing.
       if (/^\d{4,6}$/.test(p.sld) && L.RISKY_TLDS[p.suffix]) return fail(24, `A bare number on .${p.suffix}, the mark of domains registered in bulk`);
       return pass('Not a bare number');
@@ -517,10 +550,19 @@ const KNOWLEDGE_CHECKS = [
       // Whoever made the page chose this name. No real company keeps its sign-in
       // page, help centre or wallet on a free subdomain of somebody else's service.
       const STEMS = ['helpcenter', 'helpcentre', 'helpdesk', 'support', 'verif', 'login', 'loggin', 'logon', 'signin', 'secure', 'account',
-        'recover', 'appeal', 'wallet', 'billing', 'confirm', 'unlock', 'badge', 'copyright', 'suspend', 'restrict', 'webmail', 'password'];
+        'recover', 'appeal', 'wallet', 'billing', 'confirm', 'unlock', 'badge', 'copyright', 'suspend', 'restrict', 'webmail', 'password',
+        // Support in the languages the lists are full of, and the "your page broke our community policy" lure.
+        'soporte', 'suporte', 'violation', 'communitypolic', 'communitystandard'];
       const first = (p.path.split('/').filter(Boolean)[0] || '').toLowerCase();
       const clean = (text) => text.toLowerCase().replace(/[^a-z]+/g, '');
       const inName = STEMS.filter((s) => clean(p.sld).includes(s));
+      // Free Robux or V-Bucks ("freerobuxxc", "usernamerobux13"): the game money next to a giveaway word or the
+      // username these pages ask for. The money alone is a calculator or a fan page.
+      // "Security" in Spanish, Portuguese, German, French and Italian is also "safety" ("seguridad-vial", road safety). With
+      // a serial number after it ("seguridad-2026b65782") it is a throwaway page calling itself a security check.
+      const SECURITY = ['seguridad', 'seguranca', 'sicherheit', 'securite', 'sicurezza'].find((s) => clean(p.sld).includes(s));
+      if (SECURITY && /\d{4,}/.test(p.sld)) inName.push(SECURITY);
+      if (/robux|vbucks/.test(clean(p.sld)) && /free|gift|claim|generat|username|earn|hack|giveaway|reward/.test(clean(p.sld))) inName.push('robux', 'free');
       const inPath = STEMS.filter((s) => clean(first).includes(s));
       // One such word in a folder name is documentation ("/login-guide"). In the site's own name it is a claim.
       const hits = [...new Set(inName.length || inPath.length >= 2 ? [...inName, ...inPath] : [])];
@@ -531,7 +573,14 @@ const KNOWLEDGE_CHECKS = [
 
   { id: 'U47', group: 'Address', threat: 'scam', title: 'No domain ending buried inside the subdomains',
     run: ({ p, brand }) => {
-      if (brand.owner || p.isIp || p.subdomains.length < 2) return pass('Not applicable');
+      if (brand.owner || p.isIp) return pass('Not applicable');
+      // "s.team-rf.com" begins with s.team, Steam's own short address, and carries on with a hyphen: the eye reads
+      // s.team. The site is team-rf.com.
+      for (const b of L.PROTECTED_BRANDS) {
+        const own = b.domains.find((d) => d.includes('.') && d.length >= 6 && (p.host.startsWith(`${d}-`) || p.host.replace(/^www\./, '').startsWith(`${d}-`)));
+        if (own) return fail(40, `Made to be read as "${own}"; the real site is ${p.registrable}`);
+      }
+      if (p.subdomains.length < 2) return pass('Not applicable');
       // "ebay.item.co.uk.login.example.com": the eye stops at ".co.uk". The site is example.com.
       // Only whole endings count (".com", ".co.uk", ".com.br"): a lone "co" or "us" is how
       // American county and state sites are really named (www.co.washington.or.us).
@@ -544,6 +593,8 @@ const KNOWLEDGE_CHECKS = [
     run: ({ p, brand }) => {
       if (brand.owner || p.isIp || !L.RISKY_TLDS[p.suffix] || p.hosting) return pass('Not applicable');
       if (p.sld.length < 5 || p.sld.length > 11 || /[-\d]/.test(p.sld)) return pass('Not applicable');
+      // Not one vowel in six letters or more ("lclsqjjg"): nothing anyone could say, let alone remember.
+      if (p.sld.length >= 6 && !/[aeiouy]/.test(p.sld.toLowerCase())) return fail(28, `"${p.sld}" has no vowels at all: a string of letters, not a name, on an ending sold in bulk`);
       return /[bcdfghjklmnpqrstvwxz]{4,}/.test(p.sld.toLowerCase())
         ? fail(18, `"${p.sld}" is a string of letters rather than a name, on an ending sold in bulk`)
         : pass('Readable name');
@@ -584,10 +635,26 @@ const KNOWLEDGE_CHECKS = [
       if (brand.owner || !p.path || p.path.includes('://') || aboutPage(p)) return pass('Not applicable');
       // "s4w.in/roblox-com-users-...-profile", "gurl.pro/wwwrobloxcom-users-...": the eye reads roblox.com. The site is s4w.in.
       const path = p.path.toLowerCase();
+      // A folder named as a brand's own server ("/grp01.id.rakuten.co.jp/", "/login.microsoftonline.com/"): the
+      // address the kit was copied from, kept so the link reads as the brand's. A bare domain in a path is how
+      // look-up tools name the site they describe, so only a named server inside the brand's domain counts.
+      // Not an image or script fetched through a proxy ("i0.wp.com/cdn.shopify.com/.../photo.jpg"): a file, not a page.
+      if (/\.(jpe?g|png|gif|webp|avif|svg|ico|css|js|mjs|woff2?|ttf|mp4|webm|json)$/.test(path) || p.registrable === 'wp.com') return pass('A file fetched through a proxy');
+      // Look-up tools end their paths with the host they describe ("similarweb.com/website/login.microsoftonline.com/",
+      // "virustotal.com/gui/domain/<host>/relations"); a kit's copy carries on below it ("/<host>/jp/<id>/").
+      const segs = path.split('/').filter(Boolean);
+      const LOOKUP = /^(domains?|websites?|sites?|whois|lookup|hosts?|dns|urls?|reports?|check|info|search|analysis|stats|traffic|ip|scan|status)$/;
+      for (const [i, seg] of segs.entries()) {
+        if (i === segs.length - 1 || (i > 0 && LOOKUP.test(segs[i - 1]))) continue;
+        const b = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(seg) && !seg.startsWith('www.') && L.PROTECTED_BRANDS.find((x) => x.domains.some((d) => seg.endsWith(`.${d}`)));
+        if (b) return fail(38, `The path holds "${seg.slice(0, 40)}", written to look like ${b.domains[0]}; the real site is ${p.registrable}`);
+      }
+      // The host a look-up tool describes ("urlscan.io/domain/secure.paypal.com") is its subject, not a costume.
+      const costume = '/' + segs.filter((s, i) => !(i > 0 && LOOKUP.test(segs[i - 1]))).join('/');
       for (const b of L.PROTECTED_BRANDS) {
         if (b.token.length < 4) continue;
         const re = new RegExp(`(^|[/._-])(www[._-]?)?${b.token}[._-]?com([/._-]|$)`);
-        if (re.test(path)) return fail(38, `The path is written to look like ${b.domains[0]}; the real site is ${p.registrable}`);
+        if (re.test(costume)) return fail(38, `The path is written to look like ${b.domains[0]}; the real site is ${p.registrable}`);
       }
       return pass('Ordinary path');
     } },

@@ -29,6 +29,8 @@ const BRANDS = [
   { token: 'amex', domains: ['americanexpress.com', 'amex.com', 'aexp.com'] },
   { token: 'usaa', domains: ['usaa.com'] },
   { token: 'truist', domains: ['truist.com'] },
+  // South Africa's Absa: its sign-in pages are copied onto unrelated domains as "absa.<something>.co.za".
+  { token: 'absa', domains: ['absa.co.za', 'absa.africa'] },
   { token: 'santander', domains: ['santander.com', 'santander.co.uk', 'santander.es', 'santanderbank.com'] },
   { token: 'hsbc', domains: ['hsbc.com', 'hsbc.co.uk', 'hsbc.com.hk', 'hsbc.fr', 'us.hsbc.com'] },
   { token: 'barclays', domains: ['barclays.co.uk', 'barclays.com', 'barclaycard.co.uk', 'barclaycardus.com'] },
@@ -131,6 +133,9 @@ const BRANDS = [
   { token: 'mcafee', domains: ['mcafee.com'] },
   { token: 'cloudflare', domains: ['cloudflare.com', 'cloudflare.net', 'cloudflareinsights.com', 'one.one.one.one'] },
   { token: 'costco', domains: ['costco.com', 'costco.ca', 'costco.co.uk'] },
+  // DPD's parcel-fee pages ("mydpd.<letters>.top/track-ch") are among the commonest delivery lures in Europe.
+  { token: 'dpd', domains: ['dpd.com', 'dpdgroup.com', 'dpd.co.uk', 'dpdlocal.co.uk', 'dpd.de', 'dpd.fr', 'dpd.nl', 'dpd.be', 'dpd.ch', 'dpd.at', 'dpd.ie', 'dpd.cz', 'dpd.sk', 'dpd.com.pl', 'dpd.pt', 'dpd.ro', 'dpd.hu', 'dpd.hr', 'dpd.si', 'dpd.lt', 'dpd.lv', 'dpd.ee'] },
+  { token: 'poshmark', domains: ['poshmark.com', 'poshmark.ca', 'poshmark.com.au'] },
   { token: 'dhl', domains: ['dhl.com', 'dhl.de', 'dhl.co.uk', 'dhl.fr', 'dhlparcel.nl', 'dhl.nl'] },
   { token: 'fedex', domains: ['fedex.com'] },
   { token: 'usps', domains: ['usps.com', 'usps.gov'] },
@@ -174,7 +179,8 @@ const BRANDS = [
   { token: 'kucoin', domains: ['kucoin.com'] },
 
   // Games
-  { token: 'steam', domains: ['steampowered.com', 'steamcommunity.com', 'steamstatic.com', 'steam-chat.com'] },
+  // s.team is Steam's own short address for friend and QR links ("s.team/p/...").
+  { token: 'steam', domains: ['s.team', 'steampowered.com', 'steamcommunity.com', 'steamstatic.com', 'steam-chat.com'] },
   { token: 'steamcommunity', domains: ['steamcommunity.com'] },
   { token: 'roblox', domains: ['roblox.com', 'rbxcdn.com', 'rbx.com'] },
   // imToken's real site is token.im, so its fakes are written both ways round.
@@ -193,6 +199,8 @@ const BRANDS = [
   { token: 'naver', domains: ['naver.com', 'naver.net', 'navercorp.com'] },
   { token: 'kakao', domains: ['kakao.com', 'kakaocorp.com', 'daum.net', 'kakaobank.com'] },
   { token: 'rakuten', domains: ['rakuten.co.jp', 'rakuten.com', 'rakuten.ne.jp', 'rakuten-card.co.jp', 'rakuten-bank.co.jp', 'rakuten-sec.co.jp', 'rakuten.fr', 'rakuten.de', 'rakuten.tv'] },
+  // Web hosting and email accounts: "verify-networksolutions.<ending>/appsuite" copies its webmail sign-in.
+  { token: 'networksolutions', domains: ['networksolutions.com'] },
   { token: 'okta', domains: ['okta.com', 'oktacdn.com', 'okta-emea.com', 'oktapreview.com', 'okta.dev'] },
   { token: 'aliyun', domains: ['aliyun.com', 'alibabacloud.com'] },
   { token: 'alibaba', domains: ['alibaba.com', 'alibabacloud.com', 'alibaba-inc.com', 'alibabagroup.com', '1688.com'] },

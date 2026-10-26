@@ -174,7 +174,9 @@ const OBJECT_STORAGE = /(^|\.)(storage\.googleapis\.com|storage\.cloud\.google\.
 const DYNAMIC_DNS = [
   'duckdns.org', 'no-ip.com', 'ddns.net', 'hopto.org', 'zapto.org', 'sytes.net', 'serveftp.com',
   'myftp.biz', 'dynu.net', 'freedns.afraid.org', 'mooo.com', 'chickenkiller.com', 'ignorelist.com',
-  'servehttp.com', 'redirectme.net', 'dyndns.org', 'linkpc.net', 'publicvm.com'
+  'servehttp.com', 'redirectme.net', 'dyndns.org', 'linkpc.net', 'publicvm.com',
+  // More free dynamic-DNS services, each a name anyone can point at any machine in a minute.
+  'freemyip.com', 'dynv6.net', 'ydns.eu', 'dedyn.io', 'myftp.org', 'myvnc.com', 'bounceme.net', 'servebeer.com', 'ddnsking.com', 'mywire.org'
 ];
 
 // Browser cryptominer script hosts.

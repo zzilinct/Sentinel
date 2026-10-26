@@ -21,8 +21,16 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts || npm install --ignore-scripts
-      - run: node scripts/evaluate-modes.js --sample 200 --misses misses.txt | tee evaluation.txt
+      - run: node scripts/evaluate-modes.js --sample 200 --misses misses.txt --save-phish phish.txt | tee evaluation.txt
       - run: node scripts/evaluate-emails.js | tee -a evaluation.txt
+      # Before and after on the very same addresses: main's rules score the phishing addresses this run just scored.
+      - name: The same addresses with main's rules
+        if: github.ref_name != 'main'
+        run: |
+          git fetch --depth=1 origin main
+          git worktree add ../before FETCH_HEAD
+          cp scripts/evaluate-modes.js ../before/scripts/
+          node ../before/scripts/evaluate-modes.js --fast-only --phish phish.txt --misses misses-before.txt | tee before.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -30,6 +38,8 @@ jobs:
           path: |
             evaluation.txt
             misses.txt
+            before.txt
+            misses-before.txt
           retention-days: 7
 
   # False alarms on real software: Windows itself and the programs installed on a GitHub Windows machine are all
