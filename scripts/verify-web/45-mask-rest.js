@@ -58,7 +58,7 @@ async function checkMaskRest() {
     const p2 = await ev(PIXELS);
     for (let i = 0; i < 3; i++) { await photo(`rest-${i}`); await sleep(400); }
     result('mask-rest: once settled the hero rests, drawn a few times a second, and still drifts',
-      restState.resting && rest.perSec > 3 && rest.perSec <= 17 && p1 !== p2,
+      restState.resting && rest.perSec >= 1 && rest.perSec <= 17 && p1 !== p2,
       { resting: restState.resting, heroDrawsPerSec: rest.perSec, mainThreadBusy: `${rest.busy}%`, pictureMoved: p1 !== p2, masks: restState.masks.map((m) => `${m.kind}${m.onScreen ? ' on screen' : ''}`) });
 
     /* A pointer near the hero: awake at once, every frame drawn as it turns to watch. */

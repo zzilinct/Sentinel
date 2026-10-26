@@ -28,7 +28,7 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // frames, and on a phone fewer still (the drift is the same, the phone stays cool).
 const IDLE_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;
 // Once nothing has happened for a while (no pointer, no scroll, no turn or colour change, the entrance done), the
-// masks rest: they keep drifting, drawn about fifteen times a second (ten on a phone), and the page's main thread and
+// masks rest: they keep drifting, drawn up to fifteen times a second (ten on a phone), and the page's main thread and
 // the battery get the rest. Any pointer move or scroll wakes them at once.
 const SETTLE_MS = 2500;
 const REST_MS = matchMedia('(pointer: coarse)').matches ? 100 : 66;
@@ -177,15 +177,17 @@ function tick(now) {
   raf = 0;
   if (document.hidden || (shared && shared.lost)) return;
   const resting = now > awakeUntil;
+  const t = performance.now();
   let busy = false;
   let drift = false;
   for (const m of all) {
     const s = m.step(now, resting);
     if (s === 2) busy = true; else if (s) drift = true;
   }
-  // At rest, nothing asks for the next frame: a timer does, a few times a second.
+  // At rest, nothing asks for the next frame: a timer does, a few times a second, and further apart where drawing is
+  // slow (a computer drawing 3D without a graphics card), so resting masks never take more than a quarter of the time.
   if (busy || (drift && !resting)) wake();
-  else if (drift) rest = setTimeout(wake, REST_MS);
+  else if (drift) rest = setTimeout(wake, Math.max(REST_MS, (performance.now() - t) * 3));
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { for (const m of all) m.last = performance.now(); stir(); } });
 
