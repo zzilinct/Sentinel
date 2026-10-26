@@ -44,7 +44,10 @@ const CAUGHT = [
   ['http://v1234.ig-verifica.freemyip.com/', 'U21'],
   ['https://v1234.ig-verifica.freemyip.com/legal/cookies/', 'U21'],
   // Not one vowel, on an ending sold in bulk.
-  ['https://lqlsqjjg.casa/', 'U48']
+  ['https://lqlsqjjg.casa/', 'U48'],
+  // A numbered content-network server's name, on an ending sold in bulk.
+  ['https://tokqnlmz-cdn0-ffd.lat/', 'U48'],
+  ['https://tokqnlz-cdn51-hk51.lol/', 'U48']
 ];
 
 // Honest neighbours of each rule: the same platforms, words and shapes used the ordinary way.
@@ -60,7 +63,7 @@ const HONEST = [
   'https://urlscan.io/domain/secure.paypal.com', 'https://i0.wp.com/cdn.shopify.com/s/files/1/photo.jpg',
   'https://downforeveryoneorjustme.com/rakuten.co.jp', 'https://developer.paypal.com/docs/api/',
   'https://myplex.duckdns.org/', 'https://nas.dynv6.net/', 'https://homecam.freemyip.com/',
-  'https://rhythm.top/', 'https://www.lynx.shop/', 'https://crwth.store/', 'https://www.xkcd.com/',
+  'https://my-api2.xyz/', 'https://my-cdn2.xyz/', 'https://cdn1.example.top/', 'https://rhythm.top/', 'https://www.lynx.shop/', 'https://crwth.store/', 'https://www.xkcd.com/',
   'https://aws.amazon.com/ec2/', 'https://contabo.com/en/vps/', 'https://www.hetzner.com/cloud'
 ];
 

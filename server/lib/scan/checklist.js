@@ -592,6 +592,10 @@ const KNOWLEDGE_CHECKS = [
   { id: 'U48', group: 'Address', threat: 'scam', title: 'Name on a cheap ending can be pronounced',
     run: ({ p, brand }) => {
       if (brand.owner || p.isIp || !L.RISKY_TLDS[p.suffix] || p.hosting) return pass('Not applicable');
+      // A server's numbered name inside it ("tokanlmq-cdn0-ffd.lat"): dressed as a content network's machine. Real
+      // networks do not buy their names on endings sold in bulk.
+      const server = p.sld.toLowerCase().split('-').find((x) => /^(cdn|static|img|edge)\d+$/.test(x));
+      if (server && p.sld.split('-').length >= 3) return fail(24, `"${p.sld}" poses as a numbered server ("${server}") on an ending sold in bulk`);
       if (p.sld.length < 5 || p.sld.length > 11 || /[-\d]/.test(p.sld)) return pass('Not applicable');
       // Not one vowel in six letters or more ("lclsqjjg"): nothing anyone could say, let alone remember.
       if (p.sld.length >= 6 && !/[aeiouy]/.test(p.sld.toLowerCase())) return fail(28, `"${p.sld}" has no vowels at all: a string of letters, not a name, on an ending sold in bulk`);
