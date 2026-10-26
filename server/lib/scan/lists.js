@@ -150,7 +150,9 @@ const FREE_HOSTING = [
   'formstack.com', 'zeabur.app', 'paperform.co', 'squarespace.com', 'mdbgo.io', 'ondigitalocean.app', 'liveblog365.com',
   'run.app', 'company.site', 'formaloo.co', 'surveysparrow.com', 'ac-page.com', 'jotform.com', 'studio.site', 'kobotoolbox.org',
   'eu.cc', 'us.cc', 'iceiy.com', 'zya.me', 'hstn.me', 'free.nf', 'xo.je', 'fwh.is', 'campaign-archive.com', 'list-manage.com',
-  'rs6.net', 'sendgrid.net', 'awstrack.me', 'app.link', 'mockplus.com'
+  'rs6.net', 'sendgrid.net', 'awstrack.me', 'app.link', 'mockplus.com',
+  // GoDaddy's temporary addresses for WordPress sites that have no name of their own yet.
+  'myftpupload.com'
 ];
 
 // Web archives. Their paths are other sites' addresses, and they hold copies of pages that are on the lists.
@@ -176,7 +178,8 @@ const DYNAMIC_DNS = [
   'myftp.biz', 'dynu.net', 'freedns.afraid.org', 'mooo.com', 'chickenkiller.com', 'ignorelist.com',
   'servehttp.com', 'redirectme.net', 'dyndns.org', 'linkpc.net', 'publicvm.com',
   // More free dynamic-DNS services, each a name anyone can point at any machine in a minute.
-  'freemyip.com', 'dynv6.net', 'ydns.eu', 'dedyn.io', 'myftp.org', 'myvnc.com', 'bounceme.net', 'servebeer.com', 'ddnsking.com', 'mywire.org'
+  'freemyip.com', 'dynv6.net', 'ydns.eu', 'dedyn.io', 'myftp.org', 'myvnc.com', 'bounceme.net', 'servebeer.com', 'ddnsking.com', 'mywire.org',
+  'servecounterstrike.com', 'serveminecraft.net', 'servegame.com', 'servehalflife.com', 'servequake.com', 'webhop.me'
 ];
 
 // Browser cryptominer script hosts.

@@ -47,7 +47,16 @@ const CAUGHT = [
   ['https://lqlsqjjg.casa/', 'U48'],
   // A numbered content-network server's name, on an ending sold in bulk.
   ['https://tokqnlmz-cdn0-ffd.lat/', 'U48'],
-  ['https://tokqnlz-cdn51-hk51.lol/', 'U48']
+  ['https://tokqnlz-cdn51-hk51.lol/', 'U48'],
+  // Six consonants in a row on a bulk ending; the campaign's numbered domains with a bare number.
+  ['https://uwzqsqqpui.casa/', 'U48'],
+  ['https://gyeqx4.6686-vn.net/', 'U45'],
+  // A made-up name for a site its owner never named, and a hosting company's temporary address.
+  ['https://orange-aside-123456.framer.app/', 'U56'],
+  ['https://1234567.eu9.myftpupload.com/abcCss/abc/k.html', 'U56'],
+  // "gov" glued to the words of Brazil's tax-number debt messages.
+  ['https://www.govpendenciaqainel.org/', 'U33'],
+  ['https://govregularizaqainel.org/', 'U33']
 ];
 
 // Honest neighbours of each rule: the same platforms, words and shapes used the ordinary way.
@@ -63,7 +72,9 @@ const HONEST = [
   'https://urlscan.io/domain/secure.paypal.com', 'https://i0.wp.com/cdn.shopify.com/s/files/1/photo.jpg',
   'https://downforeveryoneorjustme.com/rakuten.co.jp', 'https://developer.paypal.com/docs/api/',
   'https://myplex.duckdns.org/', 'https://nas.dynv6.net/', 'https://homecam.freemyip.com/',
-  'https://my-api2.xyz/', 'https://my-cdn2.xyz/', 'https://cdn1.example.top/', 'https://rhythm.top/', 'https://www.lynx.shop/', 'https://crwth.store/', 'https://www.xkcd.com/',
+  'https://www.govdelivery.com/', 'https://govtrack.us/', 'https://www.governmentjobs.com/', 'https://www.gov.br/receitafederal/',
+  'https://newsletter-signup.netlify.app/', 'https://my-portfolio.framer.app/', 'https://app.123-go.com/', 'https://www.schmidt.shop/',
+  'https://abc.servecounterstrike.com/', 'https://my-api2.xyz/', 'https://my-cdn2.xyz/', 'https://cdn1.example.top/', 'https://rhythm.top/', 'https://www.lynx.shop/', 'https://crwth.store/', 'https://www.xkcd.com/',
   'https://aws.amazon.com/ec2/', 'https://contabo.com/en/vps/', 'https://www.hetzner.com/cloud'
 ];
 

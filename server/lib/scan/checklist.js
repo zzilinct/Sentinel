@@ -392,6 +392,9 @@ const URL_CHECKS = [
       // "gov" set apart as a word of its own ("ssa-gov-statement.com", "irs.gov.refund-help.com") is written to read
       // as a .gov address.
       if (!realGov && [p.sld, ...p.subdomains].some((label) => label.split(/[-_]/).includes('gov'))) return fail(40, 'Written to read like a .gov address, but is not one');
+      // "gov" glued to the words of Brazil's "settle your tax number's debt" messages ("govpendenciapainel",
+      // "govregularizapainel"): a government panel that is not on gov.br. Not "govdelivery" or "govtrack".
+      if (!realGov && /^gov[a-z]*(pendenci|regulariz|irregular|cpf|receita|restitui|debito|multa|detran|painel)/.test(p.sld.replace(/-/g, ''))) return fail(40, `"${p.sld}" is written to read like a government service, but is not on a government domain`);
       return hits.length && !realGov ? fail(22, `Uses government wording (${hits.join(', ')}) on a non-government domain`) : pass('No government impersonation');
     } },
 
@@ -469,6 +472,10 @@ const KNOWLEDGE_CHECKS = [
       // Netlify's made-up name for a site its owner never named ("regal-lolly-92b4a1"): fine for a test, odd for a
       // site anyone is sent to.
       if (/^[a-z]+-[a-z]+-[0-9a-f]{6}\.netlify\.app$/.test(p.host)) return fail(18, 'A name Netlify made up for a site its owner never named');
+      // Framer does the same ("orange-aside-126380.framer.app").
+      if (/^[a-z]+-[a-z]+-\d{6}\.framer\.app$/.test(p.host)) return fail(18, 'A name Framer made up for a site its owner never named');
+      // GoDaddy's temporary address for a WordPress site ("1301614.eu9.myftpupload.com"), before it has a name of its own.
+      if (/^\d+\.[a-z]+\d*\.myftpupload\.com$/.test(p.host)) return fail(24, 'A hosting company\'s temporary address, not a site\'s own name');
       // Folder and page names nobody would type ("aynqxts/wsdqmoc/dpgqmbx"): phishing kits unpack into generated
       // folders on hacked sites, and shared site builders give throwaway pages generated names.
       const parts = p.path.split('/').filter(Boolean).map((s) => s.replace(/\.[a-z0-9]+$/i, ''));
@@ -536,8 +543,8 @@ const KNOWLEDGE_CHECKS = [
       // campaign's numbered domains, each with machine-made names in front. Nobody names a business this way.
       const parts = p.sld.split('-');
       const sub = p.subdomains.filter((s) => s !== 'www');
-      if (sub.length && !parts.includes('k12') && parts.length >= 2 && parts.length <= 3 && parts.every((x) => /^[a-z0-9]{2,4}$/.test(x)) && parts.some((x) => /^[a-z]+\d+$/.test(x)) && parts.some((x) => /^[a-z]{2}$/.test(x))) {
-        return fail(32, `"${p.sld}" is a pair of codes, not a name, with "${sub[0]}" in front: the shape of a campaign's numbered domains`);
+      if (sub.length && !parts.includes('k12') && parts.length >= 2 && parts.length <= 3 && parts.every((x) => /^[a-z0-9]{2,4}$/.test(x)) && parts.some((x) => /^[a-z]+\d+$/.test(x) || (/^\d+$/.test(x) && /\d/.test(sub[0]))) && parts.some((x) => /^[a-z]{2}$/.test(x))) {
+        return fail(38, `"${p.sld}" is a pair of codes, not a name, with "${sub[0]}" in front: the shape of a campaign's numbered domains`);
       }
       // A shorter number is only telling on an ending that is sold in bulk for next to nothing.
       if (/^\d{4,6}$/.test(p.sld) && L.RISKY_TLDS[p.suffix]) return fail(24, `A bare number on .${p.suffix}, the mark of domains registered in bulk`);
@@ -599,6 +606,8 @@ const KNOWLEDGE_CHECKS = [
       if (p.sld.length < 5 || p.sld.length > 11 || /[-\d]/.test(p.sld)) return pass('Not applicable');
       // Not one vowel in six letters or more ("lclsqjjg"): nothing anyone could say, let alone remember.
       if (p.sld.length >= 6 && !/[aeiouy]/.test(p.sld.toLowerCase())) return fail(28, `"${p.sld}" has no vowels at all: a string of letters, not a name, on an ending sold in bulk`);
+      // Six consonants in a row ("uwsqsqqpui") is a keyboard, not a word in any language the lists are full of.
+      if (/[bcdfghjklmnpqrstvwxz]{6,}/.test(p.sld.toLowerCase())) return fail(28, `"${p.sld}" is a string of letters rather than a name, on an ending sold in bulk`);
       return /[bcdfghjklmnpqrstvwxz]{4,}/.test(p.sld.toLowerCase())
         ? fail(18, `"${p.sld}" is a string of letters rather than a name, on an ending sold in bulk`)
         : pass('Readable name');
