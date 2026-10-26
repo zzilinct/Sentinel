@@ -37,7 +37,8 @@
   /* ------------------------------------------------------------- urls */
 
   // Where a link in a message leads: Messenger wraps links in l.facebook.com/l.php, X shortens them to t.co and
-  // shows the real address as the link's words.
+  // shows the real address as the link's words, or, round a shared post's link card, as the card's own name for it
+  // (its label, or a line of its text): `words` is then each of those, the first that is an address winning.
   function realUrl(href, words, base) {
     let u;
     try { u = new URL(href, base); } catch { return null; }
@@ -45,8 +46,10 @@
     let inner = null;
     if (/^l\.(facebook|messenger)\.com$/.test(u.hostname) && u.pathname === '/l.php') inner = u.searchParams.get('u');
     else if (u.hostname === 't.co') {
-      const t = String(words || '').trim().replace(/(…|\.\.\.)$/, '');
-      if (/^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,63}(\/\S*)?$/i.test(t)) inner = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+      for (const w of [].concat(words || [])) {
+        const t = String(w || '').trim().replace(/^From\s+/i, '').replace(/(…|\.\.\.)$/, '');
+        if (/^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,63}(\/\S*)?$/i.test(t)) { inner = /^https?:\/\//i.test(t) ? t : `https://${t}`; break; }
+      }
     }
     if (inner) {
       try { const t = new URL(inner); if (/^https?:$/.test(t.protocol)) return t.href; } catch { /* keep the wrapper */ }
@@ -149,8 +152,9 @@
   /* ------------------------------------------------------------ sweep */
 
   const talks = new Map();                  // conversation (the page's path) -> chat safety's reader for it
-  const judged = new WeakSet();
+  const judged = new WeakMap();             // message -> the words it was judged on (edited, it is judged again)
   const flagged = new WeakMap();            // message -> what chat safety said, drawn again if the app redraws it
+  const linkOf = new WeakMap();             // link -> [its href, where it leads], worked out once per link
 
   function talk() {
     const key = location.pathname;
@@ -180,20 +184,32 @@
       const textEl = msg.querySelector(site.text) || msg;
       // Chat hints have their own switch (the options page), as chat safety does in the Windows app; off, no message
       // words are read at all and only the links are marked.
-      if (settings.chatHints !== false && !judged.has(msg)) {
-        judged.add(msg);
-        const own = site.out && (msg.matches(site.out) || msg.closest(site.out));
-        const r = own ? null : talk().add({ who: who || undefined, text: textEl.textContent || '' });
-        if (r && ADVICE[r.family]) flagged.set(msg, r);
+      if (settings.chatHints !== false) {
+        const words = textEl.textContent || '';
+        if (judged.get(msg) !== words) {
+          // A message edited after it arrived is judged again on its new words, and loses a hint it no longer earns.
+          if (judged.has(msg)) { flagged.delete(msg); msg.querySelectorAll('[data-sentinel-chat]').forEach((n) => n.remove()); }
+          judged.set(msg, words);
+          const own = site.out && (msg.matches(site.out) || msg.closest(site.out));
+          const r = own ? null : talk().add({ who: who || undefined, text: words });
+          if (r && ADVICE[r.family]) flagged.set(msg, r);
+        }
       }
       const r = flagged.get(msg);
       if (settings.chatHints !== false && r && !msg.querySelector('[data-sentinel-chat]')) hint(textEl === msg ? msg.lastElementChild || msg : textEl, r);
 
       for (const a of msg.querySelectorAll('a[href]')) {
-        const url = realUrl(a.getAttribute('href'), a.textContent, location.href);
+        const href = a.getAttribute('href');
+        let known = linkOf.get(a);
+        if (!known || known[0] !== href) {
+          const target = realUrl(href, a.hostname === 't.co' ? [a.textContent, (a.getAttribute('aria-label') || '').split(/\s/)[0], ...[...a.querySelectorAll('span')].map((x) => x.textContent)] : a.textContent, location.href);
+          let host = null;
+          try { host = target && new URL(target).hostname; } catch { /* not a web address */ }
+          known = [href, host && host !== location.hostname && !site.own.test(host) ? target : null];
+          linkOf.set(a, known);
+        }
+        const url = known[1];
         if (!url) continue;
-        const host = new URL(url).hostname;
-        if (host === location.hostname || site.own.test(host)) continue;
         const list = byUrl.get(url) || [];
         if (!list.includes(a)) { byUrl.set(url, [...list.filter((x) => x.isConnected), a]); }
         if (verdicts.has(url)) mark(a, verdicts.get(url));
@@ -203,24 +219,37 @@
     if (added || queue.length) flush();
   }
 
-  let timer;
+  // At most one look every 400 ms while the chat changes. Not put off until it is quiet: a busy channel, or a typing
+  // indicator, never goes quiet, and its messages were not looked at until it did.
+  let timer = null;
   function schedule(delay = 400) {
-    clearTimeout(timer);
-    timer = setTimeout(sweep, delay);
+    if (timer !== null) return;
+    timer = setTimeout(() => { timer = null; sweep(); }, delay);
   }
   // Links are checked as soon as the tab is looked at again.
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') schedule(50); });
   window.addEventListener('focus', () => schedule(50));
 
+  let watching = false;
+  function start() {
+    if (watching) return;
+    watching = true;
+    // characterData: an edit that changes a message's words in place.
+    new MutationObserver(() => schedule()).observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
   Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
     settings = { ...DEFAULTS, ...(stored || {}) };
     if (!settings.enabled) return;
     schedule(0);
-    new MutationObserver(() => schedule()).observe(document.body, { childList: true, subtree: true });
+    start();
   });
   ext.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync') for (const [k, { newValue }] of Object.entries(changes)) settings[k] = newValue;
-    // Hints switched off: the ones already shown go too.
-    if (area === 'sync' && changes.chatHints && changes.chatHints.newValue === false) document.querySelectorAll('[data-sentinel-chat]').forEach((n) => n.remove());
+    if (area !== 'sync') return;
+    for (const [k, { newValue }] of Object.entries(changes)) settings[k] = newValue;
+    // Hints switched off: the ones already shown go too. The companion switched off: its masks go as well.
+    if (changes.chatHints && changes.chatHints.newValue === false) document.querySelectorAll('[data-sentinel-chat]').forEach((n) => n.remove());
+    if (changes.enabled && changes.enabled.newValue === false) document.querySelectorAll('[data-sentinel-chat], .sentinel-masks--chat').forEach((n) => n.remove());
+    // Switched (back) on with the chat open: it is looked over now, not at the next message.
+    if (settings.enabled && (changes.enabled || changes.chatHints || changes.minimumBadge)) { start(); schedule(0); }
   });
 })();
