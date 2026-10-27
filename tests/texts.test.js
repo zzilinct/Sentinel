@@ -81,3 +81,11 @@ test('a warning from the wording is lowered one step when every link is a site S
   const fam = judgeText({ from: '+44 7700 900123', text: 'Hi Mum, this is my new number. Can you send money for a bill? https://www.apple.com/x' });
   assert.equal(withLinks(fam, { 'https://www.apple.com/x': { overall: { badge: null }, knowledge: { trusted: true } } }).level, 'danger');
 });
+
+test('a long conversation is read by its start and its newest part: a link at its end is checked (QA 1.18)', () => {
+  const chat = `${'Hi, how was your day? Mine was fine, the weather is lovely here. '.repeat(200)}USPS: Your package is on hold. Pay the fee at https://usps-redeliver.top/pay`;
+  const r = judgeText({ from: '', text: chat });
+  assert.ok(r.links.some((u) => /usps-redeliver\.top/.test(u)), 'the newest link is checked');
+  // Ordinary chat of the same length is still nothing.
+  assert.equal(judgeText({ from: 'Mom', text: 'can you pick me up at 5 '.repeat(400) }).flag, null);
+});

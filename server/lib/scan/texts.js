@@ -50,7 +50,11 @@ const ADVICE = {
  * @returns {{ flag: null | { level: 'warn'|'danger', family: 'scam', title: string, detail: string, advice: string }, links: string[] }}
  */
 function judgeText(m) {
-  const text = String((m && m.text) || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
+  // A whole conversation is read by its start and its newest part, where a scam usually is: only its first 2000 letters
+  // were read, so a link at the end of a long paste or share was never checked (QA 1.18). The tail starts at a word.
+  const whole = String((m && m.text) || '').replace(/\s+/g, ' ').trim();
+  const tail = whole.slice(-2000);
+  const text = whole.length > 4000 ? `${whole.slice(0, 2000)} ${tail.slice(tail.indexOf(' ') + 1)}` : whole;
   const from = String((m && m.from) || '').trim().slice(0, 80);
   if (!text) return { flag: null, links: [] };
   const kind = senderKind(from);

@@ -32,7 +32,13 @@ const DISCORD = page('Discord', `<main><ol data-list-id="chat-messages" id="list
     let n = 20000;
     window.row = (html, who, id) => { const k = n++; const li = document.createElement('li'); li.id = 'chat-messages-2-' + k; if (id) li.dataset.t = id;
       li.innerHTML = '<div>' + (who ? '<h3><span id="message-username-' + k + '">' + who + '</span></h3>' : '') + '<div id="message-content-' + k + '">' + html + '</div></div>'; return li; };
-    window.add = (html, who, id) => { const li = row(html, who, id); document.getElementById('list').appendChild(li); return li.id; };
+    window.add = (html, who, id) => { const li = row(html, who, id); li.dataset.at = performance.now(); document.getElementById('list').appendChild(li); return li.id; };
+    // How long after it arrived each tagged message got a hint or a mask, timed here as it happens.
+    window.took = {};
+    new MutationObserver(() => { for (const li of document.querySelectorAll('li[data-at]')) { const t = li.dataset.t;
+      if (li.querySelector('[data-sentinel-chat]') && !took[t + ':hint']) took[t + ':hint'] = Math.round(performance.now() - li.dataset.at);
+      if (li.querySelector('.sentinel-masks') && !took[t + ':mask']) took[t + ':mask'] = Math.round(performance.now() - li.dataset.at); } })
+      .observe(document.getElementById('list'), { childList: true, subtree: true });
     window.older = (rows) => { const list = document.getElementById('list'); const f = document.createDocumentFragment(); for (const [html, who, id] of rows) f.appendChild(row(html, who, id)); list.prepend(f); return true; };
     window.edit = (id, html) => { const c = document.querySelector('[data-t="' + id + '"] [id^="message-content-"]'); c.innerHTML = html + ' <span class="edited">(edited)</span>'; return true; };
   </script>`);
@@ -102,11 +108,12 @@ async function checkWebChatsOdd() {
     await channel();
     const live = await stream();
     // Each one's wait, counted from when it arrived: a sweep that only ran once the channel went quiet would come seconds late.
-    const end = Date.now();
-    const askWait = await waitFor('busy20', (v) => v.hint, 5000);
-    const scamWait = await waitFor('busy40', scamMask, 5000);
-    const askMs = askWait === null ? null : end + askWait - live.at[20];
-    const scamMs = scamWait === null ? null : end + scamWait - live.at[40];
+    // Timed in the page as they happen (window.took).
+    await waitFor('busy20', (v) => v.hint, 5000);
+    await waitFor('busy40', scamMask, 5000);
+    const took = await evalIn(browser, s, 'window.took');
+    const askMs = took['busy20:hint'] == null ? null : took['busy20:hint'];
+    const scamMs = took['busy40:mask'] == null ? null : took['busy40:mask'];
     await shot(browser, s, 'webchats-odd-busy');
 
     /* ------------------------------------------------ edited messages */

@@ -162,7 +162,7 @@ async function checkShareOdd() {
 
     // The other way round: shared signed out, then signed in from the other tab, which opens the web app there.
     if (await api(s, '/auth/logout') !== 200) throw new Error('the test account could not sign out');
-    await freshApp();
+    await goto(browser, s, `${base}/login`);   // signed out, the web app is the sign-in page
     await post([{ title: '', text: `Second tab share: ${SMS}`, url: '' }]);
     await until(browser, s, "location.pathname === '/login'", 15000);
     if (await api(other.sessionId, '/auth/login', { email, password }) !== 200) throw new Error('the test account could not sign in in the other tab');
