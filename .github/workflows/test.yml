@@ -22,3 +22,22 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
+
+  # web/assets/js/mask3d.js is built from scripts/mask3d/mask3d.src.js (three.js and esbuild are fetched at pinned
+  # versions, here and never on a developer's computer). The build is kept as an artifact, and the job fails while the
+  # committed file is out of step with its source.
+  mask3d:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/mask3d/build.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mask3d
+          path: web/assets/js/mask3d.js
+          retention-days: 7
+      - name: The committed mask3d.js matches its source
+        run: git diff --stat --exit-code web/assets/js/mask3d.js
