@@ -88,6 +88,10 @@ test('the web chats content script: where it runs, what it reads, what it sends'
     [`https://l.messenger.com/l.php?u=${encodeURIComponent(dest)}`, '', dest],
     ['https://t.co/AbC123', 'paypa1-secure-login.com/account…', dest],
     ['https://t.co/AbC123', 'a picture', 'https://t.co/AbC123'],
+    // A shared post's link card: its label, or a line of it, names where it leads (QA 1.18).
+    ['https://t.co/Yy8wP', ['paypa1-secure-login.comAccount review needed', 'paypa1-secure-login.com Account review needed'.split(/\s/)[0]], 'https://paypa1-secure-login.com/'],
+    ['https://t.co/Yy8wP', ['', 'Account review needed', 'From paypa1-secure-login.com'], 'https://paypa1-secure-login.com/'],
+    ['https://t.co/Yy8wP', ['Account review needed', 'A picture'], 'https://t.co/Yy8wP'],
     ['/t/456', '', 'https://www.messenger.com/t/456'],
     ['javascript:alert(1)', '', null],
     ['mailto:a@b.example', '', null]

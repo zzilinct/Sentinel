@@ -43,12 +43,15 @@
         history.replaceState({}, '', '/app/share');
         if (!q.has('missed')) shared = { query: q };
       }
-    } else Share.clear();
+    }
     try {
       const [me, config] = await Promise.all([api('/auth/me'), api('/auth/config')]);
       state.me = me;
       state.config = config;
       state.plans = config.plans;
+      // Signed in on any other page: a share made signed out moments ago (in another tab, or before signing in here)
+      // opens its check here; anything older is emptied out. Signed out, it is left waiting for the sign-in.
+      if (location.pathname.replace(/\/$/, '') !== '/app/share' && await Share.waiting()) history.replaceState({}, '', '/app/share');
     } catch (err) {
       if (err.status === 401) {
         location.replace(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
@@ -1711,16 +1714,21 @@
     let reading = false;
     const readShot = async (file) => {
       if (!file || reading) return;
-      if (!/^image\/(png|jpeg)$/.test(file.type)) { toast('Screenshots must be PNG or JPEG images.', 'error'); return; }
+      const qrOut = $('[data-text-qr]', el);
+      if (!/^image\/(png|jpeg)$/.test(file.type)) {
+        // Said where the picture would be, and kept there: a HEIC photo shared from a phone otherwise left an empty page.
+        qrOut.innerHTML = `<div class="banner banner--error" role="alert" data-shot-wrong>This picture is not a PNG or JPEG, so Sentinel cannot read it. Take a screenshot of it and share or choose that instead, or copy the message and paste it in Message.</div>`;
+        toast('Screenshots must be PNG or JPEG images.', 'error');
+        return;
+      }
       if (file.size > 20 * 1024 * 1024) { toast('That screenshot is too large.', 'error'); return; }
+      qrOut.innerHTML = '';
       const url = URL.createObjectURL(file);
       $('img', preview).src = url;
       preview.hidden = false;
       if (!canRead) {
         // A phone (a picture shared to Sentinel) or a browser without the app: the words need the Windows app, but a QR
         // code in the picture is read here, on this device, and its link checked, as the email scan does.
-        const qrOut = $('[data-text-qr]', el);
-        qrOut.innerHTML = '';
         shotStatus.textContent = 'Looking for a QR code in the picture…';
         let code = null;
         try { code = await qrFromFile(file); } catch { /* no reader or no code: said below */ }

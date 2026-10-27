@@ -38,10 +38,18 @@ test('share: a picture goes to the screenshot reader, and an empty share opens n
   assert.deepEqual(route(), { kind: 'empty' });
 });
 
-test('share: a very long share is cut to what the text scan reads', () => {
-  const r = route({ text: 'scam '.repeat(20000) });
+test('share: a long share is kept whole for the text scan, which reads its start and newest part (QA 1.18: its end was cut off)', () => {
+  const sms = 'USPS: pay the redelivery fee at https://usps-redeliver.top/pay';
+  const long = `${'Hi, how was your day? '.repeat(5000)}\n${sms}`;
+  const r = route({ text: long });
   assert.equal(r.kind, 'text');
-  assert.ok(r.text.length <= 40000);
+  assert.equal(r.text, long);
+  // Past what is kept: its start and its end, so the newest messages are still there.
+  const huge = `${'start '.repeat(100000)}${sms}`;
+  const h = route({ text: huge });
+  assert.ok(h.text.length <= 400000);
+  assert.ok(h.text.startsWith('start start'));
+  assert.ok(h.text.endsWith(sms));
 });
 
 test('share: the manifest, the service worker and the server agree on the share target', () => {
