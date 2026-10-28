@@ -33,7 +33,9 @@ const { summarize, analyze } = require('./downloads');
 const PROGRAM = /\.(exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|js|jse|wsf|hta|jar|dll|cpl|lnk|reg)$/i;
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
 const SETTLE_MS = 2000;
-const PERSIST_EVERY_MS = 60 * 1000;
+const PERSIST_EVERY_MS = 60 * 1000;          // the poll, only while Run key changes cannot be heard
+const SAFETY_EVERY_MS = 30 * 60 * 1000;      // a look anyway while they can, in case a change was missed
+const RUNKEYS_GRACE_MS = 30 * 1000;          // how long the helper has to say it hears them before the poll takes over
 const SWEEP_EVERY_MS = 20 * 1000;
 const FIRST_PERSIST_MS = 75 * 1000;   // not while the computer is still starting up
 
@@ -114,10 +116,52 @@ async function restart() {
       watched.push(f.label);
     } catch { /* a folder we cannot watch, or not there */ }
   }
-  persistTimer = setInterval(() => checkPersistence().catch(() => {}), PERSIST_EVERY_MS);
+  firstPersistAt = Date.now() + FIRST_PERSIST_MS;
+  persistTimer = setInterval(() => { if (persistMode !== 'events' || Date.now() - lastPersist >= SAFETY_EVERY_MS) persistNow(); }, PERSIST_EVERY_MS);
   sweepTimer = setInterval(sweep, SWEEP_EVERY_MS);
-  firstPersistTimer = setTimeout(() => checkPersistence().catch(() => {}), FIRST_PERSIST_MS);
+  firstPersistTimer = setTimeout(persistNow, FIRST_PERSIST_MS);
+  // Windows says when a Run key changes (the running-browsers helper, browsers.js). Until it says it hears them, and
+  // whenever it cannot, the poll above does the job, with its reads off the main thread.
+  persistMode = 'waiting';
+  if (opts.runKeys) {
+    graceTimer = setTimeout(() => { if (persistMode === 'waiting') setPersistMode('poll', 'the helper did not say it hears them'); }, RUNKEYS_GRACE_MS);
+    opts.runKeys(runKeysHeard);
+  } else setPersistMode('poll', 'no helper to hear them');
   setState(true, null);
+}
+
+/* Run key changes, heard or polled. */
+let persistMode = 'waiting';     // 'events' (heard as they happen), 'poll' (every minute), 'waiting' (not known yet)
+let firstPersistAt = 0;
+let lastPersist = 0;
+let graceTimer = null;
+let changeTimer = null;
+const log = (text) => { if (opts && opts.log) opts.log(`defense: ${text}`); };
+
+function setPersistMode(mode, why) {
+  if (persistMode === mode) return;
+  persistMode = mode;
+  log(mode === 'events' ? `startup entries are watched as they change${why ? ` (${why})` : ''}`
+    : `startup entries are checked every minute, off the main thread (${why})`);
+  // Changes made while nobody was listening are caught up on at once.
+  if (mode === 'events') persistNow();
+}
+
+/** What the helper says about the Run keys (see browsers.runKeysListen). */
+function runKeysHeard(word) {
+  if (!state.active) return;
+  if (word === 'changed') { clearTimeout(changeTimer); changeTimer = setTimeout(persistNow, 500); return; }
+  if (word === 'on' || word === 'on|partial') { clearTimeout(graceTimer); setPersistMode('events', word === 'on|partial' ? 'only one of the two Run keys could be opened' : null); return; }
+  if (word === 'off') setPersistMode('poll', 'Windows would not report changes');
+  else if (word === 'gone') setPersistMode('poll', 'the helper ended');
+}
+
+let persisting = false;
+function persistNow() {
+  if (!state.active || persisting || Date.now() < firstPersistAt) return;
+  persisting = true;
+  lastPersist = Date.now();
+  checkPersistence().catch(() => {}).finally(() => { persisting = false; });
 }
 
 /** Belt and braces: look for program files that appeared recently, in case a watch event was missed. */
@@ -155,6 +199,9 @@ function stop(reason, silent) {
   clearInterval(persistTimer);
   clearInterval(sweepTimer);
   clearTimeout(firstPersistTimer);
+  clearTimeout(graceTimer);
+  clearTimeout(changeTimer);
+  if (opts && opts.runKeys) opts.runKeys(null);
   for (const t of timers.values()) clearTimeout(t);
   timers.clear();
   if (!silent) setState(false, reason ? `Defense: ${reason.toLowerCase()}` : 'Defense: off');
@@ -493,6 +540,7 @@ async function removePersistence(target) {
 /* -------------------------------------------------------- persistence */
 
 const knownEntries = new Set();
+let persistPrimed = false;     // the first read only learns what is there; later ones log what is new
 
 // Startup programs that were read and found clean, remembered across restarts by path, size and date. Without this
 // every start of Sentinel read every startup program again in full (tens of megabytes each), just as the
@@ -512,12 +560,36 @@ function rememberVetted(exe) {
   if (vetted.size > 400) vetted = new Set([...vetted].slice(-300));
   try { fs.mkdirSync(opts.dataDir, { recursive: true }); fs.writeFileSync(vettedPath(), JSON.stringify([...vetted])); } catch { /* best effort */ }
 }
+/**
+ * The output of `reg query` for each key, read in a worker (regread-worker.js) so starting reg.exe never holds up
+ * the main thread. If a worker cannot start, read here as before.
+ */
+function readRunKeys(keys) {
+  return new Promise((resolve) => {
+    let w;
+    try {
+      const { Worker } = require('worker_threads');
+      w = new Worker(path.join(__dirname, 'regread-worker.js'), { workerData: { keys }, resourceLimits: { maxOldGenerationSizeMb: 32 } });
+    } catch {
+      return Promise.all(keys.map((k) => run('reg', ['query', k]))).then(resolve);
+    }
+    let done = false;
+    const finish = (outputs) => { if (!done) { done = true; resolve(outputs); } };
+    w.once('message', (m) => finish((m && m.outputs) || keys.map(() => '')));
+    w.once('error', () => finish(keys.map(() => '')));
+    w.once('exit', () => finish(keys.map(() => '')));
+  });
+}
+
 /** Scan the program behind every new startup entry. */
 async function checkPersistence() {
   if (!state.active) return;
   const launches = [];
-  for (const hive of ['HKCU', 'HKLM']) {
-    const out = await run('reg', ['query', `${hive}\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`]);
+  const hives = ['HKCU', 'HKLM'];
+  const outputs = await readRunKeys(hives.map((hive) => `${hive}\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`));
+  for (let h = 0; h < hives.length; h++) {
+    const hive = hives[h];
+    const out = outputs[h] || '';
     for (const line of out.split(/\r?\n/)) {
       const m = /^\s+(\S.*?)\s+REG_(?:EXPAND_)?SZ\s+(.+)$/.exec(line);
       if (m) launches.push({ where: `${hive} Run\\${m[1]}`, cmd: m[2] });
@@ -528,10 +600,13 @@ async function checkPersistence() {
   try { names = await fs.promises.readdir(startup.dir); } catch { /* no Startup folder */ }
   for (const name of names) launches.push({ where: `Startup\\${name}`, cmd: path.join(startup.dir, name) });
 
+  const primed = persistPrimed;
+  persistPrimed = true;
   for (const l of launches) {
     const key = `${l.where}|${l.cmd}`;
     if (knownEntries.has(key)) continue;
     knownEntries.add(key);
+    if (primed) log(`new startup entry ${l.where}, looked at`);
     const exe = firstPath(l.cmd);
     if (!exe || !PROGRAM.test(exe) || /\\windows\\|\\program files/i.test(exe) || isVetted(exe)) continue;
     const item = await inspect(exe, `startup entry ${l.where}`).catch(() => null);
@@ -606,5 +681,12 @@ async function act(id) {
 module.exports = {
   init, restart, stop, status, inspect, restore, act, ledger: () => ledger.slice(0, 50), signedBy: (full) => signer(full),
   // For tests: set the options without starting any watcher, and stand in for the signature check.
-  _test: { removeRunKeys, signedBy, configure: (options) => { opts = options; ledger = []; }, setSigner: (fn) => { signer = fn || ((full) => signedBy(full)); } }
+  _test: {
+    // Run key mode changes without reading anything: the first look is held off for good.
+    runKeys: (word) => {
+      const was = state.active; state.active = true; firstPersistAt = Infinity;
+      try { runKeysHeard(word); } finally { state.active = was; clearTimeout(changeTimer); }
+      return persistMode;
+    },
+    removeRunKeys, signedBy, configure: (options) => { opts = options; ledger = []; }, setSigner: (fn) => { signer = fn || ((full) => signedBy(full)); } }
 };

@@ -1663,6 +1663,9 @@ async function boot() {
     dataDir: app.getPath('userData'),
     selfDir: path.dirname(process.execPath),
     enabled: () => store.get('defense', true),
+    log: appLog,
+    // Run key changes, heard as they happen by the running-browsers helper instead of reg.exe every minute.
+    runKeys: (handler) => browsers.runKeysListen(handler),
     onChange: () => { refreshTray(); push('sentinel:defense', defense.status()); },
     onChecked: (item) => fileChecked(item.path),
     onThreat: (item) => {

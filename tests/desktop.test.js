@@ -205,6 +205,30 @@ function sandbox() {
   return { dir, threats, file: (name, body) => { const p = path.join(dir, 'dl', name); fs.writeFileSync(p, body); return p; } };
 }
 
+test('defense: Run key changes are heard, and the poll comes back whenever they cannot be', () => {
+  const logs = [];
+  sandbox();
+  defense._test.configure({ dataDir: os.tmpdir(), log: (t) => logs.push(t) });
+  assert.equal(defense._test.runKeys('on'), 'events');
+  assert.equal(defense._test.runKeys('changed'), 'events', 'a change is looked at, the mode stays');
+  assert.equal(defense._test.runKeys('gone'), 'poll', 'the helper ended: back to the minute poll');
+  assert.equal(defense._test.runKeys('on|partial'), 'events');
+  assert.equal(defense._test.runKeys('off'), 'poll');
+  assert.ok(logs.some((l) => /watched as they change/.test(l)) && logs.some((l) => /every minute, off the main thread \(the helper ended\)/.test(l)), logs.join('\n'));
+  const src = read('desktop/src/defense.js');
+  const body = src.slice(src.indexOf('async function checkPersistence'));
+  assert.ok(!/run\('reg'/.test(body.slice(0, body.indexOf('\n}\n'))),'the Run keys are read in the worker, not on the main thread');
+});
+
+test('the running-browsers helper hears Run key changes, read only, armed again before it says so', () => {
+  const s = require('../desktop/src/browsers.js')._test.WATCH_SCRIPT;
+  assert.match(s, /RegNotifyChangeKeyValue/);
+  assert.match(s, /"Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run"/, 'one escaped backslash per level in the C# string');
+  assert.doesNotMatch(s, /RegSetValue|RegDeleteValue|RegCreateKey|KEY_WRITE|0x20006/, 'never written');
+  assert.match(s, /if \(!Arm\(keys\[i\], waits\[i\]\)\)[^\n]*\n\s*Clip\.Say\("runkeys:changed"\)/);
+  assert.match(s, /elseif \(\$pending\.Result -eq 'runkeys'\) \{ \[SB\.RunKeys\]::Start\(\) \}/);
+});
+
 test('defense: its status never waits on the disk (one folder check held the main thread for 4.8 s)', () => {
   sandbox();
   const saved = {};
