@@ -8,8 +8,8 @@
  *                        list, DurableNapkin's scam blocklist, Spam404
  *   Crypto scams         MetaMask's phishing detector, ScamSniffer,
  *                        the Polkadot.js phishing list
- *   Malware              URLhaus (URLs and hosts), ThreatFox, Feodo Tracker,
- *                        Blackbook
+ *   Malware              URLhaus (URLs and hosts, through malware-filter's
+ *                        keyless copies), Feodo Tracker, Blackbook
  *
  * Each feed refreshes on its own interval. Imports run in small transactions
  * with yields in between, so a million-row feed never stalls requests. The
@@ -27,7 +27,8 @@ const exposure = require('./exposure');
  * kind      'urls' (exact malicious addresses) or 'hosts' (whole domains / IPs)
  * format    how the download is read: plain lines (default), 'hostsfile'
  *           ("0.0.0.0 domain"), 'json' (an array, or the array under `pick`),
- *           'csv' (the column at `column`, header skipped)
+ *           'csv' (the column at `column`, header skipped), 'abp' (ad-blocker
+ *           rules, "||host/path^")
  * hours     refresh interval
  */
 const FEEDS = [
@@ -35,7 +36,7 @@ const FEEDS = [
   { id: 'openphish', name: 'OpenPhish', kind: 'urls', threat: 'scam', category: 'phishing', hours: 6,
     url: 'https://openphish.com/feed.txt' },
   { id: 'phishtank', name: 'PhishTank', kind: 'urls', threat: 'scam', category: 'phishing', hours: 6, format: 'csv', column: 1,
-    url: 'http://data.phishtank.com/data/online-valid.csv' },
+    url: 'https://data.phishtank.com/data/online-valid.csv' },
   { id: 'phishing_database', name: 'Phishing.Database', kind: 'hosts', threat: 'scam', category: 'phishing', hours: 24,
     url: 'https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-domains-ACTIVE.txt' },
   { id: 'phishing_filter', name: 'Phishing Filter (malware-filter)', kind: 'hosts', threat: 'scam', category: 'phishing', hours: 12,
@@ -54,12 +55,12 @@ const FEEDS = [
   { id: 'polkadot_phishing', name: 'Polkadot.js phishing list', kind: 'hosts', threat: 'scam', category: 'crypto_scam', hours: 24, format: 'json', pick: 'deny',
     url: 'https://raw.githubusercontent.com/polkadot-js/phishing/master/all.json' },
   // malware
-  { id: 'urlhaus', name: 'URLhaus (abuse.ch)', kind: 'urls', threat: 'malware', category: 'malware_distribution', hours: 6,
-    url: 'https://urlhaus.abuse.ch/downloads/text_online/' },
+  // abuse.ch's own downloads now need a key (HTTP 410 at the old addresses, 2026-10); malware-filter republishes
+  // the URLhaus list twice a day without one, written as ad-blocker rules ("||host/path^$all").
+  { id: 'urlhaus', name: 'URLhaus (abuse.ch, via malware-filter)', kind: 'urls', threat: 'malware', category: 'malware_distribution', hours: 12, format: 'abp',
+    url: 'https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-online.txt' },
   { id: 'urlhaus_hosts', name: 'URLhaus host list (malware-filter)', kind: 'hosts', threat: 'malware', category: 'malware_distribution', hours: 12,
     url: 'https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-domains-online.txt' },
-  { id: 'threatfox', name: 'ThreatFox (abuse.ch)', kind: 'hosts', threat: 'malware', category: 'malware_c2', hours: 12, format: 'hostsfile',
-    url: 'https://threatfox.abuse.ch/downloads/hostfile/' },
   { id: 'feodotracker', name: 'Feodo Tracker (abuse.ch)', kind: 'hosts', threat: 'malware', category: 'botnet_c2', hours: 12,
     url: 'https://feodotracker.abuse.ch/downloads/ipblocklist.txt' },
   { id: 'blackbook', name: 'Blackbook malicious domains', kind: 'hosts', threat: 'malware', category: 'malware', hours: 24,
@@ -91,6 +92,8 @@ function extract(feed, text) {
   }
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && l[0] !== '#' && l[0] !== '!' && l[0] !== '/');
   if (feed.format === 'csv') return lines.slice(1).map((l) => csvFields(l)[feed.column]).filter(Boolean);
+  // Ad-blocker rules: "||host/path^$all" is the address host/path; a bare line is a whole host.
+  if (feed.format === 'abp') return lines.map((l) => l.replace(/^\|\|/, '').replace(/\^.*$/, '')).filter(Boolean).map((l) => `http://${l}`);
   if (feed.format === 'hostsfile') {
     return lines.map((l) => l.split(/\s+/)).filter((parts) => parts.length >= 2 && /^(0\.0\.0\.0|127\.0\.0\.1|::1?)$/.test(parts[0])).map((parts) => parts[1]);
   }
@@ -284,6 +287,15 @@ function recomputeDf() {
 async function refreshFeed(feed) {
   try {
     const res = await fetch(feed.url, { signal: AbortSignal.timeout(120000), headers: { 'User-Agent': 'SentinelScan/1.0 (+threat-feed-sync)' } });
+    // 404 or 410: the list is gone, not down. Said once, and not asked for again until its own interval has passed
+    // (see isStale), instead of every hour.
+    if (res.status === 404 || res.status === 410) {
+      const error = `gone (HTTP ${res.status}): ${feed.url}`;
+      console.warn(`[feeds] ${feed.id}: the list is no longer published at ${feed.url} (HTTP ${res.status}); its entries are kept until it is replaced or removed`);
+      const before = q.oneStatus.get(feed.id);
+      q.status.run(feed.id, now(), before ? before.entries : 0, 0, error);
+      return { source: feed.id, ok: false, error };
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     // A list that has not changed since the last import is not imported again: importing rewrites every one of its
@@ -327,9 +339,10 @@ async function rebuildTokens() {
 
 /** A feed is due when it has never loaded, last failed, or its own interval has passed. */
 function isStale(feed) {
-  const row = db.prepare('SELECT fetched_at, ok FROM feed_status WHERE source = ?').get(feed.id);
+  const row = db.prepare('SELECT fetched_at, ok, error FROM feed_status WHERE source = ?').get(feed.id);
   const hours = feed.hours || config.feedRefreshHours || 6;
-  return !row || !row.ok || now() - row.fetched_at > hours * 3600 * 1000;
+  const gone = row && /^gone /.test(row.error || '');
+  return !row || (!row.ok && !gone) || now() - row.fetched_at > hours * 3600 * 1000;
 }
 
 let running = null;
@@ -339,8 +352,20 @@ let running = null;
 const REFRESH_MARKER = config.dbPath === ':memory:' ? null : `${config.dbPath.replace(/\.db$/i, '')}-feeds.refreshing`;
 const mark = (on) => { if (!REFRESH_MARKER) return; try { if (on) require('fs').writeFileSync(REFRESH_MARKER, String(process.pid)); else require('fs').unlinkSync(REFRESH_MARKER); } catch { /* best effort */ } };
 
+// Lists no longer read (ThreatFox: abuse.ch now requires a key). What they stored is dropped, so nothing they once
+// named stays marked forever, and their status rows leave the threat-list page.
+const RETIRED = ['threatfox'];
+function dropRetired() {
+  for (const id of RETIRED) {
+    db.prepare('DELETE FROM feed_hosts WHERE source = ?').run(id);
+    db.prepare('DELETE FROM feed_urls WHERE source = ?').run(id);
+    db.prepare('DELETE FROM feed_status WHERE source = ? OR source = ?').run(id, `_digest:${id}`);
+  }
+}
+
 async function refreshAll({ log = false, force = false } = {}) {
   if (running) return running;
+  dropRetired();
   running = (async () => {
     if (force || FEEDS.some(isStale)) mark(true);
     const results = [];
@@ -414,6 +439,6 @@ function readiness() {
 
 module.exports = {
   revision: () => revision,
-  FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness, _test: { refreshFeed },
+  FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness, _test: { refreshFeed, isStale, dropRetired },
   status: () => q.allStatus.all().filter((r) => !r.source.startsWith('_'))
 };

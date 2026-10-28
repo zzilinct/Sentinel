@@ -347,11 +347,11 @@ node scripts/admin.js set-plan user@example.com max
 
 ## Threat lists
 
-Every scan starts by looking the address up in 15 free, keyless public lists
+Every scan starts by looking the address up in 14 free, keyless public lists
 (`server/lib/scan/feeds.js`): OpenPhish, PhishTank, Phishing.Database, the
-malware-filter phishing and URLhaus lists, CERT Polska, DurableNapkin,
-Spam404, MetaMask, ScamSniffer, Polkadot.js, URLhaus, ThreatFox, Feodo Tracker
-and Blackbook. A hit in any of them is evidence, and evidence means a
+malware-filter phishing list, malware-filter's copies of the URLhaus address
+and host lists, CERT Polska, DurableNapkin, Spam404, MetaMask, ScamSniffer,
+Polkadot.js, Feodo Tracker and Blackbook. A hit in any of them is evidence, and evidence means a
 confirmed (red) verdict rather than a guess. A hit is: the exact address is
 listed, the domain is listed, or the site's own front page is listed.
 
