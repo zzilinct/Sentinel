@@ -740,20 +740,20 @@ test('a server with research switched off never fetches, and says why', async ()
 test('feeds in every list format are read, and the file host is never trusted for them', () => {
   const byId = (id) => feeds.FEEDS.find((f) => f.id === id);
   assert.deepEqual(feeds.extract(byId('scamblocklist'), '# comment\n0.0.0.0 bad-shop.example\n0.0.0.0 www.bad-shop.example\nnot a hosts line\n'), ['bad-shop.example', 'www.bad-shop.example']);
-  assert.deepEqual(feeds.extract(byId('threatfox'), '#####\n127.0.0.1\tc2.example\n'), ['c2.example']);
   assert.deepEqual(feeds.extract(byId('metamask'), JSON.stringify({ blacklist: ['drainer.example', 7], whitelist: ['fine.example'] })), ['drainer.example']);
   assert.deepEqual(feeds.extract(byId('scamsniffer'), '["a.example","b.example"]'), ['a.example', 'b.example']);
   assert.deepEqual(feeds.extract(byId('polkadot_phishing'), JSON.stringify({ allow: ['ok.example'], deny: ['no.example'] })), ['no.example']);
   assert.deepEqual(feeds.extract(byId('phishtank'), 'phish_id,url,detail\n1,"https://x.example/a,b",https://phishtank.example/1\n2,https://y.example/,z\n'), ['https://x.example/a,b', 'https://y.example/']);
   assert.deepEqual(feeds.extract(byId('certpl'), 'one.example\ntwo.example # note\n\n'), ['one.example', 'two.example']);
-  assert.deepEqual(feeds.extract(byId('urlhaus'), '# header\nhttp://1.2.3.4/bin.sh\n'), ['http://1.2.3.4/bin.sh']);
+  assert.deepEqual(feeds.extract(byId('urlhaus'), '! Title: list\n||1.2.3.4/bin.sh^$all\n||drop.example/a/b.exe^$all\n5.6.7.8\n'), ['http://1.2.3.4/bin.sh', 'http://drop.example/a/b.exe', 'http://5.6.7.8']);
+  assert.ok(!byId('threatfox'), 'ThreatFox needs a key now, so it is not fetched');
   assert.ok(feeds.FEEDS.length >= 12, 'a dozen or more public lists');
   for (const f of feeds.FEEDS) assert.ok(f.name && f.hours && /^https?:\/\//.test(f.url), `${f.id} is complete`);
 });
 
 test('a listed host is definite in every list that names it, and a name is always compared with 10+ known scams', async () => {
   await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'scamsniffer'), ['wallet-drainer-airdrop.example', 'www.metamask-claim-portal.example']);
-  await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'threatfox'), ['c2-panel.example', '203.0.113.77']);
+  await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'feodotracker'), ['c2-panel.example', '203.0.113.77']);
   await feeds.importLines(feeds.FEEDS.find((f) => f.id === 'urlhaus'), ['https://one-listed-download.example/files/setup.exe']);
   await feeds.rebuildTokens();
 
@@ -1015,4 +1015,50 @@ test('real sites whose names resemble big companies are left alone; brand names 
   for (const url of ['https://paypalresolution.com/', 'https://amazonrefunds.com/', 'https://netflixaccount.net/', 'https://roblox-free-robux.fandom.com/']) {
     assert.ok((await scan(url, { research: false })).overall.badge, url);
   }
+});
+
+test('a brand\'s bare name on a country ending is its own site; on a throwaway ending or with bait it is borrowed', async () => {
+  const u22 = async (url) => check(await scan(url, { research: false }), 'U22').status;
+  for (const url of ['https://www.adidas.fr/', 'https://www.apple.co.jp/', 'https://www.paypal.com.au/', 'https://www.netflix.co.uk/', 'https://shop.nike.de/']) {
+    assert.notEqual(await u22(url), 'fail', url);
+  }
+  for (const url of ['https://adidas.tk/', 'https://apple.ml/', 'https://paypal.cc/', 'https://paypal-login.fr/', 'https://appleid.co.jp/', 'https://adidas-outlet.de/']) {
+    assert.equal(await u22(url), 'fail', url);
+  }
+});
+
+test('near spellings: other real sites are not a brand misspelled; typosquats still are', async () => {
+  for (const url of ['https://www.medscape.com/', 'https://telegra.ph/some-article-10-28']) {
+    assert.notEqual(check(await scan(url, { research: false }), 'U24').status, 'fail', url);
+  }
+  for (const url of ['https://medlcare.gov/', 'https://medlcare.com/', 'https://teiegram.org/', 'https://medicrae.com/', 'https://telegrma.org/']) {
+    assert.equal(check(await scan(url, { research: false }), 'U24').status, 'fail', url);
+  }
+  // "rn" for "m" reads as the brand itself, which the borrowed-name check catches.
+  for (const url of ['https://rnedicare.com/', 'https://rnedicare.gov/', 'https://telegrarn.org/']) {
+    const v = await scan(url, { research: false });
+    assert.ok(check(v, 'U22').status === 'fail' || check(v, 'U24').status === 'fail', url);
+  }
+});
+
+test('a list that answers 404 or 410 is gone: logged once, not fetched again until its interval, and a retired list leaves nothing behind', async () => {
+  const { db } = require('../server/lib/db');
+  const feed = { id: 'gone_fixture', name: 'Gone', kind: 'hosts', threat: 'scam', category: 'phishing', hours: 6, url: 'https://lists.example/gone.txt' };
+  const realFetch = global.fetch;
+  const warn = console.warn;
+  const said = [];
+  global.fetch = async () => new Response('Gone', { status: 410 });
+  console.warn = (m) => said.push(m);
+  try {
+    const r = await feeds._test.refreshFeed(feed);
+    assert.equal(r.ok, false);
+    assert.match(r.error, /^gone \(HTTP 410\)/);
+    assert.equal(said.length, 1);
+    assert.match(said[0], /no longer published/);
+    assert.equal(feeds._test.isStale(feed), false, 'not asked for again every hour');
+  } finally { global.fetch = realFetch; console.warn = warn; }
+
+  db.prepare('INSERT OR IGNORE INTO feed_hosts (host, source, threat, category, skeleton, added_at) VALUES (?, ?, ?, ?, ?, ?)').run('old-c2.example', 'threatfox', 'malware', 'malware_c2', 'oldc', Date.now());
+  feeds._test.dropRetired();
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM feed_hosts WHERE source = 'threatfox'").get().n, 0);
 });

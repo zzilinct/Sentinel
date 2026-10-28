@@ -169,6 +169,13 @@ function levenshtein(a, b) {
   return prev[b.length];
 }
 
+/** One pair of neighbouring letters swapped ("medicrae" for "medicare"). */
+function swapped(a, b) {
+  if (a.length !== b.length || a === b) return false;
+  const i = [...a].findIndex((ch, k) => ch !== b[k]);
+  return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
+}
+
 /** Shannon entropy per character - random-looking names score high. */
 function entropy(s) {
   if (!s) return 0;
@@ -351,10 +358,13 @@ function brandInfo(p) {
     // Characters swapped for look-alikes ("paypa1", "g00gle", "micr0soft"): the name as written is not the brand, but
     // reads as it. That is a misspelling of the brand, and it was reported as "not a misspelling" because the
     // comparison below only ever saw the name with the swaps undone.
-    if (!lookalike && t.length >= 4 && [p.sld, ...p.sld.split(/[-_]/)].some((raw) => raw !== t && raw.length === t.length && /\d/.test(raw) && deskin(raw) === t)) { lookalike = brand; visual = true; }
+    // So are "rn" for "m" and "vv" for "w" ("rnedicare"), one letter longer than the brand.
+    if (!lookalike && t.length >= 4 && [p.sld, ...p.sld.split(/[-_]/)].some((raw) => raw !== t && deskin(raw) === t && ((raw.length === t.length && /\d/.test(raw)) || /rn|vv/.test(raw.toLowerCase())))) { lookalike = brand; visual = true; }
 
     if (!lookalike && t.length >= 5) {
-      const maxDist = t.length >= 8 ? 2 : 1;
+      // Two edits only on nine letters or more: on eight, two letters changed is a quarter of the word and makes
+      // other names ("medscape" is not "medicare"). Two letters swapped side by side ("medicrae") is one slip.
+      const maxDist = t.length >= 9 ? 2 : 1;
       const tSquashed = squash(t);
       const rawOf = new Map([[sldFlat, p.sld], ...p.sld.split(/[-_]/).map((r) => [deskin(r), r])]);
       for (const part of [sldFlat, ...hyphenParts]) {
@@ -373,7 +383,7 @@ function brandInfo(p) {
             prefix = Math.min(prefix, levenshtein(part.slice(0, n), t));
           }
         }
-        if ((whole > 0 && whole <= maxDist) || doubled || (prefix > 0 && prefix <= 1)) {
+        if ((whole > 0 && whole <= maxDist) || swapped(part, t) || doubled || (prefix > 0 && prefix <= 1)) {
           // Spelled close to the brand, but written in ordinary words, with no digit for a letter and no doubled
           // letter: another word ("overdrive", not "onedrive"), which a person reads as a different name. Noted,
           // not treated as a disguise.

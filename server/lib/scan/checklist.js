@@ -280,6 +280,11 @@ const URL_CHECKS = [
       // Only schools and governments can register these, so a shared name (norton.edu) is theirs, not borrowed.
       if (/(^|\.)(edu|gov|mil|ac\.uk|gov\.uk|edu\.au|gov\.au)$/.test(p.suffix)) return pass(`.${p.suffix} names are only given to institutions`);
       const token = brand.inDomain.token;
+      // The brand's bare name on a country ending ("adidas.fr", "apple.co.jp"): the brand's own site for that
+      // country far more often than not, and its domain list can never name them all. Not on the endings handed
+      // out free or in bulk (.tk, .ml, .cc and the rest of RISKY_TLDS), where nobody checks who registers a name.
+      const cc = p.suffix.split('.').pop();
+      if (p.sld.toLowerCase() === token && /^[a-z]{2}$/.test(cc) && !L.RISKY_TLDS[cc]) return pass(`${p.registrable} is ${token}'s own name on a country ending`);
       // A brand joined to one ordinary word that asks nothing of you ("zoominfo", "chasecenter", the arena) is a name
       // of its own, the way people read it. A small note, which only counts next to other signs. Joined to a bait
       // word ("chaseonline", "paypalsupport"), with a hyphen or digits, it stays a warning.

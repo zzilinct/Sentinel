@@ -114,7 +114,8 @@ const BRANDS = [
   { token: 'linkedin', domains: ['linkedin.com', 'lnkd.in', 'licdn.com'] },
   { token: 'tiktok', domains: ['tiktok.com', 'tiktokcdn.com', 'tiktokv.com'] },
   { token: 'discord', domains: ['discord.com', 'discord.gg', 'discordapp.com', 'discord.media', 'discordapp.net'] },
-  { token: 'telegram', domains: ['telegram.org', 't.me', 'telegram.me'] },
+  // telegra.ph is Telegram's own publishing site; like t.me, its pages are written by users (see PATH_HOSTING).
+  { token: 'telegram', domains: ['telegram.org', 't.me', 'telegram.me', 'telegra.ph'] },
   { token: 'snapchat', domains: ['snapchat.com', 'snap.com'] },
 
   // Shopping and delivery
