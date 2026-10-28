@@ -1,0 +1,38 @@
+# Draws the false-alarm gate's frozen sample of real, honest domains (scripts/fpgate/sample.js) from the Majestic
+# Million (CC BY 3.0), and the baseline of what today's rules already flag in it. Runs only when the sampler changes.
+# The two files are kept as an artifact and committed by hand: the sample is frozen once it is in the repository.
+# Nothing on the domains is opened: they are only names.
+name: False-alarm sample
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['work/**']
+    paths: ['scripts/fpgate/sample.js', '.github/workflows/fp-sample.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: The Majestic Million
+        run: |
+          curl -fsSL -D headers.txt -o majestic_million.csv https://downloads.majestic.com/majestic_million.csv
+          grep -i '^last-modified' headers.txt | tee list-date.txt
+          wc -l majestic_million.csv
+      - run: node scripts/fpgate/sample.js --csv majestic_million.csv --out scripts/fpgate/domains.txt --date "$(sed 's/^[^:]*: *//' list-date.txt | tr -d '\r')"
+      - run: node scripts/fpgate/gate.js --write-baseline
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fp-sample
+          path: |
+            scripts/fpgate/domains.txt
+            scripts/fpgate/baseline.json
+          retention-days: 7
