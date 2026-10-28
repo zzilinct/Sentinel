@@ -70,7 +70,13 @@ async function launch(extraArgs = []) {
 }
 
 async function evalIn(browser, sessionId, expression, opts = {}) {
-  const r = await browser.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true, ...opts }, sessionId);
+  // A page that never answers (hung, or its renderer gone) fails the step that asked, with what it was asked, instead
+  // of holding the whole run until the job's time runs out.
+  let timer;
+  const r = await Promise.race([
+    browser.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true, ...opts }, sessionId),
+    new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error(`the page did not answer in 3 minutes: ${String(expression).slice(0, 120)}`)), 180000); })
+  ]).finally(() => clearTimeout(timer));
   if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception ? r.exceptionDetails.exception.description : r.exceptionDetails.text);
   return r.result.value;
 }

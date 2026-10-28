@@ -24,7 +24,7 @@ jobs:
         run: |
           python -m pip install --quiet qrcode pillow
           python scripts/verify-web-qr.py qr-samples
-      - run: node scripts/verify-web.js --out verify-web
+      - run: node scripts/verify-web.js --skip share,webchats,share-odd,webchats-odd,companion-a11y,mask-rest,serp-engines --out verify-web
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -32,6 +32,31 @@ jobs:
           path: |
             verify-web/
             qr-samples/
+          retention-days: 7
+
+  # The checks for 1.18's features (sharing from a phone, web chats, the companion's own pages, the resting masks, the
+  # search engines besides Bing), in a job of their own: behind everything above they never got their turn in 90 minutes.
+  features:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run build:static
+      - name: Real QR pictures, from another encoder
+        run: |
+          python -m pip install --quiet qrcode pillow
+          python scripts/verify-web-qr.py qr-samples
+      - run: node scripts/verify-web.js --only share,webchats,share-odd,webchats-odd,companion-a11y,mask-rest,serp-engines --out verify-web-features
+        env:
+          CHECK_MINUTES: '25'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verify-web-features
+          path: verify-web-features/
           retention-days: 7
 
   # The companion's memory after an hour of browsing (scripts/verify-web/26-companion-soak.js), beside the checks above.
@@ -46,6 +71,7 @@ jobs:
       - run: node scripts/verify-web.js --only companion-soak --out verify-web-soak
         env:
           SOAK_MINUTES: '60'
+          CHECK_MINUTES: '80'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

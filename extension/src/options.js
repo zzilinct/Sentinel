@@ -54,6 +54,13 @@
     }
   });
 
+  // Browsers keep add-ons out of private windows until the person allows them, and say so nowhere on the page.
+  if (ext.extension && ext.extension.isAllowedIncognitoAccess) {
+    Promise.resolve(ext.extension.isAllowedIncognitoAccess()).then((allowed) => {
+      document.getElementById('privateNote').hidden = Boolean(allowed);
+    }).catch(() => {});
+  }
+
   /* Password alarm: the worker keeps the hashes; this page only ever sees names and switches. */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const pwSend = (msg) => Promise.resolve(ext.runtime.sendMessage(msg)).catch(() => null);

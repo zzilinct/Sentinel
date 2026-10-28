@@ -134,8 +134,9 @@ async function main() {
         (async () => {
           const { ExtensionPermissions } = ChromeUtils.importESModule('resource://gre/modules/ExtensionPermissions.sys.mjs');
           const policy = WebExtensionPolicy.getByID(id);
+          const privateAtFirst = policy.privateBrowsingAllowed;
           await ExtensionPermissions.add(id, { permissions: [], origins: ['<all_urls>'] }, policy.extension);
-          return { host: policy.mozExtensionHostname, background: Boolean(policy.extension.backgroundContext || true), version: policy.extension.version };
+          return { host: policy.mozExtensionHostname, background: Boolean(policy.extension.backgroundContext || true), version: policy.extension.version, privateAtFirst };
         })().then(done, (e) => done({ error: String(e) }));`,
       args: [result.addonId], sandbox: 'system'
     });
@@ -147,6 +148,9 @@ async function main() {
     // Pair from the add-on's own options page, exactly as a person's browser would hold the token.
     await m.send('WebDriver:Navigate', { url: `moz-extension://${ext.host}/src/options.html` });
     await sleep(1200);
+    // Firefox keeps an add-on out of private windows until the person allows it: the settings page says so then.
+    result.privateAtFirst = ext.privateAtFirst;
+    result.privateNote = (await m.send('WebDriver:ExecuteScript', { script: "const n = document.getElementById('privateNote'); return n ? !n.hidden : null;", args: [] })).value;
     const paired = await m.send('WebDriver:ExecuteAsyncScript', {
       script: `const [token, server, done] = arguments;
         (async () => {
@@ -181,6 +185,49 @@ async function main() {
       if (snap && snap.results && snap.marked >= snap.results) break;
     }
     Object.assign(result, snap || {}, { seenOverlay });
+
+    // A private window, once the person has allowed Sentinel there (Add-ons and themes, Run in Private Windows): the
+    // same results page gets the same marks.
+    const handles = async () => { const r = await m.send('WebDriver:GetWindowHandles'); return Array.isArray(r) ? r : r.value || []; };
+    const before = await handles();
+    await m.send('Marionette:SetContext', { value: 'chrome' });
+    const opened = await m.send('WebDriver:ExecuteAsyncScript', {
+      script: `const [id, done] = arguments;
+        (async () => {
+          const { ExtensionPermissions } = ChromeUtils.importESModule('resource://gre/modules/ExtensionPermissions.sys.mjs');
+          const { AddonManager } = ChromeUtils.importESModule('resource://gre/modules/AddonManager.sys.mjs');
+          const { PrivateBrowsingUtils } = ChromeUtils.importESModule('resource://gre/modules/PrivateBrowsingUtils.sys.mjs');
+          const policy = WebExtensionPolicy.getByID(id);
+          await ExtensionPermissions.add(id, { permissions: ['internal:privateBrowsingAllowed'], origins: [] }, policy.extension);
+          const addon = await AddonManager.getAddonByID(id);
+          await addon.reload();
+          await new Promise((r) => setTimeout(r, 1500));
+          const S = globalThis.Services || ChromeUtils.importESModule('resource://gre/modules/Services.sys.mjs').Services;
+          const w = S.wm.getMostRecentWindow('navigator:browser').OpenBrowserWindow({ private: true });
+          await new Promise((r) => (w.document.readyState === 'complete' ? r() : w.addEventListener('load', r, { once: true })));
+          await new Promise((r) => setTimeout(r, 1000));
+          return { allowed: WebExtensionPolicy.getByID(id).privateBrowsingAllowed, isPrivate: PrivateBrowsingUtils.isWindowPrivate(w) };
+        })().then(done, (e) => done({ error: String(e) }));`,
+      args: [result.addonId], sandbox: 'system'
+    });
+    result.privateWindow = opened.value;
+    await m.send('Marionette:SetContext', { value: 'content' });
+    const after = await handles();
+    const fresh = after.find((h) => !before.includes(h));
+    if (fresh) {
+      await m.send('WebDriver:SwitchToWindow', { handle: fresh, focus: true }).catch(() => {});
+      await m.send('WebDriver:Navigate', { url: 'http://html.duckduckgo.com/html/?q=paypal+private+window' });
+      let p = null;
+      for (let i = 0; i < 60; i++) {
+        await sleep(500);
+        const r = await m.send('WebDriver:ExecuteScript', {
+          script: "return { results: document.querySelectorAll('a.result__a').length, marked: document.querySelectorAll('.sentinel-masks').length };", args: []
+        }).catch(() => null);
+        p = r && r.value;
+        if (p && p.results && p.marked >= p.results) break;
+      }
+      result.privateMarks = p;
+    }
   } finally {
     if (m) { await m.send('Marionette:Quit', { flags: ['eForceQuit'] }).catch(() => {}); m.close(); }
     child.kill();
@@ -189,11 +236,16 @@ async function main() {
     try { fs.rmSync(profile, { recursive: true, force: true }); } catch { /* Firefox may still be letting go */ }
   }
 
-  const ok = result.results > 0 && result.marked >= result.results && result.seenOverlay;
+  const pw = result.privateWindow || {};
+  const privateOk = pw.allowed === true && pw.isPrivate === true && Boolean(result.privateMarks) && result.privateMarks.results > 0 && result.privateMarks.marked >= result.privateMarks.results;
+  const noteOk = result.privateNote === !result.privateAtFirst;
+  const ok = result.results > 0 && result.marked >= result.results && result.seenOverlay && privateOk && noteOk;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${result.version || 'firefox'}`);
   console.log(`      companion ${result.companion || '-'} installed as a temporary add-on (event page), signed in on the ${result.paired ? result.paired.plan : '?'} plan`);
   console.log(`      results on the page: ${result.results}, marked: ${result.marked} (clear ${result.kinds ? result.kinds.clear : 0}, yellow ${result.kinds ? result.kinds.yellow : 0}, orange ${result.kinds ? result.kinds.orange : 0}, red ${result.kinds ? result.kinds.red : 0})`);
   console.log(`      scanning overlay seen: ${result.seenOverlay}`);
+  console.log(`      private windows allowed at first: ${result.privateAtFirst}; the settings page says private windows are not checked: ${result.privateNote}`);
+  console.log(`      private window: ${JSON.stringify(result.privateWindow || null)}, results ${result.privateMarks ? result.privateMarks.results : 0}, marked ${result.privateMarks ? result.privateMarks.marked : 0}`);
   if (!ok) console.log(`      tab in use: focused=${result.focused} visibility=${result.visible}`);
   return ok ? 0 : 1;
 }

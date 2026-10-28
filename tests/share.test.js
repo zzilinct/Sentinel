@@ -71,3 +71,26 @@ test('share: the manifest, the service worker and the server agree on the share 
   const html = fs.readFileSync(path.join(ROOT, 'web', 'app.html'), 'utf8');
   assert.ok(html.indexOf('share.js') > 0 && html.indexOf('share.js') < html.indexOf('/app.js'));
 });
+
+test('share: a page starting while a share arrives never empties the box; only an old share is emptied', async () => {
+  const share = require('../web/assets/js/share.js');
+  const store = new Map();
+  let deleted = 0;
+  global.caches = {
+    open: async () => ({ match: async (k) => (store.has(k) ? new Response(store.get(k)) : undefined) }),
+    delete: async () => { deleted++; store.clear(); return true; }
+  };
+  try {
+    // Nothing there yet (the service worker is still writing it): nothing is deleted.
+    assert.equal(await share.waiting(), false);
+    assert.equal(deleted, 0);
+    store.set(share.DATA, JSON.stringify({ text: 'hi', at: Date.now() }));
+    assert.equal(await share.waiting(), true);
+    assert.equal(deleted, 0);
+    store.set(share.DATA, JSON.stringify({ text: 'old', at: Date.now() - 31 * 60 * 1000 }));
+    assert.equal(await share.waiting(), false);
+    assert.equal(deleted, 1);
+  } finally {
+    delete global.caches;
+  }
+});

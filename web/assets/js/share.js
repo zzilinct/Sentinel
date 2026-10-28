@@ -70,7 +70,9 @@
     const d = await c.match(DATA);
     const data = d ? await d.json().catch(() => null) : null;
     if (data && Date.now() - data.at < FRESH_MS) return true;
-    await clear();
+    // Only an old share is emptied out. With nothing there, the box is left alone: a share arriving this moment (the
+    // service worker writing it while this page starts) would otherwise be deleted before its own page reads it.
+    if (d) await clear();
     return false;
   }
 
