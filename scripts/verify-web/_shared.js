@@ -119,10 +119,12 @@ async function pageText(browser, sessionId) {
 }
 
 async function shot(browser, sessionId, name) {
-  // A tab that is not in front draws no frames and its picture never comes: given up after 30 s, said, and the check
-  // goes on, instead of holding it until its time runs out.
+  // A tab that is not in front draws no new frames, and its picture waits for one: minutes, or for ever (the companion's
+  // install tab hid webchats-odd's chat and held it 25 minutes). So the tab is brought to the front first, as
+  // Puppeteer's screenshot does, and a picture that still does not come is given up after 30 s, said, and the check goes on.
   let timer;
   try {
+    await browser.send('Page.bringToFront', {}, sessionId).catch(() => {});
     const { data } = await Promise.race([browser.send('Page.captureScreenshot', { format: 'png' }, sessionId),
       new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error('timeout')), 30000); })]);
     fs.writeFileSync(path.join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
