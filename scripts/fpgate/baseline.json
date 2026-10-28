@@ -164,15 +164,6 @@
    "U22 Uses \"medicare\" but is not medicare.gov"
   ]
  },
- "absabank.co.ke": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"absa\" but is not absa.co.za",
-   "U25 Address uses: bank",
-   "U37 \"absa\" combined with \"bank\": a classic combosquatting pattern"
-  ]
- },
  "absolute-playstation.com": {
   "badge": "yellow",
   "threat": "scam",
