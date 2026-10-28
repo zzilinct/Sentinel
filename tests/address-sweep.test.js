@@ -75,7 +75,12 @@ const HONEST = [
   'https://www.govdelivery.com/', 'https://govtrack.us/', 'https://www.governmentjobs.com/', 'https://www.gov.br/receitafederal/',
   'https://newsletter-signup.netlify.app/', 'https://my-portfolio.framer.app/', 'https://app.123-go.com/', 'https://www.schmidt.shop/',
   'https://abc.servecounterstrike.com/', 'https://my-api2.xyz/', 'https://my-cdn2.xyz/', 'https://cdn1.example.top/', 'https://rhythm.top/', 'https://www.lynx.shop/', 'https://crwth.store/', 'https://www.xkcd.com/',
-  'https://aws.amazon.com/ec2/', 'https://contabo.com/en/vps/', 'https://www.hetzner.com/cloud'
+  'https://aws.amazon.com/ec2/', 'https://contabo.com/en/vps/', 'https://www.hetzner.com/cloud',
+  // QA 1.18.2: a department's initials under .gov, a year after "security", a project named Telegraf, a word in front
+  // of two codes, German "sch", and a home camera on dynamic DNS.
+  'https://dpd.wa.gov/', 'https://seguridad-vial-2026.netlify.app/', 'https://sicherheit-2025.netlify.app/',
+  'https://influxdata.github.io/telegraf/', 'https://app.web3-io.com/', 'https://shop.mp3-de.com/',
+  'https://www.kunstschule.shop/', 'https://mysecurecam.duckdns.org/'
 ];
 
 test('address shapes the evaluation missed are caught, by the rule written for each', () => {

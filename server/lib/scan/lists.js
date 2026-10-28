@@ -113,7 +113,7 @@ const GOV_WORDS = ['irs', 'hmrc', 'taxrefund', 'gov', 'medicare', 'socialsecurit
  */
 const NOT_LOOKALIKES = new Set([
   'cloud', 'clouds', 'mobile', 'mobiles', 'email', 'emails', 'mail', 'mails', 'trust', 'trusts', 'trusty',
-  'interact', 'interacts', 'revolt', 'revolts', 'revolute', 'codebase', 'discard', 'discards', 'team', 'teams',
+  'telegraf', 'interact', 'interacts', 'revolt', 'revolts', 'revolute', 'codebase', 'discard', 'discards', 'team', 'teams',
   'stream', 'streams', 'steal', 'steel', 'steak', 'steep', 'steer', 'stem', 'seam', 'stead', 'belle', 'welle',
   'celle', 'paypay', 'goggle', 'goggles', 'googly', 'strike', 'strip', 'stripes', 'striped', 'phase', 'phases',
   'chaste', 'chasse', 'chaser', 'chose', 'case', 'chased', 'chases', 'apply', 'ample', 'appel', 'apples', 'adore',

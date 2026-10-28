@@ -270,7 +270,7 @@ const URL_CHECKS = [
       // A home server's name is a person's or a device's ("plex", "nas"). Sign-in wording in front of a dynamic-DNS
       // name ("ig-verifica.freemyip.com") is a page that wants an account, on a machine anyone can point it at.
       const name = p.host.slice(0, -d.length - 1);
-      const bait = /verif|login|signin|logon|secure|account|wallet|bank|confirm|unlock|recover|support|billing/.test(name.replace(/[^a-z]+/g, ''));
+      const bait = /verif|login|signin|logon|account|wallet|bank|confirm|unlock|recover|support|billing/.test(name.replace(/[^a-z]+/g, ''));
       return fail(24, `Dynamic DNS hostname under ${d}${bait ? ', with sign-in wording in front' : ''}`, { scam: bait ? 38 : 10 });
     } },
 
@@ -298,6 +298,9 @@ const URL_CHECKS = [
   { id: 'U23', group: 'Impersonation', threat: 'scam', title: 'No brand name planted in a subdomain',
     run: ({ brand, p }) => {
       if (!brand.inSubdomain || brand.inDomain) return pass('No planted brand');
+      // Only a government makes the names under its own domain, so a department's initials there ("dpd.wa.gov") are
+      // its own, not a brand's.
+      if (/(^|\.)(gov|mil|gov\.uk|gov\.au)$/.test(p.suffix)) return pass(`Names under .${p.suffix} are made by the government itself`);
       // On a platform where every customer gets a subdomain ("paypal.zendesk.com", "acme.okta.com"), a company's name
       // in front is how the platform works.
       // Not when the name in front is bait ("roblox-free-robux.fandom.com"): a platform's customers do not name
@@ -543,7 +546,8 @@ const KNOWLEDGE_CHECKS = [
       // campaign's numbered domains, each with machine-made names in front. Nobody names a business this way.
       const parts = p.sld.split('-');
       const sub = p.subdomains.filter((s) => s !== 'www');
-      if (sub.length && !parts.includes('k12') && parts.length >= 2 && parts.length <= 3 && parts.every((x) => /^[a-z0-9]{2,4}$/.test(x)) && parts.some((x) => /^[a-z]+\d+$/.test(x) || (/^\d+$/.test(x) && /\d/.test(sub[0]))) && parts.some((x) => /^[a-z]{2}$/.test(x))) {
+      // The label in front is machine-made too ("y5fm", "rxuq"), not a word a business uses ("app.web3-io.com").
+      if (sub.length && sub[0].length >= 4 && !isRealWords(sub[0]) && !parts.includes('k12') && parts.length >= 2 && parts.length <= 3 && parts.every((x) => /^[a-z0-9]{2,4}$/.test(x)) && parts.some((x) => /^[a-z]+\d+$/.test(x) || (/^\d+$/.test(x) && /\d/.test(sub[0]))) && parts.some((x) => /^[a-z]{2}$/.test(x))) {
         return fail(38, `"${p.sld}" is a pair of codes, not a name, with "${sub[0]}" in front: the shape of a campaign's numbered domains`);
       }
       // A shorter number is only telling on an ending that is sold in bulk for next to nothing.
@@ -568,7 +572,8 @@ const KNOWLEDGE_CHECKS = [
       // "Security" in Spanish, Portuguese, German, French and Italian is also "safety" ("seguridad-vial", road safety). With
       // a serial number after it ("seguridad-2026b65782") it is a throwaway page calling itself a security check.
       const SECURITY = ['seguridad', 'seguranca', 'sicherheit', 'securite', 'sicurezza'].find((s) => clean(p.sld).includes(s));
-      if (SECURITY && /\d{4,}/.test(p.sld)) inName.push(SECURITY);
+      // A year on its own ("seguridad-vial-2026", a campaign or a conference) is not a serial number.
+      if (SECURITY && /\d{4,}/.test(p.sld.replace(/(^|-)(19|20)\d\d(?=-|$)/g, '$1'))) inName.push(SECURITY);
       if (/robux|vbucks/.test(clean(p.sld)) && /free|gift|claim|generat|username|earn|hack|giveaway|reward/.test(clean(p.sld))) inName.push('robux', 'free');
       const inPath = STEMS.filter((s) => clean(first).includes(s));
       // One such word in a folder name is documentation ("/login-guide"). In the site's own name it is a claim.
@@ -607,7 +612,8 @@ const KNOWLEDGE_CHECKS = [
       // Not one vowel in six letters or more ("lclsqjjg"): nothing anyone could say, let alone remember.
       if (p.sld.length >= 6 && !/[aeiouy]/.test(p.sld.toLowerCase())) return fail(28, `"${p.sld}" has no vowels at all: a string of letters, not a name, on an ending sold in bulk`);
       // Six consonants in a row ("uwsqsqqpui") is a keyboard, not a word in any language the lists are full of.
-      if (/[bcdfghjklmnpqrstvwxz]{6,}/.test(p.sld.toLowerCase())) return fail(28, `"${p.sld}" is a string of letters rather than a name, on an ending sold in bulk`);
+      // German writes one sound as "sch", so "kunstschule" has only four in a row.
+      if (/[bcdfghjklmnpqrstvwxz]{6,}/.test(p.sld.toLowerCase().replace(/sch/g, 's'))) return fail(28, `"${p.sld}" is a string of letters rather than a name, on an ending sold in bulk`);
       return /[bcdfghjklmnpqrstvwxz]{4,}/.test(p.sld.toLowerCase())
         ? fail(18, `"${p.sld}" is a string of letters rather than a name, on an ending sold in bulk`)
         : pass('Readable name');
