@@ -30,6 +30,15 @@ async function getToken() {
   return authToken || null;
 }
 
+/**
+ * Whether a fresh install should open the site's connect page. Not when the companion is paired by the time the first
+ * sign-in attempt is over (the desktop app or the settings page handed it a token meanwhile): the tab would only ask a
+ * signed-in person to sign in.
+ */
+export async function wantsConnectTab(reason, signedIn) {
+  return reason === 'install' && !signedIn && !(await getToken());
+}
+
 export async function setToken(token) {
   if (token) await ext.storage.local.set({ authToken: token });
   else await ext.storage.local.remove('authToken');

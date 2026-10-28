@@ -14,6 +14,10 @@ const CAUGHT = [
   ['https://absa.qwzrtx.co.za/index_dtel.html', 'U23'],
   ['http://www.absa.qwzrtx.co.za/', 'U23'],
   ['https://mydpd.qwzrt.top/track-ch/', 'U23'],
+  // Initials-only brands next to a lure: bait words, a bulk ending, or parcel-fee wording in front.
+  ['https://dpd-redelivery-fee.top/', 'U22'],
+  ['https://absa-online-verify.xyz/', 'U22'],
+  ['https://dpd.parcel-fee.com/', 'U23'],
   ['https://poshmark.id12345678.shop/1234567', 'U23'],
   ['https://verify-networksolutions.example-host.info/appsuite', 'U23'],
   ['https://verify-networksolutions.info/appsuite', 'U22'],
@@ -80,7 +84,11 @@ const HONEST = [
   // of two codes, German "sch", and a home camera on dynamic DNS.
   'https://dpd.wa.gov/', 'https://seguridad-vial-2026.netlify.app/', 'https://sicherheit-2025.netlify.app/',
   'https://influxdata.github.io/telegraf/', 'https://app.web3-io.com/', 'https://shop.mp3-de.com/',
-  'https://www.kunstschule.shop/', 'https://mysecurecam.duckdns.org/'
+  'https://www.kunstschule.shop/', 'https://mysecurecam.duckdns.org/',
+  // 1.18.4: DPD's and Absa's letters as other bodies' initials or as letters in another name, with nothing leaning on the brand.
+  'https://absa.org/', 'https://www.absa.org/', 'https://absa-conference.com/', 'https://dpd.org/', 'https://dpd-ltd.co.uk/',
+  'https://dpd.denvergov.org/', 'https://dpd.detroitmi.org/', 'https://dpd.cityofdallas.org/', 'https://absa.uni-bonn.de/',
+  'https://dpd.example.edu/', 'https://absa.mystate.us/', 'https://absa.sports.org/'
 ];
 
 test('address shapes the evaluation missed are caught, by the rule written for each', () => {

@@ -61,6 +61,13 @@ const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', '
 const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway', 'airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
 
+// A brand whose name is a few initials (DPD, Absa) shares them with many other bodies: Denver's police (dpd.denvergov.org),
+// a biosafety association (absa.org), a university group. Its letters on another address only lean on the brand next
+// to a lure: bait words, a cheap bulk ending or free hosting, or (planted in front, see U23) one of the brand's own endings.
+const INITIALS_BAIT = new Set([...CREDENTIAL_WORDS, ...TRUST_WORDS, ...MONEY_WORDS, ...CRYPTO_WORDS, ...L.DELIVERY_WORDS, 'fee', 'fees', 'pay', 'payment', 'track', 'my', 'official', 'app']);
+const initialsOnly = (brand, p) => brand.initials && !L.RISKY_TLDS[p.suffix.split('.').pop()] && !p.hosting
+  && ![...hostWords(p.host)].some((w) => INITIALS_BAIT.has(w));
+
 /** A domain that is one plain name: no hyphens, no digits, nothing in front of it. */
 // A number standing as its own word before or after ordinary words (1password, 23andme, hotel24): a name, not a
 // letter swapped for a digit (paypa1, micros0ft).
@@ -285,6 +292,7 @@ const URL_CHECKS = [
       // out free or in bulk (.tk, .ml, .cc and the rest of RISKY_TLDS), where nobody checks who registers a name.
       const cc = p.suffix.split('.').pop();
       if (p.sld.toLowerCase() === token && /^[a-z]{2}$/.test(cc) && !L.RISKY_TLDS[cc]) return pass(`${p.registrable} is ${token}'s own name on a country ending`);
+      if (initialsOnly(brand.inDomain, p)) return pass(`"${token}" is also other organisations' initials, and nothing here leans on the brand`);
       // A brand joined to one ordinary word that asks nothing of you ("zoominfo", "chasecenter", the arena) is a name
       // of its own, the way people read it. A small note, which only counts next to other signs. Joined to a bait
       // word ("chaseonline", "paypalsupport"), with a hyphen or digits, it stays a warning.
@@ -313,6 +321,9 @@ const URL_CHECKS = [
       const label = p.subdomains.join('.');
       const lured = [...CREDENTIAL_WORDS, ...MONEY_WORDS, ...CRYPTO_WORDS].some((w) => hostWords(label).has(w)) || /robux|vbucks|v-bucks|free/.test(label);
       if (L.TENANT_PLATFORMS.includes(p.registrable) && !lured) return pass(`A customer's own space on ${p.registrable}`);
+      const b = brand.inSubdomain;
+      const homeEnding = b.domains.some((d) => d.endsWith('.' + p.suffix) && d.split('.').length === p.suffix.split('.').length + 1);
+      if (!homeEnding && initialsOnly(b, p)) return pass(`"${b.token}" is also other organisations' initials, and nothing here leans on the brand`);
       return fail(42, `Puts "${brand.inSubdomain.token}" in front of an unrelated domain`);
     } },
 

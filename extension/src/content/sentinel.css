@@ -12,6 +12,7 @@
   animation-delay: var(--sentinel-delay, 0ms);
 }
 
+.sentinel-masks--lead { margin: 0 6px 0 0; }
 .sentinel-masks--mail, .sentinel-masks--chat { margin-left: 6px; cursor: help; }
 
 .sentinel-mask {

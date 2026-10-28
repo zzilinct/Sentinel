@@ -9,7 +9,7 @@
  * Plans with delicate scanning (Pro and up) get a second, researched pass: masks
  * appear instantly from the checklist, then upgrade once research finishes.
  */
-import { ext, apiFetch, getSettings, setToken, siteUrl, COLORS, ApiError } from './lib/api.js';
+import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError } from './lib/api.js';
 import { PRESETS, MIN_LENGTH, KEEP, bankDomain, newSalt, hashPassword, sameHash, homeAccount, guardedHere, hashesOf } from './lib/pwalarm.js';
 
 const TTL = { quick: 15 * 60 * 1000, research: 60 * 60 * 1000 };
@@ -731,7 +731,7 @@ ext.runtime.onInstalled.addListener(async (details) => {
   ext.alarms.create('sentinel:account', { periodInMinutes: 15 });
   await restore();
   if (!account.signedIn) await connect();
-  if (details.reason === 'install') {
+  if (await wantsConnectTab(details.reason, account.signedIn)) {
     const { apiBase } = await getSettings();
     ext.tabs.create({ url: siteUrl(apiBase, '/connect') });
   }

@@ -27,8 +27,11 @@
     { test: /(^|\.)google\./, titles: '#search h3, #rso h3, #botstuff h3, #tads [role="heading"], #bottomads [role="heading"]' },
     { test: /(^|\.)bing\./, titles: '#b_results li.b_algo h2, #b_results li.b_ad h2, #b_results .b_adTop h2' },
     { test: /duckduckgo\./, titles: '[data-testid="result-title-a"], a.result__a, .result-link' },
+    // Yahoo Japan is its own site with its own layout: each result a card (div.sw-Card.Algo) whose title link holds the h3.
+    { test: /(^|\.)search\.yahoo\.co\.jp$/, titles: '.sw-Card.Algo .sw-Card__title h3' },
     { test: /search\.yahoo\./, titles: '#web h3' },
-    { test: /search\.brave\./, titles: '#results .snippet .title, #results a .title' },
+    // Brave's results sit in section#mixed-main (no #results any more), each a div.snippet whose link holds a div.title.
+    { test: /search\.brave\./, titles: '.snippet[data-type="web"] a .title, #results a .title' },
     { test: /ecosia\./, titles: '[data-test-id="mainline-result-web"] .result-title, .result__title' },
     { test: /startpage\./, titles: '.w-gl__result-title, .result-title' },
     { test: /mojeek\./, titles: '.results-standard li h2' },
@@ -150,9 +153,12 @@
     return el;
   }
 
+  // Where a result's marks go: its heading, or on Brave (no heading) the title line inside the link.
+  const headingOf = (a) => a.closest('h1, h2, h3') || a.querySelector('h1, h2, h3, .title') || a;
+
   function attach(anchor, verdict) {
     if (!verdict || !verdict.ok) return;
-    const heading = anchor.closest('h1, h2, h3') || anchor.querySelector('h1, h2, h3') || anchor;
+    const heading = headingOf(anchor);
     const old = heading.querySelector(':scope > .sentinel-masks');
     if (old) old.remove();
 
@@ -181,7 +187,8 @@
     const open = (ev) => { ev.preventDefault(); ev.stopPropagation(); showPopover(group, verdict); };
     group.addEventListener('click', open);
     group.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') open(ev); });
-    heading.appendChild(group);
+    // Brave cuts its title off after one line, so marks put after a long one would be hidden: they go in front.
+    if (heading.matches('.title')) { group.classList.add('sentinel-masks--lead'); heading.prepend(group); } else heading.appendChild(group);
 
     const row = anchor.closest('[data-hveid], li, .result, article') || anchor.parentElement;
     if (row) row.classList.toggle('sentinel-row--danger', verdict.overall.badge === 'red');
@@ -340,7 +347,7 @@
       const res = await send({ type: 'override', url: v.url, action: 'allow' });
       if (!res.ok) { ev.target.textContent = res.error || 'Sign in first'; return; }
       for (const a of byUrl.get(v.requested || v.url) || []) {
-        const heading = a.closest('h1, h2, h3') || a.querySelector('h1, h2, h3') || a;
+        const heading = headingOf(a);
         const group = heading.querySelector(':scope > .sentinel-masks');
         if (group) group.remove();
       }
@@ -414,7 +421,7 @@
     todo.sort((x, y) => x[0].getBoundingClientRect().top - y[0].getBoundingClientRect().top);
     todo.forEach(([a, verdict], i) => {
       attach(a, verdict);
-      const heading = a.closest('h1, h2, h3') || a.querySelector('h1, h2, h3') || a;
+      const heading = headingOf(a);
       const group = heading.querySelector(':scope > .sentinel-masks');
       if (group) group.style.setProperty('--sentinel-delay', `${Math.min(i, 14) * 55}ms`);
     });

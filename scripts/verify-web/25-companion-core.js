@@ -39,7 +39,7 @@ const ENGINES = [
   ['duckduckgo', 'https://duckduckgo.com/?q=paypal+login+help&ia=web', '[data-testid="result-title-a"]', /anomaly|captcha|bots use duckduckgo/i],
   ['google', 'https://www.google.com/search?q=weather+london&hl=en&gl=us', '#search h3, #rso h3', /unusual traffic|not a robot|recaptcha|before you continue/i],
   ['yahoo', 'https://search.yahoo.com/search?p=how+to+repot+a+plant', '#web h3', /captcha|unusual/i],
-  ['brave', 'https://search.brave.com/search?q=train+times+to+leeds', '#results .snippet .title, #results a .title', /captcha|not a robot|unusual|^captcha/i],
+  ['brave', 'https://search.brave.com/search?q=train+times+to+leeds', '.snippet[data-type="web"] a .title, #results a .title', /captcha|not a robot|unusual|^captcha/i],
   ['mojeek', 'https://www.mojeek.com/search?q=library+opening+hours', '.results-standard li h2', /captcha|automated/i]
 ];
 

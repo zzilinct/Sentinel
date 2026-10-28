@@ -24,7 +24,27 @@ test('companion: the settings page says when private windows are not checked', (
 test('companion: search results are marked on every Yahoo and on more of Google\'s country sites', () => {
   const m = JSON.parse(fs.readFileSync(path.join(SRC, '..', 'manifest.json'), 'utf8'));
   const serp = m.content_scripts.find((c) => c.js.includes('src/content/serp.js')).matches;
-  for (const p of ['*://*.search.yahoo.com/search*', '*://*.google.com/search*', '*://*.google.co.za/search*', '*://*.google.com.mx/search*', '*://search.brave.com/search*', '*://duckduckgo.com/*']) {
+  for (const p of ['*://*.search.yahoo.com/search*', '*://search.yahoo.co.jp/search*', '*://*.google.com/search*', '*://*.google.co.za/search*', '*://*.google.com.mx/search*', '*://search.brave.com/search*', '*://duckduckgo.com/*']) {
     assert.ok(serp.includes(p), p);
   }
+});
+
+// A new install opens the connect page, but not once the companion was paired while its first sign-in attempt ran
+// (the desktop app or the settings page handed it a token): that tab only asked a signed-in person to sign in.
+test('companion: the install tab opens only for a new install that is not signed in', async () => {
+  let stored = {};
+  globalThis.chrome = { runtime: {}, storage: { local: { get: async () => stored } } };
+  // The companion's modules are plain .js with no package.json of their own, so they are imported from a copy marked as modules.
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'sentinel-api-'));
+  fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"module"}');
+  for (const f of ['api.js', 'brand.js']) fs.copyFileSync(path.join(SRC, 'lib', f), path.join(dir, f));
+  const { wantsConnectTab } = await import(require('url').pathToFileURL(path.join(dir, 'api.js')).href);
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.equal(await wantsConnectTab('install', false), true, 'a new install with no account gets the tab');
+  assert.equal(await wantsConnectTab('install', true), false, 'signed in through the site already');
+  stored = { authToken: 'paired-meanwhile' };
+  assert.equal(await wantsConnectTab('install', false), false, 'paired by the desktop app or settings page meanwhile');
+  stored = {};
+  assert.equal(await wantsConnectTab('update', false), false, 'an update never opens it');
+  assert.match(read('background.js'), /if \(await wantsConnectTab\(details\.reason, account\.signedIn\)\)/);
 });

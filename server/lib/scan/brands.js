@@ -30,7 +30,7 @@ const BRANDS = [
   { token: 'usaa', domains: ['usaa.com'] },
   { token: 'truist', domains: ['truist.com'] },
   // South Africa's Absa: its sign-in pages are copied onto unrelated domains as "absa.<something>.co.za".
-  { token: 'absa', domains: ['absa.co.za', 'absa.africa'] },
+  { token: 'absa', initials: true, domains: ['absa.co.za', 'absa.africa'] },
   { token: 'santander', domains: ['santander.com', 'santander.co.uk', 'santander.es', 'santanderbank.com'] },
   { token: 'hsbc', domains: ['hsbc.com', 'hsbc.co.uk', 'hsbc.com.hk', 'hsbc.fr', 'us.hsbc.com'] },
   { token: 'barclays', domains: ['barclays.co.uk', 'barclays.com', 'barclaycard.co.uk', 'barclaycardus.com'] },
@@ -135,7 +135,7 @@ const BRANDS = [
   { token: 'cloudflare', domains: ['cloudflare.com', 'cloudflare.net', 'cloudflareinsights.com', 'one.one.one.one'] },
   { token: 'costco', domains: ['costco.com', 'costco.ca', 'costco.co.uk'] },
   // DPD's parcel-fee pages ("mydpd.<letters>.top/track-ch") are among the commonest delivery lures in Europe.
-  { token: 'dpd', domains: ['dpd.com', 'dpdgroup.com', 'dpd.co.uk', 'dpdlocal.co.uk', 'dpd.de', 'dpd.fr', 'dpd.nl', 'dpd.be', 'dpd.ch', 'dpd.at', 'dpd.ie', 'dpd.cz', 'dpd.sk', 'dpd.com.pl', 'dpd.pt', 'dpd.ro', 'dpd.hu', 'dpd.hr', 'dpd.si', 'dpd.lt', 'dpd.lv', 'dpd.ee'] },
+  { token: 'dpd', initials: true, domains: ['dpd.com', 'dpdgroup.com', 'dpd.co.uk', 'dpdlocal.co.uk', 'dpd.de', 'dpd.fr', 'dpd.nl', 'dpd.be', 'dpd.ch', 'dpd.at', 'dpd.ie', 'dpd.cz', 'dpd.sk', 'dpd.com.pl', 'dpd.pt', 'dpd.ro', 'dpd.hu', 'dpd.hr', 'dpd.si', 'dpd.lt', 'dpd.lv', 'dpd.ee'] },
   { token: 'poshmark', domains: ['poshmark.com', 'poshmark.ca', 'poshmark.com.au'] },
   { token: 'dhl', domains: ['dhl.com', 'dhl.de', 'dhl.co.uk', 'dhl.fr', 'dhlparcel.nl', 'dhl.nl'] },
   { token: 'fedex', domains: ['fedex.com'] },

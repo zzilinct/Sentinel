@@ -92,6 +92,7 @@
         "*://duckduckgo.com/*",
         "*://html.duckduckgo.com/*",
         "*://*.search.yahoo.com/search*",
+        "*://search.yahoo.co.jp/search*",
         "*://search.brave.com/search*",
         "*://*.ecosia.org/search*",
         "*://*.startpage.com/*",
