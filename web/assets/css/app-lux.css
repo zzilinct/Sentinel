@@ -128,13 +128,10 @@ html.lux-app[data-theme="light"] {
 .lux-calm { animation: lux-calm .18s ease-out; }
 @keyframes lux-calm { from { opacity: .4; } }
 
-/* ------------------------------------------------ label over headline */
+/* ------------------------------------------------ headline cross-fade */
 
-/* A small tracked label over each page's headline. When the page changes the old pair (.lux-ghost) fades up and
-   out where it stood while the new pair rises into its place. */
-.lux-label { display: block; margin-bottom: 10px; font: 600 11px/1.2 var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--gold-300); }
-.lux-app .page-title .lux-label { animation: lux-label .6s var(--lux-out) .06s backwards; }
-@keyframes lux-label { from { opacity: 0; transform: translateY(6px); letter-spacing: .42em; } }
+/* When the page changes the old headline (.lux-ghost) fades up and out where it stood while the new one rises into
+   its place. */
 .lux-ghost { position: absolute; z-index: 2; pointer-events: none; animation: lux-ghost .28s var(--lux-out) forwards; }
 .lux-ghost > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @keyframes lux-ghost { to { opacity: 0; transform: translateY(-10px); } }
@@ -313,7 +310,7 @@ html.lux-app[data-theme="light"] {
 
 @media (prefers-reduced-motion: reduce) {
   .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .result__glyph::after, .lux-app .empty svg,
-  .lux-wipe, .lux-ghost, .lux-app .page-title .lux-label, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i, .lux-app .warn-card { animation: none !important; }
+  .lux-wipe, .lux-ghost, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i, .lux-app .warn-card { animation: none !important; }
   .lux-wipe, .lux-ghost { display: none; }
   /* The island only fades in and out, at its size, and swaps its words in place. */
   .lux-island { transform: translateX(-50%); transition: opacity .15s ease; }

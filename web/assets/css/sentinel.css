@@ -33,7 +33,6 @@
   --gold: var(--gold-400);
   --gold-grad: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%);
   --gold-hover: linear-gradient(180deg, #f4e0ad 0%, #dcb870 48%, #bf9544 100%);
-  --gold-text: linear-gradient(100deg, #f4e2b3 0%, #d4ae63 40%, #f0d9a2 70%, #b98f3f 100%);
   --gold-glow: 0 14px 34px -14px rgb(212 174 99 / .75);
 
   /* Soft relief: a highlight from the top left and a shadow to the bottom right, on a surface the colour of the page. */
@@ -52,7 +51,7 @@
   --link: #a9c1ff;       /* result titles, as a search page shows them */
   --error-text: #ff8d90;
 
-  /* Headings in Instrument Serif (upright, with italic for the turn of a phrase), text in Geist, addresses and code in
+  /* Headings in Instrument Serif (upright only; the turn of a phrase is set in Geist), text in Geist, addresses and code in
      Geist Mono. All SIL Open Font License, self-hosted; licences in /assets/fonts. */
   --display: 'Instrument Serif', ui-serif, Georgia, 'Times New Roman', serif;
   --sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -81,7 +80,7 @@
     --text: #16171a; --text-2: #3b3a36; --muted: #57554f; --faint: #66645d;
     --gold-50: #3d2c0c; --gold-200: #6f5217; --gold-300: #7d5c1c; --gold-400: #8a6420; --gold-500: #9c7229; --gold-600: #b08433;
     --gold-grad: linear-gradient(180deg, #98712a 0%, #8a6420 50%, #6f4f16 100%); --gold-hover: linear-gradient(180deg, #96701f 0%, #7a5818 50%, #624512 100%);
-    --gold-text: linear-gradient(100deg, #6f5217 0%, #9c7229 40%, #7d5c1c 70%, #5a4210 100%); --gold-glow: 0 14px 30px -14px rgb(138 100 32 / .6);
+    --gold-glow: 0 14px 30px -14px rgb(138 100 32 / .6);
     --neu-hi: rgb(255 255 255 / .9); --neu-lo: rgb(120 100 70 / .22); --relief: linear-gradient(150deg, rgb(255 255 255 / .55), transparent 60%);
     --raise: -10px -10px 24px var(--neu-hi), 12px 14px 30px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --raise-sm: -4px -4px 10px var(--neu-hi), 5px 6px 14px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
@@ -97,7 +96,7 @@
   --text: #16171a; --text-2: #3b3a36; --muted: #57554f; --faint: #66645d;
   --gold-50: #3d2c0c; --gold-200: #6f5217; --gold-300: #7d5c1c; --gold-400: #8a6420; --gold-500: #9c7229; --gold-600: #b08433;
   --gold-grad: linear-gradient(180deg, #98712a 0%, #8a6420 50%, #6f4f16 100%); --gold-hover: linear-gradient(180deg, #96701f 0%, #7a5818 50%, #624512 100%);
-    --gold-text: linear-gradient(100deg, #6f5217 0%, #9c7229 40%, #7d5c1c 70%, #5a4210 100%); --gold-glow: 0 14px 30px -14px rgb(138 100 32 / .6);
+    --gold-glow: 0 14px 30px -14px rgb(138 100 32 / .6);
     --neu-hi: rgb(255 255 255 / .9); --neu-lo: rgb(120 100 70 / .22); --relief: linear-gradient(150deg, rgb(255 255 255 / .55), transparent 60%);
     --raise: -10px -10px 24px var(--neu-hi), 12px 14px 30px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --raise-sm: -4px -4px 10px var(--neu-hi), 5px 6px 14px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
@@ -159,30 +158,12 @@ p { margin: 0; }
 .wrap-narrow { width: min(760px, calc(100% - 48px)); margin-inline: auto; }
 @media (max-width: 640px) { .wrap, .wrap-narrow { width: calc(100% - 32px); } }
 
-/* The turn of a heading is set in the italic; the one line that matters most carries the gold. */
-.serif { font-family: var(--display); font-weight: 400; }
-.italic, h1 em, h2 em { font-style: italic; }
-h2 em { color: var(--text-2); }
-.gold-text {
-  background: var(--gold-text); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
-  /* Room for the italic's swash and descenders, which background-clip would otherwise cut off. */
-  padding: .08em .08em .16em 0; margin: -.08em -.08em -.16em 0; -webkit-box-decoration-break: clone; box-decoration-break: clone;
-}
-.gold-text.is-live { animation: shimmer 9s linear infinite; }
-@keyframes shimmer { to { background-position: -200% 0; } }
+/* The turn of a heading is set upright in the text face, heavier and in solid gold: weight and colour carry it, not a slant. */
+h1 em, h2 em { font-family: var(--sans); font-style: normal; font-weight: 500; letter-spacing: -.035em; color: var(--gold); }
+.gold-text { color: var(--gold); }
 .mono { font-family: var(--mono); font-feature-settings: 'zero'; }
 .muted { color: var(--muted); }
 .tabular { font-variant-numeric: tabular-nums; }
-
-/* Section labels: small spaced capitals after a gold hairline, as a magazine sets a department name. */
-.kicker {
-  display: inline-flex; align-items: center; gap: 12px;
-  font: 500 12px/1.2 var(--sans);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--gold-300);
-}
-.kicker::before { content: ''; width: 28px; height: 1px; background: currentColor; }
 
 /* ------------------------------------------------------------------ header */
 
@@ -298,7 +279,6 @@ h2 em { color: var(--text-2); }
 h1, h2, h3 { text-wrap: balance; }
 p { text-wrap: pretty; }
 .hero h1 { font-size: clamp(54px, 8.8vw, 128px); line-height: .94; letter-spacing: -.022em; }
-.hero h1 .serif { letter-spacing: -.015em; }
 .hero__lede { margin: 28px auto 0; max-width: 620px; font-size: clamp(17px, 2vw, 19.5px); color: var(--text-2); line-height: 1.55; }
 .hero__cta { margin-top: 38px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
 .hero__fine { margin-top: 18px; font-size: 13px; color: var(--muted); }
@@ -426,7 +406,6 @@ p.hero__fine span { white-space: nowrap; }
 .section__head { max-width: 760px; margin-bottom: 64px; }
 .section__head--center { text-align: center; margin-inline: auto; }
 .section__head h2 { margin-top: 0; font-size: clamp(44px, 6.4vw, 84px); line-height: .98; letter-spacing: -.018em; }
-.section__head .kicker { margin-bottom: 22px; }
 .section__head p { margin-top: 20px; font-size: 18px; color: var(--text-2); max-width: 58ch; }
 .section__head--center p { margin-inline: auto; }
 
@@ -499,8 +478,7 @@ p.hero__fine span { white-space: nowrap; }
   padding: 34px;
   overflow: hidden;
 }
-.tile__label { font: 600 12px var(--sans); letter-spacing: .01em; text-transform: none; color: var(--gold-300); }
-.tile h3 { margin-top: 14px; font-size: 34px; }
+.tile h3 { font-size: 34px; }
 .tile p { margin-top: 10px; color: var(--text-2); font-size: 15px; max-width: 46ch; }
 .tile__demo { margin-top: 28px; }
 .tile { display: flex; flex-direction: column; }
@@ -753,7 +731,7 @@ p.hero__fine span { white-space: nowrap; }
 .marquee { overflow: hidden; padding: 70px 0; border-block: 1px solid var(--line); }
 .marquee__track { display: flex; align-items: center; gap: 48px; width: max-content; animation: marquee 36s linear infinite; }
 .marquee span { font: 400 clamp(64px, 10vw, 150px)/1 var(--display); letter-spacing: -.02em; white-space: nowrap; color: transparent; -webkit-text-stroke: 1px rgb(var(--gold-rgb) / .6); }
-.marquee span.gold-text { -webkit-text-stroke: 0; margin: 0; padding: 0; }
+.marquee span.gold-text { -webkit-text-stroke: 0; color: var(--gold); }
 .marquee i { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--gold-400); box-shadow: 0 0 24px var(--gold-400); }
 @keyframes marquee { to { translate: calc(-50% - 24px) 0; } }
 
@@ -773,10 +751,6 @@ p.hero__fine span { white-space: nowrap; }
 
 /* The fixed header clears every jump target. */
 [id] { scroll-margin-top: 84px; }
-
-/* Section labels carry a chapter number. */
-.kicker__n { font: 500 11px/1 var(--mono); letter-spacing: .04em; padding: 4px 6px; border-radius: 6px; color: var(--on-gold); background: var(--gold-grad); margin-right: -2px; }
-.kicker:has(.kicker__n)::before { display: none; }
 
 /* ------------------------------------------------------------ reveal styles */
 
@@ -976,7 +950,7 @@ html.intro-ink.intro-ink-go body > :not(.intro-cover) { filter: none; transition
 .guardian__face b { font: 400 clamp(26px, 3.2vw, 40px)/1 var(--display); letter-spacing: .04em; color: var(--muted); }
 .guardian__face small { font: 500 11px var(--mono); letter-spacing: .06em; color: var(--faint); }
 .guardian__back { transform: rotateY(180deg); padding: 18%; }
-.guardian__back span { font: italic 13px/1.35 var(--serif, var(--display)); color: var(--text-2); }
+.guardian__back span { font: 400 13px/1.4 var(--sans); color: var(--text-2); }
 .guardian.is-out .guardian__face { background: radial-gradient(circle at 34% 28%, rgb(255 255 255 / .5), transparent 42%), var(--metal, var(--gold-grad));
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / .35), inset 0 0 0 7px rgb(0 0 0 / .08), inset 0 0 0 8px rgb(255 255 255 / .25), 0 18px 40px -14px rgb(var(--gold-rgb) / .75); }
 .guardian.is-out .guardian__face b, .guardian.is-out .guardian__face small, .guardian.is-out .guardian__back span { color: #20170a; }

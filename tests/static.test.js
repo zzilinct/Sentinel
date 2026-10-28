@@ -179,3 +179,24 @@ test('account forms: Sign in and friends start disabled, and their script enable
     assert.match(fs.readFileSync(path.join(web, 'assets', 'js', script), 'utf8'), /\.disabled = false/, `${script} never enables the button`);
   }
 });
+
+test('type: no serif italic accents, no gradient-filled headings, no eyebrow labels, no em dashes in what people read', () => {
+  const skip = /[\/](vendor|bundle|dist|node_modules)[\/]|mask3d\.js$/;
+  const files = ['web', 'desktop/src', 'extension'].flatMap((dir) => fs.readdirSync(path.join(ROOT, dir), { recursive: true })
+    .map((f) => path.join(ROOT, dir, f))
+    .filter((f) => /\.(html|js|css|json|txt)$/.test(f) && !skip.test(f) && fs.statSync(f).isFile()));
+  assert.ok(files.length > 50, `only ${files.length} files looked at`);
+  for (const file of files) {
+    const rel = path.relative(ROOT, file);
+    const text = fs.readFileSync(file, 'utf8');
+    assert.ok(!text.includes('instrument-serif-italic'), `${rel}: the italic face is gone; nothing may load it`);
+    assert.doesNotMatch(text, /\u2014|&mdash;|&#8212;|\u2014/, `${rel}: an em dash`);
+    if (/\.(html|js)$/.test(file)) assert.doesNotMatch(text, /class="[^"]*\b(kicker|tile__label|lux-label)\b/, `${rel}: an eyebrow label over a heading`);
+    if (!file.endsWith('.css')) continue;
+    for (const [, sel, body] of text.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      assert.ok(!(/italic/.test(body) && /--display|--serif|\bh[1-3]\b[^,]*\bem\b/.test(body + sel)), `${rel}: serif italic in "${sel.trim()}"`);
+      assert.ok(!(/background-clip:\s*text/.test(body) && /\.unmasked|\.gold-text|(^|[\s,])h[1-3]\b/.test(sel)), `${rel}: gradient-filled heading text in "${sel.trim()}"`);
+    }
+  }
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'web/assets/fonts/fonts.css'), 'utf8'), /font-style:\s*italic/);
+});

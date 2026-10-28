@@ -121,10 +121,11 @@ async function checkShare() {
     const missed = await fetch(`${base}/app/share`, { method: 'POST', body: form, redirect: 'manual' });
     await goto(browser, s, base + missed.headers.get('location'));
     const missedText = await until(browser, s, "(() => { const e = document.querySelector('[data-share-empty]'); return e && e.innerText; })()", 10000);
-    const label = await evalIn(browser, s, "(() => { const l = document.querySelector('#view .lux-label'); return l ? l.textContent : ''; })()");
+    // The page is not taken for the overview (app-lux.js names the page it is on in #view's data-tab).
+    const tab = await evalIn(browser, s, "document.getElementById('view').dataset.tab || ''");
     await shot(browser, s, 'share-missed');
     result('share: a share the server receives (no service worker yet) is not read, and the page asks for it once more',
-      missed.status === 303 && /did not reach Sentinel/.test(missedText || '') && label !== 'Overview' && await fits(), { label, status: missed.status, location: missed.headers.get('location'), text: missedText });
+      missed.status === 303 && /did not reach Sentinel/.test(missedText || '') && tab !== 'home' && await fits(), { tab, status: missed.status, location: missed.headers.get('location'), text: missedText });
 
     /* ------------------------------------------------ iPhone */
 

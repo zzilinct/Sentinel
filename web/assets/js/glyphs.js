@@ -53,12 +53,12 @@
     return out;
   }
 
-  const RAMP = 140;        // px over which the field comes in under the chapter's kicker
+  const RAMP = 140;        // px over which the field comes in under the chapter's heading
   const FOOT = 0.86;       // and where it starts to fade out at the bottom
 
   /**
-   * How much of the field shows at `y` CSS pixels down a section `h` tall, 0..1: none behind the kicker (gold on
-   * paper is already right at 4.5:1 with nothing behind it), coming in below it, and fading out at the bottom.
+   * How much of the field shows at `y` CSS pixels down a section `h` tall, 0..1: none behind the heading (its gold on
+   * paper needs nothing behind it to keep its contrast), coming in below it, and fading out at the bottom.
    * Straight lines between these points, as the canvas gradient draws it.
    */
   function veilStops(h, clear) {
@@ -161,8 +161,8 @@
       W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
       dpr = Math.min(window.devicePixelRatio || 1, Math.sqrt(BUDGET / (W * H)));
       state.dpr = dpr;
-      // The kicker's bottom, by layout offsets (an entrance's transform must not move it).
-      const k = section.querySelector('.kicker');
+      // The heading's bottom, by layout offsets (an entrance's transform must not move it).
+      const k = section.querySelector('h2');
       clear = 0;
       if (k) { for (let e = k; e && e !== section; e = e.offsetParent) clear += e.offsetTop; clear += k.offsetHeight + 12; }
       state.h = H; state.clear = clear;

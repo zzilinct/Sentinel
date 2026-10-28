@@ -471,9 +471,8 @@
       const getHref = !st ? '/signup' : st.launched ? `${st.origin}/signup` : 'download.html';
       stageEl.innerHTML = `
         <div class="game__end">
-          <div class="kicker">You scored</div>
           <div class="big gold-text">${points}<span class="muted" style="font-size:32px"> / ${max}</span></div>
-          <p>${right} of ${ROUNDS} exactly right. ${line}</p>
+          <p>You scored ${points} of ${max}, with ${right} of ${ROUNDS} exactly right. ${line}</p>
           <div class="hero__cta" style="justify-content:center">
             <button type="button" class="btn btn--lg" data-again>Play again</button>
             <a class="btn btn--gold btn--lg" href="${getHref}">Get Sentinel free</a>
@@ -823,7 +822,7 @@
     const HOSTS = ['paypa1-secure-login.com', 'Invoice_March.pdf.exe', 'paypal.com.secure-verify-login.xyz', 'coinbase-airdrop-claim.tk'];
     const css = getComputedStyle(document.documentElement);
     const MONO = css.getPropertyValue('--mono').trim() || 'monospace';
-    const SERIF = css.getPropertyValue('--display').trim() || 'serif';
+    const SANS = css.getPropertyValue('--sans').trim() || 'sans-serif';
     function paintUnder() {
       under.width = vw;
       under.height = vh;
@@ -888,7 +887,7 @@
             u.textBaseline = 'middle';
             u.fillText(label.toUpperCase(), cx + 14, cy + 1);
             const host = HOSTS[n % HOSTS.length];
-            u.font = `italic 17px ${SERIF}`;
+            u.font = `500 15px ${SANS}`;
             u.fillStyle = 'rgba(239,230,212,.55)';
             const hw = u.measureText(host).width;
             const hx = Math.max(8, Math.min(cx - 10, W - hw - 10));

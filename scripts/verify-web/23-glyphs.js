@@ -2,7 +2,7 @@
 /**
  * glyphs    The glyph field behind "How it works" (glyphs.js), at a computer's and a phone's size, dark and light:
  *           it draws and moves while the chapter is on screen, the pointer brightens it, scrolling moves its bands
- *           on, it stops once the chapter is off screen, it stays under its brightness cap and clear of the kicker, so
+ *           on, it stops once the chapter is off screen, it stays under its brightness cap and clear of the heading, so
  *           every line of text in front of it keeps its contrast (worked out on the real colours), and under reduced motion it is one still
  *           field. Frames are photographed mid-motion to look at.
  */
@@ -107,8 +107,8 @@ async function checkGlyphs() {
         result(`glyphs ${tag}: drawn at the screen's pixel ratio (or near it on a very tall phone section)`, Math.abs(pb.w / pb.cssW - b.dpr) < 0.02 && b.dpr >= (phone ? 1.9 : 1), { dpr: b.dpr, w: pb.w, cssW: pb.cssW });
         const cap = Math.round(b.max * 255) + 2;
         const lines = await p.ev(CONTRAST);
-        // A line the field takes under the bar fails; one already under it on the bare page (the light theme's gold
-        // kicker, 4.39:1) is the site's own colour, not the field's, and must have nothing behind it.
+        // A line the field takes under the bar fails; one already under it on the bare page is the site's own colour,
+        // not the field's, and must have nothing behind it.
         const low = lines.filter((l) => l.ratio < l.need && (l.plain >= l.need || l.shows > 0));
         result(`glyphs ${tag}: never brighter than its cap, and every line in front of it keeps its contrast`, pa.max <= cap && pb.max <= cap && lines.length >= 10 && !low.length,
           { brightest: [pa.max, pb.max], cap, checked: lines.length, low, alreadyLow: lines.filter((l) => l.plain < l.need), sample: lines.slice(0, 4) });
