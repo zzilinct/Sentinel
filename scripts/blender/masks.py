@@ -397,10 +397,13 @@ def web_still(src, dest, lay):
     canvas[y0:y0 + sh, x0:x0 + sw] = small
     out = bpy.data.images.new('still', cw, ch, alpha=True)
     out.pixels[:] = canvas.ravel()
-    out.filepath_raw = dest
-    out.file_format = 'WEBP'
-    bpy.context.scene.render.image_settings.quality = 88
-    out.save()
+    # Saved through the scene's output settings, the only way the WebP quality is honoured. The galaxy's pictures,
+    # these among them, have a size budget (tests/galaxy.test.js).
+    st = bpy.context.scene.render.image_settings
+    st.file_format = 'WEBP'
+    st.color_mode = 'RGBA'
+    st.quality = 78
+    out.save_render(dest, scene=bpy.context.scene)
 
 
 def bake_image(name, colour, size):
