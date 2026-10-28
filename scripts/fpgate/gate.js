@@ -5,6 +5,7 @@
  *
  *   node scripts/fpgate/gate.js [--root <checkout>] --save flags.json
  *        judge every domain in domains.txt with the rules in <checkout> (default: this one) and save what was flagged
+ *        (--save-only: judge and save, compare nothing; how main's rules are run)
  *   node scripts/fpgate/gate.js --against main-flags.json [--save branch-flags.json]
  *        judge with this checkout's rules and fail on any NEW false alarm: a domain these rules flag that main's rules
  *        (main-flags.json) did not, or flag at a higher level, and that is not in the known baseline (baseline.json)
@@ -17,6 +18,11 @@
  *
  * domains.txt is a frozen, held-out sample (its header names the source, licence and date). Rules are judged by it,
  * never written from it.
+ *
+ * baseline.json is what the rules of 1.18.1 already flagged in the sample when it was drawn (CI run 40606221962).
+ * It mixes honest sites those rules get wrong (a brand's own country site, such as adidas.fr, read as borrowing the
+ * brand) with real scams that rank in the list anyway. Known, not failures. Fixing a rule shrinks it; a domain the
+ * gate reports as no longer flagged can be deleted from it.
  */
 const fs = require('fs');
 const path = require('path');
@@ -72,6 +78,7 @@ function main() {
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   console.log(`${domains.length} honest domains judged in ${seconds} s; ${Object.keys(flags).length} flagged.`);
   if (arg('--save')) fs.writeFileSync(arg('--save'), JSON.stringify(flags, null, 1));
+  if (process.argv.includes('--save-only')) return;
 
   if (process.argv.includes('--write-baseline')) {
     const sorted = Object.fromEntries(Object.keys(flags).sort().map((d) => [d, flags[d]]));

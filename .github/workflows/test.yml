@@ -23,6 +23,34 @@ jobs:
           node-version: '22'
       - run: npm test
 
+  # The false-alarm gate (scripts/fpgate/gate.js): the address rules judged on a frozen sample of real, honest
+  # domains, once with main's rules and once with these. A domain these rules flag that main's did not (or flag
+  # higher), and that is not in the known baseline, fails the run, printed with the rule that fired. Names only:
+  # no site is opened or looked up.
+  false-alarms:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Main's rules on the same domains
+        if: github.ref_name != 'main'
+        run: |
+          git fetch --depth 1 origin main
+          git worktree add ../main FETCH_HEAD
+          node scripts/fpgate/gate.js --root ../main --save main-flags.json --save-only
+      - name: These rules, against main's and the baseline
+        run: |
+          if [ -f main-flags.json ]; then node scripts/fpgate/gate.js --against main-flags.json --save flags.json; else node scripts/fpgate/gate.js --save flags.json; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: false-alarms
+          path: '*flags.json'
+          retention-days: 7
+
   # web/assets/js/mask3d.js is built from scripts/mask3d/mask3d.src.js (three.js and esbuild are fetched at pinned
   # versions, here and never on a developer's computer). The build is kept as an artifact, and the job fails while the
   # committed file is out of step with its source.
