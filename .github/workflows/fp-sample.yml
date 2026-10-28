@@ -27,7 +27,9 @@ jobs:
           curl -fsSL -D headers.txt -o majestic_million.csv https://downloads.majestic.com/majestic_million.csv
           grep -i '^last-modified' headers.txt | tee list-date.txt
           wc -l majestic_million.csv
-      - run: node scripts/fpgate/sample.js --csv majestic_million.csv --out scripts/fpgate/domains.txt --date "$(sed 's/^[^:]*: *//' list-date.txt | tr -d '\r')"
+      - name: The sample
+        run: |
+          node scripts/fpgate/sample.js --csv majestic_million.csv --out scripts/fpgate/domains.txt --date "$(sed 's/^[^:]*: *//' list-date.txt | tr -d '\r')"
       - run: node scripts/fpgate/gate.js --write-baseline
       - uses: actions/upload-artifact@v4
         with:
