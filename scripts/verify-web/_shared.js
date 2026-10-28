@@ -91,12 +91,18 @@ async function openPage(browser) {
 
 async function goto(browser, sessionId, url, ready = 'true') {
   await browser.send('Page.navigate', { url }, sessionId);
-  for (let i = 0; i < 120; i++) {
+  // One deadline for the whole wait: a page too busy to answer would otherwise hold each try for evalIn's 3 minutes.
+  const end = Date.now() + 60000;
+  while (Date.now() < end) {
     await sleep(250);
-    const ok = await evalIn(browser, sessionId, `location.href !== 'about:blank' && document.readyState === 'complete' && Boolean(${ready})`).catch(() => false);
+    let timer;
+    const ok = await Promise.race([
+      evalIn(browser, sessionId, `location.href !== 'about:blank' && document.readyState === 'complete' && Boolean(${ready})`).catch(() => false),
+      new Promise((resolve) => { timer = setTimeout(() => resolve(false), Math.max(0, end - Date.now())); })
+    ]).finally(() => clearTimeout(timer));
     if (ok) return;
   }
-  throw new Error(`${url} did not finish loading`);
+  throw new Error(`${url} did not finish loading in a minute (or the page stopped answering)`);
 }
 
 /** Everything a person would read on the page, closed shadow roots included (where the companion's warnings live). */

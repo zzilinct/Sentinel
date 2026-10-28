@@ -59,6 +59,9 @@ const PAGES = {
 };
 
 async function checkWebChatsOdd() {
+  // Each stage as it starts, with the time, so a run that stops answering says where it stopped.
+  const t00 = Date.now();
+  const stage = (what) => console.log(`      webchats-odd ${((Date.now() - t00) / 1000).toFixed(1)} s: ${what}`);
   const seen = [];
   const chats = await tlsServer([...CHAT_HOSTS, ...LINK_HOSTS], (req, res, host) => {
     seen.push(`${host}${req.url}`);
@@ -66,9 +69,12 @@ async function checkWebChatsOdd() {
     res.writeHead(html ? 200 : 404, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html || 'not found');
   });
+  stage('starting the Sentinel server');
   const sentinel = await startServer('webchats-odd', { SENTINEL_DEVICE_ACCOUNTS: '1' });
+  stage('starting Chrome');
   const { browser, close } = await launch([`--host-resolver-rules=${chats.rules}`, '--ignore-certificate-errors']);
   try {
+    stage('loading and signing in the companion');
     const t = await fetch(`${sentinel.base}/api/v1/auth/device`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: sentinel.base }, body: '{}' });
     const token = t.ok ? (await t.json()).token : null;
     if (!token) throw new Error('the test server gave no device account');
@@ -86,6 +92,7 @@ async function checkWebChatsOdd() {
     const waitFor = async (tag, test, ms) => { const t0 = Date.now(); for (; Date.now() - t0 < ms;) { const v = await on(tag); if (v && test(v)) return Date.now() - t0; await sleep(50); } return null; };
     const scamMask = (v) => v.masks.some((m) => /scam/i.test(m));
     const channel = async () => {
+      stage('opening the 1500 message channel');
       await goto(browser, s, 'https://discord.com/channels/1/2', "document.querySelectorAll('#list li').length === 1500");
       await sleep(4000);   // the first look over the channel, and its links' answers
     };
@@ -94,6 +101,7 @@ async function checkWebChatsOdd() {
 
     // 60 messages, one every 100 ms, while the channel's 1500 are on the page. Message 20 asks for a code, 40 has a scam link.
     const stream = async () => {
+      stage('streaming 60 messages');
       const b0 = await busy();
       const t0 = Date.now();
       const at = {};
@@ -118,6 +126,7 @@ async function checkWebChatsOdd() {
 
     /* ------------------------------------------------ edited messages */
 
+    stage('edited messages');
     await evalIn(browser, s, "add('See you at 5', 'Jordan', 'edit')");
     await sleep(2000);
     const plainFirst = await on('edit');
@@ -163,6 +172,7 @@ async function checkWebChatsOdd() {
 
     /* ------------------------------------------------ the switches, in the real settings page, while the chat is open */
 
+    stage('the switches in settings');
     const hintsNow = () => evalIn(browser, s, "document.querySelectorAll('[data-sentinel-chat]').length");
     const before = await hintsNow();
     await clickSel(browser, o, '#chatHints');
