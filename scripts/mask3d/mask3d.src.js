@@ -262,7 +262,21 @@ async function build(el) {
   try {
     const src = await model(geom);
     const m = src.clone(true);
-    m.traverse((o) => { if (o.isMesh) { o.material = material; } });
+    // The model's own maps, baked in Blender from the detailed mask (masks.py --glb): the normal map carries the
+    // bevels, rims and ridges smaller than a triangle, under the lacquer too; the occlusion map darkens the eyes'
+    // depth. The finish (colour, metal, lacquer) stays the site's.
+    m.traverse((o) => {
+      if (!o.isMesh) return;
+      const baked = o.material;
+      if (baked && baked.normalMap && !material.normalMap) {
+        material.normalMap = baked.normalMap;
+        material.normalScale.copy(baked.normalScale);
+        material.clearcoatNormalMap = baked.normalMap;
+        material.clearcoatNormalScale.copy(baked.normalScale);
+      }
+      if (baked && baked.aoMap && !material.aoMap) material.aoMap = baked.aoMap;
+      o.material = material;
+    });
     holder.add(m);
     if (el.hasAttribute('data-eyes')) {
       // Light inside the mask, seen through its eyes; and a glow over each eye, always lit and brighter as it watches.
