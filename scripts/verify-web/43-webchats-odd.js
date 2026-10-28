@@ -62,6 +62,20 @@ async function checkWebChatsOdd() {
   // Each stage as it starts, with the time, so a run that stops answering says where it stopped.
   const t00 = Date.now();
   const stage = (what) => console.log(`      webchats-odd ${((Date.now() - t00) / 1000).toFixed(1)} s: ${what}`);
+  // DIAGNOSTIC (1.18.3 hang): every 20 s, the DevTools calls still waiting and how late this timer itself fired.
+  let browserRef = null;
+  let tick = Date.now();
+  const watchdog = setInterval(() => {
+    const lag = Date.now() - tick - 20000;
+    tick = Date.now();
+    const pend = browserRef ? browserRef.pending().filter((p) => p[1] >= 5) : [];
+    if (pend.length || lag > 1000) stage(`watchdog: timer late by ${lag} ms; waiting: ${JSON.stringify(pend)}`);
+    if (pend.length && browserRef) {
+      const t = Date.now();
+      Promise.race([browserRef.send('Target.getTargets').then((r) => `browser answers in ${Date.now() - t} ms, ${r.targetInfos.length} targets: ${r.targetInfos.map((x) => `${x.type} ${x.url.slice(0, 50)}`).join(' | ')}`), sleep(5000).then(() => 'browser did not answer in 5 s')])
+        .then((m) => stage(`watchdog: ${m}`), (e) => stage(`watchdog: ${e.message}`));
+    }
+  }, 20000);
   const seen = [];
   const chats = await tlsServer([...CHAT_HOSTS, ...LINK_HOSTS], (req, res, host) => {
     seen.push(`${host}${req.url}`);
@@ -73,6 +87,7 @@ async function checkWebChatsOdd() {
   const sentinel = await startServer('webchats-odd', { SENTINEL_DEVICE_ACCOUNTS: '1' });
   stage('starting Chrome');
   const { browser, close } = await launch([`--host-resolver-rules=${chats.rules}`, '--ignore-certificate-errors']);
+  browserRef = browser;
   try {
     stage('loading and signing in the companion');
     const t = await fetch(`${sentinel.base}/api/v1/auth/device`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: sentinel.base }, body: '{}' });
@@ -122,6 +137,7 @@ async function checkWebChatsOdd() {
     const took = await evalIn(browser, s, 'window.took');
     const askMs = took['busy20:hint'] == null ? null : took['busy20:hint'];
     const scamMs = took['busy40:mask'] == null ? null : took['busy40:mask'];
+    stage('busy: picture');
     await shot(browser, s, 'webchats-odd-busy');
 
     /* ------------------------------------------------ edited messages */
@@ -141,21 +157,27 @@ async function checkWebChatsOdd() {
 
     await evalIn(browser, s, `add(${JSON.stringify(`check this out <article class="embedWrapper"><div class="embedProvider">PayPal</div><div class="embedTitle"><a class="embedTitleLink" href="${SCAM}">PayPal: Log in</a></div><div class="embedDescription">Review your account</div></article>`)}, 'Sam', 'embed')`);
     await evalIn(browser, s, `add(${JSON.stringify(`<a class="card" href="${SCAM}"><div><div class="cardTitle">Your account is limited</div><div class="cardHost">paypa1-secure-login.com</div></div></a>`)}, '', 'card')`);
+    stage('embeds: waiting for masks');
     const embedIn = await waitFor('embed', scamMask, 6000);
     const cardIn = await waitFor('card', scamMask, 6000);
+    stage('embeds: picture');
     await shot(browser, s, 'webchats-odd-embed');
     result('webchats-odd: a scam link in an embed and in a preview card (a link round a whole card) each get the scam mask',
       embedIn !== null && cardIn !== null, { embed: await on('embed'), card: await on('card') });
 
     /* ------------------------------------------------ other languages */
 
+    stage('languages: adding');
     await evalIn(browser, s, `add('Nos vemos a las 5, ¿vale?', 'Lucía', 'es')`);
     await evalIn(browser, s, `add(${JSON.stringify(`<div dir="rtl">انظر هذا الرابط <a href="${SCAM}">${SCAM}</a></div>`)}, 'أحمد', 'ar')`);
     await evalIn(browser, s, `add('明日の会議は10時からです', '太郎', 'ja')`);
     await evalIn(browser, s, `add('Te envié un código de 6 dígitos por error, ¿me lo puedes reenviar?', 'Desconocido', 'es-ask')`);
+    stage('languages: waiting for the mask');
     const rtlIn = await waitFor('ar', scamMask, 6000);
     await sleep(800);
+    stage('languages: reading');
     const langs = { es: await on('es'), ar: await on('ar'), ja: await on('ja'), esAsk: await on('es-ask') };
+    stage('languages: picture');
     await shot(browser, s, 'webchats-odd-languages');
     result('webchats-odd: in other languages, and right to left, a scam link is still marked and ordinary messages get no hint',
       rtlIn !== null && !langs.es.hint && !langs.ja.hint && !langs.ar.hint, langs);
@@ -164,6 +186,7 @@ async function checkWebChatsOdd() {
 
     const olderRows = [...Array.from({ length: 120 }, (_, i) => [`Older ${i}: gg everyone`, i % 6 ? '' : `Old${i % 4}`, `old${i}`]),
       [`Old giveaway <a href="${SCAM}">${SCAM}</a>`, 'Stranger', 'oldscam'], [ASK, 'Stranger2', 'oldask']];
+    stage('older messages');
     await evalIn(browser, s, `older(${JSON.stringify(olderRows)})`);
     const oldScam = await waitFor('oldscam', scamMask, 6000);
     const oldAsk = await waitFor('oldask', (v) => v.hint, 6000);
@@ -224,9 +247,12 @@ async function checkWebChatsOdd() {
     const opened = seen.filter((u) => LINK_HOSTS.some((h) => u.startsWith(`${h}/`)));
     result('webchats-odd: no link in any message was opened or fetched by the browser', !opened.length, { opened, pages: seen.length });
   } finally {
+    clearInterval(watchdog);
+    stage('closing');
     await close();
     chats.close();
     await sentinel.stop();
+    stage('closed');
   }
 }
 

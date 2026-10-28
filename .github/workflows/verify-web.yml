@@ -4,6 +4,11 @@ name: Website, QR and companion in a real browser
 
 on:
   workflow_dispatch:
+    inputs:
+      checks:
+        description: 'Run only these checks (comma separated) in the features job, and no other job; empty runs everything'
+        required: false
+        default: ''
   push:
     branches: ['work/e2e**']
 
@@ -12,6 +17,7 @@ permissions:
 
 jobs:
   verify:
+    if: ${{ !inputs.checks }}
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -49,8 +55,9 @@ jobs:
         run: |
           python -m pip install --quiet qrcode pillow
           python scripts/verify-web-qr.py qr-samples
-      - run: node scripts/verify-web.js --only share,webchats,share-odd,webchats-odd,companion-a11y,mask-rest,serp-engines --out verify-web-features
+      - run: node scripts/verify-web.js --only $env:CHECKS --out verify-web-features
         env:
+          CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,mask-rest,serp-engines' }}
           CHECK_MINUTES: '25'
       - uses: actions/upload-artifact@v4
         if: always()
@@ -61,6 +68,7 @@ jobs:
 
   # The companion's memory after an hour of browsing (scripts/verify-web/26-companion-soak.js), beside the checks above.
   companion-soak:
+    if: ${{ !inputs.checks }}
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -82,6 +90,7 @@ jobs:
   # Speed and accessibility of every public and app page (scripts/verify-web/30-perf-a11y.js): Lighthouse at phone and
   # desktop size and an axe-core audit in dark and light. Both are installed for this job only, never into the project.
   perf-a11y:
+    if: ${{ !inputs.checks }}
     runs-on: windows-latest
     timeout-minutes: 90
     steps:

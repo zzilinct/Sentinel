@@ -77,10 +77,12 @@ function cdpPipe(child) {
     send(method, params = {}, sessionId) {
       return new Promise((res, rej) => {
         const n = ++id;
-        waiting.set(n, { res, rej });
+        waiting.set(n, { res, rej, method, sessionId, at: Date.now() });
         child.stdio[3].write(`${JSON.stringify({ id: n, method, params, ...(sessionId ? { sessionId } : {}) })}\0`);
       });
     },
+    /** The calls still waiting for an answer: [method, seconds waited], oldest first. */
+    pending() { return [...waiting.values()].map((w) => [w.method, Math.round((Date.now() - w.at) / 1000)]); },
     close() { /* the pipe closes with the browser */ }
   };
 }
