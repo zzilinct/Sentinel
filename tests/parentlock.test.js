@@ -18,7 +18,8 @@ test('only a salted hash of the PIN is kept, and the same PIN hashes differently
   const a = memoryStore(), b = memoryStore();
   parentlock.create(a).set('4821');
   parentlock.create(b).set('4821');
-  assert.ok(!JSON.stringify(a.data).includes('4821'));
+  // The PIN as a value of its own, quotes included: random hex can contain the digits 4821.
+  assert.ok(!JSON.stringify(a.data).includes('"4821"'));
   assert.match(a.data.parentLock.hash, /^[0-9a-f]{64}$/);
   assert.notEqual(a.data.parentLock.salt, b.data.parentLock.salt);
   assert.notEqual(a.data.parentLock.hash, b.data.parentLock.hash);
