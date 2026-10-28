@@ -119,10 +119,14 @@ async function pageText(browser, sessionId) {
 }
 
 async function shot(browser, sessionId, name) {
+  // A tab that is not in front draws no frames and its picture never comes: given up after 30 s, said, and the check
+  // goes on, instead of holding it until its time runs out.
+  let timer;
   try {
-    const { data } = await browser.send('Page.captureScreenshot', { format: 'png' }, sessionId);
+    const { data } = await Promise.race([browser.send('Page.captureScreenshot', { format: 'png' }, sessionId),
+      new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error('timeout')), 30000); })]);
     fs.writeFileSync(path.join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
-  } catch { /* a picture is a nicety */ }
+  } catch (err) { if (err.message === 'timeout') console.log(`      no picture of ${name}: the tab drew nothing for 30 s (not in front?)`); /* a picture is a nicety */ } finally { clearTimeout(timer); }
 }
 
 async function typeText(browser, sessionId, text) {

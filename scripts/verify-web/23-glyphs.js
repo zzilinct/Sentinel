@@ -88,15 +88,21 @@ async function checkGlyphs() {
       for (const theme of ['dark', 'light']) {
         const tag = `${phone ? 'phone' : 'desktop'} ${theme}`;
         const p = await open({ phone, theme });
+        await shot(browser, p.s, `glyphs-${phone ? 'phone' : 'desktop'}-${theme}-a`);
+        // Fifteen more frames, each moving the bands on, counted from here. Waited for (up to 8 s) rather than
+        // expected in a fixed second and a half: the first page in a fresh CI Chrome has drawn 10 and 14 frames in that
+        // window (runs 40739408677, 40749085498) where the same page usually draws over 50, still moving, and how fast
+        // a shared runner paints is not what this proves.
         const a = await p.ev(state);
         const pa = await p.ev(PIXELS);
-        await shot(browser, p.s, `glyphs-${phone ? 'phone' : 'desktop'}-${theme}-a`);
-        await sleep(1500);
-        const b = await p.ev(state);
+        const t0 = Date.now();
+        let b = a;
+        for (; Date.now() - t0 < 8000 && (b.frames - a.frames < 15 || Date.now() - t0 < 1500);) { await sleep(250); b = await p.ev(state); }
+        const ms = Date.now() - t0;
         const pb = await p.ev(PIXELS);
         await shot(browser, p.s, `glyphs-${phone ? 'phone' : 'desktop'}-${theme}-b`);
-        result(`glyphs ${tag}: the field draws and moves while the chapter is on screen`, b.running && b.frames - a.frames >= 15 && pa.sum !== pb.sum && pb.lit > 1000 && b.theme === theme,
-          { before: a, after: b, pixels: [pa, pb] });
+        result(`glyphs ${tag}: the field draws and moves while the chapter is on screen`, b.running && b.frames - a.frames >= 15 && b.phase > a.phase && pa.sum !== pb.sum && pb.lit > 1000 && b.theme === theme,
+          { before: a, after: b, ms, fps: Math.round(((b.frames - a.frames) * 10000) / ms) / 10, pixels: [pa, pb] });
         // Crisp: drawn at the screen's own pixel ratio, or as near it as the pixel budget allows.
         result(`glyphs ${tag}: drawn at the screen's pixel ratio (or near it on a very tall phone section)`, Math.abs(pb.w / pb.cssW - b.dpr) < 0.02 && b.dpr >= (phone ? 1.9 : 1), { dpr: b.dpr, w: pb.w, cssW: pb.cssW });
         const cap = Math.round(b.max * 255) + 2;

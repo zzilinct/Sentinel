@@ -62,7 +62,8 @@ async function checkWebChatsOdd() {
   // Each stage as it starts, with the time, so a run that stops answering says where it stopped.
   const t00 = Date.now();
   const stage = (what) => console.log(`      webchats-odd ${((Date.now() - t00) / 1000).toFixed(1)} s: ${what}`);
-  // DIAGNOSTIC (1.18.3 hang): every 20 s, the DevTools calls still waiting and how late this timer itself fired.
+  // Every 20 s while a DevTools call has waited 5 s or more: what is waiting, how late this timer fired (a blocked
+  // Node), and whether the browser itself still answers, with its tabs.
   let browserRef = null;
   let tick = Date.now();
   const watchdog = setInterval(() => {
@@ -88,6 +89,22 @@ async function checkWebChatsOdd() {
   stage('starting Chrome');
   const { browser, close } = await launch([`--host-resolver-rules=${chats.rules}`, '--ignore-certificate-errors']);
   browserRef = browser;
+  // Installed, the companion opens its connect page in a new tab once its first sign-in attempt is over (about 20 s
+  // later on CI, signed in by then or not). That tab comes to the front and hides the chat: a hidden tab draws no
+  // frames, so Page.captureScreenshot never answers (runs 40739408677, 40749085498, 40767696544 waited 25 minutes in
+  // shot()), and the companion checks links only in the tab being looked at. It is closed as it opens, as a person
+  // would, and the chat brought back to the front.
+  let chatTab = null;
+  const installTab = async ({ targetInfo: t }) => {
+    if (t.type !== 'page' || !/\/connect\b|next=(\/|%2F)connect/.test(t.url)) return;
+    const seenAs = chatTab ? await Promise.race([evalIn(browser, chatTab.sessionId, 'document.visibilityState').catch((e) => e.message), sleep(3000).then(() => 'no answer')]) : 'not open yet';
+    await browser.send('Target.closeTarget', { targetId: t.targetId }).catch(() => {});
+    if (chatTab) await browser.send('Page.bringToFront', {}, chatTab.sessionId).catch(() => {});
+    stage(`closed the companion's install tab (${t.url}); the chat was ${seenAs}`);
+  };
+  browser.on('Target.targetCreated', installTab);
+  browser.on('Target.targetInfoChanged', installTab);
+  await browser.send('Target.setDiscoverTargets', { discover: true });
   try {
     stage('loading and signing in the companion');
     const t = await fetch(`${sentinel.base}/api/v1/auth/device`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: sentinel.base }, body: '{}' });
@@ -98,6 +115,7 @@ async function checkWebChatsOdd() {
     const o = opt.sessionId;
 
     const tab = await openPage(browser);
+    chatTab = tab;
     const s = tab.sessionId;
     await browser.send('Performance.enable', {}, s);
     const busy = async () => (await browser.send('Performance.getMetrics', {}, s)).metrics.find((m) => m.name === 'TaskDuration').value;
