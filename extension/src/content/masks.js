@@ -67,14 +67,16 @@
     yellow: '<rect x="48.4" y="42.5" width="3.2" height="9" rx="1.6"/><circle cx="50" cy="56.2" r="1.9"/>'
   };
   var SEVERITY = { red: 'Danger', orange: 'Warning', yellow: 'Caution' };
+  // Each mask as large as it fits up and left of the seal: the bare helmet has room to grow, horns and spores less.
+  var FIT = { scam: 'translate(-10.4 -9.6) scale(1.2)', malware: 'translate(-6.6 -3.2) scale(1.08)', virus: 'translate(-4 -4)' };
 
   /** The mark for a threat at a severity (yellow, orange or red). Decorative: the element holding it carries the name. */
   function mark(threat, badge) {
     var g = GLYPHS[threat] || GLYPHS.scam;
     var seal = SEALS[badge] || SEALS.yellow;
-    var layer = function (color, dy) { return '<g style="color:' + color + '" transform="translate(-4 ' + (dy - 4) + ')">' + g + '</g>'; };
-    return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">' +
-      layer(GOLD_SHADOW, 2.4) + layer(GOLD_LIGHT, -1.4) + layer(GOLD_FACE, 0) +
+    var layer = function (color, dy) { return '<g style="color:' + color + '" transform="translate(0 ' + dy + ')">' + g + '</g>'; };
+    return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g transform="' + (FIT[threat] || FIT.scam) + '">' +
+      layer(GOLD_SHADOW, 2.4) + layer(GOLD_LIGHT, -1.4) + layer(GOLD_FACE, 0) + '</g>' +
       '<g fill="' + (COLORS[badge] || COLORS.yellow) + '" stroke="' + INK + '" stroke-width="4" stroke-linejoin="round" paint-order="stroke">' + seal + '</g>' +
       '<g fill="' + INK + '">' + (BANG[badge] || BANG.yellow) + '</g></svg>';
   }

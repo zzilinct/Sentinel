@@ -870,9 +870,11 @@ async function liveMarks(send) {
   for (const [name, scale, forced] of [['1x', 1, false], ['2x', 2, false], ['high-contrast', 1, true]]) {
     await send('Emulation.setDeviceMetricsOverride', { width: 760, height: 620, deviceScaleFactor: scale, mobile: false }, sessionId);
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: forced ? 'active' : 'none' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
-    const { frameTree } = await send('Page.getFrameTree', {}, sessionId);
-    await send('Page.setDocumentContent', { frameId: frameTree.frame.id, html }, sessionId);
-    await sleep(600);
+    // A data: address, so the sheet's own scripts run (a document set through Page.setDocumentContent ran none).
+    await send('Page.navigate', { url: 'data:text/html;base64,' + Buffer.from(html).toString('base64') }, sessionId);
+    await sleep(900);
+    const drawn = await run("[document.querySelectorAll('.mark').length, document.querySelectorAll('.sentinel-mask').length]");
+    check(drawn && drawn[0] === 40 && drawn[1] === 16, `${name}: the sheet drew every mark`, drawn);
     const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
     fs.writeFileSync(path.join(OUT, `live-marks-${name}.png`), Buffer.from(shot.data, 'base64'));
     console.log(`live-marks-${name}.png`);
