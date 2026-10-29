@@ -346,6 +346,7 @@
     card.querySelector('[data-act="trust"]').onclick = async (ev) => {
       const res = await send({ type: 'override', url: v.url, action: 'allow' });
       if (!res.ok) { ev.target.textContent = res.error || 'Sign in first'; return; }
+      known.delete(v.requested || v.url);
       for (const a of byUrl.get(v.requested || v.url) || []) {
         const heading = headingOf(a);
         const group = heading.querySelector(':scope > .sentinel-masks');
@@ -378,7 +379,10 @@
       if (!byUrl.has(url)) byUrl.set(url, []);
       byUrl.get(url).push(a);
       anchorUrl.set(a, url);
-      nearView.observe(a);
+      // A result drawn again after its verdict came (Bing redraws its results a moment after loading): the same
+      // address is not asked about twice, so the new link gets the verdict it already has.
+      if (known.has(url)) attach(a, known.get(url));
+      else nearView.observe(a);
     }
   }
 
@@ -413,7 +417,9 @@
     });
   }
 
+  const known = new Map();                 // url -> its latest verdict
   function apply(verdicts) {
+    for (const [url, verdict] of Object.entries(verdicts || {})) if (verdict && verdict.ok) known.set(url, verdict);
     const todo = [];
     for (const [url, verdict] of Object.entries(verdicts || {})) {
       for (const a of byUrl.get(url) || []) if (a.isConnected) todo.push([a, verdict]);

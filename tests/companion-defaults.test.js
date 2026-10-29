@@ -48,3 +48,11 @@ test('companion: the install tab opens only for a new install that is not signed
   assert.equal(await wantsConnectTab('update', false), false, 'an update never opens it');
   assert.match(read('background.js'), /if \(await wantsConnectTab\(details\.reason, account\.signedIn\)\)/);
 });
+
+// Bing redraws its results a moment after loading; the redrawn links must get the verdicts already known, or every
+// mark vanishes (verify-web run 40787005308: every result marked 1.2 s after loading, none 1.5 s later).
+test('companion: a search result drawn again keeps its marks', () => {
+  const serp = read('content/serp.js');
+  assert.match(serp, /if \(known\.has\(url\)\) attach\(a, known\.get\(url\)\);/);
+  assert.match(serp, /known\.set\(url, verdict\)/);
+});
