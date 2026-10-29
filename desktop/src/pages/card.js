@@ -25,7 +25,9 @@
   .head { display: flex; align-items: center; gap: 14px; -webkit-app-region: drag; }
   button, a { -webkit-app-region: no-drag; }
   .mark { width: 46px; height: 46px; flex: none; color: var(--c, #d6b25a); }
-  .mark svg { width: 100%; height: 100%; }
+  .mark svg { display: block; width: 100%; height: 100%; }
+  /* The title and address may wrap anywhere: a long address must not push the card wider than its window. */
+  .head > div { min-width: 0; }
   h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--c, #d6b25a); }
   .host, .sub, .name { margin: 2px 0 0; font: 13px "Cascadia Mono", ui-monospace, Consolas, monospace; color: #c9c5bb; overflow-wrap: anywhere; }
   .body { margin-top: 16px; min-height: 0; }
@@ -106,10 +108,15 @@
     return size;
   }
 
-  /** Anything cut off or scrolling inside the card (empty when it fits its words): for the end-to-end checks. */
+  /**
+   * Anything cut off or scrolling inside the card (empty when it fits its words): for the end-to-end checks. Only a
+   * box that clips (or scrolls) can hide words; whatever spills out of one that does not ends up in the card itself
+   * (the body clips), and is found there.
+   */
   function clipped() {
+    const clips = (e) => e === document.documentElement || ['overflowX', 'overflowY'].some((k) => getComputedStyle(e)[k] !== 'visible');
     return [document.documentElement, document.body, ...document.body.querySelectorAll('*')]
-      .filter((e) => e.clientHeight > 0 && (e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1))
+      .filter((e) => e.clientHeight > 0 && (e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1) && clips(e))
       .filter((e) => !(e.tagName === 'BUTTON' && getComputedStyle(e).textOverflow === 'ellipsis' && e.scrollHeight <= e.clientHeight + 1))
       .map((e) => e.id || e.className || e.tagName.toLowerCase());
   }
