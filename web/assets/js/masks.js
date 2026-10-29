@@ -46,6 +46,46 @@
     return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" ' + extra + '>' + (GLYPHS[threat] || GLYPHS.scam) + '</svg>';
   }
 
+  /* ------------------------------------------------------------- marks */
+
+  // The live-scanning mark beside a link, the same in the desktop overlay and the companion: the threat's mask in
+  // cast gold on a dark tile, and in its corner a seal whose shape says how bad, so it reads without colour too
+  // (red an octagon, orange a triangle, yellow a circle). Vector, so it is sharp at 20 px and on any screen scale.
+  // The gold is three copies of the mask (shadow below, light above, face on top), which bevels its edges and the
+  // insides of its eyes without gradients: a gradient needs a document-wide id, and on a host page that id can clash
+  // or vanish with the first mark that carried it.
+  var GOLD_SHADOW = '#5a4216', GOLD_LIGHT = '#fff0c4', GOLD_FACE = '#d9b65f', INK = '#0c0d10';
+  var SEALS = {
+    red: '<path d="M45 37.5h10l7.5 7.5v10L55 62.5H45L37.5 55V45Z"/>',
+    orange: '<path d="M50 36.5 64 62.5H36Z"/>',
+    yellow: '<circle cx="50" cy="50" r="12.5"/>'
+  };
+  // The "!" inside each seal, lower in the triangle where it has room.
+  var BANG = {
+    red: '<rect x="48.4" y="42" width="3.2" height="9.5" rx="1.6"/><circle cx="50" cy="56.2" r="1.9"/>',
+    orange: '<rect x="48.4" y="45" width="3.2" height="8.6" rx="1.6"/><circle cx="50" cy="57.8" r="1.8"/>',
+    yellow: '<rect x="48.4" y="42.5" width="3.2" height="9" rx="1.6"/><circle cx="50" cy="56.2" r="1.9"/>'
+  };
+  var SEVERITY = { red: 'Danger', orange: 'Warning', yellow: 'Caution' };
+
+  /** The mark for a threat at a severity (yellow, orange or red). Decorative: the element holding it carries the name. */
+  function mark(threat, badge) {
+    var g = GLYPHS[threat] || GLYPHS.scam;
+    var seal = SEALS[badge] || SEALS.yellow;
+    var layer = function (color, dy) { return '<g style="color:' + color + '" transform="translate(-4 ' + (dy - 4) + ')">' + g + '</g>'; };
+    return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">' +
+      layer(GOLD_SHADOW, 2.4) + layer(GOLD_LIGHT, -1.4) + layer(GOLD_FACE, 0) +
+      '<g fill="' + (COLORS[badge] || COLORS.yellow) + '" stroke="' + INK + '" stroke-width="4" stroke-linejoin="round" paint-order="stroke">' + seal + '</g>' +
+      '<g fill="' + INK + '">' + (BANG[badge] || BANG.yellow) + '</g></svg>';
+  }
+
+  /** Checked, nothing found: a small tick, never a mask, with a dark edge so it reads on white pages as well as dark. */
+  function tick() {
+    var d = 'M5 12.5 9.5 17 19 7.5';
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="' + d + '" stroke="' + INK + '" stroke-opacity=".6" stroke-width="5.4"/><path d="' + d + '" stroke="currentColor" stroke-width="2.6"/></svg>';
+  }
+
   /* ------------------------------------------------------------- kinds */
 
   // One line icon per threat kind, so a result reads at a glance without the
@@ -89,5 +129,5 @@
     return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" ' + (attrs || '') + '>' + KIND_GLYPHS[kind] + '</svg>';
   }
 
-  root.SentinelMasks = { svg: svg, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES };
+  root.SentinelMasks = { svg: svg, mark: mark, tick: tick, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES, SEVERITY: SEVERITY };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

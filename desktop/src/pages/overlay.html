@@ -72,9 +72,15 @@
     background: rgba(12, 13, 16, .88); box-shadow: 0 2px 10px rgba(0, 0, 0, .28), 0 0 12px -2px color-mix(in srgb, var(--c, #8f8a7a) 55%, transparent); border: 1px solid color-mix(in srgb, var(--c, #8f8a7a) 50%, transparent); color: var(--c, #8f8a7a);
     opacity: 0; scale: .6; will-change: transform; transition: transform .18s cubic-bezier(.2, .8, .2, 1); }
   .mark.is-still { transition: none; }
-  .mark svg { width: 20px; height: 20px; display: block; }
-  .mark.is-clear { width: 20px; height: 20px; border-radius: 6px; background: rgba(12, 13, 16, .8); box-shadow: 0 1px 6px rgba(0, 0, 0, .2); }
-  .mark.is-clear svg { width: 15px; height: 15px; }
+  /* A flagged result: its mask in cast gold, the corner seal's shape saying how bad (masks.js mark()). */
+  .mark svg { width: 24px; height: 24px; display: block; }
+  .mark.is-red { border-width: 2px; }
+  /* Checked, nothing found: only a small tick, no tile and no mask, so an honest page of results stays calm. */
+  .mark.is-clear { width: 20px; height: 20px; background: none; border: 0; box-shadow: none; }
+  .mark.is-clear svg { width: 16px; height: 16px; }
+  /* Windows High Contrast would flatten every mark into one outlined square: the marks keep their own dark tile,
+     gold and seal shapes, which carry the meaning without hue. */
+  @media (forced-colors: active) { .mark { forced-color-adjust: none; } }
   .mark.is-pending { width: 10px; height: 10px; border-radius: 3px; border: 0; box-shadow: none; background: #d6b25a; opacity: .0; animation: wait 1s ease-in-out infinite; }
   .mark.is-in { animation: pop .34s cubic-bezier(.2, 1.4, .4, 1) var(--d, 0ms) forwards; }
   @keyframes pop { 0% { opacity: 0; scale: .55; } 100% { opacity: 1; scale: 1; } }
@@ -297,10 +303,12 @@
       }
       if (n.dataset.state === state) return;
       n.dataset.state = state;
-      n.className = 'mark is-still' + (m.pending ? ' is-pending' : m.badge ? '' : ' is-clear');
-      if (m.pending) { n.innerHTML = ''; return; }
+      n.className = 'mark is-still' + (m.pending ? ' is-pending' : m.badge ? ' is-' + m.badge : ' is-clear');
+      if (m.pending) { n.innerHTML = ''; n.removeAttribute('role'); n.removeAttribute('aria-label'); return; }
       n.style.setProperty('--c', m.badge ? M.COLORS[m.badge] : M.COLORS.clear);
-      n.innerHTML = M.svg(m.badge ? m.kind : 'scam');
+      n.innerHTML = m.badge ? M.mark(m.kind, m.badge) : M.tick();
+      n.setAttribute('role', 'img');
+      n.setAttribute('aria-label', 'Sentinel: ' + (m.badge ? (M.SEVERITY[m.badge] || 'Caution') + ', ' + m.label : 'nothing found'));
       if (shown.has(key)) { n.classList.add('is-on'); return; }
       if (shown.size > 2000) shown.clear();
       shown.add(key);
@@ -334,7 +342,8 @@
     if (!hit) { tip.classList.remove('is-on'); return; }
     var color = hit.badge ? M.COLORS[hit.badge] : M.COLORS.clear;
     tip.style.setProperty('--c', color);
-    tip.querySelector('b').textContent = hit.badge ? hit.label : 'Nothing found';
+    // The severity in words first, so the tip never relies on its colour either.
+    tip.querySelector('b').textContent = hit.badge ? (M.SEVERITY[hit.badge] || 'Caution') + ': ' + hit.label : 'Nothing found';
     tip.querySelector('span').textContent = hit.badge ? (hit.reason || 'Open it with care.') : 'Sentinel checked this address and found no warning signs.';
     var cx = hit._cx + shiftX;
     var cy = hit._cy + shiftY;

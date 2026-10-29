@@ -484,6 +484,7 @@ async function main() {
     await emailMarks(send);
     await heroCentred(send);
     await weekCheck(send);
+    await liveMarks(send);
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
     browser.kill();
@@ -809,6 +810,81 @@ async function emailMarks(send) {
     await shoot('result', top);
     await send('Target.closeTarget', { targetId });
   }
+}
+
+/**
+ * The live-scanning marks, every kind and severity, as the Windows overlay draws them (its own stylesheet) and as the
+ * companion draws them beside a result title (sentinel.css), on a white page and a dark one, at 100% and 200% scale,
+ * in greyscale, and with Windows High Contrast emulated. For a human eye: a severity must be told apart by its seal's
+ * shape alone in the greyscale and high contrast pictures.
+ */
+async function liveMarks(send) {
+  const check = (ok, what, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  live marks: ${what}${ok ? '' : `  got ${JSON.stringify(got)}`}`); if (!ok) throw new Error(`live marks: ${what}`); };
+  const masks = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), 'utf8');
+  const overlay = fs.readFileSync(path.join(ROOT, 'desktop', 'src', 'pages', 'overlay.html'), 'utf8');
+  const overlayCss = overlay.slice(overlay.indexOf('<style>') + 7, overlay.indexOf('</style>'));
+  const companionCss = fs.readFileSync(path.join(ROOT, 'extension', 'src', 'content', 'sentinel.css'), 'utf8');
+  const html = `<!doctype html><meta charset="utf-8"><style>${overlayCss}</style><style>${companionCss}</style><style>
+    html, body { overflow: visible; height: auto; background: #fff; color: #202124; font: 15px/1.4 system-ui, sans-serif; }
+    .bg { padding: 14px 18px; display: inline-block; vertical-align: top; } .bg.dark { background: #202124; color: #e8eaed; }
+    .row { display: flex; gap: 6px; align-items: center; margin: 4px 0; } .row i { font-style: normal; width: 70px; font-size: 12px; opacity: .7; }
+    .cell { position: relative; width: 32px; height: 32px; } .cell .mark { transform: translate(2px, 2px); }
+    h3 { margin: 6px 0; font-weight: 400; font-size: 18px; color: #1a0dab; } .dark h3 { color: #99c3ff; }
+    .grey { filter: grayscale(1); }
+  </style><body><script>${masks}</script><script>
+    const M = SentinelMasks;
+    const sheet = (dark) => {
+      const bg = document.createElement('div'); bg.className = 'bg' + (dark ? ' dark' : '');
+      for (const badge of ['red', 'orange', 'yellow', null]) {
+        const row = document.createElement('div'); row.className = 'row';
+        row.innerHTML = '<i>' + (badge ? M.SEVERITY[badge] : 'Safe') + '</i>';
+        for (const kind of ['scam', 'virus', 'malware']) {
+          const cell = document.createElement('div'); cell.className = 'cell';
+          const n = document.createElement('div'); n.className = 'mark is-on ' + (badge ? 'is-' + badge : 'is-clear');
+          n.style.setProperty('--c', M.COLORS[badge || 'clear']);
+          n.innerHTML = badge ? M.mark(kind, badge) : M.tick();
+          n.setAttribute('role', 'img'); n.setAttribute('aria-label', 'Sentinel: ' + (badge ? M.SEVERITY[badge] + ', ' + kind : 'nothing found'));
+          cell.appendChild(n); row.appendChild(cell);
+          if (!badge) break;
+        }
+        bg.appendChild(row);
+      }
+      for (const badge of ['red', 'orange', 'yellow', null]) {
+        const h = document.createElement('h3'); h.textContent = badge ? 'Account verification required' : 'PayPal Help Center';
+        const g = document.createElement('span'); g.className = 'sentinel-masks' + (badge ? '' : ' sentinel-masks--clear');
+        const m = document.createElement('span'); m.className = 'sentinel-mask sentinel-mask--' + (badge || 'clear');
+        m.innerHTML = badge ? M.mark('scam', badge) : M.tick();
+        g.appendChild(m); h.appendChild(g); bg.appendChild(h);
+      }
+      return bg;
+    };
+    for (const grey of [false, true]) {
+      const line = document.createElement('div'); if (grey) line.className = 'grey';
+      line.append(sheet(false), sheet(true)); document.body.appendChild(line);
+    }
+  </script></body>`;
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  await send('Page.enable', {}, sessionId);
+  const run = async (expression) => (await send('Runtime.evaluate', { expression, returnByValue: true }, sessionId)).result.value;
+  for (const [name, scale, forced] of [['1x', 1, false], ['2x', 2, false], ['high-contrast', 1, true]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width: 760, height: 620, deviceScaleFactor: scale, mobile: false }, sessionId);
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: forced ? 'active' : 'none' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    const { frameTree } = await send('Page.getFrameTree', {}, sessionId);
+    await send('Page.setDocumentContent', { frameId: frameTree.frame.id, html }, sessionId);
+    await sleep(600);
+    const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+    fs.writeFileSync(path.join(OUT, `live-marks-${name}.png`), Buffer.from(shot.data, 'base64'));
+    console.log(`live-marks-${name}.png`);
+  }
+  // Each severity's seal is its own shape (not the same drawing in another colour), and every mark is named.
+  const seals = await run(`['red', 'orange', 'yellow'].map((b) => SentinelMasks.mark('scam', b).replace(/#[0-9a-f]{6}/gi, ''))`);
+  check(new Set(seals).size === 3, 'each severity has its own seal shape, not only its own colour');
+  const unnamed = await run(`[...document.querySelectorAll('.mark')].filter((n) => !/^Sentinel: (Danger|Warning|Caution|nothing found)/.test(n.getAttribute('aria-label') || '')).length`);
+  check(unnamed === 0, 'every overlay mark says its severity in words', unnamed);
+  const masked = await run(`[...document.querySelectorAll('.mark.is-clear, .sentinel-mask--clear')].filter((n) => n.querySelectorAll('path').length !== 2 || n.innerHTML.includes('M32 11.6')).length`);
+  check(masked === 0, 'a safe link gets only the tick, never a mask', masked);
+  await send('Target.closeTarget', { targetId });
 }
 
 /**

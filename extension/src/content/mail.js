@@ -93,7 +93,7 @@
     if (!shown.length) return;
     const group = document.createElement('span');
     group.className = 'sentinel-masks sentinel-masks--mail';
-    const found = `Sentinel: ${shown.map((t) => verdict.threats[t].label).join(', ')}`;
+    const found = `Sentinel: ${shown.map((t) => `${Masks.SEVERITY[verdict.threats[t].badge] || 'Caution'}, ${verdict.threats[t].label}`).join('; ')}`;
     const why = (verdict.reasons || []).slice(0, 3).map((r) => r.text);
     group.title = `${found}\n${why.map((r) => `- ${r}`).join('\n')}`;
     // A screen reader hears what was found and why, not only a mouse's tooltip.
@@ -102,7 +102,7 @@
     for (const t of shown) {
       const m = document.createElement('span');
       m.className = `sentinel-mask sentinel-mask--${verdict.threats[t].badge}`;
-      m.innerHTML = Masks.svg(t);
+      m.innerHTML = Masks.mark(t, verdict.threats[t].badge);
       group.appendChild(m);
     }
     item.mount.appendChild(group);

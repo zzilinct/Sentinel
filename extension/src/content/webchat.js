@@ -74,13 +74,13 @@
     const group = document.createElement('span');
     group.className = 'sentinel-masks sentinel-masks--chat';
     group.setAttribute('role', 'img');
-    const label = `Sentinel: ${shown.map((t) => verdict.threats[t].label).join(', ')}`;
+    const label = `Sentinel: ${shown.map((t) => `${Masks.SEVERITY[verdict.threats[t].badge] || 'Caution'}, ${verdict.threats[t].label}`).join('; ')}`;
     group.setAttribute('aria-label', label);
     group.title = `${label}\n${(verdict.reasons || []).slice(0, 3).map((r) => '- ' + r.text).join('\n')}`;
     for (const t of shown) {
       const m = document.createElement('span');
       m.className = `sentinel-mask sentinel-mask--${verdict.threats[t].badge}`;
-      m.innerHTML = Masks.svg(t);
+      m.innerHTML = Masks.mark(t, verdict.threats[t].badge);
       group.appendChild(m);
     }
     a.after(group);
