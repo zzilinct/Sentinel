@@ -16,7 +16,8 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "img-src 'self' data: blob: https://lh3.googleusercontent.com",   // blob: a screenshot chosen for a scan, shown from this device
-  "connect-src 'self' https://api.github.com",
+  // blob: the 3D masks' baked maps, packed inside each model and read back by the page itself (mask3d.js)
+  "connect-src 'self' blob: https://api.github.com",
   "media-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",

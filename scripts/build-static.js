@@ -282,7 +282,7 @@ async function main() {
     // A static host sends no security headers of its own, so the page carries what a meta tag can: the same
     // content policy as the server's pages, and no full addresses leaked to other sites.
     const csp = ["default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "font-src 'self'",
-      "img-src 'self' data:", `connect-src 'self' ${origin} https://api.github.com`, "object-src 'none'", "base-uri 'none'",
+      "img-src 'self' data: blob:", `connect-src 'self' blob: ${origin} https://api.github.com`, "object-src 'none'", "base-uri 'none'",
       `form-action 'self' ${origin}`].join('; ');
     html = html.replace('<meta charset="utf-8">', `<meta charset="utf-8">\n<meta http-equiv="Content-Security-Policy" content="${csp}">\n<meta name="referrer" content="strict-origin-when-cross-origin">`);
     fs.writeFileSync(path.join(OUT, page), html);
