@@ -341,6 +341,7 @@ async function build(el) {
   let shown = false;
   const t0 = performance.now();
   let anim = null;   // a running swallow or colour change
+  let swallowing = null;   // the black hole, while it runs
   const colorFrom = new Color();
   const colorTo = new Color();
 
@@ -447,6 +448,8 @@ async function build(el) {
     tint(name) { setFinish(name); dirty = true; stir(); },
     // A smooth change of colour, for the colour reading and the plates' quieter steps.
     blend(name, ms = 900) {
+      // Not over the black hole: replacing it mid-way left the mask swallowed (radius 0) for good. It follows after.
+      if (swallowing) { swallowing.then(() => api.blend(name, ms)); return; }
       const fin = FINISH[name] || FINISH.scam;
       colorFrom.copy(material.color);
       colorTo.set(fin.color);
@@ -462,7 +465,7 @@ async function build(el) {
     // The black hole: the mask is pulled in and vanishes from the outside in (out, ms), then the new one grows from
     // the inside out (in). Returns when the new mask is whole.
     swallow(name, { out = 1100, gap = 250, grow = 1100 } = {}) {
-      return new Promise((done) => {
+      swallowing = new Promise((done) => {
         const start = performance.now();
         const next = FINISH[name] || FINISH.scam;
         let swapped = false;
@@ -485,6 +488,7 @@ async function build(el) {
           } else {
             state.radius.value = 9;
             state.swirl.value = 0;
+            swallowing = null;
             done();
             return false;
           }
@@ -492,6 +496,7 @@ async function build(el) {
         };
         stir();
       });
+      return swallowing;
     }
   };
   masks.set(el, api);
