@@ -125,7 +125,7 @@ add-on involved:
   mask in the bottom right corner for as long as that browser is being watched
   (it turns the verdict's colour, with a line of words, on a dangerous page),
   and a mark beside every search result: the threat's mask in gold on a dark
-  tile, with a corner seal whose shape says how bad (a red octagon for danger,
+  tile, with a corner seal whose shape says how bad (a red diamond for danger,
   an orange triangle for a warning, a yellow circle for caution), or for a safe
   result only a quiet tick. A mark explains itself on hover. The window cannot take focus,
   and every click and key goes straight through it to the browser.

@@ -50,13 +50,14 @@
 
   // The live-scanning mark beside a link, the same in the desktop overlay and the companion: the threat's mask in
   // cast gold on a dark tile, and in its corner a seal whose shape says how bad, so it reads without colour too
-  // (red an octagon, orange a triangle, yellow a circle). Vector, so it is sharp at 20 px and on any screen scale.
+  // (red a diamond, orange a triangle, yellow a circle). Vector, so it is sharp at 20 px and on any screen scale.
   // The gold is three copies of the mask (shadow below, light above, face on top), which bevels its edges and the
   // insides of its eyes without gradients: a gradient needs a document-wide id, and on a host page that id can clash
   // or vanish with the first mark that carried it.
   var GOLD_SHADOW = '#5a4216', GOLD_LIGHT = '#fff0c4', GOLD_FACE = '#d9b65f', INK = '#0c0d10';
   var SEALS = {
-    red: '<path d="M45 37.5h10l7.5 7.5v10L55 62.5H45L37.5 55V45Z"/>',
+    // A diamond, not an octagon: at the real size an octagon read as the yellow circle (review shot live-marks-2x).
+    red: '<path d="M50 36 64 50 50 64 36 50Z"/>',
     orange: '<path d="M50 36.5 64 62.5H36Z"/>',
     yellow: '<circle cx="50" cy="50" r="12.5"/>'
   };

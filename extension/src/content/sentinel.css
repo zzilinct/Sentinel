@@ -16,7 +16,7 @@
 .sentinel-masks--mail, .sentinel-masks--chat { margin-left: 6px; cursor: help; }
 
 /* A flagged link: its mask in cast gold on a dark tile, the same mark the Windows app draws (masks.js mark()). The
-   corner seal's shape says how bad (octagon, triangle, circle), so it reads without colour. The dark tile keeps the
+   corner seal's shape says how bad (diamond, triangle, circle), so it reads without colour. The dark tile keeps the
    gold readable on white pages, and the ring in the severity colour sets it apart on dark ones. */
 .sentinel-mask {
   display: inline-grid !important;
