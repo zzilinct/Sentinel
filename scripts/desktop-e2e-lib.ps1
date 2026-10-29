@@ -185,9 +185,10 @@ function MainProcs { return @(Get-CimInstance Win32_Process -Filter "Name='Senti
 function SentinelWindows { $ids = @(Get-Process Sentinel -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }); if (-not $ids.Count) { return @() }; return @(([Qa]::Windows([int[]]$ids)) -split "`n" | Where-Object { $_ }) }
 function Starts { return ([regex]::Matches((AppLog), 'starting Sentinel')).Count }
 function StopSentinel { Get-Process Sentinel -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; [void](Until 20 { -not (Get-Process Sentinel -ErrorAction SilentlyContinue) }); Start-Sleep 2 }
-# How a window fits its words and the screen: its inside, the words' own height, buttons out of view, and wider than itself.
-$fitExpr = "(() => { const r = document.documentElement, b = document.body; const out = [...document.querySelectorAll('button')].filter((x) => x.offsetParent).filter((x) => { const q = x.getBoundingClientRect(); return q.bottom > innerHeight + 1 || q.right > innerWidth + 1 || q.top < 0 || q.left < 0; }).map((x) => x.textContent).join('/'); r.style.height = b.style.height = 'auto'; const h = Math.ceil(b.getBoundingClientRect().height); r.style.height = b.style.height = ''; return [innerWidth, innerHeight, h, out, r.scrollWidth > innerWidth + 1 ? 'wide' : 'ok'].join('|'); })()"
-$boundsExpr = "(() => { const e = process.mainModule.require('electron'); const d = e.screen.getPrimaryDisplay(); return JSON.stringify({ scale: d.scaleFactor, work: d.workArea, wins: e.BrowserWindow.getAllWindows().filter((w) => w.isVisible()).map((w) => ({ page: w.webContents.getURL().split('?')[0], b: w.getBounds() })) }); })()"
+# How a window fits its words and the screen: its inside, the words' own height, buttons out of view, wider than itself,
+# and (a warning card, pages/card.js) anything cut off or scrolling inside it: scrollHeight above clientHeight.
+$fitExpr = "(() => { const r = document.documentElement, b = document.body; const out = [...document.querySelectorAll('button')].filter((x) => x.offsetParent).filter((x) => { const q = x.getBoundingClientRect(); return q.bottom > innerHeight + 1 || q.right > innerWidth + 1 || q.top < 0 || q.left < 0; }).map((x) => x.textContent).join('/'); r.style.height = b.style.height = 'auto'; const h = Math.ceil(b.getBoundingClientRect().height); r.style.height = b.style.height = ''; return [innerWidth, innerHeight, h, out, r.scrollWidth > innerWidth + 1 ? 'wide' : 'ok', window.SentinelCard ? window.SentinelCard.clipped().join(',') : 'not a card'].join('|'); })()"
+$boundsExpr = "(() => { const e = process.mainModule.require('electron'); const d = e.screen.getPrimaryDisplay(); return JSON.stringify({ scale: d.scaleFactor, work: d.workArea, wins: e.BrowserWindow.getAllWindows().filter((w) => w.isVisible()).map((w) => { const b = w.getBounds(), c = w.getContentBounds(); return { page: w.webContents.getURL().split('?')[0], b, frameless: b.width === c.width && b.height === c.height }; }) }); })()"
 # One window, by part of its address: on screen in full, its buttons in view, and how much empty space it has.
 function Fit($part, $name) {
   $f = ([string](Cdp $part $fitExpr).value) -split '\|'
@@ -195,8 +196,30 @@ function Fit($part, $name) {
   $w = $null; if ($j) { $w = @($j.wins | Where-Object { $_.page -like "*$part*" }) | Select-Object -First 1 }
   $a = $(if ($j) { $j.work } else { $null })
   $on = $w -and $a -and $w.b.x -ge $a.x - 1 -and $w.b.y -ge $a.y - 1 -and ($w.b.x + $w.b.width) -le ($a.x + $a.width + 1) -and ($w.b.y + $w.b.height) -le ($a.y + $a.height + 1)
-  $r = @{ ok = ($f.Count -eq 5 -and -not $f[3] -and $f[4] -eq 'ok' -and $on); view = "$($f[0])x$($f[1])"; words = $f[2]; outOfView = $f[3]; wide = $f[4]; onScreen = [bool]$on; gap = $(if ($f.Count -eq 5) { [int]$f[1] - [int]$f[2] } else { 0 }); bounds = $(if ($w) { "$($w.b.x),$($w.b.y) $($w.b.width)x$($w.b.height)" }); work = $(if ($a) { "$($a.x),$($a.y) $($a.width)x$($a.height) at $($j.scale)x" }) }
-  Say "  fit ${name}: inside $($r.view), words $($r.words) px tall (empty $($r.gap) px), buttons out of view '$($r.outOfView)', $($r.wide), window $($r.bounds) in work area $($r.work): on screen $($r.onScreen)"
+  # A warning card: no title bar (the window is its page), nothing cut off or scrolling inside.
+  $card = $f.Count -eq 6 -and $f[5] -eq '' -and $w -and $w.frameless
+  $r = @{ ok = ($f.Count -eq 6 -and -not $f[3] -and $f[4] -eq 'ok' -and $on -and $card); card = [bool]$card; frameless = [bool]($w -and $w.frameless); cut = $(if ($f.Count -eq 6) { $f[5] }); view = "$($f[0])x$($f[1])"; words = $f[2]; outOfView = $f[3]; wide = $f[4]; onScreen = [bool]$on; gap = $(if ($f.Count -eq 6) { [int]$f[1] - [int]$f[2] } else { 0 }); bounds = $(if ($w) { "$($w.b.x),$($w.b.y) $($w.b.width)x$($w.b.height)" }); work = $(if ($a) { "$($a.x),$($a.y) $($a.width)x$($a.height) at $($j.scale)x" }) }
+  Say "  fit ${name}: inside $($r.view), words $($r.words) px tall (empty $($r.gap) px), buttons out of view '$($r.outOfView)', $($r.wide), window $($r.bounds) in work area $($r.work): on screen $($r.onScreen); frameless $($r.frameless), cut off or scrolling '$($r.cut)'"
+  return $r
+}
+# A warning card used with the keyboard, as a person would: a click into its words (the window never takes the
+# keyboard by itself), Tab to a button inside it, then Escape. Returns what happened at each step.
+function KeyboardDismiss($part) {
+  $at = ([string](Cdp 'main' "(() => { const e = process.mainModule.require('electron'); const w = e.BrowserWindow.getAllWindows().find((x) => x.isVisible() && x.webContents.getURL().includes('$part')); if (!w) return ''; const r = e.screen.dipToScreenRect(w, w.getBounds()); return r.x + '|' + r.y; })()").value) -split '\|'
+  $in = ([string](Cdp $part "(() => { const q = document.querySelector('.body p').getBoundingClientRect(); return devicePixelRatio + '|' + (q.left + 12) + '|' + (q.top + q.height / 2); })()").value) -split '\|'
+  $r = @{ clicked = $false; focused = $false; tab = ''; closed = $false }
+  if ($at.Count -eq 2 -and $in.Count -eq 3) {
+    [void][K]::SetCursorPos([int]([double]$at[0] + [double]$in[1] * [double]$in[0]), [int]([double]$at[1] + [double]$in[2] * [double]$in[0]))
+    [K]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 80; [K]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+    $r.clicked = $true
+    Start-Sleep 1
+    $r.focused = [bool](Cdp $part 'document.hasFocus()').value
+    [K]::Tap(0x09); Start-Sleep -Milliseconds 400
+    $r.tab = [string](Cdp $part "(() => { const a = document.activeElement; return a && a.tagName === 'BUTTON' && document.body.contains(a) ? a.textContent : ''; })()").value
+    [K]::Tap(0x1B)
+    $r.closed = Until 10 { [string](Cdp $part '1').error -match 'no window' }
+  }
+  Say "  keyboard on ${part}: clicked $($r.clicked), has the keyboard $($r.focused), Tab to '$($r.tab)', Escape closed it $($r.closed)"
   return $r
 }
 # Something drawn on screen below the title bar: a stand-in Chrome sometimes shows its window and never paints the page

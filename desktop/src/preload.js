@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   onSettings: (callback) => on('sentinel:settings', callback),
   // Answered only for the app's own warning page.
   warnAction: (action, url) => ipcRenderer.invoke('sentinel:warn-action', String(action), url == null ? '' : String(url)),
+  // A warning card's words changed (pages/card.js): its window is sized to them again.
+  cardFit: () => ipcRenderer.invoke('sentinel:card-fit'),
   // Tech-support scam shield: one switch in the app, and the answers of its own warning page (guard.html).
   setRemoteGuard: (enabled) => ipcRenderer.invoke('sentinel:set-remote-guard', Boolean(enabled)),
   forgetTrustedRemote: () => ipcRenderer.invoke('sentinel:forget-trusted-remote'),

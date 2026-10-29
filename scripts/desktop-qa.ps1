@@ -166,9 +166,12 @@ foreach ($s in @(@{ pct = 125; w = 1366; h = 768 }, @{ pct = 150; w = 1920; h = 
   Start-Sleep 2
   $f = Fit 'warn.html' "warn-$tag"
   Shot "scale-$tag-warning"
-  Check "scale-$tag-warning" ($ok -and $f.ok) "the warning ('$rb'): inside $($f.view), out of view '$($f.outOfView)', $($f.wide), window $($f.bounds) in $($f.work)"
+  Check "scale-$tag-warning" ($ok -and $f.ok) "the warning ('$rb'): inside $($f.view), out of view '$($f.outOfView)', $($f.wide), window $($f.bounds) in $($f.work), frameless $($f.frameless), cut off or scrolling '$($f.cut)'"
+  # Put away with the keyboard alone, once clicked into: Tab stays on its buttons, Escape closes it.
+  $k = KeyboardDismiss 'warn.html'
+  Check "scale-$tag-warning-keyboard" ($k.focused -and $k.tab -and $k.closed) "clicked into: has the keyboard $($k.focused), Tab to '$($k.tab)', Escape closed it $($k.closed)"
+  if (-not $k.closed) { [void](Cdp 'warn.html' 'window.close(), 1') }
   # Closed: "Did you type anything?"
-  [void](Cdp 'warn.html' 'window.close(), 1')
   CloseEdge
   $ok = Until 40 { (GuardMode) -match 'mode=typed' }
   Start-Sleep 2
