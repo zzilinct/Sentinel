@@ -46,6 +46,7 @@ ap.add_argument('--faces', type=int, default=16000, help='--glb: the low model h
 ap.add_argument('--voxel', type=float, default=0.006, help='detail of the high model (the remesh voxel, on a mask 2 tall)')
 ap.add_argument('--maps', type=int, default=1024, help='--glb: size of the baked normal and occlusion maps')
 ap.add_argument('--keep-high', action='store_true', help='--glb: also write the high model and the maps, for checking the bake')
+ap.add_argument('--env', action='store_true', help='render the studio itself as an equirectangular HDR (2:1, --size tall) for the live masks')
 ap.add_argument('--web', action='store_true', help='still: also write it cropped as the site uses it, as .webp')
 ap.add_argument('--image-format', default='WEBP', choices=['WEBP', 'AUTO', 'JPEG'], help='--glb: how the maps are stored')
 ap.add_argument('--image-quality', type=int, default=95, help='--glb: quality of lossy maps')
@@ -516,8 +517,36 @@ def export_glb(kind):
                                   use_selection=True, export_materials='NONE', export_yup=True)
 
 
+def export_env(kind):
+    """The studio as the mask sees it, for the site's live masks (web/assets/models/studio-<kind>.hdr): the same world,
+    softboxes and cards as the stills, photographed from where the mask stands as a panorama, without the mask.
+    The panorama's middle faces Blender's +X, which is where three.js puts the middle of an equirectangular map."""
+    s = reset()
+    s.render.film_transparent = False
+    s.cycles.use_denoising = False
+    s.render.resolution_x, s.render.resolution_y = args.size * 2, args.size
+    studio(LOOKS[kind])
+    # The softboxes and cards are seen in the metal, so they are seen here.
+    for o in s.objects:
+        o.visible_camera = True
+    bpy.ops.object.camera_add(location=(0, 0, 0))
+    cam = bpy.context.view_layer.objects.active
+    cam.rotation_euler = (math.radians(90), 0, math.radians(-90))
+    cam.data.type = 'PANO'
+    cam.data.panorama_type = 'EQUIRECTANGULAR'
+    s.camera = cam
+    st = s.render.image_settings
+    st.file_format = 'HDR'
+    st.color_mode = 'RGB'
+    os.makedirs(args.out, exist_ok=True)
+    s.render.filepath = os.path.join(args.out, f'studio-{kind}.hdr')
+    bpy.ops.render.render(write_still=True)
+
+
 for kind in (LOOKS if args.mask == 'all' else [args.mask]):
-    if args.glb:
+    if args.env:
+        export_env(kind)
+    elif args.glb:
         export_glb(kind)
     else:
         render(kind)

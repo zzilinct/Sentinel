@@ -13,6 +13,8 @@
  * --glb bakes the detailed mask onto a 16,000-triangle model as a normal map and an occlusion map (high to low), and
  * scripts/blender/mask_qa.py checks the result (the masks job in .github/workflows/test.yml runs it on every push).
  * The stills in web/assets/img/masks/ come from the same detailed mask: masks.py --mask scam --tint yellow --web.
+ * The studio the live masks reflect, web/assets/models/studio-scam.hdr and studio-onyx.hdr, is the stills' own studio
+ * photographed as a panorama: masks.py --mask scam --env --size 128 --samples 64 (and --mask onyx).
  */
 const fs = require('fs');
 const os = require('os');

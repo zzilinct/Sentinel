@@ -145,7 +145,7 @@ function sendJson(res, status, obj, headers = {}) {
 
 /* ------------------------------------------------------------ static files */
 
-const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.json', '.svg', '.txt', '.webmanifest', '.glb']);
+const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.json', '.svg', '.txt', '.webmanifest', '.glb', '.hdr']);
 const compressedCache = new Map();
 const htmlCache = new Map();
 

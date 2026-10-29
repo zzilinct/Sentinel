@@ -15,12 +15,12 @@
  * swallow(newTint, ms) for the threat plates' black hole, and mix(a, b, t) for the colour reading.
  */
 import {
-  WebGLRenderer, Scene, PerspectiveCamera, PMREMGenerator, MeshPhysicalMaterial, Color, Group, DirectionalLight,
-  HemisphereLight, Mesh, PlaneGeometry, MeshBasicMaterial, AdditiveBlending, CanvasTexture, SpriteMaterial, Sprite,
-  SRGBColorSpace, AgXToneMapping, DoubleSide, Vector3
+  WebGLRenderer, Scene, PerspectiveCamera, PMREMGenerator, MeshPhysicalMaterial, Color, Group, Mesh, PlaneGeometry,
+  MeshBasicMaterial, AdditiveBlending, CanvasTexture, SpriteMaterial, Sprite, SRGBColorSpace, AgXToneMapping, DoubleSide
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { CAMERA, POSES, halfView, drift } from './pose.js';
 
 const BASE = (document.currentScript && document.currentScript.src) ? new URL('../models/', document.currentScript.src).href : '/assets/models/';
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -33,16 +33,17 @@ const IDLE_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;
 const SETTLE_MS = 2500;
 const REST_MS = matchMedia('(pointer: coarse)').matches ? 100 : 66;
 
-// Finishes, matching the Blender renders (masks.py LOOKS and TINTS).
+// Finishes, matching the Blender renders (masks.py LOOKS and TINTS). studio: which of Sentinel's studios the finish
+// reflects (web/assets/models/studio-*.hdr, masks.py --env): the gold one, or the onyx one, with its key light and
+// room turned down so the black lacquer stays black and only the softboxes and gold cards show in it.
 const FINISH = {
-  // The hero: a darker silver than the studio light first gave it (env 1.25 read as bright chrome and hid its eyes).
-  onyx: { color: '#0b0a09', metalness: 0.15, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.05, rim: '#ffb455', env: 0.72 },
-  scam: { color: '#f2b64b', metalness: 1, roughness: 0.17, clearcoat: 0.4, clearcoatRoughness: 0.06, rim: '#ffa04a', env: 1 },
-  virus: { color: '#ff5a10', metalness: 1, roughness: 0.22, clearcoat: 0.7, clearcoatRoughness: 0.06, rim: '#ff7a2a', env: 1 },
-  malware: { color: '#a1040c', metalness: 0.85, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.05, rim: '#ff2a20', env: 1 },
-  yellow: { color: '#ffbf1f', metalness: 1, roughness: 0.18, clearcoat: 0.5, clearcoatRoughness: 0.06, rim: '#ffd060', env: 1 },
-  orange: { color: '#ff5a0a', metalness: 1, roughness: 0.22, clearcoat: 0.7, clearcoatRoughness: 0.06, rim: '#ff7a24', env: 1 },
-  red: { color: '#a3030b', metalness: 0.85, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.05, rim: '#ff2a20', env: 1 }
+  onyx: { color: '#0b0a09', metalness: 0, roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.03, rim: '#ffb455', studio: 'onyx' },
+  scam: { color: '#f2b64b', metalness: 1, roughness: 0.16, clearcoat: 0.4, clearcoatRoughness: 0.03, rim: '#ffa04a', studio: 'scam' },
+  virus: { color: '#ff5a10', metalness: 1, roughness: 0.22, clearcoat: 0.7, clearcoatRoughness: 0.03, rim: '#ff7a2a', studio: 'scam' },
+  malware: { color: '#a1040c', metalness: 0.85, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.03, rim: '#ff2a20', studio: 'scam' },
+  yellow: { color: '#ffbf1f', metalness: 1, roughness: 0.18, clearcoat: 0.5, clearcoatRoughness: 0.03, rim: '#ffd060', studio: 'scam' },
+  orange: { color: '#ff5a0a', metalness: 1, roughness: 0.22, clearcoat: 0.7, clearcoatRoughness: 0.03, rim: '#ff7a24', studio: 'scam' },
+  red: { color: '#a3030b', metalness: 0.85, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.03, rim: '#ff2a20', studio: 'scam' }
 };
 const GEOMETRY = { onyx: 'scam', scam: 'scam', virus: 'virus', malware: 'malware' };
 
@@ -53,6 +54,20 @@ const models = new Map();
 const model = (name) => {
   if (!models.has(name)) models.set(name, loader.loadAsync(`${BASE}${name}.glb`).then((g) => g.scene));
   return models.get(name);
+};
+
+// Sentinel's studio, as the stills are lit (masks.py --env): the panorama of its softboxes and cards, prefiltered once
+// for every roughness. The metal reflects what the stills' metal reflects, not three.js's grey room.
+const studios = new Map();
+const studio = (name) => {
+  if (!studios.has(name)) {
+    studios.set(name, new HDRLoader().loadAsync(`${BASE}studio-${name}.hdr`).then((tex) => {
+      const env = shared.pmrem.fromEquirectangular(tex).texture;
+      tex.dispose();
+      return env;
+    }));
+  }
+  return studios.get(name);
 };
 
 /* ----------------------------------------------- the black hole's shader */
@@ -129,17 +144,15 @@ function renderer() {
     const r = new WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
     r.setPixelRatio(1);   // sizes below are in device pixels already
     r.toneMapping = AgXToneMapping;
-    r.toneMappingExposure = 1.05;
+    // As Blender's camera: AgX at exposure 0. The light is all in the studio's panorama, as bright as it is there.
+    r.toneMappingExposure = 1;
     // Reading each shader's log after it is built made the browser finish every build there and then, in one long
     // pause (getProgramInfoLog, 0.85 s on a CI runner); the shaders are fixed and known to build.
     r.debug.checkShaderErrors = false;
     r.outputColorSpace = SRGBColorSpace;
     r.setClearColor(0x000000, 0);
     r.autoClear = false;
-    const pmrem = new PMREMGenerator(r);
-    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmrem.dispose();
-    shared = { r, env, w: 0, h: 0, lost: false };
+    shared = { r, pmrem: new PMREMGenerator(r), w: 0, h: 0, lost: false };
     // A phone short of memory can take the context away: every mask goes back to its still picture.
     r.domElement.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
@@ -213,54 +226,41 @@ async function build(el) {
   if (!S) return null;   // no WebGL: the still render stays
   // Sharp on a high-density screen without drawing every physical pixel of it.
   const dpr = Math.min(devicePixelRatio || 1, 1.5);
+  const lay = el.dataset.pose === 'lay';
+  const { rest, frame, zoom } = lay ? POSES.lay : el.classList.contains('plate__art') ? POSES.plate : POSES.stand;
   const canvas = document.createElement('canvas');
   canvas.className = 'mask3d__canvas';
   canvas.setAttribute('aria-hidden', 'true');
   const ctx = canvas.getContext('2d');
 
   const scene = new Scene();
-  scene.environment = S.env;
-  const camera = new PerspectiveCamera(20, 1, 0.1, 50);
-  camera.position.set(0, 0, 7.6);
+  const camera = new PerspectiveCamera(CAMERA.fov, 1, 0.1, 50);
+  camera.position.set(0, 0, CAMERA.z);
 
   const finishName = el.dataset.tint || kind;
   const f = FINISH[finishName] || FINISH.scam;
   const state = { radius: { value: 9 }, swirl: { value: 0 }, eat: { value: 0 }, rim: { value: new Color(f.rim) } };
   const material = new MeshPhysicalMaterial({
     color: new Color(f.color), metalness: f.metalness, roughness: f.roughness, clearcoat: f.clearcoat,
-    clearcoatRoughness: f.clearcoatRoughness, envMapIntensity: f.env
+    clearcoatRoughness: f.clearcoatRoughness
   });
   swallowable(material, state);
-
-  scene.add(new HemisphereLight(0xfff2dd, 0x1a1208, 0.35));
-  const key = new DirectionalLight(0xfff1dc, 2.2);
-  key.position.set(-3, 3.2, 4);
-  const rimL = new DirectionalLight(new Color(f.rim), 3.2);
-  rimL.position.set(-4, 1, -3);
-  const rimR = new DirectionalLight(new Color(f.rim), 2.6);
-  rimR.position.set(4, 1.5, -2.5);
-  scene.add(key, rimL, rimR);
 
   // pivot: where the mask looks; holder: its resting pose.
   const pivot = new Group();
   const holder = new Group();
   pivot.add(holder);
   scene.add(pivot);
-  const lay = el.dataset.pose === 'lay';
-  // Blender's lay pose (x -24, y 28, z 16 degrees), as the renders were made.
-  const rest = lay ? { x: -0.42, y: 0.28, z: -0.49 } : { x: 0, y: el.classList.contains('plate__art') ? 0 : -0.18, z: 0 };
   // Blender's XYZ turn (masks.py --pose lay), carried into glTF's Y-up axes: the same order becomes YZX.
   holder.rotation.order = 'YZX';
   holder.rotation.set(rest.x, rest.y, rest.z);
-  // The hero is framed exactly as its still picture (onyx.webp), so the 3D model takes over without a jump: measured
-  // on the picture and the model side by side, the model sat smaller, higher and to the right.
-  const frame = lay ? { x: -0.17, y: -0.19, s: 1.15 } : { x: 0, y: 0, s: 1 };
   holder.scale.setScalar(frame.s);
   pivot.position.x = frame.x;
 
   let eyes = null;
   try {
-    const src = await model(geom);
+    const [src, env] = await Promise.all([model(geom), studio(f.studio)]);
+    scene.environment = env;
     const m = src.clone(true);
     // The model's own maps, baked in Blender from the detailed mask (masks.py --glb): the normal map carries the
     // bevels, rims and ridges smaller than a triangle, under the lacquer too; the occlusion map darkens the eyes'
@@ -303,6 +303,8 @@ async function build(el) {
 
   el.appendChild(canvas);
   el.classList.add('mask3d');
+  // Room to turn (pose.js zoom): the canvas is shown larger and the camera sees as much wider.
+  if (zoom !== 1) canvas.style.scale = String(zoom);
 
   /* -------- sizing, visibility */
 
@@ -310,15 +312,15 @@ async function build(el) {
   let h = 1;
   let dirty = true;
   const resize = () => {
-    // Drawn at the box's size (the canvas is shown a little larger, sentinel.css --m3w/--m3h, so the mask can turn).
-    const r = el.getBoundingClientRect();
-    w = Math.max(1, Math.round(r.width * dpr));
-    h = Math.max(1, Math.round(r.height * dpr));
+    // Drawn at the size the canvas is shown (sentinel.css --m3w/--m3h, a little larger than the box, times the zoom),
+    // pixel for pixel: drawn at the box's size and stretched over the larger canvas, it was soft.
+    w = Math.max(1, Math.round(canvas.offsetWidth * zoom * dpr));
+    h = Math.max(1, Math.round(canvas.offsetHeight * zoom * dpr));
     canvas.width = w;
     canvas.height = h;
     camera.aspect = w / h;
-    // Keep the whole mask in frame whatever the box's shape.
-    camera.fov = w / h < 0.72 ? 20 * (0.72 / (w / h)) : 20;
+    // The whole mask in frame whatever the box's shape and however it turns (tests/mask-frame.test.js).
+    camera.fov = (Math.atan(halfView(w / h, zoom)) * 360) / Math.PI;
     camera.updateProjectionMatrix();
     dirty = true;
     stir();
@@ -399,11 +401,10 @@ async function build(el) {
       // Watching: the mask lifts part way out of its resting pose to face the pointer, and turns with it.
       const face = look.w * 0.5;
       holder.rotation.set(rest.x * (1 - face), rest.y * (1 - face), rest.z * (1 - face));
-      const breathe = reduced ? 0 : Math.sin(t * 1.1) * 0.035 * (1 - look.w);
-      // Masks that do not watch sway slowly on their own, like a piece turning on a display stand.
-      const sway = !reach && !reduced ? { y: Math.sin(t * 0.42) * 0.34, x: Math.sin(t * 0.31) * 0.06 } : { y: 0, x: 0 };
-      pivot.rotation.set(look.y * 0.45 + breathe * 0.4 + sway.x, look.x * 0.6 + sway.y + (reduced ? 0 : Math.sin(t * 0.55) * 0.05 * (1 - look.w)), -look.x * 0.05);
-      pivot.position.y = frame.y + (reduced ? 0 : Math.sin(t * 0.9) * 0.05);
+      // Breathing, and for masks that do not watch a slow sway, like a piece turning on a display stand.
+      const d = drift(t, look, !reach, reduced);
+      pivot.rotation.set(d.x, d.y, d.z);
+      pivot.position.y = frame.y + d.lift;
       if (eyes) {
         const want = 0.7 + 0.5 * look.w;
         eyes.level += (want - eyes.level) * Math.min(1, dt * 6);
@@ -427,16 +428,17 @@ async function build(el) {
 
   /* -------- controls */
 
+  let current = finishName;
   const setFinish = (name) => {
+    current = name;
     const fin = FINISH[name] || FINISH.scam;
     material.color.set(fin.color);
     material.metalness = fin.metalness;
     material.roughness = fin.roughness;
     material.clearcoat = fin.clearcoat;
-    material.envMapIntensity = fin.env;
     state.rim.value.set(fin.rim);
-    rimL.color.set(fin.rim);
-    rimR.color.set(fin.rim);
+    // Into or out of onyx: that finish's studio (fetched once, the first time any mask needs it).
+    studio(fin.studio).then((env) => { if (current === name) { scene.environment = env; dirty = true; stir(); } }, () => {});
   };
   const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
   const api = {
