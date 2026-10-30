@@ -139,8 +139,8 @@
       void scanline.offsetWidth;
       if (!reduced) scanline.classList.add('is-running');
 
-      // After the gold line, the results corrupt into binary for a moment (delicate scanning digging in, binary.js):
-      // gold digits, and over each result's title the masks' colours, settling on its own verdict once it is in.
+      // After the gold line, delicate scanning digs in (binary.js): faint gold digits, and over each result's title the
+      // same, taking its own verdict's colour once it is in.
       const verdictColor = new Map();
       const dig = window.SentinelBinary ? window.SentinelBinary.dig(serp, {
         links: () => {
@@ -173,7 +173,7 @@
         });
         if (threats.length && result.threats[threats[0]].badge === 'red') row.classList.add('is-danger');
       }));
-      if (dig) { await wait(250); await dig.finish(); }
+      if (dig) dig.finish();
       if (id !== run) return;
 
       // Open the most dangerous result so the panel always has something to explain.
@@ -511,7 +511,7 @@
     // A copy of the site with no server behind it (scripts/build-static.js) checks the link here, in the browser,
     // with the engine's own checklist (server/lib/scan/offline.js, bundled as assets/js/engine.js). Nothing is sent.
     const here = Boolean(window.SENTINEL_STATIC);
-    // Fast, or delicate: the site researched too, while the result area digs in binary (binary.js).
+    // Fast, or delicate: the site researched too, with quiet binary behind the wait (binary.js).
     let tryMode = 'fast';
     const note = $('[data-try-note]');
     const NOTES = here
@@ -550,7 +550,7 @@
       button.disabled = true;
       button.innerHTML = '<span class="spinner" role="img" aria-label="Checking"></span>';
       out.setAttribute('aria-busy', 'true');
-      const dig = !here && tryMode === 'delicate' && window.SentinelBinary ? window.SentinelBinary.dig(out) : null;
+      const dig = !here && tryMode === 'delicate' && window.SentinelBinary ? window.SentinelBinary.dig(out, { around: true }) : null;
       try {
         if (here) {
           const v = await (await localEngine()).scan(url);
@@ -566,8 +566,8 @@
         const body = await res.json().catch(() => ({}));
         // As in ui.js api(): a server fault never shows its own text, only a plain sentence.
         if (!res.ok) throw new Error((res.status < 500 && body.error && body.error.message) || 'Could not check that link right now.');
-        if (dig) await dig.finish();
         renderTry(body.verdict);
+        if (dig) dig.finish();
       } catch (err) {
         if (dig) dig.stop();
         // A failed connection surfaces as a TypeError whose text is the browser's, not ours.

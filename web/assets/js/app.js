@@ -2,7 +2,7 @@
 (() => {
   'use strict';
 
-  const { api, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, wireVerdict, color } = window.UI;
+  const { api, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, resultGlyph, wireVerdict, color } = window.UI;
   const Masks = window.SentinelMasks;
   const view = $('#view');
   const desktop = window.sentinelDesktop || null;
@@ -237,9 +237,20 @@
     wireVerdict(out, v);
     wireActions(out, v);
     restoreDrafts();
+    riseMask(out);
     // The answer is somewhere new on the page: keyboard and screen reader users are taken to its heading.
     const heading = opts.focus && $('h2', out);
     if (heading) { heading.tabIndex = -1; heading.focus(); }
+  }
+
+  // The verdict's real 3D mask, over its still picture, which stays where there is no WebGL and with reduced motion
+  // (cosmos.js fetches the models). data-rise says when the verdict landed: a mask ready soon enough rises into place.
+  function riseMask(out) {
+    const mask = $('[data-verdict-mask]', out);
+    if (!mask || !window.SentinelLoadMask3D || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    mask.dataset.rise = String(performance.now());
+    mask.dataset.mask3d = mask.dataset.verdictMask;
+    window.SentinelLoadMask3D();
   }
 
   // The views are drawn after the page loads, so boot.js cannot put drafts back by itself: each view asks it to.
@@ -418,31 +429,56 @@
     </div>`;
   }
 
-  function stagesView(research) {
-    const steps = [['knowledge', 'Checking known threat sources'], ['checklist', 'Running the checklist'], ['compare', 'Comparing with known scams'], ['research', research ? 'Researching the site' : 'Research (Pro & up)']];
-    return `<div class="panel scanning" data-scanning>
-      <div class="scanning__rings">${Masks.svg('scam')}</div>
-      <h3>Scanning</h3>
-      <ol class="stages">${steps.map(([k, label]) => `<li data-stage="${k}" class="${!research && k === 'research' ? 'is-skip' : ''}"><i></i>${label}</li>`).join('')}</ol>
-    </div>`;
-  }
+  // What each scan really does, in the order it does it (server/lib/scan/engine.js, server/routes/scan.routes.js): the
+  // id is the stage the server reports, the words are what the person reads while it runs.
+  const linkSteps = (research) => [['knowledge', 'Looking it up in the threat lists'], ['compare', 'Comparing the address with known scams'],
+    ['research', research ? 'Researching the site' : 'Research (Pro & up)', !research], ['checklist', 'Running the checklist']];
+  const EMAIL_STEPS = [['message', 'Reading the email'], ['links', 'Checking its links and sender']];
+  const TEXT_STEPS = [['message', 'Reading the message'], ['links', 'Checking its links by their address'], ['conversation', 'Looking for the steps of a slow scam']];
+  const FILE_STEPS = [['send', 'Handing the file to Sentinel'], ['inspect', 'Checking signatures, disguises, macros and scripts']];
 
-  /** Animate the stage list while a scan is in flight. */
-  function runStages(root, research) {
-    const order = ['knowledge', 'checklist', 'compare', ...(research ? ['research'] : [])];
-    let i = 0;
-    const step = () => {
-      $$('[data-stage]', root).forEach((li) => {
-        const idx = order.indexOf(li.dataset.stage);
-        if (idx < 0) return;
-        li.classList.toggle('is-done', idx < i);
-        li.classList.toggle('is-active', idx === i);
+  /**
+   * The wait for one scan: a line saying what is being checked, a progress line that only moves when the scan reports
+   * a stage, and, where asked, the quiet binary behind them (binary.js). The panel fades in late (app.css .scanning),
+   * so a quick scan shows next to nothing. Nothing here ever holds the answer back: done() is called after it is drawn.
+   */
+  function watchScan(out, steps, { dig = true, note = '' } = {}) {
+    out.innerHTML = `<div class="panel scanning" data-scanning role="status">
+      <p class="scanning__now" data-scan-now>${esc(steps[0][1])}</p>
+      <div class="scanning__line" aria-hidden="true"><i data-scan-fill></i></div>
+      <ol class="stages">${steps.map(([id, label, off]) => `<li data-stage="${id}"${off ? ' class="is-skip"' : ''}><i></i>${esc(label)}</li>`).join('')}</ol>
+      ${note ? `<p class="scanning__note">${esc(note)}</p>` : ''}
+    </div>`;
+    const running = steps.filter(([, , off]) => !off);
+    const veil = dig && window.SentinelBinary ? window.SentinelBinary.dig(out, { around: true }) : null;
+    const items = Object.fromEntries($$('[data-stage]', out).map((li) => [li.dataset.stage, li]));
+    let at = 0;
+    const show = (i, part) => {
+      running.forEach(([id], k) => {
+        // A stage passed without being reported did not run (a verified site is not researched).
+        const li = items[id];
+        if (k < i && !li.classList.contains('is-done')) li.classList.add(li.classList.contains('is-active') ? 'is-done' : 'is-skip');
+        li.classList.toggle('is-active', k === i);
       });
-      if (i < order.length - 1) i++;
+      const label = running[i][1];
+      const now = $('[data-scan-now]', out);
+      if (now) now.textContent = part && part.total > 1 ? `${label} (${part.done} of ${part.total})` : label;
+      const reached = (i + (part && part.total ? part.done / part.total : 0)) / running.length;
+      const fill = $('[data-scan-fill]', out);
+      if (fill) fill.style.transform = `scaleX(${reached})`;
+      if (veil) veil.progress(reached);
     };
-    step();
-    const timer = setInterval(step, research ? 900 : 380);
-    return () => clearInterval(timer);
+    show(0);
+    return {
+      onStage(s) {
+        const i = running.findIndex(([id]) => id === s.stage);
+        if (i < at) return;
+        at = i;
+        show(i, s);
+      },
+      done() { if (veil) veil.finish(); },
+      fail() { if (veil) veil.stop(); }
+    };
   }
 
   function masksFor(item) {
@@ -941,20 +977,16 @@
       const button = $('button[type=submit]', form);
       const runMode = fromQr ? 'fast' : mode;
       const deep = runMode === 'delicate';
-      out.innerHTML = stagesView(deep);
-      const stop = runStages(out, deep);
-      // A delicate scan digs: the result area runs with binary while the site is researched (binary.js).
-      const dig = deep && window.SentinelBinary ? window.SentinelBinary.dig(out, { colors: ['gold'] }) : null;
+      // A delicate scan digs: quiet binary behind the wait while the site is researched (binary.js).
+      const watch = watchScan(out, linkSteps(deep), { dig: deep });
       try {
-        const data = await busy(button, fromQr ? 'Checking the link in the code' : 'Scanning', () => api('/scan/link', { method: 'POST', body: { url, mode: runMode } }));
-        stop();
+        const data = await busy(button, fromQr ? 'Checking the link in the code' : 'Scanning', () => api('/scan/link', { method: 'POST', body: { url, mode: runMode }, onStage: watch.onStage }));
         applyUsage(data.usage);
-        if (dig) await dig.finish(data.verdict);
         showVerdict(out, data.verdict, { lockedLabel: 'Pro & up', focus: !fromQr });
+        watch.done();
         $('[data-left]', el).textContent = scanLeftText(mode);
       } catch (err) {
-        stop();
-        if (dig) dig.stop();
+        watch.fail();
         out.innerHTML = friendlyError(err);
       }
     }
@@ -1294,15 +1326,14 @@
       const form = $('[data-form]', input);
       form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
-        out.innerHTML = stagesView(f.research);
-        const stop = runStages(out, f.research);
+        const watch = watchScan(out, linkSteps(f.research), { dig: f.research });
         try {
-          const data = await busy($('button', form), 'Scanning', () => api('/scan/threat', { method: 'POST', body: { url: form.url.value.trim() } }));
-          stop();
+          const data = await busy($('button', form), 'Scanning', () => api('/scan/threat', { method: 'POST', body: { url: form.url.value.trim() }, onStage: watch.onStage }));
           applyUsage(data.usage);
           updateLeft();
           showVerdict(out, data.verdict);
-        } catch (err) { stop(); out.innerHTML = friendlyError(err); }
+          watch.done();
+        } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
       });
       return;
     }
@@ -1322,13 +1353,14 @@
       if (file.size > 25 * 1024 * 1024) { toast('Files up to 25 MB can be scanned.', 'error'); return; }
       scanning = true;
       drop.setAttribute('aria-busy', 'true');
-      out.innerHTML = `<div class="panel scanning"><div class="scanning__rings">${Masks.svg('virus')}</div><h3>Inspecting ${esc(file.name)}</h3><p class="muted u-mt-xs">${bytes(file.size)} &middot; checking signatures, disguises, macros and scripts</p></div>`;
+      const watch = watchScan(out, FILE_STEPS, { note: `${file.name} · ${bytes(file.size)}` });
       try {
-        const data = await api('/scan/file', { method: 'POST', raw: file, headers: { 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' } });
+        const data = await api('/scan/file', { method: 'POST', raw: file, headers: { 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, onStage: watch.onStage });
         applyUsage(data.usage);
         updateLeft();
         showVerdict(out, data.verdict, { focus: true });
-      } catch (err) { out.innerHTML = friendlyError(err); }
+        watch.done();
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
       fileInput.value = '';
       scanning = false;
       drop.removeAttribute('aria-busy');
@@ -1517,18 +1549,17 @@
         links, attachments: form.attachments.value.split(',').map((s) => s.trim()).filter(Boolean), qr: shotQr,
         headers: pasted.headers && form.from.value === pasted.from ? pasted.headers.slice(0, 16000) : ''
       };
-      out.innerHTML = stagesView(true);
-      const stop = runStages(out, true);
+      const watch = watchScan(out, EMAIL_STEPS);
       try {
-        const data = await busy($('button[type=submit]', form), 'Scanning', () => api('/scan/email', { method: 'POST', body: payload }));
-        stop();
+        const data = await busy($('button[type=submit]', form), 'Scanning', () => api('/scan/email', { method: 'POST', body: payload, onStage: watch.onStage }));
         applyUsage(data.usage);
         showVerdict(out, data.verdict);
+        watch.done();
         showProof(out, data.verdict.sender);
         showMarks(out, payload, data.verdict.checklist.items);
         // Scanned with this email. The next email typed in here is another one, without this screenshot's code.
         forgetShotQr();
-      } catch (err) { stop(); out.innerHTML = friendlyError(err); }
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
     });
   }
 
@@ -1781,17 +1812,21 @@
       const all = form.text.value;
       const cut = all.length > TEXT_MAX;
       const text = cut ? `${all.slice(0, 10000)}\n${all.slice(-(TEXT_MAX - 10001))}` : all;
+      const button = $('button[type=submit]', form);
+      if (button.dataset.busy) return;
+      const watch = watchScan(out, TEXT_STEPS, { note: 'Read in memory only: never kept, and not in your history.' });
       try {
-        const data = await busy($('button[type=submit]', form), 'Checking', () => api('/scan/text', { method: 'POST', body: { from: form.from.value, text } }));
-        if (!data) return;
+        const data = await busy(button, 'Checking', () => api('/scan/text', { method: 'POST', body: { from: form.from.value, text }, onStage: watch.onStage }));
         applyUsage(data.usage);
         $('[data-left]', el).textContent = allowance();
         out.innerHTML = textResult(data.text, form.from.value.trim())
           + (cut ? `<p class="field__hint u-mt-sm">This conversation is very long, so Sentinel read its first part and its most recent ${(TEXT_MAX - 10000).toLocaleString('en')} letters.</p>` : '');
+        riseMask(out);
+        watch.done();
         const from = form.from.value.trim();
         wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, $('[data-text-result]', out).dataset.textResult));
         out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-      } catch (err) { out.innerHTML = friendlyError(err); }
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
     });
 
     // Shared from the phone's Share menu (shareView): checked at once, as a link shared to Link scan is. After the
@@ -1826,7 +1861,7 @@
     const steps = f ? [f.advice] : [`Nothing in this text matches the scams Sentinel knows${r.links.length ? ', and its links are on no threat list' : ''}.`, 'Still unsure? Contact the company or person through their own app, website or a number you already have, not the one in the text.'];
     return `<article class="result result--${tone}" data-result data-text-result="${tone}">
       <header class="result__head">
-        <div class="result__glyph" style="--c:${color(tone === 'clear' ? null : tone)}">${Masks.svg('scam')}</div>
+        ${resultGlyph('scam', tone)}
         <div class="result__title">
           <h2>${esc(f ? f.title : 'No signs of a scam in this text')}</h2>
           <p class="result__sub">${esc(who)}</p>

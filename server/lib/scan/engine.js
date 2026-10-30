@@ -66,7 +66,9 @@ function invalidate(host) {
 const NO_RESEARCH_PLAN = 'Research is included with Pro, Max and Ultimate scans';
 const NO_RESEARCH_LOCAL = 'This copy of Sentinel runs on your computer, and suspicious pages are never opened from here. Research comes with the hosted service.';
 
-async function coreScan(p, { research: wanted, budgetMs, hint }) {
+// onStage(id, extra): told as each stage really starts, in the order they run, so the app can say what is being checked.
+// An answer from the cache or from a scan already running reports nothing: it has no stages left to run.
+async function coreScan(p, { research: wanted, budgetMs, hint, onStage = () => {} }) {
   // Full research where pages may be opened (the hosted service); registry and DNS only where they may not (the desktop app).
   const lite = Boolean(wanted) && !config.researchEnabled && config.researchLite;
   const research = Boolean(wanted) && (config.researchEnabled || lite);
@@ -81,7 +83,9 @@ async function coreScan(p, { research: wanted, budgetMs, hint }) {
   if (coreInflight.has(flightKey)) return coreInflight.get(flightKey);
 
   const job = (async () => {
+    onStage('knowledge');
     const know = await knowledge.lookup(p);
+    onStage('compare');
     const brand = brandInfo(p);
     const ctx = {
       p,
@@ -100,7 +104,8 @@ async function coreScan(p, { research: wanted, budgetMs, hint }) {
 
     let fileReport = null;
     if (research && !know.trusted) {
-      ctx.research = await researchMod.research(p, { lite, budgetMs });
+      onStage('research', { done: 0, total: lite ? 2 : 3 });
+      ctx.research = await researchMod.research(p, { lite, budgetMs, onAnswer: (done, total) => onStage('research', { done, total }) });
       const http = ctx.research.http;
       if (http.ok && http.page) {
         ctx.contentCompare = compare.compareContent(http.page.text, http.page.htmlLower, p.host);
@@ -119,6 +124,7 @@ async function coreScan(p, { research: wanted, budgetMs, hint }) {
       }
     }
 
+    onStage('checklist');
     let checks = know.trusted ? trustedChecks(ctx) : runChecklist(ctx);
     if (fileReport) checks = checks.concat(fileReport.checks.map((c) => ({ ...c, id: `D-${c.id}`, group: 'Downloaded file', research: true })));
     if (ctx.research && ctx.research.http.truncated) checks.push({ id: 'D-limit', group: 'Downloaded content', threat: 'virus', research: true,
@@ -299,7 +305,7 @@ async function scanUrl(raw, opts = {}) {
   if (!p) {
     return { ok: false, kind: 'url', url: raw, error: 'not_a_web_link', message: 'That is not a web address Sentinel can check' };
   }
-  const core = await coreScan(p, { research: Boolean(opts.research), budgetMs: opts.budgetMs, hint: cleanHint(opts.hint) });
+  const core = await coreScan(p, { research: Boolean(opts.research), budgetMs: opts.budgetMs, hint: cleanHint(opts.hint), onStage: opts.onStage });
   const verdict = shape(core, { threats: visible, userId: opts.userId, mode: opts.mode || 'manual', detail: opts.detail, planId: opts.planId });
   if (opts.record && opts.userId) record(opts.userId, 'url', p.url, verdict.mode, verdict.threats);
   return verdict;
@@ -323,11 +329,12 @@ async function scanUrls(urls, opts = {}) {
         const left = deadline ? deadline - Date.now() : 0;
         const each = deadline ? { research: opts.research && left > 400, budgetMs: Math.max(1, left) } : {};
         const hint = opts.hints && Object.prototype.hasOwnProperty.call(opts.hints, unique[i]) ? opts.hints[unique[i]] : null;
-        out[i] = await scanUrl(unique[i], { ...opts, ...each, hint, record: false });
+        out[i] = await scanUrl(unique[i], { ...opts, ...each, hint, record: false, onStage: undefined });
       } catch {
         out[i] = { ok: false, kind: 'url', url: unique[i], error: 'scan_failed' };
       }
       out[i].requested = unique[i];
+      if (opts.onLink) opts.onLink();
     }
   });
   await Promise.all(workers);
@@ -339,10 +346,15 @@ async function scanUrls(urls, opts = {}) {
 
 async function scanEmail(mail, opts = {}) {
   const visible = opts.threats || THREATS;
+  const onStage = opts.onStage || (() => {});
+  onStage('message');
   const analysis = analyzeEmail(mail, { preview: opts.preview === true });
 
   // Every link and the sender's own domain go through the URL pipeline.
-  const options = { ...opts, detail: 'compact', mode: opts.mode || 'manual', threats: THREATS };
+  const total = analysis.links.length + (analysis.senderUrl && !analysis.links.includes(analysis.senderUrl) ? 1 : 0);
+  let done = 0;
+  if (total) onStage('links', { done, total });
+  const options = { ...opts, detail: 'compact', mode: opts.mode || 'manual', threats: THREATS, onLink: () => onStage('links', { done: ++done, total }) };
   const linkVerdicts = await scanUrls(analysis.links, options);
   if (analysis.senderUrl && !analysis.links.includes(analysis.senderUrl)) {
     linkVerdicts.push(...await scanUrls([analysis.senderUrl], options));

@@ -164,6 +164,52 @@ async function clickButton(browser, sessionId, text) {
   return true;
 }
 
+/* ---------------------------------------------------------------- real frames */
+
+/** The pixels of a PNG as Chrome makes them (8 bits a channel, RGB or RGBA, not interlaced). */
+function readPng(buf) {
+  const zlib = require('zlib');
+  let at = 8;
+  let w = 0;
+  let h = 0;
+  let bpp = 4;
+  const idat = [];
+  while (at < buf.length) {
+    const len = buf.readUInt32BE(at);
+    const type = buf.toString('ascii', at + 4, at + 8);
+    const body = buf.subarray(at + 8, at + 8 + len);
+    if (type === 'IHDR') { w = body.readUInt32BE(0); h = body.readUInt32BE(4); bpp = body[9] === 6 ? 4 : 3; }
+    if (type === 'IDAT') idat.push(body);
+    at += 12 + len;
+  }
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const stride = w * bpp;
+  const px = Buffer.alloc(stride * h);
+  for (let y = 0; y < h; y++) {
+    const filter = raw[y * (stride + 1)];
+    const from = y * (stride + 1) + 1;
+    const to = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? px[to + x - bpp] : 0;
+      const b = y ? px[to - stride + x] : 0;
+      const c = x >= bpp && y ? px[to - stride + x - bpp] : 0;
+      let add = 0;
+      if (filter === 1) add = a;
+      else if (filter === 2) add = b;
+      else if (filter === 3) add = (a + b) >> 1;
+      else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        add = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+      }
+      px[to + x] = raw[from + x] + add;
+    }
+  }
+  return { w, h, bpp, px };
+}
+
 /* ------------------------------------------------- the real server, signed in */
 
 /**
@@ -236,4 +282,4 @@ async function until(browser, sessionId, expression, ms = 15000) {
 }
 
 module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton,
-  startServer, watchErrors, clickSel, pressKey, until };
+  readPng, startServer, watchErrors, clickSel, pressKey, until };

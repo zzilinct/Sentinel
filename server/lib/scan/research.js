@@ -241,8 +241,9 @@ const within = (promise, ms, fallback) => (ms ? Promise.race([promise, new Promi
 /**
  * `lite`     registration and DNS only: the site itself is never contacted.
  * `budgetMs` live scanning's promise: whatever has not answered by then is reported as not available.
+ * `onAnswer` told (done, total) each time one of the lookups below has come back.
  */
-async function research(p, { lite = false, budgetMs = 0 } = {}) {
+async function research(p, { lite = false, budgetMs = 0, onAnswer = () => {} } = {}) {
   // Page content can differ by scheme, port, path and query; fragments are local.
   const requestUrl = new URL(p.url);
   requestUrl.hash = '';
@@ -259,10 +260,13 @@ async function research(p, { lite = false, budgetMs = 0 } = {}) {
   if (inflight.has(flightKey)) return inflight.get(flightKey);
 
   const job = (async () => {
+    let answered = 0;
+    const lookups = lite ? 2 : 3;
+    const answer = (lookup) => lookup.finally(() => onAnswer(++answered, lookups));
     const [registration, dnsInfo, http] = await Promise.all([
-      p.isIp ? Promise.resolve({ available: false, reason: 'ip_address' }) : within(rdap(p.registrable), budgetMs, { available: false, reason: 'not answered in time' }),
-      p.isIp ? Promise.resolve({ resolves: true, addresses: [p.host], privateAddress: !isPublicAddress(p.host.replace(/^\[|\]$/g, '')), mx: false, nameservers: [] }) : within(dnsFacts(p.host, p.registrable), budgetMs, { ...DNS_UNKNOWN }),
-      lite ? Promise.resolve({ ok: false, error: 'the page is not opened during live scanning on this computer', chain: [], tls: null, disposition: '', contentType: '' }) : within(fetchPage(requestUrl.href), budgetMs, { ok: false, error: 'not answered in time', chain: [], tls: null, disposition: '', contentType: '' })
+      answer(p.isIp ? Promise.resolve({ available: false, reason: 'ip_address' }) : within(rdap(p.registrable), budgetMs, { available: false, reason: 'not answered in time' })),
+      answer(p.isIp ? Promise.resolve({ resolves: true, addresses: [p.host], privateAddress: !isPublicAddress(p.host.replace(/^\[|\]$/g, '')), mx: false, nameservers: [] }) : within(dnsFacts(p.host, p.registrable), budgetMs, { ...DNS_UNKNOWN })),
+      lite ? Promise.resolve({ ok: false, error: 'the page is not opened during live scanning on this computer', chain: [], tls: null, disposition: '', contentType: '' }) : answer(within(fetchPage(requestUrl.href), budgetMs, { ok: false, error: 'not answered in time', chain: [], tls: null, disposition: '', contentType: '' }))
     ]);
 
     const facts = { performed: true, lite, checkedAt: now(), registration, dns: dnsInfo, http };

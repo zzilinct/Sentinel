@@ -9,6 +9,8 @@
  *   data-pose="lay"                         tipped back and turned, as the hero lies across the name
  *   data-look="620"                         turns to watch the pointer when it comes within about this many pixels
  *   data-eyes                               glowing eyes, brighter while it watches (the hero only)
+ *   data-rise="<performance.now()>"         a verdict's mask, from that moment: rises into place if the model is ready
+ *                                           soon enough, then holds still (no drift, and no more frames drawn)
  *
  * The <img> inside stays until the model is drawn (and stays for good without WebGL or with reduced motion: a
  * still render is the right answer there). window.SentinelMask3D.get(el) returns the mask's controls: tint(name),
@@ -32,6 +34,12 @@ const IDLE_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;
 // the battery get the rest. Any pointer move or scroll wakes them at once.
 const SETTLE_MS = 2500;
 const REST_MS = matchMedia('(pointer: coarse)').matches ? 100 : 66;
+// A verdict's mask rises for this long, a small lift and a small turn, easing out. A model that took longer than
+// RISE_LATE_MS to be ready (the first one on a page builds its shaders) just fades in over its picture.
+const RISE_MS = 620;
+const RISE_LATE_MS = 900;
+const RISE_LIFT = 0.1;
+const RISE_TURN = 0.42;
 
 // Finishes, matching the Blender renders (masks.py LOOKS and TINTS). studio: which of Sentinel's studios the finish
 // reflects (web/assets/models/studio-*.hdr, masks.py --env): the gold one, or the onyx one, with its key light and
@@ -342,6 +350,8 @@ async function build(el) {
   const t0 = performance.now();
   let anim = null;   // a running swallow or colour change
   let swallowing = null;   // the black hole, while it runs
+  const still = el.dataset.rise !== undefined;
+  let riseFrom = still && !reduced && performance.now() - Number(el.dataset.rise) < RISE_LATE_MS ? performance.now() : 0;
   const colorFrom = new Color();
   const colorTo = new Color();
 
@@ -403,9 +413,16 @@ async function build(el) {
       const face = look.w * 0.5;
       holder.rotation.set(rest.x * (1 - face), rest.y * (1 - face), rest.z * (1 - face));
       // Breathing, and for masks that do not watch a slow sway, like a piece turning on a display stand.
-      const d = drift(t, look, !reach, reduced);
+      const d = drift(t, look, !reach, reduced || still);
       pivot.rotation.set(d.x, d.y, d.z);
       pivot.position.y = frame.y + d.lift;
+      if (riseFrom) {
+        const u = Math.min(1, (now - riseFrom) / RISE_MS);
+        const left = Math.pow(1 - u, 3);
+        pivot.rotation.y += RISE_TURN * left;
+        pivot.position.y -= RISE_LIFT * left;
+        if (u >= 1) riseFrom = 0;
+      }
       if (eyes) {
         const want = 0.7 + 0.5 * look.w;
         eyes.level += (want - eyes.level) * Math.min(1, dt * 6);
@@ -417,11 +434,12 @@ async function build(el) {
       const moving = Math.abs(tx - look.x) + Math.abs(ty - look.y) + Math.abs(tw - look.w) + Math.abs(look.vx) + Math.abs(look.vy) > 0.0005;
       // Only drifting (breathing, swaying, the eyes' flicker): half the frames are plenty, fewer at rest, and none
       // while scrolling. (At rest the timer is a little late or early: a frame's slack.)
-      const idle = !moving && !anim;
+      const idle = !moving && !anim && !riseFrom;
       const scrolling = now < scrollingUntil;
       const every = resting ? REST_MS - 8 : IDLE_MS;
-      if (dirty || !idle || (!scrolling && now - drawnAt > every)) { draw(); drawnAt = now; dirty = false; }
-      return !idle ? 2 : (!reduced || eyes) ? 1 : 0;
+      const fixed = reduced || still;
+      if (dirty || !idle || (!fixed && !scrolling && now - drawnAt > every)) { draw(); drawnAt = now; dirty = false; }
+      return !idle ? 2 : (!fixed || eyes) ? 1 : 0;
     }
   };
   all.add(mask);
