@@ -31,7 +31,7 @@ test('glyph field: the bands move on with the phase, and come back after the lon
   assert.ok(bands(1e7, 0, level).length <= 161, 'the stops are capped on a huge section');
 });
 
-test('glyph field: nothing behind the kicker, coming in below it, full in the middle, gone at the bottom', () => {
+test('glyph field: nothing behind the heading, coming in below it, full in the middle, gone at the bottom', () => {
   const { veil } = require('../web/assets/js/glyphs.js');
   const h = 1200, clear = 170;
   assert.equal(veil(0, h, clear), 0);

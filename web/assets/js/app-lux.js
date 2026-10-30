@@ -5,9 +5,8 @@
  *
  * Nothing is left hidden: only parts that arrive in the first moments of a page wait to enter, and every one of
  * them is revealed by the observer (or at once if there is none). Tiles pop in on a spring, figures count up, a
- * dark circle wipes from the pressed link to the new page, page titles wear a small label, and toasts are shown as
- * one dark island. With reduced motion every one of these is instant and calm: labels and the island stay (the
- * island only fades), a new page fades in, and nothing counts, wipes or pops.
+ * dark circle wipes from the pressed link to the new page, and toasts are shown as one dark island. With reduced
+ * motion every one of these is instant and calm: the island stays (it only fades), a new page fades in, and nothing counts, wipes or pops.
  */
 (() => {
   'use strict';
@@ -19,9 +18,6 @@
   const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
   root.classList.add('lux-app');
 
-  // The small tracked label over each page's headline, as the reel's "AGENTS" sits over "9 new agents".
-  const LABELS = { home: 'Overview', week: 'Your week', protection: 'Always on', scan: 'Check a link', threats: 'Check a file', email: 'Check an email', history: 'Your record', sites: 'Your rules', recover: 'Recovery', checkup: 'Your browsers', plan: 'Account', security: 'Account', assistants: 'Account' };
-  // (Defined up here: the first scan() can run before the rest of this file has, and a const is not there yet.)
 
   /* ---------------------------------------------------- atmosphere */
 
@@ -84,7 +80,6 @@
   }
 
   function scan() {
-    addLabel();
     // With reduced motion nothing waits or moves, but the page still wears its rule beneath the title.
     if (reduced) { view.querySelectorAll('.page-title').forEach(dressTitle); return; }
     // Under the opening's sketch (intro.js) nothing enters yet: the page must be laid out as it will be, for the
@@ -105,7 +100,7 @@
   // A new page: app.js replaced #view's contents. Say which page, sweep, and stage what is there.
   function newPage(old) {
     const current = document.querySelector('.side__link[aria-current="page"]');
-    // A page with no tab of its own (what was shared, on its way to a check) gets no label, not Overview's.
+    // A page with no tab of its own (what was shared, on its way to a check) is 'other', not the overview.
     const next = (current && current.dataset.route) || (location.pathname.replace(/\/$/, '') === '/app' ? 'home' : 'other');
     const changed = tab && next !== tab;
     const was = tab;
@@ -179,14 +174,6 @@
 
   const RULE = '<svg class="lux-rule" viewBox="0 0 260 26" aria-hidden="true" focusable="false"><path pathLength="1" d="M130 13H0M130 13h130"/><path class="lux-rule__c" pathLength="1" d="M130 3l10 10-10 10-10-10z"/><path pathLength="1" d="M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0"/></svg>';
 
-
-  // Put on as soon as the page is drawn, before anything is laid out around it, so nothing shifts when it appears.
-  function addLabel() {
-    const h1 = view.querySelector('.page-title h1');
-    if (!h1 || !LABELS[tab] || (h1.previousElementSibling && h1.previousElementSibling.classList.contains('lux-label'))) return;
-    h1.insertAdjacentHTML('beforebegin', `<span class="lux-label" aria-hidden="true">${LABELS[tab]}</span>`);
-  }
-
   function dressTitle(el) {
     const h1 = el.querySelector('h1');
     if (!h1 || h1.dataset.lux) return;
@@ -216,9 +203,9 @@
     h1.insertAdjacentHTML('afterend', RULE);
   }
 
-  // The page that was open leaves its label and headline where they stood, fading up and out while the new pair
-  // rises into the same place: the two cross-fade together.
-  function ghostTitle(old, was) {
+  // The page that was open leaves its headline where it stood, fading up and out while the new one rises into the
+  // same place: the two cross-fade together.
+  function ghostTitle(old) {
     const before = old && old.querySelector('.page-title h1');
     const head = view.querySelector('.page-title > div');
     const h1 = head && head.querySelector('h1');
@@ -231,14 +218,11 @@
     g.className = 'lux-ghost';
     g.setAttribute('aria-hidden', 'true');
     g.style.cssText = `left:${hr.left - mr.left}px;top:${hr.top - mr.top}px;width:${hr.width}px`;
-    const label = document.createElement('span');
-    label.className = 'lux-label';
-    label.textContent = LABELS[was] || '';
     const words = document.createElement('div');
     // Property by property: the computed `font` shorthand is empty when the heading sets a longhand it cannot express.
     for (const p of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontStretch', 'lineHeight', 'letterSpacing', 'color']) words.style[p] = cs[p];
     words.textContent = before.getAttribute('aria-label') || before.textContent;
-    g.append(label, words);
+    g.append(words);
     main.appendChild(g);
     setTimeout(() => g.remove(), 600);
   }

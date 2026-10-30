@@ -21,10 +21,9 @@
 
   window.Site = { $, $$, reduced, Observer };
 
-  // Shown: its entrance plays (CSS), and a split heading's gold comes alive.
+  // Shown: its entrance plays (CSS).
   function reveal(el) {
     el.classList.add('is-in');
-    if (el.matches('[data-split]')) $$('.gold-text', el).forEach((g) => g.classList.add('is-live'));
   }
   Site.reveal = reveal;
   // Every scroll the page makes goes through here: through Lenis when it is smoothing the wheel (motion.js), so its
@@ -207,7 +206,7 @@
   // Binary (binary.js): each chapter's heading arrives out of binary the first time it scrolls in, and cards show a
   // lens of binary around the pointer.
   if (window.SentinelBinary && !reduced && 'IntersectionObserver' in window) {
-    const heads = $$('.section h2:not(.rise), .page-head h1:not(.rise), .kicker__n');
+    const heads = $$('.section h2:not(.rise), .page-head h1:not(.rise)');
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
         if (!e.isIntersecting) continue;
@@ -312,10 +311,6 @@
             frag.appendChild(span);
           }
           child.replaceWith(frag);
-        } else if (child.nodeType === 1 && child.classList.contains('gold-text')) {
-          // Gradient text can't be split without losing the gradient, so it animates as one unit.
-          child.classList.add('word');
-          child.style.setProperty('--d', `${0.05 + i++ * 0.055}s`);
         } else if (child.nodeType === 1 && child.tagName !== 'BR') {
           walk(child);
         }

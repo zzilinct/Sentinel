@@ -82,19 +82,6 @@ body::after {
 /* -------------------------------------------------------- typography */
 
 .caps { font-family: var(--display); text-transform: uppercase; letter-spacing: .24em; }
-.metal { background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
-h2 em, .page-head h1 em { color: var(--text-2); }
-.gold-text { background: var(--metal); background-size: 100% 100%; -webkit-background-clip: text; background-clip: text; }
-.gold-text.is-live { animation: none; }
-
-/* Section labels: small spaced capitals in gold, a roman numeral, a hairline. */
-.kicker { font: 400 12.5px/1.2 var(--display); letter-spacing: .26em; color: var(--gold-400); }
-/* On paper the light gold-400 is 4.39:1, under the 4.5:1 small text needs; the next gold down reads. */
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .kicker { color: var(--gold-300); } }
-:root[data-theme="light"] .kicker { color: var(--gold-300); }
-.kicker::before { width: 34px; background: linear-gradient(90deg, transparent, currentColor); }
-.kicker__n { padding: 0; border-radius: 0; background: none; color: var(--gold-300); font: 400 14px/1 var(--display); letter-spacing: .08em; margin-right: 2px; }
-.kicker:has(.kicker__n)::before { display: inline-block; }
 
 /* A Victorian rule: two lines, a lozenge and a pair of curls, in gold (inline as .orn-rule, or drawn as a mask over
    centred section heads). */
@@ -116,12 +103,12 @@ h2 em, .page-head h1 em { color: var(--text-2); }
 .vframe svg:nth-child(4) { right: -8px; bottom: -8px; transform: scale(-1); }
 @media (max-width: 640px) { .vframe svg { width: 50px; height: 50px; } }
 
-/* Construction sketches: thin pencil lines with italic notes. */
+/* Construction sketches: thin pencil lines with small upright notes. */
 .sketch, .cartouche { overflow: visible; pointer-events: none; }
 .sketch *, .cartouche * { fill: none; stroke: var(--sketch); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .sketch .dash, .cartouche .dash { stroke-dasharray: 4 7; }
 .cartouche .g { stroke: var(--sketch-gold); }
-.sketch text, .cartouche text { fill: var(--text-2); stroke: none; font: italic 15px var(--display); opacity: .8; }
+.sketch text, .cartouche text { fill: var(--text-2); stroke: none; font: 400 14px var(--sans); opacity: .8; }
 
 /* ------------------------------------------------------------ header */
 
@@ -200,7 +187,7 @@ h2 em, .page-head h1 em { color: var(--text-2); }
 /* Each letter rises from under its word's clipped foot, stretched and blurred upward as if moving fast, and settles.
    The word holds still: only its letters move. Under a chapter's laser, motion.js says when (after the laser). */
 .ch { display: inline-block; }
-.js .rise .word:not(.gold-text) { transform: none; clip-path: inset(-.4em -.3em -.16em -.3em); transition: none; }
+.js .rise .word { transform: none; clip-path: inset(-.4em -.3em -.16em -.3em); transition: none; }
 .js .rise .ch { transform: translateY(118%); opacity: 0;
   transition: transform 1s var(--ease-out), opacity .35s linear; transition-delay: var(--d, 0s); }
 /* With a mouse (a computer, not a phone): stretched and blurred upward as it rises. */
