@@ -220,6 +220,23 @@ test('pause and resume go through the app, which decides; the page only reports'
   assert.equal(o.words(), 'Checking');
 });
 
+test('a button answers the release alone (the window eats the press), and once when a click follows it', () => {
+  const o = island();
+  on(o, { host: 'shop.example' });
+  o.send('overlay:verdict', { badge: null, label: 'No issues found' });
+  o.send('overlay:open');
+  const acts = () => o.calls.filter((c) => c[0] === 'act').length;
+  o.els.panelPause.onmouseup({ button: 2 });
+  assert.equal(acts(), 0, 'not the right button');
+  o.els.panelPause.onmouseup({ button: 0 });
+  assert.equal(acts(), 1);
+  o.els.panelPause.onclick();
+  assert.equal(acts(), 1, 'the click after that release does nothing more');
+  o.tick(1);
+  o.els.panelPause.onclick();
+  assert.equal(acts(), 2, 'Enter or Space on its own is a click');
+});
+
 test('the app keeps the rule: one clean site, an hour, memory only, under the parent lock', () => {
   const body = main.slice(main.indexOf('function islandAction('), main.indexOf('const ISLAND_KEY'));
   assert.match(body, /!page\.host \|\| page\.host !== islandHost \|\| page\.badge\) return;/, 'never a flagged page, whatever the panel says');

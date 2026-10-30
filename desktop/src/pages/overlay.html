@@ -396,10 +396,22 @@
     clearDwell();
     dwell = { x: x, y: y, timer: setTimeout(function () { openPanel(false); }, DWELL_MS) };
   }
-  panelPause.onclick = function () { api.act(site && site.paused ? 'resume' : 'pause'); };
-  panelApp.onclick = function () { closePanel(); api.act('open'); };
-  cornerMask.onclick = closePanel;
-  cornerLabel.onclick = closePanel;
+  // This window can never be activated by the pointer (so the browser keeps the keyboard), and Chromium eats the press
+  // on such a window: only the release arrives, so no click ever fires (desktop-e2e). The keyboard still gives a click.
+  function press(el, fn) {
+    var released = false;
+    el.onmouseup = function (ev) {
+      if (ev && ev.button) return;
+      released = true;
+      setTimeout(function () { released = false; }, 0);
+      fn();
+    };
+    el.onclick = function () { if (!released) fn(); };
+  }
+  press(panelPause, function () { api.act(site && site.paused ? 'resume' : 'pause'); });
+  press(panelApp, function () { closePanel(); api.act('open'); });
+  press(cornerMask, closePanel);
+  press(cornerLabel, closePanel);
   window.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') { ev.preventDefault(); closePanel(); return; }
     // Tab goes round the panel's buttons: out of the last one the window would lose the keyboard (desktop-e2e).

@@ -346,7 +346,7 @@ Shot 'island-panel-hover'
 $panelText = (Cdp 'overlay.html' "document.getElementById('panel').innerText").value
 Check 'island-hover-opens' $opened "the panel after the pointer rested on the island: $($panelText -replace '\s+', ' ')"
 # A real click on the panel's button lands there, and the browser under it gets nothing.
-[void](Cdp 'overlay.html' "window.__clicks = 0; document.getElementById('panelOpen').onclick = () => { window.__clicks++; }; 1")
+[void](Cdp 'overlay.html' "window.__clicks = 0; document.getElementById('panelOpen').onmouseup = () => { window.__clicks++; }; 1")
 $br = ((Cdp 'overlay.html' "(() => { const r = document.getElementById('panelOpen').getBoundingClientRect(); return Math.round(r.left + r.width / 2) + '|' + Math.round(r.top + r.height / 2); })()").value) -split '\|'
 Nudge ([int]$pw.x + [int]$br[0]) ([int]$pw.y + [int]$br[1])
 Start-Sleep -Milliseconds 300
@@ -387,13 +387,18 @@ Check 'island-no-pause-when-flagged' ($hiddenThere -eq $true) "pause on the flag
 Start-Process msedge -ArgumentList '--no-first-run', 'https://www.wikipedia.org/'
 Start-Sleep 8
 Say "Edge in front: $(Front 'msedge')"
-$settled = Until 20 { (Cdp 'overlay.html' $ovState).value -notmatch '\|Checking' }
+[void](Until 30 { (Cdp 'overlay.html' $ovState).value -notmatch '\|(Checking|Watching)' })
 Start-Sleep 2
-[void](Cdp 'overlay.html' "window.sentinelIsland.open(); 1")
+Nudge $ax $ay
+[void](Until 4 { ((Cdp 'overlay.html' $ovState).value -split '\|')[0] -eq 'true' })
 Start-Sleep 1
 $canPause = (Cdp 'overlay.html' "!document.getElementById('panelPause').hidden").value
 if ($canPause -eq $true) {
-  [void](Cdp 'overlay.html' "document.getElementById('panelPause').click(); 1")
+  # A real press of the real button, on the page under it nothing happens.
+  $pb = ((Cdp 'overlay.html' "(() => { const r = document.getElementById('panelPause').getBoundingClientRect(); return Math.round(r.left + r.width / 2) + '|' + Math.round(r.top + r.height / 2); })()").value) -split '\|'
+  Nudge ([int]$pw.x + [int]$pb[0]) ([int]$pw.y + [int]$pb[1])
+  Start-Sleep -Milliseconds 300
+  [K]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 60; [K]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
   $paused = Until 5 { (Cdp 'overlay.html' $ovState).value -match 'Paused here' -or (Cdp 'overlay.html' "document.getElementById('panelVerdict').textContent").value -eq 'Paused here' }
   Shot 'island-paused'
   [void](Cdp 'overlay.html' "document.getElementById('panelPause').click(); 1")
