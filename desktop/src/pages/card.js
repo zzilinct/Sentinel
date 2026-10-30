@@ -16,7 +16,7 @@
   style.textContent = `
   :root { color-scheme: dark; --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
   html { height: 100%; margin: 0; padding: ${PAD}px; box-sizing: border-box; background: transparent; overflow: hidden; }
-  body { height: 100%; margin: 0; box-sizing: border-box; display: grid; grid-template-rows: auto 1fr auto; padding: 22px 24px 20px; overflow: hidden;
+  body { height: 100%; margin: 0; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; padding: 22px 24px 20px; overflow: hidden;
     color: #e9e6df; font: var(--t-ui)/var(--lh-lead) var(--sans);
     background: radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--c, #d6b25a) 10%, transparent), transparent 62%), #0c0d10;
     border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 42%, transparent); border-radius: 18px;
@@ -39,7 +39,7 @@
   li::marker { color: color-mix(in srgb, var(--c, #d6b25a) 70%, transparent); }
   small { display: block; margin-top: 12px; color: #8d8a82; font-size: var(--t-label); }
   .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 18px; }
-  button { height: 38px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, .06); border-radius: 11px; cursor: pointer; font: 500 var(--t-ui) var(--sans); color: #e9e6df; background: #1a1c21; }
+  button { min-height: 38px; padding: 7px 16px; overflow-wrap: anywhere; border: 1px solid rgba(255, 255, 255, .06); border-radius: 11px; cursor: pointer; font: 500 var(--t-ui) var(--sans); color: #e9e6df; background: #1a1c21; }
   button:hover { background: #22252b; }
   button.primary { border-color: transparent; color: #16130b; background: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 14px 34px -14px rgba(212,174,99,.75); }
   button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }

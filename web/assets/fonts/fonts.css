@@ -55,7 +55,7 @@
   --t-title-s: 21px;   /* from here up in Newsreader */
   --t-title: 26px;
   --t-title-l: clamp(28px, 3vw, 34px);
-  --t-d3: clamp(30px, 3.6vw, 52px);
+  --t-d3: clamp(30px, 3.2vw, 48px);
   --t-d2: clamp(36px, 5vw, 76px);
   --t-d1: clamp(42px, 6.6vw, 96px);
   --t-d0: clamp(64px, 11vw, 160px);
