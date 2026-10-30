@@ -79,7 +79,8 @@ body.app::before { opacity: .6; }
 .panel { border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); padding: 26px; }
 .panel + .panel, .grid2 + .panel, .panel + .grid2 { margin-top: 18px; }
 .panel h2 { font-size: var(--t-title); }
-.panel__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.panel__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.panel__head > div { flex: 1 1 200px; min-width: 0; }
 .panel__head p { color: var(--muted); font-size: var(--t-ui); margin-top: 4px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
