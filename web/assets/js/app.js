@@ -2793,7 +2793,7 @@
     const mode = info.liveMode === 'delicate' && canDelicate ? 'delicate' : 'fast';
     const fellBack = live.fellBack === 'delicate_hours_used' ? ' Delicate hours for this week are used up, so results are coming from fast scanning.' : '';
     const liveText = !live.supported ? 'Live scanning is available on Windows.'
-      : live.active ? (live.window ? `Watching the browser in front. Look for the gold mask in its bottom right corner.${live.lastResults ? ` Last search: ${live.lastResults.count} results marked.` : ''}${fellBack}` : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
+      : live.active ? (live.window ? `Watching the browser in front. Look for the island in its bottom right corner.${live.lastResults ? ` Last search: ${live.lastResults.count} results marked.` : ''}${fellBack}` : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.')
         : live.enabled ? (live.reason || 'Starting') : 'Off. One click, and every browser you use is covered.';
     slot.innerHTML = `
       <div class="panel live u-mt">
@@ -2963,7 +2963,7 @@
         if (mask) mask.classList.toggle('is-on', Boolean(s2.active));
         const counts = $('[data-live-counts]', slot);
         if (counts && s2.counts && s2.counts.checked) { counts.hidden = false; counts.textContent = `${s2.counts.checked.toLocaleString()} checked since Sentinel started, ${s2.counts.flagged.toLocaleString()} flagged. Private windows are not counted.`; }
-        if (text && s2.active) text.textContent = s2.window ? 'Watching the browser in front. Look for the gold mask in its bottom right corner.' : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.';
+        if (text && s2.active) text.textContent = s2.window ? 'Watching the browser in front. Look for the island in its bottom right corner.' : 'Ready. It starts by itself whenever a browser is in front, and rests when none is.';
         else if (text && s2.reason) text.textContent = s2.reason;
       }));
     }

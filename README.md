@@ -121,10 +121,13 @@ add-on involved:
   opened, clicked or kept.
 - **What you see.** `desktop/src/overlay.js` is one transparent window laid
   exactly over the page area of the browser in front. It draws the gold line and
-  tint when scanning starts and whenever a search comes back, the gold Sentinel
-  mask in the bottom right corner for as long as that browser is being watched
-  (it turns the verdict's colour, with a line of words, on a dangerous page),
-  and a mark beside every search result: the threat's mask in gold on a dark
+  tint when scanning starts and whenever a search comes back, the corner island
+  in the bottom right for as long as that browser is being watched (the gold
+  mask and a few true words; it turns the verdict's colour on a dangerous page;
+  a resting pointer or Win+Alt+I opens a panel with the site's verdict, the links
+  seen on the page, a one-hour pause for a site found clean, and a way into the
+  app; every warning card springs out of it), and a mark beside every search
+  result: the threat's mask in gold on a dark
   tile, with a corner seal whose shape says how bad (a red diamond for danger,
   an orange triangle for a warning, a yellow circle for caution), or for a safe
   result only a quiet tick. A mark explains itself on hover. The window cannot take focus,

@@ -22,45 +22,73 @@
   @keyframes tint { 0% { opacity: 0; } 12% { opacity: 1; } 55% { opacity: .85; } 100% { opacity: 0; } }
   @keyframes line { 0% { transform: translateY(-6px); opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { transform: translateY(100vh); opacity: 0; } }
 
-  /* The corner mask: Sentinel is watching this browser. It is an island: with something to say it springs open into a
-     card holding the words, a new message morphs the card (its width springs, the words cross-fade), and it closes back
-     into the mask. Transforms only, so no frame lays anything out: the left cap slides and the middle, a 1px strip,
-     stretches (scaleX), both from one number, --w (the card's width in px). Nothing loops; at rest nothing runs. */
+  /* The corner island: what Sentinel knows about the page in front. One shape for everything it does: at rest a pill
+     (the mask and a few true words), with something to say it springs to the words' width, on a resting pointer or the
+     keyboard it springs up into the panel, and a warning card (pages/card.js) opens out of its mask with the same curve.
+     The shape is one clip, inset(... round ...), from three numbers (--w, --h, --r, in px): no frame lays anything out
+     and nothing inside is scaled, so the words stay crisp at any display scale. A clip transition starts from wherever
+     the last one had got to, so opening and closing can interrupt each other. Nothing loops; at rest nothing runs. */
   :root { --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
-  .corner { position: absolute; right: 18px; bottom: 18px; width: 46px; height: 46px; --w: 46;
+  .corner { position: absolute; right: 18px; bottom: 18px; width: 360px; height: 280px; --w: 34; --h: 34; --r: 17;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .34));
     opacity: 0; transform: translateY(8px); transition: opacity .35s ease, transform .35s ease; pointer-events: none; }
-  .isl__cap, .isl__mid { position: absolute; top: 0; height: 46px; background: #0c0d10; border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 34%, transparent);
-    will-change: transform; transition: transform .5s var(--spring); }
-  .isl__cap { right: 0; width: 12px; border-right: 0; border-radius: 12px 0 0 12px; transform: translateX(calc((var(--w) - 12) * -1px)); }
-  .isl__mid { right: 23px; width: 1px; border-left: 0; border-right: 0; transform-origin: 100% 50%; transform: scaleX(calc(var(--w) - 34)); }
-  /* Closing: back into the mask without a bounce, once the words have gone. */
-  .corner:not(.is-open) .isl__cap, .corner:not(.is-open) .isl__mid { transition: transform .34s cubic-bezier(.3, 0, .2, 1) .06s; }
+  /* The rim is the fill's own shape one pixel wider: a border would be cut off by the clip. Its own dark tone keeps the
+     edge on black pages, and the fill is solid, so the words read the same on any page. */
+  .isl__rim, .isl__sheet { position: absolute; clip-path: inset(calc(280px - var(--h) * 1px) 0 0 calc(360px - var(--w) * 1px) round calc(var(--r) * 1px)); transition: clip-path .5s var(--spring); }
+  .isl__rim { inset: 0; background: color-mix(in srgb, var(--c, #d6b25a) 46%, #3a3b40); }
+  .isl__sheet { inset: 1px; clip-path: inset(calc(280px - var(--h) * 1px) 0 0 calc(360px - var(--w) * 1px) round calc((var(--r) - 1) * 1px)); background: #0c0d10; }
+  /* Getting smaller: no bounce, once the words have gone. */
+  .corner.is-folding .isl__rim, .corner.is-folding .isl__sheet { transition: clip-path .34s cubic-bezier(.3, 0, .2, 1) .06s; }
   .corner.is-on { opacity: 1; transform: none; }
   /* Fullscreen video: out of the way, unless the page is dangerous. */
   .corner.is-on.is-quiet:not(.is-flagged) { opacity: 0; }
-  /* After saying hello (and after each new page), the mask steps back: it sat over pages' own corner buttons
-     ("Share feedback", "Back to top", chat bubbles). A dangerous page keeps it. */
-  .corner.is-on.is-rested:not(.is-flagged) { opacity: 0; transform: translateY(6px); transition-duration: .6s; }
+  /* After saying hello (and after each new page) it settles back: still there, a little quieter. A dangerous page keeps
+     it at full strength. */
+  .corner.is-on.is-rested:not(.is-flagged) { opacity: .86; transition-duration: .6s; }
+  /* The pointer near it: the page's own corner buttons ("Share feedback", "Back to top", chat bubbles) can be seen, and
+     every click still goes to them. Only a pointer that rests on the island opens it. */
   .corner.is-on.is-shy { opacity: .12; transition-duration: .18s; }
-  .corner__mask { position: absolute; right: 0; top: 0; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 12px; color: var(--c, #d6b25a);
-    background: #0c0d10; border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 55%, transparent); box-shadow: 0 6px 22px rgba(0, 0, 0, .35); }
+  .corner__mask { position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: var(--c, #d6b25a); }
   /* A glow that breathes twice when the mask arrives (and stays lit on a dangerous page), then stops: opacity only,
      and never an endless loop over a game or a page being read. */
-  .corner__mask::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 16px 2px color-mix(in srgb, var(--c, #d6b25a) 40%, transparent); opacity: 0; }
+  .corner__mask::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 12px 1px color-mix(in srgb, var(--c, #d6b25a) 40%, transparent); opacity: 0; }
   .corner.is-on:not(.is-quiet):not(.is-rested) .corner__mask::after { animation: breathe 1.8s ease-in-out 2; }
   .corner.is-on.is-flagged .corner__mask::after { animation: breathe 1.8s ease-in-out 1.5 forwards; }   /* 1.5 runs: it ends lit */
-  .corner__mask svg { width: 30px; height: 30px; display: block; }
-  /* The words sit inside the card, left of the mask. Each message is its own line: the old one rises out as the new one
-     rises in, while the card springs to the new width. They show once the card is nearly open (at 160 ms they still
-     stood out past its edge in the e2e frames). */
-  .corner__label { position: absolute; right: 56px; top: 0; height: 46px; color: #e9e6df; font-size: 12.5px; }
-  .corner__label > span { position: absolute; right: 0; top: 50%; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  .corner__mask svg { width: 24px; height: 24px; display: block; }
+  /* The words sit left of the mask. Each message is its own line: the old one rises out as the new one rises in, while
+     the pill springs to the new width. They show once it is nearly open (at 160 ms they still stood out past its edge
+     in the e2e frames). */
+  .corner__label { position: absolute; right: 34px; bottom: 0; height: 32px; color: #e9e6df; font-size: 12px; font-weight: 500; }
+  .corner__label > span { position: absolute; right: 0; top: 50%; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     opacity: 0; transform: translate(10px, -50%); transition: opacity .2s ease .16s, transform .5s var(--spring) .04s; }
   .corner__label > span.is-in { opacity: 1; transform: translate(0, -50%); }
   .corner__label > span.is-swap { transition-delay: .07s, 0s; }
   .corner__label > span.is-out { opacity: 0; transform: translate(0, calc(-50% - 7px)); transition: opacity .14s ease, transform .2s ease; }
   .corner__label b { font-weight: 600; color: var(--c, #e2c47f); }
   @keyframes breathe { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+  /* The panel: the pill row stays where it is at the bottom, and the panel's lines rise above it. Hidden, it takes no
+     focus and a screen reader skips it. */
+  .panel { position: absolute; right: 0; bottom: 0; width: 318px; box-sizing: border-box; padding: 14px 16px 38px; visibility: hidden; opacity: 0; outline: 0;
+    transform: translateY(6px); transition: opacity .12s ease, transform .2s ease, visibility 0s linear .12s; }
+  .corner.is-open .isl__sheet { pointer-events: auto; }
+  .corner.is-open .panel { visibility: visible; opacity: 1; transform: none; transition: opacity .2s ease .1s, transform .5s var(--spring) .04s; }
+  .panel p { margin: 0; }
+  .panel__site { font: 12px/1.35 "Cascadia Mono", ui-monospace, Consolas, monospace; color: #b9b5ab; overflow-wrap: anywhere; }
+  .panel__verdict { margin-top: 2px !important; font-size: 15px; line-height: 1.3; font-weight: 600; letter-spacing: -.005em; color: var(--c, #e9e6df); }
+  .panel__why { margin-top: 3px !important; font-size: 12.5px; line-height: 1.4; color: #cfcbc1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .panel__links { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid rgba(255, 255, 255, .08); display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 12px; color: #cfcbc1; font-variant-numeric: tabular-nums; }
+  .panel__links li { display: flex; align-items: center; gap: 5px; }
+  .panel__links li::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--c, #8d8a82); }
+  .panel__links b { font-weight: 600; color: #e9e6df; }
+  .panel__row { display: flex; gap: 8px; margin-top: 12px; }
+  .panel__row button { flex: 1 1 0; height: 30px; padding: 0 10px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 9px; cursor: pointer; font: 500 12px system-ui, -apple-system, "Segoe UI", sans-serif; color: #e9e6df; background: #1a1c21; white-space: nowrap; transition: transform .1s ease, background .12s ease; }
+  .panel__row button:hover { background: #24272d; }
+  .panel__row button:active { transform: scale(.97); }
+  .panel__row button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 1px; }
+  .panel__key { margin-top: 8px !important; font-size: 11px; color: #a09c93; }
+  [hidden] { display: none !important; }
+  /* Windows High Contrast: the island keeps its own dark fill and gold, as the marks do. */
+  @media (forced-colors: active) { .corner { forced-color-adjust: none; } }
 
   /* A mask beside every result. The layer moves with the page between reads (see overlay:shift). */
   /* The clip stays where the message list is; the marks inside it move with the page. */
@@ -114,7 +142,11 @@
     /* Calm: the card still opens and the words still change (that is the message), with no spring and no travel. */
     .corner.is-on:not(.is-quiet):not(.is-rested) .corner__mask::after, .corner.is-on.is-flagged .corner__mask::after { animation: none; }
     .corner.is-on.is-flagged .corner__mask::after { opacity: .7; }
-    .isl__cap, .isl__mid, .corner:not(.is-open) .isl__cap, .corner:not(.is-open) .isl__mid { transition: transform .18s ease; }
+    .isl__rim, .isl__sheet, .corner.is-folding .isl__rim, .corner.is-folding .isl__sheet { transition: none; }
+    .corner, .corner.is-on { transform: none; transition: opacity .2s ease; }
+    .panel, .corner.is-open .panel { transform: none; transition: opacity .2s ease, visibility 0s linear .2s; }
+    .corner.is-open .panel { transition: opacity .2s ease; }
+    .panel__row button:active { transform: none; }
     .corner__label > span, .corner__label > span.is-in, .corner__label > span.is-out { transform: translate(0, -50%); transition: opacity .2s ease; }
     .mark.is-in { animation: none; opacity: 1; scale: 1; }
     .mark.is-pending { animation: none; opacity: .5; }
@@ -127,10 +159,23 @@
   <div id="clip"><div id="marks"></div></div>
   <div class="tip" id="tip"><b></b><span></span></div>
   <div class="pay" id="pay" role="status"><i class="pay__mask" id="payMask"></i><b>Before you pay</b><span id="payText"></span></div>
-  <div class="corner" id="corner">
-    <i class="isl__mid"></i><i class="isl__cap"></i>
-    <div class="corner__mask" id="cornerMask"></div>
-    <div class="corner__label" id="cornerLabel"></div>
+  <div class="corner" id="corner" role="region" aria-label="Sentinel, this page">
+    <i class="isl__rim"></i>
+    <div class="isl__sheet">
+      <div class="panel" id="panel" tabindex="-1" aria-labelledby="panelSite panelVerdict" aria-describedby="panelWhy">
+        <p class="panel__site" id="panelSite"></p>
+        <p class="panel__verdict" id="panelVerdict"></p>
+        <p class="panel__why" id="panelWhy"></p>
+        <ul class="panel__links" id="panelLinks" aria-label="Links on this page"></ul>
+        <div class="panel__row">
+          <button type="button" id="panelPause"></button>
+          <button type="button" id="panelOpen">Open Sentinel</button>
+        </div>
+        <p class="panel__key" id="panelKey"></p>
+      </div>
+      <div class="corner__label" id="cornerLabel"></div>
+      <div class="corner__mask" id="cornerMask"></div>
+    </div>
   </div>
 <script src="../../shared/masks.js"></script>
 <script src="../../shared/binary.js"></script>
@@ -161,39 +206,202 @@
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
-  // The island's width in px: 46 is the mask alone. The pointer test below steps aside from all of it.
-  var islandW = 46;
-  function island(w) { islandW = w; corner.style.setProperty('--w', String(w)); corner.classList.toggle('is-open', w > 46); }
+  // The island's shape in px. The pointer tests below use the same numbers, so nothing is read from the page.
+  var PILL = 34;           // its height, and its width with the mask alone; pages/card.js opens from this
+  var PANEL_W = 320;
+  var EDGE = 18;           // in from the page's corner; main.js islandCorner() is the same number
+  var islandW = PILL;
+  var islandH = PILL;
+  function island(w, h, r) {
+    h = h || PILL;
+    corner.classList.toggle('is-folding', w * h < islandW * islandH);
+    islandW = w; islandH = h;
+    corner.style.setProperty('--w', String(w));
+    corner.style.setProperty('--h', String(h));
+    corner.style.setProperty('--r', String(r || PILL / 2));
+  }
   function leave(s) {
     s.classList.remove('is-in'); s.classList.add('is-out');
     // Gone once its way out has played (at once if nothing plays).
     Promise.allSettled(s.getAnimations().map(function (a) { return a.finished; })).then(function () { s.remove(); });
   }
 
-  /** Words in the corner island. They leave by themselves unless `keep` (a warning stays while its page does). */
-  function say(html, color, keep) {
-    clearTimeout(labelTimer);
+  var shownWords = null;
+  /** The pill's words: the old line leaves, the new one comes in, and the pill springs to its width. */
+  function words(html, color) {
+    if (html === shownWords) return;
+    shownWords = html;
     cornerLabel.querySelectorAll(':scope > span:not(.is-out)').forEach(leave);
+    if (!html) { if (!panelOpen) island(PILL); return; }
     var s = document.createElement('span');
     s.style.setProperty('--c', color || '#e2c47f');
     s.innerHTML = html;
-    // Already open: the new words come in sooner, as the old ones leave (the card only changes width).
-    if (islandW > 46) s.classList.add('is-swap');
+    // Already wide: the new words come in sooner, as the old ones leave (the pill only changes width).
+    if (islandW > PILL) s.classList.add('is-swap');
     cornerLabel.appendChild(s);
     // One layout read per message (its width), which also fixes the start state, so the class below transitions.
-    island(Math.min(s.offsetWidth, 320) + 46 + 10 + 14);
+    var w = Math.min(s.offsetWidth, 300) + PILL + 12;
+    if (!panelOpen) island(w);
     s.classList.add('is-in');
+  }
+  /** Words of the moment. They leave by themselves unless `keep` (a warning stays while its page does). */
+  function say(html, color, keep) {
+    clearTimeout(labelTimer);
+    labelTimer = null;
+    words(html, color);
     sticky = Boolean(keep);
     if (!keep) labelTimer = setTimeout(hush, 4200);
   }
-  /** Back into the mask. */
+  /** Back to the resting words. */
   function hush() {
     clearTimeout(labelTimer);
-    cornerLabel.querySelectorAll(':scope > span:not(.is-out)').forEach(leave);
-    island(46);
+    labelTimer = null;
+    sticky = false;
+    var r = rest();
+    words(r.html, r.color);
   }
   // The desktop end-to-end run (scripts/desktop-e2e.ps1) replays the island through these to photograph it mid-spring.
-  window.sentinelIsland = { say: say, hush: hush };
+  window.sentinelIsland = { say: say, hush: hush, open: function () { openPanel(false); }, close: closePanel };
+
+  /*
+   * What the island knows about the page in front. All of it comes from the app as it happens (overlay:page,
+   * overlay:verdict, overlay:marks), and it starts empty on every page: what is not known is not shown.
+   */
+  var site = null;         // set on overlay:page: { host, private, search, paused, checking, label, badge, why, unchecked }
+  var keyHint = '';        // the keyboard shortcut, when Windows gave it to Sentinel
+  var lockedNote = false;  // the parent lock refused a pause
+  var seenLinks = new Map();   // this page's results and links, by their hashed key: what the last read said of each
+  function newSite(p) {
+    return { host: (p && p.host) || null, private: Boolean(p && p.private), search: Boolean(p && p.search), paused: Boolean(p && p.paused),
+      checking: Boolean(p && !p.search && !p.paused), label: '', badge: null, why: '', unchecked: false };
+  }
+  function linkCounts() {
+    var c = { red: 0, orange: 0, yellow: 0, clear: 0, pending: 0 };
+    seenLinks.forEach(function (tier) { c[tier]++; });
+    return c;
+  }
+  var WORST = ['red', 'orange', 'yellow'];
+  /** The pill's words at rest: the page's own verdict if it is bad, then the links on it, then what the scanner said. */
+  function rest() {
+    var c = linkCounts();
+    var flaggedLinks = c.red + c.orange + c.yellow;
+    if (site && site.badge) return { html: '<b>' + esc(site.label) + '</b>', color: M.COLORS[site.badge] };
+    if (site && site.paused) return { html: 'Paused here' };
+    if (flaggedLinks) {
+      var worst = WORST.filter(function (b) { return c[b]; })[0];
+      return { html: '<b>' + flaggedLinks + ' flagged</b>', color: M.COLORS[worst] };
+    }
+    // A results page has no verdict of its own: its links are its news. A hovered link does not unsay a page's verdict.
+    if (!site || !site.label || site.search) {
+      if (c.pending) return { html: 'Checking links' };
+      if (c.clear) return { html: c.clear + (c.clear === 1 ? ' link checked' : ' links checked') };
+    }
+    if (site && site.checking) return { html: 'Checking' };
+    if (site && site.unchecked) return { html: 'Not checked' };
+    if (site && site.label && !site.search) return { html: esc(site.label) };
+    return { html: 'Watching' };
+  }
+  /** The app has news: new resting words (unless a message is being said), and the panel if it is open. */
+  function refresh() {
+    if (!labelTimer && !sticky) { var r = rest(); words(r.html, r.color); }
+    if (panelOpen) { fillPanel(); island(PANEL_W, panel.offsetHeight, 18); }
+  }
+
+  var panel = document.getElementById('panel');
+  var panelPause = document.getElementById('panelPause');
+  var panelApp = document.getElementById('panelOpen');
+  var panelOpen = false;
+  var byKeyboard = false;
+  var LINK_ROWS = [['red', null], ['orange', null], ['yellow', null], ['clear', 'Nothing found'], ['pending', 'Being checked']];
+  function fillPanel() {
+    var s = site || newSite(null);
+    var color = s.badge ? M.COLORS[s.badge] : '';
+    panel.style.setProperty('--c', color || '#e9e6df');
+    document.getElementById('panelSite').textContent = s.host || (s.private ? 'Private window' : 'This browser');
+    document.getElementById('panelVerdict').textContent = s.badge ? (M.SEVERITY[s.badge] || 'Caution') + ': ' + s.label
+      : s.paused ? 'Paused here' : s.checking ? 'Checking this site' : s.unchecked ? 'Could not check this site' : s.label || 'Watching this browser';
+    var why = document.getElementById('panelWhy');
+    // A private window's reason can name the site: the panel stays with the verdict.
+    why.textContent = s.paused ? 'Pages and links here are not checked for up to an hour.'
+      : lockedNote ? 'Locked by a parent. Unlock it with the PIN in Sentinel.' : s.private ? '' : s.why;
+    why.hidden = !why.textContent;
+    var list = document.getElementById('panelLinks');
+    var c = linkCounts();
+    list.textContent = '';
+    LINK_ROWS.forEach(function (row) {
+      if (!c[row[0]]) return;
+      var li = document.createElement('li');
+      li.style.setProperty('--c', row[0] === 'pending' ? '#8d8a82' : M.COLORS[row[0]]);
+      var b = document.createElement('b'); b.textContent = String(c[row[0]]);
+      li.appendChild(b);
+      li.appendChild(document.createTextNode(' ' + (row[1] || M.SEVERITY[row[0]])));
+      list.appendChild(li);
+    });
+    list.hidden = !(c.red + c.orange + c.yellow + c.clear + c.pending);
+    // Only a site checked and found clean can be paused: a flagged page never can, whoever is on the phone asking.
+    var pausable = Boolean(s.host && !s.private && !s.search && !s.badge && !s.checking && !s.unchecked && s.label);
+    panelPause.hidden = !(pausable || s.paused);
+    panelPause.textContent = s.paused ? 'Check this site again' : 'Pause here for an hour';
+    var hint = document.getElementById('panelKey');
+    hint.textContent = keyHint && !byKeyboard ? 'Keyboard: ' + keyHint : '';
+    hint.hidden = !hint.textContent;
+  }
+  function openPanel(keyboard) {
+    if (panelOpen || !corner.classList.contains('is-on')) return;
+    clearDwell();
+    byKeyboard = Boolean(keyboard);
+    panelOpen = true;
+    fillPanel();
+    corner.classList.remove('is-rested', 'is-shy');
+    corner.classList.add('is-open');
+    island(PANEL_W, panel.offsetHeight, 18);
+    if (byKeyboard) (panelPause.hidden ? panelApp : panelPause).focus();
+  }
+  function closePanel() {
+    clearTimeout(closeTimer);
+    closeTimer = null;
+    if (!panelOpen) return;
+    panelOpen = false;
+    lockedNote = false;
+    corner.classList.remove('is-open');
+    interact(false);
+    if (byKeyboard) { byKeyboard = false; api.act('released'); }
+    wake();
+    var w = shownWords ? Math.min(cornerLabel.lastChild.offsetWidth, 300) + PILL + 12 : PILL;
+    island(w);
+  }
+
+  // Every click goes through to the page until the panel is open and the pointer is on it: the window only takes the
+  // pointer for that long, and the whole page is under this window.
+  var interactive = false;
+  function interact(on) { if (on !== interactive) { interactive = on; api.interact(on); } }
+  var DWELL_MS = 400;      // a pointer passing over, or on its way to a page button under the island, opens nothing
+  var DWELL_PX = 12;
+  var CLOSE_MS = 600;
+  var dwell = null;
+  var closeTimer = null;
+  function clearDwell() { if (dwell) { clearTimeout(dwell.timer); dwell = null; } }
+  function pointer(ev) {
+    var x = ev.clientX, y = ev.clientY;
+    var left = window.innerWidth - EDGE - islandW, top = window.innerHeight - EDGE - islandH;
+    var over = x >= left && x <= left + islandW && y >= top && y <= top + islandH;
+    if (panelOpen) {
+      interact(over);
+      if (over) { clearTimeout(closeTimer); closeTimer = null; } else if (!byKeyboard && !closeTimer) closeTimer = setTimeout(closePanel, CLOSE_MS);
+      return;
+    }
+    corner.classList.toggle('is-shy', x > left - 60 && y > top - 60);
+    if (!over || !corner.classList.contains('is-on') || (corner.classList.contains('is-quiet') && !flagged)) { clearDwell(); return; }
+    if (dwell && Math.abs(x - dwell.x) <= DWELL_PX && Math.abs(y - dwell.y) <= DWELL_PX) return;
+    clearDwell();
+    dwell = { x: x, y: y, timer: setTimeout(function () { openPanel(false); }, DWELL_MS) };
+  }
+  panelPause.onclick = function () { api.act(site && site.paused ? 'resume' : 'pause'); };
+  panelApp.onclick = function () { closePanel(); api.act('open'); };
+  cornerMask.onclick = closePanel;
+  cornerLabel.onclick = closePanel;
+  window.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { ev.preventDefault(); closePanel(); } });
+  window.addEventListener('blur', function () { if (byKeyboard) closePanel(); });
 
   function setCorner(kind, color) {
     corner.style.setProperty('--c', color || GOLD);
@@ -278,6 +486,13 @@
   function place(list, rebase, instant) {
     current = list;
     setTimeout(digCheck, 0);
+    // The island counts every result this page has shown, by its hashed key, not only those on screen now.
+    list.forEach(function (m) {
+      if (!m.k) return;
+      if (!m.pending) seenLinks.set(m.k, m.badge || 'clear');
+      else if (!seenLinks.has(m.k)) seenLinks.set(m.k, 'pending');
+    });
+    if (list.length) refresh();
     var seen = {};
     var popped = 0;
     var W = window.innerWidth;
@@ -326,11 +541,9 @@
 
   // A mark explains itself when the pointer is over it. Clicks still go to the browser.
   window.addEventListener('mousemove', function (ev) {
-    // The corner mask sits over the page's own corner (a chat button, "back to top", "Share feedback"): it steps
-    // aside while the pointer is near, so whatever is under it can be seen and clicked.
-    var cr = corner.getBoundingClientRect();
-    var near = ev.clientX > cr.right - islandW - 60 && ev.clientY > cr.top - 60;
-    corner.classList.toggle('is-shy', near);
+    // The island sits over the page's own corner (a chat button, "back to top", "Share feedback"): it steps aside
+    // while the pointer is near, so whatever is under it can be seen and clicked, and opens only for a resting pointer.
+    pointer(ev);
     var pr = pay.getBoundingClientRect();
     pay.classList.toggle('is-shy', ev.clientX > pr.left - 40 && ev.clientY < pr.bottom + 40);
     var hit = null;
@@ -354,7 +567,11 @@
     tip.style.top = top + 'px';
     tip.classList.add('is-on');
   });
-  window.addEventListener('mouseleave', function () { tip.classList.remove('is-on'); corner.classList.remove('is-shy'); pay.classList.remove('is-shy'); });
+  window.addEventListener('mouseleave', function () {
+    tip.classList.remove('is-on'); corner.classList.remove('is-shy'); pay.classList.remove('is-shy');
+    clearDwell();
+    if (panelOpen && !byKeyboard) { interact(false); closePanel(); }
+  });
 
   var api = window.sentinelOverlay;
   var restTimer = null;
@@ -367,10 +584,29 @@
     corner.classList.add('is-on');
     wake();
     corner.classList.toggle('is-quiet', Boolean(s.fullscreen));
+    if (s.fullscreen && !flagged) closePanel();
+    keyHint = s.key || '';
     if (!flagged) setCorner('scam', GOLD);
     if (s.private) say('<b>Private window.</b> Protected, and nothing is kept.', '#e2c47f');
     else if (s.appeared) say('<b>Sentinel is scanning</b> this browser.', '#e2c47f');
+    else if (shownWords === null) hush();
   });
+  // A new page (or none): everything known about the last one is gone.
+  api.on('overlay:page', function (p) {
+    site = p ? newSite(p) : null;
+    seenLinks.clear();
+    lockedNote = false;
+    closePanel();
+    refresh();
+  });
+  // The person paused this site or asked for it to be checked again, or the parent lock refused.
+  api.on('overlay:paused', function (p) {
+    lockedNote = Boolean(p && p.locked);
+    if (site && p && !p.locked) { site.paused = Boolean(p.paused); site.checking = !p.paused; site.label = ''; site.badge = null; site.why = ''; site.unchecked = false; }
+    refresh();
+  });
+  api.on('overlay:open', function () { openPanel(true); });
+  api.on('overlay:close', closePanel);
   api.on('overlay:sweep', function (p) {
     sweep(); wake();
     // The gold line takes 1.35 s to cross: the digging starts as it finishes.
@@ -379,14 +615,23 @@
   api.on('overlay:verdict', function (v) {
     flagged = Boolean(v && (v.badge === 'red' || v.badge === 'orange' || v.badge === 'yellow'));
     corner.classList.toggle('is-flagged', flagged);
+    // What the scanner said about the page in front. No label means there is no verdict (a new page has begun).
+    if (site && v && (v.label || v.unchecked)) {
+      site.checking = false;
+      site.unchecked = Boolean(v.unchecked);
+      site.label = String(v.label || '');
+      site.badge = flagged ? v.badge : null;
+      site.why = String(v.why || '');
+    }
     if (flagged) {
       var color = M.COLORS[v.badge];
       setCorner(v.kind, color);
       say('<b>' + esc(v.label) + '.</b> ' + (v.badge === 'yellow' ? 'Take care on this page.' : 'Do not enter anything here.'), color, v.badge !== 'yellow');
+      if (panelOpen) refresh();
     } else {
       setCorner('scam', GOLD);
       // A warning about the last page must not hang over this one.
-      if (sticky) { sticky = false; hush(); }
+      if (sticky) hush(); else refresh();
     }
   });
   // The page moved since these marks were placed: move the whole layer with it, in this frame. A new set of
@@ -595,7 +840,7 @@
     document.getElementById('payText').textContent = p && p.text ? String(p.text) : '';
     pay.classList.toggle('is-on', Boolean(p && p.text));
   });
-  api.on('overlay:clear', function () { pay.classList.remove('is-on'); endDig(); stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); corner.classList.remove('is-on'); hush(); flagged = false; });
+  api.on('overlay:clear', function () { pay.classList.remove('is-on'); endDig(); stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); closePanel(); corner.classList.remove('is-on'); site = null; seenLinks.clear(); hush(); flagged = false; });
 })();
 </script>
 </body>

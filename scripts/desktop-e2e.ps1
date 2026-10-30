@@ -317,6 +317,73 @@ $n += @(70, 160, 320, 800 | ForEach-Object { Frame 'overlay.html' "$isl; I.hush(
 $n += Frame 'overlay.html' "$isl; $scan; settle(); I.say('<b>Phishing.</b> Do not enter anything here.', '#e5484d', true)" 160 'motion-island-morph-160ms'
 $n += Frame 'overlay.html' "$isl; $scan; settle(); I.hush()" 140 'motion-island-close-140ms'
 Check 'motion-island' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations paused mid-spring in the corner island, per frame: $($n -join ', ')"
+$n = @(70, 160, 320, 800 | ForEach-Object { Frame 'overlay.html' "$isl; I.close(); I.hush(); settle(); I.open()" $_ "motion-island-panel-$($_)ms" })
+Check 'motion-island-panel' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations paused mid-spring as the panel opens, per frame: $($n -join ', ')"
+
+# 4b2. The island as a person meets it: real pointer, real keyboard, real window. At rest every click goes through to
+# the page; a resting pointer opens the panel, and only then and only on it does the window take the pointer.
+$ovState = "(() => { const c = document.getElementById('corner'); return [c.classList.contains('is-open'), document.hasFocus(), (document.activeElement || {}).id, document.getElementById('cornerLabel').innerText.trim()].join('|'); })()"
+[void](Cdp 'overlay.html' "window.sentinelIsland.close(); window.sentinelIsland.hush(); 1")
+Start-Sleep 2
+Shot 'island-rest'
+$pw = (Cdp 'main' "JSON.stringify(process.mainModule.require('./watch').status().window)").value | ConvertFrom-Json
+$ov = [long](Cdp 'main' "process.mainModule.require('./overlay').handle()").value
+$ax = [int]($pw.x + $pw.w - 18 - 17); $ay = [int]($pw.y + $pw.h - 18 - 17)
+# SetCursorPos alone does not reach the hook Electron forwards the pointer from; a relative move does.
+function Nudge($x, $y) { [void][K]::SetCursorPos($x, $y); [K]::mouse_event(1, 1, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 40; [K]::mouse_event(1, -1, 0, 0, [UIntPtr]::Zero) }
+[void][K]::SetCursorPos(400, 400); Start-Sleep -Milliseconds 300
+Say "island at rest: $((Cdp 'overlay.html' $ovState).value)"
+Check 'island-rest-click-through' ([K]::At($ax, $ay) -ne $ov) "at rest, the window under the island's mask is the browser, not the overlay ($([K]::At($ax, $ay)), overlay $ov)"
+$overlayPid = [int](Cdp 'main' "process.mainModule.require('electron').BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('overlay.html')).webContents.getOSProcessId()").value
+$c0 = (Get-Process -Id $overlayPid).CPU; Start-Sleep 30; $c1 = (Get-Process -Id $overlayPid).CPU
+$anim = (Cdp 'overlay.html' "document.getAnimations().length").value
+Check 'island-idle' ($anim -eq 0 -and ($c1 - $c0) -lt 0.6) "over Edge, shown, 30 s: overlay page used $([math]::Round($c1 - $c0, 2)) s of processor time ($([math]::Round(($c1 - $c0) / 30 * 100, 2))% of one core), animations running $anim"
+Nudge $ax $ay
+$opened = Until 4 { ((Cdp 'overlay.html' $ovState).value -split '\|')[0] -eq 'true' }
+Nudge $ax $ay
+Start-Sleep -Milliseconds 700
+Shot 'island-panel-hover'
+$panelText = (Cdp 'overlay.html' "document.getElementById('panel').innerText").value
+Check 'island-hover-opens' $opened "the panel after the pointer rested on the island: $($panelText -replace '\s+', ' ')"
+Check 'island-takes-pointer' ([K]::At($ax, $ay) -eq $ov) "the panel under the pointer takes it: window at the island $([K]::At($ax, $ay)), overlay $ov"
+Nudge 400 400
+Start-Sleep -Milliseconds 100
+Check 'island-gives-pointer-back' ([K]::At($ax, $ay) -ne $ov) "the pointer off the panel: the window at the island is the browser again"
+$closed = Until 4 { ((Cdp 'overlay.html' $ovState).value -split '\|')[0] -eq 'false' }
+Check 'island-closes-itself' $closed "the panel closed by itself; island: $((Cdp 'overlay.html' $ovState).value)"
+# The keyboard: Win+Alt+I brings it into the panel, the reader keeps watching the browser, Escape gives it back.
+Start-Sleep 1
+[K]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero); [K]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [K]::Tap(0x49); [K]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero); [K]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero)
+$kb = Until 5 { $s = (Cdp 'overlay.html' $ovState).value -split '\|'; $s[0] -eq 'true' -and $s[1] -eq 'true' -and $s[2] -like 'panel*' }
+Start-Sleep 2
+Shot 'island-panel-keyboard'
+$still = (Cdp 'main' "Boolean(process.mainModule.require('./watch').status().window)").value
+Check 'island-keyboard' ($kb -and $still -eq $true) "Win+Alt+I: focus in the panel ($kb): $((Cdp 'overlay.html' $ovState).value); the browser still watched: $still"
+$before = ((Cdp 'overlay.html' $ovState).value -split '\|')[2]
+[K]::Tap(0x09); Start-Sleep -Milliseconds 400
+$after = ((Cdp 'overlay.html' $ovState).value -split '\|')[2]
+Say "Tab in the panel: $before then $after"
+[K]::Tap(0x1B)
+$back = Until 4 { ((Cdp 'overlay.html' $ovState).value -split '\|')[0] -eq 'false' }
+Start-Sleep 1
+$fg = 0; [void][K]::GetWindowThreadProcessId([K]::GetForegroundWindow(), [ref]$fg)
+$front = (Get-Process -Id $fg -ErrorAction SilentlyContinue).ProcessName
+Check 'island-keyboard-back' ($back -and $front -eq 'msedge') "Escape: closed ($back), in front now: $front"
+# Pause for this site, and back: through the app, on the panel's own button.
+[void](Cdp 'overlay.html' "window.sentinelIsland.open(); 1")
+Start-Sleep 1
+$canPause = (Cdp 'overlay.html' "!document.getElementById('panelPause').hidden").value
+if ($canPause -eq $true) {
+  [void](Cdp 'overlay.html' "document.getElementById('panelPause').click(); 1")
+  $paused = Until 5 { (Cdp 'overlay.html' $ovState).value -match 'Paused here' -or (Cdp 'overlay.html' "document.getElementById('panelVerdict').textContent").value -eq 'Paused here' }
+  Shot 'island-paused'
+  [void](Cdp 'overlay.html' "document.getElementById('panelPause').click(); 1")
+  $resumed = Until 8 { (Cdp 'overlay.html' "document.getElementById('panelVerdict').textContent").value -notmatch 'Paused|Checking' }
+  Check 'island-pause' ($paused -and $resumed) "paused ($paused), checked again ($resumed): $((Cdp 'overlay.html' "document.getElementById('panelVerdict').textContent").value)"
+} else {
+  Check 'island-pause' $false "no pause on offer on this page: $((Cdp 'overlay.html' "document.getElementById('panel').innerText").value -replace '\s+', ' ')"
+}
+[void](Cdp 'overlay.html' "window.sentinelIsland.close(); 1")
 
 # 4c. Hover a link: Edge in front on a forum-shaped page. The pointer rests on a link to a listed scam, then on an
 # honest one, then on nothing; live scanning puts one mark beside the link it rests on, and takes it away after.

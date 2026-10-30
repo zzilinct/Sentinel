@@ -174,16 +174,24 @@ test('private windows leave nothing behind: not in history, not in the log, not 
   assert.match(read('server/routes/scan.routes.js'), /const isPrivate = body\.private === true;[\s\S]*recordFlagged: !isPrivate/, 'flagged private results are not written to history');
 });
 
-test('the overlay can never take a click, a key or the focus, and is told nothing but marks', () => {
+test('the overlay takes no click, key or focus unless the island\'s panel is being used, and is told no addresses', () => {
   const o = read('desktop/src/overlay.js');
   assert.match(o, /focusable: false/);
   assert.match(o, /setIgnoreMouseEvents\(true, \{ forward: true \}\)/);
   assert.match(o, /showInactive\(\)/);
-  assert.doesNotMatch(o, /\.show\(\)|\.focus\(\)/, 'it is only ever shown without activation');
+  assert.doesNotMatch(o, /\.show\(\)/, 'it is only ever shown without activation');
+  // The one .focus(): the island's own shortcut, pressed by the person.
+  assert.equal((o.match(/\.focus\(\)/g) || []).length, 1);
+  assert.ok(o.indexOf('.focus()') > o.indexOf('function keyboard(') && o.indexOf('.focus()') < o.indexOf('function letGo('));
   // Positions and verdicts go to the overlay page. Addresses do not.
   const marks = o.slice(o.indexOf('function setMarks'), o.indexOf('function destroy'));
   assert.doesNotMatch(marks, /\bu:|url/);
-  assert.doesNotMatch(read('desktop/src/overlay-preload.js'), /invoke|send\(/, 'the overlay page can ask the app for nothing');
+  // The overlay page can ask the app for exactly two things, and overlay.js checks who asks and for which action.
+  const preload = read('desktop/src/overlay-preload.js');
+  assert.doesNotMatch(preload, /invoke/);
+  assert.deepEqual(preload.match(/ipcRenderer\.send\('[^']+'/g), ["ipcRenderer.send('overlay:interact'", "ipcRenderer.send('overlay:act'"]);
+  assert.match(o, /const mine = \(event\) => Boolean\(win\) && !win\.isDestroyed\(\) && event\.sender === win\.webContents;/);
+  assert.match(o, /if \(!mine\(event\) \|\| !ACTIONS\.has\(action\)\) return;/);
 });
 
 test('an open browser is never a notification; only a dangerous page or a stopped program is', () => {
@@ -774,7 +782,7 @@ function overlaySandbox() {
   const html = read('desktop/src/pages/overlay.html');
   const code = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
   const el = () => ({ style: { setProperty() {}, transform: '' }, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
-    dataset: {}, appendChild() {}, remove() {}, querySelector: () => el(), getBoundingClientRect: () => ({ left: 0, top: 0 }), offsetWidth: 0, innerHTML: '' });
+    dataset: {}, appendChild() {}, remove() {}, querySelector: () => el(), querySelectorAll: () => [], getBoundingClientRect: () => ({ left: 0, top: 0 }), offsetWidth: 0, innerHTML: '' });
   const els = {};
   const handlers = {};
   let now = 0;
@@ -913,9 +921,9 @@ test('a wheel turned over something that does not scroll: the reader\'s confirma
   assert.ok(watch._test.SCRIPT.includes('if ($lw -ne $confirmedWheel -and [Environment]::TickCount - $lw -gt 500)'));
 });
 
-test('live scanning looks settled: the corner mask steps back after a moment, and a result\'s mark sits by its title', () => {
+test('live scanning looks settled: the corner island quietens after a moment, and a result\'s mark sits by its title', () => {
   const html = read('desktop/src/pages/overlay.html');
-  assert.match(html, /\.corner\.is-on\.is-rested:not\(\.is-flagged\) \{ opacity: 0;/, 'the mask leaves the page\'s own corner');
+  assert.match(html, /\.corner\.is-on\.is-rested:not\(\.is-flagged\) \{ opacity: \.86;/, 'quieter, and still saying what it knows');
   assert.match(html, /restTimer = setTimeout\(function \(\) \{ corner\.classList\.add\('is-rested'\); \}, 5000\);/);
   // A Bing result: the site-name block, then the title, then a description that is also a link and wider.
   const out = watch._test.resultLinks([
@@ -961,7 +969,7 @@ test('a start that breaks inside a require still leaves its reason in app.log an
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('the corner island, chat cards and shield window move with transforms only, once, never in a loop', () => {
+test('the corner island, chat cards and shield window lay nothing out as they move, once, never in a loop', () => {
   const overlay = read('desktop/src/pages/overlay.html');
   const chat = read('desktop/src/pages/chat.html');
   // The shield's window (and every other warning card) is drawn and moved by the shared card (pages/card.js).
@@ -971,11 +979,11 @@ test('the corner island, chat cards and shield window move with transforms only,
   assert.match(overlay, /\.mark\.is-pending \{[^}]*infinite/);
   assert.doesNotMatch(chat, /infinite/);
   assert.doesNotMatch(guard, /infinite/);
-  // The island opens by transforms of its cap and middle strip, never by animating width.
-  assert.match(overlay, /\.isl__cap, \.isl__mid \{[^}]*transition: transform /);
+  // The island opens by its clip: one shape from three numbers, the words never scaled, never by animating width.
+  assert.match(overlay, /\.isl__rim, \.isl__sheet \{[^}]*clip-path: inset\(calc\(280px - var\(--h\) \* 1px\)[^}]*transition: clip-path \.5s var\(--spring\);/);
   assert.doesNotMatch(overlay + chat + guard, /transition:[^;]*\b(width|height|left|top|box-shadow)\b/);
   // It still steps aside from the pointer, over its whole open width.
-  assert.match(overlay, /var near = ev\.clientX > cr\.right - islandW - 60 && ev\.clientY > cr\.top - 60;/);
+  assert.match(overlay, /corner\.classList\.toggle\('is-shy', x > left - 60 && y > top - 60\);/);
   // A calm version for reduced motion, in each window.
   for (const html of [overlay, chat, guard]) assert.match(html, /@media \(prefers-reduced-motion: reduce\)/);
 });
