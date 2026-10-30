@@ -10,7 +10,8 @@ const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 // Each place that falls back to a default when nothing is stored yet must agree, or a fresh install behaves one way in
 // the settings page and another in the chat itself.
 test('companion: "Hints in web chats" is on by default everywhere a default is read', () => {
-  for (const f of ['lib/api.js', 'background.firefox.js', 'options.js', 'content/webchat.js']) {
+  // background.firefox.js is not read here: it is built from lib/api.js, and is absent until a build has run.
+  for (const f of ['lib/api.js', 'options.js', 'content/webchat.js']) {
     assert.match(read(f), /chatHints:\s*true\b/, `${f} should default chatHints to true`);
   }
   assert.match(read('content/webchat.js'), /settings\.chatHints !== false/);

@@ -16,7 +16,7 @@
   style.textContent = `
   :root { color-scheme: dark; --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
   html { height: 100%; margin: 0; padding: ${PAD}px; box-sizing: border-box; background: transparent; overflow: hidden; }
-  body { height: 100%; margin: 0; box-sizing: border-box; display: grid; grid-template-rows: auto 1fr auto; padding: 22px 24px 20px; overflow: hidden;
+  body { height: 100%; margin: 0; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; padding: 22px 24px 20px; overflow: hidden;
     color: #e9e6df; font: 14.5px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
     background: radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--c, #d6b25a) 10%, transparent), transparent 62%), #0c0d10;
     border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 42%, transparent); border-radius: 18px;

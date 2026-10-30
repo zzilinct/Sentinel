@@ -105,7 +105,8 @@ function readChromiumProfile(profile) {
     if (!manifest || manifest.theme || manifest.app) continue;
     const reasons = s.disable_reasons;
     const disabled = s.state === 0 || (Array.isArray(reasons) ? reasons.length > 0 : Number(reasons) > 0);
-    const fromStore = fromStoreUpdate(manifest.update_url);
+    // from_webstore: the browser's own word. Opera GX's store add-ons carry no update_url in their manifest (seen on CI, 154).
+    const fromStore = fromStoreUpdate(manifest.update_url) || s.from_webstore === true;
     const source = LOCATION[s.location] === 'store' || LOCATION[s.location] === undefined ? (fromStore ? 'store' : 'outside') : LOCATION[s.location];
     const hosts = [...(manifest.host_permissions || []), ...((manifest.content_scripts || []).flatMap((c) => (c && c.matches) || []))];
     const overrides = manifest.chrome_settings_overrides || {};

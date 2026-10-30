@@ -301,31 +301,44 @@ async function checkCompanionCore() {
     for (const e of ENGINES) {
       const plain = await serp(without.browser, e, { companion: false });
       await without.browser.send('Target.closeTarget', { targetId: plain.target.targetId }).catch(() => {});
-      const comp = await serp(browser, e, { companion: true, name: `companion-core-serp-${e[0]}` });
+      let comp = await serp(browser, e, { companion: true, name: `companion-core-serp-${e[0]}` });
       await browser.send('Target.closeTarget', { targetId: comp.target.targetId }).catch(() => {});
+      // Live Bing has swapped its results out under the marks (run 40941261682: 9 results marked by 1 s, none at the end).
+      // Once more; a genuine results page with no marks twice is Sentinel's fault.
+      if (!comp.bot && comp.results && !comp.marked) {
+        console.log(`      ${e[0]}: ${comp.results} results and no marks, trying once more`);
+        comp = await serp(browser, e, { companion: true, name: `companion-core-serp-${e[0]}` });
+        await browser.send('Target.closeTarget', { targetId: comp.target.targetId }).catch(() => {});
+      }
       const { target: _a, ...c } = comp;
       const { target: _b, ...p } = plain;
       engines.push({ engine: e[0], companion: c, plain: { results: p.results, cls: p.cls, loadedAt: p.loadedAt, bot: p.bot } });
     }
     const reached = engines.filter((x) => !x.companion.bot && x.companion.results);
-    result(`companion-core: real search pages: every result on screen is marked, none red, on ${reached.map((x) => x.engine).join(', ') || 'none'} (${engines.filter((x) => !reached.includes(x)).map((x) => x.engine).join(', ') || 'no engine'} showed the runner a bot check or a consent page)`,
-      reached.length >= 1 && reached.every((x) => x.companion.marked >= x.companion.results && !x.companion.kinds.red),
-      engines.map((x) => ({ engine: x.engine, results: x.companion.results, marked: x.companion.marked, kinds: x.companion.kinds, flagged: x.companion.flagged, markedInMs: x.companion.markedAt, bot: x.companion.bot, title: x.companion.title })));
-    result('companion-core: real search pages: the marks do not shift the page (layout shift with the companion within 0.02 of without) and do not wrap titles',
-      reached.every((x) => x.companion.cls - x.plain.cls <= 0.02 && !x.companion.wrapped),
-      engines.map((x) => ({ engine: x.engine, clsWith: x.companion.cls, clsWithout: x.plain.cls, wrappedTitles: x.companion.wrapped, loadWith: x.companion.loadedAt, loadWithout: x.plain.loadedAt })));
+    const engineDetail = engines.map((x) => ({ engine: x.engine, results: x.companion.results, marked: x.companion.marked, kinds: x.companion.kinds, flagged: x.companion.flagged, markedInMs: x.companion.markedAt, bot: x.companion.bot, title: x.companion.title }));
+    // No engine gave the runner a real results page: that says nothing about Sentinel, so nothing is judged.
+    if (!reached.length) {
+      console.log('SKIP  companion-core: real search pages: every engine showed the runner a bot check, a consent page or no results');
+      for (const line of engineDetail) console.log(`      ${JSON.stringify(line)}`);
+    } else {
+      result(`companion-core: real search pages: every result on screen is marked, none red, on ${reached.map((x) => x.engine).join(', ')} (${engines.filter((x) => !reached.includes(x)).map((x) => x.engine).join(', ') || 'no engine'} showed the runner a bot check or a consent page)`,
+        reached.every((x) => x.companion.marked >= x.companion.results && !x.companion.kinds.red), engineDetail);
+      result('companion-core: real search pages: the marks do not shift the page (layout shift with the companion within 0.02 of without) and do not wrap titles',
+        reached.every((x) => x.companion.cls - x.plain.cls <= 0.02 && !x.companion.wrapped),
+        engines.map((x) => ({ engine: x.engine, clsWith: x.companion.cls, clsWithout: x.plain.cls, wrappedTitles: x.companion.wrapped, loadWith: x.companion.loadedAt, loadWithout: x.plain.loadedAt })));
 
-    // A results page opened in a tab the person looks at only later (a middle click, or the window behind another).
-    const bgEngine = ENGINES.find((e) => reached.some((x) => x.engine === e[0])) || ENGINES[0];
-    const bg = await serp(browser, bgEngine, { companion: true, focus: false });
-    await sleep(3000);
-    const before = await evalIn(browser, bg.target.sessionId, "({ marks: document.querySelectorAll('.sentinel-masks').length, focused: document.hasFocus(), visibility: document.visibilityState })");
-    await lookAt(browser, bg.target);
-    const later = await until(browser, bg.target.sessionId, `document.querySelectorAll('.sentinel-masks').length >= Math.max(1, [...document.querySelectorAll(${JSON.stringify(bgEngine[2])})].filter((h) => h.getBoundingClientRect().top < innerHeight + 600).length) && document.querySelectorAll('.sentinel-masks').length`, 15000);
-    await shot(browser, bg.target.sessionId, 'companion-core-serp-background-tab');
-    await browser.send('Target.closeTarget', { targetId: bg.target.targetId }).catch(() => {});
-    result(`companion-core: a ${bgEngine[0]} results page opened in the background gets its marks once the person looks at it (none are spent while it is not looked at)`,
-      before.marks === 0 && Boolean(later), { whileHidden: before, afterLooking: later, results: bg.results });
+      // A results page opened in a tab the person looks at only later (a middle click, or the window behind another).
+      const bgEngine = ENGINES.find((e) => reached.some((x) => x.engine === e[0]));
+      const bg = await serp(browser, bgEngine, { companion: true, focus: false });
+      await sleep(3000);
+      const before = await evalIn(browser, bg.target.sessionId, "({ marks: document.querySelectorAll('.sentinel-masks').length, focused: document.hasFocus(), visibility: document.visibilityState })");
+      await lookAt(browser, bg.target);
+      const later = await until(browser, bg.target.sessionId, `document.querySelectorAll('.sentinel-masks').length >= Math.max(1, [...document.querySelectorAll(${JSON.stringify(bgEngine[2])})].filter((h) => h.getBoundingClientRect().top < innerHeight + 600).length) && document.querySelectorAll('.sentinel-masks').length`, 15000);
+      await shot(browser, bg.target.sessionId, 'companion-core-serp-background-tab');
+      await browser.send('Target.closeTarget', { targetId: bg.target.targetId }).catch(() => {});
+      result(`companion-core: a ${bgEngine[0]} results page opened in the background gets its marks once the person looks at it (none are spent while it is not looked at)`,
+        before.marks === 0 && Boolean(later), { whileHidden: before, afterLooking: later, results: bg.results });
+    }
 
     /* ------------------------------------------------------------- 4. webmail */
 

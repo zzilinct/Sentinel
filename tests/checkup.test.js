@@ -280,6 +280,19 @@ test('Firefox: the search engine from search.json.mozlz4, only profiles in profi
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 });
 
+test('an add-on the browser itself records as from its store is not called an outside one', async () => {
+  const { tmp, local, roaming } = fixtureRoots();
+  try {
+    const root = path.join(roaming, 'Opera Software', 'Opera GX Stable', 'Default');
+    const manifest = { name: 'A store add-on', version: '1' };   // Opera GX's own: no update_url (seen on CI, GX 154)
+    writeJson(path.join(root, 'Preferences'), {});
+    writeJson(path.join(root, 'Secure Preferences'), { extensions: { settings: { ssss: { location: 1, from_webstore: true, manifest }, nnnn: { location: 1, manifest } } } });
+    const result = await checkup.collect({ local, roaming, policies: async () => [], managed: false, present: async () => [] });
+    const addons = result.browsers.find((b) => b.id === 'operagx').profiles[0].addons;
+    assert.deepEqual(addons.map((a) => [a.id, a.source, a.badge]), [['ssss', 'store', null], ['nnnn', 'outside', 'yellow']]);
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+});
+
 test('Opera and Opera GX: one profile in the folder itself, read from the one browser list', async () => {
   const { tmp, local, roaming } = fixtureRoots();
   try {

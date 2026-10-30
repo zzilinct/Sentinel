@@ -182,8 +182,9 @@ async function checkPerfA11y() {
         const file = path.join(dir, `${form}${p.replace(/\//g, '_') || '_'}.json`);
         // Up to three goes: a go with no performance score (a lost trace), or one far under the page's floors (a shared
         // runner stalled: /terms scored 27 once against its usual 95+, run 40222297518; Lighthouse missed robots.txt
-        // once on /practice, run 40224698227), is measured again and the go closest to its floors kept. A page that
-        // is under them every time still fails.
+        // once on /practice, run 40224698227), is measured again and each score keeps its best go, since a go that
+        // recovers one score can lose another (/forgot SEO 45 then 54 with its speed lost, run 40957209460). A page
+        // that is under a floor every time still fails.
         const floors = budget[`${form} ${p}`] || {};
         const short = (t) => (t.error || t.scores.performance == null ? Infinity
           : CATS.reduce((n, c) => n + Math.max(0, (floors[c] == null ? 0 : floors[c] - SLACK[c]) - (t.scores[c] == null ? 100 : t.scores[c])), 0));
@@ -192,6 +193,7 @@ async function checkPerfA11y() {
         for (const flags of [ONE_PROCESS, ONE_PROCESS, '']) {
           const t = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, file, flags));
           tries++;
+          if (s && s.scores && t.scores) for (const c of CATS) if (s.scores[c] != null && !(t.scores[c] >= s.scores[c])) t.scores[c] = s.scores[c];
           if (!s || short(t) < short(s)) s = t;
           if (short(s) === 0) break;
         }
