@@ -15,7 +15,6 @@
   const RANK = { yellow: 1, orange: 2, red: 3 };
   const THREATS = ['scam', 'virus', 'malware'];
   const DEFAULTS = { enabled: true, badgeStyle: 'mask', minimumBadge: 'yellow', markSafe: true, scanOverlay: true };
-  const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v6c0 4.4 3 8 7 9 4-1 7-4.6 7-9V6Z"/><path d="m9 12 2.2 2.2L15 10.5"/></svg>';
 
   let settings = DEFAULTS;
   const seen = new WeakSet();
@@ -142,13 +141,15 @@
     el.dataset.threat = threat;
     el.setAttribute('role', 'button');
     el.setAttribute('tabindex', '0');
-    el.setAttribute('aria-label', `Sentinel: ${info.label}`);
-    el.title = `Sentinel: ${info.label}`;
+    // The severity in words as well as in the seal's shape and colour.
+    const name = `Sentinel: ${Masks.SEVERITY[info.badge] || 'Caution'}, ${info.label}`;
+    el.setAttribute('aria-label', name);
+    el.title = name;
     if (settings.badgeStyle === 'emoji') {
       el.classList.add('sentinel-mask--emoji');
       el.textContent = '🎭';
     } else {
-      el.innerHTML = Masks.svg(threat);
+      el.innerHTML = Masks.mark(threat, info.badge);
     }
     return el;
   }
@@ -180,7 +181,7 @@
       const label = verdict.knowledge && verdict.knowledge.trusted ? 'a verified site' : 'no warning signs found';
       ok.setAttribute('aria-label', `Sentinel: ${label}`);
       ok.title = `Sentinel: ${label}`;
-      ok.innerHTML = CHECK;
+      ok.innerHTML = Masks.tick();
       group.classList.add('sentinel-masks--clear');
       group.appendChild(ok);
     }

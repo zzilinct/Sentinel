@@ -124,8 +124,10 @@ add-on involved:
   tint when scanning starts and whenever a search comes back, the gold Sentinel
   mask in the bottom right corner for as long as that browser is being watched
   (it turns the verdict's colour, with a line of words, on a dangerous page),
-  and a mark beside every search result: a yellow, orange or red mask, or a
-  quiet tick. A mark explains itself on hover. The window cannot take focus,
+  and a mark beside every search result: the threat's mask in gold on a dark
+  tile, with a corner seal whose shape says how bad (a red diamond for danger,
+  an orange triangle for a warning, a yellow circle for caution), or for a safe
+  result only a quiet tick. A mark explains itself on hover. The window cannot take focus,
   and every click and key goes straight through it to the browser.
 - **Only while browsing.** Chrome, Edge, Brave, Opera, Vivaldi, DuckDuckGo,
   Firefox and LibreWolf, and only while one of them is the window in front, not
@@ -239,8 +241,8 @@ the app.
 
 Inside the browser, the companion draws the same thing the app draws from
 outside: a golden line under a faint golden tint while results are checked,
-then a mark on every result (a yellow, orange or red mask exactly as the engine
-returned it, or a quiet tick). Its overlay lives in a closed shadow root with
+then a mark on every result (the same gold mask and severity seal as the app,
+exactly as the engine returned it, or a quiet tick). Its overlay lives in a closed shadow root with
 `pointer-events: none`, respects reduced motion, and only renders: verdicts
 come from the background worker, and nothing in the page script can assign red.
 
