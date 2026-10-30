@@ -114,7 +114,7 @@ async function main() {
     ['extensions.webextensions.restrictedDomains', '']
   ].map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`).join('\n'));
 
-  const child = spawn(FIREFOX, ['-headless', '-no-remote', '-marionette', '-remote-allow-system-access', '-profile', profile], { stdio: 'ignore' });
+  const child = spawn(FIREFOX, ['-headless', '-no-remote', '-marionette', '-remote-allow-system-access', '-profile', profile], { stdio: 'ignore', env: { ...process.env, MOZ_REMOTE_ALLOW_SYSTEM_ACCESS: '1' } });   // the flag until 158, the variable from 159
   const result = {};
   let m;
   try {
