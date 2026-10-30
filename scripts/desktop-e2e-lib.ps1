@@ -97,6 +97,11 @@ public static class K {
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out int pid);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int x, int y, uint data, UIntPtr extra);
+  public struct P { public int X, Y; }
+  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(P p);
+  public static long At(int x, int y) { P p; p.X = x; p.Y = y; return WindowFromPoint(p).ToInt64(); }
+  [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int index);
+  public static string ExStyle(long h) { return GetWindowLong(new IntPtr(h), -20).ToString("x8"); }
   public static void Tap(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
 }
 "@

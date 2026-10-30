@@ -7,12 +7,14 @@
  * comes back, the gold Sentinel mask in the bottom right corner for as long as
  * Sentinel is watching that browser, and a mask beside every search result.
  *
- * It is never in the way: it cannot take focus, every click and key goes straight
- * through it to the browser, and it is hidden the moment the browser is not the
- * window in front.
+ * It is never in the way: every click and key goes straight through it to the
+ * browser, and it is hidden the moment the browser is not the window in front. The
+ * corner island's panel is the one exception, and only while the person is using it:
+ * it takes the pointer while the pointer is on it (interact), and the keyboard when
+ * the person presses the island's shortcut (keyboard).
  */
 const path = require('path');
-const { BrowserWindow, screen } = require('electron');
+const { BrowserWindow, screen, ipcMain } = require('electron');
 
 let win = null;
 let ready = false;
@@ -20,6 +22,10 @@ let queue = [];
 let area = null;         // the browser's page area, in physical screen pixels
 let scale = 1;           // physical pixels per overlay pixel
 let dryRun = null;       // development only: compute everything, show nothing, and say what would have been drawn
+let holdingKeys = false; // the island's panel has the keyboard
+let giveBack = null;     // how the keyboard goes back to the browser (watch.backToBrowser)
+let keyHint = '';        // the island's shortcut in words, when Windows gave it to Sentinel
+const ACTIONS = new Set(['pause', 'resume', 'open', 'released']);
 
 function send(channel, payload) {
   if (dryRun && channel !== 'overlay:marks') dryRun(`${channel} ${JSON.stringify(payload || {})}`);
@@ -72,7 +78,9 @@ function ensure() {
     for (const [channel, payload] of queue) win.webContents.send(channel, payload);
     queue = [];
   });
-  win.on('closed', () => { win = null; ready = false; queue = []; });
+  win.on('closed', () => { win = null; ready = false; queue = []; holdingKeys = false; });
+  // A page that stopped answering must not sit over the browser taking its clicks.
+  win.on('unresponsive', () => interact(false));
   // The end-to-end run on a GitHub desktop (scripts/live-e2e.ps1) asks for a frame-by-frame trace of how the marks
   // moved, to measure smoothness; nobody else sets this.
   const trace = process.env.SENTINEL_OVERLAY_TRACE;
@@ -104,6 +112,8 @@ function setWindow(rect) {
   if (!rect) {
     area = null;
     pageFullscreen = false;
+    letGo();
+    interact(false);
     if (win && !win.isDestroyed() && win.isVisible()) win.hide();
     send('overlay:clear');
     return;
@@ -118,7 +128,8 @@ function setWindow(rect) {
   const b = win.getBounds();
   const fullscreen = b.width >= display.bounds.width && b.height >= display.bounds.height;
   pageFullscreen = fullscreen;
-  send('overlay:watching', { private: Boolean(rect.private), browser: rect.browser, appeared, fullscreen });
+  if (fullscreen) letGo();
+  send('overlay:watching', { private: Boolean(rect.private), browser: rect.browser, appeared, fullscreen, key: keyHint });
 }
 
 /** The gold line and tint over the page in front. */
@@ -130,6 +141,52 @@ function sweep(kind, opts = {}) {
 
 /** The verdict on the page in front, shown by the corner mask. */
 function setVerdict(v) { send('overlay:verdict', v || { badge: null }); }
+
+/** A new page in front, or none: what the island knows starts again. An address never goes here, only its host. */
+function setPage(p) { send('overlay:page', p ? { host: p.host || null, private: Boolean(p.private), search: Boolean(p.search), paused: Boolean(p.paused) } : null); }
+
+/** The site was paused or will be checked again; `locked` when the parent lock refused. */
+function setPaused(p) { send('overlay:paused', p); }
+
+/** The panel's pointer: true while it is under the pointer, so its buttons can be pressed; never otherwise. */
+function interact(on) {
+  if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!on, { forward: true });
+}
+
+/**
+ * The island's shortcut: the panel opens with the keyboard in it, for a person who does not use a mouse or uses a
+ * screen reader, or closes if it is open. `front` is watch.front, as for the shield's way out: Windows only lets the
+ * program in front hand the keyboard over. The reader treats this window as still being the browser (watch.js).
+ */
+function keyboard(reader) {
+  if (!area || pageFullscreen || !win || win.isDestroyed()) return;
+  if (holdingKeys) { send('overlay:close'); return; }
+  holdingKeys = true;
+  giveBack = reader.backToBrowser;
+  win.setFocusable(true);
+  win.focus();
+  reader.front(handle());
+  send('overlay:open');
+}
+
+/** The keyboard goes back to the browser, and to nothing else: blur() left it with Sentinel's own window (desktop-e2e). */
+function letGo() {
+  if (!holdingKeys) return;
+  holdingKeys = false;
+  if (giveBack) giveBack();
+  if (!win || win.isDestroyed()) return;
+  win.setFocusable(false);
+}
+
+/** The panel's requests, from this window's page and no other, and only the ones it has. */
+function init({ onAction }) {
+  const mine = (event) => Boolean(win) && !win.isDestroyed() && event.sender === win.webContents;
+  ipcMain.on('overlay:interact', (event, on) => { if (mine(event)) interact(on === true); });
+  ipcMain.on('overlay:act', (event, action) => {
+    if (!mine(event) || !ACTIONS.has(action)) return;
+    if (action === 'released') letGo(); else onAction(action);
+  });
+}
 
 /** Before you pay: the card's words for the checkout in front, or null to take it away. */
 function setPay(text) { send('overlay:pay', text ? { text: String(text) } : null); }
@@ -201,4 +258,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { handle, revive, setWindow, isFullscreen, sweep, setVerdict, setPay, setMarks, shift, wheel, pixels, destroy, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { init, handle, revive, setWindow, isFullscreen, sweep, setVerdict, setPage, setPaused, setPay, setMarks, shift, wheel, pixels, keyboard, destroy, setKeyHint: (words) => { keyHint = words; }, setDryRun: (logger) => { dryRun = logger || null; } };

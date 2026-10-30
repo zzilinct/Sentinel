@@ -33,12 +33,15 @@
          instead of being cut at both ends (a phone-width or short window). */
       .wrap{position:fixed;inset:0;display:flex;padding:24px;overflow-y:auto;overscroll-behavior:contain;box-sizing:border-box;
         background:rgba(9,10,12,.96);font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#ecebe7;animation:f .25s ease}
-      .wrap.small{inset:auto 16px 16px auto;display:block;padding:0;background:none;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px)}
+      .wrap.small{inset:auto 18px 18px auto;display:block;padding:0;background:none;max-width:calc(100vw - 36px);max-height:calc(100vh - 36px)}
       @keyframes f{from{opacity:0}to{opacity:1}}
       .panel{width:min(560px,100%);margin:auto;box-sizing:border-box;background:#131519;border:1px solid #2a2d33;border-radius:22px;padding:36px 36px 28px;box-shadow:0 40px 100px rgba(0,0,0,.6);animation:r .35s cubic-bezier(.2,.8,.2,1)}
-      .small .panel{width:380px;max-width:100%;border-top:3px solid ${accent};border-radius:16px;padding:18px 18px 14px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+      .small .panel{width:380px;max-width:100%;background:#0c0d10;border:1px solid ${accent}6b;border-radius:18px;padding:18px 18px 14px;box-shadow:0 20px 50px rgba(0,0,0,.5);
+        animation:isl .62s linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1) backwards}
       @keyframes r{from{transform:translateY(14px) scale(.98);opacity:0}to{transform:none;opacity:1}}
-      @media (prefers-reduced-motion: reduce){.wrap,.panel{animation:f .25s ease}}
+      /* A corner note opens the way the companion's corner pill and the Windows app's island do, out of a 34 px mask. */
+      @keyframes isl{from{clip-path:inset(calc(100% - 34px) 0 0 calc(100% - 34px) round 17px)}to{clip-path:inset(0 round 18px)}}
+      @media (prefers-reduced-motion: reduce){.wrap,.panel,.small .panel{animation:f .25s ease}}
       .ring{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;background:${accent}1f;box-shadow:inset 0 0 0 1px ${accent}66;color:${accent};margin-bottom:20px}
       .ring svg{width:38px;height:38px}
       h1{font-size:26px;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px;font-weight:700}

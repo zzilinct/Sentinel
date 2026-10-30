@@ -1147,6 +1147,60 @@ function setWalletGuard(enabled) {
 }
 
 /**
+ * The corner island's panel (overlay.html). Pausing is for one site, for an hour, and only held in memory, so nothing
+ * here writes a site's name to disk and a restart ends it. Only a site checked and found clean can be paused: a flagged
+ * page never, because "turn it off for this site" is exactly what a scammer on the phone would ask for. The parent lock
+ * covers it, as it covers switching live scanning off.
+ */
+const SITE_PAUSE_MS = 60 * 60 * 1000;
+const sitePauses = new Map();   // host: when the pause ends
+let islandHost = null;          // the site in front, never from a private window
+function sitePaused(host) {
+  const until = sitePauses.get(host);
+  if (!until) return false;
+  if (Date.now() < until) return true;
+  sitePauses.delete(host);
+  return false;
+}
+function resumeSite(host) {
+  sitePauses.delete(host);
+  if (host !== islandHost) return;
+  overlay.setPaused({ paused: false });
+  watch.pauseChanged();
+}
+function islandAction(action) {
+  if (action === 'open') { showWindow('/app/protection'); return; }
+  if (action === 'resume') { if (islandHost) resumeSite(islandHost); return; }
+  // The panel only offers this on a clean page; the panel's word is not taken for it.
+  const page = pageInFront;
+  if (action !== 'pause' || !page || !page.host || page.host !== islandHost || page.badge) return;
+  try { lock.guard(`live checks on ${page.host} off`, true); } catch { overlay.setPaused({ locked: true }); return; }
+  sitePauses.set(page.host, Date.now() + SITE_PAUSE_MS);
+  // The hour is up with the page still in front: the island must not go on saying "Paused".
+  setTimeout(() => { if (sitePauses.has(page.host) && !sitePaused(page.host)) resumeSite(page.host); }, SITE_PAUSE_MS + 1000).unref();
+  overlay.setMarks({ marks: [] });
+  overlay.setPaused({ paused: true });
+  watch.pauseChanged();
+}
+/**
+ * The island's shortcut: Win+Alt+I, held only while a browser is in front, so it takes no key from any other program
+ * or from a game. Without it the panel could not be reached from the keyboard at all: the overlay never has the focus.
+ */
+const ISLAND_KEY = 'Super+Alt+I';
+let islandKeyWanted = false;
+let islandKeyHeld = false;
+function syncIslandKey(want) {
+  if (want === islandKeyWanted) return;
+  islandKeyWanted = want;
+  if (islandKeyHeld) { globalShortcut.unregister(ISLAND_KEY); islandKeyHeld = false; }
+  if (want) {
+    try { islandKeyHeld = globalShortcut.register(ISLAND_KEY, () => overlay.keyboard(watch)); } catch { /* refused */ }
+    if (!islandKeyHeld) appLog(`corner island: the shortcut ${ISLAND_KEY} is taken by another program`);
+  }
+  overlay.setKeyHint(islandKeyHeld ? 'Win+Alt+I' : '');
+}
+
+/**
  * "Check something on screen" (snip.js): a shortcut, and a line in the tray. On unless turned off; the parent lock does
  * not cover it, because it only adds a check the person asks for. The shortcut is registered while it is on, so it
  * takes no key from other programs once it is off.
@@ -1734,6 +1788,7 @@ async function boot() {
   });
 
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) overlay.setDryRun((text) => appLog(`overlay (dry run): ${text}`));
+  overlay.init({ onAction: islandAction });
 
   // Chat safety (Roblox and the Discord app) and texts in Phone Link: each off until turned on in Live protection;
   // nothing about a chat or a text is logged.
@@ -1759,6 +1814,7 @@ async function boot() {
     onChange: (s) => { refreshTray(); push('sentinel:live', { ...s, enabled: store.get('liveScanning', false) }); },
     // The browser in front (or none): the overlay follows it, and leaves with it.
     onWindow: (rect) => {
+      syncIslandKey(Boolean(rect));
       overlay.setWindow(rect);
       if (rect) watch.keepAbove(overlay.handle());
       if (rect) offerEscape();
@@ -1778,6 +1834,8 @@ async function boot() {
     // A new page: last page's verdict and marks are gone; a search gets the gold line.
     onPage: (page) => {
       pageInFront = null;
+      islandHost = page && !page.private ? escapeKey(page) : null;
+      overlay.setPage(page ? { host: islandHost, private: page.private, search: page.search, paused: sitePaused(islandHost) } : null);
       overlay.setVerdict(null);
       overlay.setPay(null);
       overlay.setMarks({ marks: [] });
@@ -1795,7 +1853,7 @@ async function boot() {
       let host = null;
       try { host = v.page.private ? null : new URL(v.page.url).hostname; } catch { /* no address */ }
       if (!v.page.search) pageInFront = { host, badge: v.badge || null, at: Date.now() };
-      overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind });
+      overlay.setVerdict({ badge: v.badge, label: v.label, kind: v.kind, why: v.page.private ? '' : v.why });
       // A fake virus alert, or any page flagged orange or red: both moments of the shield start from here.
       if (v.support || v.badge === 'orange' || v.badge === 'red') {
         badPage = { key: escapeKey(v.page), browser: v.page.browser, support: Boolean(v.support) };
@@ -1804,6 +1862,10 @@ async function boot() {
         offerEscape();
       }
     },
+    // The scanner could not be asked: the island says so, rather than "Checking" for as long as the page stays.
+    onUnchecked: () => overlay.setVerdict({ badge: null, unchecked: true }),
+    // Paused from the island: nothing about that site is checked until the hour is up or the person asks.
+    paused: (host) => sitePaused(host),
     // Before you pay: a shop's checkout whose address is young or unknown (server/lib/scan/paycheck.js).
     onPay: (pay) => overlay.setPay(pay ? pay.text : null),
     onTyped: (t) => askTyped(t),

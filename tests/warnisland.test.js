@@ -59,7 +59,7 @@ test('the live-scan warning springs from the corner island, fits its words, and 
   assert.match(show, /fitToWords\(warnWin\)[\s\S]*warnWin\.showInactive\(\)/);
   assert.doesNotMatch(show, /setSize\(|\.show\(\)|\.focus\(\)/, 'no fixed size, never shown with the keyboard');
   // The island is 18 px in from the bottom right of the page area (overlay.html), and the card's corner is there.
-  assert.match(read('desktop/src/pages/overlay.html'), /\.corner \{ position: absolute; right: 18px; bottom: 18px; width: 46px; height: 46px;/);
+  assert.match(read('desktop/src/pages/overlay.html'), /\.corner \{ position: absolute; right: 18px; bottom: 18px;/);
   assert.match(main, /return \{ x: d\.x \+ d\.width - 18, y: d\.y \+ d\.height - 18 \};/);
   assert.match(main, /const x = corner \? corner\.x \+ CARD_PAD - width : b\.x;/);
   // Kept on its screen.
@@ -90,13 +90,17 @@ test('each warning page is drawn by the card, has no scrolling box of its own, a
   for (const name of ['warn', 'filescan']) assert.match(read(`desktop/src/pages/${name}.html`), /if \(ul\.children\.length\) li\.dataset\.trim = '';/);
   assert.match(read('desktop/src/pages/warn.html'), /<small id="browser" data-trim><\/small>/);
   assert.doesNotMatch(card, /overflow(-y)?: (auto|scroll)/);
+  assert.match(card, /grid-template-columns: minmax\(0, 1fr\)/, 'a long unbroken button must not widen the column past the card');
   assert.ok(!card.includes('\u2014'));
 });
 
 test('the card springs with the island\'s curve, once, and only fades for reduced motion', () => {
   const spring = (s) => s.match(/--spring: (linear\([^)]*\))/)[1];
   assert.equal(spring(card), spring(read('desktop/src/pages/overlay.html')), 'the island\'s own spring');
-  assert.match(card, /@keyframes card-open \{ from \{ clip-path: inset\(calc\(100% - 46px\) 0 0 calc\(100% - 46px\) round 12px\); \}/, 'out of the 46 px mask in its corner');
+  // Out of the island's mask at rest: the same size and roundness as the pill in overlay.html.
+  const pill = Number(read('desktop/src/pages/overlay.html').match(/var PILL = (\d+);/)[1]);
+  assert.equal(pill, 34);
+  assert.match(card, /@keyframes card-open \{ from \{ clip-path: inset\(calc\(100% - 34px\) 0 0 calc\(100% - 34px\) round 17px\); \}/, 'out of the 34 px mask in its corner');
   assert.match(card, /@media \(prefers-reduced-motion: reduce\) \{ body, \.mark, \.head > div, \.body, \.row \{ animation: card-fade \.2s ease both; \} \}/);
   assert.doesNotMatch(card, /infinite|transition:/);
 });

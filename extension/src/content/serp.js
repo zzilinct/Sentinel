@@ -232,19 +232,18 @@
         background:linear-gradient(180deg, transparent, rgba(212,174,99,.10));}
       .veil.on .line{animation:sweep 1.7s cubic-bezier(.45,.05,.35,1) infinite}
       @keyframes sweep{0%{transform:translateY(-4px);opacity:0}8%{opacity:1}92%{opacity:1}100%{transform:translateY(100vh);opacity:0}}
-      .chip{position:fixed;right:18px;bottom:18px;display:flex;align-items:center;gap:9px;padding:9px 13px 9px 10px;border-radius:10px;
-        background:rgba(18,19,22,.92);color:#ecebe7;font:500 12.5px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-        box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(212,174,99,.35);
-        opacity:0;transform:translateY(8px);transition:opacity .3s ease, transform .3s ease}
-      .chip.on{opacity:1;transform:none}
-      .chip svg{width:16px;height:16px;color:#d4ae63;flex:none}
-      .dot{width:7px;height:7px;border-radius:50%;background:#d4ae63;box-shadow:0 0 0 0 rgba(212,174,99,.6);animation:pulse 1.4s ease-out infinite}
-      .chip.done .dot{animation:none;background:#4cb782}
-      @keyframes pulse{70%{box-shadow:0 0 0 7px rgba(212,174,99,0)}100%{box-shadow:0 0 0 0 rgba(212,174,99,0)}}
-      @media (prefers-reduced-motion: reduce){.veil.on .line{animation:none;opacity:0}.dot{animation:none}.veil,.chip{transition:none}}
+      /* The same pill as the Windows app's corner island (desktop/src/pages/overlay.html): the mask on the right, the
+         words beside it, opening out of the mask with the island's spring. Clipped, so the words are never scaled. */
+      .chip{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:row-reverse;align-items:center;gap:5px;height:34px;box-sizing:border-box;padding:0 4px 0 13px;
+        background:#0c0d10;color:#e9e6df;font:500 12px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+        box-shadow:inset 0 0 0 1px #6f6243;
+        opacity:0;clip-path:inset(0 0 0 calc(100% - 34px) round 17px);transition:clip-path .34s cubic-bezier(.3,0,.2,1), opacity .2s ease .14s}
+      .chip.on{opacity:1;clip-path:inset(0 round 17px);transition:clip-path .5s linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1), opacity .12s ease}
+      .chip svg{width:24px;height:24px;color:#d6b25a;flex:none}
+      @media (prefers-reduced-motion: reduce){.veil.on .line{animation:none;opacity:0}.veil,.chip,.chip.on{transition:none}.chip{clip-path:none}}
     </style>
     <div class="veil" part="veil"><div class="tint"></div><div class="line"></div></div>
-    <div class="chip" role="status" aria-live="polite"><span class="dot"></span>${Masks.svg('logo')}<span class="txt">Sentinel is checking these results</span></div>`;
+    <div class="chip" role="status" aria-live="polite">${Masks.svg('logo')}<span class="txt">Sentinel is checking these results</span></div>`;
     (document.body || document.documentElement).appendChild(host);
     overlay = { host, veil: root.querySelector('.veil'), chip: root.querySelector('.chip'), txt: root.querySelector('.txt') };
     return overlay;

@@ -47,7 +47,7 @@
   button[disabled] { opacity: .6; cursor: default; }
   button.quiet { margin-right: auto; padding: 0 2px; border: 0; background: none; color: #8d8a82; text-decoration: underline; text-underline-offset: 3px; }
   button.link { height: auto; padding: 0; border: 0; background: none; border-radius: 4px; color: #e2c47f; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
-  /* Opening: the card grows out of the island's 46 px mask in its bottom right corner with the island's own spring,
+  /* Opening: the card grows out of the island's 34 px mask in its bottom right corner with the island's own spring,
      then the mask pops and the words settle. Once per opening (a new warning loads the page again); nothing loops. */
   body { animation: card-open .62s var(--spring) both; }
   .mark { animation: card-pop .6s var(--spring) .08s both; }
@@ -55,7 +55,7 @@
   .head > div { animation-delay: .12s; }
   .body { animation-delay: .17s; }
   .row { animation-delay: .22s; }
-  @keyframes card-open { from { clip-path: inset(calc(100% - 46px) 0 0 calc(100% - 46px) round 12px); } to { clip-path: inset(0 round 18px); } }
+  @keyframes card-open { from { clip-path: inset(calc(100% - 34px) 0 0 calc(100% - 34px) round 17px); } to { clip-path: inset(0 round 18px); } }
   @keyframes card-pop { from { opacity: 0; transform: scale(.55) rotate(-8deg); } }
   @keyframes card-rise { from { opacity: 0; transform: translateY(10px); } }
   @keyframes card-fade { from { opacity: 0; } }

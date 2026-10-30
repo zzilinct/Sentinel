@@ -481,6 +481,10 @@ while ($true) {
     }
     # The shield's way out of a full-screen page takes the keyboard from it (main.js showGuard).
     if ($cmd -match '^front (\d{1,20})$') { [SW]::Front([IntPtr][long]$Matches[1]) }
+    # The island's panel is done with the keyboard: to the browser, if the person has not gone somewhere else meanwhile.
+    if ($cmd -eq 'back' -and $overlayH -ne [IntPtr]::Zero -and $browserH -ne [IntPtr]::Zero -and [SW]::GetForegroundWindow() -eq $overlayH) { [SW]::Front($browserH) }
+    # A paused site is being checked again: read its links now, not at the next scroll.
+    if ($cmd -eq 'reread') { $lastLinks = ''; $forceRead = $true }
     # The person pressed "Get me out of this page": the browser window last watched is asked to close.
     if ($cmd -eq 'close') {
       $gone = [SW]::Close($browserH)
@@ -498,6 +502,8 @@ while ($true) {
   if ($flagH -ne [IntPtr]::Zero -and -not [SW]::IsWindow($flagH)) { $flagH = [IntPtr]::Zero; Write-Output '{"left":"closed"}' }
   # A menu or popup the browser opened is in front of the browser's own window, which is the one that holds the page.
   $h = [SW]::Owner([SW]::GetForegroundWindow())
+  # The island's panel has the keyboard (overlay.js keyboard): the browser under it is still the window in front.
+  if ($overlayH -ne [IntPtr]::Zero -and $h -eq $overlayH) { continue }
   # Development builds only (see start()): look at a named browser wherever it is, so the whole chain can be
   # exercised against a window nobody is looking at. In a released build this name is always empty.
   $testName = '__TEST_PROCESS__'
@@ -826,6 +832,9 @@ function front(handle) {
   if (/^\d{1,20}$/.test(String(handle || ''))) send(`front ${handle}`);
 }
 
+/** The island's panel has finished with the keyboard: the browser gets it back. */
+function backToBrowser() { send('back'); }
+
 /** The overlay's window handle (a decimal string): the reader keeps it directly above the browser, never above
  * everything, so the browser's menus and other programs' windows cover it the way they cover the browser. */
 function keepAbove(handle) {
@@ -1036,7 +1045,22 @@ function onLine(line) {
   // What a private window shows is never kept, not even in memory the app's window can read.
   state.current = page.private ? { browser: page.browser, url: null, private: true, at: page.at } : page;
   if (opts.onPage) opts.onPage(page);
+  if (sitePaused()) return;
   settleTimer = setTimeout(() => check(page).catch(() => {}), SETTLE_MS);
+}
+
+/** The person paused the site in front from the island (main.js): no check of it, its links or its messages. */
+function sitePaused() {
+  const u = state.current && state.current.url;
+  if (!u || !opts.paused) return false;
+  try { return opts.paused(new URL(u).hostname); } catch { return false; }
+}
+
+/** The site in front was paused just now, or is to be checked again: its marks go, or it is checked at once. */
+function pauseChanged() {
+  if (sitePaused()) { clearTimeout(settleTimer); latestLinks = null; return; }
+  if (state.current && state.current.url) check(state.current).catch(() => {});
+  send('reread');
 }
 
 async function check(page) {
@@ -1062,6 +1086,7 @@ async function check(page) {
     if (err.status === 401) stop('Sign in to start live scanning');
     else if (err.status === 403) stop('Live scanning is not part of this plan');
     else if (err.code === 'live_hours_exhausted') stop('Live hours for this week are used up');
+    if (opts.onUnchecked && state.current && state.current.at === page.at) opts.onUnchecked();
     return;
   }
   const badge = (verdict && verdict.overall && verdict.overall.badge) || null;
@@ -1069,7 +1094,8 @@ async function check(page) {
   const stillThere = Boolean(state.current) && state.current.at === page.at;
   // A fake virus alert (kinds.js "Tech support scam") of any colour: the tech-support scam shield watches for it.
   const support = Boolean(verdict && verdict.threats && verdict.threats.scam && verdict.threats.scam.kind === 'support');
-  if (opts.onVerdict && stillThere) opts.onVerdict({ page, badge, label, kind: worstKind(verdict), support });
+  const first = verdict && verdict.reasons && verdict.reasons[0];
+  if (opts.onVerdict && stillThere) opts.onVerdict({ page, badge, label, kind: worstKind(verdict), support, why: first && first.text ? String(first.text) : '' });
   // Before you pay: a shop's checkout whose address is young or unknown (the scanner decides). The log says that it
   // was shown, never where.
   if (answer.pay && stillThere) { log(`before you pay: shown (${answer.pay.young ? 'a young shop' : 'a shop of unknown age'})`); if (opts.onPay) opts.onPay(answer.pay); }
@@ -1326,6 +1352,7 @@ function publishMarks() {
 }
 
 async function onLinks(msg) {
+  if (sitePaused()) return;
   const page = state.window ? { private: Boolean(state.window.private) } : { private: false };
   if (seenResults.for !== msg.for) seenResults = { for: msg.for, map: new Map() };
   const links = resultLinks(Array.isArray(msg.links) ? msg.links : [], msg.for, seenResults.map);
@@ -1449,6 +1476,7 @@ function hoverLink(h, pageUrl) {
 }
 
 async function onHover(h) {
+  if (sitePaused()) return;
   const cur = state.current;
   if (!h) {
     if (latestLinks && latestLinks.hover) { latestLinks = { ...latestLinks, links: [], epoch: ++linkEpoch }; publishMarks(); }
@@ -1497,6 +1525,7 @@ function distinctRows(rows) {
 }
 
 async function onMail(msg) {
+  if (sitePaused()) return;
   const isPrivate = Boolean(state.window && state.window.private);
   const rows = distinctRows((Array.isArray(msg.mail) ? msg.mail : []).map((r) => ({ u: rowKey(r.t), x: r.x, y: r.y, w: r.w, h: r.h, text: r.t })));
   const fresh = !latestLinks || latestLinks.for !== msg.for;
@@ -1532,4 +1561,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, _test: { resultLinks, unwrapResult, hoverLink, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, payTitles, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, backToBrowser, pauseChanged, _test: { resultLinks, unwrapResult, hoverLink, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, payTitles, SCRIPT } };

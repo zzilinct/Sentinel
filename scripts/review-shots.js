@@ -486,6 +486,7 @@ async function main() {
     await weekCheck(send);
     await liveMarks(send);
     await desktopCards(send);
+    await desktopIsland(send);
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
     browser.kill();
@@ -975,6 +976,88 @@ async function desktopCards(send) {
     }
   }
   if (failed.length) throw new Error(`desktop warning cards that do not fit their words: ${failed.join('; ')}`);
+}
+
+/**
+ * The live-scanning corner island (desktop/src/pages/overlay.html, the real page, sent the app's own messages over a
+ * stand-in page): at rest and with its panel open, on a light and a dark page, at 100% and 200%. Each picture is
+ * desktop-island-<scale>-<page>-<state>.png, and desktop-island-sheet.png lays them all out. Fails when the panel does
+ * not fit the island's clip, or when anything is still animating at rest (a frame at rest is CPU over every page).
+ */
+async function desktopIsland(send) {
+  const file = `file:///${path.join(ROOT, 'desktop', 'src', 'pages', 'overlay.html').replace(/\\/g, '/')}`;
+  // desktop/shared is made at build time and not in the repository: the masks come from where it copies them from.
+  const stand = `window.__h = {}; window.sentinelOverlay = { on: (n, f) => { window.__h[n] = f; }, interact() {}, act() {} };\n${fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), 'utf8')}`;
+  const PAGES = {
+    light: { bg: '#ffffff', ink: '#202124', soft: '#e8eaed' },
+    dark: { bg: '#121317', ink: '#e8e6e3', soft: '#2a2c31' }
+  };
+  const result = (k, badge) => ({ x: 40, y: 30 + 30 * k.length, w: 200, h: 20, k, ...(badge === 'wait' ? { pending: true } : badge ? { badge, kind: 'scam', label: 'Phishing', reason: '' } : {}) });
+  // The same order of messages the app sends: a page, then its verdict, then its links.
+  const STATES = {
+    rest: [['overlay:page', { host: 'www.example.com' }], ['overlay:verdict', { badge: null, label: 'No issues found', why: '' }]],
+    open: [['overlay:page', { host: 'www.example.com' }], ['overlay:verdict', { badge: null, label: 'No issues found', why: '' }]],
+    'rest-links': [['overlay:page', { host: 'www.bing.com', search: true }], ['overlay:verdict', { badge: null, label: 'Search results' }],
+      ['overlay:marks', { epoch: 1, marks: [result('a', 'red'), result('bb', 'yellow'), result('ccc'), result('dddd'), result('eeeee')] }]],
+    'open-links': [['overlay:page', { host: 'www.bing.com', search: true }], ['overlay:verdict', { badge: null, label: 'Search results' }],
+      ['overlay:marks', { epoch: 1, marks: [result('a', 'red'), result('bb', 'yellow'), result('ccc'), result('dddd'), result('eeeee'), result('ffffff', 'wait')] }]],
+    'open-flagged': [['overlay:page', { host: 'paypal-account-verify-login.test' }],
+      ['overlay:verdict', { badge: 'red', kind: 'scam', label: 'Phishing', why: 'Pretends to be PayPal, and the address was registered four days ago, which real sign-in pages never are.' }]],
+    'open-paused': [['overlay:page', { host: 'www.example.com', paused: true }]]
+  };
+  const W = 640, H = 420;
+  const failed = [];
+  const cells = [];
+  for (const [scale, dpr] of [['100', 1], ['200', 2]]) {
+    for (const [pageName, page] of Object.entries(PAGES)) {
+      for (const [state, messages] of Object.entries(STATES)) {
+        const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+        const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+        const run = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId)).result.value;
+        await send('Page.enable', {}, sessionId);
+        await send('Page.addScriptToEvaluateOnNewDocument', { source: stand }, sessionId);
+        await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: dpr, mobile: false }, sessionId);
+        await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
+        await send('Page.navigate', { url: file }, sessionId);
+        await sleep(700);
+        // The stand-in page goes under the overlay, in the same window, as the browser is under it on screen.
+        await run(`(() => { const d = document.createElement('div'); d.style.cssText = 'position:absolute;inset:0;background:${page.bg};color:${page.ink};font:15px/1.6 system-ui,Segoe UI,sans-serif;padding:24px 28px';
+          d.innerHTML = '<div style="font-size:24px;font-weight:600;margin-bottom:10px">A page someone is reading</div>' + '<div style="height:12px;border-radius:6px;margin:12px 0;background:${page.soft}"></div>'.repeat(14);
+          document.body.insertBefore(d, document.body.firstChild); })()`);
+        await run(`window.__h['overlay:watching']({ private: false, fullscreen: false, key: 'Win+Alt+I' })`);
+        for (const [channel, payload] of messages) await run(`window.__h[${JSON.stringify(channel)}](${JSON.stringify(payload)})`);
+        if (state.startsWith('open')) await run('window.sentinelIsland.open()');
+        await sleep(state.startsWith('open') ? 900 : 4400);   // the spring, and at rest the mask's two breaths as well
+        const fit = await run(`(() => { const p = document.getElementById('panel').offsetHeight; const c = document.getElementById('corner'); return { panel: p, box: c.offsetHeight, open: c.classList.contains('is-open'), running: document.getAnimations().map((a) => a.animationName || a.transitionProperty || 'animation').join(','), words: document.getElementById('cornerLabel').innerText, text: document.getElementById('panel').innerText }; })()`);
+        const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+        const name = `desktop-island-${scale}-${pageName}-${state}.png`;
+        fs.writeFileSync(path.join(OUT, name), Buffer.from(shot.data, 'base64'));
+        cells.push({ name, data: shot.data, scale, pageName, state });
+        // Words in the pill and the state asked for: a page script that did not run must not pass as a quiet island.
+        const ok = fit.panel * 1.05 <= fit.box && !(state.startsWith('rest') && fit.running) && Boolean(fit.words) && fit.open === state.startsWith('open');
+        console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  panel ${fit.panel} px of ${fit.box}, running '${fit.running}', pill '${fit.words}'`);
+        if (!ok) failed.push(name);
+        await send('Target.closeTarget', { targetId });
+      }
+    }
+  }
+  // One sheet: a row per display scale and page, the states across, each at its real pixels' size in CSS pixels of 1x.
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  await send('Page.enable', {}, sessionId);
+  const stateNames = Object.keys(STATES);
+  const cw = 420, ch = Math.round(cw * H / W);
+  await send('Emulation.setDeviceMetricsOverride', { width: cw * stateNames.length + 24, height: (ch + 26) * 4 + 16, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await send('Runtime.evaluate', { expression: `document.body.style.cssText = 'margin:8px;background:#333;color:#eee;font:12px system-ui,sans-serif;display:grid;grid-template-columns:repeat(${stateNames.length},${cw}px)';
+    for (const c of ${JSON.stringify(cells.map(({ data, scale, pageName, state }) => ({ data, scale, pageName, state })))}) {
+      const d = document.createElement('div'); d.textContent = c.scale + '% ' + c.pageName + ' ' + c.state;
+      const i = new Image(); i.src = 'data:image/png;base64,' + c.data; i.style.cssText = 'display:block;width:${cw - 6}px;height:${ch}px'; d.appendChild(i); document.body.appendChild(d);
+    }
+    Promise.all([...document.images].map((i) => i.decode()))`, awaitPromise: true }, sessionId);
+  const sheet = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+  fs.writeFileSync(path.join(OUT, 'desktop-island-sheet.png'), Buffer.from(sheet.data, 'base64'));
+  await send('Target.closeTarget', { targetId });
+  if (failed.length) throw new Error(`the corner island: ${failed.join('; ')}`);
 }
 
 // Its browser and server helpers are shared with scripts/perf-probe.js.
