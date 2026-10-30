@@ -1,0 +1,7076 @@
+{
+ "0030414.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "1-apple.com.tw": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com",
+   "U24 Similar spelling to apple.com"
+  ]
+ },
+ "101blockchains.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "154653.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 A bare number on .xyz, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "37486193.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "400212103.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "45269108.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "60114972.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "7youtube.ru": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com",
+   "U24 Near-identical spelling of youtube.com"
+  ]
+ },
+ "87steam.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "889992883.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "889992948.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "889992959.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "889993024.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "889993169.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "889993209.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "889993350.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "889993520.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "889993633.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U45 The name is only a long number, the mark of domains registered in bulk",
+   "U10 .xyz has a very high share of scam registrations"
+  ]
+ },
+ "9to5google.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "aarpmedicareplans.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"medicare\" but is not medicare.gov"
+  ]
+ },
+ "absolute-playstation.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"playstation\" but is not playstation.com"
+  ]
+ },
+ "adidas-shoes.me.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas-trainersuk.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas-tt.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas-yeezy.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.ae": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.at": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.ca": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.cl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.co.id": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.co.kr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.co.nz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.co.za": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.com.hk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.com.my": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.com.ph": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.com.tr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.com.vn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.no": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.pl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.pt": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidas.se": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "adidasoutletstore.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com",
+   "U28 Address uses: outlet"
+  ]
+ },
+ "adidass.ca": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of adidas.com"
+  ]
+ },
+ "adidasyeezyonlinestore.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com",
+   "U25 Address uses: online",
+   "U37 \"adidas\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "adobe.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "adobe.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "adobe.design": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "adobe.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "adobe.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "adobe.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "adobe.ly": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "adobe.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "adobe.se": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "adobeshowcase.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ]
+ },
+ "alibaba-cave.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"alibaba\" but is not alibaba.com"
+  ]
+ },
+ "alibaba.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"alibaba\" but is not alibaba.com"
+  ]
+ },
+ "alibaba.ir": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"alibaba\" but is not alibaba.com"
+  ]
+ },
+ "aliexpress-media.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"aliexpress\" but is not aliexpress.com"
+  ]
+ },
+ "aliexpressofficial.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"aliexpress\" but is not aliexpress.com"
+  ]
+ },
+ "allfacebook.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "allfacebook.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "amazon-adsystem.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazon-press.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazon-slotss.com.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazon.at": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazon.com.sg": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazon.eu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazon.ie": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazon.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazonappstoredev.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazonaws-china.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazoncareerchoice.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazonlistingservice.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazonsellerservices.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazonservices.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazonslots-it.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazonteam.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "amazonwebservices.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "americanexpress.ch": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"americanexpress\" but is not americanexpress.com"
+  ]
+ },
+ "amex.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amex\" but is not americanexpress.com"
+  ]
+ },
+ "amexgiftcard.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amex\" but is not americanexpress.com",
+   "U26 Address uses: giftcard"
+  ]
+ },
+ "amexmail.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amex\" but is not americanexpress.com"
+  ]
+ },
+ "anthropics.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"anthropic\" but is not anthropic.com",
+   "U24 Near-identical spelling of anthropic.com"
+  ]
+ },
+ "appbitly.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"bitly\" but is not bitly.com"
+  ]
+ },
+ "apple-expo.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple-iphone.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple-ks.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple-market.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple-wxsh.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple.pro": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple110.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple1registry.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "apple2history.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "applebank.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com",
+   "U25 Address uses: bank",
+   "U37 \"apple\" combined with \"bank\": a classic combosquatting pattern"
+  ]
+ },
+ "applebitcoin.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com",
+   "U27 Address uses: bitcoin"
+  ]
+ },
+ "applegaterecovery.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com",
+   "U25 Address uses: recovery",
+   "U37 \"apple\" combined with \"recovery\": a classic combosquatting pattern"
+  ]
+ },
+ "applegreenstores.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "applemediaservices.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "applenet.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "appleseeds.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "applewoodseed.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "aramex.co.za": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"aramex\" but is not aramex.com"
+  ]
+ },
+ "aramex.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"aramex\" but is not aramex.com"
+  ]
+ },
+ "argoblockchain.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "arthromedix.online": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U48 \"arthromedix\" is a string of letters rather than a name, on an ending sold in bulk",
+   "U10 .online has a very high share of scam registrations",
+   "U25 Address uses: online"
+  ]
+ },
+ "arznei-telegramm.de": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "aspwcdpij.cc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U48 \"aspwcdpij\" is a string of letters rather than a name, on an ending sold in bulk",
+   "U10 .cc has a very high share of scam registrations"
+  ]
+ },
+ "assoc-amazon.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "aussie-nintendo.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "authenticatorsteam.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "autoscout24.eu": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of autoscout24.com"
+  ]
+ },
+ "ayto-santander.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "barclay.ru": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of barclays.co.uk"
+  ]
+ },
+ "barclaysatpworldtourfinals.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U05 26-character name",
+   "U22 Uses \"barclays\" but is not barclays.co.uk"
+  ]
+ },
+ "barclaysimpson.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"barclays\" but is not barclays.co.uk"
+  ]
+ },
+ "barclaysus.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"barclays\" but is not barclays.co.uk",
+   "U24 Near-identical spelling of barclays.co.uk"
+  ]
+ },
+ "battlenet.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"battlenet\" but is not battle.net"
+  ]
+ },
+ "bestbuy-jobs.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"bestbuy\" but is not bestbuy.com"
+  ]
+ },
+ "bestbuy001.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"bestbuy\" but is not bestbuy.com"
+  ]
+ },
+ "binance.bh": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"binance\" but is not binance.com"
+  ]
+ },
+ "binance.info": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"binance\" but is not binance.com"
+  ]
+ },
+ "binance.je": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"binance\" but is not binance.com"
+  ]
+ },
+ "binance.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"binance\" but is not binance.com"
+  ]
+ },
+ "binance.th": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"binance\" but is not binance.com"
+  ]
+ },
+ "binance.vision": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"binance\" but is not binance.com"
+  ]
+ },
+ "bitcoinchaser.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"chase\" but is not chase.com",
+   "U27 Address uses: bitcoin"
+  ]
+ },
+ "bitcoinrevolution.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"revolut\" but is not revolut.com",
+   "U27 Address uses: bitcoin"
+  ]
+ },
+ "bitly.com.vn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"bitly\" but is not bitly.com"
+  ]
+ },
+ "bitly.cx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"bitly\" but is not bitly.com"
+  ]
+ },
+ "bitly.li": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"bitly\" but is not bitly.com"
+  ]
+ },
+ "bitly.onl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"bitly\" but is not bitly.com"
+  ]
+ },
+ "bitly.su": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .su has a very high share of scam registrations",
+   "U22 Uses \"bitly\" but is not bitly.com"
+  ]
+ },
+ "bitly.ws": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U18 Shortened link: the destination is hidden until you click",
+   "U22 Uses \"bitly\" but is not bitly.com"
+  ]
+ },
+ "blockchain-ads.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchain-development-company.site": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U05 30-character name",
+   "U06 Two hyphens in the domain name",
+   "U10 .site has a very high share of scam registrations",
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchain-development-company.xyz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U05 30-character name",
+   "U06 Two hyphens in the domain name",
+   "U10 .xyz has a very high share of scam registrations",
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchain-expo.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchain-life.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchain.capital": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchain.news": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchainafrica.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchainappsdeveloper.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchaindev.my": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchainedu.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchainfrance.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchainfx.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com",
+   "U24 Near-identical spelling of blockchain.com"
+  ]
+ },
+ "blockchainhub.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchainrio.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "blockchaintechnology-news.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "bsvblockchain.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "buildingtalk.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"dingtalk\" but is not dingtalk.com"
+  ]
+ },
+ "buy-tiktok-ad-account.org": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"tiktok\" but is not tiktok.com",
+   "U25 Address uses: account",
+   "U37 \"tiktok\" combined with \"account\": a classic combosquatting pattern"
+  ]
+ },
+ "buy-tiktok-ads-accounts.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"tiktok\" but is not tiktok.com"
+  ]
+ },
+ "buy-tiktok-ads.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"tiktok\" but is not tiktok.com"
+  ]
+ },
+ "buy-tiktok-business-account.org": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U05 27-character name",
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"tiktok\" but is not tiktok.com",
+   "U25 Address uses: account",
+   "U37 \"tiktok\" combined with \"account\": a classic combosquatting pattern"
+  ]
+ },
+ "bybit.eu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"bybit\" but is not bybit.com"
+  ]
+ },
+ "bybit.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"bybit\" but is not bybit.com"
+  ]
+ },
+ "candy-apple.shop": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .shop has a very high share of scam registrations",
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "capitalonecareers.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"capitalone\" but is not capitalone.com"
+  ]
+ },
+ "capitaloneshopping.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"capitalone\" but is not capitalone.com"
+  ]
+ },
+ "careerwise.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "cdn-apple.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "cgsmedicare.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"medicare\" but is not medicare.gov"
+  ]
+ },
+ "chase.be": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"chase\" but is not chase.com"
+  ]
+ },
+ "chasepaymentech.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"chase\" but is not chase.com"
+  ]
+ },
+ "chat-s-psikhologom-v-telegramme.ru": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U05 31-character name",
+   "U06 4 hyphens in the domain name",
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 \"telegramme\" is spelled like telegram.org, but is an ordinary word"
+  ]
+ },
+ "chatgpt-pharmacy.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"openai\" but is not openai.com"
+  ]
+ },
+ "chatgpt-sidebar.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"openai\" but is not openai.com"
+  ]
+ },
+ "chatgpt.site": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U48 \"chatgpt\" is a string of letters rather than a name, on an ending sold in bulk",
+   "U10 .site has a very high share of scam registrations",
+   "U22 Uses \"chatgpt\" but is not chatgpt.com"
+  ]
+ },
+ "chatgpt4google.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "chatgpt4youtube.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "chatgpt918.top": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U10 .top has a very high share of scam registrations",
+   "U22 Uses \"chatgpt\" but is not chatgpt.com"
+  ]
+ },
+ "chatgptunlimited.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"chatgpt\" but is not chatgpt.com"
+  ]
+ },
+ "china-office-solutions.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "cialis20walmart.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"walmart\" but is not walmart.com"
+  ]
+ },
+ "citibank.co.id": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.co.in": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.co.kr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.com.hk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.com.ph": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.com.tr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "citibank.pl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"citibank\" but is not citi.com"
+  ]
+ },
+ "cloudflare-cn.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cloudflare\" but is not cloudflare.com",
+   "U24 Near-identical spelling of cloudflare.com"
+  ]
+ },
+ "cloudflare-dns.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cloudflare\" but is not cloudflare.com"
+  ]
+ },
+ "cloudflare.app": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cloudflare\" but is not cloudflare.com"
+  ]
+ },
+ "cloudflare.bz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cloudflare\" but is not cloudflare.com"
+  ]
+ },
+ "cloudflare.pay": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cloudflare\" but is not cloudflare.com"
+  ]
+ },
+ "cloudflare.tv": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cloudflare\" but is not cloudflare.com"
+  ]
+ },
+ "cloudflare.vc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cloudflare\" but is not cloudflare.com"
+  ]
+ },
+ "cloudflareapps.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cloudflare\" but is not cloudflare.com"
+  ]
+ },
+ "columbustelegram.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "complexedesjardins.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"desjardins\" but is not desjardins.com"
+  ]
+ },
+ "correoargentino.com.ar": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of correos.es"
+  ]
+ },
+ "correos.cl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"correos\" but is not correos.es"
+  ]
+ },
+ "costco.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"costco\" but is not costco.com"
+  ]
+ },
+ "costco.co.kr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"costco\" but is not costco.com"
+  ]
+ },
+ "costco.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"costco\" but is not costco.com"
+  ]
+ },
+ "costco.com.mx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"costco\" but is not costco.com"
+  ]
+ },
+ "costco.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"costco\" but is not costco.com"
+  ]
+ },
+ "costco97.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"costco\" but is not costco.com"
+  ]
+ },
+ "dcblockchainsummit.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "deepseek-cst.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"deepseek\" but is not deepseek.com"
+  ]
+ },
+ "deepseek.ai": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"deepseek\" but is not deepseek.com"
+  ]
+ },
+ "deletedbyfacebook.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "designinginteractions.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"interac\" but is not interac.ca",
+   "U25 Address uses: signin",
+   "U37 \"interac\" combined with \"signin\": a classic combosquatting pattern"
+  ]
+ },
+ "desjardinsassurancevie.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"desjardins\" but is not desjardins.com"
+  ]
+ },
+ "dingtalk.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"dingtalk\" but is not dingtalk.com"
+  ]
+ },
+ "dischord.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of discord.com"
+  ]
+ },
+ "discord-accounts.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"discord\" but is not discord.com"
+  ]
+ },
+ "discord-autisme.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"discord\" but is not discord.com"
+  ]
+ },
+ "discord.me": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"discord\" but is not discord.com"
+  ]
+ },
+ "discord.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"discord\" but is not discord.com"
+  ]
+ },
+ "disney-studio.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.com.tw": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.dk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.in": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney.pl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disney100exhibit.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disneycareers.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disneygiftcard.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com",
+   "U26 Address uses: giftcard"
+  ]
+ },
+ "disneylandparis-news.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disneynow.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disneystore.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disneystore.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disneystore.eu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disneystore.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "disneystore.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "dmgblockchain.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U11 Random-looking name typical of generated malware domains",
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "docomo-rugby.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"docomo\" but is not docomo.ne.jp"
+  ]
+ },
+ "docusign.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"docusign\" but is not docusign.com"
+  ]
+ },
+ "docusign.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"docusign\" but is not docusign.com"
+  ]
+ },
+ "douyin1-tuogu.cn": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"douyin\" but is not douyin.com",
+   "U24 Similar spelling to douyin.com"
+  ]
+ },
+ "douyin1.cc": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U10 .cc has a very high share of scam registrations",
+   "U22 Uses \"douyin\" but is not douyin.com",
+   "U24 Similar spelling to douyin.com"
+  ]
+ },
+ "douyin10-tuogu.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"douyin\" but is not douyin.com"
+  ]
+ },
+ "douyin11-tuogu.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"douyin\" but is not douyin.com"
+  ]
+ },
+ "douyin12-tuogu.cn": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"douyin\" but is not douyin.com",
+   "U24 Similar spelling to douyin.com"
+  ]
+ },
+ "douyin3-tuogu.cn": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"douyin\" but is not douyin.com",
+   "U24 Similar spelling to douyin.com"
+  ]
+ },
+ "douyin7-tuogu.cn": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"douyin\" but is not douyin.com",
+   "U24 Similar spelling to douyin.com"
+  ]
+ },
+ "douyinid.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"douyin\" but is not douyin.com"
+  ]
+ },
+ "doznksbw.cc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U48 \"doznksbw\" is a string of letters rather than a name, on an ending sold in bulk",
+   "U10 .cc has a very high share of scam registrations"
+  ]
+ },
+ "dropbox.design": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"dropbox\" but is not dropbox.com"
+  ]
+ },
+ "dropbox.jobs": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"dropbox\" but is not dropbox.com"
+  ]
+ },
+ "dropbox.tech": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"dropbox\" but is not dropbox.com"
+  ]
+ },
+ "dutchblockchainweek.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U11 Random-looking name typical of generated malware domains",
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "ebay-forum.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ebay\" but is not ebay.com"
+  ]
+ },
+ "ebay.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ebay\" but is not ebay.com"
+  ]
+ },
+ "ebay.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ebay\" but is not ebay.com"
+  ]
+ },
+ "ebay.in": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ebay\" but is not ebay.com"
+  ]
+ },
+ "ebay.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ebay\" but is not ebay.com"
+  ]
+ },
+ "ebay.to": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ebay\" but is not ebay.com"
+  ]
+ },
+ "ebayinc.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ebay\" but is not ebay.com"
+  ]
+ },
+ "ebaystores.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ebay\" but is not ebay.com"
+  ]
+ },
+ "ebaystores.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ebay\" but is not ebay.com"
+  ]
+ },
+ "ehealthmedicare.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"medicare\" but is not medicare.gov"
+  ]
+ },
+ "einteractivemedia.net": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of interac.ca"
+  ]
+ },
+ "embed-googlemap.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U49 \"google\" glued to \"map\": the name is borrowed; the real site is google.com"
+  ]
+ },
+ "epfacebook.eu": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com",
+   "U24 Near-identical spelling of facebook.com"
+  ]
+ },
+ "escenariosantander.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "etinyurl.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of tinyurl.com"
+  ]
+ },
+ "eublockchainforum.eu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "europe-v-facebook.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "exodus.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"exodus\" but is not exodus.com"
+  ]
+ },
+ "exodus.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"exodus\" but is not exodus.com"
+  ]
+ },
+ "expert-zoom.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "facebook-mypage.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.be": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.cz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.design": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.dk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.hu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebook.se": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "facebooks.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com",
+   "U24 \"facebooks\" is spelled like facebook.com, but is an ordinary word"
+  ]
+ },
+ "fafner-exodus.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"exodus\" but is not exodus.com"
+  ]
+ },
+ "faq-telegram.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "farolsantander.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "fedexcares.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"fedex\" but is not fedex.com"
+  ]
+ },
+ "finance-investissement.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of binance.com"
+  ]
+ },
+ "fintelegram.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "freelinkedinmarketingtraining.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U05 29-character name",
+   "U22 Uses \"linkedin\" but is not linkedin.com"
+  ]
+ },
+ "freewechat.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wechat\" but is not wechat.com",
+   "U26 Address uses: free"
+  ]
+ },
+ "fusionzonedrive.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"onedrive\" but is not onedrive.com"
+  ]
+ },
+ "futureblockchainsummit.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "gctelegram.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "globalblockchainshow.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "gmail-backup.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"gmail\" but is not gmail.com"
+  ]
+ },
+ "gonintendo.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com",
+   "U24 Near-identical spelling of nintendo.com"
+  ]
+ },
+ "goodbye-microsoft.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "google-fax.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google-info.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google-melange.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google-plus.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google-sitemaps.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google-watch.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ac": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ad": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ai": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.al": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.as": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.az": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ba": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.bj": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.bs": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.bt": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.by": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.cc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .cc has a very high share of scam registrations",
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.cd": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.cf": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .cf has a very high share of scam registrations",
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.cg": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ci": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.ao": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.ck": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.hu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.im": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.je": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.ke": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.ma": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.mz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.tz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.ug": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.ve": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.zm": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.co.zw": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.af": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.ai": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.bo": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.by": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.bz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.cu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.ec": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.fj": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.gt": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.jm": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.kh": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.lb": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.lc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.mm": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.na": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.nf": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.ni": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.om": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.pa": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.pe": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.pg": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.pl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.pr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.py": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.sb": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.sl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.sv": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.tj": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.tn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.uy": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.com.vc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.cv": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.dev": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.dm": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.dz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ee": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ga": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .ga has a very high share of scam registrations",
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ge": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.gf": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.gl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.gp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.gy": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.hk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.hr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com",
+   "U25 Address uses: hr",
+   "U37 \"google\" combined with \"hr\": a classic combosquatting pattern"
+  ]
+ },
+ "google.ht": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.in": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.info": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.iq": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.is": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.jo": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.kg": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.kz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.la": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.lt": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.lu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.mg": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ml": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .ml has a very high share of scam registrations",
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.mn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.mv": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.mw": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ne": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ng": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.nr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.org.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.pk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.ps": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.rs": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.rw": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.sh": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.si": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.sk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.sm": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.sn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.sr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.st": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.td": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.tk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .tk has a very high share of scam registrations",
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.tl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "google.uz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "googleadservices.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "googlefaxonline.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com",
+   "U25 Address uses: online",
+   "U37 \"google\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "googlelunarxprize.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com",
+   "U26 Address uses: prize"
+  ]
+ },
+ "googlemerchandisestore.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "googleonlinesecurity.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com",
+   "U25 Address uses: security, online",
+   "U37 \"google\" combined with \"security\": a classic combosquatting pattern"
+  ]
+ },
+ "googlestore.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "googlesuccesonline.dk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com",
+   "U25 Address uses: online",
+   "U37 \"google\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "grand-steam-show.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "grennid-naver.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"naver\" but is not naver.com"
+  ]
+ },
+ "gruposantander.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "h2interactive.co.kr": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U24 Near-identical spelling of interac.ca"
+  ]
+ },
+ "hbomax.tv": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hbomax\" but is not hbomax.com"
+  ]
+ },
+ "hi-telegram.org": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "how2youtube.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "howto-outlook.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "hsbc.ae": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.bm": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.co.id": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.ar": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.bd": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.eg": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.mt": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.mx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.my": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.ph": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.sg": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.tw": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.com.vn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbc.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbcnet.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hsbcprivatebank.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U11 Random-looking name typical of generated malware domains",
+   "U22 Uses \"hsbc\" but is not hsbc.com"
+  ]
+ },
+ "hulu.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"hulu\" but is not hulu.com"
+  ]
+ },
+ "hulu888.vip": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .vip has a very high share of scam registrations",
+   "U22 Uses \"hulu\" but is not hulu.com"
+  ]
+ },
+ "icloud-org.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"icloud\" but is not icloud.com"
+  ]
+ },
+ "icloud.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"icloud\" but is not icloud.com"
+  ]
+ },
+ "ifoapplestore.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "images-amazon.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "imobile.com.cn": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of t-mobile.com"
+  ]
+ },
+ "instagram-engineering.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"instagram\" but is not instagram.com"
+  ]
+ },
+ "instagram-press.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"instagram\" but is not instagram.com"
+  ]
+ },
+ "instagram.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"instagram\" but is not instagram.com"
+  ]
+ },
+ "instagram.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"instagram\" but is not instagram.com"
+  ]
+ },
+ "instagram.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"instagram\" but is not instagram.com"
+  ]
+ },
+ "instagram.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"instagram\" but is not instagram.com"
+  ]
+ },
+ "instagrammernews.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"instagram\" but is not instagram.com"
+  ]
+ },
+ "instegram.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of instagram.com"
+  ]
+ },
+ "interac-casinos.co.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"interac\" but is not interac.ca"
+  ]
+ },
+ "intuit-payroll.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"intuit\" but is not intuit.com",
+   "U25 Address uses: payroll",
+   "U37 \"intuit\" combined with \"payroll\": a classic combosquatting pattern"
+  ]
+ },
+ "intuit.ca": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"intuit\" but is not intuit.com"
+  ]
+ },
+ "intuit.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"intuit\" but is not intuit.com"
+  ]
+ },
+ "intuit.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"intuit\" but is not intuit.com"
+  ]
+ },
+ "intuitiveaccountant.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"intuit\" but is not intuit.com",
+   "U25 Address uses: account",
+   "U37 \"intuit\" combined with \"account\": a classic combosquatting pattern"
+  ]
+ },
+ "investinblockchain.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "irmicrosoftstore.ir": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "istanbulblockchainweek.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "it-zoom.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "japanesenintendo.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "kakaopay.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kakao\" but is not kakao.com"
+  ]
+ },
+ "koreablockchainweek.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "kraken-11at.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken-darknet-ssylka.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken-in-dark.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken-kra1.cc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U10 .cc has a very high share of scam registrations",
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken-link2025.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken-mirror.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken-shop-darknet.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken-shop24.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken-zone.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken.tech": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken10vk6.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken14.biz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken14.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken15.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken18c.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "kraken2026.cc": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U10 .cc has a very high share of scam registrations",
+   "U22 Uses \"kraken\" but is not kraken.com",
+   "U24 Similar spelling to kraken.com"
+  ]
+ },
+ "kraken30.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"kraken\" but is not kraken.com"
+  ]
+ },
+ "laboratoire-microsoft.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "learn-zoom.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "ledger.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ledger\" but is not ledger.com",
+   "U27 Address uses: ledger"
+  ]
+ },
+ "letelegramme.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "letelegramme.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "linkedin.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"linkedin\" but is not linkedin.com"
+  ]
+ },
+ "linkedin.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"linkedin\" but is not linkedin.com"
+  ]
+ },
+ "linkedin.in": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"linkedin\" but is not linkedin.com"
+  ]
+ },
+ "linkedin.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"linkedin\" but is not linkedin.com"
+  ]
+ },
+ "lloydsbank.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"lloyds\" but is not lloydsbank.com",
+   "U25 Address uses: bank",
+   "U37 \"lloyds\" combined with \"bank\": a classic combosquatting pattern"
+  ]
+ },
+ "lloydsbankfoundation.org.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"lloyds\" but is not lloydsbank.com"
+  ]
+ },
+ "lloydsonline.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"lloyds\" but is not lloydsbank.com",
+   "U25 Address uses: online",
+   "U37 \"lloyds\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "lunette-rayban-pas-cher.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"rayban\" but is not ray-ban.com"
+  ]
+ },
+ "lx-exodus.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"exodus\" but is not exodus.com"
+  ]
+ },
+ "maltablockchainsummit.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "manga-online-free.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U43 Built from bait words: online, free",
+   "U06 Two hyphens in the domain name",
+   "U25 Address uses: online",
+   "U26 Address uses: free"
+  ]
+ },
+ "mastercard.at": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.ba": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.co.in": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.com.mx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.hr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com",
+   "U25 Address uses: hr",
+   "U37 \"mastercard\" combined with \"hr\": a classic combosquatting pattern"
+  ]
+ },
+ "mastercard.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercard.ua": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercardfdn.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercardservices.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mastercardwetten-de.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mastercard\" but is not mastercard.com"
+  ]
+ },
+ "mcafee-activation.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mcafee\" but is not mcafee.com"
+  ]
+ },
+ "mcafeehelp.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mcafee\" but is not mcafee.com"
+  ]
+ },
+ "mcafeesecure.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mcafee\" but is not mcafee.com",
+   "U25 Address uses: secure",
+   "U37 \"mcafee\" combined with \"secure\": a classic combosquatting pattern"
+  ]
+ },
+ "mcafeesecurity.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mcafee\" but is not mcafee.com",
+   "U25 Address uses: security",
+   "U37 \"mcafee\" combined with \"security\": a classic combosquatting pattern"
+  ]
+ },
+ "medicare-on-demand.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"medicare\" but is not medicare.gov",
+   "U33 Uses government wording (medicare) on a non-government domain"
+  ]
+ },
+ "medicare.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"medicare\" but is not medicare.gov",
+   "U33 Uses government wording (medicare) on a non-government domain"
+  ]
+ },
+ "medicare.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"medicare\" but is not medicare.gov",
+   "U33 Uses government wording (medicare) on a non-government domain"
+  ]
+ },
+ "medicare.pt": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"medicare\" but is not medicare.gov",
+   "U33 Uses government wording (medicare) on a non-government domain"
+  ]
+ },
+ "medicare4all.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"medicare\" but is not medicare.gov",
+   "U33 Uses government wording (medicare) on a non-government domain"
+  ]
+ },
+ "medicarefaq.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"medicare\" but is not medicare.gov"
+  ]
+ },
+ "medicareinteractive.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"interac\" but is not interac.ca",
+   "U33 Uses government wording (medicare) on a non-government domain"
+  ]
+ },
+ "medscape.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of medicare.gov"
+  ]
+ },
+ "medscape.org": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of medicare.gov"
+  ]
+ },
+ "mercadopago.cl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mercadopago\" but is not mercadopago.com"
+  ]
+ },
+ "mercadopago.com.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mercadopago\" but is not mercadopago.com"
+  ]
+ },
+ "mercadopago.com.uy": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mercadopago\" but is not mercadopago.com"
+  ]
+ },
+ "mercari-shops.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"mercari\" but is not mercari.com"
+  ]
+ },
+ "messenger-telegram.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "microsoft-careers.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoft-watch.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoft.co.il": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoft.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoft.cz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoft.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoft.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoft.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoft.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoft.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoftcrmportals.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com",
+   "U25 Address uses: portal",
+   "U37 \"microsoft\" combined with \"portal\": a classic combosquatting pattern"
+  ]
+ },
+ "microsoftelearning.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoftemail.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsofters.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoftonline.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com",
+   "U25 Address uses: online",
+   "U37 \"microsoft\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "microsoftontheissues.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoftpdc.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoftpressstore.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoftrnd.co.il": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com",
+   "U24 Near-identical spelling of microsoft.com"
+  ]
+ },
+ "microsoftstore.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "microsoftstore.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "monzo-slots.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"monzo\" but is not monzo.com"
+  ]
+ },
+ "monzo.me": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"monzo\" but is not monzo.com"
+  ]
+ },
+ "myapple.pl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "mymalonetelegram.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "mymedicare.gov": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of medicare.gov"
+  ]
+ },
+ "mynintendonews.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "myworkdaysite.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"workday\" but is not workday.com"
+  ]
+ },
+ "nakrutka-podpischikov-telegram-1.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U05 32-character name",
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "natwest.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"natwest\" but is not natwest.com"
+  ]
+ },
+ "naver.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"naver\" but is not naver.com"
+  ]
+ },
+ "naver.me": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"naver\" but is not naver.com"
+  ]
+ },
+ "netease-na.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"netease\" but is not netease.com"
+  ]
+ },
+ "netflix-nederland.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"netflix\" but is not netflix.com"
+  ]
+ },
+ "netflix.ca": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"netflix\" but is not netflix.com"
+  ]
+ },
+ "netflix.shop": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .shop has a very high share of scam registrations",
+   "U22 Uses \"netflix\" but is not netflix.com"
+  ]
+ },
+ "netflixprize.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"netflix\" but is not netflix.com",
+   "U26 Address uses: prize"
+  ]
+ },
+ "netledger.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ledger\" but is not ledger.com",
+   "U27 Address uses: ledger"
+  ]
+ },
+ "newledger.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ledger\" but is not ledger.com",
+   "U27 Address uses: ledger"
+  ]
+ },
+ "news-apple.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "nike--shoes.ca": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-airmax-pas-cher.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-airmax.me.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-airmax.org.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-airmax2015.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-airmax90.me.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-airmax97.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-airmax98.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-blazerlow.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-freerun.org.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-jordans.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-mercurial.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com",
+   "U24 \"mercurial\" is spelled like mercari.com, but is an ordinary word"
+  ]
+ },
+ "nike-outletonline.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com",
+   "U25 Address uses: online",
+   "U28 Address uses: outlet",
+   "U37 \"nike\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "nike-outlets.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-outlets.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-rosherun.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-runningshoes.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike-shoes.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike.ae": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike.com.hk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nike.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nikeair-max.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nikeair-max.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nikefree-5.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com",
+   "U26 Address uses: free"
+  ]
+ },
+ "nikefree5.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"nike\" but is not nike.com",
+   "U26 Address uses: free"
+  ]
+ },
+ "nikefreerun.name": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nikeinc.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nikeshoestore.shop": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .shop has a very high share of scam registrations",
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nikestoreuk.me.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "nintendo-connect.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo-europe.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo-master.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo-online.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com",
+   "U25 Address uses: online",
+   "U37 \"nintendo\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "nintendo-town.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.be": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.ch": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.co.kr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.co.za": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.com.hk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.se": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo.tw": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendo8.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"nintendo\" but is not nintendo.com",
+   "U24 Near-identical spelling of nintendo.com"
+  ]
+ },
+ "nintendojo.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com",
+   "U24 Near-identical spelling of nintendo.com"
+  ]
+ },
+ "nintendowifi.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nintendowiifanboy.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "nordpass.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nordpass\" but is not nordpass.com"
+  ]
+ },
+ "nortedesantander.gov.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "norton-review.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"norton\" but is not norton.com"
+  ]
+ },
+ "norton.com.ar": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"norton\" but is not norton.com"
+  ]
+ },
+ "norton.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"norton\" but is not norton.com"
+  ]
+ },
+ "nortonhealthcare.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"norton\" but is not norton.com"
+  ]
+ },
+ "novazonedrive.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"onedrive\" but is not onedrive.com"
+  ]
+ },
+ "oakley-sunglasses.net.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"oakley\" but is not oakley.com"
+  ]
+ },
+ "oakleysunglasses-outletcheap.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U05 28-character name",
+   "U22 Uses \"oakley\" but is not oakley.com",
+   "U28 Address uses: outlet, cheap"
+  ]
+ },
+ "observatorioblockchain.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "occhiali-oakley.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"oakley\" but is not oakley.com"
+  ]
+ },
+ "officialnintendomagazine.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "officialplaystationmagazine.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U05 27-character name",
+   "U22 Uses \"playstation\" but is not playstation.com"
+  ]
+ },
+ "oiseauxdesjardins.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"desjardins\" but is not desjardins.com"
+  ]
+ },
+ "online-casino-paypal-de.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"paypal\" but is not paypal.com",
+   "U25 Address uses: online",
+   "U37 \"paypal\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "open-douyin.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"douyin\" but is not douyin.com"
+  ]
+ },
+ "openai.fund": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"openai\" but is not openai.com"
+  ]
+ },
+ "openseamap.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U49 \"opensea\" glued to \"map\": the name is borrowed; the real site is opensea.io"
+  ]
+ },
+ "outlookfreeware.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"outlook\" but is not outlook.com"
+  ]
+ },
+ "p-google.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com",
+   "U24 Similar spelling to google.com"
+  ]
+ },
+ "p-nintendo.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com",
+   "U24 Near-identical spelling of nintendo.com"
+  ]
+ },
+ "parisblockchainweek.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "partisiablockchain.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "paypal-corp.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"paypal\" but is not paypal.com"
+  ]
+ },
+ "paypal-deutschland.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"paypal\" but is not paypal.com"
+  ]
+ },
+ "paypal-engineering.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"paypal\" but is not paypal.com"
+  ]
+ },
+ "paypal-status.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"paypal\" but is not paypal.com"
+  ]
+ },
+ "paypal.biz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"paypal\" but is not paypal.com"
+  ]
+ },
+ "pc-dingtalk.com.cn": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"dingtalk\" but is not dingtalk.com",
+   "U24 Near-identical spelling of dingtalk.com"
+  ]
+ },
+ "perfectly-nintendo.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "phantom-film.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"phantom\" but is not phantom.app",
+   "U27 Address uses: phantom"
+  ]
+ },
+ "phantom-wallet.at": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"phantom\" but is not phantom.app",
+   "U27 Address uses: wallet, phantom"
+  ]
+ },
+ "phantom-wallet.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"phantom\" but is not phantom.app",
+   "U27 Address uses: wallet, phantom"
+  ]
+ },
+ "play-jonny-casinobonuslogin.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U05 27-character name",
+   "U06 Two hyphens in the domain name",
+   "U25 Address uses: login",
+   "U26 Address uses: bonus"
+  ]
+ },
+ "playstation.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"playstation\" but is not playstation.com"
+  ]
+ },
+ "playstation2-linux.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"playstation\" but is not playstation.com"
+  ]
+ },
+ "playstationmax.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"playstation\" but is not playstation.com"
+  ]
+ },
+ "portalamazonia.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com",
+   "U25 Address uses: portal",
+   "U37 \"amazon\" combined with \"portal\": a classic combosquatting pattern"
+  ]
+ },
+ "postnl.post": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"postnl\" but is not postnl.nl"
+  ]
+ },
+ "pres-outlook.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "primeplaystationpro.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"playstation\" but is not playstation.com"
+  ]
+ },
+ "python-telegram-bot.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "qa-whatsapp.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"whatsapp\" but is not whatsapp.com",
+   "U24 Near-identical spelling of whatsapp.com"
+  ]
+ },
+ "qtmobile.jp": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of t-mobile.com"
+  ]
+ },
+ "quickbooks-payroll.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"intuit\" but is not intuit.com",
+   "U25 Address uses: payroll",
+   "U37 \"intuit\" combined with \"payroll\": a classic combosquatting pattern"
+  ]
+ },
+ "quickbooks.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"quickbooks\" but is not quickbooks.com"
+  ]
+ },
+ "quickbookssupportphonenumber247.co": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U05 31-character name",
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"quickbooks\" but is not quickbooks.com",
+   "U25 Address uses: support",
+   "U37 \"quickbooks\" combined with \"support\": a classic combosquatting pattern"
+  ]
+ },
+ "quickbooksupportnet.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"quickbooks\" but is not quickbooks.com"
+  ]
+ },
+ "quitfacebookday.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "rakuten-bank.com.tw": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rakuten\" but is not rakuten.co.jp",
+   "U25 Address uses: bank",
+   "U37 \"rakuten\" combined with \"bank\": a classic combosquatting pattern"
+  ]
+ },
+ "rakuten-card.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rakuten\" but is not rakuten.co.jp"
+  ]
+ },
+ "rakuten-ipcontent.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rakuten\" but is not rakuten.co.jp"
+  ]
+ },
+ "rakuten-life.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rakuten\" but is not rakuten.co.jp"
+  ]
+ },
+ "rakuten-wallet.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rakuten\" but is not rakuten.co.jp",
+   "U27 Address uses: wallet"
+  ]
+ },
+ "rakuten.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rakuten\" but is not rakuten.co.jp"
+  ]
+ },
+ "rakuten.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rakuten\" but is not rakuten.co.jp"
+  ]
+ },
+ "rakuten.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rakuten\" but is not rakuten.co.jp"
+  ]
+ },
+ "rakuten.today": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rakuten\" but is not rakuten.co.jp"
+  ]
+ },
+ "raportblockchain.pl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "rayban--occhiali.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"rayban\" but is not ray-ban.com"
+  ]
+ },
+ "rayban--sunglasses.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"rayban\" but is not ray-ban.com"
+  ]
+ },
+ "rayban--sunglasses.org.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"rayban\" but is not ray-ban.com"
+  ]
+ },
+ "raybansales.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"rayban\" but is not ray-ban.com"
+  ]
+ },
+ "remont-apple-watch-web.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "remont-macbook-zone.ru": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U24 Near-identical spelling of facebook.com"
+  ]
+ },
+ "robinhood.engineering": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"robinhood\" but is not robinhood.com"
+  ]
+ },
+ "robinhoodtax.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"robinhood\" but is not robinhood.com"
+  ]
+ },
+ "roblox-apk.download": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .download has a very high share of scam registrations",
+   "U22 Uses \"roblox\" but is not roblox.com"
+  ]
+ },
+ "s-microsoft.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com",
+   "U24 Near-identical spelling of microsoft.com"
+  ]
+ },
+ "santander-arena.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santander.com.ar": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santander.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santander.com.mx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santander.com.uy": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santander.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santander.gov.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santander.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santander.pl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santanderconsumerusa.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santandercreativa.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santanderinnoventures.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santanderrio.com.ar": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santandersmusic.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santanderuniversidades.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com"
+  ]
+ },
+ "santanderx.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"santander\" but is not santander.com",
+   "U24 Near-identical spelling of santander.com"
+  ]
+ },
+ "scarpe-nike-store.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"nike\" but is not nike.com"
+  ]
+ },
+ "schwab.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"schwab\" but is not schwab.com"
+  ]
+ },
+ "schwabeonline.ch": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"schwab\" but is not schwab.com",
+   "U25 Address uses: online",
+   "U37 \"schwab\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "scotiabank.com.mx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"scotiabank\" but is not scotiabank.com"
+  ]
+ },
+ "scotiabank.com.pe": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"scotiabank\" but is not scotiabank.com"
+  ]
+ },
+ "scotiabankcolpatria.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"scotiabank\" but is not scotiabank.com"
+  ]
+ },
+ "scotiabankgillerprize.ca": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"scotiabank\" but is not scotiabank.com",
+   "U26 Address uses: prize"
+  ]
+ },
+ "sharepoint.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"sharepoint\" but is not sharepoint.com"
+  ]
+ },
+ "sharepoint.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"sharepoint\" but is not sharepoint.com"
+  ]
+ },
+ "shein.com.mx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shein\" but is not shein.com"
+  ]
+ },
+ "shein.top": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .top has a very high share of scam registrations",
+   "U22 Uses \"shein\" but is not shein.com"
+  ]
+ },
+ "shop4tesla.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"tesla\" but is not tesla.com"
+  ]
+ },
+ "shopadidas.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adidas\" but is not adidas.com"
+  ]
+ },
+ "shopdisney.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "shopdisney.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"disney\" but is not disney.com"
+  ]
+ },
+ "shope.ee": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of shopee.com"
+  ]
+ },
+ "shopee-th.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopee\" but is not shopee.com"
+  ]
+ },
+ "shopee.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopee\" but is not shopee.com"
+  ]
+ },
+ "shopee.com.mx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopee\" but is not shopee.com"
+  ]
+ },
+ "shopify.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "shopify.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "shopify.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "shopify.com.ph": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "shopify.engineering": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "shopify.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "shopify.in": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "shopify.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "shopify.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "shopifypreview.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"shopify\" but is not shopify.com"
+  ]
+ },
+ "skachat-video-s-youtube-1.ru": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U06 4 hyphens in the domain name",
+   "U22 Uses \"google\" but is not google.com",
+   "U24 Near-identical spelling of snapchat.com"
+  ]
+ },
+ "skachat-video-s-youtube-10.ru": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U05 26-character name",
+   "U06 4 hyphens in the domain name",
+   "U22 Uses \"google\" but is not google.com",
+   "U24 Near-identical spelling of snapchat.com"
+  ]
+ },
+ "skachat-video-s-youtube-11.ru": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U05 26-character name",
+   "U06 4 hyphens in the domain name",
+   "U22 Uses \"google\" but is not google.com",
+   "U24 Near-identical spelling of snapchat.com"
+  ]
+ },
+ "skachat-video-s-youtube-12.ru": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U05 26-character name",
+   "U06 4 hyphens in the domain name",
+   "U22 Uses \"google\" but is not google.com",
+   "U24 Near-identical spelling of snapchat.com"
+  ]
+ },
+ "skachat-video-s-youtube-9.ru": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U06 4 hyphens in the domain name",
+   "U22 Uses \"google\" but is not google.com",
+   "U24 Near-identical spelling of snapchat.com"
+  ]
+ },
+ "snapchat-blog.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"snapchat\" but is not snapchat.com"
+  ]
+ },
+ "somedicare.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"medicare\" but is not medicare.gov",
+   "U24 Near-identical spelling of medicare.gov"
+  ]
+ },
+ "sp-amazon.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"amazon\" but is not amazon.com"
+  ]
+ },
+ "spotify.design": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"spotify\" but is not spotify.com"
+  ]
+ },
+ "spotifyd.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of spotify.com"
+  ]
+ },
+ "square-enix.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cashapp\" but is not cash.app"
+  ]
+ },
+ "star-telegram.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "steam-library.go.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "steam-packet.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "steam-roadmap.kz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "steam.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "steam.tv": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "steam250.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "steamauthenticator.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "steamdesktopauthenticator.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "steamunlocked.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team",
+   "U25 Address uses: unlock",
+   "U37 \"steam\" combined with \"unlock\": a classic combosquatting pattern"
+  ]
+ },
+ "steamunlocked.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team",
+   "U25 Address uses: unlock",
+   "U37 \"steam\" combined with \"unlock\": a classic combosquatting pattern"
+  ]
+ },
+ "stonedrive.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"onedrive\" but is not onedrive.com",
+   "U24 \"stonedrive\" is spelled like onedrive.com, but is an ordinary word"
+  ]
+ },
+ "stonedrivecenter.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"onedrive\" but is not onedrive.com"
+  ]
+ },
+ "stonedriveview.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"onedrive\" but is not onedrive.com"
+  ]
+ },
+ "storage-yahoo.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "stripe-club.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"stripe\" but is not stripe.com"
+  ]
+ },
+ "stripe.dev": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"stripe\" but is not stripe.com"
+  ]
+ },
+ "stripe.global": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"stripe\" but is not stripe.com"
+  ]
+ },
+ "stripe.partners": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"stripe\" but is not stripe.com"
+  ]
+ },
+ "stripe.press": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"stripe\" but is not stripe.com"
+  ]
+ },
+ "stripesstores.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"stripe\" but is not stripe.com"
+  ]
+ },
+ "t-google.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com",
+   "U24 Similar spelling to google.com"
+  ]
+ },
+ "tdbank.ca": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tdbank\" but is not td.com"
+  ]
+ },
+ "tdddcgmv.cc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U48 \"tdddcgmv\" has no vowels at all: a string of letters, not a name, on an ending sold in bulk",
+   "U10 .cc has a very high share of scam registrations"
+  ]
+ },
+ "telegra.ph": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegram-app.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegram-ios.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegram-x.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegram.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegram.mn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegram.org.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegram4israel.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegramamn.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegramapc.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegramcn.us": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegramcom.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegramfxcopier.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegramin-cn.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegramin-zh.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegramkupitmef.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegrammefedron.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegrammhk.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegrammhs.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegramms.org": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegrammy.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegramo.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegramrg.org": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegramss.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org",
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telegramzhvip.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "telegraphindia.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "telerama.fr": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of telegram.org"
+  ]
+ },
+ "temu.to": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"temu\" but is not temu.com"
+  ]
+ },
+ "tesla-avtomobil.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tesla\" but is not tesla.com"
+  ]
+ },
+ "tesla-museum.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tesla\" but is not tesla.com"
+  ]
+ },
+ "tesla.info": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tesla\" but is not tesla.com"
+  ]
+ },
+ "teslaownersonline.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tesla\" but is not tesla.com",
+   "U25 Address uses: online",
+   "U37 \"tesla\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "teslaupdates.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tesla\" but is not tesla.com",
+   "U25 Address uses: update",
+   "U37 \"tesla\" combined with \"update\": a classic combosquatting pattern"
+  ]
+ },
+ "texasblockchaincouncil.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "theblockchain-group.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "theblockchaincouncil.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "theblockchaininsider.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "thefacesoffacebook.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"facebook\" but is not facebook.com"
+  ]
+ },
+ "theoutlookonline.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"outlook\" but is not outlook.com",
+   "U25 Address uses: online",
+   "U37 \"outlook\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "thesteamteam.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"steam\" but is not s.team"
+  ]
+ },
+ "thestripe.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"stripe\" but is not stripe.com"
+  ]
+ },
+ "thetelegram.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"telegram\" but is not telegram.org"
+  ]
+ },
+ "theupsstore.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ups\" but is not ups.com"
+  ]
+ },
+ "thewhatsappdirectory.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"whatsapp\" but is not whatsapp.com"
+  ]
+ },
+ "ticketmaster.co.nz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ticketmaster\" but is not ticketmaster.com"
+  ]
+ },
+ "ticketmaster.co.za": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ticketmaster\" but is not ticketmaster.com"
+  ]
+ },
+ "ticketmaster.com.mx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ticketmaster\" but is not ticketmaster.com"
+  ]
+ },
+ "ticketmaster.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ticketmaster\" but is not ticketmaster.com"
+  ]
+ },
+ "ticketmaster.ie": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ticketmaster\" but is not ticketmaster.com"
+  ]
+ },
+ "ticketmaster.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ticketmaster\" but is not ticketmaster.com"
+  ]
+ },
+ "ticketmaster.no": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ticketmaster\" but is not ticketmaster.com"
+  ]
+ },
+ "ticketmaster.se": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ticketmaster\" but is not ticketmaster.com"
+  ]
+ },
+ "ticketmaster.sg": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"ticketmaster\" but is not ticketmaster.com"
+  ]
+ },
+ "tiktok-ads-account-buy.org": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"tiktok\" but is not tiktok.com",
+   "U25 Address uses: account",
+   "U37 \"tiktok\" combined with \"account\": a classic combosquatting pattern"
+  ]
+ },
+ "tiktok-ads-agency-account.org": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U06 3 hyphens in the domain name",
+   "U22 Uses \"tiktok\" but is not tiktok.com",
+   "U25 Address uses: account",
+   "U37 \"tiktok\" combined with \"account\": a classic combosquatting pattern"
+  ]
+ },
+ "tiktok-uk.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tiktok\" but is not tiktok.com"
+  ]
+ },
+ "tiktokcoinsfree.guru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tiktok\" but is not tiktok.com"
+  ]
+ },
+ "tiktokdownload.online": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .online has a very high share of scam registrations",
+   "U22 tiktokdownload is \"tiktok\" joined to the ordinary word \"download\": a different name unless other signs say otherwise",
+   "U25 Address uses: online",
+   "U37 \"tiktok\" combined with \"online\": a classic combosquatting pattern"
+  ]
+ },
+ "tiktokglobalshop.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tiktok\" but is not tiktok.com"
+  ]
+ },
+ "tiktokshop.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tiktok\" but is not tiktok.com"
+  ]
+ },
+ "tinyurl.ee": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tinyurl\" but is not tinyurl.com"
+  ]
+ },
+ "tinyurl.hu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tinyurl\" but is not tinyurl.com"
+  ]
+ },
+ "tinyurl.pl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"tinyurl\" but is not tinyurl.com"
+  ]
+ },
+ "toblockchain.nl": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com",
+   "U24 Near-identical spelling of blockchain.com"
+  ]
+ },
+ "trezor-s3.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"trezor\" but is not trezor.io",
+   "U27 Address uses: trezor"
+  ]
+ },
+ "trezor-s5.io": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"trezor\" but is not trezor.io",
+   "U27 Address uses: trezor"
+  ]
+ },
+ "trezor.gov.rs": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"trezor\" but is not trezor.io",
+   "U27 Address uses: trezor"
+  ]
+ },
+ "trezorr.to": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of trezor.io"
+  ]
+ },
+ "trycloudflare.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"cloudflare\" but is not cloudflare.com"
+  ]
+ },
+ "universonintendo.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"nintendo\" but is not nintendo.com"
+  ]
+ },
+ "usaa360.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"usaa\" but is not usaa.com"
+  ]
+ },
+ "usapple.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"apple\" but is not apple.com"
+  ]
+ },
+ "verge-blockchain.info": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "verizon.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"verizon\" but is not verizon.com"
+  ]
+ },
+ "walmartmoneycard.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"walmart\" but is not walmart.com"
+  ]
+ },
+ "walmartstores.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"walmart\" but is not walmart.com"
+  ]
+ },
+ "weareplaystation.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"playstation\" but is not playstation.com"
+  ]
+ },
+ "web-microsoft.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"microsoft\" but is not microsoft.com"
+  ]
+ },
+ "webi-whatsapp.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"whatsapp\" but is not whatsapp.com"
+  ]
+ },
+ "webs-whatsapps.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"whatsapp\" but is not whatsapp.com",
+   "U24 Near-identical spelling of whatsapp.com"
+  ]
+ },
+ "webwise.ie": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "whatsappzhapps.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"whatsapp\" but is not whatsapp.com"
+  ]
+ },
+ "wholesale-oakley.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"oakley\" but is not oakley.com",
+   "U28 Address uses: wholesale"
+  ]
+ },
+ "win-google.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"google\" but is not google.com",
+   "U26 Address uses: win"
+  ]
+ },
+ "wise-answer.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wise-europa.eu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wise-geek.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wise-qatar.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wise-social.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wise-uranium.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wise.edu.jo": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wise.jobs": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wise.live": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U10 .live has a very high share of scam registrations",
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wisedocs.ai": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com",
+   "U25 Address uses: docs",
+   "U37 \"wise\" combined with \"docs\": a classic combosquatting pattern"
+  ]
+ },
+ "wisemusicstore.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wisepagereview.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wisereview.us": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wisestudioshop.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "wmtransfer.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of wetransfer.com"
+  ]
+ },
+ "work-clockwise.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"wise\" but is not wise.com"
+  ]
+ },
+ "world4you.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U24 Near-identical spelling of workday.com"
+  ]
+ },
+ "worldblockchainsummit.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U11 Random-looking name typical of generated malware domains",
+   "U22 Uses \"blockchain\" but is not blockchain.com"
+  ]
+ },
+ "ws-whatsappsweb.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"whatsapp\" but is not whatsapp.com"
+  ]
+ },
+ "wublockchain.xyz": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U10 .xyz has a very high share of scam registrations",
+   "U22 Uses \"blockchain\" but is not blockchain.com",
+   "U24 Near-identical spelling of blockchain.com"
+  ]
+ },
+ "wwwyoutube.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "xbox-hq.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"xbox\" but is not xbox.com"
+  ]
+ },
+ "xbox-linux.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"xbox\" but is not xbox.com"
+  ]
+ },
+ "xbox-scene.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"xbox\" but is not xbox.com"
+  ]
+ },
+ "xbox360.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"xbox\" but is not xbox.com"
+  ]
+ },
+ "xbox360achievements.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"xbox\" but is not xbox.com"
+  ]
+ },
+ "xbox360fanboy.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"xbox\" but is not xbox.com"
+  ]
+ },
+ "xboxservices.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"xbox\" but is not xbox.com"
+  ]
+ },
+ "xn--80abdzaxbkfak2ai0bzf4ce.xn--p1ai": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U02 Punycode domain: characters may imitate a different alphabet",
+   "U05 27-character name"
+  ]
+ },
+ "xn--jobbrse-stellenangebote-blc.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U02 Punycode domain: characters may imitate a different alphabet",
+   "U05 31-character name"
+  ]
+ },
+ "yahoo-help.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo-mbga.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.ca": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.co.in": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.com.ar": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.com.au": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.com.cn": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.com.hk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.com.mx": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.fr": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.ie": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoo.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahooeu.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahooinc.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoomail.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com"
+  ]
+ },
+ "yahoosupport.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"yahoo\" but is not yahoo.com",
+   "U25 Address uses: support",
+   "U37 \"yahoo\" combined with \"support\": a classic combosquatting pattern"
+  ]
+ },
+ "yandex-google-seo.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U06 Two hyphens in the domain name",
+   "U22 Uses \"google\" but is not google.com"
+  ]
+ },
+ "ycrngcwt.cc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U48 \"ycrngcwt\" is a string of letters rather than a name, on an ending sold in bulk",
+   "U10 .cc has a very high share of scam registrations"
+  ]
+ },
+ "ymobile.jp": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U24 Near-identical spelling of t-mobile.com"
+  ]
+ },
+ "youtube-eng.googleblog.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U23 Puts \"youtube\" in front of an unrelated domain"
+  ]
+ },
+ "youtube-mp3.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.be": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.ca": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.co": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.cz": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.de": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.es": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube03.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com"
+  ]
+ },
+ "youtube7.com": {
+  "badge": "orange",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com",
+   "U24 Near-identical spelling of youtube.com"
+  ]
+ },
+ "youtubedoubler.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"youtube\" but is not youtube.com",
+   "U27 Address uses: doubler"
+  ]
+ },
+ "zoom-content.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom-eco.net": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom-na.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom-platform.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom-wiki.win": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us",
+   "U26 Address uses: win"
+  ]
+ },
+ "zoom.co.jp": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom.co.uk": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom.com.br": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom.earth": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom.hu": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom.nl": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom24.it": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoom2you.ru": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U07 Digits mixed into the name (e.g. \"0\" for \"o\")",
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zoommyapp.com": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"zoom\" but is not zoom.us"
+  ]
+ },
+ "zqhwvxrgw.cc": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U48 \"zqhwvxrgw\" has no vowels at all: a string of letters, not a name, on an ending sold in bulk",
+   "U10 .cc has a very high share of scam registrations"
+  ]
+ }
+}

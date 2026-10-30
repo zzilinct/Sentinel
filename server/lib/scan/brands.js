@@ -30,7 +30,8 @@ const BRANDS = [
   { token: 'usaa', domains: ['usaa.com'] },
   { token: 'truist', domains: ['truist.com'] },
   // South Africa's Absa: its sign-in pages are copied onto unrelated domains as "absa.<something>.co.za".
-  { token: 'absa', initials: true, domains: ['absa.co.za', 'absa.africa'] },
+  // Absa Bank Kenya is the group's own bank there (found by the false-alarm gate, scripts/fpgate).
+  { token: 'absa', initials: true, domains: ['absa.co.za', 'absa.africa', 'absabank.co.ke'] },
   { token: 'santander', domains: ['santander.com', 'santander.co.uk', 'santander.es', 'santanderbank.com'] },
   { token: 'hsbc', domains: ['hsbc.com', 'hsbc.co.uk', 'hsbc.com.hk', 'hsbc.fr', 'us.hsbc.com'] },
   { token: 'barclays', domains: ['barclays.co.uk', 'barclays.com', 'barclaycard.co.uk', 'barclaycardus.com'] },
