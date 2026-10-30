@@ -90,6 +90,7 @@ test('each warning page is drawn by the card, has no scrolling box of its own, a
   for (const name of ['warn', 'filescan']) assert.match(read(`desktop/src/pages/${name}.html`), /if \(ul\.children\.length\) li\.dataset\.trim = '';/);
   assert.match(read('desktop/src/pages/warn.html'), /<small id="browser" data-trim><\/small>/);
   assert.doesNotMatch(card, /overflow(-y)?: (auto|scroll)/);
+  assert.match(card, /grid-template-columns: minmax\(0, 1fr\)/, 'a long unbroken button must not widen the column past the card');
   assert.ok(!card.includes('\u2014'));
 });
 
