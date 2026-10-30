@@ -371,7 +371,8 @@ if ($Part -eq 'install') {
   Shot 'crash-app-window'
   Check 'crash-window-back' ($alive -match '^complete\|true') "the app's page after its process ended: '$alive'; app.log: $(([regex]::Matches((AppLog), '[^\r\n]*(page|window)[^\r\n]*(gone|crash|ended)[^\r\n]*') | Select-Object -Last 1).Value)"
   # The live scanning overlay's page process ends while scanning.
-  Say "live: $(TrayClick 'Start scanning')"; [void](Until 30 { (Info 'info()').live.window }); Start-Sleep 5
+  # A key, as in every other wait on live scanning: with nobody at the keyboard it pauses and no overlay comes (run 41133125190).
+  Say "live: $(TrayClick 'Start scanning')"; [void](Until 30 { [K]::Tap(0x11); (Info 'info()').live.window }); Start-Sleep 5
   [void](Cdp 'main' "(process.mainModule.require('electron').BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('overlay.html')).webContents.forcefullyCrashRenderer(), 1)")
   Start-Sleep 3
   Say "Edge in front: $(Front 'msedge')"
