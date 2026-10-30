@@ -68,7 +68,7 @@ async function checkHonestResult() {
     await goto(browser, s, `${base}/app/scan`, "document.querySelector('.scanbox input')");
     const STATES = { safe, warning, scam, partly, 'scam-partly': scamPartly };
     const show = (v) => evalIn(browser, s, `(() => { const out = document.querySelector('[data-out]'); const v = ${JSON.stringify(v)}; out.innerHTML = UI.verdict(v); UI.wireVerdict(out, v); window.scrollTo(0, 0); return true; })()`);
-    const read = () => evalIn(browser, s, `(() => { const r = document.querySelector('[data-out] [data-result]'); const seen = (e) => e && e.getClientRects().length > 0;
+    const read = () => evalIn(browser, s, `(() => { const r = document.querySelector('[data-out] [data-result]'); const seen = (e) => e && e.checkVisibility();
       return { title: r.querySelector('h2').textContent.trim(), tone: [...r.classList].find((c) => /^result--/.test(c)), lead: r.querySelector('.result__lead').textContent, partly: (r.querySelector('[data-partly]') || {}).textContent || '',
         notRun: [...r.querySelectorAll('[data-not-run]')].map((e) => e.textContent), glyph: getComputedStyle(r.querySelector('.result__glyph')).color, text: r.innerText, all: r.textContent,
         tiles: seen(r.querySelector('.threat-list')), checklist: seen(r.querySelector('.result__checklist')), green: getComputedStyle(document.documentElement).getPropertyValue('--green').trim(),

@@ -291,7 +291,10 @@ function researchGaps(facts) {
 function listGaps(know) {
   const gaps = [];
   const f = know.feeds;
-  if (f && f.ready < f.total) gaps.push({ what: 'lists', text: `${f.total - f.ready} of ${f.total} threat lists, because they have not loaded yet`, retry: true });
+  if (f && f.ready < f.total) {
+    const left = f.total - f.ready;
+    gaps.push({ what: 'lists', text: `${left} of ${f.total} threat lists, because ${left === 1 ? 'it has' : 'they have'} not loaded yet`, retry: true });
+  }
   if (know.unreached) gaps.push({ what: 'live-list', text: `${know.unreached}, because it did not answer`, retry: true });
   return gaps;
 }

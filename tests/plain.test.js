@@ -221,7 +221,24 @@ test('checks that did not run are one quiet line, never grey rows', () => {
   assert.equal((html.match(/data-not-run/g) || []).length, 1);
   assert.doesNotMatch(win.UI.verdict(result({ items: [pass('U01', 'Address')] })), /data-not-run/, 'nothing skipped, no line');
   const one = result({ items: [skip('R01', 'Registration')], researched: true });
-  assert.match(words(win.UI.verdict(one)), /1 check did not run\. They did not apply/);
+  assert.match(words(win.UI.verdict(one)), /1 check did not run\. It did not apply/);
+});
+
+test('a list that has not loaded is not blamed for what the plan left out, and is not counted as checked', () => {
+  const v = result({ coverage: { complete: false, missing: [LISTS] }, knowledge: { sources: new Array(16).fill('x'), feeds: { ready: 13, total: 15 }, known: false, trusted: false } });
+  const html = words(win.UI.verdict(v));
+  assert.match(html, /3 checks did not run\. Research is included/);
+  assert.doesNotMatch(html, /depend on what could not/);
+  assert.match(html, /14 of 16 checked/);
+  const researched = result({ researched: true, coverage: { complete: false, missing: [PAGE] } });
+  assert.match(words(win.UI.verdict(researched)), /Some may depend on what could not be checked/);
+});
+
+test('"checked against every threat source" is not ticked while a list is missing', () => {
+  const k05 = ALL_CHECKS.find((c) => c.id === 'K05');
+  const sources = ['a', 'b'];
+  assert.equal(k05.run({ knowledge: { sources, feeds: { ready: 2, total: 2 } } }).status, 'pass');
+  assert.equal(k05.run({ knowledge: { sources, feeds: { ready: 1, total: 2 } } }).status, 'skip');
 });
 
 test('hierarchy: verdict, then the reason that matters most, then details on demand; no rule id on the page', () => {

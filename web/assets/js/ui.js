@@ -174,10 +174,12 @@ window.UI = (() => {
     const n = v.checklist.skipped;
     if (!n) return '';
     const noun = v.kind === 'email' ? 'email' : v.kind === 'file' ? 'type of file' : 'site';
-    const why = partly(v) ? 'Some of them depend on what could not be checked.'
-      : v.knowledge && v.knowledge.trusted ? 'A verified site does not need them.'
-        : v.kind === 'url' && !v.researched ? (v.researchSkipReason || 'Research was not part of this scan').replace(/\.?$/, '.')
-          : `They did not apply to this ${noun}.`;
+    const them = n === 1 ? ['It', 'it'] : ['They', 'them'];
+    // The true reason first: checks left out by the plan were not left out by a list that had not loaded.
+    const why = v.knowledge && v.knowledge.trusted ? `A verified site does not need ${them[1]}.`
+      : v.kind === 'url' && !v.researched ? (v.researchSkipReason || 'Research was not part of this scan').replace(/\.?$/, '.')
+        : partly(v) ? `${n === 1 ? 'It may depend' : 'Some may depend'} on what could not be checked.`
+          : `${them[0]} did not apply to this ${noun}.`;
     return `${n} check${n === 1 ? '' : 's'} did not run. ${why}`;
   }
 
@@ -428,7 +430,9 @@ window.UI = (() => {
     const subject = v.kind === 'file' ? v.file.name : v.kind === 'email' ? (v.sender.address || 'Email') : v.host;
     const facts = [];
     if (v.knowledge) {
-      facts.push(['Threat sources', `${v.knowledge.sources.length} checked`]);
+      const all = v.knowledge.sources.length;
+      const left = v.knowledge.feeds ? v.knowledge.feeds.total - v.knowledge.feeds.ready : 0;
+      facts.push(['Threat sources', left ? `${Math.max(0, all - left)} of ${all} checked` : `${all} checked`]);
       facts.push(['Known record', v.knowledge.known ? 'Yes' : v.knowledge.trusted ? 'Verified site' : 'None found']);
     }
     if (v.comparison && v.comparison.compared) facts.push(['Compared with', `${v.comparison.compared} known scam domains`]);
