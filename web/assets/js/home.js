@@ -471,7 +471,7 @@
       const getHref = !st ? '/signup' : st.launched ? `${st.origin}/signup` : 'download.html';
       stageEl.innerHTML = `
         <div class="game__end">
-          <div class="big gold-text">${points}<span class="muted" style="font-size:32px"> / ${max}</span></div>
+          <div class="big gold-text">${points}<span class="muted" style="font-size:var(--t-title-l)"> / ${max}</span></div>
           <p>You scored ${points} of ${max}, with ${right} of ${ROUNDS} exactly right. ${line}</p>
           <div class="hero__cta" style="justify-content:center">
             <button type="button" class="btn btn--lg" data-again>Play again</button>

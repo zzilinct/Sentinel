@@ -596,7 +596,7 @@ p.hero__fine span { white-space: nowrap; }
 .prose { color: var(--text-2); font-size: var(--t-body); }
 .prose h2 { font-size: var(--t-title-l); margin: 56px 0 14px; color: var(--text); }
 .prose h3 { font-size: var(--t-title); margin: 32px 0 10px; color: var(--text); }
-.prose p, .prose ul { margin: 0 0 16px; }
+.prose p, .prose ul { margin: 0 0 16px; max-width: var(--measure-wide); text-wrap: wrap; }
 .prose ul { padding-left: 20px; }
 .prose li { margin-bottom: 8px; }
 .prose a { color: var(--gold-300); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgb(var(--gold-rgb) / .4); }
