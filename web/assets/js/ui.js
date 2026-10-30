@@ -127,17 +127,58 @@ window.UI = (() => {
     return THREATS.filter((t) => threats[t]).sort((a, b) => SEV[threats[b].level] - SEV[threats[a].level])[0];
   }
 
+  // Green is earned: only a scan that says it ran in full gets it. One that says nothing about itself did not.
+  const partly = (v) => !(v.coverage && v.coverage.complete);
+
+  /** What "No threats found" rests on, no more than was looked at. */
+  function clearSub(v) {
+    if (v.clues && v.clues.length) return 'Only small things stood out, and none of them points to a threat.';
+    if (v.kind === 'email') return 'Nothing in this email raised a concern.';
+    if (v.kind === 'file') return 'Nothing in this file raised a concern. A scan can still miss something brand new.';
+    if (v.knowledge && v.knowledge.trusted) return 'This is a well-known site on Sentinel’s verified list.';
+    return v.researched ? 'Sentinel checked the address, the threat lists and the site itself, and nothing stood out.'
+      : 'Sentinel checked the address and the threat lists, and nothing stood out. It did not open the site.';
+  }
+
+  /** Verdict first: the words, the tone, and the one reason that matters most. Never a green that was not earned. */
   function headline(v) {
     const t = worst(v.threats);
     const th = t && v.threats[t];
-    if (!th || !th.badge) return { title: 'No threats found', sub: 'Nothing on the checklist raised a concern.', tone: 'clear', threat: t || 'scam' };
+    const threat = t || 'scam';
+    if (v.override === 'allow') return { title: 'You trust this site', sub: 'Sentinel is not warning you about it, because you marked it as trusted.', tone: 'clear', threat };
+    if (!th || !th.badge) {
+      if (partly(v)) return { title: 'Partly checked', sub: 'No warning signs in what Sentinel could check.', tone: 'partial', threat };
+      if (th && th.level === 'caution') return { title: 'Nothing conclusive', sub: 'A few things stood out, but none of them proves a problem.', tone: 'partial', threat };
+      return { title: 'No threats found', sub: clearSub(v), tone: 'clear', threat };
+    }
     const titles = {
       scam: { yellow: 'This looks suspicious', orange: 'This is likely a scam', red: 'This is a confirmed scam' },
       virus: { yellow: 'This may carry a virus', orange: 'This likely carries a virus', red: 'Virus detected' },
       malware: { yellow: 'This may contain malware', orange: 'This likely contains malware', red: 'Malware detected' }
     };
-    const sub = th.evidence ? th.evidence : th.badge === 'orange' ? 'Many strong warning signs at once. Don’t enter any details.' : 'Some warning signs. Take a careful second look before continuing.';
-    return { title: titles[t][th.badge], sub, tone: th.badge, threat: t, kind: th.kind || null, kindLabel: th.kindLabel || null };
+    const lead = v.override !== 'block' && v.clues && v.clues[0];
+    const sub = lead ? lead.text : th.evidence ? th.evidence : th.badge === 'orange' ? 'Many strong warning signs at once. Don’t enter any details.' : 'Some warning signs. Take a careful second look before continuing.';
+    return { title: titles[t][th.badge], sub, lead: Boolean(lead), tone: th.badge, threat: t, kind: th.kind || null, kindLabel: th.kindLabel || null };
+  }
+
+  /** What could not be looked at, once, in calm words. A gap is never a finding: without a warning it says so. */
+  function partlyLine(v, head) {
+    if (!partly(v) || v.override === 'allow') return '';
+    const missing = (v.coverage && v.coverage.missing) || [];
+    const what = missing.length ? `Not checked: ${missing.map((g) => g.text).join('; ')}.` : 'Sentinel could not finish every check.';
+    return `${head.title === 'Partly checked' ? '' : 'Partly checked. '}${what}${head.tone === 'partial' ? ' This is not a sign of danger.' : ''}${missing.some((g) => g.retry) || !missing.length ? ' Scan again in a few minutes for a fuller answer.' : ''}`;
+  }
+
+  /** Everything that did not run, as one line. Without a concern of its own, a check that never ran is not a row. */
+  function notRunLine(v) {
+    const n = v.checklist.skipped;
+    if (!n) return '';
+    const noun = v.kind === 'email' ? 'email' : v.kind === 'file' ? 'type of file' : 'site';
+    const why = partly(v) ? 'Some of them depend on what could not be checked.'
+      : v.knowledge && v.knowledge.trusted ? 'A verified site does not need them.'
+        : v.kind === 'url' && !v.researched ? (v.researchSkipReason || 'Research was not part of this scan').replace(/\.?$/, '.')
+          : `They did not apply to this ${noun}.`;
+    return `${n} check${n === 1 ? '' : 's'} did not run. ${why}`;
   }
 
   function threatTiles(v, { lockedLabel = 'Pro & up' } = {}) {
@@ -146,11 +187,14 @@ window.UI = (() => {
       if (!th) {
         return `<div class="threat is-locked"><div class="threat__glyph">${Masks.svg(t)}</div><div><div class="threat__name">${Masks.NAMES[t]}</div><div class="threat__level"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>${esc(lockedLabel)}</div></div></div>`;
       }
-      return `<div class="threat" style="--c:${color(th.badge)}">
+      // No badge, but also no all-clear: nothing conclusive, or a scan that did not finish, stays out of the green.
+      const unsure = !th.badge && (th.level === 'caution' || partly(v));
+      const level = th.badge || th.level === 'caution' ? th.label : unsure ? 'Nothing found so far' : 'Clear';
+      return `<div class="threat" style="--c:${unsure ? 'var(--muted)' : color(th.badge)}">
         <div class="threat__glyph">${Masks.svg(t)}</div>
         <div>
           <div class="threat__name">${Masks.NAMES[t]}</div>
-          <div class="threat__level">${esc(th.badge ? th.label : 'Clear')}</div>
+          <div class="threat__level">${esc(level)}</div>
           ${th.kind ? `<div class="threat__kind">${Masks.kindIcon(th.kind)}<span>${esc(th.kindLabel)}</span></div>` : ''}
         </div>
         <div class="threat__meter"><i style="width:${Math.max(3, th.score)}%"></i></div>
@@ -162,27 +206,26 @@ window.UI = (() => {
   const STATUS_ICON = {
     fail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg>',
     warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg>',
-    pass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 12 4 4 8-9"/></svg>',
-    skip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 12h10"/></svg>'
+    pass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 12 4 4 8-9"/></svg>'
   };
 
+  // Only what ran: a check that did not run is counted in one line under the result (notRunLine), never a grey row.
   function checklist(items) {
     const groups = new Map();
-    for (const c of items) {
+    for (const c of items.filter((x) => x.status !== 'skip')) {
       if (!groups.has(c.group)) groups.set(c.group, []);
       groups.get(c.group).push(c);
     }
     return [...groups].map(([group, list]) => {
       const bad = list.filter((c) => c.status === 'fail' || c.status === 'warn').length;
-      const passed = list.filter((c) => c.status === 'pass').length;
       const open = bad > 0 ? ' open' : '';
-      const label = bad ? `${bad} concern${bad === 1 ? '' : 's'}` : passed ? `${passed} passed${passed < list.length ? `, ${list.length - passed} skipped` : ''}` : 'not run';
+      const label = bad ? `${bad} concern${bad === 1 ? '' : 's'}` : `${list.length} passed`;
       // A group with concerns opens on its concerns alone; the checks it passed are one click away.
       const rest = bad ? list.length - bad : 0;
-      // Check names say what a safe address is ("Not a known scam"). On a concern, what was found leads, so a red
-      // cross never sits beside "Not a known scam" on a page that is one.
+      // Check names say what a safe address is ("Not a known scam"). On a concern, what was found leads, in plain
+      // words, so a red cross never sits beside "Not a known scam" on a page that is one.
       const body = (c) => ((c.status === 'fail' || c.status === 'warn') && c.detail
-        ? `<b>${esc(c.detail)}</b><span>Check: ${esc(c.title)}</span>`
+        ? `<b>${esc(c.plain || c.detail)}</b>${c.plain && c.plain !== c.detail ? `<span>${esc(c.detail)}</span>` : ''}`
         : `<b>${esc(c.title)}</b>${c.detail ? `<span>${esc(c.detail)}</span>` : ''}`);
       return `<details class="group${rest ? ' group--focus' : ''}"${open}>
         <summary><span>${esc(group)}</span><span class="group__count ${bad ? 'is-bad' : ''}">${label}</span><i></i></summary>
@@ -259,11 +302,16 @@ window.UI = (() => {
   /** Plain-text summary of a verdict, for pasting into a message or a report. */
   function reportText(v) {
     const subject = v.kind === 'file' ? v.file.name : v.kind === 'email' ? (v.sender.address || 'Email') : v.url;
-    const lines = [`Sentinel scan: ${headline(v).title}`, subject, ''];
+    const head = headline(v);
+    const lines = [`Sentinel scan: ${head.title}`, subject, head.sub];
+    const gaps = partlyLine(v, head);
+    if (gaps) lines.push(gaps);
+    lines.push('');
     for (const t of THREATS) if (v.threats[t]) lines.push(`${Masks.NAMES[t]}: ${v.threats[t].label} (${v.threats[t].score}/100)`);
-    if (v.reasons && v.reasons.length) { lines.push('', 'Why:'); v.reasons.forEach((r) => lines.push(`- ${r.text}`)); }
-    const concerns = v.checklist.items.filter((c) => c.status === 'fail' || c.status === 'warn');
-    if (concerns.length) { lines.push('', `Checklist (${concerns.length} of ${v.checklist.total} raised a concern):`); concerns.forEach((c) => lines.push(c.detail ? `- ${c.detail} (check: ${c.title})` : `- ${c.title}`)); }
+    const concerns = v.checklist.items.filter((c) => c.status === 'fail' || c.status === 'warn').map((c) => c.plain || c.detail || c.title);
+    if (concerns.length) { lines.push('', 'What Sentinel found:'); [...new Set(concerns)].forEach((c) => lines.push(`- ${c}`)); }
+    const skipped = notRunLine(v);
+    if (skipped) lines.push('', skipped);
     lines.push('', `Scanned ${new Date().toLocaleString()} with Sentinel`);
     return lines.join('\n');
   }
@@ -401,45 +449,55 @@ window.UI = (() => {
     const notes = [];
     // Not on a verified site: "no threat source has a record" beside "Known record: Verified site" read as a contradiction.
     if (v.knowledge && v.knowledge.discountApplied && !v.knowledge.trusted) notes.push('No threat list has a record of this site, so its risk was lowered by 20%.');
-    if (v.kind === 'url' && !v.researched) notes.push(v.researchSkipReason || 'Research wasn’t part of this scan. Pro, Max and Ultimate also check registration, certificates, redirects and page content.');
     if (v.comparison && v.comparison.kits.length) notes.push(`Page matches known scam pattern: ${v.comparison.kits.map((k) => k.label).join(', ')}.`);
     if (v.comparison && v.comparison.similarDomains.length) notes.push(`Built like known scam domains: ${v.comparison.similarDomains.slice(0, 5).join(', ')}.`);
-    if (v.knowledge && v.knowledge.feeds && v.knowledge.feeds.ready < v.knowledge.feeds.total) notes.push(`Threat lists are still downloading on this Sentinel (${v.knowledge.feeds.ready} of ${v.knowledge.feeds.total} ready). Scan again in a few minutes for a complete answer.`);
+
+    const gaps = partlyLine(v, head);
+    // The clue under the verdict is not said again; a verdict with no lead of its own (a clear one) lists them all.
+    const clues = (v.clues || []).slice(head.lead ? 1 : 0);
+    const cluesTitle = head.lead ? 'Other clues' : head.tone === 'clear' || head.tone === 'partial' ? 'Small things Sentinel noticed' : 'Why';
+    const skipped = notRunLine(v);
+    const ran = v.checklist.total - v.checklist.skipped;
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
     return `<article class="result result--${head.tone}" data-result>
       <header class="result__head">
-        <div class="result__glyph" style="--c:${color(head.tone === 'clear' ? null : head.tone)}">${Masks.svg(head.threat)}</div>
+        <div class="result__glyph" style="--c:${head.tone === 'partial' ? 'var(--muted)' : color(head.tone === 'clear' ? null : head.tone)}">${Masks.svg(head.threat)}</div>
         <div class="result__title">
           <h2>${esc(head.title)}</h2>
           <p><span class="mono">${esc(subject)}</span></p>
           ${head.kind ? `<p class="result__kind">${Masks.kindIcon(head.kind)}<span>${esc(head.kindLabel)}</span></p>` : ''}
-          <p class="result__sub">${esc(head.sub)}</p>
+          <p class="result__sub result__lead">${esc(head.sub)}</p>
+          ${gaps ? `<p class="result__sub result__partly" data-partly>${esc(gaps)}</p>` : ''}
         </div>
       </header>
       ${realSite(v)}
-      ${threatTiles(v, { lockedLabel })}
       ${nextSteps(head, v)}
-      ${v.reasons && v.reasons.length ? `<div class="reasons"><h3>Why</h3><ul>${v.reasons.map((r) => `<li><span class="dot" style="--c:${color(v.threats[r.threat] && v.threats[r.threat].badge)}"></span>${esc(r.text)}</li>`).join('')}</ul></div>` : ''}
-      ${facts.length ? `<dl class="facts">${facts.map(([k, val]) => `<div><dt>${esc(k)}</dt><dd>${esc(val)}</dd></div>`).join('')}</dl>` : ''}
-      ${notes.length ? `<div class="notes">${notes.map((n) => `<p>${esc(n)}</p>`).join('')}</div>` : ''}
-      <div class="result__checklist">
-        <div class="result__checklist-head"><h3>Checklist</h3><span class="mono muted result__tally" data-tally><span>${v.checklist.total} checks &middot; ${v.checklist.failed} failed</span><i> &middot; </i><span>${v.checklist.warned} warnings &middot; ${v.checklist.skipped} skipped</span></span></div>
-        <div class="tools" data-check-tools>
-          <div class="tools__group" role="group" aria-label="Show">
-            <button type="button" class="fchip" data-status-filter="all" aria-pressed="true">All</button>
-            <button type="button" class="fchip" data-status-filter="concerns" aria-pressed="false">Concerns</button>
-            <button type="button" class="fchip" data-status-filter="pass" aria-pressed="false">Passed</button>
-            <button type="button" class="fchip" data-status-filter="skip" aria-pressed="false">Skipped</button>
+      ${clues.length ? `<div class="reasons"><h3>${cluesTitle}</h3><ul>${clues.map((c) => `<li data-clue="${esc(c.clue)}"><span class="dot" style="--c:${v.threats[c.threat] && v.threats[c.threat].badge ? color(v.threats[c.threat].badge) : 'var(--muted)'}"></span>${esc(c.text)}</li>`).join('')}</ul></div>` : ''}
+      <details class="result__more" data-more>
+        <summary><span>See everything Sentinel checked</span><i></i></summary>
+        ${threatTiles(v, { lockedLabel })}
+        ${facts.length ? `<dl class="facts">${facts.map(([k, val]) => `<div><dt>${esc(k)}</dt><dd>${esc(val)}</dd></div>`).join('')}</dl>` : ''}
+        ${notes.length ? `<div class="notes">${notes.map((n) => `<p>${esc(n)}</p>`).join('')}</div>` : ''}
+        <div class="result__checklist">
+          <div class="result__checklist-head"><h3>Checklist</h3><span class="mono muted result__tally" data-tally><span>${plural(ran, 'check')} ran</span><i> &middot; </i><span>${v.checklist.failed} failed &middot; ${plural(v.checklist.warned, 'warning')}</span></span></div>
+          <div class="tools" data-check-tools>
+            <div class="tools__group" role="group" aria-label="Show">
+              <button type="button" class="fchip" data-status-filter="all" aria-pressed="true">All</button>
+              <button type="button" class="fchip" data-status-filter="concerns" aria-pressed="false">Concerns</button>
+              <button type="button" class="fchip" data-status-filter="pass" aria-pressed="false">Passed</button>
+            </div>
+            <div class="tools__group" role="group" aria-label="Threat">
+              ${THREATS.map((t) => `<button type="button" class="fchip fchip--${t}" data-threat-filter="${t}" aria-pressed="true">${Masks.svg(t)}${Masks.NAMES[t]}</button>`).join('')}
+            </div>
+            <label class="tools__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Find a check" aria-label="Find a check" data-check-search></label>
+            <span class="mono muted" data-check-count>${ran} of ${ran}</span>
+            <button type="button" class="btn btn--sm" data-expand>Expand all</button>
           </div>
-          <div class="tools__group" role="group" aria-label="Threat">
-            ${THREATS.map((t) => `<button type="button" class="fchip fchip--${t}" data-threat-filter="${t}" aria-pressed="true">${Masks.svg(t)}${Masks.NAMES[t]}</button>`).join('')}
-          </div>
-          <label class="tools__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Find a check" aria-label="Find a check" data-check-search></label>
-          <span class="mono muted" data-check-count>${v.checklist.total} of ${v.checklist.total}</span>
-          <button type="button" class="btn btn--sm" data-expand>Expand all</button>
+          ${checklist(v.checklist.items)}
         </div>
-        ${checklist(v.checklist.items)}
-      </div>
+      </details>
+      ${skipped ? `<p class="result__notrun" data-not-run>${esc(skipped)}</p>` : ''}
     </article>`;
   }
 

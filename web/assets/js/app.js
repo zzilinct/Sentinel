@@ -1574,9 +1574,9 @@
    */
   // Who really sent it, when the email was pasted with its headers (server/lib/scan/sender.js): one line, in words.
   function showProof(out, sender) {
-    const checklist = $('.result__checklist', out);
-    if (!sender || !sender.proof || !checklist) return;
-    checklist.before(h(`<section class="sender-proof" data-sender-proof data-proof="${esc(sender.proof.status)}"><span class="sender-proof__k">Who sent it</span><b>${esc(sender.proof.text)}</b></section>`));
+    const more = $('.result__more', out);
+    if (!sender || !sender.proof || !more) return;
+    more.before(h(`<section class="sender-proof" data-sender-proof data-proof="${esc(sender.proof.status)}"><span class="sender-proof__k">Who sent it</span><b>${esc(sender.proof.text)}</b></section>`));
     // Said once: the same words under Why would repeat the line just added.
     $$('.reasons li', out).filter((li) => li.textContent === sender.proof.text).forEach((li) => li.remove());
     const why = $('.reasons', out);
@@ -1585,8 +1585,8 @@
 
   function showMarks(out, mail, items) {
     const found = items.filter((c) => (c.status === 'fail' || c.status === 'warn') && c.marks && c.marks.length);
-    const checklist = $('.result__checklist', out);
-    if (!found.length || !checklist) return;
+    const more = $('.result__more', out);
+    if (!found.length || !more) return;
     const whys = [];
     const fields = [['from', 'From', mail.from], ['replyTo', 'Reply-to', mail.replyTo], ['subject', 'Subject', mail.subject], ['attachments', 'Attachments', mail.attachments.join(', ')], ['body', 'Message', mail.body]];
     const rows = fields.filter(([, , text]) => text).map(([key, label, text]) => {
@@ -1616,7 +1616,7 @@
       return `<div class="email-marks__row" data-efield="${key}"><span class="email-marks__k">${label}</span><div dir="auto" class="email-marks__v${key === 'body' ? ' email-marks__body' : ''}">${html}${esc(text.slice(at))}</div></div>`;
     });
     const section = h(`<section class="email-marks" data-email-marks><h3>The email, marked</h3><p class="email-marks__hint">Each warning sign is marked where it is. Tap a mark to see why.</p>${rows.join('')}</section>`);
-    checklist.before(section);
+    more.before(section);
     const why = h('<div class="email-marks__why" role="status" data-emark-why></div>');
     const toggle = (mark) => {
       const open = mark.getAttribute('aria-expanded') !== 'true';

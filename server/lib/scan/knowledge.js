@@ -97,8 +97,10 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
     else if (row.n > 0) add('community', row.threat, 'community_reported', 'reported');
   }
 
+  let unreached = null;
   if (useSafeBrowsing) {
     const gsb = await safeBrowsing.lookup(p.url);
+    if (gsb.error) unreached = 'Google Safe Browsing';
     if (gsb.hit) {
       const threat = /MALWARE|UNWANTED|HARMFUL/.test(gsb.threatType) ? 'malware' : 'scam';
       add('google_safe_browsing', threat, gsb.threatType.toLowerCase());
@@ -115,7 +117,8 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
     reports,
     reportCounts,
     sources: checkedSources(),
-    feeds: feeds.readiness()
+    feeds: feeds.readiness(),
+    unreached
   };
 }
 

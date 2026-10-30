@@ -431,10 +431,16 @@ function start() {
   setInterval(() => refreshInBackground().catch(() => {}), 3600 * 1000).unref();
 }
 
-/** How many feeds have loaded at least once, for "still downloading" notes. */
+/**
+ * How many feeds Sentinel can lean on, for saying a scan was only partly checked. A failed refresh keeps the entries
+ * it had, so that list still counts; a list that is gone for good and left nothing is not waited for.
+ */
 function readiness() {
-  const ok = new Set(q.allStatus.all().filter((r) => r.ok && !r.source.startsWith('_')).map((r) => r.source));
-  return { ready: FEEDS.filter((f) => ok.has(f.id)).length, total: FEEDS.length };
+  const rows = q.allStatus.all().filter((r) => !r.source.startsWith('_'));
+  const ok = new Set(rows.filter((r) => r.ok || r.entries > 0).map((r) => r.source));
+  const gone = new Set(rows.filter((r) => /^gone /.test(r.error || '')).map((r) => r.source));
+  const wanted = FEEDS.filter((f) => ok.has(f.id) || !gone.has(f.id));
+  return { ready: wanted.filter((f) => ok.has(f.id)).length, total: wanted.length };
 }
 
 module.exports = {
