@@ -66,6 +66,9 @@ async function checkCalmDig() {
   try {
     const { sessionId: s } = await openPage(browser);
     const errors = await watchErrors(browser, s);
+    // A Windows runner has animations off, which Chrome reports as reduced motion: motion is asked for here by name.
+    const motion = (value) => browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value }] }, s);
+    await motion('no-preference');
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: WATCH }, s);
     const api = (p, body) => evalIn(browser, s, `fetch('/api/v1${p}', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify(body))} }).then((r) => r.status)`);
     await goto(browser, s, `${base}/login`);
@@ -252,7 +255,7 @@ async function checkCalmDig() {
 
     /* ------------------------------------------------------------- reduced motion */
 
-    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
+    await motion('reduce');
     await open('/app/scan', "document.querySelector('[data-form]')");
     await sleep(400);
     await pick('delicate');
@@ -268,7 +271,6 @@ async function checkCalmDig() {
     const mask = await evalIn(browser, s, "(() => { const m = document.querySelector('[data-verdict-mask]'); return m && { still: m.querySelector('img').complete, model: Boolean(m.dataset.mask3d) }; })()");
     await shot(browser, s, 'calm-reduced-result');
     result('calm-dig: with reduced motion the wait is a progress line, with nothing moving, and the mask is its still picture', still.veil === 0 && still.stages === 'none' && still.line > 0 && still.running === 0 && mask && mask.still && !mask.model, { ...still, mask });
-    await browser.send('Emulation.setEmulatedMedia', { features: [] }, s);
 
     result('calm-dig: nothing went wrong in the page', errors.length === 0, errors.slice(0, 5));
   } finally {
@@ -283,6 +285,7 @@ async function checkCalmDig() {
   try {
     const { sessionId: s } = await openPage(off.browser);
     await watchErrors(off.browser, s);
+    await off.browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, s);
     const api = (p, body) => evalIn(off.browser, s, `fetch('/api/v1${p}', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify(body))} }).then((r) => r.status)`);
     await goto(off.browser, s, `${flat.base}/login`);
     const email = `calm-flat-${Date.now()}@example.com`;
