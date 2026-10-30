@@ -985,7 +985,8 @@ async function desktopCards(send) {
  */
 async function desktopIsland(send) {
   const file = `file:///${path.join(ROOT, 'desktop', 'src', 'pages', 'overlay.html').replace(/\\/g, '/')}`;
-  const stand = "window.__h = {}; window.sentinelOverlay = { on: (n, f) => { window.__h[n] = f; }, interact() {}, act() {} };";
+  // desktop/shared is made at build time and not in the repository: the masks come from where it copies them from.
+  const stand = `window.__h = {}; window.sentinelOverlay = { on: (n, f) => { window.__h[n] = f; }, interact() {}, act() {} };\n${fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), 'utf8')}`;
   const PAGES = {
     light: { bg: '#ffffff', ink: '#202124', soft: '#e8eaed' },
     dark: { bg: '#121317', ink: '#e8e6e3', soft: '#2a2c31' }
@@ -1026,12 +1027,13 @@ async function desktopIsland(send) {
         for (const [channel, payload] of messages) await run(`window.__h[${JSON.stringify(channel)}](${JSON.stringify(payload)})`);
         if (state.startsWith('open')) await run('window.sentinelIsland.open()');
         await sleep(state.startsWith('open') ? 900 : 4400);   // the spring, and at rest the mask's two breaths as well
-        const fit = await run(`(() => { const p = document.getElementById('panel').offsetHeight; const c = document.getElementById('corner'); return { panel: p, box: c.offsetHeight, running: document.getAnimations().map((a) => a.animationName || a.transitionProperty || 'animation').join(','), words: document.getElementById('cornerLabel').innerText, text: document.getElementById('panel').innerText }; })()`);
+        const fit = await run(`(() => { const p = document.getElementById('panel').offsetHeight; const c = document.getElementById('corner'); return { panel: p, box: c.offsetHeight, open: c.classList.contains('is-open'), running: document.getAnimations().map((a) => a.animationName || a.transitionProperty || 'animation').join(','), words: document.getElementById('cornerLabel').innerText, text: document.getElementById('panel').innerText }; })()`);
         const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
         const name = `desktop-island-${scale}-${pageName}-${state}.png`;
         fs.writeFileSync(path.join(OUT, name), Buffer.from(shot.data, 'base64'));
         cells.push({ name, data: shot.data, scale, pageName, state });
-        const ok = fit.panel * 1.05 <= fit.box && !(state.startsWith('rest') && fit.running);
+        // Words in the pill and the state asked for: a page script that did not run must not pass as a quiet island.
+        const ok = fit.panel * 1.05 <= fit.box && !(state.startsWith('rest') && fit.running) && Boolean(fit.words) && fit.open === state.startsWith('open');
         console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  panel ${fit.panel} px of ${fit.box}, running '${fit.running}', pill '${fit.words}'`);
         if (!ok) failed.push(name);
         await send('Target.closeTarget', { targetId });

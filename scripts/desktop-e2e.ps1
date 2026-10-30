@@ -350,6 +350,7 @@ Check 'island-hover-opens' $opened "the panel after the pointer rested on the is
 $br = ((Cdp 'overlay.html' "(() => { const r = document.getElementById('panelOpen').getBoundingClientRect(); return Math.round(r.left + r.width / 2) + '|' + Math.round(r.top + r.height / 2); })()").value) -split '\|'
 Nudge ([int]$pw.x + [int]$br[0]) ([int]$pw.y + [int]$br[1])
 Start-Sleep -Milliseconds 300
+Say "panel under the pointer: page says it takes the pointer $((Cdp 'overlay.html' 'window.sentinelIsland.takesPointer()').value), window style $([K]::ExStyle($ov)), window at the button $([K]::At(([int]$pw.x + [int]$br[0]), ([int]$pw.y + [int]$br[1]))), overlay $ov"
 [K]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 60; [K]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
 $got = Until 3 { (Cdp 'overlay.html' "window.__clicks").value -eq 1 }
 Check 'island-takes-pointer' $got "a real click on the panel's button reached it: $((Cdp 'overlay.html' "window.__clicks").value) click(s)"

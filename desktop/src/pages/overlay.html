@@ -261,7 +261,7 @@
     words(r.html, r.color);
   }
   // The desktop end-to-end run (scripts/desktop-e2e.ps1) replays the island through these to photograph it mid-spring.
-  window.sentinelIsland = { say: say, hush: hush, open: function () { openPanel(false); }, close: closePanel };
+  window.sentinelIsland = { say: say, hush: hush, open: function () { openPanel(false); }, close: closePanel, takesPointer: function () { return interactive; } };
 
   /*
    * What the island knows about the page in front. All of it comes from the app as it happens (overlay:page,
