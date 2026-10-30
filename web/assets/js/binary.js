@@ -1,11 +1,13 @@
 /*
- * Binary: delicate scanning, made visible. While Sentinel digs into a site, the screen corrupts into flickering
- * binary for a moment: gold digits on black, and over each link the digits take the link's colour (lemon yellow,
- * orange, red, or green when it is clear). It is fast and thin, so the page underneath stays readable, and it fades
- * once everything has been checked.
+ * Binary: delicate scanning, made quiet. While Sentinel digs into something, a thin field of faint gold digits settles
+ * behind the wait, and a soft band moves down it as the real stages finish. Over each link the digits take the link's
+ * colour once its verdict is in. Nothing flickers: a digit turns over every two seconds or so, the field fades in and
+ * out as one layer, and no frame can differ from the last by more than a faint digit (scripts/verify-web/47-calm-dig.js
+ * measures that on real frames). A scan that ends within the grace period draws nothing at all.
  *
- *   SentinelBinary.dig(host, { links })   corrupt `host` (an element, or null for the whole window) until .finish();
- *                                          links() returns [{ x, y, w, h, color }] in the host's own pixels
+ *   SentinelBinary.dig(host, { links, around, grace })   dig into `host` (an element, or null for the links alone);
+ *                                          links() returns [{ x, y, w, h, color }] in the host's own pixels; around:
+ *                                          keeps the middle clear for words. Returns { progress(0..1), finish(), stop() }
  *   SentinelBinary.burst(host, ms, opts)   the same, ending by itself
  *   SentinelBinary.decode(el)              a heading arrives out of binary, left to right
  *   SentinelBinary.lens(selector)          hovering a card shows binary around the pointer
@@ -16,12 +18,25 @@
 (function () {
   'use strict';
 
-  var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var motion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
+  var isReduced = function () { return Boolean(motion && motion.matches); };
   // Severity colours made for black: the yellow is lemon, nothing like the gold.
   var COLORS = { gold: '#d6b25a', yellow: '#fff23a', orange: '#ff7a1a', red: '#ff3b3b', green: '#34e07a' };
-  var LINK_CYCLE = ['yellow', 'red', 'green', 'orange'];
   var CW = 9;
   var CH = 14;
+
+  // The field: a digit in about a third of the places on a wide grid, faint, brighter only near the moving band.
+  var GRACE_MS = 400;      // under this a scan shows nothing
+  var FADE_IN_MS = 320;
+  var FADE_OUT_MS = 260;
+  var TICK_MS = 120;       // digits turn over in turn, each every sixteen of these
+  var GAP_X = 16;
+  var GAP_Y = 22;
+  var FILL = 0.32;
+  var FIELD_ALPHA = 0.1;
+  var BAND_ALPHA = 0.26;
+  var BAND_H = 90;
+  var LINK_ALPHA = 0.34;
 
   // Each digit in each colour, drawn once: the frames only place them.
   var atlas = null;
@@ -46,40 +61,19 @@
     return atlas;
   }
 
-  // Whole sheets of digits in each colour, drawn once, with the gaps of a broken signal: a block of binary is then
-  // one copy from a random place on a sheet instead of a hundred digits, so the screen can be full of it.
-  var PCOLS = 48;
-  var PROWS = 10;
-  var sheets = null;
-  function patches() {
-    if (sheets) return sheets;
-    var A = glyphs();
-    sheets = {};
-    Object.keys(COLORS).forEach(function (n) {
-      sheets[n] = [0, 1, 2].map(function () {
-        var c = document.createElement('canvas');
-        c.width = A.w * PCOLS; c.height = A.h * PROWS;
-        var g = c.getContext('2d');
-        for (var r = 0; r < PROWS; r++) {
-          for (var k = 0; k < PCOLS; k++) {
-            if (Math.random() < 0.18) continue;
-            g.globalAlpha = n === 'gold' ? 0.55 + Math.random() * 0.45 : 0.85 + Math.random() * 0.15;
-            g.drawImage(A.canvas, (Math.random() < 0.5 ? 0 : 1) * A.w, A.row[n] * A.h, A.w, A.h, k * A.w, r * A.h, A.w, A.h);
-          }
-        }
-        return c;
-      });
-    });
-    return sheets;
-  }
+  // The same place always gets the same digit and the same moment to turn over: no frame draws anything by chance.
+  function hash(a, b, c) { return (Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) >>> 0; }
+  function digit(h, tick) { return (h + ((tick + (h >>> 8) % 16) >> 4)) & 1; }
 
-  function surface(host) {
+  function surface(host, around) {
     var c = document.createElement('canvas');
     c.className = 'binary-veil';
     c.setAttribute('aria-hidden', 'true');
-    c.style.cssText = host
-      ? 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:6;'
-      : 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:380;';
+    c.style.cssText = (host
+      ? 'position:absolute;left:0;top:0;pointer-events:none;z-index:6;'
+      : 'position:fixed;left:0;top:0;pointer-events:none;z-index:380;')
+      + 'opacity:0;transition:opacity ' + FADE_IN_MS + 'ms ease-out;';
+    if (around) c.style.webkitMaskImage = c.style.maskImage = 'radial-gradient(ellipse 52% 72% at 50% 50%, transparent 58%, #000 100%)';
     if (host && getComputedStyle(host).position === 'static') host.style.position = 'relative';
     (host || document.body).appendChild(c);
     return c;
@@ -87,109 +81,127 @@
 
   function dig(host, opts) {
     opts = opts || {};
-    var done = false;
-    var resolveFinish = null;
-    if (reduced) return { finish: function () { return Promise.resolve(); }, stop: function () {} };
+    if (isReduced()) return { progress: function () {}, finish: function () { return Promise.resolve(); }, stop: function () {} };
     var A = glyphs();
-    var S = patches();
-    var canvas = surface(host || null);
-    var ctx = canvas.getContext('2d');
+    var canvas = null, ctx = null;
     var W = 0, H = 0;
+    var cells = [];
+    var done = false;
+    var raf = 0;
+    var lastDraw = 0;
+    var want = null;          // how far down the band should be, 0 to 1; null while the scan has not said
+    var reach = 0;            // where it is, in pixels
+    var lastTick = -1;
+
     var size = function () {
       var r = host ? host.getBoundingClientRect() : { width: innerWidth, height: innerHeight };
       W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
       canvas.width = Math.round(W * A.dpr); canvas.height = Math.round(H * A.dpr);
-    };
-    size();
-    var blocks = [];
-    var intensity = 1;        // how much of the screen is corrupt at once (falls to 0 as it finishes)
-    var fading = 0;           // when finishing started
-    var start = performance.now();
-    var raf = 0;
-
-    function spawn(now, links) {
-      // Most of the corruption lands on the links: that is what is being dug into.
-      if (links.length && Math.random() < 0.5) {
-        var li = (Math.random() * links.length) | 0, l = links[li];
-        blocks.push({ x: l.x - 4, y: l.y - 2, w: l.w + 8, h: l.h + 4, until: now + 90 + Math.random() * 160, li: li });
-        return;
-      }
-      var bw = CW * Math.round((40 + Math.random() * Math.min(380, W * 0.45)) / CW);
-      var bh = CH * (1 + ((Math.random() * 8) | 0));
-      blocks.push({ x: CW * Math.floor(Math.random() * (W - bw) / CW), y: CH * Math.floor(Math.random() * (H - bh) / CH), w: bw, h: bh, until: now + 60 + Math.random() * 190 });
-    }
-
-    // Until a link's verdict is in, its digits cycle through the colours.
-    function linkColor(l, i, now) {
-      return l.color || LINK_CYCLE[(((now / 130) | 0) + i) % LINK_CYCLE.length];
-    }
-
-    // A block of digits: copies from a random place on a sheet, every frame, so the digits never sit still.
-    function paint(b, col) {
-      var list = S[col] || S.gold;
-      for (var y = 0; y < b.h; y += PROWS * CH) {
-        for (var x = 0; x < b.w; x += PCOLS * CW) {
-          var cols = Math.min(PCOLS, Math.ceil((b.w - x) / CW)), rows = Math.min(PROWS, Math.ceil((b.h - y) / CH));
-          var sx = ((Math.random() * (PCOLS - cols + 1)) | 0) * A.w, sy = ((Math.random() * (PROWS - rows + 1)) | 0) * A.h;
-          ctx.drawImage(list[(Math.random() * list.length) | 0], sx, sy, cols * A.w, rows * A.h, b.x + x, b.y + y, cols * CW, rows * CH);
+      // In pixels, not 100%: the host grows when the result lands, and the last of the digits must not stretch with it.
+      canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+      cells = [];
+      if (!host) return;      // the whole window is never filled: only its links are dug into
+      for (var y = 0; y < H; y += GAP_Y) {
+        for (var x = 0; x < W; x += GAP_X) {
+          var h = hash(x, y, 1);
+          if (h % 1000 < FILL * 1000) cells.push({ x: x, y: y, h: h, a: 0.6 + (h % 41) / 100 });
         }
       }
+      lastTick = -1;
+    };
+
+    function alphaAt(c) {
+      var base = FIELD_ALPHA * c.a;
+      if (want === null) return base;
+      var d = c.y - reach;
+      if (d > BAND_H) return base * 0.5;
+      var near = Math.max(0, 1 - Math.abs(d) / BAND_H);
+      return base + (BAND_ALPHA - FIELD_ALPHA) * near * near;
     }
 
     function frame(now) {
-      raf = 0;
-      if (done) return;
-      var links = (opts.links ? opts.links() : []) || [];
-      if (fading) intensity = Math.max(0, 1 - (now - fading) / 420);
-      else intensity = Math.min(1, (now - start) / 140);
-      // Nearly half the area at full strength (density 1 is about a fifth), in quick, short-lived blocks.
-      var want = Math.round((W * H) / 24000 * intensity * (opts.density || 2.6)) + (fading ? 0 : 1);
-      blocks = blocks.filter(function (b) { return b.until > now; });
-      while (blocks.length < want) spawn(now, links);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      raf = requestAnimationFrame(frame);
+      var dt = Math.min(100, now - lastDraw);
+      if (dt < 33) return;    // thirty frames a second is plenty for something this slow
+      lastDraw = now;
+      var tick = Math.floor(now / TICK_MS);
+      var goal = want === null ? 0 : want * H;
+      var moving = Math.abs(goal - reach) > 0.5;
+      if (!moving && tick === lastTick) return;
+      lastTick = tick;
+      if (moving) reach += (goal - reach) * (1 - Math.exp(-dt / 420));
       ctx.setTransform(A.dpr, 0, 0, A.dpr, 0, 0);
-      for (var i = 0; i < blocks.length; i++) {
-        var b = blocks[i];
-        ctx.globalAlpha = 0.72 * intensity;
-        ctx.fillStyle = '#050403';
-        ctx.fillRect(b.x, b.y, b.w, b.h);
-        ctx.globalAlpha = intensity;
-        paint(b, b.li != null && links[b.li] ? linkColor(links[b.li], b.li, now) : 'gold');
+      ctx.clearRect(0, 0, W, H);
+      var gold = A.row.gold * A.h;
+      for (var i = 0; i < cells.length; i++) {
+        var c = cells[i];
+        ctx.globalAlpha = alphaAt(c);
+        ctx.drawImage(A.canvas, digit(c.h, tick) * A.w, gold, A.w, A.h, c.x, c.y, CW, CH);
+      }
+      var links = (opts.links ? opts.links() : []) || [];
+      ctx.globalAlpha = LINK_ALPHA;
+      for (var k = 0; k < links.length; k++) {
+        var l = links[k], row = A.row[l.color] != null ? A.row[l.color] : A.row.gold;
+        for (var ly = 0; ly < l.h; ly += CH + 2) {
+          for (var lx = 0; lx < l.w; lx += CW + 3) {
+            var lh = hash(lx, ly, k + 2);
+            if (lh % 10 < 6) ctx.drawImage(A.canvas, digit(lh, tick) * A.w, row * A.h, A.w, A.h, l.x + lx, l.y + ly, CW, CH);
+          }
+        }
       }
       ctx.globalAlpha = 1;
-      if (fading && intensity <= 0) { stop(); if (resolveFinish) resolveFinish(); return; }
-      raf = requestAnimationFrame(frame);
     }
+
+    function begin() {
+      begin.timer = 0;
+      canvas = surface(host || null, opts.around);
+      ctx = canvas.getContext('2d');
+      size();
+      window.addEventListener('resize', size);
+      raf = requestAnimationFrame(frame);
+      canvas.getBoundingClientRect();
+      canvas.style.opacity = '1';
+    }
+
     function stop() {
       done = true;
+      clearTimeout(begin.timer);
       if (raf) cancelAnimationFrame(raf);
       window.removeEventListener('resize', size);
-      if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
+      if (canvas) canvas.remove();
     }
-    window.addEventListener('resize', size);
-    raf = requestAnimationFrame(frame);
+
+    begin.timer = setTimeout(begin, opts.grace == null ? GRACE_MS : opts.grace);
     return {
-      // Everything has been checked: the corruption thins out and is gone in under half a second.
+      // How far the scan has really got, from 0 to 1: only ever what it reported.
+      progress: function (p) { want = Math.max(0, Math.min(1, p)); },
+      // The answer is in: the digits fade by themselves, over whatever is there by now. Nothing waits for this.
       finish: function () {
         if (done) return Promise.resolve();
-        return new Promise(function (resolve) { resolveFinish = resolve; if (!fading) fading = performance.now(); });
+        if (!canvas) { stop(); return Promise.resolve(); }
+        done = true;
+        if (raf) cancelAnimationFrame(raf);
+        window.removeEventListener('resize', size);
+        if (!canvas.isConnected) (host || document.body).appendChild(canvas);
+        canvas.style.transition = 'opacity ' + FADE_OUT_MS + 'ms ease-out';
+        canvas.style.opacity = '0';
+        return new Promise(function (resolve) { setTimeout(function () { canvas.remove(); resolve(); }, FADE_OUT_MS); });
       },
       stop: stop
     };
   }
 
   function burst(host, ms, opts) {
-    // A passing moment (a chapter arriving on the website), lighter than a scan digging in.
+    // A passing moment (a chapter arriving on the website).
     opts = opts || {};
-    var d = dig(host, { links: opts.links, density: opts.density || 1 });
+    var d = dig(host, { links: opts.links, grace: 0 });
     return new Promise(function (resolve) { setTimeout(function () { d.finish().then(resolve); }, ms || 900); });
   }
 
   /* -------------------------------------------- a heading out of binary */
 
   function decode(el, ms) {
-    if (reduced || !el || el.dataset.decoding) return;
+    if (isReduced() || !el || el.dataset.decoding) return;
     el.dataset.decoding = '1';
     var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     var nodes = [];
@@ -218,7 +230,7 @@
   /* ------------------------------------- a lens of binary under the pointer */
 
   function lens(selector) {
-    if (reduced || !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
+    if (isReduced() || !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
     var A = null, canvas = null, ctx = null, host = null, px = 0, py = 0, alpha = 0, raf = 0;
     function draw() {
       raf = 0;

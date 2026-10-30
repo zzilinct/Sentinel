@@ -168,7 +168,7 @@
     void target.offsetWidth;
     target.classList.add('is-sighted');
     sight.classList.add('is-on');
-    // And the chapter is dug into: a moment of binary across the screen, its links' digits in the masks' colours.
+    // And the chapter is dug into: a moment of faint binary over its links.
     if (window.SentinelBinary) {
       window.SentinelBinary.burst(null, 650, {
         links: () => [...target.querySelectorAll('a, button, .chip-q, .res__title')].map((a) => a.getBoundingClientRect())

@@ -208,23 +208,21 @@
     sweepTimer = setTimeout(function () { document.body.classList.remove('sweeping'); }, 2800);
   }
 
-  // Delicate scanning digs in (binary.js): as the gold line finishes, the page corrupts into binary for a moment,
-  // gold digits and, over each result, its mask's colour (cycling until its verdict is in). Once every result has
-  // its verdict it thins out and is gone; never longer than five seconds, so a search is never just binary.
+  // Delicate scanning digs in (binary.js): as the gold line finishes, faint digits settle over each result still being
+  // checked, in its mask's colour once its verdict is in. Once every result has its verdict they fade, at once, and
+  // never after more than five seconds. Verdicts that are all in before the line finishes never see it at all.
   var digging = null;
   var digTimer = null;
-  var digFrom = 0;
-  var DIG_MIN_MS = 2400;   // the quick verdicts are in within milliseconds: it digs at least this long all the same
   var DIG_COLOR = { yellow: 'yellow', orange: 'orange', red: 'red' };
   function digLinks() {
     return current.filter(function (m) { return !m.row; }).map(function (m) {
       return { x: m.x + shiftX, y: m.y + shiftY, w: m.w, h: m.h, color: m.pending ? null : m.badge ? DIG_COLOR[m.badge] : 'green' };
     });
   }
+  function allChecked() { return current.length && !current.some(function (m) { return m.pending; }); }
   function startDig() {
-    if (!window.SentinelBinary || digging) return;
+    if (!window.SentinelBinary || digging || allChecked()) return;
     digging = window.SentinelBinary.dig(null, { links: digLinks });
-    digFrom = Date.now();
     clearTimeout(digTimer);
     digTimer = setTimeout(endDig, 5000);
   }
@@ -237,9 +235,7 @@
   }
   // Everything checked: no result still waiting for its verdict.
   function digCheck() {
-    if (!digging || !current.length || current.some(function (m) { return m.pending; })) return;
-    clearTimeout(digTimer);
-    digTimer = setTimeout(endDig, Math.max(350, DIG_MIN_MS - (Date.now() - digFrom)));
+    if (digging && allChecked()) endDig();
   }
 
   function clearMarks() {

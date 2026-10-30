@@ -18,10 +18,35 @@ window.UI = (() => {
     }
   }
 
-  async function api(path, { method = 'GET', body, raw, headers = {}, signal } = {}) {
+  // A scan's answer, line by line (server/routes/scan.routes.js staged): each real stage as it starts, then the result.
+  async function readStages(res, onStage) {
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let held = '';
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        held += value;
+        for (let at = held.indexOf('\n'); at >= 0; at = held.indexOf('\n')) {
+          const line = JSON.parse(held.slice(0, at));
+          held = held.slice(at + 1);
+          if (line.result) return line.result;
+          if (line.error) throw new ApiError(line.error.message || 'Sentinel had a problem on its side. Try again in a moment.', line.error.status, line.error);
+          onStage(line);
+        }
+      }
+    } catch (err) {
+      if (err instanceof ApiError || err.name === 'AbortError') throw err;
+      if (err.name === 'TimeoutError') throw new ApiError('Sentinel is taking too long to answer. Try again in a moment.', 0);
+    }
+    throw new ApiError('Could not reach Sentinel. Check your connection and try again.', 0);
+  }
+
+  async function api(path, { method = 'GET', body, raw, headers = {}, signal, onStage } = {}) {
     // Nothing waits forever: a call nobody cancels gives up after 75 s (past the 60 s an AI reply may take) with a plain
     // message instead of a spinner that never stops.
     const init = { method, credentials: 'same-origin', headers: { ...headers }, signal: signal || AbortSignal.timeout(75000) };
+    if (onStage) init.headers.Accept = 'application/x-ndjson';
     if (raw !== undefined) init.body = raw;
     else if (body !== undefined) { init.body = JSON.stringify(body); init.headers['Content-Type'] = 'application/json'; }
     let res;
@@ -32,6 +57,7 @@ window.UI = (() => {
       if (err.name === 'TimeoutError') throw new ApiError('Sentinel is taking too long to answer. Try again in a moment.', 0);
       throw new ApiError('Could not reach Sentinel. Check your connection and try again.', 0);
     }
+    if (onStage && res.ok && /ndjson/.test(res.headers.get('Content-Type') || '')) return readStages(res, onStage);
     let data = null;
     try { data = await res.json(); } catch { /* empty */ }
     if (!res.ok) {
@@ -425,6 +451,15 @@ window.UI = (() => {
     return `<p class="real-site"><a class="btn btn--gold btn--sm" data-real-site href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Go to the real ${esc(r.host)}</a></p>`;
   }
 
+  /**
+   * A result's mask: the real one, a still picture until the app lays the 3D model over it (app.js riseMask), when
+   * there is a threat to show. A clean result keeps its small flat mark: it needs no ceremony.
+   */
+  function resultGlyph(threat, tone) {
+    if (tone === 'clear' || tone === 'partial') return `<div class="result__glyph" style="--c:${tone === 'partial' ? 'var(--muted)' : color(null)}">${Masks.svg(threat)}</div>`;
+    return `<div class="result__glyph result__glyph--mask" aria-hidden="true"><span class="m3" data-verdict-mask="${threat}" data-tint="${tone}"><img src="/assets/img/masks/${threat}-${tone}.webp" width="788" height="896" alt=""></span></div>`;
+  }
+
   function verdict(v, { lockedLabel } = {}) {
     const head = headline(v);
     const subject = v.kind === 'file' ? v.file.name : v.kind === 'email' ? (v.sender.address || 'Email') : v.host;
@@ -466,7 +501,7 @@ window.UI = (() => {
 
     return `<article class="result result--${head.tone}" data-result>
       <header class="result__head">
-        <div class="result__glyph" style="--c:${head.tone === 'partial' ? 'var(--muted)' : color(head.tone === 'clear' ? null : head.tone)}">${Masks.svg(head.threat)}</div>
+        ${resultGlyph(head.threat, head.tone)}
         <div class="result__title">
           <h2>${esc(head.title)}</h2>
           <p><span class="mono">${esc(subject)}</span></p>
@@ -505,5 +540,5 @@ window.UI = (() => {
     </article>`;
   }
 
-  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
+  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, resultGlyph, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
 })();

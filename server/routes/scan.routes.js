@@ -94,6 +94,31 @@ function withUsage(user, payload) {
   return { ...payload, usage: plans.usageSummary(A.uq.byId.get(user.id)).usage };
 }
 
+/**
+ * A scan that can say what it is doing. A client that asks (Accept: application/x-ndjson) gets one line for each real
+ * stage as it starts, then { result } or { error }; any other client gets plain JSON, as before. Nothing is written
+ * before the first stage, so a refusal (no scans left, a bad request) keeps its status, and a scan answered from the
+ * cache, with no stages to report, is plain JSON too.
+ */
+async function staged(req, res, work) {
+  const wanted = /application\/x-ndjson/.test(String(req.headers.accept || ''));
+  const onStage = (stage, extra) => {
+    if (!res.headersSent) res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Accel-Buffering': 'no' });
+    res.write(`${JSON.stringify({ stage, ...extra })}\n`);
+  };
+  try {
+    const payload = await work(wanted ? onStage : undefined);
+    if (res.headersSent) res.end(`${JSON.stringify({ result: payload })}\n`);
+    else sendJson(res, 200, payload);
+  } catch (err) {
+    if (!res.headersSent) throw err;
+    // The status line has gone: the failure travels as the last line, in the shape of any other error.
+    const status = err.status || 500;
+    if (status >= 500) console.error(`[error] ${req.method} ${req.url}`, err);
+    res.end(`${JSON.stringify({ error: { status, code: status >= 500 ? 'internal_error' : err.code, message: status >= 500 ? undefined : err.message } })}\n`);
+  }
+}
+
 function cleanMail(body) {
   const m = (body && typeof body.email === 'object' && body.email) || body || {};
   return {
@@ -129,21 +154,24 @@ function register(router) {
     // Fast: threat lists, the checklist and comparison. Delicate: all that, and the site researched too. Asked for by
     // the person; a client that does not ask gets the best its plan has, as before there were two.
     const scanMode = body.mode === 'fast' || body.mode === 'delicate' ? body.mode : (plan.features.research ? 'delicate' : 'fast');
-    const verdict = await metered(user, scanMode === 'delicate' ? 'deepScans' : 'linkScans', () => engine.scanUrl(url, {
-      userId: user.id,
-      planId: plan.id,
-      research: scanMode === 'delicate' && plan.features.research,
-      threats: plan.features.virusMalwareOnLinks ? ALL : ['scam'],
-      mode: 'manual',
-      record: true
-    }), (v) => {
-      // A delicate scan that researched nothing (a well-known, verified site skips research) is a fast scan: it is
-      // counted as one while fast scans are left, and the delicate scan goes back.
-      if (scanMode !== 'delicate' || v.researched) return true;
-      try { plans.consume(user, 'linkScans'); return false; } catch { return true; }
+    await staged(req, res, async (onStage) => {
+      const verdict = await metered(user, scanMode === 'delicate' ? 'deepScans' : 'linkScans', () => engine.scanUrl(url, {
+        userId: user.id,
+        planId: plan.id,
+        research: scanMode === 'delicate' && plan.features.research,
+        threats: plan.features.virusMalwareOnLinks ? ALL : ['scam'],
+        mode: 'manual',
+        record: true,
+        onStage
+      }), (v) => {
+        // A delicate scan that researched nothing (a well-known, verified site skips research) is a fast scan: it is
+        // counted as one while fast scans are left, and the delicate scan goes back.
+        if (scanMode !== 'delicate' || v.researched) return true;
+        try { plans.consume(user, 'linkScans'); return false; } catch { return true; }
+      });
+      if (lookalike(verdict)) week.bump(user.id, 'lookalikes');
+      return withUsage(user, { verdict, scanMode });
     });
-    if (lookalike(verdict)) week.bump(user.id, 'lookalikes');
-    sendJson(res, 200, withUsage(user, { verdict, scanMode }));
   });
 
   /* ------------------------------------------------------------ QR codes */
@@ -169,15 +197,18 @@ function register(router) {
     if (!url || !analyze(url)) throw new HttpError(400, 'bad_url', 'Paste a download link or web address to scan');
 
     const plan = plans.planFor(user);
-    const verdict = await metered(user, 'fileScans', () => engine.scanUrl(url, {
-      userId: user.id,
-      planId: plan.id,
-      research: plan.features.research,
-      threats: ['virus', 'malware'],
-      mode: 'manual',
-      record: true
-    }));
-    sendJson(res, 200, withUsage(user, { verdict }));
+    await staged(req, res, async (onStage) => {
+      const verdict = await metered(user, 'fileScans', () => engine.scanUrl(url, {
+        userId: user.id,
+        planId: plan.id,
+        research: plan.features.research,
+        threats: ['virus', 'malware'],
+        mode: 'manual',
+        record: true,
+        onStage
+      }));
+      return withUsage(user, { verdict });
+    });
   });
 
   /* ----------------------------------------- virus & malware scanner (file) */
@@ -194,12 +225,15 @@ function register(router) {
     if (declared > MAX_FILE_BYTES) throw new HttpError(413, 'file_too_large', 'Files up to 25 MB can be scanned');
 
     const plan = plans.planFor(user);
-    const verdict = await metered(user, 'fileScans', async () => {
-      const buf = await readBody(req, MAX_FILE_BYTES);
-      if (!buf.length) throw new HttpError(400, 'empty_file', 'That file is empty');
-      return engine.scanUpload(buf, name, { userId: user.id, planId: plan.id, record: true });
+    await staged(req, res, async (onStage) => {
+      const verdict = await metered(user, 'fileScans', async () => {
+        const buf = await readBody(req, MAX_FILE_BYTES);
+        if (!buf.length) throw new HttpError(400, 'empty_file', 'That file is empty');
+        if (onStage) onStage('inspect');
+        return engine.scanUpload(buf, name, { userId: user.id, planId: plan.id, record: true });
+      });
+      return withUsage(user, { verdict });
     });
-    sendJson(res, 200, withUsage(user, { verdict }));
   });
 
   /* ------------------------------------------------- manual email scan (Max) */
@@ -214,8 +248,10 @@ function register(router) {
     const mail = cleanMail(await readJson(req, 128 * 1024));
     if (!mail.from && !mail.fromAddress && !mail.body && !mail.subject && !mail.qr.length) throw new HttpError(400, 'empty_email', 'Paste the email you want checked');
     // A pasted email is researched (its links and sender): a delicate scan.
-    const verdict = await metered(user, 'deepScans', () => engine.scanEmail(mail, { userId: user.id, planId: plan.id, research: true, mode: 'manual', record: true }));
-    sendJson(res, 200, withUsage(user, { verdict }));
+    await staged(req, res, async (onStage) => {
+      const verdict = await metered(user, 'deepScans', () => engine.scanEmail(mail, { userId: user.id, planId: plan.id, research: true, mode: 'manual', record: true, onStage }));
+      return withUsage(user, { verdict });
+    });
   });
 
   /* ---------------------------------------------------- text message scan */
@@ -234,28 +270,36 @@ function register(router) {
     const from = String(body.from || '').slice(0, 80);
     if (!text.trim()) throw new HttpError(400, 'empty_text', 'Paste the text message you want checked');
     const plan = plans.planFor(user);
-    const result = await metered(user, 'linkScans', async () => {
-      const r = texts.judgeText({ from, text });
-      const verdicts = r.links.length ? await engine.scanUrls(r.links, {
-        userId: user.id, planId: plan.id, research: false, threats: plan.features.virusMalwareOnLinks ? ALL : ['scam'], mode: 'manual', detail: 'compact', recordFlagged: false
-      }) : [];
-      const byUrl = {};
-      for (const v of verdicts) byUrl[v.requested] = v;
-      const flag = texts.withLinks(r, byUrl);
-      const convo = slowscam.judgeConversation(text);
-      const stronger = convo && (!flag || (convo.level === 'danger' && flag.level !== 'danger'));
-      return {
-        flag: stronger ? { level: convo.level, family: convo.family, words: true, title: convo.title, detail: convo.detail, advice: convo.advice } : flag,
-        conversation: convo ? { stages: convo.stages, at: convo.at, next: convo.next, level: convo.level } : null,
-        sender: texts.senderKind(from),
-        links: r.links.map((url) => {
-          const v = byUrl[url];
-          const ok = v && v.ok;
-          return { url, host: ok ? v.host : null, badge: ok ? v.overall.badge : null, label: ok ? v.overall.label : 'Not checked', reason: ok && v.reasons[0] ? v.reasons[0].text : null };
-        })
-      };
+    await staged(req, res, async (onStage = () => {}) => {
+      const result = await metered(user, 'linkScans', async () => {
+        onStage('message');
+        const r = texts.judgeText({ from, text });
+        let done = 0;
+        const total = r.links.length;
+        if (total) onStage('links', { done, total });
+        const verdicts = total ? await engine.scanUrls(r.links, {
+          userId: user.id, planId: plan.id, research: false, threats: plan.features.virusMalwareOnLinks ? ALL : ['scam'], mode: 'manual', detail: 'compact', recordFlagged: false,
+          onLink: () => onStage('links', { done: ++done, total })
+        }) : [];
+        const byUrl = {};
+        for (const v of verdicts) byUrl[v.requested] = v;
+        const flag = texts.withLinks(r, byUrl);
+        onStage('conversation');
+        const convo = slowscam.judgeConversation(text);
+        const stronger = convo && (!flag || (convo.level === 'danger' && flag.level !== 'danger'));
+        return {
+          flag: stronger ? { level: convo.level, family: convo.family, words: true, title: convo.title, detail: convo.detail, advice: convo.advice } : flag,
+          conversation: convo ? { stages: convo.stages, at: convo.at, next: convo.next, level: convo.level } : null,
+          sender: texts.senderKind(from),
+          links: r.links.map((url) => {
+            const v = byUrl[url];
+            const ok = v && v.ok;
+            return { url, host: ok ? v.host : null, badge: ok ? v.overall.badge : null, label: ok ? v.overall.label : 'Not checked', reason: ok && v.reasons[0] ? v.reasons[0].text : null };
+          })
+        };
+      });
+      return withUsage(user, { text: result });
     });
-    sendJson(res, 200, withUsage(user, { text: result }));
   });
 
   /* --------------------------------------------------------- live scanning */
