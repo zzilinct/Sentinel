@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' file:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel</title>
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <script src="card.js"></script>
 <style>
-  .body .recover { margin: 10px 0 0; font-size: 13px; color: #b9b5ab; }
+  .body .recover { margin: 10px 0 0; font-size: var(--t-note); color: #b9b5ab; }
   .real { margin: 16px 0 0; }
   .real[hidden] { display: none; }
   .real button { width: 100%; height: auto; min-height: 38px; padding: 8px 16px; overflow-wrap: anywhere; }

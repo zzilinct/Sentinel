@@ -317,6 +317,17 @@
       }
     };
     walk(el);
+    if (rise) {
+      // A letter in a box of its own loses its kerning and ligatures: once risen, each word is plain text again.
+      const chars = el.querySelectorAll('.ch');
+      const last = chars[chars.length - 1];
+      const settle = (e) => {
+        if (e.propertyName !== 'transform') return;
+        last.removeEventListener('transitionend', settle);
+        el.querySelectorAll('.word').forEach((w) => { w.textContent = w.textContent; });
+      };
+      if (last) last.addEventListener('transitionend', settle);
+    }
   }
 
   /* ------------------------------------------- long paragraphs, word by word */

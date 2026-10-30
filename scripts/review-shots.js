@@ -41,7 +41,7 @@ const PAGES = [
   ['app-call', '/app/call'], ['practice', '/practice']
 ];
 // Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.
-const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light']];
+const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light'], ['phone-light', 390, 844, true, 'light']];
 
 /** Commands over the DevTools pipe; `onEvent`, if given, hears the browser's events (messages without an id). */
 function cdpPipe(child, onEvent) {
@@ -932,8 +932,24 @@ async function weekCheck(send) {
  */
 async function desktopCards(send) {
   const pages = path.join(ROOT, 'desktop', 'src', 'pages');
+  // Their type comes from desktop/shared, which desktop/scripts/sync-shared.js fills when the app is built.
+  fs.cpSync(path.join(ROOT, 'web', 'assets', 'fonts'), path.join(ROOT, 'desktop', 'shared', 'fonts'), { recursive: true });
   const url = (name, q) => `file:///${path.join(pages, `${name}.html`).replace(/\\/g, '/')}?${new URLSearchParams(q)}`;
-  const long = 'This page asks for your PayPal password and card number, but its address was registered four days ago and is not one PayPal uses for signing in to any account';
+  // The two pages the app window shows before the site is up.
+  for (const [name, address] of [['loading', url('loading', {})], ['error', url('error', { message: 'Sentinel could not start its local server.', log: 'C:\\Users\\you\\AppData\\Roaming\\Sentinel\\logs\\server.log', retryIn: '10' })]]) {
+    const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+    const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+    await send('Page.enable', {}, sessionId);
+    await send('Emulation.setDeviceMetricsOverride', { width: 760, height: 460, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await send('Page.navigate', { url: address }, sessionId);
+    await sleep(1200);
+    const fonts = await send('Runtime.evaluate', { expression: "[...document.fonts].filter((f) => !/Stand-in/.test(f.family)).map((f) => `${f.family}: ${f.status}`).join(', ')", returnByValue: true }, sessionId);
+    console.log(`desktop-page-${name}.png  fonts: ${fonts.result.value}`);
+    const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+    fs.writeFileSync(path.join(OUT, `desktop-page-${name}.png`), Buffer.from(shot.data, 'base64'));
+    await send('Target.closeTarget', { targetId });
+  }
+  const long ='This page asks for your PayPal password and card number, but its address was registered four days ago and is not one PayPal uses for signing in to any account';
   const CASES = [
     ['warn-real-site', url('warn', { host: 'paypal-account-verify-login.test', url: 'https://paypal-account-verify-login.test/signin', browser: 'Microsoft Edge', badge: 'red', label: 'Fake PayPal sign-in', real: 'paypal.com',
       reasons: ['Pretends to be PayPal', 'Asks for a password', 'The address was registered days ago', 'Copies PayPal\'s page'].join('\n') })],

@@ -38,9 +38,9 @@ fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), path.join(SR
 // The warning, once more for the page's own world: the browser runs a file only once per frame, and alarm.js
 // already runs there in the companion's world (the block page and the password alarm).
 fs.copyFileSync(path.join(SRC, 'src', 'content', 'alarm.js'), path.join(SRC, 'src', 'content', 'alarm.page.js'));
-// And for the typeface the popup shares with the website, with its licence.
+// And for the type the popup shares with the website: the scale and the faces, with their licences.
 fs.mkdirSync(path.join(SRC, 'src', 'fonts'), { recursive: true });
-for (const file of ['geist-normal-300-700.woff2', 'geist-OFL.txt']) {
+for (const file of ['fonts.css', 'newsreader-opsz-16-72.woff2', 'newsreader-OFL.txt', 'geist-normal-300-700.woff2', 'geist-OFL.txt', 'geist-mono-normal-400-600.woff2', 'geist-mono-OFL.txt']) {
   fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'fonts', file), path.join(SRC, 'src', 'fonts', file));
 }
 

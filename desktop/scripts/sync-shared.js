@@ -51,6 +51,11 @@ copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'binary.js'), path.join(SHA
 copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), path.join(SHARED, 'steps.js'));
 // The QR reader, for "Check something on screen" (snip.js). shared/qr.js is the server's: what a code does.
 copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'qr.js'), path.join(SHARED, 'qr-read.js'));
+// The type the app's own pages (src/pages) share with the website: the scale and the faces, with their licences.
+fs.mkdirSync(path.join(SHARED, 'fonts'), { recursive: true });
+for (const file of fs.readdirSync(path.join(ROOT, 'web', 'assets', 'fonts'))) {
+  copyIfChanged(path.join(ROOT, 'web', 'assets', 'fonts', file), path.join(SHARED, 'fonts', file));
+}
 
 for (const size of [16, 32, 48, 128, 256, 512]) {
   const src = path.join(ROOT, 'extension', 'icons', `icon${size}.png`);

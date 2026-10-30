@@ -1,0 +1,97 @@
+/* Sentinel's type system. One file, loaded by the website, the web app, the desktop app's own pages and the companion, so
+   they all speak with one voice. Relative URLs, so it works from any of those places, file:// included.
+
+   Faces, self-hosted, SIL Open Font License (licences beside the fonts):
+     Newsreader   headlines and large figures. One weight, cut by scripts/make-display-font.py, with its optical size axis:
+                  the browser draws a fine, tight 96px headline and a sturdier, more open 21px title from the same file.
+     Geist        everything people read and press.
+     Geist Mono   addresses and code, where a 1 must never pass for an l. */
+
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./newsreader-opsz-16-72.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('./geist-normal-300-700.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('./geist-mono-normal-400-600.woff2') format('woff2');
+}
+
+/* Stand-ins, drawn to the real faces' widths and heights, so a line does not move when the real font arrives. Measured from
+   the font files over a sample of English; Georgia and Arial cover Windows, Mac and iPhone, Noto Serif and Roboto Android. */
+@font-face { font-family: 'Newsreader Stand-in'; src: local('Georgia'); size-adjust: 95.81%; ascent-override: 76.71%; descent-override: 27.66%; line-gap-override: 0%; }
+@font-face { font-family: 'Newsreader Stand-in Android'; src: local('Noto Serif'); size-adjust: 87.85%; ascent-override: 83.66%; descent-override: 30.16%; line-gap-override: 0%; }
+@font-face { font-family: 'Geist Stand-in'; src: local('Arial'); size-adjust: 105.13%; ascent-override: 95.59%; descent-override: 28.06%; line-gap-override: 0%; }
+@font-face { font-family: 'Geist Stand-in Android'; src: local('Roboto'); size-adjust: 105.3%; ascent-override: 95.44%; descent-override: 28.02%; line-gap-override: 0%; }
+@font-face { font-family: 'Geist Mono Stand-in'; src: local('Consolas'); size-adjust: 109.13%; ascent-override: 92.09%; descent-override: 27.03%; line-gap-override: 0%; }
+
+:root {
+  --display: 'Newsreader', 'Newsreader Stand-in', 'Newsreader Stand-in Android', ui-serif, Georgia, serif;
+  --sans: 'Geist', 'Geist Stand-in', 'Geist Stand-in Android', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Geist Mono', 'Geist Mono Stand-in', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* The scale. Every size in the product is one of these. */
+  --t-micro: 11px;     /* a tag inside a small control, nothing longer than two words */
+  --t-label: 12px;     /* captions, table heads, meta lines */
+  --t-note: 13px;      /* secondary text */
+  --t-ui: 14px;        /* menus, buttons, inputs, list rows */
+  --t-text: 15px;      /* cards and panels */
+  --t-body: 16px;      /* reading */
+  --t-lead: 18px;      /* the sentence under a heading */
+  --t-title-s: 21px;   /* from here up in Newsreader */
+  --t-title: 26px;
+  --t-title-l: clamp(28px, 3vw, 34px);
+  --t-d3: clamp(30px, 3.2vw, 48px);
+  --t-d2: clamp(36px, 5vw, 76px);
+  --t-d1: clamp(42px, 6.6vw, 96px);
+  --t-d0: clamp(64px, 11vw, 160px);
+
+  /* Tracking and leading follow the size, so nobody picks them by hand: they stay as text here (em means the size of whichever
+     element uses them).
+     Geist: +.017em at 12px, nothing at 16px, -.006em at 18px. Small sizes open up, large ones close.
+     Newsreader: nothing at 21px, -.012em at 36px, -.022em at 96px. */
+  --tr-text: calc((16px - 1em) * .05);
+  --tr-display: calc((21px - 1em) * .028);
+  /* Newsreader's leading: 1.24 at 21px, 1.12 at 36px, 1.02 at 96px. */
+  --lh-display: calc(.96em + 5.8px);
+  --lh-text: 1.6;
+  --lh-lead: 1.5;
+  --lh-ui: 1.35;
+
+  --measure: 62ch;       /* a paragraph */
+  --measure-wide: 72ch;  /* long reading: terms, privacy */
+}
+
+/* Every element tracks by its own size. An element picks the other curve, or none, by setting --track; a letter-spacing on
+   the element itself would stop at its children. */
+*, ::before, ::after { letter-spacing: var(--track, var(--tr-text)); }
+h1, h2, h3 { --track: var(--tr-display); }
+code, kbd, pre, samp, input[type="password"] { --track: 0px; }
+
+body {
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures;
+  font-synthesis-weight: none;  /* Newsreader has one weight: a heavier heading must stay the real face, not a smeared copy */
+  text-rendering: optimizeLegibility;
+  hanging-punctuation: first allow-end;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+h1, h2, h3, h4 { text-wrap: balance; }
+p, li, dd, figcaption, blockquote { text-wrap: pretty; }
+/* Numbers that line up or tick over. */
+table, time, [data-count], .tabular { font-variant-numeric: lining-nums tabular-nums; }

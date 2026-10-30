@@ -1,10 +1,5 @@
 /* The website's own type and colours (web/assets/css/sentinel.css), so the companion looks like the same product. */
-@font-face {
-  font-family: 'Geist';
-  font-style: normal;
-  font-weight: 300 700;
-  src: url('fonts/geist-normal-300-700.woff2') format('woff2');
-}
+@import url('fonts/fonts.css');
 :root {
   --bg: #0a0b0d;
   --gold-grad: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%);
@@ -37,14 +32,13 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 13px/1.5 'Geist', system-ui, -apple-system, "Segoe UI", sans-serif;
-  -webkit-font-smoothing: antialiased;
+  font: var(--t-note)/var(--lh-lead) var(--sans);
 }
 
 .top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
-.brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: .01em; font-size: 14px; }
+.brand { display: flex; align-items: center; gap: 9px; font: 400 var(--t-title-s)/1 var(--display); --track: var(--tr-display); }
 .brand img { border-radius: 4px; }
-.plan { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--line); padding: 2px 8px; border-radius: 4px; }
+.plan { font-size: var(--t-label); font-weight: 500; color: var(--gold); border: 1px solid var(--line); padding: 2px 8px; border-radius: 4px; }
 
 .view { padding: 16px; min-height: 180px; }
 .loading { display: grid; place-items: center; height: 160px; }
@@ -52,28 +46,28 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: -4px -4px 10px rgba(255,255,255,.035), 5px 6px 14px rgba(0,0,0,.5); }
-.label { color: var(--muted); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; font-weight: 650; margin-bottom: 8px; }
-.host { font: 600 12.5px/1.4 ui-monospace, Menlo, Consolas, monospace; word-break: break-all; margin-bottom: 10px; }
+.label { color: var(--muted); font-size: var(--t-note); font-weight: 500; margin-bottom: 8px; }
+.host { --track: 0px; font: 500 var(--t-note)/1.4 var(--mono); word-break: break-all; margin-bottom: 10px; }
 
 /* One row per threat: its mask, what was found, and how sure. */
 .threats { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .threat { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel); }
 .threat svg { width: 22px; height: 22px; display: block; }
-.threat b { font-size: 12.5px; font-weight: 700; color: var(--text); }
-.threat span { color: var(--muted); font-size: 11px; }
+.threat b { font-size: var(--t-note); font-weight: 600; color: var(--text); }
+.threat span { color: var(--muted); font-size: var(--t-micro); }
 .threat.locked { opacity: .45; }
 
 .reasons { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
-.reasons li { display: flex; gap: 8px; color: var(--text-2); font-size: 12px; }
+.reasons li { display: flex; gap: 8px; color: var(--text-2); font-size: var(--t-label); }
 .reasons li::before { content: ""; flex: none; width: 5px; height: 5px; margin-top: 7px; border-radius: 50%; background: var(--gold); }
 
 .meter { height: 6px; border-radius: 99px; background: var(--panel-2); overflow: hidden; margin: 8px 0 6px; }
 /* Full-width fill slid in from the left; --p (0-100) is the share used. */
 .meter i { display: block; height: 100%; border-radius: 99px; background: var(--gold); transform: translateX(calc(var(--p, 0) * 1% - 100%)); transition: transform .5s ease; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.small { color: var(--muted); font-size: 11.5px; }
+.small { color: var(--muted); font-size: var(--t-label); }
 
-.btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 650; font-size: 12.5px; padding: 9px 13px; border-radius: 11px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); transition: background .15s ease, transform .1s ease; }
+.btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; font-size: var(--t-note); padding: 9px 13px; border-radius: 11px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); transition: background .15s ease, transform .1s ease; }
 .btn:hover { border-color: var(--muted); }
 .btn:active { transform: scale(.98); }
 .btn.gold { background: var(--gold-grad); color: var(--on-gold); border-color: transparent; box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 10px 24px -12px rgba(212,174,99,.75); }
@@ -88,7 +82,7 @@ body {
 
 .pw-line { margin: 0; padding: 0 16px 11px; }
 .foot { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); }
-.foot a, .link { all: unset; cursor: pointer; color: var(--gold); font-weight: 600; font-size: 12px; }
+.foot a, .link { all: unset; cursor: pointer; color: var(--gold); font-weight: 600; font-size: var(--t-label); }
 .foot a:hover, .link:hover { color: var(--gold-hi); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -100,7 +94,7 @@ body {
 
 /* The keyboard's place, seen: .btn and the links are reset with all: unset, which took the browser's own ring too. */
 .btn:focus-visible, .link:focus-visible, .foot a:focus-visible, .threat:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-.verdict { margin: 0 0 10px; font-size: 12.5px; }
+.verdict { margin: 0 0 10px; font-size: var(--t-note); }
 .verdict + .reasons { margin: -4px 0 10px; }
 h2.label { margin-top: 0; }
 .scan-error { color: var(--orange); margin: 0 0 10px; }

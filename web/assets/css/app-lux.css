@@ -33,7 +33,6 @@ html.lux-app {
   --metal: linear-gradient(176deg, #f3dca4 0%, #d2ac63 30%, #8a6424 56%, #e9c983 72%, #7a561c 100%);
   --sketch: rgb(239 230 212 / .24);
   --sketch-gold: rgb(210 172 99 / .55);
-  --wordmark: 'Anton', 'Impact', sans-serif;
 }
 @media (prefers-color-scheme: light) {
   html.lux-app:not([data-theme="dark"]) {
@@ -287,7 +286,7 @@ html.lux-app[data-theme="light"] {
 .lux-island.is-open { opacity: 1; transform: translateX(-50%); }
 .lux-island__msg {
   position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: max-content; max-width: min(420px, calc(100vw - 32px));
-  display: flex; align-items: flex-start; gap: 10px; padding: 10px 18px; font-size: 14px; line-height: 1.4;
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 18px; font-size: var(--t-ui); line-height: 1.4;
   animation: lux-msg-in .32s var(--lux-out) .12s backwards;
 }
 .lux-island__msg i { flex: none; width: 7px; height: 7px; margin-top: 6.5px; border-radius: 50%; background: #e2c27f; box-shadow: 0 0 10px rgb(226 194 127 / .8); }

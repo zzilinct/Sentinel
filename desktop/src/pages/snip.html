@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' file:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel: check something on screen</title>
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #ece8df; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: #ece8df; }
   * { box-sizing: border-box; }
   :root { --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
   /* The whole screen, lightly dimmed (never fully clear: a clear pixel would let the pointer through to what is below). */
@@ -30,14 +31,14 @@
     transform-origin: 0 0; animation: open .52s var(--spring) both; }
   #card .tile { position: absolute; left: 10px; top: 11px; animation: pop .45s var(--spring) both; }
   .card__body { position: relative; animation: words .3s ease .12s both; }
-  #card h1 { margin: 0 0 2px; font-size: 15px; color: var(--c); }
+  #card h1 { margin: 0 0 2px; font: 400 var(--t-title-s)/var(--lh-display) var(--display); color: var(--c); }
   #card .what { color: #ece8df; }
   #card ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 7px; }
   #card li { padding-left: 12px; position: relative; }
   #card li::before { content: ""; position: absolute; left: 0; top: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--d, #8a857b); }
   #card li b { display: block; font-weight: 600; color: #ece8df; overflow-wrap: anywhere; }
-  #card li span { color: #b9b4a9; font-size: 12px; }
-  #card .do { margin-top: 10px; color: #e2c47f; font-size: 12.5px; }
+  #card li span { color: #b9b4a9; font-size: var(--t-label); }
+  #card .do { margin-top: 10px; color: #e2c47f; font-size: var(--t-note); }
   #card .row { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
   #card button { font: inherit; color: #0c0d10; background: #d6b25a; border: 0; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
   #card button:focus-visible { outline: 2px solid #ece8df; outline-offset: 2px; }
