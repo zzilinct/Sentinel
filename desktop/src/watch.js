@@ -481,6 +481,8 @@ while ($true) {
     }
     # The shield's way out of a full-screen page takes the keyboard from it (main.js showGuard).
     if ($cmd -match '^front (\d{1,20})$') { [SW]::Front([IntPtr][long]$Matches[1]) }
+    # The island's panel is done with the keyboard: to the browser, if the person has not gone somewhere else meanwhile.
+    if ($cmd -eq 'back' -and $overlayH -ne [IntPtr]::Zero -and $browserH -ne [IntPtr]::Zero -and [SW]::GetForegroundWindow() -eq $overlayH) { [SW]::Front($browserH) }
     # A paused site is being checked again: read its links now, not at the next scroll.
     if ($cmd -eq 'reread') { $lastLinks = ''; $forceRead = $true }
     # The person pressed "Get me out of this page": the browser window last watched is asked to close.
@@ -829,6 +831,9 @@ function closeBrowser() {
 function front(handle) {
   if (/^\d{1,20}$/.test(String(handle || ''))) send(`front ${handle}`);
 }
+
+/** The island's panel has finished with the keyboard: the browser gets it back. */
+function backToBrowser() { send('back'); }
 
 /** The overlay's window handle (a decimal string): the reader keeps it directly above the browser, never above
  * everything, so the browser's menus and other programs' windows cover it the way they cover the browser. */
@@ -1556,4 +1561,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, pauseChanged, _test: { resultLinks, unwrapResult, hoverLink, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, payTitles, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, backToBrowser, pauseChanged, _test: { resultLinks, unwrapResult, hoverLink, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, payTitles, SCRIPT } };

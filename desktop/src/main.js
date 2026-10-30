@@ -1194,7 +1194,7 @@ function syncIslandKey(want) {
   islandKeyWanted = want;
   if (islandKeyHeld) { globalShortcut.unregister(ISLAND_KEY); islandKeyHeld = false; }
   if (want) {
-    try { islandKeyHeld = globalShortcut.register(ISLAND_KEY, () => overlay.keyboard(watch.front)); } catch { /* refused */ }
+    try { islandKeyHeld = globalShortcut.register(ISLAND_KEY, () => overlay.keyboard(watch)); } catch { /* refused */ }
     if (!islandKeyHeld) appLog(`corner island: the shortcut ${ISLAND_KEY} is taken by another program`);
   }
   overlay.setKeyHint(islandKeyHeld ? 'Win+Alt+I' : '');

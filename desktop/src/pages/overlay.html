@@ -222,8 +222,8 @@
   }
   function leave(s) {
     s.classList.remove('is-in'); s.classList.add('is-out');
-    // Gone once its way out has played (at once if nothing plays).
-    Promise.allSettled(s.getAnimations().map(function (a) { return a.finished; })).then(function () { s.remove(); });
+    // Gone once its way out has played.
+    setTimeout(function () { s.remove(); }, 260);
   }
 
   var shownWords = null;
@@ -400,7 +400,14 @@
   panelApp.onclick = function () { closePanel(); api.act('open'); };
   cornerMask.onclick = closePanel;
   cornerLabel.onclick = closePanel;
-  window.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { ev.preventDefault(); closePanel(); } });
+  window.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') { ev.preventDefault(); closePanel(); return; }
+    // Tab goes round the panel's buttons: out of the last one the window would lose the keyboard (desktop-e2e).
+    if (ev.key !== 'Tab' || !panelOpen) return;
+    ev.preventDefault();
+    var all = [panelPause, panelApp].filter(function (b) { return !b.hidden; });
+    all[(all.indexOf(document.activeElement) + (ev.shiftKey ? all.length - 1 : 1)) % all.length].focus();
+  });
   window.addEventListener('blur', function () { if (byKeyboard) closePanel(); });
 
   function setCorner(kind, color) {

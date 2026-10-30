@@ -70,6 +70,8 @@ function island() {
     words: () => { const k = label.kids.filter((x) => !x.classList.contains('is-out')); return k.length ? k[k.length - 1].innerHTML.replace(/<\/?b>/g, '') : ''; },
     pointer: (x, y) => listeners.mousemove({ clientX: x, clientY: y }),
     key: (key) => listeners.keydown({ key, preventDefault() {} }),
+    tab: (ev) => listeners.keydown(ev),
+    setActive: (id) => { ctx.document.activeElement = els[id]; },
     blur: () => listeners.blur(),
     isOpen: () => els.corner.classList.contains('is-open'),
     links: () => els.panelLinks.kids.map((li) => `${li.kids[0].textContent}${li.kids[1].text}`)
@@ -250,10 +252,28 @@ test('keyboard: its shortcut brings the keyboard in, Escape or leaving gives it 
   assert.deepEqual(o.calls.pop(), ['act', 'released']);
   // The shortcut is held only while a browser is in front.
   assert.match(main, /syncIslandKey\(Boolean\(rect\)\);\r?\n\s*overlay\.setWindow\(rect\);/);
-  assert.match(main, /globalShortcut\.register\(ISLAND_KEY, \(\) => overlay\.keyboard\(watch\.front\)\)/);
+  assert.match(main, /globalShortcut\.register\(ISLAND_KEY, \(\) => overlay\.keyboard\(watch\)\)/);
   // The reader goes on watching the browser while the panel has the keyboard, and the keyboard goes back to it.
   assert.match(watchSrc, /if \(\$overlayH -ne \[IntPtr\]::Zero -and \$h -eq \$overlayH\) \{ continue \}/);
-  assert.match(overlay, /win\.blur\(\);\r?\n\s*win\.setFocusable\(false\);/);
+  assert.match(overlay, /if \(giveBack\) giveBack\(\);/);
+  assert.doesNotMatch(overlay, /win\.blur\(\)/, 'blur() handed the keyboard to Sentinel\'s own window on a real desktop');
+  assert.ok(watchSrc.includes("if ($cmd -eq 'back' -and $overlayH -ne [IntPtr]::Zero -and $browserH -ne [IntPtr]::Zero -and [SW]::GetForegroundWindow() -eq $overlayH) { [SW]::Front($browserH) }"), 'never taken from wherever the person has gone');
+});
+
+test('Tab stays in the panel: one button or two, it never leaves the window', () => {
+  const o = island();
+  on(o, { host: 'shop.example' });
+  o.send('overlay:verdict', { badge: null, label: 'No issues found' });
+  o.send('overlay:open');
+  const seen = [];
+  const press = (shiftKey) => { let prevented = false; o.tab({ key: 'Tab', shiftKey, preventDefault() { prevented = true; } }); assert.ok(prevented); seen.push(o.focused.el); };
+  o.setActive('panelPause'); press(false);
+  o.setActive('panelOpen'); press(false);
+  o.setActive('panelPause'); press(true);
+  assert.deepEqual(seen, ['panelOpen', 'panelPause', 'panelOpen']);
+  o.send('overlay:verdict', { badge: 'yellow', kind: 'scam', label: 'Suspicious' });
+  o.setActive('panelOpen'); press(false);
+  assert.equal(o.focused.el, 'panelOpen', 'the one button keeps the focus');
 });
 
 test('it is labelled, keeps out of the tab order closed, respects reduced motion, and rests without a frame', () => {

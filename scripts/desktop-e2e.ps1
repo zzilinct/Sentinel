@@ -345,7 +345,14 @@ Start-Sleep -Milliseconds 700
 Shot 'island-panel-hover'
 $panelText = (Cdp 'overlay.html' "document.getElementById('panel').innerText").value
 Check 'island-hover-opens' $opened "the panel after the pointer rested on the island: $($panelText -replace '\s+', ' ')"
-Check 'island-takes-pointer' ([K]::At($ax, $ay) -eq $ov) "the panel under the pointer takes it: window at the island $([K]::At($ax, $ay)), overlay $ov"
+# A real click on the panel's button lands there, and the browser under it gets nothing.
+[void](Cdp 'overlay.html' "window.__clicks = 0; document.getElementById('panelOpen').onclick = () => { window.__clicks++; }; 1")
+$br = ((Cdp 'overlay.html' "(() => { const r = document.getElementById('panelOpen').getBoundingClientRect(); return Math.round(r.left + r.width / 2) + '|' + Math.round(r.top + r.height / 2); })()").value) -split '\|'
+Nudge ([int]$pw.x + [int]$br[0]) ([int]$pw.y + [int]$br[1])
+Start-Sleep -Milliseconds 300
+[K]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 60; [K]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+$got = Until 3 { (Cdp 'overlay.html' "window.__clicks").value -eq 1 }
+Check 'island-takes-pointer' $got "a real click on the panel's button reached it: $((Cdp 'overlay.html' "window.__clicks").value) click(s)"
 Nudge 400 400
 Start-Sleep -Milliseconds 100
 Check 'island-gives-pointer-back' ([K]::At($ax, $ay) -ne $ov) "the pointer off the panel: the window at the island is the browser again"
@@ -362,14 +369,25 @@ Check 'island-keyboard' ($kb -and $still -eq $true) "Win+Alt+I: focus in the pan
 $before = ((Cdp 'overlay.html' $ovState).value -split '\|')[2]
 [K]::Tap(0x09); Start-Sleep -Milliseconds 400
 $after = ((Cdp 'overlay.html' $ovState).value -split '\|')[2]
-Say "Tab in the panel: $before then $after"
+Check 'island-tab-stays' ($after -eq 'panelOpen' -and ((Cdp 'overlay.html' $ovState).value -split '\|')[1] -eq 'true') "Tab in the panel: $before then $after, and the panel keeps the keyboard"
 [K]::Tap(0x1B)
 $back = Until 4 { ((Cdp 'overlay.html' $ovState).value -split '\|')[0] -eq 'false' }
 Start-Sleep 1
 $fg = 0; [void][K]::GetWindowThreadProcessId([K]::GetForegroundWindow(), [ref]$fg)
 $front = (Get-Process -Id $fg -ErrorAction SilentlyContinue).ProcessName
 Check 'island-keyboard-back' ($back -and $front -eq 'msedge') "Escape: closed ($back), in front now: $front"
-# Pause for this site, and back: through the app, on the panel's own button.
+# No pause on a flagged page: the local test page is flagged (a bare IP address).
+[void](Cdp 'overlay.html' "window.sentinelIsland.open(); 1")
+Start-Sleep 1
+$hiddenThere = (Cdp 'overlay.html' "document.getElementById('panelPause').hidden").value
+Check 'island-no-pause-when-flagged' ($hiddenThere -eq $true) "pause on the flagged test page hidden: $hiddenThere"
+[void](Cdp 'overlay.html' "window.sentinelIsland.close(); 1")
+# Pause for this site, and back: through the app, on the panel's own button, on a real site found clean.
+Start-Process msedge -ArgumentList '--no-first-run', 'https://www.wikipedia.org/'
+Start-Sleep 8
+Say "Edge in front: $(Front 'msedge')"
+$settled = Until 20 { (Cdp 'overlay.html' $ovState).value -notmatch '\|Checking' }
+Start-Sleep 2
 [void](Cdp 'overlay.html' "window.sentinelIsland.open(); 1")
 Start-Sleep 1
 $canPause = (Cdp 'overlay.html' "!document.getElementById('panelPause').hidden").value

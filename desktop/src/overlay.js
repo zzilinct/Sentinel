@@ -23,6 +23,7 @@ let area = null;         // the browser's page area, in physical screen pixels
 let scale = 1;           // physical pixels per overlay pixel
 let dryRun = null;       // development only: compute everything, show nothing, and say what would have been drawn
 let holdingKeys = false; // the island's panel has the keyboard
+let giveBack = null;     // how the keyboard goes back to the browser (watch.backToBrowser)
 let keyHint = '';        // the island's shortcut in words, when Windows gave it to Sentinel
 const ACTIONS = new Set(['pause', 'resume', 'open', 'released']);
 
@@ -157,22 +158,23 @@ function interact(on) {
  * screen reader, or closes if it is open. `front` is watch.front, as for the shield's way out: Windows only lets the
  * program in front hand the keyboard over. The reader treats this window as still being the browser (watch.js).
  */
-function keyboard(front) {
+function keyboard(reader) {
   if (!area || pageFullscreen || !win || win.isDestroyed()) return;
   if (holdingKeys) { send('overlay:close'); return; }
   holdingKeys = true;
+  giveBack = reader.backToBrowser;
   win.setFocusable(true);
   win.focus();
-  front(handle());
+  reader.front(handle());
   send('overlay:open');
 }
 
-/** The keyboard goes back to the browser, directly under this window. */
+/** The keyboard goes back to the browser, and to nothing else: blur() left it with Sentinel's own window (desktop-e2e). */
 function letGo() {
   if (!holdingKeys) return;
   holdingKeys = false;
+  if (giveBack) giveBack();
   if (!win || win.isDestroyed()) return;
-  win.blur();
   win.setFocusable(false);
 }
 
