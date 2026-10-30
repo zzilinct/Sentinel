@@ -154,6 +154,7 @@ body.app::before { opacity: .6; }
 @keyframes verdict-rise { from { opacity: 0; transform: translateY(10px); } }
 /* A threat's mask, the real one: a still picture until its 3D model is drawn over it (ui.js resultGlyph). */
 .result__glyph--mask { width: 96px; height: auto; border-radius: 0; background: none; box-shadow: none; }
+.result__glyph--mask .m3 { width: 100%; }
 .result__glyph--mask img { width: 100%; height: auto; }
 .result__title h2 { font-size: clamp(28px, 3.2vw, 36px); letter-spacing: -.01em; }
 .result__title p { margin-top: 4px; color: var(--text-2); font-size: 14px; word-break: break-all; }
