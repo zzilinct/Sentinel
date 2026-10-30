@@ -2,36 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' file:">
 <title>Sentinel</title>
+<script src="card.js"></script>
 <style>
-  :root { color-scheme: dark; }
-  html, body { height: 100%; margin: 0; background: #111215; color: #e9e6df; font: 14.5px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { display: grid; grid-template-rows: auto 1fr auto; padding: 22px 24px 20px; box-sizing: border-box; }
-  .head { display: flex; align-items: center; gap: 14px; }
-  .mark { width: 46px; height: 46px; flex: none; color: var(--c, #f08a24); }
-  .mark svg { width: 100%; height: 100%; }
-  h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--c, #f08a24); }
-  .host { margin: 2px 0 0; font: 13px ui-monospace, Consolas, monospace; color: #c9c5bb; word-break: break-all; }
-  .body { margin-top: 16px; min-height: 0; overflow-y: auto; }
-  .body p { margin: 0 0 10px; color: #b9b5ab; }
-  .body b { color: #e9e6df; font-weight: 500; }
-  ul { margin: 0; padding-left: 18px; color: #c9c5bb; }
-  li { margin: 4px 0; }
-  .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
-  button { height: 38px; padding: 0 16px; border: 0; border-radius: 11px; cursor: pointer; font: 500 13.5px system-ui, sans-serif; color: #e9e6df; background: #1e2126; }
-  button.primary { color: #16130b; background: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 14px 34px -14px rgba(212,174,99,.75); }
-  button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }
-  small { display: block; margin-top: 12px; color: #8d8a82; font-size: 12px; }
   .body .recover { margin: 10px 0 0; font-size: 13px; color: #b9b5ab; }
   .real { margin: 16px 0 0; }
   .real[hidden] { display: none; }
   .real button { width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  button.link { height: auto; padding: 0; background: none; border-radius: 4px; color: #e2c47f; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
 </style>
 </head>
-<body>
-  <div class="head" role="alert">
+<body role="alertdialog" aria-labelledby="title" aria-describedby="host lead reasons">
+  <div class="head">
     <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/></svg></div>
     <div>
       <h1 id="title">Sentinel warning</h1>
@@ -41,13 +23,13 @@
   <div class="body">
     <p id="lead"></p>
     <ul id="reasons"></ul>
-    <small id="browser"></small>
+    <small id="browser" data-trim></small>
     <p class="recover">Already typed a password or paid on it? <button class="link" id="recover">Open the recovery guide</button></p>
   </div>
   <p class="real" id="realRow" hidden><button class="primary" id="real"></button></p>
   <div class="row">
     <button id="details">Open in Sentinel</button>
-    <button class="primary" id="close">Got it</button>
+    <button class="primary" id="close" data-escape>Got it</button>
   </div>
   <script>
     const q = new URLSearchParams(location.search);
@@ -63,9 +45,11 @@
     for (const r of (q.get('reasons') || '').split('\n').filter(Boolean).slice(0, 4)) {
       const li = document.createElement('li');
       li.textContent = r;
+      if (ul.children.length) li.dataset.trim = '';
       ul.appendChild(li);
     }
     // The real site (the brand's official address, or one of the person's own sites), never this page's address.
+    // One gold button: with a real site to go to, that one, and "Got it" steps back.
     const real = q.get('real');
     if (real) {
       document.getElementById('real').textContent = `Go to the real ${real}`;
@@ -78,6 +62,8 @@
     document.getElementById('close').onclick = () => window.sentinelDesktop.warnAction('close');
     document.getElementById('details').onclick = () => window.sentinelDesktop.warnAction('open', q.get('url') || '');
     document.getElementById('recover').onclick = () => window.sentinelDesktop.warnAction('recover', 'password');
+    // The keyboard starts on the one gold button once the person clicks into the card (the window never takes it).
+    document.getElementById(real ? 'real' : 'close').focus();
   </script>
 </body>
 </html>

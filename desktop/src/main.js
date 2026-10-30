@@ -415,18 +415,17 @@ function showWarning(item) {
   warnReal = v.realSite && /^https:\/\/[a-z0-9.-]+\/$/.test(v.realSite.url) ? v.realSite.url : null;
   if (warnReal) query.real = v.realSite.host;
   if (!warnWin || warnWin.isDestroyed()) {
-    warnWin = new BrowserWindow({
-      width: 480, height: 380, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
-      alwaysOnTop: true, skipTaskbar: false, show: false, backgroundColor: '#0c0d10', title: 'Sentinel', icon: ICON, autoHideMenuBar: true,
-      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false }
-    });
+    warnWin = cardWindow({ alwaysOnTop: true });
+    warnWin.cardCorner = true;
     warnWin.on('closed', () => { warnWin = null; });
-    // On top, but without taking the keyboard: whatever the person is typing does not land in the warning.
-    warnWin.once('ready-to-show', () => { if (warnWin) warnWin.showInactive(); });
+    // Sized to its words and placed over the corner island first, then shown: on top, but without taking the
+    // keyboard, so whatever the person is typing (or playing) does not land in the warning.
+    warnWin.webContents.on('did-finish-load', () => {
+      fitToWords(warnWin).catch(() => {}).finally(() => { if (warnWin && !warnWin.isDestroyed() && !warnWin.isVisible()) warnWin.showInactive(); });
+    });
     warnWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     warnWin.webContents.on('will-navigate', (e) => e.preventDefault());
   }
-  warnWin.setSize(480, query.real ? 430 : 380);
   warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
   if (warnWin.isVisible()) warnWin.moveTop();
 }
@@ -451,47 +450,77 @@ function remoteGuardStatus() {
   return { supported: process.platform === 'win32', enabled: store.get('remoteGuard', true), trusted: trustedRemote().map((id) => remoteguard.byId[id].name) };
 }
 
+/* Every desktop warning (the live-scan warning, the shield's questions, the right-click answer) is one card: a frameless,
+   transparent window whose page draws the card (pages/card.js) CARD_PAD px in from its edges, as tall as its words. */
+const CARD_PAD = 14;   // pages/card.js PAD
+function cardWindow(extra = {}) {
+  return new BrowserWindow({
+    width: 480 + 2 * CARD_PAD, height: 320, frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false, thickFrame: false,
+    resizable: false, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: false, show: false, title: 'Sentinel', icon: ICON,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false },
+    ...extra
+  });
+}
 /**
- * One of Sentinel's small windows made as tall as what it says, between 240 and 600 px and never taller than the screen
- * it is on; longer words scroll inside. Resolves false when the window closed meanwhile.
+ * The corner island (overlay.html .corner: 18 px in from the bottom right of the browser's page area), in DIP: a card
+ * that springs out of it has its bottom right corner there, over the island's own mask. With no browser in front, the
+ * bottom right of the screen the pointer is on.
+ */
+function islandCorner() {
+  const p = watch.status().window;
+  if (p) {
+    const d = screen.screenToDipRect(null, { x: p.x, y: p.y, width: p.w, height: p.h });
+    return { x: d.x + d.width - 18, y: d.y + d.height - 18 };
+  }
+  const a = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  return { x: a.x + a.width - 18, y: a.y + a.height - 18 };
+}
+/**
+ * A card window made the size of what it says (pages/card.js measure: wider before it would be taller than the
+ * screen, never a scrollbar inside) and kept on its screen. A card with `cardCorner` sits on the corner island; the
+ * others keep their place and are centred by their callers. Resolves false when the window closed meanwhile.
  */
 async function fitToWords(w) {
-  const h = await w.webContents.executeJavaScript(`(() => { const r = document.documentElement, b = document.body; r.style.height = b.style.height = 'auto';
-    const h = Math.ceil(b.getBoundingClientRect().height); r.style.height = b.style.height = ''; return h; })()`);
   if (!w || w.isDestroyed()) return false;
-  const frame = w.getSize()[1] - w.getContentSize()[1];
-  const room = screen.getDisplayMatching(w.getBounds()).workArea.height - frame;
-  w.setContentSize(480, Math.max(Math.min(240, room), Math.min(600, room, h)));
+  const corner = w.cardCorner ? islandCorner() : null;
+  const area = (corner ? screen.getDisplayNearestPoint(corner) : screen.getDisplayMatching(w.getBounds())).workArea;
+  const s = await w.webContents.executeJavaScript(`window.SentinelCard ? window.SentinelCard.measure(${Math.floor(area.height)}) : null`);
+  if (!w || w.isDestroyed() || !s) return false;
+  const width = Math.min(s.width, area.width);
+  const height = Math.min(s.height, area.height);
+  const b = w.getBounds();
+  const x = corner ? corner.x + CARD_PAD - width : b.x;
+  const y = corner ? corner.y + CARD_PAD - height : b.y;
+  w.setBounds({
+    x: Math.round(Math.max(area.x, Math.min(x, area.x + area.width - width))),
+    y: Math.round(Math.max(area.y, Math.min(y, area.y + area.height - height))),
+    width, height
+  });
   return true;
 }
 /** The shield's own small window. Above everything, a page that has taken the whole screen included. */
 function showGuard(mode, data = {}) {
   if (!guardWin || guardWin.isDestroyed()) {
-    guardWin = new BrowserWindow({
-      width: 480, height: 420, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
-      alwaysOnTop: true, skipTaskbar: false, show: false, backgroundColor: '#111215', title: 'Sentinel', icon: ICON, autoHideMenuBar: true,
-      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false }
-    });
+    guardWin = cardWindow({ alwaysOnTop: true });
     // An ordinary always-on-top window sits under a browser in full screen.
     guardWin.setAlwaysOnTop(true, 'screen-saver');
     guardWin.on('closed', () => { guardWin = null; guardMode = null; guardPid = 0; });
     // On top, but without taking the keyboard: nothing being typed lands in it by accident. The way out of a
     // full-screen page is the exception: that page holds the keyboard and nobody is typing into it, so the shield
     // takes the keyboard there, and Tab and Escape reach it.
-    guardWin.once('ready-to-show', () => {
-      if (!guardWin) return;
+    // As tall as what it says, then shown: the way out in the middle of the full-screen page, every other question
+    // springing out of the corner island.
+    guardWin.webContents.on('did-finish-load', async () => {
+      try {
+        guardWin.cardCorner = guardMode !== 'escape';
+        if (!(await fitToWords(guardWin))) return;
+        if (guardMode === 'escape') placeOnPage();
+      } catch { /* closed while loading */ }
+      if (!guardWin || guardWin.isDestroyed() || guardWin.isVisible()) return;
       if (guardMode === 'escape') takeKeyboard(); else guardWin.showInactive();
     });
     guardWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     guardWin.webContents.on('will-navigate', (e) => e.preventDefault());
-    // As tall as what it says: a short question (did you type anything, the pay pause) left a band of empty window
-    // above its buttons.
-    guardWin.webContents.on('did-finish-load', async () => {
-      try {
-        if (!(await fitToWords(guardWin))) return;
-        if (guardMode === 'escape') placeOnPage(); else guardWin.center();
-      } catch { /* closed while loading */ }
-    });
   }
   guardMode = mode;
   if (mode === 'escape') placeOnPage();
@@ -981,18 +1010,17 @@ async function scanHere(file) {
   menuResultFile = file;
   const query = scanmenu.offlineResult(file, size, summary, report, problem);
   if (!menuWin || menuWin.isDestroyed()) {
-    menuWin = new BrowserWindow({
-      width: 480, height: 440, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
-      show: false, backgroundColor: '#111215', title: 'Sentinel', icon: ICON, autoHideMenuBar: true,
-      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false }
-    });
+    menuWin = cardWindow();
     menuWin.on('closed', () => { menuWin = null; menuResultFile = null; });
-    // Asked for with a right-click, so it comes to the front with the keyboard.
-    menuWin.once('ready-to-show', () => { if (menuWin) { menuWin.show(); menuWin.focus(); } });
     menuWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     menuWin.webContents.on('will-navigate', (e) => e.preventDefault());
-    // As tall as the answer: a short one left a band of empty window above the buttons.
-    menuWin.webContents.on('did-finish-load', () => { fitToWords(menuWin).then((ok) => { if (ok) menuWin.center(); }).catch(() => {}); });
+    // As tall as the answer, in the middle of the screen. Asked for with a right-click, so it comes to the front with
+    // the keyboard.
+    menuWin.webContents.on('did-finish-load', () => {
+      fitToWords(menuWin).then((ok) => { if (ok) menuWin.center(); }).catch(() => {}).finally(() => {
+        if (menuWin && !menuWin.isDestroyed() && !menuWin.isVisible()) { menuWin.show(); menuWin.focus(); }
+      });
+    });
   }
   menuWin.loadFile(path.join(__dirname, 'pages', 'filescan.html'), { query });
   if (menuWin.isVisible()) { menuWin.moveTop(); menuWin.focus(); }
@@ -1589,6 +1617,15 @@ function registerBridge() {
     if (action === 'real' && warnReal) { appLog('warning: opened the real site'); shell.openExternal(warnReal); }
     return { ok: true };
   }, trustedLocal);
+  // A warning card's words changed (the shield's next step): its window fits them again. Only the card windows.
+  ipcMain.handle('sentinel:card-fit', async (event) => {
+    if (!trustedLocal(event)) throw new Error('Not allowed');
+    const w = BrowserWindow.fromWebContents(event.sender);
+    if (!w || w === win || !(await fitToWords(w))) return { ok: false };
+    if (w === guardWin && guardMode === 'escape') placeOnPage();
+    if (w === menuWin) w.center();
+    return { ok: true };
+  });
   handle('sentinel:guard-action', (action, arg) => guardAction(String(action), String(arg || '')), trustedLocal);
   handle('sentinel:menu-result-action', (action) => menuResultAction(String(action)), trustedLocal);
   // The call check answered "Hang up" (only that, never what was ticked): a sign for the pay pause.

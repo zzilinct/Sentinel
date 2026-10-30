@@ -560,6 +560,22 @@ $w = ''
 $ok = $ok -and (Until 30 { $script:w = [string](Cdp 'warn.html' "document.body.innerText").value; $script:w -match 'This is not harbourcu\.test\. You usually go to harbourcu\.test' })
 Shot 'my-sites-warning'
 Check 'my-sites-lookalike' $ok "the warning: $($w.Substring(0, [Math]::Min(300, $w.Length)) -replace '\s+', ' ')"
+# The warning is one card: no title bar, as tall as its words with nothing scrolling inside, on screen, sprung out of
+# the corner island (its bottom right corner on the island's, 18 px in from the page's), and the browser keeps the
+# keyboard. One gold button, and a dialog to a screen reader.
+$fg = 0; [void][K]::GetWindowThreadProcessId([K]::GetForegroundWindow(), [ref]$fg)
+$front = (Get-Process -Id $fg -ErrorAction SilentlyContinue).ProcessName
+Check 'warning-keeps-browser-in-front' ($front -eq 'msedge') "in front while the warning shows: $front"
+$f = Fit 'warn.html' 'my-sites-warning'
+Check 'warning-card' $f.ok "frameless $($f.frameless), cut off or scrolling '$($f.cut)', inside $($f.view), words $($f.words) px, out of view '$($f.outOfView)', window $($f.bounds) in $($f.work)"
+$isl = [string](Cdp 'main' "(() => { const m = process.mainModule; const e = m.require('electron'); const p = m.require('./watch').status().window; const w = e.BrowserWindow.getAllWindows().find((x) => x.isVisible() && x.webContents.getURL().includes('warn.html')); if (!p || !w) return 'no page or no warning'; const d = e.screen.screenToDipRect(null, { x: p.x, y: p.y, width: p.w, height: p.h }); const b = w.getBounds(); const a = e.screen.getDisplayMatching(b).workArea; return [Math.round(b.x + b.width - 14 - (d.x + d.width - 18)), Math.round(b.y + b.height - 14 - (d.y + d.height - 18)), b.y + b.height >= a.y + a.height - 1 ? 'at the bottom of the screen' : 'free'].join('|'); })()").value
+$d = $isl -split '\|'
+Check 'warning-on-island' ($d.Count -eq 3 -and [math]::Abs([int]$d[0]) -le 2 -and ([math]::Abs([int]$d[1]) -le 2 -or $d[2] -ne 'free')) "the card's corner from the island's (x|y px, kept on screen): $isl"
+$a11y = [string](Cdp 'warn.html' "document.body.getAttribute('role') + '|' + [...document.querySelectorAll('button.primary')].filter((x) => x.offsetParent).length").value
+Check 'warning-dialog' ($a11y -eq 'alertdialog|1') "role and visible gold buttons: $a11y"
+# The spring out of the island, photographed at fixed times in.
+$n = @(70, 160, 320, 800 | ForEach-Object { Frame 'warn.html' '1' $_ "motion-warn-$('{0:D4}' -f $_)ms" })
+Check 'motion-warn' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations at each frame: $($n -join ', ')"
 # Warnings that lead to the real site: the warning offers the person's own site, and pressing it opens exactly that
 # address, kept by the app when the warning was made. The browser's opening is stood in for in the main process, so
 # nothing else comes to the front; the log says that it was opened, never which.

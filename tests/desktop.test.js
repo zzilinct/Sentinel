@@ -940,7 +940,8 @@ test('a start that breaks inside a require still leaves its reason in app.log an
 test('the corner island, chat cards and shield window move with transforms only, once, never in a loop', () => {
   const overlay = read('desktop/src/pages/overlay.html');
   const chat = read('desktop/src/pages/chat.html');
-  const guard = read('desktop/src/pages/guard.html');
+  // The shield's window (and every other warning card) is drawn and moved by the shared card (pages/card.js).
+  const guard = read('desktop/src/pages/guard.html') + read('desktop/src/pages/card.js');
   // Over games and browsers: nothing in these windows animates forever (pending marks wait for their verdict only).
   assert.deepEqual(overlay.match(/infinite/g), ['infinite'], 'only the pending mark loops, until its verdict');
   assert.match(overlay, /\.mark\.is-pending \{[^}]*infinite/);

@@ -546,7 +546,7 @@ if ($Part -eq 'use') {
   Shot 'edge-warning'
   $f = Fit 'warn.html' 'warning'
   Check 'msedge-scam-warned' ($w.ok -and $w.took -le 10) "a PayPal look-alike sign-in: warned after $($w.took) s: $($w.words)"
-  Check 'warning-fits' $f.ok "inside $($f.view), out of view '$($f.outOfView)', on screen $($f.onScreen)"
+  Check 'warning-fits' $f.ok "inside $($f.view), out of view '$($f.outOfView)', on screen $($f.onScreen), frameless $($f.frameless), cut off or scrolling '$($f.cut)'"
   Check 'warning-names-browser' ($w.words -match 'Microsoft Edge') 'the warning names the browser it is about'
   [void](Cdp 'warn.html' "(document.getElementById('details').click(), 1)")
   $ok = Until 15 { (AppWindow) -match '^shown\|/app/scan\?url=' }
@@ -736,7 +736,7 @@ if ($Part -eq 'use') {
     $w = Warned 'http://paypal-account-verify-login.test:47910/signin.html?scale'
     $f = Fit 'warn.html' "warning-$tag"
     Shot "scale-$tag-warning"
-    Check "scale-$tag-warning" ($w.ok -and $f.ok) "the warning: inside $($f.view), out of view '$($f.outOfView)', window $($f.bounds) in $($f.work)"
+    Check "scale-$tag-warning" ($w.ok -and $f.ok) "the warning: inside $($f.view), out of view '$($f.outOfView)', window $($f.bounds) in $($f.work), frameless $($f.frameless), cut off or scrolling '$($f.cut)'"
     [void](Cdp 'warn.html' 'window.close(), 1')
     Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   }

@@ -485,6 +485,7 @@ async function main() {
     await heroCentred(send);
     await weekCheck(send);
     await liveMarks(send);
+    await desktopCards(send);
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
     browser.kill();
@@ -918,6 +919,61 @@ async function weekCheck(send) {
   const card = await run("document.querySelector('.week-card h2')?.textContent || ''");
   check(card === got.api.headline, 'the overview carries the same headline', card);
   await send('Target.closeTarget', { targetId });
+}
+
+/**
+ * The desktop app's warning cards (desktop/src/pages/card.js: the live-scan warning, the shield's questions, the
+ * right-click answer), each with the words it can carry at their longest, sized the way the app sizes their window
+ * (SentinelCard.measure, for the screen's height at 100%, 125% and 150% scaling) and photographed at that pixel
+ * density: desktop-card-<scale>-<name>.png. Fails when anything in a card is cut off or scrolls inside it, or when
+ * the card would not fit the screen. Opened from disk with the app's actions stood in for: nothing is pressed.
+ */
+async function desktopCards(send) {
+  const pages = path.join(ROOT, 'desktop', 'src', 'pages');
+  const url = (name, q) => `file:///${path.join(pages, `${name}.html`).replace(/\\/g, '/')}?${new URLSearchParams(q)}`;
+  const long = 'This page asks for your PayPal password and card number, but its address was registered four days ago and is not one PayPal uses for signing in to any account';
+  const CASES = [
+    ['warn-real-site', url('warn', { host: 'paypal-account-verify-login.test', url: 'https://paypal-account-verify-login.test/signin', browser: 'Microsoft Edge', badge: 'red', label: 'Fake PayPal sign-in', real: 'paypal.com',
+      reasons: ['Pretends to be PayPal', 'Asks for a password', 'The address was registered days ago', 'Copies PayPal\'s page'].join('\n') })],
+    ['warn-longest', url('warn', { host: `secure-account-verification-${'x'.repeat(60)}.example-login-portal.test`, url: 'https://example.test/', browser: 'Microsoft Edge', badge: 'orange',
+      label: 'Several strong warning signs on a page that asks for sign-in details', reasons: [long, long, long, long].join('\n'), real: 'a-very-long-real-site-name-for-a-credit-union.example' })],
+    ['guard-escape', url('guard', { mode: 'escape', browser: 'Microsoft Edge', support: '1' })],
+    ['guard-remote', url('guard', { mode: 'remote', tool: 'anydesk', toolName: 'AnyDesk', reason: 'page', session: '1' })],
+    ['guard-bank', url('guard', { mode: 'bank', tool: 'anydesk', toolName: 'AnyDesk' })],
+    ['guard-typed', url('guard', { mode: 'typed', happened: 'password,card', site: 'paypal-account-verify-login.test' })],
+    ['guard-pause', url('guard', { mode: 'pause', kind: 'gift', sign: 'remote' })],
+    ['filescan-found', url('filescan', { name: `${'Invoice for the garden and parking works '.repeat(3).trim()}.pdf.exe`, size: '734003', badge: 'red', label: 'Dangerous file',
+      found: ['A program hiding behind a document name (.pdf.exe)', 'Downloads and runs another program', 'Turns off Windows security settings', long].join('\n') })]
+  ];
+  // The screen's height in DIP less a 48 px taskbar: 1366x768 at 100%, 1366x768 at 125%, 1920x1080 at 150%.
+  const SCREENS = [['100', 1, Math.floor(768 / 1) - 48], ['125', 1.25, Math.floor(768 / 1.25) - 48], ['150', 1.5, Math.floor(1080 / 1.5) - 48]];
+  const stand = `window.sentinelDesktop = { warnAction: async () => ({}), guardAction: async () => ({}), menuResultAction: async () => ({}), cardFit: async () => ({}) };\n${fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), 'utf8')}`;
+  const failed = [];
+  for (const [scale, dpr, room] of SCREENS) {
+    for (const [name, address] of CASES) {
+      const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+      const run = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId)).result.value;
+      await send('Page.enable', {}, sessionId);
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: stand }, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width: 508, height: 900, deviceScaleFactor: dpr, mobile: false }, sessionId);
+      await send('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } }, sessionId);
+      await send('Page.navigate', { url: address }, sessionId);
+      await sleep(1500);   // the spring plays out
+      const size = await run(`window.SentinelCard ? window.SentinelCard.measure(${room}) : null`);
+      if (!size) { failed.push(`${scale} ${name}: the card did not load`); await send('Target.closeTarget', { targetId }); continue; }
+      await send('Emulation.setDeviceMetricsOverride', { width: size.width, height: size.height, deviceScaleFactor: dpr, mobile: false }, sessionId);
+      await sleep(400);
+      const cut = await run("window.SentinelCard.clipped().concat([...document.querySelectorAll('button')].filter((x) => x.offsetParent && x.getBoundingClientRect().bottom > innerHeight + 1).map((x) => 'button ' + x.textContent)).join(', ')");
+      const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+      fs.writeFileSync(path.join(OUT, `desktop-card-${scale}-${name}.png`), Buffer.from(shot.data, 'base64'));
+      const ok = !cut && size.height <= room;
+      console.log(`${ok ? 'PASS' : 'FAIL'}  desktop-card-${scale}-${name}.png  ${size.width}x${size.height} for a ${room} px tall screen${cut ? `, cut off or scrolling: ${cut}` : ''}`);
+      if (!ok) failed.push(`${scale} ${name}`);
+      await send('Target.closeTarget', { targetId });
+    }
+  }
+  if (failed.length) throw new Error(`desktop warning cards that do not fit their words: ${failed.join('; ')}`);
 }
 
 // Its browser and server helpers are shared with scripts/perf-probe.js.
