@@ -182,7 +182,41 @@ public static class Clip {
     }
     return null;
   }
-  static void Say(string s) { lock (Shape) { Console.Out.WriteLine(s); Console.Out.Flush(); } }
+  internal static void Say(string s) { lock (Shape) { Console.Out.WriteLine(s); Console.Out.Flush(); } }
+}
+// The Run keys (HKCU and HKLM) where programs ask to start with Windows: Windows says the moment either changes, so
+// defense no longer starts reg.exe every minute to look. Read only: nothing is ever written to them from here.
+public static class RunKeys {
+  [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] static extern int RegOpenKeyExW(UIntPtr hive, string sub, int opt, int sam, out IntPtr key);
+  [DllImport("advapi32.dll")] static extern int RegNotifyChangeKeyValue(IntPtr key, bool tree, int filter, IntPtr ev, bool async);
+  static Thread t; static volatile string said = "";
+  public static void Start() {
+    if (t != null) { if (said.Length > 0) Clip.Say(said); return; }
+    t = new Thread(Run); t.IsBackground = true; t.Start();
+  }
+  // Name added or removed, or a value changed. The wait is armed again before saying so, so no change falls between.
+  static bool Arm(IntPtr k, AutoResetEvent e) { return RegNotifyChangeKeyValue(k, false, 0x1 | 0x4, e.SafeWaitHandle.DangerousGetHandle(), true) == 0; }
+  static void Tell(string s) { said = s; Clip.Say(s); }
+  static void Run() {
+    try {
+      UIntPtr[] hives = new UIntPtr[] { new UIntPtr(0x80000001u), new UIntPtr(0x80000002u) };
+      IntPtr[] keys = new IntPtr[2]; AutoResetEvent[] evs = new AutoResetEvent[2]; int n = 0;
+      for (int i = 0; i < 2; i++) {
+        IntPtr k;
+        if (RegOpenKeyExW(hives[i], "Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run", 0, 0x20019, out k) != 0) continue;
+        AutoResetEvent e = new AutoResetEvent(false);
+        if (Arm(k, e)) { keys[n] = k; evs[n] = e; n++; }
+      }
+      if (n == 0) { Tell("runkeys:off"); return; }
+      AutoResetEvent[] waits = new AutoResetEvent[n]; Array.Copy(evs, waits, n);
+      Tell(n == 2 ? "runkeys:on" : "runkeys:on|partial");
+      while (true) {
+        int i = WaitHandle.WaitAny(waits);
+        if (!Arm(keys[i], waits[i])) { Tell("runkeys:off"); return; }
+        Clip.Say("runkeys:changed");
+      }
+    } catch { Tell("runkeys:off"); }
+  }
 }
 }
 '@
@@ -212,6 +246,7 @@ while ($true) {
     }
     elseif ($pending.Result -eq 'listen') { [SB.Clip]::Listen($true) }
     elseif ($pending.Result -eq 'quiet') { [SB.Clip]::Listen($false) }
+    elseif ($pending.Result -eq 'runkeys') { [SB.RunKeys]::Start() }
     $pending = $stdin.ReadLineAsync()
   }
 }`;
@@ -221,6 +256,7 @@ let watcherFront = null;     // the program whose window is in front ('' for non
 const clipWaiters = [];      // answers owed for "clip"
 let clipHandler = null;      // wallet guard's ear for clipboard changes, or null when it does not want them
 let clipHearing = false;     // the helper said "clipboard:on"
+let runKeysHandler = null;   // defense's ear for Run key changes: 'on', 'on|partial', 'off', 'changed', or 'gone'
 
 function startProcessWatcher(onNames, extra = []) {
   if (process.platform !== 'win32' || watcherChild) return;
@@ -253,10 +289,17 @@ function startProcessWatcher(onNames, extra = []) {
         const answer = { owner: owner || null, idle: Number(idle) };
         clipWaiters.splice(0).forEach((done) => done(answer));
       }
+      else if (line.startsWith('runkeys:')) tellRunKeys(line.slice(8));
     }
   });
   if (clipHandler) tellHelper('listen');
-  const gone = () => { watcherChild = null; watcherRunning = null; watcherFront = null; clipHearing = false; clipWaiters.splice(0).forEach((done) => done(null)); };
+  if (runKeysHandler) tellHelper('runkeys');
+  const child = watcherChild;
+  const gone = () => {
+    const current = watcherChild === child || watcherChild === null;   // not a newer helper that already said 'on'
+    watcherChild = null; watcherRunning = null; watcherFront = null; clipHearing = false; clipWaiters.splice(0).forEach((done) => done(null));
+    if (current) tellRunKeys('gone');
+  };
   watcherChild.on('exit', gone);
   watcherChild.on('error', gone);
 }
@@ -277,6 +320,18 @@ function clipListen(handler) {
   clipHandler = handler || null;
   tellHelper(clipHandler ? 'listen' : 'quiet');
 }
+/**
+ * Defense hears when a Run key changes: handler('on' | 'on|partial' | 'off' | 'changed' | 'gone'). 'gone' means the
+ * helper ended; it is asked again each time the helper starts.
+ */
+function runKeysListen(handler) {
+  runKeysHandler = handler || null;
+  if (runKeysHandler) tellHelper('runkeys');
+}
+function tellRunKeys(word) {
+  if (runKeysHandler) { try { runKeysHandler(word); } catch { /* keep going */ } }
+}
+
 /** True while the helper hears clipboard changes as they happen. */
 const clipListening = () => Boolean(watcherChild && clipHearing && clipHandler);
 
@@ -442,4 +497,4 @@ function watch({ onChange, everyMs = 15000, others = null }) {
 }
 
 module.exports = {
-  defaultBrowser, preferred, BROWSERS, installed, running, inFront, clipOwner, clipListen, clipListening, bringForward, watch, _test: { WATCH_SCRIPT } };
+  defaultBrowser, preferred, BROWSERS, installed, running, inFront, clipOwner, clipListen, clipListening, runKeysListen, bringForward, watch, _test: { WATCH_SCRIPT } };

@@ -192,15 +192,42 @@ for ($i = 0; $i -lt 18; $i++) {
   if (($b - $a) -lt 0.6) { break }
 }
 Set-Content -Path "$Out\profile\idle" -Value 'now'
+# Every reg.exe started during the idle minute (defense used to start two a minute to read the Run keys).
+$regWatch = $false
+try { Register-CimIndicationEvent -Query "SELECT * FROM Win32_ProcessStartTrace WHERE ProcessName='reg.exe'" -SourceIdentifier RegStarts -ErrorAction Stop; $regWatch = $true } catch { Say "could not count reg.exe starts: $($_.Exception.Message)" }
 $before = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
 Start-Sleep 60
 $after = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
+$regFailed = $false
+if ($regWatch) {
+  $regStarts = @(Get-Event -SourceIdentifier RegStarts -ErrorAction SilentlyContinue).Count
+  Unregister-Event -SourceIdentifier RegStarts -ErrorAction SilentlyContinue; Remove-Event -SourceIdentifier RegStarts -ErrorAction SilentlyContinue
+  Say "idle minute: reg.exe started $regStarts times"
+  if ($regStarts -gt 0) { $regFailed = $true }
+}
 Say ("idle minute: Sentinel used {0:N1} s of processor time in 60 s ({1:N1}% of one core)" -f ($after - $before), (($after - $before) / 60 * 100))
 Footprint 'after an idle minute'
 Start-Sleep 5
 Say "cpu profile written: $(Test-Path "$Out\profile\idle.cpuprofile")"
 
+# A new startup entry is looked at as soon as it is made, not up to a minute later. A harmless script of this test's
+# own in a temporary folder; removed again straight after.
+$appLog = "$data\logs\app.log"
+if (Select-String -Path $appLog -Pattern 'startup entries are watched as they change' -Quiet) { Say 'defense hears Run key changes' } else { Say 'defense does NOT hear Run key changes'; $regFailed = $true }
+$probe = Join-Path $env:TEMP 'sentinel-e2e-probe.cmd'
+Set-Content -Path $probe -Value '@rem Sentinel live-e2e: does nothing'
+$runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$madeAt = Get-Date
+New-ItemProperty -Path $runKey -Name 'SentinelE2EProbe' -Value "`"$probe`"" -PropertyType String -Force | Out-Null
+$seen = $false
+for ($i = 0; $i -lt 30 -and -not $seen; $i++) { Start-Sleep -Milliseconds 500; $seen = [bool](Select-String -Path $appLog -Pattern 'new startup entry HKCU Run\SentinelE2EProbe' -SimpleMatch -Quiet) }
+Say ("new Run entry: {0}" -f $(if ($seen) { "looked at within $([int]((Get-Date) - $madeAt).TotalMilliseconds) ms" } else { 'NOT looked at within 15 s' }))
+if (-not $seen) { $regFailed = $true }
+Remove-ItemProperty -Path $runKey -Name 'SentinelE2EProbe' -ErrorAction SilentlyContinue
+Remove-Item $probe -ErrorAction SilentlyContinue
 # 6. What Sentinel saw.
 Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue
 Say '--- watch.log'; Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-Object -Last 40 | ForEach-Object { Say "  $_" }
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 30 | ForEach-Object { Say "  $_" }
+
+if ($regFailed) { Say 'FAILED: Run keys are still polled, or a new entry was not heard'; exit 1 }
