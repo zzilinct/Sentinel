@@ -8,8 +8,8 @@
 
 #main { overflow-x: clip; position: relative; z-index: 2; }
 .section { padding: 130px 0; }
-.section__head h2 { font-size: clamp(48px, 6.4vw, 96px); }
-.section__head p { font-size: 17.5px; }
+.section__head h2 { font-size: var(--t-d2); }
+.section__head p { font-size: var(--t-lead); line-height: var(--lh-lead); }
 
 /* ------------------------------------------------------------ I. hero */
 
@@ -21,7 +21,7 @@
 /* Centred by layout, never by `translate`: GSAP (motion.js drifts it with the scroll and the pointer) folds a CSS
    translate into its own transform as pixels, measured once, so the name slid right when the font or the window
    later made it wider. Flex centring spills an over-wide name evenly both ways, as the translate did. */
-.hero__word { position: absolute; left: 0; right: 0; top: 33%; margin-top: -.4em; display: flex; justify-content: center; align-items: flex-start; font: 400 clamp(130px, 21vw, 360px)/.8 var(--wordmark); letter-spacing: .005em; white-space: nowrap; user-select: none;
+.hero__word { position: absolute; left: 0; right: 0; top: 33%; margin-top: -.4em; display: flex; justify-content: center; align-items: flex-start; font: 400 clamp(72px, 14.6vw, 250px)/.8 var(--display); --track: .035em; white-space: nowrap; user-select: none;
   background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 30px 60px rgb(0 0 0 / .45)); }
 /* Room above and below each letter (taken back by the margin): the gold is painted only inside the box, and the S rises
    past a line height of .8. */
@@ -30,16 +30,15 @@
 .hero__mask { position: absolute; left: 50%; top: 37%; width: min(25vw, 400px); translate: -40% -40%; pointer-events: auto; filter: drop-shadow(-20px 60px 50px rgb(0 0 0 / .7)) drop-shadow(0 0 60px rgb(var(--gold-rgb) / .14)); }
 .hero__mask img { width: 100%; height: auto; }
 .hero__copy { position: absolute; left: 4.4vw; bottom: calc(24px + 5vh); z-index: 2; max-width: 440px; text-align: left; margin: 0; }
-.unmasked { font: 600 clamp(52px, 5.2vw, 88px)/.95 var(--sans); letter-spacing: -.045em; color: var(--gold); }
-.hero .hero__copy h1 { margin-top: 10px; font: 400 27px/1.15 var(--display); letter-spacing: 0; }
-.hero .hero__copy h1 em { color: var(--text-2); }
-.hero .hero__lede { margin: 14px 0 0; font-size: 15px; max-width: 46ch; }
+.unmasked { font: 400 var(--t-d3)/var(--lh-display) var(--display); --track: var(--tr-display); color: var(--gold-300); }
+.hero .hero__copy h1 { margin-top: 10px; font-size: var(--t-title); }
+.hero .hero__lede { margin: 14px 0 0; font-size: var(--t-text); max-width: 46ch; }
 .hero .hero__cta { justify-content: flex-start; margin-top: 24px; }
 .hero__card { position: absolute; right: 4.4vw; bottom: calc(24px + 5vh); z-index: 2; width: 270px; padding: 24px; border-radius: 22px; background: var(--relief), var(--surface); box-shadow: var(--raise); }
-.hero__card .caps { font-size: 11px; color: var(--gold-400); }
-.hero__fine { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; font-size: 13.5px; color: var(--text-2); }
+.hero__card .caps { color: var(--gold-400); }
+.hero__fine { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; font-size: var(--t-ui); color: var(--text-2); }
 .hero__fine li { display: grid; grid-template-columns: 18px 1fr; }
-.hero__fine li::before { content: '\2766' / ''; color: var(--gold-400); font-size: 12px; }
+.hero__fine li::before { content: '\2766' / ''; color: var(--gold-400); font-size: var(--t-label); }
 /* ShinyText (React Bits, ported in motion.js): a band of light crosses the gold, letter after letter, now and again.
    A second background layer over the metal; only while .is-shining is on, so nothing repaints at rest. */
 .hero__word.is-shining span { background-image: linear-gradient(105deg, transparent 42%, rgb(255 249 232 / .85) 50%, transparent 58%), linear-gradient(var(--sheen, 176deg), var(--metal-stops));
@@ -76,10 +75,10 @@
 .stats__grid { gap: 26px; }
 .stat { border: 0 !important; display: grid; justify-items: center; text-align: center; padding: 36px 20px 30px; border-radius: 50% 50% 28px 28px / 36% 36% 28px 28px; background: var(--relief), var(--surface); box-shadow: var(--raise); position: relative; }
 .stat::before { content: ''; position: absolute; inset: 9px; border-radius: inherit; border: 1px solid rgb(var(--gold-rgb) / .2); pointer-events: none; }
-.stat__n { font-size: clamp(42px, 4.6vw, 66px); background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: .05em; }
+.stat__n { font-size: var(--t-d3); background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: .05em; }
 .stat__n .unit { -webkit-text-fill-color: var(--gold-300); }
 /* Two cards a row on a phone: "1,200,000+" must fit inside its arch. */
-@media (max-width: 520px) { .stat__n { font-size: 34px; } }
+@media (max-width: 520px) { .stat__n { font-size: var(--t-title); } }
 .stat__l { margin-inline: auto; }
 @media (max-width: 860px) { .stats__grid { grid-template-columns: 1fr 1fr; gap: 16px; } }
 
@@ -97,18 +96,18 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .plate__art img { position: absolute; width: 50%; height: auto; filter: drop-shadow(0 50px 40px rgb(0 0 0 / .7)); opacity: 0; transform: scale(.94) rotate(-4deg); transition: opacity .7s var(--ease), transform 1s var(--ease-out); }
 .plate__art img.is-on { opacity: 1; transform: none; }
 .plate__info { position: relative; padding: 46px 46px 40px; border-radius: 30px; background: var(--relief), var(--surface); box-shadow: var(--raise); }
-.plate__num { display: flex; align-items: center; gap: 14px; font: 400 16px var(--display); color: var(--gold-400); }
+.plate__num { display: flex; align-items: center; gap: 14px; font: 400 var(--t-lead) var(--display); color: var(--gold-400); }
 .plate__num i { width: 70px; height: 1px; background: linear-gradient(90deg, var(--gold-400), transparent); }
 .plate__seal { width: 26px; height: 26px; margin-left: auto; color: var(--c); transition: color .5s; }
 .plate__seal svg { width: 100%; height: 100%; }
-.mask-card.plate h3 { margin-top: 18px !important; font: 400 clamp(52px, 5.2vw, 82px)/.9 var(--display); text-transform: uppercase; letter-spacing: .14em; }
-.mask-card.plate h3 + p { margin-top: 12px; font: 500 19px/1.35 var(--sans); letter-spacing: -.01em; color: var(--text-2); }
-.mask-card.plate ul { margin-top: 24px; gap: 10px; font-size: 15px; color: var(--text-2); }
+.mask-card.plate h3 { margin-top: 18px !important; font-size: var(--t-d2); }
+.mask-card.plate h3 + p { margin-top: 12px; font: 400 var(--t-lead)/var(--lh-lead) var(--sans); color: var(--text-2); }
+.mask-card.plate ul { margin-top: 24px; gap: 10px; font-size: var(--t-text); color: var(--text-2); }
 /* The ornament sits in the grid's first column: static, or the reason itself falls into the 22px column (one word a line). */
 .mask-card.plate li { display: grid; grid-template-columns: 22px 1fr; gap: 0; padding-left: 0; }
-.mask-card.plate li::before { content: '\2766' / ''; position: static; width: auto; height: auto; margin: 0; border-radius: 0; background: none; color: var(--c); font-size: 13px; }
+.mask-card.plate li::before { content: '\2766' / ''; position: static; width: auto; height: auto; margin: 0; border-radius: 0; background: none; color: var(--c); font-size: var(--t-note); }
 .plate .severity { margin-top: 28px; padding: 6px; border-radius: 16px; background: transparent; box-shadow: var(--press); }
-.plate .severity button { height: 42px; border-radius: 11px; font-size: 13px; }
+.plate .severity button { height: 42px; border-radius: 11px; font-size: var(--t-note); }
 .plate .severity button[aria-pressed="true"] { box-shadow: var(--raise-sm), 0 0 26px -4px var(--sc); }
 .plate .example { border-radius: 16px; background: transparent; box-shadow: var(--press); }
 .plate__info .severity-cycle { margin-top: 12px; }
@@ -118,7 +117,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 
 .kinds { margin-top: 120px; padding: 60px 50px; border-radius: 34px; position: relative; background: var(--relief), var(--surface); box-shadow: var(--raise); }
 .kinds::after { content: ''; position: absolute; inset: 10px; border-radius: 26px; border: 1px solid rgb(var(--gold-rgb) / .14); pointer-events: none; }
-.kinds__head h3 { font-size: clamp(36px, 4vw, 54px); }
+.kinds__head h3 { font-size: var(--t-d3); }
 .kinds__grid { gap: 0 40px; }
 .kind { border-radius: 0; background: none; box-shadow: none; padding: 16px 0; border-bottom: 1px dotted var(--line-2); }
 .kind:hover { background: none; box-shadow: none; transform: translateX(6px); }
@@ -147,7 +146,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .manifesto[data-on="0"] .manifesto__mask img:nth-child(1), .manifesto[data-on="1"] .manifesto__mask img:nth-child(2), .manifesto[data-on="2"] .manifesto__mask img:nth-child(3) { opacity: 1; transform: none; }
 .no-io .manifesto__mask, .manifesto:not([data-on]) .manifesto__mask { display: none; }
 .manifesto__line { font-family: var(--display); }
-.manifesto__line span { display: table; margin: 0 auto 18px; padding: 6px 16px; border-radius: 999px; font: 400 13px var(--display); letter-spacing: .26em; color: var(--c); box-shadow: var(--press); }
+.manifesto__line span { display: table; margin: 0 auto 18px; padding: 6px 16px; border-radius: 999px; font: 500 var(--t-note) var(--sans); color: var(--c); box-shadow: var(--press); }
 .js:not(.no-io) .manifesto__line { padding-bottom: 10vh; }
 @media (max-width: 760px) { .manifesto__mask { width: 46vw; top: 16vh; } }
 
@@ -159,8 +158,8 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .sec-how > .wrap { position: relative; z-index: 1; }
 .pipeline__rail { height: 1px; background: repeating-linear-gradient(90deg, var(--sketch) 0 6px, transparent 6px 12px); }
 .pipeline__rail i { background: var(--metal); height: 2px; top: -.5px; }
-.step__num { font: 400 18px var(--display); }
-.step h3 { font-size: 32px; }
+.step__num { font: 400 var(--t-lead) var(--display); }
+.step h3 { font-size: var(--t-title-l); }
 .step__sample { border-radius: 16px; }
 
 /* ------------------------------------------ VIII. the parlour game */
@@ -180,27 +179,26 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .try__empty { border-radius: 20px; box-shadow: var(--press); }
 /* Which model, and fast or delicate (delicate researches the site, and digs in binary while it does). */
 .try__opts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 14px 0 4px; }
-.try__model { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-.try__model select { height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--text); font: inherit; font-size: 13.5px; }
+.try__model { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-note); color: var(--muted); }
+.try__model select { height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--text); font: inherit; font-size: var(--t-ui); }
 .try__seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden; }
-.try__seg button { height: 36px; padding: 0 14px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer; }
+.try__seg button { height: 36px; padding: 0 14px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: var(--t-ui); cursor: pointer; }
 .try__seg button + button { border-left: 1px solid var(--line-2); }
 .try__seg button.is-on { background: var(--gold-grad, var(--metal)); color: var(--on-gold, #1a1408); font-weight: 600; }
 .try__seg button:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
-.try__mode-note { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
+.try__mode-note { flex-basis: 100%; font-size: var(--t-note); color: var(--muted); }
 .try__out { position: relative; }
 .try__masks span { opacity: .85; }
-.try__copy h2 { font-size: clamp(40px, 4.6vw, 64px); }
+.try__copy h2 { font-size: var(--t-d3); }
 
 /* --------------------------------------------------------- ribbon */
 
 .marquee { padding: 34px 0; border-block: 1px solid var(--line-gold); background: linear-gradient(90deg, transparent, rgb(var(--gold-rgb) / .05), transparent); }
 .marquee span { font-family: var(--display); -webkit-text-stroke: 1px rgb(var(--gold-rgb) / .55); }
-.marquee span.gold-text { font-family: var(--sans); font-weight: 600; letter-spacing: -.05em; }
 /* Both rows lean with the speed of the scroll (site.js sets --skew). */
 .marquee__track { transform: skewX(var(--skew, 0deg)); }
 .marquee__track--back { margin-top: 14px; animation: marquee 50s linear infinite reverse; }
-.marquee__track--back b { font: 500 clamp(22px, 2.6vw, 36px) var(--sans); letter-spacing: -.02em; color: var(--text-2); white-space: nowrap; }
+.marquee__track--back b { font: 400 var(--t-title-l) var(--display); --track: var(--tr-display); color: var(--text-2); white-space: nowrap; }
 .marquee i { background: var(--gold-400); box-shadow: 0 0 18px var(--gold-400); width: 8px; height: 8px; transform: rotate(45deg); border-radius: 1px; }
 
 /* ----------------------------------------------- X. price tickets */
@@ -210,7 +208,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .plan { border-radius: 26px 26px 26px 26px; padding-top: 40px; }
 .plan::after { content: ''; position: absolute; inset: 9px; border-radius: 19px; border: 1px solid rgb(var(--gold-rgb) / .12); pointer-events: none; }
 .plan--featured::after { border-color: rgb(var(--gold-rgb) / .5); }
-.plan__name { font: 400 14px var(--display); letter-spacing: .24em; text-transform: uppercase; color: var(--gold-400); }
+.plan__name { font: 400 var(--t-title-s) var(--display); color: var(--gold-400); }
 .plan__price b { background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .plan:hover { transform: translateY(-6px); }
 .finder { gap: 14px; background: none; box-shadow: none; overflow: visible; }
@@ -232,14 +230,14 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .faq { border-top: 0; display: grid; gap: 12px; }
 .faq details { border: 0; border-radius: 20px; padding: 0 24px; background: var(--relief), var(--surface); box-shadow: var(--raise-sm); }
 .faq details[open] { box-shadow: var(--press); }
-.faq summary { font-family: var(--display); font-size: 22px; }
+.faq summary { font-family: var(--display); font-size: var(--t-title-s); }
 .faq details[open] > div { animation: rv-blur .6s var(--ease-out); }
 
 /* ------------------------------------------------- the closing frame */
 
 .cta { border-radius: 0; background: none; box-shadow: none; padding: 110px 32px; overflow: visible; }
 .cta .vframe { inset: 0; }
-.cta h2 { font-size: clamp(46px, 6.6vw, 94px); }
+.cta h2 { font-size: var(--t-d1); }
 .cta__mask { position: relative; inset: auto; display: block; width: clamp(110px, 10vw, 150px); height: auto; margin: 0 auto 26px; color: inherit; filter: drop-shadow(0 30px 30px rgb(0 0 0 / .6)); animation: drift-y 7s ease-in-out infinite; }
 
 /* --------------------------------------------------------- phones */
@@ -248,13 +246,11 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   .hero { min-height: auto; margin: 0 10px; padding: 96px 16px 40px; display: block; }
   .hero .vframe { inset: 78px 0 10px; }
   .hero__stage { position: relative; height: 72vw; margin: 40px -16px 0; }
-  .hero__word { top: 46%; font-size: 26vw; }
+  .hero__word { top: 46%; font-size: 16vw; }
   .hero .sketch { width: 120vw; top: 50%; }
   .hero__mask { width: 46vw; top: 50%; }
   .hero__copy, .hero__card { position: relative; left: auto; right: auto; bottom: auto; max-width: none; width: auto; }
   .hero__copy { padding: 0 6px; }
-  .unmasked { font-size: 54px; }
-  .hero .hero__copy h1 { font-size: 24px; }
   .hero .hero__cta { flex-wrap: wrap; }
   .hero__card { margin: 30px 6px 30px; }
   .scroll-cue { display: none; }
@@ -263,7 +259,6 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   .plate--flip .plate__art { order: 0; }
   .plate__art { width: 92%; margin: 0 auto; }
   .plate__info { padding: 30px 24px 26px; border-radius: 24px; }
-  .mask-card.plate h3 { font-size: 46px; letter-spacing: .1em; }
   .section { padding: 90px 0; }
   .cta { padding: 70px 22px; }
   .try { grid-template-columns: minmax(0, 1fr); gap: 26px; padding: 30px 20px; }
@@ -289,13 +284,13 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 /* The verdict tag over the held card, and the caption under an enlarged one. Placed by galaxy.js (a transform). */
 .galaxy__tag { position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px;
   border-radius: 999px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line-2);
-  box-shadow: 0 10px 30px -12px rgb(0 0 0 / .6); font: 600 13px/1.2 var(--sans, system-ui); color: var(--text); white-space: nowrap;
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / .6); font: 500 var(--t-note)/1.2 var(--sans); color: var(--text); white-space: nowrap;
   pointer-events: none; opacity: 0; transition: opacity .18s ease; z-index: 2; }
 .galaxy__tag.is-on { opacity: 1; }
 .galaxy__tag .m { width: 24px; height: 24px; transform: none; opacity: 1; }
 .galaxy__tag .m svg { width: 15px; height: 15px; }
 .galaxy__caption { position: absolute; left: 0; top: 0; max-width: min(340px, calc(100% - 16px)); margin: 0; padding: 8px 14px; border-radius: 10px;
-  background: var(--surface); border: 1px solid var(--line-2); font-size: 14px; line-height: 1.45; color: var(--text);
+  background: var(--surface); border: 1px solid var(--line-2); font-size: var(--t-ui); line-height: 1.45; color: var(--text);
   pointer-events: none; opacity: 0; transition: opacity .2s ease; z-index: 2; }
 .galaxy__caption.is-on { opacity: 1; }
 /* The same scenes as a list, for the keyboard and screen readers: unseen, and the canvas shows the focused card. */
@@ -304,7 +299,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .galaxy__list { position: absolute; left: 50%; top: 50%; margin: 0; padding: 0; list-style: none; pointer-events: none; }
 .galaxy__list button { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* Below the stage, on the page, where nothing passes behind it. */
-.galaxy__hint { margin: 14px 0 0; padding: 0 16px; text-align: center; font-size: 14px; color: var(--text-2); }
+.galaxy__hint { margin: 14px 0 0; padding: 0 16px; text-align: center; font-size: var(--t-ui); color: var(--text-2); }
 /* The chapter rail (site.js) steps aside while the galaxy is on screen, so its dots never sit on the cards. */
 .rail { transition: opacity .3s ease, visibility .3s; }
 .galaxy-in-view .rail { opacity: 0; visibility: hidden; }

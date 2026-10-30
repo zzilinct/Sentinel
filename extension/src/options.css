@@ -1,21 +1,21 @@
 body.options { width: auto; max-width: 640px; margin: 0 auto; padding: 36px 20px 60px; }
 .brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
 .brand-row img { border-radius: 6px; }
-.brand-row h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+.brand-row h1 { font: 400 var(--t-title)/var(--lh-display) var(--display); margin: 0; }
 .brand-row p { margin: 2px 0 0; }
 .opt { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
 .opt:first-of-type { border-top: 0; }
-.opt b { display: block; font-weight: 600; font-size: 13.5px; }
-.opt small { color: var(--muted); font-size: 12px; }
+.opt b { display: block; font-weight: 500; font-size: var(--t-ui); }
+.opt small { color: var(--muted); font-size: var(--t-label); }
 .opt input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); flex: none; }
 .opt select, .opt input[type=url] { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; min-width: 190px; }
 .legend { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
-.legend div { display: flex; align-items: center; gap: 10px; background: var(--panel); padding: 8px 10px; font-size: 12.5px; }
+.legend div { display: flex; align-items: center; gap: 10px; background: var(--panel); padding: 8px 10px; font-size: var(--t-note); }
 .legend svg { width: 22px; height: 22px; flex: none; }
 .saved { text-align: center; min-height: 18px; color: var(--green); }
 .pw-intro { margin: 0 0 6px; color: var(--muted); }
 .pw-add { display: flex; gap: 8px; align-items: center; }
 .pw-add input { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; width: 150px; }
 .pw-allowed { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.pw-allowed button { font-size: 11.5px; padding: 3px 8px; }
+.pw-allowed button { font-size: var(--t-label); padding: 3px 8px; }
 .pw-actions { display: flex; gap: 8px; align-items: center; flex: none; }

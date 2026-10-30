@@ -41,7 +41,7 @@ const PAGES = [
   ['app-call', '/app/call'], ['practice', '/practice']
 ];
 // Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.
-const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light']];
+const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light'], ['phone-light', 390, 844, true, 'light']];
 
 /** Commands over the DevTools pipe; `onEvent`, if given, hears the browser's events (messages without an id). */
 function cdpPipe(child, onEvent) {

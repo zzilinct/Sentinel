@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' file:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel chat safety</title>
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #ece8df; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: #ece8df; }
   * { box-sizing: border-box; }
   /* Island motion, as the live-scanning corner (overlay.html): a mask tile springs open into a pill or a card, and
      the words arrive once it is open. Transforms and opacity only, every animation runs once, nothing loops. */
@@ -22,7 +23,7 @@
     border: 1px solid rgba(214, 178, 90, .55); transform: scale(.7); transition: transform .45s var(--spring); }
   .badge.is-on .badge__tile { transform: none; }
   .badge svg { width: 18px; height: 18px; color: #d6b25a; display: block; }
-  .badge__text { position: relative; font-size: 12px; color: #e2c47f; white-space: nowrap; opacity: 0; transform: translateX(8px); transition: opacity .15s ease, transform .2s ease; }
+  .badge__text { position: relative; font-size: var(--t-label); color: #e2c47f; white-space: nowrap; opacity: 0; transform: translateX(8px); transition: opacity .15s ease, transform .2s ease; }
   .badge.is-on .badge__text { opacity: 1; transform: none; transition: opacity .22s ease .1s, transform .5s var(--spring) .06s; }
   body.discord .badge, body.phonelink .badge { top: auto; bottom: 86px; }
   /* A warning, beside the message it is about: the mask tile pops in at the message, and the card opens out of it. */
@@ -34,9 +35,9 @@
     background: #0c0d10; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); animation: pop .45s var(--spring) both; }
   .card svg { width: 20px; height: 20px; display: block; color: var(--c); }
   .card__body { position: relative; animation: words .3s ease .12s both; }
-  .card b { display: block; color: var(--c); font-size: 13px; margin-bottom: 2px; }
-  .card .what { color: #ece8df; font-size: 12.5px; }
-  .card .do { color: #b9b4a9; font-size: 11.5px; margin-top: 5px; }
+  .card b { display: block; color: var(--c); font-size: var(--t-note); margin-bottom: 2px; }
+  .card .what { color: #ece8df; font-size: var(--t-note); }
+  .card .do { color: #b9b4a9; font-size: var(--t-label); margin-top: 5px; }
   /* In a game: smaller, and only what matters, so the game stays the game. */
   body.roblox.in-game .card { width: 250px; padding: 8px 10px 9px 36px; }
   body.roblox.in-game .card .do { display: none; }

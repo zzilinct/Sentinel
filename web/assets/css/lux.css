@@ -21,7 +21,6 @@
   --metal: linear-gradient(176deg, #f3dca4 0%, #d2ac63 30%, #8a6424 56%, #e9c983 72%, #7a561c 100%);
   --sketch: rgb(239 230 212 / .24);
   --sketch-gold: rgb(210 172 99 / .55);
-  --wordmark: 'Anton', 'Impact', sans-serif;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
@@ -81,7 +80,7 @@ body::after {
 
 /* -------------------------------------------------------- typography */
 
-.caps { font-family: var(--display); text-transform: uppercase; letter-spacing: .24em; }
+.caps { font: 500 var(--t-note)/var(--lh-ui) var(--sans); }
 
 /* A Victorian rule: two lines, a lozenge and a pair of curls, in gold (inline as .orn-rule, or drawn as a mask over
    centred section heads). */
@@ -108,7 +107,7 @@ body::after {
 .sketch *, .cartouche * { fill: none; stroke: var(--sketch); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .sketch .dash, .cartouche .dash { stroke-dasharray: 4 7; }
 .cartouche .g { stroke: var(--sketch-gold); }
-.sketch text, .cartouche text { fill: var(--text-2); stroke: none; font: 400 14px var(--sans); opacity: .8; }
+.sketch text, .cartouche text { fill: var(--text-2); stroke: none; font: 400 var(--t-ui) var(--sans); opacity: .8; }
 
 /* ------------------------------------------------------------ header */
 
@@ -119,7 +118,7 @@ body::after {
   background: rgb(27 23 18 / .8); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--raise-sm); }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .nav__inner { background: rgb(241 234 221 / .86); } }
 :root[data-theme="light"] .nav__inner { background: rgb(241 234 221 / .86); }
-.logo { font: 400 23px var(--display); letter-spacing: .03em; }
+.logo { font: 400 var(--t-title-s)/1 var(--display); }
 .logo__mark { background: none; box-shadow: none; color: var(--gold-400); width: 28px; height: 28px; }
 .logo__mark svg { width: 24px; height: 24px; }
 .nav__links a { border-radius: 12px; }
@@ -147,7 +146,7 @@ body::after {
 .page-head { position: relative; margin: 96px 2.6vw 0; padding: 90px 0 80px; }
 .page-head .vframe { inset: 0; }
 .page-head .orn-rule { margin-bottom: 24px; }
-.page-head h1 { font-size: clamp(48px, 7vw, 100px); }
+.page-head h1 { font-size: var(--t-d1); }
 .page-head__mask { display: block; width: clamp(130px, 14vw, 210px); height: auto; margin: 0 auto 18px; filter: drop-shadow(0 30px 30px rgb(0 0 0 / .55)); animation: drift-y 6s ease-in-out infinite; }
 @keyframes drift-y { 50% { transform: translateY(-10px) rotate(-1.5deg); } }
 /* Arrives with its zoom, then keeps drifting. */
@@ -161,13 +160,13 @@ body::after {
 /* ------------------------------------------------- panels and tables */
 
 .card, .tile, .plan, .cta, .window, .float { background: var(--relief), var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--raise); }
-.prose h2 { font-size: 40px; }
+.prose h2 { font-size: var(--t-title-l); }
 .prose-wrap .card { border-radius: 26px; padding: 34px; }
-.tile .notes { margin: 10px 0 0; padding-left: 20px; color: var(--text-2); font-size: 15px; max-width: 64ch; }
+.tile .notes { margin: 10px 0 0; padding-left: 20px; color: var(--text-2); font-size: var(--t-text); max-width: var(--measure); }
 .tile .notes li { margin-top: 4px; }
 .compare-wrap { margin-top: 56px; padding: 10px 24px; border-radius: 26px; background: var(--relief), var(--surface); box-shadow: var(--raise); }
 .compare { margin-top: 0; }
-.compare th { font: 400 13px var(--display); letter-spacing: .18em; text-transform: uppercase; color: var(--gold-400); }
+.compare th { font: 500 var(--t-note) var(--sans); color: var(--gold-400); }
 
 /* ------------------------------------------------------------ footer */
 
@@ -176,7 +175,7 @@ body::after {
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat;
           mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 26' fill='none' stroke='black' stroke-width='1.2'%3E%3Cpath d='M0 13h100M160 13h100'/%3E%3Cpath d='M130 3l10 10-10 10-10-10z'/%3E%3Cpath d='M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0'/%3E%3C/svg%3E") center / contain no-repeat; }
 .footer::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--line-gold) 30%, transparent 46%, transparent 54%, var(--line-gold) 70%, transparent); }
-.footer .footer__h { font: 400 12px var(--display); letter-spacing: .22em; text-transform: uppercase; color: var(--gold-400); }
+.footer .footer__h { font: 500 var(--t-note) var(--sans); color: var(--gold-400); }
 .footer__base { border-top-color: var(--line); }
 
 /* The tab change sweeps lacquer panels with gold edges. */
@@ -264,7 +263,6 @@ html.lenis { scroll-behavior: auto; }
 @media print {
   .nav, .footer, .skip-link, .recover__bar, .recover__what, .page-head .orn-rule, .motes { display: none !important; }
   .page-head { margin: 0; padding: 0 0 12px; }
-  .page-head h1 { font-size: 32px; }
   .recover, .recover__plan h3, .recover__steps span { color: #000; }
   .recover__report a::after { content: ' (' attr(href) ')'; }
 }
