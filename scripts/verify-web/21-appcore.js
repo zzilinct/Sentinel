@@ -224,7 +224,7 @@ async function checkAppCore() {
     await fill('.scanbox input', 'https://httpbin.org/');
     t = Date.now();
     await pressEnter(browser, s);
-    const deep = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); const b = document.querySelector('[data-out] .banner'); return (r && { title: r.querySelector('h2').textContent.trim(), tone: r.className, facts: r.innerText.includes('Domain age') || r.innerText.includes('Redirects') }) || (b && { banner: b.innerText }); })()", 60000);
+    const deep = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); const b = document.querySelector('[data-out] .banner'); return (r && { title: r.querySelector('h2').textContent.trim(), tone: r.className, facts: r.textContent.includes('Domain age') || r.textContent.includes('Redirects') }) || (b && { banner: b.innerText }); })()", 60000);
     await shot(browser, s, 'appcore-delicate');
     result('appcore: after upgrading to Pro the limit lifts and a delicate scan researches a real site (httpbin.org), in under 30 s', /Pro/.test(upgraded || '') && Boolean(deep) && deep.facts === true && Date.now() - t < 30000, { upgraded, ...deep, ms: Date.now() - t });
     // Pro's 40 delicate scans used up (set in the accounts file): the page says which ran out and that Fast still works.

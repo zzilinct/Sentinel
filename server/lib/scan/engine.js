@@ -28,6 +28,7 @@ const mySites = require('./mysites');
 const { scanFile, MAX_FILE_BYTES } = require('./filescan');
 const { analyzeEmail, markHost } = require('./email');
 const { THREATS, LABELS, SEVERITY, score, evidenceFrom, trustedChecks, tallyOf, reasonsOf } = require('./verdict');
+const { cluesOf, withPlain, researchGaps, listGaps, noResearchHere, unreadableFile, coverage } = require('./plain');
 
 const q = {
   override: db.prepare('SELECT action FROM overrides WHERE user_id = ? AND (host = ? OR host = ?)'),
@@ -163,12 +164,11 @@ async function coreScan(p, { research: wanted, budgetMs, hint }) {
       research: ctx.research ? summarizeResearch(ctx.research) : null,
       file: fileReport ? { name: fileReport.name, sha256: fileReport.sha256, size: fileReport.size, type: fileReport.type } : null,
       realSite: realSiteOf(checks, ctx.brand),
-      checks
+      checks,
+      // One test for "this research finished": what is kept and what the person is told cannot drift apart.
+      gaps: researchGaps(ctx.research)
     };
-    const facts = ctx.research;
-    const complete = !facts || (facts.registration.reason !== 'not answered in time' && !facts.dns.unavailable &&
-      (facts.lite || (facts.http.ok && facts.http.status >= 200 && facts.http.status < 300 && !facts.http.truncated)));
-    if (complete) cacheSet(key, result);
+    if (!result.gaps.length) cacheSet(key, result);
     return result;
   })();
 
@@ -214,7 +214,7 @@ function summarizeResearch(r) {
 
 /* --------------------------------------------------------------- shaping */
 
-function shape(core, { threats: visible, userId, mode, detail = 'full', planId }) {
+function shape(core, { threats: visible, userId, mode, detail = 'full', planId, asked }) {
   let threats = {};
   for (const t of THREATS) threats[t] = visible.includes(t) ? core.threats[t] : null;
 
@@ -245,7 +245,7 @@ function shape(core, { threats: visible, userId, mode, detail = 'full', planId }
   // address (brands.js). Never built from the page's own address, and never for a site the person trusts.
   const flagged = threats.scam && (threats.scam.badge === 'orange' || threats.scam.badge === 'red');
   const real = override === 'allow' || !flagged ? null : copy ? copy.site : core.realSite || null;
-  const shownChecks = checks.filter((c) => visible.includes(c.threat));
+  const shownChecks = withPlain(checks.filter((c) => visible.includes(c.threat)));
   const tally = tallyOf(shownChecks);
   const reasons = reasonsOf(shownChecks);
 
@@ -266,6 +266,10 @@ function shape(core, { threats: visible, userId, mode, detail = 'full', planId }
     threats,
     overall: { level: worst.level, badge: worst.badge, label: worst.label },
     reasons,
+    clues: cluesOf(shownChecks),
+    // Asked to research a site and could not, whatever the reason, is a part that did not run. A fast scan was never
+    // going to, and a verified site does not need it: neither is a gap.
+    coverage: coverage([...core.gaps, ...(asked && !core.researched && !core.knowledge.trusted ? [noResearchHere()] : []), ...listGaps(core.knowledge)]),
     knowledge: core.knowledge,
     comparison: core.comparison,
     research: core.research,
@@ -300,7 +304,7 @@ async function scanUrl(raw, opts = {}) {
     return { ok: false, kind: 'url', url: raw, error: 'not_a_web_link', message: 'That is not a web address Sentinel can check' };
   }
   const core = await coreScan(p, { research: Boolean(opts.research), budgetMs: opts.budgetMs, hint: cleanHint(opts.hint) });
-  const verdict = shape(core, { threats: visible, userId: opts.userId, mode: opts.mode || 'manual', detail: opts.detail, planId: opts.planId });
+  const verdict = shape(core, { threats: visible, userId: opts.userId, mode: opts.mode || 'manual', detail: opts.detail, planId: opts.planId, asked: Boolean(opts.research) });
   if (opts.record && opts.userId) record(opts.userId, 'url', p.url, verdict.mode, verdict.threats);
   return verdict;
 }
@@ -387,9 +391,13 @@ async function scanEmail(mail, opts = {}) {
   }
   const shown = Object.fromEntries(THREATS.map((t) => [t, visible.includes(t) ? threats[t] : null]));
   const worst = Object.values(shown).filter(Boolean).sort((a, b) => SEVERITY[b.level] - SEVERITY[a.level])[0];
-  const items = checks.filter((c) => visible.includes(c.threat));
+  const items = withPlain(checks.filter((c) => visible.includes(c.threat)));
+  // A link that was only partly looked at leaves the email partly looked at, with the link's own gap.
+  const gaps = [...(incomplete ? [{ what: 'links', retry: true,
+    text: analysis.linksTruncated ? 'every link, because the email has more than Sentinel checks at once' : `${failedLinks} of its links, because the check did not finish` }] : []),
+    ...linkVerdicts.flatMap((v) => (v.ok ? v.coverage.missing : []))];
 
-  if (opts.record && opts.userId) record(opts.userId, 'email', `${analysis.sender.address || 'unknown sender'}: ${String(mail.subject || '').slice(0, 80)}`, opts.mode || 'manual', shown);
+  if (opts.record && opts.userId) record(opts.userId, 'email',`${analysis.sender.address || 'unknown sender'}: ${String(mail.subject || '').slice(0, 80)}`, opts.mode || 'manual', shown);
 
   return {
     ok: true,
@@ -398,8 +406,9 @@ async function scanEmail(mail, opts = {}) {
     sender: analysis.sender,
     threats: shown,
     overall: { level: worst.level, badge: worst.badge, label: incomplete && !worst.badge ? 'Scan incomplete' : worst.label },
-    coverage: { complete: !incomplete, checked: linkVerdicts.length - failedLinks, failed: failedLinks, linksTruncated: analysis.linksTruncated },
+    coverage: coverage(gaps, { checked: linkVerdicts.length - failedLinks, failed: failedLinks, linksTruncated: analysis.linksTruncated }),
     reasons: reasonsOf(items),
+    clues: cluesOf(items),
     links: linkVerdicts.filter((v) => v.ok).map((v) => ({ url: v.url, host: v.host, overall: v.overall })),
     checklist: {
       total: items.length,
@@ -415,7 +424,7 @@ async function scanEmail(mail, opts = {}) {
 
 function scanUpload(buffer, name, opts = {}) {
   const report = scanFile(buffer, name);
-  const checks = report.checks;
+  const checks = withPlain(report.checks);
   const known = Boolean(report.evidence.virus || report.evidence.malware);
   const { threats } = score(checks, { known, matches: known ? [{}] : [] }, { scam: null, ...report.evidence });
   delete threats.scam;
@@ -430,6 +439,9 @@ function scanUpload(buffer, name, opts = {}) {
     threats: { scam: null, virus: threats.virus, malware: threats.malware },
     overall: { level: worst.level, badge: worst.badge, label: worst.label },
     reasons: reasonsOf(checks),
+    clues: cluesOf(checks),
+    // An archive that is locked, or of a kind Sentinel cannot list, is warned about: what is inside was never seen.
+    coverage: coverage(checks.some((c) => c.id === 'F11' && c.status === 'warn') ? [unreadableFile()] : []),
     checklist: {
       total: checks.length,
       failed: checks.filter((c) => c.status === 'fail').length,

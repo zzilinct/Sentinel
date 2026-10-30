@@ -811,7 +811,8 @@ const KNOWLEDGE_CHECKS = [
       return (counts.scam >= 3 || counts.malware >= 3 ? fail : warn)(points(counts.scam), detail, { malware: points(counts.malware) });
     } },
   { id: 'K05', group: 'Known threats', threat: 'scam', title: 'Checked against every threat source',
-    run: ({ knowledge }) => pass(`${knowledge.sources.length} sources: ${knowledge.sources.join(', ')}`) }
+    // Not ticked while lists are missing: this is the one check that claims all of them.
+    run: ({ knowledge: { feeds, sources } }) => (feeds && feeds.ready < feeds.total ? skip(`${feeds.total - feeds.ready} threat lists have not loaded yet`) : pass(`${sources.length} sources: ${sources.join(', ')}`)) }
 ];
 
 function matchCheck(knowledge, threat, noun, p) {

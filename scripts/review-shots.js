@@ -764,7 +764,8 @@ async function emailMarks(send) {
     }).filter(Boolean)`);
     check(!apart.length, `${size}: every mark's label is on the line of its words`, apart);
     // The checklist's tally: each half on one line (on a phone, one under the other), no count cut from its word.
-    const tally = await run(`[...document.querySelectorAll('[data-tally] > span')].map((s) => [s.textContent, s.getClientRects().length, Math.round(s.getBoundingClientRect().right)])`);
+    // It sits inside "See everything Sentinel checked", which a result opens on demand.
+    const tally = await run(`(() => { document.querySelector('[data-more]').open = true; return [...document.querySelectorAll('[data-tally] > span')].map((s) => [s.textContent, s.getClientRects().length, Math.round(s.getBoundingClientRect().right)]); })()`);
     check(tally.length === 2 && tally.every((t) => t[1] === 1 && t[2] <= width), `${size}: the checklist tally reads in whole parts`, tally);
     // Advice for an email, by what this one has: a reply-to elsewhere, a link, a gift card ask; no attachment, no number.
     const steps = await run("[...document.querySelectorAll('.next-steps li')].map((li) => li.textContent)");
