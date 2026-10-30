@@ -645,7 +645,7 @@ p.hero__fine span { white-space: nowrap; }
 @media (max-width: 860px) { .grid-2col { grid-template-columns: 1fr; } }
 .prose-wrap { padding-bottom: 40px; }
 .prose-wrap .card + .card { margin-top: 18px; }
-.updated { font: var(--t-note) var(--mono); color: var(--faint); margin-top: 14px; }
+.updated { font: var(--t-note) var(--sans); color: var(--faint); margin-top: 14px; }
 
 
 /* ------------------------------------------------- pre-launch static build */

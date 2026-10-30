@@ -6,7 +6,9 @@ usesentinel.technology {
 }
 
 www.usesentinel.technology {
-	encode zstd gzip
+	# A scan's stage lines (Accept: application/x-ndjson) must leave as they are written: a compressor would hold them.
+	@compress not header Accept *application/x-ndjson*
+	encode @compress zstd gzip
 	# Uploads to the virus & malware scanner are capped at 25 MB by the app.
 	request_body {
 		max_size 26MB

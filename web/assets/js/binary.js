@@ -36,7 +36,7 @@
   var FIELD_ALPHA = 0.1;
   var BAND_ALPHA = 0.26;
   var BAND_H = 90;
-  var LINK_ALPHA = 0.34;
+  var LINK_ALPHA = 0.18;
 
   // Each digit in each colour, drawn once: the frames only place them.
   var atlas = null;
