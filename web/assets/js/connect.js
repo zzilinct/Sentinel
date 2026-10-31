@@ -3,8 +3,6 @@
   'use strict';
 
   const { api, esc, $, $$ } = window.UI;
-  const Masks = window.SentinelMasks;
-  $$('[data-glyph]').forEach((el) => { el.innerHTML = Masks.svg(el.dataset.glyph); });
 
   const done = (title, body, ok) => {
     $('[data-title]').innerHTML = title;
@@ -24,7 +22,7 @@
     // The companion's content script marks the page when it is installed.
     if (document.documentElement.dataset.sentinelCompanion !== '1') {
       done('Companion not found', 'This page pairs the optional browser add-on. Get it from the download page, load it in your browser, then open this page again.', false);
-      $('[data-note]').innerHTML = '<div class="banner" style="margin-top:22px"><div><a href="/download" style="color:var(--gold-300)">Get the Sentinel app</a></div></div>';
+      $('[data-note]').innerHTML = '<div class="banner"><div><a href="/download">Get the Sentinel app</a></div></div>';
       return;
     }
 

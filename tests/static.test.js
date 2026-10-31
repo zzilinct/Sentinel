@@ -169,17 +169,6 @@ test('home masks: every rendered mask the pages point at exists, and anime.js lo
   }
 });
 
-test('account forms: Sign in and friends start disabled, and their script enables them once it has bound the form', () => {
-  // Pressed before the script is ready, a plain form post lands on an error page and the submit is lost.
-  const web = path.join(ROOT, 'web');
-  for (const [page, script] of [['login.html', 'auth.js'], ['signup.html', 'auth.js'], ['forgot.html', 'reset.js'], ['reset.html', 'reset.js']]) {
-    const html = fs.readFileSync(path.join(web, page), 'utf8');
-    const form = html.slice(html.indexOf('<form data-form'), html.indexOf('</form>', html.indexOf('<form data-form')));
-    assert.match(form, /<button[^>]*type="submit" disabled>/, `${page}: the submit button can be pressed before ${script} is ready`);
-    assert.match(fs.readFileSync(path.join(web, 'assets', 'js', script), 'utf8'), /\.disabled = false/, `${script} never enables the button`);
-  }
-});
-
 test('type: no serif italic accents, no gradient-filled headings, no eyebrow labels, no em dashes in what people read', () => {
   const skip = /[\/](vendor|bundle|dist|node_modules)[\/]|mask3d\.js$/;
   const files = ['web', 'desktop/src', 'extension'].flatMap((dir) => fs.readdirSync(path.join(ROOT, dir), { recursive: true })

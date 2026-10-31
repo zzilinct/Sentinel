@@ -2,15 +2,13 @@
 (() => {
   'use strict';
 
-  const { api, esc, $, $$, busy } = window.UI;
-  const Masks = window.SentinelMasks;
+  const { api, esc, $, busy, formReady } = window.UI;
   const page = document.body.dataset.page;
   const form = $('[data-form]');
 
-  $$('[data-glyph]').forEach((el) => { el.innerHTML = Masks.svg(el.dataset.glyph); });
 
   const note = (html, ok) => {
-    $('[data-note]').innerHTML = `<div class="banner${ok ? '' : ' banner--error'}" role="${ok ? 'status' : 'alert'}" style="margin:22px 0 0"><div>${html}</div></div>`;
+    $('[data-note]').innerHTML = `<div class="banner${ok ? '' : ' banner--error'}" role="${ok ? 'status' : 'alert'}"><div>${html}</div></div>`;
   };
 
   if (page === 'forgot') {
@@ -24,7 +22,7 @@
         } catch (err) { note(esc(err.message)); }
       });
     });
-    $('button', form).disabled = false;   // disabled in the page until this script has bound the form
+    formReady(form);
     return;
   }
 
@@ -34,7 +32,7 @@
     const status = $('[data-status]');
     if (!token) {
       status.textContent = 'This page needs the link from your verification email.';
-      note('You can request a new link from <a href="/app/security" style="color:var(--gold-300)">Security settings</a> once signed in.');
+      note('You can request a new link from <a href="/app/security">Security settings</a> once signed in.');
       return;
     }
     api('/auth/verify', { method: 'POST', body: { token } })
@@ -54,7 +52,7 @@
   const token = new URLSearchParams(location.search).get('token') || '';
   history.replaceState({}, '', '/reset');
   if (!token) {
-    note('This page needs the link from your reset email. <a href="/forgot" style="color:var(--gold-300)">Request a new link</a>.');
+    note('This page needs the link from your reset email. <a href="/forgot">Request a new link</a>.');
     form.hidden = true;
     return;
   }
@@ -79,9 +77,9 @@
         form.hidden = true;
         setTimeout(() => location.replace('/login'), 1400);
       } catch (err) {
-        note(`${esc(err.message)}${err.code === 'reset_invalid' ? ' <a href="/forgot" style="color:var(--gold-300)">Request a new link</a>.' : ''}`);
+        note(`${esc(err.message)}${err.code === 'reset_invalid' ? ' <a href="/forgot">Request a new link</a>.' : ''}`);
       }
     });
   });
-  $('button', form).disabled = false;
+  formReady(form);
 })();

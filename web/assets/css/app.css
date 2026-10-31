@@ -324,7 +324,7 @@ body.app::before { opacity: .6; }
 
 .field { display: grid; gap: 7px; }
 .field + .field { margin-top: 14px; }
-.field label { font-size: var(--t-note); color: var(--text-2); }
+.field label { font-size: var(--t-note); font-weight: 500; color: var(--text); }
 .field .opt { color: var(--faint); }
 .input, .textarea, select.input {
   width: 100%; border: 0; outline: none;
@@ -483,37 +483,74 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 
 /* ------------------------------------------------------------ auth pages */
 
-.auth { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-columns: 1fr 1fr; }
-@media (max-width: 980px) { .auth { grid-template-columns: 1fr; } .auth__art { display: none; } }
-.auth__form { display: flex; flex-direction: column; padding: 32px clamp(24px, 6vw, 80px); }
+/* One stage for every sign-in page: the mask under its own light, the same dark in both themes, beside the form on a
+   wide screen and a short band above it on a phone. Still at rest. The only motion is the light coming up while a
+   field has focus. Colours here are fixed, not tokens: the stage does not change with the theme. */
+.auth { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); }
+.auth__art {
+  position: sticky; top: 0; z-index: 1; isolation: isolate; overflow: hidden;
+  height: 100vh; height: 100dvh; padding: clamp(32px, 4.4vw, 72px);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background: radial-gradient(120% 90% at 50% 112%, #1d1710, transparent 62%), #09090b;
+  box-shadow: inset -1px 0 0 rgba(214, 178, 98, .3);
+}
+.auth__stage { position: absolute; z-index: -1; left: 50%; top: 42%; width: min(82%, 70vh); aspect-ratio: 1; transform: translate(-50%, -50%); display: grid; place-items: center; }
+.auth__stage::before {
+  content: ''; position: absolute; inset: -22%; z-index: -1; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(226, 190, 118, .46), rgba(190, 140, 62, .17) 52%, transparent);
+  opacity: .62; transition: opacity .9s var(--ease-out);
+}
+.auth:has(.input:focus) .auth__stage::before { opacity: 1; }
+.auth__scope { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: rgba(226, 196, 127, .34); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.auth__scope circle + circle { stroke-dasharray: 1 7; }
+.auth__scope path { fill: #e2c47f; stroke: none; }
+.auth__mask { position: relative; width: 66%; height: auto; filter: drop-shadow(-14px 34px 34px rgba(0, 0, 0, .75)); }
+.auth__word {
+  align-self: flex-start; font: 400 clamp(56px, min(6.6vw, 13vh), 112px)/1.1 var(--display); --track: .012em;
+  background: linear-gradient(176deg, #f3dca4 0%, #d2ac63 34%, #a67e38 58%, #e9c983 76%, #a8803a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.auth__word:focus-visible { outline: 2px solid #e2c47f; outline-offset: 4px; }
+.auth__line { margin-top: 10px; max-width: 26em; font-size: var(--t-lead); line-height: 1.45; color: #c9c5bb; }
+
+.auth__form { position: relative; z-index: 1; display: flex; flex-direction: column; padding: 32px clamp(24px, 6vw, 80px); }
 .auth__inner { width: 100%; max-width: 400px; margin: auto; padding: 40px 0; }
 .auth__inner h1 { font-size: var(--t-d3); }
 .auth__inner > p { margin-top: 10px; color: var(--text-2); }
+.auth__inner form { margin-top: 28px; }
+.auth__inner form > .btn { margin-top: 22px; }
 .auth__google { margin-top: 30px; }
-.divider { display: flex; align-items: center; gap: 14px; margin: 22px 0; font: var(--t-label) var(--sans); color: var(--faint); }
+.auth__google svg { width: 18px; height: 18px; }
+.divider { display: flex; align-items: center; gap: 14px; margin: 22px 0; font: var(--t-label) var(--sans); color: var(--muted); }
 .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--line-2); }
+.divider + form { margin-top: 0; }
+.auth .banner { margin: 22px 0 0; }
+.auth .banner a { color: var(--gold-300); }
+.field--password { grid-template-columns: 1fr auto; }
+.field--password .input, .field--password .field__error { grid-column: 1 / -1; }
+.field--password a { grid-area: 1 / 2; align-self: end; font-size: var(--t-note); color: var(--gold-300); }
+.auth__stay { margin: 16px -10px 0; }
 .auth__switch { margin-top: 24px; text-align: center; font-size: var(--t-ui); color: var(--muted); }
+.auth__switch--next { margin-top: 6px; }
 .auth__switch a { color: var(--gold-300); }
 /* A link inside a sentence is underlined, not only gold: gold on grey is too close for some eyes to tell apart. */
-.auth__inner a:not(.btn):not(.logo), .consent__row a { text-decoration: underline; text-underline-offset: 2px; }
+.auth__inner a:not(.btn), .consent__row a { text-decoration: underline; text-underline-offset: 2px; }
 .auth__legal { margin-top: 18px; font-size: var(--t-label); color: var(--faint); text-align: center; }
 .auth__legal a { text-decoration: underline; }
+.auth__actions { margin-top: 26px; display: flex; gap: 10px; flex-wrap: wrap; }
 
-.auth__art { position: relative; overflow: hidden; border-left: 1px solid var(--line); background: var(--bg-2); display: grid; place-items: center; }
-.auth__art::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 56px 56px; -webkit-mask-image: radial-gradient(closest-side, #000, transparent); mask-image: radial-gradient(closest-side, #000, transparent); }
-.orbit { position: relative; width: min(460px, 80%); aspect-ratio: 1; }
-.orbit__ring { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line-2); }
-.orbit__ring:nth-child(2) { inset: 18%; box-shadow: inset 0 0 0 1px var(--line-gold); }
-.orbit__spin { position: absolute; inset: 0; animation: orbit 30s linear infinite; }
-.orbit__spin:nth-of-type(4) { inset: 18%; animation-duration: 20s; animation-direction: reverse; }
-.orbit__mask { position: absolute; width: 52px; height: 52px; border-radius: var(--r); display: grid; place-items: center; color: var(--c); background: var(--surface); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent), 0 12px 30px -8px color-mix(in srgb, var(--c) 50%, transparent); }
-.orbit__mask svg { width: 30px; height: 30px; }
-.orbit__spin > .orbit__mask { animation: orbit 30s linear infinite reverse; }
-.orbit__spin:nth-of-type(4) > .orbit__mask { animation: orbit 20s linear infinite; }
-.orbit__core { position: absolute; inset: 36%; border-radius: var(--r-lg); display: grid; place-items: center; color: var(--gold-300); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-gold), 0 30px 80px -20px rgb(var(--gold-rgb) / .4); }
-.orbit__core svg { width: 50%; height: 50%; }
-/* A plain line about what Sentinel does: not styled as a quote, since nobody is being quoted. */
-.auth__line { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); width: min(420px, 84%); text-align: center; font-size: var(--t-lead); line-height: 1.5; color: var(--text-2); }
+/* A short band above the form: the name and the line on the left, the mask at the right edge, the button still in view. */
+@media (max-width: 980px) {
+  .auth { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .auth__art { position: relative; height: auto; min-height: 148px; padding: 22px 24px 24px; justify-content: center; box-shadow: inset 0 -1px 0 rgba(214, 178, 98, .3); }
+  .auth__stage { left: auto; right: -34px; top: 50%; width: 210px; transform: translateY(-50%); }
+  .auth__word { font-size: clamp(44px, 12.4vw, 60px); }
+  .auth__line { margin-top: 4px; max-width: 12em; font-size: var(--t-ui); line-height: 1.35; }
+  .auth__inner { padding: 28px 0 24px; }
+  .auth__form { padding: 0 24px 24px; }
+  .auth__inner > .auth__google { margin-top: 22px; }
+}
+@media (max-width: 980px) and (min-width: 561px) { .auth__line { max-width: 26em; } }
+@media (prefers-reduced-motion: reduce) { .auth__stage::before { transition: none; } }
 
 .strength { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
 .strength i { height: 4px; border-radius: var(--r-sm); background: rgb(var(--ink) / .08); transition: background .3s; }
@@ -767,7 +804,11 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .seg__btn.is-on { box-shadow: inset 0 1px 0 rgb(255 255 255 / .4), var(--gold-glow); }
 .segmented button[aria-selected="true"], .segmented button[aria-checked="true"] { background: var(--relief), var(--surface-2); box-shadow: var(--raise-sm); }
 .scanbox:focus-within, .input:focus, .textarea:focus, .tools__search:focus-within { box-shadow: var(--press), 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 5px rgb(var(--gold-rgb) / .08); }
-.input[aria-invalid="true"] { box-shadow: var(--press), 0 0 0 1px rgba(229, 72, 77, .7); }
+/* Fields stand clear of the page, empty or not; focus and a mistake take over the edge. */
+.input, .textarea { background-color: var(--field-bg); caret-color: var(--gold-300); box-shadow: var(--press), inset 0 0 0 1px var(--field-ring); }
+.input:focus, .textarea:focus { box-shadow: var(--press), inset 0 0 0 1px var(--gold-300), 0 0 0 4px rgb(var(--gold-rgb) / .16); }
+.input[aria-invalid="true"] { box-shadow: var(--press), inset 0 0 0 1px var(--red); }
+.input:-webkit-autofill { -webkit-text-fill-color: var(--text); box-shadow: var(--press), inset 0 0 0 1px var(--field-ring), inset 0 0 0 100px var(--field-bg); }
 .drop:hover, .drop.is-over { box-shadow: var(--press), 0 0 0 1px rgb(var(--gold-rgb) / .55); }
 .consent__row input:checked { background: var(--gold-grad); box-shadow: inset 0 1px 0 rgb(255 255 255 / .4); }
 .switch { background: var(--bg-2); box-shadow: var(--press); }

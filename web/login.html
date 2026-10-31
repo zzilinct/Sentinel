@@ -8,16 +8,14 @@
 </head>
 <body>
 <div class="auth">
+  <!-- @include auth-art -->
   <main class="auth__form" id="main">
-    <a class="logo" href="/"><span class="logo__mark" data-glyph="scam"></span>Sentinel</a>
-
     <div class="auth__inner" data-step="password">
       <h1>Welcome back</h1>
-      <p>Sign in to keep your protection running.</p>
+      <p>Your scans and settings are where you left them.</p>
 
       <div data-note></div>
       <!-- @include google-button -->
-      <div class="divider">or</div>
 
       <form data-form method="post" novalidate>
         <div class="field">
@@ -25,39 +23,38 @@
           <input class="input" id="email" name="email" type="email" autocomplete="email" required>
           <span class="field__error" data-error="email"></span>
         </div>
-        <div class="field">
-          <label for="password" style="display:flex;justify-content:space-between">Password <a href="/forgot" style="color:var(--gold-300)">Forgot password?</a></label>
+        <div class="field field--password">
+          <label for="password">Password</label>
           <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+          <a href="/forgot">Forgot password?</a>
           <span class="field__error" data-error="password"></span>
         </div>
-        <label class="consent__row" style="margin-top:18px">
+        <label class="consent__row auth__stay">
           <input type="checkbox" name="staySignedIn" data-stay>
-          <span>Stay signed in<br><small class="muted" data-stay-hint>You stay signed in on this device until you have not used Sentinel for 30 days. Leave it unticked on a shared computer: you are signed out when the browser closes, or after 12 hours away.</small></span>
+          <span>Stay signed in<br><small class="muted">For 30 days after you last use Sentinel. On a shared computer, leave this off.</small></span>
         </label>
-        <button class="btn btn--gold btn--lg btn--block" style="margin-top:22px" type="submit" disabled>Sign in</button>
+        <button class="btn btn--gold btn--lg btn--block" type="submit">Sign in</button>
       </form>
       <p class="auth__switch">New to Sentinel? <a href="/signup" data-keep-query>Create an account</a></p>
-      <p class="auth__switch" style="margin-top:6px"><a href="/guest">Continue as a guest</a> <span class="muted">(ten link scans a day, nothing saved)</span></p>
+      <p class="auth__switch auth__switch--next"><a href="/guest">Continue as a guest</a> <span class="muted">(ten link scans a day, nothing saved)</span></p>
     </div>
 
     <div class="auth__inner" data-step="code" hidden>
       <h1>Two-factor check</h1>
       <p>Enter the 6-digit code from your authenticator app.</p>
       <div data-note-code></div>
-      <form data-code-form method="post" novalidate style="margin-top:28px">
+      <form data-code-form method="post" novalidate>
         <div class="field">
           <label for="code">Authentication code</label>
           <input class="input code-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
         </div>
-        <button class="btn btn--gold btn--lg btn--block" style="margin-top:22px" type="submit">Verify</button>
+        <button class="btn btn--gold btn--lg btn--block" type="submit">Verify</button>
       </form>
       <p class="auth__switch"><a href="/login">Use a different account</a></p>
     </div>
     <!-- @include legal -->
   </main>
-  <!-- @include auth-art -->
 </div>
-<script src="/assets/js/masks.js"></script>
 <script src="/assets/js/ui.js"></script>
 <script src="/assets/js/auth.js"></script>
 </body>

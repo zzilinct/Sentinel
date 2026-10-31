@@ -2,12 +2,10 @@
 (() => {
   'use strict';
 
-  const { api, esc, $, $$, busy } = window.UI;
-  const Masks = window.SentinelMasks;
+  const { api, esc, $, $$, busy, formReady } = window.UI;
   const params = new URLSearchParams(location.search);
   const isSignup = location.pathname.startsWith('/signup');
 
-  $$('[data-glyph]').forEach((el) => { el.innerHTML = Masks.svg(el.dataset.glyph); });
   $$('[data-keep-query]').forEach((a) => { a.href += location.search; });
 
   const next = () => {
@@ -24,7 +22,7 @@
 
   // A note is read out as it appears: an error at once (alert), good news politely (status).
   const note = (slot, html, kind = 'error') => {
-    $(slot).innerHTML = html ? `<div class="banner${kind === 'error' ? ' banner--error' : ''}" role="${kind === 'error' ? 'alert' : 'status'}" style="margin:22px 0 0"><div>${html}</div></div>` : '';
+    $(slot).innerHTML = html ? `<div class="banner${kind === 'error' ? ' banner--error' : ''}" role="${kind === 'error' ? 'alert' : 'status'}"><div>${html}</div></div>` : '';
   };
 
   function clearErrors(form) {
@@ -59,19 +57,14 @@
 
   /* ---------------------------------------------------------- google */
 
+  // The server sends this button only when it has Google sign-in (server/lib/http.js).
   const google = $('[data-google]');
-  api('/auth/config').then((cfg) => {
-    if (cfg.googleEnabled) {
-      google.addEventListener('click', () => {
-        const stay = !isSignup && form.elements.staySignedIn && form.elements.staySignedIn.checked;
-        location.href = `/api/v1/auth/google/start?next=${encodeURIComponent(next())}${stay ? '&stay=1' : ''}`;
-      });
-    } else {
-      google.disabled = true;
-      google.title = 'Google sign-in is not configured on this server';
-      google.insertAdjacentHTML('afterend', '<p class="field__hint" style="text-align:center;margin-top:8px">Google sign-in is not set up on this server yet. Use your email below.</p>');
-    }
-  }).catch(() => {});
+  if (google) {
+    google.addEventListener('click', () => {
+      const stay = !isSignup && form.elements.staySignedIn && form.elements.staySignedIn.checked;
+      location.href = `/api/v1/auth/google/start?next=${encodeURIComponent(next())}${stay ? '&stay=1' : ''}`;
+    });
+  }
 
   // Shared from the phone's Share menu while signed out (app.js keeps it on this device): it is checked after this.
   if (next() === '/app/share' && !params.get('error')) note('[data-note]', `${isSignup ? 'Create your account' : 'Sign in'} and Sentinel checks what you shared. It waits on this device until then.`, 'ok');
@@ -151,14 +144,12 @@
       } catch (err) {
         if (err.code === 'email_taken') {
           try { sessionStorage.setItem('sentinel:email', data.email || ''); } catch { /* private window */ }
-          note('[data-note]', `That email is already registered. <a href="/login" style="color:var(--gold-300)">Sign in instead</a>, or use <a href="/forgot" style="color:var(--gold-300)">Forgot password</a> if you cannot get in.`);
+          note('[data-note]', `That email is already registered. <a href="/login">Sign in instead</a>, or use <a href="/forgot">Forgot password</a> if you cannot get in.`);
         } else if (!showErrors(form, err.errors)) note('[data-note]', esc(err.message));
       }
     });
   });
-  // The button starts disabled in the page: pressed before this script was ready, the form would post plainly
-  // and land on an error page. It can be pressed from here on.
-  $('button[type=submit]', form).disabled = false;
+  formReady(form);
 
   /* ------------------------------------------------------------- 2FA */
 
