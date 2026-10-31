@@ -843,7 +843,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 
 /* The answer: the same black lacquer and gold edge as the app's island, in both themes, so it reads the same anywhere. */
 .call__answer {
-  position: sticky; top: max(10px, env(safe-area-inset-top)); z-index: 5; isolation: isolate;
+  position: static; z-index: 5; isolation: isolate;
   display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 14px; align-items: center;
   max-height: calc(100dvh - 96px); overflow-y: auto; padding: 18px 20px 20px; border-radius: 26px;
   background-color: #0b0906; color: #efe6d4;
@@ -855,7 +855,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .call__answer[data-verdict="hangup"]::before { opacity: 1; }
 .call__mark { width: 52px; height: 52px; }
 .call__mark svg { display: block; width: 100%; height: 100%; }
-.call__verdict { margin: 0; font: 400 clamp(29px, 7.6vw, 33px)/1.1 var(--display); letter-spacing: -.01em; color: #f3dca4; text-wrap: balance; }
+.call__verdict { margin: 0; font: 400 clamp(29px, 7.6vw, 33px)/1.1 var(--display); letter-spacing: -.01em; color: #4cb782; text-wrap: balance; }
 .call__answer[data-verdict="hangup"] .call__verdict { color: #fff; animation: call-land-a .5s var(--lux-bounce, ease-out); }
 .call__answer[data-verdict="callback"] .call__verdict { animation: call-land-b .5s var(--lux-bounce, ease-out); }
 .call__answer[data-verdict="hangup"] .call__mark { animation: call-land-a .5s var(--lux-bounce, ease-out); }
