@@ -49,7 +49,6 @@ test('the old art is gone and the stage does not move at rest', () => {
   assert.doesNotMatch(css, /\.orbit/);
   const stage = css.slice(css.indexOf('auth pages */'), css.indexOf('.strength {'));
   assert.doesNotMatch(stage, /animation\s*:/, 'nothing on the sign-in pages animates by itself');
-  assert.match(stage, /prefers-reduced-motion: reduce\) \{ \.auth__stage::before \{ transition: none/);
 });
 
 test('sign-in buttons can be pressed from the start: boot.js holds a press until the form\'s script is ready', () => {

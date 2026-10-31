@@ -486,6 +486,7 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 /* One stage for every sign-in page: the mask under its own light, the same dark in both themes, beside the form on a
    wide screen and a short band above it on a phone. Still at rest. The only motion is the light coming up while a
    field has focus. Colours here are fixed, not tokens: the stage does not change with the theme. */
+body:has(.auth)::before { animation: none; }
 .auth { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); }
 .auth__art {
   position: sticky; top: 0; z-index: 1; isolation: isolate; overflow: hidden;
@@ -494,17 +495,17 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
   background: radial-gradient(120% 90% at 50% 112%, #1d1710, transparent 62%), #09090b;
   box-shadow: inset -1px 0 0 rgba(214, 178, 98, .3);
 }
-.auth__stage { position: absolute; z-index: -1; left: 50%; top: 42%; width: min(82%, 70vh); aspect-ratio: 1; transform: translate(-50%, -50%); display: grid; place-items: center; }
+.auth__stage { position: absolute; z-index: -1; left: 50%; top: 39%; width: min(78%, 64vh); aspect-ratio: 1; transform: translate(-50%, -50%); display: grid; place-items: center; }
 .auth__stage::before {
   content: ''; position: absolute; inset: -22%; z-index: -1; border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(226, 190, 118, .46), rgba(190, 140, 62, .17) 52%, transparent);
-  opacity: .62; transition: opacity .9s var(--ease-out);
+  background: radial-gradient(closest-side, rgba(232, 196, 124, .6), rgba(190, 140, 62, .24) 54%, transparent);
+  opacity: .68; transition: opacity .9s var(--ease-out);
 }
 .auth:has(.input:focus) .auth__stage::before { opacity: 1; }
 .auth__scope { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: rgba(226, 196, 127, .34); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .auth__scope circle + circle { stroke-dasharray: 1 7; }
 .auth__scope path { fill: #e2c47f; stroke: none; }
-.auth__mask { position: relative; width: 66%; height: auto; filter: drop-shadow(-14px 34px 34px rgba(0, 0, 0, .75)); }
+.auth__mask { position: relative; width: 68%; height: auto; filter: drop-shadow(-14px 34px 34px rgba(0, 0, 0, .75)); }
 .auth__word {
   align-self: flex-start; font: 400 clamp(56px, min(6.6vw, 13vh), 112px)/1.1 var(--display); --track: .012em;
   background: linear-gradient(176deg, #f3dca4 0%, #d2ac63 34%, #a67e38 58%, #e9c983 76%, #a8803a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -545,12 +546,12 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
   .auth__stage { left: auto; right: -34px; top: 50%; width: 210px; transform: translateY(-50%); }
   .auth__word { font-size: clamp(44px, 12.4vw, 60px); }
   .auth__line { margin-top: 4px; max-width: 12em; font-size: var(--t-ui); line-height: 1.35; }
-  .auth__inner { padding: 28px 0 24px; }
+  .auth__inner { margin: 0 auto; padding: 28px 0 24px; }
+  .auth__form .legal-links { margin-top: auto; }
   .auth__form { padding: 0 24px 24px; }
   .auth__inner > .auth__google { margin-top: 22px; }
 }
 @media (max-width: 980px) and (min-width: 561px) { .auth__line { max-width: 26em; } }
-@media (prefers-reduced-motion: reduce) { .auth__stage::before { transition: none; } }
 
 .strength { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
 .strength i { height: 4px; border-radius: var(--r-sm); background: rgb(var(--ink) / .08); transition: background .3s; }
@@ -818,7 +819,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .meter i { background: var(--gold-grad); }
 .avatar { box-shadow: inset 0 1px 0 rgb(255 255 255 / .4), var(--gold-glow); }
 /* A box, not a dot: square enough to read as a tick box, with an edge in both themes. */
-.consent__row input { border-radius: 6px; box-shadow: var(--press), inset 0 0 0 1px var(--line-2); }
+.consent__row input { border-radius: 6px; background-color: var(--field-bg); box-shadow: var(--press), inset 0 0 0 1px var(--field-ring); }
 
 /* --------------------------------------------------------------- models */
 

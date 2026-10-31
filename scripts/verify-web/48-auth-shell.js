@@ -26,27 +26,26 @@ const FACTS = `(() => {
   const hit = m && m.width && document.elementFromPoint(m.left + m.width / 2, Math.min(m.top + m.height / 2, innerHeight - 1));
   const input = document.querySelector('form:not([hidden]) .input');
   const button = document.querySelector('form:not([hidden]) button[type=submit]');
-  let edge = 0;
-  if (input) {
-    const s = getComputedStyle(input);
+  const edgeOf = (el) => {
+    if (!el) return 99;
+    const s = getComputedStyle(el);
     const ring = s.boxShadow.match(/(rgba?\\([^)]*\\)) 0px 0px 0px 1px inset/);
-    const page = parts(getComputedStyle(document.body).backgroundColor).slice(0, 3);
-    if (ring) {
-      const seen = luminance(over(parts(ring[1]), parts(s.backgroundColor).slice(0, 3)));
-      const back = luminance(page);
-      edge = (Math.max(seen, back) + 0.05) / (Math.min(seen, back) + 0.05);
-    }
-  }
+    const back = luminance(parts(getComputedStyle(document.body).backgroundColor).slice(0, 3));
+    if (!ring) return 0;
+    const seen = luminance(over(parts(ring[1]), parts(s.backgroundColor).slice(0, 3)));
+    return (Math.max(seen, back) + 0.05) / (Math.min(seen, back) + 0.05);
+  };
   return {
     wordOnScreen: Boolean(w && w.width && w.top >= 0 && w.bottom <= innerHeight),
     wordPx: word ? parseFloat(getComputedStyle(word).fontSize) : 0,
     wordClearOfMask: Boolean(w && m && (m.left >= w.right - 1 || m.top >= w.bottom - 1 || m.bottom <= w.top + 1)),
     maskShown: Boolean(mask && mask.complete && mask.naturalWidth > 0 && m.width >= 100 && hit === mask && getComputedStyle(mask).opacity === '1'),
-    edge: Math.round(edge * 100) / 100,
+    edge: Math.round(edgeOf(input) * 100) / 100,
+    boxEdge: Math.round(edgeOf(document.querySelector('.auth .consent__row input')) * 100) / 100,
     submitBottom: button ? Math.round(button.getBoundingClientRect().bottom) : 0,
     tall: innerHeight,
     sideways: document.documentElement.scrollWidth - innerWidth,
-    forever: document.getAnimations().filter((a) => a.playState === 'running' && a.effect.getTiming().iterations === Infinity).length,
+    forever: document.getAnimations().filter((a) => a.playState === 'running' && a.effect.getTiming().iterations === Infinity).map((a) => `${a.effect.target.tagName}.${a.effect.target.className} ${a.effect.pseudoElement || ''} ${a.animationName || ''}`),
     styled: document.querySelectorAll('.auth [style]').length
   };
 })()`;
@@ -86,8 +85,9 @@ async function checkAuthShell() {
     const none = (name, test) => { const b = bad(test); result(`auth-shell: ${name}`, b.length === 0, b.slice(0, 8).join('; ') || `${everyLook.length} looks`); };
     none('the name Sentinel is on screen at a readable size on every page, desktop and phone', (f) => !f.wordOnScreen || f.wordPx < 32);
     none('the mask is drawn, on top, and the name is clear of it', (f) => !f.maskShown || !f.wordClearOfMask);
-    none('an empty field\'s edge is 3:1 against the page', (f) => f.submitBottom && f.edge < 3);
-    none('nothing loops at rest', (f) => f.forever > 0);
+    none('an empty field\'s and a tick box\'s edge are 3:1 against the page', (f) => f.submitBottom && (f.edge < 3 || f.boxEdge < 3));
+    const loops = [...new Set(everyLook.flatMap((f) => f.forever))];
+    result('auth-shell: nothing loops at rest', loops.length === 0, loops);
     none('no page sideways scroll', (f) => f.sideways > 0);
     none('the pages use the shared styles, not style attributes', (f) => f.styled > 0);
     none('Sign in, Send reset link and Save are above the fold on a phone (signup may scroll)', (f) => / phone /.test(f.where) && !/signup/.test(f.where) && f.submitBottom > f.tall);
@@ -134,7 +134,7 @@ async function checkAuthShell() {
     await view(DESKTOP, 'dark', true);
     await goto(browser, s, `${plain.base}/login`, SETTLED);
     const stepped = await ev(`${glow}.transitionDuration`);
-    result('auth-shell: the light on the mask comes up with focus; reduced motion takes the fade away', Number(high) > Number(low) && stepped === '0s', { low, high, stepped });
+    result('auth-shell: the light on the mask comes up with focus; reduced motion takes the fade away', Number(high) > Number(low) && parseFloat(stepped) < 0.001, { low, high, stepped });
     await view(DESKTOP, 'dark');
 
     /* Tab goes field to field. */
@@ -164,8 +164,14 @@ async function checkAuthShell() {
     await view(DESKTOP, 'dark');
 
     /* The button works from the start. Pressed before its script has come, the press waits; if it never comes, the page says so. */
+    // The service worker and the cache would hand the script over without asking the network.
+    await browser.send('Network.enable', {}, s);
+    await browser.send('Network.setBypassServiceWorker', { bypass: true }, s);
+    await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, s);
+    await browser.send('Page.reload', {}, s);
+    await sleep(800);
     const held = [];
-    browser.on('Fetch.requestPaused', (p, sid) => { if (sid === s) held.push(p); });
+    browser.on('Fetch.requestPaused', (p, sid) => { if (!sid || sid === s) held.push(p); });
     await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*/assets/js/auth.js*' }, { urlPattern: '*/auth/google/start*' }] }, s);
     await goto(browser, s, `${plain.base}/login`, "!!document.querySelector('form[data-form] button[type=submit]')");
     for (let i = 0; i < 40 && !held.length; i++) await sleep(100);
