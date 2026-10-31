@@ -26,7 +26,7 @@
 /* The gold is painted only inside the box, so the line is tall enough to hold the capitals' top serifs. */
 .hero__word span { display: inline-block; background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .hero .sketch { position: absolute; left: 50%; top: 37%; translate: -50% -50%; width: min(58vw, 860px); height: auto; aspect-ratio: 1.3; }
-/* The mask sits under the name, not over it: both must read. */
+/* The mask sits under the name, not over it: both must read. A phone has no room for that here: see "phones" below. */
 .hero__mask { position: absolute; left: 50%; top: 30%; width: min(17vw, 280px); translate: -50% 0; pointer-events: auto; filter: drop-shadow(-20px 60px 50px rgb(0 0 0 / .7)) drop-shadow(0 0 60px rgb(var(--gold-rgb) / .14)); }
 .hero__mask img { width: 100%; height: auto; }
 .hero__copy { position: absolute; left: 4.4vw; bottom: calc(24px + 5vh); z-index: 2; max-width: 440px; text-align: left; margin: 0; }
@@ -47,6 +47,11 @@
 /* The dot field under the mask, and what Sentinel sees over it, brushed in by the pointer (home.js). */
 .hero__dots, .hero__unmask { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .hero__unmask { z-index: 1; }
+/* With no pointer to brush it, or no motion, what Sentinel sees stays on the screen: the name stands in front of it. */
+@media (prefers-reduced-motion: reduce), not all and (hover: hover) and (pointer: fine) { .hero__word { z-index: 2; } }
+/* It opens once, outward from behind the mask, over the name's entrance, and then nothing here moves or repaints. */
+@media (prefers-reduced-motion: no-preference) { .hero__unmask.is-opening { animation: unmask-open 1.5s var(--ease-out) .55s both; } }
+@keyframes unmask-open { from { clip-path: circle(0 at 50% 54%); } to { clip-path: circle(85% at 50% 54%); } }
 /* Covered by the next chapter (site.js, stacks): the stage leaves the screen, so its 3D mask and canvases rest. */
 @media (min-width: 861px) { .is-stacked.is-over > .hero .hero__stage { transform: translateY(-400vh); } }
 .scroll-cue { position: absolute; left: 50%; bottom: 40px; translate: -50% 0; z-index: 2; width: 24px; height: 40px; border-radius: 14px; box-shadow: var(--press); }
@@ -245,12 +250,21 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 @media (max-width: 860px) {
   .hero { min-height: auto; margin: 0 10px; padding: 96px 16px 40px; display: block; }
   .hero .vframe { inset: 78px 0 10px; }
-  .hero__stage { position: relative; height: 60vw; margin: 40px -16px 0; }
-  .hero__word { top: 12vw; font-size: 16vw; }
-  .hero .sketch { width: 120vw; top: 50%; }
-  .hero__mask { width: 34vw; top: 18vw; }
+  /* Two rows, so nothing depends on where a phone's width happens to land. The name has the first alone: its letters
+     measure 5.3 em across (Newsreader with its tracking), so this size fills the frame at every width. The second is
+     a lacquer niche with the mask standing in it, both sized from the niche, which is sized from the screen. */
+  .hero { --niche-h: clamp(270px, 44svh, 96vw); }
+  .hero__stage { position: relative; display: grid; grid-template-rows: auto var(--niche-h); justify-items: center; align-items: center; margin: 18px -16px 0; }
+  .hero__word { position: relative; left: auto; right: auto; top: auto; margin: 0; font-size: min((100vw - 64px) / 5.3, 112px); }
+  .hero__stage > :not(.hero__word, .hero__dots) { grid-area: 2 / 1; position: relative; left: auto; top: auto; translate: none; }
+  .hero__stage > .sketch { width: 120vw; }
+  .hero__stage > .hero__mask { z-index: 2; width: calc(var(--niche-h) * .46); top: calc(var(--niche-h) * .04); }
+  .hero__stage > .hero__unmask { z-index: 0; width: min(84vw, 440px); height: 100%; border: 1px solid rgb(var(--gold-rgb) / .6); border-radius: 50% 50% 28px 28px / 34% 34% 28px 28px;
+    outline: 1px solid rgb(var(--gold-rgb) / .24); outline-offset: 5px; box-shadow: 0 36px 60px -34px rgb(0 0 0 / .75); }
+  /* Not until it is drawn: an empty frame is not a thing to look at. */
+  .hero__unmask:not(.is-opening) { visibility: hidden; }
   .hero__copy, .hero__card { position: relative; left: auto; right: auto; bottom: auto; max-width: none; width: auto; }
-  .hero__copy { padding: 0 6px; }
+  .hero__copy { margin-top: 30px; padding: 0 6px; }
   .hero .hero__cta { flex-wrap: wrap; }
   .hero__card { margin: 30px 6px 30px; }
   .scroll-cue { display: none; }

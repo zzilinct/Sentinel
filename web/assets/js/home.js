@@ -660,12 +660,15 @@
   // Two canvases in the hero's stage. Underneath the mask, a field of gold dots that ripples away from the pointer.
   // Over it, what Sentinel sees: binary, scam marks and warnings, shown only where the pointer brushes a soft, smoky
   // mask that lingers a second and fades. Both draw only while something moves, never offscreen, never while the
-  // page scrolls. A finger gets one slow wipe instead of a brush and no dots; reduced motion gets a still split view.
+  // page scrolls. With no brush (a finger, reduced motion, a phone's width) it stays: drawn once, opened once by CSS,
+  // beside the mask on a large screen and as the niche the mask stands in on a phone. No dots for a finger.
   const heroStage = $('.hero__stage');
   if (heroStage && window.HTMLCanvasElement) {
     const stage = heroStage;
     const hero = stage.closest('.hero');
     const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const narrow = matchMedia('(max-width: 860px)');   // the same width as home.css's phones
+    const stays = () => reduced || !fine || narrow.matches;
     const now = () => performance.now();
     let seen = false;
     let scrollingUntil = 0;
@@ -823,6 +826,39 @@
     const css = getComputedStyle(document.documentElement);
     const MONO = css.getPropertyValue('--mono').trim() || 'monospace';
     const SANS = css.getPropertyValue('--sans').trim() || 'sans-serif';
+    // One warning: a lit pill, and the address it is about under it. Centred on the stage when no x is given.
+    function warning(u, W, label, col, host, y, x) {
+      u.font = `500 13px ${MONO}`;
+      const tw = u.measureText(label.toUpperCase()).width;
+      // Kept whole inside the stage, however narrow.
+      const cx = x === undefined ? (W - tw) / 2 - 6 : Math.max(24, Math.min(x, W - tw - 34));
+      u.save();
+      u.strokeStyle = col;
+      u.fillStyle = 'rgba(11,9,6,.85)';
+      u.shadowColor = col;
+      u.shadowBlur = 16;
+      u.beginPath();
+      if (u.roundRect) u.roundRect(cx - 14, y - 16, tw + 40, 32, 16); else u.rect(cx - 14, y - 16, tw + 40, 32);
+      u.fill();
+      u.stroke();
+      u.restore();
+      u.fillStyle = col;
+      u.beginPath();
+      u.arc(cx + 2, y, 4, 0, Math.PI * 2);
+      u.fill();
+      u.textBaseline = 'middle';
+      u.fillText(label.toUpperCase(), cx + 14, y + 1);
+      if (host) {
+        u.font = `500 15px ${SANS}`;
+        const hw = u.measureText(host).width;
+        const hx = x === undefined ? (W - hw) / 2 : Math.max(8, Math.min(cx - 10, W - hw - 10));
+        u.fillStyle = 'rgba(239,230,212,.72)';
+        u.fillText(host, hx, y + 34);
+        u.fillStyle = col;
+        u.fillRect(hx - 2, y + 44, hw + 4, 1.5);
+      }
+      u.textBaseline = 'top';
+    }
     function paintUnder() {
       under.width = vw;
       under.height = vh;
@@ -848,13 +884,26 @@
         u.fillStyle = `rgba(226,194,127,${row % 3 ? 0.34 : 0.62})`;
         u.fillText(line, (row % 2) * 7, y);
       }
+      // The niche: darker where the mask stands, so it stands clear, and a warning above it and below it, in the room
+      // it leaves. The niche's height and the mask's are one ratio (home.css), so these hold at every size.
+      if (narrow.matches) {
+        const shade = u.createRadialGradient(W / 2, H * 0.54, 0, W / 2, H * 0.54, H * 0.46);
+        shade.addColorStop(0, 'rgba(9,7,5,.92)');
+        shade.addColorStop(0.6, 'rgba(9,7,5,.7)');
+        shade.addColorStop(1, 'rgba(9,7,5,0)');
+        u.fillStyle = shade;
+        u.fillRect(0, 0, W, H);
+        warning(u, W, 'Fake login page', C.red, null, H * 0.17);
+        warning(u, W, 'Look-alike domain', C.orange, 'paypa1-secure-login.com', H * 0.81);
+        return;
+      }
       // Marks and warnings, scattered on a loose grid so they never pile up.
       const gc = W > 900 ? 4 : 2;
       const gr = H > 700 ? 3 : 2;
       let n = 0;
       for (let r = 0; r < gr; r++) {
         for (let c = 0; c < gc; c++, n++) {
-          let cx = (c + 0.2 + rnd() * 0.5) * (W / gc);
+          const cx = (c + 0.2 + rnd() * 0.5) * (W / gc);
           const cy = (r + 0.25 + rnd() * 0.5) * (H / gr);
           if (n % 3 === 0) {
             const m = marks[(n / 3) % 3];
@@ -866,44 +915,18 @@
             u.restore();
           } else {
             const [label, col] = WARN[n % WARN.length];
-            u.font = `500 13px ${MONO}`;
-            const tw = u.measureText(label.toUpperCase()).width;
-            // Kept whole inside the stage, however narrow.
-            cx = Math.max(24, Math.min(cx, W - tw - 34));
-            u.save();
-            u.strokeStyle = col;
-            u.fillStyle = 'rgba(11,9,6,.85)';
-            u.shadowColor = col;
-            u.shadowBlur = 16;
-            u.beginPath();
-            if (u.roundRect) u.roundRect(cx - 14, cy - 16, tw + 40, 32, 16); else u.rect(cx - 14, cy - 16, tw + 40, 32);
-            u.fill();
-            u.stroke();
-            u.restore();
-            u.fillStyle = col;
-            u.beginPath();
-            u.arc(cx + 2, cy, 4, 0, Math.PI * 2);
-            u.fill();
-            u.textBaseline = 'middle';
-            u.fillText(label.toUpperCase(), cx + 14, cy + 1);
-            const host = HOSTS[n % HOSTS.length];
-            u.font = `500 15px ${SANS}`;
-            u.fillStyle = 'rgba(239,230,212,.55)';
-            const hw = u.measureText(host).width;
-            const hx = Math.max(8, Math.min(cx - 10, W - hw - 10));
-            u.fillText(host, hx, cy + 34);
-            u.fillStyle = col;
-            u.fillRect(hx - 2, cy + 34, hw + 4, 1.5);
-            u.textBaseline = 'top';
+            warning(u, W, label, col, HOSTS[n % HOSTS.length], cy, cx);
           }
         }
       }
     }
 
-    // Reduced motion: a still split, the right of the stage seen through, behind a gold seam.
-    function paintSplit() {
+    // When it stays: the whole of it in a phone's niche; on a large screen a still split, the right of the stage seen
+    // through, behind a gold seam.
+    function paintRest() {
       vctx.clearRect(0, 0, vw, vh);
       vctx.drawImage(under, 0, 0);
+      if (narrow.matches) return;
       vctx.globalCompositeOperation = 'destination-in';
       const g = vctx.createLinearGradient(vw * 0.5, 0, vw * 0.62, 0);
       g.addColorStop(0, 'rgba(0,0,0,0)');
@@ -978,6 +1001,7 @@
       wake() { if (!vraf && ready && seen && lastDab && now() - lastDab < 2000) vraf = requestAnimationFrame(vframe); },
       still() { if (last || next) { clearAll(); lastDab = 0; } },
       point(x, y) {
+        if (stays()) return;
         next = { x, y };
         lastDab = now();
         quiet = 0;
@@ -987,22 +1011,28 @@
     };
     loops.push(brush);
 
+    const open = () => view.classList.add('is-opening');
     const vsize = () => {
-      vdpr = Math.min(devicePixelRatio || 1, 1.5);
-      vw = view.width = Math.round(stage.clientWidth * vdpr);
-      vh = view.height = Math.round(stage.clientHeight * vdpr);
-      trail.width = Math.round(stage.clientWidth * TRAIL);
-      trail.height = Math.round(stage.clientHeight * TRAIL);
+      // The niche is small and its words are read: sharp on a phone's screen. The brush covers the stage, at a cost.
+      vdpr = Math.min(devicePixelRatio || 1, narrow.matches ? 2.5 : 1.5);
+      vw = view.width = Math.round(view.clientWidth * vdpr);
+      vh = view.height = Math.round(view.clientHeight * vdpr);
+      trail.width = Math.round(view.clientWidth * TRAIL);
+      trail.height = Math.round(view.clientHeight * TRAIL);
       haze.width = trail.width;
       haze.height = trail.height;
       if (!vw || !vh) return;
       paintUnder();
       ready = true;
-      if (reduced) paintSplit(); else clearAll();
+      if (!stays()) { clearAll(); return; }
+      paintRest();
+      // After the opening (intro.js) when it plays, so it is seen rather than spent under the cover.
+      if (document.documentElement.classList.contains('intro')) document.addEventListener('sentinel:intro-done', open, { once: true });
+      else open();
     };
     // Fonts and the three marks first, so the page underneath is drawn once, complete.
     Promise.all([document.fonts ? document.fonts.ready : null, ...marks.map((m) => (m.img.decode ? m.img.decode().catch(() => {}) : null))]).then(() => {
-      if ('ResizeObserver' in window) new ResizeObserver(vsize).observe(stage); else vsize();
+      if ('ResizeObserver' in window) new ResizeObserver(vsize).observe(view); else vsize();
     });
 
     // The pointer, read once a frame, in the stage's own pixels.
@@ -1023,30 +1053,6 @@
           loops.forEach((l) => l.point && l.point(x, y));
         });
       }, { passive: true });
-    } else if (!fine && !reduced) {
-      // A finger: one slow wipe across the stage, the first time it is seen once the page has opened.
-      const wipe = () => {
-        let t0 = 0;
-        const run = (t) => {
-          if (!ready) { requestAnimationFrame(run); return; }
-          if (!t0) t0 = t;
-          const p = Math.min(1, (t - t0) / 2600);
-          const W = stage.clientWidth;
-          const H = stage.clientHeight;
-          const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-          brush.point(W * (-0.05 + 1.1 * e), H * (0.5 + 0.28 * Math.sin(e * Math.PI * 2.2)));
-          if (p < 1) requestAnimationFrame(run);
-        };
-        requestAnimationFrame(run);
-      };
-      const once = new Site.Observer((entries) => {
-        if (!entries[0].isIntersecting) return;
-        once.disconnect();
-        setTimeout(wipe, 900);
-      });
-      const arm = () => once.observe(stage);
-      if (document.documentElement.classList.contains('intro')) document.addEventListener('sentinel:intro-done', arm, { once: true });
-      else arm();
     }
   }
 })();
