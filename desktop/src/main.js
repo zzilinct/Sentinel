@@ -109,17 +109,17 @@ function push(channel, payload) {
 /* Chat safety: Roblox and the Discord app, read on this computer only (chatwatch.js). */
 function chatSafetyStatus() {
   const enabled = store.get('chatSafety', false);
-  return { enabled, running: enabled && chatwatch.running(), supported: process.platform === 'win32', seen: chatwatch.stats() };
+  return { enabled, running: enabled && chatwatch.running(), reader: enabled ? chatwatch.reader() : 'ok', supported: process.platform === 'win32', seen: chatwatch.stats() };
 }
 /* Text messages in Phone Link: the same reader, its own switch; links in texts are checked by address only. */
 function textSafetyStatus() {
   const enabled = store.get('textSafety', false);
   const s = chatwatch.stats();
-  return { enabled, running: enabled && chatwatch.running(), supported: process.platform === 'win32', seen: { ...s.phonelink, app: s.app === 'phonelink' ? 'phonelink' : null, reading: s.reading } };
+  return { enabled, running: enabled && chatwatch.running(), reader: enabled ? chatwatch.reader() : 'ok', supported: process.platform === 'win32', seen: { ...s.phonelink, app: s.app === 'phonelink' ? 'phonelink' : null, reading: s.reading, blind: s.blind === 'phonelink' } };
 }
 // Roblox, Discord or Phone Link came to the front while its switch is off: say once, for each, that Sentinel can watch it.
-const CHAT_APPS = { RobloxPlayerBeta: 'Roblox', Discord: 'Discord' };
-const TEXT_APPS = { PhoneExperienceHost: 'Phone Link', YourPhone: 'Phone Link' };
+const CHAT_APPS = { robloxplayerbeta: 'Roblox', discord: 'Discord' };
+const TEXT_APPS = { phoneexperiencehost: 'Phone Link', yourphone: 'Phone Link' };
 function offerChatSafety(processName) {
   if (process.platform !== 'win32') return;
   const texts = TEXT_APPS[processName];
@@ -138,16 +138,28 @@ function offerChatSafety(processName) {
 function chatApps() {
   return [...(store.get('chatSafety', false) ? ['discord', 'roblox'] : []), ...(store.get('textSafety', false) ? ['phonelink'] : [])];
 }
+let toldReaderStopped = false;
 function startChatSafety() {
   const apps = chatApps();
   if (!apps.length) { chatwatch.stop(); chatoverlay.show(null); return; }
-  if (chatwatch.running()) { chatwatch.setApps(apps); return; }
+  if (chatwatch.on()) { chatwatch.setApps(apps); return; }
   chatwatch.start({
     apps,
     // Only that it started or failed: never a message, a name, a game or a link.
     log: (text) => appLog(text),
     onState: (s) => chatoverlay.show(s),
     onSeen: () => { push('sentinel:chat-safety', chatSafetyStatus()); push('sentinel:text-safety', textSafetyStatus()); },
+    // The reader died or came back: the switch says on either way, so the page and the tray say which it is, and one
+    // quiet note says so when it will not stay up, in case nobody opens either.
+    onReader: (state) => {
+      push('sentinel:chat-safety', chatSafetyStatus());
+      push('sentinel:text-safety', textSafetyStatus());
+      refreshTray();
+      if (state === 'stopped' && !toldReaderStopped) {
+        toldReaderStopped = true;
+        notify('Sentinel cannot read chat right now', 'Chat is not being watched. Sentinel keeps trying by itself. Click to see more.', () => showWindow('/app/protection#chat-safety'));
+      }
+    },
     onCounted: (c) => { tally('chat_checked', c.checked); tally('chat_flagged', c.flagged); if (c.flagged) pause.sign('chat'); },
     // Links in texts, by address only. The scanner may still be starting: the words still count without it.
     api: (pathname, body) => (ORIGIN ? apiCall(pathname, body) : Promise.reject(new Error('scanner not ready')))
@@ -775,7 +787,7 @@ function refreshTray() {
     { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? trayGuard('live scanning off', true) && setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
     ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
     ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => { if (trayGuard('auto scanning off', !item.checked)) setAutoScan(item.checked).catch(() => {}); } }] : []),
-    ...(process.platform === 'win32' ? [{ label: 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { if (trayGuard('chat safety off', !item.checked)) { setChatSafety(item.checked); refreshTray(); } } }] : []),
+    ...(process.platform === 'win32' ? [{ label: chatwatch.reader() === 'stopped' ? 'Chat safety: cannot read chat right now' : 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { if (trayGuard('chat safety off', !item.checked)) { setChatSafety(item.checked); refreshTray(); } } }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => { if (trayGuard('starting with the computer off', !item.checked)) setOpenAtLogin(item.checked); } },
     ...(snipOn() ? [{ label: 'Check something on screen', click: () => snip.open(300) }] : []),
     ...(process.platform === 'win32' ? [{ label: 'Check my texts', type: 'checkbox', checked: store.get('textSafety', false), click: (item) => { if (trayGuard('Check my texts off', !item.checked)) { setTextSafety(item.checked); refreshTray(); } } }] : []),
@@ -1793,6 +1805,14 @@ async function boot() {
   // Chat safety (Roblox and the Discord app) and texts in Phone Link: each off until turned on in Live protection;
   // nothing about a chat or a text is logged.
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) chatoverlay.setDryRun((text) => appLog(`chat overlay (dry run): ${text}`));
+  // One fact, heard once: which window is in front. The chat reader sleeps until it matters, the live reader is woken
+  // for a browser, and the offer to watch a chat app is made, whether or not live scanning is on.
+  browsers.frontListen((name, handle) => {
+    chatwatch.front(name, handle);
+    if (!name) return;
+    if (browsers.inFront()) watch.wake();
+    else offerChatSafety(name);
+  });
   if (store.get('chatSafety', false) || store.get('textSafety', false)) startChatSafety();
 
   watch.init({
@@ -1810,7 +1830,6 @@ async function boot() {
     helperDll: path.join(app.getPath('userData'), 'reader-helper-2.dll'),
     // Development runs only: never honoured by an installed build.
     testProcess: app.isPackaged ? null : process.env.SENTINEL_TEST_PROCESS,
-    onFront: (name) => offerChatSafety(name),
     onChange: (s) => { refreshTray(); push('sentinel:live', { ...s, enabled: store.get('liveScanning', false) }); },
     // The browser in front (or none): the overlay follows it, and leaves with it.
     onWindow: (rect) => {

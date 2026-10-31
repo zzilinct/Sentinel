@@ -3,12 +3,19 @@
  * Chat safety: Roblox and the Discord app, read on this computer, so a scam or someone grooming a child is pointed
  * out beside the message itself. Off until the person (or a parent) turns it on, and visibly on while it watches.
  *
+ * Sentinel's helper (browsers.js) hears which window is in front, and only then does anything here wake. While no
+ * watched app is in front the reader sleeps on its input, using nothing, and after ten minutes it is ended; the next
+ * time one comes to the front it starts again. If it dies or stops answering it is brought back (3 s doubling up to 5
+ * minutes, as the live reader is), and until it is, the page and the tray say chat is not being watched: a switch that
+ * says on while nothing reads is the worst thing this file could do.
+ *
  * What it reads, and only while the app is the window in front:
  *   Discord   the messages on screen, through the accessibility interface screen readers use (who wrote each one,
  *             what it says, where it is), and the window's title (the server and channel, or the person in a DM).
  *   Roblox    the chat box, by recognising its text with the recogniser built into Windows (the copy of that corner
- *             of the window is read in memory and dropped at once); the middle of the screen once a second for the
- *             words of the Esc menu; and Roblox's own log file for which game is being played. The game's name and
+ *             of the window is read in memory and dropped at once, and only when words in it changed); a thin band
+ *             across the middle once a second, and the middle itself when that band jumps, for the words of the Esc
+ *             menu; and Roblox's own log file for which game is being played. The game's name and
  *             description come from Roblox's public game pages, by its place number: they are what makes "where do
  *             you live" ordinary in a role-play town and not in a lobby.
  *   Phone Link  (its own switch, "Check my texts") the open conversation: who it is with and the messages received,
@@ -31,7 +38,10 @@ const texts = require('../shared/texts');
 
 /* ------------------------------------------------------------- the reader */
 
-// A PowerShell loop: which app is in front, and what its chat shows. One JSON line per change.
+// A PowerShell loop: what the chat of the app in front shows. One JSON line per change. It is told which window that
+// is ("front discord 1234", "front -"), and waits on its input for that: it never asks which window is in front, only
+// checks, before each read, that the window it was told about still is. "alive" every few seconds while it reads, so a
+// reader stuck inside Windows is noticed as surely as one that died.
 const SCRIPT = String.raw`
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -52,7 +62,10 @@ public static class CW {
   public static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
   // The window's client area on screen: x, y, w, h.
   public static int[] Client(IntPtr h) { RECT r; GetClientRect(h, out r); var p = new POINT(); ClientToScreen(h, ref p); return new[] { p.X, p.Y, r.Right - r.Left, r.Bottom - r.Top }; }
-  // A part of the screen as BGRA bytes, and a quick fingerprint of it (so an unchanged chat box is not read again).
+  // How the last copy looked: all black (a game Windows will not hand over), and how bright, 0 to 765.
+  public static bool Black; public static long Lum;
+  // A part of the screen as BGRA bytes, and a fingerprint of its near-white pixels. Chat words are drawn in those (or
+  // cut out of a white page), so a chat box that says the same thing over a moving game is not read again.
   public static byte[] Grab(int x, int y, int w, int h, out long print) {
     using (var bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb)) {
       using (var g = System.Drawing.Graphics.FromImage(bmp)) g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h));
@@ -60,8 +73,13 @@ public static class CW {
       var bytes = new byte[d.Stride * h];
       Marshal.Copy(d.Scan0, bytes, 0, bytes.Length);
       bmp.UnlockBits(d);
-      long p = 17; for (int i = 0; i < bytes.Length; i += 97) p = p * 31 + (bytes[i] >> 3);
-      print = p;
+      long p = 17, sum = 0; int top = 0;
+      for (int i = 0; i + 2 < bytes.Length; i += 4) {
+        int b = bytes[i], m = bytes[i + 1], c = bytes[i + 2];
+        sum += b + m + c; top = Math.Max(top, b | m | c);
+        if (b > 215 && m > 215 && c > 215) p = p * 31 + i;
+      }
+      print = p; Black = top < 8; Lum = sum / Math.Max(1, w * h);
       return bytes;
     }
   }
@@ -109,49 +127,59 @@ $itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdPr
 # Windows PowerShell, so the loop would stop at the first read until the app sent its next command.
 $stdin = $in
 $pending = $stdin.ReadLineAsync()
-$lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}; $plSeen = 0
-# Which apps were switched on: the others are never read, even in front.
-$apps = @('discord', 'roblox')
+$lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $menuLum = 0; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}; $plSeen = 0
+$app = ''; $h = [IntPtr]::Zero; $fp = 0; $wait = 700; $nextAlive = 0; $lastItems = ''; $nextFull = 0
+$eye = @{ dark = 0; blind = $false }
+Write-Output '{"ready":true}'
+# Black again and again: Windows is keeping this window's picture from other programs. (Once could be a loading screen.)
+function Seen-Black {
+  if ([CW]::Black) { $eye.dark++ } else { $eye.dark = 0 }
+  $now = $eye.dark -ge 4
+  if ($now -ne $eye.blind) { $eye.blind = $now; Write-Output (@{ app = $app; blind = $now } | ConvertTo-Json -Compress) }
+}
 while ($true) {
-  $wait = 700
-  if ($pending.Wait(1)) {
+  # Nothing in front to read: asleep here until the app says otherwise, using nothing.
+  if ($pending.Wait($(if ($app) { $wait } else { -1 }))) {
     $cmd = $pending.Result
     if ($null -eq $cmd) { exit }
     $pending = $stdin.ReadLineAsync()
     if ($cmd -eq 'chat closed') { $chatOpen = $false } elseif ($cmd -eq 'chat open') { $chatOpen = $true }
-    elseif ($cmd -like 'apps *') { $apps = @($cmd.Substring(5).Split(',') | Where-Object { $_ }); $lastApp = '-' }
+    elseif ($cmd -eq 'front -') { $app = ''; $h = [IntPtr]::Zero; $lastApp = ''; $lastSig = ''; $eye.dark = 0; $eye.blind = $false }
+    elseif ($cmd -match '^front ([a-z]+) (\d{1,20})$') { $app = $Matches[1]; $h = [IntPtr][long]$Matches[2]; $fp = 0; [void][CW]::GetWindowThreadProcessId($h, [ref]$fp) }
+    if (-not $app) { continue }
   }
-  $h = [CW]::GetForegroundWindow()
-  $fp = 0; [void][CW]::GetWindowThreadProcessId($h, [ref]$fp)
-  $name = ''; try { $name = (Get-Process -Id $fp).ProcessName } catch { }
-  $app = if ($name -eq 'Discord') { 'discord' } elseif ($name -eq 'RobloxPlayerBeta') { 'roblox' } elseif ($name -eq 'PhoneExperienceHost' -or $name -eq 'YourPhone') { 'phonelink' } else { '' }
-  if ($apps -notcontains $app) { $app = '' }
-  if (-not $app -or [CW]::IsIconic($h)) {
-    if ($lastApp -ne '') { $lastApp = ''; $lastSig = ''; Write-Output '{"app":null}' }
-    Start-Sleep -Milliseconds 900; continue
-  }
+  $wait = 700
+  if ([Environment]::TickCount -gt $nextAlive) { $nextAlive = [Environment]::TickCount + 5000; Write-Output '{"alive":true}' }
+  # Only the window in front: if it has just changed the app will say so, and nothing is read meanwhile.
+  if ([CW]::GetForegroundWindow() -ne $h -or [CW]::IsIconic($h)) { continue }
   $c = [CW]::Client($h)
-  if ($app -ne $lastApp) { $lastApp = $app; $lastSig = ''; $lastPrint = 0; $msgList = $null }
+  if ($app -ne $lastApp) { $lastApp = $app; $lastSig = ''; $lastPrint = 0; $msgList = $null; $lastItems = '' }
   try {
     if ($app -eq 'discord') {
-      # The message list ("Messages in #channel" / "Messages in @name"): found once per window, then reused.
-      if (-not $msgList -or $msgFor -ne $h) {
-        $msgList = $null; $msgFor = $h
+      # The message list ("Messages in #channel" / "Messages in @name"): found once per window, then reused, and looked
+      # for at most every 3 seconds on a screen that has none: finding it walks the whole of Discord.
+      if ($msgFor -ne $h -or (-not $msgList -and [Environment]::TickCount -gt $nextList)) {
+        $msgList = $null; $msgFor = $h; $nextList = [Environment]::TickCount + 3000
         $lists = $A::FromHandle($h).FindAll([System.Windows.Automation.TreeScope]::Descendants, $listCond)
         foreach ($l in $lists) { if ($l.Current.Name -like 'Messages in*') { $msgList = $l; break } }
       }
       if ($msgList) {
         $scope = $itemCache.Activate()
         try { $items = $msgList.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) } finally { $scope.Dispose() }
-        $scope = $cache.Activate()
-        try { $texts = $msgList.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond) } finally { $scope.Dispose() }
-        $out = @(); $n = 0
-        $boxes = @()
+        $boxes = @(); $itemSig = ''
         foreach ($it in $items) {
           $b = $it.GetCachedPropertyValue($A::BoundingRectangleProperty)
           if ([double]::IsInfinity($b.Y) -or $b.Height -lt 8 -or $b.Bottom -lt $c[1] -or $b.Top -gt $c[1] + $c[3]) { continue }
           $boxes += ,@($it.GetCachedPropertyValue($A::AutomationIdProperty), $b)
+          $itemSig += [string]$it.GetCachedPropertyValue($A::AutomationIdProperty) + '|' + [int]$b.Y + '|' + [int]$b.Height + '|' + ([string]$it.GetCachedPropertyValue($A::NameProperty)).Length + ';'
         }
+        # Every word in the list is read only when a message on screen changed shape, or every few seconds for an edit
+        # that did not: a chat left open costs one short look per tick.
+        if ($itemSig -ne $lastItems -or [Environment]::TickCount -gt $nextFull) {
+        $lastItems = $itemSig; $nextFull = [Environment]::TickCount + 3000
+        $scope = $cache.Activate()
+        try { $texts = $msgList.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond) } finally { $scope.Dispose() }
+        $out = @(); $n = 0
         foreach ($bx in ($boxes | Select-Object -Last 30)) {
           $b = $bx[1]; $who = ''; $parts = @()
           foreach ($t in $texts) {
@@ -166,6 +194,7 @@ while ($true) {
         }
         $sig = ($out | ForEach-Object { $_.k + '|' + $_.y + '|' + $_.t.Length }) -join ';'
         if ($sig -ne $lastSig) { $lastSig = $sig; Write-Output (@{ app = 'discord'; title = [CW]::Title($h); win = $c; items = $out } | ConvertTo-Json -Compress -Depth 4) }
+        }
       } else {
         # No message list to read (Discord still building it, or a screen without one): said once, so the badge is honest.
         $msgList = $null
@@ -262,7 +291,8 @@ while ($true) {
         $cut = if ($c[2] -lt 760) { 0 } else { [int]($c[2] * 0.3) }
         $px = $c[0] + $cut; $pw = $c[2] - $cut
         $p = Print $px $c[1] $pw $c[3]
-        if ($p -ne $lastPrint) {
+        Seen-Black
+        if ($eye.blind) { $lastPrint = 0 } elseif ($p -ne $lastPrint) {
           $lastPrint = $p; $lastSig = ''
           $lines = Read-Area $px $c[1] $pw $c[3]
           Write-Output (@{ app = 'phonelink'; win = $c; pane = @($px, $c[1], $pw, $c[3]); lines = @($lines); ocr = ($null -ne $engine) } | ConvertTo-Json -Compress -Depth 4)
@@ -273,23 +303,29 @@ while ($true) {
       # while chat is closed (the app says so: then only a glance for the box coming back).
       $cw = [int][Math]::Min(620, $c[2] * 0.45); $ch = [int][Math]::Min(460, $c[3] * 0.5)
       $p = Print $c[0] $c[1] $cw $ch
-      if ($p -ne $lastPrint) {
+      Seen-Black
+      if ($eye.blind) { $lastPrint = 0 } elseif ($p -ne $lastPrint) {
         $lastPrint = $p
         $lines = Read-Area $c[0] $c[1] $cw $ch
         Write-Output (@{ app = 'roblox'; win = $c; area = @($c[0], $c[1], $cw, $ch); lines = @($lines) } | ConvertTo-Json -Compress -Depth 4)
       }
-      # The Esc menu: its words in the middle of the screen, looked for once a second.
+      # The Esc menu dims the whole game. A thin band across the middle is looked at once a second, and the recogniser
+      # (half the screen, the costliest thing here) runs only when that band jumps, or while the menu is open to see it go.
       if ([Environment]::TickCount -gt $nextMenu) {
         $nextMenu = [Environment]::TickCount + 1000
-        $mx = $c[0] + [int]($c[2] * 0.25); $my = $c[1] + [int]($c[3] * 0.3)
-        $ml = Read-Area $mx $my ([int]($c[2] * 0.5)) ([int]($c[3] * 0.6))
-        $menu = [bool](@($ml | Where-Object { $_.t -match '\b(Resume|Leave|Reset Character)\b' }).Count)
-        if ($menu -ne $lastMenu) { $lastMenu = $menu; Write-Output (@{ app = 'roblox'; menu = $menu } | ConvertTo-Json -Compress) }
+        $mx = $c[0] + [int]($c[2] * 0.25); $my = $c[1] + [int]($c[3] * 0.3); $mw = [int]($c[2] * 0.5); $mh = [int]($c[3] * 0.6)
+        $null = Print $mx ($my + [int]($mh / 2)) $mw 8
+        $lum = [CW]::Lum
+        if ($lastMenu -ne $false -or [Math]::Abs($lum - $menuLum) -gt [Math]::Max(12, $menuLum / 5)) {
+          $ml = Read-Area $mx $my $mw $mh
+          $menu = [bool](@($ml | Where-Object { $_.t -match '\b(Resume|Leave|Reset Character)\b' }).Count)
+          if ($menu -ne $lastMenu) { $lastMenu = $menu; Write-Output (@{ app = 'roblox'; menu = $menu } | ConvertTo-Json -Compress) }
+        }
+        $menuLum = $lum
       }
       if (-not $chatOpen) { $wait = 2000 }
     }
   } catch { $msgList = $null; $msgTab = $null }
-  Start-Sleep -Milliseconds $wait
 }
 `;
 
@@ -445,15 +481,32 @@ function discordContext(title) {
   return { channel: t.replace(/^@/, ''), server: '', dm: /^@/.test(t) || !t.includes('|') };
 }
 
+const APP_OF = { discord: 'discord', robloxplayerbeta: 'roblox', phoneexperiencehost: 'phonelink', yourphone: 'phonelink' };
+const PARK_MS = 10 * 60 * 1000;     // this long with no watched app in front, and the reader ends
+const HUNG_MS = 30 * 1000;          // this long without a word while reading, and it is taken for stuck
+const STEADY_MS = 60 * 1000;        // up this long, and earlier failures no longer count
+const NO_HELPER_MS = 60 * 1000;     // this long not knowing which window is in front, and chat is not being watched
+
 let opts = null;
+let active = false;              // switched on
 let child = null;
-let lines = null;
+let reader = 'ok';               // 'ok', 'restarting' (it died, coming back), 'stopped' (it will not stay up)
+let quickExits = 0;
+let retryTimer = null;
+let parkTimer = null;
+let dogTimer = null;
+let steadyTimer = null;
+let helperTimer = null;
+let lostHelper = false;
+let frontName;                   // the process in front; undefined until the helper says, null while it is gone
+let frontHandle = '';
+let inFront = null;              // the watched app in front, told to the reader
 const chats = new Map();      // a conversation per chat: game or channel
 const told = new Map();       // what was already pointed out, so a message is flagged once
 let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true, flags: [] };
 let logTimer = null;
 // How many messages were checked and flagged in each app since chat safety started: numbers only, never what they said.
-const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0, unchecked: 0, why: '', otherTab: false }, app: null, reading: false, at: 0 });
+const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0, unchecked: 0, why: '', otherTab: false }, app: null, reading: false, blind: null, at: 0 });
 let seen = fresh();
 let seenTimer = null;
 let apps = ['discord', 'roblox'];
@@ -544,8 +597,10 @@ function whyUnchecked(err) {
 
 function onMessage(msg) {
   if (msg.error) { opts.log(`chat safety: ${msg.error}`); return; }
+  // Windows hands over only black for this window: it is in front and nothing can be read, which is not "chat closed".
+  if (typeof msg.blind === 'boolean') { seen.blind = msg.blind ? msg.app : null; if (msg.blind) seen.reading = false; noteSeen(); return; }
   if (msg.app !== 'phonelink') lastPhone = null;
-  if (msg.app === null) { seen.app = null; seen.reading = false; noteSeen(); opts.onState({ app: null }); return; }
+  if (msg.app === null) { seen.app = null; seen.reading = false; seen.blind = null; noteSeen(); opts.onState({ app: null }); return; }
   seen.app = msg.app; seen.at = Date.now();
   if (msg.app === 'discord') {
     const ctx = discordContext(msg.title);
@@ -644,8 +699,112 @@ function setApps(list) {
   const next = (Array.isArray(list) ? list : []).filter((a) => NAMES[a]);
   if (next.join(',') === apps.join(',')) return;
   apps = next;
-  send(`apps ${apps.join(',')}`);
-  if (child && opts) opts.log(`chat safety: now watching ${watching() || 'nothing'} while in front`);
+  if (active && opts) opts.log(`chat safety: now watching ${watching() || 'nothing'} while in front`);
+  place();
+}
+
+function setReader(next) {
+  if (next === reader) return;
+  reader = next;
+  if (opts) { opts.log(`chat safety: reader ${next}`); if (opts.onReader) opts.onReader(next); }
+}
+
+/** Anything the reader says shows it is alive. While it should be reading, silence for too long means it is stuck. */
+function beat(mine, ms = HUNG_MS) {
+  clearTimeout(dogTimer);
+  dogTimer = inFront && child === mine ? setTimeout(() => { opts.log('chat safety: the reader stopped answering'); try { mine.kill(); } catch { /* gone */ } }, ms) : null;
+}
+
+/** The reader for the app in front: started only now, with what it needs to know. */
+function launch() {
+  if (child || retryTimer || !opts) return;
+  const startedAt = Date.now();
+  let mine;
+  let ended = false;
+  const gone = (code) => {
+    if (ended) return;
+    ended = true;
+    if (child !== mine) return;   // ended on purpose
+    child = null;
+    clearTimeout(dogTimer); clearTimeout(steadyTimer);
+    // Only how it ended: what it wrote on the way out could be about a chat.
+    opts.log(`chat safety: the reader ended (${code})`);
+    onMessage({ app: null });
+    quickExits = Date.now() - startedAt > STEADY_MS ? 0 : quickExits + 1;
+    setReader(quickExits >= 3 ? 'stopped' : 'restarting');
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      if (inFront) launch();
+      else if (reader === 'restarting') setReader('ok');   // nothing to read: it starts when there is
+    }, Math.min(300000, 3000 * 2 ** Math.max(0, quickExits - 1)));
+  };
+  try { mine = (opts.spawn || spawn)('powershell.exe', LAUNCH, { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] }); } catch (err) { mine = { kill() {} }; child = mine; gone(err.code || 'could not start'); return; }
+  child = mine;
+  mine.on('error', (err) => gone(err.code || 'error'));
+  mine.on('exit', (code) => gone(code));
+  mine.stdin.on('error', () => { /* it ended: 'exit' takes it from here */ });
+  // Below normal priority: reading a chat must never compete with the game it is in.
+  try { os.setPriority(mine.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* best effort */ }
+  mine.stdin.write(`${Buffer.from(SCRIPT, 'utf8').toString('base64')}\n`);
+  require('readline').createInterface({ input: mine.stdout }).on('line', (l) => {
+    if (child !== mine) return;
+    beat(mine);
+    let msg;
+    try { msg = JSON.parse(l); } catch { return; }
+    if (msg.alive) return;
+    if (msg.ready) { if (quickExits < 3) setReader('ok'); return; }
+    // Said just as the app left the front: too late to be true.
+    if (msg.app && msg.app !== inFront) return;
+    onMessage(msg);
+  });
+  steadyTimer = setTimeout(() => { quickExits = 0; setReader('ok'); }, STEADY_MS);
+  beat(mine, HUNG_MS * 2);   // its first start compiles
+  if (inFront) send(`front ${inFront} ${frontHandle}`);
+}
+
+/** Tells the reader what is in front now: started if it is needed, put to sleep if it is not. */
+function place() {
+  if (!active) return;
+  const app = APP_OF[frontName] && apps.includes(APP_OF[frontName]) ? APP_OF[frontName] : null;
+  if (!app) {
+    if (!inFront) return;
+    inFront = null;
+    clearTimeout(dogTimer);
+    clearInterval(logTimer); logTimer = null;
+    send('front -');
+    onMessage({ app: null });
+    clearTimeout(parkTimer);
+    parkTimer = setTimeout(() => { const old = child; child = null; clearTimeout(steadyTimer); if (old) { try { old.kill(); } catch { /* gone */ } } }, PARK_MS);
+    return;
+  }
+  clearTimeout(parkTimer);
+  const arriving = inFront !== app;
+  inFront = app;
+  if (app === 'roblox' && !logTimer) { logTimer = setInterval(followLog, 2000); followLog(); }
+  if (app !== 'roblox' && logTimer) { clearInterval(logTimer); logTimer = null; }
+  if (!child) { launch(); return; }
+  if (arriving) onMessage({ app: null });
+  send(`front ${app} ${frontHandle}`);
+  beat(child);
+}
+
+/**
+ * Which window is in front, from the helper (browsers.frontListen): its process, lower case, and its handle. null when
+ * the helper ended: nobody then knows what is in front, so nothing can be read, and if that lasts it is said.
+ */
+function front(name, handle) {
+  clearTimeout(helperTimer);
+  frontName = name;
+  frontHandle = String(handle || '');
+  if (name === null) {
+    lostHelper = true;
+    if (active && reader === 'ok') setReader('restarting');
+    helperTimer = setTimeout(() => { if (active) setReader('stopped'); }, NO_HELPER_MS);
+  } else if (lostHelper) {
+    lostHelper = false;
+    if (!retryTimer && quickExits < 3) setReader('ok');
+  }
+  place();
 }
 
 /**
@@ -659,25 +818,27 @@ const LAUNCH = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '
   '$in = New-Object System.IO.StreamReader([Console]::OpenStandardInput()); & ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($in.ReadLine()))))'];
 
 function start(o) {
-  if (process.platform !== 'win32' || child) return;
+  if ((process.platform !== 'win32' && !o.spawn) || active) return;
   opts = o;
+  active = true;
   if (o.apps) apps = o.apps.filter((a) => NAMES[a]);
-  child = spawn('powershell.exe', LAUNCH, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
-  child.stdin.write(`${Buffer.from(SCRIPT, 'utf8').toString('base64')}\n`);
-  send(`apps ${apps.join(',')}`);
-  lines = require('readline').createInterface({ input: child.stdout });
-  lines.on('line', (l) => { try { onMessage(JSON.parse(l)); } catch { /* not ours */ } });
-  child.stderr.on('data', () => { /* the reader's own errors are not about any chat: nothing to keep */ });
-  child.on('exit', () => { child = null; opts && opts.onState({ app: null }); });
-  logTimer = setInterval(followLog, 2000);
-  followLog();
   o.log(`chat safety: watching ${watching()} while in front`);
+  // The helper has not said yet (Sentinel is starting): it has a minute, as when it dies.
+  if (frontName === undefined) helperTimer = setTimeout(() => { if (active) setReader('stopped'); }, NO_HELPER_MS);
+  place();
 }
 
 function stop() {
+  active = false;
+  inFront = null;
+  quickExits = 0;
+  for (const t of [retryTimer, parkTimer, dogTimer, steadyTimer, helperTimer]) clearTimeout(t);
+  retryTimer = null;
+  lostHelper = false;
   clearInterval(logTimer);
   logTimer = null;
-  if (child) { try { child.kill(); } catch { /* gone */ } child = null; }
+  reader = 'ok';
+  if (child) { const old = child; child = null; try { old.kill(); } catch { /* gone */ } }
   chats.clear();
   told.clear();
   seen = fresh();
@@ -686,6 +847,6 @@ function stop() {
 }
 
 module.exports = {
-  start, stop, setApps, running: () => Boolean(child), stats: () => JSON.parse(JSON.stringify(seen)),
+  start, stop, setApps, front, on: () => active, reader: () => reader, running: () => active && reader !== 'stopped', stats: () => JSON.parse(JSON.stringify(seen)),
   _test: { followLog, state: () => ({ inGame: roblox.inGame, placeId: roblox.placeId, logFile: roblox.logFile, logAt: roblox.logAt, following, timer: Boolean(logTimer), child: Boolean(child) }), SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, receivedSide, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
 };

@@ -9,6 +9,157 @@ require('../desktop/scripts/sync-shared.js');
 const chatwatch = require('../desktop/src/chatwatch.js');
 const { onMessage, robloxMessages, readLog, discordContext, judge, SCRIPT, LAUNCH, phonelinkMessages, judgeTexts, textOf, setOpts } = chatwatch._test;
 
+/** The chat reader with a pretend PowerShell: what it was told, and a way to make it speak or die. */
+function supervised(t) {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'] });
+  const { PassThrough } = require('stream');
+  const { EventEmitter } = require('events');
+  const spawned = [];
+  const states = [];
+  const readers = [];
+  const spawn = () => {
+    const c = new EventEmitter();
+    c.told = [];
+    c.stdin = { writable: true, on() {}, write: (s) => { c.told.push(s.trim()); } };
+    c.stdout = new PassThrough();
+    c.kill = () => { c.killed = true; c.emit('exit', null); };
+    c.say = async (o) => { c.stdout.write(`${JSON.stringify(o)}\n`); await new Promise((r) => setImmediate(r)); };
+    spawned.push(c);
+    return c;
+  };
+  chatwatch.start({ spawn, apps: ['discord', 'roblox'], log() {}, onState: (s) => states.push(s), onReader: (r) => readers.push(r) });
+  t.after(() => { chatwatch.stop(); chatwatch.front('explorer', '1'); t.mock.timers.reset(); });
+  return { spawned, states, readers, tick: (ms) => t.mock.timers.tick(ms) };
+}
+
+test('no chat app in front: no reader at all, and an app whose switch is off is never read', (t) => {
+  const s = supervised(t);
+  chatwatch.front('explorer', '10');
+  chatwatch.front('phoneexperiencehost', '11');
+  assert.equal(s.spawned.length, 0);
+  chatwatch.front('discord', '12');
+  assert.equal(s.spawned.length, 1);
+  assert.ok(s.spawned[0].told.includes('front discord 12'), 'told which window, and that is all it reads');
+  chatwatch.setApps(['roblox']);
+  assert.ok(s.spawned[0].told.includes('front -'), 'its switch turned off while in front: it stops at once');
+});
+
+test('a chat reader that dies comes back by itself, and until it does the app says chat is not being watched', async (t) => {
+  const s = supervised(t);
+  chatwatch.front('discord', '12');
+  await s.spawned[0].say({ ready: true });
+  await s.spawned[0].say({ app: 'discord', title: 'x', win: [0, 0, 10, 10], items: [] });
+  s.states.length = 0;
+  s.spawned[0].emit('exit', 1);
+  assert.equal(chatwatch.reader(), 'restarting');
+  assert.deepEqual(s.states.at(-1), { app: null }, 'its badge goes: nothing is watching');
+  s.tick(2999);
+  assert.equal(s.spawned.length, 1);
+  s.tick(1);
+  assert.equal(s.spawned.length, 2, 'back after 3 s');
+  assert.ok(s.spawned[1].told.includes('front discord 12'), 'and told where to look');
+  await s.spawned[1].say({ ready: true });
+  assert.equal(chatwatch.reader(), 'ok');
+});
+
+test('a chat reader that keeps dying is said to be stopped, is tried less and less often, and a steady one clears it', async (t) => {
+  const s = supervised(t);
+  chatwatch.front('discord', '12');
+  for (const [i, wait] of [[0, 3000], [1, 6000]]) {
+    s.spawned[i].emit('exit', 1);
+    assert.equal(chatwatch.reader(), 'restarting');
+    s.tick(wait);
+    assert.equal(s.spawned.length, i + 2);
+  }
+  s.spawned[2].emit('exit', 1);
+  assert.equal(chatwatch.reader(), 'stopped');
+  assert.equal(chatwatch.running(), false, 'the switch may say on; nothing is reading');
+  assert.equal(chatwatch.on(), true);
+  assert.deepEqual(s.readers, ['restarting', 'stopped']);
+  s.tick(11999);
+  assert.equal(s.spawned.length, 3);
+  s.tick(1);
+  assert.equal(s.spawned.length, 4, '12 s');
+  await s.spawned[3].say({ ready: true });
+  assert.equal(chatwatch.reader(), 'stopped', 'starting is not staying up');
+  for (let i = 0; i < 2; i++) { s.tick(25000); await s.spawned[3].say({ alive: true }); }
+  s.tick(10000);
+  assert.equal(chatwatch.reader(), 'ok');
+});
+
+test('a chat reader stuck inside Windows is treated as dead', async (t) => {
+  const s = supervised(t);
+  chatwatch.front('discord', '12');
+  await s.spawned[0].say({ ready: true });
+  s.tick(29000);
+  await s.spawned[0].say({ alive: true });
+  s.tick(29000);
+  assert.ok(!s.spawned[0].killed, 'it spoke in time');
+  s.tick(1000);
+  assert.ok(s.spawned[0].killed);
+  assert.equal(chatwatch.reader(), 'restarting');
+});
+
+test('asleep nothing is asked of the reader, and ten minutes later it is ended, on purpose, with nothing to report', async (t) => {
+  const s = supervised(t);
+  chatwatch.front('discord', '12');
+  await s.spawned[0].say({ ready: true });
+  chatwatch.front('explorer', '10');
+  assert.equal(s.spawned[0].told.at(-1), 'front -');
+  s.tick(5 * 60 * 1000);
+  assert.ok(!s.spawned[0].killed, 'a long silence while asleep is not a fault');
+  chatwatch.front('discord', '12');
+  chatwatch.front('explorer', '10');
+  s.tick(10 * 60 * 1000);
+  assert.ok(s.spawned[0].killed);
+  assert.equal(chatwatch.reader(), 'ok');
+  assert.deepEqual(s.readers, []);
+  s.tick(60 * 60 * 1000);
+  assert.equal(s.spawned.length, 1, 'not started again until it is needed');
+  chatwatch.front('robloxplayerbeta', '13');
+  assert.equal(s.spawned.length, 2);
+});
+
+test('a dead helper means nobody knows what is in front: said now, and called stopped if it lasts', (t) => {
+  const s = supervised(t);
+  chatwatch.front('discord', '12');
+  chatwatch.front(null);
+  assert.equal(chatwatch.reader(), 'restarting');
+  assert.ok(s.spawned[0].told.includes('front -'), 'nothing is read on a guess');
+  s.tick(60000);
+  assert.equal(chatwatch.reader(), 'stopped');
+  chatwatch.front('discord', '12');
+  assert.equal(chatwatch.reader(), 'ok');
+});
+
+test('a reading that arrives after its app left the front is dropped', async (t) => {
+  const s = supervised(t);
+  chatwatch.front('discord', '12');
+  chatwatch.front('explorer', '10');
+  s.states.length = 0;
+  await s.spawned[0].say({ app: 'discord', title: 'x', win: [0, 0, 10, 10], items: [] });
+  assert.equal(s.states.length, 0);
+});
+
+test('a window Windows shows as black is told apart from a chat that is closed', () => {
+  setOpts({ log() {}, onState() {}, onSeen() {} });
+  onMessage({ app: 'roblox', blind: true });
+  assert.equal(chatwatch.stats().blind, 'roblox');
+  assert.equal(chatwatch.stats().reading, false);
+  onMessage({ app: 'roblox', blind: false });
+  assert.equal(chatwatch.stats().blind, null);
+  assert.match(SCRIPT, /Black = top < 8/);
+  assert.match(SCRIPT, /Seen-Black\n\s+if \(\$eye\.blind\) \{ \$lastPrint = 0 \}/, 'nothing is read from it, and the next picture is');
+});
+
+test('the reader sleeps on its input: it never asks which window is in front, and a game moving behind the chat is not read', () => {
+  assert.doesNotMatch(SCRIPT, /Start-Sleep|Get-Process/);
+  assert.match(SCRIPT, /\$pending\.Wait\(\$\(if \(\$app\) \{ \$wait \} else \{ -1 \}\)\)/);
+  assert.match(SCRIPT, /if \(\[CW\]::GetForegroundWindow\(\) -ne \$h/, 'before each read: still the window in front');
+  assert.match(SCRIPT, /b > 215 && m > 215 && c > 215/, 'the fingerprint is of the words');
+  assert.match(SCRIPT, /\$lastMenu -ne \$false -or \[Math\]::Abs\(\$lum - \$menuLum\)/, 'half the screen is read only when the game dims');
+});
+
 test('Roblox\'s chat box: names and messages, wrapped lines joined, and whether the box is open at all', () => {
   const r = robloxMessages([
     { t: '[Stranger123]: hey do u wanna be friends', x: 10, y: 20, w: 300, h: 18 },
@@ -127,12 +278,6 @@ test('texts are judged once, their links checked by address only and privately, 
   assert.equal(flags[0].level, 'danger');
   assert.deepEqual(flags[0].rect, { x: 1, y: 2, w: 3, h: 4 });
   setOpts(null);
-});
-
-test('the reader reads only the apps switched on, Phone Link included', () => {
-  assert.match(SCRIPT, /'PhoneExperienceHost'/);
-  assert.match(SCRIPT, /if \(\$apps -notcontains \$app\) \{ \$app = '' \}/);
-  assert.match(SCRIPT, /\$cmd -like 'apps \*'/);
 });
 
 test('Phone Link: sent or received by which side a bubble leans on, in a wide or a narrow window', () => {

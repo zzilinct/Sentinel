@@ -289,13 +289,14 @@ if ($Part -eq 'install') {
   Say "check on screen: $(Flip '[data-snip]' $true)"
   $on = (Cdp 'main' "process.mainModule.require('electron').globalShortcut.isRegistered('$key')").value
   Check 'switch-snip' ($off -eq $false -and $on -eq $true) "the shortcut $key held: off $off, on $on"
-  # Chat safety and Check my texts: the reader runs only while one of them is on.
+  # Chat safety and Check my texts: on, they wait for a chat app in front; the reader itself starts only then (the
+  # chat section below reads with it).
   Say "chat safety: $(Flip '[data-chat-safety]' $true)"
   $on = Until 15 { (Info 'info()').chatSafety.running }
   $readers = @(Helpers).Count
   Say "chat safety: $(Flip '[data-chat-safety]' $false)"
   $off = Until 15 { -not (Info 'info()').chatSafety.running }
-  Check 'switch-chat-safety' ($on -and $off -and @(Helpers).Count -lt $readers) "on: reading $on ($readers helpers); off: stopped $off ($(@(Helpers).Count) helpers)"
+  Check 'switch-chat-safety' ($on -and $off -and @(Helpers).Count -le $readers) "on: ready $on ($readers helpers); off: stopped $off ($(@(Helpers).Count) helpers)"
   Say "texts: $(Flip '[data-text-safety]' $true)"
   $on = Until 15 { (Info 'info()').textSafety.running }
   Say "texts: $(Flip '[data-text-safety]' $false)"
