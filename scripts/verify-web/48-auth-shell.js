@@ -45,7 +45,7 @@ const FACTS = `(() => {
     submitBottom: button ? Math.round(button.getBoundingClientRect().bottom) : 0,
     tall: innerHeight,
     sideways: document.documentElement.scrollWidth - innerWidth,
-    forever: document.getAnimations().filter((a) => a.playState === 'running' && a.effect.getTiming().iterations === Infinity).map((a) => `${a.effect.target.tagName}.${a.effect.target.className} ${a.effect.pseudoElement || ''} ${a.animationName || ''}`),
+    forever: document.getAnimations().filter((a) => a.playState === 'running' && a.effect.getTiming().iterations === Infinity).map((a) => [a.effect.target.tagName, a.effect.target.className, a.effect.pseudoElement, a.animationName].join(' ')),
     styled: document.querySelectorAll('.auth [style]').length
   };
 })()`;

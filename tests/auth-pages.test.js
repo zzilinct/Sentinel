@@ -48,7 +48,7 @@ test('the old art is gone and the stage does not move at rest', () => {
   const css = read('assets', 'css', 'app.css');
   assert.doesNotMatch(css, /\.orbit/);
   const stage = css.slice(css.indexOf('auth pages */'), css.indexOf('.strength {'));
-  assert.doesNotMatch(stage, /animation\s*:/, 'nothing on the sign-in pages animates by itself');
+  assert.doesNotMatch(stage, /animation\s*:\s*(?!none)/, 'nothing on the sign-in pages animates by itself');
 });
 
 test('sign-in buttons can be pressed from the start: boot.js holds a press until the form\'s script is ready', () => {
