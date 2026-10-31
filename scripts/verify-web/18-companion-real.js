@@ -17,7 +17,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock } = require('./_shared');
 
 const SAYS = 'No real company, government office or bank asks to be paid in gift cards or crypto.';
 const ALARMS = [SAYS, 'A moment before you pay', 'Did you type', 'Take me back to safety', 'Go to the real', 'Before you pay'];
@@ -285,6 +285,7 @@ async function checkCompanionReal() {
       // A flagged checkout whose card box is in a payment frame, then another page.
       const c = await openPage(browser);
       await goto(browser, c.sessionId, `http://${card}/checkout.html`);
+      await passBlock(browser, c.sessionId, "document.querySelector('iframe')");
       let noticed = null;
       for (let i = 0; i < 80 && !noticed; i++) { await sleep(250); noticed = Object.entries(await kept()).find(([k, v]) => k.startsWith('typed:') && v && v.host === card && v.card) || null; }
       out.cardNoticed = Boolean(noticed);

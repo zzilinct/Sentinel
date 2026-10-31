@@ -1,21 +1,49 @@
-body.options { width: auto; max-width: 640px; margin: 0 auto; padding: 36px 20px 60px; }
-.brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
-.brand-row img { border-radius: 6px; }
-.brand-row h1 { font: 400 var(--t-title)/var(--lh-display) var(--display); margin: 0; }
-.brand-row p { margin: 2px 0 0; }
-.opt { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
-.opt:first-of-type { border-top: 0; }
-.opt b { display: block; font-weight: 500; font-size: var(--t-ui); }
-.opt small { color: var(--muted); font-size: var(--t-label); }
-.opt input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); flex: none; }
-.opt select, .opt input[type=url] { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; min-width: 190px; }
-.legend { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
-.legend div { display: flex; align-items: center; gap: 10px; background: var(--panel); padding: 8px 10px; font-size: var(--t-note); }
-.legend svg { width: 22px; height: 22px; flex: none; }
-.saved { text-align: center; min-height: 18px; color: var(--green); }
-.pw-intro { margin: 0 0 6px; color: var(--muted); }
-.pw-add { display: flex; gap: 8px; align-items: center; }
-.pw-add input { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; width: 150px; }
+/* Settings: three things the companion looks after, each a heading beside its switches. No boxes: lines and air. */
+body.options { width: auto; max-width: 880px; margin: 0 auto; padding: 48px clamp(16px, 4vw, 40px) 72px; font-size: var(--t-ui); }
+.head { display: flex; align-items: center; gap: 22px; margin-bottom: 40px; }
+.head-mask { display: block; width: 84px; height: auto; flex: none; filter: drop-shadow(0 12px 14px rgba(0, 0, 0, .35)); }
+.head h1 { font: 400 clamp(28px, 4vw, 38px)/1.12 var(--display); margin: 0 0 8px; text-wrap: balance; }
+.head-line { margin: 0 0 4px; font-size: var(--t-text); color: var(--text-2); max-width: 56ch; }
+.head-line:empty { display: none; }
+.head .small { margin: 0; overflow-wrap: anywhere; }
+
+.group { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 8px 32px; padding: 26px 0; border-top: 1px solid var(--line); scroll-margin-top: 16px; }
+.group h2 { font: 400 var(--t-title-s)/1.2 var(--display); margin: 0; }
+.rows { min-width: 0; }
+
+.opt { display: flex; justify-content: space-between; align-items: center; gap: 22px; padding: 11px 0; cursor: pointer; }
+.opt > span:first-child { min-width: 0; }
+.opt b { display: block; font-weight: 500; font-size: var(--t-text); }
+.opt small { display: block; color: var(--muted); font-size: var(--t-note); margin-top: 1px; }
+.rows > .opt:first-child { padding-top: 2px; }
+.note-row { margin: 8px 0; }
+.rows > .note-row:first-child { margin-top: 2px; }
+
+/* A switch, still a real checkbox: the thumb springs across, and that is the only thing that moves. */
+.opt input[type=checkbox] { appearance: none; -webkit-appearance: none; flex: none; position: relative; width: 40px; height: 24px; margin: 0; border-radius: 99px; cursor: pointer; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); transition: background-color .2s ease; }
+.opt input[type=checkbox]::before { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--text-2); transition: transform .42s var(--spring); }
+.opt input[type=checkbox]:checked { background: var(--gold-grad) 0 0 / 100% 240%; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35); }
+.opt input[type=checkbox]:checked::before { background: var(--on-gold); transform: translateX(16px); }
+.opt input:focus-visible, .opt select:focus-visible, .pw-add input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.opt select, .opt input[type=url], .pw-add input { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font: inherit; flex: none; }
+.opt select, .opt input[type=url] { width: 190px; max-width: 100%; }
+.pw-add { display: flex; gap: 8px; align-items: center; flex: none; }
+.pw-add input { width: 150px; }
 .pw-allowed { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .pw-allowed button { font-size: var(--t-label); padding: 3px 8px; }
 .pw-actions { display: flex; gap: 8px; align-items: center; flex: none; }
+.saved { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); margin: 0; min-height: 18px; color: var(--green); }
+
+@media (max-width: 680px) {
+  body.options { padding-top: 28px; }
+  .head { gap: 16px; margin-bottom: 28px; }
+  .head-mask { width: 60px; }
+  .group { grid-template-columns: 1fr; gap: 12px; padding: 22px 0; }
+  .opt { flex-wrap: wrap; gap: 8px 18px; }
+  .opt > span:first-child { flex: 1 1 200px; }
+  .opt input[type=url], .pw-add input { width: 100%; flex: 1; min-width: 0; }
+  .pw-add { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .opt input[type=checkbox], .opt input[type=checkbox]::before { transition: none; }
+}

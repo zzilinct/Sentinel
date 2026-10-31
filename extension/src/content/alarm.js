@@ -1,9 +1,9 @@
 /**
- * The companion's full-screen warning, shared by the block page (guard.js), the password alarm (pwalarm.js) and the
- * pasted-command guard (clipguard.js). It lives in a closed shadow root so the page cannot restyle, remove or press
+ * The companion's warning over an open page, shared by the notes in the corner (guard.js, typed.js), the password
+ * alarm (pwalarm.js) and the pasted-command guard (clipguard.js). It lives in a closed shadow root so the page cannot restyle, remove or press
  * it, takes the keyboard while it is up (focus moves in, Tab stays inside), and ignores clicks a script made.
  *
- * Loaded into the companion's own world for the first two and into the page's world for the third (clipguard.js
+ * Loaded into the companion's own world for the first ones and into the page's world for the last (clipguard.js
  * must wrap the page's clipboard calls), so it keeps what it needs from the page's world before any page script runs.
  *
  *   SentinelAlarm.show({ accent, icon, title, chip, verdict, lead, steps, ordered, buttons, extra, link, foot,
@@ -60,7 +60,6 @@
       .small button{font-size:13px;padding:8px 12px;border-radius:10px}
       button:hover{background:#272a30}
       button:focus-visible,a:focus-visible{outline:2px solid #d6b25a;outline-offset:2px}
-      .wide{flex-basis:100%;box-sizing:border-box;text-align:center}
       .go{background:#d6b25a;color:#131519}.go:hover{background:#e2c47f}
       .quiet{background:none;color:#80868f;text-decoration:underline;padding:12px 6px}.quiet:hover{background:none;color:#c7cad0}
       .small .quiet{padding:8px 4px}

@@ -27,9 +27,16 @@ function cacheGet(phase, url) {
   if (hit && Date.now() - hit.at < TTL[phase]) return hit.verdict;
   return null;
 }
-function cacheSet(phase, url, verdict) {
+function cacheSet(phase, url, verdict, isPrivate = false) {
   if (cache.size > 3000) cache.clear();
   cache.set(`${phase}|${url}`, { verdict, at: Date.now() });
+  // A red answer closes the door on that one address until the browser closes. Never a private window's.
+  if (!isPrivate && verdict.overall && verdict.overall.badge === 'red') doorOnAddress(url);
+}
+/** A report, a "this is fine" or a new account: nothing the scanner said before still stands. */
+function cacheReset() {
+  cache.clear();
+  doorOffAddresses();
 }
 /** A scanner verdict still cached for any page of this host (a search result, the page before a pushState), that `want`s. */
 function cacheForHost(host, want = () => true) {
@@ -82,8 +89,9 @@ function handleApiError(err) {
 function localVerdict(url) {
   const host = hostOf(url);
   if (!host) return null;
-  const parts = host.split('.');
-  const threat = intel.hosts.get(host) || intel.hosts.get(parts.slice(-2).join('.'));
+  // The site and every address under it, as the door's requestDomains matches them: the two must always agree.
+  let threat = null;
+  for (let h = host; h && !threat; h = h.includes('.') ? h.slice(h.indexOf('.') + 1) : '') threat = intel.hosts.get(h);
   if (!threat) return null;
   const label = { scam: 'Confirmed scam', virus: 'Virus detected', malware: 'Malware detected' }[threat];
   const threats = { scam: null, virus: null, malware: null };
@@ -125,18 +133,108 @@ async function syncIntel() {
   if (!hasLive()) return;
   try {
     const data = await apiFetch('/api/v1/intel');
-    intel = { hosts: new Map(data.blocklist.map((r) => [r.host, r.threat])), at: Date.now() };
+    intel = { hosts: hostMap(data.blocklist), at: Date.now() };
     await ext.storage.local.set({ intel: { hosts: data.blocklist, at: intel.at } });
+    await syncDoor();
   } catch { /* keep the old list */ }
 }
+const hostMap = (rows) => new Map(rows.map((r) => [r.host.replace(/^www\./, ''), r.threat]));
 
-async function restore() {
+/** What this worker knew before it was stopped. Everything that reads the account or the list waits for this. */
+async function recall() {
   const stored = await ext.storage.local.get(['account', 'live', 'intel']);
   if (stored.account) account = { ...stored.account, checkedAt: 0 };
   if (stored.live) live = stored.live;
-  if (stored.intel) intel = { hosts: new Map(stored.intel.hosts.map((r) => [r.host, r.threat])), at: stored.intel.at };
+  if (stored.intel) intel = { hosts: hostMap(stored.intel.hosts), at: stored.intel.at };
+}
+const recalled = recall();
+
+async function restore() {
+  await recalled;
   await refreshAccount(true);
   if (Date.now() - intel.at > 3600e3) syncIntel();
+}
+
+/* ---------------------------------------------------------- the door */
+
+// A site on the confirmed list never loads. The browser itself turns the navigation to the block page, before any
+// request leaves, from one rule that holds the list: nothing runs per navigation, and it works with this worker
+// stopped. Chrome (Manifest V3) has no way to hold a navigation while an extension thinks, and Firefox's would mean
+// waiting for the scanner on every page, so an address nobody has answered for is never held: it opens, and if the
+// scanner then flags it, the tab is taken to the block page (closeFlagged). A red answer from the scanner, for a
+// search result or a link under the pointer, closes the door on that one address (never its whole site: one bad page
+// on a shared host is not the host), in session rules gone when the browser closes.
+const BLOCK_PAGE = 'src/block.html';
+const blockUrl = (url, seen) => `${ext.runtime.getURL(BLOCK_PAGE)}${seen ? '?seen=1' : ''}#${url}`;
+const DOOR_RULE = 1;
+const DOOR_ADDRESSES = 200;
+const dnr = () => ext.declarativeNetRequest || null;
+const isLetThrough = (r, tabId, host) => r.action.type === 'allow' && r.condition.tabIds[0] === tabId && (host === undefined || r.condition.requestDomains[0] === host);
+const addressFilter = (url) => `|${url}|`;
+// One writer at a time: each rule's id comes from reading the rules there are.
+const inDoorOrder = (step) => (dnr() ? inTabOrder('door', step) : Promise.resolve());
+const nextId = (rules) => Math.max(1, ...rules.map((r) => r.id)) + 1;
+
+async function syncDoor() {
+  if (!dnr()) return;
+  const { enabled, warnOnNavigate } = await getSettings();
+  const hosts = enabled && warnOnNavigate && account.signedIn && hasLive() ? [...intel.hosts.keys()].filter((h) => /^[a-z0-9.-]+$/.test(h)) : [];
+  const [now] = await dnr().getDynamicRules();
+  if (String(now ? now.condition.requestDomains : '') === String(hosts)) return;
+  const rule = { id: DOOR_RULE, priority: 1, action: { type: 'redirect', redirect: { regexSubstitution: `${blockUrl('')}\\0` } },
+    condition: { regexFilter: '^https?://.*', requestDomains: hosts, resourceTypes: ['main_frame'] } };
+  // A bad rule must not cost the rest of the worker: the page is still taken to the block page after it commits.
+  await dnr().updateDynamicRules({ removeRuleIds: [DOOR_RULE], addRules: hosts.length ? [rule] : [] }).catch(() => {});
+}
+
+function doorOnAddress(url) {
+  const clean = url.replace(/#.*$/, '');
+  if (/[*^|]/.test(clean) || clean.length > 1800) return;   // the filter's own characters; such an address is caught after it commits
+  inDoorOrder(async () => {
+    const { enabled, warnOnNavigate } = await getSettings();
+    if (!enabled || !warnOnNavigate) return;
+    const rules = await dnr().getSessionRules();
+    const doors = rules.filter((r) => r.action.type === 'redirect');
+    if (doors.some((r) => r.condition.urlFilter === addressFilter(clean))) return;
+    await dnr().updateSessionRules({ removeRuleIds: doors.length >= DOOR_ADDRESSES ? [doors[0].id] : [], addRules: [{ id: nextId(rules), priority: 1,
+      action: { type: 'redirect', redirect: { url: blockUrl(clean) } }, condition: { urlFilter: addressFilter(clean), resourceTypes: ['main_frame'] } }] });
+  });
+}
+
+const doorOffAddresses = () => inDoorOrder(async () => {
+  const rules = await dnr().getSessionRules();
+  await dnr().updateSessionRules({ removeRuleIds: rules.filter((r) => r.action.type === 'redirect').map((r) => r.id) });
+});
+const doorOnFor = async (url) => Boolean(dnr()) && (await dnr().getSessionRules()).some((r) => r.condition.urlFilter === addressFilter(url.replace(/#.*$/, '')));
+
+/** "Continue anyway": this tab may open this site until the tab closes. The rule is the only record of it. */
+const letThrough = (tabId, url) => inDoorOrder(async () => {
+  const host = hostOf(url);
+  const rules = await dnr().getSessionRules();
+  if (rules.some((r) => isLetThrough(r, tabId, host))) return;
+  await dnr().updateSessionRules({ addRules: [{ id: nextId(rules), priority: 2, action: { type: 'allow' },
+    condition: { requestDomains: [host], tabIds: [tabId], resourceTypes: ['main_frame'] } }] });
+});
+const isLetThroughHere = async (tabId, url) => Boolean(dnr()) && (await dnr().getSessionRules()).some((r) => isLetThrough(r, tabId, hostOf(url)));
+const forgetTab = (tabId) => inDoorOrder(async () => {
+  const gone = (await dnr().getSessionRules()).filter((r) => isLetThrough(r, tabId)).map((r) => r.id);
+  if (gone.length) await dnr().updateSessionRules({ removeRuleIds: gone });
+});
+
+/**
+ * The page opened and then came back flagged. The tab goes to the block page, and the flagged page goes with it: its
+ * scripts stop, what was in its boxes is gone, and Back does not return to it (location.replace, not a new entry).
+ */
+async function closeFlagged({ tabId, url }) {
+  // The scanner can take seconds, and the person may have moved on meanwhile.
+  const tab = await Promise.resolve(ext.tabs.get(tabId)).catch(() => null);
+  if (!tab || hostOf(tab.url || '') !== hostOf(url)) return;
+  const to = blockUrl(url, true);
+  try {
+    await ext.scripting.executeScript({ target: { tabId, frameIds: [0] }, injectImmediately: true, func: (where) => location.replace(where), args: [to] });
+  } catch {
+    await Promise.resolve(ext.tabs.update(tabId, { url: to })).catch(() => {});
+  }
 }
 
 /* --------------------------------------------------------------- scanning */
@@ -162,7 +260,7 @@ async function liveBatch(urls, phase, isPrivate = false) {
       noteLive(data.live);
       for (const [url, verdict] of Object.entries(data.byUrl)) {
         out[url] = verdict;
-        if (verdict.ok) cacheSet(phase, url, verdict);
+        if (verdict.ok) cacheSet(phase, url, verdict, isPrivate);
       }
     } catch (err) {
       handleApiError(err);
@@ -177,11 +275,11 @@ async function paint(tabId, verdict) {
   try {
     await ext.action.setBadgeText({ tabId, text: badge ? (badge === 'red' ? '!' : '?') : '' });
     if (badge) await ext.action.setBadgeBackgroundColor({ tabId, color: COLORS[badge] });
-    await ext.action.setTitle({ tabId, title: badge ? `Sentinel: ${verdict.overall.label}` : 'Sentinel' });
+    // The title stays on the tab when this worker is stopped: the popup reads the last answer from it.
+    await ext.action.setTitle({ tabId, title: badge ? `Sentinel: ${verdict.overall.label}` : verdict && verdict.overall ? NO_SIGNS : 'Sentinel' });
   } catch { /* tab closed */ }
 }
-
-const warned = new Map();
+const NO_SIGNS = 'Sentinel: No warning signs';
 
 // "Did you type anything?" steps for one tab, one after another. Leaving a flagged page (onCommitted) and the next
 // page finishing (onCompleted) are separate listeners; a fast page finished first, still looked flagged, and the
@@ -197,6 +295,7 @@ async function onNavigate(details) {
   if (details.frameId !== 0) return;
   await inTabOrder(details.tabId, () => typedNavigated(details.tabId, details.url));
   if (!/^https?:/i.test(details.url)) return;
+  await recalled;
   const settings = await getSettings();
   if (!settings.enabled || liveBlockReason()) return;
 
@@ -212,7 +311,7 @@ async function onNavigate(details) {
       // Before you pay (server/lib/scan/paycheck.js): kept with the verdict, so a checkout opened again says it again.
       verdict = data.pay ? { ...data.verdict, pay: data.pay } : data.verdict;
       if (data.paypage) verdict = { ...verdict, paypage: data.paypage };
-      cacheSet(features().liveResearch ? 'research' : 'quick', details.url, verdict);
+      cacheSet(features().liveResearch ? 'research' : 'quick', details.url, verdict, isPrivate);
     } catch (err) {
       handleApiError(err);
       return;
@@ -224,35 +323,13 @@ async function onNavigate(details) {
 
   const severe = verdict.overall && (verdict.overall.badge === 'red' || (verdict.overall.badge === 'orange' && settings.minimumBadge !== 'red'));
   // The page itself keeps that it is flagged, for as long as it is open: a later pay pause on it is declined there,
-  // in a private window too, with nothing about the page kept here (a warning is not drawn twice per tab and site).
+  // in a private window too, with nothing about the page kept here.
   if (isFlagged(verdict)) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:flagged' }, { frameId: 0 })).catch(() => {});
-  if (severe) await typedFlagged(details.tabId, details.url);
   if (severe) await sessionSet('paySign', Date.now());
+  if (severe && settings.warnOnNavigate && !(await isLetThroughHere(details.tabId, details.url))) return closeFlagged(details);
+  if (severe) await typedFlagged(details.tabId, details.url);
   else if (verdict.paypage) await payPause(details.tabId, details.url, verdict.paypage);
   else await payLook(details.tabId, details.url);
-  if (!severe || !settings.warnOnNavigate) return;
-  const key = `${details.tabId}|${verdict.host}`;
-  if (warned.has(key)) return;
-  warned.set(key, Date.now());
-  if (warned.size > 300) warned.clear();
-
-  // The recovery guide; the block page adds what happened.
-  const recover = siteUrl(settings.apiBase, '/recover');
-  Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:warn', verdict, recover })).catch(() => {});
-  // A confirmed host is blocked at once from the cached list, which cannot say which brand the page imitates. The
-  // scanner can: when it names the real site, the block page is drawn again with "Go to the real ...".
-  if (verdict.offline) realSiteFor(details).then((full) => {
-    if (full && full.realSite) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:warn', verdict: { ...verdict, realSite: full.realSite }, recover, again: true })).catch(() => {});
-  });
-  if (verdict.overall.badge === 'red' && settings.notifications) {
-    Promise.resolve(ext.notifications.create(`sentinel-${Date.now()}`, {
-      type: 'basic',
-      iconUrl: ext.runtime.getURL('icons/icon128.png'),
-      title: `Sentinel: ${verdict.overall.label}`,
-      message: `${verdict.host}: ${(verdict.reasons[0] && verdict.reasons[0].text) || 'Leave this site.'}`,
-      priority: 2
-    })).catch(() => {});
-  }
 }
 
 /* ------------------------------------------------------------- pay pause */
@@ -288,9 +365,10 @@ async function payLook(tabId, url) {
 }
 
 /**
- * The scanner's own verdict for a page the cached list already blocked, kept for the real-site button. Any verdict
- * already cached for the site is used as it is (one look-alike, one answer). When the scanner cannot be reached it is
- * not asked again for a few minutes: the block page simply has no real-site button. Null on any failure.
+ * The scanner's own verdict for a page the door or the list already stopped: for the real-site button, which the
+ * cached list cannot name, and for an address the worker has forgotten since. Any verdict already cached for the site
+ * is used as it is (one look-alike, one answer). When the scanner cannot be reached it is not asked again for a few
+ * minutes: the block page simply has no real-site button. Null on any failure.
  */
 let scannerAway = 0;
 const AWAY_WAIT = 5 * 60 * 1000;
@@ -304,7 +382,7 @@ async function realSiteFor(details) {
     const isPrivate = Boolean(tab && tab.incognito);
     const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: isPrivate ? details.url.replace(/[?#].*$/, '') : details.url, private: isPrivate }, timeout: 8000 });
     noteLive(data.live);
-    cacheSet(features().liveResearch ? 'research' : 'quick', details.url, data.verdict);
+    cacheSet(features().liveResearch ? 'research' : 'quick', details.url, data.verdict, isPrivate);
     return data.verdict;
   } catch (err) {
     if (err.code === 'offline') scannerAway = Date.now();
@@ -570,7 +648,7 @@ const handlers = {
     const { apiBase } = await getSettings();
     if (apiBase !== from) await ext.storage.sync.set({ apiBase: from });
     await setToken(token);
-    cache.clear();
+    cacheReset();
     await refreshAccount(true);
     syncIntel();
     return { account };
@@ -620,13 +698,50 @@ const handlers = {
   },
   async report({ url, category }) {
     const data = await apiFetch('/api/v1/report', { method: 'POST', body: { url, category } });
-    cache.clear();
+    cacheReset();
     return data;
   },
   async override({ url, action }) {
     const data = await apiFetch('/api/v1/sites/override', { method: 'POST', body: { url, action } });
-    cache.clear();
+    cacheReset();
     return data;
+  },
+  /**
+   * The block page asks what to show for its address, which a web page could have written: nothing it says is believed.
+   * A flagged address gets its verdict and the recovery guide; any other gets { pass: true } and the page moves on.
+   */
+  async 'block-info'({ url, seen }, sender) {
+    fromOptions(sender);
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { verdict: null, pass: false };
+    const tabId = sender.tab.id;
+    let verdict = localVerdict(url) || cacheGet('research', url) || cacheGet('quick', url) || await realSiteFor({ url, tabId });
+    // The scanner cannot be asked again, and the worker has forgotten what it said: the door was closed for a reason.
+    if (!verdict && (seen === true || await doorOnFor(url))) verdict = { url, host: hostOf(url), threats: {}, reasons: [], overall: { badge: 'red', level: 'earlier', label: 'Flagged earlier' } };
+    if (!isFlagged(verdict)) { await letThrough(tabId, url); return { verdict: null, pass: true }; }
+    paint(tabId, verdict);
+    await sessionSet('paySign', Date.now());
+    const settings = await getSettings();
+    if (verdict.overall.badge === 'red' && settings.notifications && !sender.tab.active) {
+      Promise.resolve(ext.notifications.create(`sentinel-${Date.now()}`, {
+        type: 'basic',
+        iconUrl: ext.runtime.getURL('icons/icon128.png'),
+        title: `Sentinel: ${verdict.overall.label}`,
+        message: `${verdict.host}: ${(verdict.reasons[0] && verdict.reasons[0].text) || 'Sentinel stopped this page in another tab.'}`,
+        priority: 2
+      })).catch(() => {});
+    }
+    return { verdict, recover: siteUrl(settings.apiBase, '/recover') };
+  },
+  /** The cached list names no brand. The scanner may: the block page then offers the real site. */
+  async 'block-real'({ url }, sender) {
+    fromOptions(sender);
+    const full = await realSiteFor({ url, tabId: sender.tab.id });
+    return { realSite: (full && full.realSite) || null };
+  },
+  async 'block-pass'({ url }, sender) {
+    fromOptions(sender);
+    await letThrough(sender.tab.id, url);
+    return { pass: true };
   },
   ...pwHandlers,
   /** content/typed.js found a password or card box on the flagged page in this tab, in the page or one of its frames. */
@@ -648,17 +763,18 @@ const handlers = {
     return { opened: true };
   },
   /**
-   * "Go to the real paypal.com" on the block page: the tab goes to the real site the scanner named for this page
-   * (brands.js, or one of the person's own sites), looked up here again. Nothing the page sends is used.
+   * "Go to the real paypal.com" on the block page or in the popup: the tab goes to the real site the scanner named for
+   * this page (brands.js, or one of the person's own sites), looked up here again, never an address from the page.
    */
-  async 'real-site'(msg, sender) {
-    fromPage(sender);
+  async 'real-site'({ url, tabId }, sender) {
+    fromOptions(sender);
+    const tab = sender.tab ? sender.tab.id : tabId;
     // The scanner's verdict, not the cached list's (which names no brand). The worker may have been asleep since the
     // warning was drawn, its cache gone: then it is asked again.
-    const verdict = await realSiteFor({ url: sender.tab.url || sender.url, tabId: sender.tab.id });
+    const verdict = await realSiteFor({ url, tabId: tab });
     const real = verdict && verdict.realSite && verdict.realSite.url;
     if (typeof real !== 'string' || !/^https:\/\/[a-z0-9.-]+\/$/.test(real)) return { opened: false };
-    await ext.tabs.update(sender.tab.id, { url: real });
+    await ext.tabs.update(tab, { url: real });
     return { opened: true };
   },
   /** payread.js saw a gift card or crypto page by its wording: only the kind comes. A flagged page has its own warning. */
@@ -684,7 +800,7 @@ const handlers = {
     return { ok: true };
   },
   async refresh() {
-    cache.clear();
+    cacheReset();
     await refreshAccount(true);
     await syncIntel();
     return { account };
@@ -696,7 +812,7 @@ ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== ext.runtime.id) return false;
   const handler = msg && Object.prototype.hasOwnProperty.call(handlers, msg.type) ? handlers[msg.type] : null;
   if (!handler) return false;
-  handler(msg, sender)
+  recalled.then(() => handler(msg, sender))
     .then((result) => sendResponse({ ok: true, ...result }))
     .catch((err) => sendResponse({ ok: false, error: err.message, code: err.code, status: err.status, extra: err instanceof ApiError ? err.extra : undefined }));
   return true;
@@ -769,7 +885,11 @@ async function syncClipGuard() {
     if (!commandGuard && there) await ext.scripting.unregisterContentScripts({ ids: [CLIPGUARD.id] });
   } catch { /* registered meanwhile by another start of this worker */ }
 }
-ext.storage.onChanged.addListener((changes, area) => { if (area === 'sync' && changes.commandGuard) syncClipGuard(); });
+ext.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes.commandGuard) syncClipGuard();
+  if (area === 'sync' && (changes.enabled || changes.warnOnNavigate)) { syncDoor(); doorOffAddresses(); }
+  if (area === 'local' && changes.account) syncDoor();
+});
 syncClipGuard();
 // Pages wait for this flag before asking anything; set it once (a new stamp at every start would reload every page).
 Promise.all([pwState(), ext.storage.local.get('pwalarmOn')]).then(([state, got]) => {
@@ -805,6 +925,7 @@ ext.contextMenus.onClicked.addListener(async (info, tab) => {
  */
 async function onSameDocument(details) {
   if (details.frameId !== 0 || !/^https?:/i.test(details.url)) return;
+  await recalled;
   const settings = await getSettings();
   if (!settings.enabled || liveBlockReason()) return;
   const flagged = await sessionGet(typedKey(details.tabId));
@@ -822,6 +943,7 @@ ext.webNavigation.onReferenceFragmentUpdated.addListener(onSameDocument);
 // "Did you type anything?": a flagged tab closed counts as leaving it; the question waits for the next page shown.
 ext.tabs.onRemoved.addListener(async (tabId, info) => {
   typedOrder.delete(tabId);
+  forgetTab(tabId);
   const was = await sessionGet(typedKey(tabId));
   if (!was) return;
   await typedLeft(tabId, was);

@@ -9,7 +9,6 @@ export const DEFAULTS = {
   apiBase: BRAND.origin,
   enabled: true,
   emailProtection: true,
-  badgeStyle: 'mask',        // 'mask' = the three Sentinel masks, 'emoji' = 🎭 in a coloured ring
   warnOnNavigate: true,
   notifications: true,
   minimumBadge: 'yellow',

@@ -34,7 +34,6 @@
 .sentinel-masks:focus-visible .sentinel-mask { transform: translateY(-1px); background: #1b1d22 !important; }
 .sentinel-masks:focus-visible { outline: 2px solid #c9a64e; outline-offset: 2px; border-radius: 8px; }
 
-.sentinel-mask--emoji { font-size: 13px; }
 
 /* Checked, nothing found: only a small tick, never a mask and never a threat colour. Quiet by its size, not by
    fading: its dark edge keeps it readable on white and dark pages alike. */

@@ -1,13 +1,11 @@
-/* Sentinel Companion popup. */
+/* Sentinel Companion popup: the answer about this page first, in the words the block page uses (lib/say.js). */
 (() => {
   'use strict';
   const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
 
-  const Masks = window.SentinelMasks;
+  const Say = globalThis.SentinelSay;
   const view = document.getElementById('view');
   const planEl = document.getElementById('plan');
-  const THREATS = ['scam', 'virus', 'malware'];
-  const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const send = (message) => new Promise((resolve) => { try { Promise.resolve(ext.runtime.sendMessage(message)).then((res) => resolve(res || { ok: false }), () => resolve({ ok: false, error: 'Sentinel is starting up' })); } catch { resolve({ ok: false, error: 'Sentinel is starting up' }); } });
@@ -31,114 +29,9 @@
   pwLine();
 
   let state;
-
-  async function main() {
-    state = await send({ type: 'state' });
-    const site = (state.settings && state.settings.apiBase) || '';
-    document.getElementById('openApp').href = `${site}/app`;
-
-    if (!state.ok || !state.account || !state.account.signedIn) {
-      const connected = await send({ type: 'connect' });
-      if (connected.ok && connected.account && connected.account.signedIn) return main();
-      return signedOut(site);
-    }
-
-    const plan = state.account.plan;
-    planEl.hidden = false;
-    planEl.textContent = plan.name;
-
-    if (state.siteAccess === false) {
-      view.innerHTML = `
-        <div class="card">
-          <div class="label">One more step</div>
-          <p class="lede">Firefox asks before an add-on can see the pages you visit. Sentinel needs that to add masks to search results and warn you before a dangerous page loads.</p>
-          <button class="btn gold block" id="grant">Allow Sentinel on all websites</button>
-        </div>`;
-      document.getElementById('grant').onclick = async () => {
-        let ok = false;
-        try { ok = await ext.permissions.request({ origins: ['<all_urls>'] }); } catch { ok = false; }
-        if (ok) main();
-      };
-      return;
-    }
-
-    const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
-    const url = tab && tab.url && /^https?:/i.test(tab.url) ? tab.url : null;
-
-    view.innerHTML = `${pageCard(url)}${liveCard(site)}`;
-    wire(url);
-    if (url) pageState(tab, url);
-  }
-
-  /**
-   * What live scanning said about this page, when it said something: the worker's answer, or, when the browser has
-   * stopped the worker since, the "!" or "?" it left on the toolbar icon. Nothing is scanned for this.
-   */
-  async function pageState(tab, url) {
-    const el = document.getElementById('pageState');
-    const res = await send({ type: 'page-verdict', url });
-    const v = res.ok ? res.verdict : null;
-    let badge = v && v.overall ? v.overall.badge : null;
-    let label = badge ? v.overall.label : '';
-    if (!v) {
-      try {
-        const text = await ext.action.getBadgeText({ tabId: tab.id });
-        badge = text === '!' ? 'red' : text === '?' ? 'yellow' : null;
-        label = badge ? String(await ext.action.getTitle({ tabId: tab.id })).replace(/^Sentinel:\s*/, '') : '';
-      } catch { badge = null; }
-      if (!badge) return;
-    }
-    const color = `var(--${{ red: 'red', orange: 'orange', yellow: 'yellow' }[badge] || 'green'})`;
-    const reasons = v ? (v.reasons || []).slice(0, 2).map((r) => `<li>${esc(r.text)}</li>`).join('') : '';
-    el.innerHTML = !badge
-      ? `<p class="verdict" style="color:${color}">Live scanning found no warning signs on this page.</p>`
-      : `<p class="verdict" style="color:${color}"><b>${badge === 'yellow' ? 'Sentinel found warning signs on this page' : 'Sentinel flagged this page'}</b>${label ? `: ${esc(label)}` : ''}</p>${reasons ? `<ul class="reasons">${reasons}</ul>` : ''}`;
-    el.hidden = false;
-  }
-
-  function signedOut(site) {
-    view.innerHTML = `
-      <div class="card">
-        <div class="label">Welcome</div>
-        <p class="lede">Sign in to Sentinel to turn on live scam, virus and malware protection in this browser.</p>
-        <div class="actions">
-          <a class="btn gold" href="${esc(site)}/connect" target="_blank" rel="noopener">Sign in</a>
-          <a class="btn" href="${esc(site)}/signup?next=/connect" target="_blank" rel="noopener">Create account</a>
-        </div>
-      </div>
-      <p class="small" style="text-align:center;margin:4px 0 0">Signed in on the website? <a href="#" id="recheck" style="color:var(--gold)">Check again</a></p>`;
-    document.getElementById('recheck').onclick = async (ev) => { ev.preventDefault(); await send({ type: 'connect' }); main(); };
-  }
-
-  function pageCard(url) {
-    if (!url) {
-      return `<div class="card"><div class="label">This page</div><p class="small" style="margin:0">Open a website to scan it.</p></div>`;
-    }
-    const left = state.account.usage.linkScans.limit - state.account.usage.linkScans.used;
-    return `
-      <div class="card" id="pageCard">
-        <div class="label">This page</div>
-        <div class="host">${esc(new URL(url).hostname)}</div>
-        <div id="pageState" data-page-state hidden></div>
-        <div id="result"></div>
-        <button class="btn gold block" id="scan" ${left <= 0 ? 'disabled' : ''}>
-          ${left <= 0 ? 'No scans left this week' : `Scan this page &middot; ${left} left this week`}
-        </button>
-      </div>`;
-  }
-
-  function renderResult(v) {
-    const researched = v.researched ? 'Researched' : 'Checklist scan';
-    return `
-      <div class="threats">${THREATS.map((t) => {
-        const th = v.threats[t];
-        if (!th) return `<div class="threat locked">${Masks.svg(t, 'style="color:var(--muted)"')}<b>${Masks.NAMES[t]}</b><span>Pro &amp; up</span></div>`;
-        const color = `var(--${{ red: 'red', orange: 'orange', yellow: 'yellow' }[th.badge] || 'green'})`;
-        return `<div class="threat" style="color:${color}">${Masks.svg(t)}<b>${esc(th.badge ? th.label : 'Clear')}</b><span>${th.kindShort ? `${esc(th.kindShort)} · ` : ''}${th.score}/100</span></div>`;
-      }).join('')}</div>
-      <ul class="reasons">${(v.reasons || []).slice(0, 3).map((r) => `<li>${esc(r.text)}</li>`).join('') || '<li>No warning signs found</li>'}</ul>
-      <p class="small meta">${researched} &middot; ${v.checklist.total} checks</p>`;
-  }
+  let tab;
+  let url;      // the address this popup is about; on the block page, the address it stopped
+  let site;
 
   /** "1.5 of 4 hours" or "12 of 15 minutes": short allowances read better in minutes. */
   function timeLeftText(used, limit) {
@@ -148,61 +41,136 @@
     return `${hoursLeft.toFixed(hoursLeft < 10 ? 1 : 0)} of ${limit / 60} hours left`;
   }
 
-  function liveCard(site) {
+  /** One quiet line under the answer: is live protection on, how much time is left, and why not when it is not. */
+  function statusLine() {
     const f = state.account.plan.features;
     if (!f.liveScanning && !f.liveFast) {
-      return `
-        <div class="card">
-          <div class="label">Live protection</div>
-          <div class="lock">${LOCK}<div>
-            <p>Live masks on search results come with every plan: <b>15 minutes</b> a week on Free, <b>24 hours</b> on Pro and no limit from Max. Delicate scanning, which researches each result, starts at Pro.</p>
-            <a class="btn gold" href="${esc(site)}/pricing" target="_blank" rel="noopener">See plans</a>
-          </div></div>
-        </div>`;
+      return `<p class="status small" data-live="Off">Live scanning is not in this plan. <a class="link" href="${esc(site)}/pricing" target="_blank" rel="noopener">See plans</a></p>`;
     }
+    const said = Say.protection(state);
     // Plans with delicate scanning show its allowance; Free shows its fast minutes.
     const limits = state.account.plan.limits;
     const used = (f.liveScanning ? state.live.usedMinutes : state.live.fastUsedMinutes) || 0;
     const known = f.liveScanning ? state.live.limitMinutes : state.live.fastLimitMinutes;
     const limit = known !== undefined && known !== 0 ? known : (f.liveScanning ? limits.liveMinutes : limits.fastMinutes);
-    // A Free account on one of the five newest models gets no live answers (server plans.js assertModel): say so, rather
-    // than "On" in green over a scan that answers nothing.
-    const modelLocked = Boolean(state.account.plan.modelLocked);
-    const paused = state.locked === 'hours' || modelLocked;
-    const reset = new Date(state.live.resetsAt || state.account.week.resetsAt);
-    return `
-      <div class="card">
-        <div class="row"><div class="label" style="margin:0">Live protection</div>
-          <span class="small" style="color:${!state.settings.enabled ? 'var(--muted)' : paused ? 'var(--orange)' : 'var(--green)'}">${!state.settings.enabled ? 'Off' : paused ? 'Paused' : 'On'}</span></div>
-        <div class="meter"><i style="--p:${limit ? Math.min(100, (used / limit) * 100) : 0}"></i></div>
-        <div class="row small">
-          <span>${f.liveScanning ? 'Delicate: ' : ''}${timeLeftText(used, limit)}</span>
-          <span>Resets ${reset.toLocaleDateString(undefined, { weekday: 'short' })}</span>
-        </div>
-        ${modelLocked && state.settings.enabled ? `<p class="small" style="margin:8px 0 0;color:var(--orange)">The model Sentinel uses is one of the five newest, which come with Pro, Max and Ultimate. Choose another model in the Sentinel app, or <a href="${esc(site)}/pricing" target="_blank" rel="noopener">upgrade</a>, to turn live scanning back on.</p>` : ''}
-        <p class="small" style="margin:8px 0 0">${f.liveResearch ? 'Delicate scanning researches every result.' : 'Results are checked instantly. Delicate scanning, which researches each result, comes with Pro.'}${f.emailLive && state.settings.emailProtection ? ' Email protection is on.' : ''}</p>
-      </div>`;
+    const time = said.word === 'On' ? `<span>${timeLeftText(used, limit)}</span>` : '';
+    return `<p class="status small" data-live="${said.word}"><b data-tone="${said.tone}">Live protection ${said.word.toLowerCase()}</b>${time}</p>${said.word === 'On' ? '' : `<p class="status-why small">${esc(said.line)}</p>`}`;
   }
 
-  function wire(url) {
-    const btn = document.getElementById('scan');
+  /** The one answer, in the shape every state shares. */
+  function hero(said, host) {
+    return `
+      <section class="answer" data-tone="${said.tone}">
+        <img class="answer-mask" src="masks/${said.mask}.webp" alt="" width="68" height="100">
+        <div class="answer-words">
+          <h1 id="title">${esc(said.title)}</h1>
+          ${host ? `<div class="host">${esc(host)}</div>` : ''}
+          <p class="answer-line" data-page-state>${esc(said.line)}</p>
+          ${said.reason ? `<p class="answer-reason">${esc(said.reason)}</p>` : ''}
+        </div>
+      </section>`;
+  }
+
+  /** What live scanning already said about this page: the worker's answer, or, if it has been stopped since, the title it left on the tab. Nothing is scanned for this. */
+  async function lastVerdict() {
+    const res = await send({ type: 'page-verdict', url });
+    if (res.ok && res.verdict) return res.verdict;
+    try {
+      const title = String(await ext.action.getTitle({ tabId: tab.id }));
+      const text = await ext.action.getBadgeText({ tabId: tab.id });
+      if (text) return { overall: { badge: text === '!' ? 'red' : 'orange', label: title.replace(/^Sentinel:\s*/, '') } };
+      if (/^Sentinel: /.test(title)) return { overall: { badge: null } };
+    } catch { /* the tab is gone */ }
+    return null;
+  }
+
+  function render(verdict, note = '') {
+    const blocked = tab.url !== url;
+    const said = Say.page(verdict, { stopped: blocked, off: !state.settings.enabled, paused: state.locked === 'hours' || Boolean(state.account.plan.modelLocked) });
+    const left = state.account.usage.linkScans.limit - state.account.usage.linkScans.used;
+    const checkButton = said.action.kind === 'check';
+    const main = checkButton ? '' : `<button class="btn gold block" id="act" type="button">${esc(said.action.text)}</button>`;
+    const check = left <= 0
+      ? '<p class="small note">No page checks left this week.</p>'
+      : `<button class="btn ${checkButton ? 'block' : 'block quiet'}" id="check" type="button">${esc(checkButton ? said.action.text : 'Check again')}</button>`;
+    view.innerHTML = `${hero(said, new URL(url).hostname)}<div class="do">${main}${blocked ? '' : check}</div><div id="note">${note}</div>${statusLine()}`;
+    wire(said);
+  }
+
+  function wire(said) {
+    const act = document.getElementById('act');
+    if (act) act.onclick = async () => {
+      act.disabled = true;
+      if (said.action.kind === 'real') await send({ type: 'real-site', url, tabId: tab.id });
+      else await Promise.resolve(ext.tabs.goBack(tab.id)).catch(() => {});
+      window.close();
+    };
+    const btn = document.getElementById('check');
     if (!btn) return;
-    const label = btn.innerHTML;
     btn.onclick = async () => {
       btn.disabled = true;
-      btn.innerHTML = '<span class="spin" style="width:14px;height:14px"></span> Scanning';
+      btn.innerHTML = '<span class="spin" style="width:14px;height:14px"></span> Checking';
       const res = await send({ type: 'deep-scan', url });
       if (!res.ok) {
         // Said beside the button, which goes back to how it was: a sentence crammed into a dead button could not be read or retried.
-        document.getElementById('result').innerHTML = `<p class="small scan-error" role="alert">${esc(res.error || 'Sentinel could not scan this page. Try again in a moment.')}</p>`;
-        btn.innerHTML = label;
-        btn.disabled = false;
+        render(shown, `<p class="small note scan-error" role="alert">${esc(res.error || 'Sentinel could not check this page. Try again in a moment.')}</p>`);
         return;
       }
-      document.getElementById('result').innerHTML = renderResult(res.verdict);
+      state.account.usage = res.usage;
+      shown = res.verdict;
       const left = res.usage.linkScans.limit - res.usage.linkScans.used;
-      btn.textContent = `${left} scan${left === 1 ? '' : 's'} left this week`;
+      render(shown, `<p class="small note">${(res.verdict.checklist || {}).total || 'All the'} checks done. ${left} page check${left === 1 ? '' : 's'} left this week.</p>`);
     };
+  }
+  let shown = null;
+
+  async function main() {
+    state = await send({ type: 'state' });
+    site = (state.settings && state.settings.apiBase) || '';
+    document.getElementById('openApp').href = `${site}/app`;
+
+    if (!state.ok || !state.account || !state.account.signedIn) {
+      const connected = await send({ type: 'connect' });
+      if (connected.ok && connected.account && connected.account.signedIn) return main();
+      return signedOut();
+    }
+
+    planEl.hidden = false;
+    planEl.textContent = state.account.plan.name;
+
+    if (state.siteAccess === false) {
+      view.innerHTML = `
+        ${hero({ tone: 'none', mask: 'onyx', title: 'One more step', line: 'Firefox asks before an add-on can see the pages you visit. Sentinel needs that to add masks to search results and stop dangerous pages.', reason: '' })}
+        <div class="do"><button class="btn gold block" id="grant" type="button">Allow Sentinel on all websites</button></div>`;
+      document.getElementById('grant').onclick = async () => {
+        let ok = false;
+        try { ok = await ext.permissions.request({ origins: ['<all_urls>'] }); } catch { ok = false; }
+        if (ok) main();
+      };
+      return;
+    }
+
+    [tab] = await ext.tabs.query({ active: true, currentWindow: true });
+    const at = tab && tab.url ? tab.url : '';
+    const stoppedHere = at.startsWith(ext.runtime.getURL('src/block.html')) ? at.slice(at.indexOf('#') + 1) : '';
+    url = /^https?:/i.test(stoppedHere || at) ? (stoppedHere || at) : null;
+    if (!url) {
+      view.innerHTML = `${hero({ tone: 'none', mask: 'onyx', title: 'Nothing to check here', line: 'Open a website and Sentinel will say what it found.', reason: '' })}${statusLine()}`;
+      return;
+    }
+    shown = await lastVerdict();
+    render(shown);
+  }
+
+  function signedOut() {
+    view.innerHTML = `
+      ${hero({ tone: 'none', mask: 'onyx', title: 'Welcome', line: 'Sign in to Sentinel to check pages in this browser and stop dangerous ones before they load.', reason: '' })}
+      <div class="do do-row">
+        <a class="btn gold" href="${esc(site)}/connect" target="_blank" rel="noopener">Sign in</a>
+        <a class="btn" href="${esc(site)}/signup?next=/connect" target="_blank" rel="noopener">Create account</a>
+      </div>
+      <p class="small note">Signed in on the website? <a href="#" class="link" id="recheck">Check again</a></p>`;
+    document.getElementById('recheck').onclick = async (ev) => { ev.preventDefault(); await send({ type: 'connect' }); main(); };
   }
 
   main();

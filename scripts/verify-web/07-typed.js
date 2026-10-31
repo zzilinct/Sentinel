@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, TYPED_PW, clickButton } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, TYPED_PW, clickButton, passBlock } = require('./_shared');
 
 /* ------------------------------------------- 6. did you type anything? (companion) */
 
@@ -78,7 +78,8 @@ async function checkTyped() {
     const home = await openPage(browser);
     await goto(browser, home.sessionId, `${files.base}/recipes.html`);
     const phish = await openPage(browser);
-    await goto(browser, phish.sessionId, `http://${TYPED_PW}/signin.html`, "document.querySelector('input[type=password]')");
+    await goto(browser, phish.sessionId, `http://${TYPED_PW}/signin.html`);
+    await passBlock(browser, phish.sessionId, "document.querySelector('input[type=password]')");
     const flagged = await flaggedWith('pw');
     await shot(browser, phish.sessionId, 'companion-typed-flagged');
     result(`typed: ${TYPED_PW} is flagged and its password box is noticed (by the box's type, not its contents)`, flagged.ok && !/Test-only|example/.test(JSON.stringify(flagged.got)), flagged.got);
@@ -109,7 +110,8 @@ async function checkTyped() {
 
     // The same site again, closed again: not asked twice.
     const again = await openPage(browser);
-    await goto(browser, again.sessionId, `http://${TYPED_PW}/signin.html`, "document.querySelector('input[type=password]')");
+    await goto(browser, again.sessionId, `http://${TYPED_PW}/signin.html`);
+    await passBlock(browser, again.sessionId, "document.querySelector('input[type=password]')");
     const seenAgain = await flaggedWith('pw');
     await browser.send('Target.closeTarget', { targetId: again.targetId });
     await browser.send('Target.activateTarget', { targetId: home.targetId });
@@ -120,7 +122,8 @@ async function checkTyped() {
 
     // A card page left for another site in the same tab: asked on the next page, about a card number. No closes it.
     const pay = await openPage(browser);
-    await goto(browser, pay.sessionId, `http://${TYPED_CARD}/pay.html`, "document.querySelector('input[autocomplete=cc-number]')");
+    await goto(browser, pay.sessionId, `http://${TYPED_CARD}/pay.html`);
+    await passBlock(browser, pay.sessionId, "document.querySelector('input[autocomplete=cc-number]')");
     const card = await flaggedWith('card');
     await goto(browser, pay.sessionId, `${files.base}/recipes.html`);
     const cardAsk = await question(pay.sessionId, /Did you type a card number on that page\?/);

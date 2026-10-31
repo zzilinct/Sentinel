@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock } = require('./_shared');
 
 const SAYS = 'No real company, government office or bank asks to be paid in gift cards or crypto.';
 const CARD_HOST = 'netflix-billing-update.top';   // a listed scam (server/lib/scan/lists.js), a harmless local page here
@@ -96,6 +96,7 @@ async function checkCompanionNav() {
     /* 2. A flagged checkout whose card box is in a payment provider's frame. */
     const pay = await openPage(browser);
     await goto(browser, pay.sessionId, `http://${CARD_HOST}/checkout.html`);
+    await passBlock(browser, pay.sessionId, "document.querySelector('iframe')");
     let card = null;
     for (let i = 0; i < 80 && !card; i++) {
       await sleep(250);

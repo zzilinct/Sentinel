@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel</title>
+<link rel="stylesheet" href="popup.css">
+<link rel="stylesheet" href="block.css">
+</head>
+<body class="block" data-tone="none">
+  <header class="brand block-brand">
+    <img src="../icons/icon32.png" alt="" width="20" height="20">
+    <span>Sentinel</span>
+  </header>
+  <main class="stage">
+    <div class="halo"><img id="mask" class="mask" src="masks/onyx.webp" alt="" width="680" height="1000"></div>
+    <div class="say" id="say" aria-live="polite">
+      <h1 id="title">Checking this page</h1>
+      <p class="host" id="host"></p>
+      <p class="line" id="line"></p>
+      <p class="reason" id="reason" hidden></p>
+      <p class="help" id="help" hidden><a id="helpLink" target="_blank" rel="noopener noreferrer">Open the recovery guide</a></p>
+      <div class="act" id="act" hidden>
+        <button class="btn gold" id="go" type="button"></button>
+      </div>
+      <details class="more" id="more" hidden>
+        <summary>Why Sentinel stopped this page</summary>
+        <ul class="reasons" id="reasons"></ul>
+        <p class="more-row">
+          <a id="guide" target="_blank" rel="noopener noreferrer">Already paid or let someone in? Open the recovery guide</a>
+        </p>
+        <p class="more-row">
+          <button class="link" id="report" type="button">Report this page</button>
+          <button class="link quiet" id="pass" type="button">Continue anyway</button>
+        </p>
+      </details>
+    </div>
+  </main>
+  <script src="lib/say.js"></script>
+  <script src="block.js"></script>
+</body>
+</html>

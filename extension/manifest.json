@@ -14,8 +14,10 @@
     "notifications",
     "contextMenus",
     "permissions",
-    "scripting"
+    "scripting",
+    "declarativeNetRequestWithHostAccess"
   ],
+  "incognito": "split",
   "host_permissions": [
     "https://www.usesentinel.technology/*",
     "http://127.0.0.1:47821/*",
@@ -204,6 +206,17 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/block.html"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
   "externally_connectable": {
     "matches": [
       "https://www.usesentinel.technology/*",

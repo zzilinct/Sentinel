@@ -164,6 +164,19 @@ async function clickButton(browser, sessionId, text) {
   return true;
 }
 
+/** "Continue anyway" on the block page, as a person does it; `ready` is what the opened page must then show. */
+async function passBlock(browser, sessionId, ready = 'true') {
+  const pressed = `(() => { const b = document.getElementById('pass'); if (!b || !b.onclick) return false; document.getElementById('more').open = true; b.click(); return true; })()`;
+  let done = false;
+  for (let i = 0; i < 80 && !done; i++) { await sleep(250); done = await evalIn(browser, sessionId, pressed).catch(() => false); }
+  if (!done) throw new Error('the block page never offered Continue anyway');
+  for (let i = 0; i < 80; i++) {
+    await sleep(250);
+    if (await evalIn(browser, sessionId, `/^http/.test(location.href) && document.readyState === 'complete' && Boolean(${ready})`).catch(() => false)) return;
+  }
+  throw new Error('Continue anyway did not open the page');
+}
+
 /* ---------------------------------------------------------------- real frames */
 
 /** The pixels of a PNG as Chrome makes them (8 bits a channel, RGB or RGBA, not interlaced). */
@@ -281,5 +294,5 @@ async function until(browser, sessionId, expression, ms = 15000) {
   return v;
 }
 
-module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton,
+module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton, passBlock,
   readPng, startServer, watchErrors, clickSel, pressKey, until };

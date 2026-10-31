@@ -117,6 +117,7 @@ fs.rmSync(path.join(FF, 'src', 'background.js'), { force: true });
   delete manifest.minimum_chrome_version;
   delete manifest.externally_connectable;
   manifest.background = { scripts: ['src/background.firefox.js'] };
+  delete manifest.incognito;
   manifest.browser_specific_settings = { gecko: { id: `companion@${brand.apexDomain}`, strict_min_version: '128.0', data_collection_permissions: { required: ['browsingActivity', 'websiteContent'] } } };
   fs.writeFileSync(path.join(FF, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 }

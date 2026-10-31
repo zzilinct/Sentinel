@@ -1,0 +1,58 @@
+/* The block page: the mask, lit from behind in the colour of what was found, and one thing to do. */
+body.block { --glow: rgba(212, 174, 99, .16); width: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; font-size: var(--t-body); }
+[data-tone="danger"] { --glow: rgba(229, 72, 77, .24); }
+[data-tone="warn"] { --glow: rgba(240, 138, 36, .22); }
+@media (prefers-color-scheme: light) {
+  [data-tone="danger"] { --glow: rgba(179, 38, 30, .13); }
+  [data-tone="warn"] { --glow: rgba(176, 74, 0, .13); }
+}
+
+.block-brand { padding: 24px clamp(20px, 5vw, 56px); }
+.stage { flex: 1; width: min(1040px, 100%); margin: 0 auto; padding: 0 clamp(20px, 5vw, 56px) 48px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 6vw, 84px); align-items: center; }
+
+.halo { display: grid; place-items: center; background: radial-gradient(closest-side, var(--glow), transparent); }
+.mask { display: block; width: auto; height: clamp(280px, 56vh, 480px); max-width: 100%; object-fit: contain; filter: drop-shadow(0 28px 34px rgba(0, 0, 0, .42)); }
+/* The worker answers in a moment nearly every time: nothing is drawn until it does, and "Checking" shows only if it does not. */
+.block[data-tone="none"] .stage { visibility: hidden; animation: hold 0s .5s forwards; }
+@keyframes hold { to { visibility: visible; } }
+/* The mask comes to rest once, and the page never moves again. */
+.block:not([data-tone="none"]) .mask { animation: settle .72s var(--spring) backwards; }
+@keyframes settle { from { transform: translateY(14px) scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .block:not([data-tone="none"]) .mask { animation: none; } }
+
+.say { min-width: 0; }
+.say h1 { font: 400 var(--t-title-l)/1.12 var(--display); font-size: clamp(32px, 4vw, 44px); margin: 0 0 14px; text-wrap: balance; }
+.say .host { font: 500 var(--t-ui)/1.5 var(--mono); --track: 0px; color: var(--text-2); overflow-wrap: anywhere; margin: 0 0 18px; }
+.say .host:empty { display: none; }
+.line { margin: 0; font-size: var(--t-lead); line-height: var(--lh-lead); color: var(--text); max-width: 46ch; }
+.line:empty { display: none; }
+.reason { margin: 12px 0 0; color: var(--text-2); max-width: 46ch; overflow-wrap: anywhere; }
+.help { margin: 12px 0 0; }
+.help a, .more a { color: var(--gold); text-underline-offset: 3px; }
+.act { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.act[hidden] { display: none; }
+.act .btn { font-size: var(--t-text); padding: 14px 22px; border-radius: 13px; max-width: 100%; overflow-wrap: anywhere; }
+
+.more { margin-top: 24px; color: var(--text-2); font-size: var(--t-ui); }
+.more summary { cursor: pointer; width: fit-content; color: var(--text-2); padding: 6px 0; border-radius: 4px; }
+.more summary:hover { color: var(--text); }
+.more summary:focus-visible, .more a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.more .reasons { margin: 8px 0 0; }
+.more .reasons[hidden] { display: none; }
+.more .reasons li { font-size: var(--t-ui); overflow-wrap: anywhere; }
+.more-row { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 12px 0 0; }
+.more .link { padding: 6px 0; font-size: var(--t-ui); font-weight: 500; }
+.more .link[disabled] { cursor: default; color: var(--text-2); }
+.more .quiet { color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; }
+.more .quiet:hover { color: var(--text); }
+
+/* A phone, or a window too low for the mask beside the words: the words come first in the reading, the mask stays small. */
+@media (max-width: 760px), (max-height: 560px) {
+  .block-brand { padding: 16px 20px; }
+  .stage { display: block; padding: 0 20px 28px; }
+  .halo { justify-items: start; background: radial-gradient(closest-side at 60px 50%, var(--glow), transparent); margin-bottom: 18px; }
+  .mask { height: 128px; }
+  .say h1 { font-size: var(--t-title-l); }
+  .line { font-size: var(--t-body); }
+  .act .btn { flex: 1 1 100%; }
+}

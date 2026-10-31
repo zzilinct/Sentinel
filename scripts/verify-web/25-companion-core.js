@@ -3,7 +3,7 @@
  * companion-core  The companion's everyday features, used as a person uses them, in a real headless Chrome with the
  * real Sentinel server behind it on 127.0.0.1:47821 (the address the Windows app's own server uses):
  *   1. The toolbar popup signed out, then pairing through the connect page as with the Windows app, then the popup
- *      paired, with live scanning on and off, on a flagged page and on a safe page, and its Scan this page button.
+ *      paired, with live scanning on and off, on a stopped page, a flagged page and a safe page, and its Check button.
  *   2. The options page: every switch named and kept, a wrong server address refused, the keyboard's focus seen,
  *      headings for a screen reader, no console errors.
  *   3. Search-result marks on the real Google, Bing and DuckDuckGo for ordinary searches: do they appear, are they
@@ -20,7 +20,7 @@
  */
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { ROOT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, TYPED_PW, watchErrors, pressKey, until } = require('./_shared');
+const { ROOT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, TYPED_PW, watchErrors, pressKey, until, passBlock } = require('./_shared');
 const { tlsServer, startSentinel, loadCompanion, stopWorker, workerTarget, pairedOptions, page, gmailPage, outlookPage } = require('./_companion');
 
 const PORT = 47821;
@@ -123,10 +123,9 @@ async function checkCompanionCore() {
       await sleep(600);
       const info = await evalIn(browser, sessionId, `(() => {
         const q = (s) => document.querySelector(s);
-        const live = [...document.querySelectorAll('.card')].find((c) => /Live protection/.test(c.textContent));
-        const state = live && live.querySelector('.row .small');
+        const state = q('.status');
         return { text: q('#view').innerText.replace(/\\s+/g, ' ').trim(), plan: q('#plan').hidden ? null : q('#plan').textContent,
-          host: (q('.host') || {}).textContent || null, live: state ? state.textContent : null, liveColor: state ? getComputedStyle(state).color : null,
+          host: (q('.host') || {}).textContent || null, live: state ? state.dataset.live : null, liveColor: state && state.querySelector('b') ? getComputedStyle(state.querySelector('b')).color : null,
           links: [...document.querySelectorAll('#view a')].map((a) => a.textContent.trim() + ' -> ' + a.href), pw: q('#pwLine').innerText,
           page: (q('[data-page-state]') || {}).innerText || null, scroll: document.documentElement.scrollWidth > innerWidth };
       })()`).catch((err) => ({ error: err.message }));
@@ -163,9 +162,9 @@ async function checkCompanionCore() {
     await goto(browser, web.sessionId, 'http://plain.test/plain.html');
     const paired = await popup('paired');
     await paired.close();
-    result('companion-core: popup paired shows the plan, this page, the Scan button, Live protection On (or Paused with why), and the password alarm line',
+    result('companion-core: popup paired answers about this page first (never green unless it was checked), then its action, Live protection On (or Paused with why), and the password alarm line',
       // "On", or, when this server's model is one of the five newest (Free gets no live answers then), "Paused" with why.
-      paired.ready && paired.info.plan === 'Free' && paired.info.host === 'plain.test' && /Scan this page/.test(paired.info.text)
+      paired.ready && paired.info.plan === 'Free' && paired.info.host === 'plain.test' && /^(No warning signs|Not checked yet)/.test(paired.info.text) && /Check (this page|again)/.test(paired.info.text)
         && (paired.info.live === 'On' || (paired.info.live === 'Paused' && /five newest/.test(paired.info.text))) && /Password alarm is off/.test(paired.info.pw) && !paired.info.scroll && !paired.errors.length,
       { ...paired.info, errors: paired.errors });
 
@@ -186,31 +185,38 @@ async function checkCompanionCore() {
     result('companion-core: switching Live scanning off in the options page shows Off in the popup, not in the green that means protected, and on again',
       offStore.enabled === false && onStore.enabled === true && off.info.live === 'Off' && !green(off.info.liveColor), { offStore, onStore, live: off.info.live, color: off.info.liveColor, onColor: paired.info.liveColor });
 
-    // A flagged page: the icon says "!" and the popup should say why.
-    await goto(browser, web.sessionId, `http://${TYPED_PW}/account.html`);
-    await sleep(3000);
+    // A confirmed site: stopped at the door, the icon says "!", and the popup over the block page says the same.
+    await goto(browser, web.sessionId, `http://${TYPED_PW}/account.html`, "document.getElementById('pass') && document.getElementById('pass').onclick");
+    await sleep(1000);
     const badge = await evalIn(browser, opt.sessionId, `chrome.tabs.query({}).then((tabs) => { const t = tabs.find((x) => (x.url || '').includes(${JSON.stringify(TYPED_PW)})); return t ? chrome.action.getBadgeText({ tabId: t.id }) : null; })`);
+    const stoppedPop = await popup('stopped-page');
+    await stoppedPop.close();
+    result('companion-core: on a stopped page (the icon shows "!") the popup says what the block page says',
+      badge === '!' && /stopped it before it opened/i.test(stoppedPop.info.page || '') && /confirmed scam/.test(stoppedPop.info.text) && stoppedPop.info.host === TYPED_PW, { badge, page: stoppedPop.info.page, text: stoppedPop.info.text });
+    // The same site, opened anyway: the popup says it is flagged, and offers the one way out.
+    await passBlock(browser, web.sessionId);
+    await sleep(1000);
     const flagged = await popup('flagged-page');
     await flagged.close();
-    result('companion-core: on a flagged page (the icon shows "!") the popup says Sentinel flagged it, and why',
-      badge === '!' && /flagged/i.test(flagged.info.page || '') && flagged.info.host === TYPED_PW, { badge, page: flagged.info.page, text: flagged.info.text });
+    result('companion-core: on a flagged page opened anyway the popup says Sentinel flagged it, with one way out',
+      /flagged this page/i.test(flagged.info.page || '') && /Take me back to safety|Go to the real/.test(flagged.info.text) && flagged.info.host === TYPED_PW, { page: flagged.info.page, text: flagged.info.text });
 
-    // A safe page: what live scanning found, then a person's own Scan this page.
+    // A safe page: what live scanning found, then a person's own check.
     async function safePage(label) {
       await goto(browser, web.sessionId, 'https://en.wikipedia.org/wiki/Banana').catch(() => {});
       await sleep(3000);
       const p = await popup(`safe-page-${label}`);
-      await click(p.sessionId, '#scan');
-      await until(browser, p.sessionId, "!/Scanning/.test(document.getElementById('scan').textContent) && document.getElementById('scan').textContent", 60000);
-      const r = await evalIn(browser, p.sessionId, "({ result: document.getElementById('result').innerText.replace(/\\s+/g, ' ').trim(), alert: Boolean(document.querySelector('#result [role=alert]')), button: document.getElementById('scan').textContent.trim(), disabled: document.getElementById('scan').disabled })");
+      await click(p.sessionId, '#check');
+      await until(browser, p.sessionId, "!document.getElementById('check') || !/Checking/.test(document.getElementById('check').textContent)", 60000);
+      const r = await evalIn(browser, p.sessionId, "(() => { const b = document.getElementById('check'); return { result: document.getElementById('note').innerText.replace(/\\s+/g, ' ').trim(), alert: Boolean(document.querySelector('#note [role=alert]')), button: b ? b.textContent.trim() : '', disabled: b ? b.disabled : null }; })()");
       await shot(browser, p.sessionId, `companion-core-popup-safe-page-${label}-scanned`);
       await p.close();
       return { page: p.info.page, host: p.info.host, ...r };
     }
     const safeFree = await safePage('free');
-    result('companion-core: on Free, on a safe page, the popup says nothing wrong; a scan the plan does not allow is said beside the button, which stays usable',
-      // On Free, the app's newest models are not in the plan: live scanning has no answer for the page then, and says nothing.
-      (safeFree.page === null || /no warning signs/i.test(safeFree.page)) && safeFree.host === 'en.wikipedia.org' && (/checks/.test(safeFree.result) || (safeFree.alert && /Scan this page/.test(safeFree.button) && !safeFree.disabled)), safeFree);
+    result('companion-core: on Free, on a safe page, the popup says nothing wrong; a check the plan does not allow is said beside the button, which stays usable',
+      // On Free, the app's newest models are not in the plan: live scanning has no answer for the page then, and says so.
+      /no warning signs|not looked at/i.test(safeFree.page || '') && safeFree.host === 'en.wikipedia.org' && (/checks done/.test(safeFree.result) || (safeFree.alert && /Check/.test(safeFree.button) && !safeFree.disabled)), safeFree);
 
 
     /* -------------------------------------------------------------- 2. options */
@@ -261,8 +267,8 @@ async function checkCompanionCore() {
     const refreshed = await evalIn(browser, opt.sessionId, "chrome.runtime.sendMessage({ type: 'refresh' }).then((r) => r.account && r.account.plan && r.account.plan.id)");
     result('companion-core: the account moved to Pro, and the companion picks it up', pro === 200 && refreshed === 'pro', { pro, refreshed });
     const safePro = await safePage('pro');
-    result('companion-core: on Pro, on a safe page, the popup says no warning signs and Scan this page shows the three masks\' answers',
-      /no warning signs/i.test(safePro.page || '') && /Clear.*Clear.*Clear.*checks/.test(safePro.result) && /left this week/.test(safePro.button), safePro);
+    result('companion-core: on Pro, on a safe page, the popup says no warning signs and a check says what was done and what is left',
+      /no warning signs/i.test(safePro.page || '') && /checks done/.test(safePro.result) && /left this week/.test(safePro.result), safePro);
 
     /* ---------------------------------------------------- 3. real search pages */
 
