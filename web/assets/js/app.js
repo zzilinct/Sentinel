@@ -2192,7 +2192,7 @@
           <p class="call__verdict"></p>
           <p class="call__reason"></p>
           <p class="call__next"></p>
-          <p class="call__more" hidden>Already did what they asked? <a href="/app/recover">Open the recovery guide</a>.</p>
+          <p class="call__more" hidden>Already did it? <a href="/app/recover">Open the recovery guide</a>.</p>
         </div>
         <div class="call__asks">
           ${group('Who called who?', 'rang', 'radio', C.RANG, 'list')}
