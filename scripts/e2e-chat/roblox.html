@@ -1,6 +1,18 @@
 <!doctype html>
 <!-- A stand-in for Roblox's chat box (scripts/desktop-e2e.ps1): chat lines in the top left, large and plain, for the
-     text recogniser built into Windows. -->
+     text recogniser built into Windows. ?moving: a game going on behind a chat box that does not change, and an Esc
+     menu that dims the game (Esc). ?black: what Windows hands over for a game it will not copy. -->
 <html lang="en"><head><meta charset="utf-8"><title>Roblox</title>
-<style>body{margin:0;background:#fff;color:#000;font:bold 18px Arial,sans-serif}div{position:absolute;left:24px;top:70px}p{margin:0 0 16px}</style></head>
-<body><div><p>[Player1]: free robux at robux-gen.top</p><p>[Player2]: hi</p></div></body></html>
+<style>body{margin:0;background:#fff;color:#000;font:bold 18px Arial,sans-serif}div{position:absolute;left:24px;top:70px}p{margin:0 0 16px}
+html.moving body{height:100vh;overflow:hidden;color:#fff;background:repeating-linear-gradient(45deg,#2a5a33 0 60px,#1f6f8b 60px 120px,#6b4a2b 120px 180px);background-size:255px 255px;animation:go 1.2s linear infinite}
+@keyframes go{to{background-position:255px 0}}
+#esc{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);color:#fff;font-size:30px;text-align:center;padding-top:30vh}
+html.menu #esc{display:block}
+html.black,html.black body{background:#000;height:100vh}html.black div{display:none}</style></head>
+<body><div><p>[Player1]: free robux at robux-gen.top</p><p>[Player2]: hi</p></div><section id="esc"><p>Resume</p><p>Reset Character</p><p>Leave</p></section>
+<script>
+const r = document.documentElement;
+if (location.search.includes('moving')) r.classList.add('moving');
+if (location.search.includes('black')) r.classList.add('black');
+addEventListener('keydown', (e) => { if (e.key === 'Escape') r.classList.toggle('menu'); });
+</script></body></html>

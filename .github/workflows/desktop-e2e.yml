@@ -5,6 +5,11 @@ name: Desktop protections end to end
 
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: 'Run only this job (reader-cost); empty runs everything'
+        required: false
+        default: ''
   push:
     branches: ['work/e2e**']
 
@@ -13,6 +18,7 @@ permissions:
 
 jobs:
   e2e:
+    if: ${{ !inputs.only }}
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
@@ -41,9 +47,40 @@ jobs:
           path: e2e-desktop/
           retention-days: 7
 
+  # What the PowerShell readers cost at rest, in a game and in a chat left open, and what the app says when one dies
+  # (scripts/desktop-reader-cost.ps1).
+  reader-cost:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Build the Windows installer from this commit
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run dist:win
+      - shell: powershell
+        run: ./scripts/desktop-reader-cost.ps1 -Installer (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-reader-cost
+      - name: Sentinel's logs
+        if: always()
+        shell: powershell
+        run: New-Item -ItemType Directory -Force e2e-reader-cost/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-reader-cost/logs -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reader-cost
+          path: e2e-reader-cost/
+          retention-days: 7
+
   # Real-use QA (scripts/desktop-qa.ps1): "Scan with Sentinel" from the right-click menu started cold, signed out and in,
   # with awkward names and files, and the shield's windows at 125% and 150% display scaling. Its own runner, in parallel.
   qa:
+    if: ${{ !inputs.only }}
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
@@ -75,6 +112,7 @@ jobs:
   # install (first start, start at login, tray, switches, parent lock, sign-in, crashes, port, network) and use (live
   # scanning on real sites, downloads, chat, ten idle minutes, display scaling).
   core:
+    if: ${{ !inputs.only }}
     runs-on: windows-latest
     timeout-minutes: 75
     strategy:
@@ -108,6 +146,7 @@ jobs:
 
   # The updater, from a feed on the runner offering this same commit built as the next version, then uninstalling.
   core-update:
+    if: ${{ !inputs.only }}
     runs-on: windows-latest
     timeout-minutes: 50
     steps:
