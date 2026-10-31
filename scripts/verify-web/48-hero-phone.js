@@ -15,21 +15,23 @@ const SIZES = [[320, 568], [360, 640], [390, 844], [412, 915], [430, 932], [768,
 const MEASURE = `(() => {
   const box = (e) => { const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; };
   const word = document.querySelector('[data-hero-word]');
-  const letters = [...word.children].map(box);
+  const range = document.createRange();
+  range.selectNodeContents(word);
   const view = document.querySelector('.hero__unmask');
   const pic = view.getContext('2d');
   const at = (x, y) => [...pic.getImageData(Math.round(view.width * x), Math.round(view.height * y), 1, 1).data];
-  return { W: innerWidth, sideways: document.documentElement.scrollWidth - innerWidth, letters: letters.length,
-    word: { left: Math.min(...letters.map((l) => l.left)), right: Math.max(...letters.map((l) => l.right)), top: Math.min(...letters.map((l) => l.top)), bottom: Math.max(...letters.map((l) => l.bottom)) },
+  const name = box(range);
+  return { W: innerWidth, sideways: document.documentElement.scrollWidth - innerWidth, text: word.textContent, word: name,
     view: box(view), mask: box(document.querySelector('[data-hero-mask]')), copy: box(document.querySelector('.hero__copy')),
-    painted: at(0.5, 0.5)[3] === 255 && at(0.1, 0.9)[3] === 255, shown: getComputedStyle(view).visibility === 'visible', clip: getComputedStyle(view).clipPath,
+    painted: at(0.9, 0.55)[3] > 200,
+    behindName: at(0.75, ((name.top + name.bottom) / 2 - box(view).top) / view.clientHeight)[3], shown: getComputedStyle(view).visibility === 'visible', clip: getComputedStyle(view).clipPath,
     zWord: getComputedStyle(word).zIndex };
 })()`;
 
 function phoneProblems(m) {
   const out = [];
   if (m.sideways > 0) out.push(`scrolls sideways by ${m.sideways}`);
-  if (m.letters !== 8) out.push(`${m.letters} letters`);
+  if (m.text !== 'SENTINEL') out.push(`the name reads ${m.text}`);
   if (m.word.left < 10 || m.word.right > m.W - 10) out.push(`the name is not whole on the screen: ${Math.round(m.word.left)} to ${Math.round(m.word.right)} of ${m.W}`);
   if (m.word.bottom > m.view.top + 1) out.push(`the niche crosses the name by ${Math.round(m.word.bottom - m.view.top)} px`);
   if (m.mask.top < m.view.top || m.mask.bottom > m.view.bottom || m.mask.left < m.view.left || m.mask.right > m.view.right) out.push('the mask leaves its niche');
@@ -74,7 +76,8 @@ async function checkHeroPhone() {
       const { s, done } = await open(1366, 900, false, scheme, 'reduce');
       await sleep(2500);
       const m = await evalIn(browser, s, MEASURE);
-      result(`hero-phone: 1366x900, ${scheme}, reduced motion: the name stands in front of the panel`, m.zWord === '2' && m.painted, m.zWord === '2' && m.painted ? undefined : m);
+      const ok = m.zWord === '2' && m.painted && m.behindName < 60;
+      result(`hero-phone: 1366x900, ${scheme}, reduced motion: the name stands clear of the panel`, ok, ok ? undefined : m);
       await shot(browser, s, `hero-desktop-${scheme}-still`);
       await done();
     }

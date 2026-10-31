@@ -852,6 +852,7 @@
         u.font = `500 15px ${SANS}`;
         const hw = u.measureText(host).width;
         const hx = x === undefined ? (W - hw) / 2 : Math.max(8, Math.min(cx - 10, W - hw - 10));
+        if (x === undefined) { u.fillStyle = 'rgba(9,7,5,.82)'; u.fillRect(hx - 6, y + 22, hw + 12, 24); }
         u.fillStyle = 'rgba(239,230,212,.72)';
         u.fillText(host, hx, y + 34);
         u.fillStyle = col;
@@ -887,14 +888,16 @@
       // The niche: darker where the mask stands, so it stands clear, and a warning above it and below it, in the room
       // it leaves. The niche's height and the mask's are one ratio (home.css), so these hold at every size.
       if (narrow.matches) {
-        const shade = u.createRadialGradient(W / 2, H * 0.54, 0, W / 2, H * 0.54, H * 0.46);
+        const shade = u.createRadialGradient(W / 2, H * 0.5, 0, W / 2, H * 0.5, H * 0.46);
         shade.addColorStop(0, 'rgba(9,7,5,.92)');
         shade.addColorStop(0.6, 'rgba(9,7,5,.7)');
         shade.addColorStop(1, 'rgba(9,7,5,0)');
         u.fillStyle = shade;
         u.fillRect(0, 0, W, H);
         warning(u, W, 'Fake login page', C.red, null, H * 0.17);
-        warning(u, W, 'Look-alike domain', C.orange, 'paypa1-secure-login.com', H * 0.81);
+        // A short screen's niche has no room under the mask's chin for the address as well.
+        const room = H > 300;
+        warning(u, W, 'Look-alike domain', C.orange, room ? 'paypa1-secure-login.com' : null, H - (room ? 66 : 36));
         return;
       }
       // Marks and warnings, scattered on a loose grid so they never pile up.
@@ -936,6 +939,16 @@
       vctx.globalCompositeOperation = 'source-over';
       vctx.fillStyle = 'rgba(226,194,127,.7)';
       vctx.fillRect(Math.round(vw * 0.56), 0, Math.max(1, vdpr), vh);
+      // It stays, so it keeps out from behind the name: the name is read first.
+      const word = $('[data-hero-word]', stage);
+      const foot = Math.min(0.9, (word.offsetTop + word.offsetHeight) / stage.clientHeight);
+      const clear = vctx.createLinearGradient(0, 0, 0, vh);
+      clear.addColorStop(foot - 0.06, 'rgba(0,0,0,.1)');
+      clear.addColorStop(foot + 0.06, 'rgba(0,0,0,1)');
+      vctx.globalCompositeOperation = 'destination-in';
+      vctx.fillStyle = clear;
+      vctx.fillRect(0, 0, vw, vh);
+      vctx.globalCompositeOperation = 'source-over';
     }
 
     let last = null;      // the brush's previous point, in stage pixels

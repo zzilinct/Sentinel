@@ -51,7 +51,7 @@
 @media (prefers-reduced-motion: reduce), not all and (hover: hover) and (pointer: fine) { .hero__word { z-index: 2; } }
 /* It opens once, outward from behind the mask, over the name's entrance, and then nothing here moves or repaints. */
 @media (prefers-reduced-motion: no-preference) { .hero__unmask.is-opening { animation: unmask-open 1.5s var(--ease-out) .55s both; } }
-@keyframes unmask-open { from { clip-path: circle(0 at 50% 54%); } to { clip-path: circle(85% at 50% 54%); } }
+@keyframes unmask-open { from { clip-path: circle(0 at 50% 50%); } to { clip-path: circle(85% at 50% 50%); } }
 /* Covered by the next chapter (site.js, stacks): the stage leaves the screen, so its 3D mask and canvases rest. */
 @media (min-width: 861px) { .is-stacked.is-over > .hero .hero__stage { transform: translateY(-400vh); } }
 .scroll-cue { position: absolute; left: 50%; bottom: 40px; translate: -50% 0; z-index: 2; width: 24px; height: 40px; border-radius: 14px; box-shadow: var(--press); }
@@ -253,12 +253,12 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   /* Two rows, so nothing depends on where a phone's width happens to land. The name has the first alone: its letters
      measure 5.3 em across (Newsreader with its tracking), so this size fills the frame at every width. The second is
      a lacquer niche with the mask standing in it, both sized from the niche, which is sized from the screen. */
-  .hero { --niche-h: clamp(270px, 44svh, 96vw); }
+  .hero { --niche-h: clamp(270px, 40svh, 96vw); }
   .hero__stage { position: relative; display: grid; grid-template-rows: auto var(--niche-h); justify-items: center; align-items: center; margin: 18px -16px 0; }
   .hero__word { position: relative; left: auto; right: auto; top: auto; margin: 0; font-size: min((100vw - 64px) / 5.3, 112px); }
   .hero__stage > :not(.hero__word, .hero__dots) { grid-area: 2 / 1; position: relative; left: auto; top: auto; translate: none; }
   .hero__stage > .sketch { width: 120vw; }
-  .hero__stage > .hero__mask { z-index: 2; width: calc(var(--niche-h) * .46); top: calc(var(--niche-h) * .04); }
+  .hero__stage > .hero__mask { z-index: 2; width: calc(var(--niche-h) * .46); }
   .hero__stage > .hero__unmask { z-index: 0; width: min(84vw, 440px); height: 100%; border: 1px solid rgb(var(--gold-rgb) / .6); border-radius: 50% 50% 28px 28px / 34% 34% 28px 28px;
     outline: 1px solid rgb(var(--gold-rgb) / .24); outline-offset: 5px; box-shadow: 0 36px 60px -34px rgb(0 0 0 / .75); }
   /* Not until it is drawn: an empty frame is not a thing to look at. */
