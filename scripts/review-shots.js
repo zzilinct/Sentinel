@@ -1044,7 +1044,7 @@ async function desktopIsland(send) {
         for (const [channel, payload] of messages) await run(`window.__h[${JSON.stringify(channel)}](${JSON.stringify(payload)})`);
         if (state.startsWith('open')) await run('window.sentinelIsland.open()');
         await sleep(state.startsWith('open') ? 900 : 4400);   // the spring, and at rest the mask's two breaths as well
-        const fit = await run(`(() => { const p = document.getElementById('panel').offsetHeight; const c = document.getElementById('corner'); return { panel: p, box: c.offsetHeight, open: c.classList.contains('is-open'), running: document.getAnimations().map((a) => a.animationName || a.transitionProperty || 'animation').join(','), words: document.getElementById('cornerLabel').innerText, text: document.getElementById('panel').innerText }; })()`);
+        const fit = await run(`(() => { const p = document.getElementById('panel').offsetHeight; const c = document.getElementById('corner'); return { panel: p, box: c.offsetHeight, open: c.classList.contains('is-open'), running: document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName || a.transitionProperty || 'animation').join(','), words: document.getElementById('cornerLabel').innerText, text: document.getElementById('panel').innerText }; })()`);
         const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
         const name = `desktop-island-${scale}-${pageName}-${state}.png`;
         fs.writeFileSync(path.join(OUT, name), Buffer.from(shot.data, 'base64'));
