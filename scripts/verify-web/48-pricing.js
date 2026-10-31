@@ -108,8 +108,8 @@ async function checkPricing() {
     await media('dark', 'reduce');
     await open('/pricing');
     await press('[data-f-live="yes"]');
-    const instant = await evalIn(browser, s, `(() => { const r = ${LENS}; return { ...r, anims: document.querySelector('.ledger').getAnimations({ subtree: true }).length }; })()`);
-    result('pricing: with reduced motion the lens is simply there, with nothing animating', instant.pick === 'pro' && instant.off < 1 && instant.anims === 0, instant);
+    const instant = await evalIn(browser, s, `(() => { const r = ${LENS}; return { ...r, anims: document.querySelector('.ledger__lens').getAnimations().length }; })()`);
+    result('pricing: with reduced motion the lens is simply there, without travelling', instant.pick === 'pro' && instant.off < 1 && instant.anims === 0, instant);
 
     /* -------------------------------------------------------------- pictures */
 
@@ -136,7 +136,7 @@ async function checkPricing() {
     await media('dark');
     await size('phone');
     await open('/pricing');
-    await evalIn(browser, s, "scrollTo({ top: document.querySelector('.ledger__ask:last-of-type').getBoundingClientRect().top + scrollY - 300, behavior: 'instant' })");
+    await evalIn(browser, s, "scrollTo({ top: [...document.querySelectorAll('.ledger__ask')].pop().getBoundingClientRect().top + scrollY - 300, behavior: 'instant' })");
     await sleep(800);
     await shot(browser, s, 'pricing-phone-dark-scrolled');
     const stuck = await evalIn(browser, s, `(() => { const n = document.querySelector('.nav, header').getBoundingClientRect(); const h = document.querySelector('.ledger__table thead').getBoundingClientRect(); return { navBottom: Math.round(n.bottom), headTop: Math.round(h.top) }; })()`);

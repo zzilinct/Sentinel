@@ -157,7 +157,7 @@ html:not(.js) .finder { display: none; }
 .finder__q.is-muted { opacity: .4; }
 .finder__label { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-ui); color: var(--text-2); }
 .finder__label b { color: var(--gold-200); font-weight: 500; }
-.finder__answer { grid-column: 1 / -1; min-height: 4.6em; padding: 16px 32px 28px; border-top: 1px solid var(--line); background: var(--bg-2); box-shadow: var(--press); font-size: var(--t-ui); color: var(--text-2); }
+.finder__answer { grid-column: 1 / -1; min-height: 4.6em; padding: 16px 32px 28px; border-top: 1px solid var(--line); background: var(--bg-2); font-size: var(--t-ui); color: var(--text-2); }
 @media (max-width: 900px) { .finder__answer { min-height: 6.4em; padding-inline: 18px; } }
 .finder__answer b { color: var(--gold-200); font-weight: 500; }
 /* Two choices and one thumb, which springs from one to the other as the lens does. */
