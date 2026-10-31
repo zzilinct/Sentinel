@@ -147,3 +147,21 @@ test('a big archive is listed from its end, and an unreadable list is not called
   assert.equal(check(scanPath(far.file, 'photos.zip', { lookupHash: () => null }), 'F11').status, 'skip');
   assert.ok(END_BYTES < size);
 });
+
+test('the Android SDK is not an Android app, whatever permissions it lists', (t) => {
+  const perms = 'BIND_ACCESSIBILITY_SERVICE RECEIVE_SMS READ_SMS';
+  const name = Buffer.from('AndroidManifest.xml');
+  const local = Buffer.alloc(30 + name.length);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(name.length, 26);
+  name.copy(local, 30);
+  const size = 30 * 1024 * 1024;
+  const end = zipEnd('AndroidManifest.xml', size - 87);
+  end.writeUInt32LE(perms.length, 20);
+  end.writeUInt32LE(perms.length, 24);
+  end.writeUInt32LE(size - 87 - local.length - perms.length, 42);
+  const tail = Buffer.concat([local, Buffer.from(perms), end]);
+  const look = (file) => check(scanPath(big(t, file, Buffer.from('PK\x03\x04'), tail).file, file, { lookupHash: () => null }), 'F12');
+  assert.equal(look('game.apk').status, 'fail', 'the manifest of a big app is found at the end');
+  assert.equal(look('android.jar'), undefined);
+});

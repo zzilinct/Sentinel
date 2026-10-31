@@ -437,6 +437,7 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .read-strip--all { --lit: var(--green); }
 .read-strip--part { --lit: var(--gold-400); }
 .read-strip--none { --lit: transparent; }
+.read-strip--flag { --lit: var(--orange); }   /* never green beside a warning, however much was read */
 @media (max-width: 520px) { #downloads .list li { flex-wrap: wrap; } #downloads .list__main { flex-basis: calc(100% - 48px); } .dl-end { width: 100%; grid-template-columns: 1fr auto; align-items: center; justify-items: stretch; } .dl-end .status, .dl-end .btn { justify-self: end; } .read-strip { width: 100%; } }
 .feature h3 { --track: var(--tr-text); margin-top: 16px; font: 500 var(--t-body)/var(--lh-ui) var(--sans); }
 .feature p { margin-top: 5px; font-size: var(--t-ui); color: var(--muted); }

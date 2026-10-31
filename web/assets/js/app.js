@@ -2811,7 +2811,7 @@
     return `<li>
           <span class="list__icon">${ICON.file}</span>
           <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${said}</span></span>
-          <span class="dl-end"><span class="read-strip read-strip--${esc(d.looked)}" style="--end:${lit.toFixed(1)}%" aria-hidden="true"></span>${end}</span>
+          <span class="dl-end"><span class="read-strip read-strip--${d.badge ? 'flag' : esc(d.looked)}" style="--end:${lit.toFixed(1)}%" aria-hidden="true"></span>${end}</span>
         </li>`;
   }
 

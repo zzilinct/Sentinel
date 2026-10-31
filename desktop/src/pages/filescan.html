@@ -39,11 +39,10 @@
     document.getElementById('name').textContent = `${q.get('name') || ''} · ${kb}`;
     const why = q.get('why');
     const lead = document.getElementById('lead');
-    const account = q.get('account') === '1';
     const where = document.getElementById('where');
-    if (account) where.textContent = 'The file stayed on this computer. Only its fingerprint was compared with the list of known threats.';
+    if (q.get('asked') === '1') where.textContent = 'The file stayed on this computer. Only its fingerprint was compared with the list of known threats.';
     else if (why) where.textContent = 'Nothing about the file left this computer.';
-    if (account) { document.getElementById('deeper').hidden = true; document.getElementById('signin').hidden = true; }
+    if (q.get('account') === '1') { document.getElementById('deeper').hidden = true; document.getElementById('signin').hidden = true; }
     if (why) {
       lead.textContent = why;
     } else if (badge === 'green') {

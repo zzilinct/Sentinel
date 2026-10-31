@@ -1000,17 +1000,18 @@ async function scanHere(file) {
   let report = null;
   let failure = null;
   let list = { known: null, offline: false };
+  let asked = false;     // the file's hash did reach the list of known threats
   try {
     const stat = await fs.promises.stat(file);
     size = stat.size;
     if (!stat.isFile()) throw new Error('not a file');
-    if (signedIn) list = await downloads.lookUp(await downloads.hashStream(file));
+    if (signedIn) { list = await downloads.lookUp(await downloads.hashStream(file)); asked = !list.offline; }
     report = await downloads.analyze(file, path.basename(file), list.known);
   } catch (err) { failure = err; }
   const summary = downloads.summarize(report, list.known, { failure, offline: list.offline });
   appLog(`right-click menu: ${summary.label}`);
   menuResultFile = file;
-  const query = { ...scanmenu.offlineResult(file, size, summary, report), account: signedIn ? '1' : '' };
+  const query = { ...scanmenu.offlineResult(file, size, summary, report), account: signedIn ? '1' : '', asked: asked ? '1' : '' };
   if (!menuWin || menuWin.isDestroyed()) {
     menuWin = cardWindow();
     menuWin.on('closed', () => { menuWin = null; menuResultFile = null; });

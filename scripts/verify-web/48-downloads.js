@@ -82,7 +82,7 @@ async function checkDownloads() {
           document.querySelector('#downloads').scrollIntoView({ block: 'start' });
           return { wide: document.documentElement.scrollWidth - innerWidth, rows: [...document.querySelectorAll('#downloads .list li')].map((li) => {
             const strip = li.querySelector('.read-strip');
-            return { text: li.innerText.replace(/\\s+/g, ' '), green: Boolean(li.querySelector('.status.is-on')), pill: (li.querySelector('.status') || {}).textContent || '', lit: parseFloat(strip.style.getPropertyValue('--end')), hidden: strip.getAttribute('aria-hidden'), box: strip.getBoundingClientRect().width };
+            return { kind: strip.className, text: li.innerText.replace(/\\s+/g, ' '), green: Boolean(li.querySelector('.status.is-on')), pill: (li.querySelector('.status') || {}).textContent || '', lit: parseFloat(strip.style.getPropertyValue('--end')), hidden: strip.getAttribute('aria-hidden'), box: strip.getBoundingClientRect().width };
           }) };
         })()`);
         if (rows.wide > 0) wide.push(`${size} ${theme}: ${rows.wide} px`);
@@ -98,13 +98,14 @@ async function checkDownloads() {
     result('downloads: a file read but not compared with the list is not called clean', /could not reach its list/.test(row('Holiday photos').text) && !/No threats found/.test(row('Holiday photos').text), row('Holiday photos').text);
     result('downloads: a file not read says why', /moved/.test(row('Budget').text) && !/No threats found/.test(row('Budget').text), row('Budget').text);
     result('downloads: the strip shows how much was read', row('Tax return').lit === 50 && row('ZoomInstaller').lit > 4 && row('ZoomInstaller').lit < 10 && row('Family holiday').lit === 4 && row('Holiday photos').lit === 50 && row('Budget').lit === 0 && list.every((r) => r.hidden === 'true' && r.box > 50), list.map((r) => r.lit));
+    result('downloads: a warning never has a green strip beside it', /read-strip--flag/.test(list[0].kind), list[0].kind);
     result('downloads: nothing scrolls sideways', !wide.length, wide);
     result('downloads: no errors on the page', !errors.length, errors);
 
     // The right-click answer, its page as the app opens it.
     const pages = {
-      part: { name: 'ZoomInstallerFull.exe', size: '197132288', badge: 'part', label: 'Partly checked', why: by(LONG).reason, account: '' },
-      none: { name: 'Budget.xlsx', size: '0', badge: 'none', label: 'Not checked', why: by('Budget.xlsx').reason, account: '1' }
+      part: { name: 'ZoomInstallerFull.exe', size: '197132288', badge: 'part', label: 'Partly checked', why: by(LONG).reason, account: '1', asked: '1' },
+      none: { name: 'Budget.xlsx', size: '0', badge: 'none', label: 'Not checked', why: by('Budget.xlsx').reason, account: '', asked: '' }
     };
     await browser.send('Emulation.setDeviceMetricsOverride', { width: 460, height: 420, deviceScaleFactor: 1, mobile: false }, s);
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.sentinelDesktop = { menuResultAction: async () => ({}), cardFit: async () => ({}) };' }, s);
@@ -116,7 +117,7 @@ async function checkDownloads() {
         await shot(browser, s, `filescan-${state}-${theme}`);
       }
       const seen = await evalIn(browser, s, "({ label: document.getElementById('label').textContent, lead: document.getElementById('lead').textContent, where: document.getElementById('where').textContent, signin: document.getElementById('signin').hidden })");
-      result(`downloads: the right-click answer for ${state} is plain`, seen.label === query.label && seen.lead === query.why && !/nothing harmful/.test(seen.lead) && seen.signin === Boolean(query.account) && (query.account ? /fingerprint/.test(seen.where) : /left this computer/.test(seen.where)), seen);
+      result(`downloads: the right-click answer for ${state} is plain`, seen.label === query.label && seen.lead === query.why && !/nothing harmful/.test(seen.lead) && seen.signin === Boolean(query.account) && (query.asked ? /fingerprint/.test(seen.where) : /Nothing about the file left this computer/.test(seen.where)), seen);
     }
   } finally {
     await close();

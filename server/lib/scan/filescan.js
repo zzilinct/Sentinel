@@ -285,7 +285,8 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup, part = null } =
     });
     const encrypted = entries.some((e) => e.encrypted);
     const isOffice = entries.some((e) => /^\[content_types\]\.xml$/i.test(e.name));
-    const isApk = entries.some((e) => e.name === 'AndroidManifest.xml');
+    // The Android SDK's own android.jar lists every permission there is. Measured on real software: 18 of its copies.
+    const isApk = ext !== 'jar' && entries.some((e) => e.name === 'AndroidManifest.xml');
     const disguised = risky.filter((e) => {
       const x = extOf(e.name.split('/').pop());
       return x.length >= 2 && L.DOC_EXT.has(x[x.length - 2]);
