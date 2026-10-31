@@ -2174,45 +2174,58 @@
 
   /* ========================================================== call check */
 
-  // "Is this call a scam?" for while someone is on the phone. The answer is worked out here, by callcheck.js, from what
-  // is ticked; nothing is sent or kept, so leaving the page forgets the call.
+  // "Is this call a scam?" for while someone is on the phone. The answer is always on screen and always true: it sits
+  // above the questions on a phone and beside them on a wide screen, and stays in view as the page scrolls. It is worked
+  // out here, by callcheck.js; nothing is sent or kept, so leaving the page forgets the call.
   function callView(el) {
     const C = window.SentinelCallCheck;
-    const picks = (list, name) => list.map((x) => `<label class="call__pick"><input type="checkbox" name="${name}" value="${x.id}"><span>${esc(x.label)}</span></label>`).join('');
+    const group = (heading, name, type, list, kind) => `
+      <fieldset class="call__group">
+        <legend><h2>${heading}</h2></legend>
+        <div class="call__picks call__picks--${kind}">${list.map((x) => `<label class="call__pick"><input type="${type}" name="${name}" value="${x.id}"><i class="call__tick call__tick--${type}" aria-hidden="true"></i><span>${esc(x.label)}</span></label>`).join('')}</div>
+      </fieldset>`;
     el.innerHTML = `
-      ${title('Is this call a scam?', 'On the phone right now? Tick what the caller is saying. Sentinel answers at once, on this device. Nothing you tick is sent anywhere or kept.')}
+      ${title('Is this call a scam?', 'On the phone right now? Tick what you hear. Nothing you tick is sent anywhere or kept.')}
       <form class="call" data-call>
-        <fieldset class="panel call__group">
-          <legend><h2>What are they asking for or saying?</h2><span>Tick everything that fits.</span></legend>
-          <div class="call__picks">${picks(C.ASKS, 'ask')}</div>
-        </fieldset>
-        <fieldset class="panel call__group">
-          <legend><h2>Who do they say they are?</h2></legend>
-          <div class="call__picks">${picks(C.WHO, 'who')}</div>
-        </fieldset>
-        <div class="call__answer" data-call-answer aria-live="polite"></div>
-        <button type="reset" class="btn btn--ghost btn--sm">Start over</button>
+        <div class="call__answer" data-call-answer aria-live="polite" aria-atomic="true">
+          <span class="call__mark" data-call-mark></span>
+          <p class="call__verdict"></p>
+          <p class="call__reason"></p>
+          <p class="call__next"></p>
+          <p class="call__more" hidden>Already did what they asked? <a href="/app/recover">Open the recovery guide</a>.</p>
+        </div>
+        <div class="call__asks">
+          ${group('Who called who?', 'rang', 'radio', C.RANG, 'list')}
+          ${group('Who do they say they are?', 'who', 'radio', C.WHO, 'chips')}
+          ${group('What do they want?', 'ask', 'checkbox', C.ASKS, 'chips')}
+          <button type="reset" class="btn btn--ghost btn--sm">Start over</button>
+        </div>
       </form>`;
     const form = $('[data-call]', el);
     const out = $('[data-call-answer]', el);
+    const put = (sel, text) => { const n = $(sel, out); if (n.textContent !== text) n.textContent = text; };
+    const SEAL = { hangup: 'red', callback: 'orange', hold: 'yellow' };
     const draw = () => {
-      const ticked = (name) => $$(`input[name="${name}"]:checked`, form).map((i) => i.value);
-      const r = C.judge(ticked('ask'), ticked('who'));
+      const ticked = new FormData(form);
+      const r = C.judge({ rang: ticked.get('rang'), who: ticked.get('who'), asks: ticked.getAll('ask') });
       const was = out.dataset.verdict;
-      out.dataset.verdict = r ? r.verdict : '';
-      // In the Windows app, only that the answer was "Hang up" goes to the app (an hour's pay pause sign, paypause.js).
-      if (r && r.verdict === 'hangup' && window.sentinelDesktop && window.sentinelDesktop.callHangUp) window.sentinelDesktop.callHangUp().catch(() => {});
-      out.innerHTML = !r ? '<p class="call__empty">Tick what the caller says, and the answer appears here.</p>'
-        : `<p class="call__verdict">${r.verdict === 'hangup' ? 'Hang up now.' : 'This is probably fine.'}</p>
-          <p class="call__reason">${esc(r.reason)}</p>
-          <p class="call__next"><b>What to do next:</b> ${esc(r.next)}</p>
-          ${r.happened.length ? `<p class="call__more">Already did what they asked? <a href="/app/recover?happened=${r.happened.join(',')}">Open the recovery guide</a> for every step, in order.</p>` : ''}`;
-      // The answer sits under both lists, below the screen on a phone: "Hang up now." is brought into view the moment
-      // it first appears. The focus stays on the box just ticked.
-      const big = $('.call__verdict', out);
-      if (big && r.verdict === 'hangup' && was !== 'hangup') {
-        const b = big.getBoundingClientRect();
-        if (b.top < 0 || b.bottom > innerHeight) big.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+      const from = out.offsetHeight;
+      out.dataset.verdict = r.verdict;
+      // In the Windows app, only that the answer became "Hang up" goes to the app (an hour's pay pause sign, paypause.js).
+      if (r.verdict === 'hangup' && was !== 'hangup' && window.sentinelDesktop && window.sentinelDesktop.callHangUp) window.sentinelDesktop.callHangUp().catch(() => {});
+      if (r.verdict !== was) $('[data-call-mark]', out).innerHTML = window.SentinelMasks.mark('scam', SEAL[r.verdict]);
+      put('.call__verdict', r.big);
+      put('.call__reason', r.reason);
+      put('.call__next', r.next);
+      $('.call__more', out).hidden = !r.happened.length;
+      if (r.happened.length) $('.call__more a', out).setAttribute('href', `/app/recover?happened=${r.happened.join(',')}`);
+      if (!was) return;
+      const grew = out.offsetHeight - from;
+      if (!grew) return;
+      // The answer sits above the boxes on a phone: when it changes height, the box under the finger stays where it is.
+      if (matchMedia('(max-width: 999px)').matches && scrollY > 0 && out.getBoundingClientRect().top < 40) scrollBy({ top: grew, behavior: 'instant' });
+      if (grew > 0 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        out.animate({ clipPath: [`inset(-40px 0 ${grew}px 0 round 26px)`, 'inset(-40px -40px -40px -40px round 26px)'] }, { duration: 460, easing: 'cubic-bezier(.3, 1.18, .5, 1)' });
       }
     };
     form.addEventListener('change', draw);

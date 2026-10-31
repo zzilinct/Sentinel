@@ -216,7 +216,7 @@ async function checkQaWeb() {
     /* ------------------------------------------- is this call a scam? */
     await part('call', async () => {
       await phone();
-      await goto(browser, s, `${base}/app/call`, "document.querySelector('[data-call-answer] .call__empty')");
+      await goto(browser, s, `${base}/app/call`, "document.querySelector('[data-call-answer] .call__verdict').textContent");
       await sleep(1200);
       await ev('scrollTo(0, 0), document.activeElement && document.activeElement.blur(), true');
       // Keyboard only: Tab until the "code" box has focus, then Space.
@@ -237,12 +237,13 @@ async function checkQaWeb() {
       result('qa-web: call, the box just ticked keeps the keyboard focus', Boolean(seen) && seen.focus === 'code', seen && seen.focus);
       const ax = await browser.send('Accessibility.getFullAXTree', {}, s);
       const boxes = ax.nodes.filter((n) => n.role && n.role.value === 'checkbox' && !n.ignored);
-      const unnamed = boxes.filter((n) => !(n.name && n.name.value));
+      const radios = ax.nodes.filter((n) => n.role && n.role.value === 'radio' && !n.ignored);
+      const unnamed = [...boxes, ...radios].filter((n) => !(n.name && n.name.value));
       const live = ax.nodes.some((n) => (n.properties || []).some((p) => p.name === 'live' && p.value.value === 'polite') && !n.ignored);
-      result('qa-web: call, a screen reader hears a name for every box and the answer is a live region', boxes.length === 14 && !unnamed.length && live, { boxes: boxes.length, unnamed: unnamed.length, live });
+      result('qa-web: call, a screen reader hears a name for every box and the answer is a live region', boxes.length === 11 && radios.length === 10 && !unnamed.length && live, { boxes: boxes.length, radios: radios.length, unnamed: unnamed.length, live });
       // Light theme: the answer is still readable.
       await ev("localStorage.setItem('sentinel:theme', 'light'), true");
-      await goto(browser, s, `${base}/app/call`, "document.querySelector('[data-call-answer] .call__empty')");
+      await goto(browser, s, `${base}/app/call`, "document.querySelector('[data-call-answer] .call__verdict').textContent");
       await sleep(1000);
       await clickAt('input[value="giftcards"]');
       await sleep(900);

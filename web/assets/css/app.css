@@ -834,25 +834,78 @@ select.input option { background: var(--surface-3); color: var(--text); }
 
 /* ---------------------------------------------- is this call a scam? */
 
-.call { display: grid; gap: 18px; justify-items: start; }
-.call > * { width: 100%; }
-.call > button { width: auto; }
-.call__group { margin: 0; min-width: 0; border: 0; }
-.call__group legend { float: left; width: 100%; padding: 0; margin-bottom: 14px; }
-.call__group legend h2 { margin: 0 0 2px; }
-.call__group legend span { color: var(--muted); }
-.call__picks { clear: both; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
-.call__pick { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--r-lg); background: var(--relief), var(--surface-2); box-shadow: var(--raise-sm); cursor: pointer; font-size: var(--t-lead); line-height: 1.45; }
-.call__pick:has(input:checked) { box-shadow: var(--raise-sm), inset 0 0 0 1px var(--gold-400); color: var(--text); }
-.call__pick input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--gold-400); }
-.call__answer { --c: var(--gold-400); padding: 26px 28px; border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), inset 4px 0 0 var(--c); }
-.call__answer[data-verdict="hangup"] { --c: var(--red); }
-.call__answer[data-verdict="fine"] { --c: var(--green); }
-.call__verdict { margin: 0 0 10px; font: 400 var(--t-d2)/var(--lh-display) var(--display); --track: var(--tr-display); color: var(--c); animation: call-land .35s var(--ease) both; }
-.call__reason { margin: 0 0 14px; font-size: var(--t-title-s); line-height: 1.45; color: var(--text); }
-.call__next { margin: 0; font-size: var(--t-lead); line-height: 1.5; }
-.call__more { margin: 14px 0 0; color: var(--muted); }
-.call__more a { color: var(--gold-300); text-decoration: underline; text-underline-offset: 3px; }
-.call__empty { margin: 0; font-size: var(--t-lead); color: var(--muted); }
-@keyframes call-land { from { opacity: 0; transform: translateY(6px); } }
-@media (prefers-reduced-motion: reduce) { .call__verdict { animation: none; } }
+.call { display: grid; gap: 28px; overflow-anchor: none; }
+.call__asks { display: grid; gap: 30px; justify-items: start; min-width: 0; }
+.call__asks > fieldset { width: 100%; }
+.call__group { margin: 0; padding: 0; min-width: 0; border: 0; }
+.call__group legend { float: left; width: 100%; padding: 0; margin-bottom: 12px; }
+.call__group legend h2 { margin: 0; font: 400 clamp(21px, 2.4vw, 25px)/1.2 var(--display); color: var(--text); }
+
+/* The answer: the same black lacquer and gold edge as the app's island, in both themes, so it reads the same anywhere. */
+.call__answer {
+  position: sticky; top: max(10px, env(safe-area-inset-top)); z-index: 5; isolation: isolate;
+  display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 14px; align-items: center;
+  max-height: calc(100dvh - 96px); overflow-y: auto; padding: 18px 20px 20px; border-radius: 26px;
+  background-color: #0b0906; color: #efe6d4;
+  background-image: linear-gradient(165deg, #231c12, #0b0906 62%);
+  box-shadow: 0 16px 36px rgb(0 0 0 / .38), inset 0 0 0 1px rgb(226 194 127 / .3), inset 0 1px 0 rgb(255 240 200 / .14);
+}
+.call__answer::before { content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0; background: linear-gradient(165deg, #7a1b1b, #320b0b 70%); transition: opacity .3s ease; }
+.call__answer[data-verdict="hangup"] { background-color: #320b0b; box-shadow: 0 16px 36px rgb(60 8 8 / .42), inset 0 0 0 1px rgb(255 190 170 / .34), inset 0 1px 0 rgb(255 225 215 / .18); }
+.call__answer[data-verdict="hangup"]::before { opacity: 1; }
+.call__mark { width: 52px; height: 52px; }
+.call__mark svg { display: block; width: 100%; height: 100%; }
+.call__verdict { margin: 0; font: 400 clamp(29px, 7.6vw, 33px)/1.1 var(--display); letter-spacing: -.01em; color: #f3dca4; text-wrap: balance; }
+.call__answer[data-verdict="hangup"] .call__verdict { color: #fff; animation: call-land-a .5s var(--lux-bounce, ease-out); }
+.call__answer[data-verdict="callback"] .call__verdict { animation: call-land-b .5s var(--lux-bounce, ease-out); }
+.call__answer[data-verdict="hangup"] .call__mark { animation: call-land-a .5s var(--lux-bounce, ease-out); }
+.call__answer[data-verdict="callback"] .call__mark { animation: call-land-b .5s var(--lux-bounce, ease-out); }
+.call__reason { grid-column: 1 / -1; margin: 12px 0 0; font-size: 17px; line-height: 1.4; color: #fff8ea; }
+.call__next { grid-column: 1 / -1; margin: 8px 0 0; font-size: 16px; line-height: 1.4; color: #dccfb6; }
+.call__answer[data-verdict="hangup"] .call__next { color: #f6dcd3; }
+.call__more { grid-column: 1 / -1; margin: 10px 0 0; font-size: 15px; color: #dccfb6; }
+.call__more[hidden] { display: none; }
+.call__more a { color: #f3dca4; text-decoration: underline; text-underline-offset: 3px; }
+
+/* The choices: short words, two to a row on a phone, big enough for a thumb while the other hand holds the phone. */
+.call__picks { clear: both; display: grid; gap: 10px; }
+.call__picks--chips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.call__pick {
+  position: relative; display: flex; gap: 10px; align-items: center; min-height: 58px; padding: 10px 12px; border-radius: var(--r-lg);
+  background: var(--relief), var(--surface-2); box-shadow: var(--raise-sm); cursor: pointer; font-size: 16px; line-height: 1.25; color: var(--text);
+  scroll-margin: 46dvh 0 96px; overflow-wrap: anywhere; -webkit-tap-highlight-color: transparent;
+}
+.call__picks--list .call__pick { padding: 12px 16px; min-height: 56px; }
+.call__pick input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.call__pick:has(input:checked) { box-shadow: inset 2px 3px 7px var(--lo), inset 0 0 0 1.5px var(--gold-400); }
+.call__pick:has(input:focus-visible) { outline: 2px solid var(--gold-400); outline-offset: 3px; }
+.call__tick { position: relative; flex: none; width: 24px; height: 24px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-gold); transition: background-color .15s ease; }
+.call__tick--checkbox { border-radius: 8px; }
+.call__tick::after { content: ""; position: absolute; opacity: 0; transform: scale(.4); transition: transform .34s var(--lux-bounce, ease-out), opacity .1s ease; }
+.call__tick--checkbox::after { left: 8px; top: 4px; width: 8px; height: 13px; border: solid #17120a; border-width: 0 2.5px 2.5px 0; transform: rotate(40deg) scale(.4); }
+.call__tick--radio::after { inset: 7px; border-radius: 50%; background: #17120a; }
+input:checked + .call__tick { background-color: var(--gold-400); box-shadow: none; }
+input:checked + .call__tick::after { opacity: 1; transform: scale(1); }
+input:checked + .call__tick--checkbox::after { transform: rotate(40deg) scale(1); }
+
+@media (min-width: 520px) { .call__picks--chips { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
+@media (min-width: 1000px) {
+  .call { grid-template-columns: minmax(0, 1fr) 372px; gap: 40px; align-items: start; }
+  .call__answer { grid-column: 2; grid-row: 1; top: 28px; grid-template-columns: minmax(0, 1fr); padding: 28px 30px 30px; max-height: none; overflow: visible; }
+  .call__mark { width: 84px; height: 84px; margin-bottom: 14px; }
+  .call__verdict { font-size: 40px; }
+  .call__reason { margin-top: 16px; font-size: 19px; }
+  .call__next { margin-top: 12px; font-size: 17px; }
+  .call__asks { grid-column: 1; grid-row: 1; }
+}
+/* A phone on its side: the answer keeps its big words and what to do, and leaves the room for the boxes. */
+@media (max-height: 520px) and (max-width: 999px) {
+  .call__reason { display: none; }
+  .call__pick { scroll-margin-top: 62dvh; }
+}
+@keyframes call-land-a { from { opacity: .35; transform: scale(.93); } }
+@keyframes call-land-b { from { opacity: .35; transform: scale(.95); } }
+@media (prefers-reduced-motion: reduce) {
+  .call__verdict, .call__mark { animation: none !important; }
+  .call__answer::before, .call__tick, .call__tick::after { transition: none; }
+}
