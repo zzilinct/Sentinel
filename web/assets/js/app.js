@@ -1385,7 +1385,7 @@
     const f = plan().features;
     if (!f.emailManual) {
       el.innerHTML = `${title('Email scan', 'Paste a suspicious email and Sentinel checks the sender, wording, every link and every attachment.')}
-        ${lockedCard({ tag: 'Max', heading: 'Scan any email you paste in, or a screenshot of one', body: `Pasting emails and screenshots in is part of Sentinel Max. ${f.emailLive ? 'Your Pro plan already marks emails automatically in Gmail and Outlook through the Sentinel app.' : 'Pro, Max and Ultimate also mark emails automatically in Gmail and Outlook.'}`, actions: '<a class="btn btn--gold" href="/app/plan">Upgrade to Max</a>' })}`;
+        ${lockedCard({ tag: 'Max', heading: 'Scan any email you paste in, or a screenshot of one', body: `Pasting emails and screenshots in is part of Sentinel Max. ${f.emailLive ? 'Your Pro plan already marks emails automatically in Gmail and Outlook through the Sentinel app.' : 'Pro, Max and Ultimate also mark emails automatically in Gmail and Outlook.'}`, actions: `<a class="btn btn--gold" href="/app/plan">${state.config.billingMode === 'demo' ? 'Upgrade to Max' : 'See the plans'}</a>` })}`;
       return;
     }
     el.innerHTML = `
@@ -3121,15 +3121,8 @@
   function planView(el) {
     const current = plan().id;
     const us = usage();
-    const demo = state.config.billingMode === 'demo';
-    const lines = {
-      free: ['10 fast link scans a week', '5 virus & malware scans a week', '15 minutes of fast live scanning a week', 'Known threats + full checklist', 'Scam mask on link scans', 'Models older than the newest five'],
-      pro: ['24 hours of fast live scanning a week', '4 hours of delicate live scanning a week', '200 fast and 40 delicate link scans', '40 virus & malware scans', 'All three masks', 'Email & download protection',
-        'Newest three models: 18 h fast, 3 h delicate live; 150 fast, 30 delicate and 30 virus & malware scans'],
-      max: ['Unlimited fast live scanning', '24 hours of delicate live scanning a week', '1,000 fast and 100 delicate link scans', '100 virus & malware scans', 'Paste-in email scans',
-        'Every model, in full'],
-      ultimate: ['Unlimited fast live scanning', '96 hours of delicate live scanning a week', 'Unlimited fast and 500 delicate link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max', 'Every model, in full']
-    };
+    const { billingMode } = state.config;
+    const demo = billingMode === 'demo';
     el.innerHTML = `
       ${title('Plan &amp; usage', `You are on <b>${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
       ${demo ? '<div class="banner"><div><b>Demo billing.</b> Plan changes are instant and free on this server. No payment is taken.</div></div>' : ''}
@@ -3140,18 +3133,10 @@
       </div>
       <div class="u-mt-lg">${modelSlot(false)}</div>
       <div class="panel u-mt"><h2>The models</h2><p class="muted u-mt-xs">Every major version of Sentinel is a model, named for a guardian from myth. Turn one over to read about it.</p><div class="u-mt">${guardiansHTML()}</div></div>
-      <div class="plans u-mt-lg">${state.plans.map((p) => `
-        <article class="plan${p.id === 'pro' ? ' plan--featured' : ''}${p.id === current ? ' is-current' : ''}">
-          ${p.id === current ? '<span class="plan__badge">Current</span>' : ''}
-          <div class="plan__name">${esc(p.name)}</div>
-          <div class="plan__price"><b>$${p.price}</b><span>${p.price ? '/ month' : 'forever'}</span></div>
-          <button class="btn btn--block ${p.id !== 'free' ? 'btn--gold' : ''}" data-plan="${p.id}" ${p.id === current ? 'disabled' : ''}>${p.id === current ? 'Your plan' : p.price < (state.plans.find((x) => x.id === current) || { price: 0 }).price ? `Switch to ${esc(p.name)}` : `Upgrade to ${esc(p.name)}`}</button>
-          <ul class="plan__list">${lines[p.id].map((l) => `<li>${ICON.check}<span>${esc(l)}</span></li>`).join('')}</ul>
-        </article>`).join('')}
-      </div>`;
+      <div class="u-mt-lg">${window.SentinelPlanbook.ledger(state.plans, { billingMode, current: plan() })}</div>`;
 
     mountModels(el);
-    $$('[data-plan]', el).forEach((b) => b.addEventListener('click', () => busy(b, 'Updating', async () => {
+    $$('button[data-plan]', el).forEach((b) => b.addEventListener('click', () => busy(b, 'Updating', async () => {
       try {
         const data = await api('/billing/plan', { method: 'POST', body: { plan: b.dataset.plan } });
         state.me = { ...state.me, user: data.user, plan: data.plan, usage: data.usage, week: data.week };

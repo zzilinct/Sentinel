@@ -416,9 +416,11 @@
 
   const finder = $('[data-finder]');
   if (finder) {
-    const pricing = $('[data-pricing]');
-    const state = { live: true, hours: 20, email: false };
+    const ledger = finder.closest('[data-pricing]');
+    const plans = JSON.parse(finder.dataset.plans);
     const hours = $('[data-f-hours]', finder);
+    // It starts on the plan a person can have today, and the slider where the browser kept it after back or reload.
+    const state = { live: false, hours: Number(hours.value), email: false };
     const hoursOut = $('[data-f-hours-out]', finder);
     const hoursRow = $('[data-f-hours-row]', finder);
     const answer = $('[data-f-answer]', finder);
@@ -451,31 +453,16 @@
       hours.disabled = !state.live;
       hoursRow.classList.toggle('is-muted', !state.live);
 
-      let pick;
-      let why;
-      if (!state.live && !state.email) {
-        pick = 'free';
-        why = '10 link scans and 5 virus &amp; malware scans a week cover the odd link you&rsquo;re unsure about.';
-      } else if (state.email || state.hours > 24) {
-        // Fast live scanning has no weekly limit from Max up; Pro's is 24 hours.
-        pick = 'max';
-        why = state.email
-          ? 'pasting emails in for a full scan is part of Max, fast live scanning has no weekly limit, and 24 hours a week of delicate scanning research every result.'
-          : `at around ${state.hours} hours a week you&rsquo;d outgrow Pro&rsquo;s 24 hours of fast scanning. Max has no weekly limit on it, and 24 hours of delicate scanning. Ultimate raises delicate to 96.`;
-      } else {
-        pick = 'pro';
-        why = `its 24 hours a week of fast live scanning cover your ${state.hours}, with 4 hours of delicate scanning for the searches that matter. Minutes only count while Sentinel is actually checking something.`;
-      }
-      answer.innerHTML = `<b>${{ free: 'Free', pro: 'Pro', max: 'Max', ultimate: 'Ultimate' }[pick]}</b> fits best. ${why.charAt(0).toUpperCase()}${why.slice(1)}`;
-
-      $$('[data-plan-card]', pricing).forEach((card) => {
-        const on = card.dataset.planCard === pick;
-        card.classList.toggle('is-recommended', on);
-        const badge = $('.plan__pick', card);
-        if (on && !badge) card.insertAdjacentHTML('afterbegin', '<span class="plan__pick">Best for you</span>');
-        if (!on && badge) badge.remove();
-      });
-      pricing.classList.add('has-pick');
+      // The cheapest plan that covers it (the server lists them in order of price; null is no weekly limit).
+      const covers = (p) => (!state.email || p.email) && (!state.live || p.fast === null || p.fast >= state.hours * 60);
+      const pick = plans.find(covers) || plans[plans.length - 1];
+      const free = plans[0];
+      answer.innerHTML = pick === free || pick.sale
+        ? `<b>${pick.name}</b> covers that: ${pick.says}`
+        : `<b>${pick.name}</b> would cover that, but it is not on sale yet. ${free.name} still gives you ${free.says}`;
+      // The lens over the table springs to this plan (.ledger__lens); the column's words light with it.
+      ledger.dataset.pick = pick.id;
+      ledger.style.setProperty('--pick', plans.indexOf(pick));
     }
     update();
   }

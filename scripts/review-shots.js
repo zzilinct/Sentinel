@@ -452,7 +452,7 @@ async function main() {
         const { result: m3 } = await send('Runtime.evaluate', { returnByValue: true, expression: "[!!window.SentinelMask3D, document.querySelectorAll('.mask3d--ready').length, document.querySelectorAll('[data-mask3d]').length].join(' ')" }, sessionId);
         console.log(`3D masks (loaded, ready, total): ${m3.value}`);
       }
-      for (const [name, sel, fx, fy] of [['gold-button', '.hero__cta .btn--gold', 0.25, 0.4], ['plan', '.plan--featured', 0.15, 0.12], ['kind', '.kind', 0.05, 0.5], ['footer-link', '.footer ul a', 0.02, 0.5], ['stat', '.stat', 0.85, 0.2]]) {
+      for (const [name, sel, fx, fy] of [['gold-button', '.hero__cta .btn--gold', 0.25, 0.4], ['plan', '.ledger', 0.15, 0.12], ['kind', '.kind', 0.05, 0.5], ['footer-link', '.footer ul a', 0.02, 0.5], ['stat', '.stat', 0.85, 0.2]]) {
         const r = await rect(sel);
         if (!r) continue;
         await move(r.x - 30, r.y + r.h * fy, 4);

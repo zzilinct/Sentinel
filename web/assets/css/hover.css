@@ -15,7 +15,7 @@
 
 /* A raised surface lit by the pointer: the highlight comes from the pointer's side, the shadow falls away from it.
    It is the same relief as at rest (lux.css), only with the light moved. */
-.hv :is(.btn, .chip-q, .chip, .fchip, .card, .tile, .plan, .stat, .answer, .plate__info, .finder__q, .finder__answer, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .panel, .feature, .usage-list, .models--bar) {
+.hv :is(.btn, .chip-q, .chip, .fchip, .card, .tile, .ledger, .stat, .answer, .plate__info, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .panel, .feature, .usage-list, .models--bar) {
   transition: box-shadow .45s var(--ease-out), transform .2s var(--ease), color .2s, background-color .3s;
 }
 .hv .is-lit {
@@ -23,10 +23,10 @@
   --raise-sm: calc(var(--lx) * 5px) calc(var(--ly) * 5px) 11px var(--hi, var(--neu-hi)), calc(var(--lx) * -8px + 1px) calc(var(--ly) * -8px + 2px) 16px var(--lo, var(--neu-lo)), inset calc(var(--lx) * 1px) calc(var(--ly) * 1px) 0 rgb(255 240 215 / .09);
 }
 /* ...and a soft pool of light where the pointer is. The app's panels have their own (app-lux.css). */
-.hv .is-lit:is(.card, .tile, .plan, .stat, .answer, .plate__info, .finder__q, .finder__answer, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .btn, .chip-q, .models--bar) {
+.hv .is-lit:is(.card, .tile, .ledger, .stat, .answer, .plate__info, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .btn, .chip-q, .models--bar) {
   background-image: radial-gradient(280px circle at var(--mx) var(--my), rgb(255 232 190 / .075), transparent 65%), var(--relief);
 }
-.hv .plan:hover, .hv .answer:not([disabled]):hover, .hv .kind:hover { transform: none; }
+.hv .answer:not([disabled]):hover, .hv .kind:hover { transform: none; }
 
 /* ------------------------------------------------------------ liquid gold */
 
@@ -52,9 +52,9 @@
 
 /* The wordmark's letters brighten as the lamp passes over them, and its light turns toward the pointer. */
 .hv .hero__word span { background-image: linear-gradient(var(--sheen), var(--metal-stops)); filter: brightness(calc(1 + var(--near) * .45)) saturate(calc(1 + var(--near) * .25)); transition: --near .35s linear; }
-/* Medallion numbers and prices: the band of light circles round as the pointer circles the medallion. */
-.hv .is-sheen :is(.stat__n, .plan__price b) { background-image: linear-gradient(var(--sheen), var(--metal-stops)); }
-.hv :is(.stat, .plan) { transition: box-shadow .45s var(--ease-out), --sheen .6s var(--ease-out); }
+/* Medallion numbers: the band of light circles round as the pointer circles the medallion. */
+.hv .is-sheen .stat__n { background-image: linear-gradient(var(--sheen), var(--metal-stops)); }
+.hv .stat { transition: box-shadow .45s var(--ease-out), --sheen .6s var(--ease-out); }
 
 /* ------------------------------------------------------------------ ink */
 

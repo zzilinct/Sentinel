@@ -167,9 +167,9 @@
     }
   }
 
-  const BLOCKS = 'header, .nav, .side, .panel, .tile, .card, .plan, .plate, .usage-list, .usage-mini, .scanbox, .locked, .feature, .result, .verify-bar, .banner, .footer, .vframe, .demo, .specimen, .tiles3 > *, .stat, .medallion, table';
+  const BLOCKS = 'header, .nav, .side, .panel, .tile, .card, .ledger, .plate, .usage-list, .usage-mini, .scanbox, .locked, .feature, .result, .verify-bar, .banner, .footer, .vframe, .demo, .specimen, .tiles3 > *, .stat, .medallion, table';
   const CONTROLS = '.btn, button, input, textarea, select, .chip, .fchip, .side__link, .side__search, .theme-toggle, .seg__btn';
-  const TYPE = 'h1, h2, h3, h4, .logo, .kicker, [data-hero-word], .page-title h1, .usage-row__n, .plan__price b';
+  const TYPE = 'h1, h2, h3, h4, .logo, .kicker, [data-hero-word], .page-title h1, .usage-row__n, .ledger__price b';
 
   function collect() {
     // Containers and frames.

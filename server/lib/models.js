@@ -141,5 +141,5 @@ function freeLockApplies() { const free = newestFree(); return Boolean(enabled()
 /** A published release, for the app's installer (desktop/src/models.js checks it again against GitHub itself). */
 const release = (v) => versions().find((r) => r.version === v) || null;
 
-module.exports = { NAMES, nameFor, label, enabled, versions, newest, isNewest, paidOnly, isPaidOnly, newestFree, freeLocked, catalogue, release, refresh, own: () => OWN,
+module.exports = { NEWEST_LIMITED, NEWEST_PAID, NAMES, nameFor, label, enabled, versions, newest, isNewest, paidOnly, isPaidOnly, newestFree, freeLocked, catalogue, release, refresh, own: () => OWN,
   _test: { cmp, set: (list) => { releases = list; fetchedAt = Date.now(); } } };

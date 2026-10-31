@@ -224,15 +224,13 @@ html.lux-app[data-theme="light"] {
 
 @media (hover: hover) and (pointer: fine) {
   /* A light that follows the pointer across panels (app-lux.js sets --mx and --my). */
-  .lux-app :is(.panel, .usage-list, .locked, .feature, .plans .plan) { position: relative; }
-  .lux-app :is(.panel, .usage-list, .locked, .feature, .plans .plan)::after {
+  .lux-app :is(.panel, .usage-list, .locked, .feature) { position: relative; }
+  .lux-app :is(.panel, .usage-list, .locked, .feature)::after {
     content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 1; mix-blend-mode: screen;
     background: radial-gradient(320px circle at var(--mx, 50%) var(--my, -200px), rgb(var(--gold-rgb) / .1), transparent 70%);
     opacity: 0; transition: opacity .4s ease;
   }
-  .lux-app :is(.panel, .usage-list, .locked, .feature, .plans .plan):hover::after { opacity: 1; }
-  .lux-app .plans .plan { transition: transform .35s var(--lux-out), box-shadow .35s var(--lux-out); }
-  .lux-app .plans .plan:hover { transform: translateY(-4px); }
+  .lux-app :is(.panel, .usage-list, .locked, .feature):hover::after { opacity: 1; }
 
   /* Sidebar: a gold thread grows beside the link under the pointer, and its icon steps forward. */
   .lux-app .side__link::before { content: ''; position: absolute; left: -2px; top: 9px; bottom: 9px; width: 2px; border-radius: 2px; background: var(--gold-300);

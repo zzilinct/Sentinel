@@ -37,7 +37,7 @@
   /* ------------------------------------------------------ entrances */
 
   // Tiles, cards and icon grids pop in on a short spring instead of their page's entrance.
-  const TILES = '.usage-list > *, .feature-grid > .feature, .plans > .plan, [data-checkup-out] .list > li';
+  const TILES = '.usage-list > *, .feature-grid > .feature, [data-checkup-out] .list > li';
   const PARTS = `.page-title, .verify-bar, .banner, .scanbox, .drop, .panel:not(.scanning), .usage-mini, .locked, .grid2 > *, .list > li, .result, .ai-tab, .empty, .live, ${TILES}`;
   const STAGE_MS = 1800;   // parts arriving later than this after a page change simply appear
   const MAX_ROWS = 40;     // a longer list enters as one piece
@@ -300,7 +300,7 @@
   /* ------------------------------------------------- pointer light */
 
   if (fine) {
-    const LIT = '.panel, .usage-list, .locked, .feature, .plans .plan';
+    const LIT = '.panel, .usage-list, .locked, .feature';
     let pending = null;
     addEventListener('pointermove', (e) => {
       if (pending) { pending.e = e; return; }

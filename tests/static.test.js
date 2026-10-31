@@ -67,7 +67,8 @@ test('static build: --launched wires every link to the live origin', () => {
   const { read, hrefs } = build(['--launched']);
   const home = read('index.html');
   assert.ok(!home.includes('class="prelaunch"'));
-  assert.ok(hrefs(home).some((h) => h === `${brand.origin}/signup?plan=pro`), 'plan buttons reach the live signup');
+  assert.ok(hrefs(home).some((h) => h === `${brand.origin}/signup`), 'Start free reaches the live signup');
+  assert.ok(!hrefs(home).some((h) => /plan=/.test(h)), 'a static site sells no plan, even launched: it has no billing');
   assert.ok(hrefs(home).some((h) => h === `${brand.origin}/app`));
 });
 

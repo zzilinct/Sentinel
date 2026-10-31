@@ -256,7 +256,9 @@ function setPlan(userId, planId) {
 }
 
 function publicPlans() {
-  return Object.values(PLANS).map(({ id, name, price, limits, features }) => ({ id, name, price, limits, features, newestModelLimits: NEWEST_LIMITS[id] ? { ...limits, ...NEWEST_LIMITS[id] } : null }));
+  return Object.values(PLANS).map(({ id, name, price, limits, features }) => ({ id, name, price, limits, features,
+    newestModelLimits: NEWEST_LIMITS[id] ? { ...limits, ...NEWEST_LIMITS[id] } : null,
+    modelRule: id === 'free' ? { olderThan: models.NEWEST_PAID } : NEWEST_LIMITS[id] ? { limitedOn: models.NEWEST_LIMITED } : null }));
 }
 
 module.exports = { NEWEST_LIMITS, planFor, consume, trackLive, usageSummary, setPlan, publicPlans, weekStart, weekResetsAt, liveMinutesUsed, fastMinutesUsed };

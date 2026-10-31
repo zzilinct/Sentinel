@@ -205,17 +205,6 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 
 .sec-pricing { background: radial-gradient(60% 50% at 50% 60%, rgb(var(--gold-rgb) / .07), transparent 70%); }
 .section--band::before { display: none; }
-.plan { border-radius: 26px 26px 26px 26px; padding-top: 40px; }
-.plan::after { content: ''; position: absolute; inset: 9px; border-radius: 19px; border: 1px solid rgb(var(--gold-rgb) / .12); pointer-events: none; }
-.plan--featured::after { border-color: rgb(var(--gold-rgb) / .5); }
-.plan__name { font: 400 var(--t-title-s) var(--display); color: var(--gold-400); }
-.plan__price b { background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.plan:hover { transform: translateY(-6px); }
-.finder { gap: 14px; background: none; box-shadow: none; overflow: visible; }
-.finder__q, .finder__answer { border-radius: 20px; background: var(--relief), var(--surface); box-shadow: var(--raise-sm); }
-.seg-toggle { border-radius: 14px; background: transparent; box-shadow: var(--press); }
-.seg-toggle button { border-radius: 10px; }
-.seg-toggle button[aria-checked="true"] { background: var(--relief), var(--surface-3); box-shadow: var(--raise-sm); }
 
 /* --------------------------------------------------- XI. the vault */
 

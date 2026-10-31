@@ -22,11 +22,11 @@
   root.classList.add('hv');
   const clamp = (v, a = -1, b = 1) => Math.max(a, Math.min(b, v));
 
-  const LAMP = '.btn:not(.btn--gold):not(.btn--ghost), .chip-q:not([aria-selected="true"]), .chip, .fchip, .card, .tile, .plan, .stat, .answer, .plate__info, .finder__q, .finder__answer, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .panel, .feature, .usage-list, .models--bar';
+  const LAMP = '.btn:not(.btn--gold):not(.btn--ghost), .chip-q:not([aria-selected="true"]), .chip, .fchip, .card, .tile, .ledger, .stat, .answer, .plate__info, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .panel, .feature, .usage-list, .models--bar';
   const GOLD = '.btn--gold, .chip-q[aria-selected="true"], .seg__btn.is-on';
-  const SHEEN = '.stat, .plan';
+  const SHEEN = '.stat';
   const INK = '.footer ul a, .legal-links a, .prose a, .nav__links a, .auth__switch a, .pricing__note a, .scan-meta a, .side__foot a';
-  const TRACE = '.answer, .kind, .faq details, .vault__item, .finder__q, .step, .rail a, .models__opt, .list li.is-link, .usage-link, .severity button, .stage__chips .chip-q';
+  const TRACE = '.answer, .kind, .faq details, .vault__item, .step, .rail a, .models__opt, .list li.is-link, .usage-link, .severity button, .stage__chips .chip-q';
 
   let px = -1e5;
   let py = -1e5;

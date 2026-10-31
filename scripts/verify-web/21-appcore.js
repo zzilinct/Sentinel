@@ -207,11 +207,11 @@ async function checkAppCore() {
     await setFile('[data-file]', harmless);
     const fileLimit = await until(browser, s, "(() => { const b = document.querySelector('[data-out] .banner'); return b && b.innerText.trim(); })()", 10000);
     result('appcore: a 6th file scan on Free says the week\'s scans are used, in words', /used all 5 virus/.test(fileLimit || ''), fileLimit);
-    const planMs = await open('/app/plan', "document.querySelector('.plans')");
-    const planInfo = await evalIn(browser, s, "({ cards: [...document.querySelectorAll('.usage-list .usage-row, .usage-list > *')].map((c) => c.innerText.replace(/\\s+/g, ' ').trim().slice(0, 80)), current: document.querySelector('.plan.is-current .plan__name').textContent })");
+    const planMs = await open('/app/plan', "document.querySelector('.ledger')");
+    const planInfo = await evalIn(browser, s, "({ cards: [...document.querySelectorAll('.usage-list .usage-row, .usage-list > *')].map((c) => c.innerText.replace(/\\s+/g, ' ').trim().slice(0, 80)), current: document.querySelector('.ledger').dataset.pick === 'free' ? 'Free' : '' })");
     result('appcore: Plan & usage shows what is left of each allowance, here none', planInfo.current === 'Free' && planInfo.cards.some((c) => /\b0\b/.test(c)), { ms: planMs, ...planInfo });
     await clickSel(browser, s, '[data-plan=pro]');
-    const upgraded = await until(browser, s, "(document.querySelector('.plan.is-current .plan__name') || {}).textContent === 'Pro' && document.querySelector('.side [data-plan]').textContent", 10000);
+    const upgraded = await until(browser, s, "(document.querySelector('.ledger') || { dataset: {} }).dataset.pick === 'pro' && document.querySelector('.side [data-plan]').textContent", 10000);
     await open('/app/scan', "document.querySelector('.scanbox input')");
     await clickSel(browser, s, '[data-scan-mode=delicate]');
     // A well-known, verified site skips research, so a delicate scan of it counts as a fast one.

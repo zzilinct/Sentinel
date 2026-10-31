@@ -21,6 +21,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const WEB = path.join(ROOT, 'web');
+const planbook = require('../web/assets/js/planbook');
 
 const args = process.argv.slice(2);
 const argOf = (name, fallback) => {
@@ -49,6 +50,9 @@ function copyDir(from, to) {
 function expandIncludes(file) {
   const html = fs.readFileSync(file, 'utf8');
   return html.replace(/<!--\s*@include\s+([a-z0-9-]+)\s*-->/g, (_, name) => {
+    // A static host has no billing at all, whatever this machine's server would do.
+    const planned = planbook.include(name, require('../server/lib/plans').publicPlans(), 'disabled');
+    if (planned !== undefined) return planned;
     const partial = path.join(WEB, 'partials', `${name}.html`);
     return fs.existsSync(partial) ? fs.readFileSync(partial, 'utf8') : '';
   });
