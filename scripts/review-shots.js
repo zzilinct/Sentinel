@@ -961,7 +961,8 @@ async function desktopCards(send) {
     ['guard-typed', url('guard', { mode: 'typed', happened: 'password,card', site: 'paypal-account-verify-login.test' })],
     ['guard-pause', url('guard', { mode: 'pause', kind: 'gift', sign: 'remote' })],
     ['filescan-found', url('filescan', { name: `${'Invoice for the garden and parking works '.repeat(3).trim()}.pdf.exe`, size: '734003', badge: 'red', label: 'Dangerous file',
-      found: ['A program hiding behind a document name (.pdf.exe)', 'Downloads and runs another program', 'Turns off Windows security settings', long].join('\n') })]
+      found: ['A program hiding behind a document name (.pdf.exe)', 'Downloads and runs another program', 'Turns off Windows security settings', long].join('\n') })],
+    ['filescan-part', url('filescan', { name: 'ZoomInstallerFull.exe', size: '188743680', badge: 'part', label: 'Partly checked', why: 'Sentinel read the start and end of this file, not the middle.' })]
   ];
   // The screen's height in DIP less a 48 px taskbar: 1366x768 at 100%, 1366x768 at 125%, 1920x1080 at 150%.
   const SCREENS = [['100', 1, Math.floor(768 / 1) - 48], ['125', 1.25, Math.floor(768 / 1.25) - 48], ['150', 1.5, Math.floor(1080 / 1.5) - 48]];

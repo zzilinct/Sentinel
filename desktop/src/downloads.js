@@ -14,10 +14,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { Worker } = require('worker_threads');
-const { scanFile, MAX_FILE_BYTES } = require('../shared/filescan');
+const { scanPath, END_BYTES } = require('../shared/filescan');
 const source = require('./source');
 
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
+const SIGNABLE = /\.(exe|msi|msix|msixbundle|appx|appxbundle)$/i;
 const SETTLE_MS = 2500;
 
 let opts = null;
@@ -115,12 +116,12 @@ function analyze(file, name, known) {
         resolve(analyze(file, name, known));
         return;
       }
-      const timer = setTimeout(() => { worker.terminate(); reject(new Error('the scan took too long')); }, 60000);
+      const timer = setTimeout(() => { worker.terminate(); reject(Object.assign(new Error('the scan took too long'), { timedOut: true })); }, 60000);
       worker.once('message', (m) => { clearTimeout(timer); worker.terminate(); if (m.error) reject(new Error(m.error)); else resolve(m.report); });
       worker.once('error', (err) => { clearTimeout(timer); reject(err); });
     });
   }
-  return Promise.resolve(scanFile(fs.readFileSync(file), name, { lookupHash: () => known }));
+  return Promise.resolve().then(() => scanPath(file, name, { lookupHash: () => known }));
 }
 
 function log(text) { if (opts && opts.log) opts.log(text); }
@@ -136,18 +137,17 @@ async function scan(full, stat) {
   seenHashes.set(sha256, full);
   if (seenHashes.size > 2000) seenHashes.clear();
 
-  let known = null;
-  try {
-    const r = await api('/api/v1/live/file-hash', { sha256 });
-    if (r.known) known = { threat: r.threat, name: r.name || 'Known malicious file', source: 'sentinel' };
-  } catch { /* offline: local analysis still runs */ }
-
-  // Large files: the hash lookup only.
+  const { known, offline } = await lookUp(sha256);
   let report = null;
-  if (stat.size <= MAX_FILE_BYTES) {
-    try { report = await analyze(full, name, known); } catch (err) { log(`download scan of ${name} failed: ${err.message}`); }
+  let failure = null;
+  try { report = await analyze(full, name, known); } catch (err) { failure = err; log(`download scan of ${name} failed: ${err.message}`); }
+  const threats = summarize(report, known, { failure, offline });
+  // Sentinel read only the ends of this file. Windows reads all of it to check a signature, and a valid one outranks a
+  // guess from those ends, as it does in Defense. It stays partly checked: Sentinel did not read the middle.
+  if (threats.looked === 'part' && threats.badge !== 'red' && SIGNABLE.test(name) && opts.signedBy) {
+    const publisher = await opts.signedBy(full).catch(() => null);
+    if (publisher) Object.assign(threats, { badge: null, label: 'Partly checked', reason: `Signed by ${publisher}, and unchanged since. ${READ_ENDS}` });
   }
-  const threats = summarize(report, known);
   const origin = await checkSource(full, name, report).catch(() => null);
   const rank = { yellow: 1, orange: 2, red: 3 };
   if (origin && (rank[origin.badge] || 0) > (rank[threats.badge] || 0)) Object.assign(threats, origin);
@@ -157,6 +157,7 @@ async function scan(full, stat) {
     name,
     path: full,
     size: stat.size,
+    read: Math.min(1, END_BYTES * 2 / stat.size),   // of the file, when it was partly read
     sha256,
     scannedAt: Date.now(),
     ...threats
@@ -207,6 +208,14 @@ async function checkSource(full, name, report) {
   return flag;
 }
 
+/** The list of known threats, asked by hash. offline: it could not be reached; the analysis on this computer still runs. */
+async function lookUp(sha256) {
+  try {
+    const r = await api('/api/v1/live/file-hash', { sha256 });
+    return { known: r.known ? { threat: r.threat, name: r.name || 'Known malicious file', source: 'sentinel' } : null, offline: false };
+  } catch { return { known: null, offline: true }; }
+}
+
 function hashStream(file) {
   return new Promise((resolve, reject) => {
     const h = crypto.createHash('sha256');
@@ -214,8 +223,16 @@ function hashStream(file) {
   });
 }
 
-/** Same scoring rules as the server: evidence -> red, 55+ orange, 30+ yellow; no record -> 15% lower. */
-function summarize(report, known) {
+const READ_ENDS = 'Sentinel read the start and end of this file, not the middle.';
+const NOT_LISTED = 'Sentinel read all of it, but could not reach its list of known threats.';
+
+/**
+ * Same scoring rules as the server: evidence -> red, 55+ orange, 30+ yellow; no record -> 15% lower.
+ * looked says how much stands behind the answer, whatever the answer: 'all' (every byte read and the list of known
+ * threats asked), 'part' or 'none'. Finding nothing is "No threats found" only with 'all'. A hash that is not on the
+ * list is not looking: on its own it leaves 'none'.
+ */
+function summarize(report, known, { failure = null, offline = false } = {}) {
   const totals = { virus: 0, malware: 0 };
   const evidence = { virus: null, malware: null };
   let reason = '';
@@ -238,13 +255,20 @@ function summarize(report, known) {
     if (badge && (!worst || rank[badge] > rank[out[worst].badge])) worst = t;
   }
   const labels = { virus: { yellow: 'Possible virus', orange: 'Likely virus', red: 'Virus detected' }, malware: { yellow: 'Possible malware', orange: 'Likely malware', red: 'Malware detected' } };
-  return {
-    virus: out.virus,
-    malware: out.malware,
-    badge: worst ? out[worst].badge : null,
-    label: worst ? labels[worst][out[worst].badge] : 'No threats found',
-    reason
-  };
+  const looked = !report ? 'none' : report.part || offline ? 'part' : 'all';
+  let label = 'No threats found';
+  if (worst) label = labels[worst][out[worst].badge];
+  else if (looked === 'none') {
+    label = 'Not checked';
+    reason = failure && failure.timedOut ? 'The check took too long and was stopped.' : 'Sentinel could not open this file. It may have been moved, or another program may be using it.';
+  } else if (looked === 'part') {
+    label = 'Partly checked';
+    reason = report.part ? READ_ENDS : NOT_LISTED;
+  } else if (report.size === 0) {
+    label = 'Empty file';
+    reason = 'There is nothing in this file to check.';
+  }
+  return { virus: out.virus, malware: out.malware, badge: worst ? out[worst].badge : null, label, reason, looked };
 }
 
 /** Move a file, also across drives: a rename cannot leave its drive (EXDEV), so the file is copied and then removed. */
@@ -270,4 +294,4 @@ async function quarantine(id) {
   return { ok: true, movedTo: target };
 }
 
-module.exports = { init, restart, stop, status, recent: () => recent.map(({ path: p, ...rest }) => ({ ...rest, folder: path.dirname(p) })), quarantine, summarize, analyze, _test: { checkSource, configure: (o) => { opts = o; } } };
+module.exports = { init, restart, stop, status, recent: () => recent.map(({ path: p, ...rest }) => ({ ...rest, folder: path.dirname(p) })), quarantine, summarize, analyze, lookUp, hashStream, _test: { scan, checkSource, configure: (o) => { opts = o; } } };

@@ -1372,7 +1372,6 @@
     // A file chosen with "Scan with Sentinel" in the Windows right-click menu, handed over once by the app.
     if (desktop && desktop.takeMenuFile) desktop.takeMenuFile().then((m) => {
       if (!m || !el.isConnected) return;
-      if (!m.data) { toast(`${m.name} is too big. Files up to 25 MB can be scanned.`, 'error'); return; }
       scanFile(new File([m.data], m.name));
       // The answer is what the person came for: below the drop zone it was out of sight.
       out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -2798,6 +2797,24 @@
     });
   }
 
+  // Most in need of the person first: flagged, then the files Sentinel could not stand behind.
+  const downloadRank = (d) => (d.badge && !d.quarantined ? 3 : d.looked === 'none' ? 2 : d.looked === 'part' ? 1 : 0);
+
+  function downloadRow(d) {
+    const said = d.badge ? `${esc(d.label)}${d.reason ? ` &middot; ${esc(d.reason)}` : ''}` : esc(d.looked === 'all' && !d.reason ? d.label : d.reason);
+    const end = d.quarantined ? '<span class="status">Quarantined</span>'
+      : d.badge ? `<button class="btn btn--sm" data-quarantine="${esc(d.id)}">Quarantine</button>`
+        : d.looked === 'all' ? '<span class="status is-on">Checked</span>'
+          : d.looked === 'part' ? '<span class="status is-locked">Partly checked</span>' : '<span class="status">Not checked</span>';
+    // The file as Sentinel read it, lit where it read, a sliver at least. Beside the words, never instead of them.
+    const lit = d.looked === 'none' ? 0 : Math.max(4, d.read * 50);
+    return `<li>
+          <span class="list__icon">${ICON.file}</span>
+          <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${said}</span></span>
+          <span class="dl-end"><span class="read-strip read-strip--${esc(d.looked)}" style="--end:${lit.toFixed(1)}%" aria-hidden="true"></span>${end}</span>
+        </li>`;
+  }
+
   async function renderDesktopControls(slot) {
     let info;
     try { info = await desktop.info(); } catch { return; }
@@ -2908,11 +2925,7 @@
 
       <div class="panel u-mt" id="downloads">
         <h2 class="u-mb">Recent downloads</h2>
-        ${recent.length ? `<ul class="list">${[...recent].sort((a, b) => Number(Boolean(b.badge && !b.quarantined)) - Number(Boolean(a.badge && !a.quarantined))).slice(0, 8).map((d) => `<li>
-          <span class="list__icon">${ICON.file}</span>
-          <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${esc(d.label)}${d.badge && d.reason ? ` &middot; ${esc(d.reason)}` : ''}</span></span>
-          ${d.badge && !d.quarantined ? `<button class="btn btn--sm" data-quarantine="${esc(d.id)}">Quarantine</button>` : d.quarantined ? '<span class="status">Quarantined</span>' : '<span class="status is-on">Clear</span>'}
-        </li>`).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they are scanned.</p></div>'}
+        ${recent.length ? `<ul class="list">${[...recent].sort((a, b) => downloadRank(b) - downloadRank(a)).slice(0, 8).map(downloadRow).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they are scanned.</p></div>'}
       </div>`;
 
     if (focusKey) {

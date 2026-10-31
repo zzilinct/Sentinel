@@ -975,7 +975,7 @@ function askedToScan(argv) {
   appLog('right-click menu: a file was handed over for a scan');
   return '/app/threats';
 }
-/** The file from the right-click menu, once, for the file scan page: { name, size, data }, data only up to 25 MB. */
+/** The file from the right-click menu, once, for the file scan page: { name, size, data }. Too big to send: checked here. */
 async function takeMenuFile() {
   const m = menuFile;
   menuFile = null;
@@ -984,31 +984,33 @@ async function takeMenuFile() {
   const stat = await fs.promises.stat(m.file);
   if (!stat.isFile()) return null;
   const name = path.basename(m.file);
-  if (stat.size > require('../shared/filescan').MAX_FILE_BYTES) return { name, size: stat.size, data: null };
+  if (stat.size > require('../shared/filescan').MAX_FILE_BYTES) { scanHere(m.file).catch(() => {}); return null; }
   return { name, size: stat.size, data: await fs.promises.readFile(m.file) };
 }
 /**
- * Signed out: the file is checked by download protection's on-device scanner, without the known-threat lookup (that
- * asks the account), and nothing about it leaves this computer. The log says only the verdict, never the file.
+ * The file is checked by download protection's on-device scanner. Signed out, without the known-threat lookup (that
+ * asks the account), so nothing about it leaves this computer. The log says only the verdict, never the file.
  */
 let menuResultFile = null;     // the file the result window is about, for "Sign in for a deeper check"
 async function scanHere(file) {
   const fs = require('fs');
-  appLog('right-click menu: a file was checked on this computer (signed out)');
+  const signedIn = Boolean(store.getSecret('token'));
+  appLog(`right-click menu: a file was checked on this computer (signed ${signedIn ? 'in' : 'out'})`);
   let size = 0;
   let report = null;
-  let problem = null;
+  let failure = null;
+  let list = { known: null, offline: false };
   try {
     const stat = await fs.promises.stat(file);
     size = stat.size;
-    if (!stat.isFile()) problem = 'unreadable';
-    else if (size > require('../shared/filescan').MAX_FILE_BYTES) problem = 'big';
-    else report = await downloads.analyze(file, path.basename(file), null);
-  } catch { problem = 'unreadable'; }
-  const summary = downloads.summarize(report, null);
-  appLog(`right-click menu: ${problem ? `not checked (${problem === 'big' ? 'over 25 MB' : 'could not be read'})` : summary.label}`);
+    if (!stat.isFile()) throw new Error('not a file');
+    if (signedIn) list = await downloads.lookUp(await downloads.hashStream(file));
+    report = await downloads.analyze(file, path.basename(file), list.known);
+  } catch (err) { failure = err; }
+  const summary = downloads.summarize(report, list.known, { failure, offline: list.offline });
+  appLog(`right-click menu: ${summary.label}`);
   menuResultFile = file;
-  const query = scanmenu.offlineResult(file, size, summary, report, problem);
+  const query = { ...scanmenu.offlineResult(file, size, summary, report), account: signedIn ? '1' : '' };
   if (!menuWin || menuWin.isDestroyed()) {
     menuWin = cardWindow();
     menuWin.on('closed', () => { menuWin = null; menuResultFile = null; });
@@ -1299,8 +1301,9 @@ function tally(metric, n = 1) {
 }
 // A file in Downloads is checked by download protection and by Defense: counted once.
 const checkedFiles = new Map();
-function fileChecked(file) {
-  const key = String(file || '').toLowerCase();
+function fileChecked(item) {
+  if (!item.badge && item.looked !== 'all') return;   // "Files checked" counts only those that were
+  const key = String(item.path || '').toLowerCase();
   const t = Date.now();
   for (const [k, at] of checkedFiles) if (t - at > 10 * 60 * 1000) checkedFiles.delete(k);
   if (checkedFiles.has(key)) return;
@@ -1758,7 +1761,7 @@ async function boot() {
     // Run key changes, heard as they happen by the running-browsers helper instead of reg.exe every minute.
     runKeys: (handler) => browsers.runKeysListen(handler),
     onChange: () => { refreshTray(); push('sentinel:defense', defense.status()); },
-    onChecked: (item) => fileChecked(item.path),
+    onChecked: fileChecked,
     onThreat: (item) => {
       if (item.quarantined) tally('files_quarantined');
       const did = item.actions.map((a) => a.did).filter((d, i, arr) => arr.indexOf(d) === i).join(', ');
@@ -1779,7 +1782,7 @@ async function boot() {
     signedBy: (file) => defense.signedBy(file),
     log: appLog,
     onChange: refreshTray,
-    onChecked: (item) => fileChecked(item.path),
+    onChecked: fileChecked,
     onThreat: (item) => {
       // To the list of recent downloads, where the file's Quarantine button is (not the file scanner's drop zone).
       notifyAboutFile(item.path, `Sentinel: ${item.label}`, `${item.name}\n${item.reason}`, () => showWindow('/app/protection#downloads'));

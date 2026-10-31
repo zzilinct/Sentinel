@@ -28,7 +28,7 @@
   <script>
     const q = new URLSearchParams(location.search);
     const badge = q.get('badge') || 'none';
-    const color = { red: '#e5484d', orange: '#f08a24', yellow: '#f5c542', green: '#46a758' }[badge];
+    const color = { red: '#e5484d', orange: '#f08a24', yellow: '#f5c542', green: '#46a758', part: '#c9a227' }[badge];
     document.documentElement.style.setProperty('--c', color || '#8d8a82');
     // A file found harmful is a warning: said as one to a screen reader.
     if (badge === 'red' || badge === 'orange') document.body.setAttribute('role', 'alertdialog');
@@ -37,14 +37,15 @@
     // An empty or tiny file is not "1 KB".
     const kb = size < 1024 ? `${size} byte${size === 1 ? '' : 's'}` : size < 1024 * 1024 ? `${Math.round(size / 1024)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
     document.getElementById('name').textContent = `${q.get('name') || ''} · ${kb}`;
-    const problem = q.get('problem');
+    const why = q.get('why');
     const lead = document.getElementById('lead');
-    if (problem === 'big') {
-      lead.textContent = 'This file is over 25 MB, more than Sentinel reads on this computer. Signed in, Sentinel can still look it up in its list of known threats.';
-      document.getElementById('where').textContent = 'Nothing about the file left this computer.';
-    } else if (problem) {
-      lead.textContent = 'Sentinel could not open this file. It may have been moved, or another program may be using it.';
-      document.getElementById('where').textContent = 'Nothing about the file left this computer.';
+    const account = q.get('account') === '1';
+    const where = document.getElementById('where');
+    if (account) where.textContent = 'The file stayed on this computer. Only its fingerprint was compared with the list of known threats.';
+    else if (why) where.textContent = 'Nothing about the file left this computer.';
+    if (account) { document.getElementById('deeper').hidden = true; document.getElementById('signin').hidden = true; }
+    if (why) {
+      lead.textContent = why;
     } else if (badge === 'green') {
       lead.textContent = 'Sentinel found nothing harmful in this file.';
     } else {

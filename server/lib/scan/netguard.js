@@ -13,9 +13,9 @@ const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
 const config = require('../../config');
+const { MAX_FILE_BYTES } = require('./filescan');
 
 const MAX_BYTES = 1.5 * 1024 * 1024;
-const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 const TIMEOUT_MS = 8000;
 const TOTAL_MS = 12000;   // one request, start to finish, however slowly the site answers
@@ -139,7 +139,7 @@ function requestOnce(url, { method = 'GET', headers = {} } = {}) {
       // in full (up to the file scanner's limit) so their fingerprints can match.
       const type = String(res.headers['content-type'] || '').toLowerCase();
       const isPage = !type || /html|text\/|json|xml|javascript/.test(type);
-      const limit = isPage ? MAX_BYTES : MAX_DOWNLOAD_BYTES;
+      const limit = isPage ? MAX_BYTES : MAX_FILE_BYTES;
       const chunks = [];
       let size = 0;
       let truncated = false;

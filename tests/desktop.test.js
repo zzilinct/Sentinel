@@ -474,6 +474,66 @@ test('download analysis runs on a worker thread and reports what an in-place sca
   assert.doesNotMatch(d, /buf = fs\.readFileSync\(full\)/, 'the main thread never reads a whole download');
 });
 
+test('a file gets no clean verdict it did not earn', async () => {
+  const downloads = require('../desktop/src/downloads.js');
+  const shape = (v) => [v.badge, v.label, v.looked];
+
+  // Never looked: no report, whatever the reason, and a hash that is not on the list changes nothing.
+  assert.deepEqual(shape(downloads.summarize(null, null)), [null, 'Not checked', 'none']);
+  assert.match(downloads.summarize(null, null, { failure: { timedOut: true } }).reason, /too long/);
+  assert.match(downloads.summarize(null, null, { failure: new Error('EBUSY') }).reason, /could not open/);
+  const missing = await downloads.analyze(path.join(os.tmpdir(), 'sentinel-no-such-file'), 'x.exe', null).catch((e) => e);
+  assert.ok(missing instanceof Error, 'a worker that cannot read the file is a failure, not an empty report');
+
+  const scanned = { checks: [{ status: 'pass', points: 0, threat: 'virus', detail: 'x' }], evidence: {}, size: 40 };
+  assert.deepEqual(shape(downloads.summarize(scanned, null)), [null, 'No threats found', 'all']);
+  assert.deepEqual(shape(downloads.summarize({ ...scanned, part: true }, null)), [null, 'Partly checked', 'part']);
+  assert.match(downloads.summarize({ ...scanned, part: true }, null).reason, /not the middle/);
+  assert.deepEqual(shape(downloads.summarize(scanned, null, { offline: true })), [null, 'Partly checked', 'part'], 'the list was not asked');
+  assert.deepEqual(shape(downloads.summarize({ ...scanned, size: 0 }, null)), [null, 'Empty file', 'all']);
+  assert.match(read('desktop/src/main.js'), /function fileChecked\(item\) \{\n  if \(!item\.badge && item\.looked !== 'all'\) return;/, '"Files checked" counts only those that were');
+  // A list hit stands however little was read.
+  assert.deepEqual(shape(downloads.summarize(null, { threat: 'virus', name: 'Bad' })), ['red', 'Virus detected', 'none']);
+});
+
+test('a big download is read at both ends, says so, and a valid signature is named but does not make it read', async (t) => {
+  const downloads = require('../desktop/src/downloads.js');
+  const { END_BYTES } = require('../desktop/shared/filescan');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-big-'));
+  t.after(() => { fs.rmSync(dir, { recursive: true, force: true }); downloads._test.configure(null); });
+  const items = [];
+  const threats = [];
+  const options = (over = {}) => ({ api: async () => ({ known: false }), onChecked: (i) => items.push(i), onThreat: (i) => threats.push(i), log: () => {}, ...over });
+  const big = (name, mb = 30) => {
+    const file = path.join(dir, name);
+    const fd = fs.openSync(file, 'w');
+    fs.writeSync(fd, Buffer.from('MZ inert test program'), 0, 21, 0);
+    fs.ftruncateSync(fd, mb * 1024 * 1024);   // sparse, so the test costs no disk
+    fs.closeSync(fd);
+    return file;
+  };
+  const scan = (file) => downloads._test.scan(file, fs.statSync(file));
+
+  downloads._test.configure(options());
+  let file = big('ZoomInstallerFull.exe');
+  await scan(file);
+  assert.deepEqual([items[0].badge, items[0].label, items[0].looked], [null, 'Partly checked', 'part']);
+  assert.equal(items[0].read, END_BYTES * 2 / fs.statSync(file).size);
+  assert.equal(threats.length, 0, 'not a warning: nothing was found');
+
+  downloads._test.configure(options({ signedBy: async () => 'Zoom Video Communications, Inc.' }));
+  await scan(big('Installer.exe', 31));
+  assert.deepEqual([items[1].looked, items[1].label], ['part', 'Partly checked']);
+  assert.match(items[1].reason, /^Signed by Zoom Video Communications, Inc\..*not the middle/);
+
+  downloads._test.configure(options({ api: async () => { throw new Error('offline'); } }));
+  fs.writeFileSync(path.join(dir, 'notes.txt'), 'Plain notes.');
+  await scan(path.join(dir, 'notes.txt'));
+  assert.deepEqual([items[2].label, items[2].looked], ['Partly checked', 'part'], 'read in full, but the list could not be asked');
+  assert.match(items[2].reason, /read all of it/);
+  assert.equal(items[2].read, 1);
+});
+
 test('marks move with the wheel the moment it turns, and only while there are marks to move', () => {
   const s = watch._test.SCRIPT;
   assert.ok(s.includes('public class Wheel : System.Windows.Forms.NativeWindow'), 'raw input from a hidden window');

@@ -76,12 +76,12 @@ $cases = @(
   @{ id = 'ampersand'; name = 'Tom & Jerry 100% done.txt'; make = { param($p) [IO.File]::WriteAllText($p, 'Notes') }; want = '^No threats found' },
   @{ id = 'long-name'; name = ('Minutes of the residents association meeting about the new parking rules and the garden ' * 2).Trim() + '.txt'; make = { param($p) [IO.File]::WriteAllText($p, 'Minutes') }; want = '^No threats found' },
   @{ id = 'long-path'; dir = $deep; name = 'Long path letter.txt'; make = { param($p) [IO.File]::WriteAllText("\\?\$p", 'Dear Sir') }; want = '^No threats found' },
-  @{ id = 'empty'; name = 'Empty notes.txt'; make = { param($p) [IO.File]::WriteAllBytes($p, [byte[]]@()) }; want = '^No threats found' },
+  @{ id = 'empty'; name = 'Empty notes.txt'; make = { param($p) [IO.File]::WriteAllBytes($p, [byte[]]@()) }; want = '^Empty file\|.*nothing in this file' },
   @{ id = 'zip'; name = 'Holiday photos.zip'; make = { param($p) $s = Join-Path $env:RUNNER_TEMP 'zipsrc'; New-Item -ItemType Directory -Force $s | Out-Null; [IO.File]::WriteAllText("$s\a.txt", 'one'); [IO.File]::WriteAllText("$s\b.txt", 'two'); Compress-Archive -Path "$s\*" -DestinationPath $p -Force }; want = '^No threats found' },
   @{ id = 'exe-signed'; name = 'chrome.exe'; make = { param($p) Copy-Item "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" $p }; want = '^No threats found' },
   @{ id = 'exe-windows'; name = 'whoami copy.exe'; make = { param($p) Copy-Item "$env:WINDIR\System32\whoami.exe" $p }; want = '^No threats found' },
   @{ id = 'video-24mb'; name = 'Birthday video.mp4'; make = { param($p) RandomFile $p 24 }; want = '^No threats found' },
-  @{ id = 'video-30mb'; name = 'Wedding video.mp4'; make = { param($p) RandomFile $p 30 }; want = '^Not checked\|.*over 25 MB' },
+  @{ id = 'video-30mb'; name = 'Wedding video.mp4'; make = { param($p) RandomFile $p 30 }; want = '^Partly checked\|.*start and end' },
   @{ id = 'locked'; name = 'Budget.xlsx'; make = { param($p) [IO.File]::WriteAllText($p, 'Rent,Food') }; lock = $true; want = '^Not checked\|.*another program' },
   @{ id = 'deleted'; name = 'Gone soon.txt'; make = { param($p) [IO.File]::WriteAllText($p, 'bye') }; gone = $true; want = '^Not checked\|.*moved' }
 )

@@ -430,6 +430,14 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .status.is-on::before { background: var(--green); box-shadow: 0 0 0 4px rgba(76, 183, 130, .15); }
 .status.is-locked { color: var(--gold-300); }
 .status.is-locked::before { background: var(--gold-400); }
+.dl-end { flex: none; display: grid; justify-items: end; gap: 7px; }
+/* The file as Sentinel read it, left end to right: lit from both ends up to --end, dark across what was never read. */
+.read-strip { display: block; width: 92px; height: 3px; border-radius: 2px; background:
+  linear-gradient(90deg, var(--lit) var(--end), transparent 0 calc(100% - var(--end)), var(--lit) 0), rgb(var(--ink) / .1); }
+.read-strip--all { --lit: var(--green); }
+.read-strip--part { --lit: var(--gold-400); }
+.read-strip--none { --lit: transparent; }
+@media (max-width: 520px) { #downloads .list li { flex-wrap: wrap; } #downloads .list__main { flex-basis: calc(100% - 48px); } .dl-end { width: 100%; grid-template-columns: 1fr auto; align-items: center; justify-items: stretch; } .dl-end .status, .dl-end .btn { justify-self: end; } .read-strip { width: 100%; } }
 .feature h3 { --track: var(--tr-text); margin-top: 16px; font: 500 var(--t-body)/var(--lh-ui) var(--sans); }
 .feature p { margin-top: 5px; font-size: var(--t-ui); color: var(--muted); }
 

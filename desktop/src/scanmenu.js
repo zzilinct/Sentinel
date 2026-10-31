@@ -43,21 +43,21 @@ function unregister() { return reg(['delete', KEY, '/f']); }
 
 /**
  * What the small result window shows for a file checked on this computer: its name (never its folder), the verdict in
- * download protection's words (downloads.summarize), and up to four things found when it is not clean. problem: 'big' (over the 25 MB the
- * scanner reads) or 'unreadable', when it was not checked at all.
+ * download protection's words (downloads.summarize), and up to four things found when it is not clean. Only "No threats
+ * found" is green; why says what stands between a file and that answer.
  */
-function offlineResult(file, size, summary, report, problem) {
+function offlineResult(file, size, summary, report) {
   // A clean verdict lists nothing: "No threats found" over "Contains the classic process-injection API trio" (Google's
   // own chrome.exe) left a person unsure which to believe.
-  const found = report && !problem && summary.badge
+  const found = report && summary.badge
     ? report.checks.filter((c) => c.status === 'fail' || c.status === 'warn').sort((a, b) => b.points - a.points).slice(0, 4).map((c) => c.detail)
     : [];
   return {
     name: path.win32.basename(String(file)),
     size: String(Number(size) || 0),
-    badge: problem ? 'none' : summary.badge || 'green',
-    label: problem ? 'Not checked' : summary.label,
-    problem: problem || '',
+    badge: summary.badge || (summary.label === 'No threats found' ? 'green' : summary.looked === 'part' ? 'part' : 'none'),
+    label: summary.label,
+    why: !summary.badge && summary.label !== 'No threats found' ? summary.reason : '',
     found: found.join('\n')
   };
 }

@@ -1,7 +1,10 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { scanFile } = require('../server/lib/scan/filescan');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { scanFile, scanPath, MAX_FILE_BYTES, END_BYTES } = require('../server/lib/scan/filescan');
 
 const analyze = (buffer) => scanFile(buffer, 'inert-fixture.exe', { lookupHash: () => null });
 
@@ -58,4 +61,89 @@ test('Office macro checks still distinguish auto-running and ordinary macros', (
   assert.equal(macroCheck('_VBA_PROJECT inert text Document_Open').points, 55);
   assert.equal(macroCheck('_VBA_PROJECT inert text ordinary macro').points, 36);
   assert.equal(macroCheck('Document_Open without any macro marker').status, 'pass');
+});
+
+/* ---------------------------------------------------------- a file too big to hold */
+
+const big = (t, name, head, tail, mb = 30) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-part-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, name);
+  const fd = fs.openSync(file, 'w');
+  const size = mb * 1024 * 1024;
+  fs.ftruncateSync(fd, size);
+  fs.writeSync(fd, head, 0, head.length, 0);
+  fs.writeSync(fd, tail, 0, tail.length, size - tail.length);
+  fs.closeSync(fd);
+  return { file, size };
+};
+const check = (report, id) => report.checks.find((c) => c.id === id);
+const STEALER_STRINGS = 'wallet.dat telegram desktop\\tdata metamask';
+
+/** A stored zip that fits in `room` bytes, for the end of a file; offsets as if it starts at `at`. */
+function zipEnd(name, at) {
+  const n = Buffer.from(name);
+  const central = Buffer.alloc(46 + n.length);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(n.length, 28);
+  central.writeUInt32LE(at, 42);
+  n.copy(central, 46);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length, 12);
+  end.writeUInt32LE(at, 16);
+  return Buffer.concat([central, end]);
+}
+
+test('up to the limit a file is searched to its last byte', () => {
+  const buf = Buffer.alloc(MAX_FILE_BYTES, 0x20);
+  buf.write('MZ', 0, 'latin1');
+  buf.write(STEALER_STRINGS, MAX_FILE_BYTES - STEALER_STRINGS.length, 'latin1');
+  assert.equal(scanFile(buf, 'tool.exe', { lookupHash: () => null }).checks.find((c) => c.id === 'F07').status, 'fail', 'found past the first 8 MB');
+});
+
+test('a bigger file is read at both ends, and the report says so', (t) => {
+  const { file, size } = big(t, 'setup.exe', Buffer.from('MZ inert'), Buffer.from(STEALER_STRINGS));
+  const report = scanPath(file, 'setup.exe', { lookupHash: () => null });
+  assert.equal(report.part, true);
+  assert.equal(report.size, size);
+  assert.equal(report.type, 'pe');
+  assert.equal(check(report, 'F07').status, 'fail', 'the end of the file was read');
+});
+
+test('nothing in the middle of a big file is claimed', (t) => {
+  const { file, size } = big(t, 'setup.exe', Buffer.from('MZ inert'), Buffer.from('end'));
+  const fd = fs.openSync(file, 'r+');
+  fs.writeSync(fd, Buffer.from(STEALER_STRINGS), 0, STEALER_STRINGS.length, Math.floor(size / 2));
+  fs.closeSync(fd);
+  const report = scanPath(file, 'setup.exe', { lookupHash: () => null });
+  assert.equal(check(report, 'F07').status, 'pass');
+  assert.equal(report.part, true, 'which is why the report must say part');
+});
+
+test('a file at the limit is read whole, one byte over is not', (t) => {
+  const at = big(t, 'a.bin', Buffer.from('x'), Buffer.from('y'), MAX_FILE_BYTES / 1024 / 1024);
+  assert.equal(scanPath(at.file, 'a.bin', { lookupHash: () => null }).part, undefined);
+  const dir = path.dirname(at.file);
+  const over = path.join(dir, 'b.bin');
+  fs.closeSync(fs.openSync(over, 'w'));
+  fs.truncateSync(over, MAX_FILE_BYTES + 1);
+  assert.equal(scanPath(over, 'b.bin', { lookupHash: () => null }).part, true);
+});
+
+test('a big archive is listed from its end, and an unreadable list is not called empty', (t) => {
+  const size = 30 * 1024 * 1024;
+  const end = zipEnd('payload.exe', size - 79);
+  const { file } = big(t, 'photos.zip', Buffer.from('PK\x03\x04'), end);
+  assert.equal(check(scanPath(file, 'photos.zip', { lookupHash: () => null }), 'F11').status, 'fail');
+
+  const broken = big(t, 'photos.zip', Buffer.from('PK\x03\x04'), Buffer.from('no list here'));
+  assert.equal(check(scanPath(broken.file, 'photos.zip', { lookupHash: () => null }), 'F11').status, 'skip');
+
+  // The list starts before the part that was read.
+  const before = zipEnd('payload.exe', 1024);
+  const far = big(t, 'photos.zip', Buffer.from('PK\x03\x04'), before);
+  assert.equal(check(scanPath(far.file, 'photos.zip', { lookupHash: () => null }), 'F11').status, 'skip');
+  assert.ok(END_BYTES < size);
 });

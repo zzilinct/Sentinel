@@ -43,21 +43,23 @@ test('the result window is told the file name and the verdict, never where the f
     { status: 'fail', points: 45, detail: '"Invoice 2026.pdf.exe" hides a .exe behind .pdf' },
     { status: 'skip', points: 0, detail: 'Not an executable' }
   ] };
-  const r = offlineResult(FILE, 52224, { badge: 'orange', label: 'Likely virus' }, report, null);
+  const r = offlineResult(FILE, 52224, { badge: 'orange', label: 'Likely virus' }, report);
   assert.deepEqual(r, {
-    name: 'Invoice 2026.pdf.exe', size: '52224', badge: 'orange', label: 'Likely virus', problem: '',
+    name: 'Invoice 2026.pdf.exe', size: '52224', badge: 'orange', label: 'Likely virus', why: '',
     found: '"Invoice 2026.pdf.exe" hides a .exe behind .pdf\nPE executable: only run programs from publishers you trust'
   });
   assert.ok(!JSON.stringify(r).includes('Ada Lovelace') && !JSON.stringify(r).includes('Private'));
 });
 
 test('a clean file is green, and a file not checked says so instead of a verdict', () => {
-  const clean = offlineResult('D:\\notes.txt', 12, { badge: null, label: 'No threats found' }, { checks: [] }, null);
+  const clean = offlineResult('D:\\notes.txt', 12, { badge: null, label: 'No threats found', looked: 'all' }, { checks: [] });
   assert.equal(clean.badge, 'green');
   assert.equal(clean.label, 'No threats found');
   assert.equal(clean.found, '');
-  const big = offlineResult('D:\\film.mkv', 40 * 1024 * 1024, { badge: null, label: 'No threats found' }, null, 'big');
-  assert.deepEqual([big.badge, big.label, big.problem, big.found], ['none', 'Not checked', 'big', '']);
+  const big = offlineResult('D:\\film.mkv', 40 * 1024 * 1024, { badge: null, label: 'Partly checked', looked: 'part', reason: 'The ends.' }, { checks: [] });
+  assert.deepEqual([big.badge, big.label, big.why, big.found], ['part', 'Partly checked', 'The ends.', '']);
+  const gone = offlineResult('D:\\film.mkv', 0, { badge: null, label: 'Not checked', looked: 'none', reason: 'Gone.' }, null);
+  assert.deepEqual([gone.badge, gone.why], ['none', 'Gone.']);
 });
 
 test('a clean verdict lists no findings, even the minor ones a clean program has', () => {
@@ -65,6 +67,6 @@ test('a clean verdict lists no findings, even the minor ones a clean program has
     { status: 'warn', points: 12, detail: 'Contains the classic process-injection API trio' },
     { status: 'warn', points: 8, detail: 'PE executable: only run programs from publishers you trust' }
   ] };
-  const r = offlineResult('C:\Downloads\chrome.exe', 4500000, { badge: null, label: 'No threats found' }, report, null);
+  const r = offlineResult('C:\Downloads\chrome.exe', 4500000, { badge: null, label: 'No threats found', looked: 'all' }, report);
   assert.deepEqual([r.badge, r.label, r.found], ['green', 'No threats found', '']);
 });

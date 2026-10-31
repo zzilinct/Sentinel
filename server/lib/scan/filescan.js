@@ -13,11 +13,13 @@
  *             weaponised PDFs, shortcut and HTML payloads)
  */
 const crypto = require('crypto');
+const fs = require('fs');
 const zlib = require('zlib');
 const L = require('./lists');
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const MAX_FILE_BYTES = 25 * 1024 * 1024;   // read whole; a bigger file on this computer is read at both ends (scanPath)
 const MAX_INFLATE = 8 * 1024 * 1024;
+const END_BYTES = 8 * 1024 * 1024;
 
 // SHA-256 of the industry-standard EICAR antivirus test file. The file itself
 // is deliberately not embedded in this source, so no scanner quarantines us.
@@ -84,8 +86,8 @@ function entropy(buf) {
 
 /* ------------------------------------------------------------------- zip */
 
-/** List zip entries from the central directory (no extraction). */
-function zipEntries(buf) {
+/** List zip entries from the central directory (no extraction). `base`: where buf starts in the file, when it is a slice. */
+function zipEntries(buf, base = 0) {
   const entries = [];
   const minEocd = Math.max(0, buf.length - 65557);
   let eocd = -1;
@@ -94,8 +96,8 @@ function zipEntries(buf) {
   }
   if (eocd < 0) return entries;
   const count = buf.readUInt16LE(eocd + 10);
-  let ptr = buf.readUInt32LE(eocd + 16);
-  for (let n = 0; n < count && n < 5000 && ptr + 46 <= buf.length; n++) {
+  let ptr = buf.readUInt32LE(eocd + 16) - base;
+  for (let n = 0; n < count && n < 5000 && ptr >= 0 && ptr + 46 <= buf.length; n++) {
     if (buf.readUInt32LE(ptr) !== 0x02014b50) break;
     const flags = buf.readUInt16LE(ptr + 8);
     const method = buf.readUInt16LE(ptr + 10);
@@ -112,10 +114,12 @@ function zipEntries(buf) {
   return entries;
 }
 
-function readZipEntry(buf, entry) {
+function readZipEntry(buf, entry, part) {
   if (entry.encrypted || entry.size > MAX_INFLATE) return null;
   if (entry.compressed && entry.size / entry.compressed > 200) return null;        // zip bomb
-  const o = entry.localOffset;
+  let o = entry.localOffset;
+  const tailAt = part ? part.size - part.tail.length : Infinity;
+  if (o >= tailAt) { buf = part.tail; o -= tailAt; }
   if (o + 30 > buf.length || buf.readUInt32LE(o) !== 0x04034b50) return null;
   const start = o + 30 + buf.readUInt16LE(o + 26) + buf.readUInt16LE(o + 28);
   const data = buf.subarray(start, start + entry.compressed);
@@ -138,20 +142,21 @@ const STEALER = [/\\login data/i, /wallet\.dat/i, /telegram desktop\\tdata/i, /d
 const INJECTION = ['VirtualAllocEx', 'WriteProcessMemory', 'CreateRemoteThread'];
 const KEYLOG = ['GetAsyncKeyState', 'SetWindowsHookExA', 'SetWindowsHookExW'];
 
-function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
+/** `part` ({ size, tail }): buf is only the start of a bigger file, and tail its end (see scanPath). No hash then. */
+function scanFile(buf, name = 'upload', { lookupHash = dbLookup, part = null } = {}) {
   if (!Buffer.isBuffer(buf)) throw new TypeError('scanFile expects a Buffer');
-  const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+  const sha256 = part ? null : crypto.createHash('sha256').update(buf).digest('hex');
   const type = sniff(buf);
   const exts = extOf(name);
   const ext = exts[exts.length - 1] || '';
-  const latin = buf.length <= MAX_INFLATE ? buf.toString('latin1') : buf.subarray(0, MAX_INFLATE).toString('latin1');
+  // Every byte it holds: a file that passes has been read to its end. 25 MB takes about 50 ms.
+  const latin = part ? `${buf.toString('latin1')}\n${part.tail.toString('latin1')}` : buf.toString('latin1');
   // Windows scripts and shortcut strings are commonly stored as UTF-16.
-  const sample = buf.subarray(0, MAX_INFLATE);
   let text = latin;
-  if (sample[0] === 0xff && sample[1] === 0xfe) text = sample.subarray(2).toString('utf16le');
-  else if (sample[0] === 0xfe && sample[1] === 0xff) {
-    text = Buffer.from(sample.subarray(2, sample.length - sample.length % 2)).swap16().toString('utf16le');
-  } else if (type === 'lnk') text += '\n' + sample.toString('utf16le');
+  if (buf[0] === 0xff && buf[1] === 0xfe) text = buf.subarray(2).toString('utf16le');
+  else if (buf[0] === 0xfe && buf[1] === 0xff) {
+    text = Buffer.from(buf.subarray(2, buf.length - buf.length % 2)).swap16().toString('utf16le');
+  } else if (type === 'lnk') text += '\n' + buf.toString('utf16le');
   const lower = text.toLowerCase();
   const evidence = { virus: null, malware: null };
   const checks = [];
@@ -242,12 +247,12 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
 
   // F09 - Office macros
   let entries = [];
-  if (type === 'zip') entries = zipEntries(buf);
+  if (type === 'zip') entries = part ? zipEntries(part.tail, part.size - part.tail.length) : zipEntries(buf);
   const ooxmlMacro = entries.some((e) => /vbaproject\.bin$/i.test(e.name));
   const oleMacro = type === 'ole' && /_vba_project|vba\x00|macros\//i.test(latin);
   let macroText = latin;
   if (ooxmlMacro) {
-    const vba = readZipEntry(buf, entries.find((e) => /vbaproject\.bin$/i.test(e.name)));
+    const vba = readZipEntry(buf, entries.find((e) => /vbaproject\.bin$/i.test(e.name)), part);
     if (vba) macroText = vba.toString('latin1');
   }
   if (ooxmlMacro || oleMacro) {
@@ -291,18 +296,20 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
       add('F11', 'virus', 'Archive holds no programs', fail(encrypted ? 45 : 32, `Contains ${risky.slice(0, 3).map((e) => e.name).join(', ')}${encrypted ? ' in a password-protected archive' : ''}`));
     } else if (encrypted) {
       add('F11', 'virus', 'Archive holds no programs', warn(20, 'Password-protected archive: a common trick to get past email scanners'));
+    } else if (part && !entries.length) {
+      add('F11', 'virus', 'Archive holds no programs', skip('Its list of contents is not in the part that was read'));
     } else {
       add('F11', 'virus', 'Archive holds no programs', pass(`${entries.length} entries, none executable`));
     }
 
     // F12 - Android banking-trojan permissions
     if (isApk) {
-      const manifest = readZipEntry(buf, entries.find((e) => e.name === 'AndroidManifest.xml'));
+      const manifest = readZipEntry(buf, entries.find((e) => e.name === 'AndroidManifest.xml'), part);
       const text = manifest ? manifest.toString('utf16le') + manifest.toString('latin1') : '';
       const perms = ['BIND_ACCESSIBILITY_SERVICE', 'RECEIVE_SMS', 'READ_SMS', 'SYSTEM_ALERT_WINDOW', 'BIND_DEVICE_ADMIN', 'REQUEST_INSTALL_PACKAGES'].filter((perm) => text.includes(perm));
       add('F12', 'malware', 'Android app does not request takeover permissions', perms.length >= 3
         ? fail(45, `Requests ${perms.join(', ')}: the banking-trojan combination`)
-        : perms.length ? warn(12, `Requests ${perms.join(', ')}`) : pass('Ordinary permissions'));
+        : perms.length ? warn(12, `Requests ${perms.join(', ')}`) : manifest ? pass('Ordinary permissions') : skip('Its manifest could not be read'));
     }
   } else {
     add('F11', 'virus', 'Archive holds no programs', ['rar', '7z', 'gzip'].includes(type) ? warn(8, `${type.toUpperCase()} archive contents cannot be listed: open with care`) : skip('Not an archive'));
@@ -330,7 +337,25 @@ function scanFile(buf, name = 'upload', { lookupHash = dbLookup } = {}) {
     add('F14', 'malware', 'Not an HTML file carrying a payload or login form', skip('Not HTML'));
   }
 
-  return { sha256, size: buf.length, type, name, checks, evidence };
+  return { sha256, size: part ? part.size : buf.length, type, name, checks, evidence, ...(part && { part: true }) };
 }
 
-module.exports = { scanFile, MAX_FILE_BYTES };
+/**
+ * A file on this computer. Up to MAX_FILE_BYTES every byte is read. A bigger one is read at both ends, where a program
+ * keeps its headers and an archive its list of contents, and the report says so with part: true. Memory stays flat
+ * however big the file is. lookupHash is asked without a hash for such a file: the caller has already streamed it.
+ */
+function scanPath(file, name, { lookupHash } = {}) {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const { size } = fs.fstatSync(fd);
+    if (size <= MAX_FILE_BYTES) return scanFile(fs.readFileSync(fd), name, { lookupHash });
+    const read = (at) => {
+      const slice = Buffer.allocUnsafe(END_BYTES);
+      return slice.subarray(0, fs.readSync(fd, slice, 0, END_BYTES, at));
+    };
+    return scanFile(read(0), name, { lookupHash, part: { size, tail: read(size - END_BYTES) } });
+  } finally { fs.closeSync(fd); }
+}
+
+module.exports = { scanFile, scanPath, MAX_FILE_BYTES, END_BYTES };
