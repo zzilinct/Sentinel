@@ -50,7 +50,7 @@
 /* With no pointer to brush it, or no motion, what Sentinel sees stays on the screen: the name stands in front of it. */
 @media (prefers-reduced-motion: reduce), not all and (hover: hover) and (pointer: fine) { .hero__word { z-index: 2; } }
 /* It opens once, outward from behind the mask, over the name's entrance, and then nothing here moves or repaints. */
-@media (prefers-reduced-motion: no-preference) { .hero__unmask.is-opening { animation: unmask-open 1.5s var(--ease-out) .55s both; } }
+@media (prefers-reduced-motion: no-preference) { .hero__unmask.is-opening { animation: unmask-open 1.5s var(--ease-out) .55s backwards; } }
 @keyframes unmask-open { from { clip-path: circle(0 at 50% 50%); } to { clip-path: circle(85% at 50% 50%); } }
 /* Covered by the next chapter (site.js, stacks): the stage leaves the screen, so its 3D mask and canvases rest. */
 @media (min-width: 861px) { .is-stacked.is-over > .hero .hero__stage { transform: translateY(-400vh); } }

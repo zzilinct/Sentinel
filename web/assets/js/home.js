@@ -943,8 +943,8 @@
       const word = $('[data-hero-word]', stage);
       const foot = Math.min(0.9, (word.offsetTop + word.offsetHeight) / stage.clientHeight);
       const clear = vctx.createLinearGradient(0, 0, 0, vh);
-      clear.addColorStop(foot - 0.06, 'rgba(0,0,0,.1)');
-      clear.addColorStop(foot + 0.06, 'rgba(0,0,0,1)');
+      clear.addColorStop(foot - 0.02, 'rgba(0,0,0,0)');
+      clear.addColorStop(foot + 0.1, 'rgba(0,0,0,1)');
       vctx.globalCompositeOperation = 'destination-in';
       vctx.fillStyle = clear;
       vctx.fillRect(0, 0, vw, vh);
