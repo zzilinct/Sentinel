@@ -740,7 +740,11 @@ const handlers = {
   },
   async 'block-pass'({ url }, sender) {
     fromOptions(sender);
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { pass: false };
     await letThrough(sender.tab.id, url);
+    // From here, not from the block page: Chrome tries an http address from a page on https first, and a scam site
+    // that answers on neither way leaves an error page. Back from the site comes to the block page, which is right.
+    await ext.tabs.update(sender.tab.id, { url });
     return { pass: true };
   },
   ...pwHandlers,

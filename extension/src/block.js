@@ -79,9 +79,11 @@
       b.textContent = res.ok ? 'Reported. Thank you.' : 'Could not report';
       if (!res.ok) b.disabled = false;
     };
-    $('pass').onclick = async () => {
-      await send({ type: 'block-pass', url });
-      location.replace(url);
+    $('pass').onclick = async (ev) => {
+      const b = ev.currentTarget;
+      b.disabled = true;
+      const res = await send({ type: 'block-pass', url });
+      if (!res.pass) b.disabled = false;
     };
   }
 
