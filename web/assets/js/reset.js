@@ -30,17 +30,21 @@
     const token = new URLSearchParams(location.search).get('token') || '';
     history.replaceState({}, '', '/verify');
     const status = $('[data-status]');
+    const title = $('h1');
     if (!token) {
+      title.textContent = 'Confirm your email';
       status.textContent = 'This page needs the link from your verification email.';
       note('You can request a new link from <a href="/app/security">Security settings</a> once signed in.');
       return;
     }
     api('/auth/verify', { method: 'POST', body: { token } })
       .then(() => {
+        title.textContent = 'Email confirmed';
         status.textContent = 'Your email address is confirmed. Thanks.';
         $('[data-after]').hidden = false;
       })
       .catch((err) => {
+        title.textContent = 'Confirm your email';
         status.textContent = 'That link didn’t work.';
         note(esc(err.message));
         $('[data-after]').hidden = false;
