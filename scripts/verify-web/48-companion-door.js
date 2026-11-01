@@ -72,12 +72,12 @@ async function checkCompanionDoor() {
   const standPort = await freePort();
   await new Promise((resolve) => stand.listen(standPort, '127.0.0.1', resolve));
   const files = await serveFiles({}, {
-    '/start.html': `<!doctype html><html><head><meta charset="utf-8"><title>Start</title></head><body><h1>A page before</h1><a id="out" target="_blank" href="http://${LISTED}/new-tab">Open it in a new tab</a>
+    '/start.html': `<!doctype html><html><head><meta charset="utf-8"><title>Start</title></head><body><h1>A page before</h1><a id="ctl" href="http://control-link-site.com/x">Control</a><a id="out" target="_blank" href="http://${LISTED}/new-tab">Open it in a new tab</a>
       <iframe id="f" title="frame" style="width:600px;height:300px"></iframe></body></html>`
   });
   const filesPort = new URL(files.base).port;
   const hosts = [LISTED, ...SLOW_CANDIDATES, 'plain.test', 'moved.test'];
-  const { browser, close } = await launch([`--host-resolver-rules=MAP ${HTTP_ONLY}:80 127.0.0.1:${standPort},MAP ${HTTP_ONLY}:443 127.0.0.1:9,${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort}`]);
+  const { browser, close } = await launch([`--host-resolver-rules=${[HTTP_ONLY, 'control-typed-site.com', 'control-link-site.com'].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort}`]);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api}`);
     const via = `http://127.0.0.1:${proxyPort}`;
@@ -167,6 +167,17 @@ async function checkCompanionDoor() {
     await browser.send('Target.closeTarget', { targetId: other.targetId }).catch(() => {});
     result('companion-door: Continue anyway, pressed twice, opens the site in that tab, a reload stays open, and another tab is still stopped', Boolean(opened) && stays && otherStopped, { opened, stays, otherStopped });
     await browser.send('Target.closeTarget', { targetId: tab.targetId }).catch(() => {});
+
+    // Controls, no Sentinel in the path: the same kind of site, typed, then by a link from an ordinary page.
+    const ctl = await openPage(browser);
+    await goto(browser, ctl.sessionId, 'http://control-typed-site.com/x').catch(() => {});
+    const typedLand = await evalIn(browser, ctl.sessionId, 'location.href');
+    await goto(browser, ctl.sessionId, 'http://start.test/start.html');
+    await evalIn(browser, ctl.sessionId, "document.getElementById('ctl').click()", { userGesture: true });
+    await sleep(3000);
+    const linkLand = await evalIn(browser, ctl.sessionId, 'location.href');
+    await browser.send('Target.closeTarget', { targetId: ctl.targetId }).catch(() => {});
+    console.log(`      control: typed ends at ${typedLand}; by a link ends at ${linkLand}`);
 
     // A site on plain http with nothing on 443: Continue anyway is a navigation from an https-like page, and Chrome tries https first.
     const httpOnly = await openPage(browser);
