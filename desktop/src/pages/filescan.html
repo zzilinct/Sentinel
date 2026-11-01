@@ -61,7 +61,7 @@
     if (q.get('asked') === '1') where.textContent = 'The file stayed on this computer. Only its fingerprint was compared with the list of known threats.';
     else if (why) where.textContent = 'Nothing about the file left this computer.';
     // Signing in compares the file with the list. Signed in already, or with nothing to compare, it cannot help.
-    if (q.get('account') === '1') { document.getElementById('deeper').hidden = true; document.getElementById('signin').hidden = true; }
+    if (q.get('account') === '1' || badge === 'none') { document.getElementById('deeper').hidden = true; document.getElementById('signin').hidden = true; }
     if (why) {
       lead.textContent = why;
     } else if (badge === 'green') {
