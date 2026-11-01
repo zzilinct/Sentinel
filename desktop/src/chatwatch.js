@@ -62,24 +62,32 @@ public static class CW {
   public static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
   // The window's client area on screen: x, y, w, h.
   public static int[] Client(IntPtr h) { RECT r; GetClientRect(h, out r); var p = new POINT(); ClientToScreen(h, ref p); return new[] { p.X, p.Y, r.Right - r.Left, r.Bottom - r.Top }; }
-  // How the last copy looked: all black (a game Windows will not hand over), and how bright, 0 to 765.
-  public static bool Black; public static long Lum;
-  // A part of the screen as BGRA bytes, and a fingerprint of its near-white pixels. Chat words are drawn in those (or
-  // cut out of a white page), so a chat box that says the same thing over a moving game is not read again.
-  public static byte[] Grab(int x, int y, int w, int h, out long print) {
+  // How the last copy looked: all black (a game Windows will not hand over), how bright, 0 to 765, and how many
+  // near-white pixels each row has. Chat words are drawn in those, or cut out of a white page.
+  public static bool Black; public static long Lum; public static int[] Rows;
+  // Whether two copies say the same words. The edges of letters over a moving game flicker a few pixels either way, so
+  // a small difference is not a change. Compared with the copy last read, so small changes add up.
+  public static bool Same(int[] a, int[] b, int w) {
+    if (a == null || b == null || a.Length != b.Length) return false;
+    long d = 0, n = 0;
+    for (int i = 0; i < a.Length; i++) { d += Math.Abs(a[i] - b[i]); n += b[i]; }
+    return d * 50 <= Math.Min(n, w * (long)b.Length - n) + 2000;
+  }
+  // A part of the screen as BGRA bytes.
+  public static byte[] Grab(int x, int y, int w, int h) {
     using (var bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb)) {
       using (var g = System.Drawing.Graphics.FromImage(bmp)) g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h));
       var d = bmp.LockBits(new System.Drawing.Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
       var bytes = new byte[d.Stride * h];
       Marshal.Copy(d.Scan0, bytes, 0, bytes.Length);
       bmp.UnlockBits(d);
-      long p = 17, sum = 0; int top = 0;
+      long sum = 0; int top = 0; var rows = new int[h];
       for (int i = 0; i + 2 < bytes.Length; i += 4) {
         int b = bytes[i], m = bytes[i + 1], c = bytes[i + 2];
         sum += b + m + c; top = Math.Max(top, b | m | c);
-        if (b > 215 && m > 215 && c > 215) p = p * 31 + i;
+        if (b > 215 && m > 215 && c > 215) rows[i / d.Stride]++;
       }
-      print = p; Black = top < 8; Lum = sum / Math.Max(1, w * h);
+      Rows = rows; Black = top < 8; Lum = sum / Math.Max(1, w * h);
       return bytes;
     }
   }
@@ -94,8 +102,8 @@ if ($null -eq $engine) { Write-Output '{"error":"no text recogniser"}' }
 # The text in a part of the screen: one entry per line, with where it is (screen pixels). Read in memory.
 function Read-Area($x, $y, $w, $h) {
   if ($null -eq $engine -or $w -lt 40 -or $h -lt 20) { return $null }
-  $print = 0
-  $bytes = [CW]::Grab($x, $y, $w, $h, [ref]$print)
+  $eye.ocr++
+  $bytes = [CW]::Grab($x, $y, $w, $h)
   $buf = [System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions]::AsBuffer($bytes)
   $sb = [Windows.Graphics.Imaging.SoftwareBitmap]::CreateCopyFromBuffer($buf, [Windows.Graphics.Imaging.BitmapPixelFormat]::Bgra8, $w, $h)
   $res = Wait-Op ($engine.RecognizeAsync($sb)) ([Windows.Media.Ocr.OcrResult])
@@ -108,7 +116,7 @@ function Read-Area($x, $y, $w, $h) {
   }
   return $lines
 }
-function Print($x, $y, $w, $h) { $p = 0; $null = [CW]::Grab($x, $y, $w, $h, [ref]$p); return $p }
+function Look($x, $y, $w, $h) { $null = [CW]::Grab($x, $y, $w, $h) }
 
 $A = [System.Windows.Automation.AutomationElement]
 $CT = [System.Windows.Automation.ControlType]
@@ -127,9 +135,9 @@ $itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdPr
 # Windows PowerShell, so the loop would stop at the first read until the app sent its next command.
 $stdin = $in
 $pending = $stdin.ReadLineAsync()
-$lastApp = ''; $lastSig = ''; $lastPrint = 0; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $menuLum = 0; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}; $plSeen = 0
+$lastApp = ''; $lastSig = ''; $lastRows = $null; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $menuLum = 0; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}; $plSeen = 0
 $app = ''; $h = [IntPtr]::Zero; $fp = 0; $wait = 700; $nextAlive = 0; $lastItems = ''; $nextFull = 0
-$eye = @{ dark = 0; blind = $false }
+$eye = @{ dark = 0; blind = $false; ocr = 0 }
 Write-Output '{"ready":true}'
 # Black again and again: Windows is keeping this window's picture from other programs. (Once could be a loading screen.)
 function Seen-Black {
@@ -149,11 +157,11 @@ while ($true) {
     if (-not $app) { continue }
   }
   $wait = 700
-  if ([Environment]::TickCount -gt $nextAlive) { $nextAlive = [Environment]::TickCount + 5000; Write-Output '{"alive":true}' }
+  if ([Environment]::TickCount -gt $nextAlive) { $nextAlive = [Environment]::TickCount + 5000; Write-Output ('{"alive":true,"ocr":' + $eye.ocr + '}') }
   # Only the window in front: if it has just changed the app will say so, and nothing is read meanwhile.
   if ([CW]::GetForegroundWindow() -ne $h -or [CW]::IsIconic($h)) { continue }
   $c = [CW]::Client($h)
-  if ($app -ne $lastApp) { $lastApp = $app; $lastSig = ''; $lastPrint = 0; $msgList = $null; $lastItems = '' }
+  if ($app -ne $lastApp) { $lastApp = $app; $lastSig = ''; $lastRows = $null; $msgList = $null; $lastItems = '' }
   try {
     if ($app -eq 'discord') {
       # The message list ("Messages in #channel" / "Messages in @name"): found once per window, then reused, and looked
@@ -226,7 +234,7 @@ while ($true) {
       # Only the Messages tab is read: never calls, photos or notifications. (Without a tab Windows can describe, the
       # open conversation is what tells.)
       if ($msgTab -and -not $msgTab.Current.IsSelected) {
-        if ($lastSig -ne 'notab') { $lastSig = 'notab'; $lastPrint = 0; Write-Output (@{ app = 'phonelink'; win = $c; items = @(); noTab = $true } | ConvertTo-Json -Compress -Depth 4) }
+        if ($lastSig -ne 'notab') { $lastSig = 'notab'; $lastRows = $null; Write-Output (@{ app = 'phonelink'; win = $c; items = @(); noTab = $true } | ConvertTo-Json -Compress -Depth 4) }
       } elseif ($msgList) {
         $lb = $msgList.Current.BoundingRectangle
         $scope = $itemCache.Activate()
@@ -290,10 +298,10 @@ while ($true) {
         # changed, as Roblox's chat box is. A narrow window shows the conversation alone, so all of it is read.
         $cut = if ($c[2] -lt 760) { 0 } else { [int]($c[2] * 0.3) }
         $px = $c[0] + $cut; $pw = $c[2] - $cut
-        $p = Print $px $c[1] $pw $c[3]
+        Look $px $c[1] $pw $c[3]
         Seen-Black
-        if ($eye.blind) { $lastPrint = 0 } elseif ($p -ne $lastPrint) {
-          $lastPrint = $p; $lastSig = ''
+        if ($eye.blind) { $lastRows = $null } elseif (-not [CW]::Same($lastRows, [CW]::Rows, $pw)) {
+          $lastRows = [CW]::Rows; $lastSig = ''
           $lines = Read-Area $px $c[1] $pw $c[3]
           Write-Output (@{ app = 'phonelink'; win = $c; pane = @($px, $c[1], $pw, $c[3]); lines = @($lines); ocr = ($null -ne $engine) } | ConvertTo-Json -Compress -Depth 4)
         }
@@ -302,10 +310,10 @@ while ($true) {
       # Roblox: the chat box sits in the top left of the window. It is read only when it changed, and less often
       # while chat is closed (the app says so: then only a glance for the box coming back).
       $cw = [int][Math]::Min(620, $c[2] * 0.45); $ch = [int][Math]::Min(460, $c[3] * 0.5)
-      $p = Print $c[0] $c[1] $cw $ch
+      Look $c[0] $c[1] $cw $ch
       Seen-Black
-      if ($eye.blind) { $lastPrint = 0 } elseif ($p -ne $lastPrint) {
-        $lastPrint = $p
+      if ($eye.blind) { $lastRows = $null } elseif (-not [CW]::Same($lastRows, [CW]::Rows, $cw)) {
+        $lastRows = [CW]::Rows
         $lines = Read-Area $c[0] $c[1] $cw $ch
         Write-Output (@{ app = 'roblox'; win = $c; area = @($c[0], $c[1], $cw, $ch); lines = @($lines) } | ConvertTo-Json -Compress -Depth 4)
       }
@@ -314,7 +322,7 @@ while ($true) {
       if ([Environment]::TickCount -gt $nextMenu) {
         $nextMenu = [Environment]::TickCount + 1000
         $mx = $c[0] + [int]($c[2] * 0.25); $my = $c[1] + [int]($c[3] * 0.3); $mw = [int]($c[2] * 0.5); $mh = [int]($c[3] * 0.6)
-        $null = Print $mx ($my + [int]($mh / 2)) $mw 8
+        Look $mx ($my + [int]($mh / 2)) $mw 8
         $lum = [CW]::Lum
         if ($lastMenu -ne $false -or [Math]::Abs($lum - $menuLum) -gt [Math]::Max(12, $menuLum / 5)) {
           $ml = Read-Area $mx $my $mw $mh
@@ -506,7 +514,7 @@ const told = new Map();       // what was already pointed out, so a message is f
 let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true, flags: [] };
 let logTimer = null;
 // How many messages were checked and flagged in each app since chat safety started: numbers only, never what they said.
-const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0, unchecked: 0, why: '', otherTab: false }, app: null, reading: false, blind: null, at: 0 });
+const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0, unchecked: 0, why: '', otherTab: false }, app: null, reading: false, blind: null, looks: 0, at: 0 });
 let seen = fresh();
 let seenTimer = null;
 let apps = ['discord', 'roblox'];
@@ -751,7 +759,7 @@ function launch() {
     beat(mine);
     let msg;
     try { msg = JSON.parse(l); } catch { return; }
-    if (msg.alive) return;
+    if (msg.alive) { seen.looks = msg.ocr; return; }   // how often the recogniser ran: a number, nothing it read
     if (msg.ready) { if (quickExits < 3) setReader('ok'); return; }
     // Said just as the app left the front: too late to be true.
     if (msg.app && msg.app !== inFront) return;

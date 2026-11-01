@@ -17,11 +17,13 @@ function CpuOf($list) { $t = 0.0; foreach ($r in $list) { $p = Get-Process -Id $
 function MemOf($list) { $t = 0; foreach ($r in $list) { $p = Get-Process -Id $r.ProcessId -ErrorAction SilentlyContinue; if ($p) { $t += $p.WorkingSet64 } }; return [math]::Round($t / 1MB) }
 # Percent of one core used by all the readers over $seconds. A reader that started or ended inside the window counts for what it used while seen.
 function Cost($label, $seconds) {
-  $list = Readers; $a = CpuOf $list; $ca = CpuOf (ChatReader)
+  $list = Readers; $chat = ChatReader; $live = @($list | Where-Object { [string]$_.CommandLine -match 'WindowStyle' })
+  $a = CpuOf $list; $ca = CpuOf $chat; $la = CpuOf $live
   Start-Sleep $seconds
-  $b = CpuOf $list; $cb = CpuOf (ChatReader)
+  $b = CpuOf $list; $cb = CpuOf $chat; $lb = CpuOf $live
   $pct = [math]::Round(($b - $a) / $seconds * 100, 2)
-  $line = "cost ${label}: $($list.Count) readers, $pct% of one core, chat reader $([math]::Round(($cb - $ca) / $seconds * 100, 2))%, $(MemOf $list) MB"
+  $of = { param($d) [math]::Round($d / $seconds * 100, 2) }
+  $line = "cost ${label}: $($list.Count) readers, $pct% of one core (chat $(& $of ($cb - $ca))%, live $(& $of ($lb - $la))%, helper $(& $of (($b - $a) - ($cb - $ca) - ($lb - $la)))%), $(MemOf $list) MB"
   Say $line; Add-Content "$Out\cost.txt" $line
   return $pct
 }
@@ -62,8 +64,8 @@ Stop-Process -Name Sentinel -Force -ErrorAction SilentlyContinue; Start-Sleep 3
 Check 'restart' (StartSentinel) 'started with its debugging port'
 # Signed in, as most people are: the protection page and live scanning need it. A test account on this runner only.
 $r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); const a = { email: 'reader-cost-$(Get-Random)@example.com', password: 'Willow-harbour-83Pn' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Kim', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', Object.assign({ staySignedIn: true }, a))].join(','); })()"
-Check 'signed-in' (Until 40 { [bool](Info 'info()').pairedUserId }) "sign-up, sign-in: $($r.value)"
 Page '/app/protection'
+Check 'signed-in' (Until 40 { [bool](Info 'info()').pairedUserId }) "sign-up, sign-in: $($r.value)"
 # Start-up (lists, compiling) is over before anything is measured.
 Start-Sleep 60
 [K]::ShowWindow([K]::GetForegroundWindow(), 6) | Out-Null   # nothing of Sentinel's in front
@@ -85,8 +87,12 @@ Say "Roblox in front: $(Fake 'RobloxPlayerBeta' 'roblox.html?moving')"
 $ok = Until 40 { (Chat).seen.roblox.checked -ge 1 }
 Shot 'roblox-moving'
 Check 'roblox-read' $ok "its chat was read: $((Chat).seen.roblox.checked) messages"
+# Past its first start, which compiles and loads the recogniser.
+Start-Sleep 20
+$l0 = (Chat).seen.looks
 $game = Cost 'game' 45
-$chatGame = (Get-Content "$Out\cost.txt" | Select-Object -Last 1)
+$l1 = (Chat).seen.looks
+Check 'game-not-reread' ($l1 -ne $null -and $l1 - $l0 -le 5) "the recogniser ran $($l1 - $l0) times in 45 s of a game moving behind a chat that did not change"
 [K]::Tap(0x1B)
 $menu = Until 8 { (Cdp 'chat.html' "getComputedStyle(document.getElementById('badge')).display + '|' + document.body.className").value -notmatch '^none' }
 Shot 'roblox-esc-menu'
@@ -97,7 +103,9 @@ Start-Sleep 3
 
 # 3. A game Windows shows as black: the app says it cannot see it, not that the chat is closed.
 Say "A black game in front: $(Fake 'RobloxPlayerBeta' 'roblox.html?black')"
-$black = Until 20 { (Chat).seen.blind -eq 'roblox' }
+# Full screen: Chrome draws its title bar inside its window, where the chat box of a real game would be.
+[K]::Tap(0x7A)
+$black = Until 25 { (Chat).seen.blind -eq 'roblox' }
 Page '/app/protection'
 Say "  the panel: $(Line)"
 Check 'black-game-told' ($black -and (Line) -match 'cannot see') "seen.blind $((Chat).seen.blind); the panel: $(Line)"
@@ -113,9 +121,10 @@ $idleChat = Cost 'discord' 45
 # 5. The reader is killed while it reads: it comes back by itself, and the page says what happened meanwhile.
 $before = @(ChatReader | ForEach-Object { $_.ProcessId })
 Check 'reader-running' ($before.Count -eq 1) "chat readers with Discord in front: $($before.Count)"
-foreach ($id in $before) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
-$said = $false; [void](Until 3 { $script:said = (Chat).reader -eq 'restarting'; $script:said })
 Page '/app/protection'
+foreach ($id in $before) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
+Start-Sleep -Milliseconds 300
+$said = (Chat).reader -eq 'restarting'
 $told = Line
 Say "  the panel, reader killed: $told"
 $back = Until 30 { $n = @(ChatReader | ForEach-Object { $_.ProcessId }); $n.Count -eq 1 -and $before -notcontains $n[0] -and (Chat).reader -eq 'ok' }

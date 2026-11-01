@@ -149,14 +149,15 @@ test('a window Windows shows as black is told apart from a chat that is closed',
   onMessage({ app: 'roblox', blind: false });
   assert.equal(chatwatch.stats().blind, null);
   assert.match(SCRIPT, /Black = top < 8/);
-  assert.match(SCRIPT, /Seen-Black\n\s+if \(\$eye\.blind\) \{ \$lastPrint = 0 \}/, 'nothing is read from it, and the next picture is');
+  assert.match(SCRIPT, /Seen-Black\n\s+if \(\$eye\.blind\) \{ \$lastRows = \$null \}/, 'nothing is read from it, and the next picture is');
 });
 
 test('the reader sleeps on its input: it never asks which window is in front, and a game moving behind the chat is not read', () => {
   assert.doesNotMatch(SCRIPT, /Start-Sleep|Get-Process/);
   assert.match(SCRIPT, /\$pending\.Wait\(\$\(if \(\$app\) \{ \$wait \} else \{ -1 \}\)\)/);
   assert.match(SCRIPT, /if \(\[CW\]::GetForegroundWindow\(\) -ne \$h/, 'before each read: still the window in front');
-  assert.match(SCRIPT, /b > 215 && m > 215 && c > 215/, 'the fingerprint is of the words');
+  assert.match(SCRIPT, /b > 215 && m > 215 && c > 215/, 'what is compared is the words');
+  assert.match(SCRIPT, /-not \[CW\]::Same\(\$lastRows, \[CW\]::Rows, \$cw\)/, 'against the copy last read');
   assert.match(SCRIPT, /\$lastMenu -ne \$false -or \[Math\]::Abs\(\$lum - \$menuLum\)/, 'half the screen is read only when the game dims');
 });
 
