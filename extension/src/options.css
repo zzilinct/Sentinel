@@ -2,7 +2,7 @@
 body.options { width: auto; max-width: 880px; margin: 0 auto; padding: 48px clamp(16px, 4vw, 40px) 72px; font-size: var(--t-ui); }
 .head { display: flex; align-items: center; gap: 22px; margin-bottom: 40px; }
 .head-mask { display: block; width: 84px; height: auto; flex: none; filter: drop-shadow(0 12px 14px rgba(0, 0, 0, .35)); }
-.head h1 { font: 400 clamp(28px, 4vw, 38px)/1.12 var(--display); margin: 0 0 8px; text-wrap: balance; }
+.head h1 { font: 400 var(--t-title-l)/1.12 var(--display); margin: 0 0 8px; text-wrap: balance; }
 .head-line { margin: 0 0 4px; font-size: var(--t-text); color: var(--text-2); max-width: 56ch; }
 .head-line:empty { display: none; }
 .head .small { margin: 0; overflow-wrap: anywhere; }

@@ -88,11 +88,12 @@
     const blocked = tab.url !== url;
     const said = Say.page(verdict, { stopped: blocked, off: !state.settings.enabled, paused: state.locked === 'hours' || Boolean(state.account.plan.modelLocked) });
     const left = state.account.usage.linkScans.limit - state.account.usage.linkScans.used;
-    const checkButton = said.action.kind === 'check';
-    const main = checkButton ? '' : `<button class="btn gold block" id="act" type="button">${esc(said.action.text)}</button>`;
+    // Nobody has looked yet: checking is the one thing to do. Anything else already has its answer, and Check again stays quiet.
+    const first = said.tone === 'none';
+    const main = said.action.kind === 'check' ? '' : `<button class="btn gold block" id="act" type="button">${esc(said.action.text)}</button>`;
     const check = left <= 0
       ? '<p class="small note">No page checks left this week.</p>'
-      : `<button class="btn ${checkButton ? 'block' : 'block quiet'}" id="check" type="button">${esc(checkButton ? said.action.text : 'Check again')}</button>`;
+      : `<button class="btn block ${first ? 'gold' : 'quiet'}" id="check" type="button">${esc(first ? said.action.text : 'Check again')}</button>`;
     view.innerHTML = `${hero(said, new URL(url).hostname)}<div class="do">${main}${blocked ? '' : check}</div><div id="note">${note}</div>${statusLine()}`;
     wire(said);
   }

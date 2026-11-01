@@ -115,8 +115,10 @@ test('a red answer closes one address, never the site, and a private window leav
   assert.equal(w.session[0].condition.urlFilter, '|https://docs.example/forms/bad|');
   assert.equal(w.session[0].condition.requestDomains, undefined);
   assert.equal(w.session[0].action.redirect.url, 'chrome-extension://me/src/block.html#https://docs.example/forms/bad');
-  await w.call('report', { url: 'x', category: 'phishing' }).catch(() => {});
-  await w.ctx.handlers.override({ url: 'x', action: 'allow' }).catch(() => {});
+  w.ctx.handlers.refresh();   // what report and "this is fine" do too: nothing the scanner said before still stands
+  await new Promise((r) => setTimeout(r, 20));
+  await w.settled();
+  assert.equal(w.session.length, 0, 'a site reported as fine opens again');
 });
 
 test('Continue anyway lets one tab through until it closes, keeps no record elsewhere, and survives being pressed twice', async () => {

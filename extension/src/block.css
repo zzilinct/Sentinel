@@ -21,7 +21,7 @@ body.block { --glow: rgba(212, 174, 99, .16); width: auto; min-height: 100vh; mi
 @media (prefers-reduced-motion: reduce) { .block:not([data-tone="none"]) .mask { animation: none; } }
 
 .say { min-width: 0; }
-.say h1 { font: 400 var(--t-title-l)/1.12 var(--display); font-size: clamp(32px, 4vw, 44px); margin: 0 0 14px; text-wrap: balance; }
+.say h1 { font: 400 var(--t-title-l)/1.12 var(--display); margin: 0 0 14px; text-wrap: balance; }
 .say .host { font: 500 var(--t-ui)/1.5 var(--mono); --track: 0px; color: var(--text-2); overflow-wrap: anywhere; margin: 0 0 18px; }
 .say .host:empty { display: none; }
 .line { margin: 0; font-size: var(--t-lead); line-height: var(--lh-lead); color: var(--text); max-width: 46ch; }
@@ -52,7 +52,6 @@ body.block { --glow: rgba(212, 174, 99, .16); width: auto; min-height: 100vh; mi
   .stage { display: block; padding: 0 20px 28px; }
   .halo { justify-items: start; background: radial-gradient(closest-side at 60px 50%, var(--glow), transparent); margin-bottom: 18px; }
   .mask { height: 128px; }
-  .say h1 { font-size: var(--t-title-l); }
   .line { font-size: var(--t-body); }
   .act .btn { flex: 1 1 100%; }
 }

@@ -41,11 +41,17 @@ async function checkCompanionDoor() {
 
   // The scanner, slowed for page checks while `slow` is set.
   let slow = 0;
+  let red = '';
   const proxy = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', async () => {
       if (slow && req.url.startsWith('/api/v1/live/visit')) await sleep(slow);
+      if (red && req.url.startsWith('/api/v1/live/batch')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ byUrl: { [red]: { ok: true, url: red, host: new URL(red).hostname, threats: { scam: { badge: 'red', label: 'Confirmed scam', score: 96 } }, reasons: [{ text: 'A fake sign-in page' }], overall: { badge: 'red', level: 'confirmed', label: 'Confirmed scam' } } } }));
+        return;
+      }
       const up = http.request({ host: '127.0.0.1', port, path: req.url, method: req.method, headers: { ...req.headers, host: `127.0.0.1:${port}` } }, (r) => { res.writeHead(r.statusCode, r.headers); r.pipe(res); });
       up.on('error', () => { res.writeHead(502); res.end(); });
       up.end(Buffer.concat(chunks));
@@ -219,19 +225,20 @@ async function checkCompanionDoor() {
     slow = 0;
     result('companion-door: a tab that moved on before the slow answer came is left where it is', movedHref === 'http://moved.test/here', { movedHref });
 
-    /* 3. A red answer closes the door on that address only. */
-    if (badges[FLAG] === 'red') {
-      const addr = `http://${FLAG}/result-page`;
-      await evalIn(browser, opt.sessionId, `chrome.runtime.sendMessage({ type: 'live-batch', urls: [${JSON.stringify(addr)}], phase: 'quick' }).then(() => 1)`);
-      await sleep(600);
-      const was = hits[FLAG] || 0;
-      const r = await openPage(browser);
-      await goto(browser, r.sessionId, addr, SHOWN);
-      const atDoor = (hits[FLAG] || 0) === was;
-      await goto(browser, r.sessionId, 'http://plain.test/unrelated');
-      await browser.send('Target.closeTarget', { targetId: r.targetId }).catch(() => {});
-      result('companion-door: a search result the scanner called red never loads when clicked', atDoor, { was, now: hits[FLAG] });
-    } else console.log(`SKIP  companion-door: the scanner gave ${FLAG} ${badges[FLAG]}, not red: a door on an address needs red`);
+    /* 3. A red answer closes the door on that address only. The proxy says red: whether the scanner would is not the question here. */
+    red = 'http://moved.test/result-page';
+    await evalIn(browser, opt.sessionId, `chrome.runtime.sendMessage({ type: 'live-batch', urls: [${JSON.stringify(red)}], phase: 'quick' }).then(() => 1)`);
+    await sleep(600);
+    const was = hits['moved.test'] || 0;
+    const r = await openPage(browser);
+    await goto(browser, r.sessionId, red, SHOWN);
+    const atDoor = (hits['moved.test'] || 0) === was;
+    const redText = await pageText(browser, r.sessionId);
+    await goto(browser, r.sessionId, 'http://moved.test/another-page', "document.getElementById('pw')");
+    const sameSite = (hits['moved.test'] || 0) === was + 1;
+    await browser.send('Target.closeTarget', { targetId: r.targetId }).catch(() => {});
+    red = '';
+    result('companion-door: a search result the scanner called red never loads when clicked, and the rest of its site still opens', atDoor && sameSite && /stopped it before it opened/.test(redText), { was, now: hits['moved.test'], sameSite, redText: redText.slice(0, 160) });
 
     /* 4. Nobody can fake it. */
     const forged = await openPage(browser);
