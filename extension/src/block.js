@@ -83,7 +83,7 @@
       const b = ev.currentTarget;
       b.disabled = true;
       const res = await send({ type: 'block-pass', url });
-      if (!res.pass) b.disabled = false;
+      if (res.pass) location.replace(url); else b.disabled = false;
     };
   }
 

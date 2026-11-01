@@ -106,7 +106,6 @@ function worker({ tabs = {} } = {}) {
       get: async (id) => tabs[id] || null,
       query: async ({ windowId }) => Object.values(tabs).filter((t) => t.active && t.windowId === windowId),
       create: async (o) => { created.push(o.url); },
-      update: async () => {},
       onRemoved: listener('removed'), onActivated: listener('activated')
     },
     action: { setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {}, setTitle: async () => {} },

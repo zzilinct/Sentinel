@@ -21,7 +21,7 @@ const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pa
 const { stopWorker, workerTarget } = require('./_companion');
 
 const LISTED = TYPED_PW;
-const LONG_LISTED = 'netflix-billing-update.top';
+const HTTP_ONLY = 'netflix-billing-update.top';   // listed; nothing answers on its https port, as on most such sites
 const SLOW_CANDIDATES = ['paypal-account-verify-login.top', 'secure-paypal-login-alert.top', 'apple-id-locked-alert.top', 'amazon-account-locked-verify.top', 'wallet-restore-connect.top'];
 const SHOWN = "document.getElementById('pass') && document.getElementById('pass').onclick";
 const freePort = () => new Promise((resolve) => { const sv = net.createServer().listen(0, '127.0.0.1', () => { const p = sv.address().port; sv.close(() => resolve(p)); }); });
@@ -76,8 +76,8 @@ async function checkCompanionDoor() {
       <iframe id="f" title="frame" style="width:600px;height:300px"></iframe></body></html>`
   });
   const filesPort = new URL(files.base).port;
-  const hosts = [LISTED, LONG_LISTED, ...SLOW_CANDIDATES, 'plain.test', 'moved.test'];
-  const { browser, close } = await launch([`--host-resolver-rules=${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort}`]);
+  const hosts = [LISTED, ...SLOW_CANDIDATES, 'plain.test', 'moved.test'];
+  const { browser, close } = await launch([`--host-resolver-rules=MAP ${HTTP_ONLY}:80 127.0.0.1:${standPort},MAP ${HTTP_ONLY}:443 127.0.0.1:9,${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort}`]);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api}`);
     const via = `http://127.0.0.1:${proxyPort}`;
@@ -167,6 +167,13 @@ async function checkCompanionDoor() {
     await browser.send('Target.closeTarget', { targetId: other.targetId }).catch(() => {});
     result('companion-door: Continue anyway, pressed twice, opens the site in that tab, a reload stays open, and another tab is still stopped', Boolean(opened) && stays && otherStopped, { opened, stays, otherStopped });
     await browser.send('Target.closeTarget', { targetId: tab.targetId }).catch(() => {});
+
+    // A site on plain http with nothing on 443: Continue anyway is a navigation from an https-like page, and Chrome tries https first.
+    const httpOnly = await openPage(browser);
+    await goto(browser, httpOnly.sessionId, `http://${HTTP_ONLY}/signin.html`, SHOWN);
+    const httpOpened = await passBlock(browser, httpOnly.sessionId, 'window.ran === true').then(() => true, (err) => err.message);
+    await browser.send('Target.closeTarget', { targetId: httpOnly.targetId }).catch(() => {});
+    result('companion-door: Continue anyway opens a plain http site with nothing on its https port', httpOpened === true, { httpOpened });
 
     // A link opened in a new tab has nothing to go back to: the tab closes.
     const count = async () => (await browser.send('Target.getTargets')).targetInfos.filter((t) => t.type === 'page').length;

@@ -164,6 +164,10 @@ async function clickButton(browser, sessionId, text) {
   return true;
 }
 
+// A stand-in here answers plain http on the https port too, which no site does: Chrome's upgrade to https then ends on an
+// error page instead of falling back. companion-door proves the real shape, a site with nothing on 443.
+const NO_UPGRADE = '--disable-features=HttpsUpgrades,HttpsFirstBalancedModeAutoEnable';
+
 /** "Continue anyway" on the block page, as a person does it; `ready` is what the opened page must then show. */
 async function passBlock(browser, sessionId, ready = 'true') {
   const pressed = `(() => { const b = document.getElementById('pass'); if (!b || !b.onclick) return false; document.getElementById('more').open = true; b.click(); return true; })()`;
@@ -295,5 +299,5 @@ async function until(browser, sessionId, expression, ms = 15000) {
   return v;
 }
 
-module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton, passBlock,
+module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton, passBlock, NO_UPGRADE,
   readPng, startServer, watchErrors, clickSel, pressKey, until };

@@ -20,7 +20,7 @@
  */
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { ROOT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, TYPED_PW, watchErrors, pressKey, until, passBlock } = require('./_shared');
+const { ROOT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, TYPED_PW, watchErrors, pressKey, until, passBlock, NO_UPGRADE } = require('./_shared');
 const { tlsServer, startSentinel, loadCompanion, stopWorker, workerTarget, pairedOptions, page, gmailPage, outlookPage } = require('./_companion');
 
 const PORT = 47821;
@@ -89,8 +89,8 @@ async function checkCompanionCore() {
   });
   const filesPort = new URL(files.base).port;
   const rules = `--host-resolver-rules=${tls.rules},MAP ${TYPED_PW} 127.0.0.1:${filesPort},MAP plain.test 127.0.0.1:${filesPort}`;
-  const withIt = await launch([rules, '--ignore-certificate-errors']);
-  const without = await launch([rules, '--ignore-certificate-errors']);
+  const withIt = await launch([rules, '--ignore-certificate-errors', NO_UPGRADE]);
+  const without = await launch([rules, '--ignore-certificate-errors', NO_UPGRADE]);
   const { browser } = withIt;
   try {
     const id = await loadCompanion(browser);

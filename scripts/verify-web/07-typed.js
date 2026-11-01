@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, TYPED_PW, clickButton, passBlock } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, TYPED_PW, clickButton, passBlock, NO_UPGRADE } = require('./_shared');
 
 /* ------------------------------------------- 6. did you type anything? (companion) */
 
@@ -43,7 +43,7 @@ async function checkTyped() {
   });
   const filesPort = new URL(files.base).port;
   const rules = [TYPED_PW, TYPED_CARD].map((h) => `MAP ${h} 127.0.0.1:${filesPort}`).join(',');
-  const { browser, close } = await launch([`--host-resolver-rules=${rules}`]);
+  const { browser, close } = await launch([`--host-resolver-rules=${rules}`, NO_UPGRADE]);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api} (see typed-server.log)`);
     const loaded = await browser.send('Extensions.loadUnpacked', { path: path.join(ROOT, 'extension') });

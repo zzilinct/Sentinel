@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock, NO_UPGRADE } = require('./_shared');
 
 const SAYS = 'No real company, government office or bank asks to be paid in gift cards or crypto.';
 const CARD_HOST = 'netflix-billing-update.top';   // a listed scam (server/lib/scan/lists.js), a harmless local page here
@@ -49,7 +49,7 @@ async function checkCompanionNav() {
   });
   const filesPort = new URL(files.base).port;
   const hosts = ['walletspa.test', 'payframe.test', TYPED_PW, CARD_HOST];
-  const { browser, close } = await launch([`--host-resolver-rules=${hosts.map((h) => `MAP ${h} 127.0.0.1:${filesPort}`).join(',')}`]);
+  const { browser, close } = await launch([`--host-resolver-rules=${hosts.map((h) => `MAP ${h} 127.0.0.1:${filesPort}`).join(',')}`, NO_UPGRADE]);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api} (see companion-nav-server.log)`);
     const loaded = await browser.send('Extensions.loadUnpacked', { path: path.join(ROOT, 'extension') });
