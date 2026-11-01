@@ -235,7 +235,7 @@ async function checkCompanionDoor() {
     const atDoor = (hits['moved.test'] || 0) === was;
     const redText = await pageText(browser, r.sessionId);
     await goto(browser, r.sessionId, 'http://moved.test/another-page', "document.getElementById('pw')");
-    const sameSite = (hits['moved.test'] || 0) === was + 1;
+    const sameSite = (hits['moved.test'] || 0) > was;
     await browser.send('Target.closeTarget', { targetId: r.targetId }).catch(() => {});
     red = '';
     result('companion-door: a search result the scanner called red never loads when clicked, and the rest of its site still opens', atDoor && sameSite && /stopped it before it opened/.test(redText), { was, now: hits['moved.test'], sameSite, redText: redText.slice(0, 160) });

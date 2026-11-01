@@ -174,7 +174,8 @@ async function passBlock(browser, sessionId, ready = 'true') {
     await sleep(250);
     if (await evalIn(browser, sessionId, `/^http/.test(location.href) && document.readyState === 'complete' && Boolean(${ready})`).catch(() => false)) return;
   }
-  throw new Error('Continue anyway did not open the page');
+  const where = await evalIn(browser, sessionId, `(async () => ({ href: location.href, text: document.body.innerText.slice(0, 160), rules: typeof chrome !== 'undefined' && chrome.declarativeNetRequest ? await chrome.declarativeNetRequest.getSessionRules() : null, tab: typeof chrome !== 'undefined' && chrome.tabs ? (await chrome.tabs.getCurrent()).id : null }))()`).catch((err) => err.message);
+  throw new Error(`Continue anyway did not open the page: ${JSON.stringify(where)}`);
 }
 
 /* ---------------------------------------------------------------- real frames */
