@@ -8,13 +8,13 @@
 // Camera: this far from the pivot, seeing this many degrees top to bottom; a box narrower than MIN_ASPECT widens it.
 const CAMERA = { z: 7.6, fov: 20, minAspect: 0.72 };
 
-// rest: the holder's resting turn (Blender's lay pose, x -24, y 28, z 16 degrees, carried into glTF's axes, as the
+// rest: the holder's resting turn (Blender's lay pose, x -14, y 16, z 12 degrees, carried into glTF's axes, as the
 // renders were made). frame: offset and size, so the hero's model sits exactly where its still picture (onyx.webp)
 // does and takes over without a jump. zoom: the camera sees this much wider and the canvas is drawn this much larger,
 // so the mask stays the same size on the page but has room to turn: the hero, tipped and turned, reached past its
 // canvas while it watched the pointer, and the virus mask's spores past a plate's while it swayed.
 const POSES = {
-  lay: { rest: { x: -0.42, y: 0.28, z: -0.49 }, frame: { x: -0.17, y: -0.19, s: 1.15 }, zoom: 1.3 },
+  lay: { rest: { x: -0.244, y: 0.209, z: -0.279 }, frame: { x: -0.17, y: -0.19, s: 1.15 }, zoom: 1.3 },
   plate: { rest: { x: 0, y: 0, z: 0 }, frame: { x: 0, y: 0, s: 1 }, zoom: 1.08 },
   stand: { rest: { x: 0, y: -0.18, z: 0 }, frame: { x: 0, y: 0, s: 1 }, zoom: 1 }
 };

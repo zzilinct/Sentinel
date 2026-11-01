@@ -32,6 +32,10 @@ SIZE = int(os.environ.get('MASK_QA_SIZE', '640'))
 SAMPLES = int(os.environ.get('MASK_QA_SAMPLES', '24'))
 
 
+FINISH = {'body': ((0.95, 0.68, 0.3), 1.0, 0.2), 'trim': ((1.0, 0.72, 0.2), 1.0, 0.16), 'liner': ((0.004, 0.0035, 0.003), 0.0, 0.42),
+          'ember': ((0.004, 0.0035, 0.003), 0.0, 0.3)}
+
+
 def clean():
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
@@ -86,7 +90,11 @@ def check(objs):
             errors.append(f'{o.name}: no UV map')
             continue
         uv = me.uv_layers.active.data
+        # Only the body is mapped; the gold, the liner and the ember have no maps.
+        body = [i for i, slot in enumerate(o.material_slots) if slot.material and slot.material.name.startswith('body')]
         for p in me.polygons:
+            if p.material_index not in body:
+                continue
             pts = [uv[i].uv for i in p.loop_indices]
             uv_out += sum(1 for q in pts if q.x < -1e-3 or q.y < -1e-3 or q.x > 1.001 or q.y > 1.001)
             area = sum(pts[i].x * pts[(i + 1) % len(pts)].y - pts[(i + 1) % len(pts)].x * pts[i].y for i in range(len(pts)))
@@ -160,9 +168,10 @@ def gold(objs):
                 continue
             for l in list(b.inputs['Base Color'].links):
                 mat.node_tree.links.remove(l)
-            b.inputs['Base Color'].default_value = (0.95, 0.68, 0.3, 1)
-            b.inputs['Metallic'].default_value = 1.0
-            b.inputs['Roughness'].default_value = 0.2
+            look = FINISH.get(mat.name.split('.')[0], FINISH['body'])
+            b.inputs['Base Color'].default_value = (*look[0], 1)
+            b.inputs['Metallic'].default_value = look[1]
+            b.inputs['Roughness'].default_value = look[2]
 
 
 def shoot(objs, name):

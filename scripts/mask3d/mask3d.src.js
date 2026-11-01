@@ -8,17 +8,20 @@
  *   data-tint="yellow|orange|red"           a severity colour instead of the mask's own metal
  *   data-pose="lay"                         tipped back and turned, as the hero lies across the name
  *   data-look="620"                         turns to watch the pointer when it comes within about this many pixels
- *   data-eyes                               glowing eyes, brighter while it watches (the hero only)
  *   data-rise="<performance.now()>"         a verdict's mask, from that moment: rises into place if the model is ready
  *                                           soon enough, then holds still (no drift, and no more frames drawn)
+ *
+ * A model has four parts, told apart by their material's name: the body takes the finish and the baked maps; the trim is
+ * gold on every mask; the liner is the dark floor of the sockets and openings; the ember is the light set on the floor of
+ * each eye, lit in the onyx finish and brighter while the mask watches, its light falling on the socket around it.
  *
  * The <img> inside stays until the model is drawn (and stays for good without WebGL or with reduced motion: a
  * still render is the right answer there). window.SentinelMask3D.get(el) returns the mask's controls: tint(name),
  * swallow(newTint, ms) for the threat plates' black hole, and mix(a, b, t) for the colour reading.
  */
 import {
-  WebGLRenderer, Scene, PerspectiveCamera, PMREMGenerator, MeshPhysicalMaterial, Color, Group, Mesh, PlaneGeometry,
-  MeshBasicMaterial, AdditiveBlending, CanvasTexture, SpriteMaterial, Sprite, SRGBColorSpace, AgXToneMapping, DoubleSide
+  WebGLRenderer, Scene, PerspectiveCamera, PMREMGenerator, MeshPhysicalMaterial, Color, Group, PointLight, Box3,
+  SRGBColorSpace, AgXToneMapping
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
@@ -43,9 +46,9 @@ const RISE_TURN = 0.42;
 
 // Finishes, matching the Blender renders (masks.py LOOKS and TINTS). studio: which of Sentinel's studios the finish
 // reflects (web/assets/models/studio-*.hdr, masks.py --env): the gold one, or the onyx one, with its key light and
-// room turned down so the black lacquer stays black and only the softboxes and gold cards show in it.
+// room turned down so the black lacquer stays black and only the softboxes show in it.
 const FINISH = {
-  onyx: { color: '#0b0a09', metalness: 0, roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.03, rim: '#ffb455', studio: 'onyx' },
+  onyx: { color: '#0b0a09', metalness: 0, roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.03, rim: '#ffb455', studio: 'onyx', lit: true },
   scam: { color: '#f2b64b', metalness: 1, roughness: 0.16, clearcoat: 0.4, clearcoatRoughness: 0.03, rim: '#ffa04a', studio: 'scam' },
   virus: { color: '#ff5a10', metalness: 1, roughness: 0.22, clearcoat: 0.7, clearcoatRoughness: 0.03, rim: '#ff7a2a', studio: 'scam' },
   malware: { color: '#a1040c', metalness: 0.85, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.03, rim: '#ff2a20', studio: 'scam' },
@@ -54,6 +57,13 @@ const FINISH = {
   red: { color: '#a3030b', metalness: 0.85, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.03, rim: '#ff2a20', studio: 'scam' }
 };
 const GEOMETRY = { onyx: 'scam', scam: 'scam', virus: 'virus', malware: 'malware' };
+// The parts that are the same on every mask (masks.py build), in linear colour as Blender has them.
+const GOLD = { metalness: 1, roughness: 0.2 };
+const LINER = { metalness: 0, roughness: 0.42 };
+// The eyes' light: the ember's glow and the light it throws into the socket, at rest (1) and while watching (EYE_WATCH).
+const EMBER_GLOW = 1.1;
+const EMBER_THROW = 0.14;
+const EYE_WATCH = 1.5;
 
 /* ------------------------------------------------------------- models */
 
@@ -83,7 +93,7 @@ const studio = (name) => {
 // Added to the physical material. Consumed: a horizon (uEat) grows from the middle and everything inside it is gone,
 // while the metal just outside is dragged round and in toward it. Reborn: a radius (uRadius) grows from the middle
 // with a swirl that unwinds, so the new mask comes out of the hole. Both edges burn in the hole's colour.
-function swallowable(material, state) {
+function swallowable(material, state, heat) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uRadius = state.radius;
     shader.uniforms.uSwirl = state.swirl;
@@ -116,26 +126,14 @@ function swallowable(material, state) {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.09, edge)) * 4.0 * step(uRadius, 1.6);
         if (uEat > 0.0) totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.14, eaten)) * 5.0;`);
+    // The ember: hottest where its lens faces the eye, falling to a deep red at the edge (masks.py build).
+    if (heat) {
+      shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        float facing = saturate(dot(normal, normalize(vViewPosition)));
+        totalEmissiveRadiance *= mix(vec3(0.55, 0.16, 0.0), vec3(1.25, 1.1, 1.0), facing * facing);`);
+    }
   };
-  material.customProgramCacheKey = () => 'sentinel-swallow';
-}
-
-/* -------------------------------------------------------------- a glow */
-
-function glowTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 128;
-  const g = c.getContext('2d');
-  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grad.addColorStop(0, 'rgba(255,240,170,1)');
-  grad.addColorStop(0.25, 'rgba(255,205,70,.65)');
-  grad.addColorStop(0.6, 'rgba(255,170,30,.16)');
-  grad.addColorStop(1, 'rgba(255,150,0,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 128, 128);
-  const t = new CanvasTexture(c);
-  t.colorSpace = SRGBColorSpace;
-  return t;
+  material.customProgramCacheKey = () => `sentinel-swallow${heat ? '-heat' : ''}`;
 }
 
 /* ------------------------------------------------------- one renderer for all */
@@ -227,6 +225,11 @@ function mount(el) {
   return mounting.get(el);
 }
 
+function showEyes(eyes, ember) {
+  ember.emissiveIntensity = eyes.on ? EMBER_GLOW * eyes.level : 0;
+  for (const l of eyes.lights) l.intensity = eyes.on ? EMBER_THROW * eyes.level : 0;
+}
+
 async function build(el) {
   const kind = el.dataset.mask3d;
   const geom = GEOMETRY[kind] || 'scam';
@@ -253,6 +256,13 @@ async function build(el) {
     clearcoatRoughness: f.clearcoatRoughness
   });
   swallowable(material, state);
+  const gold = new MeshPhysicalMaterial({ ...GOLD, color: new Color().setRGB(1, 0.71, 0.29) });
+  swallowable(gold, state);
+  const liner = new MeshPhysicalMaterial({ ...LINER, color: new Color().setRGB(0.004, 0.0035, 0.003) });
+  swallowable(liner, state);
+  const ember = new MeshPhysicalMaterial({ color: 0x000000, roughness: 0.3, emissive: new Color().setRGB(1, 0.34, 0.02), emissiveIntensity: 0 });
+  swallowable(ember, state, true);
+  const parts = { trim: gold, liner, ember };
 
   // pivot: where the mask looks; holder: its resting pose.
   const pivot = new Group();
@@ -271,39 +281,35 @@ async function build(el) {
     scene.environment = env;
     const m = src.clone(true);
     // The model's own maps, baked in Blender from the detailed mask (masks.py --glb): the normal map carries the
-    // bevels, rims and ridges smaller than a triangle, under the lacquer too; the occlusion map darkens the eyes'
+    // bevels, rims and ridges smaller than a triangle, under the lacquer too; the occlusion map darkens the sockets'
     // depth. The finish (colour, metal, lacquer) stays the site's.
+    let glow = null;
     m.traverse((o) => {
       if (!o.isMesh) return;
       const baked = o.material;
-      if (baked && baked.normalMap && !material.normalMap) {
+      if (baked.name === 'ember') glow = o;
+      if (baked.normalMap) {
         material.normalMap = baked.normalMap;
         material.normalScale.copy(baked.normalScale);
         material.clearcoatNormalMap = baked.normalMap;
         material.clearcoatNormalScale.copy(baked.normalScale);
       }
-      if (baked && baked.aoMap && !material.aoMap) material.aoMap = baked.aoMap;
-      o.material = material;
+      if (baked.aoMap) material.aoMap = baked.aoMap;
+      o.material = parts[baked.name] || material;
     });
     holder.add(m);
-    if (el.hasAttribute('data-eyes')) {
-      // Light inside the mask, seen through its eyes; and a glow over each eye, always lit and brighter as it watches.
-      // The light is drawn last and over the metal's inside, so the eyes read clearly against a bright finish.
-      const glowMat = new MeshBasicMaterial({ color: 0xffc83a, side: DoubleSide, toneMapped: false });
-      const inner = new Mesh(new PlaneGeometry(1.25, 0.34), glowMat);
-      inner.position.set(0, 0.2, 0.2);
-      holder.add(inner);
-      const tex = glowTexture();
-      const halos = [-0.36, 0.36].map((x) => {
-        const s = new Sprite(new SpriteMaterial({ map: tex, blending: AdditiveBlending, depthWrite: false, depthTest: false, transparent: true, opacity: 0, toneMapped: false }));
-        // Drawn over the metal: the eyes glow from any angle, not only when the mask faces the camera.
-        s.renderOrder = 2;
-        s.position.set(x, 0.2, 0.64);
-        s.scale.set(0.7, 0.46, 1);
-        holder.add(s);
-        return s;
+    if (f.lit && glow) {
+      // A small light on the floor of each socket: walls that face it catch it, and metal that faces away cannot.
+      m.updateMatrixWorld(true);
+      const box = new Box3().setFromObject(glow);
+      const lights = [-1, 1].map((side) => {
+        const light = new PointLight(new Color().setRGB(1, 0.34, 0.02), 0, 0.9, 2);
+        light.position.set((box.min.x + box.max.x) / 2 + side * (box.max.x - box.min.x) * 0.33, (box.min.y + box.max.y) / 2, box.max.z + 0.04);
+        holder.add(light);
+        return light;
       });
-      eyes = { glowMat, halos, level: 0.7 };
+      eyes = { lights, level: 1, on: true };
+      showEyes(eyes, ember);
     }
   } catch {
     return null;
@@ -424,22 +430,19 @@ async function build(el) {
         if (u >= 1) riseFrom = 0;
       }
       if (eyes) {
-        const want = 0.7 + 0.5 * look.w;
-        eyes.level += (want - eyes.level) * Math.min(1, dt * 6);
-        const flicker = 0.93 + 0.07 * Math.sin(t * 13) * Math.sin(t * 7.3);
-        eyes.glowMat.color.setRGB(1.9 * eyes.level * flicker, 1.35 * eyes.level * flicker, 0.3 * eyes.level);
-        for (const s of eyes.halos) s.material.opacity = Math.min(1, Math.max(0, (eyes.level - 0.15) * 1.25)) * flicker;
+        eyes.level += (1 + (EYE_WATCH - 1) * look.w - eyes.level) * Math.min(1, dt * 6);
+        showEyes(eyes, ember);
       }
       if (anim && anim(now) === false) anim = null;
       const moving = Math.abs(tx - look.x) + Math.abs(ty - look.y) + Math.abs(tw - look.w) + Math.abs(look.vx) + Math.abs(look.vy) > 0.0005;
-      // Only drifting (breathing, swaying, the eyes' flicker): half the frames are plenty, fewer at rest, and none
+      // Only drifting (breathing, swaying): half the frames are plenty, fewer at rest, and none
       // while scrolling. (At rest the timer is a little late or early: a frame's slack.)
       const idle = !moving && !anim && !riseFrom;
       const scrolling = now < scrollingUntil;
       const every = resting ? REST_MS - 8 : IDLE_MS;
       const fixed = reduced || still;
       if (dirty || !idle || (!fixed && !scrolling && now - drawnAt > every)) { draw(); drawnAt = now; dirty = false; }
-      return !idle ? 2 : (!fixed || eyes) ? 1 : 0;
+      return !idle ? 2 : !fixed ? 1 : 0;
     }
   };
   all.add(mask);
@@ -456,6 +459,7 @@ async function build(el) {
     material.roughness = fin.roughness;
     material.clearcoat = fin.clearcoat;
     state.rim.value.set(fin.rim);
+    if (eyes) { eyes.on = Boolean(fin.lit); showEyes(eyes, ember); }
     // Into or out of onyx: that finish's studio (fetched once, the first time any mask needs it).
     studio(fin.studio).then((env) => { if (current === name) { scene.environment = env; dirty = true; stir(); } }, () => {});
   };
