@@ -72,19 +72,24 @@ html:not(.js) .ss__more { display: none; }
 .compare-more summary { cursor: pointer; color: var(--text); font-size: var(--t-ui); }
 .compare-more .compare-wrap { margin-top: 18px; }
 
-.check { padding-top: 0; }
+main > .section--tight { padding: 72px 0; }
+main > .section--tight .section__head h2 { font-size: var(--t-d3); }
+#elsewhere .grid-2col { align-items: start; }
+
+main > .check { padding-top: 0; }
 .check__in { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: clamp(32px, 6vw, 92px); align-items: start; }
 .check__in h2 { font-size: var(--t-d3); }
 .check__in > div > p { margin-top: 12px; color: var(--text-2); font-size: var(--t-text); max-width: 34em; }
 .check__do { display: grid; justify-items: start; gap: 12px; }
 .check__result { min-height: 1.5em; margin: 0; font-size: var(--t-text); color: var(--text-2); }
+.check__result:empty { min-height: 0; }
 .check__result.is-match { color: var(--gold-300); }
 .check__result.is-wrong { color: var(--error-text); }
 .check__hash { margin: 0; font-size: var(--t-ui); color: var(--muted); }
 .check__hash code { display: block; margin-top: 4px; font-family: var(--mono); font-size: var(--t-note); color: var(--text-2); overflow-wrap: anywhere; }
 .check__list, .relnote__older { color: var(--gold-300); font-size: var(--t-ui); text-decoration: underline; text-decoration-color: var(--line-gold); text-underline-offset: 3px; }
 
-.relnote { padding-top: 0; }
+main > .relnote { padding-top: 0; }
 .relnote h2 { font-size: var(--t-d3); }
 .relnote__lead { margin-top: 10px; font-size: var(--t-lead); color: var(--text-2); max-width: 40em; }
 .relnote__newer { margin-top: 10px; color: var(--gold-300); font-size: var(--t-ui); }

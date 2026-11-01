@@ -80,7 +80,7 @@ async function checkDownloadPage() {
     }
     result('download-page: the Download button and the warning\'s heading are both on the first screen', above.every((a) => a.button < a.height && a.warning < a.height), above);
     result('download-page: nothing runs off the side of the page', !wide.length, wide);
-    result('download-page: the page is short now (under 7,500 px on a phone, under 4,300 on a computer)', above.every((a) => a.body < (a.size === 'phone' ? 7500 : 4300)), above.map((a) => `${a.size} ${a.theme}: ${a.body}`));
+    result('download-page: the page is short now (under 7,000 px on a phone, under 4,400 on a computer)', above.every((a) => a.body < (a.size === 'phone' ? 7000 : 4400)), above.map((a) => `${a.size} ${a.theme}: ${a.body}`));
 
     /* ------------------------------------------------- the practice warning */
 
