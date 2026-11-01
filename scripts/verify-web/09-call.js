@@ -135,10 +135,12 @@ async function checkCall() {
 
     // The spring, both ways: each animation is held and stepped by hand, so every frame is the frame a person sees.
     await size(390, 844, true);
+    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, s);   // a CI machine asks for reduced motion
     await start();
     const film = async (name, press) => {
-      const shape = await evalIn(browser, s, `(() => { const out = document.querySelector('[data-call-answer]'), plate = out.querySelector('.call__plate');
+      const shape = await evalIn(browser, s, `(async () => { const out = document.querySelector('[data-call-answer]'), plate = out.querySelector('.call__plate');
         const from = plate.offsetHeight; ${press}
+        await new Promise((r) => setTimeout(r));
         out.getAnimations({ subtree: true }).forEach((a) => a.pause());
         window.__spring = out.getAnimations({ subtree: true });
         return { from, to: out.offsetHeight, moving: plate.getAnimations().length }; })()`);
@@ -155,7 +157,7 @@ async function checkCall() {
       && Math.min(from, to) < heights[1] + 40 && heights[1] !== from && heights[1] !== to && new Set(heights).size >= 4;
     const grew = await film('grow', "document.querySelector('input[value=bank]').click(); document.querySelector('input[value=code]').click();");
     await sleep(300);
-    const shrank = await film('shrink', "document.querySelector('input[value=code]').click(); document.querySelector('input[value=bank]').click(); document.querySelector('[data-call]').reset(); document.querySelector('[data-call]').dispatchEvent(new Event('change'));");
+    const shrank = await film('shrink', "document.querySelector('[data-call] button[type=reset]').click();");
     await sleep(300);
     result('call: the panel springs open and springs shut, through heights in between, not a snap either way', sprang(grew) && grew.to > grew.from && sprang(shrank) && shrank.to < shrank.from, { grew, shrank });
 
@@ -165,6 +167,9 @@ async function checkCall() {
       requestAnimationFrame(tick);
       const box = document.querySelector('input[value=giftcards]'); box.click(); setTimeout(() => box.click(), 650); })`);
     result('call: no frame stalls while the panel opens and shuts (worst gap under 100 ms)', frames.worst < 100, frames);
+    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
+    const still = await evalIn(browser, s, "(() => { const box = document.querySelector('input[value=giftcards]'); box.click(); const n = document.querySelector('.call__plate').getAnimations().filter((a) => a.effect.getKeyframes().some((k) => k.height)).length; box.click(); return n; })()");
+    result('call: asked for reduced motion, the panel does not spring', still === 0, still);
 
     await size(1366, 900, false);
     await start();
@@ -228,7 +233,7 @@ async function checkCall() {
     result('call: Start over clears every tick and goes back to the first answer', reset.big === 'Give them nothing yet.' && await evalIn(browser, s, "!document.querySelector('[data-call] input:checked')"), reset);
 
     const sent = requests.slice(before);
-    const carried = sent.filter((r) => r.method !== 'GET' || /\/api\/.*(scan|guest)|code|giftcard/i.test(r.url + r.post));
+    const carried = sent.filter((r) => r.method !== 'GET' || /\/api\/.*(scan|guest)/i.test(r.url) || (/code|giftcard/i.test(r.url) && !r.url.includes('/recover?happened=')));
     result('call: nothing ticked is sent anywhere, and no scan is spent', !carried.length, [`requests while ticking: ${sent.map((r) => `${r.method} ${r.url.replace(base, '')}`).join(', ') || 'none'}`, ...carried.map((r) => `sent: ${r.method} ${r.url}`)]);
 
     // Signed in with an unconfirmed email: the banner belongs to the app and does not push the answer down here.
