@@ -2807,7 +2807,7 @@
         : d.looked === 'all' ? '<span class="status is-on">Checked</span>'
           : d.looked === 'part' ? '<span class="status is-locked">Partly checked</span>' : '<span class="status">Not checked</span>';
     // The file as Sentinel read it, lit where it read, a sliver at least. Beside the words, never instead of them.
-    const lit = d.looked === 'none' ? 0 : Math.max(4, d.read * 50);
+    const lit = 50;
     return `<li>
           <span class="list__icon">${ICON.file}</span>
           <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${said}</span></span>
