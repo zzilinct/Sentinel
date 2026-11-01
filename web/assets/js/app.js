@@ -2801,7 +2801,7 @@
   const downloadRank = (d) => (d.badge && !d.quarantined ? 3 : d.looked === 'none' ? 2 : d.looked === 'part' ? 1 : 0);
 
   function downloadRow(d) {
-    const said = d.badge ? `${esc(d.label)}${d.reason ? ` &middot; ${esc(d.reason)}` : ''}` : esc(d.looked === 'all' && !d.reason ? d.label : d.reason);
+    const said = d.badge ? `${esc(d.label)}${d.reason ? ` &middot; ${esc(d.reason)}` : ''}` : esc(d.looked === 'all' ? d.label : d.reason);
     const end = d.quarantined ? '<span class="status">Quarantined</span>'
       : d.badge ? `<button class="btn btn--sm" data-quarantine="${esc(d.id)}">Quarantine</button>`
         : d.looked === 'all' ? '<span class="status is-on">Checked</span>'

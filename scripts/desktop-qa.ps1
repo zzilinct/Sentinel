@@ -213,10 +213,11 @@ if (-not $paired) { Say "  diag: $(Cdp '127.0.0.1:4782' 'location.href')" }
 Say (node (Join-Path $PSScriptRoot 'e2e-pro.js') "$data\sentinel.db")
 $inCases = @(
   @{ id = 'in-emoji'; name = "Holiday $emoji photos list.txt"; want = 'No threats found' },
-  @{ id = 'in-30mb'; name = 'Wedding video.mp4'; want = 'too big' },
+  @{ id = 'in-30mb'; name = 'Wedding video.mp4'; card = $true; want = '^Partly checked\|.*start and end.*fingerprint' },
   @{ id = 'in-deleted'; name = 'Gone again.txt'; gone = $true; want = 'could not be opened' }
 )
 $readApp = "location.pathname + '|' + ((document.querySelector('[data-out] [data-result]') || {}).innerText || '').replace(/\s+/g, ' ').slice(0, 200) + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / ')"
+$readCard = "[document.getElementById('label').textContent, document.getElementById('name').textContent, document.getElementById('lead').textContent, document.getElementById('where').textContent].join('|')"
 foreach ($c in $inCases) {
   $p = Join-Path $home2 $c.name
   if ($c.gone) { [IO.File]::WriteAllText($p, 'bye'); Remove-Item -LiteralPath $p -Force }
@@ -228,12 +229,13 @@ foreach ($c in $inCases) {
   $t0 = Get-Date
   $how = $(if ($c.gone) { Start-Process -FilePath $exe -ArgumentList "`"--scan-file=$p`""; 'command' } else { RightClick $p })
   $v = ''
-  $ok = Until 45 { $script:v = [string](Cdp '127.0.0.1:4782' $readApp).value; $script:v -match $c.want }
+  $ok = Until 45 { $script:v = [string]$(if ($c.card) { (Cdp 'filescan.html' $readCard).value } else { (Cdp '127.0.0.1:4782' $readApp).value }); $script:v -match $c.want }
   $took = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1)
   Start-Sleep 2
   $front = (SentinelWindows | Where-Object { $_ -match '^front\|' }) -join ''
   Shot "menu-$($c.id)"
   Check "menu-$($c.id)" ($ok -and $front) "by $how, after $took s, in front '$front': $v"
+  if ($c.card) { [void](Cdp 'filescan.html' "(document.getElementById('close').click(), 1)") }
   Check "menu-$($c.id)-one-start" ((Starts) -eq $starts -and @(MainProcs).Count -eq 1) "Sentinel started again for it: $((Starts) - $starts) time(s); main processes now: $(@(MainProcs).Count)"
 }
 # Signed in and started cold from the right-click: the app opens on the file's answer. Sentinel is quit the way a person

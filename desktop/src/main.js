@@ -970,10 +970,14 @@ async function setScanMenu(enabled) {
 function askedToScan(argv) {
   const file = scanmenu.fileFrom(argv);
   if (!file) return undefined;
-  if (!store.getSecret('token')) { scanHere(file).catch(() => {}); return null; }
+  if (!store.getSecret('token') || tooBigToSend(file)) { scanHere(file).catch(() => {}); return null; }
   menuFile = { file, at: Date.now() };
   appLog('right-click menu: a file was handed over for a scan');
   return '/app/threats';
+}
+/** Over what the account scan takes: the answer comes from this computer, in the small window, with no app opened behind it. */
+function tooBigToSend(file) {
+  try { return require('fs').statSync(file).size > require('../shared/filescan').MAX_FILE_BYTES; } catch { return false; }
 }
 /** The file from the right-click menu, once, for the file scan page: { name, size, data }. Too big to send: checked here. */
 async function takeMenuFile() {
@@ -984,7 +988,7 @@ async function takeMenuFile() {
   const stat = await fs.promises.stat(m.file);
   if (!stat.isFile()) return null;
   const name = path.basename(m.file);
-  if (stat.size > require('../shared/filescan').MAX_FILE_BYTES) { scanHere(m.file).catch(() => {}); return null; }
+  if (tooBigToSend(m.file)) { scanHere(m.file).catch(() => {}); return null; }
   return { name, size: stat.size, data: await fs.promises.readFile(m.file) };
 }
 /**

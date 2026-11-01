@@ -33,6 +33,7 @@ async function realDownloads() {
     await downloads._test.scan(file, fs.statSync(file));
   };
   await run(make('Tax return 2026.txt', 0, 'Income and expenses'));
+  await run(make('Notepad copy.exe', 0, 'MZ inert test program'));
   await run(make('ZoomInstallerFull.exe', 188, 'MZ inert test program'), { signedBy: async () => 'Zoom Video Communications, Inc.' });
   await run(make(LONG, 900, 'video bytes'));
   await run(make('Holiday photos.zip', 0, 'PK\x05\x06'.padEnd(22, '\0')), { api: async () => { throw new Error('offline'); } });
@@ -77,7 +78,7 @@ async function checkDownloads() {
       for (const theme of THEMES) {
         await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
         await goto(browser, s, `${server.base}/app/protection`);
-        await until(browser, s, "document.querySelectorAll('#downloads .list li').length >= 6", 20000);
+        await until(browser, s, "document.querySelectorAll('#downloads .list li').length >= 7", 20000);
         rows = await evalIn(browser, s, `(() => {
           document.querySelector('#downloads').scrollIntoView({ block: 'start' });
           return { wide: document.documentElement.scrollWidth - innerWidth, rows: [...document.querySelectorAll('#downloads .list li')].map((li) => {
@@ -92,7 +93,8 @@ async function checkDownloads() {
     }
     const list = rows.rows;
     const row = (name) => list.find((r) => r.text.includes(name));
-    result('downloads: only the file read to its end, with the list asked, is green', list.filter((r) => r.green).length === 1 && row('Tax return 2026').green && !list.some((r) => /\bClear\b/.test(r.text)), list);
+    result('downloads: only files read to their end, with the list asked, are green', list.filter((r) => r.green).length === 2 && row('Tax return 2026').green && row('Notepad copy').green && !list.some((r) => /\bClear\b/.test(r.text)), list);
+    result('downloads: a clean program is not handed the small print of a warning', /No threats found/.test(row('Notepad copy').text) && !/publishers/.test(row('Notepad copy').text), row('Notepad copy').text);
     result('downloads: flagged first, then not checked, then partly checked', /Quarantine/.test(list[0].text) && list[1].pill === 'Not checked' && list[2].pill === 'Partly checked' && list[list.length - 1].green, list.map((r) => r.pill || r.text.slice(0, 30)));
     result('downloads: a big file says what was read, and who signed it', /Signed by Zoom Video Communications.*not the middle/.test(row('ZoomInstaller').text) && row('ZoomInstaller').pill === 'Partly checked' && /not the middle/.test(row('Family holiday').text), [row('ZoomInstaller').text, row('Family holiday').text]);
     result('downloads: a file read but not compared with the list is not called clean', /could not reach its list/.test(row('Holiday photos').text) && !/No threats found/.test(row('Holiday photos').text), row('Holiday photos').text);
