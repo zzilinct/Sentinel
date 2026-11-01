@@ -709,6 +709,9 @@ def export_glb(kind):
     s.render.bake.max_ray_distance = 0.05
     s.render.bake.margin = 8
     s.render.bake.margin_type = 'EXTEND'
+    # Only the body's own surface shades itself: a simplified liner just under it blotched the occlusion black.
+    for o in s.objects:
+        o.hide_render = o not in (high, low)
     maps = {}
     for kind_of, colour in (('NORMAL', False), ('AO', False)):
         # Occlusion changes slowly across the surface: half the size is plenty.

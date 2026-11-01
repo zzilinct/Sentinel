@@ -61,7 +61,7 @@ const GEOMETRY = { onyx: 'scam', scam: 'scam', virus: 'virus', malware: 'malware
 const GOLD = { metalness: 1, roughness: 0.2 };
 const LINER = { metalness: 0, roughness: 0.42, specularIntensity: 0 };
 // The eyes' light: the ember's glow and the light it throws into the socket, at rest (1) and while watching (EYE_WATCH).
-const EMBER_GLOW = 0.9;
+const EMBER_GLOW = 0.8;
 const EMBER_THROW = 0.14;
 const EYE_WATCH = 1.5;
 
@@ -256,11 +256,11 @@ async function build(el) {
     clearcoatRoughness: f.clearcoatRoughness
   });
   swallowable(material, state);
-  const gold = new MeshPhysicalMaterial({ ...GOLD, color: new Color().setRGB(1, 0.71, 0.29) });
+  const gold = new MeshPhysicalMaterial({ ...GOLD, envMapIntensity: 0.7, color: new Color().setRGB(1, 0.6, 0.16) });
   swallowable(gold, state);
   const liner = new MeshPhysicalMaterial({ ...LINER, color: new Color().setRGB(0.004, 0.0035, 0.003) });
   swallowable(liner, state);
-  const ember = new MeshPhysicalMaterial({ color: 0x000000, roughness: 0.3, specularIntensity: 0, emissive: new Color().setRGB(1, 0.34, 0.02), emissiveIntensity: 0 });
+  const ember = new MeshPhysicalMaterial({ color: 0x000000, roughness: 0.3, specularIntensity: 0, emissive: new Color().setRGB(1, 0.24, 0.01), emissiveIntensity: 0 });
   swallowable(ember, state, true);
   const parts = { trim: gold, liner, ember };
 
