@@ -35,7 +35,7 @@ test('the reader only works on a browser that is in front and in use, and reads 
   const s = watch._test.SCRIPT;
   // Not in front, minimised, or nobody at the keyboard: the loop goes round without reading anything.
   // (includes, not match: a failure should not print the whole script)
-  assert.ok(s.includes("($browsers -notcontains $fname)) { Off 'not in front'; $pause = 1000; continue }"), 'behind another program: nothing is read');
+  assert.ok(s.includes("($browsers -notcontains $fname)) { Off 'not in front'; $pause = $(if ($testName) { 1000 } else { 5000 }); continue }"), 'behind another program: nothing is read');
   assert.ok(s.includes("IsIconic($h)) { Off 'minimised'; continue }"), 'minimised: nothing is read');
   assert.ok(s.includes('IdleMs() -gt 120000'), 'nobody at the keyboard: nothing is read');
   const gates = s.indexOf("Off 'idle'");
@@ -677,7 +677,7 @@ test('Sentinel stays out of the way: below-normal priority, no Temp folder scann
   // The reader waits quietly when nothing is followed, and looks only once a second when no browser is in front.
   const { SCRIPT } = watch._test;
   assert.match(SCRIPT, /if \(-not \$anchor\) \{ if \(\$pendingLine\.Wait/);
-  assert.match(SCRIPT, /Off 'not in front'; \$pause = 1000; continue/);
+  assert.match(SCRIPT, /Off 'not in front'; \$pause = \$\(if \(\$testName\) \{ 1000 \} else \{ 5000 \}\); continue/);
 });
 
 test('one mark per website, on its main link: sitelinks and AI-answer citations do not each get a mark', () => {
