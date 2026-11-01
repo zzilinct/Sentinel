@@ -14,5 +14,9 @@ html.black,html.black body{background:#000;height:100vh}html.black div{display:n
 const r = document.documentElement;
 if (location.search.includes('moving')) r.classList.add('moving');
 if (location.search.includes('black')) r.classList.add('black');
-addEventListener('keydown', (e) => { if (e.key === 'Escape') r.classList.toggle('menu'); });
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') r.classList.toggle('menu');
+  // A new message over the moving game.
+  if (e.key === 'm') document.querySelector('div').insertAdjacentHTML('beforeend', '<p>[Player3]: send me the code you got</p>');
+});
 </script></body></html>

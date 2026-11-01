@@ -71,7 +71,7 @@ public static class CW {
     if (a == null || b == null || a.Length != b.Length) return false;
     long d = 0, n = 0;
     for (int i = 0; i < a.Length; i++) { d += Math.Abs(a[i] - b[i]); n += b[i]; }
-    return d * 50 <= Math.Min(n, w * (long)b.Length - n) + 2000;
+    return d * 25 <= Math.Min(n, w * (long)b.Length - n) + 4000;
   }
   // A part of the screen as BGRA bytes.
   public static byte[] Grab(int x, int y, int w, int h) {
@@ -85,7 +85,7 @@ public static class CW {
       for (int i = 0; i + 2 < bytes.Length; i += 4) {
         int b = bytes[i], m = bytes[i + 1], c = bytes[i + 2];
         sum += b + m + c; top = Math.Max(top, b | m | c);
-        if (b > 215 && m > 215 && c > 215) rows[i / d.Stride]++;
+        if (b > 235 && m > 235 && c > 235) rows[i / d.Stride]++;
       }
       Rows = rows; Black = top < 8; Lum = sum / Math.Max(1, w * h);
       return bytes;
@@ -137,7 +137,7 @@ $stdin = $in
 $pending = $stdin.ReadLineAsync()
 $lastApp = ''; $lastSig = ''; $lastRows = $null; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $menuLum = 0; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}; $plSeen = 0
 $app = ''; $h = [IntPtr]::Zero; $fp = 0; $wait = 700; $nextAlive = 0; $lastItems = ''; $nextFull = 0
-$eye = @{ dark = 0; blind = $false; ocr = 0 }
+$eye = @{ dark = 0; blind = $false; ocr = 0; menu = 0 }
 Write-Output '{"ready":true}'
 # Black again and again: Windows is keeping this window's picture from other programs. (Once could be a loading screen.)
 function Seen-Black {
@@ -157,7 +157,7 @@ while ($true) {
     if (-not $app) { continue }
   }
   $wait = 700
-  if ([Environment]::TickCount -gt $nextAlive) { $nextAlive = [Environment]::TickCount + 5000; Write-Output ('{"alive":true,"ocr":' + $eye.ocr + '}') }
+  if ([Environment]::TickCount -gt $nextAlive) { $nextAlive = [Environment]::TickCount + 5000; Write-Output ('{"alive":true,"ocr":' + $eye.ocr + ',"menu":' + $eye.menu + '}') }
   # Only the window in front: if it has just changed the app will say so, and nothing is read meanwhile.
   if ([CW]::GetForegroundWindow() -ne $h -or [CW]::IsIconic($h)) { continue }
   $c = [CW]::Client($h)
@@ -324,7 +324,8 @@ while ($true) {
         $mx = $c[0] + [int]($c[2] * 0.25); $my = $c[1] + [int]($c[3] * 0.3); $mw = [int]($c[2] * 0.5); $mh = [int]($c[3] * 0.6)
         Look $mx ($my + [int]($mh / 2)) $mw 8
         $lum = [CW]::Lum
-        if ($lastMenu -ne $false -or [Math]::Abs($lum - $menuLum) -gt [Math]::Max(12, $menuLum / 5)) {
+        if ($lastMenu -ne $false -or [Math]::Abs($lum - $menuLum) -gt [Math]::Max(12, $menuLum / 3)) {
+          $eye.menu++
           $ml = Read-Area $mx $my $mw $mh
           $menu = [bool](@($ml | Where-Object { $_.t -match '\b(Resume|Leave|Reset Character)\b' }).Count)
           if ($menu -ne $lastMenu) { $lastMenu = $menu; Write-Output (@{ app = 'roblox'; menu = $menu } | ConvertTo-Json -Compress) }
@@ -514,7 +515,7 @@ const told = new Map();       // what was already pointed out, so a message is f
 let roblox = { inGame: false, placeId: null, menu: false, info: null, logFile: null, logAt: 0, open: true, flags: [] };
 let logTimer = null;
 // How many messages were checked and flagged in each app since chat safety started: numbers only, never what they said.
-const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0, unchecked: 0, why: '', otherTab: false }, app: null, reading: false, blind: null, looks: 0, at: 0 });
+const fresh = () => ({ discord: { checked: 0, flagged: 0 }, roblox: { checked: 0, flagged: 0 }, phonelink: { checked: 0, flagged: 0, unchecked: 0, why: '', otherTab: false }, app: null, reading: false, blind: null, looks: 0, menuLooks: 0, at: 0 });
 let seen = fresh();
 let seenTimer = null;
 let apps = ['discord', 'roblox'];
@@ -759,7 +760,7 @@ function launch() {
     beat(mine);
     let msg;
     try { msg = JSON.parse(l); } catch { return; }
-    if (msg.alive) { seen.looks = msg.ocr; return; }   // how often the recogniser ran: a number, nothing it read
+    if (msg.alive) { seen.looks = msg.ocr; seen.menuLooks = msg.menu; return; }   // how often the recogniser ran: numbers, nothing it read
     if (msg.ready) { if (quickExits < 3) setReader('ok'); return; }
     // Said just as the app left the front: too late to be true.
     if (msg.app && msg.app !== inFront) return;

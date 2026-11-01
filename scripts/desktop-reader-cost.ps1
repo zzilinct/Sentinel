@@ -92,7 +92,12 @@ Start-Sleep 20
 $l0 = (Chat).seen.looks
 $game = Cost 'game' 45
 $l1 = (Chat).seen.looks
-Check 'game-not-reread' ($l1 -ne $null -and $l1 - $l0 -le 5) "the recogniser ran $($l1 - $l0) times in 45 s of a game moving behind a chat that did not change"
+Check 'game-not-reread' ($l1 -ne $null -and $l1 - $l0 -le 5) "the recogniser ran $($l1 - $l0) times in 45 s of a game moving behind a chat that did not change ($((Chat).seen.menuLooks) of all its runs for the Esc menu)"
+# The same gate must still let a new message through, over the same moving game.
+$n0 = (Chat).seen.roblox.checked
+[K]::Tap(0x4D)
+$ok = Until 10 { (Chat).seen.roblox.checked -gt $n0 }
+Check 'new-message-read' $ok "messages checked over the moving game: $n0 then $((Chat).seen.roblox.checked)"
 [K]::Tap(0x1B)
 $menu = Until 8 { (Cdp 'chat.html' "getComputedStyle(document.getElementById('badge')).display + '|' + document.body.className").value -notmatch '^none' }
 Shot 'roblox-esc-menu'
