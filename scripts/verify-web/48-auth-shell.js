@@ -213,6 +213,20 @@ async function checkAuthShell() {
     if (started) await browser.send('Fetch.failRequest', { requestId: started.requestId, errorReason: 'Aborted' }, s);
     result('auth-shell: the Google button starts Google sign-in and carries Stay signed in', Boolean(started) && /\/auth\/google\/start\?next=%2Fapp&stay=1$/.test(started.request.url), started && started.request.url);
     await browser.send('Fetch.disable', {}, s);
+
+    /* Someone signed in is sent on by the server, before any of the form. */
+    await goto(browser, s, `${plain.base}/forgot`, SETTLED);
+    const post = (p, b) => `fetch('/api/v1/auth/${p}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(${JSON.stringify(b)}) }).then((r) => r.status)`;
+    const who = { email: 'here@example.com', password: 'Willow-harbour-83Pn' };
+    await ev(post('signup', { ...who, firstName: 'Sam', ageConfirmed: true, termsAccepted: true }));
+    await ev(post('login', who));
+    const sawForm = [];
+    browser.on('Network.responseReceived', (p, sid) => { if ((!sid || sid === s) && /\/login/.test(p.response.url)) sawForm.push(p.response.status); });
+    await browser.send('Page.navigate', { url: `${plain.base}/login?next=%2Fapp%2Fhistory` }, s);
+    let landed = '';
+    for (let i = 0; i < 40 && landed !== '/app/history'; i++) { await sleep(150); landed = await ev('location.pathname'); }
+    const redirected = await ev("(performance.getEntriesByType('navigation')[0] || {}).redirectCount");
+    result('auth-shell: someone signed in is redirected by the server and no sign-in page is ever delivered', landed === '/app/history' && redirected === 1 && !sawForm.includes(200), { landed, redirected, sawForm });
   } finally {
     await close();
     await plain.stop();

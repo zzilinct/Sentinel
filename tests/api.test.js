@@ -43,6 +43,24 @@ async function newUser(plan = 'free') {
 
 /* ------------------------------------------------------------ accounts */
 
+test('someone signed in gets a redirect from /login and /signup, with no byte of the form, and only to this site', async () => {
+  const c = client(app.base);
+  const email = `here${Date.now()}@example.com`;
+  const body = { email, password: 'Correct-Horse-42', firstName: 'Here', ageConfirmed: true, termsAccepted: true };
+  assert.equal((await c.get('/login')).status, 200, 'nobody signed in yet: the form');
+  await c.post('/api/v1/auth/signup', body);
+  await c.post('/api/v1/auth/login', { email, password: body.password });
+  for (const [path, to] of [['/login', '/app'], ['/signup', '/app'], ['/signup?plan=pro', '/app/plan'], ['/login?next=%2Fapp%2Fhistory', '/app/history'], ['/login?next=%2F%2Fevil.example', '/app'], ['/login?next=https%3A%2F%2Fevil.example', '/app'], ['/login.html', '/app']]) {
+    const r = await c.get(path);
+    assert.equal(r.status, 302, path);
+    assert.equal(r.headers.get('location'), to, path);
+    assert.equal(r.data, '', `${path}: nothing of the page is sent`);
+  }
+  assert.equal((await c.get('/forgot')).status, 200, 'the other pages stay open');
+  await c.post('/api/v1/auth/logout', {});
+  assert.equal((await c.get('/login')).status, 200, 'signed out again: the form');
+});
+
 test('signup requires a name, valid email and a strong password; last name optional', async () => {
   const c = client(app.base);
   const weak = await c.post('/api/v1/auth/signup', { email: 'weak@example.com', password: 'password123', firstName: 'Ann' });

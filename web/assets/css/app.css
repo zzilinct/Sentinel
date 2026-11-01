@@ -807,7 +807,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .segmented button[aria-selected="true"], .segmented button[aria-checked="true"] { background: var(--relief), var(--surface-2); box-shadow: var(--raise-sm); }
 .scanbox:focus-within, .input:focus, .textarea:focus, .tools__search:focus-within { box-shadow: var(--press), 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 5px rgb(var(--gold-rgb) / .08); }
 /* Fields stand clear of the page, empty or not; focus and a mistake take over the edge. */
-.input, .textarea { background-color: var(--field-bg); caret-color: var(--gold-300); box-shadow: var(--press), inset 0 0 0 1px var(--field-ring); }
+.input, .textarea, .scanbox { background-color: var(--field-bg); caret-color: var(--gold-300); box-shadow: var(--press), inset 0 0 0 1px var(--field-ring); }
 .input:focus, .textarea:focus { box-shadow: var(--press), inset 0 0 0 1px var(--gold-300), 0 0 0 4px rgb(var(--gold-rgb) / .16); }
 .input[aria-invalid="true"] { box-shadow: var(--press), inset 0 0 0 1px var(--red); }
 .input:-webkit-autofill { -webkit-text-fill-color: var(--text); box-shadow: var(--press), inset 0 0 0 1px var(--field-ring), inset 0 0 0 100px var(--field-bg); }

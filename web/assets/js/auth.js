@@ -52,9 +52,6 @@
     return Boolean(first);
   }
 
-  // Already signed in? Go straight to the app.
-  api('/auth/me?optional=1').then((me) => { if (me && me.user) location.replace(next()); }).catch(() => {});
-
   /* ---------------------------------------------------------- google */
 
   // The server sends this button only when it has Google sign-in (server/lib/http.js).

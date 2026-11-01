@@ -27,7 +27,7 @@ test('a server without Google sign-in never sends the button or its "or"; a serv
     assert.match(await page(url, true), /data-google[\s\S]*class="divider"/, url);
     assert.match(await page(url, false), /<form data-form/, `${url} still has its form`);
   }
-  assert.doesNotMatch(read('assets', 'js', 'auth.js'), /auth\/config|not set up|not configured/);
+  assert.doesNotMatch(read('assets', 'js', 'auth.js'), /auth\/config|auth\/me|not set up|not configured/);
 });
 
 test('every sign-in page shares one shell: the mask, the name, no style attributes, no second logo', () => {
@@ -42,6 +42,13 @@ test('every sign-in page shares one shell: the mask, the name, no style attribut
   assert.match(art, /<a class="auth__word" href="\/"/);
   for (const file of ['onyx.webp', 'onyx-480.webp']) assert.ok(fs.existsSync(path.join(WEB, 'assets', 'img', 'masks', file)), file);
   for (const script of ['auth.js', 'reset.js', 'connect.js']) assert.doesNotMatch(read('assets', 'js', script), /style="/, script);
+});
+
+test('the sign-in page says how long Stay signed in lasts, and what happens without it', () => {
+  const html = read('login.html');
+  assert.match(html, /30 days/);
+  assert.match(html, /when the browser closes, or after 12 hours away/);
+  assert.match(read('privacy.html'), /12 hours/);
 });
 
 test('the old art is gone and the stage does not move at rest', () => {
@@ -78,7 +85,7 @@ test('an empty field\'s edge stands 3:1 against the page in both themes', () => 
     assert.ok((hi + 0.05) / (lo + 0.05) >= 3, `edge ${edge} on ${page}: ${(hi + 0.05) / (lo + 0.05)}`);
   }
   const app = read('assets', 'css', 'app.css');
-  const last = app.lastIndexOf('.input, .textarea {');
+  const last = app.lastIndexOf('.input, .textarea, .scanbox {');
   assert.match(app.slice(last, app.indexOf('}', last)), /inset 0 0 0 1px var\(--field-ring\)/);
   assert.ok(last > app.indexOf('.scanbox, .input, .textarea'), 'no later rule takes the edge off again');
 });
