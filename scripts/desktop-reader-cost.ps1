@@ -60,6 +60,9 @@ Start-Sleep 15
 Say (node (Join-Path $PSScriptRoot 'e2e-pro.js') "$data\sentinel.db")
 Stop-Process -Name Sentinel -Force -ErrorAction SilentlyContinue; Start-Sleep 3
 Check 'restart' (StartSentinel) 'started with its debugging port'
+# Signed in, as most people are: the protection page and live scanning need it. A test account on this runner only.
+$r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); const a = { email: 'reader-cost-$(Get-Random)@example.com', password: 'Willow-harbour-83Pn' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Kim', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', Object.assign({ staySignedIn: true }, a))].join(','); })()"
+Check 'signed-in' (Until 40 { [bool](Info 'info()').pairedUserId }) "sign-up, sign-in: $($r.value)"
 Page '/app/protection'
 # Start-up (lists, compiling) is over before anything is measured.
 Start-Sleep 60
