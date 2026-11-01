@@ -59,8 +59,16 @@ async function checkHeroPhone() {
       for (const scheme of ['dark', 'light']) {
         for (const motion of ['reduce', 'no-preference']) {
           const { s, done } = await open(width, height, true, scheme, motion);
-          // The opening caught half way, once, at the common phone: the pills must not flash, the name must stay whole.
-          if (motion === 'no-preference' && width === 390) { await sleep(700); await shot(browser, s, `hero-phone-${scheme}-opening`); }
+          // The opening, stopped part way at the common phone (a picture cannot catch it on CI's slow machine), then let go.
+          if (motion === 'no-preference' && width === 390) {
+            const stopped = await evalIn(browser, s, `new Promise((done) => { const t0 = performance.now(); (function look() {
+              const a = document.querySelector('.hero__unmask').getAnimations()[0];
+              if (a) { a.pause(); a.currentTime = 640; requestAnimationFrame(() => done(getComputedStyle(a.effect.target).clipPath)); }
+              else if (performance.now() - t0 > 20000) done('none'); else requestAnimationFrame(look); })(); })`, { awaitPromise: true });
+            result(`hero-phone: 390x844, ${scheme}: it opens from behind the mask, once`, /^circle\(/.test(stopped), { stopped });
+            await shot(browser, s, `hero-phone-${scheme}-opening`);
+            await evalIn(browser, s, "document.querySelector('.hero__unmask').getAnimations()[0].play(); true");
+          }
           await sleep(3800);
           const m = await evalIn(browser, s, MEASURE);
           const bad = phoneProblems(m);
