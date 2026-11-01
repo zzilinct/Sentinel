@@ -1,22 +1,21 @@
 """
-Sentinel's three masks as studio product renders, built in Blender from the same drawings as the icons.
+Sentinel's three masks as studio product renders and real-time models, modelled in Blender from the icons' drawings.
 
-    python scripts/blender/masks.py --svg-dir <dir> --out <dir> [--mask scam|virus|malware|glass|pearl|onyx|all]
+    python scripts/blender/masks.py --svg-dir <dir> --out <dir> [--mask scam|virus|malware|onyx|all]
                                     [--tint yellow|orange|red] [--pose stand|lay] [--frames N] [--size PX] [--samples N]
 
 The site uses: each of scam, virus and malware with --tint yellow, orange and red (the severity colours), and
---mask onyx --pose lay --yaw 16 for the hero. The renders are cropped and saved as web/assets/img/masks/*.webp.
+--mask onyx --pose lay --yaw 12 for the hero. The renders are cropped and saved as web/assets/img/masks/*.webp.
 
-Needs the Blender Python module (pip install bpy). The SVGs are the GLYPHS of web/assets/js/masks.js written
-as files (scripts/blender/export-svgs.js does that). Each mask is extruded into a shell, remeshed finely so its edges
-round like cast metal, given cast relief measured from the drawing's outlines (a lip framing every edge and eye, an
-engraved line inside it, a swell and a centre ridge; relief()), curved like a face and lit as a product shot:
-softboxes for reflections, a warm key and coloured rims, on a transparent background.
+Needs the Blender Python module (pip install bpy). The SVGs are the GLYPHS of web/assets/js/masks.js written as files
+(scripts/blender/export-svgs.js does that). The drawing is only the front view: the outline, the eyes and the openings.
+The mask itself is modelled as a distance field (sculpt()): flat planes of a face meeting in eased creases, sockets cut to
+a floor, an ember set on that floor, horns swept back in depth. A gold wire, a seated stud and the spores are built
+directly, and a dark liner closes every opening, so a mask reads the same on any page behind it.
 
---glb makes the site's real-time model from that detailed mask, high to low: a 16,000-triangle copy with a UV map
-gets the detail baked in as a normal map and an occlusion map (blender-agent-skills: retopology-uv, texture-baking,
-export-pipelines). scripts/blender/mask_qa.py is the quality gate for the result. --web writes a still cropped as
-web/assets/img/masks/ uses it.
+--glb makes the site's real-time model, high to low: a simplified copy of the body with a UV map gets the detail baked in
+as a normal map and an occlusion map (blender-agent-skills: retopology-uv, texture-baking, export-pipelines).
+scripts/blender/mask_qa.py is the quality gate for the result. --web writes a still cropped as web/assets/img/masks/ uses it.
 
 --frames N renders a turntable of N frames (one full turn) for scroll-scrubbed rotation; otherwise one still.
 """
@@ -58,9 +57,6 @@ LOOKS = {
     'scam': dict(svg='scam', base=(1.0, 0.71, 0.29), metal=1.0, rough=0.16, coat=0.4, rim=(1.0, 0.62, 0.25)),
     'malware': dict(svg='malware', base=(0.62, 0.015, 0.03), metal=0.85, rough=0.24, coat=1.0, rim=(1.0, 0.12, 0.1)),
     'virus': dict(svg='virus', base=(1.0, 0.3, 0.03), metal=1.0, rough=0.22, coat=0.7, rim=(1.0, 0.42, 0.08)),
-    'glass': dict(svg='scam', glass=True, rim=(1.0, 0.78, 0.45)),
-    # Ivory porcelain under a deep glaze, for the hero.
-    'pearl': dict(svg='scam', base=(0.9, 0.85, 0.76), metal=0.0, rough=0.22, coat=1.0, sss=0.25, rim=(1.0, 0.8, 0.55)),
     # Black onyx, polished.
     'onyx': dict(svg='scam', base=(0.008, 0.007, 0.006), metal=0.0, rough=0.3, coat=0.6, rim=(1.0, 0.8, 0.55), world=0.05, key=0.22, rimk=0.3, lit=True),
 }
@@ -74,7 +70,6 @@ def reset():
     s.cycles.samples = args.samples
     s.cycles.use_denoising = True
     s.render.film_transparent = True
-    s.cycles.film_transparent_glass = False
     s.render.resolution_x = s.render.resolution_y = args.size
     s.render.image_settings.file_format = 'PNG'
     s.render.image_settings.color_mode = 'RGBA'
@@ -274,9 +269,8 @@ def face(U, V):
 
 def sculpt(kind, h=None, only=None):
     """Models the mask. The drawing is the front view: the helmet's outline, the eyes, the openings. Everything else is
-    the object's own form: planes of a face, sockets cut deep with a floor, an eye lens set on that floor, a gold rim
-    let into the surface, and for the malware mask horns swept back in real depth."""
-    polys = outlines(look_svg(kind))
+    the object's own form. h is the sampling step, only one part's name to make just that part."""
+    polys = outlines(LOOKS[kind]['svg'])
     helmet = polys[0]
     hmin, hmax = helmet.min(0), helmet.max(0)
     within = lambda c: hmin[0] < c[0] < hmax[0] and hmin[1] < c[1] < hmax[1]
@@ -453,10 +447,6 @@ def sculpt(kind, h=None, only=None):
     return out
 
 
-def look_svg(kind):
-    return LOOKS[kind]['svg']
-
-
 def smooth(a, b, d):
     t = np.clip((d - a) / (b - a), 0, 1)
     return t * t * (3 - 2 * t)
@@ -464,7 +454,7 @@ def smooth(a, b, d):
 
 def build(look):
     parts = sculpt(look['kind'])
-    gold = material({**TINTS['yellow'], 'svg': 'trim'})
+    gold = material(dict(svg='trim', base=(1.0, 0.71, 0.29), metal=1.0, rough=0.2, coat=0.0))
     dark = material(dict(svg='liner', base=(0.004, 0.0035, 0.003), metal=0.0, rough=0.42, coat=0.0))
     ember = material(dict(svg='ember', base=(0.01, 0.008, 0.006), metal=0.0, rough=0.2, coat=0.0))
     if look.get('lit'):
@@ -493,21 +483,11 @@ def material(look):
     m.use_nodes = True
     nt = m.node_tree
     b = nt.nodes['Principled BSDF']
-    if look.get('glass'):
-        b.inputs['Base Color'].default_value = (0.96, 0.97, 1.0, 1)
-        b.inputs['Transmission Weight'].default_value = 1.0
-        b.inputs['Roughness'].default_value = 0.03
-        b.inputs['IOR'].default_value = 1.5
-        b.inputs['Coat Weight'].default_value = 0.3
-        return m
     b.inputs['Base Color'].default_value = (*look['base'], 1)
     b.inputs['Metallic'].default_value = look['metal']
     b.inputs['Roughness'].default_value = look['rough']
     b.inputs['Coat Weight'].default_value = look['coat']
     b.inputs['Coat Roughness'].default_value = 0.04
-    if look.get('sss'):
-        b.inputs['Subsurface Weight'].default_value = look['sss']
-        b.inputs['Subsurface Radius'].default_value = (0.4, 0.3, 0.2)
     # A faint cast texture breaks up the reflections.
     noise = nt.nodes.new('ShaderNodeTexNoise')
     noise.inputs['Scale'].default_value = 60
@@ -558,7 +538,7 @@ def studio(look):
     world.use_nodes = True
     bg = world.node_tree.nodes['Background']
     # A dim studio: darker below, warm grey above. Never seen directly (the film is transparent) but it is what
-    # the metal reflects and the glass refracts between the softboxes.
+    # the metal reflects between the softboxes.
     nt = world.node_tree
     tc = nt.nodes.new('ShaderNodeTexCoord')
     sep = nt.nodes.new('ShaderNodeSeparateXYZ')
@@ -573,7 +553,7 @@ def studio(look):
     nt.links.new(sep.outputs['Z'], mp.inputs['Value'])
     nt.links.new(mp.outputs['Result'], ramp.inputs['Fac'])
     nt.links.new(ramp.outputs['Color'], bg.inputs['Color'])
-    bg.inputs['Strength'].default_value = look.get('world', 1.4 if look.get('glass') else 0.6)
+    bg.inputs['Strength'].default_value = look.get('world', 0.6)
     rim = look['rim']
     k = look.get('key', 1.0)
     softbox('key', (-2.6, -3.4, 3.0), (2.4, 1.6), 900 * k, (1.0, 0.95, 0.88))
