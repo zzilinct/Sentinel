@@ -14,7 +14,7 @@ const CAMERA = { z: 7.6, fov: 20, minAspect: 0.72 };
 // so the mask stays the same size on the page but has room to turn: the hero, tipped and turned, reached past its
 // canvas while it watched the pointer, and the virus mask's spores past a plate's while it swayed.
 const POSES = {
-  lay: { rest: { x: -0.244, y: 0.209, z: -0.279 }, frame: { x: -0.17, y: -0.19, s: 1.15 }, zoom: 1.3 },
+  lay: { rest: { x: -0.244, y: 0.209, z: -0.279 }, frame: { x: -0.05, y: 0.025, s: 1.1 }, zoom: 1.3 },
   plate: { rest: { x: 0, y: 0, z: 0 }, frame: { x: 0, y: 0, s: 1 }, zoom: 1.08 },
   stand: { rest: { x: 0, y: -0.18, z: 0 }, frame: { x: 0, y: 0, s: 1 }, zoom: 1 }
 };

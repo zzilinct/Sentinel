@@ -18,14 +18,17 @@ function vertices(name) {
   const json = JSON.parse(buf.toString('utf8', 20, 20 + len));
   const bin = buf.subarray(20 + len + 8);
   const node = json.nodes.find((n) => n.mesh === 0);
-  const acc = json.accessors[json.meshes[0].primitives[0].attributes.POSITION];
-  assert.equal(acc.componentType, 5122, 'positions quantized to int16');
-  const view = json.bufferViews[acc.bufferView];
-  const stride = view.byteStride || 6;
   const out = [];
-  for (let i = 0; i < acc.count; i += 2) {
-    const o = (view.byteOffset || 0) + (acc.byteOffset || 0) + i * stride;
-    out.push([0, 1, 2].map((k) => Math.max(-1, bin.readInt16LE(o + 2 * k) / 32767) * node.scale[k] + node.translation[k]));
+  // Every part: the gold spores stand furthest out.
+  for (const prim of json.meshes[0].primitives) {
+    const acc = json.accessors[prim.attributes.POSITION];
+    assert.equal(acc.componentType, 5122, 'positions quantized to int16');
+    const view = json.bufferViews[acc.bufferView];
+    const stride = view.byteStride || 6;
+    for (let i = 0; i < acc.count; i += 2) {
+      const o = (view.byteOffset || 0) + (acc.byteOffset || 0) + i * stride;
+      out.push([0, 1, 2].map((k) => Math.max(-1, bin.readInt16LE(o + 2 * k) / 32767) * node.scale[k] + node.translation[k]));
+    }
   }
   return out;
 }

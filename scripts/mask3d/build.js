@@ -10,7 +10,7 @@
  *   node scripts/blender/export-svgs.js <svgs>
  *   blender -b --factory-startup --python scripts/blender/masks.py -- --svg-dir <svgs> --out <dir> --mask scam --glb
  *   npx @gltf-transform/cli@4.1.1 quantize <dir>/scam.glb web/assets/models/scam.glb --quantize-position 14 --quantize-normal 10 --quantize-texcoord 12
- * --glb bakes the detailed mask onto a 16,000-triangle model as a normal map and an occlusion map (high to low), and
+ * --glb bakes the detailed body onto a model of about 13,000 triangles as a normal map and an occlusion map (high to low), and
  * scripts/blender/mask_qa.py checks the result (the masks job in .github/workflows/test.yml runs it on every push).
  * The stills in web/assets/img/masks/ come from the same detailed mask: masks.py --mask scam --tint yellow --web.
  * The studio the live masks reflect, web/assets/models/studio-scam.hdr and studio-onyx.hdr, is the stills' own studio

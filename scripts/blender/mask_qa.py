@@ -42,7 +42,7 @@ SVGS = os.environ['MASK_QA_SVGS']
 MIN_RECESS = 0.12         # how far the eye sits behind the brow, on a mask 2 tall
 MIN_HIDDEN = 0.85         # share of the eye the socket hides from 70 degrees to the side
 MIN_OVERLAP = 0.92        # front view against the drawing (intersection over union)
-MIN_HORN_ROUND = 0.7      # a horn's depth against its drawn width, through its middle
+MIN_HORN_ROUND = 0.5      # how much a horn's depth changes across it, as a share of its deepest
 MIN_CALM = 0.3            # share of the front view's metal that is calm (calm())
 
 
@@ -292,15 +292,19 @@ def form(objs, name):
         if m['eye_hidden'] < MIN_HIDDEN:
             errors.append(f"the socket hides only {m['eye_hidden']} of the eye from the side, under {MIN_HIDDEN}")
     if name == 'malware':
-        # Through the middle of a drawn horn: how deep it is against how wide it is drawn there.
+        # Across the middle of a drawn horn.
         cx, cz = polys[1].mean(0)
         row = np.linspace(cx - 0.5, cx + 0.5, 200)
-        wide = float(inside(polys[1:], row, np.full(200, cz)).sum() / 200)
-        near = whole.ray_cast(Vector((cx, -6, cz)), Vector((0, 1, 0)), 12)[0]
-        far = whole.ray_cast(Vector((cx, 6, cz)), Vector((0, -1, 0)), 12)[0]
-        m['horn_round'] = round(float((far.y - near.y) / max(wide, 1e-6)), 3) if near and far else 0
+        across = row[inside(polys[1:], row, np.full(200, cz))]
+        depth = []
+        for x in across:
+            near = whole.ray_cast(Vector((x, -6, cz)), Vector((0, 1, 0)), 12)[0]
+            far = whole.ray_cast(Vector((x, 6, cz)), Vector((0, -1, 0)), 12)[0]
+            depth.append(far.y - near.y if near and far else 0)
+        # A round horn is deep in the middle and thin at its sides; a cut-out wedge is the same thin plate all the way.
+        m['horn_round'] = round(float(np.ptp(depth) / max(depth)), 3) if depth else 0
         if m['horn_round'] < MIN_HORN_ROUND:
-            errors.append(f"the horns are wedges: depth to width {m['horn_round']}, under {MIN_HORN_ROUND}")
+            errors.append(f"the horns are flat wedges: {m['horn_round']}, under {MIN_HORN_ROUND}")
     m['calm'] = calm(objs)
     if m['calm'] < MIN_CALM:
         errors.append(f"the surface is a tangle: only {m['calm']} of it is calm, under {MIN_CALM}")

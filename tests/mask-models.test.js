@@ -35,7 +35,7 @@ function webpSize(b) {
 }
 
 for (const name of ['scam', 'virus', 'malware']) {
-  test(`${name}.glb: a low model with UVs, a baked normal map and occlusion map, within budget`, () => {
+  test(`${name}.glb: four parts, the body with UVs, a baked normal map and occlusion map, within budget`, () => {
     const file = path.join(DIR, `${name}.glb`);
     const { buf, json, bin } = readGlb(file);
     assert.ok(buf.length <= MAX_BYTES, `${name}.glb is ${buf.length} bytes, over ${MAX_BYTES}`);
@@ -45,12 +45,14 @@ for (const name of ['scam', 'virus', 'malware']) {
     let tris = 0;
     for (const p of prims) {
       assert.ok('POSITION' in p.attributes && 'NORMAL' in p.attributes, 'positions and normals');
-      assert.ok('TEXCOORD_0' in p.attributes, 'a UV map, for the baked maps');
       tris += json.accessors[p.indices].count / 3;
-      const mat = json.materials[p.material];
-      assert.ok(mat && mat.normalTexture, 'a normal map');
-      assert.ok(mat.occlusionTexture, 'an occlusion map');
     }
+    const parts = Object.fromEntries(prims.map((p) => [json.materials[p.material].name, p]));
+    assert.deepEqual(Object.keys(parts).sort(), ['body', 'ember', 'liner', 'trim'], 'the parts the site gives its finishes to');
+    const body = json.materials[parts.body.material];
+    assert.ok('TEXCOORD_0' in parts.body.attributes, 'a UV map, for the baked maps');
+    assert.ok(body.normalTexture, 'a normal map');
+    assert.ok(body.occlusionTexture, 'an occlusion map');
     assert.ok(tris <= MAX_TRIS, `${tris} triangles, over ${MAX_TRIS}`);
 
     // The maps are WebP, square, a power of two and no larger than the budget.
@@ -73,4 +75,6 @@ test('mask3d.src.js puts the baked maps under the site\'s own finish', () => {
   assert.match(src, /material\.normalMap = baked\.normalMap/);
   assert.match(src, /material\.clearcoatNormalMap = baked\.normalMap/);
   assert.match(src, /material\.aoMap = baked\.aoMap/);
+  // The eyes are the model's: nothing is drawn over the metal.
+  assert.doesNotMatch(src, /Sprite|AdditiveBlending|PlaneGeometry/);
 });
