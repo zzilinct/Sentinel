@@ -137,7 +137,7 @@ function prelaunch(html) {
 
   const banner = '<div class="prelaunch" role="status">'
     + '<b>Preview.</b> Sentinel hasn&rsquo;t launched yet, so accounts and downloads aren&rsquo;t available here, and Try a link checks addresses in your browser. '
-    + 'Everything else is the real product: the verdicts on this page come from Sentinel&rsquo;s own engine.'
+    + '<span class="prelaunch__more">Everything else is the real product: the verdicts on this page come from Sentinel&rsquo;s own engine.</span>'
     + '</div>';
   // Sits in normal flow at the top of <main>, so it clears the fixed header
   // rather than hiding underneath it.

@@ -826,6 +826,13 @@
     const css = getComputedStyle(document.documentElement);
     const MONO = css.getPropertyValue('--mono').trim() || 'monospace';
     const SANS = css.getPropertyValue('--sans').trim() || 'sans-serif';
+    // On a large screen, when it stays, it has no lacquer of its own: it is drawn on the page, in the page's ink.
+    const onPage = () => stays() && !narrow.matches;
+    const paper = () => {
+      const t = document.documentElement.dataset.theme;
+      return t === 'light' || (t !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches);
+    };
+    let hostInk = 'rgba(239,230,212,.72)';
     // One warning: a lit pill, and the address it is about under it. Centred on the stage when no x is given.
     function warning(u, W, label, col, host, y, x) {
       u.font = `500 13px ${MONO}`;
@@ -853,7 +860,7 @@
         const hw = u.measureText(host).width;
         const hx = x === undefined ? (W - hw) / 2 : Math.max(8, Math.min(cx - 10, W - hw - 10));
         if (x === undefined) { u.fillStyle = 'rgba(9,7,5,.82)'; u.fillRect(hx - 6, y + 22, hw + 12, 24); }
-        u.fillStyle = 'rgba(239,230,212,.72)';
+        u.fillStyle = hostInk;
         u.fillText(host, hx, y + 34);
         u.fillStyle = col;
         u.fillRect(hx - 2, y + 44, hw + 4, 1.5);
@@ -871,8 +878,12 @@
       bg.addColorStop(0, '#2c210f');
       bg.addColorStop(0.55, '#140f08');
       bg.addColorStop(1, '#090705');
-      u.fillStyle = bg;
-      u.fillRect(0, 0, W, H);
+      if (!onPage()) {
+        u.fillStyle = bg;
+        u.fillRect(0, 0, W, H);
+      }
+      const ink = onPage() && paper() ? '138,100,32' : '226,194,127';
+      hostInk = onPage() && paper() ? 'rgba(60,45,20,.8)' : 'rgba(239,230,212,.72)';
       let seed = 11;
       const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
       // Binary, row by row.
@@ -882,7 +893,7 @@
       for (let y = 6, row = 0; y < H; y += 17, row++) {
         let line = '';
         for (let i = 0; i < cols; i++) line += (rnd() < 0.5 ? '0' : '1') + ' ';
-        u.fillStyle = `rgba(226,194,127,${row % 3 ? 0.34 : 0.62})`;
+        u.fillStyle = `rgba(${ink},${row % 3 ? 0.34 : 0.62})`;
         u.fillText(line, (row % 2) * 7, y);
       }
       // The niche: darker where the mask stands, so it stands clear, and a warning above it and below it, in the room
@@ -924,30 +935,22 @@
       }
     }
 
-    // When it stays: the whole of it in a phone's niche; on a large screen a still split, the right of the stage seen
-    // through, behind a gold seam.
+    // When it stays: the whole of it in a phone's niche; on a large screen a soft oval to the right of the mask, under
+    // the name, that dissolves into the page on every side, in either theme.
     function paintRest() {
       vctx.clearRect(0, 0, vw, vh);
       vctx.drawImage(under, 0, 0);
       if (narrow.matches) return;
       vctx.globalCompositeOperation = 'destination-in';
-      const g = vctx.createLinearGradient(vw * 0.5, 0, vw * 0.62, 0);
-      g.addColorStop(0, 'rgba(0,0,0,0)');
-      g.addColorStop(1, 'rgba(0,0,0,.92)');
+      vctx.save();
+      vctx.translate(vw * 0.76, vh * 0.62);
+      vctx.scale(vw * 0.24, vh * 0.31);
+      const g = vctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0.5, 'rgba(0,0,0,1)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
       vctx.fillStyle = g;
-      vctx.fillRect(0, 0, vw, vh);
-      vctx.globalCompositeOperation = 'source-over';
-      vctx.fillStyle = 'rgba(226,194,127,.7)';
-      vctx.fillRect(Math.round(vw * 0.56), 0, Math.max(1, vdpr), vh);
-      // It stays, so it keeps out from behind the name: the name is read first.
-      const word = $('[data-hero-word]', stage);
-      const foot = Math.min(0.9, (word.offsetTop + word.offsetHeight) / stage.clientHeight);
-      const clear = vctx.createLinearGradient(0, 0, 0, vh);
-      clear.addColorStop(foot - 0.02, 'rgba(0,0,0,0)');
-      clear.addColorStop(foot + 0.1, 'rgba(0,0,0,1)');
-      vctx.globalCompositeOperation = 'destination-in';
-      vctx.fillStyle = clear;
-      vctx.fillRect(0, 0, vw, vh);
+      vctx.fillRect(-9, -9, 18, 18);
+      vctx.restore();
       vctx.globalCompositeOperation = 'source-over';
     }
 
@@ -1026,8 +1029,8 @@
 
     const open = () => view.classList.add('is-opening');
     const vsize = () => {
-      // The niche is small and its words are read: sharp on a phone's screen. The brush covers the stage, at a cost.
-      vdpr = Math.min(devicePixelRatio || 1, narrow.matches ? 2.5 : 1.5);
+      // The niche's words are read, so it is sharper than the brush's stage, up to the memory the old stage's canvases took.
+      vdpr = Math.min(devicePixelRatio || 1, narrow.matches ? 1.8 : 1.5);
       vw = view.width = Math.round(view.clientWidth * vdpr);
       vh = view.height = Math.round(view.clientHeight * vdpr);
       trail.width = Math.round(view.clientWidth * TRAIL);
@@ -1039,6 +1042,8 @@
       ready = true;
       if (!stays()) { clearAll(); return; }
       paintRest();
+      // Drawn once: only the picture on the screen stays in memory.
+      under.width = under.height = trail.width = trail.height = haze.width = haze.height = 0;
       // After the opening (intro.js) when it plays, so it is seen rather than spent under the cover.
       if (document.documentElement.classList.contains('intro')) document.addEventListener('sentinel:intro-done', open, { once: true });
       else open();
@@ -1046,6 +1051,7 @@
     // Fonts and the three marks first, so the page underneath is drawn once, complete.
     Promise.all([document.fonts ? document.fonts.ready : null, ...marks.map((m) => (m.img.decode ? m.img.decode().catch(() => {}) : null))]).then(() => {
       if ('ResizeObserver' in window) new ResizeObserver(vsize).observe(view); else vsize();
+      new MutationObserver(() => { if (onPage()) vsize(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     });
 
     // The pointer, read once a frame, in the stage's own pixels.

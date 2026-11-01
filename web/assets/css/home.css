@@ -250,10 +250,16 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 @media (max-width: 860px) {
   .hero { min-height: auto; margin: 0 10px; padding: 96px 16px 40px; display: block; }
   .hero .vframe { inset: 78px 0 10px; }
+  /* The first screen has to hold the way in: the niche takes what the name, the headline and the button leave, and the
+     button comes before the lede. The sum of those is the 452 px; a short screen drops "Unmasked" to give the niche 50 px. */
   /* Two rows, so nothing depends on where a phone's width happens to land. The name has the first alone: its letters
      measure 5.3 em across (Newsreader with its tracking), so this size fills the frame at every width. The second is
      a lacquer niche with the mask standing in it, both sized from the niche, which is sized from the screen. */
-  .hero { --niche-h: clamp(270px, 40svh, 96vw); }
+  .hero { --niche-h: clamp(190px, 100svh - 452px, 96vw); }
+  .has-prelaunch .hero { padding-top: 14px; }
+  .has-prelaunch .hero .vframe { inset: 6px 0 10px; }
+  .prelaunch { margin-top: 76px; }
+  .prelaunch__more { display: none; }
   .hero__stage { position: relative; display: grid; grid-template-rows: auto var(--niche-h); justify-items: center; align-items: center; margin: 18px -16px 0; }
   .hero__word { position: relative; left: auto; right: auto; top: auto; margin: 0; font-size: min((100vw - 64px) / 5.3, 112px); }
   .hero__stage > :not(.hero__word, .hero__dots) { grid-area: 2 / 1; position: relative; left: auto; top: auto; translate: none; }
@@ -264,8 +270,10 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   /* Not until it is drawn: an empty frame is not a thing to look at. */
   .hero__unmask:not(.is-opening) { visibility: hidden; }
   .hero__copy, .hero__card { position: relative; left: auto; right: auto; bottom: auto; max-width: none; width: auto; }
-  .hero__copy { margin-top: 30px; padding: 0 6px; }
-  .hero .hero__cta { flex-wrap: wrap; }
+  .hero__copy { display: flex; flex-direction: column; margin-top: 14px; padding: 0 6px; }
+  .hero .hero__copy h1 { margin-top: 4px; }
+  .hero .hero__cta { order: 1; flex-wrap: wrap; margin-top: 14px; }
+  .hero .hero__lede { order: 2; margin-top: 18px; }
   .hero__card { margin: 30px 6px 30px; }
   .scroll-cue { display: none; }
   .sec-demo { padding-top: 90px; }
@@ -277,6 +285,11 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   .cta { padding: 70px 22px; }
   .try { grid-template-columns: minmax(0, 1fr); gap: 26px; padding: 30px 20px; }
   .try__form { padding-left: 12px; }
+}
+
+@media (max-width: 860px) and (max-height: 700px) {
+  .hero { --niche-h: clamp(190px, 100svh - 402px, 96vw); }
+  .unmasked { display: none; }
 }
 
 /* ------------------------------------------- the galaxy: every scam wears a mask (galaxy.js) */
