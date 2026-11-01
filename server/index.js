@@ -25,7 +25,7 @@ function buildRouter() {
 }
 
 // Clean URLs for the app shell: /app/scan, /app/settings ... all serve app.html.
-const APP_ROUTES = /^\/app(\/(scan|week|threats|email|text|call|history|sites|protection|plan|security|assistants|download|checkup|recover|share))?\/?$/;
+const APP_ROUTES = /^\/app(\/(scan|week|threats|email|text|history|sites|protection|plan|security|assistants|download|checkup|recover|share))?\/?$/;
 
 function createServer() {
   const router = buildRouter();
@@ -76,6 +76,8 @@ function createServer() {
       if (req.method === 'POST' && url.pathname === '/app/share') { req.once('end', () => send(res, 303, null, { Location: '/app/share?missed=1', Connection: 'close' })); req.resume(); return; }
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed', 'Method not allowed');
 
+      // The call check is public now: someone on the phone with a scammer cannot stop to sign in.
+      if (/^\/app\/call\/?$/.test(url.pathname)) { send(res, 302, null, { Location: '/call' }); return; }
       if (APP_ROUTES.test(url.pathname)) {
         serveStatic(config.webDir, '/app.html', req, res);
         return;

@@ -197,7 +197,7 @@ if ($Part -eq 'install') {
   $ok = Until 15 { (AppWindow) -match '^shown\|/app/threats' }
   Check 'tray-scan-file' $ok "Scan a file...: $(AppWindow)"
   Say "tray click: $(TrayClick 'Is this call a scam')"
-  $ok = Until 15 { (AppWindow) -match '^shown\|/app/call' }
+  $ok = Until 15 { (AppWindow) -match '^shown\|/call' }
   Check 'tray-call' $ok "Is this call a scam?: $(AppWindow)"
   # The app open on Live protection while the tray changes things: the switches there should follow.
   Page '/app/protection'

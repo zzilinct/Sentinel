@@ -11,6 +11,22 @@ const read = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 const everyCall = () => [undefined, ...RANG.map((r) => r.id)].flatMap((rang) => [undefined, ...WHO.map((w) => w.id)].flatMap((who) =>
   [[], ...ASKS.map((a) => [a.id])].map((asks) => ({ rang, who, asks }))));
 
+test('call check: open to anyone: a public page, no account, in the static site, and gone from the app', () => {
+  const page = read('web/call.html');
+  assert.match(page, /<script src="\/assets\/js\/callcheck\.js"><\/script>/);
+  assert.match(page, /No account needed/);
+  assert.doesNotMatch(page, /app\.js|gsap|lenis/, 'a page for someone on a scam call carries nothing it does not need');
+  assert.match(read('scripts/build-static.js'), /'\/call': 'call\.html'/);
+  assert.match(read('web/partials/nav.html'), /href="\/call"/);
+  assert.doesNotMatch(read('web/app.html'), /callcheck\.js/);
+  assert.doesNotMatch(read('web/assets/js/app.js'), /callView/);
+  assert.match(read('server/index.js'), /Location: '\/call'/);
+});
+
+test('call check: choices are a few words, read in a panic', () => {
+  for (const x of [...ASKS, ...WHO]) assert.ok(x.label.length <= 23 && x.label.split(' ').length <= 5, x.label);
+});
+
 test('call check: the page opens on a true answer, and nonsense changes nothing', () => {
   for (const r of [judge(), judge({}), judge({ rang: 'nonsense', who: 'nobody', asks: ['nonsense'] })]) {
     assert.equal(r.verdict, 'hold');
@@ -25,10 +41,7 @@ test('call check: no input of any kind ever says safe', () => {
     assert.ok(['hangup', 'callback', 'hold'].includes(r.verdict), JSON.stringify(c));
     assert.ok(!/\b(fine|safe to|is safe|real caller is|genuine|legit|no scam)\b/i.test(r.big + r.reason + r.next), JSON.stringify(r));
   }
-  assert.ok(!/call__answer\[data-verdict="fine"\]|probably fine/.test(read('web/assets/css/app.css') + read('web/assets/js/app.js')), 'the green answer is gone');
-  const css = read('web/assets/css/app.css');
-  const call = css.slice(css.indexOf('.call {'), css.indexOf('@keyframes call-land-b') + 200);
-  assert.ok(!/--green/.test(call), 'no green in the call check');
+  assert.ok(!/fine|--green/.test(read('web/assets/css/call.css')), 'no green in the call check');
 });
 
 test('call check: every ask on its own says hang up, with a reason', () => {
@@ -37,7 +50,8 @@ test('call check: every ask on its own says hang up, with a reason', () => {
     assert.equal(r.verdict, 'hangup', a.id);
     assert.equal(r.big, 'Hang up now.');
     assert.equal(r.reason, a.reason);
-    assert.match(r.next, /never one the caller gave you/);
+    assert.match(r.next, /wait a few minutes or use another phone/);
+    assert.match(r.next, /never one they gave you/);
   }
 });
 
@@ -47,7 +61,8 @@ test('call check: the bank, police, tax office or family calling out of the blue
       const r = judge({ rang, who: id });
       assert.equal(r.verdict, 'callback', id);
       assert.equal(r.big, 'Hang up and call back.');
-      assert.equal(r.next, WHO.find((w) => w.id === id).next, 'what to do next is for who they claim to be');
+      assert.ok(r.next.includes(WHO.find((w) => w.id === id).call), 'what to do next is for who they claim to be');
+      assert.match(r.next, /hold the line open, so wait a few minutes or use another phone/);
     }
   }
   assert.equal(judge({ who: 'microsoft' }).verdict, 'hangup', 'tech companies do not call at all');
@@ -94,6 +109,6 @@ test('call check: what was asked for leads to the matching parts of the recovery
 
 test('call check: calm house style, no em dashes, and words short enough to stay on a phone screen', () => {
   const words = [...RANG.map((r) => r.label), ...ASKS.flatMap((a) => [a.label, a.reason]), ...WHO.flatMap((w) => [w.label, w.doubt || '', w.next || ''])];
-  for (const c of everyCall()) { const r = judge(c); words.push(r.big, r.reason, r.next); assert.ok(r.reason.length + r.next.length <= 220, r.reason + r.next); }
+  for (const c of everyCall()) { const r = judge(c); words.push(r.big, r.reason, r.next); assert.ok(r.reason.length + r.next.length <= 265, r.reason + r.next); }
   for (const w of words) assert.ok(!/—/.test(w), w);
 });

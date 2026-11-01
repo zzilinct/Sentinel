@@ -95,6 +95,7 @@
   }
 
   function navigate(href) {
+    if (!href.startsWith('/app')) { location.href = href; return; }   // /call is a public page, outside the app
     // The page already open, asked for again ("Scan again" on the link just scanned): run it again, without a new
     // history entry.
     if (href === location.pathname + location.search) history.replaceState({}, '', href);
@@ -195,7 +196,6 @@
     '/app/threats': ['threats', threatsView],
     '/app/email': ['email', emailView],
     '/app/text': ['text', textView],
-    '/app/call': ['call', callView],
     '/app/history': ['history', historyView],
     '/app/protection': ['protection', protectionView],
     '/app/download': ['protection', protectionView],
@@ -273,7 +273,7 @@
 
   const PAGES = [
     ['Overview', '/app', 'home'], ['Your week', '/app/week', 'week'], ['Link scan', '/app/scan', 'scan'], ['Virus & malware scan', '/app/threats', 'threats'],
-    ['Email scan', '/app/email', 'email'], ['Text scan', '/app/text', 'text'], ['Is this call a scam?', '/app/call', 'call'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
+    ['Email scan', '/app/email', 'email'], ['Text scan', '/app/text', 'text'], ['Is this call a scam?', '/call', 'call'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
     ['Live protection', '/app/protection', 'protection'], ['Plan & usage', '/app/plan', 'plan'], ['Security', '/app/security', 'security'],
     ['AI assistants', '/app/assistants', 'assistants'], ['Recovery guide', '/app/recover', 'recover']
   ];
@@ -2171,68 +2171,6 @@
   }
 
   /* ====================================================== browser checkup */
-
-  /* ========================================================== call check */
-
-  // "Is this call a scam?" for while someone is on the phone. The answer is always on screen and always true: it sits
-  // above the questions on a phone and beside them on a wide screen, and stays in view as the page scrolls. It is worked
-  // out here, by callcheck.js; nothing is sent or kept, so leaving the page forgets the call.
-  function callView(el) {
-    const C = window.SentinelCallCheck;
-    const group = (heading, name, type, list, kind) => `
-      <fieldset class="call__group">
-        <legend><h2>${heading}</h2></legend>
-        <div class="call__picks call__picks--${kind}">${list.map((x) => `<label class="call__pick"><input type="${type}" name="${name}" value="${x.id}"><i class="call__tick call__tick--${type}" aria-hidden="true"></i><span>${esc(x.label)}</span></label>`).join('')}</div>
-      </fieldset>`;
-    el.innerHTML = `
-      ${title('Is this call a scam?', 'On the phone right now? Tick what you hear. Nothing you tick is sent anywhere or kept.')}
-      <form class="call" data-call>
-        <div class="call__answer" data-call-answer aria-live="polite" aria-atomic="true">
-          <span class="call__mark" data-call-mark></span>
-          <p class="call__verdict"></p>
-          <p class="call__reason"></p>
-          <p class="call__next"></p>
-          <p class="call__more" hidden>Already did it? <a href="/app/recover">Open the recovery guide</a>.</p>
-        </div>
-        <div class="call__asks">
-          ${group('Who called who?', 'rang', 'radio', C.RANG, 'list')}
-          ${group('Who do they say they are?', 'who', 'radio', C.WHO, 'chips')}
-          ${group('What do they want?', 'ask', 'checkbox', C.ASKS, 'chips')}
-          <button type="reset" class="btn btn--ghost btn--sm">Start over</button>
-        </div>
-      </form>`;
-    const form = $('[data-call]', el);
-    const out = $('[data-call-answer]', el);
-    const put = (sel, text) => { const n = $(sel, out); if (n.textContent !== text) n.textContent = text; };
-    const SEAL = { hangup: 'red', callback: 'orange', hold: 'yellow' };
-    const draw = () => {
-      const ticked = new FormData(form);
-      const r = C.judge({ rang: ticked.get('rang'), who: ticked.get('who'), asks: ticked.getAll('ask') });
-      const was = out.dataset.verdict;
-      const from = out.offsetHeight;
-      out.dataset.verdict = r.verdict;
-      // In the Windows app, only that the answer became "Hang up" goes to the app (an hour's pay pause sign, paypause.js).
-      if (r.verdict === 'hangup' && was !== 'hangup' && window.sentinelDesktop && window.sentinelDesktop.callHangUp) window.sentinelDesktop.callHangUp().catch(() => {});
-      if (r.verdict !== was) $('[data-call-mark]', out).innerHTML = window.SentinelMasks.mark('scam', SEAL[r.verdict]);
-      put('.call__verdict', r.big);
-      put('.call__reason', r.reason);
-      put('.call__next', r.next);
-      $('.call__more', out).hidden = !r.happened.length;
-      if (r.happened.length) $('.call__more a', out).setAttribute('href', `/app/recover?happened=${r.happened.join(',')}`);
-      if (!was) return;
-      const grew = out.offsetHeight - from;
-      if (!grew) return;
-      // The answer sits above the boxes on a phone: when it changes height, the box under the finger stays where it is.
-      if (matchMedia('(max-width: 999px)').matches && scrollY > 0 && out.getBoundingClientRect().top < 40) scrollBy({ top: grew, behavior: 'instant' });
-      if (grew > 0 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        out.animate({ clipPath: [`inset(-40px 0 ${grew}px 0 round 26px)`, 'inset(-40px -40px -40px -40px round 26px)'] }, { duration: 460, easing: 'cubic-bezier(.3, 1.18, .5, 1)' });
-      }
-    };
-    form.addEventListener('change', draw);
-    form.addEventListener('reset', () => setTimeout(draw));
-    form.addEventListener('submit', (ev) => ev.preventDefault());
-    draw();
-  }
 
   /* ====================================================== recovery guide */
 

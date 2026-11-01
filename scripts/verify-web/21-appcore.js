@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { QR, OUT, sleep, result, launch, evalIn, openPage, goto, shot, typeText, pressEnter, startServer, watchErrors, clickSel, pressKey, until } = require('./_shared');
 
-const PAGES = ['/app', '/app/week', '/app/scan', '/app/threats', '/app/email', '/app/text', '/app/call', '/app/history', '/app/sites', '/app/checkup',
+const PAGES = ['/app', '/app/week', '/app/scan', '/app/threats', '/app/email', '/app/text', '/app/history', '/app/sites', '/app/checkup',
   '/app/protection', '/app/plan', '/app/security', '/app/assistants', '/app/recover'];
 
 async function checkAppCore() {

@@ -38,7 +38,7 @@ const PAGES = [
   ['app-scan-clean', `/app/scan?url=${encodeURIComponent('https://www.wikipedia.org/')}`, { wait: 6000 }],
   ['app-files', '/app/threats'], ['app-email', '/app/email'], ['app-text', '/app/text'], ['app-history', '/app/history'], ['app-sites', '/app/sites'],
   ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-security', '/app/security'], ['app-assistants', '/app/assistants'],
-  ['app-call', '/app/call'], ['practice', '/practice']
+  ['call', '/call'], ['practice', '/practice']
 ];
 // Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.
 const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light'], ['phone-light', 390, 844, true, 'light']];
@@ -515,7 +515,7 @@ const SPOOFED = ['Authentication-Results: mx.google.com;',
  */
 async function featureShots(send) {
   const CASES = [
-    ['call', '/app/call', "document.querySelector('[data-call-answer]')",
+    ['call', '/call', "document.querySelector('[data-call-answer]')",
       "document.querySelector('input[name=who][value=bank]').click(); document.querySelector('input[name=ask][value=code]').click();",
       "document.querySelector('[data-call-answer][data-verdict]')", '[data-call-answer]'],
     ['practice', '/practice', "document.querySelector('[data-practice] [data-pick]')",
