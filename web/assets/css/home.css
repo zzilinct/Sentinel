@@ -251,17 +251,17 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   .hero { min-height: auto; margin: 0 10px; padding: 96px 16px 40px; display: block; }
   .hero .vframe { inset: 78px 0 10px; }
   /* The first screen has to hold the way in: the niche takes what the name, the headline and the button leave, and the
-     button comes before the lede. The sum of those is the 452 px; a short screen drops "Unmasked" to give the niche 50 px. */
+     button comes before the lede. All but the name's own box sum to 397 px; a short screen drops "Unmasked" for 50 px more. */
   /* Two rows, so nothing depends on where a phone's width happens to land. The name has the first alone: its letters
      measure 5.3 em across (Newsreader with its tracking), so this size fills the frame at every width. The second is
      a lacquer niche with the mask standing in it, both sized from the niche, which is sized from the screen. */
-  .hero { --niche-h: clamp(190px, 100svh - 452px, 96vw); }
+  .hero { --word: min((100vw - 64px) / 5.3, 112px); --niche-h: clamp(190px, 100svh - 397px - 1.3 * var(--word), 96vw); }
   .has-prelaunch .hero { padding-top: 14px; }
   .has-prelaunch .hero .vframe { inset: 6px 0 10px; }
   .prelaunch { margin-top: 76px; }
   .prelaunch__more { display: none; }
   .hero__stage { position: relative; display: grid; grid-template-rows: auto var(--niche-h); justify-items: center; align-items: center; margin: 18px -16px 0; }
-  .hero__word { position: relative; left: auto; right: auto; top: auto; margin: 0; font-size: min((100vw - 64px) / 5.3, 112px); }
+  .hero__word { position: relative; left: auto; right: auto; top: auto; margin: 0; font-size: var(--word); }
   .hero__stage > :not(.hero__word, .hero__dots) { grid-area: 2 / 1; position: relative; left: auto; top: auto; translate: none; }
   .hero__stage > .sketch { width: 120vw; }
   .hero__stage > .hero__mask { z-index: 2; width: calc(var(--niche-h) * .46); }
@@ -288,7 +288,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 }
 
 @media (max-width: 860px) and (max-height: 700px) {
-  .hero { --niche-h: clamp(190px, 100svh - 402px, 96vw); }
+  .hero { --niche-h: clamp(190px, 100svh - 347px - 1.3 * var(--word), 96vw); }
   .unmasked { display: none; }
 }
 

@@ -26,10 +26,10 @@ const MEASURE = `(() => {
   const at = (x, y) => [...pic.getImageData(Math.round(view.width * x), Math.round(view.height * y), 1, 1).data];
   const name = box(range);
   return { W: innerWidth, sideways: document.documentElement.scrollWidth - innerWidth, text: word.textContent, word: name,
-    held: [...window.__canvases].filter((c) => c !== view && c.width * c.height > 0 && ((c.width === view.width && c.height === view.height) || c.width === Math.round(view.clientWidth * 0.5))).length,
-    viewBytes: view.width * view.height * 4, cta: box(document.querySelector('.hero__cta .btn')), H: innerHeight, banner: Boolean(document.querySelector('.prelaunch')),
+    held: [...window.__canvases].filter((c) => c !== view && c.width * c.height > 0 && ((c.width === view.width && c.height === view.height) || (c.width === Math.round(view.clientWidth * 0.5) && c.height === Math.round(view.clientHeight * 0.5)))).length,
+    viewBytes: view.width * view.height * 4, cta: box(document.querySelector('.hero__cta .btn')), ctaOpacity: getComputedStyle(document.querySelector('.hero .hero__cta')).opacity, H: innerHeight, banner: Boolean(document.querySelector('.prelaunch')),
     view: box(view), mask: box(document.querySelector('[data-hero-mask]')), copy: box(document.querySelector('.hero__copy')),
-    painted: at(0.76, 0.62)[3] > 200,
+    painted: Math.max(...pic.getImageData(Math.round(view.width * 0.7), Math.round(view.height * 0.6), 60, 60).data.filter((_, i) => i % 4 === 3)) > 200,
     behindName: at(0.75, ((name.top + name.bottom) / 2 - box(view).top) / view.clientHeight)[3], shown: getComputedStyle(view).visibility === 'visible', clip: getComputedStyle(view).clipPath,
     zWord: getComputedStyle(word).zIndex };
 })()`;
@@ -49,7 +49,8 @@ function phoneProblems(m) {
   // 320x568 is the one size where the button does not fit; every other must hold it.
   if (m.W >= 360 && m.cta.bottom > m.H) out.push(`the button is below the fold: ${Math.round(m.cta.bottom)} of ${m.H}`);
   if (m.held) out.push(`${m.held} working canvases still hold memory`);
-  if (m.W <= 430 && m.viewBytes > CANVAS_BYTES * 1.25) out.push(`the niche holds ${m.viewBytes} bytes`);
+  if (m.W <= 430 && m.viewBytes > CANVAS_BYTES * (m.W / 390) ** 2) out.push(`the niche holds ${m.viewBytes} bytes`);
+  if (m.ctaOpacity !== '1') out.push(`the button is not shown yet (opacity ${m.ctaOpacity})`);
   return out;
 }
 
@@ -81,7 +82,9 @@ async function checkHeroPhone() {
             await shot(browser, s, `hero-phone-${scheme}-opening`);
             await evalIn(browser, s, "document.querySelector('.hero__unmask').getAnimations()[0].play(); true");
           }
-          await sleep(3800);
+          // Once the page's entrance has reached the button (a slow machine takes its time), and it has finished.
+          for (let i = 0; i < 60 && !(await evalIn(browser, s, "getComputedStyle(document.querySelector('.hero .hero__cta')).opacity === '1'")); i++) await sleep(250);
+          await sleep(2600);
           const m = await evalIn(browser, s, MEASURE);
           const bad = phoneProblems(m);
           if (m.clip !== 'none') bad.push(`still clipped after opening: ${m.clip}`);

@@ -911,6 +911,12 @@
         warning(u, W, 'Look-alike domain', C.orange, room ? 'paypa1-secure-login.com' : null, H - (room ? 66 : 36));
         return;
       }
+      // Resting on a large screen: two warnings, whole, in the middle of the oval, where nothing cuts them.
+      if (onPage()) {
+        warning(u, W, 'Brand impersonation', C.red, 'coinbase-airdrop-claim.tk', H * 0.46, W * 0.66);
+        warning(u, W, 'Look-alike domain', C.orange, 'paypa1-secure-login.com', H * 0.58, W * 0.72);
+        return;
+      }
       // Marks and warnings, scattered on a loose grid so they never pile up.
       const gc = W > 900 ? 4 : 2;
       const gr = H > 700 ? 3 : 2;
@@ -946,7 +952,7 @@
       vctx.translate(vw * 0.76, vh * 0.62);
       vctx.scale(vw * 0.24, vh * 0.31);
       const g = vctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-      g.addColorStop(0.5, 'rgba(0,0,0,1)');
+      g.addColorStop(0.62, 'rgba(0,0,0,1)');
       g.addColorStop(1, 'rgba(0,0,0,0)');
       vctx.fillStyle = g;
       vctx.fillRect(-9, -9, 18, 18);
