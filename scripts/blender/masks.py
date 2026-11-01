@@ -725,6 +725,15 @@ def export_glb(kind):
         select_only([high, low])
         bpy.context.view_layer.objects.active = low
         bpy.ops.object.bake(type=kind_of, normal_space='TANGENT')
+        if kind_of == 'AO':
+            # The site's light is a panorama with no shadows: only this map stops a socket's walls from mirroring a
+            # softbox they could never see. Deepened, so the sockets go properly dark and the open planes barely change.
+            px = np.empty(len(img.pixels), dtype=np.float32)
+            img.pixels.foreach_get(px)
+            rgb = np.arange(px.size) % 4 != 3
+            px[rgb] = px[rgb] ** 2.2
+            img.pixels.foreach_set(px)
+            img.update()
     # Wired the way the glTF exporter reads them: the normal map through a Normal Map node, the occlusion through
     # its glTF Material Output group.
     group = bpy.data.node_groups.get('glTF Material Output') or bpy.data.node_groups.new('glTF Material Output', 'ShaderNodeTree')

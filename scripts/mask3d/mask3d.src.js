@@ -59,9 +59,9 @@ const FINISH = {
 const GEOMETRY = { onyx: 'scam', scam: 'scam', virus: 'virus', malware: 'malware' };
 // The parts that are the same on every mask (masks.py build), in linear colour as Blender has them.
 const GOLD = { metalness: 1, roughness: 0.2 };
-const LINER = { metalness: 0, roughness: 0.42 };
+const LINER = { metalness: 0, roughness: 0.42, specularIntensity: 0 };
 // The eyes' light: the ember's glow and the light it throws into the socket, at rest (1) and while watching (EYE_WATCH).
-const EMBER_GLOW = 1.1;
+const EMBER_GLOW = 0.9;
 const EMBER_THROW = 0.14;
 const EYE_WATCH = 1.5;
 
@@ -260,7 +260,7 @@ async function build(el) {
   swallowable(gold, state);
   const liner = new MeshPhysicalMaterial({ ...LINER, color: new Color().setRGB(0.004, 0.0035, 0.003) });
   swallowable(liner, state);
-  const ember = new MeshPhysicalMaterial({ color: 0x000000, roughness: 0.3, emissive: new Color().setRGB(1, 0.34, 0.02), emissiveIntensity: 0 });
+  const ember = new MeshPhysicalMaterial({ color: 0x000000, roughness: 0.3, specularIntensity: 0, emissive: new Color().setRGB(1, 0.34, 0.02), emissiveIntensity: 0 });
   swallowable(ember, state, true);
   const parts = { trim: gold, liner, ember };
 
@@ -277,8 +277,10 @@ async function build(el) {
 
   let eyes = null;
   try {
-    const [src, env] = await Promise.all([model(geom), studio(f.studio)]);
+    const [src, env, warm] = await Promise.all([model(geom), studio(f.studio), studio('scam')]);
     scene.environment = env;
+    // The gold always stands in the warm studio: the onyx one is too dark for metal, and a stud would mirror the black.
+    gold.envMap = warm;
     const m = src.clone(true);
     // The model's own maps, baked in Blender from the detailed mask (masks.py --glb): the normal map carries the
     // bevels, rims and ridges smaller than a triangle, under the lacquer too; the occlusion map darkens the sockets'
