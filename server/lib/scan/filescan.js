@@ -95,8 +95,17 @@ function zipEntries(buf, base = 0) {
     if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
   }
   if (eocd < 0) return entries;
-  const count = buf.readUInt16LE(eocd + 10);
-  let ptr = buf.readUInt32LE(eocd + 16) - base;
+  let count = buf.readUInt16LE(eocd + 10);
+  let at = buf.readUInt32LE(eocd + 16);
+  // ZIP64 (past 4 GB or 65,535 entries): the real numbers are in a second record, named by a locator just before this one.
+  if ((count === 0xffff || at === 0xffffffff) && eocd >= 20 && buf.readUInt32LE(eocd - 20) === 0x07064b50) {
+    const big = Number(buf.readBigUInt64LE(eocd - 12)) - base;
+    if (big >= 0 && big + 56 <= buf.length && buf.readUInt32LE(big) === 0x06064b50) {
+      count = Number(buf.readBigUInt64LE(big + 32));
+      at = Number(buf.readBigUInt64LE(big + 48));
+    }
+  }
+  let ptr = at - base;
   for (let n = 0; n < count && n < 5000 && ptr >= 0 && ptr + 46 <= buf.length; n++) {
     if (buf.readUInt32LE(ptr) !== 0x02014b50) break;
     const flags = buf.readUInt16LE(ptr + 8);

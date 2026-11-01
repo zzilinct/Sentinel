@@ -297,15 +297,16 @@ async function inspectFile(full, how) {
   if (!worst.badge) { if (worst.looked === 'all') cleanCount++; return item; }
 
   // What the on-device scan finds in a file is a guess from its contents. A guess is
-  // never enough against a program whose publisher Windows can vouch for: Discord's
-  // updater contains "DownloadFile", because downloading files is its job. Only a
-  // known malicious file (a hash on a list) outranks a valid signature.
-  if (!known) {
+  // never enough to act against a program whose publisher Windows can vouch for: Discord's
+  // updater contains "DownloadFile", because downloading files is its job. But a signature
+  // says who signed, not that the program is safe, so the guess is not wiped either: it
+  // keeps its colour, is written down with the publisher, and nothing is touched. Evidence
+  // (red) outranks a valid signature.
+  if (!known && worst.badge !== 'red') {
     const publisher = await signer(full);
     if (publisher) {
-      cleanCount++;
-      record({ kind: 'clean', path: full, name, how: `signed by ${publisher}` });
-      return { ...item, badge: null, label: `Signed by ${publisher}`, threat: null, reason: null, trusted: true };
+      record({ kind: 'noted', ...item, signedBy: publisher, actions: [{ did: 'noted', detail: `Signed by ${publisher}; warning signs, and nothing was touched` }] });
+      return { ...item, signedBy: publisher };
     }
   }
   // "Possible" means a few warning signs and nothing more. It is written down, and

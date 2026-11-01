@@ -142,11 +142,11 @@ async function scan(full, stat) {
   let failure = null;
   try { report = await analyze(full, name, known); } catch (err) { failure = err; log(`download scan of ${name} failed: ${err.message}`); }
   const threats = summarize(report, known, { failure, offline });
-  // Sentinel read only the ends of this file. Windows reads all of it to check a signature, and a valid one outranks a
-  // guess from those ends, as it does in Defense. It stays partly checked: Sentinel did not read the middle.
-  if (threats.looked === 'part' && threats.badge !== 'red' && SIGNABLE.test(name) && opts.signedBy) {
+  // A valid signature says who signed the file and that it has not changed since, which is worth telling. It does not
+  // say the file is safe (certificates get stolen), so it changes no verdict.
+  if (threats.looked === 'part' && SIGNABLE.test(name) && opts.signedBy) {
     const publisher = await opts.signedBy(full).catch(() => null);
-    if (publisher) Object.assign(threats, { badge: null, label: 'Partly checked', reason: `Signed by ${publisher}, and unchanged since. ${READ_ENDS}` });
+    if (publisher) threats.reason = `Signed by ${publisher}, and unchanged since. ${threats.reason}`;
   }
   const origin = await checkSource(full, name, report).catch(() => null);
   const rank = { yellow: 1, orange: 2, red: 3 };
@@ -225,6 +225,8 @@ function hashStream(file) {
 
 const READ_ENDS = 'Sentinel read the start and end of this file, not the middle.';
 const NOT_LISTED = 'Sentinel read all of it, but could not reach its list of known threats.';
+const NOT_LISTED_EITHER = 'It could not reach its list of known threats either.';
+const NOT_INSIDE = 'Sentinel could not see what is inside this archive.';
 
 /**
  * Same scoring rules as the server: evidence -> red, 55+ orange, 30+ yellow; no record -> 15% lower.
@@ -255,7 +257,9 @@ function summarize(report, known, { failure = null, offline = false } = {}) {
     if (badge && (!worst || rank[badge] > rank[out[worst].badge])) worst = t;
   }
   const labels = { virus: { yellow: 'Possible virus', orange: 'Likely virus', red: 'Virus detected' }, malware: { yellow: 'Possible malware', orange: 'Likely malware', red: 'Malware detected' } };
-  const looked = !report ? 'none' : report.part || offline ? 'part' : 'all';
+  // Packed so that only opening it would show the contents, or a zip whose list of contents was out of reach.
+  const sealed = Boolean(report) && (['rar', '7z', 'gzip'].includes(report.type) || (report.type === 'zip' && report.checks.some((c) => c.id === 'F11' && c.status === 'skip')));
+  const looked = !report ? 'none' : report.part || offline || sealed ? 'part' : 'all';
   let label = 'No threats found';
   if (worst) label = labels[worst][out[worst].badge];
   else if (looked === 'none') {
@@ -263,7 +267,7 @@ function summarize(report, known, { failure = null, offline = false } = {}) {
     reason = failure && failure.timedOut ? 'The check took too long and was stopped.' : 'Sentinel could not open this file. It may have been moved, or another program may be using it.';
   } else if (looked === 'part') {
     label = 'Partly checked';
-    reason = report.part ? READ_ENDS : NOT_LISTED;
+    reason = [report.part && READ_ENDS, offline && (report.part ? NOT_LISTED_EITHER : NOT_LISTED), sealed && NOT_INSIDE].filter(Boolean).join(' ');
   } else if (report.size === 0) {
     label = 'Empty file';
     reason = 'There is nothing in this file to check.';

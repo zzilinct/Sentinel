@@ -36,6 +36,7 @@ async function realDownloads() {
   await run(make('Notepad copy.exe', 0, 'MZ inert test program'));
   await run(make('ZoomInstallerFull.exe', 188, 'MZ inert test program'), { signedBy: async () => 'Zoom Video Communications, Inc.' });
   await run(make(LONG, 900, 'video bytes'));
+  await run(make('Game patch.rar', 0, 'Rar!\x1a\x07\x00 test bytes'));
   await run(make('Holiday photos.zip', 0, 'PK\x05\x06'.padEnd(22, '\0')), { api: async () => { throw new Error('offline'); } });
   const gone = make('Budget.xlsx', 0, 'Rent,Food');
   await run(gone, { api: async () => { fs.rmSync(gone); return { known: false }; } });
@@ -78,12 +79,13 @@ async function checkDownloads() {
       for (const theme of THEMES) {
         await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
         await goto(browser, s, `${server.base}/app/protection`);
-        await until(browser, s, "document.querySelectorAll('#downloads .list li').length >= 7", 20000);
+        await until(browser, s, "document.querySelectorAll('#downloads .list li').length >= 8", 20000);
         rows = await evalIn(browser, s, `(() => {
           document.querySelector('#downloads').scrollIntoView({ block: 'start' });
           return { wide: document.documentElement.scrollWidth - innerWidth, rows: [...document.querySelectorAll('#downloads .list li')].map((li) => {
             const strip = li.querySelector('.read-strip');
-            return { kind: strip.className, text: li.innerText.replace(/\\s+/g, ' '), green: Boolean(li.querySelector('.status.is-on')), pill: (li.querySelector('.status') || {}).textContent || '', lit: parseFloat(strip.style.getPropertyValue('--end')), hidden: strip.getAttribute('aria-hidden'), box: strip.getBoundingClientRect().width };
+            const css = getComputedStyle(strip);
+            return { kind: strip.className, stripGreen: css.getPropertyValue('--lit').trim() === getComputedStyle(document.documentElement).getPropertyValue('--green').trim(), text: li.innerText.replace(/\\s+/g, ' '), green: Boolean(li.querySelector('.status.is-on')), pill: (li.querySelector('.status') || {}).textContent || '', lit: parseFloat(strip.style.getPropertyValue('--end')), hidden: strip.getAttribute('aria-hidden'), box: strip.getBoundingClientRect().width };
           }) };
         })()`);
         if (rows.wide > 0) wide.push(`${size} ${theme}: ${rows.wide} px`);
@@ -95,19 +97,24 @@ async function checkDownloads() {
     const row = (name) => list.find((r) => r.text.includes(name));
     result('downloads: only files read to their end, with the list asked, are green', list.filter((r) => r.green).length === 2 && row('Tax return 2026').green && row('Notepad copy').green && !list.some((r) => /\bClear\b/.test(r.text)), list);
     result('downloads: a clean program is not handed the small print of a warning', /No threats found/.test(row('Notepad copy').text) && !/publishers/.test(row('Notepad copy').text), row('Notepad copy').text);
+    result('downloads: an archive that cannot be opened says so, and is not green', /could not see what is inside/.test(row('Game patch').text) && row('Game patch').pill === 'Partly checked', row('Game patch').text);
     result('downloads: flagged first, then not checked, then partly checked', /Quarantine/.test(list[0].text) && list[1].pill === 'Not checked' && list[2].pill === 'Partly checked' && list[list.length - 1].green, list.map((r) => r.pill || r.text.slice(0, 30)));
     result('downloads: a big file says what was read, and who signed it', /Signed by Zoom Video Communications.*not the middle/.test(row('ZoomInstaller').text) && row('ZoomInstaller').pill === 'Partly checked' && /not the middle/.test(row('Family holiday').text), [row('ZoomInstaller').text, row('Family holiday').text]);
     result('downloads: a file read but not compared with the list is not called clean', /could not reach its list/.test(row('Holiday photos').text) && !/No threats found/.test(row('Holiday photos').text), row('Holiday photos').text);
     result('downloads: a file not read says why', /moved/.test(row('Budget').text) && !/No threats found/.test(row('Budget').text), row('Budget').text);
     result('downloads: the strip shows how much was read', row('Tax return').lit === 50 && row('ZoomInstaller').lit > 4 && row('ZoomInstaller').lit < 10 && row('Family holiday').lit === 4 && row('Holiday photos').lit === 50 && row('Budget').lit === 0 && list.every((r) => r.hidden === 'true' && r.box > 50), list.map((r) => r.lit));
-    result('downloads: a warning never has a green strip beside it', /read-strip--flag/.test(list[0].kind), list[0].kind);
+    result('downloads: a warning never has a green strip beside it', !list[0].stripGreen && list.filter((r) => r.stripGreen).length === 2, list.map((r) => r.stripGreen));
     result('downloads: nothing scrolls sideways', !wide.length, wide);
     result('downloads: no errors on the page', !errors.length, errors);
 
     // The right-click answer, its page as the app opens it.
+    const lum = (rgb) => { const [r, g, b] = rgb.match(/[\d.]+/g).slice(0, 3).map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
     const pages = {
       part: { name: 'ZoomInstallerFull.exe', size: '197132288', badge: 'part', label: 'Partly checked', why: by(LONG).reason, account: '1', asked: '1' },
-      none: { name: 'Budget.xlsx', size: '0', badge: 'none', label: 'Not checked', why: by('Budget.xlsx').reason, account: '', asked: '' }
+      none: { name: 'Budget.xlsx', size: '0', badge: 'none', label: 'Not checked', why: by('Budget.xlsx').reason, account: '', asked: '' },
+      empty: { name: 'Empty notes.txt', size: '0', badge: 'none', label: 'Empty file', why: 'There is nothing in this file to check.', account: '', asked: '' },
+      signedout: { name: 'ZoomInstallerFull.exe', size: '197132288', badge: 'part', label: 'Partly checked', why: by(LONG).reason, account: '', asked: '' }
     };
     await browser.send('Emulation.setDeviceMetricsOverride', { width: 460, height: 420, deviceScaleFactor: 1, mobile: false }, s);
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.sentinelDesktop = { menuResultAction: async () => ({}), cardFit: async () => ({}) };' }, s);
@@ -115,11 +122,16 @@ async function checkDownloads() {
       for (const theme of THEMES) {
         await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, s);
         await goto(browser, s, `file:///${path.join(ROOT, 'desktop', 'src', 'pages', 'filescan.html').replace(/\\/g, '/')}?${new URLSearchParams(query)}`);
-        await sleep(300);
+        await sleep(900);
         await shot(browser, s, `filescan-${state}-${theme}`);
+        const look = await evalIn(browser, s, "({ mode: document.documentElement.dataset.theme, bg: getComputedStyle(document.body).backgroundColor, title: getComputedStyle(document.getElementById('label')).color, words: getComputedStyle(document.getElementById('lead')).color, note: getComputedStyle(document.getElementById('where')).color })");
+        result(`downloads: the ${state} card follows ${theme} and can be read`, look.mode === theme && Math.min(contrast(look.title, look.bg), contrast(look.words, look.bg), contrast(look.note, look.bg)) >= 4.5, look);
+        await goto(browser, s, `file:///${path.join(ROOT, 'desktop', 'src', 'pages', 'filescan.html').replace(/\\/g, '/')}?${new URLSearchParams({ ...query, theme: theme === 'dark' ? 'light' : 'dark' })}`);
+        const chosen = await evalIn(browser, s, 'document.documentElement.dataset.theme');
+        result(`downloads: the theme chosen in the app wins over Windows (${state}, ${theme})`, chosen !== theme, chosen);
       }
-      const seen = await evalIn(browser, s, "({ label: document.getElementById('label').textContent, lead: document.getElementById('lead').textContent, where: document.getElementById('where').textContent, signin: document.getElementById('signin').hidden })");
-      result(`downloads: the right-click answer for ${state} is plain`, seen.label === query.label && seen.lead === query.why && !/nothing harmful/.test(seen.lead) && seen.signin === Boolean(query.account) && (query.asked ? /fingerprint/.test(seen.where) : /Nothing about the file left this computer/.test(seen.where)), seen);
+      const seen = await evalIn(browser, s, "({ label: document.getElementById('label').textContent, lead: document.getElementById('lead').textContent, where: document.getElementById('where').textContent, signin: document.getElementById('signin').hidden, deeper: document.getElementById('deeper').hidden })");
+      result(`downloads: the right-click answer for ${state} is plain`, seen.label === query.label && seen.lead === query.why && !/nothing harmful/.test(seen.lead) && seen.signin === (query.badge === 'none' || query.account === '1') && seen.deeper === seen.signin && (query.asked ? /fingerprint/.test(seen.where) : /Nothing about the file left this computer/.test(seen.where)), seen);
     }
   } finally {
     await close();

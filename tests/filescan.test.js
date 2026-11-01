@@ -148,6 +148,28 @@ test('a big archive is listed from its end, and an unreadable list is not called
   assert.ok(END_BYTES < size);
 });
 
+test('a ZIP64 archive is listed from its second record, not called unreadable', (t) => {
+  const size = 30 * 1024 * 1024;
+  const name = 'payload.exe';
+  const entry = zipEnd(name, 0).subarray(0, 46 + name.length);
+  const record = Buffer.alloc(56);
+  const locator = Buffer.alloc(20);
+  const end = Buffer.alloc(22);
+  const at = size - (entry.length + 56 + 20 + 22);
+  record.writeUInt32LE(0x06064b50, 0);
+  record.writeBigUInt64LE(1n, 32);
+  record.writeBigUInt64LE(BigInt(at), 48);
+  locator.writeUInt32LE(0x07064b50, 0);
+  locator.writeBigUInt64LE(BigInt(at + entry.length), 8);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0xffff, 10);
+  end.writeUInt32LE(0xffffffff, 16);
+  const tail = Buffer.concat([entry, record, locator, end]);
+  const report = scanPath(big(t, 'game.zip', Buffer.from('PK\x03\x04'), tail).file, 'game.zip', { lookupHash: () => null });
+  assert.equal(check(report, 'F11').status, 'fail');
+  assert.match(check(report, 'F11').detail, /payload\.exe/);
+});
+
 test('the Android SDK is not an Android app, whatever permissions it lists', (t) => {
   const perms = 'BIND_ACCESSIBILITY_SERVICE RECEIVE_SMS READ_SMS';
   const name = Buffer.from('AndroidManifest.xml');

@@ -996,6 +996,12 @@ async function takeMenuFile() {
  * asks the account), so nothing about it leaves this computer. The log says only the verdict, never the file.
  */
 let menuResultFile = null;     // the file the result window is about, for "Sign in for a deeper check"
+/** The theme the person chose in the app ('light', 'dark'), so the result window matches; '' follows Windows, as Auto does. */
+function appTheme() {
+  if (!win || win.isDestroyed()) return Promise.resolve('');
+  const asked = win.webContents.executeJavaScript("localStorage.getItem('sentinel:theme')").then((v) => v || '').catch(() => '');
+  return Promise.race([asked, new Promise((resolve) => { setTimeout(resolve, 400, ''); })]);   // a hidden page that is still loading
+}
 async function scanHere(file) {
   const fs = require('fs');
   const signedIn = Boolean(store.getSecret('token'));
@@ -1015,7 +1021,7 @@ async function scanHere(file) {
   const summary = downloads.summarize(report, list.known, { failure, offline: list.offline });
   appLog(`right-click menu: ${summary.label}`);
   menuResultFile = file;
-  const query = { ...scanmenu.offlineResult(file, size, summary, report), account: signedIn ? '1' : '', asked: asked ? '1' : '' };
+  const query = { ...scanmenu.offlineResult(file, size, summary, report), account: signedIn ? '1' : '', asked: asked ? '1' : '', theme: await appTheme() };
   if (!menuWin || menuWin.isDestroyed()) {
     menuWin = cardWindow();
     menuWin.on('closed', () => { menuWin = null; menuResultFile = null; });

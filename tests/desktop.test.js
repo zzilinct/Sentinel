@@ -247,18 +247,20 @@ test('defense: its status never waits on the disk (one folder check held the mai
   } finally { Object.assign(fs, saved); }
 });
 
-test('defense: a guess never outranks a valid publisher signature (Discord\'s updater is not malware)', async () => {
+test('defense: a signature stops action on a guess, and does not wipe the guess (Discord\'s updater is not malware; certificates get stolen)', async () => {
   const box = sandbox();
   try {
     const full = box.file('Update.exe', fakeStealerExe());
     defense._test.setSigner(async () => 'Discord Inc.');
     const item = await defense.inspect(full, 'startup entry HKCU Run\\Discord');
-    assert.equal(item.badge, null);
-    assert.equal(item.trusted, true);
-    assert.match(item.label, /Signed by Discord Inc\./);
+    assert.ok(item.badge, 'the warning keeps its colour');
+    assert.equal(item.signedBy, 'Discord Inc.');
     assert.ok(fs.existsSync(full), 'the file is where it was');
     assert.equal(box.threats.length, 0, 'and nobody was notified');
     assert.equal(defense.ledger().filter((e) => e.kind === 'threat').length, 0);
+    const noted = defense.ledger().find((e) => e.kind === 'noted');
+    assert.equal(noted.signedBy, 'Discord Inc.', 'written down with who signed it');
+    assert.equal(defense.status().cleanCount, 0, 'not counted as clean');
   } finally {
     defense._test.setSigner(null);
     fs.rmSync(box.dir, { recursive: true, force: true });
@@ -492,6 +494,11 @@ test('a file gets no clean verdict it did not earn', async () => {
   assert.deepEqual(shape(downloads.summarize(scanned, null, { offline: true })), [null, 'Partly checked', 'part'], 'the list was not asked');
   assert.deepEqual(shape(downloads.summarize({ ...scanned, size: 0 }, null)), [null, 'Empty file', 'all']);
   assert.match(read('desktop/src/main.js'), /function fileChecked\(item\) \{\n  if \(!item\.badge && item\.looked !== 'all'\) return;/, '"Files checked" counts only those that were');
+  const sealed = { ...scanned, type: 'rar' };
+  assert.deepEqual(shape(downloads.summarize(sealed, null)), [null, 'Partly checked', 'part'], 'read to the end, but not opened');
+  assert.match(downloads.summarize(sealed, null).reason, /could not see what is inside/);
+  const unlisted = { ...scanned, type: 'zip', part: true, checks: [{ id: 'F11', status: 'skip', points: 0, threat: 'virus', detail: 'x' }] };
+  assert.match(downloads.summarize(unlisted, null, { offline: true }).reason, /not the middle.*list of known threats.*what is inside/);
   // A list hit stands however little was read.
   assert.deepEqual(shape(downloads.summarize(null, { threat: 'virus', name: 'Bad' })), ['red', 'Virus detected', 'none']);
 });
@@ -525,6 +532,16 @@ test('a big download is read at both ends, says so, and a valid signature is nam
   await scan(big('Installer.exe', 31));
   assert.deepEqual([items[1].looked, items[1].label], ['part', 'Partly checked']);
   assert.match(items[1].reason, /^Signed by Zoom Video Communications, Inc\..*not the middle/);
+
+  // A signature names who signed, and changes no verdict.
+  downloads._test.configure(options({ signedBy: async () => 'Stolen Certificate Ltd' }));
+  const guess = path.join(dir, 'Invoice.pdf.exe');
+  fs.renameSync(big('guess.exe', 32), guess);
+  await scan(guess);
+  assert.ok(items[2].badge, 'a guess keeps its colour');
+  assert.match(items[2].reason, /^Signed by Stolen Certificate Ltd.*hides a \.exe/);
+  assert.equal(threats.length, 1, 'and the person is still told');
+  items.splice(2, 1);
 
   downloads._test.configure(options({ api: async () => { throw new Error('offline'); } }));
   fs.writeFileSync(path.join(dir, 'notes.txt'), 'Plain notes.');
