@@ -525,6 +525,7 @@ body:has(.auth)::before { animation: none; }
 .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--line-2); }
 .divider + form { margin-top: 0; }
 .auth .banner { margin: 22px 0 0; }
+.auth .banner > div { min-width: 0; overflow-wrap: anywhere; }
 .auth .banner a { color: var(--gold-300); }
 .field--password { grid-template-columns: 1fr auto; }
 .field--password .input, .field--password .field__error { grid-column: 1 / -1; }
@@ -552,6 +553,7 @@ body:has(.auth)::before { animation: none; }
   .auth__inner > .auth__google { margin-top: 22px; }
 }
 @media (max-width: 980px) and (min-width: 561px) { .auth__line { max-width: 26em; } }
+@media (max-width: 420px) { .auth__scope { display: none; } .auth__stage { right: -52px; } }
 
 .strength { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
 .strength i { height: 4px; border-radius: var(--r-sm); background: rgb(var(--ink) / .08); transition: background .3s; }

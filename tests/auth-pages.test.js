@@ -38,9 +38,9 @@ test('every sign-in page shares one shell: the mask, the name, no style attribut
     assert.doesNotMatch(html, /class="logo"/, `${name}: a second name beside the stage`);
   }
   const art = read('partials', 'auth-art.html');
-  assert.match(art, /<img class="auth__mask" src="\/assets\/img\/masks\/onyx\.webp"/);
+  assert.match(art, /<img class="auth__mask" src="\/assets\/img\/masks\/onyx-480\.webp" srcset=/);
   assert.match(art, /<a class="auth__word" href="\/"/);
-  assert.ok(fs.existsSync(path.join(WEB, 'assets', 'img', 'masks', 'onyx.webp')));
+  for (const file of ['onyx.webp', 'onyx-480.webp']) assert.ok(fs.existsSync(path.join(WEB, 'assets', 'img', 'masks', file)), file);
   for (const script of ['auth.js', 'reset.js', 'connect.js']) assert.doesNotMatch(read('assets', 'js', script), /style="/, script);
 });
 

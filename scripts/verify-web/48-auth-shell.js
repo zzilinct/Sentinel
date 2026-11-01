@@ -107,8 +107,10 @@ async function checkAuthShell() {
     await view(NARROW, 'light');
     await goto(browser, s, `${google.base}/login?error=${'a'.repeat(120)}`, SETTLED);
     const narrow = await ev(FACTS);
+    narrow.spills = await ev("(() => { const b = document.querySelector('[data-note] .banner'); return b ? b.scrollWidth - b.clientWidth : -1; })()");
+    narrow.lineHitsMask = await ev("(() => { const l = document.querySelector('.auth__line').getBoundingClientRect(); return l.right > document.querySelector('.auth__mask').getBoundingClientRect().left; })()");
     await shot(browser, s, 'auth-login-narrow-light-long-error');
-    result('auth-shell: fits a 1366 by 768 laptop with Sign in showing, and a 320 px phone with a long unbroken error', laptop.submitBottom <= laptop.tall && laptop.maskShown && narrow.sideways <= 0 && narrow.wordOnScreen && narrow.wordClearOfMask, { laptop, narrow });
+    result('auth-shell: fits a 1366 by 768 laptop with Sign in showing, and a 320 px phone with a long unbroken error', laptop.submitBottom <= laptop.tall && laptop.maskShown && narrow.sideways <= 0 && narrow.spills === 0 && !narrow.lineHitsMask && narrow.wordOnScreen && narrow.wordClearOfMask, { laptop, narrow });
 
     /* What the server sends decides, before anything is painted. */
     const sent = async (server) => (await (await fetch(`${server.base}/login`)).text());
@@ -171,10 +173,14 @@ async function checkAuthShell() {
     await browser.send('Page.reload', {}, s);
     await sleep(800);
     const held = [];
+    // goto waits for a load the held script will not let happen; the page is in hand once its script is asked for.
+    const early = async (server) => {
+      await browser.send('Page.navigate', { url: `${server.base}/login` }, s);
+      for (let i = 0; i < 100 && !held.length; i++) await sleep(100);
+    };
     browser.on('Fetch.requestPaused', (p, sid) => { if (!sid || sid === s) held.push(p); });
     await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*/assets/js/auth.js*' }, { urlPattern: '*/auth/google/start*' }] }, s);
-    await goto(browser, s, `${plain.base}/login`, "!!document.querySelector('form[data-form] button[type=submit]')");
-    for (let i = 0; i < 40 && !held.length; i++) await sleep(100);
+    await early(plain);
     const button = "document.querySelector('form[data-form] button[type=submit]')";
     const before = await ev(`({ disabled: ${button}.disabled, painted: getComputedStyle(${button}).opacity })`);
     await clickSel(browser, s, 'form[data-form] button[type=submit]');
@@ -187,8 +193,7 @@ async function checkAuthShell() {
     for (let i = 0; i < 40 && !answered; i++) { await sleep(150); answered = await ev("[...document.querySelectorAll('[data-error], [data-note]')].map((e) => e.innerText).join(' ').trim()"); }
     result('auth-shell: when the script arrives that press goes through and is answered', Boolean(answered) && (await ev(`${button}.innerText.trim()`)) === 'Sign in', answered);
 
-    await goto(browser, s, `${plain.base}/login`, "!!document.querySelector('form[data-form] button[type=submit]')");
-    for (let i = 0; i < 40 && !held.length; i++) await sleep(100);
+    await early(plain);
     await browser.send('Fetch.failRequest', { requestId: held.shift().requestId, errorReason: 'Failed' }, s);
     await sleep(600);
     await clickSel(browser, s, 'form[data-form] button[type=submit]');
@@ -198,8 +203,7 @@ async function checkAuthShell() {
     result('auth-shell: if the script never comes the page says to reload, and the button is not left spinning', /did not finish loading/.test(stuck.note) && stuck.at === '/login' && stuck.words === 'Sign in', stuck);
 
     errors.length = 0;
-    await goto(browser, s, `${google.base}/login`, "!!document.querySelector('form[data-form] button[type=submit]')");
-    for (let i = 0; i < 40 && !held.length; i++) await sleep(100);
+    await early(google);
     await browser.send('Fetch.continueRequest', { requestId: held.shift().requestId }, s);
     await sleep(800);
     await ev("document.querySelector('[data-stay]').checked = true, 1");
