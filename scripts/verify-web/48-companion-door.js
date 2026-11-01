@@ -77,7 +77,7 @@ async function checkCompanionDoor() {
   });
   const filesPort = new URL(files.base).port;
   const hosts = [LISTED, ...SLOW_CANDIDATES, 'plain.test', 'moved.test'];
-  const { browser, close } = await launch([`--host-resolver-rules=${[HTTP_ONLY, 'control-typed-site.com', 'control-link-site.com'].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort}`]);
+  const { browser, close } = await launch([`--host-resolver-rules=${[HTTP_ONLY, 'control-typed-site.com', 'control-link-site.com', 'control-block-site.com'].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort}`]);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api}`);
     const via = `http://127.0.0.1:${proxyPort}`;
@@ -177,7 +177,13 @@ async function checkCompanionDoor() {
     await sleep(3000);
     const linkLand = await evalIn(browser, ctl.sessionId, 'location.href');
     await browser.send('Target.closeTarget', { targetId: ctl.targetId }).catch(() => {});
-    console.log(`      control: typed ends at ${typedLand}; by a link ends at ${linkLand}`);
+    // The block page moving on to an honest site of the same kind: no rule of Sentinel's touches this one.
+    const ctl2 = await openPage(browser);
+    await goto(browser, ctl2.sessionId, `${ext}/src/block.html#http://control-block-site.com/x`).catch(() => {});
+    await sleep(3000);
+    const blockLand = await evalIn(browser, ctl2.sessionId, 'location.href');
+    await browser.send('Target.closeTarget', { targetId: ctl2.targetId }).catch(() => {});
+    console.log(`      control: typed ends at ${typedLand}; by a link ends at ${linkLand}; from the block page ends at ${blockLand}`);
 
     // A site on plain http with nothing on 443: Continue anyway is a navigation from an https-like page, and Chrome tries https first.
     const httpOnly = await openPage(browser);
