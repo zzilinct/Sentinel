@@ -133,7 +133,7 @@ test('sentences left in other files agree with every plan, or do not exist', () 
 
 test('nothing on sale means nothing tells you to upgrade', () => {
   const page = fs.readFileSync(path.join(ROOT, 'server/lib/plans.js'), 'utf8');
-  assert.match(page, /billingMode === 'demo' ? ', or upgrade' : ''/);
+  assert.ok(page.includes("billingMode === 'demo' ? ', or upgrade' : ''"), 'only demo billing may say upgrade');
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'server/routes/account.routes.js'), 'utf8'), /We will email you the moment/);
 });
 

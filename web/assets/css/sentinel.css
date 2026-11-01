@@ -572,12 +572,11 @@ p.hero__fine span { white-space: nowrap; }
 .figures { display: flex; justify-content: center; margin: 34px auto 0; padding: 0; max-width: 980px; list-style: none; text-align: center; }
 .figures li { position: relative; flex: 1 1 0; padding: 0 22px; font-size: var(--t-ui); color: var(--text-2); }
 .figures li + li::before { content: ''; position: absolute; left: -4px; top: 40%; width: 8px; height: 8px; transform: rotate(45deg); box-shadow: inset 0 0 0 1px var(--gold-300); }
-.figures b { display: block; margin-bottom: 6px; font: 400 var(--t-d1)/1 var(--display); color: var(--gold-200); font-variant-numeric: lining-nums; text-shadow: 0 1px 0 rgb(0 0 0 / .35); }
+.figures b { display: block; margin-bottom: 6px; font: 400 var(--t-d2)/1 var(--display); color: var(--gold-200); font-variant-numeric: lining-nums; text-shadow: 0 1px 0 rgb(0 0 0 / .35); }
 @media (max-width: 760px) {
   .figures { flex-wrap: wrap; row-gap: 26px; }
   .figures li { flex: 1 1 50%; padding: 0 12px; }
   .figures li + li::before { display: none; }
-  .figures b { font-size: var(--t-d2); }
 }
 
 .compare { margin-top: 56px; width: 100%; border-collapse: collapse; font-size: var(--t-ui); }

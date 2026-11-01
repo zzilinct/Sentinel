@@ -64,10 +64,10 @@ async function checkPricing() {
       }
     }
     result('pricing: every figure in the page is the one the server enforces', wrong.length === 0, wrong);
-    const offers = await evalIn(browser, s, `({ take: [...document.querySelectorAll('.ledger__take td')].map((td) => td.textContent.trim()),
+    const offers = await evalIn(browser, s, `({ plate: document.querySelector('.ledger__plate').textContent.trim(), take: [...document.querySelectorAll('.ledger__take td')].map((td) => td.textContent.trim()),
       links: [...document.querySelectorAll('main a.btn, main button.btn')].map((a) => a.textContent.trim()), planLinks: document.querySelectorAll('a[href*="plan="]').length,
       words: document.querySelector('main').innerText })`);
-    result('pricing: billing off, one way in and three plans that say they are not on sale', offers.take.join('|') === 'Start free|Not on sale yet|Not on sale yet|Not on sale yet' && offers.planLinks === 0 && !/\b(Get|Buy|Upgrade to) (Pro|Max|Ultimate)/.test(offers.words), offers.take);
+    result('pricing: billing off, one way in and three plans that say they are not on sale', offers.plate === 'Nobody can be charged today.' && offers.take.join('|') === 'Start free|Not on sale yet|Not on sale yet|Not on sale yet' && offers.planLinks === 0 && !/\b(Get|Buy|Upgrade to) (Pro|Max|Ultimate)/.test(offers.words), offers.take);
 
     /* ------------------------------------------- the finder and the lens, each size */
 
