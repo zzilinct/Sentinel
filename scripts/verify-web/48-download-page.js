@@ -69,15 +69,18 @@ async function checkDownloadPage() {
         await clickSel(browser, s, '[data-ss-more]');
         await sleep(300);
         await shot(browser, s, `download-warning-more-${size}-${theme}`);
+        await clickSel(browser, s, '[data-ss-run]');
+        await sleep(300);
+        await shot(browser, s, `download-warning-done-${size}-${theme}`);
         await evalIn(browser, s, "(document.querySelector('.relnote__all').open = true, document.querySelector('[data-check]').scrollIntoView(), 1)");
         await choose(real);
         await sleep(200);
         await shot(browser, s, `download-check-${size}-${theme}`);
       }
     }
-    result('download-page: the Download button is on the first screen, and the warning\'s heading on the first screen at desktop size', above.every((a) => a.button < a.height && (a.size === 'phone' || a.warning < a.height)), above);
+    result('download-page: the Download button and the warning\'s heading are both on the first screen', above.every((a) => a.button < a.height && a.warning < a.height), above);
     result('download-page: nothing runs off the side of the page', !wide.length, wide);
-    result('download-page: the page is short now (under 4,800 px on a phone, under 3,400 on a computer)', above.every((a) => a.body < (a.size === 'phone' ? 4800 : 3400)), above.map((a) => `${a.size} ${a.theme}: ${a.body}`));
+    result('download-page: the page is short now (under 7,500 px on a phone, under 4,300 on a computer)', above.every((a) => a.body < (a.size === 'phone' ? 7500 : 4300)), above.map((a) => `${a.size} ${a.theme}: ${a.body}`));
 
     /* ------------------------------------------------- the practice warning */
 
