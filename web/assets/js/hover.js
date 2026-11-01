@@ -22,7 +22,7 @@
   root.classList.add('hv');
   const clamp = (v, a = -1, b = 1) => Math.max(a, Math.min(b, v));
 
-  const LAMP = '.btn:not(.btn--gold):not(.btn--ghost), .chip-q:not([aria-selected="true"]), .chip, .fchip, .card, .tile, .ledger, .stat, .answer, .plate__info, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .panel, .feature, .usage-list, .models--bar';
+  const LAMP = '.btn:not(.btn--gold):not(.btn--ghost), .chip-q:not([aria-selected="true"]), .chip, .fchip, .card, .tile, .stat, .answer, .plate__info, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .panel, .feature, .usage-list, .models--bar';
   const GOLD = '.btn--gold, .chip-q[aria-selected="true"], .seg__btn.is-on';
   const SHEEN = '.stat';
   const INK = '.footer ul a, .legal-links a, .prose a, .nav__links a, .auth__switch a, .pricing__note a, .scan-meta a, .side__foot a';

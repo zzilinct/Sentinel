@@ -496,36 +496,48 @@ p.hero__fine span { white-space: nowrap; }
    rests on the plan that fits, the only thing here that moves: it springs across on transform alone, when the finder's
    answer changes, and never at rest. Every column is the same width, so moving it takes one number (--pick) and no
    measuring. The phone keeps the same table: each row's words sit above its four values, so nothing scrolls sideways. */
-.ledger { --label: 33%; --island: var(--spring); position: relative; border-radius: 30px; background: var(--relief), var(--surface); box-shadow: var(--raise), inset 0 0 0 1px var(--line-gold); }
+.ledger { --label: 33%; --island: var(--spring); --rim: linear-gradient(160deg, #f3dca4, #8a6424 34%, #e9c983 58%, #7a561c 82%, #d2ac63); position: relative; border: 1.5px solid transparent; border-radius: 30px; background: var(--relief) padding-box, linear-gradient(var(--surface), var(--surface)) padding-box, var(--rim) border-box; box-shadow: var(--raise), 0 0 0 6px var(--surface), 0 0 0 7px var(--line-gold); }
 @supports (transition-timing-function: linear(0, 1)) {
   .ledger { --island: linear(0, .238, .62, .897, 1.028, 1.059, 1.046, 1.023, 1.006, .998, .997, .997, .999, 1, 1, 1, 1); }
 }
 .ledger__defs { position: absolute; width: 0; height: 0; }
 .ledger__sheet { position: relative; }
+.ledger__lathe { position: absolute; top: 0; left: 0; width: 100%; height: 190px; -webkit-mask-image: linear-gradient(#000, transparent); mask-image: linear-gradient(#000, transparent); }
+.ledger__lathe path { fill: none; stroke: rgb(var(--gold-rgb) / .3); stroke-width: .6; }
+.ledger__table .ledger__plate { padding: 26px 16px 22px 32px; vertical-align: middle; text-align: left; }
+.ledger__plate p { max-width: 15ch; margin: 12px 0 0; font: 400 var(--t-title-s)/1.2 var(--display); color: var(--text); }
+.ledger__seal { display: block; width: 92px; height: 92px; }
+.ledger__seal ellipse { fill: none; stroke: rgb(var(--gold-rgb) / .55); stroke-width: .5; }
+.ledger__seal circle { fill: var(--surface); stroke: var(--gold-300); stroke-width: .8; }
+.ledger__seal use { color: var(--gold-300); }
 .ledger__lens {
   position: absolute; z-index: 3; top: 0; bottom: 0; left: var(--label); width: calc((100% - var(--label)) / 4); border-radius: 0 0 22px 22px; pointer-events: none;
   background: linear-gradient(180deg, rgb(var(--gold-rgb) / .13), rgb(var(--gold-rgb) / .03) 34%, rgb(var(--gold-rgb) / .06));
   box-shadow: inset 1px 0 0 rgb(var(--gold-rgb) / .5), inset -1px 0 0 rgb(var(--gold-rgb) / .5), inset 0 -1px 0 rgb(var(--gold-rgb) / .5);
   transform: translateX(calc(var(--pick, 0) * 100%)); transition: transform .62s var(--island);
 }
-.ledger__crest { position: absolute; top: -15px; left: 50%; width: 30px; height: 30px; margin-left: -15px; color: var(--gold-300); filter: drop-shadow(0 2px 3px rgb(0 0 0 / .4)); }
+.ledger__lens::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: var(--rim); }
+.ledger__crest { position: absolute; top: -19px; left: 50%; width: 38px; height: 38px; margin-left: -19px; padding: 5px; border-radius: 50%; color: var(--gold-300); background: var(--surface); box-shadow: 0 0 0 1px rgb(var(--gold-rgb) / .6), 0 3px 8px rgb(0 0 0 / .35); }
 .ledger__table { position: relative; width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--t-ui); }
 .ledger__table thead td:first-child { width: var(--label); }
 .ledger__table th { font-weight: 400; text-align: left; }
 .ledger__table thead th { padding: 30px 8px 22px; text-align: center; vertical-align: top; }
 .ledger__name { display: block; font: 400 var(--t-title) var(--display); color: var(--text); }
 .ledger__price { display: block; margin-top: 8px; color: var(--muted); font-size: var(--t-note); }
-.ledger__price b { display: block; margin-bottom: 2px; font: 400 var(--t-d3)/1.1 var(--display); color: var(--gold-200); font-variant-numeric: lining-nums tabular-nums; text-shadow: 0 1px 0 rgb(0 0 0 / .35); }
+.ledger__price sup { margin-right: 2px; font-size: .5em; vertical-align: .62em; line-height: 0; }
+.ledger__price b { display: block; margin-bottom: 2px; font: 400 var(--t-d2)/1.05 var(--display); color: var(--gold-200); font-variant-numeric: lining-nums tabular-nums; text-shadow: 0 1px 0 rgb(0 0 0 / .35); }
 .ledger__table tbody th { padding: 14px 16px 14px 32px; color: var(--text-2); }
 .ledger__table small { display: block; margin-top: 2px; font-size: var(--t-note); color: var(--muted); }
 .ledger__table td { padding: 12px 8px; text-align: center; text-wrap: balance; color: var(--text-2); font-variant-numeric: lining-nums tabular-nums; transition: color .3s; }
 .ledger__table tbody tr { border-top: 1px solid var(--line); }
+.ledger__table td + td, .ledger__table thead th + th { box-shadow: inset 1px 0 0 var(--line); }
 .ledger__table .is-no { color: var(--faint); }
 .ledger__table .is-yes { color: var(--gold-300); }
 .ledger__take th, .ledger__take td { padding-block: 18px; }
 .ledger__take td { color: var(--muted); font-size: var(--t-note); }
 .ledger__mine { color: var(--gold-200); font-weight: 500; }
 .ledger__table .ledger__ask th { padding-top: 36px; font: 400 var(--t-title-s) var(--display); color: var(--text); }
+.ledger__ask th::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 12px; vertical-align: .16em; transform: rotate(45deg); box-shadow: inset 0 0 0 1px var(--gold-300); }
 .ledger__ask small { max-width: 30%; font-family: var(--sans); }
 .ledger__table tbody .ledger__ask { border-top: 0; }
 .ledger__masks { display: inline-flex; gap: 3px; vertical-align: middle; }
@@ -536,15 +548,16 @@ p.hero__fine span { white-space: nowrap; }
 .pricing__note p + p { margin-top: 10px; }
 .pricing__note a { color: var(--gold-300); text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 760px) {
-  .ledger { --label: 0%; border-radius: 24px; }
+  .ledger { --label: 0%; border-radius: 24px; box-shadow: var(--raise), 0 0 0 4px var(--surface), 0 0 0 5px var(--line-gold); }
   .ledger__lens { border-radius: 0 0 16px 16px; box-shadow: none; }
   .ledger__table, .ledger__table thead, .ledger__table tbody { display: block; }
   .ledger__table tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .ledger__table thead { position: sticky; top: 70px; z-index: 2; background: var(--surface); box-shadow: 0 1px 0 var(--line-gold); }
   .ledger__table thead td:first-child { display: none; }
+  .ledger__table td + td, .ledger__table thead th + th { box-shadow: none; }
   .ledger__table thead th { padding: 22px 2px 12px; }
   .ledger__name { font-size: var(--t-text); }
-  .ledger__price b { font-size: var(--t-title); }
+  .ledger__price b { font-size: var(--t-title-l); }
   .ledger__table tbody th { grid-column: 1 / -1; padding: 13px 14px 2px; }
   .ledger__table td { padding: 6px 3px 13px; overflow-wrap: anywhere; font-size: var(--t-note); }
   .ledger__table .ledger__ask th { padding-top: 26px; }
@@ -555,6 +568,17 @@ p.hero__fine span { white-space: nowrap; }
   .pricing__note { padding: 20px 18px 24px; }
 }
 @media (prefers-reduced-motion: reduce) { .ledger__lens { transition: none; } }
+/* What Free gives, as engraved figures under the heading, split by a gold lozenge. */
+.figures { display: flex; justify-content: center; margin: 34px auto 0; padding: 0; max-width: 980px; list-style: none; text-align: center; }
+.figures li { position: relative; flex: 1 1 0; padding: 0 22px; font-size: var(--t-ui); color: var(--text-2); }
+.figures li + li::before { content: ''; position: absolute; left: -4px; top: 40%; width: 8px; height: 8px; transform: rotate(45deg); box-shadow: inset 0 0 0 1px var(--gold-300); }
+.figures b { display: block; margin-bottom: 6px; font: 400 var(--t-d1)/1 var(--display); color: var(--gold-200); font-variant-numeric: lining-nums; text-shadow: 0 1px 0 rgb(0 0 0 / .35); }
+@media (max-width: 760px) {
+  .figures { flex-wrap: wrap; row-gap: 26px; }
+  .figures li { flex: 1 1 50%; padding: 0 12px; }
+  .figures li + li::before { display: none; }
+  .figures b { font-size: var(--t-d2); }
+}
 
 .compare { margin-top: 56px; width: 100%; border-collapse: collapse; font-size: var(--t-ui); }
 .compare th, .compare td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--line); }

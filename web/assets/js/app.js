@@ -873,7 +873,7 @@
       return lockedCard({
         tag: 'Pro & up',
         heading: 'Research every result, and protect email and downloads',
-        body: 'Your plan includes 15 minutes a week of fast live scanning. Pro and up add delicate live scanning, which researches every result (4 hours a week on Pro, 24 on Max, 96 on Ultimate), and mark emails and downloads too.',
+        body: `Your plan includes ${plan().limits.fastMinutes} minutes a week of fast live scanning. Pro and up add delicate live scanning, which researches every result, and mark emails and downloads too.`,
         actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>'
       });
     }

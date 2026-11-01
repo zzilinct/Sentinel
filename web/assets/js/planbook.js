@@ -17,8 +17,8 @@
     .filter((k) => p.limits[k]).map((k) => p.newestModelLimits[k] / p.limits[k])));
 
   function modelCell(p) {
-    if (p.modelRule && p.modelRule.olderThan) return `Older than the newest ${p.modelRule.olderThan}`;
-    if (p.newestModelLimits) return `${newestShare(p)}% on the newest ${p.modelRule.limitedOn}`;
+    if (p.modelRule && p.modelRule.olderThan) return `Not the newest ${p.modelRule.olderThan}`;
+    if (p.newestModelLimits) return `${newestShare(p)}% of these limits on the newest ${p.modelRule.limitedOn}`;
     return 'All, in full';
   }
 
@@ -45,30 +45,47 @@
       ['Marks in Gmail and Outlook', 'Windows app, or the browser add-on', (p) => yes(p.features.emailLive)],
       ['Download protection', 'In the Sentinel app', (p) => yes(p.features.liveScanning)]
     ] },
-    { ask: 'Which models can it run?', hint: 'Each big release of Sentinel is a model. This only applies in the app.', rows: [
-      ['Newest models', '', modelCell]
+    { ask: 'Which version can it run?', hint: 'Only in the Windows app, where you choose the version of Sentinel.', rows: [
+      ['Newest versions', '', modelCell]
     ] }
   ];
 
   const cell = (p, inner) => `<td role="cell" data-col="${p.id}"${inner === 'No' ? ' class="is-no"' : inner === 'Yes' ? ' class="is-yes"' : ''}>${inner}</td>`;
 
-  function takeCell(p, { billingMode, current }) {
+  function takeCell(p, { billingMode, current, start }) {
     const demo = billingMode === 'demo';
     if (current) {
       if (p.id === current.id) return '<b class="ledger__mine">Your plan</b>';
       if (demo) return `<button class="btn btn--sm" type="button" data-plan="${p.id}">${p.price < current.price ? 'Switch' : 'Upgrade'}</button>`;
       return p.price ? 'Not on sale yet' : 'Always free';
     }
-    if (!p.price) return '<a class="btn btn--gold btn--sm" href="/signup">Start free</a>';
+    if (!p.price) return `<a class="btn btn--gold btn--sm" href="${start ? start.href : '/signup'}">${start ? start.words : 'Start free'}</a>`;
     return demo ? `<a class="btn btn--sm" href="/signup?plan=${p.id}">Try ${p.name}</a>` : 'Not on sale yet';
+  }
+
+  // Engraving, as on a banknote: the same few lines of lathe work behind the prices, and a rosette for the seal. Drawn
+  // once here and never redrawn: they are still, and cost less than a picture.
+  const LATHE = (() => {
+    const W = 200;
+    const wave = (a) => `M0 80q${W / 4} ${a} ${W / 2} 0t${W / 2} 0`;
+    let d = '';
+    for (let i = 1; i < 9; i++) d += wave(i * 9) + wave(-i * 9);
+    return `<svg class="ledger__lathe" aria-hidden="true"><defs><pattern id="ledger-lathe" width="${W}" height="160" patternUnits="userSpaceOnUse"><path d="${d}"/></pattern></defs><rect width="100%" height="100%" fill="url(#ledger-lathe)"/></svg>`;
+  })();
+  const SEAL = `<svg class="ledger__seal" viewBox="-60 -60 120 120" aria-hidden="true">${Array.from({ length: 18 }, (_, i) => `<ellipse rx="57" ry="19" transform="rotate(${i * 10})"/>`).join('')}<circle r="31"/><use href="#ledger-scam" x="-22" y="-22" width="44" height="44"/></svg>`;
+
+  /** What the seal beside the prices says: the one thing that is true of this reader today. */
+  function plate({ billingMode, current }) {
+    if (current) return `You are on ${current.name}.`;
+    return billingMode === 'demo' ? 'Switching plans is free here.' : 'Nobody can be charged today.';
   }
 
   function table(plans, opts) {
     const head = plans.map((p) => `<th role="columnheader" scope="col" data-col="${p.id}"><span class="ledger__name">${p.name}</span>
-      <span class="ledger__price"><b>$${p.price}</b>${p.price ? ' a month' : ' no card'}</span></th>`).join('');
+      <span class="ledger__price"><b><sup>$</sup>${p.price}</b>${p.price ? ' a month' : ' no card'}</span></th>`).join('');
     const row = ([label, hint, value]) => `<tr role="row"><th role="rowheader" scope="row">${label}${hint ? `<small>${hint}</small>` : ''}</th>${plans.map((p) => cell(p, value(p))).join('')}</tr>`;
     return `<table class="ledger__table" role="table" aria-label="What each plan includes">
-      <thead role="rowgroup"><tr role="row"><td role="cell"></td>${head}</tr></thead>
+      <thead role="rowgroup"><tr role="row"><td role="cell" class="ledger__plate">${SEAL}<p>${plate(opts)}</p></td>${head}</tr></thead>
       <tbody role="rowgroup">
         <tr role="row" class="ledger__take"><th role="rowheader" scope="row">Can I have it today?</th>${plans.map((p) => cell(p, takeCell(p, opts))).join('')}</tr>
         ${GROUPS.map((g) => `<tr role="row" class="ledger__ask"><th role="columnheader" scope="colgroup" colspan="5">${g.ask}<small>${g.hint}</small></th></tr>
@@ -119,34 +136,45 @@
   const FREE_HERE = 'Switching plans is free on this copy of Sentinel, and no payment is taken. See the <a href="/refunds">Refund Policy</a>.';
 
   /** The comparison. `current` is the signed-in person's plan; the public page has none, and has the finder instead. */
-  function ledger(plans, { billingMode, current } = {}) {
+  function ledger(plans, { billingMode, current, start } = {}) {
     const M = root.SentinelMasks || (require('./masks.js'), root.SentinelMasks);
     const pick = current ? plans.findIndex((p) => p.id === current.id) : 0;
     return `<div class="ledger" data-pricing data-pick="${plans[pick].id}" style="--pick:${pick}">
       <svg class="ledger__defs" aria-hidden="true">${MASKS.map((m) => `<symbol id="ledger-${m}" viewBox="0 0 64 64">${M.GLYPHS[m]}</symbol>`).join('')}</svg>
       ${current ? '' : FINDER(plans, billingMode)}
       <div class="ledger__sheet">
+        ${LATHE}
         <span class="ledger__lens" aria-hidden="true"><svg class="ledger__crest"><use href="#ledger-scam"/></svg></span>
-        ${table(plans, { billingMode, current })}
+        ${table(plans, { billingMode, current, start })}
       </div>
       <div class="pricing__note"><p>${ALWAYS}</p><p>${WEEK}</p>${current ? '' : `<p>${billingMode === 'demo' ? FREE_HERE : NOT_SOLD}</p>`}</div>
     </div>`;
   }
 
-  /** The sentence under the headings: what Free really gives, from the same figures. */
+  /** Under the headings, what Free really gives: the two things a visitor asks, as figures. */
   function lead(plans) {
     const f = plans[0];
-    return `Sentinel Free gives you ${amount(f.limits.linkScans)} link scans and ${amount(f.limits.fileScans)} virus and malware scans a week, and watches for ${time(f.limits.fastMinutes)} a week while you browse. No card.`;
+    const [watch, unit] = time(f.limits.fastMinutes).split(' ');
+    const item = (figure, words) => `<li><b>${figure}</b>${words}</li>`;
+    return `<ul class="figures">${item(`$${f.price}`, 'and no card')}${item(amount(f.limits.linkScans), 'link scans a week')}${item(amount(f.limits.fileScans), 'virus and malware scans a week')}${item(watch, `${unit} a week watching while you browse`)}</ul>`;
   }
 
-  /** `<!-- @include pricing -->` and `<!-- @include pricing-lead -->`, for the server and the static build. */
-  function include(name, plans, billingMode) {
-    if (name === 'pricing') return ledger(plans, { billingMode });
+  /** How long each plan watches, in one line, for the home page's live scanning tile. */
+  function liveLine(plans) {
+    const [free, pro, max] = plans;
+    return `${time(free.limits.fastMinutes)} a week free, ${time(pro.limits.fastMinutes)} on Pro, ${time(max.limits.fastMinutes).toLowerCase()} on ${max.name}`;
+  }
+
+  /** `<!-- @include pricing -->` and its siblings, for the server and the static build. */
+  function include(name, plans, billingMode, start) {
+    if (name === 'pricing') return ledger(plans, { billingMode, start });
     if (name === 'pricing-lead') return lead(plans);
+    if (name === 'pricing-live') return liveLine(plans);
+    if (name === 'pricing-free-live') return time(plans[0].limits.fastMinutes);
     return undefined;
   }
 
-  const api = { ledger, lead, include, finderPlans };
+  const api = { ledger, lead, liveLine, include, finderPlans };
   root.SentinelPlanbook = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
