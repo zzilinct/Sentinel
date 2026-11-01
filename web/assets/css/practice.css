@@ -1,62 +1,161 @@
-/* Spot the scam, the practice inbox (practice.html, practice.js). */
-.page-head--practice { padding-bottom: 40px; }
-.practice { color: var(--text-2); scroll-margin-top: 96px; }
+/* Spot the scam, the practice inbox (practice.html, practice.js). Every card is heavy stock on a dark tray: rows lie over
+   each other, an opened message lies over the inbox, and the verdict slides over the message. */
+.practice {
+  --spring: cubic-bezier(.16, 1, .3, 1);
+  --edge: inset 0 1px 0 rgb(var(--gold-rgb) / .32), 0 -12px 26px -16px var(--lo), 0 18px 34px -24px var(--lo);
+  color: var(--text-2); scroll-margin-top: 96px;
+}
+/* A real spring where the browser has one: about 4% past, then back. */
+@supports (transition-timing-function: linear(0, 1)) {
+  .practice { --spring: linear(0, 0.033, 0.115, 0.224, 0.346, 0.468, 0.583, 0.687, 0.776, 0.849, 0.908, 0.954, 0.987, 1.011, 1.026, 1.034, 1.038, 1.038, 1.036, 1.032, 1.028, 1.023, 1.018, 1.014, 1.01, 1.007, 1.005, 1.003, 1); }
+}
+.page-head--practice { padding: 56px 0 28px; }
+.page-head--practice p { max-width: 54ch; margin-inline: auto; }
 
-.practice__top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: var(--t-note); color: var(--muted); }
-.practice__dots { display: flex; gap: 5px; }
-.practice__dots i { width: 18px; height: 5px; border-radius: var(--r-sm); background: rgb(var(--ink) / .1); transition: background .3s; }
-.practice__dots i.is-current { background: var(--gold-300); }
-.practice__dots i.is-right { background: var(--green); }
-/* Missed is not red: a missed one is a clue learned, not a mistake to shame. */
-.practice__dots i.is-missed { background: transparent; box-shadow: inset 0 0 0 1px var(--gold-400); }
+/* The tray */
+.ptray { padding: 18px 16px 22px; border-radius: var(--r-xl); background: var(--bg-2); box-shadow: var(--press); transition: transform .6s var(--spring); }
+.practice:has(dialog[open]) .ptray { transform: scale(.975); }
+.ptray__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 4px 8px 16px; }
+.ptray__head h2 { margin: 0; font-size: var(--t-title); }
+.ptray__head span { font: var(--t-note) var(--mono); color: var(--muted); }
+.ptray__rule { height: 2px; margin: 0 8px 20px; border-radius: 2px; background: rgb(var(--ink) / .08); overflow: hidden; }
+.ptray__rule i { display: block; height: 100%; background: var(--gold-grad); transform: scaleX(0); transform-origin: left; transition: transform .7s var(--spring); }
 
-/* The message, as the app it came in would show it. */
-.pmsg__h { --track: var(--tr-text); margin: 0 0 6px; font: 500 var(--t-note) var(--sans); color: var(--muted); }
-.pmsg__h:focus { outline: none; }
-.pmsg__h:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 4px; border-radius: 4px; }
-.pmsg__h { width: fit-content; }
-.pmsg__context { margin: 0 0 10px; font-style: italic; color: var(--muted); }
-.pmsg__card { padding: 20px 22px; border-radius: var(--r-lg); background: var(--relief), var(--surface); box-shadow: var(--raise-sm); color: var(--text); line-height: 1.6; overflow-wrap: anywhere; animation: pmsg-in .45s var(--ease-out) both; }
-@keyframes pmsg-in { from { opacity: 0; transform: translateY(10px); } }
-.pmsg__meta { display: grid; gap: 4px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); font-size: var(--t-ui); color: var(--text-2); }
-.pmsg__subject { font-weight: 600; color: var(--text); font-size: var(--t-body); }
-.pmsg__meta--dm { display: flex; gap: 10px; align-items: center; }
-.pmsg__avatar { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--surface-3); color: var(--text); font-weight: 600; }
-.pmsg__body p { margin: 0 0 10px; }
-.pmsg__body p:last-child { margin-bottom: 0; }
-.pmsg--text .pmsg__body, .pmsg--dm .pmsg__body { display: grid; justify-items: start; }
-.pmsg--text .pmsg__body p { max-width: 92%; padding: 10px 14px; border-radius: 18px 18px 18px 6px; background: var(--surface-3); }
+/* The rows: each lies over the one before, and on scroll they gather under the header as a pile. */
+.plist { --pile: 92px; display: block; margin: 0; padding: 0; list-style: none; }
+.plist li { position: sticky; top: calc(var(--pile) + var(--i) * 7px); margin-top: -10px; }
+.plist li:first-child { margin-top: 0; }
+.prow { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 2px 8px; align-items: baseline; width: 100%; min-height: 86px; padding: 14px 18px 22px 12px; border: 0; border-radius: 16px; background: var(--relief), var(--surface-2); box-shadow: var(--edge); color: var(--text-2); font: inherit; text-align: left; cursor: pointer; transition: transform .55s var(--spring); }
+.prow__dot { grid-row: 1; width: 8px; height: 8px; border-radius: 50%; align-self: center; justify-self: center; }
+.prow.is-unread .prow__dot { background: radial-gradient(circle at 35% 30%, var(--gold-200), var(--gold-500)); box-shadow: 0 0 0 3px rgb(var(--gold-rgb) / .16); }
+.prow__from { min-width: 0; color: var(--text); font-size: var(--t-body); overflow-wrap: anywhere; }
+.prow.is-unread .prow__from { font-weight: 600; }
+.prow__when { color: var(--muted); font-size: var(--t-note); white-space: nowrap; }
+.prow__line { grid-column: 2 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--t-ui); }
+.prow__line b { color: var(--text-2); font-weight: 500; }
+.prow__state { grid-column: 2 / -1; color: var(--gold-300); font-size: var(--t-note); }
+.prow__state.is-missed { color: var(--text); }
+.prow.is-done { background: var(--surface); }
+.prow:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
+/* A riffle: the row under the pointer rises and the ones lying over it slide away, so it shows in full. */
+@media (hover: hover) {
+  .prow:hover { transform: translateY(-5px); }
+  .plist li:hover ~ li .prow { transform: translateY(9px); }
+}
+/* A new deal, after the person asks for one. Never on arrival. */
+.plist.is-dealt li { animation: prow-deal .62s var(--spring) calc(var(--i) * 34ms) backwards; }
+@keyframes prow-deal { from { transform: translate3d(0, 46px, 0); opacity: 0; } }
 
-/* Clues: plain words until the answer, then marked, each with its number. */
-.pmark { border-radius: 4px; transition: background .35s, box-shadow .35s; }
-.pmark__n { display: none; }
-.is-marked .pmark { --mk: var(--red); background: color-mix(in srgb, var(--mk) 18%, transparent); box-shadow: 0 2px 0 var(--mk); padding: 0 2px; }
-.is-marked.is-real .pmark { --mk: var(--green); }
-.is-marked .pmark__n { display: inline-grid; place-items: center; min-width: 17px; height: 17px; margin-left: 3px; padding: 0 4px; border-radius: 9px; background: var(--mk); color: var(--on-status); font: 600 var(--t-micro)/1 var(--mono); vertical-align: 2px; }
-.pmark__sr { display: none; }
-.is-marked .pmark__sr { display: inline; }
+/* The opened message */
+.psheet { position: fixed; inset: 0; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: clamp(10px, 5vh, 48px) 16px 28px; border: 0; background: transparent; color: var(--text-2); overflow-y: auto; overscroll-behavior: contain; opacity: 0; transition: opacity .2s linear, overlay .24s allow-discrete, display .24s allow-discrete; }
+.psheet[open] { opacity: 1; }
+@starting-style { .psheet[open] { opacity: 0; } }
+.psheet::backdrop { background: rgb(10 8 5 / .62); }
+.psheet.is-moving { overflow-y: hidden; }
+.pstage { position: relative; display: grid; width: min(620px, 100%); margin-inline: auto; }
+.pstage > [data-card] { grid-area: 1 / 1; min-width: 0; }
+.psheet[open] .pcard-wrap { animation: pcard-over .68s var(--spring) backwards; }
+.psheet[open] .pcard-wrap.is-under { animation: pcard-under .5s var(--ease-out) forwards; }
+@keyframes pcard-over { from { transform: translate3d(0, min(62vh, 520px), 0); } }
+@keyframes pcard-under { to { transform: translate3d(0, -14px, 0) scale(.95); } }
+.pcard { position: relative; padding: 16px 24px 24px; border-radius: var(--r-xl); background: var(--relief), var(--surface-2); box-shadow: inset 0 1px 0 rgb(var(--gold-rgb) / .4), 0 40px 90px -30px rgb(0 0 0 / .7); overflow-wrap: anywhere; }
+/* The rest of the post, waiting under this one. */
+.pstage.has-more::before, .pstage.has-more::after { content: ""; position: absolute; left: 3%; right: 3%; bottom: -9px; height: 60px; border-radius: 0 0 var(--r-xl) var(--r-xl); background: var(--surface-3); box-shadow: 0 10px 22px -12px rgb(0 0 0 / .6); pointer-events: none; }
+.pstage.has-more::after { left: 6%; right: 6%; bottom: -17px; background: var(--surface); }
+.pstage > [data-card] { z-index: 1; }
+.pcard__top { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: var(--t-note); }
+.pback { min-height: 44px; margin-left: -10px; padding: 0 12px 0 22px; border: 0; border-radius: 12px; background: none; color: var(--text-2); font: inherit; font-size: var(--t-ui); cursor: pointer; position: relative; }
+.pback::before { content: ""; position: absolute; left: 11px; top: 50%; width: 7px; height: 7px; border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-50%) rotate(45deg); transition: transform .4s var(--spring); }
+.pback:hover::before { transform: translate(-3px, -50%) rotate(45deg); }
+.pcard__context { margin: 2px 0 12px; color: var(--muted); font-size: var(--t-ui); }
+.pfrom { display: flex; align-items: center; gap: 12px; width: calc(100% + 16px); min-height: 56px; margin: 0 -8px; padding: 6px 8px; border: 0; border-radius: 14px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.pfrom:hover { background: rgb(var(--ink) / .04); }
+.pfrom__face { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--line-gold); color: var(--gold-200); font: 400 var(--t-title-s)/1 var(--display); }
+.pfrom__who { display: grid; min-width: 0; flex: 1; }
+.pfrom__who b { color: var(--text); font-weight: 600; font-size: var(--t-body); }
+.pfrom__who small { color: var(--muted); font-size: var(--t-note); }
+.pfrom__see { flex: none; color: var(--gold-300); font-size: var(--t-note); text-decoration: underline; text-underline-offset: 3px; }
 
-.practice__ask { margin: 20px 0 0; text-align: center; }
-.practice__ask p { margin: 0 0 10px; font-size: var(--t-lead); color: var(--text); }
-.practice__picks { display: flex; gap: 12px; justify-content: center; }
-.practice__pick { min-width: 140px; min-height: 48px; font-size: var(--t-body); }
-.practice__pick.is-picked { box-shadow: var(--press), inset 0 0 0 1px var(--gold-400); color: var(--text); opacity: 1; }
+/* The island: one dark pill, always in its place, that springs open with the real address. */
+.pisle { display: grid; place-items: center; min-height: 72px; margin: 6px 0 8px; }
+.pisle__pill { display: grid; justify-items: center; gap: 2px; max-width: 100%; padding: 7px 16px; border-radius: 22px; background: #0f0d0a; color: #cfc8b8; font-size: var(--t-note); text-align: center; }
+.pisle__pill code { font: 500 var(--t-ui)/1.35 var(--mono); color: #f1ead9; overflow-wrap: anywhere; }
+.pisle__pill code b { color: #f3dca4; font-weight: 600; }
+.pisle__pill.is-open { padding: 9px 18px; box-shadow: inset 0 0 0 1px rgb(210 172 99 / .4); animation: pisle-open .52s var(--spring) backwards; }
+@keyframes pisle-open { from { transform: scale(.7, .62); clip-path: inset(18% 12% round 24px); } to { clip-path: inset(0 0 round 22px); } }
 
-.practice__verdict { margin-top: 22px; padding: 22px; border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); animation: pmsg-in .4s var(--ease-out) both; }
-.practice__verdict h3 { margin: 0 0 6px; font-size: var(--t-title); color: var(--text); }
-.practice__verdict h3:focus { outline: none; }
-.practice__verdict h3:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 6px; border-radius: 6px; }
-.practice__verdict p { margin: 0 0 8px; }
-.practice__clues { margin: 0 0 18px; padding-left: 22px; display: grid; gap: 8px; line-height: 1.55; }
-.practice__clues b { color: var(--text); }
+.pcard__subject { margin: 0 0 8px; font: 600 var(--t-text, 18px)/1.35 var(--sans); color: var(--text); }
+.pcard__subject:focus { outline: none; }
+.pcard--text .pcard__subject, .pcard--dm .pcard__subject { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.pcard__body { color: var(--text); line-height: 1.6; }
+.pcard__body p { margin: 0 0 10px; }
+.pcard__body p:last-child { margin-bottom: 0; }
+.pcard--text .pcard__body p, .pcard--dm .pcard__body p { width: fit-content; max-width: 94%; padding: 10px 14px; border-radius: 18px 18px 18px 6px; background: var(--surface-3); }
+.plink { display: inline; padding: 0; border: 0; background: none; color: var(--link, var(--gold-200)); font: inherit; text-align: left; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; cursor: pointer; }
+.pask { border-radius: 3px; transition: box-shadow .4s; }
+.is-answered .pask.is-bad, .is-answered .plink.is-bad { box-shadow: 0 2px 0 var(--red); text-decoration: none; }
 
-.practice__end h2 { margin: 0 0 8px; font-size: var(--t-title-l); color: var(--text); }
-.practice__end h2:focus { outline: none; }
-.practice__end h3 { margin: 26px 0 8px; font-size: var(--t-title-s); color: var(--text); }
-.practice__missed, .practice__rules { margin: 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.55; }
-.practice__again { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+.pact { margin-top: 20px; }
+.pact__row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pact__btn { min-height: 52px; font-size: var(--t-body); }
+.pact__btn--report[aria-expanded="true"] { box-shadow: var(--press), inset 0 0 0 1px var(--gold-400); }
+.pwhy { display: grid; gap: 8px; margin-top: 12px; padding: 14px; border-radius: 18px; background: #0f0d0a; transform-origin: 75% 0; animation: pwhy-open .46s var(--spring) backwards; }
+.pwhy[hidden] { display: none; }
+@keyframes pwhy-open { from { transform: scale(.82, .5); opacity: 0; } }
+.pwhy p { margin: 0 0 2px; color: #f1ead9; }
+.pwhy__opt { min-height: 46px; padding: 8px 14px; border: 0; border-radius: 12px; background: #231e16; color: #f1ead9; font: inherit; font-size: var(--t-ui); text-align: left; cursor: pointer; transition: transform .35s var(--spring); }
+.pwhy__opt:hover { transform: translateX(4px); box-shadow: inset 0 0 0 1px rgb(210 172 99 / .5); }
+.pwhy__opt--plain { background: none; color: #cfc8b8; }
+.pwhy__opt:focus-visible, .pfrom:focus-visible, .plink:focus-visible, .pback:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; }
+
+/* The verdict slides over the foot of the message. */
+.pverdict { position: relative; margin-top: -18px; padding: 22px 24px 24px; border-radius: var(--r-xl); background: var(--relief), var(--surface); box-shadow: inset 0 1px 0 rgb(var(--gold-rgb) / .5), 0 -18px 36px -20px var(--lo); }
+.pverdict.is-fresh { animation: pverdict-over .6s var(--spring) backwards; }
+@keyframes pverdict-over { from { transform: translate3d(0, 120px, 0); } }
+.pverdict h3 { margin: 0 56px 4px 0; font-size: var(--t-title); color: var(--text); }
+.pverdict h3:focus { outline: none; }
+.pverdict > p { margin: 0 0 14px; }
+.pseal { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: radial-gradient(circle at 34% 28%, #f6e1ab, #d2ac63 52%, #8a6424); box-shadow: inset 0 1px 0 rgb(255 255 255 / .5), 0 6px 14px -6px rgb(0 0 0 / .6); color: #2c200c; }
+.pseal svg { width: 30px; height: 30px; }
+.pverdict.is-fresh .pseal { animation: pseal-stamp .5s var(--spring) .16s backwards; }
+@keyframes pseal-stamp { from { transform: scale(1.7) rotate(-14deg); opacity: 0; } }
+.ptells { margin: 0 0 18px; }
+.ptells > div { padding: 10px 0; border-top: 1px solid var(--line); }
+.ptells dt { display: flex; justify-content: space-between; gap: 12px; color: var(--text); font-weight: 600; font-size: var(--t-ui); }
+.ptells dt span { flex: none; font-weight: 400; font-size: var(--t-note); color: var(--muted); }
+.ptells .is-bad dt span { color: var(--text); font-weight: 600; }
+.ptells .is-bad dt span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; background: var(--red); transform: rotate(45deg); vertical-align: 1px; }
+.ptells dd { margin: 2px 0 0; font-size: var(--t-ui); line-height: 1.5; }
+.ptells code { display: block; margin-bottom: 2px; font: 400 var(--t-note)/1.4 var(--mono); color: var(--text-2); overflow-wrap: anywhere; }
+.ptells code b { color: var(--text); font-weight: 600; }
+.pverdict .btn { width: 100%; min-height: 52px; }
+
+/* The end of a run */
+.pdone { position: relative; padding: 30px 28px 28px; border-radius: var(--r-xl); background: var(--relief), var(--surface-2); box-shadow: inset 0 1px 0 rgb(var(--gold-rgb) / .4), 0 9px 0 -4px var(--surface-3), 0 18px 0 -8px var(--surface), 0 40px 60px -34px var(--lo); animation: pcard-over .68s var(--spring) backwards; }
+.pdone h2 { margin: 0 58px 10px 0; font-size: var(--t-title-l); color: var(--text); }
+.pdone h2:focus { outline: none; }
+.pdone h3 { margin: 28px 0 8px; font-size: var(--t-title-s); color: var(--text); }
+.pdone p { margin: 0 0 10px; }
+.pdone__work { color: var(--text); font-size: var(--t-lead); line-height: 1.5; }
+.pledger { margin: 18px 0 0; padding: 0; list-style: none; }
+.pledger li { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.pledger__name { color: var(--text); font-weight: 600; }
+.pledger__count { font: var(--t-note) var(--mono); color: var(--text-2); align-self: center; }
+.pledger__bar { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: rgb(var(--ink) / .08); overflow: hidden; }
+.pledger__bar i { display: block; height: 100%; background: var(--gold-grad); transform-origin: left; }
+.pledger__look { grid-column: 1 / -1; color: var(--muted); font-size: var(--t-note); }
+.prules { margin: 0 0 14px; padding-left: 22px; display: grid; gap: 8px; line-height: 1.55; }
+.prules b { color: var(--text); }
+.pdone__go { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
 
 @media (max-width: 560px) {
-  .pmsg__card { padding: 16px; }
-  .practice__pick { flex: 1; min-width: 0; }
+  .ptray { margin-inline: -8px; padding: 14px 8px 18px; }
+  .page-head--practice { padding: 28px 0 18px; }
+  .plist { --pile: 76px; }
+  .psheet { padding: 8px 8px 24px; }
+  .pcard { padding: 10px 16px 18px; }
+  .pfrom__see { display: none; }
+  .pverdict { padding: 18px 16px; }
+  .pdone { padding: 22px 18px; }
+  .pdone__go .btn { flex: 1; }
 }

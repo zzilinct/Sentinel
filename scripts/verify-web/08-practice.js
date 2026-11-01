@@ -1,17 +1,18 @@
 'use strict';
 /**
- * practice  The practice inbox (/practice) sorts all twelve with Tab and Enter alone, at phone and computer width,
- *           marks each message's clues where they are, follows reduced motion, and sends nothing anywhere.
+ * practice  The practice inbox (/practice) as a person uses it: a list of rows that pile up on scroll, a message that
+ *           slides over it, the sender and link that show their real address, Report that asks what gave it away, the
+ *           verdict, a second look at what was missed, and a result that names it. Keyboard alone on a computer, tap
+ *           size on a phone, Back and Esc and a double press, light and dark, reduced motion, and nothing leaves the page.
  */
 const fs = require('fs');
 const path = require('path');
 const { STATIC, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto } = require('./_shared');
 
-/* ----------------------------------------------- 7. the practice inbox (/practice) */
-
 async function checkPractice() {
   if (!fs.existsSync(path.join(STATIC, 'practice.html'))) throw new Error(`no practice page in ${STATIC}: run npm run build:static`);
   const P = require('../../web/assets/js/practice.js');
+  const byId = (id) => P.POOL.find((m) => m.id === id);
   const files = await serveFiles({ '/': STATIC });
   const { browser, close } = await launch();
   const errors = [];
@@ -21,112 +22,226 @@ async function checkPractice() {
   browser.on('Network.requestWillBeSent', (p) => requests.push(p.request.url));
   const key = async (s, k, code, vk) => {
     for (const type of ['keyDown', 'keyUp']) await browser.send('Input.dispatchKeyEvent', { type, key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...(type === 'keyDown' && k === 'Enter' ? { text: '\r' } : {}) }, s);
-    await sleep(120);
+    await sleep(90);
   };
   const tab = (s) => key(s, 'Tab', 'Tab', 9);
   const enter = (s) => key(s, 'Enter', 'Enter', 13);
-  // The whole inbox, not just the screen: a marked message and its clues run below the fold on a phone.
-  const snap = async (s, name) => {
+  const js = (s, code) => evalIn(browser, s, code);
+  const tabTo = async (s, selector) => {
+    for (let i = 0; i < 9; i++) {
+      await tab(s);
+      if (await js(s, `Boolean(document.activeElement && document.activeElement.matches(${JSON.stringify(selector)}))`)) return true;
+    }
+    return false;
+  };
+  // What a person sees: the screen. `full` takes the whole page, for the result.
+  const snap = async (s, name, full) => {
     try {
-      const r = await evalIn(browser, s, "(() => { const r = document.querySelector('[data-practice]').getBoundingClientRect(); return { x: Math.max(0, r.left + scrollX - 12), y: Math.max(0, r.top + scrollY - 12), width: r.width + 24, height: r.height + 24 }; })()");
-      const { data } = await browser.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { ...r, scale: 1 } }, s);
-      fs.writeFileSync(path.join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
+      const { data } = await browser.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: Boolean(full) }, s);
+      fs.writeFileSync(path.join(OUT, `practice-${name}.png`), Buffer.from(data, 'base64'));
     } catch { /* a picture is a nicety */ }
   };
-  const open = async ({ phone, reduce }) => {
+  const open = async ({ phone, reduce, scheme = 'dark' }) => {
     const { sessionId: s } = await openPage(browser);
     await browser.send('Runtime.enable', {}, s);
     await browser.send('Network.enable', {}, s);
-    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: reduce ? 'reduce' : 'no-preference' }] }, s);
+    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: reduce ? 'reduce' : 'no-preference' }, { name: 'prefers-color-scheme', value: scheme }] }, s);
     if (phone) {
       await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, s);
       await browser.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }, s);
+    } else {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 860, deviceScaleFactor: 1, mobile: false }, s);
     }
-    await goto(browser, s, `${files.base}/practice.html`, "document.querySelector('[data-practice] [data-pick]') && window.SentinelMotion");
-    await sleep(1200);
+    await goto(browser, s, `${files.base}/practice.html`, "document.querySelector('[data-practice] [data-open]') && window.SentinelMotion");
+    await sleep(1400);
     return s;
   };
-  // What the page shows for the message on screen, after it was answered.
-  const marked = (s) => evalIn(browser, s, `(() => {
-    const marks = [...document.querySelectorAll('.pmsg .pmark')];
-    return {
-      shown: document.querySelector('.pmsg').classList.contains('is-marked') && marks.every((m) => getComputedStyle(m.querySelector('.pmark__n')).display !== 'none' && getComputedStyle(m).boxShadow !== 'none'),
-      texts: marks.map((m) => m.firstChild.textContent), numbers: marks.map((m) => Number(m.dataset.clue)),
-      clues: document.querySelectorAll('.practice__clues li').length, focus: document.activeElement && document.activeElement.matches('[data-practice-verdict]') ? 'verdict' : String(document.activeElement && document.activeElement.outerHTML).slice(0, 80),
-      verdict: document.querySelector('[data-practice-verdict]').textContent, links: document.querySelectorAll('.pmsg a').length };
-  })()`);
-
-  /**
-   * Sorts all twelve with the keyboard alone (Tab and Enter, from the message's heading), checking each answer's marks
-   * against the message's own clues and that focus goes where a screen reader needs it. `choose` picks per message.
-   */
-  const playThrough = async (s, label, choose, shots) => {
-    const problems = [];
-    await evalIn(browser, s, "document.getElementById('pmsg-h').focus(), true");
-    for (const [i, m] of P.MESSAGES.entries()) {
-      const pick = choose(m);
-      const heading = await evalIn(browser, s, "document.activeElement && document.activeElement.id === 'pmsg-h' ? document.activeElement.textContent : ''");
-      if (!heading.startsWith(`Message ${i + 1} of 12`)) problems.push(`${m.id}: focus was not on the message's heading (${heading})`);
-      // In sight, and not under the fixed header: the reader starts each message at its top.
-      const seen = await evalIn(browser, s, "(() => { const h = document.getElementById('pmsg-h').getBoundingClientRect(); return { top: Math.round(h.top), nav: Math.round(document.querySelector('[data-nav]').getBoundingClientRect().bottom), screen: innerHeight }; })()");
-      if (seen.top < seen.nav || seen.top > seen.screen - 40) problems.push(`${m.id}: the message's heading is out of sight ${JSON.stringify(seen)}`);
-      if (shots[m.id] === 'before') await snap(s, `practice-${label}-${m.id}`);
-      for (let t = 0; t < (pick === 'scam' ? 1 : 2); t++) await tab(s);
-      const onButton = await evalIn(browser, s, 'document.activeElement && document.activeElement.dataset.pick');
-      if (onButton !== pick) problems.push(`${m.id}: Tab reached ${onButton}, not ${pick}`);
-      await enter(s);
-      await sleep(500);
-      const got = await marked(s);
-      const want = P.parse([m.from, m.address, m.subject, m.body].filter(Boolean).join('\n')).filter((p) => p.clue);
-      const order = P.clueOrder(m);
-      if (!got.shown) problems.push(`${m.id}: the marks did not show`);
-      if (JSON.stringify(got.texts) !== JSON.stringify(want.map((p) => p.text))) problems.push(`${m.id}: marked ${JSON.stringify(got.texts)}`);
-      if (JSON.stringify(got.numbers) !== JSON.stringify(want.map((p) => order.indexOf(p.clue) + 1))) problems.push(`${m.id}: numbered ${got.numbers}`);
-      if (got.clues !== order.length) problems.push(`${m.id}: ${got.clues} clues explained, ${order.length} marked`);
-      if (got.focus !== 'verdict') problems.push(`${m.id}: focus after answering was ${got.focus}`);
-      if (got.links) problems.push(`${m.id}: ${got.links} links in the message`);
-      if (!got.verdict.includes(m.scam ? 'a scam' : 'real')) problems.push(`${m.id}: verdict "${got.verdict}"`);
-      if (shots[m.id] === 'after') await snap(s, `practice-${label}-${m.id}`);
-      await tab(s);
-      if (!(await evalIn(browser, s, "Boolean(document.activeElement && document.activeElement.matches('[data-practice-next]'))"))) problems.push(`${m.id}: Tab after the verdict did not reach Next`);
-      await enter(s);
-      await sleep(400);
+  const nextId = (s) => js(s, "(() => { const b = document.querySelector('.prow:not(.is-done)'); return b ? b.dataset.open : null; })()");
+  const ids = (s) => js(s, "[...document.querySelectorAll('[data-open]')].map((b) => b.dataset.open)");
+  // The honest answer, naming the first sign that is bad.
+  const truth = (m) => (P.isScam(m) ? P.judge(m, 'fine').main : 'fine');
+  const clickAnswer = (s, choice) => js(s, `(() => {
+    const c = ${JSON.stringify(choice)};
+    if (c === 'fine') document.querySelector('[data-card]:last-child [data-fine]').click();
+    else { document.querySelector('[data-card]:last-child [data-report]').click(); document.querySelector('[data-card]:last-child [data-why="' + c + '"]').click(); }
+    return true; })()`);
+  // Answers everything left by click. `choose` picks per message.
+  const finishRun = async (s, choose) => {
+    for (let i = 0; i < 20; i++) {
+      if (await js(s, "Boolean(document.querySelector('[data-end]'))")) return true;
+      const inSheet = await js(s, "document.querySelector('[data-sheet]').open ? (document.querySelector('[data-card]:last-child [data-next]') ? 'verdict' : 'message') : ''");
+      if (inSheet === 'verdict') { await js(s, "document.querySelector('[data-card]:last-child [data-next]').click(), true"); await sleep(120); continue; }
+      if (!inSheet) { const id = await nextId(s); await js(s, `document.querySelector('[data-open="${id}"]').click(), true`); await sleep(120); }
+      const id = await js(s, "document.querySelector('[data-card]:last-child') && history.state && history.state.pm");
+      await clickAnswer(s, choose(byId(id)));
+      await sleep(120);
     }
-    const end = await evalIn(browser, s, `(() => { const h = document.querySelector('[data-practice-end]');
-      return h && { text: h.textContent, focused: document.activeElement === h, missed: document.querySelectorAll('.practice__missed li').length }; })()`);
-    await snap(s, `practice-${label}-score`);
-    return { problems, end };
+    return false;
+  };
+
+  /** The four pictures of one form and theme: list, opened message with the address showing, Report open, verdict, end. */
+  const pictures = async (label, opts) => {
+    const s = await open(opts);
+    await snap(s, `${label}-list`);
+    const deck = await ids(s);
+    const scam = deck.find((id) => byId(id).link && P.isScam(byId(id))) || deck.find((id) => P.isScam(byId(id)));
+    await js(s, `document.querySelector('[data-open="${scam}"]').click(), true`);
+    await sleep(900);
+    await js(s, "document.querySelector('[data-card]:last-child [data-peek=sender]').click(), true");
+    await sleep(700);
+    await snap(s, `${label}-open`);
+    await js(s, "document.querySelector('[data-card]:last-child [data-report]').click(), true");
+    await sleep(600);
+    await snap(s, `${label}-report`);
+    await js(s, "document.querySelector('[data-card]:last-child [data-why=ask]').click(), true");
+    await sleep(1100);
+    await snap(s, `${label}-verdict`);
+    const fits = await js(s, "({ wide: document.querySelector('[data-sheet]').scrollWidth, screen: document.querySelector('[data-sheet]').clientWidth })");
+    const finished = await finishRun(s, (m) => (m.id.startsWith('p') ? 'fine' : truth(m)));
+    await sleep(1000);
+    await snap(s, `${label}-end`, true);
+    return { s, fits, finished };
   };
 
   try {
-    /* A computer: all right but one, to see a missed one on the score. */
+    /* A computer, by keyboard alone. Every scam reported and named except one, which is let through. */
     const d = await open({});
-    const truth = (m) => (m.scam ? 'scam' : 'real');
-    const desk = await playThrough(d, 'desktop', (m) => (m.id === 'invoice' ? 'real' : truth(m)), { parcel: 'before', signin: 'after', library: 'after' });
-    result('practice: on a computer, all twelve sort with Tab and Enter alone, each answer marks its clues where they are in the message, numbered as explained, and focus goes to the answer, then the next message',
-      !desk.problems.length && desk.end && desk.end.focused && desk.end.text.startsWith('You sorted 11 of 12') && desk.end.missed === 1, { problems: desk.problems, end: desk.end });
+    const first = await ids(d);
+    const resting = await js(d, "document.getAnimations().filter((a) => a.playState === 'running' && !a.effect.target.closest?.('.nav, header, footer')).map((a) => a.effect.target.className || a.effect.target.tagName).slice(0, 5)");
+    result('practice: at rest nothing on the page is animating', !resting.length, resting);
+    const unread = await js(d, "document.querySelectorAll('.prow.is-unread').length");
+    result('practice: ten unread rows, none with a real link in them', first.length === 10 && unread === 10 && (await js(d, "document.querySelectorAll('[data-practice] a').length")) === 0, { first, unread });
 
-    /* A phone: every message called a scam. Fits the width, big enough to tap, and the score does not scold. */
+    const problems = [];
+    const letThrough = first.find((id) => P.isScam(byId(id)));
+    for (const id of first) {
+      const m = byId(id);
+      await js(d, `document.querySelector('[data-open="${id}"]').focus(), true`);
+      await enter(d);
+      await sleep(760);
+      const opened = await js(d, "({ open: document.querySelector('[data-sheet]').open, focus: document.activeElement && document.activeElement.id, head: document.querySelector('#pcard-h').textContent, links: document.querySelectorAll('[data-sheet] a').length })");
+      if (!opened.open || opened.focus !== 'pcard-h') problems.push(`${id}: opened ${JSON.stringify(opened)}`);
+      if (opened.links) problems.push(`${id}: a real link in the message`);
+      const isleWas = await js(d, "document.querySelector('[data-card]:last-child [data-isle]').textContent");
+      if (isleWas.includes('@') || (m.link && isleWas.includes(m.link.to))) problems.push(`${id}: the address shows before it is asked for: ${isleWas}`);
+      await js(d, "document.querySelector('[data-card]:last-child [data-peek=sender]').focus(), true");
+      await enter(d);
+      await sleep(80);
+      const sender = await js(d, "document.querySelector('[data-card]:last-child [data-isle]').textContent");
+      if (!sender.includes(m.addr)) problems.push(`${id}: sender showed "${sender}"`);
+      if (m.link) {
+        await js(d, "document.querySelector('[data-card]:last-child .plink').focus(), true");
+        await enter(d);
+        await sleep(80);
+        const link = await js(d, "document.querySelector('[data-card]:last-child [data-isle]').textContent");
+        if (!link.includes(m.link.to)) problems.push(`${id}: link showed "${link}"`);
+      }
+      const choice = id === letThrough ? 'fine' : truth(m);
+      await js(d, "document.querySelector('[data-card]:last-child #pcard-h').focus(), true");
+      if (choice === 'fine') {
+        if (!(await tabTo(d, '[data-fine]'))) problems.push(`${id}: Tab did not reach Looks fine`);
+      } else {
+        if (!(await tabTo(d, '[data-report]'))) problems.push(`${id}: Tab did not reach Report`);
+        await enter(d);
+        await sleep(100);
+        if (!(await js(d, "Boolean(document.activeElement && document.activeElement.dataset.why)"))) problems.push(`${id}: Report did not move focus to the choices`);
+        if (await js(d, `document.activeElement.dataset.why !== ${JSON.stringify(choice)}`) && !(await tabTo(d, `[data-why="${choice}"]`))) problems.push(`${id}: Tab did not reach ${choice}`);
+      }
+      await enter(d);
+      await sleep(760);
+      const v = await js(d, `(() => { const h = document.querySelector('[data-verdict]'); return h && { focused: document.activeElement === h, text: h.textContent, rows: document.querySelectorAll('.ptells > div').length, bad: document.querySelectorAll('.ptells .is-bad').length }; })()`);
+      if (!v || !v.focused) problems.push(`${id}: focus after answering ${JSON.stringify(v)}`);
+      else {
+        if (v.rows !== P.TELLS.filter((k) => m[k]).length) problems.push(`${id}: ${v.rows} rows of reasons`);
+        if (v.bad !== P.TELLS.filter((k) => m[k] && m[k].bad).length) problems.push(`${id}: ${v.bad} giveaways marked`);
+        if (v.text !== P.words(m, choice, { sender: true, link: true }).h) problems.push(`${id}: verdict "${v.text}"`);
+      }
+      if (!(await tabTo(d, '[data-next]'))) problems.push(`${id}: Tab did not reach Next`);
+      if (id === first[first.length - 1]) break;
+      const rows = await js(d, "document.querySelectorAll('[data-open]').length");
+      await js(d, "document.querySelector('[data-sheet]').close(), true");   // back to the list, as the next row is chosen by hand
+      await sleep(120);
+      if (rows !== 10) problems.push(`${id}: ${rows} rows before the last answer`);
+    }
+    const grew = await js(d, "document.querySelectorAll('[data-open]').length");
+    const label = await js(d, "document.querySelector('[data-card]:last-child [data-next]').textContent");
+    result('practice: on a computer, all ten sort by keyboard alone: focus lands on each message, the sender and link show their real address only when asked, Report moves to its choices, and the verdict marks what gave it away',
+      !problems.length, problems);
+    result('practice: a scam let through brings a second look with new messages, not the same ones', grew > 10 && label === 'Take a second look', { grew, label });
+    const more = (await ids(d)).slice(10);
+    result('practice: the second look is new messages from outside this deal, of both sorts', more.every((id) => !first.includes(id) && !first.some((f) => byId(f).pair === byId(id).pair)) && more.some((id) => P.isScam(byId(id))) && more.some((id) => !P.isScam(byId(id))), more);
+    await enter(d);
+    await sleep(200);
+    const ok = await finishRun(d, truth);
+    await sleep(500);
+    const end = await js(d, "(() => { const h = document.querySelector('[data-end]'); return h && { text: h.textContent, focused: document.activeElement === h, all: document.querySelector('.pdone').textContent, sheet: document.querySelector('[data-sheet]').open, list: document.querySelector('[data-tray]').hidden }; })()");
+    const scams = first.filter((id) => P.isScam(byId(id))).length;
+    const missedSign = P.judge(byId(letThrough), 'fine').main;
+    result('practice: the end counts the first pass truly, names what was missed, and gets the focus',
+      ok && end && end.focused && !end.sheet && end.list && end.text.startsWith(`You reported ${scams - 1} of ${scams} scams and left ${10 - scams} of ${10 - scams} real`) && end.all.includes(P.ADVICE[missedSign]) && end.all.includes('Second look:'), end);
+    await js(d, "document.querySelector('[data-deal]').click(), true");
+    await sleep(900);
+    const second = await ids(d);
+    result('practice: a new inbox shares no message with the last, and the focus goes to its first row', second.length === 10 && !second.some((id) => first.includes(id)) && (await js(d, "document.activeElement && document.activeElement.matches('[data-open]')")), second);
+
+    /* Back, forward, Esc, a press outside, and a double press. */
+    const b = await open({});
+    const row = (await ids(b))[0];
+    await js(b, `document.querySelector('[data-open="${row}"]').click(), true`);
+    await sleep(800);
+    await js(b, 'history.back(), true');
+    await sleep(400);
+    const afterBack = await js(b, "document.querySelector('[data-sheet]').open");
+    await js(b, 'history.forward(), true');
+    await sleep(800);
+    const afterForward = await js(b, "document.querySelector('[data-sheet]').open");
+    await key(b, 'Escape', 'Escape', 27);
+    await sleep(400);
+    const afterEsc = await js(b, "({ open: document.querySelector('[data-sheet]').open, focus: document.activeElement && document.activeElement.dataset.open })");
+    await js(b, `document.querySelector('[data-open="${row}"]').click(), true`);
+    await sleep(700);
+    await js(b, "(() => { const f = document.querySelector('[data-card]:last-child [data-fine]'); f.click(); f.click(); return true; })()");
+    await sleep(200);
+    const pressed = await js(b, "({ verdicts: document.querySelectorAll('.pverdict').length, left: document.querySelector('[data-count]').textContent })");
+    result('practice: Back closes a message and leaves the page where it was, Forward reopens it, Esc closes it and returns to its row, and a double press answers once',
+      !afterBack && afterForward && !afterEsc.open && afterEsc.focus === row && pressed.verdicts === 1 && pressed.left === '9 to sort', { afterBack, afterForward, afterEsc, pressed });
+
+    /* The pictures, and the phone. */
+    const phone = await pictures('phone-dark', { phone: true });
+    await pictures('phone-light', { phone: true, scheme: 'light' });
+    await pictures('desktop-dark', {});
+    await pictures('desktop-light', { scheme: 'light' });
+    const words = await js(phone.s, "document.querySelector('.pdone').textContent");
+    result('practice: the end says no unkind word', !/\b(fail|failed|wrong|bad|poor|stupid)\b/i.test(words), words.replace(/\s+/g, ' ').slice(0, 300));
+
     const ph = await open({ phone: true });
-    const fit = await evalIn(browser, ph, `(() => ({ wide: document.documentElement.scrollWidth, screen: innerWidth,
-      tap: Math.min(...[...document.querySelectorAll('[data-pick]')].map((b) => b.getBoundingClientRect().height)) }))()`);
-    const phone = await playThrough(ph, 'phone', () => 'scam', { parcel: 'after', reported: 'after', code: 'after' });
-    const scams = P.MESSAGES.filter((m) => m.scam).length;
-    const words = await evalIn(browser, ph, "document.querySelector('.practice__end').textContent");
-    result('practice: on a phone, the inbox fits the screen, the answers are big enough to tap, and the same play-through works',
-      fit.wide <= fit.screen && fit.tap >= 44 && !phone.problems.length && phone.end && phone.end.text.startsWith(`You sorted ${scams} of 12`) && phone.end.missed === 12 - scams, { fit, problems: phone.problems, end: phone.end });
-    result('practice: the score says no unkind word', !/\b(fail|failed|wrong|bad|poor|stupid)\b/i.test(words) && words.includes(P.closing(scams, 12)), words.replace(/\s+/g, ' ').slice(0, 300));
-    await evalIn(browser, ph, "document.querySelector('[data-practice-again]').click(), true");
-    await sleep(300);
-    const again = await evalIn(browser, ph, "({ count: document.querySelector('[data-practice-count]').textContent, focus: document.activeElement && document.activeElement.id })");
-    result('practice: Sort them again starts over at the first message', again.count === 'Message 1 of 12' && again.focus === 'pmsg-h', again);
+    const fit = await js(ph, "({ wide: document.documentElement.scrollWidth, screen: innerWidth, tap: Math.min(...[...document.querySelectorAll('[data-open]')].map((r) => r.getBoundingClientRect().height)), top: Math.round(document.querySelector('[data-open]').getBoundingClientRect().top) })");
+    result('practice: on a phone the inbox fits, starts on the first screen, and every row is big enough to tap', fit.wide <= fit.screen && fit.tap >= 44 && fit.top < 640, fit);
+    await js(ph, "(() => { const r = document.querySelector('[data-list]').getBoundingClientRect(); window.scrollTo(0, scrollY + r.top + 420); return true; })()");
+    await sleep(900);
+    const pile = await js(ph, `(() => {
+      const rows = [...document.querySelectorAll('[data-list] li')];
+      const tops = rows.map((r) => Math.round(r.getBoundingClientRect().top));
+      const a = rows[0].getBoundingClientRect();
+      const over = document.elementFromPoint(a.left + a.width / 2, a.top + 40);
+      return { tops: tops.slice(0, 5), covered: Boolean(over && over.closest('li') && over.closest('li') !== rows[0]), wide: document.documentElement.scrollWidth };
+    })()`);
+    await snap(ph, 'phone-dark-pile');
+    result('practice: on scroll the rows gather under the header as a pile, each lying over the last', pile.tops[1] - pile.tops[0] <= 8 && pile.covered && pile.wide <= 390, pile);
+    await js(ph, "document.querySelector('[data-open]').focus(), true");
+    await sleep(900);
+    const refocus = await js(ph, "(() => { const b = document.querySelector('[data-open]'); const r = b.getBoundingClientRect(); const el = document.elementFromPoint(r.left + r.width / 2, r.top + 30); return Boolean(el && b.contains(el)); })()");
+    result('practice: a row reached by keyboard comes out from under the pile', refocus, refocus);
 
-    /* Reduced motion: the message and its marks are simply there, no slide. */
+    /* Reduced motion: the card and verdict are simply there. */
     const r = await open({ reduce: true });
-    await evalIn(browser, r, "document.querySelector('[data-pick=\"scam\"]').click(), true");
-    await sleep(100);
-    const still = await evalIn(browser, r, "(() => { const c = getComputedStyle(document.querySelector('.pmsg__card')); const v = getComputedStyle(document.querySelector('.practice__verdict')); return { card: c.animationDuration, verdict: v.animationDuration, opacity: v.opacity, lenis: document.documentElement.classList.contains('lenis') }; })()");
-    result('practice: with reduced motion, nothing slides in and the answer is there at once', parseFloat(still.card) < 0.01 && parseFloat(still.verdict) < 0.01 && still.opacity === '1' && !still.lenis, still);
+    await js(r, "document.querySelector('[data-open]').click(), true");
+    await sleep(60);
+    const firstStill = await js(r, "(() => { const c = getComputedStyle(document.querySelector('.pcard-wrap')); return { d: c.animationDuration, lenis: document.documentElement.classList.contains('lenis') }; })()");
+    await js(r, "document.querySelector('[data-fine]').click(), true");
+    await sleep(60);
+    const v = await js(r, "getComputedStyle(document.querySelector('.pverdict')).animationDuration");
+    result('practice: with reduced motion, nothing slides in and the answer is there at once', parseFloat(firstStill.d) < 0.01 && parseFloat(v) < 0.01 && !firstStill.lenis, { firstStill, v });
 
     const offHost = requests.filter((u) => !u.startsWith(files.base) && !u.startsWith('data:'));
     result('practice: nothing leaves the page\'s host (the answers stay in the page)', !offHost.length, offHost.length ? offHost : `${requests.length} requests, all local`);
