@@ -199,9 +199,12 @@ site and browser companion bundled in.
 ## Releases
 
 Downloads come from GitHub Releases, built by `.github/workflows/release.yml`
-with GitHub's own token. To ship a version, bump `desktop/package.json` and:
+with GitHub's own token. To ship a version, bump `package.json` and
+`desktop/package.json`, write `changelog/<version>.md`, and:
 
 ```bash
+npm run build:note   # the download page's "New in" section, from that changelog
+git commit -am "Sentinel 1.5.0"
 git tag v1.5.0 && git push origin v1.5.0
 ```
 
@@ -212,8 +215,12 @@ and publishes `Sentinel-Setup.exe`, `sentinel-companion.zip`,
 `latest.yml` is what installed copies read to update themselves, so a release
 reaches everyone who already has the app without them downloading anything.
 The download page always links to the latest release and shows its real
-version and size from the GitHub API. The installer is not code-signed, so
-Windows SmartScreen warns on first run until a signing certificate is bought.
+version, size and SHA-256 from the GitHub API. Nothing about a release is typed
+into `web/download.html`: its note is `web/partials/release-note.html`, written
+from the changelog by `npm run build:note`. `npm test` and `build:static` fail
+if that was not run. The installer is not code-signed, so Windows SmartScreen
+warns on first run until a signing certificate is bought; the page says so,
+and `tests/download-page.test.js` fails if signing is added and the words stay.
 
 ## The browser companion (optional)
 
