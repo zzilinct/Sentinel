@@ -159,7 +159,21 @@ async function checkPricing() {
       result(`pricing: ${name}: the signed-in plan page marks your plan and offers nothing it cannot give`, app.take.join('|') === 'Your plan|Not on sale yet|Not on sale yet|Not on sale yet' && app.buttons === 0 && app.lens.pick === 'free' && app.lens.off < 1 && app.wide <= 0, app);
     }
 
+    const unasked = await evalIn(browser, s, "performance.getEntriesByType('resource').length");
+    await goto(browser, s, `${base}/app`, "document.querySelector('.side')");
+    await sleep(1500);
+    const heavy = await evalIn(browser, s, "performance.getEntriesByType('resource').filter((r) => r.name.includes('planbook')).length");
+    result('pricing: the app\'s other pages do not load the comparison', unasked > 0 && heavy === 0, { heavy });
+
     result('pricing: nothing went wrong in the page', errors.length === 0, errors.slice(0, 5));
+
+    // A lost script is said in words, not left as a gap. Last: the failed load it causes is the point here.
+    await browser.send('Network.enable', {}, s);
+    await browser.send('Network.setBlockedURLs', { urls: ['*planbook.js*'] }, s);
+    await goto(browser, s, `${base}/app/plan`, "document.querySelector('[data-ledger]')");
+    await sleep(1500);
+    const lost = await evalIn(browser, s, "document.querySelector('[data-ledger]').innerText");
+    result('pricing: if the comparison cannot load, the plan page says so and points to the website', /could not load/.test(lost), lost);
   } finally {
     await close();
     await server.stop();

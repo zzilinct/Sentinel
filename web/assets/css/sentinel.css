@@ -518,7 +518,7 @@ p.hero__fine span { white-space: nowrap; }
 .ledger__price b { display: block; margin-bottom: 2px; font: 400 var(--t-d3)/1.1 var(--display); color: var(--gold-200); font-variant-numeric: lining-nums tabular-nums; text-shadow: 0 1px 0 rgb(0 0 0 / .35); }
 .ledger__table tbody th { padding: 14px 16px 14px 32px; color: var(--text-2); }
 .ledger__table small { display: block; margin-top: 2px; font-size: var(--t-note); color: var(--muted); }
-.ledger__table td { padding: 12px 8px; text-align: center; color: var(--text-2); font-variant-numeric: lining-nums tabular-nums; transition: color .3s; }
+.ledger__table td { padding: 12px 8px; text-align: center; text-wrap: balance; color: var(--text-2); font-variant-numeric: lining-nums tabular-nums; transition: color .3s; }
 .ledger__table tbody tr { border-top: 1px solid var(--line); }
 .ledger__table .is-no { color: var(--faint); }
 .ledger__table .is-yes { color: var(--gold-300); }
@@ -526,7 +526,7 @@ p.hero__fine span { white-space: nowrap; }
 .ledger__take td { color: var(--muted); font-size: var(--t-note); }
 .ledger__mine { color: var(--gold-200); font-weight: 500; }
 .ledger__table .ledger__ask th { padding-top: 36px; font: 400 var(--t-title-s) var(--display); color: var(--text); }
-.ledger__ask small { font-family: var(--sans); }
+.ledger__ask small { max-width: 30%; font-family: var(--sans); }
 .ledger__table tbody .ledger__ask { border-top: 0; }
 .ledger__masks { display: inline-flex; gap: 3px; vertical-align: middle; }
 .ledger__masks svg { width: 30px; height: 30px; color: var(--gold-300); filter: drop-shadow(0 1px 0 rgb(0 0 0 / .45)); }
@@ -540,7 +540,7 @@ p.hero__fine span { white-space: nowrap; }
   .ledger__lens { border-radius: 0 0 16px 16px; box-shadow: none; }
   .ledger__table, .ledger__table thead, .ledger__table tbody { display: block; }
   .ledger__table tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .ledger__table thead { position: sticky; top: 66px; z-index: 2; background: var(--surface); box-shadow: 0 1px 0 var(--line-gold); }
+  .ledger__table thead { position: sticky; top: 70px; z-index: 2; background: var(--surface); box-shadow: 0 1px 0 var(--line-gold); }
   .ledger__table thead td:first-child { display: none; }
   .ledger__table thead th { padding: 22px 2px 12px; }
   .ledger__name { font-size: var(--t-text); }
@@ -548,6 +548,7 @@ p.hero__fine span { white-space: nowrap; }
   .ledger__table tbody th { grid-column: 1 / -1; padding: 13px 14px 2px; }
   .ledger__table td { padding: 6px 3px 13px; overflow-wrap: anywhere; font-size: var(--t-note); }
   .ledger__table .ledger__ask th { padding-top: 26px; }
+  .ledger__ask small { max-width: none; }
   .ledger__table .btn { padding-inline: 6px; width: 100%; }
   .ledger__masks { gap: 1px; }
   .ledger__masks svg { width: 24px; height: 24px; }

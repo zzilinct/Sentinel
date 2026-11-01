@@ -26,8 +26,8 @@
   const maskUse = (name) => `<svg aria-hidden="true" focusable="false"><use href="#ledger-${name}"/></svg>`;
   function masksCell(p) {
     return p.features.virusMalwareOnLinks
-      ? `<span class="ledger__masks">${MASKS.map(maskUse).join('')}</span><span class="sr-only">Scam, virus and malware</span>`
-      : `<span class="ledger__masks">${maskUse('scam')}</span><span class="sr-only">Scam only</span>`;
+      ? `<span class="ledger__masks" role="img" aria-label="Scam, virus and malware">${MASKS.map(maskUse).join('')}</span>`
+      : `<span class="ledger__masks" role="img" aria-label="Scam only">${maskUse('scam')}</span>`;
   }
 
   // The two things a first-time visitor asks, and everything that answers them, once each.

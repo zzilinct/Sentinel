@@ -3118,8 +3118,16 @@
 
   /* ================================================================ plan */
 
-  function planView(el) {
-    const current = plan().id;
+  /** The plan comparison is only on this page, so only this page loads it. */
+  const planbook = () => (window.SentinelPlanbook ? Promise.resolve() : new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/assets/js/planbook.js';
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.append(script);
+  }));
+
+  async function planView(el) {
     const us = usage();
     const { billingMode } = state.config;
     const demo = billingMode === 'demo';
@@ -3133,10 +3141,18 @@
       </div>
       <div class="u-mt-lg">${modelSlot(false)}</div>
       <div class="panel u-mt"><h2>The models</h2><p class="muted u-mt-xs">Every major version of Sentinel is a model, named for a guardian from myth. Turn one over to read about it.</p><div class="u-mt">${guardiansHTML()}</div></div>
-      <div class="u-mt-lg">${window.SentinelPlanbook.ledger(state.plans, { billingMode, current: plan() })}</div>`;
+      <div class="u-mt-lg" data-ledger></div>`;
 
     mountModels(el);
-    $$('button[data-plan]', el).forEach((b) => b.addEventListener('click', () => busy(b, 'Updating', async () => {
+    const slot = $('[data-ledger]', el);
+    try {
+      await planbook();
+    } catch {
+      slot.innerHTML = '<p class="muted">The plans could not load just now. <a href="/pricing">See them on the website</a>.</p>';
+      return;
+    }
+    slot.innerHTML = window.SentinelPlanbook.ledger(state.plans, { billingMode, current: plan() });
+    $$('button[data-plan]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Updating', async () => {
       try {
         const data = await api('/billing/plan', { method: 'POST', body: { plan: b.dataset.plan } });
         state.me = { ...state.me, user: data.user, plan: data.plan, usage: data.usage, week: data.week };
