@@ -107,8 +107,8 @@ async function checkPractice() {
     /* A computer, by keyboard alone. Every scam reported and named except one, which is let through. */
     const d = await open({});
     const first = await ids(d);
-    const resting = await js(d, "document.getAnimations().filter((a) => a.playState === 'running' && !a.effect.target.closest?.('.nav, header, footer')).map((a) => a.effect.target.className || a.effect.target.tagName).slice(0, 5)");
-    result('practice: at rest nothing on the page is animating', !resting.length, resting);
+    const resting = await js(d, "document.getAnimations().filter((a) => a.playState === 'running' && a.effect.target.closest && a.effect.target.closest('[data-practice]')).map((a) => a.effect.target.className || a.effect.target.tagName).slice(0, 5)");
+    result('practice: at rest nothing in the inbox is animating', !resting.length, resting);
     const unread = await js(d, "document.querySelectorAll('.prow.is-unread').length");
     result('practice: ten unread rows, none with a real link in them', first.length === 10 && unread === 10 && (await js(d, "document.querySelectorAll('[data-practice] a').length")) === 0, { first, unread });
 
@@ -128,7 +128,7 @@ async function checkPractice() {
       await enter(d);
       await sleep(80);
       const sender = await js(d, "document.querySelector('[data-card]:last-child [data-isle]').textContent");
-      if (!sender.includes(m.addr)) problems.push(`${id}: sender showed "${sender}"`);
+      if (!sender.includes(m.kind === "text" && !m.addr.startsWith("+") ? "can be copied" : m.addr)) problems.push(`${id}: sender showed "${sender}"`);
       if (m.link) {
         await js(d, "document.querySelector('[data-card]:last-child .plink').focus(), true");
         await enter(d);

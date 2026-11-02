@@ -150,6 +150,18 @@ test('practice: a miss comes back as a new message of the same kind, never the s
     for (const m of more) assert.ok(!deck.some((d) => d.pair === m.pair), `${m.id} came from this deal`);
     assert.ok(more.some(isScam) && more.some((m) => !isScam(m)), 'all one sort would give the answer away');
   }
+  // One scam let through, whatever it was and whatever else this deal used up, always brings a second look.
+  for (let s = 1; s <= 300; s++) {
+    const rng = seeded(s);
+    const deck = draw(rng);
+    for (const miss of deck.filter(isScam)) {
+      const log = deck.map((m) => ({ m, choice: m === miss ? 'fine' : isScam(m) ? 'unsure' : 'fine', looked: {} }));
+      const more = secondLook(log, rng);
+      const sign = judge(miss, 'fine').main;
+      assert.ok(more.some((m) => m[sign] && m[sign].bad), `${s} ${miss.id}: no new message with a bad ${sign}`);
+      assert.ok(more.some((m) => !isScam(m)), `${s} ${miss.id}: only scams came back`);
+    }
+  }
   assert.deepEqual(secondLook(POOL.slice(0, 4).map((m) => ({ m, choice: isScam(m) ? 'ask' : 'fine', looked: {} }))), [], 'nothing missed, nothing back');
 });
 

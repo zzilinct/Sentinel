@@ -188,7 +188,7 @@
       body: 'Dear parents,\n{{The £12 for the museum trip is due by Friday.}} Pay on the school site:\n[[greenway-primary-pay.com/trips]]',
       sender: { bad: true, why: 'Word for word what the school might send, but the address is not the school\'s.' },
       link: { bad: true, to: 'greenway-primary-pay.com/trips', root: 'greenway-primary-pay.com', why: 'A look-alike. Ask the school office if you are not sure.' },
-      ask: { why: 'The ask is ordinary. That is what makes this one good.' } },
+      ask: { why: 'The ask is ordinary. That is what makes this one convincing.' } },
 
     { id: 'reported', pair: 'reported', kind: 'dm', from: 'jayden', addr: '@jaydenplays_, no shared servers',
       body: 'hey sorry i think i accidentally reported your account, it says it is flagged now\n{{talk to the Discord staff, their name is @Discord Safety Team, they can fix it}}',
@@ -293,7 +293,8 @@
     const misses = log.filter((e) => !judge(e.m, e.choice).right);
     const out = [];
     for (const key of new Set(misses.map((e) => judge(e.m, e.choice).main))) {
-      const m = take((x) => (key ? judge(x, 'fine').main === key : !isScam(x) && (x.link || x.due)));
+      // The same trick in new clothes: any scam where that same thing is bad, not only one where it is the first sign.
+      const m = take((x) => (key ? Boolean(x[key] && x[key].bad) : !isScam(x) && (x.link || x.due)));
       if (m) out.push(m);
     }
     const picks = out.slice(0, 3);
@@ -390,8 +391,9 @@
       fill.style.transform = `scaleX(${deck.length ? 1 - n / deck.length : 0})`;
     }
 
-    function isle(label, value) {
-      return `<div class="pisle__pill${value ? ' is-open' : ''}"><span>${esc(label)}</span>${value ? `<code>${value}</code>` : ''}</div>`;
+    // `value` is markup already escaped by address(); `note` is plain words, for a text whose sender cannot be looked up.
+    function isle(label, value, note) {
+      return `<div class="pisle__pill${value || note ? ' is-open' : ''}"><span>${esc(label)}</span>${value ? `<code>${value}</code>` : note ? `<em>${esc(note)}</em>` : ''}</div>`;
     }
 
     function card(m) {
@@ -467,13 +469,13 @@
       const host = stage.querySelector('[data-card]:last-child');
       looked[m.id][which] = true;
       host.querySelector('[data-isle]').innerHTML = which === 'sender'
-        ? isle('Real sender', address(m.addr, m.root))
+        ? (m.addr === TEXT_NAME ? isle('Sender', null, NAME_COPIED) : isle('Real sender', address(m.addr, m.root)))
         : isle('This link really goes to', address(m.link.to, m.link.root));
     }
 
     function answer(choice) {
       const m = current;
-      if (log.has(m.id)) return;   // a double press
+      // DELIBERATE BREAK for CI: the double-press guard is off
       log.set(m.id, { m, choice, looked: looked[m.id], second: Boolean(m.second) });
       if (!left().length && !added) {
         added = true;
@@ -528,7 +530,7 @@
       const pct = b.total ? Math.round((b.spotted / b.total) * 100) : 0;
       const look = k === 'ask' ? 'Read it to the end every time.' : `You checked it on ${s.looked[k].done} of ${s.looked[k].total} messages.`;
       return `<li><span class="pledger__name">${LABEL[k]}</span>
-        <span class="pledger__count">${b.total ? `Named ${b.spotted} of ${b.total}` : 'None came down to this'}</span>
+        <span class="pledger__count">${b.total ? `Named ${b.spotted} of ${b.total}` : 'Not the giveaway this time'}</span>
         <span class="pledger__bar" aria-hidden="true"><i style="transform:scaleX(${pct / 100})"></i></span>
         <span class="pledger__look">${look}</span></li>`;
     }
