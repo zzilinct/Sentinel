@@ -232,6 +232,10 @@ function register(router) {
     if (!config.deviceAccounts) throw new HttpError(404, 'not_found', 'Not found');
     const ip = security.clientIp(req);
     if (!['127.0.0.1', '::1', 'localhost'].includes(ip)) throw new HttpError(403, 'local_only', 'Device accounts are for this computer only');
+    // Only the app itself. The CORS rules let any installed extension and the public site call this server, and the
+    // token in the answer reads this computer's history and sites.
+    const origin = req.headers.origin || '';
+    if (security.isExtensionOrigin(origin) || origin === config.brand.origin) throw new HttpError(403, 'local_only', 'Device accounts are for this computer only');
     const email = 'this-computer@sentinel.local';
     let user = A.uq.byEmail.get(email);
     if (!user) {
