@@ -196,6 +196,24 @@ test('client tokens are only issued to a browser session, not to another token',
   assert.equal(me.status, 200);
 });
 
+test('a stolen session cannot mint a token that counts as a recent sign-in', async () => {
+  const { db } = require('../server/lib/auth');
+  const c = await signedIn();
+  db.prepare('UPDATE users SET password_hash = NULL WHERE email = ?').run(c.email);   // a Google-only account
+  const { token } = (await c.post('/api/v1/auth/client-token', { client: 'desktop' })).data;
+  const bearer = (path, body) => fetch(`${app.base}/api/v1/account/${path}`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  });
+  for (const [path, body] of [['password', { newPassword: 'Another-Strong-Pass-77' }], ['delete', { confirm: 'DELETE' }]]) {
+    const r = await bearer(path, body);
+    assert.equal(r.status, 401, path);
+    assert.equal((await r.json()).error.code, 'reauth_required');
+  }
+  assert.equal(db.prepare('SELECT password_hash FROM users WHERE email = ?').get(c.email).password_hash, null);
+  // The real sign-in itself still counts.
+  assert.equal((await c.post('/api/v1/account/password', { newPassword: 'Another-Strong-Pass-77' })).status, 200);
+});
+
 test('password change signs out every other session', async () => {
   const c = await signedIn();
   const tok = (await c.post('/api/v1/auth/client-token', { client: 'desktop' })).data.token;
