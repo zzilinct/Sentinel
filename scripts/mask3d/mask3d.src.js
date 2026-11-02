@@ -13,7 +13,9 @@
  *
  * A model has four parts, told apart by their material's name: the body takes the finish and the baked maps; the trim is
  * gold on every mask; the liner is the dark floor of the sockets and openings; the ember is the light set on the floor of
- * each eye, lit in the onyx finish and brighter while the mask watches, its light falling on the socket around it.
+ * each eye, lit in the onyx finish and brighter while the mask watches, its light falling on the socket around it. All
+ * four are drawn with one material, each part's look chosen per vertex (a part attribute), so a mask costs the browser
+ * one shader to build, as before: a shader per part made the first frame of a page of masks stall.
  *
  * The <img> inside stays until the model is drawn (and stays for good without WebGL or with reduced motion: a
  * still render is the right answer there). window.SentinelMask3D.get(el) returns the mask's controls: tint(name),
@@ -21,7 +23,7 @@
  */
 import {
   WebGLRenderer, Scene, PerspectiveCamera, PMREMGenerator, MeshPhysicalMaterial, Color, Group, PointLight, Box3,
-  SRGBColorSpace, AgXToneMapping
+  SRGBColorSpace, AgXToneMapping, ShaderChunk, Float32BufferAttribute
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
@@ -57,9 +59,10 @@ const FINISH = {
   red: { color: '#a3030b', metalness: 0.85, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.03, rim: '#ff2a20', studio: 'scam' }
 };
 const GEOMETRY = { onyx: 'scam', scam: 'scam', virus: 'virus', malware: 'malware' };
-// The parts that are the same on every mask (masks.py build), in linear colour as Blender has them.
-const GOLD = { metalness: 1, roughness: 0.2 };
-const LINER = { metalness: 0, roughness: 0.42, specularIntensity: 0 };
+// Which part a vertex belongs to (the part attribute): gold, liner, ember; the body is none of them.
+const PART = { trim: [1, 0, 0], liner: [0, 1, 0], ember: [0, 0, 1], body: [0, 0, 0] };
+// The gold's own light: the onyx studio is dark for metal, so in onyx the gold's reflections are lifted.
+const GOLD_LIFT = { onyx: 2.4 };
 // The eyes' light: the ember's glow and the light it throws into the socket, at rest (1) and while watching (EYE_WATCH).
 const EMBER_GLOW = 0.8;
 const EMBER_THROW = 0.14;
@@ -93,14 +96,17 @@ const studio = (name) => {
 // Added to the physical material. Consumed: a horizon (uEat) grows from the middle and everything inside it is gone,
 // while the metal just outside is dragged round and in toward it. Reborn: a radius (uRadius) grows from the middle
 // with a swirl that unwinds, so the new mask comes out of the hole. Both edges burn in the hole's colour.
-function swallowable(material, state, heat) {
+function swallowable(material, state) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uRadius = state.radius;
     shader.uniforms.uSwirl = state.swirl;
     shader.uniforms.uRim = state.rim;
     shader.uniforms.uEat = state.eat;
+    shader.uniforms.uEmber = state.ember;
+    shader.uniforms.uGoldLift = state.goldLift;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uSwirl;\nuniform float uEat;\nvarying vec3 vMaskPos;')
+      .replace('#include <common>', '#include <common>\nuniform float uSwirl;\nuniform float uEat;\nvarying vec3 vMaskPos;\nattribute vec3 part;\nvarying vec3 vPart;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvPart = part;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         float r = length(transformed.xy);
         float a = uSwirl * 2.6 / (r + 0.22);
@@ -117,23 +123,39 @@ function swallowable(material, state, heat) {
         transformed.z -= pull * 0.35;
         vMaskPos = transformed;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRadius;\nuniform float uEat;\nuniform vec3 uRim;\nvarying vec3 vMaskPos;')
+      .replace('#include <common>', '#include <common>\nuniform float uRadius;\nuniform float uEat;\nuniform vec3 uRim;\nvarying vec3 vMaskPos;\nuniform float uEmber;\nuniform float uGoldLift;\nvarying vec3 vPart;')
+      // The parts (masks.py build): gold, a dark liner that reflects nothing, and the ember. Only the body is mapped.
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float anyPart = min(1.0, vPart.x + vPart.y + vPart.z);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.6, 0.16), vPart.x);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.004, 0.0035, 0.003), vPart.y + vPart.z);`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        roughnessFactor = mix(roughnessFactor, 0.2, vPart.x) + (0.42 - roughnessFactor) * vPart.y + (0.3 - roughnessFactor) * vPart.z;`)
+      .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+        metalnessFactor = mix(metalnessFactor, 1.0, vPart.x) * (1.0 - vPart.y - vPart.z);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        normal = normalize(mix(normal, nonPerturbedNormal, anyPart));`)
+      .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+        material.specularColor *= 1.0 - vPart.y - vPart.z;
+        material.specularF90 *= 1.0 - vPart.y - vPart.z;
+        #ifdef USE_CLEARCOAT
+          material.clearcoat *= 1.0 - anyPart;
+        #endif`)
+      .replace('#include <aomap_fragment>', ShaderChunk.aomap_fragment.replace('aoMapIntensity + 1.0;', 'aoMapIntensity + 1.0;\n\tambientOcclusion = mix(ambientOcclusion, 1.0, anyPart);')
+        .replace('#include <aomap_fragment>', '').replace('reflectedLight.indirectDiffuse *= ambientOcclusion;', 'reflectedLight.indirectDiffuse *= ambientOcclusion;\n\treflectedLight.indirectSpecular *= mix(1.0, uGoldLift, vPart.x);'))
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
         float edge = uRadius - length(vMaskPos.xy);
         if (edge < 0.0) discard;
         float eaten = length(vMaskPos.xy) - uEat;
         if (uEat > 0.0 && eaten < 0.0) discard;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        // The ember: hottest where its lens faces the eye, falling to a deep red at its edge.
+        float facing = saturate(dot(normal, normalize(vViewPosition)));
+        totalEmissiveRadiance += vPart.z * uEmber * vec3(1.0, 0.24, 0.01) * mix(vec3(0.55, 0.16, 0.0), vec3(1.25, 1.1, 1.0), facing * facing);
         totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.09, edge)) * 4.0 * step(uRadius, 1.6);
         if (uEat > 0.0) totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.14, eaten)) * 5.0;`);
-    // The ember: hottest where its lens faces the eye, falling to a deep red at the edge (masks.py build).
-    if (heat) {
-      shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        float facing = saturate(dot(normal, normalize(vViewPosition)));
-        totalEmissiveRadiance *= mix(vec3(0.55, 0.16, 0.0), vec3(1.25, 1.1, 1.0), facing * facing);`);
-    }
   };
-  material.customProgramCacheKey = () => `sentinel-swallow${heat ? '-heat' : ''}`;
+  material.customProgramCacheKey = () => 'sentinel-swallow';
 }
 
 /* ------------------------------------------------------- one renderer for all */
@@ -225,8 +247,8 @@ function mount(el) {
   return mounting.get(el);
 }
 
-function showEyes(eyes, ember) {
-  ember.emissiveIntensity = eyes.on ? EMBER_GLOW * eyes.level : 0;
+function showEyes(eyes, state) {
+  state.ember.value = eyes.on ? EMBER_GLOW * eyes.level : 0;
   for (const l of eyes.lights) l.intensity = eyes.on ? EMBER_THROW * eyes.level : 0;
 }
 
@@ -250,19 +272,12 @@ async function build(el) {
 
   const finishName = el.dataset.tint || kind;
   const f = FINISH[finishName] || FINISH.scam;
-  const state = { radius: { value: 9 }, swirl: { value: 0 }, eat: { value: 0 }, rim: { value: new Color(f.rim) } };
+  const state = { radius: { value: 9 }, swirl: { value: 0 }, eat: { value: 0 }, rim: { value: new Color(f.rim) }, ember: { value: 0 }, goldLift: { value: GOLD_LIFT[finishName] || 1 } };
   const material = new MeshPhysicalMaterial({
     color: new Color(f.color), metalness: f.metalness, roughness: f.roughness, clearcoat: f.clearcoat,
     clearcoatRoughness: f.clearcoatRoughness
   });
   swallowable(material, state);
-  const gold = new MeshPhysicalMaterial({ ...GOLD, envMapIntensity: 0.7, color: new Color().setRGB(1, 0.6, 0.16) });
-  swallowable(gold, state);
-  const liner = new MeshPhysicalMaterial({ ...LINER, color: new Color().setRGB(0.004, 0.0035, 0.003) });
-  swallowable(liner, state);
-  const ember = new MeshPhysicalMaterial({ color: 0x000000, roughness: 0.3, specularIntensity: 0, emissive: new Color().setRGB(1, 0.24, 0.01), emissiveIntensity: 0 });
-  swallowable(ember, state, true);
-  const parts = { trim: gold, liner, ember };
 
   // pivot: where the mask looks; holder: its resting pose.
   const pivot = new Group();
@@ -277,10 +292,8 @@ async function build(el) {
 
   let eyes = null;
   try {
-    const [src, env, warm] = await Promise.all([model(geom), studio(f.studio), studio('scam')]);
+    const [src, env] = await Promise.all([model(geom), studio(f.studio)]);
     scene.environment = env;
-    // The gold always stands in the warm studio: the onyx one is too dark for metal, and a stud would mirror the black.
-    gold.envMap = warm;
     const m = src.clone(true);
     // The model's own maps, baked in Blender from the detailed mask (masks.py --glb): the normal map carries the
     // bevels, rims and ridges smaller than a triangle, under the lacquer too; the occlusion map darkens the sockets'
@@ -297,7 +310,13 @@ async function build(el) {
         material.clearcoatNormalScale.copy(baked.normalScale);
       }
       if (baked.aoMap) material.aoMap = baked.aoMap;
-      o.material = parts[baked.name] || material;
+      // Shared by every copy of the model, so made once.
+      const g = o.geometry;
+      if (!g.attributes.part) {
+        const p = PART[baked.name] || PART.body;
+        g.setAttribute('part', new Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).map((_, i) => p[i % 3]), 3));
+      }
+      o.material = material;
     });
     holder.add(m);
     if (f.lit && glow) {
@@ -311,7 +330,7 @@ async function build(el) {
         return light;
       });
       eyes = { lights, level: 1, on: true };
-      showEyes(eyes, ember);
+      showEyes(eyes, state);
     }
   } catch {
     return null;
@@ -433,7 +452,7 @@ async function build(el) {
       }
       if (eyes) {
         eyes.level += (1 + (EYE_WATCH - 1) * look.w - eyes.level) * Math.min(1, dt * 6);
-        showEyes(eyes, ember);
+        showEyes(eyes, state);
       }
       if (anim && anim(now) === false) anim = null;
       const moving = Math.abs(tx - look.x) + Math.abs(ty - look.y) + Math.abs(tw - look.w) + Math.abs(look.vx) + Math.abs(look.vy) > 0.0005;
@@ -461,7 +480,8 @@ async function build(el) {
     material.roughness = fin.roughness;
     material.clearcoat = fin.clearcoat;
     state.rim.value.set(fin.rim);
-    if (eyes) { eyes.on = Boolean(fin.lit); showEyes(eyes, ember); }
+    state.goldLift.value = GOLD_LIFT[name] || 1;
+    if (eyes) { eyes.on = Boolean(fin.lit); showEyes(eyes, state); }
     // Into or out of onyx: that finish's studio (fetched once, the first time any mask needs it).
     studio(fin.studio).then((env) => { if (current === name) { scene.environment = env; dirty = true; stir(); } }, () => {});
   };

@@ -454,7 +454,7 @@ def smooth(a, b, d):
 
 def build(look):
     parts = sculpt(look['kind'])
-    gold = material(dict(svg='trim', base=(1.0, 0.71, 0.29), metal=1.0, rough=0.2, coat=0.0))
+    gold = material(dict(svg='trim', base=(1.0, 0.6, 0.16), metal=1.0, rough=0.2, coat=0.0))
     dark = material(dict(svg='liner', base=(0.004, 0.0035, 0.003), metal=0.0, rough=0.42, coat=0.0))
     ember = material(dict(svg='ember', base=(0.01, 0.008, 0.006), metal=0.0, rough=0.2, coat=0.0))
     if look.get('lit'):
@@ -465,11 +465,11 @@ def build(look):
         ramp.inputs['Blend'].default_value = 0.35
         heat = nt.nodes.new('ShaderNodeMix')
         heat.data_type = 'RGBA'
-        heat.inputs['A'].default_value = (1.0, 0.34, 0.02, 1)
-        heat.inputs['B'].default_value = (0.7, 0.07, 0.0, 1)
+        heat.inputs['A'].default_value = (1.0, 0.27, 0.01, 1)
+        heat.inputs['B'].default_value = (0.55, 0.04, 0.0, 1)
         nt.links.new(ramp.outputs['Facing'], heat.inputs['Factor'])
         nt.links.new(heat.outputs['Result'], b.inputs['Emission Color'])
-        b.inputs['Emission Strength'].default_value = 1.1
+        b.inputs['Emission Strength'].default_value = 0.9
     for o, m in zip(parts, (material(look), gold, dark, ember)):
         o.data.materials.append(m)
     rig = bpy.data.objects.new('rig', None)

@@ -50,7 +50,7 @@ MIN_CALM = 0.3            # share of the front view's metal that is calm (calm()
 FINISHES = {'gold': ((0.95, 0.68, 0.3), 1.0, 0.2, 0.4), 'onyx': ((0.008, 0.007, 0.006), 0.0, 0.3, 0.6),
             'red': ((0.62, 0.015, 0.03), 0.85, 0.24, 1.0), 'orange': ((1.0, 0.3, 0.03), 1.0, 0.22, 0.7)}
 WORN = {'scam': ('gold', 'onyx'), 'malware': ('red',), 'virus': ('orange',)}
-PARTS = {'trim': ((1.0, 0.71, 0.29), 1.0, 0.2, 0.0), 'liner': ((0.004, 0.0035, 0.003), 0.0, 0.42, 0.0), 'ember': ((0.004, 0.0035, 0.003), 0.0, 0.3, 0.0)}
+PARTS = {'trim': ((1.0, 0.6, 0.16), 1.0, 0.2, 0.0), 'liner': ((0.004, 0.0035, 0.003), 0.0, 0.42, 0.0), 'ember': ((0.004, 0.0035, 0.003), 0.0, 0.3, 0.0)}
 PAGES = {'dark': (0.03, 0.026, 0.022), 'light': (0.9, 0.88, 0.85)}
 
 
@@ -356,8 +356,8 @@ def finish(objs, look):
             b.inputs['Roughness'].default_value = rough
             b.inputs['Coat Weight'].default_value = coat
             if part == 'ember':
-                b.inputs['Emission Color'].default_value = (1.0, 0.34, 0.02, 1)
-                b.inputs['Emission Strength'].default_value = 1.1 if look == 'onyx' else 0
+                b.inputs['Emission Color'].default_value = (1.0, 0.24, 0.01, 1)
+                b.inputs['Emission Strength'].default_value = 0.9 if look == 'onyx' else 0
 
 
 def on_pages(path):
