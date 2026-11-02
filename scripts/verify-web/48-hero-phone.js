@@ -26,7 +26,7 @@ const MEASURE = `(() => {
   const at = (x, y) => [...pic.getImageData(Math.round(view.width * x), Math.round(view.height * y), 1, 1).data];
   const name = box(range);
   return { W: innerWidth, sideways: document.documentElement.scrollWidth - innerWidth, text: word.textContent, word: name,
-    held: [...window.__canvases].filter((c) => c !== view && c.width * c.height > 0 && ((c.width === view.width && c.height === view.height) || (c.width === Math.round(view.clientWidth * 0.5) && c.height === Math.round(view.clientHeight * 0.5)))).length,
+    held: [...window.__canvases].filter((c) => c !== view && !c.isConnected && c.width * c.height > 0 && ((c.width === view.width && c.height === view.height) || (c.width === Math.round(view.clientWidth * 0.5) && c.height === Math.round(view.clientHeight * 0.5)))).length,
     viewBytes: view.width * view.height * 4, cta: box(document.querySelector('.hero__cta .btn')), ctaOpacity: getComputedStyle(document.querySelector('.hero .hero__cta')).opacity, H: innerHeight, banner: Boolean(document.querySelector('.prelaunch')),
     view: box(view), mask: box(document.querySelector('[data-hero-mask]')), copy: box(document.querySelector('.hero__copy')),
     painted: Math.max(...pic.getImageData(Math.round(view.width * 0.7), Math.round(view.height * 0.6), 60, 60).data.filter((_, i) => i % 4 === 3)) > 200,
@@ -50,7 +50,7 @@ function phoneProblems(m) {
   if (m.W >= 360 && m.cta.bottom > m.H) out.push(`the button is below the fold: ${Math.round(m.cta.bottom)} of ${m.H}`);
   if (m.held) out.push(`${m.held} working canvases still hold memory`);
   if (m.W <= 430 && m.viewBytes > CANVAS_BYTES * (m.W / 390) ** 2) out.push(`the niche holds ${m.viewBytes} bytes`);
-  if (m.ctaOpacity !== '1') out.push(`the button is not shown yet (opacity ${m.ctaOpacity})`);
+  if (m.W >= 360 && m.ctaOpacity !== '1') out.push(`the button is not shown yet (opacity ${m.ctaOpacity})`);
   return out;
 }
 

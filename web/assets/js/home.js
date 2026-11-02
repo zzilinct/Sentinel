@@ -860,6 +860,8 @@
         const hw = u.measureText(host).width;
         const hx = x === undefined ? (W - hw) / 2 : Math.max(8, Math.min(cx - 10, W - hw - 10));
         if (x === undefined) { u.fillStyle = 'rgba(9,7,5,.82)'; u.fillRect(hx - 6, y + 22, hw + 12, 24); }
+        // On the page, the binary steps aside so the address reads on the page itself.
+        else if (onPage()) { u.save(); u.globalCompositeOperation = 'destination-out'; u.fillRect(hx - 8, y + 22, hw + 16, 26); u.restore(); }
         u.fillStyle = hostInk;
         u.fillText(host, hx, y + 34);
         u.fillStyle = col;
