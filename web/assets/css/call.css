@@ -20,7 +20,7 @@
   background: #0b0906 linear-gradient(165deg, #231c12, #0b0906 62%);
   box-shadow: 0 16px 36px rgb(0 0 0 / .38), inset 0 0 0 1px rgb(226 194 127 / .3), inset 0 1px 0 rgb(255 240 200 / .14);
 }
-.call__plate::after { content: ""; position: absolute; inset: 0; opacity: 0; background: linear-gradient(165deg, #7a1b1b, #320b0b 70%); transition: opacity .3s ease; }
+.call__plate::after { content: ""; position: absolute; inset: 0; opacity: 0; background: linear-gradient(165deg, #7a1b1b, #320b0b 70%); transition: opacity .18s ease; }
 [data-verdict="hangup"] .call__plate { background-color: #320b0b; box-shadow: 0 16px 36px rgb(60 8 8 / .42), inset 0 0 0 1px rgb(255 190 170 / .34), inset 0 1px 0 rgb(255 225 215 / .18); }
 [data-verdict="hangup"] .call__plate::after { opacity: 1; }
 .call__body { display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 14px; align-items: center; padding: 18px 20px 20px; }
@@ -60,7 +60,7 @@ input:checked + .call__tick--checkbox::after { transform: rotate(40deg) scale(1)
 
 @media (min-width: 520px) { .call__picks--chips { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
 /* Two to a row: an odd last choice takes the whole row rather than leaving a hole. */
-@media (max-width: 519px), (min-width: 1000px) { .call__pick:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+@media (max-width: 519px) { .call__pick:last-child:nth-child(odd) { grid-column: 1 / -1; } }
 @media (min-width: 1000px) {
   .call-page { padding-top: 120px; }
   .call { grid-template-columns: minmax(0, 1fr) 372px; gap: 40px; align-items: start; }
