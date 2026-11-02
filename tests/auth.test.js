@@ -291,6 +291,12 @@ test('the desktop device account is off by default and can never touch a person\
     assert.equal(a.data.user.email, 'this-computer@sentinel.local');
     assert.equal(a.data.user.id, b.data.user.id, 'always the same one account');
     assert.equal(a.headers.get('set-cookie'), null, 'it hands back a token for background services, never a browser session');
+    // Another extension, or the public site, is allowed to call this server, but never gets this computer's token.
+    for (const origin of ['chrome-extension://abcdefghijklmnopabcdefghijklmnop', config.brand.origin]) {
+      const refused = await c.post('/api/v1/auth/device', {}, { origin });
+      assert.equal(refused.status, 403, origin);
+      assert.equal(refused.data.token, undefined);
+    }
     assert.deepEqual(db.prepare('SELECT * FROM users WHERE email = ?').get(email), before, 'the person\'s account is byte-for-byte unchanged');
     assert.equal((await login(client(app.base), email)).status, 200);
     // It has no password, so nobody can sign in as it.
