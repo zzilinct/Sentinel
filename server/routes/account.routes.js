@@ -29,7 +29,9 @@ const q = {
 const RECENT_SIGN_IN_MS = 10 * 60 * 1000;
 async function requireRecentPassword(user, password, req) {
   if (!user.password_hash) {
-    const at = req && req._session ? req._session.createdAt : 0;
+    // Only a real sign-in counts. A token for the app or the companion is new the moment a session asks for one, so a
+    // stolen session could otherwise mint its way past this.
+    const at = req && req._session && req._session.kind === 'web' ? req._session.createdAt : 0;
     if (!at || Date.now() - at > RECENT_SIGN_IN_MS) throw new HttpError(401, 'reauth_required', 'For your safety, sign out and sign in again with Google, then try once more.');
     return;
   }
@@ -247,7 +249,7 @@ function register(router) {
     const user = A.requireUser(req);
     const body = await readJson(req);
     if (config.billingMode !== 'demo') {
-      throw new HttpError(501, 'billing_unavailable', 'Upgrades open soon. We will email you the moment Pro, Max and Ultimate are available.');
+      throw new HttpError(501, 'billing_unavailable', 'Upgrades open soon.');
     }
     plans.setPlan(user.id, String(body.plan || ''));
     security.audit('plan_changed', { userId: user.id, req, detail: body.plan });

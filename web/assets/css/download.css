@@ -73,6 +73,7 @@ html:not(.js) .ss__more { display: none; }
 .compare-more .compare-wrap { margin-top: 18px; }
 
 main > .section--tight { padding: 72px 0; }
+main > .section--tight .section__head { margin-bottom: 40px; }
 main > .section--tight .section__head h2 { font-size: var(--t-d3); }
 #elsewhere .grid-2col { align-items: start; }
 
