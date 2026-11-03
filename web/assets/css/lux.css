@@ -159,7 +159,7 @@ body::after {
 
 /* ------------------------------------------------- panels and tables */
 
-.card, .tile, .plan, .cta, .window, .float { background: var(--relief), var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--raise); }
+.card, .tile, .cta, .window, .float { background: var(--relief), var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--raise); }
 .prose h2 { font-size: var(--t-title-l); }
 .prose-wrap .card { border-radius: 26px; padding: 34px; }
 .tile .notes { margin: 10px 0 0; padding-left: 20px; color: var(--text-2); font-size: var(--t-text); max-width: var(--measure); }

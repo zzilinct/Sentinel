@@ -22,18 +22,7 @@ Red is only ever shown with **evidence** (a threat-feed match, a known scam kit 
 
 ## Plans (enforced server-side, reset Mondays 00:00 UTC)
 
-| | Free | Pro | Max | Ultimate |
-|---|---|---|---|---|
-| Price / month | $0 | $15 | $40 | $100 |
-| Link scans / week | 10 (no research, scam mask only) | 40 (researched, all masks) | 100 (researched, all masks) | 500 (researched, all masks) |
-| Virus & malware scans / week | 5 | 40 | 100 | 500 |
-| Fast live scanning / week | 15 min | 24 h | unlimited | unlimited |
-| Delicate live scanning / week (every result researched) | No | 4 h | 24 h | 96 h |
-| Email masks (Gmail/Outlook) | No | ✓ | ✓ | ✓ |
-| Paste-in email scans | No | No | ✓ (counts as a link scan) | ✓ (counts as a link scan) |
-| Download protection (app) | No | ✓ | ✓ | ✓ |
-
-Prices and entitlements live in [server/lib/plans.js](server/lib/plans.js) and are enforced there: the client only renders what the server returns. An uncapped allowance is stored as `null`.
+Free, Pro, Max and Ultimate. Prices and entitlements live in [server/lib/plans.js](server/lib/plans.js) and are enforced there; the pricing page and the app's plan page are built from them (web/assets/js/planbook.js), so they are not repeated here. An uncapped allowance is stored as `null`.
 
 ## What's in the repo
 

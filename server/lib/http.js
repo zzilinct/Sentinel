@@ -165,11 +165,25 @@ function compress(key, raw, encoding) {
  * Expand `<!-- @include name -->` with web/partials/name.html. Names are
  * restricted to [a-z0-9-], so includes can never reach outside that folder.
  */
+const planParts = new Map();
+
+/** The pricing sections are built from the plans themselves (web/assets/js/planbook.js), not from a partial. */
+function planPart(base, name) {
+  if (!planParts.has(name)) {
+    // Here, not at the top: plans.js needs this file for HttpError.
+    const { publicPlans } = require('./plans');
+    planParts.set(name, require(path.join(base, 'assets', 'js', 'planbook.js')).include(name, publicPlans(), require('../config').billingMode));
+  }
+  return planParts.get(name);
+}
+
 function renderHtml(base, file) {
   const partialsDir = path.join(base, 'partials');
   const stamps = [fs.statSync(file).mtimeMs];
   let html = fs.readFileSync(file, 'utf8');
   html = html.replace(/<!--\s*@include\s+([a-z0-9-]+)\s*-->/g, (_, name) => {
+    const planned = planPart(base, name);
+    if (planned !== undefined) { stamps.push(planned); return planned; }   // a new limit is a new page, for caches too
     const partial = path.join(partialsDir, `${name}.html`);
     if (!fs.existsSync(partial)) return '';
     stamps.push(fs.statSync(partial).mtimeMs);

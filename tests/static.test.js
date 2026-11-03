@@ -61,13 +61,16 @@ test('static build: pre-launch defuses account and download links instead of lea
   const dl = read('download.html');
   assert.ok(dl.includes('https://github.com/zzilinct/Sentinel/releases/latest/download/Sentinel-Setup.exe'));
   assert.equal(dl.match(/href="downloads\//g), null, 'no download links into files the static host does not have');
+  // No accounts here yet, so the one button on the plans is the app, not a Start free that does nothing.
+  assert.match(read('pricing.html'), /<a class="btn btn--gold btn--sm" href="download\.html">Get the app<\/a>/);
 });
 
 test('static build: --launched wires every link to the live origin', () => {
   const { read, hrefs } = build(['--launched']);
   const home = read('index.html');
   assert.ok(!home.includes('class="prelaunch"'));
-  assert.ok(hrefs(home).some((h) => h === `${brand.origin}/signup?plan=pro`), 'plan buttons reach the live signup');
+  assert.ok(hrefs(home).some((h) => h === `${brand.origin}/signup`), 'Start free reaches the live signup');
+  assert.ok(!hrefs(home).some((h) => /plan=/.test(h)), 'a static site sells no plan, even launched: it has no billing');
   assert.ok(hrefs(home).some((h) => h === `${brand.origin}/app`));
 });
 
