@@ -183,10 +183,10 @@ async function checkCompanionPolish() {
       const priv = { targetId: target.targetId, sessionId: (await browser.send('Target.attachToTarget', { targetId: target.targetId, flatten: true })).sessionId };
       await browser.send('Page.enable', {}, priv.sessionId);
       await goto(browser, priv.sessionId, `http://${FLAG}/wallet/home`);
-      const block = await waitText(priv.sessionId, /Take me back to safety/, 80);
+      const block = await waitText(priv.sessionId, /Take me back to safety|Go to the real/, 80);
       await shot(browser, priv.sessionId, 'companion-polish-private-flagged');
       const href = await evalIn(browser, priv.sessionId, 'location.href').catch((e) => e.message);
-      result(`companion-polish: ${FLAG} in a private window gets the block page`, /Take me back to safety/.test(block), { href, text: block.slice(0, 200) });
+      result(`companion-polish: ${FLAG} in a private window is warned (the block page if red, over the page if orange)`, /Take me back to safety|Go to the real/.test(block), { href, text: block.slice(0, 200) });
       // Continue anyway: the page opens and stays open, and only the page itself knows it is flagged.
       // Red is taken to the block page; orange is warned over the page that stays.
       if (await evalIn(browser, priv.sessionId, "location.protocol === 'chrome-extension:'")) await passBlock(browser, priv.sessionId, 'typeof window.goSend === "function"');
@@ -199,7 +199,7 @@ async function checkCompanionPolish() {
       await shot(browser, priv.sessionId, 'companion-polish-private-flagged-send');
       const store = await kept();
       result('companion-polish: the flagged page moving to its send screen by pushState gets no pay pause, and nothing about it is kept',
-        /Take me back to safety/.test(block) && noBlock && where === '/wallet/send' && /Send/.test(after) && !after.includes(SAYS) && !JSON.stringify(store).includes(FLAG) && !store['paused:private'] && !Object.keys(store).some((k) => k.startsWith('typed:')),
+        /Take me back to safety|Go to the real/.test(block) && noBlock && where === '/wallet/send' && /Send/.test(after) && !after.includes(SAYS) && !JSON.stringify(store).includes(FLAG) && !store['paused:private'] && !Object.keys(store).some((k) => k.startsWith('typed:')),
         { noBlock, where, paused: after.includes(SAYS), kept: Object.keys(store) });
       // The pause itself still works in a private window, on an honest gift card page.
       await goto(browser, priv.sessionId, 'http://giftshop.test/gift-cards/');
