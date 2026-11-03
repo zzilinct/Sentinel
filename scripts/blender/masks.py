@@ -49,7 +49,7 @@ ap.add_argument('--keep-high', action='store_true', help='--glb: also write the 
 ap.add_argument('--env', action='store_true', help='render the studio itself as an equirectangular HDR (2:1, --size tall) for the live masks')
 ap.add_argument('--web', action='store_true', help='still: also write it cropped as the site uses it, as .webp')
 ap.add_argument('--image-format', default='WEBP', choices=['WEBP', 'AUTO', 'JPEG'], help='--glb: how the maps are stored')
-ap.add_argument('--image-quality', type=int, default=95, help='--glb: quality of lossy maps')
+ap.add_argument('--image-quality', type=int, default=84, help='--glb: quality of lossy maps')
 args = ap.parse_args(argv)
 
 # Colour, finish and the light around each mask.
@@ -206,6 +206,21 @@ def to_object(name, verts, quads):
     me.update()
     o = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(o)
+    # Sampling can leave a speck, a tiny closed shell where two cuts nearly meet: it shadowed the bake in a ragged
+    # black patch. Only real pieces stay (the liner and the ember are several of them).
+    select_only([o])
+    bpy.ops.mesh.separate(type='LOOSE')
+    pieces = list(bpy.context.selected_objects)
+    big = max(len(p.data.vertices) for p in pieces)
+    keep = [p for p in pieces if len(p.data.vertices) >= big * 0.02]
+    for p in pieces:
+        if p not in keep:
+            bpy.data.objects.remove(p)
+    select_only(keep)
+    if len(keep) > 1:
+        bpy.ops.object.join()
+    o = bpy.context.view_layer.objects.active
+    o.name = name
     return o
 
 
@@ -699,14 +714,15 @@ def export_glb(kind):
     select_only([low])
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.004, area_weight=0.0, scale_to_bounds=True)
+    bpy.ops.uv.smart_project(angle_limit=math.radians(40), island_margin=0.004, area_weight=0.0, scale_to_bounds=True)
+    # Islands no wider than 40 degrees, so none folds over itself: two faces sharing texels baked a ragged patch.
     bpy.ops.object.mode_set(mode='OBJECT')
 
     # Bake (blender-texture-baking): rays leave a little outside the low surface and land on the high one. Close enough
     # that the gold rim, a hair above the metal, never catches a ray meant for the metal.
     s.render.bake.use_selected_to_active = True
-    s.render.bake.cage_extrusion = 0.02
-    s.render.bake.max_ray_distance = 0.05
+    s.render.bake.cage_extrusion = 0.035
+    s.render.bake.max_ray_distance = 0.09
     s.render.bake.margin = 8
     s.render.bake.margin_type = 'EXTEND'
     # Only the body's own surface shades itself: a simplified liner just under it blotched the occlusion black.

@@ -44,6 +44,7 @@ MIN_HIDDEN = 0.85         # share of the eye the socket hides from 70 degrees to
 MIN_OVERLAP = 0.92        # front view against the drawing (intersection over union)
 MIN_HORN_ROUND = 0.5      # how much a horn's depth changes across it, as a share of its deepest
 MIN_CALM = 0.3            # share of the front view's metal that is calm (calm())
+MAX_UV_OVERLAP = 0.003     # share of the body's map that two faces both claim
 
 
 # base colour, metal, roughness, lacquer: the site's finishes (mask3d.src.js FINISH), and each model in the ones it wears.
@@ -102,6 +103,7 @@ def check(objs):
         errors.append('faces point inward (negative volume)')
     # UVs: present, inside the unit square, and every face with some area.
     uv_out = uv_zero = 0
+    texels = Counter()
     for o in objs:
         me = o.data
         if not me.uv_layers:
@@ -117,6 +119,21 @@ def check(objs):
             uv_out += sum(1 for q in pts if q.x < -1e-3 or q.y < -1e-3 or q.x > 1.001 or q.y > 1.001)
             area = sum(pts[i].x * pts[(i + 1) % len(pts)].y - pts[(i + 1) % len(pts)].x * pts[i].y for i in range(len(pts)))
             uv_zero += abs(area) < 1e-12
+            # Every texel the face covers, at 256 px: a texel two faces claim gets baked from both, a ragged patch.
+            if len(pts) == 3 and abs(area) > 1e-12:
+                (ax, ay), (bx, by), (cx, cy) = pts
+                xs = np.arange(int(min(ax, bx, cx) * 256), int(max(ax, bx, cx) * 256) + 1)
+                ys = np.arange(int(min(ay, by, cy) * 256), int(max(ay, by, cy) * 256) + 1)
+                gx, gy = np.meshgrid((xs + 0.5) / 256, (ys + 0.5) / 256)
+                d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+                l1 = ((by - cy) * (gx - cx) + (cx - bx) * (gy - cy)) / d
+                l2 = ((cy - ay) * (gx - cx) + (ax - cx) * (gy - cy)) / d
+                hit = (l1 > 0) & (l2 > 0) & (1 - l1 - l2 > 0)
+                for x, y in zip(gx[hit], gy[hit]):
+                    texels[(int(x * 256), int(y * 256))] += 1
+    m['uv_overlap'] = round(sum(1 for c in texels.values() if c > 1) / max(1, len(texels)), 4)
+    if m['uv_overlap'] > MAX_UV_OVERLAP:
+        errors.append(f"{m['uv_overlap']} of the body's map is claimed by two faces at once")
     m['uv_outside'] = uv_out
     m['uv_zero_area'] = uv_zero
     if uv_out:
