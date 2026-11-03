@@ -5,7 +5,7 @@
 /* The nav leaves on a phone, so the answer can take the top of the screen. */
 @media (max-width: 999px) { .page-call .nav { position: absolute; } }
 
-.call { display: grid; gap: 28px; overflow-anchor: none; }
+.call { display: grid; gap: 28px; overflow-anchor: none; min-height: 100vh; }   /* the footer stays below the fold until callcheck.js fills the form: no shift */
 .call__asks { display: grid; gap: 30px; justify-items: start; min-width: 0; }
 .call__asks > fieldset { width: 100%; }
 .call__group { margin: 0; padding: 0; min-width: 0; border: 0; }
