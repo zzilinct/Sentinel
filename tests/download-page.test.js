@@ -61,6 +61,14 @@ test('download page: the warning comes right after the button, and the checks be
   assert.deepEqual(order, [...order].sort((a, b) => a - b));
 });
 
+test('download page: the practice warning holds only words Microsoft documents for that screen, and says where', () => {
+  const dialog = /<div class="ss__dialog">([\s\S]*?)<div class="ss__after">/.exec(page)[1];
+  const words = dialog.replace(/<[^>]+>/g, '\n').split('\n').map((w) => w.trim()).filter(Boolean);
+  assert.deepEqual(words, ['Windows protected your PC', 'More info', 'Run anyway']);
+  assert.match(page, /learn\.microsoft\.com\/en-us\/windows\/apps\/package-and-deploy\/smartscreen-reputation/);
+  assert.doesNotMatch(page, /Don&rsquo;t run|Don't run/);
+});
+
 test('download page: "not code-signed" stays true, or this fails and the page is rewritten', () => {
   assert.match(page, /not code-signed yet/);
   const { build } = JSON.parse(read('desktop', 'package.json'));

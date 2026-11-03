@@ -50,7 +50,7 @@ async function checkDownloadPage() {
     };
     const look = (extra = '') => evalIn(browser, s, `(() => { const ss = document.querySelector('[data-ss]'); const seen = (e) => e.checkVisibility({ visibilityProperty: true, opacityProperty: true });
       const q = (x) => document.querySelector(x); const ring = q('.ss__ring').getBoundingClientRect();
-      return { state: ss.dataset.state, more: seen(q('[data-ss-more]')), run: seen(q('[data-ss-run]')), facts: seen(q('.ss__facts')), after: seen(q('[data-ss-again]')), say: q('[data-ss-say]').textContent,
+      return { state: ss.dataset.state, more: seen(q('[data-ss-more]')), run: seen(q('[data-ss-run]')), after: seen(q('[data-ss-again]')), say: q('[data-ss-say]').textContent,
         focus: document.activeElement.textContent.trim(), ringW: Math.round(ring.width), wide: document.documentElement.scrollWidth - innerWidth ${extra} }; })()`);
 
     /* ------------------------------------------------- the first screen, in every size */
@@ -88,12 +88,12 @@ async function checkDownloadPage() {
     await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'no-preference' }] }, s);
     await open();
     const first = await look();
-    result('download-page: the practice starts on More info, with nothing else to press', first.state === 'first' && first.more && !first.run && !first.facts && !first.after, first);
+    result('download-page: the practice starts on More info, with nothing else to press', first.state === 'first' && first.more && !first.run && !first.after, first);
     await evalIn(browser, s, "(document.querySelector('[data-ss-more]').focus(), 1)");
     await pressKey(browser, s, 'Enter');
     await sleep(800);
     const second = await look();
-    result('download-page: Enter on More info names the file and the unknown publisher, and moves to Run anyway', second.state === 'more' && !second.more && second.run && second.facts && second.focus === 'Run anyway' && /not signed/.test(second.say), second);
+    result('download-page: Enter on More info shows Run anyway and moves to it', second.state === 'more' && !second.more && second.run && second.focus === 'Run anyway' && /not signed/.test(second.say), second);
     await pressKey(browser, s, 'Enter');
     await sleep(800);
     const third = await look();

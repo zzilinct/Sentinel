@@ -25,21 +25,17 @@
   padding: clamp(12px, 2vw, 20px); background: var(--surface-2);
 }
 .ss__dialog {
-  display: flex; flex-direction: column; min-height: 288px; padding: clamp(20px, 2.6vw, 30px) clamp(20px, 2.6vw, 30px) 18px;
+  display: flex; flex-direction: column; min-height: 220px; padding: clamp(20px, 2.6vw, 30px) clamp(20px, 2.6vw, 30px) 18px;
   background: #0a5fae; color: #fff; font-family: "Segoe UI", system-ui, sans-serif; font-size: var(--t-ui); line-height: 1.45;
   transition: opacity .28s ease, transform .5s var(--spring), visibility 0s;
 }
 .page-head--download .get__moment .ss__title { font-size: var(--t-title-l); font-weight: 300; line-height: 1.15; }
-.page-head--download .get__moment .ss__dialog .ss__body { margin-top: 12px; }
 .ss__swap { display: grid; margin-top: 14px; }
 .ss__swap > * { grid-area: 1 / 1; }
 .ss__more { justify-self: start; align-self: start; padding: 2px 0; border: 0; background: none; color: #fff; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.ss__facts { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; margin: 0; transition: opacity .3s ease .08s, transform .5s var(--spring) .04s, visibility 0s; }
-.ss__facts dd { margin: 0; }
 .ss__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 18px; }
 .ss__btn { min-width: 112px; padding: 7px 16px; border: 2px solid rgb(255 255 255 / .62); background: rgb(0 0 0 / .22); color: #fff; font: inherit; text-align: center; transition: opacity .25s ease, transform .5s var(--spring), visibility 0s; }
 button.ss__btn { cursor: pointer; }
-.ss__btn--still { opacity: .72; }
 .ss :is(.ss__more, .ss__btn):focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
 .ss__after { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px; text-align: center; font-family: var(--display); font-size: var(--t-title); color: var(--text); transition: opacity .3s ease .12s, visibility 0s; }
@@ -55,7 +51,6 @@ button.ss__btn { cursor: pointer; }
 .ss__after, .ss__ring { display: none; }
 .js .ss__after { display: grid; }
 .js .ss__ring { display: block; }
-.js .ss[data-state="first"] .ss__facts { opacity: 0; transform: translateY(8px); visibility: hidden; }
 .js .ss[data-state="first"] [data-ss-run] { opacity: 0; transform: scale(.9); visibility: hidden; }
 .js .ss:not([data-state="first"]) .ss__more { opacity: 0; visibility: hidden; }
 .js .ss[data-state="done"] .ss__dialog { opacity: 0; transform: scale(.96); visibility: hidden; transition-delay: 0s, 0s, .3s; }
@@ -116,8 +111,7 @@ main > .relnote { padding-top: 0; }
 }
 @media (max-width: 560px) {
   .ss__btn { min-width: 0; flex: 1; }
-  .ss__dialog { min-height: 320px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ss__dialog, .ss__facts, .ss__btn, .ss__after, .ss.is-live .ss__ring { transition: none; }
+  .ss__dialog, .ss__btn, .ss__after, .ss.is-live .ss__ring { transition: none; }
 }

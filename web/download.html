@@ -35,17 +35,18 @@
         <h2>Expect one warning from Windows</h2>
         <p>Sentinel&rsquo;s installer is not code-signed yet, so Windows cannot say who published it. That is all this screen means. It does not mean a virus was found.</p>
         <div class="ss-frame">
+          <!-- Only words Microsoft itself documents for this screen: the title and Run anyway from
+               https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation (no signature: "Windows protected your PC"; the user must choose "Run anyway"),
+               More info from https://learn.microsoft.com/en-us/archive/blogs/vsnetsetup/windows-smartscreen-prevented-an-unrecognized-app-from-running-running-this-app-might-put-your-pc-at-risk
+               ("a More Info option, and Run Anyway button"; the publisher shows as unknown). No Microsoft page gives the body sentence or the other button, so they are left out. -->
           <div class="ss" data-ss data-state="first" role="group" aria-label="Practice copy of the Windows warning. It installs nothing.">
             <div class="ss__dialog">
               <p class="ss__title">Windows protected your PC</p>
-              <p class="ss__body">Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.</p>
               <div class="ss__swap">
                 <button class="ss__more" type="button" data-ss-more>More info</button>
-                <dl class="ss__facts"><dt>App:</dt><dd>Sentinel-Setup.exe</dd><dt>Publisher:</dt><dd>Unknown publisher</dd></dl>
               </div>
               <div class="ss__actions">
                 <button class="ss__btn" type="button" data-ss-run>Run anyway</button>
-                <span class="ss__btn ss__btn--still">Don&rsquo;t run</span>
               </div>
             </div>
             <div class="ss__after">
@@ -56,7 +57,7 @@
           </div>
         </div>
         <p class="ss-say" role="status" data-ss-say>A practice copy. Press More info, as you will on the real one.</p>
-        <p class="get__stop">Do this only for the file you got from this page. If this screen ever appears for a program you did not choose, press Don&rsquo;t run.</p>
+        <p class="get__stop">Do this only for the file you got from this page. If this screen ever appears for a program you did not choose, do not press Run anyway.</p>
       </div>
     </div>
   </section>

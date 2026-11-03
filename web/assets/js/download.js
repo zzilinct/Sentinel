@@ -16,7 +16,7 @@
   const say = document.querySelector('[data-ss-say]');
   const WORDS = {
     first: say.textContent,
-    more: 'Now it names the file. The publisher shows as unknown because the file is not signed. Press Run anyway.',
+    more: 'Now Run anyway appears. Windows calls the publisher unknown because the file is not signed. Press Run anyway.',
     done: 'That is the whole warning. The real one ends the same way.'
   };
   const AT = { first: more, more: run };
