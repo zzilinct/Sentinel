@@ -113,7 +113,7 @@ test('what the Free cell says about versions is exactly what the app does', () =
 });
 
 test('sentences left in other files agree with every plan, or do not exist', () => {
-  // Lines this page does not own: popup.js:158 and download.html:135,137. A time said against a plan's name must be
+  // Lines this page does not own, such as popup.js:158. download.html names no time, so the plans stay its one source. A time said against a plan's name must be
   // that plan's, so a change to any plan's fast allowance fails here until the sentence follows.
   const list = plans.publicPlans();
   const say = (m) => (m === null ? 'no limit' : span(m));

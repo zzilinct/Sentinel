@@ -235,6 +235,8 @@ async function main() {
   // --launched forces the live wiring even while brand.json says otherwise.
   const launched = args.includes('--launched') || brand.launched === true;
 
+  require('./release-note').assertInStep();
+
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(OUT, { recursive: true });
 

@@ -547,11 +547,4 @@
       if (visible && !running) { running = true; requestAnimationFrame(lean); }
     }).observe(marquee);
   }
-
-  /* ---------------------------------------------------- download picker */
-
-  // Only Windows has a download today, so only a Windows visitor gets a personal heading;
-  // everyone else keeps the neutral one rather than "Sentinel for macOS" over a Windows button.
-  const windows = /Win/i.test(navigator.platform) || /Windows/i.test(navigator.userAgent);
-  if (windows) $$('[data-os-label]').forEach((el) => { el.textContent = 'Windows'; });
 })();
