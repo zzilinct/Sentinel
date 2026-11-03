@@ -57,7 +57,7 @@ async function checkSite() {
     const needles = ['paypa1', 'account-verify', 'wikipedia'];
     const leaks = requests.slice(before).filter((r) => needles.some((n) => (r.url + r.post).toLowerCase().includes(n)));
     // Requests after typing: only the checker itself (engine.js and its word list) may load, from this host.
-    const offHost = requests.slice(before).filter((r) => !r.url.startsWith(files.base) && !r.url.startsWith('data:'));
+    const offHost = requests.slice(before).filter((r) => !r.url.startsWith(files.base) && !r.url.startsWith(`blob:${files.base}`) && !r.url.startsWith('data:'));
     const CLEAN = 'No warning signs in the address';
     result(`site: ${SCAM} gets a warning`, Boolean(scam.title) && scam.title !== CLEAN && scam.title !== 'No threats found' && !/green/.test(scam.colour), scam);
     // Checked in the browser, with no threat list: never "No threats found" in green, and it says what was left out.

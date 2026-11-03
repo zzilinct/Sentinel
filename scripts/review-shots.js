@@ -249,7 +249,7 @@ async function main() {
       console.log(`intro-${name}: 8 frames`);
       await send('Target.closeTarget', { targetId });
     }
-    // A phone's one slow unmasking wipe across the hero (home.js), frame by frame.
+    // The niche opening once behind the mask on a phone (home.css), frame by frame.
     {
       const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
       const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
