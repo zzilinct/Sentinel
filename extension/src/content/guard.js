@@ -1,6 +1,8 @@
 /**
- * The calm notes on an open page: "Before you pay" and the pay pause, drawn by alarm.js in a closed shadow root. A page
- * the companion flags is not covered here: the worker takes the tab to the block page (src/block.html).
+ * What the companion says over an open page, drawn by alarm.js in a closed shadow root: "Before you pay", the pay pause,
+ * and the warning over a page the scanner calls a likely threat after it opened. A confirmed one is not covered here:
+ * the worker takes the tab to the block page (src/block.html). A likely one is a guess, so the page stays as it is,
+ * with whatever was typed in it, and Continue anyway only takes the warning away.
  */
 (() => {
   'use strict';
@@ -9,6 +11,31 @@
   // The worker flagged this page (background.js onNavigate). Kept only here, for as long as the page is open, so a
   // private window keeps nothing anywhere else.
   let flagged = false;
+
+  // The worker's words (lib/say.js, the block page's own), drawn once per page.
+  let warned = false;
+  function warn(msg) {
+    if (warned) return;
+    warned = true;
+    flagged = true;
+    const said = msg.said;
+    const Masks = globalThis.SentinelMasks;
+    const send = (m) => Promise.resolve(ext.runtime.sendMessage(m)).catch(() => null);
+    globalThis.SentinelAlarm.show({
+      accent: '#f08a24',
+      icon: Masks ? Masks.svg(String(said.threat || 'scam')) : '',
+      title: said.title,
+      chip: msg.host,
+      lead: said.line,
+      steps: said.reason ? [said.reason] : [],
+      buttons: [
+        { text: said.action.text, kind: 'go', on: () => (said.action.kind === 'real' ? send({ type: 'real-site' }) : globalThis.SentinelAlarm.leave()) },
+        { text: 'Continue anyway', kind: 'quiet', on: (ev, ctl) => { ctl.close(); send({ type: 'warn-pass' }); } }
+      ],
+      link: msg.recover ? { href: msg.recover, text: 'Already typed something there? Open the recovery guide' } : null,
+      foot: 'Your page is still here, as you left it.'
+    });
+  }
 
   // Before you pay: a shop's checkout whose address is young or unknown. A quiet note in the corner, never a block.
   let paid = false;
@@ -53,6 +80,11 @@
       const show = () => payNote(msg.text.slice(0, 300));
       if (document.body) show();
       else document.addEventListener('DOMContentLoaded', show, { once: true });
+      return;
+    }
+    if (sender.id === ext.runtime.id && msg && msg.type === 'sentinel:warn' && msg.said && typeof msg.said.title === 'string') {
+      if (document.documentElement) warn(msg);
+      else document.addEventListener('DOMContentLoaded', () => warn(msg), { once: true });
     }
   });
 })();

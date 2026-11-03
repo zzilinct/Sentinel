@@ -13,7 +13,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock, clickButton } = require('./_shared');
 
 const SAYS = 'No real company, government office or bank asks to be paid in gift cards or crypto.';
 // Not on the cached list: the scanner has to be the one that flags it. The first the scanner calls red or orange is used.
@@ -188,7 +188,9 @@ async function checkCompanionPolish() {
       const href = await evalIn(browser, priv.sessionId, 'location.href').catch((e) => e.message);
       result(`companion-polish: ${FLAG} in a private window gets the block page`, /Take me back to safety/.test(block), { href, text: block.slice(0, 200) });
       // Continue anyway: the page opens and stays open, and only the page itself knows it is flagged.
-      await passBlock(browser, priv.sessionId, 'typeof window.goSend === "function"');
+      // Red is taken to the block page; orange is warned over the page that stays.
+      if (await evalIn(browser, priv.sessionId, "location.protocol === 'chrome-extension:'")) await passBlock(browser, priv.sessionId, 'typeof window.goSend === "function"');
+      else await clickButton(browser, priv.sessionId, 'Continue anyway');
       await sleep(1500);
       const noBlock = !/Take me back to safety/.test(await pageText(browser, priv.sessionId));
       await evalIn(browser, priv.sessionId, 'window.goSend()');

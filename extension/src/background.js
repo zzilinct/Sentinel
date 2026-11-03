@@ -10,6 +10,8 @@
  * appear instantly from the checklist, then upgrade once research finishes.
  */
 import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError } from './lib/api.js';
+// SentinelSay: the words of the warnings, shared with the block page, popup and settings.
+import './lib/say.js';
 import { PRESETS, MIN_LENGTH, KEEP, bankDomain, newSalt, hashPassword, sameHash, homeAccount, guardedHere, hashesOf } from './lib/pwalarm.js';
 
 const TTL = { quick: 15 * 60 * 1000, research: 60 * 60 * 1000 };
@@ -326,7 +328,11 @@ async function onNavigate(details) {
   // in a private window too, with nothing about the page kept here.
   if (isFlagged(verdict)) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:flagged' }, { frameId: 0 })).catch(() => {});
   if (severe) await sessionSet('paySign', Date.now());
-  if (severe && settings.warnOnNavigate && !(await isLetThroughHere(details.tabId, details.url))) return closeFlagged(details);
+  if (severe && settings.warnOnNavigate && !(await isLetThroughHere(details.tabId, details.url))) {
+    // Red is evidence: the page goes. Orange is a guess: it is warned over and kept, with whatever was typed in it.
+    if (verdict.overall.badge === 'red') return closeFlagged(details);
+    await warnInPlace(details.tabId, verdict, settings);
+  }
   if (severe) await typedFlagged(details.tabId, details.url);
   else if (verdict.paypage) await payPause(details.tabId, details.url, verdict.paypage);
   else await payLook(details.tabId, details.url);
@@ -738,6 +744,12 @@ const handlers = {
     const full = await realSiteFor({ url, tabId: sender.tab.id });
     return { realSite: (full && full.realSite) || null };
   },
+  /** Continue anyway on the warning over a page: this tab may open this site until it closes. */
+  async 'warn-pass'(msg, sender) {
+    fromPage(sender);
+    await letThrough(sender.tab.id, sender.tab.url);
+    return { pass: true };
+  },
   async 'block-pass'({ url }, sender) {
     fromOptions(sender);
     await letThrough(sender.tab.id, url);
@@ -767,7 +779,9 @@ const handlers = {
    * this page (brands.js, or one of the person's own sites), looked up here again, never an address from the page.
    */
   async 'real-site'({ url, tabId }, sender) {
-    fromOptions(sender);
+    // From the warning over a page: that page's own address, never one it sends. Otherwise the block page or the popup.
+    const fromWeb = Boolean(sender.tab && /^https?:/i.test(sender.url || ''));
+    if (fromWeb) url = sender.tab.url; else fromOptions(sender);
     const tab = sender.tab ? sender.tab.id : tabId;
     // The scanner's verdict, not the cached list's (which names no brand). The worker may have been asleep since the
     // warning was drawn, its cache gone: then it is asked again.
@@ -938,20 +952,48 @@ async function onSameDocument(details) {
 }
 
 /**
+ * The warning over a page that stays: the block page's own words (lib/say.js), drawn by content/guard.js. Sent again
+ * when the page has loaded, in case its script was not listening yet; the page draws it once.
+ */
+function warnInPlace(tabId, verdict, settings) {
+  const said = globalThis.SentinelSay.page(verdict);
+  const message = { type: 'sentinel:warn', host: String(verdict.host || ''), recover: siteUrl(settings.apiBase, said.threat === 'scam' ? '/recover' : '/recover?happened=file'),
+    said: { title: said.title, line: said.line, reason: said.reason, action: said.action, threat: said.threat } };
+  return Promise.resolve(ext.tabs.sendMessage(tabId, message, { frameId: 0 })).catch(() => null);
+}
+
+/**
  * Continue anyway on a site with nothing on https. The browser tries https first for an http address and goes back to
  * http when that fails; but the door saw the address after the switch, so the block page holds the https one, and a
  * fresh https navigation gets no way back. Measured in Chrome: an http-only site stopped at the door opened on an error
  * page. So a tab the person let through to a site, whose https page fails to load, gets the http address once, as the
  * browser itself would have done. Nothing runs for any other navigation error.
  */
+// Only when the person asked for http. An address asked for on https whose https fails stays failed, as in Chrome: someone
+// who can break a site's https must not get the person onto plain http by Sentinel's hand. What was asked for is noted
+// only for a site the door would stop, before the browser's switch (onBeforeNavigate, http addresses only), in this
+// worker's memory and, outside a private window, in session storage, which goes when the browser closes.
+const askedKey = (tabId) => `asked:${tabId}`;
+const askedHere = new Map();
+async function askedFor(d) {
+  if (d.frameId !== 0) return;
+  await recalled;
+  if (!localVerdict(d.url) && !(await doorOnFor(d.url))) return;
+  askedHere.set(d.tabId, d.url);
+  const tab = await Promise.resolve(ext.tabs.get(d.tabId)).catch(() => null);
+  if (tab && !tab.incognito) await sessionSet(askedKey(d.tabId), d.url);
+}
 const fellBack = new Set();
 async function httpsFailed(d) {
   if (d.frameId !== 0 || !/^https:/i.test(d.url) || /ABORTED|BLOCKED/i.test(d.error || '')) return;
-  const key = `${d.tabId}|${hostOf(d.url)}`;
-  if (fellBack.has(key) || !(await isLetThroughHere(d.tabId, d.url))) return;
+  const plain = d.url.replace(/^https:/i, 'http:');
+  const key = `${d.tabId}|${plain}`;
+  if (fellBack.has(key) || (askedHere.get(d.tabId) || (await sessionGet(askedKey(d.tabId)))) !== plain) return;
+  if (!(await isLetThroughHere(d.tabId, d.url))) return;
   fellBack.add(key);
-  await Promise.resolve(ext.tabs.update(d.tabId, { url: d.url.replace(/^https:/i, 'http:') })).catch(() => {});
+  await Promise.resolve(ext.tabs.update(d.tabId, { url: plain })).catch(() => {});
 }
+if (ext.webNavigation.onBeforeNavigate) ext.webNavigation.onBeforeNavigate.addListener(askedFor, { url: [{ schemes: ['http'] }] });
 if (ext.webNavigation.onErrorOccurred) ext.webNavigation.onErrorOccurred.addListener(httpsFailed);
 
 ext.webNavigation.onCommitted.addListener(onNavigate);
@@ -961,6 +1003,8 @@ ext.webNavigation.onReferenceFragmentUpdated.addListener(onSameDocument);
 ext.tabs.onRemoved.addListener(async (tabId, info) => {
   typedOrder.delete(tabId);
   forgetTab(tabId);
+  askedHere.delete(tabId);
+  sessionSet(askedKey(tabId), null);
   const was = await sessionGet(typedKey(tabId));
   if (!was) return;
   await typedLeft(tabId, was);
@@ -976,8 +1020,11 @@ ext.webNavigation.onCompleted.addListener((details) => inTabOrder(details.tabId,
     return;
   }
   // A flagged page that loaded before its content script could hear the first word is told again.
-  if (isFlagged(localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url))) {
+  const known = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url);
+  if (isFlagged(known)) {
     Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:flagged' }, { frameId: 0 })).catch(() => {});
+    const settings = await getSettings();
+    if (known.overall.badge === 'orange' && settings.warnOnNavigate && settings.minimumBadge !== 'red' && !(await isLetThroughHere(details.tabId, details.url))) warnInPlace(details.tabId, known, settings);
   }
   if (await sessionGet(typedKey(details.tabId))) typedWatch(details.tabId);
   else await typedDeliver(details.tabId);
