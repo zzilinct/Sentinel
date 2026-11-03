@@ -8,6 +8,7 @@ const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
 const { URL } = require('url');
+const config = require('../config');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -179,12 +180,14 @@ function planPart(base, name) {
 
 function renderHtml(base, file) {
   const partialsDir = path.join(base, 'partials');
-  const stamps = [fs.statSync(file).mtimeMs];
+  const stamps = [fs.statSync(file).mtimeMs, config.google.enabled];
   let html = fs.readFileSync(file, 'utf8');
   html = html.replace(/<!--\s*@include\s+([a-z0-9-]+)\s*-->/g, (_, name) => {
     const planned = planPart(base, name);
     if (planned !== undefined) { stamps.push(planned); return planned; }   // a new limit is a new page, for caches too
     const partial = path.join(partialsDir, `${name}.html`);
+    // A sign-in this server does not have is never sent, so it can never show as a dead button.
+    if (name === 'google-button' && !config.google.enabled) return '';
     if (!fs.existsSync(partial)) return '';
     stamps.push(fs.statSync(partial).mtimeMs);
     return fs.readFileSync(partial, 'utf8');

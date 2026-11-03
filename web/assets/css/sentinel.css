@@ -14,6 +14,9 @@
   --line: rgba(255, 255, 255, .065);
   --line-2: rgba(255, 255, 255, .11);
   --line-gold: rgba(214, 178, 98, .28);
+  /* A field: a well below the page, with an edge that stands 3:1 against it (tests/auth-pages.test.js measures this). */
+  --field-bg: #0b0c0f;
+  --field-ring: rgba(255, 255, 255, .38);
 
   --text: #efece5;
   --text-2: #b9b6ae;
@@ -72,6 +75,7 @@
   :root:not([data-theme="dark"]) {
     --bg: #efece6; --bg-2: #ebe8e1; --surface: #f2efe9; --surface-2: #f5f2ec; --surface-3: #e6e2da;
     --line: rgba(20, 22, 26, .1); --line-2: rgba(20, 22, 26, .16); --line-gold: rgba(138, 100, 32, .35);
+    --field-bg: #fbf9f5; --field-ring: rgba(20, 22, 26, .54);
     --text: #16171a; --text-2: #3b3a36; --muted: #57554f; --faint: #66645d;
     --gold-50: #3d2c0c; --gold-200: #6f5217; --gold-300: #7d5c1c; --gold-400: #8a6420; --gold-500: #9c7229; --gold-600: #b08433;
     --gold-grad: linear-gradient(180deg, #98712a 0%, #8a6420 50%, #6f4f16 100%); --gold-hover: linear-gradient(180deg, #96701f 0%, #7a5818 50%, #624512 100%);
@@ -88,6 +92,7 @@
 :root[data-theme="light"] {
   --bg: #efece6; --bg-2: #ebe8e1; --surface: #f2efe9; --surface-2: #f5f2ec; --surface-3: #e6e2da;
   --line: rgba(20, 22, 26, .1); --line-2: rgba(20, 22, 26, .16); --line-gold: rgba(138, 100, 32, .35);
+  --field-bg: #fbf9f5; --field-ring: rgba(20, 22, 26, .54);
   --text: #16171a; --text-2: #3b3a36; --muted: #57554f; --faint: #66645d;
   --gold-50: #3d2c0c; --gold-200: #6f5217; --gold-300: #7d5c1c; --gold-400: #8a6420; --gold-500: #9c7229; --gold-600: #b08433;
   --gold-grad: linear-gradient(180deg, #98712a 0%, #8a6420 50%, #6f4f16 100%); --gold-hover: linear-gradient(180deg, #96701f 0%, #7a5818 50%, #624512 100%);

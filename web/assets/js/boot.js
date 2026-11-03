@@ -27,6 +27,41 @@ document.documentElement.classList.add('js');
 })();
 
 /*
+ * A sign-in form can be pressed the moment it shows. Until its script has bound it (ui.js formReady) a press is held
+ * here and the button says so, so a slow connection never posts the form plainly to an error page. A script that
+ * never came (the page has finished loading and the form is still not live) is said in words.
+ */
+(function () {
+  const held = () => document.querySelector('.auth form[data-held]');
+  const release = (form) => {
+    const b = form.querySelector('button[type=submit]');
+    if (form.dataset.held !== undefined) b.textContent = form.dataset.held;
+    delete form.dataset.held;
+    b.classList.remove('is-busy');
+    b.removeAttribute('aria-busy');
+  };
+  const giveUp = () => {
+    const form = held();
+    if (!form || form.dataset.live) return;
+    release(form);
+    document.querySelector('[data-note]').innerHTML = '<div class="banner banner--error" role="alert"><div>This page did not finish loading. Reload it and try again.</div></div>';
+  };
+  window.SentinelReleaseForm = release;
+  document.addEventListener('submit', (ev) => {
+    const form = ev.target;
+    if (!form.matches('.auth form[data-form]') || form.dataset.live) return;
+    ev.preventDefault();
+    const b = form.querySelector('button[type=submit]');
+    if (form.dataset.held === undefined) form.dataset.held = b.textContent;
+    b.textContent = 'One moment';
+    b.classList.add('is-busy');
+    b.setAttribute('aria-busy', 'true');
+    if (document.readyState === 'complete') giveUp();
+  }, true);
+  window.addEventListener('load', giveUp);
+})();
+
+/*
  * Light or dark. "Auto" (nothing stored) follows the system; a choice is remembered on this device. Applied here,
  * before the page is painted, so it never flashes the other theme. Any [data-theme-toggle] button cycles
  * Auto, Light, Dark and says which is on.
