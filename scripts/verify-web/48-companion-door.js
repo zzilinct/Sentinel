@@ -17,11 +17,13 @@ const path = require('path');
 const http = require('http');
 const net = require('net');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock, until } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock, until, clickButton } = require('./_shared');
 const { stopWorker, workerTarget } = require('./_companion');
 
 const LISTED = TYPED_PW;
 const HTTP_ONLY = 'netflix-billing-update.top';   // listed; nothing answers on its https port, as on most such sites
+const HTTPS_ONLY = 'apple-id-verify-support.xyz';  // listed; asked for on https, which fails, while plain http would answer
+const LATE = { 'red-later.test': 'red', 'orange-later.test': 'orange' };   // the proxy's slow answers for these
 const SLOW_CANDIDATES = ['paypal-account-verify-login.top', 'secure-paypal-login-alert.top', 'apple-id-locked-alert.top', 'amazon-account-locked-verify.top', 'wallet-restore-connect.top'];
 const SHOWN = "document.getElementById('pass') && document.getElementById('pass').onclick";
 const freePort = () => new Promise((resolve) => { const sv = net.createServer().listen(0, '127.0.0.1', () => { const p = sv.address().port; sv.close(() => resolve(p)); }); });
@@ -42,11 +44,20 @@ async function checkCompanionDoor() {
   // The scanner, slowed for page checks while `slow` is set.
   let slow = 0;
   let red = '';
+  const hostIn = (buf) => { try { return new URL(JSON.parse(buf.toString('utf8')).url).hostname; } catch { return ''; } };
   const proxy = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', async () => {
       if (slow && req.url.startsWith('/api/v1/live/visit')) await sleep(slow);
+      const late = req.url.startsWith('/api/v1/live/visit') && LATE[hostIn(Buffer.concat(chunks))];
+      if (late) {
+        const u = JSON.parse(Buffer.concat(chunks).toString('utf8')).url;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ verdict: { ok: true, url: u, host: new URL(u).hostname, threats: { scam: { badge: late, label: late === 'red' ? 'Confirmed scam' : 'Likely scam', score: late === 'red' ? 96 : 70 } },
+          reasons: [{ text: 'Asks for a password on an address made last week' }], overall: { badge: late, level: late === 'red' ? 'confirmed' : 'likely', label: late === 'red' ? 'Confirmed scam' : 'Likely scam' } } }));
+        return;
+      }
       if (red && req.url.startsWith('/api/v1/live/batch')) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ byUrl: { [red]: { ok: true, url: red, host: new URL(red).hostname, threats: { scam: { badge: 'red', label: 'Confirmed scam', score: 96 } }, reasons: [{ text: 'A fake sign-in page' }], overall: { badge: 'red', level: 'confirmed', label: 'Confirmed scam' } } } }));
@@ -76,8 +87,8 @@ async function checkCompanionDoor() {
       <iframe id="f" title="frame" style="width:600px;height:300px"></iframe></body></html>`
   });
   const filesPort = new URL(files.base).port;
-  const hosts = [LISTED, ...SLOW_CANDIDATES, 'plain.test', 'moved.test'];
-  const { browser, close } = await launch([`--host-resolver-rules=${[HTTP_ONLY].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort}`]);
+  const hosts = [LISTED, ...SLOW_CANDIDATES, ...Object.keys(LATE), 'plain.test', 'moved.test'];
+  const { browser, close } = await launch([`--host-resolver-rules=${[HTTP_ONLY, HTTPS_ONLY].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort}`]);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api}`);
     const via = `http://127.0.0.1:${proxyPort}`;
@@ -177,6 +188,16 @@ async function checkCompanionDoor() {
     result('companion-door: Continue anyway opens a plain http site with nothing on its https port', httpOpened === true && httpHref.startsWith(`http://${HTTP_ONLY}/`), { httpOpened, httpHref });
     await browser.send('Target.closeTarget', { targetId: httpOnly.targetId }).catch(() => {});
 
+    // An address asked for on https whose https fails is never sent to plain http, even when http would answer: someone
+    // who can break a site's https must not get the person onto http by Sentinel's hand. Chrome's error page stays.
+    const httpsOnly = await openPage(browser);
+    await goto(browser, httpsOnly.sessionId, `https://${HTTPS_ONLY}/signin.html`, SHOWN);
+    await passBlock(browser, httpsOnly.sessionId, 'window.ran === true').catch(() => {});
+    await sleep(3000);
+    const httpsHref = await evalIn(browser, httpsOnly.sessionId, 'location.href').catch(() => '');
+    result('companion-door: an address asked for on https is never moved to plain http when its https fails', !hits[HTTPS_ONLY] && !/^http:/.test(httpsHref), { hits: hits[HTTPS_ONLY] || 0, httpsHref });
+    await browser.send('Target.closeTarget', { targetId: httpsOnly.targetId }).catch(() => {});
+
     // A link opened in a new tab has nothing to go back to: the tab closes.
     const count = async () => (await browser.send('Target.getTargets')).targetInfos.filter((t) => t.type === 'page').length;
     await goto(browser, web.sessionId, 'http://start.test/start.html');
@@ -201,10 +222,11 @@ async function checkCompanionDoor() {
     result('companion-door: the scanner flags a look-alike that is not on the list', Boolean(FLAG), badges);
     await evalIn(browser, opt.sessionId, "chrome.runtime.sendMessage({ type: 'refresh' }).then(() => 1)");
     slow = 5000;
+    // Red, slowly: evidence. The page goes, box and all.
     const late = await openPage(browser);
     await goto(browser, late.sessionId, 'http://start.test/start.html');
     const t1 = Date.now();
-    await goto(browser, late.sessionId, `http://${FLAG}/signin.html`, "document.getElementById('pw')");
+    await goto(browser, late.sessionId, 'http://red-later.test/signin.html', "document.getElementById('pw')");
     const openedIn = Date.now() - t1;
     await evalIn(browser, late.sessionId, "document.getElementById('pw').focus()");
     const closed = await until(browser, late.sessionId, "/block\\.html\\?seen=1/.test(location.href)", 15000);
@@ -212,7 +234,7 @@ async function checkCompanionDoor() {
     const box = await evalIn(browser, late.sessionId, "Boolean(document.getElementById('pw'))");
     const closedText = await pageText(browser, late.sessionId);
     await browser.send('Page.bringToFront', {}, late.sessionId);
-    result(`companion-door: a page the scanner has not answered for opens at once (${openedIn} ms, the scanner takes 5 s); when the answer comes it is gone, box and all, and the page says so honestly`,
+    result(`companion-door: a page nobody has answered for opens at once (${openedIn} ms, the scanner takes 5 s); a red answer then closes it, box and all, and the page says so honestly`,
       openedIn < 4000 && Boolean(closed) && !box && /closed it when the check finished/.test(closedText) && /recovery guide/.test(closedText), { openedIn, closed, box, closedText: closedText.slice(0, 300) });
     await size(late.sessionId, 1366, 860); await sleep(900);
     await pictures(late.sessionId, 'closed-desktop');
@@ -222,6 +244,31 @@ async function checkCompanionDoor() {
     await evalIn(browser, late.sessionId, "history.back()").catch(() => {});
     const noReturn = await until(browser, late.sessionId, "location.hostname === 'start.test'", 6000);
     result('companion-door: Back from there goes to the page before, not to the flagged page', Boolean(noReturn), { href: await evalIn(browser, late.sessionId, 'location.href') });
+
+    // Orange, slowly: a guess. The page stays as it is, with what was typed, and a warning over it that one press removes.
+    const guess = await openPage(browser);
+    await goto(browser, guess.sessionId, 'http://orange-later.test/signin.html', "document.getElementById('pw')");
+    await evalIn(browser, guess.sessionId, "document.getElementById('pw').focus()");
+    await browser.send('Input.insertText', { text: 'typed-before-the-answer' }, guess.sessionId);
+    let warnText = '';
+    for (let i = 0; i < 60 && !/looks like a scam/.test(warnText); i++) { await sleep(250); warnText = await pageText(browser, guess.sessionId); }
+    const stillHere = await evalIn(browser, guess.sessionId, "location.hostname + '|' + document.getElementById('pw').value");
+    await size(guess.sessionId, 1366, 860); await sleep(700);
+    await pictures(guess.sessionId, 'warned-open-desktop');
+    await size(guess.sessionId, 360, 740); await sleep(500);
+    await pictures(guess.sessionId, 'warned-open-phone');
+    await browser.send('Emulation.clearDeviceMetricsOverride', {}, guess.sessionId);
+    const pressed = await clickButton(browser, guess.sessionId, 'Continue anyway');
+    await sleep(800);
+    const afterText = await pageText(browser, guess.sessionId);
+    const kept = await evalIn(browser, guess.sessionId, "location.hostname + '|' + document.getElementById('pw').value");
+    await browser.send('Page.reload', {}, guess.sessionId);
+    await sleep(2500);
+    const reloadText = await pageText(browser, guess.sessionId);
+    await browser.send('Target.closeTarget', { targetId: guess.targetId }).catch(() => {});
+    result('companion-door: an orange answer after the page opened warns over it and keeps it: what was typed is still there, Continue anyway removes the warning, and a reload is not warned again',
+      /looks like a scam/.test(warnText) && stillHere === 'orange-later.test|typed-before-the-answer' && pressed && !/looks like a scam/.test(afterText) && kept === stillHere && !/looks like a scam/.test(reloadText) && /Sign in to your account/.test(reloadText),
+      { stillHere, pressed, kept, warned: warnText.slice(0, 200) });
 
     // Moved on before the answer: the tab it was about is on another site now and is left alone.
     await evalIn(browser, opt.sessionId, "chrome.runtime.sendMessage({ type: 'refresh' }).then(() => 1)");

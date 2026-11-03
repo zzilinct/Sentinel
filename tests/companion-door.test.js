@@ -25,6 +25,7 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null }
   const noop = () => {};
   const scripts = [];
   const updates = [];
+  const messages = [];
   const update = (rules) => async ({ removeRuleIds = [], addRules = [] }) => {
     for (const id of removeRuleIds) { const i = rules.findIndex((r) => r.id === id); if (i >= 0) rules.splice(i, 1); }
     for (const r of addRules) { assert.ok(!rules.some((x) => x.id === r.id), 'rule ids stay unique'); rules.push(JSON.parse(JSON.stringify(r))); }
@@ -34,12 +35,12 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null }
   const ext = {
     runtime: { id: 'me', getURL: (p) => `chrome-extension://me/${p}`, getManifest: () => ({ content_scripts: [], version: '1' }), onMessage: listener('m'), onMessageExternal: listener('x'), onInstalled: listener('i'), onStartup: listener('s'), lastError: null },
     storage: { local: area(local), session: area({}), sync: { get: async (d) => ({ ...d }), set: async () => {} }, onChanged: listener('c') },
-    tabs: { sendMessage: async () => null, get: async () => ({ id: 7, url: tabUrl }), create: noop, query: async () => [], update: async (id, u) => { updates.push(u); }, onRemoved: listener('removed'), onActivated: listener('a') },
+    tabs: { sendMessage: async (tabId, msg, opts) => { messages.push({ tabId, msg, opts }); return null; }, get: async () => ({ id: 7, url: tabUrl }), create: noop, query: async () => [], update: async (id, u) => { updates.push(u); }, onRemoved: listener('removed'), onActivated: listener('a') },
     action: { setBadgeText: noop, setBadgeBackgroundColor: noop, setTitle: noop },
     alarms: { create: noop, onAlarm: listener('al') },
     contextMenus: { create: noop, onClicked: listener('cm') },
     notifications: { create: noop },
-    webNavigation: { onErrorOccurred: listener('error'), onCommitted: listener('committed'), onCompleted: listener('done'), onHistoryStateUpdated: listener('h'), onReferenceFragmentUpdated: listener('f') },
+    webNavigation: { onBeforeNavigate: listener('before'), onErrorOccurred: listener('error'), onCommitted: listener('committed'), onCompleted: listener('done'), onHistoryStateUpdated: listener('h'), onReferenceFragmentUpdated: listener('f') },
     permissions: { contains: async () => true },
     scripting: { executeScript: async (o) => { scripts.push(o); } },
     declarativeNetRequest: { getDynamicRules: async () => dynamic, updateDynamicRules: update(dynamic), getSessionRules: async () => session, updateSessionRules: update(session) }
@@ -51,11 +52,11 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null }
       throw new Error('offline');
     } };
   vm.createContext(ctx);
-  vm.runInContext(`${[flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n')}\n;this.handlers = handlers; this.syncDoor = syncDoor; this.recalled = recalled; this.localVerdict = localVerdict; this.doorOnAddress = doorOnAddress; this.cacheSet = cacheSet; this.inTabOrder = inTabOrder;`, ctx);
+  vm.runInContext(`${[read('lib/say.js'), flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n')}\n;this.handlers = handlers; this.syncDoor = syncDoor; this.recalled = recalled; this.localVerdict = localVerdict; this.doorOnAddress = doorOnAddress; this.cacheSet = cacheSet; this.inTabOrder = inTabOrder;`, ctx);
   const blockTab = { id: 'me', url: 'chrome-extension://me/src/block.html', tab: { id: 7, active: true } };
   const call = async (type, msg = {}, sender = blockTab) => { await ctx.recalled; return JSON.parse(JSON.stringify(await ctx.handlers[type]({ type, ...msg }, sender))); };
   const settled = async () => { await ctx.inTabOrder('door', () => {}); };
-  return { ctx, dynamic, session, on, scripts, updates, call, settled, blockTab };
+  return { ctx, dynamic, session, on, scripts, updates, messages, call, settled, blockTab };
 }
 
 test('a listed site becomes one browser rule, for main pages only, and the same check matches what the rule matches', async () => {
@@ -156,8 +157,11 @@ test('a flagged page that opened is replaced, not covered; a tab that moved on i
   assert.equal(allowed.scripts.length, 0);
 });
 
-test('a site let through whose https page fails gets its http address once, and nothing else is touched', async () => {
+test('a site asked for on http whose https fails gets its http address once; one asked for on https is never moved to http', async () => {
   const w = worker({ list: ['bad.test'] });
+  await w.ctx.recalled;
+  // The person asked for http; the browser switched it to https before the door saw it.
+  await w.on.before({ frameId: 0, tabId: 7, url: 'http://bad.test/x' });
   await w.call('block-pass', { url: 'https://bad.test/x' });
   await w.settled();
   const fail = (o) => w.on.error({ frameId: 0, tabId: 7, url: 'https://bad.test/x', error: 'net::ERR_CONNECTION_REFUSED', ...o });
@@ -170,13 +174,52 @@ test('a site let through whose https page fails gets its http address once, and 
   assert.deepEqual(w.updates, [{ url: 'http://bad.test/x' }], 'once');
   await w.on.error({ frameId: 0, tabId: 7, url: 'http://bad.test/x', error: 'net::ERR_CONNECTION_REFUSED' });
   assert.equal(w.updates.length, 1, 'an http failure is the end of it');
+
+  // Asked for on https: it fails as it would without Sentinel.
+  const sure = worker({ list: ['bad.test'] });
+  await sure.call('block-pass', { url: 'https://bad.test/y' });
+  await sure.settled();
+  await sure.on.error({ frameId: 0, tabId: 7, url: 'https://bad.test/y', error: 'net::ERR_CONNECTION_REFUSED' });
+  assert.deepEqual(sure.updates, [], 'never downgraded');
+  // An http address asked for elsewhere on the site does not count for this one.
+  await sure.on.before({ frameId: 0, tabId: 7, url: 'http://bad.test/other' });
+  await sure.on.error({ frameId: 0, tabId: 7, url: 'https://bad.test/y', error: 'net::ERR_CONNECTION_REFUSED' });
+  assert.deepEqual(sure.updates, []);
+});
+
+test('red after the page opened replaces it; orange warns over it and leaves it, with what was typed', async () => {
+  const commit = { frameId: 0, tabId: 7, url: 'http://guess.test/x' };
+  const orange = { ok: true, url: commit.url, host: 'guess.test', threats: { scam: { badge: 'orange' } }, reasons: [{ text: 'Young address' }], overall: { badge: 'orange', label: 'Likely scam' } };
+  const w = worker({ tabUrl: commit.url, fetchVerdict: orange });
+  await w.ctx.recalled;
+  await w.on.committed(commit);
+  assert.equal(w.scripts.length, 0, 'not replaced');
+  const warn = w.messages.find((m) => m.msg.type === 'sentinel:warn');
+  assert.ok(warn, 'warned in place');
+  assert.equal(warn.opts.frameId, 0);
+  assert.equal(warn.msg.said.title, 'This site looks like a scam', 'the same words as the block page');
+  assert.equal(warn.msg.said.action.text, 'Take me back to safety');
+
+  const red = worker({ tabUrl: commit.url, fetchVerdict: { ...orange, threats: { scam: { badge: 'red' } }, overall: { badge: 'red', label: 'Confirmed scam' } } });
+  await red.ctx.recalled;
+  await red.on.committed(commit);
+  assert.equal(red.scripts.length, 1, 'replaced');
+  assert.ok(!red.messages.some((m) => m.msg.type === 'sentinel:warn'));
+
+  // Continue anyway on the in-place warning: the tab is let through, so a reload is not warned again.
+  const page = { id: 'me', url: commit.url, frameId: 0, tab: { id: 7, url: commit.url } };
+  await w.ctx.handlers['warn-pass']({}, page);
+  await w.settled();
+  const before = w.messages.length;
+  await w.on.committed(commit);
+  assert.equal(w.messages.filter((m) => m.msg.type === 'sentinel:warn').length, w.messages.slice(0, before).filter((m) => m.msg.type === 'sentinel:warn').length);
 });
 
 test('the overlay on a loaded page and the emoji mask are gone', () => {
   const bg = read('background.js');
   const guard = read('content/guard.js');
-  assert.doesNotMatch(bg, /sentinel:warn|const warned/);
-  assert.doesNotMatch(guard, /sentinel:warn|Continue anyway|slice\(0, 4\)/);
+  assert.doesNotMatch(bg, /const warned/);
+  assert.doesNotMatch(guard, /slice\(0, 4\)|steps: \(v\.reasons/, 'one reason, never the list');
   for (const f of ['options.html', 'options.js', 'lib/api.js', 'content/serp.js', 'content/sentinel.css']) assert.doesNotMatch(read(f), /badgeStyle|emoji|\u{1F3AD}/u, f);
   assert.doesNotMatch(read('popup.js'), /Scan this page/);
 });

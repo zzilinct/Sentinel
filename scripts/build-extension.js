@@ -44,11 +44,7 @@ for (const file of ['fonts.css', 'newsreader-opsz-16-72.woff2', 'newsreader-OFL.
   fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'fonts', file), path.join(SRC, 'src', 'fonts', file));
 }
 
-// And for the masks on the block page, the popup and the settings: the site's own renders.
-fs.mkdirSync(path.join(SRC, 'src', 'masks'), { recursive: true });
-for (const file of ['onyx', ...['scam', 'virus', 'malware'].flatMap((t) => ['red', 'orange', 'yellow'].map((c) => `${t}-${c}`))]) {
-  fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'img', 'masks', `${file}.webp`), path.join(SRC, 'src', 'masks', `${file}.webp`));
-}
+// The masks on the block page, the popup and the settings are the site's renders made smaller: scripts/extension-masks.py.
 
 fs.writeFileSync(path.join(SRC, 'src', 'lib', 'brand.js'),
   '// Generated from brand.json by scripts/build-extension.js - edit brand.json instead.\n' +
