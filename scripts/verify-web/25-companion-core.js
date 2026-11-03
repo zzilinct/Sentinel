@@ -482,7 +482,7 @@ async function checkCompanionCore() {
     /* ------------------------------------------------------------ 8. Firefox */
 
     const sync = spawnSync(process.execPath, [path.join(ROOT, 'desktop', 'scripts', 'sync-shared.js')], { cwd: ROOT, encoding: 'utf8' });
-    const ff = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'verify-companion-firefox.js'), '--server', base], { cwd: ROOT, encoding: 'utf8', timeout: 180000 });
+    const ff = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'verify-companion-firefox.js'), '--server', base], { cwd: ROOT, encoding: 'utf8', timeout: 300000 });   // one Firefox start, two pages and the door; 180 s ran out once (run 41348129554)
     const ffOut = `${ff.stdout || ''}${ff.stderr || ''}`.trim().split(/\r?\n/);
     result(`companion-core: the Firefox build marks every result on a search page (${/SKIP/.test(ffOut[0] || '') ? 'Firefox is not on this runner' : (ffOut[0] || '').replace(/^(PASS|FAIL)\s+/, '')})`,
       ff.status === 0 || ff.status === 2, { sync: sync.status, exit: ff.status, out: ffOut });

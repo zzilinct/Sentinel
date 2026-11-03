@@ -168,14 +168,14 @@ async function checkCompanionDoor() {
     result('companion-door: Continue anyway, pressed twice, opens the site in that tab, a reload stays open, and another tab is still stopped', Boolean(opened) && stays && otherStopped, { opened, stays, otherStopped });
     await browser.send('Target.closeTarget', { targetId: tab.targetId }).catch(() => {});
 
-    // Known and fail-safe: a listed site on plain http, nothing on 443, first visit. Chrome tries https and shows its error
-    // page; it does not fall back as it does for the same kind of site that no rule of Sentinel's lists (runs 41343748469,
-    // 41345754526). The page stays closed, so this is reported, not judged. If this line starts saying true, drop this note.
+    // A site on plain http with nothing on 443. Chrome switches the address to https before the door sees it, so the
+    // block page holds https; Continue anyway must still reach the site, as Chrome itself falls back to http.
     const httpOnly = await openPage(browser);
     await goto(browser, httpOnly.sessionId, `http://${HTTP_ONLY}/signin.html`, SHOWN);
     const httpOpened = await passBlock(browser, httpOnly.sessionId, 'window.ran === true').then(() => true, (err) => err.message);
+    const httpHref = await evalIn(browser, httpOnly.sessionId, 'location.href').catch(() => '');
+    result('companion-door: Continue anyway opens a plain http site with nothing on its https port', httpOpened === true && httpHref.startsWith(`http://${HTTP_ONLY}/`), { httpOpened, httpHref });
     await browser.send('Target.closeTarget', { targetId: httpOnly.targetId }).catch(() => {});
-    console.log(`      known: Continue anyway on a listed http-only site, first visit: ${httpOpened === true ? 'true' : 'Chrome error page'}`);
 
     // A link opened in a new tab has nothing to go back to: the tab closes.
     const count = async () => (await browser.send('Target.getTargets')).targetInfos.filter((t) => t.type === 'page').length;

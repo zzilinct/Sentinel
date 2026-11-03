@@ -39,7 +39,7 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null }
     alarms: { create: noop, onAlarm: listener('al') },
     contextMenus: { create: noop, onClicked: listener('cm') },
     notifications: { create: noop },
-    webNavigation: { onCommitted: listener('committed'), onCompleted: listener('done'), onHistoryStateUpdated: listener('h'), onReferenceFragmentUpdated: listener('f') },
+    webNavigation: { onErrorOccurred: listener('error'), onCommitted: listener('committed'), onCompleted: listener('done'), onHistoryStateUpdated: listener('h'), onReferenceFragmentUpdated: listener('f') },
     permissions: { contains: async () => true },
     scripting: { executeScript: async (o) => { scripts.push(o); } },
     declarativeNetRequest: { getDynamicRules: async () => dynamic, updateDynamicRules: update(dynamic), getSessionRules: async () => session, updateSessionRules: update(session) }
@@ -154,6 +154,22 @@ test('a flagged page that opened is replaced, not covered; a tab that moved on i
   await allowed.settled();
   await allowed.on.committed(commit);
   assert.equal(allowed.scripts.length, 0);
+});
+
+test('a site let through whose https page fails gets its http address once, and nothing else is touched', async () => {
+  const w = worker({ list: ['bad.test'] });
+  await w.call('block-pass', { url: 'https://bad.test/x' });
+  await w.settled();
+  const fail = (o) => w.on.error({ frameId: 0, tabId: 7, url: 'https://bad.test/x', error: 'net::ERR_CONNECTION_REFUSED', ...o });
+  await fail({ error: 'net::ERR_ABORTED' });
+  await fail({ frameId: 3 });
+  await fail({ tabId: 8 });
+  assert.deepEqual(w.updates, [], 'aborted, a frame, a tab not let through: left alone');
+  await fail();
+  await fail();
+  assert.deepEqual(w.updates, [{ url: 'http://bad.test/x' }], 'once');
+  await w.on.error({ frameId: 0, tabId: 7, url: 'http://bad.test/x', error: 'net::ERR_CONNECTION_REFUSED' });
+  assert.equal(w.updates.length, 1, 'an http failure is the end of it');
 });
 
 test('the overlay on a loaded page and the emoji mask are gone', () => {

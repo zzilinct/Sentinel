@@ -937,6 +937,23 @@ async function onSameDocument(details) {
   else await payLook(details.tabId, details.url);
 }
 
+/**
+ * Continue anyway on a site with nothing on https. The browser tries https first for an http address and goes back to
+ * http when that fails; but the door saw the address after the switch, so the block page holds the https one, and a
+ * fresh https navigation gets no way back. Measured in Chrome: an http-only site stopped at the door opened on an error
+ * page. So a tab the person let through to a site, whose https page fails to load, gets the http address once, as the
+ * browser itself would have done. Nothing runs for any other navigation error.
+ */
+const fellBack = new Set();
+async function httpsFailed(d) {
+  if (d.frameId !== 0 || !/^https:/i.test(d.url) || /ABORTED|BLOCKED/i.test(d.error || '')) return;
+  const key = `${d.tabId}|${hostOf(d.url)}`;
+  if (fellBack.has(key) || !(await isLetThroughHere(d.tabId, d.url))) return;
+  fellBack.add(key);
+  await Promise.resolve(ext.tabs.update(d.tabId, { url: d.url.replace(/^https:/i, 'http:') })).catch(() => {});
+}
+if (ext.webNavigation.onErrorOccurred) ext.webNavigation.onErrorOccurred.addListener(httpsFailed);
+
 ext.webNavigation.onCommitted.addListener(onNavigate);
 ext.webNavigation.onHistoryStateUpdated.addListener(onSameDocument);
 ext.webNavigation.onReferenceFragmentUpdated.addListener(onSameDocument);
