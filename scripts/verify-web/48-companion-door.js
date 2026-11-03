@@ -258,6 +258,17 @@ async function checkCompanionDoor() {
     await size(guess.sessionId, 360, 740); await sleep(500);
     await pictures(guess.sessionId, 'warned-open-phone');
     await browser.send('Emulation.clearDeviceMetricsOverride', {}, guess.sessionId);
+    // Continue anyway is folded under the why, as on the block page.
+    const { root: doc } = await browser.send('DOM.getDocument', { depth: -1, pierce: true }, guess.sessionId);
+    let summary = null;
+    const walk = (n) => { if (summary) return; if (n.nodeName === 'SUMMARY') { summary = n; return; } for (const c of [...(n.shadowRoots || []), ...(n.children || [])]) walk(c); };
+    walk(doc);
+    if (summary) {
+      const { model } = await browser.send('DOM.getBoxModel', { nodeId: summary.nodeId }, guess.sessionId);
+      const q = model.content;
+      for (const type of ['mousePressed', 'mouseReleased']) await browser.send('Input.dispatchMouseEvent', { type, x: (q[0] + q[4]) / 2, y: (q[1] + q[5]) / 2, button: 'left', clickCount: 1 }, guess.sessionId);
+      await sleep(300);
+    }
     const pressed = await clickButton(browser, guess.sessionId, 'Continue anyway');
     await sleep(800);
     const afterText = await pageText(browser, guess.sessionId);
@@ -266,6 +277,15 @@ async function checkCompanionDoor() {
     await sleep(2500);
     const reloadText = await pageText(browser, guess.sessionId);
     await browser.send('Target.closeTarget', { targetId: guess.targetId }).catch(() => {});
+    // The same warning over a dark site: one treatment, readable over either.
+    const darkSite = await openPage(browser);
+    await goto(browser, darkSite.sessionId, 'http://orange-later.test/dark-site', "document.getElementById('pw')");
+    await evalIn(browser, darkSite.sessionId, "document.body.style.background = '#101418'; document.body.style.color = '#e8eaed'; 1");
+    for (let i = 0; i < 60 && !/looks like a scam/.test(await pageText(browser, darkSite.sessionId)); i++) await sleep(250);
+    await size(darkSite.sessionId, 1366, 860); await sleep(800);
+    await shot(browser, darkSite.sessionId, 'companion-door-warned-open-over-dark-site');
+    await browser.send('Target.closeTarget', { targetId: darkSite.targetId }).catch(() => {});
+
     result('companion-door: an orange answer after the page opened warns over it and keeps it: what was typed is still there, Continue anyway removes the warning, and a reload is not warned again',
       /looks like a scam/.test(warnText) && stillHere === 'orange-later.test|typed-before-the-answer' && pressed && !/looks like a scam/.test(afterText) && kept === stillHere && !/looks like a scam/.test(reloadText) && /Sign in to your account/.test(reloadText),
       { stillHere, pressed, kept, warned: warnText.slice(0, 200) });

@@ -19,21 +19,21 @@
     warned = true;
     flagged = true;
     const said = msg.said;
-    const Masks = globalThis.SentinelMasks;
     const send = (m) => Promise.resolve(ext.runtime.sendMessage(m)).catch(() => null);
+    const mask = /^(onyx|(scam|virus|malware)-(red|orange|yellow))$/.test(String(said.mask)) ? said.mask : 'scam-orange';
     globalThis.SentinelAlarm.show({
       accent: '#f08a24',
-      icon: Masks ? Masks.svg(String(said.threat || 'scam')) : '',
+      mask: ext.runtime.getURL(`src/masks/${mask}.webp`),
       title: said.title,
       chip: msg.host,
       lead: said.line,
       steps: said.reason ? [said.reason] : [],
-      buttons: [
-        { text: said.action.text, kind: 'go', on: () => (said.action.kind === 'real' ? send({ type: 'real-site' }) : globalThis.SentinelAlarm.leave()) },
-        { text: 'Continue anyway', kind: 'quiet', on: (ev, ctl) => { ctl.close(); send({ type: 'warn-pass' }); } }
-      ],
-      link: msg.recover ? { href: msg.recover, text: 'Already typed something there? Open the recovery guide' } : null,
-      foot: 'Your page is still here, as you left it.'
+      buttons: [{ text: said.action.text, kind: 'go', on: () => (said.action.kind === 'real' ? send({ type: 'real-site' }) : globalThis.SentinelAlarm.leave()) }],
+      fold: {
+        summary: 'Why Sentinel warned you',
+        link: msg.recover ? { href: msg.recover, text: 'Already typed something there? Open the recovery guide' } : null,
+        buttons: [{ text: 'Continue anyway', kind: 'quiet', on: (ev, ctl) => { ctl.close(); send({ type: 'warn-pass' }); } }]
+      }
     });
   }
 

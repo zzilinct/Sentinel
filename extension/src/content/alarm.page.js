@@ -12,6 +12,9 @@
  *     extra    trusted markup after the buttons (the password alarm's "are you sure" box)
  *     link     { href, text }: opened in a new tab, the recovery guide
  *     small    a notice in the corner instead of a full-screen block; it does not take the focus
+ *     mask     the 3D mask's address: the block page's own layout (mask, one title, one sentence, one action), one
+ *              dark treatment that reads over any site
+ *     fold     { summary, buttons, link }: folded under a "why", as on the block page
  *     escape   what the Escape key does; without it, Escape does nothing
  */
 (() => {
@@ -70,6 +73,35 @@
       .foot{margin-top:24px;padding-top:16px;border-top:1px solid #23262b;display:flex;justify-content:space-between;gap:12px;color:#6e747c;font-size:12px}
       .small .foot{margin-top:12px;padding-top:10px}
       .foot b{color:#c9a64e;letter-spacing:.22em;font-size:11px}
+      /* The block page's language over a page that stays: its mask lit in the colour of what was found, a serif title,
+         one sentence, one gold action, the rest folded. One dark treatment, which reads over a light site or a dark one. */
+      .brand.wrap{background:rgba(8,9,11,.9)}
+      .brand .panel{width:min(760px,100%);display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr);gap:8px 40px;align-items:center;
+        padding:40px 44px;background:#0b0c0f;border:1px solid rgba(255,255,255,.08);border-radius:26px;box-shadow:0 50px 120px rgba(0,0,0,.7)}
+      .brand .mask{grid-row:1 / span 2;display:grid;place-items:center;background:radial-gradient(closest-side,${accent}38,transparent)}
+      .brand .mask img{display:block;width:100%;height:auto;filter:drop-shadow(0 22px 26px rgba(0,0,0,.55));animation:settle .72s linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1) backwards}
+      @keyframes settle{from{transform:translateY(12px) scale(.94)}}
+      .brand h1{font:400 34px/1.12 Newsreader,"Iowan Old Style","Palatino Linotype",Georgia,serif;letter-spacing:-.01em;margin:0 0 12px;color:#efece5}
+      .brand .chip{background:none;border:0;padding:0;margin:0 0 14px;color:#b9b6ae;font-weight:500}
+      .brand #d p{font-size:17px;line-height:1.5;color:#efece5;margin:0}
+      .brand ul{margin:10px 0 0;color:#b9b6ae}.brand ul li:before{display:none}.brand ul li{display:block}
+      .brand .row{margin-top:26px}
+      .brand .go{background:linear-gradient(180deg,#efd79c 0%,#d6b066 34%,#b88e3d 62%,#e2c47f 100%) 0 0/100% 240%;color:#16130b;padding:14px 24px;border-radius:13px;
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 12px 26px -14px rgba(212,174,99,.8);transition:background-position .5s ease}
+      .brand .go:hover{background-position:0 100%}
+      .brand .more{margin-top:20px;color:#b9b6ae;font-size:14px}
+      .brand .more summary{cursor:pointer;width:fit-content;padding:6px 0;border-radius:4px}.brand .more summary:hover{color:#efece5}
+      .brand .more summary:focus-visible{outline:2px solid #d6b25a;outline-offset:2px}
+      .brand .more .row{margin-top:10px;gap:8px 22px}
+      .brand .more .help{margin:10px 0 0}
+      .brand .foot{display:none}
+      @media (prefers-reduced-motion: reduce){.brand .mask img{animation:none}}
+      @media (max-width:640px){
+        .brand .panel{display:block;padding:26px 22px 22px}
+        .brand .mask{justify-items:start;width:84px;margin-bottom:16px;background:radial-gradient(closest-side at 40px 50%,${accent}38,transparent)}
+        .brand h1{font-size:28px}
+        .brand .row .go{flex:1 1 100%;text-align:center}
+      }
       @media (max-width:480px){
         .wrap{padding:12px}
         .panel{padding:24px 20px 20px;border-radius:18px}
@@ -90,19 +122,27 @@
     if (o.small) host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;';
     const root = attach.call(host, { mode: 'closed' });
     const list = (o.steps || []).map((s) => `<li>${esc(s)}</li>`).join('');
+    // The folded buttons are numbered after the open ones: one list, one click handler.
+    const fold = o.fold || null;
+    const buttons = [...(o.buttons || []), ...((fold && fold.buttons) || [])];
+    const button = (b, i) => `<button type="button" data-i="${i}" class="${esc(b.kind || '')} ${esc(b.cls || '')}">${esc(b.text)}</button>`;
+    const open = o.buttons || [];
     const role = o.small ? 'role="alert"' : 'role="alertdialog" aria-modal="true" aria-labelledby="t" aria-describedby="d"';
     root.innerHTML = `<style>${css(accent, o.small)}</style>
-      <div class="wrap${o.small ? ' small' : ''}" ${role}>
+      <div class="wrap${o.small ? ' small' : ''}${o.mask ? ' brand' : ''}" ${role}>
         <div class="panel">
-          ${o.icon ? `<div class="ring">${o.icon}</div>` : ''}
+          ${o.mask ? `<div class="mask"><img src="${esc(o.mask)}" alt=""></div>` : o.icon ? `<div class="ring">${o.icon}</div>` : ''}
+          <div class="words">
           <h1 id="t">${esc(o.title)}</h1>
           ${o.chip ? `<div class="chip">${esc(o.chip)}</div>` : ''}
           ${o.verdict ? `<p class="verdict">Sentinel: ${esc(o.verdict)}</p>` : ''}
           <div id="d">${o.lead ? `<p>${esc(o.lead)}</p>` : ''}${list ? (o.ordered ? `<ol>${list}</ol>` : `<ul>${list}</ul>`) : ''}</div>
-          <div class="row">${(o.buttons || []).map((b, i) => `<button type="button" data-i="${i}" class="${esc(b.kind || '')} ${esc(b.cls || '')}">${esc(b.text)}</button>`).join('')}</div>
+          <div class="row">${open.map(button).join('')}</div>
           ${o.extra || ''}
           ${o.link ? `<p class="help"><a href="${esc(o.link.href)}" target="_blank" rel="noopener noreferrer">${esc(o.link.text)}</a></p>` : ''}
+          ${fold ? `<details class="more"><summary>${esc(fold.summary)}</summary>${fold.link ? `<p class="help"><a href="${esc(fold.link.href)}" target="_blank" rel="noopener noreferrer">${esc(fold.link.text)}</a></p>` : ''}<div class="row">${(fold.buttons || []).map((b, i) => button(b, open.length + i)).join('')}</div></details>` : ''}
           <div class="foot"><span><b>SENTINEL</b></span>${o.foot ? `<span>${esc(o.foot)}</span>` : ''}</div>
+          </div>
         </div>
       </div>`;
     const $ = (sel) => root.querySelector(sel);
@@ -119,7 +159,7 @@
     root.addEventListener('click', (ev) => {
       if (!ev.isTrusted) return;
       const b = ev.target.closest && ev.target.closest('button[data-i]');
-      const spec = b && (o.buttons || [])[Number(b.dataset.i)];
+      const spec = b && buttons[Number(b.dataset.i)];
       if (spec && spec.on) spec.on(ev, ctl);
     });
     root.addEventListener('keydown', (ev) => {
@@ -127,7 +167,7 @@
       if (ev.key === 'Escape' && o.escape) { ev.preventDefault(); o.escape(ctl); return; }
       if (ev.key !== 'Tab' || o.small) return;
       // Tab and Shift+Tab go round the warning's own controls, never back to the page behind it.
-      const all = [...root.querySelectorAll('button, a[href]')].filter((el) => !el.closest('[hidden]'));
+      const all = [...root.querySelectorAll('button, a[href], summary')].filter((el) => !el.closest('[hidden]') && !(el.closest('details:not([open])') && el.tagName !== 'SUMMARY'));
       if (!all.length) return;
       const at = all.indexOf(root.activeElement);
       const next = ev.shiftKey ? (at <= 0 ? all.length - 1 : at - 1) : (at === all.length - 1 ? 0 : at + 1);

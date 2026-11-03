@@ -209,7 +209,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/block.html"
+        "src/block.html",
+        "src/masks/*.webp"
       ],
       "matches": [
         "http://*/*",

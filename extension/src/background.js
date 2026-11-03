@@ -958,7 +958,7 @@ async function onSameDocument(details) {
 function warnInPlace(tabId, verdict, settings) {
   const said = globalThis.SentinelSay.page(verdict);
   const message = { type: 'sentinel:warn', host: String(verdict.host || ''), recover: siteUrl(settings.apiBase, said.threat === 'scam' ? '/recover' : '/recover?happened=file'),
-    said: { title: said.title, line: said.line, reason: said.reason, action: said.action, threat: said.threat } };
+    said: { title: said.title, line: said.line, reason: said.reason, action: said.action, threat: said.threat, mask: said.mask } };
   return Promise.resolve(ext.tabs.sendMessage(tabId, message, { frameId: 0 })).catch(() => null);
 }
 

@@ -263,7 +263,7 @@ test('both browsers: Chrome shows the block page in a private window, Firefox ha
   const manifest = JSON.parse(fs.readFileSync(path.join(SRC, '..', 'manifest.json'), 'utf8'));
   assert.equal(manifest.incognito, 'split');
   assert.ok(manifest.permissions.includes('declarativeNetRequestWithHostAccess'), 'no new install warning: the sites are already granted');
-  assert.deepEqual(manifest.web_accessible_resources[0].resources, ['src/block.html']);
+  assert.deepEqual(manifest.web_accessible_resources[0].resources, ['src/block.html', 'src/masks/*.webp'], 'the block page, and the masks the warning over a page shows; nothing else a page can reach');
   const build = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build-extension.js'), 'utf8');
   assert.match(build, /delete ff\.incognito/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'desktop', 'scripts', 'sync-shared.js'), 'utf8'), /delete manifest\.incognito/);
