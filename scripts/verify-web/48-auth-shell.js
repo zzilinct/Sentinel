@@ -177,6 +177,8 @@ async function checkAuthShell() {
     const early = async (server) => {
       await browser.send('Page.navigate', { url: `${server.base}/login` }, s);
       for (let i = 0; i < 100 && !held.length; i++) await sleep(100);
+      // The new page's form, not the one being left (the script can be asked for before the old page is gone).
+      for (let i = 0; i < 100; i++) { if (await ev(`location.href === ${JSON.stringify(`${server.base}/login`)} && Boolean(document.querySelector('form[data-form] button[type=submit]'))`)) break; await sleep(100); }
     };
     browser.on('Fetch.requestPaused', (p, sid) => { if (!sid || sid === s) held.push(p); });
     await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*/assets/js/auth.js*' }, { urlPattern: '*/auth/google/start*' }] }, s);
