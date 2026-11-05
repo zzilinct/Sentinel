@@ -421,9 +421,11 @@ function typedUrl(raw) {
  * amazonaws.com are long, signed and random by design. What is served there still can be dangerous: the threat
  * lists, the download checks and the impersonation checks still apply to it.
  * Never a name someone else chose on a shared platform: a customer's subdomain, a storage bucket, a dynamic-DNS name.
+ * Never a link shortener: there the address is not the site, the hidden destination is.
  */
 function isWellKnown(p, popular = null) {
   if (!p || p.isIp || p.hosting || L.OBJECT_STORAGE.test(p.host) || L.DYNAMIC_DNS.some((d) => p.host === d || p.host.endsWith('.' + d))) return false;
+  if (L.URL_SHORTENERS.has(p.registrable) || L.URL_SHORTENERS.has(p.host)) return false;
   if (popular && popular.has(p.registrable)) return true;
   if (L.DEFAULT_ALLOWLIST.some((d) => p.registrable === d || p.host === d || p.host.endsWith('.' + d))) return true;
   return L.PROTECTED_BRANDS.some((b) => b.domains.some((d) => p.registrable === d || p.host === d || p.host.endsWith('.' + d)));

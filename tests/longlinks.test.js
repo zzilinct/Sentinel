@@ -116,6 +116,11 @@ test('on an unknown site, other listed pages still count', async () => {
   for (const i of [1, 2, 3]) listed(`https://small-hacked-blog.example/wp-content/uploads/drop${i}.exe`);
   const v = await scan('https://small-hacked-blog.example/wp-content/uploads/2026/11/invoice.html');
   assert.equal(v.threats.malware.level, 'likely', v.threats.malware.label);
+  // A link shortener is popular, but its address is not the site: the hidden destination is. u.to ranks in the top
+  // 10,000 and a held-out phishing link on it was caught this way (CI evaluation, before and after).
+  assert.equal(isWellKnown(analyze('https://u.to/WbThIg'), new Set(['u.to'])), false);
+  for (const id of ['aaaa1', 'bbbb2', 'cccc3']) listed(`https://u.to/${id}`, 'scam');
+  assert.ok((await scan('https://u.to/WbThIg')).overall.badge, 'still flagged');
 });
 
 test('the shipped list of well-known sites holds no platform where people pick their own names', () => {
