@@ -118,6 +118,16 @@ test('on an unknown site, other listed pages still count', async () => {
   assert.equal(v.threats.malware.level, 'likely', v.threats.malware.label);
 });
 
+test('the shipped list of well-known sites holds no platform where people pick their own names', () => {
+  const text = require('fs').readFileSync(require('path').join(__dirname, '..', 'server', 'lib', 'scan', 'wellknown.txt'), 'utf8');
+  assert.match(text, /^# Licence: Creative Commons Attribution 3\.0/m, 'its source and licence are written at the top');
+  const names = new Set(text.split(/\r?\n/).filter((l) => l && !l.startsWith('#')));
+  assert.ok(names.size > 5000, `${names.size} names`);
+  for (const d of ['discordapp.com', 'twimg.com', 'fbcdn.net', 'wsimg.com', 'imgur.com']) assert.ok(names.has(d), d);
+  // Shared platforms: by the Public Suffix List, or by how many of their own names the threat lists name.
+  for (const d of ['github.io', 'blogspot.com', 'in.net', 'amazonaws.com', 'cloudfront.net', 'b-cdn.net', 'webflow.io', 'weebly.com', 'wixsite.com']) assert.ok(!names.has(d), d);
+});
+
 test('phishing and malware addresses are still caught, long or not', () => {
   const caught = [
     'https://paypa1-secure-login.com/account',

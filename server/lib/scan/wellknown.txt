@@ -1,9 +1,9 @@
 # The most linked-to sites on the web, for url.isWellKnown. Made by scripts/wellknown.js; do not edit by hand.
 # Source: the Majestic Million, https://majestic.com/reports/majestic-million
 # Licence: Creative Commons Attribution 3.0 (CC BY 3.0). Domain names by Majestic.
-# Left out: shared platforms named by the Public Suffix List (https://publicsuffix.org, MPL 2.0).
-# List date: Thu, 05 Nov 2026 06:00:20 GMT. Top 10000 by global rank, 9494 kept, ordered by rank.
-google.com
+# Left out: shared platforms named by the Public Suffix List (https://publicsuffix.org, MPL 2.0), and sites with
+# listed addresses under three or more names of their own in the public threat lists Sentinel reads.
+# List date: Thu, 05 Nov 2026 06:00:20 GMT. Top 10000 by global rank, 9356 kept, ordered by rank.
 facebook.com
 youtube.com
 instagram.com
@@ -31,8 +31,6 @@ amazon.com
 t.me
 mozilla.org
 europa.eu
-adobe.com
-wordpress.com
 bit.ly
 apache.org
 nih.gov
@@ -42,9 +40,6 @@ spotify.com
 yahoo.com
 qq.com
 creativecommons.org
-tumblr.com
-archive.org
-gravatar.com
 macromedia.com
 w3.org
 office.com
@@ -53,7 +48,6 @@ flickr.com
 doi.org
 nytimes.com
 baidu.com
-medium.com
 youtube-nocookie.com
 soundcloud.com
 namecheap.com
@@ -75,7 +69,6 @@ dropbox.com
 bbc.com
 wikimedia.org
 t.co
-vk.com
 discord.com
 cnn.com
 nature.com
@@ -105,7 +98,6 @@ openai.com
 plesk.com
 imdb.com
 stanford.edu
-weebly.com
 beian.gov.cn
 miit.gov.cn
 www.gov.uk
@@ -132,13 +124,11 @@ businessinsider.com
 statista.com
 share.google
 line.me
-list-manage.com
 substack.com
 mysql.com
 cloudflare.com
 canva.com
 twitch.tv
-sharepoint.com
 cnbc.com
 openstreetmap.org
 oup.com
@@ -173,18 +163,15 @@ aol.com
 fda.gov
 cornell.edu
 go.com
-squarespace.com
 wpguardian.com
 wpguardian.io
 google.de
 berkeley.edu
 ca.gov
 yandex.ru
-zendesk.com
 booking.com
 bilibili.com
 telegraph.co.uk
-jotform.com
 tripadvisor.com
 usatoday.com
 bandcamp.com
@@ -212,7 +199,6 @@ ted.com
 networkadvertising.org
 ieee.org
 thenai.org
-free.fr
 mailchimp.com
 independent.co.uk
 frontiersin.org
@@ -284,7 +270,6 @@ ico.org.uk
 intel.com
 sohu.com
 indeed.com
-odoo.com
 patreon.com
 yale.edu
 livejournal.com
@@ -393,8 +378,6 @@ ucla.edu
 naver.com
 gizmodo.com
 wiktionary.org
-tripod.com
-business.site
 usgs.gov
 typepad.com
 jd.com
@@ -478,7 +461,6 @@ imf.org
 telegra.ph
 cctv.com
 congress.gov
-doubleclick.net
 gallup.com
 senate.gov
 inc.com
@@ -489,7 +471,6 @@ variety.com
 douyin.com
 feedburner.com
 google.fr
-jimdofree.com
 nejm.org
 purdue.edu
 trustindex.io
@@ -569,7 +550,6 @@ autodesk.com
 slashdot.org
 digitalocean.com
 cell.com
-b-cdn.net
 fifa.com
 newscientist.com
 privacyshield.gov
@@ -587,7 +567,6 @@ itch.io
 unc.edu
 curl.se
 playstation.com
-fc2.com
 mediafire.com
 yandex.com
 sfgate.com
@@ -623,7 +602,6 @@ heise.de
 wipo.int
 haxx.se
 urldefense.com
-webs.com
 imagemagick.org
 news.cn
 abcnews.com
@@ -700,10 +678,8 @@ uol.com.br
 mpg.de
 wa.gov
 weather.com
-angelfire.com
 moz.com
 dot.gov
-aliyuncs.com
 accenture.com
 figma.com
 texas.gov
@@ -757,7 +733,6 @@ mediawiki.org
 crunchbase.com
 dreamhost.com
 imageshack.us
-wpengine.com
 greenpeace.org
 max.ru
 investing.com
@@ -797,7 +772,6 @@ prezi.com
 zapier.com
 legislation.gov.uk
 last.fm
-blogspot.co.uk
 ispconfig.org
 securityfocus.com
 weather.gov
@@ -872,7 +846,6 @@ salon.com
 cia.gov
 complianz.io
 trendmicro.com
-mystrikingly.com
 routledge.com
 yumpu.com
 verizon.com
@@ -970,13 +943,10 @@ dictionary.com
 one.com
 libpng.org
 boe.es
-jimdosite.com
 gohugo.io
-over-blog.com
 aarp.org
 asana.com
 amazon-adsystem.com
-hsforms.com
 strava.com
 bluehost.com
 archlinux.org
@@ -990,11 +960,9 @@ wampserver.com
 is.gd
 note.com
 timeout.com
-site.com
 fema.gov
 memcached.org
 phpbb.com
-lnk.to
 hotjar.com
 grammarly.com
 unhcr.org
@@ -1029,7 +997,6 @@ foursquare.com
 arduino.cc
 xmlsoft.org
 accuweather.com
-onelink.me
 siemens.de
 ria.ru
 smugmug.com
@@ -1082,7 +1049,6 @@ macrumors.com
 app.google
 mapquest.com
 oxfordjournals.org
-rs6.net
 redcross.org
 service-public.fr
 biblegateway.com
@@ -1116,7 +1082,6 @@ uscourts.gov
 visa.com
 rottentomatoes.com
 nationalarchives.gov.uk
-sibforms.com
 ahajournals.org
 google.com.au
 gstatic.com
@@ -1126,7 +1091,6 @@ howtogeek.com
 counterpane.com
 ijg.org
 philips.com
-blogspot.de
 torproject.org
 uiowa.edu
 codepen.io
@@ -1167,7 +1131,6 @@ unsw.edu.au
 youradchoices.com
 ti.com
 verywellmind.com
-campaign-archive.com
 gettyimages.com
 se.com
 adweek.com
@@ -1195,7 +1158,6 @@ colostate.edu
 copyright.gov
 garanteprivacy.it
 lothar.com
-app.link
 aap.org
 cnblogs.com
 ebay.de
@@ -1298,7 +1260,6 @@ miro.com
 ampproject.org
 igvita.com
 atlasobscura.com
-page.link
 mass.gov
 dartmouth.edu
 athemes.com
@@ -1342,8 +1303,6 @@ kubernetes.io
 chinaz.com
 reverbnation.com
 degruyterbrill.com
-myportfolio.com
-blogspot.ca
 cloudinary.com
 usf.edu
 unixtools.org
@@ -1424,10 +1383,8 @@ wmo.int
 nationalpost.com
 google.pl
 spaceship.com
-filesusr.com
 uq.edu.au
 cookieyes.com
-blogspot.com.es
 grigorik.com
 java.net
 radiofrance.fr
@@ -1438,14 +1395,12 @@ thenationalnews.com
 we.tl
 alltrails.com
 aip.org
-blogspot.fr
 fu-berlin.de
 twilio.com
 ipsos.com
 epfl.ch
 wistia.com
 vistaprint.com
-tilda.ws
 nfl.com
 in.gov
 supremecourt.gov
@@ -1574,7 +1529,6 @@ emptyhammock.com
 leadconnectorhq.com
 insider.com
 tiny.cc
-neocities.org
 infogram.com
 feishu.cn
 maryland.gov
@@ -1680,7 +1634,6 @@ expiredwixdomain.com
 uconn.edu
 polygon.com
 azure.com
-sendgrid.net
 haveibeenpwned.com
 opaque.net
 newrepublic.com
@@ -1816,7 +1769,6 @@ freep.com
 csic.es
 googlepages.com
 thepaper.cn
-daum.net
 fourseasons.com
 icrc.org
 eonline.com
@@ -1877,7 +1829,6 @@ raspberrypi.com
 ifixit.com
 sandiegouniontribune.com
 ubs.com
-hostingersite.com
 govdelivery.com
 vc.ru
 bigcommerce.com
@@ -1903,7 +1854,6 @@ kit.edu
 breitbart.com
 helloasso.com
 mainichi.jp
-webnode.com
 aruba.it
 ontario.ca
 macworld.com
@@ -2022,7 +1972,6 @@ msu.ru
 formula1.com
 iom.int
 tensorflow.org
-godaddysites.com
 capterra.com
 ada.org
 scirp.org
@@ -2078,7 +2027,6 @@ allmusic.com
 jianshu.com
 spacex.com
 syr.edu
-thinkific.com
 usu.edu
 cas.cn
 docomo.ne.jp
@@ -2103,7 +2051,6 @@ cargocollective.com
 iz.ru
 superuser.com
 tu-dresden.de
-formstack.com
 dreamstime.com
 bl.uk
 clarivate.com
@@ -2215,14 +2162,12 @@ thewrap.com
 ihk.de
 bankofengland.co.uk
 ushmm.org
-webnode.page
 ce.cn
 livechatinc.com
 umweltbundesamt.de
 tcd.ie
 clemson.edu
 askubuntu.com
-teachable.com
 aljazeera.net
 copernicus.org
 geekwire.com
@@ -2339,7 +2284,6 @@ hal.science
 forbes.ru
 analog.com
 clarin.com
-tistory.com
 emb-japan.go.jp
 cntv.cn
 designboom.com
@@ -2364,7 +2308,6 @@ cancerresearchuk.org
 zara.com
 trimble.com
 thebalance.com
-site123.me
 financialpost.com
 example.org
 intechopen.com
@@ -2391,7 +2334,6 @@ pixiv.net
 physiology.org
 emirates.com
 temple.edu
-blogspot.it
 chinatax.gov.cn
 gitbook.com
 garant.ru
@@ -2511,7 +2453,6 @@ openbsd.org
 wponetap.com
 pantone.com
 uni-stuttgart.de
-netlify.com
 socialmediatoday.com
 nbcsports.com
 jsonline.com
@@ -2641,7 +2582,6 @@ parliament.uk
 georgia.gov
 beacons.ai
 viator.com
-blogspot.in
 inews.co.uk
 edweek.org
 imo.org
@@ -2703,7 +2643,6 @@ which.co.uk
 newswire.ca
 elperiodico.com
 infoseek.co.jp
-seesaa.net
 uni-muenster.de
 utm.edu
 ustr.gov
@@ -2738,7 +2677,6 @@ wildberries.ru
 crowdstrike.com
 meltwater.com
 wordreference.com
-blogspot.com.au
 basecamp.com
 clickbank.net
 carnegieendowment.org
@@ -2751,7 +2689,6 @@ hypotheses.org
 nine.com.au
 avma.org
 sothebys.com
-e-monsite.com
 so-net.ne.jp
 pinterest.ca
 vogue.co.uk
@@ -2798,7 +2735,6 @@ svt.se
 jalbum.net
 osmfoundation.org
 forecast7.com
-blogspot.jp
 gopro.com
 honda.com
 mynewsdesk.com
@@ -2807,7 +2743,6 @@ freshworks.com
 china.org.cn
 fed.us
 homeadvisor.com
-helpjuice.com
 bsigroup.com
 informa.com
 stats.gov.cn
@@ -2906,7 +2841,6 @@ cbinsights.com
 iflscience.com
 uni-leipzig.de
 anl.gov
-home.pl
 yaml.org
 catb.org
 wpml.org
@@ -2955,7 +2889,6 @@ penguin.co.uk
 dtu.dk
 dlr.de
 sxsw.com
-cleverreach.com
 openculture.com
 att.net
 sachsen.de
@@ -3032,7 +2965,6 @@ ionos.fr
 syfy.com
 alternet.org
 onlyfans.com
-cloudwaysapps.com
 uchile.cl
 zippia.com
 koreaherald.com
@@ -3093,7 +3025,6 @@ revolut.com
 bitcoin.com
 homeaffairs.gov.au
 overheid.nl
-oraclecloud.com
 unu.edu
 nrc.nl
 aalto.fi
@@ -3220,7 +3151,6 @@ shinyapps.io
 dtic.mil
 psychiatryonline.org
 telegraaf.nl
-myftpupload.com
 coub.com
 a16z.com
 todoist.com
@@ -3280,7 +3210,6 @@ dailyrecord.co.uk
 wvu.edu
 unwto.org
 activemind.de
-myqcloud.com
 accorhotels.com
 sae.org
 comodo.com
@@ -3331,7 +3260,6 @@ perfectdomain.com
 upc.edu
 1tv.ru
 amazon.cn
-blogspot.nl
 pdx.edu
 linux.com
 regjeringen.no
@@ -3339,7 +3267,6 @@ eweek.com
 schwab.com
 intel.de
 barcelona.cat
-mjt.lu
 wayfair.com
 mixpanel.com
 ansible.com
@@ -3552,7 +3479,6 @@ dur.ac.uk
 osticket.com
 eugdpr.org
 humblebundle.com
-xsrv.jp
 mobile.de
 medtronic.com
 androidcentral.com
@@ -3614,14 +3540,12 @@ epo.org
 sonypictures.com
 southernliving.com
 mouser.com
-blogspot.ru
 liverpool.ac.uk
 influencermarketinghub.com
 most.gov.cn
 oilprice.com
 charitynavigator.org
 razer.com
-blogspot.com.br
 dailysabah.com
 mediapart.fr
 cardiff.ac.uk
@@ -3763,7 +3687,6 @@ cbs.nl
 larazon.es
 google.co.za
 duma.gov.ru
-systeme.io
 lyft.com
 digitalspy.com
 beatport.com
@@ -3807,7 +3730,6 @@ qub.ac.uk
 almanac.com
 wpmet.com
 designrush.com
-peraichi.com
 abc7ny.com
 journaldunet.com
 rbi.org.in
@@ -3819,7 +3741,6 @@ wccftech.com
 dailytelegraph.com.au
 thenational.ae
 redalyc.org
-at.ua
 uea.ac.uk
 kent.ac.uk
 pbc.gov.cn
@@ -3894,7 +3815,6 @@ nebraska.gov
 seattle.gov
 zebra.com
 nalog.gov.ru
-secureserver.net
 ibge.gov.br
 nexusmods.com
 instyle.com
@@ -4275,9 +4195,7 @@ animenewsnetwork.com
 hotpepper.jp
 detik.com
 montrealgazette.com
-teamtailor.com
 seattlepi.com
-studio.site
 actu.fr
 mapy.cz
 rotary.org
@@ -4372,8 +4290,6 @@ jwwb.nl
 dnaindia.com
 db.tt
 spain.info
-hashnode.dev
-sendibm1.com
 metamask.io
 govtech.com
 publico.es
@@ -4386,7 +4302,6 @@ percona.com
 wanfangdata.com.cn
 eatright.org
 postheaven.net
-hs-sites.com
 slashfilm.com
 spektrum.de
 lws.fr
@@ -4453,7 +4368,6 @@ mises.org
 bit.do
 italia.it
 usccb.org
-websupport.sk
 opb.org
 danfoss.com
 chicago.gov
@@ -4551,7 +4465,6 @@ researchsquare.com
 aidar.ru
 piwigo.org
 transunion.com
-bravenet.com
 arrow.com
 klaviyo.com
 robinhood.com
@@ -4573,7 +4486,6 @@ sankei.com
 anses.fr
 money.com
 livedoor.com
-hpage.com
 ina.fr
 oppomobile.com
 al-monitor.com
@@ -4650,10 +4562,8 @@ keysight.com
 agilemanifesto.org
 fatf-gafi.org
 bmwi.de
-company.site
 vlaanderen.be
 avid.com
-inmotionhosting.com
 xvideos.com
 hermes.com
 thieme-connect.com
@@ -4676,7 +4586,6 @@ descript.com
 rockpapershotgun.com
 binghamton.edu
 auth.gr
-questionpro.com
 brnostavi.cz
 seroundtable.com
 valvesoftware.com
@@ -4933,7 +4842,6 @@ cirquedusoleil.com
 he.net
 michaels.com
 brandwatch.com
-bravesites.com
 err.ee
 ifema.es
 dlink.com
@@ -4977,7 +4885,6 @@ merckmanuals.com
 booksy.com
 indiebound.org
 euromonitor.com
-ecwid.com
 saude.gov.br
 ilovepdf.com
 uclouvain.be
@@ -5225,7 +5132,6 @@ zawya.com
 cgiar.org
 uproxx.com
 duden.de
-mykajabi.com
 pepsico.com
 cdp.net
 unistra.fr
@@ -5362,7 +5268,6 @@ eurosport.com
 thelocal.se
 getfirefox.com
 orst.edu
-000webhostapp.com
 aha.org
 simon.com
 cultofmac.com
@@ -5412,7 +5317,6 @@ airbnb.co.uk
 dict.cc
 lalibre.be
 freepatentsonline.com
-awstrack.me
 sparknotes.com
 stuttgarter-zeitung.de
 kirkusreviews.com
@@ -5438,7 +5342,6 @@ colgate.com
 zerodepositcasino.co.uk
 bme.hu
 pagina12.com.ar
-blogspot.se
 ucanr.edu
 uxdesign.cc
 lavozdegalicia.es
@@ -5637,7 +5540,6 @@ caf.fr
 wwf.org.uk
 uni-erlangen.de
 mct.gov.cn
-ghost.io
 crisisgroup.org
 digitimes.com
 aist.go.jp
@@ -5843,7 +5745,6 @@ uoc.edu
 psmag.com
 adnkronos.com
 theweathernetwork.com
-cmail20.com
 ibo.org
 iis.net
 musicbrainz.org
@@ -6182,7 +6083,6 @@ aetna.com
 simplyrecipes.com
 justsecurity.org
 oxfam.org.uk
-format.com
 d3js.org
 miaminewtimes.com
 citizen.org
@@ -6243,7 +6143,6 @@ grundfos.com
 56.com
 shimano.com
 asce.org
-beget.tech
 youcanbook.me
 shazam.com
 deseretnews.com
@@ -6346,7 +6245,6 @@ jbc.org
 cardplayer.com
 shinystat.com
 gamer.com.tw
-moonfruit.com
 mgtv.com
 westfield.com
 venngage.com
@@ -6451,7 +6349,6 @@ ekathimerini.com
 ircam.fr
 jinshuju.net
 piie.com
-activehosted.com
 historicengland.org.uk
 graphviz.org
 reservix.de
@@ -6461,7 +6358,6 @@ iqvia.com
 fluke.com
 arabianbusiness.com
 ernet.in
-blogspot.be
 guttmacher.org
 knoxnews.com
 maritime-executive.com
@@ -6502,7 +6398,6 @@ tripsavvy.com
 derwesten.de
 omnihotels.com
 telecinco.es
-usrfiles.com
 onsemi.com
 thinkquest.org
 boston.gov
@@ -6557,10 +6452,8 @@ tnt.com
 pipex.com
 uc.cn
 linuxserver.io
-clickfunnels.com
 wolt.com
 insiderintelligence.com
-dothome.co.kr
 gamblerzone.ca
 npmjs.org
 spiedigitallibrary.org
@@ -6799,7 +6692,6 @@ usafacts.org
 bbci.co.uk
 data.gov
 ah.gov.cn
-redirectingat.com
 vfsglobal.com
 citysearch.com
 geni.com
@@ -6825,7 +6717,6 @@ rabbitmq.com
 vektor-inc.co.jp
 solana.com
 weightwatchers.com
-kinsta.cloud
 asrock.com
 ksat.com
 gastromedix.shop
@@ -6851,7 +6742,6 @@ musicbusinessworldwide.com
 uodo.gov.pl
 thepioneerwoman.com
 nopcommerce.com
-esy.es
 cybersecurityventures.com
 uofmhealth.org
 alchemer.com
@@ -6901,7 +6791,6 @@ widen.net
 marktplaats.nl
 hermitagemuseum.org
 manus.im
-blogspot.ch
 marchofdimes.org
 merchantcircle.com
 pilotonline.com
@@ -6946,7 +6835,6 @@ abbott.com
 soas.ac.uk
 anker.com
 juniperresearch.com
-mybluehost.me
 opec.org
 werite.net
 character.ai
@@ -6963,7 +6851,6 @@ cults3d.com
 sr.ht
 finder.com
 jfklibrary.org
-cargo.site
 pardot.com
 mod.go.jp
 kornferry.com
@@ -7165,7 +7052,6 @@ bundesgerichtshof.de
 cnsnews.com
 tricentis.com
 guru99.com
-ucoz.net
 kgmedia.id
 trendyol.com
 cohere.com
@@ -7262,7 +7148,6 @@ skynews.com.au
 openpetition.de
 menafn.com
 mapyourshow.com
-cba.pl
 law-gov.cn
 bark.com
 gazette.com
@@ -7375,14 +7260,12 @@ heineken.com
 williamhill.com
 saksfifthavenue.com
 licdn.com
-short.gy
 tsn.ua
 boku.ac.at
 hkbu.edu.hk
 sport.es
 periscope.tv
 symbaloo.com
-sch.gr
 qidigroup.com
 hmzyet.com
 sparktoro.com
@@ -7703,7 +7586,6 @@ aacap.org
 gs1.org
 tianyancha.com
 videogameschronicle.com
-ck.page
 healthit.gov
 ecu.edu
 elsevier.es
@@ -7800,7 +7682,6 @@ yingdai.online
 rodeointl.com.cn
 aoa.org
 abqjournal.com
-imweb.me
 news.com
 jyxlzs.com
 hitachi.co.jp
@@ -7929,10 +7810,8 @@ divadloustolu.cz
 ujaen.es
 med.or.jp
 vamtam.com
-sendibm3.com
 ppc.go.jp
 surfer.ai
-lolipop.jp
 spaceflightnow.com
 singularityhub.com
 vg247.com
@@ -8004,7 +7883,6 @@ vans.com
 fairphone.com
 domestika.org
 hessenschau.de
-codesandbox.io
 airfrance.com
 bookofra-slot.fr
 siggraph.org
@@ -8072,7 +7950,6 @@ diamond.jp
 healthcareitnews.com
 schengenvisainfo.com
 babelio.com
-glitch.me
 howard.edu
 hannovermesse.de
 yakjk.com
@@ -8080,7 +7957,6 @@ picsart.com
 focustaiwan.tw
 legal500.com
 pidgin.im
-blogspot.gr
 flathub.org
 lord-of-the-ocean-slot.com
 chinadxscycp.org
@@ -8179,7 +8055,6 @@ tongji.edu.cn
 skrill.com
 dxc.com
 intertek.com
-blogspot.com.ar
 upatras.gr
 undway.com
 insurancebusinessmag.com
@@ -8202,7 +8077,6 @@ personio.de
 spreadshirt.com
 panic.com
 rowman.com
-bget.ru
 simplepie.org
 jchldryq.com
 lyon.fr
@@ -8239,7 +8113,6 @@ autozone.com
 mcclatchydc.com
 blog.hu
 globalvoices.org
-powerappsportals.com
 embassy.gov.au
 yingdailianmeng.com
 match.com
@@ -8333,7 +8206,6 @@ medshop24h.top
 hitnspin-casino.org
 yudu.com
 zds8158.com
-webador.com
 websiteplanet.com
 weeklystandard.com
 thewindowsclub.com
@@ -8524,7 +8396,6 @@ camcom.it
 engineeringtoolbox.com
 xenforo.com
 webbyawards.com
-onlinehome.us
 tj.gov.cn
 alltheweb.com
 asahi.co.jp
@@ -8636,7 +8507,6 @@ tympanus.net
 macports.org
 kansas.com
 zxxjscp.com
-nazwa.pl
 unmissions.org
 frost.com
 coolworldcn.com
@@ -8796,7 +8666,6 @@ shopee.vn
 minnpost.com
 mediamarkt.de
 jamestown.org
-webnode.es
 boell.org
 pragprog.com
 ca.com
@@ -8833,7 +8702,6 @@ shunyuanlawyer.com
 gemini.com
 whiterose.ac.uk
 micro.blog
-mlsend.com
 giige.online
 socrf.com
 elgato.com
@@ -8897,7 +8765,6 @@ schiphol.nl
 topwar.ru
 aliqbwl.com
 privacyinternational.org
-blogspot.mx
 google.com.sv
 cecece.com.cn
 uspreventiveservicestaskforce.org
@@ -9334,7 +9201,6 @@ urlz.fr
 nzn-oa.com
 zj-xingyi.com
 spaceweather.gov
-multiscreensite.com
 weheartit.com
 globalspec.com
 pandora.be
@@ -9360,7 +9226,6 @@ technode.com
 kearney.com
 playwright.dev
 llbean.com
-sg-host.com
 nationaljournal.com
 wienerzeitung.at
 openjsf.org
@@ -9493,7 +9358,5 @@ taschen.com
 silverchair.com
 lmu.edu
 webthemez.com
-goserver.host
-es.tl
 lighttpd.net
 hna.de
