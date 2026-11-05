@@ -96,3 +96,8 @@ test('the page lists every scene for the keyboard, each with its picture, verdic
   assert.ok(bytes < 1.5 * 1024 * 1024, `${bytes} bytes of pictures`);
   assert.ok(buttons.filter(([, f]) => f.startsWith('galaxy/')).length >= 30, 'at least 30 scam scenes');
 });
+
+test('the card held or enlarged is never shed when the page is slow', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'js', 'galaxy.js'), 'utf8');
+  assert.match(src, /c\.gone \+= \(\(c\.rank < n \|\| isHeld \|\| c === boosted \? 0 : 1\) - c\.gone\)/);
+});

@@ -6,6 +6,7 @@
 const { db, now } = require('./db');
 const { HttpError } = require('./http');
 const models = require('./models');
+const config = require('../config');
 
 const PLANS = {
   free: {
@@ -121,7 +122,7 @@ function assertModel(plan) {
   if (!plan.modelLocked) return;
   const free = models.newestFree();
   throw new HttpError(403, 'model_requires_plan',
-    `${models.label(models.own())} is one of the five newest models, which come with Pro, Max and Ultimate. Switch to ${models.label(free)} to stay on the free plan, or upgrade.`,
+    `${models.label(models.own())} is one of the five newest models, which come with Pro, Max and Ultimate. Switch to ${models.label(free)} to stay on the free plan${config.billingMode === 'demo' ? ', or upgrade' : ''}.`,
     { model: models.own(), newestFree: free, needs: 'pro' });
 }
 
@@ -256,7 +257,12 @@ function setPlan(userId, planId) {
 }
 
 function publicPlans() {
-  return Object.values(PLANS).map(({ id, name, price, limits, features }) => ({ id, name, price, limits, features, newestModelLimits: NEWEST_LIMITS[id] ? { ...limits, ...NEWEST_LIMITS[id] } : null }));
+  return Object.values(PLANS).map(({ id, name, price, limits, features }) => ({ id, name, price, limits, features,
+    newestModelLimits: NEWEST_LIMITS[id] ? { ...limits, ...NEWEST_LIMITS[id] } : null,
+    // Where models run (the Windows app) this is the rule as it stands there: the free lock needs an older version that
+    // stays put. Anywhere else it describes the app, whose published versions have long since met that.
+    modelRule: id === 'free' ? (!models.enabled() || models.freeLockApplies() ? { olderThan: models.NEWEST_PAID } : null)
+      : NEWEST_LIMITS[id] ? { limitedOn: models.NEWEST_LIMITED } : null }));
 }
 
 module.exports = { NEWEST_LIMITS, planFor, consume, trackLive, usageSummary, setPlan, publicPlans, weekStart, weekResetsAt, liveMinutesUsed, fastMinutesUsed };

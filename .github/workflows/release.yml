@@ -3,7 +3,9 @@
 # credentials are involved.
 #
 # To ship a version:   set "version" in package.json and desktop/package.json,
-#                      then git tag v1.2.0 && git push origin v1.2.0
+#                      write changelog/<version>.md, run npm run build:note (the
+#                      download page's "New in" comes from it, and npm test below
+#                      fails if it was not run), commit, then git tag v1.2.0 && git push origin v1.2.0
 # A tag that does not match both versions fails before anything is built.
 #
 # The website's download button points at the stable asset names below, so

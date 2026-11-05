@@ -95,6 +95,7 @@
   }
 
   function navigate(href) {
+    if (!href.startsWith('/app')) { location.href = href; return; }   // /call is a public page, outside the app
     // The page already open, asked for again ("Scan again" on the link just scanned): run it again, without a new
     // history entry.
     if (href === location.pathname + location.search) history.replaceState({}, '', href);
@@ -195,7 +196,6 @@
     '/app/threats': ['threats', threatsView],
     '/app/email': ['email', emailView],
     '/app/text': ['text', textView],
-    '/app/call': ['call', callView],
     '/app/history': ['history', historyView],
     '/app/protection': ['protection', protectionView],
     '/app/download': ['protection', protectionView],
@@ -273,7 +273,7 @@
 
   const PAGES = [
     ['Overview', '/app', 'home'], ['Your week', '/app/week', 'week'], ['Link scan', '/app/scan', 'scan'], ['Virus & malware scan', '/app/threats', 'threats'],
-    ['Email scan', '/app/email', 'email'], ['Text scan', '/app/text', 'text'], ['Is this call a scam?', '/app/call', 'call'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
+    ['Email scan', '/app/email', 'email'], ['Text scan', '/app/text', 'text'], ['Is this call a scam?', '/call', 'call'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
     ['Live protection', '/app/protection', 'protection'], ['Plan & usage', '/app/plan', 'plan'], ['Security', '/app/security', 'security'],
     ['AI assistants', '/app/assistants', 'assistants'], ['Recovery guide', '/app/recover', 'recover']
   ];
@@ -873,7 +873,7 @@
       return lockedCard({
         tag: 'Pro & up',
         heading: 'Research every result, and protect email and downloads',
-        body: 'Your plan includes 15 minutes a week of fast live scanning. Pro and up add delicate live scanning, which researches every result (4 hours a week on Pro, 24 on Max, 96 on Ultimate), and mark emails and downloads too.',
+        body: `Your plan includes ${plan().limits.fastMinutes} minutes a week of fast live scanning. Pro and up add delicate live scanning, which researches every result, and mark emails and downloads too.`,
         actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>'
       });
     }
@@ -1372,7 +1372,6 @@
     // A file chosen with "Scan with Sentinel" in the Windows right-click menu, handed over once by the app.
     if (desktop && desktop.takeMenuFile) desktop.takeMenuFile().then((m) => {
       if (!m || !el.isConnected) return;
-      if (!m.data) { toast(`${m.name} is too big. Files up to 25 MB can be scanned.`, 'error'); return; }
       scanFile(new File([m.data], m.name));
       // The answer is what the person came for: below the drop zone it was out of sight.
       out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -1385,7 +1384,7 @@
     const f = plan().features;
     if (!f.emailManual) {
       el.innerHTML = `${title('Email scan', 'Paste a suspicious email and Sentinel checks the sender, wording, every link and every attachment.')}
-        ${lockedCard({ tag: 'Max', heading: 'Scan any email you paste in, or a screenshot of one', body: `Pasting emails and screenshots in is part of Sentinel Max. ${f.emailLive ? 'Your Pro plan already marks emails automatically in Gmail and Outlook through the Sentinel app.' : 'Pro, Max and Ultimate also mark emails automatically in Gmail and Outlook.'}`, actions: '<a class="btn btn--gold" href="/app/plan">Upgrade to Max</a>' })}`;
+        ${lockedCard({ tag: 'Max', heading: 'Scan any email you paste in, or a screenshot of one', body: `Pasting emails and screenshots in is part of Sentinel Max. ${f.emailLive ? 'Your Pro plan already marks emails automatically in Gmail and Outlook through the Sentinel app.' : 'Pro, Max and Ultimate also mark emails automatically in Gmail and Outlook.'}`, actions: `<a class="btn btn--gold" href="/app/plan">${state.config.billingMode === 'demo' ? 'Upgrade to Max' : 'See the plans'}</a>` })}`;
       return;
     }
     el.innerHTML = `
@@ -2172,55 +2171,6 @@
 
   /* ====================================================== browser checkup */
 
-  /* ========================================================== call check */
-
-  // "Is this call a scam?" for while someone is on the phone. The answer is worked out here, by callcheck.js, from what
-  // is ticked; nothing is sent or kept, so leaving the page forgets the call.
-  function callView(el) {
-    const C = window.SentinelCallCheck;
-    const picks = (list, name) => list.map((x) => `<label class="call__pick"><input type="checkbox" name="${name}" value="${x.id}"><span>${esc(x.label)}</span></label>`).join('');
-    el.innerHTML = `
-      ${title('Is this call a scam?', 'On the phone right now? Tick what the caller is saying. Sentinel answers at once, on this device. Nothing you tick is sent anywhere or kept.')}
-      <form class="call" data-call>
-        <fieldset class="panel call__group">
-          <legend><h2>What are they asking for or saying?</h2><span>Tick everything that fits.</span></legend>
-          <div class="call__picks">${picks(C.ASKS, 'ask')}</div>
-        </fieldset>
-        <fieldset class="panel call__group">
-          <legend><h2>Who do they say they are?</h2></legend>
-          <div class="call__picks">${picks(C.WHO, 'who')}</div>
-        </fieldset>
-        <div class="call__answer" data-call-answer aria-live="polite"></div>
-        <button type="reset" class="btn btn--ghost btn--sm">Start over</button>
-      </form>`;
-    const form = $('[data-call]', el);
-    const out = $('[data-call-answer]', el);
-    const draw = () => {
-      const ticked = (name) => $$(`input[name="${name}"]:checked`, form).map((i) => i.value);
-      const r = C.judge(ticked('ask'), ticked('who'));
-      const was = out.dataset.verdict;
-      out.dataset.verdict = r ? r.verdict : '';
-      // In the Windows app, only that the answer was "Hang up" goes to the app (an hour's pay pause sign, paypause.js).
-      if (r && r.verdict === 'hangup' && window.sentinelDesktop && window.sentinelDesktop.callHangUp) window.sentinelDesktop.callHangUp().catch(() => {});
-      out.innerHTML = !r ? '<p class="call__empty">Tick what the caller says, and the answer appears here.</p>'
-        : `<p class="call__verdict">${r.verdict === 'hangup' ? 'Hang up now.' : 'This is probably fine.'}</p>
-          <p class="call__reason">${esc(r.reason)}</p>
-          <p class="call__next"><b>What to do next:</b> ${esc(r.next)}</p>
-          ${r.happened.length ? `<p class="call__more">Already did what they asked? <a href="/app/recover?happened=${r.happened.join(',')}">Open the recovery guide</a> for every step, in order.</p>` : ''}`;
-      // The answer sits under both lists, below the screen on a phone: "Hang up now." is brought into view the moment
-      // it first appears. The focus stays on the box just ticked.
-      const big = $('.call__verdict', out);
-      if (big && r.verdict === 'hangup' && was !== 'hangup') {
-        const b = big.getBoundingClientRect();
-        if (b.top < 0 || b.bottom > innerHeight) big.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
-      }
-    };
-    form.addEventListener('change', draw);
-    form.addEventListener('reset', () => setTimeout(draw));
-    form.addEventListener('submit', (ev) => ev.preventDefault());
-    draw();
-  }
-
   /* ====================================================== recovery guide */
 
   // The same guide as the website's /recover page (recover.js), inside the app, so the sidebar stays. What is ticked is
@@ -2798,6 +2748,24 @@
     });
   }
 
+  // Most in need of the person first: flagged, then the files Sentinel could not stand behind.
+  const downloadRank = (d) => (d.badge && !d.quarantined ? 3 : d.looked === 'none' ? 2 : d.looked === 'part' ? 1 : 0);
+
+  function downloadRow(d) {
+    const said = d.badge ? `${esc(d.label)}${d.reason ? ` &middot; ${esc(d.reason)}` : ''}` : esc(d.looked === 'all' ? d.label : d.reason);
+    const end = d.quarantined ? '<span class="status">Quarantined</span>'
+      : d.badge ? `<button class="btn btn--sm" data-quarantine="${esc(d.id)}">Quarantine</button>`
+        : d.looked === 'all' ? '<span class="status is-on">Checked</span>'
+          : d.looked === 'part' ? '<span class="status is-locked">Partly checked</span>' : '<span class="status">Not checked</span>';
+    // The file as Sentinel read it, lit where it read, a sliver at least. Beside the words, never instead of them.
+    const lit = d.looked === 'none' ? 0 : Math.max(4, d.read * 50);
+    return `<li>
+          <span class="list__icon">${ICON.file}</span>
+          <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${said}</span></span>
+          <span class="dl-end"><span class="read-strip read-strip--${d.badge ? 'flag' : esc(d.looked)}" style="--end:${lit.toFixed(1)}%" aria-hidden="true"></span>${end}</span>
+        </li>`;
+  }
+
   async function renderDesktopControls(slot) {
     let info;
     try { info = await desktop.info(); } catch { return; }
@@ -2899,7 +2867,7 @@
           <div class="panel__head"><div><h2>Defense log</h2><p>What arrived, what was scanned, what was stopped.</p></div></div>
           ${ledger.length ? `<ul class="list">${ledger.slice(0, 8).map((e) => `<li>
             <span class="list__icon" style="${e.kind === 'threat' ? 'color:var(--red)' : e.kind === 'suspect' ? 'color:var(--orange)' : e.kind === 'restored' ? 'color:var(--gold-300)' : ''}">${ICON.file}</span>
-            <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'suspect' ? `${e.label}: runs at startup; nothing was changed. Quarantine it if you do not recognise it.` : e.kind === 'restored' ? 'Put back' : e.kind === 'noted' ? `${e.label}: noted, nothing touched` : `Clean (${e.how || 'scanned'})`)}</span></span>
+            <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'suspect' ? `${e.label}: runs at startup; nothing was changed. Quarantine it if you do not recognise it.` : e.kind === 'restored' ? 'Put back' : e.kind === 'noted' ? `${e.label}: ${e.signedBy ? `signed by ${e.signedBy}, ` : ''}noted, nothing touched` : `Clean (${e.how || 'scanned'})`)}</span></span>
             ${e.kind === 'threat' && !e.restored && (e.quarantined || (e.actions || []).some((a) => a.undo)) ? `<button class="btn btn--sm" data-restore="${esc(e.id)}">Put back</button>` : ''}
             ${e.kind === 'suspect' ? `<button class="btn btn--sm" data-suspect="${esc(e.id)}">Quarantine</button>` : ''}
           </li>`).join('')}</ul>` : '<div class="empty"><p>Nothing has needed stopping.</p></div>'}
@@ -2908,11 +2876,7 @@
 
       <div class="panel u-mt" id="downloads">
         <h2 class="u-mb">Recent downloads</h2>
-        ${recent.length ? `<ul class="list">${[...recent].sort((a, b) => Number(Boolean(b.badge && !b.quarantined)) - Number(Boolean(a.badge && !a.quarantined))).slice(0, 8).map((d) => `<li>
-          <span class="list__icon">${ICON.file}</span>
-          <span class="list__main"><b>${esc(d.name)}</b><span>${bytes(d.size)} &middot; ${ago(d.scannedAt)} &middot; ${esc(d.label)}${d.badge && d.reason ? ` &middot; ${esc(d.reason)}` : ''}</span></span>
-          ${d.badge && !d.quarantined ? `<button class="btn btn--sm" data-quarantine="${esc(d.id)}">Quarantine</button>` : d.quarantined ? '<span class="status">Quarantined</span>' : '<span class="status is-on">Clear</span>'}
-        </li>`).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they are scanned.</p></div>'}
+        ${recent.length ? `<ul class="list">${[...recent].sort((a, b) => downloadRank(b) - downloadRank(a)).slice(0, 8).map(downloadRow).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they are scanned.</p></div>'}
       </div>`;
 
     if (focusKey) {
@@ -3118,18 +3082,19 @@
 
   /* ================================================================ plan */
 
-  function planView(el) {
-    const current = plan().id;
+  /** The plan comparison is only on this page, so only this page loads it. */
+  const planbook = () => (window.SentinelPlanbook ? Promise.resolve() : new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/assets/js/planbook.js';
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.append(script);
+  }));
+
+  async function planView(el) {
     const us = usage();
-    const demo = state.config.billingMode === 'demo';
-    const lines = {
-      free: ['10 fast link scans a week', '5 virus & malware scans a week', '15 minutes of fast live scanning a week', 'Known threats + full checklist', 'Scam mask on link scans', 'Models older than the newest five'],
-      pro: ['24 hours of fast live scanning a week', '4 hours of delicate live scanning a week', '200 fast and 40 delicate link scans', '40 virus & malware scans', 'All three masks', 'Email & download protection',
-        'Newest three models: 18 h fast, 3 h delicate live; 150 fast, 30 delicate and 30 virus & malware scans'],
-      max: ['Unlimited fast live scanning', '24 hours of delicate live scanning a week', '1,000 fast and 100 delicate link scans', '100 virus & malware scans', 'Paste-in email scans',
-        'Every model, in full'],
-      ultimate: ['Unlimited fast live scanning', '96 hours of delicate live scanning a week', 'Unlimited fast and 500 delicate link scans', '500 virus & malware scans', 'Full email scans & download protection', 'Everything in Max', 'Every model, in full']
-    };
+    const { billingMode } = state.config;
+    const demo = billingMode === 'demo';
     el.innerHTML = `
       ${title('Plan &amp; usage', `You are on <b>${esc(plan().name)}</b>. Weekly allowances reset ${until(state.me.week.resetsAt)}.`)}
       ${demo ? '<div class="banner"><div><b>Demo billing.</b> Plan changes are instant and free on this server. No payment is taken.</div></div>' : ''}
@@ -3140,18 +3105,18 @@
       </div>
       <div class="u-mt-lg">${modelSlot(false)}</div>
       <div class="panel u-mt"><h2>The models</h2><p class="muted u-mt-xs">Every major version of Sentinel is a model, named for a guardian from myth. Turn one over to read about it.</p><div class="u-mt">${guardiansHTML()}</div></div>
-      <div class="plans u-mt-lg">${state.plans.map((p) => `
-        <article class="plan${p.id === 'pro' ? ' plan--featured' : ''}${p.id === current ? ' is-current' : ''}">
-          ${p.id === current ? '<span class="plan__badge">Current</span>' : ''}
-          <div class="plan__name">${esc(p.name)}</div>
-          <div class="plan__price"><b>$${p.price}</b><span>${p.price ? '/ month' : 'forever'}</span></div>
-          <button class="btn btn--block ${p.id !== 'free' ? 'btn--gold' : ''}" data-plan="${p.id}" ${p.id === current ? 'disabled' : ''}>${p.id === current ? 'Your plan' : p.price < (state.plans.find((x) => x.id === current) || { price: 0 }).price ? `Switch to ${esc(p.name)}` : `Upgrade to ${esc(p.name)}`}</button>
-          <ul class="plan__list">${lines[p.id].map((l) => `<li>${ICON.check}<span>${esc(l)}</span></li>`).join('')}</ul>
-        </article>`).join('')}
-      </div>`;
+      <div class="u-mt-lg" data-ledger></div>`;
 
     mountModels(el);
-    $$('[data-plan]', el).forEach((b) => b.addEventListener('click', () => busy(b, 'Updating', async () => {
+    const slot = $('[data-ledger]', el);
+    try {
+      await planbook();
+    } catch {
+      slot.innerHTML = '<p class="muted">The plans could not load just now. <a href="/pricing">See them on the website</a>.</p>';
+      return;
+    }
+    slot.innerHTML = window.SentinelPlanbook.ledger(state.plans, { billingMode, current: plan() });
+    $$('button[data-plan]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Updating', async () => {
       try {
         const data = await api('/billing/plan', { method: 'POST', body: { plan: b.dataset.plan } });
         state.me = { ...state.me, user: data.user, plan: data.plan, usage: data.usage, week: data.week };

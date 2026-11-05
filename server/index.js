@@ -10,6 +10,7 @@ const config = require('./config');
 require('./lib/dblock').claim();
 const { Router, sendJson, send, serveStatic, HttpError, parseUrl } = require('./lib/http');
 const security = require('./lib/security');
+const auth = require('./lib/auth');
 const { sweep, acquireLock, backupAccounts, resetFeeds } = require('./lib/db');
 const seed = require('./seed');
 const feeds = require('./lib/scan/feeds');
@@ -25,7 +26,7 @@ function buildRouter() {
 }
 
 // Clean URLs for the app shell: /app/scan, /app/settings ... all serve app.html.
-const APP_ROUTES = /^\/app(\/(scan|week|threats|email|text|call|history|sites|protection|plan|security|assistants|download|checkup|recover|share))?\/?$/;
+const APP_ROUTES = /^\/app(\/(scan|week|threats|email|text|history|sites|protection|plan|security|assistants|download|checkup|recover|share))?\/?$/;
 
 function createServer() {
   const router = buildRouter();
@@ -76,6 +77,14 @@ function createServer() {
       if (req.method === 'POST' && url.pathname === '/app/share') { req.once('end', () => send(res, 303, null, { Location: '/app/share?missed=1', Connection: 'close' })); req.resume(); return; }
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed', 'Method not allowed');
 
+      // Someone already signed in never sees the sign-in form: the server knows, so not a byte of it is sent.
+      if (/^\/(login|signup)(\.html)?\/?$/.test(url.pathname) && auth.currentUser(req)) {
+        const plan = url.searchParams.get('plan') ? '/app/plan' : '/app';
+        send(res, 302, null, { Location: auth.safeNext(url.searchParams.get('next') || plan), 'Cache-Control': 'no-store' });
+        return;
+      }
+      // The call check is public now: someone on the phone with a scammer cannot stop to sign in.
+      if (/^\/app\/call\/?$/.test(url.pathname)) { send(res, 302, null, { Location: '/call' }); return; }
       if (APP_ROUTES.test(url.pathname)) {
         serveStatic(config.webDir, '/app.html', req, res);
         return;

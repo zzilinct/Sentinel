@@ -28,7 +28,6 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
-const { MAX_FILE_BYTES } = require('../shared/filescan');
 const { summarize, analyze } = require('./downloads');
 
 const PROGRAM = /\.(exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|js|jse|wsf|hta|jar|dll|cpl|lnk|reg)$/i;
@@ -258,7 +257,6 @@ async function inspectFile(full, how) {
   if (how === 'arrived' && startupDir && path.dirname(full).toLowerCase() === startupDir.dir.toLowerCase()) how = `startup entry Startup\\${name}`;
   // Hashed as a stream and analysed on a worker thread (downloads.analyze): the main thread, which also draws live
   // scanning's marks, never holds or reads through a whole file.
-  const small = stat.size <= MAX_FILE_BYTES;
   let sha256;
   try {
     sha256 = await hashFile(full);
@@ -291,7 +289,7 @@ async function inspectFile(full, how) {
   // known-hash lookup is a second opinion with a short leash, because on a
   // fresh install the server is busy loading its threat lists.
   let known = null;
-  const look = (known) => (small ? analyze(full, name, known).catch(() => null) : Promise.resolve(null));
+  const look = (known) => analyze(full, name, known).catch(() => null);
   let report = await look(null);
   let worst = summarize(report, null);
   if (!worst.badge) {
@@ -304,19 +302,29 @@ async function inspectFile(full, how) {
     } catch { /* offline or busy: the local verdict stands */ }
     if (known) { report = await look(known); worst = summarize(report, known); }
   }
-  const item = { path: full, name, size: stat.size, sha256, how, at: Date.now(), badge: worst.badge, label: worst.label, threat: worst.threat, reason: worst.reason };
-  if (!worst.badge) { cleanCount++; return item; }
+  const item = { path: full, name, size: stat.size, sha256, how, at: Date.now(), badge: worst.badge, label: worst.label, threat: worst.threat, reason: worst.reason, looked: worst.looked };
+  if (!worst.badge) { if (worst.looked === 'all') cleanCount++; return item; }
 
   // What the on-device scan finds in a file is a guess from its contents. A guess is
-  // never enough against a program whose publisher Windows can vouch for: Discord's
-  // updater contains "DownloadFile", because downloading files is its job. Only a
-  // known malicious file (a hash on a list) outranks a valid signature.
-  if (!known) {
+  // never enough to act against a program whose publisher Windows can vouch for: Discord's
+  // updater contains "DownloadFile", because downloading files is its job. But a signature
+  // says who signed, not that the program is safe, so the guess is not wiped either: it
+  // keeps its colour, is written down with the publisher, and nothing is touched. Evidence
+  // (red) outranks a valid signature.
+  // A program that starts with Windows, signed by its maker (the Update.exe that Discord, Teams and Slack start
+  // through), is not flagged at all on a guess, red or not: only a known malicious file (a hash on a list) is. The
+  // owner's rule: Sentinel does not call a well-known app's startup "malware".
+  const startupEntry = /^startup entry/.test(how || '');
+  if (!known && (worst.badge !== 'red' || startupEntry)) {
     const publisher = await signer(full);
+    if (publisher && startupEntry) {
+      if (worst.looked === 'all') cleanCount++;
+      record({ kind: 'clean', path: full, name, how: `${how}, signed by ${publisher}` });
+      return { ...item, badge: null, label: `Signed by ${publisher}`, threat: null, reason: null, signedBy: publisher };
+    }
     if (publisher) {
-      cleanCount++;
-      record({ kind: 'clean', path: full, name, how: `signed by ${publisher}` });
-      return { ...item, badge: null, label: `Signed by ${publisher}`, threat: null, reason: null, trusted: true };
+      record({ kind: 'noted', ...item, signedBy: publisher, actions: [{ did: 'noted', detail: `Signed by ${publisher}; warning signs, and nothing was touched` }] });
+      return { ...item, signedBy: publisher };
     }
   }
   // "Possible" means a few warning signs and nothing more. It is written down, and
