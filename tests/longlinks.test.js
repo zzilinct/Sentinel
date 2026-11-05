@@ -129,7 +129,9 @@ test('a storage bucket\'s name is somebody\'s company: words alone never make it
     'https://myaccount.blob.core.windows.net/container/folder/file.png?sv=2022-11-02&ss=b&srt=sco&sp=r&sig=Ab3dEf7hIjkLmNoPqRsTuVwXyZ0123456789abcdefGH%3D',
     'https://secure-login-portal.s3.amazonaws.com/index.html',
     'https://mybucket.s3.us-east-1.amazonaws.com/secure/index.html',
-    'https://billing-account-support.blob.core.windows.net/statements/2026-10.pdf'
+    'https://billing-account-support.blob.core.windows.net/statements/2026-10.pdf',
+    // Generated names on a bucket: shape alone. Its check still fails, as a note.
+    'https://9qk3x8ypz2m7w4bv1tde.s3.amazonaws.com/qwer_ty7vziox4nslwio9fezt_mn_c4mot3l33xce28c5x.html'
   ]) {
     assert.equal(offline.scanAddress(url).overall.badge, null, url);
     const app = await scan(url);
