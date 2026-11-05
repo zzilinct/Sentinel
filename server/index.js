@@ -26,7 +26,7 @@ function buildRouter() {
 }
 
 // Clean URLs for the app shell: /app/scan, /app/settings ... all serve app.html.
-const APP_ROUTES = /^\/app(\/(scan|week|threats|email|text|call|history|sites|protection|plan|security|assistants|download|checkup|recover|share))?\/?$/;
+const APP_ROUTES = /^\/app(\/(scan|week|threats|email|text|history|sites|protection|plan|security|assistants|download|checkup|recover|share))?\/?$/;
 
 function createServer() {
   const router = buildRouter();
@@ -83,6 +83,8 @@ function createServer() {
         send(res, 302, null, { Location: auth.safeNext(url.searchParams.get('next') || plan), 'Cache-Control': 'no-store' });
         return;
       }
+      // The call check is public now: someone on the phone with a scammer cannot stop to sign in.
+      if (/^\/app\/call\/?$/.test(url.pathname)) { send(res, 302, null, { Location: '/call' }); return; }
       if (APP_ROUTES.test(url.pathname)) {
         serveStatic(config.webDir, '/app.html', req, res);
         return;

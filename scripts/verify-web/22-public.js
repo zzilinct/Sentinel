@@ -8,7 +8,7 @@
 const fs = require('fs');
 const { STATIC, sleep, result, launch, evalIn, openPage, goto, shot, typeText, pressEnter, startServer, serveFiles, watchErrors, clickSel, pressKey, until } = require('./_shared');
 
-const PAGES = ['/', '/pricing', '/download', '/privacy', '/terms', '/refunds', '/recover', '/practice', '/login', '/signup', '/forgot', '/guest'];
+const PAGES = ['/', '/pricing', '/download', '/privacy', '/terms', '/refunds', '/recover', '/call', '/practice', '/login', '/signup', '/forgot', '/guest'];
 
 /** Every link's status, each address asked once. Off-site pages that refuse robots (403, 429) are noted, not failed. */
 async function statuses(urls) {

@@ -33,7 +33,7 @@ const LAUNCHED = args.includes('--launched') || JSON.parse(fs.readFileSync(path.
 
 // Pages the static build ships. The app needs accounts and the scan API, so it
 // is not exported: its links point at the real site instead.
-const PAGES = ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', 'recover.html', 'practice.html', '404.html'];
+const PAGES = ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', 'recover.html', 'call.html', 'practice.html', '404.html'];
 const ASSET_DIRS = ['assets/css', 'assets/js', 'assets/img', 'assets/fonts', 'assets/models'];
 
 /* ------------------------------------------------------------- helpers */
@@ -69,6 +69,7 @@ const ROUTES = {
   '/terms': 'terms.html',
   '/refunds': 'refunds.html',
   '/recover': 'recover.html',
+  '/call': 'call.html',
   '/practice': 'practice.html'
 };
 
