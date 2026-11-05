@@ -1762,7 +1762,7 @@ async function boot() {
     onThreat: (item) => {
       if (item.quarantined) tally('files_quarantined');
       const did = item.actions.map((a) => a.did).filter((d, i, arr) => arr.indexOf(d) === i).join(', ');
-      if (item.suspect) notify('Sentinel: a startup program looks suspicious', `${item.name}\nNothing was changed. Open Sentinel to quarantine it if you do not recognise it.`, () => showWindow('/app/protection'));
+      if (item.suspect) notify(item.badge === 'red' ? 'Sentinel: a startup program is dangerous' :'Sentinel: a startup program looks suspicious', `${item.name}\nNothing was changed. Open Sentinel to quarantine it if you do not recognise it.`, () => showWindow('/app/protection'));
       else notifyAboutFile(item.path, `Sentinel stopped ${item.label}`, `${item.name}\n${did || 'Flagged'}`, () => showWindow('/app/protection'));
       push('sentinel:defense-threat', item);
     }

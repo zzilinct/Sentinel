@@ -334,6 +334,103 @@ test('defense: whatever it removes can be put back', async () => {
   }
 });
 
+// Discord, Teams, Slack, Spotify, GitHub Desktop and other Squirrel apps start at login through their own Update.exe
+// in %LOCALAPPDATA% with arguments; VS Code's user install runs Code.exe from there too. Signed by their makers.
+const SQUIRREL = [
+  ['Discord', 'Discord\\Update.exe', '--processStart Discord.exe', 'Discord Inc.'],
+  ['com.squirrel.Teams.Teams', 'Microsoft\\Teams\\Update.exe', '--processStart "Teams.exe" --process-start-args "--system-initiated"', 'Microsoft Corporation'],
+  ['com.squirrel.slack.slack', 'slack\\Update.exe', '--processStart "slack.exe" --process-start-args "--startup"', 'Slack Technologies, LLC'],
+  ['Spotify', 'Spotify\\Spotify.exe', '--autostart --minimized', 'Spotify AB'],
+  ['GitHubDesktop', 'GitHubDesktop\\Update.exe', '--processStart GitHubDesktop.exe', 'GitHub, Inc.'],
+  ['Visual Studio Code', 'Programs\\Microsoft VS Code\\Code.exe', '--startup', 'Microsoft Corporation']
+];
+
+test('defense: Discord, Teams, Slack, Spotify, GitHub Desktop and VS Code start untouched and unflagged', async () => {
+  const box = sandbox();
+  try {
+    for (const [entry, rel, , publisher] of SQUIRREL) {
+      // The worst case: content that looks like a stealer to the on-device scan. The signature still wins.
+      const full = path.join(box.dir, 'Local', rel);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, fakeStealerExe());
+      defense._test.setSigner(async () => publisher);
+      const item = await defense.inspect(full, `startup entry HKCU Run\\${entry}`);
+      assert.equal(item.badge, null, entry);
+      assert.ok(fs.existsSync(full), `${entry}: the program is where it was`);
+    }
+    assert.equal(box.threats.length, 0, 'nobody was told anything');
+    assert.deepEqual(defense.ledger().filter((e) => e.kind !== 'clean').map((e) => e.name), []);
+  } finally {
+    defense._test.setSigner(null);
+    fs.rmSync(box.dir, { recursive: true, force: true });
+  }
+});
+
+test('defense: a startup program with proof is reported, never changed: the person chooses', async () => {
+  const box = sandbox();
+  try {
+    // A known malicious file (its hash is on a list): evidence, the strongest case there is.
+    defense._test.configure({
+      dataDir: path.join(box.dir, 'data'), quarantineDir: path.join(box.dir, 'data', 'quarantine'), downloads: path.join(box.dir, 'dl'),
+      enabled: () => true, api: async () => ({ known: true, threat: 'malware', name: 'Known stealer' }), onThreat: (t) => box.threats.push(t)
+    });
+    defense._test.setSigner(async () => null);
+    const exe = box.file('Update.exe', Buffer.from('MZ an ordinary-looking program'));
+    const item = await defense.inspect(exe, 'startup entry HKCU Run\\Discord');
+    assert.equal(item.badge, 'red');
+    assert.ok(fs.existsSync(exe), 'not moved');
+    const entry = defense.ledger().find((e) => e.name === 'Update.exe');
+    assert.equal(entry.kind, 'suspect', 'told, and left for the person to decide');
+    assert.deepEqual(entry.actions.map((a) => a.did), ['left as it was']);
+    assert.equal(box.threats.length, 1);
+    assert.equal(box.threats[0].suspect, true);
+  } finally {
+    defense._test.setSigner(null);
+    fs.rmSync(box.dir, { recursive: true, force: true });
+  }
+});
+
+test('defense: a file that appears in the Startup folder is a startup entry, never quarantined on its own', async () => {
+  const box = sandbox();
+  const appdata = process.env.APPDATA;
+  try {
+    process.env.APPDATA = path.join(box.dir, 'Roaming');
+    const startup = path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup');
+    fs.mkdirSync(startup, { recursive: true });
+    const lnk = path.join(startup, 'Helper.exe');
+    fs.writeFileSync(lnk, fakeStealerExe());
+    defense._test.setSigner(async () => null);
+    const item = await defense.inspect(lnk, 'arrived');
+    assert.ok(item.badge, 'flagged');
+    assert.ok(fs.existsSync(lnk), 'still in the Startup folder');
+    assert.equal(defense.ledger().find((e) => e.name === 'Helper.exe').kind, 'suspect');
+  } finally {
+    process.env.APPDATA = appdata;
+    defense._test.setSigner(null);
+    fs.rmSync(box.dir, { recursive: true, force: true });
+  }
+});
+
+test('defense: Run keys, Startup shortcuts and scheduled tasks are changed only at the person\'s request', () => {
+  const src = read('desktop/src/defense.js');
+  const respond = src.slice(src.indexOf('async function respond('), src.indexOf('const psq ='));
+  assert.match(respond, /const chosen = item\.chosen === true;/);
+  assert.match(respond, /if \(chosen\) \{\s*actions\.push\(\.\.\.await removeRunKeys/, 'Run keys');
+  assert.match(respond, /if \(\$chosen -and \$dir/, 'Startup shortcuts');
+  assert.match(respond, /@\(if \(\$chosen\) \{ Get-ScheduledTask \}\)/, 'scheduled tasks');
+  // `chosen` is set only where the person asked: act() and the removal it calls.
+  const sets = src.split('\n').filter((l) => /chosen: true/.test(l));
+  assert.equal(sets.length, 2, sets.join('\n'));
+  assert.ok(sets.every((l) => /const item = \{ path: entry\.path|respond\(\{ path: target/.test(l)), sets.join('\n'));
+  const removers = src.split('\n').filter((l) => /removePersistence\(/.test(l) && !/async function/.test(l));
+  assert.deepEqual(removers.map((l) => l.trim()), ['const actions = await removePersistence(entry.path);'], 'only act() removes what starts a blocked file');
+  // Nothing else in the desktop app writes to the Run keys or scheduled tasks.
+  for (const f of fs.readdirSync(path.join(ROOT, 'desktop', 'src')).filter((n) => n.endsWith('.js') && n !== 'defense.js')) {
+    const s = read(`desktop/src/${f}`);
+    assert.doesNotMatch(s, /CurrentVersion\\\\Run[^"']*['"][^\n]*\b(add|delete)\b|Unregister-ScheduledTask|Disable-ScheduledTask|StartupApproved/, f);
+  }
+});
+
 test('a dangerous page in a private window is warned about without naming it anywhere that is kept', () => {
   const m = read('desktop/src/main.js');
   assert.match(m, /item\.private \? 'The page in your private window' : item\.host/, 'the Windows notification (which the notification centre keeps) names no site');
