@@ -209,7 +209,7 @@ if ($Part -eq 'install') {
   $opened = TrayCard
   Start-Sleep 2
   Shot 'tray-card'
-  $card = [string](Cdp 'tray.html' "document.getElementById('title').textContent + ' | ' + [...document.querySelectorAll('#list li')].map((li) => li.querySelector('.name').textContent + ' ' + li.dataset.state + ' ' + li.querySelector('.sw').getAttribute('aria-checked')).join(', ')").value
+  $card = [string](Cdp 'tray.html' "document.getElementById('title').textContent + ' | ' + [...document.querySelectorAll('#list li')].map((li) => li.querySelector('.pname').textContent + ' ' + li.dataset.state + ' ' + li.querySelector('.sw').getAttribute('aria-checked')).join(', ')").value
   Check 'tray-card' ($opened -and $card -match "^$([regex]::Escape($head)) \| " -and $card -match 'Downloads (on|unavailable|trouble|starting) true') "the card says the menu's first line, row by row: $card"
   Say "card: chat safety $(CardFlip 'Chat safety')"
   $ok = Until 15 { $c = (Info 'info()').chatSafety; $c.enabled -and $c.running }
@@ -409,7 +409,7 @@ if ($Part -eq 'install') {
   Start-Sleep 3
   Start-Process $exe -ArgumentList '--remote-debugging-port=9333', '--inspect=9334'
   $err = ''
-  $ok = Until 60 { $script:err = [string](Cdp 'error.html' 'document.body.innerText').value; [bool]$script:err }
+  $ok = Until 60 { $script:err = [string](Cdp 'start.html' "document.getElementById('error').hidden ? '' : document.getElementById('error').innerText").value; [bool]$script:err }
   Start-Sleep 2
   Shot 'ports-all-taken'
   Check 'ports-all-taken-told' ($ok -and $err -match 'Another program is using') "the error page says: $(($err -replace '\s+', ' ').Substring(0, [Math]::Min(300, ($err -replace '\s+', ' ').Length)))"

@@ -1018,12 +1018,14 @@ async function desktopStart(send) {
         const fit = await run(`(() => { const out = [...document.querySelectorAll('main *')].filter((e) => e.offsetParent && e.getBoundingClientRect().right > innerWidth + 1).map((e) => e.tagName + '.' + e.id);
           const shown = [...document.querySelectorAll('section')].filter((s) => !s.hidden).map((s) => s.id);
           const buttons = [...document.querySelectorAll('section:not([hidden]) button')].map((b) => b.textContent);
-          return { out, shown, buttons, words: document.querySelector('section:not([hidden])').innerText.replace(/\\s+/g, ' ').slice(0, 160), scroll: document.scrollingElement.scrollHeight > innerHeight + 1 }; })()`);
+          const top = document.querySelector('.mark').getBoundingClientRect().top;
+          return { out, shown, buttons, top, words: document.querySelector('section:not([hidden])').innerText.replace(/\\s+/g, ' ').slice(0, 160), scroll: document.scrollingElement.scrollHeight > innerHeight + 1 }; })()`);
         const name = `desktop-start-${size}-${scheme}-${state}.png`;
         const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
         fs.writeFileSync(path.join(OUT, name), Buffer.from(shot.data, 'base64'));
         const want = state.startsWith('error') ? 'error' : state === 'welcome' ? 'welcome' : 'starting';
-        let ok = !fit.out.length && fit.shown.join() === want && !/\u2014/.test(fit.words);
+        // Nothing runs out of the window, and the top (the mask) is never above where the page can scroll to.
+        let ok = !fit.out.length && fit.top >= 0 && fit.shown.join() === want && !/\u2014/.test(fit.words);
         // A technical cause stays in the log: the failure says it in plain words.
         if (state === 'error-technical') ok = ok && !/ENOENT|\\|spawn/.test(fit.words);
         // The first start's answer: what is ticked, only that. Live scanning is ticked; the sensitive three are not.
@@ -1031,9 +1033,8 @@ async function desktopStart(send) {
           await run("document.getElementById('go').click()");
           const a = await run('window.__answers[0]');
           ok = ok && a && a.live === true && !a.chat && !a.texts && !a.links;
-          if (size === 'small') ok = ok && !fit.out.length;   // scrolls on a small window, never cuts
         }
-        console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  shows ${fit.shown}, '${fit.words}'${fit.out.length ? `, out of the window: ${fit.out}` : ''}${fit.scroll ? ', scrolls' : ''}`);
+        console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  shows ${fit.shown}, '${fit.words}', mask at ${Math.round(fit.top)} px${fit.out.length ? `, out of the window: ${fit.out}` : ''}${fit.scroll ? ', scrolls' : ''}`);
         if (!ok) failed.push(name);
         await send('Target.closeTarget', { targetId });
       }

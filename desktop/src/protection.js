@@ -47,7 +47,8 @@ function protectionState(s) {
     return { level: 'starting', items, headline: 'Sentinel is starting', sub: 'Your protection comes on in a moment.' };
   }
   if (trouble.length) {
-    return { level: 'partly', items, headline: 'Partly protected', sub: `${trouble[0].name}: ${trouble[0].note}` };
+    // The why is on the protection's own line in the card; the headline says which, in plain words.
+    return { level: 'partly', items, headline: 'Partly protected', sub: `${trouble.map((i) => i.name).join(' and ')} ${trouble.length > 1 ? 'are' : 'is'} not working right now.` };
   }
   if (!on.length) {
     return { level: 'off', items, headline: 'Protection is off', sub: 'Nothing is being watched right now.' };

@@ -37,7 +37,8 @@ test('the protection state never says on while something switched on is not runn
     const p = protectionState(s);
     assert.equal(p.level, 'partly', key);
     assert.notEqual(p.headline, 'Protection is on', key);
-    assert.match(p.sub, /: \S/, `${key} says why: ${p.sub}`);
+    assert.equal(p.sub, `${p.items.find((i) => i.state === 'trouble').name} is not working right now.`, key);
+    assert.notEqual(p.items.find((i) => i.state === 'trouble').note, '', `${key}: the card's line says why`);
     assert.equal(trayIcon(p.level), 'tray-partly');
   }
 
