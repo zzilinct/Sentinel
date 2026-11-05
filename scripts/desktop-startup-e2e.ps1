@@ -21,6 +21,8 @@ function Until($seconds, [scriptblock]$test) { $end = (Get-Date).AddSeconds($sec
 $signed = "$env:ProgramFiles\Git\cmd\git.exe"
 Say "stand-in: $signed, signature $((Get-AuthenticodeSignature $signed).Status) by $((Get-AuthenticodeSignature $signed).SignerCertificate.Subject)"
 $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+# A fresh runner has no Run key yet (the first run's entries were never written): made, never overwritten.
+if (-not (Test-Path $run)) { New-Item -Path $run | Out-Null }
 $startup = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
 New-Item -ItemType Directory -Force $startup | Out-Null
 $apps = @(
@@ -41,6 +43,8 @@ function Shortcut($path, $target, $arguments) {
   $s = (New-Object -ComObject WScript.Shell).CreateShortcut($path); $s.TargetPath = $target; $s.Arguments = $arguments; $s.Save()
 }
 foreach ($a in $apps) { Place $a }
+$set = @($apps | Where-Object { (Get-ItemProperty $run -ErrorAction SilentlyContinue).($_.Name) })
+Check 'entries-set' ($set.Count -eq $apps.Count) "Run values written before Sentinel is installed: $($set.Count) of $($apps.Count)"
 New-Item -ItemType Directory -Force (Split-Path $lnkExe) | Out-Null
 Copy-Item $signed $lnkExe -Force
 Shortcut "$startup\GitHub Desktop.lnk" $lnkExe '--processStart GitHubDesktop.exe'
@@ -49,7 +53,8 @@ Register-ScheduledTask -TaskName 'Discord Update Check' -Action (New-ScheduledTa
 # What everything is before Sentinel: compared at the end.
 function Snapshot {
   $s = [ordered]@{}
-  foreach ($p in (Get-ItemProperty $run).PSObject.Properties | Where-Object { $_.Name -notmatch '^PS' -and $_.Name -notmatch 'Sentinel' }) { $s["run:$($p.Name)"] = [string]$p.Value }
+  $values = @((Get-ItemProperty $run).PSObject.Properties | Where-Object { $_.Name -notmatch '^PS' -and $_.Name -notmatch 'Sentinel' })
+  foreach ($p in $values) { $s["run:$($p.Name)"] = [string]$p.Value }
   foreach ($f in Get-ChildItem $startup -File) { $s["startup:$($f.Name)"] = (Get-FileHash $f.FullName).Hash }
   foreach ($e in @($apps + $late) | ForEach-Object { $_.Exe }) { if (Test-Path $e) { $s["file:$e"] = (Get-FileHash $e).Hash } }
   $s["file:$lnkExe"] = (Get-FileHash $lnkExe).Hash
@@ -78,6 +83,10 @@ Say "first look written: $first"
 # Then a new entry and a new shortcut while it watches: Slack added to the Run key, a Teams shortcut in the Startup folder.
 Place $late
 Shortcut "$startup\Microsoft Teams.lnk" "$env:LOCALAPPDATA\Microsoft\Teams\Update.exe" '--processStart "Teams.exe"'
+# And an unsigned helper some program puts in the Startup folder, whose contents look bad to the on-device scan (the
+# inert sample the unit tests use): warning signs, no proof. Sentinel may tell the person; it must not move it.
+$helper = "$startup\MacroHelper.exe"
+node -e "require('fs').writeFileSync(process.argv[1], require(process.argv[2]).fakeStealerExe())" $helper (Join-Path $PSScriptRoot '..\tests\fixtures.js')
 $before["run:$($late.Name)"] = [string](Get-ItemProperty $run).($late.Name)
 $before["file:$($late.Exe)"] = (Get-FileHash $late.Exe).Hash
 $before['startup:Microsoft Teams.lnk'] = (Get-FileHash "$startup\Microsoft Teams.lnk").Hash
@@ -95,10 +104,12 @@ Check 'untouched' ($changed.Count -eq 0) "every Run value, Startup shortcut, pro
 
 $ledger = @()
 try { $ledger = @(Get-Content "$data\defense.json" -Raw | ConvertFrom-Json) } catch { }
-$alarms = @($ledger | Where-Object { $_.kind -in 'threat', 'suspect', 'noted' })
-Check 'nothing-alarming' ($alarms.Count -eq 0) "Defense entries that would tell the person something: $($alarms.Count) $(($alarms | ForEach-Object { "$($_.kind) $($_.name): $($_.label)" }) -join '; ')"
+$alarms = @($ledger | Where-Object { $_.kind -in 'threat', 'suspect', 'noted' -and $_.name -ne 'MacroHelper.exe' })
+Check 'nothing-alarming' ($alarms.Count -eq 0) "Defense entries about the six apps: $($alarms.Count) $(($alarms | ForEach-Object { "$($_.kind) $($_.name): $($_.label)" }) -join '; ')"
+$h = @($ledger | Where-Object { $_.name -eq 'MacroHelper.exe' })
+Check 'startup-arrival-left' ((Test-Path $helper) -and -not ($h | Where-Object { $_.quarantined -or $_.kind -eq 'threat' })) "the helper that appeared in the Startup folder is still there: $(Test-Path $helper); Defense said: $(($h | ForEach-Object { "$($_.kind) $($_.label): $(($_.actions | ForEach-Object { $_.did }) -join ', ')" }) -join '; ')"
 $text = Get-Content $log -Raw -ErrorAction SilentlyContinue
-$bad = @(($text -split "`n") | Where-Object { $_ -match 'defense' -and $_ -match 'threat|suspect|quarantin|removed|ended' })
+$bad = @(($text -split "`n") | Where-Object { $_ -match 'Discord|Teams|slack|Spotify|Code\.exe|GitHub ?Desktop|Update\.exe' -and $_ -match 'threat|suspect|quarantin|removed|ended|flagged' })
 Check 'log-calm' ($bad.Count -eq 0) "app.log lines about a Defense response: $($bad.Count) $($bad -join ' | ')"
 
 Say '--- app.log'; Get-Content $log -ErrorAction SilentlyContinue | Select-Object -Last 40 | ForEach-Object { Say "  $_" }
