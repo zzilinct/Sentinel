@@ -1061,8 +1061,12 @@
     }
 
     let running = false;
+    // The same thing checked a moment ago: a double press, or a second click after a quick answer, is not a second scan.
+    let last = { key: '', at: 0 };
     async function run(r, { fromQr = false } = {}) {
       if (running) return;
+      const key = [r.kind, r.path, r.url || '', r.mode || '', file ? `${file.name}:${file.size}` : box.value].join('|');
+      if (r.path && key === last.key && performance.now() - last.at < 1500) return;
       if (r.kind === 'empty') { toast('Paste a link, a message or an email first, or add a file.', 'info'); box.focus(); return; }
       if (r.kind === 'number') { $('.ask__call a', el).focus(); return; }
       if (r.kind === 'file' && file.size > 25 * 1024 * 1024) { toast('Files up to 25 MB can be checked.', 'error'); return; }
@@ -1077,6 +1081,7 @@
         else if (r.path === '/scan/file') await runFile();
       } finally {
         running = false;
+        last = { key, at: performance.now() };
         refresh();
       }
     }

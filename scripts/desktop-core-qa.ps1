@@ -194,7 +194,7 @@ if ($Part -eq 'install') {
   $ok = Until 10 { $script:front = (SentinelWindows | Where-Object { $_ -match '^front\|' }) -join ''; [bool]$script:front }
   Check 'tray-open' $ok "Open Sentinel: in front '$front'"
   Say "tray click: $(TrayClick 'Scan a file')"
-  $ok = Until 15 { (AppWindow) -match '^shown\|/app/threats' }
+  $ok = Until 15 { (AppWindow) -match '^shown\|/app/check' }
   Check 'tray-scan-file' $ok "Scan a file...: $(AppWindow)"
   Say "tray click: $(TrayClick 'Is this call a scam')"
   $ok = Until 15 { (AppWindow) -match '^shown\|/call' }
@@ -550,7 +550,7 @@ if ($Part -eq 'use') {
   Check 'warning-fits' $f.ok "inside $($f.view), out of view '$($f.outOfView)', on screen $($f.onScreen), frameless $($f.frameless), cut off or scrolling '$($f.cut)'"
   Check 'warning-names-browser' ($w.words -match 'Microsoft Edge') 'the warning names the browser it is about'
   [void](Cdp 'warn.html' "(document.getElementById('details').click(), 1)")
-  $ok = Until 15 { (AppWindow) -match '^shown\|/app/scan\?url=' }
+  $ok = Until 15 { (AppWindow) -match '^shown\|/app/check\?url=' }
   $res = ''
   [void](Until 30 { $script:res = [string](Cdp '127.0.0.1:4782' "((document.querySelector('[data-out]') || {}).innerText || '').replace(/\s+/g, ' ').slice(0, 200)").value; $script:res -match 'Phishing|Dangerous|Suspicious|scam' })
   Shot 'warning-open-in-sentinel'

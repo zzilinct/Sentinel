@@ -923,7 +923,7 @@ New-Item -ItemType Directory -Force (Split-Path $menuFile) | Out-Null
 [IO.File]::WriteAllText($menuFile, "Milk`r`nBread`r`nApples`r`n")
 if ($menuCmd -match '^"([^"]+)"\s+(.+)$') { Start-Process -FilePath $Matches[1] -ArgumentList $Matches[2].Replace('%1', $menuFile) }
 $v = ''
-$ok = Until 60 { $script:v = [string](Cdp '127.0.0.1:4782' "location.pathname + '|' + ((document.querySelector('[data-out] [data-result]') || {}).innerText || '').replace(/\s+/g, ' ')").value; $script:v -match '^/app/threats\|.*Shopping list\.txt' }
+$ok = Until 60 { $script:v = [string](Cdp '127.0.0.1:4782' "location.pathname + '|' + ((document.querySelector('[data-out] [data-result]') || {}).innerText || '').replace(/\s+/g, ' ')").value; $script:v -match '^/app/check\|.*Shopping list\.txt' }
 Shot 'right-click-verdict'
 Check 'menu-scan-verdict' $ok "the app shows: $($v.Substring(0, [Math]::Min(300, $v.Length)))"
 Check 'menu-log-private' ((AppLog) -match 'right-click menu: a file was handed over' -and (AppLog) -notmatch 'Shopping list') 'app.log says a file was handed over, not which'

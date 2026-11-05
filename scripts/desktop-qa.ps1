@@ -246,7 +246,7 @@ StopSentinel
 $p = Join-Path $home2 'Tax return 2026 (final copy).txt'
 Say "right-click, cold and signed in: $(RightClick $p)"
 $title = ''
-$ok = Until 60 { $script:title = (SentinelWindows | Where-Object { $_ -match '^front\|' }) -join ''; $script:title -match 'Virus & malware' }
+$ok = Until 60 { $script:title = (SentinelWindows | Where-Object { $_ -match '^front\|' }) -join ''; $script:title -match 'Check . Sentinel' }
 Start-Sleep 5
 Shot 'cold-signed-in'
 Check 'cold-signed-in' $ok "in front: $title; all: $((SentinelWindows) -join ' / ')"
