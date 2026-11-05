@@ -495,7 +495,7 @@ if ($Part -eq 'use') {
     } catch { return '' }
   }
   function Visit($url) {
-    $want = [regex]::Escape(([Uri]$url).Host -replace '^www\.', '')
+    $want = [regex]::Escape((([Uri]$url).Host -replace '^www\.', ''))
     for ($try = 1; $try -le 3; $try++) {
       # A site's own prompt (Chase asks to reach other apps) holds the keyboard: Escape first, as a person would.
       [K]::Tap(0x1B); [K]::Tap(0x11)
@@ -508,8 +508,12 @@ if ($Part -eq 'use') {
       # keys. Edge then stays where it was and nothing new reaches Sentinel (runs 42103668301 and 41158225281: the
       # last page live scanning read was PayPal's or Coinbase's, for all 40 s). Typed again, as a person would.
       Start-Sleep 2
+      # Sentinel's own window in front (a warning, the pay pause) answered the visit: nothing to type again.
+      if ([bool](Cdp 'warn.html' '1').value -or (GuardMode) -match 'mode=') { return }
+      # No address bar in front is not taken for the site either: Chase's prompt to open other apps held the keys and
+      # Edge stayed on Chase (run 42125822580).
       $bar = AddressBar
-      if (-not $bar -or $bar -match $want) { return }
+      if ($bar -match $want) { return }
       Say "  the address bar shows '$($bar.Substring(0, [Math]::Min(120, $bar.Length)))' after $url was typed (try $try): typed again"
     }
   }
