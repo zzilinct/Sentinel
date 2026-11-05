@@ -203,7 +203,7 @@ async function checkPractice() {
     await js(b, "(() => { const f = document.querySelector('[data-card]:last-child [data-fine]'); f.click(); f.click(); return true; })()");
     await sleep(200);
     const pressed = await js(b, "({ verdicts: document.querySelectorAll('.pverdict').length, left: document.querySelector('[data-count]').textContent })");
-    result('practice: Back closes a message and leaves the page where it was, Forward reopens it, Esc closes it and returns to its row, and a double press answers once',
+    result('practice: Back closes a message and leaves the page where it was, Forward reopens it, Esc closes it and returns to its row, and a double press gives one verdict',
       !afterBack && afterForward && !afterEsc.open && afterEsc.focus === row && pressed.verdicts === 1 && pressed.left === '9 to sort', { afterBack, afterForward, afterEsc, pressed });
 
     /* The pictures, and the phone. */

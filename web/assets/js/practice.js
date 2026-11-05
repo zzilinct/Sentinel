@@ -475,7 +475,7 @@
 
     function answer(choice) {
       const m = current;
-      // DELIBERATE BREAK for CI: the double-press guard is off
+      if (log.has(m.id)) return;   // a double press (the buttons go at once, so this is a second line)
       log.set(m.id, { m, choice, looked: looked[m.id], second: Boolean(m.second) });
       if (!left().length && !added) {
         added = true;
@@ -565,7 +565,7 @@
 
     function deal(again) {
       deck = draw(Math.random, seen).map((m) => ({ ...m }));
-      seen = new Set(deck.map((m) => m.id));
+      seen = new Set();   // DELIBERATE BREAK for CI: the next deal may repeat this one
       log = new Map();
       looked = {};
       added = false;
