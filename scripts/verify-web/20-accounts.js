@@ -256,6 +256,10 @@ async function checkAccounts() {
     result('accounts: after the reset the old password is refused and the new one signs in', oldPw !== 'in' && newPw === 'in', { oldPw, newPw });
 
     // Reset requests are limited too: the fourth for one address in an hour says to try later.
+    // Sign out from /forgot, not from the /app page the sign-in just opened: that page may still be starting, and its
+    // check of who is signed in, answered 401 after the sign-out, sends it to /login. That navigation could win over
+    // the one to /forgot below, so the address was typed into the sign-in form ("Email or password is incorrect").
+    await open('/forgot', ready);
     await evalIn(browser, s, "fetch('/api/v1/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })");
     await evalIn(browser, s, `fetch('/api/v1/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: ${JSON.stringify(email)} }) }).then((r) => r.status)`);
     await open('/forgot', ready);

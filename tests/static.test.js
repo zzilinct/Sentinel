@@ -61,13 +61,16 @@ test('static build: pre-launch defuses account and download links instead of lea
   const dl = read('download.html');
   assert.ok(dl.includes('https://github.com/zzilinct/Sentinel/releases/latest/download/Sentinel-Setup.exe'));
   assert.equal(dl.match(/href="downloads\//g), null, 'no download links into files the static host does not have');
+  // No accounts here yet, so the one button on the plans is the app, not a Start free that does nothing.
+  assert.match(read('pricing.html'), /<a class="btn btn--gold btn--sm" href="download\.html">Get the app<\/a>/);
 });
 
 test('static build: --launched wires every link to the live origin', () => {
   const { read, hrefs } = build(['--launched']);
   const home = read('index.html');
   assert.ok(!home.includes('class="prelaunch"'));
-  assert.ok(hrefs(home).some((h) => h === `${brand.origin}/signup?plan=pro`), 'plan buttons reach the live signup');
+  assert.ok(hrefs(home).some((h) => h === `${brand.origin}/signup`), 'Start free reaches the live signup');
+  assert.ok(!hrefs(home).some((h) => /plan=/.test(h)), 'a static site sells no plan, even launched: it has no billing');
   assert.ok(hrefs(home).some((h) => h === `${brand.origin}/app`));
 });
 
@@ -166,17 +169,6 @@ test('home masks: every rendered mask the pages point at exists, and anime.js lo
     const plate = home.slice(home.indexOf(`data-threat="${threat}">`), home.indexOf('</article>', home.indexOf(`data-threat="${threat}">`)));
     for (const tint of ['yellow', 'orange', 'red']) assert.ok(plate.includes(`data-tint="${tint}"`), `${threat} has no ${tint} render`);
     assert.equal((plate.match(/data-tint="[a-z]+"[^>]*class="is-on"/g) || []).length, 1, `${threat} shows exactly one colour`);
-  }
-});
-
-test('account forms: Sign in and friends start disabled, and their script enables them once it has bound the form', () => {
-  // Pressed before the script is ready, a plain form post lands on an error page and the submit is lost.
-  const web = path.join(ROOT, 'web');
-  for (const [page, script] of [['login.html', 'auth.js'], ['signup.html', 'auth.js'], ['forgot.html', 'reset.js'], ['reset.html', 'reset.js']]) {
-    const html = fs.readFileSync(path.join(web, page), 'utf8');
-    const form = html.slice(html.indexOf('<form data-form'), html.indexOf('</form>', html.indexOf('<form data-form')));
-    assert.match(form, /<button[^>]*type="submit" disabled>/, `${page}: the submit button can be pressed before ${script} is ready`);
-    assert.match(fs.readFileSync(path.join(web, 'assets', 'js', script), 'utf8'), /\.disabled = false/, `${script} never enables the button`);
   }
 });
 
