@@ -157,7 +157,7 @@ test('the reader sleeps on its input: it never asks which window is in front, an
   assert.match(SCRIPT, /\$pending\.Wait\(\$\(if \(\$app\) \{ \$wait \} else \{ -1 \}\)\)/);
   assert.match(SCRIPT, /if \(\[CW\]::GetForegroundWindow\(\) -ne \$h/, 'before each read: still the window in front');
   assert.match(SCRIPT, /b > 235 && m > 235 && c > 235/, 'what is compared is the words');
-  assert.match(SCRIPT, /-not \[CW\]::Same\(\$lastRows, \[CW\]::Rows, \$cw\)/, 'against the copy last read');
+  assert.match(SCRIPT, /-not \[CW\]::Same\(\$lastRows, \[CW\]::Rows, \$cw\) -or \(\$emptyAt -and/, 'against the copy last read, and a look that found nothing is tried again');
   assert.match(SCRIPT, /\$lastMenu -ne \$false -or \[Math\]::Abs\(\$lum - \$menuLum\)/, 'half the screen is read only when the game dims');
 });
 

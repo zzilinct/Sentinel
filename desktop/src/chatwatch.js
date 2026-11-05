@@ -136,7 +136,7 @@ $itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdPr
 $stdin = $in
 $pending = $stdin.ReadLineAsync()
 $lastApp = ''; $lastSig = ''; $lastRows = $null; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $menuLum = 0; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}; $plSeen = 0
-$app = ''; $h = [IntPtr]::Zero; $fp = 0; $wait = 700; $nextAlive = 0; $lastItems = ''; $nextFull = 0
+$app = ''; $h = [IntPtr]::Zero; $fp = 0; $wait = 700; $nextAlive = 0; $lastItems = ''; $nextFull = 0; $emptyAt = 0
 $eye = @{ dark = 0; blind = $false; ocr = 0; menu = 0 }
 Write-Output '{"ready":true}'
 # Black again and again: Windows is keeping this window's picture from other programs. (Once could be a loading screen.)
@@ -312,9 +312,12 @@ while ($true) {
       $cw = [int][Math]::Min(620, $c[2] * 0.45); $ch = [int][Math]::Min(460, $c[3] * 0.5)
       Look $c[0] $c[1] $cw $ch
       Seen-Black
-      if ($eye.blind) { $lastRows = $null } elseif (-not [CW]::Same($lastRows, [CW]::Rows, $cw)) {
+      # A look that found no words at all (a window still drawing, a game loading) is tried again every few seconds:
+      # the same picture would otherwise never be read again.
+      if ($eye.blind) { $lastRows = $null } elseif (-not [CW]::Same($lastRows, [CW]::Rows, $cw) -or ($emptyAt -and [Environment]::TickCount -gt $emptyAt)) {
         $lastRows = [CW]::Rows
         $lines = Read-Area $c[0] $c[1] $cw $ch
+        $emptyAt = if (@($lines).Count) { 0 } else { [Environment]::TickCount + 5000 }
         Write-Output (@{ app = 'roblox'; win = $c; area = @($c[0], $c[1], $cw, $ch); lines = @($lines) } | ConvertTo-Json -Compress -Depth 4)
       }
       # The Esc menu dims the whole game. A thin band across the middle is looked at once a second, and the recogniser
