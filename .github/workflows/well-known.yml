@@ -25,7 +25,9 @@ jobs:
         run: |
           curl -fsSL -D headers.txt -o majestic_million.csv https://downloads.majestic.com/majestic_million.csv
           grep -i '^last-modified' headers.txt | tee list-date.txt
-      - run: node scripts/wellknown.js --csv majestic_million.csv --date "$(sed 's/^[^:]*: *//' list-date.txt | tr -d '\r')"
+      - name: The list
+        run: |
+          node scripts/wellknown.js --csv majestic_million.csv --date "$(sed 's/^[^:]*: *//' list-date.txt | tr -d '\r')"
       - uses: actions/upload-artifact@v4
         with:
           name: well-known
