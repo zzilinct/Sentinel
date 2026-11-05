@@ -9,7 +9,7 @@
  * app's fast scan; the result never claims a list was checked ("discounted" stays false).
  */
 const L = require('./lists');
-const { analyze, typedUrl, brandInfo, hostWords, isUserContent } = require('./url');
+const { analyze, typedUrl, brandInfo, hostWords, isUserContent, isWellKnown } = require('./url');
 const kinds = require('./kinds');
 const { runChecklist } = require('./checklist');
 const { THREATS, SEVERITY, score, evidenceFrom, trustedChecks, tallyOf, reasonsOf } = require('./verdict');
@@ -30,6 +30,7 @@ function shippedKnowledge(p) {
     known: matches.length > 0,
     trusted: !matches.length && allowed && !userContent,
     userContent,
+    wellKnown: isWellKnown(p),
     matches,
     reports: 0,
     reportCounts: { scam: 0, malware: 0 },
