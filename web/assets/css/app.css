@@ -110,7 +110,8 @@ body.app::before { opacity: .6; }
 .ask { display: grid; gap: 14px; }
 .ask__box {
   position: relative; display: grid; border-radius: var(--r-lg);
-  background-color: var(--bg-2); box-shadow: var(--press), inset 0 0 0 1px var(--line-2);
+  /* The same edge as every other field (29841a1): a well you can see, empty or not. */
+  background-color: var(--field-bg); caret-color: var(--gold-300); box-shadow: var(--press), inset 0 0 0 1px var(--field-ring);
   transition: box-shadow .3s var(--ease);
 }
 .ask__box:focus-within, .ask__box.is-over { box-shadow: var(--press), inset 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 4px rgb(var(--gold-rgb) / .08); }

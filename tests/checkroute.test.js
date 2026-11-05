@@ -71,3 +71,26 @@ test('the app has one Check page: the five scan pages, their sidebar entries and
   assert.deepEqual([...side.matchAll(/class="side__label"[^>]*>([^<]+)</g)].map((m) => m[1]), ['Check', 'Protect', 'Review', 'Account']);
   assert.ok(html.includes('/assets/js/route.js'), 'app.html loads route.js');
 });
+
+// What main fixed inside the old scan pages, carried into Check (each named by its commit).
+test('Check keeps what main fixed in the old scan pages', () => {
+  const ROOT = path.join(__dirname, '..');
+  const app = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'app.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'css', 'app.css'), 'utf8');
+  const check = app.slice(app.indexOf('function checkView('), app.indexOf('/* ------------------------------------------------------------ QR codes */'));
+  assert.ok(check.length > 1000, 'checkView found');
+  // 63d7cb1 / 288a319: a big file from the right-click menu is answered by the Windows app itself, never "too big" here.
+  assert.ok(!/too big/.test(check), 'no "too big" toast for a right-click file');
+  // 1.19.1 calm scanning: every check waits through watchScan's real stages and lands with showVerdict or riseMask.
+  for (const run of ['runLink', 'runText', 'runEmail', 'runFile']) {
+    const body = check.slice(check.indexOf(`async function ${run}(`), check.indexOf('\n    }\n', check.indexOf(`async function ${run}(`)));
+    assert.ok(/watchScan\(out, /.test(body), `${run} shows the real stages`);
+    assert.ok(/showVerdict\(out|riseMask\(out\)/.test(body), `${run} lands on the honest result`);
+    assert.ok(!/setTimeout|sleep\(/.test(body), `${run} adds no wait of its own`);
+  }
+  // 29841a1: the box has the same visible edge as every other field.
+  const box = css.slice(css.indexOf('.ask__box {'), css.indexOf('}', css.indexOf('.ask__box {')));
+  assert.ok(box.includes('var(--field-bg)') && box.includes('var(--field-ring)'), 'the Check box uses the field edge');
+  // 8daa2c4: the call check is public at /call.
+  assert.ok(check.includes('<a href="/call">'), 'the call check link is /call');
+});
