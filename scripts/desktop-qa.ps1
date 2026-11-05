@@ -3,7 +3,7 @@
 # awkward file names and awkward files), and the shield's windows (the warning's real-site button, the way out of a
 # full-screen page, "Did you type anything?", the pay pause, the remote-control question) at display scaling above 100%.
 # Everything that looks dangerous is a harmless stand-in. Results go to $Out\results.txt; exits 1 when a check failed.
-param([string]$Installer = '', [string]$Out = 'e2e-desktop-qa')
+param([string]$Installer = '', [string]$Out = 'e2e-desktop-qa', [int]$Repeat = 1)
 $ErrorActionPreference = 'Continue'
 # Node prints UTF-8: file names with accents and emoji must come back whole.
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -18,6 +18,15 @@ function RightClick($file) {
   try { Start-Process -FilePath $file -Verb SentinelScan -ErrorAction Stop; return 'verb' } catch {
     Start-Process -FilePath $exe -ArgumentList "`"--scan-file=$file`""; return "command ($($_.Exception.Message))"
   }
+}
+# No second Sentinel for a right-click: judged once, and the line says what was judged (it used to look again for the
+# words, and once read "0 time(s); main processes now: 1" beside a FAIL, run 42106326796). When it fails, every
+# Sentinel.exe that counted, with its parent and command line, so the next failure says which process it was.
+function OneStart($name, $starts) {
+  $again = (Starts) - $starts
+  $mains = @(MainProcs)
+  Check $name ($again -eq 0 -and $mains.Count -eq 1) "Sentinel started again for it: $again time(s); main processes now: $($mains.Count)"
+  if ($mains.Count -ne 1) { $mains | ForEach-Object { Say "  diag: Sentinel.exe $($_.ProcessId), parent $($_.ParentProcessId): $($_.CommandLine)" } }
 }
 $scanExpr = "[document.getElementById('label').textContent, document.getElementById('name').textContent, document.getElementById('lead').textContent, document.getElementById('found').innerText.replace(/\s+/g, ' ')].join('|')"
 
@@ -110,7 +119,7 @@ foreach ($c in $cases) {
     $f = Fit 'filescan.html' $c.id
     Check "menu-$($c.id)-fits" ($f.ok -and $f.gap -le 80) "inside $($f.view), words $($f.words) px, empty $($f.gap) px, out of view '$($f.outOfView)', on screen $($f.onScreen)"
   }
-  Check "menu-$($c.id)-one-start" ((Starts) -eq $starts -and @(MainProcs).Count -eq 1) "Sentinel started again for it: $((Starts) - $starts) time(s); main processes now: $(@(MainProcs).Count)"
+  OneStart "menu-$($c.id)-one-start" $starts
 }
 $log = AppLog
 $leak = @($logNames + 'QA files', 'Archive of family' | Where-Object { $log -match [regex]::Escape($_) })
@@ -218,7 +227,8 @@ $inCases = @(
 )
 $readApp = "location.pathname + '|' + ((document.querySelector('[data-out] [data-result]') || {}).innerText || '').replace(/\s+/g, ' ').slice(0, 200) + '|' + [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' / ')"
 $readCard = "[document.getElementById('label').textContent, document.getElementById('name').textContent, document.getElementById('lead').textContent, document.getElementById('where').textContent].join('|')"
-foreach ($c in $inCases) {
+# -Repeat (desktop-e2e.yml's dispatch input) goes through these more than once, to show a check holds.
+foreach ($c in @(1..$Repeat | ForEach-Object { $inCases })) {
   $p = Join-Path $home2 $c.name
   if ($c.gone) { [IO.File]::WriteAllText($p, 'bye'); Remove-Item -LiteralPath $p -Force }
   # Tucked away in the tray first, as it usually is.
@@ -236,7 +246,7 @@ foreach ($c in $inCases) {
   Shot "menu-$($c.id)"
   Check "menu-$($c.id)" ($ok -and $front) "by $how, after $took s, in front '$front': $v"
   if ($c.card) { [void](Cdp 'filescan.html' "(document.getElementById('close').click(), 1)") }
-  Check "menu-$($c.id)-one-start" ((Starts) -eq $starts -and @(MainProcs).Count -eq 1) "Sentinel started again for it: $((Starts) - $starts) time(s); main processes now: $(@(MainProcs).Count)"
+  OneStart "menu-$($c.id)-one-start" $starts
 }
 # Signed in and started cold from the right-click: the app opens on the file's answer. Sentinel is quit the way a person
 # quits it, not ended: ended within half a minute of signing in, the browser part never wrote "Stay signed in" to disk.

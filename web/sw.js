@@ -60,6 +60,9 @@ self.addEventListener('fetch', (event) => {
 });
 
 async function receiveShare(req) {
+  // The page this share opens is told which share is its own (share.js take): when a second share arrives while the
+  // first one's page is still opening, that page must not take the second one, which its own page then found gone.
+  const at = Date.now();
   try {
     const form = await req.formData();
     const word = (k) => String(form.get(k) || '');
@@ -67,7 +70,7 @@ async function receiveShare(req) {
     const box = await caches.open(SHARE);
     await box.delete('/share/image');
     if (file) await box.put('/share/image', new Response(file, { headers: { 'Content-Type': file.type || 'application/octet-stream' } }));
-    await box.put('/share/data', new Response(JSON.stringify({ title: word('title'), text: word('text'), url: word('url'), at: Date.now() }), { headers: { 'Content-Type': 'application/json' } }));
+    await box.put('/share/data', new Response(JSON.stringify({ title: word('title'), text: word('text'), url: word('url'), at }), { headers: { 'Content-Type': 'application/json' } }));
   } catch { /* the page says nothing arrived */ }
-  return Response.redirect('/app/share', 303);
+  return Response.redirect(`/app/share?box=${at}`, 303);
 }

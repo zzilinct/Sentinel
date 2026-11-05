@@ -55,7 +55,12 @@ function summarise(lhr) {
   const num = (id) => (a[id] && typeof a[id].numericValue === 'number' ? a[id].numericValue : null);
   const failing = Object.values(a).filter((x) => typeof x.score === 'number' && x.score < 0.9 && x.scoreDisplayMode !== 'informative' && x.scoreDisplayMode !== 'manual')
     .map((x) => ({ id: x.id, score: x.score, value: x.displayValue || '', items: ((x.details && x.details.items) || []).slice(0, 6).map((i) => i.url || (i.node && (i.node.selector || i.node.snippet)) || i.label || i.source || '').map((s) => String(typeof s === 'object' ? JSON.stringify(s) : s).slice(0, 160)) }));
+  // The element Lighthouse took for the largest paint, and how fast this runner's processor measured (its benchmark):
+  // a score that moves between runs is told apart by these two.
+  const lcpNode = ((a['lcp-breakdown-insight'] && a['lcp-breakdown-insight'].details && a['lcp-breakdown-insight'].details.items) || []).find((i) => i && i.type === 'node');
   return {
+    lcpEl: lcpNode ? `${lcpNode.selector} "${String(lcpNode.nodeLabel || '').slice(0, 50)}"` : '',
+    bench: Math.round((lhr.environment && lhr.environment.benchmarkIndex) || 0),
     scores: Object.fromEntries(CATS.map((c) => [c, lhr.categories[c] && lhr.categories[c].score !== null ? Math.round(lhr.categories[c].score * 100) : null])),
     lcp: Math.round(num('largest-contentful-paint') || 0), cls: Number((num('cumulative-layout-shift') || 0).toFixed(3)), tbt: Math.round(num('total-blocking-time') || 0),
     kb: Math.round((num('total-byte-weight') || 0) / 1024), failing
@@ -164,22 +169,30 @@ async function checkPerfA11y() {
 
     /* ------------------------------------------- Chrome's own measures, and axe */
 
-    const { axe, trace } = await browserPass(axeSource, base, email, password);
-    fs.writeFileSync(path.join(OUT, 'perf-a11y-trace.json'), JSON.stringify(trace, null, 2));
-    result('perf-a11y: Chrome measured every page (LCP, CLS, blocking time, main thread once settled)', true,
-      Object.entries(trace).map(([p, t]) => `${p}: ready ${t.ready} ms, LCP ${t.lcp} ms, CLS ${t.cls}, TBT ${t.tbt} ms, settled busy ${t.idleBusy}% (${t.idleBy.join(', ')})`));
-    fs.writeFileSync(path.join(OUT, 'perf-a11y-axe.json'), JSON.stringify(axe, null, 2));
-    const found = Object.entries(axe).filter(([, v]) => v.length);
-    result('perf-a11y: axe-core finds no accessibility fault on any page, in dark or light', !found.length,
-      found.flatMap(([k, v]) => v.map((x) => `${k}: ${x.impact} ${x.id} x${x.nodes} (${x.help}) ${x.where.slice(0, 3).join(' | ')}${x.why ? ` WHY ${x.why}` : ''}`)));
+    // PERF_PAGES ('mobile /app,desktop /app'), from verify-web.yml's dispatch, measures only those pages with
+    // Lighthouse, PERF_ROUNDS times each, to show how a page's score holds from one measuring to the next.
+    const only = (process.env.PERF_PAGES || '').split(',').map((x) => x.trim()).filter(Boolean);
+    const rounds = Math.max(1, Math.min(20, Number(process.env.PERF_ROUNDS) || 1));
+    if (!only.length) {
+      const { axe, trace } = await browserPass(axeSource, base, email, password);
+      fs.writeFileSync(path.join(OUT, 'perf-a11y-trace.json'), JSON.stringify(trace, null, 2));
+      result('perf-a11y: Chrome measured every page (LCP, CLS, blocking time, main thread once settled)', true,
+        Object.entries(trace).map(([p, t]) => `${p}: ready ${t.ready} ms, LCP ${t.lcp} ms, CLS ${t.cls}, TBT ${t.tbt} ms, settled busy ${t.idleBusy}% (${t.idleBy.join(', ')})`));
+      fs.writeFileSync(path.join(OUT, 'perf-a11y-axe.json'), JSON.stringify(axe, null, 2));
+      const found = Object.entries(axe).filter(([, v]) => v.length);
+      result('perf-a11y: axe-core finds no accessibility fault on any page, in dark or light', !found.length,
+        found.flatMap(([k, v]) => v.map((x) => `${k}: ${x.impact} ${x.id} x${x.nodes} (${x.help}) ${x.where.slice(0, 3).join(' | ')}${x.why ? ` WHY ${x.why}` : ''}`)));
+    }
 
     /* ------------------------------------------------------- Lighthouse */
 
     const budget = fs.existsSync(BUDGET) ? JSON.parse(fs.readFileSync(BUDGET, 'utf8')) : {};
     const rows = {};
-    for (const form of ['mobile', 'desktop']) {
+    const under = [];
+    for (let round = 1; round <= rounds; round++) for (const form of ['mobile', 'desktop']) {
       for (const p of [...PUBLIC, ...APP].filter((x) => x !== '/no-such-page')) { // Lighthouse will not report on a 404; axe still reads it
-        const file = path.join(dir, `${form}${p.replace(/\//g, '_') || '_'}.json`);
+        if (only.length && !only.includes(`${form} ${p}`)) continue;
+        const file = path.join(dir, `${form}${p.replace(/\//g, '_') || '_'}${rounds > 1 ? `-round${round}` : ''}.json`);
         // Up to three goes: a go with no performance score (a lost trace), or one far under the page's floors (a shared
         // runner stalled: /terms scored 27 once against its usual 95+, run 40222297518; Lighthouse missed robots.txt
         // once on /practice, run 40224698227), is measured again and each score keeps its best go, since a go that
@@ -188,29 +201,34 @@ async function checkPerfA11y() {
         const floors = budget[`${form} ${p}`] || {};
         const short = (t) => (t.error || t.scores.performance == null ? Infinity
           : CATS.reduce((n, c) => n + Math.max(0, (floors[c] == null ? 0 : floors[c] - SLACK[c]) - (t.scores[c] == null ? 100 : t.scores[c])), 0));
+        // Every go keeps Chrome in one process. The third go used to drop that, and every such go whose report was kept
+        // had lost its trace (NO_NAVSTART: runs 41159041836, 41332268098, 42093160806, 42099995787, 42106327009), so a
+        // page got two real goes, not three. Each go's report is its own file, and the one kept is the best go's: the
+        // file was the last go's, so a page that failed left no report of the measuring it failed on.
         let s = null;
+        let best = null;
         let tries = 0;
-        for (const flags of [ONE_PROCESS, ONE_PROCESS, '']) {
-          const t = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, file, flags));
+        for (let go = 1; go <= 3; go++) {
+          const goFile = file.replace(/\.json$/, `-go${go}.json`);
+          const t = summarise(await lighthouse(cli, base + p, form, APP.includes(p) ? headersFile : null, goFile, ONE_PROCESS));
           tries++;
+          console.log(`        go ${go}: ${t.error ? `ERROR ${t.error.slice(0, 120)}` : `${CATS.map((c) => t.scores[c]).join('/')}  LCP ${t.lcp} ms on ${t.lcpEl || '?'}  TBT ${t.tbt} ms  benchmark ${t.bench}`}`);
           if (s && s.scores && t.scores) for (const c of CATS) if (s.scores[c] != null && !(t.scores[c] >= s.scores[c])) t.scores[c] = s.scores[c];
-          if (!s || short(t) < short(s)) s = t;
+          if (!s || short(t) < short(s)) { s = t; best = goFile; }
           if (short(s) === 0) break;
         }
+        try { fs.renameSync(best, file); } catch { /* no report at all */ }
         s.tries = tries;
         rows[`${form} ${p}`] = s;
-        console.log(`      ${form} ${p}: ${s.error ? `ERROR ${s.error}` : `${CATS.map((c) => s.scores[c]).join('/')}  LCP ${s.lcp} ms  CLS ${s.cls}  TBT ${s.tbt} ms  ${s.kb} KB, ${tries} go(es)`}`);
+        console.log(`      ${form} ${p}: ${s.error ? `ERROR ${s.error}` : `${CATS.map((c) => s.scores[c]).join('/')}  LCP ${s.lcp} ms  CLS ${s.cls}  TBT ${s.tbt} ms  ${s.kb} KB, ${tries} go(es)`}${rounds > 1 ? ` (round ${round})` : ''}`);
+        const floor = budget[`${form} ${p}`];
+        if (!s.error && floor) for (const c of CATS) if (floor[c] != null && s.scores[c] != null && s.scores[c] < floor[c] - SLACK[c]) under.push(`${form} ${p} ${c} ${s.scores[c]}, floor ${floor[c]}${rounds > 1 ? ` (round ${round})` : ''}`);
       }
     }
     fs.writeFileSync(path.join(OUT, 'perf-a11y-lighthouse.json'), JSON.stringify(rows, null, 2));
     const errored = Object.entries(rows).filter(([, r]) => r.error || r.scores.performance == null);
     result('perf-a11y: Lighthouse measured every page at phone and desktop size', !errored.length, errored.map(([k, r]) => `${k}: ${r.error || 'no performance score (NO_NAVSTART)'}`));
 
-    const under = [];
-    for (const [k, r] of Object.entries(rows)) {
-      if (r.error || !budget[k]) continue;
-      for (const c of CATS) if (budget[k][c] != null && r.scores[c] != null && r.scores[c] < budget[k][c] - SLACK[c]) under.push(`${k} ${c} ${r.scores[c]}, floor ${budget[k][c]}`);
-    }
     const unbudgeted = Object.keys(rows).filter((k) => !budget[k]);
     result('perf-a11y: no page scores much under its floor in perf-budget.json', !under.length && !unbudgeted.length,
       [...under, ...(unbudgeted.length ? [`no floor yet for: ${unbudgeted.join(', ')}`] : [])]);

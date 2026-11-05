@@ -9,7 +9,7 @@
 #   -Part update   the updater, from a feed served on the runner with a newer build of this commit (-Next), then
 #                  uninstalling and what is left behind.
 # Everything that looks dangerous is a harmless stand-in. Results go to $Out\results.txt; exits 1 when a check failed.
-param([string]$Installer = '', [string]$Next = '', [string]$Part = 'install', [string]$Out = 'e2e-core-qa')
+param([string]$Installer = '', [string]$Next = '', [string]$Part = 'install', [string]$Out = 'e2e-core-qa', [int]$Repeat = 1)
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 New-Item -ItemType Directory -Force $Out | Out-Null
@@ -23,7 +23,7 @@ $dl = Join-Path $env:USERPROFILE 'Downloads'; New-Item -ItemType Directory -Forc
 $pagesLog = Join-Path $Out 'pages.log'
 $pages = Start-Process python -ArgumentList '-u', '-m', 'http.server', '47910', '--directory', (Join-Path $PSScriptRoot 'e2e-chat') -PassThru -NoNewWindow -RedirectStandardError $pagesLog -RedirectStandardOutput "$pagesLog.out"
 function PagesDiag($page) { Get-Content $pagesLog -Tail 6 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag pages.log: $_" } }
-Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 paypal-account-verify-login.test`r`n127.0.0.1 paypal-resolution-center-secure.test`r`n127.0.0.1 defender-virusalert-helpline.test`r`n127.0.0.1 amazon-giftcard-claim-reward.test`r`n127.0.0.1 microsoft-account-unlock-verify.test`r`n127.0.0.1 paypal-wallet-limited-review.test`r`n127.0.0.1 apple-id-locked-support.test"
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 paypal-account-verify-login.test`r`n127.0.0.1 paypal-resolution-center-secure.test`r`n127.0.0.1 defender-virusalert-helpline.test`r`n127.0.0.1 amazon-giftcard-claim-reward.test`r`n127.0.0.1 microsoft-account-unlock-verify.test`r`n127.0.0.1 paypal-wallet-limited-review.test`r`n127.0.0.1 apple-id-locked-support.test`r`n127.0.0.1 giftshop.test"
 
 # What a person can see of Sentinel, outside its windows.
 function Settings { try { return (Get-Content "$data\settings.json" -Raw | ConvertFrom-Json) } catch { return $null } }
@@ -485,21 +485,43 @@ if ($Part -eq 'use') {
     'https://www.paypal.com/signin', 'https://accounts.google.com/', 'https://login.microsoftonline.com/', 'https://www.coinbase.com/',
     'https://github.com/login', 'https://www.irs.gov/', 'https://www.chase.com/'
   )
+  Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+  # What the browser in front shows in its address bar (Edge's and Chrome's is OmniboxViewViews); '' when it cannot say.
+  function AddressBar {
+    try {
+      $A = [System.Windows.Automation.AutomationElement]
+      $bar = $A::FromHandle([K]::GetForegroundWindow()).FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition($A::ClassNameProperty, 'OmniboxViewViews')))
+      return [string]$bar.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+    } catch { return '' }
+  }
   function Visit($url) {
-    # A site's own prompt (Chase asks to reach other apps) holds the keyboard: Escape first, as a person would.
-    [K]::Tap(0x1B); [K]::Tap(0x11)
-    [System.Windows.Forms.SendKeys]::SendWait('^l'); Start-Sleep -Milliseconds 400
-    [System.Windows.Forms.SendKeys]::SendWait($url); Start-Sleep -Milliseconds 200
-    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    $want = [regex]::Escape(([Uri]$url).Host -replace '^www\.', '')
+    for ($try = 1; $try -le 3; $try++) {
+      # A site's own prompt (Chase asks to reach other apps) holds the keyboard: Escape first, as a person would.
+      [K]::Tap(0x1B); [K]::Tap(0x11)
+      [System.Windows.Forms.SendKeys]::SendWait('^l'); Start-Sleep -Milliseconds 400
+      [System.Windows.Forms.SendKeys]::SendWait($url); Start-Sleep -Milliseconds 200
+      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+      $script:entered = Get-Date
+      # The page before can take the visit back: PayPal's sign-in moves itself to a second address about 4 s after it
+      # opens, and a visit typed meanwhile is cancelled; a page that focuses its own form as it loads takes the typed
+      # keys. Edge then stays where it was and nothing new reaches Sentinel (runs 42103668301 and 41158225281: the
+      # last page live scanning read was PayPal's or Coinbase's, for all 40 s). Typed again, as a person would.
+      Start-Sleep 2
+      $bar = AddressBar
+      if (-not $bar -or $bar -match $want) { return }
+      Say "  the address bar shows '$($bar.Substring(0, [Math]::Min(120, $bar.Length)))' after $url was typed (try $try): typed again"
+    }
   }
   function Verdict($browser, $url) {
     $re = "[^\r\n]* $browser [^\r\n]*https?://$([regex]::Escape(([Uri]$url).Host))[^\r\n]*"
     $n0 = ([regex]::Matches((WatchLog), $re)).Count
-    $t0 = Get-Date
     Visit $url
     $script:line = $null
-    $ok = Until 40 { [K]::Tap(0x11); $m = [regex]::Matches((WatchLog), $re); if ($m.Count -gt $n0) { $script:line = $m[$m.Count - 1].Value }; $m.Count -gt $n0 }
-    return @{ ok = $ok; took = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1); line = $script:line; warned = [bool](Cdp 'warn.html' '1').value }
+    # 40 s from the Enter that opened the site.
+    $ok = Until (40 - ((Get-Date) - $script:entered).TotalSeconds) { [K]::Tap(0x11); $m = [regex]::Matches((WatchLog), $re); if ($m.Count -gt $n0) { $script:line = $m[$m.Count - 1].Value }; $m.Count -gt $n0 }
+    if (-not $ok) { Say "  diag: the address bar shows '$(AddressBar)'; live scanning last read: $(((WatchLog) -split "`n" | Select-Object -Last 3) -join ' | ')" }
+    return @{ ok = $ok; took = [math]::Round(((Get-Date) - $script:entered).TotalSeconds, 1); line = $script:line; warned = [bool](Cdp 'warn.html' '1').value }
   }
   function Sites($browser, $list) {
     $slow = @(); $wrong = @(); $times = @()
@@ -515,7 +537,8 @@ if ($Part -eq 'use') {
     Check "$browser-honest-checked" ($slow.Count -le 1) "checked $($times.Count) of $($list.Count), on average $avg s from Enter to the verdict (max $(($times | Measure-Object -Maximum).Maximum) s); not checked in 40 s: $($slow -join ', ')"
   }
   Say "Edge in front: $(FreshEdge 'about:blank')"
-  Sites 'msedge' $honest
+  # -Repeat (desktop-e2e.yml's dispatch input) goes round the honest sites more than once, to show a check holds.
+  for ($round = 1; $round -le $Repeat; $round++) { Sites 'msedge' $honest }
   # A search: marks beside the results.
   # Handed to Edge, not typed: in SendKeys "+" is Shift, which mangled the search address, and a site's own prompt
   # (Chase asks to open other apps) could swallow the keys, leaving Edge on the last site with nothing to mark.
@@ -535,10 +558,9 @@ if ($Part -eq 'use') {
   }
   # Stand-in scams: how long until the warning, and every button on it.
   function Warned($url) {
-    $t0 = Get-Date
     Visit $url
-    $ok = Until 40 { [K]::Tap(0x11); [bool](Cdp 'warn.html' '1').value }
-    $took = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1)
+    $ok = Until (40 - ((Get-Date) - $script:entered).TotalSeconds) { [K]::Tap(0x11); [bool](Cdp 'warn.html' '1').value }
+    $took = [math]::Round(((Get-Date) - $script:entered).TotalSeconds, 1)
     Start-Sleep 1
     $w = [string](Cdp 'warn.html' "document.body.innerText.replace(/\s+/g, ' ')").value
     return @{ ok = $ok; took = $took; words = $w }
@@ -579,8 +601,19 @@ if ($Part -eq 'use') {
   }
   # The pay pause on a real gift card page, now that pages were flagged: it is about that page, and leaves with it.
   Say "Edge in front: $(Front 'msedge')"
+  $n0 = ([regex]::Matches((WatchLog), 'amazon\.com/checkpoint')).Count
   Visit 'https://www.amazon.com/gift-cards/b?node=2238192011'
-  $shown = Until 40 { [K]::Tap(0x11); (GuardMode) -match 'mode=pause' }
+  $shown = Until 40 { [K]::Tap(0x11); (GuardMode) -match 'mode=pause' -or ([regex]::Matches((WatchLog), 'amazon\.com/checkpoint')).Count -gt $n0 }
+  # Amazon sometimes answers a runner's second visit with its robot check (amazon.com/checkpoint) instead of the page:
+  # each of runs 42093391802, 42097773667 and 42109042858 failed here on it, and Sentinel rightly saw no gift card
+  # page there. The robot check is never answered: the same visit goes to the gift card stand-in, which the scanner
+  # knows by its /gift-cards/ address, as desktop-e2e.ps1's pay pause checks do.
+  if ((GuardMode) -notmatch 'mode=pause' -and ([regex]::Matches((WatchLog), 'amazon\.com/checkpoint')).Count -gt $n0) {
+    Say '  Amazon showed its robot check, not the gift card page: the gift card stand-in instead'
+    Visit 'http://giftshop.test:47910/gift-cards/'
+    $shown = Until 40 { [K]::Tap(0x11); (GuardMode) -match 'mode=pause' }
+  }
+  else { $shown = (GuardMode) -match 'mode=pause' }
   Shot 'pay-pause'
   Visit 'https://en.wikipedia.org/wiki/Banana_bread'
   $gone = Until 20 { [K]::Tap(0x11); (GuardMode) -notmatch 'mode=pause' }

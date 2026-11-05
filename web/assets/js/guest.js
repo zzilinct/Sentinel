@@ -10,6 +10,11 @@
   const out = $('[data-out]');
   const left = $('[data-left]');
   let used = 0;
+  // A double press is two presses: when the first one's answer comes back before the second press (a listed scam
+  // answers in a few milliseconds), the busy guard below has already let go, and the second press scanned again and
+  // spent another of the ten guest scans. The same address pressed again this soon after is the same press.
+  const AGAIN_MS = 600;
+  let last = { url: '', at: 0 };
 
   $$('[data-example]').forEach((b) => b.addEventListener('click', () => { form.url.value = b.dataset.example; form.requestSubmit(); }));
 
@@ -18,6 +23,8 @@
     const url = form.url.value.trim();
     // A second press while a scan runs (an example clicked twice) leaves the running scan alone.
     if (!url || $('button[type=submit]', form).dataset.busy) return;
+    if (url === last.url && Date.now() - last.at < AGAIN_MS) return;
+    last = { url, at: Date.now() };
     out.innerHTML = '<div class="panel scanning"><div class="scanning__rings">' + Masks.svg('scam') + '</div><h3>Scanning</h3><p class="muted" style="margin-top:6px">Known threats, the checklist and the comparison with known scams.</p></div>';
     try {
       const data = await busy($('button[type=submit]', form), 'Scanning', () => api('/guest/scan', { method: 'POST', body: { url } }));

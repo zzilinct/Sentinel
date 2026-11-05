@@ -11,6 +11,8 @@
   const Share = window.SentinelShare;
   // What the phone's Share menu handed over, on its way from /app/share to the check it opens (textView).
   let shared = null;
+  // The share a POST to /app/share put in the box for this page (sw.js gives its time as ?box=); 0 when none.
+  let shareBox = 0;
   // iPhones never list a web app in their Share menu.
   const iphone = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const IPHONE_NOTE = 'On iPhone, web apps cannot be in the Share menu. Press and hold the message or link, choose Copy, then paste it here.';
@@ -38,6 +40,8 @@
     // share box: what was shared is not kept beyond the check it was for.
     if (location.pathname.replace(/\/$/, '') === '/app/share') {
       const q = new URLSearchParams(location.search);
+      // Which share in the box is this page's own (sw.js): kept here, off the address bar.
+      if (/^\d{1,15}$/.test(q.get('box') || '')) { shareBox = Number(q.get('box')); history.replaceState({}, '', '/app/share'); }
       if (['title', 'text', 'url'].some((k) => q.get(k))) {
         try { await Share.put({ title: q.get('title') || '', text: q.get('text') || '', url: q.get('url') || '' }); } catch { /* read below, from the address */ }
         history.replaceState({}, '', '/app/share');
@@ -967,9 +971,15 @@
       if (url) scanLink(url, false);
     });
 
+    // A double press whose first answer came back before the second press (a listed scam answers in milliseconds)
+    // got past the busy guard and spent a second scan: the same address pressed again this soon is the same press.
+    let lastPress = { key: '', at: 0 };
     async function scanLink(url, fromQr) {
       // A second press while a scan runs (an example clicked twice) leaves the running scan alone.
       if ($('button[type=submit]', form).dataset.busy) return;
+      const key = `${fromQr ? 'fast' : mode} ${url}`;
+      if (key === lastPress.key && Date.now() - lastPress.at < 600) return;
+      lastPress = { key, at: Date.now() };
       // A link typed after a QR code is a scan of its own: the code's card goes.
       if (!fromQr) qrOut.innerHTML = '';
       // Remembered in the history entry, so Back and reload show the address without spending another scan.
@@ -1674,8 +1684,12 @@
     el.innerHTML = `${title('Shared with Sentinel', 'Opening the right check for what you shared.')}<div data-out aria-live="polite"></div>`;
     const fromQuery = shared && shared.query;
     shared = null;
-    Share.take().catch(() => null).then((got) => {
+    const mine = shareBox;
+    shareBox = 0;
+    Share.take(mine).catch(() => null).then((got) => {
       if (!el.isConnected) return;
+      // A second share arrived while this one's page was opening: its own page opens it, and this one says nothing.
+      if (got && got.newer) return;
       const q = fromQuery;
       const share = got || (q ? { title: q.get('title') || '', text: q.get('text') || '', url: q.get('url') || '', image: null } : null);
       const r = share ? Share.route({ ...share, image: Boolean(share.image) }) : { kind: 'empty' };

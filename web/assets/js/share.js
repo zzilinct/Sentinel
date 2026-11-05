@@ -50,12 +50,17 @@
     await c.put(DATA, new Response(JSON.stringify({ title, text, url, at: Date.now() }), { headers: { 'Content-Type': 'application/json' } }));
   }
 
-  /** The waiting share, if any, taken out of the box: { title, text, url, image: File|null } or null. */
-  async function take() {
+  /**
+   * The waiting share, if any, taken out of the box: { title, text, url, image: File|null } or null. `mine` is the
+   * share this page was opened for (sw.js puts its time in the address): a newer one is another share's, whose own page
+   * is on its way, so it is left there and { newer: true } comes back.
+   */
+  async function take(mine) {
     let c;
     try { c = await box(); } catch { return null; }
     const [d, i] = await Promise.all([c.match(DATA), c.match(IMAGE)]);
     const data = d ? await d.json().catch(() => null) : null;
+    if (mine && data && data.at > mine) return { newer: true };
     const blob = i ? await i.blob() : null;
     await clear();
     if (!data || !(Date.now() - data.at < FRESH_MS)) return null;

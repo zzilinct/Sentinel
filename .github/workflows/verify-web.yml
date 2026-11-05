@@ -9,6 +9,14 @@ on:
         description: 'Run only these checks (comma separated) in the features job, and no other job; empty runs everything'
         required: false
         default: ''
+      perf_pages:
+        description: 'Run only the perf-a11y job, on these pages (comma separated, as "mobile /app"), and no other job'
+        required: false
+        default: ''
+      perf_rounds:
+        description: 'With perf_pages: how many times each page is measured'
+        required: false
+        default: '1'
   push:
     branches: ['work/e2e**']
 
@@ -17,7 +25,7 @@ permissions:
 
 jobs:
   verify:
-    if: ${{ !inputs.checks }}
+    if: ${{ !inputs.checks && !inputs.perf_pages }}
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -43,6 +51,7 @@ jobs:
   # The checks for 1.18's features (sharing from a phone, web chats, the companion's own pages, the resting masks, the
   # search engines besides Bing), in a job of their own: behind everything above they never got their turn in 90 minutes.
   features:
+    if: ${{ !inputs.perf_pages }}
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -68,7 +77,7 @@ jobs:
 
   # The companion's memory after an hour of browsing (scripts/verify-web/26-companion-soak.js), beside the checks above.
   companion-soak:
-    if: ${{ !inputs.checks }}
+    if: ${{ !inputs.checks && !inputs.perf_pages }}
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -104,6 +113,9 @@ jobs:
       - name: Speed and accessibility of every page
         shell: bash
         run: CI_TOOLS="$RUNNER_TEMP/ci-tools" node scripts/verify-web.js --only perf-a11y --out perf-a11y
+        env:
+          PERF_PAGES: ${{ inputs.perf_pages }}
+          PERF_ROUNDS: ${{ inputs.perf_rounds }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

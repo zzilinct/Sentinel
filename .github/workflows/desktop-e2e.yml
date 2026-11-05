@@ -5,6 +5,15 @@ name: Desktop protections end to end
 
 on:
   workflow_dispatch:
+    inputs:
+      jobs:
+        description: 'Run only these jobs (comma separated: e2e, qa, core-install, core-use, core-update); empty runs all'
+        required: false
+        default: ''
+      repeat:
+        description: 'core-use: rounds of the honest sites in Edge; qa: rounds of the signed-in right-click files'
+        required: false
+        default: '1'
   push:
     branches: ['work/e2e**']
 
@@ -13,6 +22,7 @@ permissions:
 
 jobs:
   e2e:
+    if: ${{ !inputs.jobs || contains(inputs.jobs, 'e2e') }}
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
@@ -44,6 +54,7 @@ jobs:
   # Real-use QA (scripts/desktop-qa.ps1): "Scan with Sentinel" from the right-click menu started cold, signed out and in,
   # with awkward names and files, and the shield's windows at 125% and 150% display scaling. Its own runner, in parallel.
   qa:
+    if: ${{ !inputs.jobs || contains(inputs.jobs, 'qa') }}
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
@@ -59,7 +70,7 @@ jobs:
           npm ci
           npm run dist:win
       - shell: powershell
-        run: ./scripts/desktop-qa.ps1 -Installer (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-desktop-qa
+        run: ./scripts/desktop-qa.ps1 -Installer (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-desktop-qa -Repeat ${{ inputs.repeat || '1' }}
       - name: Sentinel's logs
         if: always()
         shell: powershell
@@ -75,12 +86,13 @@ jobs:
   # install (first start, start at login, tray, switches, parent lock, sign-in, crashes, port, network) and use (live
   # scanning on real sites, downloads, chat, ten idle minutes, display scaling).
   core:
+    if: ${{ !inputs.jobs || contains(inputs.jobs, 'core-install') || contains(inputs.jobs, 'core-use') }}
     runs-on: windows-latest
     timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
-        part: [install, use]
+        part: ${{ fromJSON(inputs.jobs && !contains(inputs.jobs, 'core-install') && '["use"]' || inputs.jobs && !contains(inputs.jobs, 'core-use') && '["install"]' || '["install","use"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -94,7 +106,7 @@ jobs:
           npm ci
           npm run dist:win
       - shell: powershell
-        run: ./scripts/desktop-core-qa.ps1 -Part ${{ matrix.part }} -Installer (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-core-${{ matrix.part }}
+        run: ./scripts/desktop-core-qa.ps1 -Part ${{ matrix.part }} -Installer (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-core-${{ matrix.part }} -Repeat ${{ inputs.repeat || '1' }}
       - name: Sentinel's logs
         if: always()
         shell: powershell
@@ -108,6 +120,7 @@ jobs:
 
   # The updater, from a feed on the runner offering this same commit built as the next version, then uninstalling.
   core-update:
+    if: ${{ !inputs.jobs || contains(inputs.jobs, 'core-update') }}
     runs-on: windows-latest
     timeout-minutes: 50
     steps:

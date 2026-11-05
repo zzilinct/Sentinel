@@ -120,7 +120,11 @@ async function checkPublic() {
     result('public: a guest scan answers without an account and counts down what is left today', Boolean(guest) && /9 of 10/.test(guest.left), { ...guest, ms: Date.now() - t });
     const ex = await evalIn(browser, s, "Boolean(document.querySelector('[data-example]'))");
     if (ex) {
+      // A person's double press: the second press 250 ms after the first. Pressed back to back instead, whether the
+      // second came during the scan or after it depended on the runner's speed: after it, it scanned again (7 of 10
+      // left, runs 42103668187 and 41346305554). At 250 ms a listed scam's answer is usually back first: the case that went wrong.
       await clickSel(browser, s, '[data-example]');
+      await sleep(250);
       await clickSel(browser, s, '[data-example]');
       const flash = await until(browser, s, "/Scan failed/.test(document.querySelector('[data-out]').innerText) && document.querySelector('[data-out]').innerText.slice(0, 160)", 2500);
       await until(browser, s, "document.querySelector('[data-out] [data-result]')", 20000);

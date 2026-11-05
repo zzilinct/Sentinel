@@ -186,7 +186,14 @@ function WaitUp { $up = $false; for ($i = 0; $i -lt 90 -and -not $up; $i++) { St
 # Its scanner may come up on the next port when the last one's is not yet free: the window says where.
 function StartSentinel { Start-Process $exe -ArgumentList '--remote-debugging-port=9333', '--inspect=9334'; return (Until 120 { (Cdp '127.0.0.1:4782' '1').value -eq 1 }) }
 # Sentinel's own main processes (not its helpers): one, however many times the right-click menu starts it.
-function MainProcs { return @(Get-CimInstance Win32_Process -Filter "Name='Sentinel.exe'" | Where-Object { $_.CommandLine -notmatch '--type=' }) }
+# A main process is one no other Sentinel started. Its command line alone is not enough: Windows gives none for a
+# process that is just ending, so a window's page process closing at that moment counted as a second Sentinel
+# (menu-in-30mb-one-start, run 42106326796, right after the result window was closed).
+function MainProcs {
+  $all = @(Get-CimInstance Win32_Process -Filter "Name='Sentinel.exe'")
+  $ids = @($all | ForEach-Object { $_.ProcessId })
+  return @($all | Where-Object { $_.CommandLine -notmatch '--type=' -and $ids -notcontains $_.ParentProcessId })
+}
 function SentinelWindows { $ids = @(Get-Process Sentinel -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }); if (-not $ids.Count) { return @() }; return @(([Qa]::Windows([int[]]$ids)) -split "`n" | Where-Object { $_ }) }
 function Starts { return ([regex]::Matches((AppLog), 'starting Sentinel')).Count }
 function StopSentinel { Get-Process Sentinel -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; [void](Until 20 { -not (Get-Process Sentinel -ErrorAction SilentlyContinue) }); Start-Sleep 2 }

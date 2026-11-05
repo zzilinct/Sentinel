@@ -94,3 +94,28 @@ test('share: a page starting while a share arrives never empties the box; only a
     delete global.caches;
   }
 });
+
+test('share: a page opened for one share leaves a newer share for its own page, and takes its own', async () => {
+  const share = require('../web/assets/js/share.js');
+  const store = new Map();
+  global.caches = {
+    open: async () => ({ match: async (k) => (store.has(k) ? new Response(store.get(k)) : undefined) }),
+    delete: async () => { store.clear(); return true; }
+  };
+  try {
+    const first = Date.now() - 50;
+    const second = Date.now();
+    // Two shares a moment apart: the first one's page reads the box after the second share was written.
+    store.set(share.DATA, JSON.stringify({ text: 'Second share', at: second }));
+    assert.deepEqual(await share.take(first), { newer: true });
+    assert.ok(store.has(share.DATA), 'the second share is still waiting for its own page');
+    const got = await share.take(second);
+    assert.equal(got.text, 'Second share');
+    assert.equal(store.size, 0);
+    // A page that does not know its share (a GET share, or back from signing in) takes whatever is waiting.
+    store.set(share.DATA, JSON.stringify({ text: 'Any', at: Date.now() }));
+    assert.equal((await share.take()).text, 'Any');
+  } finally {
+    delete global.caches;
+  }
+});
