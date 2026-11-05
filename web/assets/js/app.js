@@ -2480,7 +2480,7 @@
   }
   // The switch says on either way: when the reader is not running, that is the first thing said.
   function readerDown(status, what) {
-    if (status.reader === 'restarting') return `Stopped for a moment and starting again. Right now ${what} not being watched.`;
+    if (status.reader === 'restarting') return `Paused for a moment and starting again. For now ${what} not being watched.`;
     if (status.reader === 'stopped') return `Sentinel cannot read chat on this computer right now, so ${what} not being watched. It keeps trying by itself.`;
     return '';
   }
