@@ -409,7 +409,7 @@
 
   function verifyBar() {
     const bar = h(`<div class="verify-bar" role="status">
-      <span><b>Confirm your email address.</b> We sent a link to ${esc(state.me.user.email)}. Confirming it shows the address is yours, so nobody else can claim this account with it.</span>
+      <span><b>Confirm your email address.</b> <span class="verify-bar__more">We sent a link to ${esc(state.me.user.email)}. Confirming it shows the address is yours, so nobody else can claim this account with it.</span></span>
       <button class="btn btn--sm" type="button" data-resend>Resend email</button>
     </div>`);
     $('[data-resend]', bar).addEventListener('click', (ev) => busy(ev.currentTarget, 'Sending', async () => {
@@ -915,6 +915,13 @@
   const TEXT_MAX = 40000;
   const KIND_NAME = { link: 'Link', download: 'Download', message: 'Message', email: 'Email' };
   const SCAN_NAME = { linkScans: 'fast scan', deepScans: 'delicate scan', fileScans: 'virus scan' };
+  // What the empty page offers to show: a made-up example of each kind, none of them real addresses.
+  const CHECK_EXAMPLES = {
+    link: 'paypa1-secure-login.com/account',
+    message: 'USPS: Your parcel is on hold at our depot due to an unpaid $1.99 redelivery fee. Pay within 24 hours or it will be returned: https://usps-redeliver.top/track',
+    email: ['From: PayPal Service <service@paypa1-help.top>', 'Subject: Your account is limited', '',
+      'We noticed unusual activity. Confirm your details within 24 hours at https://paypa1-secure-login.com/verify or your account will be closed.'].join('\n')
+  };
 
   /** What a check costs, from the account's own numbers: "Uses 1 fast scan: 9 of 10 left this week." */
   function spends(meter) {
@@ -943,7 +950,7 @@
       case 'file': return [`${file.name}, ${bytes(file.size)}.`, file.size > 25 * 1024 * 1024
         ? 'Files up to 25 MB can be checked here.'
         : `Sentinel checks it for viruses, malware and files in disguise. ${spends(r.meter)}`];
-      default: return ['', 'Sentinel works out which it is and says which check it runs, before anything is used.'];
+      default: return ['', ''];
     }
   }
 
@@ -954,7 +961,6 @@
     if (location.pathname.replace(/\/$/, '') !== '/app/check') history.replaceState(history.state, '', `/app/check${preset ? `?url=${encodeURIComponent(preset)}` : ''}`);
     const camera = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     el.innerHTML = `
-      ${localNote()}
       ${title('Check something', 'Paste a link, a message or a whole email, or add a file or a picture of one. Sentinel works out which it is and runs the right check.')}
       <form class="ask" data-form data-draft="check" novalidate>
         <div class="ask__box" data-drop>
@@ -969,6 +975,10 @@
         </div>
         <div class="ask__said" id="check-says">
           <p class="ask__says" data-says aria-live="polite"></p>
+          <p class="ask__try" data-try>Not sure what goes here? See how Sentinel reads
+            <button type="button" data-example="link">a link</button>, <button type="button" data-example="message">a text message</button>,
+            <button type="button" data-example="email">an email</button> or <button type="button" data-example="file">a file</button>.
+            Nothing is checked until you press Check.</p>
           <div class="ask__as" data-as role="group" aria-label="Check it as" hidden></div>
           <button type="button" class="ask__deeper" data-deeper aria-pressed="false" hidden><i aria-hidden="true"></i>Look deeper: research the site</button>
           <div class="ask__help" data-header-help hidden>
@@ -983,6 +993,7 @@
       </form>
       ${iphone ? `<p class="field__hint" data-iphone-note>${esc(IPHONE_NOTE)}</p>` : ''}
       <p class="ask__call">On the phone with someone right now? <a href="/call">Is this call a scam?</a></p>
+      ${localNote()}
       <div data-qr-out aria-live="polite"></div>
       <div data-out aria-live="polite"></div>`;
 
@@ -995,6 +1006,7 @@
     const asEl = $('[data-as]', el);
     const deeperBtn = $('[data-deeper]', el);
     const fromBox = $('[data-from]', el);
+    const tryEl = $('[data-try]', el);
     const go = $('.ask__go', el);
     const preview = $('[data-shot-preview]', el);
     const shotStatus = $('[data-shot-status]', el);
@@ -1026,6 +1038,7 @@
       deeperBtn.hidden = !(f.research && r.path === '/scan/link' && deepLeft());
       deeperBtn.setAttribute('aria-pressed', String(r.mode === 'delicate'));
       fromBox.hidden = r.kind !== 'message';
+      tryEl.hidden = r.kind !== 'empty';
       // An email checked for who really sent it, pasted without the headers that say so: how to copy them.
       $('[data-header-help]', el).hidden = !(r.path === '/scan/email' && !pictured && !/^(Authentication-Results|Received-SPF|DKIM-Signature|Received)[ \t]*:/im.test(box.value));
       form.dataset.kind = r.kind;
@@ -1272,6 +1285,18 @@
     box.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Enter' || ev.shiftKey || ev.isComposing) return;
       if (ev.ctrlKey || ev.metaKey || Route.isLink(box.value.trim())) { ev.preventDefault(); form.requestSubmit(); }
+    });
+    // An example of each thing the box takes, put in the box (or, for a file, a small harmless one made here) so the
+    // sentence under it shows how Sentinel reads it. Nothing is sent until Check is pressed.
+    tryEl.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-example]');
+      if (!b || running) return;
+      const kind = b.dataset.example;
+      if (kind === 'file') { take(new File(['An example file made by Sentinel. It holds only these words.\n'], 'Invoice_2026.pdf.exe', { type: 'application/octet-stream' })); return; }
+      box.value = CHECK_EXAMPLES[kind];
+      choice = null;
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      box.focus();
     });
     asEl.addEventListener('click', (ev) => { const b = ev.target.closest('[data-kind]'); if (b) { choice = b.dataset.kind; refresh(); } });
     deeperBtn.addEventListener('click', () => {

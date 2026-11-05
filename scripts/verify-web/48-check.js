@@ -47,6 +47,31 @@ async function checkCheck() {
         current: (nav.querySelector('[aria-current=page]') || {}).textContent.trim(), links: nav.querySelectorAll('a.side__link').length, h1: document.querySelector('#view h1').textContent, title: document.title }; })()`);
     result('check: the sidebar is four groups (Check, Protect, Review, Account) with one Check entry and none of the old scan pages',
       side.labels.join() === 'Check,Protect,Review,Account' && side.checks === 1 && !side.old.length && side.current === 'Check something' && side.h1 === 'Check something' && side.title === 'Check · Sentinel', side);
+    // Every word in the sidebar at one size: the Check entry's label once came out smaller than its neighbours.
+    const words = await evalIn(browser, s, `(() => { const sizes = []; const walk = document.createTreeWalker(document.querySelector('.side__nav'), NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) { if (!n.textContent.trim()) continue; const e = n.parentElement; if (e.closest('.side__label') || !e.closest('.side__link')) continue;
+        const r = document.createRange(); r.selectNodeContents(n); const hgt = Math.round(r.getBoundingClientRect().height); if (hgt) sizes.push([n.textContent.trim(), hgt]); }
+      return sizes; })()`);
+    result('check: the Check entry is set at the same size as every other sidebar entry', new Set(words.map(([, hgt]) => hgt)).size === 1, words);
+
+    /* ------------------------------------------------------ the empty page */
+
+    await evalIn(browser, s, '(sessionStorage.clear(), true)');
+    await goto(browser, s, `${base}/app/check`, ready);
+    const before = await used();
+    const empty = await evalIn(browser, s, "({ said: document.querySelector('[data-says]').textContent, tryShown: !document.querySelector('[data-try]').hidden, examples: [...document.querySelectorAll('[data-example]')].map((b) => b.dataset.example), lead: document.querySelector('#view .page-title p').textContent })");
+    const tried = {};
+    for (const k of empty.examples) {
+      await clickSel(browser, s, `[data-example=${k}]`);
+      await sleep(250);
+      tried[k] = await evalIn(browser, s, "({ kind: document.querySelector('.ask').dataset.kind, says: document.querySelector('[data-says]').textContent.slice(0, 40) })");
+      await evalIn(browser, s, "(() => { const u = document.querySelector('[data-unfile]'); if (u) u.click(); const t = document.querySelector('[data-check-text]'); t.value = ''; t.dispatchEvent(new Event('input', { bubbles: true })); return true; })()");
+    }
+    const after = await used();
+    result('check: the empty page says once what the box does and offers an example of each kind, which shows how it is read and spends nothing',
+      !empty.said && empty.tryShown && !/works out which it is and says/.test(empty.said) && empty.examples.join() === 'link,message,email,file'
+        && tried.link.kind === 'link' && tried.message.kind === 'message' && tried.email.kind === 'email' && tried.file.kind === 'file' && JSON.stringify(before) === JSON.stringify(after),
+      { empty, tried, before, after });
 
     const moved = [];
     for (const [from, to] of [['/app/text', '/app/check'], ['/app/threats', '/app/check'], ['/app/email', '/app/check'], ['/app/scan?url=https%3A%2F%2Fgithub.com', '/app/check?url=https%3A%2F%2Fgithub.com']]) {
@@ -120,6 +145,9 @@ async function checkCheck() {
         if (size === 'phone') {
           const bar = await evalIn(browser, s, "(() => { const a = document.querySelector('.side__nav a[href=\"/app/check\"]'); const r = a.getBoundingClientRect(); return { seen: r.width > 0 && r.bottom <= innerHeight + 1, current: a.getAttribute('aria-current') }; })()");
           if (!bar.seen || bar.current !== 'page') wide.push(`${theme}: Check is not in the phone's bottom bar ${JSON.stringify(bar)}`);
+          // With the confirm-email notice showing, the Check button is still on screen, above the phone's bar.
+          const go = await evalIn(browser, s, "(() => { const g = document.querySelector('.ask__go').getBoundingClientRect(); const navTop = document.querySelector('.side__nav').getBoundingClientRect().top; const v = document.querySelector('.verify-bar'); return { bottom: Math.round(g.bottom), navTop: Math.round(navTop), notice: v ? Math.round(v.getBoundingClientRect().height) : 0 }; })()");
+          if (!go.notice || go.bottom > go.navTop) wide.push(`${theme}: the Check button is off screen with the notice showing ${JSON.stringify(go)}`);
         }
       }
     }

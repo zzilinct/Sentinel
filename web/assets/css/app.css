@@ -55,8 +55,9 @@ body.app::before { opacity: .6; }
   /* A phone's bar holds the four pages used most and More, which lists every page and Sign out (the Ctrl K search). */
   .side .logo, .side .model-badge, .side__label, .side__foot, .side__nav .side__link:not([data-phone]) { display: none; }
   .side__nav .side__more { display: flex; }
-  /* "Check something" is Check in the bar: one line, like its neighbours. */
-  .side__wide { display: none; }
+  /* "Check something" is Check in the bar: one line, like its neighbours (its name stays in aria-label). */
+  .side__link[data-short] { font-size: 0; }
+  .side__link[data-short]::after { content: attr(data-short); font-size: var(--t-micro); }
   .side__nav { display: flex; width: 100%; justify-content: space-around; }
   .side__link { flex: 1 1 0; min-width: 0; min-height: 48px; justify-content: center; flex-direction: column; gap: 3px; height: auto; padding: 7px 4px; font-size: var(--t-micro); text-align: center; }
   .main { padding-bottom: 90px !important; }
@@ -111,7 +112,9 @@ body.app::before { opacity: .6; }
 .ask__box {
   position: relative; display: grid; border-radius: var(--r-lg);
   /* The same edge as every other field (29841a1): a well you can see, empty or not. */
-  background-color: var(--field-bg); caret-color: var(--gold-300); box-shadow: var(--press), inset 0 0 0 1px var(--field-ring);
+  /* Lit from above in the site's gold, the way the hero's mask is: a well, not a form field. */
+  background: radial-gradient(120% 90% at 50% -30%, rgb(var(--gold-rgb) / .09), transparent 62%), var(--field-bg);
+  caret-color: var(--gold-300); box-shadow: var(--press), inset 0 1px 0 rgb(var(--gold-rgb) / .22), inset 0 0 0 1px var(--field-ring);
   transition: box-shadow .3s var(--ease);
 }
 .ask__box:focus-within, .ask__box.is-over { box-shadow: var(--press), inset 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 4px rgb(var(--gold-rgb) / .08); }
@@ -120,7 +123,7 @@ body.app::before { opacity: .6; }
   padding: 18px 20px 6px; border: 0; outline: none; background: none; color: var(--text);
   font: var(--t-body) / 1.55 var(--sans); letter-spacing: var(--tr-text); overflow-wrap: anywhere;
 }
-.ask__text::placeholder { color: var(--faint); }
+.ask__text::placeholder { color: var(--faint); font: 400 var(--t-title-s) / 1.3 var(--display); letter-spacing: var(--tr-display); }
 .ask__file { display: flex; align-items: center; gap: 12px; min-height: calc(4 * 1.55em + 24px); padding: 18px 20px 6px; }
 .ask__file[hidden], .ask__text[hidden] { display: none; }
 .ask__file-icon { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: var(--r); color: var(--gold-300); background: rgb(var(--gold-rgb) / .08); box-shadow: inset 0 0 0 1px var(--line-gold); }
@@ -137,7 +140,17 @@ body.app::before { opacity: .6; }
 .ask__add svg { width: 17px; height: 17px; flex: none; color: var(--gold-300); }
 .ask__go { --h: 44px; margin-left: auto; min-width: 116px; }
 .ask__said { display: grid; gap: 12px; padding: 0 4px; }
-.ask__says { min-height: 1.6em; max-width: 70ch; font-size: var(--t-ui); line-height: 1.6; color: var(--text-2); }
+.ask__says { max-width: 70ch; font-size: var(--t-ui); line-height: 1.6; color: var(--text-2); }
+.ask__says:empty, .ask__try[hidden] { display: none; }
+/* The first thing anyone sees here: what the box takes, each one a press away from an example. */
+.ask__try { max-width: 64ch; font-size: var(--t-ui); line-height: 1.75; color: var(--muted); }
+.ask__try button {
+  padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: var(--gold-300);
+  text-decoration: underline; text-decoration-color: rgb(var(--gold-rgb) / .35); text-decoration-thickness: 1px; text-underline-offset: 4px;
+  transition: color .2s, text-decoration-color .2s;
+}
+.ask__try button:hover { color: var(--gold-200); text-decoration-color: currentColor; }
+.ask__try button:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; border-radius: 3px; }
 .ask__says b { font-weight: 600; color: var(--text); }
 .ask__as { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .ask__as[hidden], .ask__deeper[hidden] { display: none; }
@@ -709,6 +722,8 @@ select.input option { background: var(--surface-3); color: var(--text); }
 /* Verification reminder shown until the address is confirmed. */
 .verify-bar { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 18px; padding: 12px 16px; border-radius: var(--r); font-size: var(--t-ui); color: var(--text-2); background: rgb(var(--gold-rgb) / .07); box-shadow: inset 0 0 0 1px var(--line-gold); }
 .verify-bar b { color: var(--text); font-weight: 500; }
+/* On a phone's Check page the notice folds to one line, so the box and its Check button stay on screen. */
+@media (max-width: 560px) { #view:has(.ask) .verify-bar { flex-wrap: nowrap; padding: 8px 8px 8px 14px; margin-bottom: 12px; } #view:has(.ask) .verify-bar__more { display: none; } }
 .shell--guest { grid-template-columns: 1fr; }
 .shell--guest .main { max-width: 1040px; margin: 0 auto; }
 
