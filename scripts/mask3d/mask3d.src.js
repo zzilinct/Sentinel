@@ -64,8 +64,8 @@ const PART = { trim: [1, 0, 0], liner: [0, 1, 0], ember: [0, 0, 1], body: [0, 0,
 // The gold's own light: the onyx studio is dark for metal, so in onyx the gold's reflections are lifted, and it is given
 // a warm glow of its own, brighter on top, so the rivet and the wire read as gold domes where they face the dark room
 // (the stills' softboxes do this in Blender).
-const GOLD_LIFT = { onyx: 1.5 };
-const GOLD_FLOOR = { onyx: 0.15 };
+const GOLD_LIFT = { onyx: 1.3 };
+const GOLD_FLOOR = { onyx: 0.1 };
 // The eyes' light: the ember's glow and the light it throws into the socket, at rest (1) and while watching (EYE_WATCH).
 const EMBER_GLOW = 0.8;
 const EMBER_THROW = 0.14;
@@ -131,7 +131,7 @@ function swallowable(material, state) {
       // The parts (masks.py build): gold, a dark liner that reflects nothing, and the ember. Only the body is mapped.
       .replace('#include <color_fragment>', `#include <color_fragment>
         float anyPart = min(1.0, vPart.x + vPart.y + vPart.z);
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.55, 0.11), vPart.x);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.5, 0.08), vPart.x);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.004, 0.0035, 0.003), vPart.y + vPart.z);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor = mix(roughnessFactor, 0.2, vPart.x) + (0.42 - roughnessFactor) * vPart.y + (0.3 - roughnessFactor) * vPart.z;`)
