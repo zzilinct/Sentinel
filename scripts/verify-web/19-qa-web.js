@@ -511,15 +511,15 @@ async function checkQaWeb() {
       const words = await ev("(document.querySelector('#view [data-out]') || {}).innerText || ''");
       const kept = await ev("document.querySelector('[data-form] textarea').value.length > 0");
       await shot(browser, s, 'qa-text-limit');
-      result('qa-web: free plan, past the week\'s scans the text scan says so in plain words with when it resets, and keeps what was pasted',
+      result('qa-web: free plan, past the week\'s scans Check says so in plain words with when it resets, and keeps what was pasted',
         // The limit message names the allowance a text scan draws on (the plan's fast link scans) and when it comes back.
         used === 10 && /used all 10 fast link scans/.test(words) && /come back/.test(words) && kept, { used, r, words: words.slice(0, 200), kept });
       // Signed out in another tab: the next scan says to sign in again, with a link back here.
       await ev("fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then((r) => r.ok)");
       await textScan('Your parcel is waiting. Pay the fee at https://usps-redeliver.top/pay');
       const out = await ev("(() => { const o = document.querySelector('#view [data-out]'); const a = o.querySelector('a[href^=\"/login\"]'); return { words: o.innerText, link: a ? a.getAttribute('href') : '' }; })()");
-      result('qa-web: signed out while using it, the scan says to sign in again with a link that comes back to the text scan',
-        /sign in/i.test(out.words) && out.link === '/login?next=%2Fapp%2Ftext', out);
+      result('qa-web: signed out while using it, the scan says to sign in again with a link that comes back to Check',
+        /sign in/i.test(out.words) && out.link === '/login?next=%2Fapp%2Fcheck', out);
     });
 
     result('qa-web: no script errors', !errors.length, errors);

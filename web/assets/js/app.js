@@ -977,7 +977,7 @@
             <p><b>Outlook:</b> open the email, click the three dots, choose View, then View message source, and copy it all.</p>
           </div>
         </div>
-        <div class="field ask__from" data-from hidden><label for="check-from">Who sent it <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="check-from" name="from" dir="auto" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
+        <div class="field ask__from" data-from hidden><label for="check-from">Who sent it <span class="opt">(optional)</span></label><input class="input" id="check-from" name="from" dir="auto" placeholder="The number or name the message shows" autocomplete="off" maxlength="80"></div>
         <figure class="shot" data-shot-preview hidden><img alt="The picture being read"><figcaption data-shot-status></figcaption></figure>
         <div class="qr-cam" data-qr-camview hidden><video muted playsinline aria-label="Camera view"></video><p class="muted">Hold the QR code up to the camera. It is read here, and the camera turns off as soon as a code is found.</p></div>
       </form>
@@ -1027,7 +1027,7 @@
       deeperBtn.setAttribute('aria-pressed', String(r.mode === 'delicate'));
       fromBox.hidden = r.kind !== 'message';
       // An email checked for who really sent it, pasted without the headers that say so: how to copy them.
-      $('[data-header-help]', el).hidden = !(r.path === '/scan/email' && !/^(Authentication-Results|Received-SPF|DKIM-Signature|Received)[ \t]*:/im.test(box.value));
+      $('[data-header-help]', el).hidden = !(r.path === '/scan/email' && !pictured && !/^(Authentication-Results|Received-SPF|DKIM-Signature|Received)[ \t]*:/im.test(box.value));
       form.dataset.kind = r.kind;
       return r;
     }
@@ -1068,6 +1068,8 @@
       if (r.kind === 'file' && file.size > 25 * 1024 * 1024) { toast('Files up to 25 MB can be checked.', 'error'); return; }
       running = true;
       if (!fromQr) qrOut.innerHTML = '';
+      // What the picture's reader said is done with: the answer is below.
+      if (!preview.hidden && !fromQr) { preview.hidden = true; shotStatus.textContent = ''; }
       try {
         if (r.url) await runLink(r, fromQr);
         else if (r.path === '/scan/text') await runText(r);
@@ -1172,6 +1174,8 @@
     let reading = false;
     // A QR code read from a screenshot of an email, sent with that email. Typing or pasting another one forgets it.
     let pictureQr = [];
+    // Words read from a picture: a screenshot has no headers to paste, so the how-to for them is not shown.
+    let pictured = false;
     async function readPicture(pic) {
       if (reading) return;
       if (pic.size > 20 * 1024 * 1024) { toast('That picture is too large.', 'error'); return; }
@@ -1207,7 +1211,8 @@
           choice = 'email';
           file = null;
           showFile();
-          box.dispatchEvent(new Event('input', { bubbles: true }));
+          pictured = true;
+        box.dispatchEvent(new Event('input', { bubbles: true }));
           shotStatus.textContent = 'Read on this computer, with the QR code in it. Look over the words, then press Check: the code is checked with the email.';
           box.focus();
           return;
@@ -1238,6 +1243,7 @@
         }
         file = null;
         showFile();
+        pictured = true;
         box.dispatchEvent(new Event('input', { bubbles: true }));
         shotStatus.textContent = 'Read on this computer. Look over the words, then press Check.';
         box.focus();
@@ -1253,8 +1259,8 @@
     box.addEventListener('input', (ev) => {
       // Emptied, or something else pasted in: a new thing to check, without the last picture's code. A word corrected
       // in what was read keeps it.
-      if (!box.value.trim()) { choice = null; pictureQr = []; }
-      if (ev.inputType === 'insertFromPaste' || ev.inputType === 'insertFromDrop') pictureQr = [];
+      if (!box.value.trim()) { choice = null; pictureQr = []; pictured = false; }
+      if (ev.inputType === 'insertFromPaste' || ev.inputType === 'insertFromDrop') { pictureQr = []; pictured = false; }
       refresh();
     });
     // Enter sends a link pasted on its own; in a message it starts a new line, and Ctrl+Enter sends.
