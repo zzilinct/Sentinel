@@ -40,6 +40,8 @@ const scanmenu = require('./scanmenu');
 const store = require('./store');
 const parentlock = require('./parentlock');
 const server = require('./server');
+const { protectionState, trayIcon, trayTooltip } = require('./protection');
+const { createNotes } = require('./notes');
 
 const DEV = process.argv.includes('--dev');
 // Windows gets the .ico (every size, so the taskbar and Alt+Tab never show a blank page); elsewhere the PNG.
@@ -66,6 +68,13 @@ let browserWatcher = null;
 let lock = null;   // the parent lock (parentlock.js), made once the settings are read
 // A file chosen with "Scan with Sentinel" in the right-click menu ({ file, at }), until the app's file scan takes it.
 let menuFile = null;
+// The very first start on this computer (no settings yet): the start window asks its one question before the app.
+let firstRun = false;
+// What the start window shows (pages/start.html): { stage } while starting, { view: 'error' } or { view: 'welcome' }.
+let startView = { stage: 'scanner' };
+let trayWin = null;           // the tray card (pages/tray.html), made when the mask by the clock is clicked
+let trayCardClosedAt = 0;
+let frontApp = null;          // the program in front that is not a browser, as live scanning's reader last said
 
 /** Started without a window: from the startup entry, or brought back in the tray after an automatic update. */
 const startHidden = (() => {
@@ -125,14 +134,16 @@ function offerChatSafety(processName) {
   const texts = TEXT_APPS[processName];
   if (texts) {
     if (store.get('textSafety', false) || store.get('textsOffered', false)) return;
-    store.set('textsOffered', true);
-    notify('Phone Link is open. Sentinel can check your texts', 'It points out scam texts beside the message, on this computer only. Click to turn it on.', () => showWindow('/app/protection#text-safety'));
+    // Offered once it is really shown, and never while Phone Link itself is in front.
+    notify('Sentinel can check your texts in Phone Link', 'It points out scam texts beside the message, on this computer only. Click to turn it on.', () => showWindow('/app/protection#text-safety'),
+      { ready: () => frontApp !== processName, onShown: () => store.set('textsOffered', true) });
     return;
   }
   const name = CHAT_APPS[processName];
   if (!name || store.get('chatSafety', false) || store.get(`chatOffered:${name}`, false)) return;
-  store.set(`chatOffered:${name}`, true);
-  notify(`${name} is open. Sentinel can watch its chat`, 'Chat safety points out scams and people who may not be safe to talk to, on this computer only. Click to turn it on.', () => showWindow('/app/protection#chat-safety'));
+  // Never over the game: the offer waits until Roblox (or Discord) is no longer in front, and counts once shown.
+  notify(`Sentinel can watch your ${name} chats`, 'Chat safety points out scams and people who may not be safe to talk to, on this computer only. Click to turn it on.', () => showWindow('/app/protection#chat-safety'),
+    { ready: () => frontApp !== processName, onShown: () => store.set(`chatOffered:${name}`, true) });
 }
 /** One reader for both switches: it reads only the apps whose switch is on, and stops when both are off. */
 function chatApps() {
@@ -335,7 +346,7 @@ function createWindow() {
     }
   });
 
-  win.loadFile(path.join(__dirname, 'pages', 'loading.html'));
+  win.loadFile(path.join(__dirname, 'pages', 'start.html'));
   win.once('ready-to-show', () => { if (!startHidden) win.show(); });
 
   // Only Sentinel itself may load inside the app window.
@@ -364,7 +375,7 @@ function createWindow() {
     win.hide();
     if (!store.get('trayHintShown')) {
       store.set('trayHintShown', true);
-      notify('Sentinel is still protecting you', 'Sentinel keeps running in the tray. Right-click the mask icon to quit.');
+      notify('Sentinel is still on', 'It keeps protecting you from the mask by the clock. Click the mask to see your protection, or right-click it to quit.');
     }
   });
 }
@@ -393,10 +404,28 @@ function showError(message) {
   clearTimeout(retryTimer);
   retryTimer = setTimeout(() => boot(), wait * 1000);
   if (!win) createWindow();
-  win.loadFile(path.join(__dirname, 'pages', 'error.html'), { query: { message, log: server.logPath(), retryIn: String(wait) } });
+  setStart({ view: 'error', message, retryIn: wait });
+  refreshTray();
   // A start that fails while Sentinel is tucked away in the tray should not jump in front of the person, and neither
   // should each retry: the window is shown once, for the first failure of a start the person asked for.
   if (first && !win.isVisible() && !startHidden) win.show();
+}
+
+/**
+ * The start window's state. The page stays loaded from the first step to the last (a retry moves it on, it never
+ * starts it over); only when the app window was showing the app is the page loaded again.
+ */
+function setStart(view) {
+  startView = view;
+  if (!win || win.isDestroyed()) return;
+  // Still loading its first page (no address yet): the page asks for the state itself once it is there.
+  const at = win.webContents.getURL();
+  if (at && !at.startsWith(PAGES)) win.loadFile(path.join(__dirname, 'pages', 'start.html'));
+  else win.webContents.send('sentinel:start', view);
+}
+/** The first start's question, with what protects already (the protection state, as it comes up). */
+function welcomeView() {
+  return { view: 'welcome', protection: currentProtection(), windows: process.platform === 'win32' };
 }
 
 /** A small always-on-top warning for a dangerous page open in a browser. */
@@ -482,7 +511,8 @@ function islandCorner() {
  */
 async function fitToWords(w) {
   if (!w || w.isDestroyed()) return false;
-  const corner = w.cardCorner ? islandCorner() : null;
+  // `cardCorner` is true (the corner island) or a function giving another corner (the tray card's, by the clock).
+  const corner = w.cardCorner ? (typeof w.cardCorner === 'function' ? w.cardCorner() : islandCorner()) : null;
   const area = (corner ? screen.getDisplayNearestPoint(corner) : screen.getDisplayMatching(w.getBounds())).workArea;
   const s = await w.webContents.executeJavaScript(`window.SentinelCard ? window.SentinelCard.measure(${Math.floor(area.height)}) : null`);
   if (!w || w.isDestroyed() || !s) return false;
@@ -739,53 +769,115 @@ async function guardAction(action, arg) {
 
 /* --------------------------------------------------------------- tray */
 
-function buildTray() {
-  const image = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', process.platform === 'darwin' ? 'icon16.png' : 'icon32.png'));
-  tray = new Tray(image);
-  tray.setToolTip(`Sentinel ${app.getVersion()}`);
-  tray.on('click', () => showWindow());
-  refreshTray();
+/*
+ * The mask by the clock is where Sentinel lives once its window is closed. Its icon, its tooltip, the first line of
+ * its menu and the card a click opens all come from currentProtection() (protection.js), so they cannot disagree, and
+ * none of them says "on" for a protection that is not running. Everything here hangs off refreshTray(), which the
+ * protections already call when they change: nothing is polled.
+ */
+function currentProtection() {
+  const live = watch.status();
+  const def = defense.status();
+  const chat = chatSafetyStatus();
+  const texts = textSafetyStatus();
+  return protectionState({
+    booting,
+    down: !ORIGIN && !booting,
+    windows: process.platform === 'win32',
+    downloads: { enabled: store.get('downloadProtection', true), ...downloads.status() },
+    defense: { enabled: store.get('defense', true), active: def.active, reason: def.reason },
+    live: { enabled: store.get('liveScanning', false), active: live.active, reason: live.reason, window: Boolean(live.window) },
+    chat: { enabled: chat.enabled, running: chat.running },
+    texts: { enabled: texts.enabled, running: texts.running }
+  });
+}
+/** What the tray card shows: the protection state, an update waiting, and the parent lock. */
+function trayState() {
+  const up = updater.status();
+  return { ...currentProtection(), update: { ready: up.status === 'ready', version: up.version || null }, lock: { set: Boolean(lock && lock.isSet()), locked: Boolean(lock && lock.isSet() && lock.locked()) } };
 }
 
-/** The tray's update line: what is happening, not just a button that goes grey. */
-function updateItem(up) {
-  const v = app.getVersion();
-  if (!up.supported) return { label: `Sentinel ${v}`, enabled: false };
-  if (up.status === 'ready') return { label: `Restart to update to ${up.version}`, click: () => updater.install() };
-  if (up.status === 'downloading') return { label: `Downloading update${up.version ? ` ${up.version}` : ''}${Number.isFinite(up.progress) ? ` (${up.progress}%)` : ''}...`, enabled: false };
-  if (up.status === 'checking') return { label: 'Checking for updates...', enabled: false };
-  if (up.status === 'current') return { label: `Sentinel ${v} is up to date (check again)`, click: () => updater.check() };
-  if (up.status === 'error') return { label: `Check for updates (the last check did not finish)`, click: () => updater.check() };
-  return { label: `Check for updates (Sentinel ${v})`, click: () => updater.check() };
+const trayImages = {};
+let trayShows = { icon: null, tip: null };
+function trayImage(name) {
+  if (!trayImages[name]) trayImages[name] = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', `${name}.png`));
+  return trayImages[name];
+}
+
+function buildTray() {
+  tray = new Tray(trayImage('tray-off'));
+  trayShows.icon = 'tray-off';
+  tray.on('click', () => toggleTrayCard());
+  refreshTray();
 }
 
 function refreshTray() {
   if (!tray) return;
-  const status = downloads.status();
-  const pw = watch.status();
-  const up = updater.status();
+  const state = trayState();
+  // The icon and the tooltip change only when what they say changes.
+  const icon = trayIcon(state.level);
+  if (icon !== trayShows.icon) { tray.setImage(trayImage(icon)); trayShows.icon = icon; }
+  const tip = trayTooltip(state);
+  if (tip !== trayShows.tip) { tray.setToolTip(tip); trayShows.tip = tip; }
+  if (trayWin && !trayWin.isDestroyed()) trayWin.webContents.send('sentinel:tray', state);
+  if (startView.view === 'welcome') setStart(welcomeView());
+  const scanning = store.get('liveScanning', false);
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open Sentinel', click: () => showWindow() },
+    { label: state.headline, click: () => toggleTrayCard() },
     { type: 'separator' },
-    { label: status.active ? 'Download protection: on' : status.reason || 'Download protection: off', enabled: false },
-    { label: pw.active ? (pw.window ? 'Live scanning: watching the browser in front' : 'Live scanning: ready') : pw.reason || 'Live scanning is off', enabled: false },
+    { label: 'Open Sentinel', click: () => showWindow() },
     { label: 'Scan a file...', click: () => showWindow('/app/threats') },
     { label: 'Is this call a scam?', click: () => showWindow('/app/call') },
-    { type: 'separator' },
-    { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? trayGuard('live scanning off', true) && setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
-    ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
-    ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => { if (trayGuard('auto scanning off', !item.checked)) setAutoScan(item.checked).catch(() => {}); } }] : []),
-    ...(process.platform === 'win32' ? [{ label: 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { if (trayGuard('chat safety off', !item.checked)) { setChatSafety(item.checked); refreshTray(); } } }] : []),
-    { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => { if (trayGuard('starting with the computer off', !item.checked)) setOpenAtLogin(item.checked); } },
     ...(snipOn() ? [{ label: 'Check something on screen', click: () => snip.open(300) }] : []),
-    ...(process.platform === 'win32' ? [{ label: 'Check my texts', type: 'checkbox', checked: store.get('textSafety', false), click: (item) => { if (trayGuard('Check my texts off', !item.checked)) { setTextSafety(item.checked); refreshTray(); } } }] : []),
+    ...(watch.status().supported ? [{ label: scanning ? 'Stop scanning' : 'Start scanning', click: () => (scanning ? trayGuard('live scanning off', true) && setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) }] : []),
     { type: 'separator' },
-    updateItem(up),
+    ...(state.update.ready ? [{ label: `Restart to update to ${state.update.version}`, click: () => updater.install() }] : []),
     { label: 'Open log folder', click: () => shell.showItemInFolder(server.logPath()) },
-    { type: 'separator' },
-    ...(lock && lock.isSet() ? [{ label: lock.locked() ? 'Parent lock: on' : 'Parent lock: open for a few minutes', enabled: false }] : []),
     { label: 'Quit Sentinel', click: () => { if (trayGuard('Sentinel off', true)) { quitting = true; app.quit(); } } }
   ]));
+}
+
+/** Where the tray card springs from: the corner of the screen the taskbar's clock is in. */
+function trayCorner() {
+  const b = tray.getBounds();
+  const area = screen.getDisplayNearestPoint({ x: b.x, y: b.y }).workArea;
+  const bottom = b.y + b.height / 2 > area.y + area.height / 2;
+  return { x: Math.min(area.x + area.width - 12, b.x + b.width / 2 + 200), y: bottom ? area.y + area.height - 12 : area.y };
+}
+/**
+ * A click on the mask: the card opens, sized to its words, beside the clock, with the keyboard (the person asked for
+ * it). It goes when it loses the keyboard, and its window goes with it: nothing stays loaded in the background.
+ */
+function toggleTrayCard() {
+  if (trayWin && !trayWin.isDestroyed()) { trayWin.close(); return; }
+  // The click that took the keyboard from an open card closed it already: that click means "close", not "open again".
+  if (Date.now() - trayCardClosedAt < 300) return;
+  trayWin = cardWindow({ alwaysOnTop: true, skipTaskbar: true });
+  trayWin.cardCorner = trayCorner;
+  trayWin.on('blur', () => { if (trayWin && !trayWin.isDestroyed()) trayWin.close(); });
+  trayWin.on('closed', () => { trayWin = null; trayCardClosedAt = Date.now(); });
+  trayWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  trayWin.webContents.on('will-navigate', (e) => e.preventDefault());
+  trayWin.webContents.on('did-finish-load', () => {
+    fitToWords(trayWin).catch(() => {}).finally(() => { if (trayWin && !trayWin.isDestroyed() && !trayWin.isVisible()) { trayWin.show(); trayWin.focus(); } });
+  });
+  trayWin.loadFile(path.join(__dirname, 'pages', 'tray.html'));
+}
+function closeTrayCard() { if (trayWin && !trayWin.isDestroyed()) trayWin.close(); }
+
+/** The tray card's switches: the same switches as Live protection, behind the same parent lock. */
+async function traySwitch(id, on) {
+  const what = { downloads: 'download protection off', defense: 'defense off', live: 'live scanning off', chat: 'chat safety off', texts: 'Check my texts off' }[id];
+  if (!what) return trayState();
+  if (!on && !trayGuard(what, true)) return trayState();
+  if (id === 'downloads') { store.set('downloadProtection', on); if (on) downloads.restart(); else downloads.stop('Turned off'); }
+  if (id === 'defense') { store.set('defense', on); if (on) defense.restart(); else defense.stop('Turned off'); }
+  if (id === 'live') await setLiveScanning(on, { byPerson: true });
+  if (id === 'chat') setChatSafety(on);
+  if (id === 'texts') setTextSafety(on);
+  appLog(`tray card: ${id} ${on ? 'on' : 'off'}`);
+  refreshTray();
+  return trayState();
 }
 
 /**
@@ -1113,7 +1205,7 @@ function syncClipboard() {
       notify(
       w.putBack ? 'Sentinel put back the wallet address you copied' : 'The wallet address you copied was replaced',
       `${w.putBack ? 'Something on this PC replaced the wallet address you copied. Sentinel put yours back. Check every character before you send.' : 'Something on this PC replaced the wallet address you copied, and Windows did not let Sentinel put it back. Copy it again and check every character before you send.'}${w.program ? ` It looks like ${w.program} did it.` : ''} Click to check this PC with Defense.`,
-      () => showWindow('/app/protection#defense'));
+      () => showWindow('/app/protection#defense'), { keepMs: THREAT_KEEP_MS });
     }
   });
 }
@@ -1317,7 +1409,7 @@ async function flushWeek() {
   }
 }
 
-/** The weekly note, when the person turned it on: last week in one line, once, and never over a game. */
+/** The weekly note, when the person turned it on: last week in one line, once (and, as every note, never over a game). */
 async function weekRecap() {
   if (!store.get('weekRecap', false) || !ORIGIN) return;
   let s;
@@ -1326,7 +1418,6 @@ async function weekRecap() {
   if (!w || w.startsAt <= store.get('weekRecapFor', 0)) return;
   // A week with nothing in it is not news.
   if (!w.checked && !w.caught) { store.set('weekRecapFor', w.startsAt); return; }
-  if (await fullscreenInFront()) return;   // asked again in an hour
   store.set('weekRecapFor', w.startsAt);
   notify(`Your week with Sentinel: ${w.headline}`,
     `${w.biggest || `Sentinel checked ${w.checked.toLocaleString()} links, files and messages, and found nothing dangerous.`} Click to see your week.`,
@@ -1445,14 +1536,24 @@ function notifyAboutFile(file, title, body, onClick) {
   for (const [k, at] of notifiedFiles) if (now - at > 60000) notifiedFiles.delete(k);
   if (key && notifiedFiles.has(key)) return;
   if (key) notifiedFiles.set(key, now);
-  notify(title, body, onClick);
+  notify(title, body, onClick, { keepMs: THREAT_KEEP_MS });
 }
 
+/**
+ * Every Windows notification Sentinel shows. None goes over a full-screen game, film or slideshow: it waits in one
+ * queue (notes.js) until Windows says the person is not busy, and a note can wait for its own moment as well
+ * (`ready`). `keepMs`: how long it stays news while it waits (half an hour unless said).
+ */
+const notes = createNotes({ show: showNote, busy: () => fullscreenInFront(), log: appLog });
+const THREAT_KEEP_MS = 12 * 60 * 60 * 1000;   // a threat is still worth saying after a long game
+function notify(title, body, onClick, { ready, onShown, keepMs } = {}) {
+  if (!Notification.isSupported()) return;
+  notes.push({ title, body, onClick, ready, onShown, ...(keepMs ? { keepMs } : {}) }).catch(() => {});
+}
 // A notification nothing refers to can be garbage-collected while it is still on screen, and its click then does
 // nothing ("Put it back" among them). Each is kept until it is clicked or closed, ten minutes at most.
 const shownNotes = new Set();
-function notify(title, body, onClick) {
-  if (!Notification.isSupported()) return;
+function showNote({ title, body, onClick }) {
   const n = new Notification({ title, body, icon: ICON });
   shownNotes.add(n);
   const release = () => shownNotes.delete(n);
@@ -1475,11 +1576,11 @@ function trusted(event) {
   }
 }
 
-/** The app's own loading and error pages, served from disk. */
+/** The app's own pages served from disk: the start window, the warning cards and the tray card. */
 function trustedLocal(event) {
   try {
     const from = BrowserWindow.fromWebContents(event.sender);
-    return event.senderFrame && event.senderFrame.url.startsWith(PAGES) && (from === win || (warnWin && from === warnWin) || (guardWin && from === guardWin) || (menuWin && from === menuWin));
+    return event.senderFrame && event.senderFrame.url.startsWith(PAGES) && (from === win || (warnWin && from === warnWin) || (guardWin && from === guardWin) || (menuWin && from === menuWin) || (trayWin && from === trayWin));
   } catch {
     return false;
   }
@@ -1660,6 +1761,30 @@ function registerBridge() {
   handle('sentinel:quarantine', async (id) => { const r = await downloads.quarantine(String(id)); tally('files_quarantined'); return r; });
 
   handle('sentinel:retry-server', () => { retryCount = 0; boot(); return { ok: true }; }, trustedLocal);
+  handle('sentinel:start-state', () => startView, trustedLocal);
+  // The first start's one answer. Only switches on what was ticked; "Not now" changes nothing. Then the app.
+  handle('sentinel:start-answer', async (a) => {
+    if (startView.view !== 'welcome') return { ok: false };
+    firstRun = false;
+    const on = Object.keys(a || {}).filter((k) => a[k] === true);
+    appLog(`first start: ${on.length ? `turned on ${on.join(', ')}` : 'nothing more turned on'}`);
+    if (a.live) await setLiveScanning(true, { byPerson: true });
+    if (a.chat && process.platform === 'win32') setChatSafety(true);
+    if (a.texts && process.platform === 'win32') setTextSafety(true);
+    if (a.links) setClipboardCheck(true);
+    startView = { stage: 'app' };
+    refreshTray();
+    openApp();
+    return { ok: true };
+  }, trustedLocal);
+  handle('sentinel:tray-state', () => trayState(), trustedLocal);
+  handle('sentinel:tray-action', (action, arg) => {
+    if (action === 'switch') { const [id, want] = String(arg).split(':'); return traySwitch(id, want === 'on'); }
+    closeTrayCard();
+    if (action === 'open') showWindow();
+    if (action === 'update') updater.install().catch(() => {});
+    return trayState();
+  }, trustedLocal);
   handle('sentinel:open-logs', () => { shell.showItemInFolder(server.logPath()); return { ok: true }; }, trustedLocal);
   handle('sentinel:quit', () => { lock.guard('Sentinel off', true); quitting = true; app.quit(); return { ok: true }; }, trustedLocal);
   handle('sentinel:warn-action', (action, url) => {
@@ -1699,7 +1824,8 @@ async function boot() {
   clearTimeout(retryTimer);
   // Not "remote": that name is the tech-support scam shield (remoteguard.create()), which onVerdict below calls.
   const serverOrigin = process.env.SENTINEL_ORIGIN || (DEV ? 'http://localhost:8787' : store.get('serverOrigin', null));
-  if (win) win.loadFile(path.join(__dirname, 'pages', 'loading.html'));
+  setStart({ stage: 'scanner' });
+  refreshTray();
   appLog(`boot: ${serverOrigin ? `using ${serverOrigin}` : 'starting the embedded scanner'} (app ${app.getVersion()})`);
 
   try {
@@ -1717,6 +1843,7 @@ async function boot() {
   booting = false;
   retryCount = 0;
   appLog(`boot: scanner ready at ${ORIGIN}`);
+  setStart({ stage: 'protections' });
 
   // Background protection needs an identity even before anyone has an account, so
   // the embedded server issues this computer its own. That token is ONLY for the
@@ -1762,7 +1889,7 @@ async function boot() {
     onThreat: (item) => {
       if (item.quarantined) tally('files_quarantined');
       const did = item.actions.map((a) => a.did).filter((d, i, arr) => arr.indexOf(d) === i).join(', ');
-      if (item.suspect) notify('Sentinel: a startup program looks suspicious', `${item.name}\nNothing was changed. Open Sentinel to quarantine it if you do not recognise it.`, () => showWindow('/app/protection'));
+      if (item.suspect) notify('Sentinel: a startup program looks suspicious', `${item.name}\nNothing was changed. Open Sentinel to quarantine it if you do not recognise it.`, () => showWindow('/app/protection'), { keepMs: THREAT_KEEP_MS });
       else notifyAboutFile(item.path, `Sentinel stopped ${item.label}`, `${item.name}\n${did || 'Flagged'}`, () => showWindow('/app/protection'));
       push('sentinel:defense-threat', item);
     }
@@ -1810,10 +1937,12 @@ async function boot() {
     helperDll: path.join(app.getPath('userData'), 'reader-helper-2.dll'),
     // Development runs only: never honoured by an installed build.
     testProcess: app.isPackaged ? null : process.env.SENTINEL_TEST_PROCESS,
-    onFront: (name) => offerChatSafety(name),
+    onFront: (name) => { frontApp = name; offerChatSafety(name); notes.flush(); },
     onChange: (s) => { refreshTray(); push('sentinel:live', { ...s, enabled: store.get('liveScanning', false) }); },
     // The browser in front (or none): the overlay follows it, and leaves with it.
     onWindow: (rect) => {
+      // A browser in front: the program before it (a game) is not in front any more, and a note held for it may go.
+      if (rect && frontApp) { frontApp = null; if (notes.waiting()) notes.flush(); }
       syncIslandKey(Boolean(rect));
       overlay.setWindow(rect);
       if (rect) watch.keepAbove(overlay.handle());
@@ -1909,7 +2038,10 @@ async function boot() {
   step('your sites', () => { forgetMySites().catch(() => {}); });
   step('your week', () => startWeek());
   step('tray refresh', () => refreshTray());
-  // In the tray (started with Windows, or after an update) there is no window until someone opens one.
+  // In the tray (started with Windows, or after an update) there is no window until someone opens one. On the very
+  // first start the window asks its one question first (sentinel:start-answer), unless a right-click scan is waiting.
+  if (win && firstRun && !menuFile) { setStart(welcomeView()); return; }
+  setStart({ stage: 'app' });
   if (win) openApp(menuFile ? '/app/threats' : undefined);
 }
 
@@ -1930,6 +2062,8 @@ app.whenReady().then(() => {
 
   appLog(`starting Sentinel ${app.getVersion()}${startHidden ? ' (hidden)' : ''}`);
   cpuProfileOnRequest();
+  // No settings file yet: Sentinel has never run on this computer (an update or a reinstall keeps it).
+  firstRun = !startHidden && !require('fs').existsSync(path.join(app.getPath('userData'), 'settings.json'));
   store.init(app.getPath('userData'), safeStorage);
   lock = parentlock.create(store);
   // A run that ended without quitting (Windows shutting down, Task Manager, or a crash) left nothing in the log at all.

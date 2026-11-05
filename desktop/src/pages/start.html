@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline'">
+<title>Sentinel</title>
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<style>
+  /* The app window before the app: Sentinel starting (its real steps), a start that failed, and on the very first
+     start one calm question. One page, driven by main.js (startState / onStart), so a retry never starts it over. */
+  :root { color-scheme: dark light; --bg: #0c0d10; --ink: #e9e6df; --soft: #a9a59b; --faint: #6f6c65; --line: rgba(255, 255, 255, .08); --gold: #d6b25a; --warm: #f2c27a;
+    --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
+  @media (prefers-color-scheme: light) { :root { --bg: #f6f4ef; --ink: #1c1b18; --soft: #55524b; --faint: #8a867d; --line: rgba(0, 0, 0, .1); --gold: #9c7229; --warm: #a4610f; } }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: var(--t-text)/var(--lh-lead) var(--sans); }
+  body { display: grid; place-items: center; overflow: auto; }
+  main { width: min(440px, 100% - 48px); padding: 32px 0; }
+  .mark { width: 72px; height: 72px; margin: 0 0 22px; color: var(--gold); transition: color .4s ease; }
+  .mark svg { display: block; width: 100%; height: 100%; }
+  h1 { margin: 0; font: 400 var(--t-title)/var(--lh-display) var(--display); }
+  p { margin: 8px 0 0; color: var(--soft); font-size: var(--t-ui); }
+  [hidden] { display: none !important; }
+  /* Starting: three real steps, each filled in gold as main.js reaches it. */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 26px; }
+  .steps i { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .steps i::after { content: ""; display: block; height: 100%; background: var(--gold); transform: scaleX(0); transform-origin: 0 50%; transition: transform .7s var(--spring); }
+  .steps i.done::after { transform: none; }
+  .steps i.now::after { transform: scaleX(.35); animation: working 1.6s ease-in-out infinite alternate; }
+  @keyframes working { to { transform: scaleX(.8); } }
+  /* A start that failed: calm, warm, never red. The technical part is in the log. */
+  body.is-error .mark { color: var(--warm); }
+  small { display: block; margin-top: 14px; color: var(--faint); font-size: var(--t-label); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+  button { min-height: 40px; padding: 8px 18px; border: 1px solid var(--line); border-radius: 11px; cursor: pointer; font: 500 var(--t-ui) var(--sans); color: var(--ink); background: transparent; }
+  button:hover { background: var(--line); }
+  button.primary { border-color: transparent; color: #16130b; background: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 14px 34px -14px rgba(212, 174, 99, .75); }
+  button.primary:hover { filter: brightness(1.05); }
+  button.quiet { margin-left: auto; border: 0; padding: 8px 4px; color: var(--soft); }
+  button:focus-visible, input:focus-visible + span { outline: 2px solid #e2c47f; outline-offset: 2px; border-radius: 6px; }
+  /* The first start. */
+  ul { margin: 18px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+  li { display: grid; grid-template-columns: 10px 1fr; gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--faint); transform: translateY(-1px); }
+  li[data-state="on"]::before { background: var(--gold); box-shadow: none; }
+  li[data-state="trouble"]::before { background: var(--warm); box-shadow: none; }
+  li b { font-weight: 500; }
+  li span { display: block; color: var(--soft); font-size: var(--t-note); }
+  fieldset { margin: 22px 0 0; padding: 0; border: 0; }
+  legend { padding: 0; color: var(--ink); font-weight: 500; }
+  label { display: grid; grid-template-columns: 20px 1fr; gap: 12px; align-items: start; padding: 9px 0; cursor: pointer; }
+  label span { color: var(--soft); font-size: var(--t-note); }
+  label b { display: block; color: var(--ink); font-weight: 500; font-size: var(--t-ui); }
+  input[type="checkbox"] { width: 18px; height: 18px; margin: 3px 0 0; accent-color: #c9a044; }
+  /* Each state arrives once: the words rise into place. Nothing replays while the state stays. */
+  .in { animation: rise .55s cubic-bezier(.16, 1, .3, 1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  @media (prefers-reduced-motion: reduce) { .in, .steps i.now::after { animation: none; } .steps i::after { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/></svg></div>
+
+  <section id="starting" role="status" aria-live="polite">
+    <h1>Starting Sentinel</h1>
+    <p id="stage">Starting the scanner on this computer.</p>
+    <div class="steps" aria-hidden="true"><i></i><i></i><i></i></div>
+  </section>
+
+  <section id="error" role="alert" hidden>
+    <h1>Sentinel's scanner did not start</h1>
+    <p id="why">New files and pages are not checked until it does.</p>
+    <small id="auto"></small>
+    <div class="row">
+      <button class="primary" id="retry">Try again</button>
+      <button id="logs">Open the log</button>
+      <button class="quiet" id="quit">Quit</button>
+    </div>
+  </section>
+
+  <section id="welcome" hidden>
+    <h1>Sentinel is ready</h1>
+    <p>It runs on this computer and keeps going from the mask by the clock when you close this window.</p>
+    <ul id="items" aria-label="What protects you now"></ul>
+    <fieldset>
+      <legend>Turn on more, if you want</legend>
+      <label><input type="checkbox" id="live" checked><span><b>Check the pages I open</b>Watches the address of the page in front of you in your browser, and warns before a scam page can ask for anything.</span></label>
+      <label data-win><input type="checkbox" id="chat"><span><b>Watch Roblox and Discord chats</b>Points out scams and people who may not be safe to talk to. Messages are read here and never leave this computer.</span></label>
+      <label data-win><input type="checkbox" id="texts"><span><b>Check my texts in Phone Link</b>Points out scam texts beside the message. Read here only.</span></label>
+      <label><input type="checkbox" id="links"><span><b>Check links I copy</b>A link you copy is checked before you paste it.</span></label>
+    </fieldset>
+    <small>You can change any of these later in Live protection.</small>
+    <div class="row">
+      <button class="primary" id="go">Turn on</button>
+      <button class="quiet" id="later">Not now</button>
+    </div>
+  </section>
+</main>
+<script>
+  const d = window.sentinelDesktop || {};
+  const STAGES = { scanner: ['Starting the scanner on this computer.', 0], protections: ['Turning your protection on.', 1], app: ['Opening Sentinel.', 2] };
+  let shown = null;
+  let countdown = null;
+  function only(id) {
+    for (const s of ['starting', 'error', 'welcome']) document.getElementById(s).hidden = s !== id;
+    document.body.classList.toggle('is-error', id === 'error');
+    if (shown === id) return false;
+    document.getElementById(id).classList.remove('in'); void document.body.offsetWidth; document.getElementById(id).classList.add('in'); shown = id;
+    return true;
+  }
+  function draw(s) {
+    if (!s) return;
+    clearTimeout(countdown);
+    if (s.view === 'error') {
+      only('error');
+      // A cause written for people is shown as it is; anything technical (a code, a path, a stack) stays in the log.
+      const raw = s.message || '';
+      document.getElementById('why').textContent = raw && !/\bE[A-Z]{3,}\b|Error:|\bat \S+ \(|[A-Za-z]:\\|\/[\w.-]+\//.test(raw)
+        ? `${raw.replace(/\.?$/, '.')} New files and pages are not checked until it starts.` : 'New files and pages are not checked until it starts.';
+      let left = Number(s.retryIn) || 0;
+      const auto = document.getElementById('auto');
+      const tick = () => { auto.textContent = left > 0 ? `Sentinel tries again by itself in ${left} s.` : 'Trying again now.'; if (left-- > 0) countdown = setTimeout(tick, 1000); };
+      tick();
+      return;
+    }
+    if (s.view === 'welcome') {
+      if (only('welcome')) document.getElementById('go').focus();
+      const ul = document.getElementById('items');
+      ul.replaceChildren(...(s.protection ? s.protection.items : []).filter((i) => i.enabled).map((i) => {
+        const li = document.createElement('li');
+        li.dataset.state = i.state;
+        li.innerHTML = '<div><b></b><span></span></div>';
+        li.querySelector('b').textContent = i.name;
+        li.querySelector('span').textContent = i.note;
+        return li;
+      }));
+      for (const l of document.querySelectorAll('[data-win]')) l.hidden = !s.windows;
+      return;
+    }
+    only('starting');
+    const [words, at] = STAGES[s.stage] || STAGES.scanner;
+    document.getElementById('stage').textContent = words;
+    document.querySelectorAll('.steps i').forEach((i, n) => { i.classList.toggle('done', n < at); i.classList.toggle('now', n === at); });
+  }
+  const answer = (on) => {
+    for (const b of document.querySelectorAll('#welcome button')) b.disabled = true;
+    const v = (id) => on && document.getElementById(id).checked && !document.getElementById(id).closest('label').hidden;
+    d.startAnswer({ live: v('live'), chat: v('chat'), texts: v('texts'), links: v('links') });
+  };
+  document.getElementById('go').onclick = () => answer(true);
+  document.getElementById('later').onclick = () => answer(false);
+  document.getElementById('retry').onclick = () => d.retryServer && d.retryServer();
+  document.getElementById('logs').onclick = () => d.openLogs && d.openLogs();
+  document.getElementById('quit').onclick = () => d.quit && d.quit();
+  if (d.onStart) d.onStart(draw);
+  (d.startState ? d.startState() : Promise.resolve({ stage: 'scanner' })).then(draw);
+</script>
+</body>
+</html>

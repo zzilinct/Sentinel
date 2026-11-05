@@ -239,3 +239,60 @@ const DESKTOP_BUILD = path.join(__dirname, '..', 'desktop', 'build');
 fs.mkdirSync(DESKTOP_BUILD, { recursive: true });
 fs.writeFileSync(path.join(DESKTOP_BUILD, 'icon.ico'), encodeIco([16, 24, 32, 48, 64, 128, 256].map((size) => ({ size, png: render(size) }))));
 console.log('Windows app icon written to desktop/build/icon.ico');
+
+/**
+ * The tray icon, one for each level of desktop/src/protection.js, told apart by shape as well as colour (a person who
+ * cannot tell gold from grey still can): on, the gold mask; partly, the gold mask with a dot cut into its corner;
+ * off (and starting), a grey mask struck through. 16, 24 and 32 px: 100%, 150% and 200% display scaling, which
+ * Electron picks by the @1.5x and @2x names.
+ */
+const AMBER = [245, 165, 36, 255];
+const GREY = [138, 134, 126, 255];
+const STRIKE = [214, 210, 200, 255];
+function renderTray(size, level) {
+  const ss = 4;
+  const pixels = Buffer.alloc(size * size * 4);
+  const pad = 0.06;
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let sy = 0; sy < ss; sy++) {
+        for (let sx = 0; sx < ss; sx++) {
+          const u = (px + (sx + 0.5) / ss) / size;
+          const v = (py + (sy + 0.5) / ss) / size;
+          let color = [0, 0, 0, 0];
+          if (roundedSquare(u, v, 0.23)) {
+            color = BG;
+            const mu = (u - pad) / (1 - 2 * pad);
+            const mv = (v - pad) / (1 - 2 * pad);
+            if (mu >= 0 && mu <= 1 && mv >= 0 && mv <= 1 && maskAlpha(mu, mv)) {
+              color = level === 'off' ? GREY : mix(GOLD, GOLD_DIM, Math.max(0, Math.min(1, (mv - 0.35) / 0.6)));
+            }
+          }
+          if (level === 'partly') {
+            const d = Math.hypot(u - 0.78, v - 0.78);
+            if (d < 0.2) color = AMBER;
+            else if (d < 0.29) color = [0, 0, 0, 0];
+          }
+          if (level === 'off') {
+            const d = Math.abs(u - v) / Math.SQRT2;
+            if (d < 0.04 && u > 0.1 && u < 0.9) color = STRIKE;
+            else if (d < 0.085) color = [0, 0, 0, 0];
+          }
+          r += color[0] * color[3]; g += color[1] * color[3]; b += color[2] * color[3]; a += color[3];
+        }
+      }
+      const alpha = a / (ss * ss);
+      const i = (py * size + px) * 4;
+      pixels[i] = alpha ? Math.round(r / a) : 0;
+      pixels[i + 1] = alpha ? Math.round(g / a) : 0;
+      pixels[i + 2] = alpha ? Math.round(b / a) : 0;
+      pixels[i + 3] = Math.round(alpha);
+    }
+  }
+  return encodePng(size, size, pixels);
+}
+for (const level of ['on', 'partly', 'off']) {
+  for (const [size, suffix] of [[16, ''], [24, '@1.5x'], [32, '@2x']]) fs.writeFileSync(path.join(DESKTOP_BUILD, `tray-${level}${suffix}.png`), renderTray(size, level));
+}
+console.log('Tray icons written to desktop/build/tray-*.png');

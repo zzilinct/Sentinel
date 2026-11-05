@@ -487,6 +487,8 @@ async function main() {
     await liveMarks(send);
     await desktopCards(send);
     await desktopIsland(send);
+    await desktopStart(send);
+    await desktopTray(send);
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
     browser.kill();
@@ -935,20 +937,6 @@ async function desktopCards(send) {
   // Their type comes from desktop/shared, which desktop/scripts/sync-shared.js fills when the app is built.
   fs.cpSync(path.join(ROOT, 'web', 'assets', 'fonts'), path.join(ROOT, 'desktop', 'shared', 'fonts'), { recursive: true });
   const url = (name, q) => `file:///${path.join(pages, `${name}.html`).replace(/\\/g, '/')}?${new URLSearchParams(q)}`;
-  // The two pages the app window shows before the site is up.
-  for (const [name, address] of [['loading', url('loading', {})], ['error', url('error', { message: 'Sentinel could not start its local server.', log: 'C:\\Users\\you\\AppData\\Roaming\\Sentinel\\logs\\server.log', retryIn: '10' })]]) {
-    const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
-    const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-    await send('Page.enable', {}, sessionId);
-    await send('Emulation.setDeviceMetricsOverride', { width: 760, height: 460, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await send('Page.navigate', { url: address }, sessionId);
-    await sleep(1200);
-    const fonts = await send('Runtime.evaluate', { expression: "[...document.fonts].filter((f) => !/Stand-in/.test(f.family)).map((f) => `${f.family}: ${f.status}`).join(', ')", returnByValue: true }, sessionId);
-    console.log(`desktop-page-${name}.png  fonts: ${fonts.result.value}`);
-    const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
-    fs.writeFileSync(path.join(OUT, `desktop-page-${name}.png`), Buffer.from(shot.data, 'base64'));
-    await send('Target.closeTarget', { targetId });
-  }
   const long ='This page asks for your PayPal password and card number, but its address was registered four days ago and is not one PayPal uses for signing in to any account';
   const CASES = [
     ['warn-real-site', url('warn', { host: 'paypal-account-verify-login.test', url: 'https://paypal-account-verify-login.test/signin', browser: 'Microsoft Edge', badge: 'red', label: 'Fake PayPal sign-in', real: 'paypal.com',
@@ -992,6 +980,143 @@ async function desktopCards(send) {
     }
   }
   if (failed.length) throw new Error(`desktop warning cards that do not fit their words: ${failed.join('; ')}`);
+}
+
+/**
+ * The Windows app before its app (desktop/src/pages/start.html): each of its states (starting at each real step, a
+ * start that failed, the first start's question with the protection state as it comes up), in dark and light, at the
+ * window's usual size and at the smallest it can be on a 1366x768 screen at 125%: desktop-start-<size>-<scheme>-<state>.png.
+ * Fails when anything is cut off, runs out of the window, or a button cannot be reached.
+ */
+async function desktopStart(send) {
+  const file = `file:///${path.join(ROOT, 'desktop', 'src', 'pages', 'start.html').replace(/\\/g, '/')}`;
+  const items = [
+    { id: 'downloads', name: 'Downloads', enabled: true, state: 'on', note: 'Every new file is checked' },
+    { id: 'defense', name: 'Defense', enabled: true, state: 'starting', note: 'Starting' },
+    { id: 'live', name: 'Live scanning', enabled: false, state: 'off', note: 'Off' }
+  ];
+  const STATES = {
+    scanner: { stage: 'scanner' },
+    protections: { stage: 'protections' },
+    error: { view: 'error', message: 'Another program is using the connections Sentinel needs', retryIn: 30 },
+    'error-technical': { view: 'error', message: 'Error: spawn C:\\Users\\you\\AppData\\Local\\Programs\\Sentinel\\resources\\sentinel\\node.exe ENOENT', retryIn: 120 },
+    welcome: { view: 'welcome', windows: true, protection: { level: 'starting', items } }
+  };
+  const failed = [];
+  for (const [size, w, h] of [['window', 1280, 840], ['small', 1093, 567]]) {
+    for (const scheme of ['dark', 'light']) {
+      for (const [state, view] of Object.entries(STATES)) {
+        const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+        const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+        const run = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId)).result.value;
+        await send('Page.enable', {}, sessionId);
+        await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__answers = []; window.sentinelDesktop = { startState: async () => (${JSON.stringify(view)}), onStart: (f) => { window.__start = f; }, startAnswer: async (a) => { window.__answers.push(a); }, retryServer: async () => {}, openLogs: async () => {}, quit: async () => {} };` }, sessionId);
+        await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }, sessionId);
+        await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
+        await send('Page.navigate', { url: file }, sessionId);
+        await sleep(1300);
+        const fit = await run(`(() => { const out = [...document.querySelectorAll('main *')].filter((e) => e.offsetParent && e.getBoundingClientRect().right > innerWidth + 1).map((e) => e.tagName + '.' + e.id);
+          const shown = [...document.querySelectorAll('section')].filter((s) => !s.hidden).map((s) => s.id);
+          const buttons = [...document.querySelectorAll('section:not([hidden]) button')].map((b) => b.textContent);
+          return { out, shown, buttons, words: document.querySelector('section:not([hidden])').innerText.replace(/\\s+/g, ' ').slice(0, 160), scroll: document.scrollingElement.scrollHeight > innerHeight + 1 }; })()`);
+        const name = `desktop-start-${size}-${scheme}-${state}.png`;
+        const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
+        fs.writeFileSync(path.join(OUT, name), Buffer.from(shot.data, 'base64'));
+        const want = state.startsWith('error') ? 'error' : state === 'welcome' ? 'welcome' : 'starting';
+        let ok = !fit.out.length && fit.shown.join() === want && !/\u2014/.test(fit.words);
+        // A technical cause stays in the log: the failure says it in plain words.
+        if (state === 'error-technical') ok = ok && !/ENOENT|\\|spawn/.test(fit.words);
+        // The first start's answer: what is ticked, only that. Live scanning is ticked; the sensitive three are not.
+        if (state === 'welcome') {
+          await run("document.getElementById('go').click()");
+          const a = await run('window.__answers[0]');
+          ok = ok && a && a.live === true && !a.chat && !a.texts && !a.links;
+          if (size === 'small') ok = ok && !fit.out.length;   // scrolls on a small window, never cuts
+        }
+        console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  shows ${fit.shown}, '${fit.words}'${fit.out.length ? `, out of the window: ${fit.out}` : ''}${fit.scroll ? ', scrolls' : ''}`);
+        if (!ok) failed.push(name);
+        await send('Target.closeTarget', { targetId });
+      }
+    }
+  }
+  if (failed.length) throw new Error(`the start window: ${failed.join('; ')}`);
+}
+
+/**
+ * The tray card (desktop/src/pages/tray.html) at each level of the protection state, sized the way the app sizes it,
+ * at 100% and 150%: desktop-tray-<scale>-<state>.png. And the three tray icons at 16, 24 and 32 px on a dark and a
+ * light taskbar, real size and enlarged: desktop-tray-icons.png. Fails when the card cuts or scrolls its words, when a
+ * switch does not follow a press, or when the card says "on" for a protection in trouble.
+ */
+async function desktopTray(send) {
+  const pages = path.join(ROOT, 'desktop', 'src', 'pages');
+  const { protectionState } = require(path.join(ROOT, 'desktop', 'src', 'protection.js'));
+  const base = {
+    booting: false, down: false, windows: true,
+    downloads: { enabled: true, active: true }, defense: { enabled: true, active: true },
+    live: { enabled: true, active: true, window: true }, chat: { enabled: false, running: false }, texts: { enabled: false, running: false }
+  };
+  const extra = { update: { ready: false }, lock: { set: false, locked: false } };
+  const STATES = {
+    on: { ...protectionState(base), ...extra },
+    partly: { ...protectionState({ ...base, live: { enabled: true, active: false, reason: 'Sentinel is offline. Trying again shortly.' }, chat: { enabled: true, running: true } }), ...extra },
+    off: { ...protectionState({ ...base, downloads: { enabled: false }, defense: { enabled: false }, live: { enabled: false } }), ...extra, lock: { set: true, locked: true } },
+    'update-free-plan': { ...protectionState({ ...base, downloads: { enabled: true, active: false, reason: 'Download protection is part of Pro, Max and Ultimate' }, live: { enabled: false } }), update: { ready: true, version: '1.20.0' }, lock: { set: false, locked: false } }
+  };
+  const failed = [];
+  for (const [scale, dpr] of [['100', 1], ['150', 1.5]]) {
+    for (const [state, s] of Object.entries(STATES)) {
+      const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+      const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+      const run = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId)).result.value;
+      await send('Page.enable', {}, sessionId);
+      // The stand-in main process: a switch pressed comes back as the state with that switch flipped.
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__s = ${JSON.stringify(s)}; window.sentinelDesktop = { trayState: async () => window.__s, onTray: () => {}, cardFit: async () => ({}),
+        trayAction: async (a, arg) => { if (a === 'switch') { const [id, w] = arg.split(':'); const i = window.__s.items.find((x) => x.id === id); i.enabled = w === 'on'; i.state = i.enabled ? 'on' : 'off'; i.note = i.enabled ? 'On' : 'Off'; } return window.__s; } };` }, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width: 420, height: 900, deviceScaleFactor: dpr, mobile: false }, sessionId);
+      await send('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
+      await send('Page.navigate', { url: `file:///${path.join(pages, 'tray.html').replace(/\\/g, '/')}` }, sessionId);
+      await sleep(1500);
+      const room = Math.floor(768 / dpr) - 48;
+      const size = await run(`window.SentinelCard ? window.SentinelCard.measure(${room}) : null`);
+      if (!size) { failed.push(`${scale} ${state}: the card did not load`); await send('Target.closeTarget', { targetId }); continue; }
+      await send('Emulation.setDeviceMetricsOverride', { width: size.width, height: size.height, deviceScaleFactor: dpr, mobile: false }, sessionId);
+      await sleep(400);
+      const cut = await run('window.SentinelCard.clipped().join(", ")');
+      const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+      const name = `desktop-tray-${scale}-${state}.png`;
+      fs.writeFileSync(path.join(OUT, name), Buffer.from(shot.data, 'base64'));
+      const seen = await run(`({ title: document.getElementById('title').textContent, rows: [...document.querySelectorAll('#list li')].map((li) => li.dataset.state + ':' + li.querySelector('.sw').getAttribute('aria-checked')), update: !document.getElementById('update').hidden, lock: !document.getElementById('lock').hidden, focus: document.activeElement && document.activeElement.id })`);
+      // Truth: the title is the state's own, a protection in trouble is never drawn on, and each row's switch is its own.
+      let ok = !cut && size.height <= room && seen.title === s.headline && seen.rows.length === s.items.length
+        && s.items.every((i, n) => seen.rows[n] === `${i.state}:${i.enabled}`) && seen.update === s.update.ready && seen.lock === s.lock.locked && seen.focus === 'open';
+      // A press: the switch moves at once and stays where the main process says.
+      const flip = await run(`(async () => { const b = document.querySelector('#list li .sw'); const was = b.getAttribute('aria-checked'); b.click(); await new Promise((r) => setTimeout(r, 600)); return was + '>' + b.getAttribute('aria-checked'); })()`);
+      ok = ok && (flip === 'true>false' || flip === 'false>true');
+      console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  ${size.width}x${size.height}, '${seen.title}', rows ${seen.rows}, switch ${flip}${cut ? `, cut off: ${cut}` : ''}`);
+      if (!ok) failed.push(name);
+      await send('Target.closeTarget', { targetId });
+    }
+  }
+  // The icons, on a Windows 11 taskbar's dark and light colours.
+  const build = path.join(ROOT, 'desktop', 'build');
+  const img = (f, px, zoom) => `<img src="file:///${path.join(build, f).replace(/\\/g, '/')}" style="width:${px * zoom}px;height:${px * zoom}px;image-rendering:${zoom > 1 ? 'pixelated' : 'auto'}">`;
+  const row = (bg, ink, zoom) => `<div style="display:flex;gap:28px;align-items:center;padding:14px 20px;background:${bg};color:${ink}">${['on', 'partly', 'off'].map((l) => `<div style="display:flex;gap:10px;align-items:center"><span style="width:52px">${l}</span>${[['', 16], ['@1.5x', 24], ['@2x', 32]].map(([sfx, px]) => img(`tray-${l}${sfx}.png`, px, zoom)).join('')}</div>`).join('')}</div>`;
+  const sheet = `<body style="margin:0;font:13px Segoe UI,system-ui,sans-serif">${row('#202020', '#fff', 1)}${row('#f3f3f3', '#000', 1)}${row('#202020', '#fff', 4)}${row('#f3f3f3', '#000', 4)}</body>`;
+  const sheetFile = path.join(OUT, 'desktop-tray-icons.html');
+  fs.writeFileSync(sheetFile, sheet);
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  await send('Page.enable', {}, sessionId);
+  await send('Emulation.setDeviceMetricsOverride', { width: 1180, height: 420, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await send('Page.navigate', { url: `file:///${sheetFile.replace(/\\/g, '/')}` }, sessionId);
+  await sleep(800);
+  const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+  fs.writeFileSync(path.join(OUT, 'desktop-tray-icons.png'), Buffer.from(shot.data, 'base64'));
+  await send('Target.closeTarget', { targetId });
+  fs.rmSync(sheetFile);
+  if (failed.length) throw new Error(`the tray card: ${failed.join('; ')}`);
 }
 
 /**

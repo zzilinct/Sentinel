@@ -1,7 +1,7 @@
 # Real-use QA of the Windows app's core (round 1.17.5) on a GitHub-hosted Windows desktop, never a person's computer.
 # Three parts, each on its own runner:
 #   -Part install  the silent install, the first start, the start at login, the tray menu, every switch in Live
-#                  protection really switching its protection off and on, the parent lock in the tray, signing out and
+#                  protection really switching its protection off and on, the parent lock in the tray card, signing out and
 #                  in, a crash of each kind, the scanner's port taken, the network gone.
 #   -Part use      live scanning in Edge and Chrome on real honest sites and local stand-in scams (the warning, its
 #                  buttons, how long a verdict takes), download protection on harmless files of many kinds, chat
@@ -53,10 +53,14 @@ function GuardMode { return [string](Cdp 'guard.html' 'location.search').value }
 function WatchLog { return (Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '' }
 
 # The tray's menu, as Sentinel last built it: Tray.setContextMenu is watched from here on, and the menu rebuilt.
-$trayHook = "(() => { const e = process.mainModule.require('electron'); if (!global.qaTrayHooked) { global.qaTrayHooked = true; const o = e.Tray.prototype.setContextMenu; e.Tray.prototype.setContextMenu = function (m) { global.qaTray = m; return o.call(this, m); }; } process.mainModule.require('./updater').check(); return 1; })()"
+$trayHook = "(() => { const e = process.mainModule.require('electron'); if (!global.qaTrayHooked) { global.qaTrayHooked = true; const o = e.Tray.prototype.setContextMenu; e.Tray.prototype.setContextMenu = function (m) { global.qaTray = m; global.qaTrayObj = this; return o.call(this, m); }; } process.mainModule.require('./updater').check(); return 1; })()"
 function TrayItems { return [string](Cdp 'main' "global.qaTray ? global.qaTray.items.filter((i) => i.type !== 'separator').map((i) => i.label + (i.type === 'checkbox' ? (i.checked ? ' [x]' : ' [ ]') : '') + (i.enabled ? '' : ' (grey)')).join(' / ') : 'no menu'").value }
 # A click on a tray line, as Windows hands it to Electron (a checkbox ticks or unticks first).
 function TrayClick($label) { return [string](Cdp 'main' "(() => { const i = global.qaTray && global.qaTray.items.find((x) => x.label.startsWith('$label')); if (!i) return 'no such line'; i.click(); return i.label + (i.type === 'checkbox' ? ' ' + i.checked : ''); })()").value }
+# The card a click on the mask opens (pages/tray.html), as Windows hands the click to Electron; a switch in it, pressed.
+function TrayCard { [void](Cdp 'main' "(global.qaTrayObj.emit('click'), 1)"); return (Until 10 { [bool](Cdp 'tray.html' "Boolean(document.querySelector('#list li'))").value }) }
+function CardFlip($name) { return [string](Cdp 'tray.html' "(async () => { const b = [...document.querySelectorAll('.sw')].find((x) => x.getAttribute('aria-label') === '$name'); if (!b) return 'none'; b.click(); await new Promise((r) => setTimeout(r, 1500)); return b.getAttribute('aria-checked'); })()").value }
+function CardClose { [void](Cdp 'tray.html' "(setTimeout(() => window.sentinelDesktop.trayAction('close'), 50), 1)") }
 function AppWindow { return [string](Cdp 'main' "(() => { const w = process.mainModule.require('electron').BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('127.0.0.1:4782')); return w ? (w.isVisible() ? 'shown' : 'hidden') + '|' + w.webContents.getURL().replace(/^http:..127.0.0.1:\d+/, '') : 'none'; })()").value }
 function HideApp { [void](Cdp 'main' "(process.mainModule.require('electron').BrowserWindow.getAllWindows().filter((w) => w.webContents.getURL().includes('127.0.0.1:4782')).forEach((w) => w.hide()), 1)") }
 
@@ -179,15 +183,16 @@ if ($Part -eq 'install') {
   [void](Cdp 'main' "(process.mainModule.require('./downloads').restart(), 1)")
   [void](Until 30 { (Info 'info()').downloads.active })
 
-  # 4b. The tray menu, line by line, and what each line really does.
+  # 4b. The tray: its short menu, line by line, and the card a click on the mask opens, with what each really does.
   [void](Cdp 'main' $trayHook)
-  [void](Until 20 { (TrayItems) -match 'up to date|Check for updates' })
+  [void](Until 20 { (TrayItems) -match 'Quit Sentinel$' })
   $items = TrayItems
   $i = Info 'info()'
   Say "tray: $items"
-  Check 'tray-lines' ($items -match '^Open Sentinel / ' -and $items -match 'Quit Sentinel$' -and $items -match 'Start with my computer \[x\]') "the menu: $items"
-  Check 'tray-download-line' (($items -match 'Download protection: on') -eq [bool]$i.downloads.active) "says '$(([regex]::Match($items, '(Download protection[^/]*|Sign in to turn on download protection|[^/]*download protection[^/]*)')).Value.Trim())', download protection active: $($i.downloads.active)"
-  Check 'tray-update-line' ($items -match "Sentinel $([regex]::Escape($version)) is up to date") "update line: $(([regex]::Match($items, '[^/]*(update|Update)[^/]*')).Value.Trim())"
+  Check 'tray-lines' ($items -match ' / Open Sentinel / ' -and $items -match 'Quit Sentinel$' -and $items -notmatch '\[x\]|\[ \]|\(grey\)') "the menu, no switches and no grey lines in it: $items"
+  # The first line is the protection state: "on" only while download protection and Defense really run.
+  $head = ($items -split ' / ')[0]
+  Check 'tray-headline-truth' (($head -eq 'Protection is on') -eq ([bool]$i.downloads.active -and [bool]$i.defense.active)) "the first line says '$head'; download protection active: $($i.downloads.active), Defense active: $($i.defense.active)"
   HideApp
   Say "tray click: $(TrayClick 'Open Sentinel')"
   $front = ''
@@ -199,29 +204,24 @@ if ($Part -eq 'install') {
   Say "tray click: $(TrayClick 'Is this call a scam')"
   $ok = Until 15 { (AppWindow) -match '^shown\|/app/call' }
   Check 'tray-call' $ok "Is this call a scam?: $(AppWindow)"
-  # The app open on Live protection while the tray changes things: the switches there should follow.
+  # The card, with the app open on Live protection behind it: a switch pressed in the card, and the app's follows.
   Page '/app/protection'
-  Say "tray click: $(TrayClick 'Chat safety')"
+  $opened = TrayCard
+  Start-Sleep 2
+  Shot 'tray-card'
+  $card = [string](Cdp 'tray.html' "document.getElementById('title').textContent + ' | ' + [...document.querySelectorAll('#list li')].map((li) => li.querySelector('.name').textContent + ' ' + li.dataset.state + ' ' + li.querySelector('.sw').getAttribute('aria-checked')).join(', ')").value
+  Check 'tray-card' ($opened -and $card -match "^$([regex]::Escape($head)) \| " -and $card -match 'Downloads (on|unavailable|trouble|starting) true') "the card says the menu's first line, row by row: $card"
+  Say "card: chat safety $(CardFlip 'Chat safety')"
   $ok = Until 15 { $c = (Info 'info()').chatSafety; $c.enabled -and $c.running }
-  Check 'tray-chat-on' $ok "Chat safety ticked in the tray: reading $ok; the app's switch shows $(Shown '[data-chat-safety]')"
-  Say "tray click: $(TrayClick 'Chat safety')"
+  Check 'tray-chat-on' ($ok -and (Shown '[data-chat-safety]') -eq 'true') "Chat safety switched on in the card: reading $ok; the app's switch shows $(Shown '[data-chat-safety]')"
+  Say "card: chat safety $(CardFlip 'Chat safety')"
   $ok = Until 15 { $c = (Info 'info()').chatSafety; -not $c.enabled -and -not $c.running }
-  Check 'tray-chat-off' ($ok -and (Shown '[data-chat-safety]') -eq 'false') "unticked: stopped reading $ok; the app's switch shows $(Shown '[data-chat-safety]')"
-  Say "tray click: $(TrayClick 'Start with my computer')"
-  Start-Sleep 3
-  Check 'tray-login-off' (-not (RunEntry) -and (Settings).openAtLogin -eq $false) "unticked: startup entry $(if (RunEntry) { 'still there' } else { 'gone' }); the app's switch shows $(Shown '[data-login]')"
-  Check 'tray-login-app-follows' ((Shown '[data-login]') -eq 'false') "the app's Start with my computer switch, open while the tray changed it: $(Shown '[data-login]')"
-  Say "tray click: $(TrayClick 'Start with my computer')"
-  Start-Sleep 3
-  Check 'tray-login-on' ([bool](RunEntry)) "ticked again: startup entry $(if (RunEntry) { 'back' } else { 'missing' })"
-  Say "tray click: $(TrayClick 'Auto scanning')"
-  Start-Sleep 3
-  Check 'tray-auto-app-follows' ((Settings).autoScan -eq $true -and (Shown '[data-auto-scan]') -eq 'true') "Auto scanning ticked in the tray: saved $((Settings).autoScan); the app's switch shows $(Shown '[data-auto-scan]')"
-  Say "tray click: $(TrayClick 'Auto scanning')"
-  Say "tray click: $(TrayClick 'Check my texts')"
-  $ok = Until 15 { (Info 'info()').textSafety.running }
-  Check 'tray-texts' ($ok -and (Shown '[data-text-safety]') -eq 'true') "Check my texts ticked: reading $ok; the app's switch shows $(Shown '[data-text-safety]')"
-  Say "tray click: $(TrayClick 'Check my texts')"
+  Check 'tray-chat-off' ($ok -and (Shown '[data-chat-safety]') -eq 'false') "switched off: stopped reading $ok; the app's switch shows $(Shown '[data-chat-safety]')"
+  # The card goes when it loses the keyboard, its window with it.
+  [void](Cdp 'main' "((w) => (w.show(), w.focus(), 1))(process.mainModule.require('electron').BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('127.0.0.1:4782')))")
+  $gone = Until 10 { [string](Cdp 'main' "process.mainModule.require('electron').BrowserWindow.getAllWindows().filter((w) => w.webContents.getURL().includes('tray.html')).length").value -eq '0' }
+  Check 'tray-card-goes' $gone "the card's window after another window took the keyboard: $(if ($gone) { 'gone' } else { 'still there' })"
+  CardClose
   Say "tray click: $(TrayClick 'Start scanning')"
   $ok = Until 30 { $s = (Info 'info()').live; $s.enabled -and $s.active }
   Start-Sleep 5
@@ -342,9 +342,12 @@ if ($Part -eq 'install') {
   [void](Info 'setChatSafety(true)'); Start-Sleep 2
   [void](Cdp 'main' $trayHook); Start-Sleep 3
   HideApp
-  Say "tray click (locked): $(TrayClick 'Chat safety')"
+  [void](TrayCard)
+  Say "card (locked): chat safety $(CardFlip 'Chat safety')"
   Start-Sleep 3
-  Check 'lock-tray-switch' ((Info 'info()').chatSafety.enabled -and (TrayItems) -match 'Chat safety \(Roblox and Discord\) \[x\]' -and (AppWindow) -match '^shown\|/app/protection#parent-lock') "chat safety still on: $((Info 'info()').chatSafety.enabled); the menu: $(TrayItems); the app: $(AppWindow)"
+  $sw = [string](Cdp 'tray.html' "((b) => b ? b.getAttribute('aria-checked') : 'card closed')([...document.querySelectorAll('.sw')].find((x) => x.getAttribute('aria-label') === 'Chat safety'))").value
+  Check 'lock-tray-switch' ((Info 'info()').chatSafety.enabled -and $sw -ne 'false' -and (AppWindow) -match '^shown\|/app/protection#parent-lock') "chat safety still on: $((Info 'info()').chatSafety.enabled); the card's switch: $sw; the app: $(AppWindow)"
+  CardClose
   HideApp
   Say "tray click (locked): $(TrayClick 'Quit Sentinel')"
   Start-Sleep 5

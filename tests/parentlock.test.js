@@ -190,14 +190,13 @@ test('every way to switch protection off or quit goes through the lock: the app,
   assert.match(main, /lock\.guard\(`\$\{String\(host\)\.slice\(0, 253\)\} off Your sites`, true, \['take', 'Took'\]\);/);
   assert.match(main, /lock\.guard\('every site off Your sites', true, \['take', 'Took'\]\);/);
   assert.match(main, /handle\('sentinel:quit', \(\) => \{ lock\.guard\('Sentinel off', true\);/);
-  // The tray: chat safety's own switch (since 1.11.1), auto scanning, Stop scanning, starting with the computer, Quit.
-  assert.match(main, /if \(trayGuard\('chat safety off', !item\.checked\)\) \{ setChatSafety\(item\.checked\);/);
-  assert.match(main, /if \(trayGuard\('auto scanning off', !item\.checked\)\) setAutoScan/);
+  // The tray: Stop scanning and Quit in its menu, and every switch in its card (traySwitch) switched off.
   assert.match(main, /trayGuard\('live scanning off', true\) && setLiveScanning\(false/);
-  assert.match(main, /if \(trayGuard\('starting with the computer off', !item\.checked\)\) setOpenAtLogin/);
   assert.match(main, /label: 'Quit Sentinel', click: \(\) => \{ if \(trayGuard\('Sentinel off', true\)\)/);
-  // No other tray or IPC path calls these setters with the switch off.
-  assert.equal((main.match(/setChatSafety\(/g) || []).length, 3, 'chat safety: defined, the tray, the app, and nothing else');
+  assert.match(main, /const what = \{ downloads: 'download protection off', defense: 'defense off', live: 'live scanning off', chat: 'chat safety off', texts: 'Check my texts off' \}\[id\];\r?\n {2}if \(!what\) return trayState\(\);\r?\n {2}if \(!on && !trayGuard\(what, true\)\) return trayState\(\);/);
+  // No other tray or IPC path calls these setters with the switch off (the first start's answer only switches on).
+  assert.equal((main.match(/setChatSafety\(/g) || []).length, 4, 'chat safety: defined, the tray card, the app, the first start, and nothing else');
+  assert.match(main, /if \(a\.chat && process\.platform === 'win32'\) setChatSafety\(true\);/);
   // A quit written down as clean, so the next start can tell it from Task Manager.
   // (A second start that only handed over its command line writes nothing: it never was the running Sentinel.)
   assert.match(main, /app\.on\('before-quit', \(\) => \{ if \(!primary\) return; quitting = true; heartbeat\(true\);/);

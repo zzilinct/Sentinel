@@ -101,7 +101,15 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   guardAction: (action, arg) => ipcRenderer.invoke('sentinel:guard-action', String(action), arg == null ? '' : String(arg)),
   // The call check said "Hang up": only that, for the pay pause (paypause.js). Nothing ticked is passed.
   callHangUp: () => ipcRenderer.invoke('sentinel:call-hangup'),
-  // Answered only for the app's own error page; the main process checks the caller.
+  // The tray card (pages/tray.html): the protection state, kept current while it is open, and its switches.
+  trayState: () => ipcRenderer.invoke('sentinel:tray-state'),
+  trayAction: (action, arg) => ipcRenderer.invoke('sentinel:tray-action', String(action), arg == null ? '' : String(arg)),
+  onTray: (callback) => on('sentinel:tray', callback),
+  // The start window (pages/start.html): its state, and the first start's one answer.
+  startState: () => ipcRenderer.invoke('sentinel:start-state'),
+  onStart: (callback) => on('sentinel:start', callback),
+  startAnswer: (answer) => ipcRenderer.invoke('sentinel:start-answer', answer && typeof answer === 'object' ? { live: answer.live === true, chat: answer.chat === true, texts: answer.texts === true, links: answer.links === true } : {}),
+  // Answered only for the app's own start page; the main process checks the caller.
   retryServer: () => ipcRenderer.invoke('sentinel:retry-server'),
   openLogs: () => ipcRenderer.invoke('sentinel:open-logs'),
   quit: () => ipcRenderer.invoke('sentinel:quit')

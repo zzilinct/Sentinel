@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en" data-widths="380,440">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
+<title>Sentinel</title>
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<script src="card.js"></script>
+<style>
+  /* The tray card: what a click on the mask by the clock opens. The same card as every desktop warning (card.js),
+     springing out of the corner the tray is in, with the state of every protection and its switch. */
+  body { padding: 18px 18px 16px; }
+  .head { -webkit-app-region: no-drag; gap: 12px; }
+  .mark { width: 40px; height: 40px; }
+  h1 { font-size: var(--t-title-s); }
+  .sub { font: var(--t-note)/var(--lh-text) var(--sans); color: #b9b5ab; }
+  .body { margin-top: 14px; }
+  ul.list { margin: 0; padding: 0; list-style: none; border-top: 1px solid rgba(255, 255, 255, .06); }
+  .list li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 0; padding: 10px 2px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px #5d5a54; transition: background-color .3s ease, box-shadow .3s ease; }
+  li[data-state="on"] .dot { background: #d6b25a; box-shadow: 0 0 0 3px rgba(214, 178, 90, .16); }
+  li[data-state="trouble"] .dot { background: #f5a524; box-shadow: 0 0 0 3px rgba(245, 165, 36, .18); }
+  li[data-state="starting"] .dot { box-shadow: inset 0 0 0 1.5px #d6b25a; }
+  .name { color: #e9e6df; font-weight: 500; }
+  .note { display: block; color: #8d8a82; font-size: var(--t-note); overflow-wrap: anywhere; }
+  li[data-state="trouble"] .note { color: #f2c27a; }
+  /* A switch: gold when on. The knob travels on the island's spring; nothing else moves. */
+  button.sw { position: relative; width: 40px; min-height: 0; height: 24px; padding: 0; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .1); background: #22252b; transition: background-color .25s ease, border-color .25s ease; }
+  button.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #8d8a82; transition: transform .45s var(--spring), background-color .25s ease; }
+  button.sw[aria-checked="true"] { border-color: transparent; background: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%); }
+  button.sw[aria-checked="true"]::after { transform: translateX(16px); background: #16130b; }
+  button.sw:hover { background-color: #2a2d33; }
+  button.sw[aria-checked="true"]:hover { filter: brightness(1.06); }
+  .lock { margin: 10px 0 0; font-size: var(--t-note); color: #b9b5ab; }
+  .row { margin-top: 14px; justify-content: stretch; }
+  .row button { flex: 1; }
+  @media (prefers-reduced-motion: reduce) { button.sw::after, .dot { transition: none; } }
+</style>
+</head>
+<body role="dialog" aria-labelledby="title" aria-describedby="sub">
+  <div class="head">
+    <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/></svg></div>
+    <div>
+      <h1 id="title" aria-live="polite"></h1>
+      <p class="sub" id="sub"></p>
+    </div>
+  </div>
+  <div class="body">
+    <ul class="list" id="list"></ul>
+    <p class="lock" id="lock" hidden></p>
+  </div>
+  <div class="row">
+    <button id="update" hidden></button>
+    <button class="primary" id="open">Open Sentinel</button>
+  </div>
+  <script>
+    const d = window.sentinelDesktop;
+    const COLOR = { on: '#d6b25a', partly: '#f5a524' };
+    const list = document.getElementById('list');
+    const rows = new Map();
+    function row(item) {
+      let li = rows.get(item.id);
+      if (!li) {
+        li = document.createElement('li');
+        li.innerHTML = '<span class="dot" aria-hidden="true"></span><span><span class="name"></span><span class="note"></span></span><button class="sw" role="switch"></button>';
+        const sw = li.querySelector('.sw');
+        sw.addEventListener('click', async () => {
+          const want = sw.getAttribute('aria-checked') !== 'true';
+          sw.setAttribute('aria-checked', String(want));
+          sw.disabled = true;
+          try { draw(await d.trayAction('switch', `${item.id}:${want ? 'on' : 'off'}`)); } finally { sw.disabled = false; }
+        });
+        rows.set(item.id, li);
+        list.appendChild(li);
+      }
+      li.dataset.state = item.state;
+      li.querySelector('.name').textContent = item.name;
+      li.querySelector('.note').textContent = item.note;
+      const sw = li.querySelector('.sw');
+      sw.setAttribute('aria-checked', String(item.enabled));
+      sw.setAttribute('aria-label', item.name);
+    }
+    function draw(s) {
+      if (!s || !s.items) return;
+      document.documentElement.style.setProperty('--c', COLOR[s.level] || '#8d8a82');
+      document.getElementById('title').textContent = s.headline;
+      document.getElementById('sub').textContent = s.sub;
+      s.items.forEach(row);
+      const lock = document.getElementById('lock');
+      lock.hidden = !(s.lock && s.lock.locked);
+      lock.textContent = s.refused ? `Parent lock is on: ${s.refused} needs the PIN. Sentinel is open on Parent lock.` : 'Parent lock is on: switching anything off needs the PIN.';
+      const up = document.getElementById('update');
+      up.hidden = !(s.update && s.update.ready);
+      up.textContent = s.update && s.update.ready ? `Restart to update to ${s.update.version}` : '';
+    }
+    document.getElementById('open').onclick = () => d.trayAction('open');
+    document.getElementById('update').onclick = () => d.trayAction('update');
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') d.trayAction('close'); });
+    if (d.onTray) d.onTray(draw);
+    d.trayState().then((s) => { draw(s); document.getElementById('open').focus(); });
+  </script>
+</body>
+</html>

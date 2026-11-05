@@ -10,7 +10,8 @@
  */
 (function () {
   const PAD = 14;
-  const WIDTHS = [480, 560, 660];   // the card's widths, tried in turn until the words fit the screen's height
+  // The card's widths, tried in turn until the words fit the screen's height. A page may name its own (<html data-widths>).
+  const WIDTHS = ((document.documentElement.dataset || {}).widths || '480,560,660').split(',').map(Number);
 
   const style = document.createElement('style');
   style.textContent = `

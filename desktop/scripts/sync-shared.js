@@ -66,6 +66,10 @@ if (fs.existsSync(big)) fs.copyFileSync(big, path.join(ASSETS, 'icon.png'));
 // Windows: every size in one .ico (made by scripts/make-icons.js), for the taskbar, title bar and Alt+Tab.
 const ico = path.join(APP, 'build', 'icon.ico');
 if (fs.existsSync(ico)) fs.copyFileSync(ico, path.join(ASSETS, 'icon.ico'));
+// The tray's three icons, one for each level of protection (made by scripts/make-icons.js, desktop/src/protection.js).
+for (const file of fs.readdirSync(path.join(APP, 'build')).filter((f) => /^tray-[a-z]+(@[\d.]+x)?\.png$/.test(f))) {
+  copyIfChanged(path.join(APP, 'build', file), path.join(ASSETS, file));
+}
 
 /* ------------------------------------------------ the embedded server */
 
