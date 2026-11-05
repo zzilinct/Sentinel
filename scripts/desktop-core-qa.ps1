@@ -483,7 +483,11 @@ if ($Part -eq 'use') {
   $honest = @(
     'https://en.wikipedia.org/wiki/Phishing', 'https://www.bbc.com/news', 'https://www.amazon.com/gift-cards/b?node=2238192011',
     'https://www.paypal.com/signin', 'https://accounts.google.com/', 'https://login.microsoftonline.com/', 'https://www.coinbase.com/',
-    'https://github.com/login', 'https://www.irs.gov/', 'https://www.chase.com/'
+    'https://github.com/login', 'https://www.irs.gov/', 'https://www.chase.com/',
+    # Long links on well-known sites whose hosts also serve files the threat lists name: a Discord attachment (the
+    # owner's "Likely malware" GIF) and a file on GitHub. Neither is a danger in itself.
+    'https://cdn.discordapp.com/attachments/1093845729384756123/1187234567890123456/image.gif?ex=6789abcd&is=67885a4d&hm=3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a&',
+    'https://raw.githubusercontent.com/nodejs/node/main/README.md'
   )
   function Visit($url) {
     # A site's own prompt (Chase asks to reach other apps) holds the keyboard: Escape first, as a person would.
