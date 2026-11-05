@@ -10,6 +10,9 @@ notify() has one gate and one queue (desktop/src/notes.js): nothing over a full-
 - tray.html card, start.html (starting / error / welcome), main.js wiring, preload; loading/error.html deleted
 - review-shots: desktop-start-*, desktop-tray-*, desktop-tray-icons.png; desktop-core-qa tray checks use the card
 
+## Round 1 CI (9b35429)
+- review-shots: tray card too tall at 150% (fixed: off rows one line, tighter rows); start page cut its top on small windows (fixed: margin auto)
+- core install: ports-all-taken looked for error.html (fixed: start.html); core use pay-pause-leaves-with-page failed (not mine, pay pause)
+
 ## Next
-- wait for Review screenshots, Test, Desktop protections on 9b35429; read the PNGs (incl. core-install first-start, tray-card)
-- see the new tray test fail on purpose (break protection.js), merge origin/main, full run on final commit
+- full CI on the merge commit; read shots; report
