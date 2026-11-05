@@ -31,7 +31,6 @@ body.app::before { opacity: .6; }
 .side__link:hover { background: rgb(var(--ink) / .04); color: var(--text); }
 .side__link[aria-current="page"] { background: rgb(var(--gold-rgb) / .08); color: var(--gold-50); box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .16); }
 .side__link[aria-current="page"] svg { color: var(--gold-300); opacity: 1; }
-.side__link .pill { margin-left: auto; font: 500 var(--t-micro) var(--mono); padding: 2px 7px; border-radius: var(--r-sm); color: var(--gold-200); background: rgb(var(--gold-rgb) / .12); }
 .side__foot { margin-top: auto; display: grid; gap: 10px; }
 .side__foot .theme-toggle { margin-left: 0; justify-self: start; }
 .side__foot .legal-links { justify-content: flex-start; gap: 4px 12px; padding: 0 8px; font-size: var(--t-label); }
@@ -58,7 +57,6 @@ body.app::before { opacity: .6; }
   .side__nav .side__more { display: flex; }
   .side__nav { display: flex; width: 100%; justify-content: space-around; }
   .side__link { flex: 1 1 0; min-width: 0; min-height: 48px; justify-content: center; flex-direction: column; gap: 3px; height: auto; padding: 7px 4px; font-size: var(--t-micro); text-align: center; }
-  .side__link .pill { display: none; }
   .main { padding-bottom: 90px !important; }
   .topbar-mobile { display: flex !important; }
 }
@@ -102,22 +100,75 @@ body.app::before { opacity: .6; }
 .scanbox .btn { --h: 44px; }
 .scan-meta { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: var(--t-note); color: var(--muted); }
 .scan-meta a { color: var(--gold-300); }
-/* Fast or delicate, above the link box (delicate researches the site). */
-.scan-mode { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 14px 0 12px; font-size: var(--t-note); }
+
+/* ------------------------------------------------- check: one box for anything */
+
+/* The Check page (app.js checkView): one well to paste or drop into, a sentence saying what Sentinel saw and what it
+   will spend, and the kinds it could be, one press away. */
+.ask { display: grid; gap: 14px; }
+.ask__box {
+  position: relative; display: grid; border-radius: var(--r-lg);
+  background-color: var(--bg-2); box-shadow: var(--press), inset 0 0 0 1px var(--line-2);
+  transition: box-shadow .3s var(--ease);
+}
+.ask__box:focus-within, .ask__box.is-over { box-shadow: var(--press), inset 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 4px rgb(var(--gold-rgb) / .08); }
+.ask__text {
+  display: block; width: 100%; min-height: calc(4 * 1.55em + 24px); max-height: 50vh; field-sizing: content; resize: none;
+  padding: 18px 20px 6px; border: 0; outline: none; background: none; color: var(--text);
+  font: var(--t-body) / 1.55 var(--sans); letter-spacing: var(--tr-text); overflow-wrap: anywhere;
+}
+.ask__text::placeholder { color: var(--faint); }
+.ask__file { display: flex; align-items: center; gap: 12px; min-height: calc(4 * 1.55em + 24px); padding: 18px 20px 6px; }
+.ask__file[hidden], .ask__text[hidden] { display: none; }
+.ask__file-icon { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: var(--r); color: var(--gold-300); background: rgb(var(--gold-rgb) / .08); box-shadow: inset 0 0 0 1px var(--line-gold); }
+.ask__file-icon svg { width: 20px; height: 20px; }
+.ask__file-name { min-width: 0; font: 500 var(--t-text) var(--sans); color: var(--text); overflow-wrap: anywhere; }
+.ask__file-size { flex: none; font: var(--t-note) var(--mono); color: var(--muted); margin-right: auto; }
+.ask__bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 8px 8px 8px 10px; }
+.ask__add {
+  display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border: 0; border-radius: var(--r-sm);
+  background: none; color: var(--text-2); font: 500 var(--t-ui) var(--sans); cursor: pointer; transition: color .2s, background-color .2s;
+}
+.ask__add:hover, .ask__add[aria-expanded="true"] { color: var(--text); background-color: rgb(var(--ink) / .045); }
+.ask__add:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 1px; }
+.ask__add svg { width: 17px; height: 17px; flex: none; color: var(--gold-300); }
+.ask__go { --h: 44px; margin-left: auto; min-width: 116px; }
+.ask__said { display: grid; gap: 12px; padding: 0 4px; }
+.ask__says { min-height: 1.6em; max-width: 70ch; font-size: var(--t-ui); line-height: 1.6; color: var(--text-2); }
+.ask__says b { font-weight: 600; color: var(--text); }
+.ask__as { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.ask__as[hidden], .ask__deeper[hidden] { display: none; }
+.ask__as-k { margin-right: 6px; font-size: var(--t-note); color: var(--muted); }
+.ask__kind {
+  height: 32px; padding: 0 13px; border: 0; border-radius: var(--r-sm); cursor: pointer;
+  background: none; color: var(--text-2); font: 500 var(--t-note) var(--sans); box-shadow: inset 0 0 0 1px var(--line-2);
+  transition: color .2s, box-shadow .2s, background-color .2s;
+}
+.ask__kind:hover { color: var(--text); box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .45); }
+.ask__kind[aria-pressed="true"] { color: var(--on-gold); background: var(--gold-grad); box-shadow: 0 1px 0 rgb(255 255 255 / .25) inset, 0 6px 16px -8px rgb(var(--gold-rgb) / .7); }
+.ask__kind:focus-visible, .ask__deeper:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; }
+/* Look deeper: a switch, its knob carried across on a spring. */
+.ask__deeper { justify-self: start; display: inline-flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 2px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text-2); font: 500 var(--t-note) var(--sans); cursor: pointer; }
+.ask__deeper:hover { color: var(--text); }
+.ask__deeper i { position: relative; width: 32px; height: 18px; flex: none; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-2); transition: background-color .25s, box-shadow .25s; }
+.ask__deeper i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform .45s var(--spring), background-color .25s; }
+.ask__deeper[aria-pressed="true"] { color: var(--text); }
+.ask__deeper[aria-pressed="true"] i { background-color: rgb(var(--gold-rgb) / .18); box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .55); }
+.ask__deeper[aria-pressed="true"] i::after { transform: translateX(14px); background: var(--gold-300); }
+.ask__from { max-width: 420px; }
+.ask__call { margin: 18px 4px 0; font-size: var(--t-ui); color: var(--muted); }
+.ask__call a { color: var(--gold-300); text-underline-offset: 3px; }
+.ask .shot { margin: 0; }
+@media (max-width: 560px) {
+  .ask__text, .ask__file { padding: 16px 16px 4px; }
+  .ask__go { flex-basis: 100%; margin: 6px 0 0; }
+}
+@media (prefers-reduced-motion: reduce) { .ask__deeper i::after { transition: none; } }
 [data-out] { position: relative; }
-/* A QR code, read on this device: a row under the link box, and the camera's view when it is on. */
-.qr-in { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin: 16px 0 4px; padding: 12px 14px; border-radius: var(--r-lg); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .25s, background-color .25s; }
-.qr-in.is-over { box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 4px rgb(var(--gold-rgb) / .07); background-color: rgb(var(--gold-rgb) / .03); }
-.qr-in__icon { width: 34px; height: 34px; flex: none; border-radius: var(--r); display: grid; place-items: center; color: var(--gold-300); background: rgb(var(--gold-rgb) / .08); box-shadow: inset 0 0 0 1px var(--line-gold); }
-.qr-in__icon svg { width: 18px; height: 18px; }
-.qr-in__text { flex: 1 1 260px; display: grid; gap: 2px; font-size: var(--t-note); color: var(--muted); }
-.qr-in__text b { color: var(--text); font-weight: 600; }
-.qr-in__btns { display: flex; gap: 8px; flex-wrap: wrap; }
-.qr-in__btns label { cursor: pointer; }
 .qr-cam { flex-basis: 100%; display: grid; gap: 8px; justify-items: start; }
 .qr-cam video { width: min(100%, 360px); aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--r); background: #000; box-shadow: var(--raise-sm); }
 .qr-cam p { font-size: var(--t-note); }
-[data-qr-out] .qr-card, [data-email-qr] .qr-card { margin: 14px 0; }
+[data-qr-out] .qr-card { margin: 14px 0; }
 
 .examples { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { height: 30px; padding: 0 11px; border-radius: var(--r-sm); border: 0; cursor: pointer; font: var(--t-note) var(--mono); color: var(--text-2); background: rgb(var(--ink) / .04); box-shadow: inset 0 0 0 1px var(--line); transition: color .2s, box-shadow .2s; }
@@ -297,24 +348,6 @@ body.app::before { opacity: .6; }
 .check__body b { display: block; font-weight: 450; font-size: var(--t-ui); }
 .check__body span { display: block; font-size: var(--t-note); color: var(--muted); margin-top: 2px; }
 .check__tag { font: var(--t-micro) var(--mono); color: var(--faint); padding-top: 3px; }
-
-/* ------------------------------------------------------------- upload */
-
-.drop {
-  position: relative; display: grid; place-items: center; text-align: center;
-  padding: 44px 24px; border-radius: var(--r-lg); cursor: pointer;
-  background: repeating-linear-gradient(135deg, rgb(var(--ink) / .012) 0 12px, transparent 12px 24px);
-  box-shadow: inset 0 0 0 1px var(--line-2);
-  transition: box-shadow .25s, background .25s;
-}
-.drop:hover, .drop.is-over { box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 4px rgb(var(--gold-rgb) / .07); background-color: rgb(var(--gold-rgb) / .03); }
-.drop__icon { width: 54px; height: 54px; margin-inline: auto; border-radius: var(--r-lg); display: grid; place-items: center; color: var(--gold-300); background: rgb(var(--gold-rgb) / .08); box-shadow: inset 0 0 0 1px var(--line-gold); margin-bottom: 14px; }
-.drop__icon svg { width: 24px; height: 24px; }
-.drop h2, .drop h3 { font-size: var(--t-title-s); }
-.drop p { color: var(--muted); font-size: var(--t-ui); margin-top: 4px; }
-.drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-/* The file box itself is invisible, so the keyboard's focus shows on the drop zone around it. */
-.drop:focus-within { outline: 2px solid var(--gold-300); outline-offset: 3px; }
 
 .segmented { display: inline-flex; padding: 4px; border-radius: var(--r); background: rgb(var(--ink) / .03); box-shadow: inset 0 0 0 1px var(--line); }
 .segmented button { height: 34px; padding: 0 16px; border: 0; border-radius: var(--r-sm); background: none; cursor: pointer; color: var(--muted); font: 500 var(--t-ui) var(--sans); transition: background .2s, color .2s, box-shadow .2s; }
@@ -760,7 +793,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .fchip[aria-pressed="true"] { background: var(--bg-2); box-shadow: var(--press); }
 .ai-tab[aria-selected="true"] { box-shadow: var(--raise-sm), inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent); }
 /* Pressed: fields and wells sit below the surface. */
-.scanbox, .input, .textarea, .segmented, .seg, .tools__search, .secret, .drop, .consent__row input { background-color: var(--bg-2); box-shadow: var(--press); }
+.scanbox, .input, .textarea, .segmented, .seg, .tools__search, .secret, .consent__row input { background-color: var(--bg-2); box-shadow: var(--press); }
 .seg { border: 0; padding: 4px; gap: 4px; border-radius: var(--r); }
 .seg__btn { border-radius: var(--r-sm); }
 .seg__btn + .seg__btn { border-left: 0; }
@@ -768,7 +801,6 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .segmented button[aria-selected="true"], .segmented button[aria-checked="true"] { background: var(--relief), var(--surface-2); box-shadow: var(--raise-sm); }
 .scanbox:focus-within, .input:focus, .textarea:focus, .tools__search:focus-within { box-shadow: var(--press), 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 5px rgb(var(--gold-rgb) / .08); }
 .input[aria-invalid="true"] { box-shadow: var(--press), 0 0 0 1px rgba(229, 72, 77, .7); }
-.drop:hover, .drop.is-over { box-shadow: var(--press), 0 0 0 1px rgb(var(--gold-rgb) / .55); }
 .consent__row input:checked { background: var(--gold-grad); box-shadow: inset 0 1px 0 rgb(255 255 255 / .4); }
 .switch { background: var(--bg-2); box-shadow: var(--press); }
 .switch:checked { background: var(--gold-grad); box-shadow: inset 0 1px 3px rgb(0 0 0 / .25); }

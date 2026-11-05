@@ -9,7 +9,7 @@
 
   const state = { me: null, config: null, plans: null, desktopInfo: null };
   const Share = window.SentinelShare;
-  // What the phone's Share menu handed over, on its way from /app/share to the check it opens (textView).
+  // What was handed to the Check page (checkView) from elsewhere: the phone's Share menu, the Overview box, the palette.
   let shared = null;
   // iPhones never list a web app in their Share menu.
   const iphone = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -125,7 +125,6 @@
     });
     $('[data-name]').textContent = u.name || u.email;
     $('[data-plan]').textContent = `${plan().name} plan`;
-    $('[data-max-pill]').hidden = plan().features.emailManual;
 
     const us = usage();
     const row = (label, used, limit, unit = '') => {
@@ -191,10 +190,11 @@
   const ROUTES = {
     '/app': ['home', home],
     '/app/week': ['week', weekView],
-    '/app/scan': ['scan', scanView],
-    '/app/threats': ['threats', threatsView],
-    '/app/email': ['email', emailView],
-    '/app/text': ['text', textView],
+    '/app/check': ['check', checkView],
+    '/app/scan': ['check', checkView],
+    '/app/threats': ['check', checkView],
+    '/app/email': ['check', checkView],
+    '/app/text': ['check', checkView],
     '/app/call': ['call', callView],
     '/app/history': ['history', historyView],
     '/app/protection': ['protection', protectionView],
@@ -228,7 +228,7 @@
     fn(el, new URLSearchParams(location.search));
     // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
     restoreDrafts();
-    document.title = `${{ home: 'Overview', week: 'Your week', scan: 'Link scan', threats: 'Virus & malware', email: 'Email scan', text: 'Text scan', call: 'Is this call a scam?', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide', share: 'Shared with Sentinel' }[name]} · Sentinel`;
+    document.title = `${{ home: 'Overview', week: 'Your week', check: 'Check', call: 'Is this call a scam?', history: 'History', protection: 'Live protection', plan: 'Plan & usage', security: 'Security', assistants: 'AI assistants', sites: 'Site rules', checkup: 'Browser checkup', recover: 'Recovery guide', share: 'Shared with Sentinel' }[name]} · Sentinel`;
   }
 
   /** Render a verdict with its checklist tools and follow-up actions. */
@@ -272,8 +272,8 @@
   /* ========================================================== shortcuts */
 
   const PAGES = [
-    ['Overview', '/app', 'home'], ['Your week', '/app/week', 'week'], ['Link scan', '/app/scan', 'scan'], ['Virus & malware scan', '/app/threats', 'threats'],
-    ['Email scan', '/app/email', 'email'], ['Text scan', '/app/text', 'text'], ['Is this call a scam?', '/app/call', 'call'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
+    ['Overview', '/app', 'home'], ['Your week', '/app/week', 'week'], ['Check a link, message, email, file or picture', '/app/check', 'check'],
+    ['Is this call a scam?', '/app/call', 'call'], ['History', '/app/history', 'history'], ['Site rules', '/app/sites', 'sites'], ['Browser checkup', '/app/checkup', 'checkup'],
     ['Live protection', '/app/protection', 'protection'], ['Plan & usage', '/app/plan', 'plan'], ['Security', '/app/security', 'security'],
     ['AI assistants', '/app/assistants', 'assistants'], ['Recovery guide', '/app/recover', 'recover']
   ];
@@ -288,7 +288,7 @@
     // A combobox whose choice is read out as it moves (aria-activedescendant), as a screen reader expects.
     palette = h(`<div class="palette" role="dialog" aria-modal="true" aria-label="Search or scan">
       <div class="palette__box">
-        <div class="palette__input">${ICON.search}<input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" placeholder="Paste a link to scan, or jump to a page" aria-label="Search pages, or paste a link to scan" autocomplete="off" spellcheck="false"><kbd>Esc</kbd></div>
+        <div class="palette__input">${ICON.search}<input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" placeholder="Paste something to check, or jump to a page" aria-label="Search pages, or paste something to check" autocomplete="off" spellcheck="false"><kbd>Esc</kbd></div>
         <ul class="palette__list" id="palette-list" role="listbox" aria-label="Pages and links"></ul>
         <div class="palette__foot"><span><kbd>&uarr;</kbd><kbd>&darr;</kbd> move</span><span><kbd>&crarr;</kbd> open</span><span><kbd>/</kbd> scan box &middot; <kbd>?</kbd> shortcuts</span></div>
       </div>
@@ -304,15 +304,20 @@
     const paint = () => {
       const q = input.value.trim();
       items = [];
-      if (q && looksLikeUrl(q)) items.push({ label: `Scan ${q}`, hint: 'Link scan', href: `/app/scan?url=${encodeURIComponent(q)}`, icon: ICON.link });
+      if (q && looksLikeUrl(q)) items.push({ label: `Check ${q}`, hint: 'Link', href: `/app/check?url=${encodeURIComponent(q)}`, icon: ICON.link });
+      // Words, not a page's name: a message or a number to check (route.js says which).
+      else if (q && ((/\s/.test(q) && q.length >= 20) || window.SentinelRoute.guess({ text: q }) === 'number')) {
+        const kind = window.SentinelRoute.guess({ text: q });
+        items.push({ label: 'Check what you pasted', hint: kind === 'number' ? 'Phone number' : 'Message', run: () => { shared = { text: q }; navigate('/app/check'); }, icon: ICON.search });
+      }
       for (const [label, href] of PAGES) if (!q || label.toLowerCase().includes(q.toLowerCase())) items.push({ label, hint: 'Page', href, icon: ICON.shield });
-      for (const r of recent) if (q && r.target.toLowerCase().includes(q.toLowerCase())) items.push({ label: r.target, hint: 'Scan again', href: `/app/scan?url=${encodeURIComponent(r.target)}`, icon: ICON.clock });
+      for (const r of recent) if (q && r.target.toLowerCase().includes(q.toLowerCase())) items.push({ label: r.target, hint: 'Check again', href: `/app/check?url=${encodeURIComponent(r.target)}`, icon: ICON.clock });
       if (!q || 'sign out'.includes(q.toLowerCase())) items.push({ label: 'Sign out', hint: 'Account', run: () => signOut(), icon: ICON.lock });
       // Opened empty it lists every page (on a phone it is the More menu); a search shows the best few.
       if (q) items = items.slice(0, 9);
       active = Math.min(active, Math.max(0, items.length - 1));
       list.innerHTML = items.length ? items.map((it, i) => `<li role="option" id="palette-${i}" aria-selected="${i === active}" data-i="${i}"><span class="palette__icon">${it.icon}</span><span class="palette__label">${esc(it.label)}</span><span class="palette__hint">${esc(it.hint)}</span></li>`).join('')
-        : '<li class="palette__empty" role="option" aria-disabled="true">Nothing matches. Paste a link to scan it.</li>';
+        : '<li class="palette__empty" role="option" aria-disabled="true">Nothing matches. Paste a link or a message to check it.</li>';
       if (items.length) input.setAttribute('aria-activedescendant', `palette-${active}`); else input.removeAttribute('aria-activedescendant');
       const on = $(`#palette-${active}`, list);
       if (on) on.scrollIntoView({ block: 'nearest' });
@@ -354,8 +359,8 @@
       if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
       if (ev.key === '/') {
         ev.preventDefault();
-        const box = $('.scanbox input');
-        if (box) { box.focus(); box.select(); } else navigate('/app/scan');
+        const box = $('[data-check-text]') || $('.scanbox input');
+        if (box && !box.hidden) { box.focus(); box.select(); } else navigate('/app/check');
       } else if (ev.key === '?') showShortcuts();
     });
     // Pasting a link anywhere on the page (outside a field) offers to scan it:
@@ -503,7 +508,7 @@
     // and every entry has its own Delete beside it.
     return `<ul class="list">${items.map((it) => {
       const link = clickable && it.kind === 'url';
-      const target = link ? `<a class="list__target" href="/app/scan?url=${encodeURIComponent(it.target)}" title="Scan again">${esc(it.target)}</a>` : esc(it.target);
+      const target = link ? `<a class="list__target" href="/app/check?url=${encodeURIComponent(it.target)}" title="Check again">${esc(it.target)}</a>` : esc(it.target);
       return `
       <li class="${link ? 'is-link' : ''}" ${link ? `data-rescan="${esc(it.target)}"` : ''}>
         <span class="list__icon">${it.kind === 'file' ? ICON.file : it.kind === 'email' ? ICON.mail : ICON.link}</span>
@@ -541,7 +546,7 @@
       ? usageCard(ICON.link, 'Unlimited', '', 'Fast link scans', 0, 0, false, 'no weekly limit')
       : usageCard(ICON.link, left('linkScans'), `/ ${fast.limit}`, 'Fast link scans left', fast.used, fast.limit);
     const deepCard = usageCard(ICON.search, deep.limit ? Math.max(0, deep.limit - deep.used) : 0, deep.limit ? `/ ${deep.limit}` : '', 'Delicate link scans left', deep.used, deep.limit, !deep.limit);
-    return `<a class="usage-link" href="/app/scan">${fastCard}</a><a class="usage-link" href="/app/scan">${deepCard}</a>`;
+    return `<a class="usage-link" href="/app/check">${fastCard}</a><a class="usage-link" href="/app/check">${deepCard}</a>`;
   }
 
   function usageCard(icon, n, unit, label, used, limit, locked, meta) {
@@ -716,7 +721,7 @@
     }
     if (err.code === 'weekly_limit_reached') {
       // Which allowance ran out (the server's sentence names it); with the delicate ones gone, fast scans still work.
-      return `<div class="banner"><div><b>${esc(err.message)}</b> They come back ${until(err.extra.resetsAt)}. ${/delicate/.test(err.message) && location.pathname === '/app/scan' ? 'Fast scans still work: choose Fast above. ' : ''}<a href="/app/plan" class="u-gold">See plans</a></div></div>`;
+      return `<div class="banner"><div><b>${esc(err.message)}</b> They come back ${until(err.extra.resetsAt)}. ${/delicate/.test(err.message) && location.pathname === '/app/check' ? 'Fast scans still work: turn off Look deeper above. ' : ''}<a href="/app/plan" class="u-gold">See plans</a></div></div>`;
     }
     if (err.code === 'plan_required') {
       return `<div class="banner"><div><b>${esc(err.message)}</b> <a href="/app/plan" class="u-gold">Compare plans</a></div></div>`;
@@ -737,14 +742,14 @@
       ${title(`${greet}, ${esc(u.firstName)}`,'Paste anything you are unsure about. Sentinel will tell you exactly what it finds.')}
       <form class="scanbox" data-quick>
         ${ICON.search}
-        <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link from a message, email or search result" aria-label="Link to scan">
-        <button class="btn btn--gold" type="submit">Scan</button>
+        <input name="url" type="text" autocomplete="off" spellcheck="false" placeholder="Paste a link, a message or a phone number" aria-label="What to check">
+        <button class="btn btn--gold" type="submit">Check</button>
       </form>
-      <div class="scan-meta"><span>${scanLeftText(plan().features.research ? 'delicate' : 'fast')}</span><a href="/app/threats">Scan a file instead &rarr;</a></div>
+      <div class="scan-meta"><span>Sentinel works out what it is and says which check it runs.</span><a href="/app/check">Check an email, a file or a picture &rarr;</a></div>
 
       <div class="usage-list u-mt-lg">
         ${scanCards(us)}
-        <a class="usage-link" href="/app/threats">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
+        <a class="usage-link" href="/app/check">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
         <a class="usage-link" href="/app/protection">${liveCard(us, f)}</a>
       </div>
 
@@ -765,7 +770,10 @@
     $('[data-quick]', el).addEventListener('submit', (ev) => {
       ev.preventDefault();
       const url = ev.target.url.value.trim();
-      if (url) navigate(`/app/scan?url=${encodeURIComponent(url)}`);
+      if (!url) return;
+      // A link opens under its own address (Back and reload keep it); anything else is carried over in memory, never in the address.
+      if (looksLikeUrl(url)) navigate(`/app/check?url=${encodeURIComponent(url)}`);
+      else { shared = { text: url }; navigate('/app/check'); }
     });
 
     try {
@@ -775,7 +783,7 @@
       slot.innerHTML = historyList(data.items.slice(0, 6), { clickable: true });
       slot.addEventListener('click', (ev) => {
         const row = ev.target.closest('[data-rescan]');
-        if (row) navigate(`/app/scan?url=${encodeURIComponent(row.dataset.rescan)}`);
+        if (row) navigate(`/app/check?url=${encodeURIComponent(row.dataset.rescan)}`);
       });
       // The rows say they are buttons, so Enter and Space must work on them too.
       slot.addEventListener('keydown', (ev) => {
@@ -894,108 +902,438 @@
     return `<div class="panel"><div class="panel__head"><div><h2>${live.enabled ? 'Live scanning is on' : 'Protection is on'}</h2><p>${live.enabled ? 'Look for the gold mask in the corner of your browser. Downloads and new programs are watched too.' : 'Downloads and new programs on this computer are being watched.'}</p></div><a class="btn btn--sm" href="/app/protection">Manage</a></div></div>`;
   }
 
-  /* ============================================================ link scan */
+  /* =============================================================== check */
 
-  // Fast: threat lists, the checklist and comparison. Delicate: the site researched as well (Pro and up).
-  const scanModeKey = 'sentinel.scanMode';
-  function scanLeftText(mode) {
-    const u = usage();
-    const m = mode === 'delicate' ? u.deepScans : u.linkScans;
-    if (!m) return '';
-    const name = mode === 'delicate' ? 'delicate scans' : 'fast scans';
-    return uncapped(m.limit) ? `Unlimited ${name}` : `${Math.max(0, m.limit - m.used)} of ${m.limit} ${name} left this week`;
+  // One page for whatever a person is unsure of: a link, a message, a whole email, a file, or a picture of a QR code or
+  // of a text. route.js says what it is, and so which scan runs and which of the week's scans it uses; the page says
+  // that in words before anything is spent, and one press changes it. The old pages' addresses (/app/scan,
+  // /app/threats, /app/email, /app/text) open it, so links from the Windows app, the history and old bookmarks still work.
+  const Route = window.SentinelRoute;
+  // The key the old Fast and Delicate switch kept, so a choice made there carries over to Look deeper.
+  const deeperKey = 'sentinel.scanMode';
+  // The most of a pasted conversation sent for a check (server/routes/scan.routes.js reads the same).
+  const TEXT_MAX = 40000;
+  const KIND_NAME = { link: 'Link', download: 'Download', message: 'Message', email: 'Email' };
+  const SCAN_NAME = { linkScans: 'fast scan', deepScans: 'delicate scan', fileScans: 'virus scan' };
+
+  /** What a check costs, from the account's own numbers: "Uses 1 fast scan: 9 of 10 left this week." */
+  function spends(meter) {
+    const m = usage()[meter];
+    const name = SCAN_NAME[meter];
+    if (!m || !name) return '';
+    if (uncapped(m.limit)) return `Uses 1 ${name}. There is no weekly limit.`;
+    const n = Math.max(0, m.limit - m.used);
+    if (!n) return `No ${name}s are left this week. They come back ${until(state.me.week.resetsAt)}.`;
+    return `Uses 1 ${name}: ${n} of ${m.limit} left this week.`;
   }
 
-  function scanView(el, params) {
+  /** What Sentinel saw and what it will do with it, as [the kind, the check and its cost]. */
+  function says(r, file) {
+    const deep = r.mode === 'delicate' ? ', and researches the site' : '';
+    switch (r.kind) {
+      case 'link': return ['A link.', `Sentinel checks it against the threat lists, the checklist and known scams${deep}. ${spends(r.meter)}`];
+      case 'download': return ['A download link.', r.path === '/scan/threat'
+        ? `Sentinel checks it for viruses and malware. ${spends(r.meter)}`
+        : `Sentinel checks it for scams, viruses and malware${deep}. ${spends(r.meter)}`];
+      case 'message': return ['A message.', `Sentinel reads its words for known scams and checks its links by their address, without opening them. ${spends(r.meter)}`];
+      case 'email': return ['An email.', r.limited
+        ? `Sentinel checks its words and links as a message. Checking who really sent it is part of Max. ${spends(r.meter)}`
+        : `Sentinel checks the sender, the words, every link and attachment name, and with its headers, who really sent it. ${spends(r.meter)}`];
+      case 'number': return ['A phone number.', 'Sentinel cannot look a number up. Calling you now? Use the call check below. Sent you a message? Paste the whole message.'];
+      case 'file': return [`${file.name}, ${bytes(file.size)}.`, file.size > 25 * 1024 * 1024
+        ? 'Files up to 25 MB can be checked here.'
+        : `Sentinel checks it for viruses, malware and files in disguise. ${spends(r.meter)}`];
+      default: return ['', 'Sentinel works out which it is and says which check it runs, before anything is used.'];
+    }
+  }
+
+  function checkView(el, params) {
     const f = plan().features;
-    let mode = 'fast';
-    try { mode = localStorage.getItem(scanModeKey) || (f.research ? 'delicate' : 'fast'); } catch { mode = f.research ? 'delicate' : 'fast'; }
-    if (!f.research) mode = 'fast';
+    const preset = params.get('url');
+    // An old page's address: the Check page, under its own.
+    if (location.pathname.replace(/\/$/, '') !== '/app/check') history.replaceState(history.state, '', `/app/check${preset ? `?url=${encodeURIComponent(preset)}` : ''}`);
+    const camera = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     el.innerHTML = `
-      ${title('Link scan', f.research
-        ? 'Fast checks known threats, the full checklist and known scams in about a second. Delicate also researches the site, for scam, virus and malware.'
-        : 'Known threats, the full checklist and comparison with known scams. Pro adds delicate scans, which research the site too.')}
-      ${modelSlot(true)}
-      <div class="scan-mode">
-        <div class="seg" role="group" aria-label="Scan mode">
-          <button type="button" class="seg__btn${mode === 'fast' ? ' is-on' : ''}" data-scan-mode="fast" aria-pressed="${mode === 'fast'}">Fast</button>
-          <button type="button" class="seg__btn${mode === 'delicate' ? ' is-on' : ''}" data-scan-mode="delicate" aria-pressed="${mode === 'delicate'}" ${f.research ? '' : 'disabled title="Delicate scans come with Pro, Max and Ultimate"'}>Delicate</button>
+      ${localNote()}
+      ${title('Check something', 'Paste a link, a message or a whole email, or add a file or a picture of one. Sentinel works out which it is and runs the right check.')}
+      <form class="ask" data-form data-draft="check" novalidate>
+        <div class="ask__box" data-drop>
+          <textarea class="ask__text" name="text" rows="3" spellcheck="false" autocomplete="off" placeholder="Paste it here" aria-label="What to check" aria-describedby="check-says" data-check-text></textarea>
+          <div class="ask__file" data-file-chip hidden></div>
+          <div class="ask__bar">
+            <button class="ask__add" type="button" data-add>${ICON.upload}<span>Add a file or picture</span></button>
+            <input type="file" data-file hidden aria-label="Choose a file or a picture to check">
+            ${camera ? `<button class="ask__add" type="button" data-qr-cam aria-expanded="false">${ICON.qr}<span>QR code</span></button>` : ''}
+            <button class="btn btn--gold ask__go" type="submit">Check</button>
+          </div>
         </div>
-        <span class="muted" data-mode-note>${mode === 'delicate' ? 'Researches the site: its age, certificate, redirects and page content.' : 'Threat lists, the full checklist and known scams, in about a second.'}</span>
-      </div>
-      <form class="scanbox" data-form>
-        ${ICON.search}
-        <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://" aria-label="Link to scan" required>
-        <button class="btn btn--gold" type="submit">Scan link</button>
+        <div class="ask__said" id="check-says">
+          <p class="ask__says" data-says aria-live="polite"></p>
+          <div class="ask__as" data-as role="group" aria-label="Check it as" hidden></div>
+          <button type="button" class="ask__deeper" data-deeper aria-pressed="false" hidden><i aria-hidden="true"></i>Look deeper: research the site</button>
+        </div>
+        <div class="field ask__from" data-from hidden><label for="check-from">Who sent it <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="check-from" name="from" dir="auto" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
+        <figure class="shot" data-shot-preview hidden><img alt="The picture being read"><figcaption data-shot-status></figcaption></figure>
+        <div class="qr-cam" data-qr-camview hidden><video muted playsinline aria-label="Camera view"></video><p class="muted">Hold the QR code up to the camera. It is read here, and the camera turns off as soon as a code is found.</p></div>
       </form>
-      <div class="scan-meta"><span data-left>${scanLeftText(mode)}</span>
-        <span class="examples">
-          <button class="chip" type="button" data-example="paypa1-secure-login.com/account">paypa1-secure-login.com</button>
-          <button class="chip" type="button" data-example="https://github.com">github.com</button>
-        </span>
-      </div>
-      ${qrPicker()}
+      ${iphone ? `<p class="field__hint" data-iphone-note>${esc(IPHONE_NOTE)}</p>` : ''}
+      <p class="ask__call">On the phone with someone right now? <a href="/app/call">Is this call a scam?</a></p>
       <div data-qr-out aria-live="polite"></div>
-      <div data-out></div>`;
+      <div data-out aria-live="polite"></div>`;
 
-    mountModels(el);
     const form = $('[data-form]', el);
-    const out = $('[data-out]', el);
-    $$('[data-example]', el).forEach((b) => b.addEventListener('click', () => { form.url.value = b.dataset.example; form.requestSubmit(); }));
-    $$('[data-scan-mode]', el).forEach((b) => b.addEventListener('click', () => {
-      if (b.disabled) return;
-      mode = b.dataset.scanMode;
-      try { localStorage.setItem(scanModeKey, mode); } catch { /* not stored */ }
-      $$('[data-scan-mode]', el).forEach((x) => { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
-      $('[data-mode-note]', el).textContent = mode === 'delicate' ? 'Researches the site: its age, certificate, redirects and page content.' : 'Threat lists, the full checklist and known scams, in about a second.';
-      $('[data-left]', el).textContent = scanLeftText(mode);
-    }));
-
-    // A QR code: read here, explained, and a link in it checked with a fast scan, whatever mode is chosen: a few test
-    // pictures must not quietly use up delicate scans. A delicate look is one press of Scan link away.
+    const box = $('[data-check-text]', el);
+    const drop = $('[data-drop]', el);
+    const chip = $('[data-file-chip]', el);
+    const fileInput = $('[data-file]', el);
+    const saysEl = $('[data-says]', el);
+    const asEl = $('[data-as]', el);
+    const deeperBtn = $('[data-deeper]', el);
+    const fromBox = $('[data-from]', el);
+    const go = $('.ask__go', el);
+    const preview = $('[data-shot-preview]', el);
+    const shotStatus = $('[data-shot-status]', el);
     const qrOut = $('[data-qr-out]', el);
-    wireQr(el, async (text) => {
-      const info = await explainQr(qrOut, text, { focus: true });
-      if (!info || !info.url) return;
-      form.url.value = info.url;
-      await scanLink(info.url, true);
-    });
+    const out = $('[data-out]', el);
 
-    form.addEventListener('submit', (ev) => {
-      ev.preventDefault();
-      const url = form.url.value.trim();
-      if (url) scanLink(url, false);
-    });
+    let file = null;
+    let choice = null;
+    let deeper = f.research;
+    try { deeper = f.research && localStorage.getItem(deeperKey) !== 'fast'; } catch { /* the plan's best */ }
+    const deepLeft = () => { const m = usage().deepScans; return Boolean(m) && (uncapped(m.limit) || m.limit - m.used > 0); };
+    const pick = () => Route.pick({ text: box.value, file }, { features: f, choice, deeper: deeper && deepLeft() });
 
-    async function scanLink(url, fromQr) {
-      // A second press while a scan runs (an example clicked twice) leaves the running scan alone.
-      if ($('button[type=submit]', form).dataset.busy) return;
-      // A link typed after a QR code is a scan of its own: the code's card goes.
+    let kindsShown = '';
+    function refresh() {
+      const r = pick();
+      const [lead, rest] = says(r, file);
+      saysEl.innerHTML = `${lead ? `<b>${esc(lead)}</b> ` : ''}${esc(rest)}`;
+      const kinds = Route.choices({ text: box.value, file });
+      // Drawn again only when the kinds on offer change, so the one just pressed keeps the focus.
+      if (kinds.join() !== kindsShown) {
+        kindsShown = kinds.join();
+        asEl.innerHTML = kinds.length > 1 ? `<span class="ask__as-k">Check it as</span>${kinds.map((k) => `<button type="button" class="ask__kind" data-kind="${k}" aria-pressed="false">${KIND_NAME[k]}</button>`).join('')}` : '';
+        asEl.hidden = kinds.length < 2;
+      }
+      $$('[data-kind]', asEl).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === r.kind)));
+      deeperBtn.hidden = !(f.research && r.path === '/scan/link' && deepLeft());
+      deeperBtn.setAttribute('aria-pressed', String(r.mode === 'delicate'));
+      fromBox.hidden = r.kind !== 'message';
+      form.dataset.kind = r.kind;
+      return r;
+    }
+
+    function showFile() {
+      box.hidden = Boolean(file);
+      chip.hidden = !file;
+      chip.innerHTML = file ? `<span class="ask__file-icon">${ICON.file}</span><span class="ask__file-name">${esc(file.name)}</span><span class="ask__file-size">${bytes(file.size)}</span>
+        <button class="btn btn--sm btn--ghost" type="button" data-unfile aria-label="Remove ${esc(file.name)}">Remove</button>` : '';
+    }
+
+    /** A file chosen, dropped or handed over: a picture is read here, an .eml becomes its text, anything else waits for Check. */
+    async function take(picked) {
+      if (!picked) return false;
+      const kind = Route.guess({ file: picked });
+      if (kind === 'picture') { readPicture(picked); return false; }
+      if (kind === 'eml') {
+        if (picked.size > 10 * 1024 * 1024) { toast('That email is too large to read here.', 'error'); return false; }
+        file = null;
+        showFile();
+        box.value = await picked.text();
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      }
+      file = picked;
+      choice = null;
+      showFile();
+      refresh();
+      go.focus();
+      return true;
+    }
+
+    let running = false;
+    async function run(r, { fromQr = false } = {}) {
+      if (running) return;
+      if (r.kind === 'empty') { toast('Paste a link, a message or an email first, or add a file.', 'info'); box.focus(); return; }
+      if (r.kind === 'number') { $('.ask__call a', el).focus(); return; }
+      if (r.kind === 'file' && file.size > 25 * 1024 * 1024) { toast('Files up to 25 MB can be checked.', 'error'); return; }
+      running = true;
       if (!fromQr) qrOut.innerHTML = '';
-      // Remembered in the history entry, so Back and reload show the address without spending another scan.
-      history.replaceState({ scanned: url }, '', `/app/scan?url=${encodeURIComponent(url)}`);
-      const button = $('button[type=submit]', form);
-      const runMode = fromQr ? 'fast' : mode;
-      const deep = runMode === 'delicate';
-      // A delicate scan digs: quiet binary behind the wait while the site is researched (binary.js).
-      const watch = watchScan(out, linkSteps(deep), { dig: deep });
       try {
-        const data = await busy(button, fromQr ? 'Checking the link in the code' : 'Scanning', () => api('/scan/link', { method: 'POST', body: { url, mode: runMode }, onStage: watch.onStage }));
-        applyUsage(data.usage);
-        showVerdict(out, data.verdict, { lockedLabel: 'Pro & up', focus: !fromQr });
-        watch.done();
-        $('[data-left]', el).textContent = scanLeftText(mode);
-      } catch (err) {
-        watch.fail();
-        out.innerHTML = friendlyError(err);
+        if (r.url) await runLink(r, fromQr);
+        else if (r.path === '/scan/text') await runText(r);
+        else if (r.path === '/scan/email') await runEmail();
+        else if (r.path === '/scan/file') await runFile();
+      } finally {
+        running = false;
+        refresh();
       }
     }
 
-    const preset = params.get('url');
-    if (preset) {
-      form.url.value = preset;
-      if (!history.state || history.state.scanned !== preset) form.requestSubmit();
+    async function runLink(r, fromQr) {
+      // Remembered in the history entry, so Back and reload show the address without spending another scan.
+      history.replaceState({ scanned: r.url }, '', `/app/check?url=${encodeURIComponent(r.url)}`);
+      const deep = r.mode === 'delicate';
+      // A delicate scan digs: quiet binary behind the wait while the site is researched (binary.js).
+      const watch = watchScan(out, linkSteps(deep), { dig: deep });
+      try {
+        const data = await busy(go, fromQr ? 'Checking the link in the code' : 'Checking', () => api(r.path, { method: 'POST', body: r.path === '/scan/link' ? { url: r.url, mode: r.mode } : { url: r.url }, onStage: watch.onStage }));
+        applyUsage(data.usage);
+        showVerdict(out, data.verdict, { lockedLabel: 'Pro & up', focus: !fromQr });
+        watch.done();
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
     }
+
+    async function runText(r) {
+      history.replaceState(null, '', '/app/check');
+      // An email checked as a message: its subject and words, from its sender.
+      const mail = r.kind === 'email' ? parseEmail(box.value) : null;
+      const from = mail ? mail.from.slice(0, 80) : $('[name=from]', form).value.trim();
+      const all = mail ? [mail.subject, mail.body].filter(Boolean).join('\n\n') : box.value;
+      // A long conversation is read up to TEXT_MAX letters: its start (how it began) and its most recent part (where it is now).
+      const cut = all.length > TEXT_MAX;
+      const text = cut ? `${all.slice(0, 10000)}\n${all.slice(-(TEXT_MAX - 10001))}` : all;
+      const watch = watchScan(out, TEXT_STEPS, { note: 'Read in memory only: never kept, and not in your history.' });
+      try {
+        const data = await busy(go, 'Checking', () => api('/scan/text', { method: 'POST', body: { from, text }, onStage: watch.onStage }));
+        applyUsage(data.usage);
+        out.innerHTML = textResult(data.text, from)
+          + (cut ? `<p class="field__hint u-mt-sm">This conversation is very long, so Sentinel read its first part and its most recent ${(TEXT_MAX - 10000).toLocaleString('en')} letters.</p>` : '');
+        riseMask(out);
+        watch.done();
+        wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, $('[data-text-result]', out).dataset.textResult));
+        const heading = $('h2', out);
+        if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+        out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
+    }
+
+    async function runEmail() {
+      history.replaceState(null, '', '/app/check');
+      const m = parseEmail(box.value);
+      // What Sentinel reads of an email (server/routes/scan.routes.js cleanMail): a 5 MB paste is cut here, so it is
+      // checked instead of being refused as too large to send.
+      const body = m.body.slice(0, 20000);
+      // Typed or read from a screenshot, an address may have no scheme: "www.example.com/login" is a link too.
+      const found = [...(body.match(/https?:\/\/[^\s<>"')]+/g) || []), ...(body.match(/(?<![\w./@-])www\.[a-z0-9.-]+\.[a-z]{2,}[^\s<>"')]*/gi) || []).map((u) => `https://${u}`)];
+      const payload = {
+        from: m.from, replyTo: m.replyTo, subject: m.subject, body, links: [...new Set(found)].map((href) => ({ href, text: '' })),
+        attachments: m.attachments, qr: [], headers: m.headers.slice(0, 16000)
+      };
+      const watch = watchScan(out, EMAIL_STEPS);
+      try {
+        const data = await busy(go, 'Checking', () => api('/scan/email', { method: 'POST', body: payload, onStage: watch.onStage }));
+        applyUsage(data.usage);
+        showVerdict(out, data.verdict, { focus: true });
+        watch.done();
+        showProof(out, data.verdict.sender);
+        showMarks(out, payload, data.verdict.checklist.items);
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
+    }
+
+    async function runFile() {
+      history.replaceState(null, '', '/app/check');
+      const watch = watchScan(out, FILE_STEPS, { note: `${file.name} · ${bytes(file.size)}` });
+      drop.setAttribute('aria-busy', 'true');
+      try {
+        const data = await busy(go, 'Checking', () => api('/scan/file', { method: 'POST', raw: file, headers: { 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, onStage: watch.onStage }));
+        applyUsage(data.usage);
+        showVerdict(out, data.verdict, { focus: true });
+        watch.done();
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
+      drop.removeAttribute('aria-busy');
+    }
+
+    /** A QR code's text: what it does, and a link in it checked with a fast scan, so test pictures never use up delicate ones. */
+    async function fromCode(code) {
+      const info = await explainQr(qrOut, code, { focus: true });
+      if (!info || !info.url) return;
+      file = null;
+      showFile();
+      box.value = info.url;
+      choice = null;
+      await run(Route.pick({ text: info.url }, { features: f }), { fromQr: true });
+    }
+
+    /**
+     * A picture: a QR code in it is read on this device and checked; otherwise its words are read by the Windows app
+     * (never uploaded) and put in the box to look over before Check is pressed.
+     */
+    let reading = false;
+    async function readPicture(pic) {
+      if (reading) return;
+      if (pic.size > 20 * 1024 * 1024) { toast('That picture is too large.', 'error'); return; }
+      reading = true;
+      qrOut.innerHTML = '';
+      const url = URL.createObjectURL(pic);
+      $('img', preview).src = url;
+      preview.hidden = false;
+      preview.classList.add('is-reading');
+      shotStatus.textContent = 'Looking for a QR code in the picture…';
+      try {
+        let code = null;
+        try { code = await qrFromFile(pic); } catch { /* no reader, or not a picture this browser opens: said below */ }
+        if (code != null) {
+          shotStatus.textContent = 'The QR code in this picture was read and checked below.';
+          await fromCode(code);
+          return;
+        }
+        if (!/^image\/(png|jpeg)$/.test(pic.type)) {
+          // Said where the answer would be, and kept there: a HEIC photo shared from a phone otherwise left an empty page.
+          qrOut.innerHTML = '<div class="banner banner--error" role="alert" data-shot-wrong>This picture is not a PNG or JPEG, so Sentinel cannot read it. Take a screenshot of it and share or choose that instead, or copy the message and paste it here.</div>';
+          shotStatus.textContent = 'No QR code was found in this picture.';
+          return;
+        }
+        if (!desktop || !desktop.readScreenshot) {
+          shotStatus.textContent = 'No QR code was found. The words in a picture are read by the Sentinel app for Windows, so they cannot be read here. Copy the message itself and paste it here.';
+          return;
+        }
+        shotStatus.textContent = 'Reading the words in the picture…';
+        const raw = joinSlices(await desktop.readScreenshot(await sliceImage(pic)));
+        if (!raw.trim()) { shotStatus.textContent = 'No words were found in this picture.'; return; }
+        // An address near the top is an email's sender; otherwise it is a phone's messages (textshot.js).
+        const mail = withSender(raw);
+        if (mail !== raw || /^(from|sender)\s*:/im.test(raw)) {
+          box.value = mail;
+          choice = 'email';
+        } else {
+          const m = window.SentinelTextShot.read(raw);
+          box.value = m.text || raw;
+          $('[name=from]', form).value = m.from || '';
+          choice = null;
+        }
+        file = null;
+        showFile();
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+        shotStatus.textContent = 'Read on this computer. Look over the words, then press Check.';
+        box.focus();
+      } catch (err) {
+        shotStatus.textContent = desktopError(err);
+      } finally {
+        reading = false;
+        preview.classList.remove('is-reading');
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    box.addEventListener('input', () => { if (!box.value.trim()) choice = null; refresh(); });
+    // Enter sends a link pasted on its own; in a message it starts a new line, and Ctrl+Enter sends.
+    box.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' || ev.shiftKey || ev.isComposing) return;
+      if (ev.ctrlKey || ev.metaKey || Route.isLink(box.value.trim())) { ev.preventDefault(); form.requestSubmit(); }
+    });
+    asEl.addEventListener('click', (ev) => { const b = ev.target.closest('[data-kind]'); if (b) { choice = b.dataset.kind; refresh(); } });
+    deeperBtn.addEventListener('click', () => {
+      deeper = !deeper;
+      try { localStorage.setItem(deeperKey, deeper ? 'delicate' : 'fast'); } catch { /* not kept */ }
+      refresh();
+    });
+    chip.addEventListener('click', (ev) => {
+      if (!ev.target.closest('[data-unfile]') || running) return;
+      file = null;
+      showFile();
+      refresh();
+      box.focus();
+    });
+    $('[data-add]', el).addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => { take(fileInput.files[0]); fileInput.value = ''; });
+    ['dragenter', 'dragover'].forEach((t) => el.addEventListener(t, (ev) => {
+      if (ev.dataTransfer && [...ev.dataTransfer.types].includes('Files')) { ev.preventDefault(); drop.classList.add('is-over'); }
+    }));
+    el.addEventListener('dragleave', (ev) => { if (!el.contains(ev.relatedTarget)) drop.classList.remove('is-over'); });
+    el.addEventListener('drop', (ev) => {
+      drop.classList.remove('is-over');
+      const dropped = ev.dataTransfer && ev.dataTransfer.files[0];
+      if (!dropped) return;
+      ev.preventDefault();
+      if (running) { toast('One check at a time. This one is still running.', 'info'); return; }
+      take(dropped);
+    });
+    // Ctrl+V with a picture on the clipboard (a Snipping Tool capture, say). Pasted text is left to the box: a copy
+    // from Excel or Word carries a picture of itself too, and pasted into a text box it is the text that is meant.
+    const onPaste = (ev) => {
+      if (!el.isConnected) { document.removeEventListener('paste', onPaste); return; }
+      const items = [...(ev.clipboardData ? ev.clipboardData.items : [])];
+      const typing = ev.target && ev.target.closest && ev.target.closest('input, textarea, [contenteditable]');
+      if (typing && items.some((i) => i.kind === 'string' && i.type === 'text/plain')) return;
+      const item = items.find((i) => i.kind === 'file' && /^image\//.test(i.type));
+      if (item) { ev.preventDefault(); readPicture(item.getAsFile()); }
+    };
+    document.addEventListener('paste', onPaste);
+    form.addEventListener('submit', (ev) => { ev.preventDefault(); run(refresh()); });
+
+    // The camera: on only while its view is open, looked at a few times a second, off the moment a code is found.
+    const camBtn = $('[data-qr-cam]', el);
+    if (camBtn) {
+      const camView = $('[data-qr-camview]', el);
+      const video = $('video', camView);
+      let stream = null;
+      let timer = null;
+      const stop = () => {
+        clearInterval(timer);
+        timer = null;
+        if (stream) stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+        video.srcObject = null;
+        camView.hidden = true;
+        camBtn.setAttribute('aria-expanded', 'false');
+      };
+      camBtn.addEventListener('click', async () => {
+        if (stream) { stop(); return; }
+        try { await qrEngine(); } catch (err) { toast(err.message, 'error'); return; }
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        } catch {
+          stream = null;
+          toast('The camera could not be started. Check that one is connected and that apps are allowed to use it.', 'error', 6000);
+          return;
+        }
+        camView.hidden = false;
+        camBtn.setAttribute('aria-expanded', 'true');
+        video.srcObject = stream;
+        try { await video.play(); } catch { /* it plays when it can */ }
+        timer = setInterval(async () => {
+          if (!el.isConnected) { stop(); return; }
+          if (reading || !video.videoWidth) return;
+          const text = qrFrom(video, video.videoWidth, video.videoHeight, [Math.min(640, Math.max(video.videoWidth, video.videoHeight))]);
+          if (text == null) return;
+          stop();
+          reading = true;
+          try { await fromCode(text); } finally { reading = false; }
+        }, 350);
+      });
+    }
+
+    // A file chosen with "Scan with Sentinel" in the Windows right-click menu, handed over once by the app: checked at once.
+    if (desktop && desktop.takeMenuFile) desktop.takeMenuFile().then(async (m) => {
+      if (!m || !el.isConnected) return;
+      if (!m.data) { toast(`${m.name} is too big. Files up to 25 MB can be checked.`, 'error'); return; }
+      if (await take(new File([m.data], m.name))) run(refresh());
+    }, () => toast('That file could not be opened. Drop it here instead.', 'error'));
+
+    // After the drafts are put back (render), so an old draft never takes the place of what was handed over: a link in
+    // the address (Back and reload show it without spending another scan), or what the Overview box, the palette or the
+    // phone's Share menu sent here.
+    const handed = shared;
+    shared = null;
+    Promise.resolve().then(() => {
+      if (preset) {
+        box.value = preset;
+        choice = null;
+        refresh();
+        if (!history.state || history.state.scanned !== preset) form.requestSubmit();
+      } else if (handed && handed.text) {
+        box.value = handed.text;
+        $('[name=from]', form).value = '';
+        choice = null;
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+        form.requestSubmit();
+      } else if (handed && handed.image) {
+        refresh();
+        readPicture(handed.image);
+        preview.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      } else refresh();
+    });
   }
 
   /* ------------------------------------------------------------ QR codes */
@@ -1003,19 +1341,6 @@
   // A picture of a QR code is read in this page (qr.js), never uploaded. Only the text it holds goes to the server,
   // which says what the code does: a link, or something that is not a link at all (a sign-in code, a wallet
   // connection, a crypto payment) and would never show up in a link scan.
-
-  function qrPicker() {
-    const camera = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-    return `<div class="qr-in" data-qr>
-        <span class="qr-in__icon">${ICON.qr}</span>
-        <div class="qr-in__text"><b>Got a QR code?</b><span>Choose, drop or paste (Ctrl+V) a picture of it${camera ? ', or hold it up to the camera' : ''}. It is read on this device and not uploaded.</span></div>
-        <span class="qr-in__btns">
-          <button class="btn btn--sm" type="button" data-qr-pick>Choose a picture</button><input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" aria-label="Picture of a QR code" data-qr-file hidden>
-          ${camera ? '<button class="btn btn--sm" type="button" data-qr-cam>Use the camera</button>' : ''}
-        </span>
-        <div class="qr-cam" data-qr-camview hidden><video muted playsinline aria-label="Camera view"></video><p class="muted">Hold the QR code up to the camera. It is read here, and the camera turns off as soon as a code is found.</p></div>
-      </div>`;
-  }
 
   /**
    * The text of a QR code in an image or a video frame, or null. A picture is tried at two sizes, large first, then
@@ -1091,92 +1416,6 @@
       out.innerHTML = friendlyError(err);
       return null;
     }
-  }
-
-  /** A picture chosen, dropped or pasted, or the camera, each ending in onText(the code's text). */
-  function wireQr(el, onText) {
-    const box = $('[data-qr]', el);
-    let reading = false;
-    const fromFile = async (file) => {
-      if (!file || reading) return;
-      if (!/^image\//.test(file.type)) { toast('Choose a picture of the QR code: PNG, JPEG, WebP, GIF or BMP.', 'error'); return; }
-      if (file.size > 20 * 1024 * 1024) { toast('That picture is too large.', 'error'); return; }
-      reading = true;
-      try {
-        const text = await qrFromFile(file);
-        if (text == null) toast('No QR code was found in that picture. Try a closer, sharper picture with the whole code in it.', 'info', 6000);
-        else await onText(text);
-      } catch (err) {
-        toast(qrLoad === null && !window.SentinelQR ? 'The QR code reader could not load. Try again in a moment.' : 'That picture could not be read.', 'error');
-      } finally { reading = false; }
-    };
-    const input = $('[data-qr-file]', box);
-    // A real button, so the keyboard reaches it; the file input itself stays out of the way.
-    $('[data-qr-pick]', box).addEventListener('click', () => input.click());
-    input.addEventListener('change', () => { fromFile(input.files[0]); input.value = ''; });
-    ['dragenter', 'dragover'].forEach((t) => el.addEventListener(t, (ev) => {
-      if (ev.dataTransfer && [...ev.dataTransfer.types].includes('Files')) { ev.preventDefault(); box.classList.add('is-over'); }
-    }));
-    el.addEventListener('dragleave', (ev) => { if (!el.contains(ev.relatedTarget)) box.classList.remove('is-over'); });
-    el.addEventListener('drop', (ev) => {
-      const file = ev.dataTransfer && ev.dataTransfer.files[0];
-      box.classList.remove('is-over');
-      if (!file) return;
-      ev.preventDefault();
-      fromFile(file);
-    });
-    // Ctrl+V with a picture on the clipboard (a Snipping Tool capture, say). Pasted text is left to the page: a copy
-    // from Excel or Word carries a picture of itself too, and pasted into a text box it is the text that is meant.
-    const onPaste = (ev) => {
-      if (!el.isConnected) { document.removeEventListener('paste', onPaste); return; }
-      const items = [...(ev.clipboardData ? ev.clipboardData.items : [])];
-      const typing = ev.target && ev.target.closest && ev.target.closest('input, textarea, [contenteditable]');
-      if (typing && items.some((i) => i.kind === 'string' && i.type === 'text/plain')) return;
-      const item = items.find((i) => i.kind === 'file' && /^image\//.test(i.type));
-      if (item) { ev.preventDefault(); fromFile(item.getAsFile()); }
-    };
-    document.addEventListener('paste', onPaste);
-
-    // The camera: on only while its view is open, looked at a few times a second, off the moment a code is found.
-    const camBtn = $('[data-qr-cam]', box);
-    if (!camBtn) return;
-    const camView = $('[data-qr-camview]', box);
-    const video = $('video', camView);
-    let stream = null;
-    let timer = null;
-    const stop = () => {
-      clearInterval(timer);
-      timer = null;
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-      stream = null;
-      video.srcObject = null;
-      camView.hidden = true;
-      camBtn.textContent = 'Use the camera';
-    };
-    camBtn.addEventListener('click', async () => {
-      if (stream) { stop(); return; }
-      try { await qrEngine(); } catch (err) { toast(err.message, 'error'); return; }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-      } catch {
-        stream = null;
-        toast('The camera could not be started. Check that one is connected and that apps are allowed to use it.', 'error', 6000);
-        return;
-      }
-      camView.hidden = false;
-      camBtn.textContent = 'Stop the camera';
-      video.srcObject = stream;
-      try { await video.play(); } catch { /* it plays when it can */ }
-      timer = setInterval(async () => {
-        if (!el.isConnected) { stop(); return; }
-        if (reading || !video.videoWidth) return;
-        const text = qrFrom(video, video.videoWidth, video.videoHeight, [Math.min(640, Math.max(video.videoWidth, video.videoHeight))]);
-        if (text == null) return;
-        stop();
-        reading = true;
-        try { await onText(text); } finally { reading = false; }
-      }, 350);
-    });
   }
 
   const REPORT_CATEGORIES = [
@@ -1301,268 +1540,6 @@
     });
   }
 
-  /* ====================================================== virus & malware */
-
-  function threatsView(el, params) {
-    const f = plan().features;
-    const mode = params.get('mode') === 'url' ? 'url' : 'file';
-    el.innerHTML = `
-      ${localNote()}
-      ${title('Virus &amp; malware scan', `Check a file or download link for viruses and malware. ${f.research ? 'Links are researched and downloaded files are inspected.' : 'Files are fully inspected; links get the checklist without research.'}`,
-        `<div class="segmented" role="tablist"><button role="tab" data-mode="file" aria-selected="${mode === 'file'}">File</button><button role="tab" data-mode="url" aria-selected="${mode === 'url'}">Link</button></div>`)}
-      ${modelSlot(true)}
-      <div data-input></div>
-      <div class="scan-meta"><span data-left>${left('fileScans')} of ${usage().fileScans.limit} scans left this week</span><span>Files up to 25 MB &middot; nothing is stored</span></div>
-      <div data-out></div>`;
-
-    $$('[data-mode]', el).forEach((b) => b.addEventListener('click', () => navigate(`/app/threats?mode=${b.dataset.mode}`)));
-    mountModels(el);
-    const input = $('[data-input]', el);
-    const out = $('[data-out]', el);
-    const updateLeft = () => { $('[data-left]', el).textContent = `${left('fileScans')} of ${usage().fileScans.limit} scans left this week`; };
-
-    if (mode === 'url') {
-      input.innerHTML = `<form class="scanbox" data-form>${ICON.search}<input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a download link or web address" aria-label="Link to scan" required><button class="btn btn--gold" type="submit">Scan</button></form>`;
-      const form = $('[data-form]', input);
-      form.addEventListener('submit', async (ev) => {
-        ev.preventDefault();
-        const watch = watchScan(out, linkSteps(f.research), { dig: f.research });
-        try {
-          const data = await busy($('button', form), 'Scanning', () => api('/scan/threat', { method: 'POST', body: { url: form.url.value.trim() }, onStage: watch.onStage }));
-          applyUsage(data.usage);
-          updateLeft();
-          showVerdict(out, data.verdict);
-          watch.done();
-        } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
-      });
-      return;
-    }
-
-    input.innerHTML = `<label class="drop" data-drop>
-      <input type="file" data-file aria-label="Choose a file to scan">
-      <div><div class="drop__icon">${ICON.upload}</div><h2>Drop a file here, or click to choose</h2><p>Programs, documents, archives, scripts, installers</p></div>
-    </label>`;
-    const drop = $('[data-drop]', input);
-    const fileInput = $('[data-file]', input);
-    // One file at a time: a second drop while one is being checked would start a second scan and use a second
-    // scan from the allowance.
-    let scanning = false;
-    const scanFile = async (file) => {
-      if (!file) return;
-      if (scanning) { toast('One file at a time. This one is still being checked.', 'info'); return; }
-      if (file.size > 25 * 1024 * 1024) { toast('Files up to 25 MB can be scanned.', 'error'); return; }
-      scanning = true;
-      drop.setAttribute('aria-busy', 'true');
-      const watch = watchScan(out, FILE_STEPS, { note: `${file.name} · ${bytes(file.size)}` });
-      try {
-        const data = await api('/scan/file', { method: 'POST', raw: file, headers: { 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, onStage: watch.onStage });
-        applyUsage(data.usage);
-        updateLeft();
-        showVerdict(out, data.verdict, { focus: true });
-        watch.done();
-      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
-      fileInput.value = '';
-      scanning = false;
-      drop.removeAttribute('aria-busy');
-    };
-    fileInput.addEventListener('change', () => scanFile(fileInput.files[0]));
-    ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (ev) => { ev.preventDefault(); drop.classList.add('is-over'); }));
-    ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (ev) => { ev.preventDefault(); drop.classList.remove('is-over'); }));
-    drop.addEventListener('drop', (ev) => scanFile(ev.dataTransfer.files[0]));
-    // A file chosen with "Scan with Sentinel" in the Windows right-click menu, handed over once by the app.
-    if (desktop && desktop.takeMenuFile) desktop.takeMenuFile().then((m) => {
-      if (!m || !el.isConnected) return;
-      if (!m.data) { toast(`${m.name} is too big. Files up to 25 MB can be scanned.`, 'error'); return; }
-      scanFile(new File([m.data], m.name));
-      // The answer is what the person came for: below the drop zone it was out of sight.
-      out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-    },() => toast('That file could not be opened. Drop it here instead.', 'error'));
-  }
-
-  /* ========================================================= email scan */
-
-  function emailView(el) {
-    const f = plan().features;
-    if (!f.emailManual) {
-      el.innerHTML = `${title('Email scan', 'Paste a suspicious email and Sentinel checks the sender, wording, every link and every attachment.')}
-        ${lockedCard({ tag: 'Max', heading: 'Scan any email you paste in, or a screenshot of one', body: `Pasting emails and screenshots in is part of Sentinel Max. ${f.emailLive ? 'Your Pro plan already marks emails automatically in Gmail and Outlook through the Sentinel app.' : 'Pro, Max and Ultimate also mark emails automatically in Gmail and Outlook.'}`, actions: '<a class="btn btn--gold" href="/app/plan">Upgrade to Max</a>' })}`;
-      return;
-    }
-    el.innerHTML = `
-      ${title('Email scan', 'Paste what you see in your inbox. Every link and the sender\'s domain go through the full link pipeline too.',
-        '<div class="segmented" role="tablist"><button role="tab" data-emode="fields" aria-selected="true">Fill in</button><button role="tab" data-emode="paste" aria-selected="false">Paste whole email</button><button role="tab" data-emode="shot" aria-selected="false">Screenshot</button></div>')}
-      ${modelSlot(true)}
-      <div class="panel" data-shot hidden>
-        <label class="drop" data-shot-drop>
-          <input type="file" accept="image/png,image/jpeg" data-shot-file aria-label="Choose a screenshot of the email">
-          <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a screenshot of the email, or click to choose</h3><p>Or press Ctrl+V to paste one. PNG or JPEG. A QR code in it is read too.</p></div>
-        </label>
-        <figure class="shot" data-shot-preview hidden><img alt="The screenshot to read"><figcaption data-shot-status></figcaption></figure>
-        <p class="field__hint u-mt-sm">${desktop && desktop.readScreenshot
-          ? 'Read on this computer by Windows. The image is not uploaded or kept. Links are read as they appear on screen, so a link whose words differ from where it really goes is best pasted as text.'
-          : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>'}</p>
-      </div>
-      <form class="panel" data-paste data-draft="email-paste" hidden>
-        <div class="field"><label for="e-raw">Paste the whole email, headers and all</label><textarea class="textarea" id="e-raw" name="raw" rows="10" placeholder="From: PayPal Security <alerts@example.com>&#10;Subject: Your account is limited&#10;&#10;Dear customer, ..."></textarea><span class="field__hint">Sentinel picks out the sender, reply-to, subject and links, then fills the form for you to check. With its headers, it also shows who really sent it.</span></div>
-        <div data-header-help>
-          <p class="field__hint"><b>Gmail:</b> open the email, click the three dots, choose Show original, then Copy to clipboard.</p>
-          <p class="field__hint"><b>Outlook:</b> open the email, click the three dots, choose View, then View message source, and copy it all.</p>
-        </div>
-        <div class="report__foot"><span><button class="btn" type="button" data-eml-open>Open an .eml file</button><input type="file" accept=".eml,message/rfc822" data-eml hidden></span><button class="btn btn--gold" type="button" data-parse>Read this email</button></div>
-      </form>
-      <form class="panel" data-form data-draft="email-scan">
-        <div data-email-qr></div>
-        <div class="row2">
-          <div class="field"><label for="e-from">From</label><input class="input" id="e-from" name="from" dir="auto" placeholder="PayPal Security &lt;alerts@example.com&gt;" autocomplete="off"></div>
-          <div class="field"><label for="e-reply">Reply-to <span class="opt">(optional)</span></label><input class="input" id="e-reply" name="replyTo" autocomplete="off"></div>
-        </div>
-        <div class="field"><label for="e-subject">Subject</label><input class="input" id="e-subject" name="subject" dir="auto" autocomplete="off"></div>
-        <div class="field"><label for="e-body">Message</label><textarea class="textarea" id="e-body" name="body" placeholder="Paste the message text, including any links"></textarea></div>
-        <div class="field"><label for="e-att">Attachment names <span class="opt">(optional, comma separated)</span></label><input class="input" id="e-att" name="attachments" placeholder="Invoice_2026.pdf.exe, statement.zip" autocomplete="off"></div>
-        <div class="report__foot">
-          <span class="muted">Uses 1 of your ${left('deepScans')} remaining delicate scans. Nothing is stored.</span>
-          <button class="btn btn--gold" type="submit">Scan email</button>
-        </div>
-      </form>
-      <div data-out></div>`;
-
-    mountModels(el);
-    const form = $('[data-form]', el);
-    const out = $('[data-out]', el);
-    const pasteBox = $('[data-paste]', el);
-    const shotBox = $('[data-shot]', el);
-    $$('[data-emode]', el).forEach((b) => b.addEventListener('click', () => {
-      $$('[data-emode]', el).forEach((x) => x.setAttribute('aria-selected', String(x === b)));
-      pasteBox.hidden = b.dataset.emode !== 'paste';
-      shotBox.hidden = b.dataset.emode !== 'shot';
-      // Pasting a whole email starts another one: a code from an earlier screenshot does not go with it.
-      if (!pasteBox.hidden) { forgetShotQr(); $('textarea', pasteBox).focus(); }
-    }));
-    // The sender-check headers of the email last pasted or opened, sent with its scan while its From is unchanged.
-    // Not kept in the draft.
-    let pasted = { from: '', headers: '' };
-    const fill = (raw) => {
-      const m = parseEmail(raw);
-      pasted = { from: m.from, headers: m.headers };
-      form.from.value = m.from; form.replyTo.value = m.replyTo; form.subject.value = m.subject; form.body.value = m.body; form.attachments.value = m.attachments.join(', ');
-      $$('[data-emode]', el).forEach((x) => x.setAttribute('aria-selected', String(x.dataset.emode === 'fields')));
-      pasteBox.hidden = true;
-      shotBox.hidden = true;
-      // Filled in by script, which raises no input event: say so, so the draft keeps what was filled in.
-      form.dispatchEvent(new Event('input', { bubbles: true }));
-      toast(m.from ? `Found sender ${m.from}. Check the fields, then scan.` : 'No headers found, so the text went into the message field.', 'info', 5000);
-      // The box just used is hidden now: the keyboard goes on to the fields to check, not back to the top of the page.
-      form.from.focus({ preventScroll: true });
-      form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-    };
-    $('[data-parse]', el).addEventListener('click', () => {
-      const raw = $('textarea', pasteBox).value;
-      if (raw.trim()) fill(raw);
-    });
-    // An .eml file (saved from Outlook or Thunderbird, or dragged out of one), read here as text like a paste.
-    const emlInput = $('[data-eml]', el);
-    const readEml = async (file) => {
-      if (!file) return;
-      if (!/\.eml$/i.test(file.name) && file.type !== 'message/rfc822') { toast('Choose an email saved as an .eml file.', 'error'); return; }
-      if (file.size > 10 * 1024 * 1024) { toast('That email is too large to read here.', 'error'); return; }
-      const raw = await file.text();
-      $('textarea', pasteBox).value = raw;
-      fill(raw);
-    };
-    $('[data-eml-open]', el).addEventListener('click', () => emlInput.click());
-    emlInput.addEventListener('change', () => { readEml(emlInput.files[0]); emlInput.value = ''; });
-    const rawBox = $('textarea', pasteBox);
-    rawBox.addEventListener('dragover', (ev) => { if ([...ev.dataTransfer.types].includes('Files')) ev.preventDefault(); });
-    rawBox.addEventListener('drop', (ev) => { if (ev.dataTransfer.files.length) { ev.preventDefault(); readEml(ev.dataTransfer.files[0]); } });
-
-    // A screenshot: cut into slices the recogniser can take (it has a maximum size), read on this computer, and
-    // put through the same reading as a pasted email.
-    const preview = $('[data-shot-preview]', el);
-    const shotStatus = $('[data-shot-status]', el);
-    // A QR code in the screenshot, read in this page whatever the computer: its text goes with the scan, so a link
-    // hidden in the code is checked with the email's other links, and a sign-in code is called what it is.
-    const qrSlot = $('[data-email-qr]', el);
-    let shotQr = [];
-    function forgetShotQr() { shotQr = []; qrSlot.innerHTML = ''; }
-    let reading = false;
-    const readShot = async (file) => {
-      if (!file || reading) return;
-      if (!/^image\/(png|jpeg)$/.test(file.type)) { toast('Screenshots must be PNG or JPEG images.', 'error'); return; }
-      if (file.size > 20 * 1024 * 1024) { toast('That screenshot is too large.', 'error'); return; }
-      const url = URL.createObjectURL(file);
-      $('img', preview).src = url;
-      preview.hidden = false;
-      forgetShotQr();
-      try {
-        const code = await qrFromFile(file);
-        if (code != null && await explainQr(qrSlot, code)) shotQr = [window.SentinelQR.redact(code)];
-      } catch { /* no code read: the text is still read below */ }
-      if (!desktop || !desktop.readScreenshot) { shotStatus.textContent = 'Reading screenshots needs the Sentinel app for Windows.'; return; }
-      reading = true;
-      preview.classList.add('is-reading');
-      shotStatus.textContent = 'Reading the screenshot…';
-      try {
-        const slices = await sliceImage(file);
-        const texts = await desktop.readScreenshot(slices);
-        const text = joinSlices(texts);
-        if (!text.trim()) { shotStatus.textContent = 'No text was found in that image.'; return; }
-        shotStatus.textContent = `Read ${text.split('\n').length} lines.`;
-        fill(withSender(text));
-      } catch (err) {
-        shotStatus.textContent = desktopError(err);
-      } finally {
-        reading = false;
-        preview.classList.remove('is-reading');
-        URL.revokeObjectURL(url);
-      }
-    };
-    const shotInput = $('[data-shot-file]', el);
-    shotInput.addEventListener('change', () => { readShot(shotInput.files[0]); shotInput.value = ''; });
-    const shotDrop = $('[data-shot-drop]', el);
-    ['dragenter', 'dragover'].forEach((t) => shotDrop.addEventListener(t, (ev) => { ev.preventDefault(); shotDrop.classList.add('is-over'); }));
-    ['dragleave', 'drop'].forEach((t) => shotDrop.addEventListener(t, (ev) => { ev.preventDefault(); shotDrop.classList.remove('is-over'); }));
-    shotDrop.addEventListener('drop', (ev) => readShot(ev.dataTransfer.files[0]));
-    // Ctrl+V with an image on the clipboard (a Snipping Tool capture, say), while the screenshot tab is open.
-    const onPaste = (ev) => {
-      if (!el.isConnected) { document.removeEventListener('paste', onPaste); return; }
-      if (shotBox.hidden) return;
-      const item = [...(ev.clipboardData ? ev.clipboardData.items : [])].find((i) => i.kind === 'file' && /^image\/(png|jpeg)$/.test(i.type));
-      if (item) { ev.preventDefault(); readShot(item.getAsFile()); }
-    };
-    document.addEventListener('paste', onPaste);
-
-    form.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      if (![form.from, form.subject, form.body].some((x) => x.value.trim()) && !shotQr.length) {
-        toast('Paste the email you want checked, or at least its sender or message.', 'error');
-        form.body.focus();
-        return;
-      }
-      // What Sentinel reads of an email (server/routes/scan.routes.js cleanMail): a 5 MB paste is cut here, so it is
-      // scanned instead of being refused as too large to send.
-      const body = form.body.value.slice(0, 20000);
-      // Typed or read from a screenshot, an address may have no scheme: "www.example.com/login" is a link too.
-      const found = [...(body.match(/https?:\/\/[^\s<>"')]+/g) || []), ...(body.match(/(?<![\w./@-])www\.[a-z0-9.-]+\.[a-z]{2,}[^\s<>"')]*/gi) || []).map((u) => `https://${u}`)];
-      const links = [...new Set(found)].map((href) => ({ href, text: '' }));
-      const payload = {
-        from: form.from.value, replyTo: form.replyTo.value, subject: form.subject.value, body,
-        links, attachments: form.attachments.value.split(',').map((s) => s.trim()).filter(Boolean), qr: shotQr,
-        headers: pasted.headers && form.from.value === pasted.from ? pasted.headers.slice(0, 16000) : ''
-      };
-      const watch = watchScan(out, EMAIL_STEPS);
-      try {
-        const data = await busy($('button[type=submit]', form), 'Scanning', () => api('/scan/email', { method: 'POST', body: payload, onStage: watch.onStage }));
-        applyUsage(data.usage);
-        showVerdict(out, data.verdict);
-        watch.done();
-        showProof(out, data.verdict.sender);
-        showMarks(out, payload, data.verdict.checklist.items);
-        // Scanned with this email. The next email typed in here is another one, without this screenshot's code.
-        forgetShotQr();
-      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
-    });
-  }
-
   // What each finding is called on its mark, and why it matters, in plain words. Keyed by the check (server/lib/scan/email.js).
   const EMAIL_MARKS = {
     E01: ['Name is not the address', 'The name says one company, but the address it came from belongs to someone else. Anyone can type any name.'],
@@ -1668,8 +1645,8 @@
 
   /* ======================================================= shared from a phone */
 
-  // The phone's Share menu opens /app/share (manifest.webmanifest share_target): a link goes to the link scan, words to
-  // the text scan (their links checked), a picture to the text scan's screenshot reader (share.js decides). The share
+  // The phone's Share menu opens /app/share (manifest.webmanifest share_target): a link, words or a picture go to the
+  // Check page, which checks them at once (share.js decides which). The share
   // box is emptied as it is read, so nothing shared stays on the device after this.
   function shareView(el, params) {
     el.innerHTML = `${title('Shared with Sentinel', 'Opening the right check for what you shared.')}<div data-out aria-live="polite"></div>`;
@@ -1681,171 +1658,21 @@
       const share = got || (q ? { title: q.get('title') || '', text: q.get('text') || '', url: q.get('url') || '', image: null } : null);
       const r = share ? Share.route({ ...share, image: Boolean(share.image) }) : { kind: 'empty' };
       const go = (href) => { history.replaceState({}, '', href); render(); };
-      if (r.kind === 'link') return go(`/app/scan?url=${encodeURIComponent(r.url)}`);
-      if (r.kind === 'text') { shared = { text: r.text }; return go('/app/text'); }
-      if (r.kind === 'image') { shared = { image: share.image }; return go('/app/text'); }
+      if (r.kind === 'link') return go(`/app/check?url=${encodeURIComponent(r.url)}`);
+      if (r.kind === 'text') { shared = { text: r.text }; return go('/app/check'); }
+      if (r.kind === 'image') { shared = { image: share.image }; return go('/app/check'); }
       const sub = $('.page-title p', el);
       if (sub) sub.textContent = 'Check a message or a link straight from another app.';
       $('[data-out]', el).innerHTML = `<div class="panel" data-share-empty>
         <p>${params.get('missed') ? 'What you shared did not reach Sentinel. Please share it once more.' : 'Nothing is waiting to be checked.'}
-          In Messages, WhatsApp, Gmail or your browser, press Share and choose Sentinel: a link opens in Link scan, a message in Text scan.</p>
+          In Messages, WhatsApp, Gmail or your browser, press Share and choose Sentinel: the link, message or picture opens in Check.</p>
         <p class="field__hint u-mt-sm" data-iphone-note>${esc(IPHONE_NOTE)}</p>
-        <p class="u-mt-sm"><a class="btn btn--sm" href="/app/text">Text scan</a> <a class="btn btn--sm" href="/app/scan">Link scan</a></p>
+        <p class="u-mt-sm"><a class="btn btn--sm" href="/app/check">Check something</a></p>
       </div>`;
     });
   }
 
-  /* ===================================================== text message scan */
-
-  // A text, WhatsApp message or DM, pasted in or read from a phone screenshot on this computer (the way the email scan
-  // reads one, then textshot.js picks out the sender and the messages). Judged on the server by the rules Phone Link
-  // checking uses (server/lib/scan/texts.js); links are checked by their address only. Nothing is kept.
-  // The most of a pasted conversation sent for a check (server/routes/scan.routes.js reads the same).
-  const TEXT_MAX = 40000;
-  function textView(el) {
-    const canRead = Boolean(desktop && desktop.readScreenshot);
-    const allowance = () => `${scanLeftText('fast')}. A text counts as one fast link scan, on every plan: its links are checked by their address only, not researched like a pasted email. Nothing is stored.`;
-    el.innerHTML = `
-      ${title('Text scan', 'Got a text, a WhatsApp message or a DM you are not sure about? Paste it in, or a screenshot of it, and Sentinel says if it looks like a scam and what to do. A whole conversation works too: Sentinel shows if it follows the steps of a slow scam.',
-        '<div class="segmented" role="tablist"><button role="tab" data-tmode="paste" aria-selected="true">Paste the text</button><button role="tab" data-tmode="shot" aria-selected="false">Screenshot</button></div>')}
-      <div class="panel" data-shot hidden>
-        <label class="drop" data-shot-drop>
-          <input type="file" accept="image/png,image/jpeg" data-shot-file aria-label="Choose a screenshot of the message">
-          <div><div class="drop__icon">${ICON.upload}</div><h3>Drop a screenshot from your phone, or click to choose</h3><p>Or press Ctrl+V to paste one. PNG or JPEG.</p></div>
-        </label>
-        <figure class="shot" data-shot-preview hidden><img alt="The screenshot to read"><figcaption data-shot-status></figcaption></figure>
-        <div data-text-qr></div>
-        <p class="field__hint u-mt-sm">${canRead
-          ? 'Read on this computer by Windows. The image is not uploaded or kept. A screenshot of a whole conversation works too.'
-          : 'Screenshots are read on your own computer by the Sentinel app for Windows, so they never have to be uploaded. <a class="u-gold" href="/download">Get the app</a>, or paste the text instead.'}</p>
-      </div>
-      ${iphone ? `<p class="field__hint" data-iphone-note>${esc(IPHONE_NOTE)}</p>` : ''}
-      <form class="panel" data-form data-draft="text-scan">
-        <div class="field"><label for="t-from">From <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="t-from" name="from" dir="auto" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
-        <div class="field"><label for="t-text">Message or conversation</label><textarea class="textarea" id="t-text" name="text" rows="6" placeholder="Paste the message, or the whole conversation, including any links"></textarea></div>
-        <div class="report__foot">
-          <span class="muted" data-left>${esc(allowance())}</span>
-          <button class="btn btn--gold" type="submit">Check this text</button>
-        </div>
-      </form>
-      <div data-out aria-live="polite"></div>`;
-
-    const form = $('[data-form]', el);
-    const out = $('[data-out]', el);
-    const shotBox = $('[data-shot]', el);
-    const setMode = (mode) => {
-      $$('[data-tmode]', el).forEach((x) => x.setAttribute('aria-selected', String(x.dataset.tmode === mode)));
-      shotBox.hidden = mode !== 'shot';
-      form.hidden = mode === 'shot';
-    };
-    $$('[data-tmode]', el).forEach((b) => b.addEventListener('click', () => setMode(b.dataset.tmode)));
-
-    const preview = $('[data-shot-preview]', el);
-    const shotStatus = $('[data-shot-status]', el);
-    let reading = false;
-    const readShot = async (file) => {
-      if (!file || reading) return;
-      const qrOut = $('[data-text-qr]', el);
-      if (!/^image\/(png|jpeg)$/.test(file.type)) {
-        // Said where the picture would be, and kept there: a HEIC photo shared from a phone otherwise left an empty page.
-        qrOut.innerHTML = `<div class="banner banner--error" role="alert" data-shot-wrong>This picture is not a PNG or JPEG, so Sentinel cannot read it. Take a screenshot of it and share or choose that instead, or copy the message and paste it in Message.</div>`;
-        toast('Screenshots must be PNG or JPEG images.', 'error');
-        return;
-      }
-      if (file.size > 20 * 1024 * 1024) { toast('That screenshot is too large.', 'error'); return; }
-      qrOut.innerHTML = '';
-      const url = URL.createObjectURL(file);
-      $('img', preview).src = url;
-      preview.hidden = false;
-      if (!canRead) {
-        // A phone (a picture shared to Sentinel) or a browser without the app: the words need the Windows app, but a QR
-        // code in the picture is read here, on this device, and its link checked, as the email scan does.
-        shotStatus.textContent = 'Looking for a QR code in the picture…';
-        let code = null;
-        try { code = await qrFromFile(file); } catch { /* no reader or no code: said below */ }
-        if (code != null && await explainQr(qrOut, code, { focus: true })) {
-          shotStatus.textContent = 'The QR code in this picture was read and checked below. The words in a picture are read by the Sentinel app for Windows.';
-        } else {
-          shotStatus.textContent = 'The words in a picture are read by the Sentinel app for Windows, so they cannot be read here. Copy the message itself, then paste it in Message.';
-        }
-        return;
-      }
-      reading = true;
-      preview.classList.add('is-reading');
-      shotStatus.textContent = 'Reading the screenshot…';
-      try {
-        const m = window.SentinelTextShot.read(joinSlices(await desktop.readScreenshot(await sliceImage(file))));
-        if (!m.text) { shotStatus.textContent = 'No message was found in that image.'; return; }
-        shotStatus.textContent = m.from ? `Read a message from ${m.from}.` : 'Read the message.';
-        form.from.value = m.from;
-        form.text.value = m.text;
-        setMode('paste');
-        toast('Check what was read, then press Check this text.', 'info', 5000);
-        form.text.focus();
-      } catch (err) {
-        shotStatus.textContent = desktopError(err);
-      } finally {
-        reading = false;
-        preview.classList.remove('is-reading');
-        URL.revokeObjectURL(url);
-      }
-    };
-    const shotInput = $('[data-shot-file]', el);
-    shotInput.addEventListener('change', () => { readShot(shotInput.files[0]); shotInput.value = ''; });
-    const shotDrop = $('[data-shot-drop]', el);
-    ['dragenter', 'dragover'].forEach((t) => shotDrop.addEventListener(t, (ev) => { ev.preventDefault(); shotDrop.classList.add('is-over'); }));
-    ['dragleave', 'drop'].forEach((t) => shotDrop.addEventListener(t, (ev) => { ev.preventDefault(); shotDrop.classList.remove('is-over'); }));
-    shotDrop.addEventListener('drop', (ev) => readShot(ev.dataTransfer.files[0]));
-    // Ctrl+V with an image on the clipboard, on either tab: pasted words still go into the message box.
-    const onPaste = (ev) => {
-      if (!el.isConnected) { document.removeEventListener('paste', onPaste); return; }
-      const item = [...(ev.clipboardData ? ev.clipboardData.items : [])].find((i) => i.kind === 'file' && /^image\/(png|jpeg)$/.test(i.type));
-      if (item) { ev.preventDefault(); setMode('shot'); readShot(item.getAsFile()); }
-    };
-    document.addEventListener('paste', onPaste);
-
-    form.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      if (!form.text.value.trim()) { toast('Paste the message you want checked.', 'error'); form.text.focus(); return; }
-      // A long conversation is read up to TEXT_MAX letters: its start (how it began) and its most recent part (where
-      // it is now). It used to be cut at 8000 by the box itself, without a word, losing the newest messages.
-      const all = form.text.value;
-      const cut = all.length > TEXT_MAX;
-      const text = cut ? `${all.slice(0, 10000)}\n${all.slice(-(TEXT_MAX - 10001))}` : all;
-      const button = $('button[type=submit]', form);
-      if (button.dataset.busy) return;
-      const watch = watchScan(out, TEXT_STEPS, { note: 'Read in memory only: never kept, and not in your history.' });
-      try {
-        const data = await busy(button, 'Checking', () => api('/scan/text', { method: 'POST', body: { from: form.from.value, text }, onStage: watch.onStage }));
-        applyUsage(data.usage);
-        $('[data-left]', el).textContent = allowance();
-        out.innerHTML = textResult(data.text, form.from.value.trim())
-          + (cut ? `<p class="field__hint u-mt-sm">This conversation is very long, so Sentinel read its first part and its most recent ${(TEXT_MAX - 10000).toLocaleString('en')} letters.</p>` : '');
-        riseMask(out);
-        watch.done();
-        const from = form.from.value.trim();
-        wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, $('[data-text-result]', out).dataset.textResult));
-        out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
-    });
-
-    // Shared from the phone's Share menu (shareView): checked at once, as a link shared to Link scan is. After the
-    // drafts are put back (render), so an old draft never takes the place of what was shared.
-    const share = shared;
-    shared = null;
-    if (share) Promise.resolve().then(() => {
-      if (share.text) {
-        form.from.value = '';
-        form.text.value = share.text;
-        form.text.dispatchEvent(new Event('input', { bubbles: true }));
-        form.requestSubmit();
-      } else if (share.image) {
-        setMode('shot');
-        readShot(share.image);
-        preview.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-      }
-    });
-  }
+  /* ============================================================ a text's result */
 
   /** The verdict card for a text: what it is, why, what to do, and each link's own result. */
   function textResult(r, from) {
@@ -2083,7 +1910,7 @@
       // The address is a link of its own (the app's link handler opens it); the rest of the row does the same.
       if (ev.target.closest('a')) return;
       const row = ev.target.closest('[data-rescan]');
-      if (row) navigate(`/app/scan?url=${encodeURIComponent(row.dataset.rescan)}`);
+      if (row) navigate(`/app/check?url=${encodeURIComponent(row.dataset.rescan)}`);
     });
     // Clearing everything asks first: one press says what a second press does.
     let clearArmed = 0;
