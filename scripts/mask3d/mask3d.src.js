@@ -372,7 +372,9 @@ async function build(el) {
   };
   let visible = false;
   new ResizeObserver(resize).observe(el);
-  new IntersectionObserver((e) => { visible = e[0].isIntersecting; if (visible) { mask.last = performance.now(); stir(); } }, { rootMargin: '80px' }).observe(el);
+  // The newest entry: a scroll out and back in within one callback arrives as two, and reading the first left a mask on
+  // screen marked hidden, its canvas blank (the threat plate after the black hole).
+  new IntersectionObserver((e) => { visible = e[e.length - 1].isIntersecting; if (visible) { mask.last = performance.now(); stir(); } }, { rootMargin: '80px' }).observe(el);
   resize();
 
   /* -------- motion: a calm spring toward where it should look */

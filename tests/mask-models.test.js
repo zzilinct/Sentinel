@@ -77,4 +77,6 @@ test('mask3d.src.js puts the baked maps under the site\'s own finish', () => {
   assert.match(src, /material\.aoMap = baked\.aoMap/);
   // The eyes are the model's: nothing is drawn over the metal.
   assert.doesNotMatch(src, /Sprite|AdditiveBlending|PlaneGeometry/);
+  // Visibility from the newest observer entry, or a mask on screen can stay blank.
+  assert.match(src, /visible = e\[e\.length - 1\]\.isIntersecting/);
 });
