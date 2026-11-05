@@ -130,7 +130,8 @@
       return;
     }
     if (s.view === 'welcome') {
-      if (only('welcome')) document.getElementById('go').focus();
+      // The keyboard starts on Turn on, without scrolling the page: on a small window the person reads from the top.
+      if (only('welcome')) document.getElementById('go').focus({ preventScroll: true });
       const ul = document.getElementById('items');
       ul.replaceChildren(...(s.protection ? s.protection.items : []).filter((i) => i.enabled).map((i) => {
         const li = document.createElement('li');
