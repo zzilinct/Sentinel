@@ -1223,7 +1223,7 @@
           return;
         }
         shotStatus.textContent = 'Reading the words in the picture…';
-        const raw = joinSlices(await desktop.readScreenshot(await sliceImage(pic)));
+        raw = joinSlices(await desktop.readScreenshot(await sliceImage(pic)));
         if (!raw.trim()) { shotStatus.textContent = 'No words were found in this picture.'; return; }
         // An address near the top is an email's sender; otherwise it is a phone's messages (textshot.js).
         const mail = withSender(raw);
