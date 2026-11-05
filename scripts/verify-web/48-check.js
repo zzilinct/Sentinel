@@ -106,6 +106,8 @@ async function checkCheck() {
       await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, s);
       for (const theme of ['dark', 'light']) {
         await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
+        // Empty for its picture: what was typed before is kept for the Back button (drafts), so it is cleared first.
+        await evalIn(browser, s, '(sessionStorage.clear(), true)');
         await goto(browser, s, `${base}/app/check`, ready);
         await sleep(500);
         await shot(browser, s, `check-empty-${size}-${theme}`);
