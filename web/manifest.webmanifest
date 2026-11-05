@@ -26,7 +26,6 @@
     }
   },
   "shortcuts": [
-    { "name": "Scan a link", "url": "/app/scan", "icons": [{ "src": "/assets/img/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Scan a file", "url": "/app/threats", "icons": [{ "src": "/assets/img/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Check something", "url": "/app/check", "icons": [{ "src": "/assets/img/icon-192.png", "sizes": "192x192" }] }
   ]
 }

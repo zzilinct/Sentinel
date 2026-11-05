@@ -603,7 +603,7 @@
             <span>${v.known ? 'Known threat' : `${ran} checks &middot; ${v.checks.failed + v.checks.warned} flagged &middot; ${v.local ? 'checked in your browser' : v.delicate ? 'site researched' : 'no research'}`}</span>
             ${v.local
     ? '<a href="download.html">Threat lists and research come with the app &rarr;</a>'
-    : `<a href="/signup?next=${encodeURIComponent(`/app/scan?url=${encodeURIComponent(v.url)}`)}">Research it with Sentinel Pro &rarr;</a>`}
+    : `<a href="/signup?next=${encodeURIComponent(`/app/check?url=${encodeURIComponent(v.url)}`)}">Research it with Sentinel Pro &rarr;</a>`}
           </div>
         </div>`;
     }

@@ -15,7 +15,7 @@
   const IMAGE = '/share/image';
   // A share left waiting (sign-in never finished) is not kept for later.
   const FRESH_MS = 30 * 60 * 1000;
-  // The most of a shared text kept: the text scan reads its start and its newest part (TEXT_MAX in app.js), so a long
+  // The most of a shared text kept: the Check page reads its start and its newest part (TEXT_MAX in app.js), so a long
   // share is kept whole up to this, and past it by its start and its end, where the newest messages are.
   const MAX = 400000;
   const HEAD = 10000;
@@ -25,7 +25,7 @@
   const LINK = /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z][a-z0-9-]+(:\d{1,5})?([/?#]\S*)?$/i;
   const onlyLink = (s) => Boolean(s) && !/\s/.test(s) && LINK.test(s);
 
-  /** Which check a share opens. A link alone gets the link scan; words get the text scan, links and all. */
+  /** Which check a share opens. The Check page takes all three: a link alone is checked as a link, words as a message, links and all. */
   function route({ title, text, url, image } = {}) {
     if (image) return { kind: 'image' };
     const t = String(title || '').trim();
