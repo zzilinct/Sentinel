@@ -171,7 +171,7 @@ const blockUrl = (url, seen) => `${ext.runtime.getURL(BLOCK_PAGE)}${seen ? '?see
 const DOOR_RULE = 1;
 const DOOR_ADDRESSES = 200;
 const dnr = () => ext.declarativeNetRequest || null;
-const isLetThrough = (r, tabId, host) => r.action.type === 'allow' && r.condition.tabIds[0] === tabId && (host === undefined || r.condition.requestDomains[0] === host);
+const isLetThrough = (r, tabId, host) => r.action.type === 'allow' && (r.condition.tabIds || [])[0] === tabId && (host === undefined || (r.condition.requestDomains || [])[0] === host);
 const addressFilter = (url) => `|${url}|`;
 // One writer at a time: each rule's id comes from reading the rules there are.
 const inDoorOrder = (step) => (dnr() ? inTabOrder('door', step) : Promise.resolve());
@@ -971,24 +971,27 @@ function warnInPlace(tabId, verdict, settings) {
  */
 // Only when the person asked for http. An address asked for on https whose https fails stays failed, as in Chrome: someone
 // who can break a site's https must not get the person onto plain http by Sentinel's hand. What was asked for is noted
-// only for a site the door would stop, before the browser's switch (onBeforeNavigate, http addresses only), in this
-// worker's memory and, outside a private window, in session storage, which goes when the browser closes.
-const askedKey = (tabId) => `asked:${tabId}`;
-const askedHere = new Map();
-async function askedFor(d) {
-  if (d.frameId !== 0) return;
-  await recalled;
-  if (!localVerdict(d.url) && !(await doorOnFor(d.url))) return;
-  askedHere.set(d.tabId, d.url);
-  const tab = await Promise.resolve(ext.tabs.get(d.tabId)).catch(() => null);
-  if (tab && !tab.incognito) await sessionSet(askedKey(d.tabId), d.url);
+// only for a site the door would stop, before the browser's switch (onBeforeNavigate, http addresses only), as a rule in
+// the browser's session rules that matches nothing (a ping from that tab to that exact address): no storage holds it, a
+// private window keeps it as well as any other, a stopped worker does not lose it, and it goes with the tab.
+const askedRule = (r, tabId) => r.action.type === 'allow' && (r.condition.tabIds || [])[0] === tabId && String(r.condition.resourceTypes) === 'ping';
+function askedFor(d) {
+  if (d.frameId !== 0 || /[*^|]/.test(d.url) || d.url.length > 1800) return null;
+  return inDoorOrder(async () => {
+    await recalled;
+    if (!localVerdict(d.url) && !(await doorOnFor(d.url))) return;
+    const rules = await dnr().getSessionRules();
+    await dnr().updateSessionRules({ removeRuleIds: rules.filter((r) => askedRule(r, d.tabId)).map((r) => r.id),
+      addRules: [{ id: nextId(rules), priority: 1, action: { type: 'allow' }, condition: { urlFilter: addressFilter(d.url), tabIds: [d.tabId], resourceTypes: ['ping'] } }] });
+  });
 }
+const askedHttp = async (tabId, url) => Boolean(dnr()) && (await dnr().getSessionRules()).some((r) => askedRule(r, tabId) && r.condition.urlFilter === addressFilter(url));
 const fellBack = new Set();
 async function httpsFailed(d) {
   if (d.frameId !== 0 || !/^https:/i.test(d.url) || /ABORTED|BLOCKED/i.test(d.error || '')) return;
   const plain = d.url.replace(/^https:/i, 'http:');
   const key = `${d.tabId}|${plain}`;
-  if (fellBack.has(key) || (askedHere.get(d.tabId) || (await sessionGet(askedKey(d.tabId)))) !== plain) return;
+  if (fellBack.has(key) || !(await askedHttp(d.tabId, plain))) return;
   if (!(await isLetThroughHere(d.tabId, d.url))) return;
   fellBack.add(key);
   await Promise.resolve(ext.tabs.update(d.tabId, { url: plain })).catch(() => {});
@@ -1003,8 +1006,6 @@ ext.webNavigation.onReferenceFragmentUpdated.addListener(onSameDocument);
 ext.tabs.onRemoved.addListener(async (tabId, info) => {
   typedOrder.delete(tabId);
   forgetTab(tabId);
-  askedHere.delete(tabId);
-  sessionSet(askedKey(tabId), null);
   const was = await sessionGet(typedKey(tabId));
   if (!was) return;
   await typedLeft(tabId, was);
