@@ -165,7 +165,7 @@ const PATH_HOSTING = [
   'onedrive.live.com', '1drv.ms', 'linktr.ee', 'telegra.ph', 'ipfs.io', 'dweb.link',
   'new.express.adobe.com', 'express.adobe.com', 'indd.adobe.com', 'acrobat.adobe.com', 'app.hubspot.com', 'forms.office.com',
   'teams.live.com', 'app.box.com', 'airtable.com', 'padlet.com', 't.me', 'vk.com', 'away.vk.com', 'script.google.com',
-  'lookerstudio.google.com',
+  'lookerstudio.google.com', 'raw.githubusercontent.com', 'gist.githubusercontent.com',
   // Archives hold copies of pages that are on the lists. The archive is not the scam; only the exact archived address counts.
   ...ARCHIVES
 ];

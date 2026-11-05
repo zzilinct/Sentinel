@@ -85,6 +85,19 @@ test('the Discord GIF: other listed files on the same CDN are not held against i
   assert.ok(!(v.reasons || []).some((r) => /character link|listed by/.test(r.text)), 'neither its length nor other files are given as a reason');
 });
 
+test('not just Discord: GitHub files and a popular site\'s CDN are not judged by their neighbours', async () => {
+  // As in the owner's lists: thousands of URLhaus entries on raw.githubusercontent.com, over a thousand on GoDaddy's
+  // image host. GitHub's file hosts are path hosting (the uploader controls the path); wsimg.com is on wellknown.txt.
+  for (let i = 0; i < 5; i++) listed(`https://raw.githubusercontent.com/bad${i}/x/main/a.ps1`);
+  for (let i = 0; i < 5; i++) listed(`https://img1.wsimg.com/blobby/go/bad${i}/download.exe`);
+  for (const url of ['https://raw.githubusercontent.com/nodejs/node/main/README.md', 'https://img1.wsimg.com/isteam/ip/3f9a8b7c-6d5e-4f3a-2b1c-0d9e8f7a6b5c/logo.png/:/rs=w:1200,h:600']) {
+    const v = await scan(url);
+    assert.equal(v.overall.badge, null, `${url}: ${v.overall.label} (${(v.reasons || []).map((r) => r.text).join('; ')})`);
+  }
+  // A script from GitHub is still a download to check.
+  assert.ok((await scan('https://raw.githubusercontent.com/someone/tools/main/install.ps1')).threats.virus.badge);
+});
+
 test('what is served on a well-known site is still checked', async () => {
   // The exact listed address stays confirmed, the same CDN or not.
   const exact = await scan('https://cdn.discordapp.com/attachments/111/222/payload.exe');

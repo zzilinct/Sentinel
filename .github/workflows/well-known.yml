@@ -27,9 +27,15 @@ jobs:
           curl -fsSL -D headers.txt -o majestic_million.csv https://downloads.majestic.com/majestic_million.csv
           grep -i '^last-modified' headers.txt | tee list-date.txt
           curl -fsSL -o public_suffix_list.dat https://publicsuffix.org/list/public_suffix_list.dat
+      # The public threat lists Sentinel reads, into a database of its own on this machine: which sites have listed
+      # addresses under many names of their own.
+      - name: The threat lists
+        env:
+          DB_PATH: ${{ runner.temp }}/lists/sentinel.db
+        run: node scripts/admin.js refresh-feeds
       - name: The list
         run: |
-          node scripts/wellknown.js --csv majestic_million.csv --psl public_suffix_list.dat --date "$(sed 's/^[^:]*: *//' list-date.txt | tr -d '\r')"
+          node scripts/wellknown.js --csv majestic_million.csv --psl public_suffix_list.dat --feeds "$RUNNER_TEMP/lists/sentinel-feeds.db" --date "$(sed 's/^[^:]*: *//' list-date.txt | tr -d '\r')"
       - uses: actions/upload-artifact@v4
         with:
           name: well-known
