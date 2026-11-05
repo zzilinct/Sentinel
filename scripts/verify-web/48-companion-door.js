@@ -258,17 +258,13 @@ async function checkCompanionDoor() {
     await size(guess.sessionId, 360, 740); await sleep(500);
     await pictures(guess.sessionId, 'warned-open-phone');
     await browser.send('Emulation.clearDeviceMetricsOverride', {}, guess.sessionId);
-    // Continue anyway is folded under the why, as on the block page.
+    // Continue anyway is folded under the why, as on the block page: opened the way a press on it does.
     const { root: doc } = await browser.send('DOM.getDocument', { depth: -1, pierce: true }, guess.sessionId);
-    let summary = null;
-    const walk = (n) => { if (summary) return; if (n.nodeName === 'SUMMARY') { summary = n; return; } for (const c of [...(n.shadowRoots || []), ...(n.children || [])]) walk(c); };
+    let fold = null;
+    const walk = (n) => { if (fold) return; if (n.nodeName === 'DETAILS') { fold = n; return; } for (const c of [...(n.shadowRoots || []), ...(n.children || [])]) walk(c); };
     walk(doc);
-    if (summary) {
-      const { model } = await browser.send('DOM.getBoxModel', { nodeId: summary.nodeId }, guess.sessionId);
-      const q = model.content;
-      for (const type of ['mousePressed', 'mouseReleased']) await browser.send('Input.dispatchMouseEvent', { type, x: (q[0] + q[4]) / 2, y: (q[1] + q[5]) / 2, button: 'left', clickCount: 1 }, guess.sessionId);
-      await sleep(300);
-    }
+    if (fold) await browser.send('DOM.setAttributeValue', { nodeId: fold.nodeId, name: 'open', value: '' }, guess.sessionId);
+    await sleep(300);
     const pressed = await clickButton(browser, guess.sessionId, 'Continue anyway');
     await sleep(800);
     const afterText = await pageText(browser, guess.sessionId);
