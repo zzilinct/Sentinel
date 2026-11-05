@@ -1,0 +1,117 @@
+/* The download page: the offer beside the one moment that decides whether someone installs. */
+:root { --spring: cubic-bezier(.2, .9, .3, 1.15); }
+@supports (transition-timing-function: linear(0, 1)) {
+  :root { --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
+}
+
+.page-head--download { padding: 72px 0 84px; text-align: left; }
+.get { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: clamp(40px, 6vw, 92px); align-items: center; }
+.get__offer .page-head__mask { width: clamp(104px, 10vw, 148px); margin: 0 0 14px; }
+.get__offer .m3 { display: inline-block; }
+.page-head--download .get__lead { margin: 18px 0 0; max-width: 34em; }
+.get__offer .hero__cta { justify-content: flex-start; margin-top: 30px; }
+.get__offer p.hero__fine { justify-content: flex-start; }
+.page-head--download .get__elsewhere { margin: 14px 0 0; font-size: var(--t-ui); color: var(--text-2); }
+.get__elsewhere a { color: var(--gold-300); text-decoration: underline; text-underline-offset: 3px; }
+
+.get__moment h2 { font-size: var(--t-title-l); }
+.page-head--download .get__moment p { margin: 10px 0 0; max-width: none; font-size: var(--t-ui); }
+.page-head--download .get__moment .ss__dialog p { margin: 0; color: inherit; }
+
+/* The picture hangs in a gilded frame: the blue is Windows', the frame is ours. It reads the same in both themes. */
+.ss-frame { margin-top: 20px; padding: 2px; border-radius: var(--r); background: var(--metal); box-shadow: var(--raise); }
+.ss {
+  position: relative; isolation: isolate; overflow: hidden; border-radius: calc(var(--r) - 2px);
+  padding: clamp(12px, 2vw, 20px); background: var(--surface-2);
+}
+.ss__dialog {
+  display: flex; flex-direction: column; min-height: 220px; padding: clamp(20px, 2.6vw, 30px) clamp(20px, 2.6vw, 30px) 18px;
+  background: #0a5fae; color: #fff; font-family: "Segoe UI", system-ui, sans-serif; font-size: var(--t-ui); line-height: 1.45;
+  transition: opacity .28s ease, transform .5s var(--spring), visibility 0s;
+}
+.page-head--download .get__moment .ss__title { font-size: var(--t-title-l); font-weight: 300; line-height: 1.15; }
+.ss__swap { display: grid; margin-top: 14px; }
+.ss__swap > * { grid-area: 1 / 1; }
+.ss__more { justify-self: start; align-self: start; padding: 2px 0; border: 0; background: none; color: #fff; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.ss__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 18px; }
+.ss__btn { min-width: 112px; padding: 7px 16px; border: 2px solid rgb(255 255 255 / .62); background: rgb(0 0 0 / .22); color: #fff; font: inherit; text-align: center; transition: opacity .25s ease, transform .5s var(--spring), visibility 0s; }
+button.ss__btn { cursor: pointer; }
+.ss :is(.ss__more, .ss__btn):focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.ss__after { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px; text-align: center; font-family: var(--display); font-size: var(--t-title); color: var(--text); transition: opacity .3s ease .12s, visibility 0s; }
+.page-head--download .get__moment .ss__after p { margin: 0; max-width: 16em; font: inherit; color: inherit; }
+
+.ss__ring {
+  position: absolute; left: 0; top: 0; z-index: 2; width: var(--w, 0); height: var(--h, 0); border-radius: 7px; pointer-events: none;
+  transform: translate(var(--x, 0), var(--y, 0)); box-shadow: 0 0 0 2px #f3dca4, 0 0 18px 3px rgb(243 220 164 / .55);
+}
+.ss.is-live .ss__ring { transition: transform .62s var(--spring), width .62s var(--spring), height .62s var(--spring), opacity .2s ease; }
+
+/* Without script the picture shows everything it would show, and its buttons do nothing. */
+.ss__after, .ss__ring { display: none; }
+.js .ss__after { display: grid; }
+.js .ss__ring { display: block; }
+.js .ss[data-state="first"] [data-ss-run] { opacity: 0; transform: scale(.9); visibility: hidden; }
+.js .ss:not([data-state="first"]) .ss__more { opacity: 0; visibility: hidden; }
+.js .ss[data-state="done"] .ss__dialog { opacity: 0; transform: scale(.96); visibility: hidden; transition-delay: 0s, 0s, .3s; }
+.js .ss[data-state="done"] .ss__ring { opacity: 0; }
+.js .ss:not([data-state="done"]) .ss__after { opacity: 0; visibility: hidden; }
+html:not(.js) .ss__more { display: none; }
+
+.page-head--download .get__moment .ss-say { margin-top: 12px; min-height: 2.9em; color: var(--gold-300); }
+.page-head--download .get__moment .get__stop { margin-top: 4px; color: var(--muted); }
+
+.get-steps { margin: 0; padding: 0; list-style: none; }
+
+.compare-more { margin-top: 28px; }
+.compare-more summary { cursor: pointer; color: var(--text); font-size: var(--t-ui); }
+.compare-more .compare-wrap { margin-top: 18px; }
+
+main > .section--tight { padding: 72px 0; }
+main > .section--tight .section__head { margin-bottom: 40px; }
+main > .section--tight .section__head h2 { font-size: var(--t-d3); }
+#elsewhere .grid-2col { align-items: start; }
+
+main > .check { padding-top: 0; }
+.check__in { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: clamp(32px, 6vw, 92px); align-items: start; }
+.check__in h2 { font-size: var(--t-d3); }
+.check__in > div > p { margin-top: 12px; color: var(--text-2); font-size: var(--t-text); max-width: 34em; }
+.check__do { display: grid; justify-items: start; gap: 12px; }
+.check__result { min-height: 1.5em; margin: 0; font-size: var(--t-text); color: var(--text-2); }
+.check__result:empty { min-height: 0; }
+.check__result.is-match { color: var(--gold-300); }
+.check__result.is-wrong { color: var(--error-text); }
+.check__hash { margin: 0; font-size: var(--t-ui); color: var(--muted); }
+.check__hash code { display: block; margin-top: 4px; font-family: var(--mono); font-size: var(--t-note); color: var(--text-2); overflow-wrap: anywhere; }
+.check__list, .relnote__older { color: var(--gold-300); font-size: var(--t-ui); text-decoration: underline; text-decoration-color: var(--line-gold); text-underline-offset: 3px; }
+
+main > .relnote { padding-top: 0; }
+.relnote h2 { font-size: var(--t-d3); }
+.relnote__lead { margin-top: 10px; font-size: var(--t-lead); color: var(--text-2); max-width: 40em; }
+.relnote__newer { margin-top: 10px; color: var(--gold-300); font-size: var(--t-ui); }
+.relnote__newer a { text-decoration: underline; text-underline-offset: 3px; }
+.relnote__all { margin-top: 20px; border-block: 1px solid var(--line-2); }
+.relnote__all summary { padding: 14px 0; cursor: pointer; color: var(--text); font-size: var(--t-ui); }
+.relnote__groups { columns: 2 320px; column-gap: 56px; padding-bottom: 14px; }
+.relnote__groups section { break-inside: avoid; padding-bottom: 20px; }
+.relnote__groups h3 { font-size: var(--t-title); }
+.relnote__groups ul { margin: 6px 0 0; padding-left: 18px; color: var(--text-2); font-size: var(--t-ui); }
+.relnote__groups li { margin-top: 5px; }
+.relnote__older { display: inline-block; margin-top: 16px; }
+
+@media (max-width: 980px) {
+  .page-head--download { padding: 28px 0 56px; }
+  .get__offer .page-head__mask { width: 84px; margin-bottom: 4px; }
+  .get { grid-template-columns: minmax(0, 1fr); text-align: center; }
+  .get__offer { display: grid; justify-items: center; }
+  .page-head--download .get__lead { margin-inline: auto; }
+  .get__offer .hero__cta, .get__offer p.hero__fine { justify-content: center; }
+  .get__moment { text-align: left; }
+  .check__in { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .ss__btn { min-width: 0; flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ss__dialog, .ss__btn, .ss__after, .ss.is-live .ss__ring { transition: none; }
+}

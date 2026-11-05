@@ -21,6 +21,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const WEB = path.join(ROOT, 'web');
+const planbook = require('../web/assets/js/planbook');
 
 const args = process.argv.slice(2);
 const argOf = (name, fallback) => {
@@ -28,10 +29,11 @@ const argOf = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 const OUT = path.resolve(ROOT, argOf('--out', 'dist-static'));
+const LAUNCHED = args.includes('--launched') || JSON.parse(fs.readFileSync(path.join(ROOT, 'brand.json'), 'utf8')).launched === true;
 
 // Pages the static build ships. The app needs accounts and the scan API, so it
 // is not exported: its links point at the real site instead.
-const PAGES = ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', 'recover.html', 'practice.html', '404.html'];
+const PAGES = ['index.html', 'pricing.html', 'download.html', 'privacy.html', 'terms.html', 'refunds.html', 'recover.html', 'call.html', 'practice.html', '404.html'];
 const ASSET_DIRS = ['assets/css', 'assets/js', 'assets/img', 'assets/fonts', 'assets/models'];
 
 /* ------------------------------------------------------------- helpers */
@@ -49,6 +51,10 @@ function copyDir(from, to) {
 function expandIncludes(file) {
   const html = fs.readFileSync(file, 'utf8');
   return html.replace(/<!--\s*@include\s+([a-z0-9-]+)\s*-->/g, (_, name) => {
+    // A static host has no billing at all, whatever this machine's server would do. Before launch it has no accounts
+    // either, so the way in is the app, which is really there, not a Start free button that does nothing.
+    const planned = planbook.include(name, require('../server/lib/plans').publicPlans(), 'disabled', LAUNCHED ? undefined : { href: '/download', words: 'Get the app' });
+    if (planned !== undefined) return planned;
     const partial = path.join(WEB, 'partials', `${name}.html`);
     return fs.existsSync(partial) ? fs.readFileSync(partial, 'utf8') : '';
   });
@@ -63,6 +69,7 @@ const ROUTES = {
   '/terms': 'terms.html',
   '/refunds': 'refunds.html',
   '/recover': 'recover.html',
+  '/call': 'call.html',
   '/practice': 'practice.html'
 };
 
@@ -137,7 +144,7 @@ function prelaunch(html) {
 
   const banner = '<div class="prelaunch" role="status">'
     + '<b>Preview.</b> Sentinel hasn&rsquo;t launched yet, so accounts and downloads aren&rsquo;t available here, and Try a link checks addresses in your browser. '
-    + 'Everything else is the real product: the verdicts on this page come from Sentinel&rsquo;s own engine.'
+    + '<span class="prelaunch__more">Everything else is the real product: the verdicts on this page come from Sentinel&rsquo;s own engine.</span>'
     + '</div>';
   // Sits in normal flow at the top of <main>, so it clears the fixed header
   // rather than hiding underneath it.
@@ -228,6 +235,8 @@ async function main() {
   const origin = argOf('--origin', brand.origin).replace(/\/$/, '');
   // --launched forces the live wiring even while brand.json says otherwise.
   const launched = args.includes('--launched') || brand.launched === true;
+
+  require('./release-note').assertInStep();
 
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(OUT, { recursive: true });
