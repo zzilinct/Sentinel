@@ -33,10 +33,10 @@ const PAGES = [
   ['signup', '/signup', { anonymous: true }], ['login', '/login', { anonymous: true }], ['not-found', '/no-such-page'],
   ['app-overview', '/app'],
   ['app-week', '/app/week'],
-  ['app-scan-empty', '/app/scan'],
-  ['app-scan-phishing', `/app/scan?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, { wait: 6000 }],
-  ['app-scan-clean', `/app/scan?url=${encodeURIComponent('https://www.wikipedia.org/')}`, { wait: 6000 }],
-  ['app-files', '/app/threats'], ['app-email', '/app/email'], ['app-text', '/app/text'], ['app-history', '/app/history'], ['app-sites', '/app/sites'],
+  ['app-check-empty', '/app/check'],
+  ['app-check-phishing', `/app/check?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, { wait: 6000 }],
+  ['app-check-clean', `/app/check?url=${encodeURIComponent('https://www.wikipedia.org/')}`, { wait: 6000 }],
+  ['app-history', '/app/history'], ['app-sites', '/app/sites'],
   ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-security', '/app/security'], ['app-assistants', '/app/assistants'],
   ['app-call', '/app/call'], ['practice', '/practice']
 ];
@@ -465,17 +465,14 @@ async function main() {
         console.log(`hover-${name}: ${why.value}`);
         if (name === 'footer-link') { await sleep(700); await shoot(`${name}-filled`, pad(r, 40)); }
       }
-      // The model picker on the link scan tab, open on its category and then on Argus's versions.
-      await send('Page.navigate', { url: BASE + '/app/scan' }, sessionId);
+      // The model picker on Plan & usage, open on its category and then on Argus's versions.
+      await send('Page.navigate', { url: BASE + '/app/plan' }, sessionId);
       await sleep(3500);
       const click = (sel) => send('Runtime.evaluate', { expression: `document.querySelector(${JSON.stringify(sel)})?.click()` }, sessionId);
       await click('[data-model-open]'); await sleep(900); await shoot('models-categories');
       await click('[data-model-cat]'); await sleep(900); await shoot('models-versions');
       // The email scan's screenshot tab, on Max (demo billing on this throwaway server).
       await send('Runtime.evaluate', { awaitPromise: true, expression: "fetch('/api/v1/billing/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: 'max' }) }).then((r) => r.status)" }, sessionId);
-      await send('Page.navigate', { url: BASE + '/app/email' }, sessionId);
-      await sleep(3500);
-      await click('[data-emode="shot"]'); await sleep(900); await shoot('email-screenshot');
       console.log('hover: photographed');
       await send('Target.closeTarget', { targetId });
     }
@@ -520,15 +517,15 @@ async function featureShots(send) {
       "document.querySelector('[data-call-answer][data-verdict]')", '[data-call-answer]'],
     ['practice', '/practice', "document.querySelector('[data-practice] [data-pick]')",
       "document.querySelector('[data-pick=\"scam\"]').click();", "document.querySelector('[data-practice-verdict]')", '[data-practice]'],
-    ['slow-scam', '/app/text', "document.querySelector('#view [data-form] textarea')",
+    ['slow-scam', '/app/check', "document.querySelector('#view [data-form] textarea')",
       `const f = document.querySelector('[data-form]'); f.from.value = ''; f.text.value = ${JSON.stringify(SLOW_CHAT)}; f.requestSubmit();`,
       "document.querySelector('[data-slow]')", '[data-text-result]'],
-    ['real-site', `/app/scan?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, "document.querySelector('#view [data-form]')",
+    ['real-site', `/app/check?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, "document.querySelector('#view [data-form]')",
       '', "document.querySelector('[data-warn]')", '.result__head', 260],
-    ['warn-card', `/app/scan?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, "document.querySelector('#view [data-form]')",
+    ['warn-card', `/app/check?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, "document.querySelector('#view [data-form]')",
       "document.querySelector('[data-warn]').click();", "document.querySelector('[data-warn-card] canvas') && document.querySelector('[data-warn-card] canvas').width", '[data-warn-card]'],
-    ['who-sent-it', '/app/email', "document.querySelector('#view [data-emode=\"paste\"]')",
-      `document.querySelector('[data-emode="paste"]').click(); document.querySelector('[data-paste] textarea').value = ${JSON.stringify(SPOOFED)}; document.querySelector('[data-parse]').click(); document.querySelector('form[data-form]').requestSubmit();`,
+    ['who-sent-it', '/app/check', "document.querySelector('#view [data-check-text]')",
+      `document.querySelector('[data-check-text]').value = ${JSON.stringify(SPOOFED)}; document.querySelector('form[data-form]').requestSubmit();`,
       "document.querySelector('[data-sender-proof]')", '#view .result']
   ];
   for (const [size, width, height, mobile, scheme] of SIZES) {
@@ -584,7 +581,7 @@ async function textScan(send) {
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, sessionId);
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
     await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.sentinelDesktop = { info: () => Promise.reject(new Error('stand-in')), readScreenshot: (slices) => Promise.resolve(slices.map((s, i) => (i ? '' : ${JSON.stringify(TEXT_SHOT.join('\n'))}))) };` }, sessionId);
-    await send('Page.navigate', { url: BASE + '/app/text' }, sessionId);
+    await send('Page.navigate', { url: BASE + '/app/check' }, sessionId);
     await sleep(3500);
     const run = async (expression) => {
       const { result, exceptionDetails } = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
@@ -606,9 +603,8 @@ async function textScan(send) {
       fs.writeFileSync(path.join(OUT, `text-${size}-${name}.png`), Buffer.from(shot.data, 'base64'));
       console.log(`text-${size}-${name}.png`);
     };
-    check(await run("document.title === 'Text scan · Sentinel' && Boolean(document.querySelector('.side__link[data-route=\"text\"][aria-current=\"page\"]'))"), 'its own page, title and sidebar link');
-    await run("document.querySelector('[data-tmode=\"shot\"]').click()");
-    await page('screenshot-tab');
+    check(await run("document.title === 'Check · Sentinel' && Boolean(document.querySelector('.side__link[data-route=\"check\"][aria-current=\"page\"]'))"), 'its own page, title and sidebar link');
+    await page('empty');
     // A phone screenshot, drawn here and chosen in the file picker; the stand-in "reads" it as TEXT_SHOT.
     await run(`(async () => {
       const c = document.createElement('canvas'); c.width = 390; c.height = 420;
@@ -616,10 +612,10 @@ async function textScan(send) {
       ${JSON.stringify(TEXT_SHOT)}.forEach((t, i) => g.fillText(t, 16, 30 + i * 34));
       const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
       const dt = new DataTransfer(); dt.items.add(new File([blob], 'text.png', { type: 'image/png' }));
-      const input = document.querySelector('[data-shot-file]'); input.files = dt.files; input.dispatchEvent(new Event('change'));
+      const input = document.querySelector('[data-file]'); input.files = dt.files; input.dispatchEvent(new Event('change'));
     })()`);
     await sleep(2000);
-    const read = await run("[document.querySelector('#t-from').value, document.querySelector('#t-text').value, !document.querySelector('[data-form]').hidden]");
+    const read = await run("[document.querySelector('#check-from').value, document.querySelector('[data-check-text]').value, document.querySelector('.ask').dataset.kind === 'message']");
     check(read[0] === '+1 (415) 555-0199' && read[1].startsWith('USPS: Your package') && read[1].endsWith('usps-redeliver.top/pay') && !/Delivered|Text Message|9:41/.test(read[1]) && read[2], 'the screenshot is read into its sender and message, without the phone\'s own words', read);
     await page('screenshot-read');
     await run("document.querySelector('[data-form]').requestSubmit()");
@@ -627,8 +623,8 @@ async function textScan(send) {
     const scam = await run(`(() => { const r = document.querySelector('[data-text-result]'); const a = r && r.querySelector('a[href^="/app/recover?happened="]');
       return r && [r.dataset.textResult, r.querySelector('h2').textContent, a ? a.getAttribute('href') : '', r.querySelector('.reasons') ? r.querySelector('.reasons').textContent : '']; })()`);
     check(scam && ['orange', 'red'].includes(scam[0]) && scam[1] === 'This text looks like a scam' && scam[2].startsWith('/app/recover?happened=') && /usps-redeliver\.top/.test(scam[3]), 'the scam text gets a scam verdict, its reasons and the recovery guide', scam);
-    const left = await run("document.querySelector('[data-left]').textContent");
-    check(/fast scans left this week\. A text counts as one fast link scan/.test(left), 'the page says how it counts against the plan', left);
+    const left = await run("document.querySelector('[data-says]').textContent");
+    check(/^A message\..*Uses 1 fast scan: \d+ of \d+ left this week/.test(left), 'the page says what it saw and how it counts against the plan', left);
     await page('scam');
     await run("(() => { const f = document.querySelector('[data-form]'); f.from.value = 'Mom'; f.text.value = 'can you pick me up at 5'; f.requestSubmit(); })()");
     await sleep(3000);
@@ -648,14 +644,14 @@ async function textScan(send) {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'k', code: 'KeyK', modifiers: 2, windowsVirtualKeyCode: 75 }, sessionId);
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'k', code: 'KeyK', modifiers: 2, windowsVirtualKeyCode: 75 }, sessionId);
     await sleep(400);
-    await send('Input.insertText', { text: 'text' }, sessionId);
+    await send('Input.insertText', { text: 'message' }, sessionId);
     await sleep(600);
     const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
-    fs.writeFileSync(path.join(OUT, 'text-palette.png'), Buffer.from(shot.data, 'base64'));
+    fs.writeFileSync(path.join(OUT, 'check-palette.png'), Buffer.from(shot.data, 'base64'));
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
     await sleep(1500);
     const { result } = await send('Runtime.evaluate', { returnByValue: true, expression: 'location.pathname' }, sessionId);
-    check(result.value === '/app/text', 'the command palette finds Text scan and opens it', result.value);
+    check(result.value === '/app/check', 'the command palette finds Check by a word a person would type and opens it', result.value);
     await send('Target.closeTarget', { targetId });
   }
 }
@@ -740,10 +736,10 @@ async function emailMarks(send) {
       if (exceptionDetails) throw new Error(`email marks: ${exceptionDetails.exception ? exceptionDetails.exception.description : exceptionDetails.text}`);
       return result.value;
     };
-    await send('Page.navigate', { url: BASE + '/app/email' }, sessionId);
+    await send('Page.navigate', { url: BASE + '/app/check' }, sessionId);
     await sleep(3500);
     await run(`(() => { const f = document.querySelector('[data-form]'); const m = ${JSON.stringify(MARKED_EMAIL)};
-      f.from.value = m.from; f.replyTo.value = m.replyTo; f.subject.value = m.subject; f.body.value = m.body; f.attachments.value = ''; f.requestSubmit(); })()`);
+      f.text.value = ['From: ' + m.from, 'Reply-To: ' + m.replyTo, 'Subject: ' + m.subject, '', m.body].join('\\n'); f.requestSubmit(); })()`);
     let ready = false;
     for (let i = 0; i < 40 && !ready; i++) { await sleep(500); ready = await run("Boolean(document.querySelector('[data-email-marks]'))"); }
     check(ready, `${size}: the result shows the email, marked`);

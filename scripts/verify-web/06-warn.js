@@ -53,11 +53,11 @@ async function checkWarn() {
 
     const SCAM_LINK = 'https://paypa1-secure-login.com/account/verify?email=alex@example.com';
     const cases = [
-      { name: 'link', url: `/app/scan?url=${encodeURIComponent(SCAM_LINK)}`, host: 'paypa1-secure-login', ready: "document.querySelector('#view [data-form]')" },
-      { name: 'text', url: '/app/text', host: 'usps-redeliver', ready: "document.querySelector('#view [data-form] textarea')",
+      { name: 'link', url: `/app/check?url=${encodeURIComponent(SCAM_LINK)}`, host: 'paypa1-secure-login', ready: "document.querySelector('#view [data-form]')" },
+      { name: 'text', url: '/app/check', host: 'usps-redeliver', ready: "document.querySelector('#view [data-form] textarea')",
         fill: "const f = document.querySelector('[data-form]'); f.from.value = '+1 415 555 0199'; f.text.value = 'USPS: Your package is on hold due to an unpaid redelivery fee of $1.99. Pay at https://usps-redeliver.top/pay'; f.requestSubmit();" },
-      { name: 'email', url: '/app/email', host: 'paypa1-secure-login', ready: "document.querySelector('#view form[data-form] [name=body]')",
-        fill: `const f = document.querySelector('form[data-form]'); f.from.value = 'PayPal Service <service@paypa1-help.top>'; f.subject.value = 'Your account is limited'; f.body.value = 'We noticed unusual activity. Verify your account within 24 hours at ${SCAM_LINK} or it will be closed.'; f.requestSubmit();` }
+      { name: 'email', url: '/app/check', host: 'paypa1-secure-login', ready: "document.querySelector('#view form[data-form] textarea')",
+        fill: `const f = document.querySelector('form[data-form]'); f.text.value = 'From: PayPal Service <service@paypa1-help.top>\\nSubject: Your account is limited\\n\\nWe noticed unusual activity. Verify your account within 24 hours at ${SCAM_LINK} or it will be closed.'; f.requestSubmit();` }
     ];
     for (const c of cases) {
       await goto(browser, s, `${base}${c.url}`, c.ready);

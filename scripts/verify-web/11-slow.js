@@ -5,7 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { ROOT, OUT, sleep, result, launch, evalIn, openPage, goto, shot } = require('./_shared');
 
-/* --------------------------------------- 8. a whole conversation, a slow scam (/app/text) */
+/* --------------------------------------- 8. a whole conversation, a slow scam (/app/check) */
 
 const SLOW_CHAT = [
   '[10/6/26, 09:12] +1 917 555 0101: Hi, is this Linda?',
@@ -49,7 +49,7 @@ async function checkSlow() {
       return a.ok && b.ok;
     })()`);
     if (!signed) throw new Error('the test account could not sign in');
-    await goto(browser, s, `${base}/app/text`, "document.querySelector('#view [data-form] textarea')");
+    await goto(browser, s, `${base}/app/check`, "document.querySelector('#view [data-form] textarea')");
     await sleep(1000);   // the page's entrance (app-lux.js) settles
 
     const scan = async (text) => {

@@ -97,7 +97,7 @@ async function checkRealSite() {
     })()`);
     if (!signed) throw new Error('the test account could not sign in and add its site');
     const scan = async (link, name) => {
-      await goto(browser, app.sessionId, `${api}/app/scan?url=${encodeURIComponent(link)}`, "document.querySelector('#view [data-form]')");
+      await goto(browser, app.sessionId, `${api}/app/check?url=${encodeURIComponent(link)}`, "document.querySelector('#view [data-form]')");
       let got = null;
       for (let i = 0; i < 120 && !got; i++) {
         await sleep(250);
@@ -117,7 +117,7 @@ async function checkRealSite() {
     result('real-site: a listed scam that imitates nobody gets no such button in the app', Boolean(none.title) && none.text === null, none);
     // Pressed, the real site opens in a new tab: exactly the address shown.
     const before = (await browser.send('Target.getTargets')).targetInfos.map((t) => t.targetId);
-    await goto(browser, app.sessionId, `${api}/app/scan?url=${encodeURIComponent(`https://${REAL_PHISH}/`)}`, "document.querySelector('[data-real-site]')");
+    await goto(browser, app.sessionId, `${api}/app/check?url=${encodeURIComponent(`https://${REAL_PHISH}/`)}`, "document.querySelector('[data-real-site]')");
     const [x, y] = await evalIn(browser, app.sessionId, "(() => { const a = document.querySelector('[data-real-site]'); a.scrollIntoView({ block: 'center' }); const r = a.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()");
     for (const type of ['mousePressed', 'mouseReleased']) await browser.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }, app.sessionId);
     let opened = null;

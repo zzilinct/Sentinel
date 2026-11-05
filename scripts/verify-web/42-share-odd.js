@@ -45,7 +45,7 @@ async function checkShareOdd() {
       await evalIn(browser, sid, `(() => { ${JSON.stringify(shares.map((_, n) => n))}.forEach((n) => document.getElementById('android-share-' + n).submit()); return true; })()`);
       await sleep(400);
     };
-    const text = (sid = s) => until(browser, sid, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/text' && r && { tone: r.dataset.textResult, title: r.querySelector('h2').textContent.trim(), why: r.innerText, box: document.querySelector('#t-text').value, out: document.querySelector('[data-out]').innerText }; })()", 30000);
+    const text = (sid = s) => until(browser, sid, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { tone: r.dataset.textResult, title: r.querySelector('h2').textContent.trim(), why: r.innerText, box: document.querySelector('[data-check-text]').value, out: document.querySelector('[data-out]').innerText }; })()", 30000);
     const freshApp = () => goto(browser, s, `${base}/app`, "document.querySelector('#view h1')");
 
     const email = `share-odd-${Date.now()}@example.com`;
@@ -62,13 +62,13 @@ async function checkShareOdd() {
     await post([{ title: '', text: `lol is this real?? ${SCAM} my bank never texts me`, url: '' }]);
     const inText = await text();
     await shot(browser, s, 'share-odd-link-in-text');
-    result('share-odd: a link inside a message opens Text scan with the whole message, and the listed scam link makes it red',
+    result('share-odd: a link inside a message opens Check with the whole message, and the listed scam link makes it red',
       Boolean(inText) && /^lol is this real/.test(inText.box) && inText.tone === 'red' && /paypa1-secure-login\.com/.test(inText.why), inText && { tone: inText.tone, title: inText.title });
 
     await freshApp();
     await post([{ title: '', text: '\u{1F602}\u{1F64F}', url: '' }]);
     const emoji = await text();
-    result('share-odd: a share of only an emoji opens Text scan, is checked, and is calmly found to be nothing',
+    result('share-odd: a share of only an emoji opens Check, is checked, and is calmly found to be nothing',
       Boolean(emoji) && emoji.box === '\u{1F602}\u{1F64F}' && emoji.tone === 'clear', emoji && { tone: emoji.tone, title: emoji.title });
 
     await freshApp();
@@ -88,9 +88,9 @@ async function checkShareOdd() {
 
     /* ------------------------------------------------ pictures */
 
-    const shotState = () => evalIn(browser, s, "(() => { const p = document.querySelector('[data-shot-preview]'); const img = p && p.querySelector('img'); const q = document.querySelector('[data-text-qr]'); const card = q && q.querySelector('.qr-card');"
-      + " return { at: location.pathname, tab: (document.querySelector('[data-tmode=shot]') || {}).ariaSelected, shown: Boolean(p && !p.hidden && img && img.complete && img.naturalWidth), status: (document.querySelector('[data-shot-status]') || {}).textContent || '',"
-      + " card: card ? { tone: [...card.classList].find((c) => /^result--/.test(c)), title: card.querySelector('h2').textContent.trim() } : null, panel: (document.querySelector('[data-shot]') || {}).innerText || '' }; })()");
+    const shotState = () => evalIn(browser, s, "(() => { const p = document.querySelector('[data-shot-preview]'); const img = p && p.querySelector('img'); const q = document.querySelector('[data-qr-out]'); const card = q && q.querySelector('.qr-card');"
+      + " return { at: location.pathname, tab: String(Boolean(p && !p.hidden)), shown: Boolean(p && !p.hidden && img && img.complete && img.naturalWidth), status: (document.querySelector('[data-shot-status]') || {}).textContent || '',"
+      + " card: card ? { tone: [...card.classList].find((c) => /^result--/.test(c)), title: card.querySelector('h2').textContent.trim() } : null, panel: [document.querySelector('.ask'), document.querySelector('[data-qr-out]')].map((e) => (e ? e.innerText : '')).join(' ') }; })()");
     const manifest = JSON.parse(fs.readFileSync(path.join(QR, 'manifest.json'), 'utf8'));
     const inChat = manifest.find((m) => m.file === 'discord-in-chat.png');
     await freshApp();
@@ -99,7 +99,7 @@ async function checkShareOdd() {
     const qrPng = await qrCard();
     await shot(browser, s, 'share-odd-qr-png');
     result('share-odd: a shared PNG of a chat with a QR code in it shows the picture, reads the code on the phone, and checks where it leads (a Discord sign-in code, not clear)',
-      qrPng.at === '/app/text' && qrPng.shown && Boolean(qrPng.card) && qrPng.card.tone !== 'result--clear' && /QR code in this picture was read/.test(qrPng.status), qrPng && { ...qrPng, panel: undefined });
+      qrPng.at === '/app/check' && qrPng.shown && Boolean(qrPng.card) && qrPng.card.tone !== 'result--clear' && /QR code in this picture was read/.test(qrPng.status), qrPng && { ...qrPng, panel: undefined });
 
     // A JPEG, as a phone's camera or gallery shares one: made here from the plain QR picture by the browser itself.
     const plain = fs.readFileSync(path.join(QR, 'plain.png')).toString('base64');
@@ -110,19 +110,19 @@ async function checkShareOdd() {
     await post([{ title: '', text: '', url: '', file: jpeg }]);
     const qrJpeg = await qrCard();
     await shot(browser, s, 'share-odd-jpeg');
-    result('share-odd: a shared JPEG is shown and its QR code read and checked, as a PNG is', qrJpeg.at === '/app/text' && qrJpeg.shown && Boolean(qrJpeg.card), { ...qrJpeg, panel: undefined });
+    result('share-odd: a shared JPEG is shown and its QR code read and checked, as a PNG is', qrJpeg.at === '/app/check' && qrJpeg.shown && Boolean(qrJpeg.card), { ...qrJpeg, panel: undefined });
 
     // A HEIC photo (an iPhone's, or a Samsung's with high-efficiency photos on): the start of a real HEIC file's header.
     const heic = path.join(OUT, 'share-odd-photo.heic');
     fs.writeFileSync(heic, Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic\0\0\0\0mif1heic'), Buffer.alloc(2048, 7)]));
     await freshApp();
     await post([{ title: '', text: '', url: '', file: heic }]);
-    await until(browser, s, "location.pathname === '/app/text' && document.querySelector('[data-shot]')", 15000);
+    await until(browser, s, "location.pathname === '/app/check' && document.querySelector('[data-shot-preview]')", 15000);
     await sleep(7000);   // longer than a toast stays: what is said must still be there to read
     const heicState = await shotState();
     await shot(browser, s, 'share-odd-heic');
-    result('share-odd: a shared HEIC photo opens the screenshot reader and says plainly, and keeps saying, that it is not a PNG or JPEG and what to do',
-      heicState.at === '/app/text' && heicState.tab === 'true' && /not a PNG or JPEG/.test(heicState.panel), { at: heicState.at, tab: heicState.tab, panel: heicState.panel.slice(0, 400) });
+    result('share-odd: a shared HEIC photo opens Check with the picture and says plainly, and keeps saying, that it is not a PNG or JPEG and what to do',
+      heicState.at === '/app/check' && heicState.tab === 'true' && /not a PNG or JPEG/.test(heicState.panel), { at: heicState.at, tab: heicState.tab, panel: heicState.panel.slice(0, 400) });
     const heicBox = await box();
     result('share-odd: the HEIC photo is not left on the device', !heicBox.data && !heicBox.image, heicBox);
 
@@ -134,7 +134,7 @@ async function checkShareOdd() {
     await post([{ title: '', text: `Second share: ${SMS}`, url: '' }]);
     const twice = await text();
     await sleep(1500);
-    const twiceAfter = await evalIn(browser, s, "({ at: location.pathname, box: (document.querySelector('#t-text') || {}).value || '', results: document.querySelectorAll('[data-out] [data-text-result]').length })");
+    const twiceAfter = await evalIn(browser, s, "({ at: location.pathname, box: (document.querySelector('[data-check-text]') || {}).value || '', results: document.querySelectorAll('[data-out] [data-text-result]').length })");
     const twiceBox = await box();
     result('share-odd: two shares a moment apart: the second one is checked, alone and whole, and nothing is left waiting',
       Boolean(twice) && /^Second share: USPS/.test(twiceAfter.box) && !/First share/.test(twiceAfter.box) && twiceAfter.results === 1 && !twiceBox.data, { ...twiceAfter, box: twiceAfter.box.slice(0, 60), left: twiceBox });
@@ -158,7 +158,7 @@ async function checkShareOdd() {
     await browser.send('Page.navigate', { url: atLogin }, s);
     const back = await text();
     await shot(browser, s, 'share-odd-signed-out');
-    result('share-odd: then, signed in, the share opens in Text scan, checked', Boolean(back) && /^Signed out share: USPS/.test(back.box) && /usps-redeliver\.top/.test(back.why), back && { box: back.box.slice(0, 50), tone: back.tone });
+    result('share-odd: then, signed in, the share opens in Check, checked', Boolean(back) && /^Signed out share: USPS/.test(back.box) && /usps-redeliver\.top/.test(back.why), back && { box: back.box.slice(0, 50), tone: back.tone });
 
     // The other way round: shared signed out, then signed in from the other tab, which opens the web app there.
     if (await api(s, '/auth/logout') !== 200) throw new Error('the test account could not sign out');

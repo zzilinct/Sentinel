@@ -971,6 +971,11 @@
           <p class="ask__says" data-says aria-live="polite"></p>
           <div class="ask__as" data-as role="group" aria-label="Check it as" hidden></div>
           <button type="button" class="ask__deeper" data-deeper aria-pressed="false" hidden><i aria-hidden="true"></i>Look deeper: research the site</button>
+          <div class="ask__help" data-header-help hidden>
+            <p>To see who really sent it, paste the email with its headers.</p>
+            <p><b>Gmail:</b> open the email, click the three dots, choose Show original, then Copy to clipboard.</p>
+            <p><b>Outlook:</b> open the email, click the three dots, choose View, then View message source, and copy it all.</p>
+          </div>
         </div>
         <div class="field ask__from" data-from hidden><label for="check-from">Who sent it <span class="opt">(optional: the number, short code or name the message shows)</span></label><input class="input" id="check-from" name="from" dir="auto" placeholder="+1 415 555 0199" autocomplete="off" maxlength="80"></div>
         <figure class="shot" data-shot-preview hidden><img alt="The picture being read"><figcaption data-shot-status></figcaption></figure>
@@ -1007,7 +1012,9 @@
     function refresh() {
       const r = pick();
       const [lead, rest] = says(r, file);
-      saysEl.innerHTML = `${lead ? `<b>${esc(lead)}</b> ` : ''}${esc(rest)}`;
+      // Only when it changes: a screen reader hears the sentence once, not at every key pressed.
+      const said = `${lead ? `<b>${esc(lead)}</b> ` : ''}${esc(rest)}`;
+      if (saysEl.innerHTML !== said) saysEl.innerHTML = said;
       const kinds = Route.choices({ text: box.value, file });
       // Drawn again only when the kinds on offer change, so the one just pressed keeps the focus.
       if (kinds.join() !== kindsShown) {
@@ -1019,6 +1026,8 @@
       deeperBtn.hidden = !(f.research && r.path === '/scan/link' && deepLeft());
       deeperBtn.setAttribute('aria-pressed', String(r.mode === 'delicate'));
       fromBox.hidden = r.kind !== 'message';
+      // An email checked for who really sent it, pasted without the headers that say so: how to copy them.
+      $('[data-header-help]', el).hidden = !(r.path === '/scan/email' && !/^(Authentication-Results|Received-SPF|DKIM-Signature|Received)[ \t]*:/im.test(box.value));
       form.dataset.kind = r.kind;
       return r;
     }
