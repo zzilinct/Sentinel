@@ -208,7 +208,7 @@
   if (word && stack) {
     G.timeline({ defaults: { ease: 'none' }, scrollTrigger: { trigger: stack, start: 'top top', end: () => `+=${word.closest('.hero').offsetHeight}`, scrub: true, invalidateOnRefresh: true } })
       .fromTo(word, { yPercent: 0 }, { yPercent: -18 }, 0)
-      .fromTo(mask || {}, { y: 0 }, { y: () => innerHeight * 0.12 }, 0);
+      .fromTo(mask || {}, { y: 0 }, { y: () => (innerWidth > 860 ? innerHeight * 0.12 : 18) }, 0);  // on a phone it stays in its niche (home.css)
     // With a mouse, the name also drifts the other way from the pointer a little, for depth (the mask itself
     // watches the pointer, hover.js).
     if (fine) {

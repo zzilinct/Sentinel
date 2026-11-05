@@ -16,16 +16,14 @@ const { ROOT, OUT, sleep, result, launch, evalIn, goto, shot } = require('./_sha
 const SIZES = [[390, 844], [768, 1024], [1366, 900], [1920, 1080]];
 const THEMES = ['dark', 'light'];
 const PUBLIC = [['index', '/'], ['pricing', '/pricing'], ['download', '/download'], ['privacy', '/privacy'], ['terms', '/terms'], ['refunds', '/refunds'],
-  ['recover', '/recover'], ['practice', '/practice'], ['login', '/login'], ['signup', '/signup'], ['404', '/no-such-page']];
-const APP = ['/app', '/app/week', '/app/check', '/app/call', '/app/history', '/app/sites', '/app/checkup',
+  ['recover', '/recover'], ['call', '/call'], ['practice', '/practice'], ['login', '/login'], ['signup', '/signup'], ['404', '/no-such-page']];
+const APP = ['/app', '/app/week', '/app/check', '/app/history', '/app/sites', '/app/checkup',
   '/app/protection', '/app/plan', '/app/security', '/app/assistants', '/app/recover'].map((p) => [p.slice(1).replace('/', '-'), p]);
 
 // Deliberate, each with its reason. A finding matches when its kind is the same and `el` is found in its description.
 const ALLOWED = [
   { kind: 'clipped', el: 'button.usage-row', size: (w) => w > 900,
-    why: 'a usage row under the pointer nudges 3 px right (app-lux.css); its 18 px padding keeps its words inside, only its plain edge slips under the list\'s rounded corner' },
-  { kind: 'past-edge', el: '[data-hero-word]', size: (w) => w < 768,
-    why: 'the hero\'s gold name is wider than a phone on purpose, cropped evenly on both sides by the hero\'s frame (12 px clip margin past its 2.6vw inset)' }
+    why: 'a usage row under the pointer nudges 3 px right (app-lux.css); its 18 px padding keeps its words inside, only its plain edge slips under the list\'s rounded corner' }
 ];
 
 // A headless browser reports no mouse; this says there is one at a computer's sizes, so the pointer motion runs.

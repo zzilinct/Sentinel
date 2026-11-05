@@ -197,7 +197,7 @@ if ($Part -eq 'install') {
   $ok = Until 15 { (AppWindow) -match '^shown\|/app/threats' }
   Check 'tray-scan-file' $ok "Scan a file...: $(AppWindow)"
   Say "tray click: $(TrayClick 'Is this call a scam')"
-  $ok = Until 15 { (AppWindow) -match '^shown\|/app/call' }
+  $ok = Until 15 { (AppWindow) -match '^shown\|/call' }
   Check 'tray-call' $ok "Is this call a scam?: $(AppWindow)"
   # The app open on Live protection while the tray changes things: the switches there should follow.
   Page '/app/protection'
@@ -659,7 +659,7 @@ if ($Part -eq 'use') {
   $t = [string](Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).innerText || ''").value
   [void](Cdp '127.0.0.1:4782' "(document.getElementById('downloads').scrollIntoView(), 1)"); Start-Sleep 1
   Shot 'recent-downloads'
-  Check 'downloads-listed' ($t -match 'Clear' -and $t -notmatch 'Quarantine') "Recent downloads: $(($t -replace '\s+', ' ').Substring(0, [Math]::Min(400, ($t -replace '\s+', ' ').Length)))"
+  Check 'downloads-listed' ($t -match 'No threats found' -and $t -notmatch 'Quarantine|publishers you trust') "Recent downloads: $(($t -replace '\s+', ' ').Substring(0, [Math]::Min(400, ($t -replace '\s+', ' ').Length)))"
   HideApp
 
   # 4. Chat safety on the Discord and Roblox stand-ins (Chrome under their names), on, then off.

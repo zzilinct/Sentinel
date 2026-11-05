@@ -18,7 +18,7 @@ for (const file of ['filescan.js', 'lists.js', 'brands.js']) {
   const to = path.join(shared, file);
   fs.copyFileSync(path.join(__dirname, '..', 'server', 'lib', 'scan', file), to);
 }
-const { scanFile, MAX_FILE_BYTES } = require('../desktop/shared/filescan');
+const { scanPath } = require('../desktop/shared/filescan');
 const { summarize } = require('../desktop/src/downloads');
 
 const args = process.argv.slice(2);
@@ -46,18 +46,13 @@ for (const folder of folders) {
   let here = 0;
   for (const file of walk(folder)) {
     if (here >= share) break;
-    let buf;
-    try {
-      const st = fs.statSync(file);
-      if (!st.size || st.size > MAX_FILE_BYTES) continue;
-      buf = fs.readFileSync(file);
-    } catch { continue; }
+    try { if (!fs.statSync(file).size) continue; } catch { continue; }
     scanned++;
     here++;
     const ext = path.extname(file).toLowerCase();
     byType[ext] = (byType[ext] || 0) + 1;
     let report;
-    try { report = scanFile(buf, path.basename(file), { lookupHash: () => null }); } catch (err) { marked.push({ file, badge: 'error', reason: err.message }); continue; }
+    try { report = scanPath(file, path.basename(file), { lookupHash: () => null }); } catch (err) { marked.push({ file, badge: 'error', reason: err.message }); continue; }
     const v = summarize(report, null);
     if (v.badge) {
       const why = report.checks.filter((c) => c.status === 'fail' || c.status === 'warn').map((c) => `${c.id} ${c.points}: ${c.detail}`).join(' | ');

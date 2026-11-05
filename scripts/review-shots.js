@@ -38,7 +38,7 @@ const PAGES = [
   ['app-check-clean', `/app/check?url=${encodeURIComponent('https://www.wikipedia.org/')}`, { wait: 6000 }],
   ['app-history', '/app/history'], ['app-sites', '/app/sites'],
   ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-security', '/app/security'], ['app-assistants', '/app/assistants'],
-  ['app-call', '/app/call'], ['practice', '/practice']
+  ['call', '/call'], ['practice', '/practice']
 ];
 // Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.
 const SIZES = [['desktop', 1366, 900, false, 'dark'], ['phone', 390, 844, true, 'dark'], ['light', 1366, 900, false, 'light'], ['phone-light', 390, 844, true, 'light']];
@@ -249,7 +249,7 @@ async function main() {
       console.log(`intro-${name}: 8 frames`);
       await send('Target.closeTarget', { targetId });
     }
-    // A phone's one slow unmasking wipe across the hero (home.js), frame by frame.
+    // The niche opening once behind the mask on a phone (home.css), frame by frame.
     {
       const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
       const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
@@ -452,7 +452,7 @@ async function main() {
         const { result: m3 } = await send('Runtime.evaluate', { returnByValue: true, expression: "[!!window.SentinelMask3D, document.querySelectorAll('.mask3d--ready').length, document.querySelectorAll('[data-mask3d]').length].join(' ')" }, sessionId);
         console.log(`3D masks (loaded, ready, total): ${m3.value}`);
       }
-      for (const [name, sel, fx, fy] of [['gold-button', '.hero__cta .btn--gold', 0.25, 0.4], ['plan', '.plan--featured', 0.15, 0.12], ['kind', '.kind', 0.05, 0.5], ['footer-link', '.footer ul a', 0.02, 0.5], ['stat', '.stat', 0.85, 0.2]]) {
+      for (const [name, sel, fx, fy] of [['gold-button', '.hero__cta .btn--gold', 0.25, 0.4], ['plan', '.ledger', 0.15, 0.12], ['kind', '.kind', 0.05, 0.5], ['footer-link', '.footer ul a', 0.02, 0.5], ['stat', '.stat', 0.85, 0.2]]) {
         const r = await rect(sel);
         if (!r) continue;
         await move(r.x - 30, r.y + r.h * fy, 4);
@@ -512,7 +512,7 @@ const SPOOFED = ['Authentication-Results: mx.google.com;',
  */
 async function featureShots(send) {
   const CASES = [
-    ['call', '/app/call', "document.querySelector('[data-call-answer]')",
+    ['call', '/call', "document.querySelector('[data-call-answer]')",
       "document.querySelector('input[name=who][value=bank]').click(); document.querySelector('input[name=ask][value=code]').click();",
       "document.querySelector('[data-call-answer][data-verdict]')", '[data-call-answer]'],
     ['practice', '/practice', "document.querySelector('[data-practice] [data-pick]')",
@@ -957,7 +957,8 @@ async function desktopCards(send) {
     ['guard-typed', url('guard', { mode: 'typed', happened: 'password,card', site: 'paypal-account-verify-login.test' })],
     ['guard-pause', url('guard', { mode: 'pause', kind: 'gift', sign: 'remote' })],
     ['filescan-found', url('filescan', { name: `${'Invoice for the garden and parking works '.repeat(3).trim()}.pdf.exe`, size: '734003', badge: 'red', label: 'Dangerous file',
-      found: ['A program hiding behind a document name (.pdf.exe)', 'Downloads and runs another program', 'Turns off Windows security settings', long].join('\n') })]
+      found: ['A program hiding behind a document name (.pdf.exe)', 'Downloads and runs another program', 'Turns off Windows security settings', long].join('\n') })],
+    ['filescan-part', url('filescan', { name: 'ZoomInstallerFull.exe', size: '188743680', badge: 'part', label: 'Partly checked', why: 'Sentinel read the start and end of this file, not the middle.' })]
   ];
   // The screen's height in DIP less a 48 px taskbar: 1366x768 at 100%, 1366x768 at 125%, 1920x1080 at 150%.
   const SCREENS = [['100', 1, Math.floor(768 / 1) - 48], ['125', 1.25, Math.floor(768 / 1.25) - 48], ['150', 1.5, Math.floor(1080 / 1.5) - 48]];
