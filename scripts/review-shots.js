@@ -449,6 +449,11 @@ async function main() {
           await sleep(Math.max(0, ms - (Date.now() - t0)));
           await shoot(`blackhole-${String(ms).padStart(4, '0')}ms`, pad(plate, 60));
         }
+        // After the hole: the plate's mask, its state, and a pointer move over it so it is drawn again.
+        const { result: after } = await send('Runtime.evaluate', { returnByValue: true, expression: "(() => { const el = document.querySelector('.plate .plate__art'); const c = el.querySelector('canvas'); return JSON.stringify({ ready: el.classList.contains('mask3d--ready'), canvasOpacity: c && getComputedStyle(c).opacity, state: window.SentinelMask3D.state(el) }); })()" }, sessionId);
+        console.log(`plate after the black hole: ${after.value}`);
+        await move(plate.x + plate.w / 2 + 30, plate.y + plate.h / 2 + 10, 6);
+        await sleep(700); await shoot('blackhole-after', pad(plate, 60));
         const { result: m3 } = await send('Runtime.evaluate', { returnByValue: true, expression: "[!!window.SentinelMask3D, document.querySelectorAll('.mask3d--ready').length, document.querySelectorAll('[data-mask3d]').length].join(' ')" }, sessionId);
         console.log(`3D masks (loaded, ready, total): ${m3.value}`);
       }

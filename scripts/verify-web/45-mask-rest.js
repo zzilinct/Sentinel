@@ -57,6 +57,14 @@ async function checkMaskRest() {
     await sleep(600);
     const p2 = await ev(PIXELS);
     for (let i = 0; i < 3; i++) { await photo(`rest-${i}`); await sleep(400); }
+    // The hand-over from the still picture to the live model, side by side in the same place: the still is shown again
+    // for a moment, then the model.
+    await ev(`${HERO}.classList.remove('mask3d--ready')`);
+    await sleep(900);
+    await photo('handover-still');
+    await ev(`${HERO}.classList.add('mask3d--ready')`);
+    await sleep(900);
+    await photo('handover-live');
     result('mask-rest: once settled the hero rests, drawn a few times a second, and still drifts',
       restState.resting && rest.perSec >= 1 && rest.perSec <= 17 && p1 !== p2,
       { resting: restState.resting, heroDrawsPerSec: rest.perSec, mainThreadBusy: `${rest.busy}%`, pictureMoved: p1 !== p2, masks: restState.masks.map((m) => `${m.kind}${m.onScreen ? ' on screen' : ''}`) });

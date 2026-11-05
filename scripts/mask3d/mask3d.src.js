@@ -61,8 +61,11 @@ const FINISH = {
 const GEOMETRY = { onyx: 'scam', scam: 'scam', virus: 'virus', malware: 'malware' };
 // Which part a vertex belongs to (the part attribute): gold, liner, ember; the body is none of them.
 const PART = { trim: [1, 0, 0], liner: [0, 1, 0], ember: [0, 0, 1], body: [0, 0, 0] };
-// The gold's own light: the onyx studio is dark for metal, so in onyx the gold's reflections are lifted.
+// The gold's own light: the onyx studio is dark for metal, so in onyx the gold's reflections are lifted, and it is given
+// a warm glow of its own, brighter on top, so the rivet and the wire read as gold domes where they face the dark room
+// (the stills' softboxes do this in Blender).
 const GOLD_LIFT = { onyx: 2.4 };
+const GOLD_FLOOR = { onyx: 0.32 };
 // The eyes' light: the ember's glow and the light it throws into the socket, at rest (1) and while watching (EYE_WATCH).
 const EMBER_GLOW = 0.8;
 const EMBER_THROW = 0.14;
@@ -104,6 +107,7 @@ function swallowable(material, state) {
     shader.uniforms.uEat = state.eat;
     shader.uniforms.uEmber = state.ember;
     shader.uniforms.uGoldLift = state.goldLift;
+    shader.uniforms.uGoldFloor = state.goldFloor;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uSwirl;\nuniform float uEat;\nvarying vec3 vMaskPos;\nattribute vec3 part;\nvarying vec3 vPart;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvPart = part;')
@@ -123,7 +127,7 @@ function swallowable(material, state) {
         transformed.z -= pull * 0.35;
         vMaskPos = transformed;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRadius;\nuniform float uEat;\nuniform vec3 uRim;\nvarying vec3 vMaskPos;\nuniform float uEmber;\nuniform float uGoldLift;\nvarying vec3 vPart;')
+      .replace('#include <common>', '#include <common>\nuniform float uRadius;\nuniform float uEat;\nuniform vec3 uRim;\nvarying vec3 vMaskPos;\nuniform float uEmber;\nuniform float uGoldLift;\nuniform float uGoldFloor;\nvarying vec3 vPart;')
       // The parts (masks.py build): gold, a dark liner that reflects nothing, and the ember. Only the body is mapped.
       .replace('#include <color_fragment>', `#include <color_fragment>
         float anyPart = min(1.0, vPart.x + vPart.y + vPart.z);
@@ -142,7 +146,7 @@ function swallowable(material, state) {
           material.clearcoat *= 1.0 - anyPart;
         #endif`)
       .replace('#include <aomap_fragment>', ShaderChunk.aomap_fragment.replace('aoMapIntensity + 1.0;', 'aoMapIntensity + 1.0;\n\tambientOcclusion = mix(ambientOcclusion, 1.0, anyPart);')
-        .replace('#include <aomap_fragment>', '').replace('reflectedLight.indirectDiffuse *= ambientOcclusion;', 'reflectedLight.indirectDiffuse *= ambientOcclusion;\n\treflectedLight.indirectSpecular *= mix(1.0, uGoldLift, vPart.x);'))
+        .replace('#include <aomap_fragment>', '').replace('reflectedLight.indirectDiffuse *= ambientOcclusion;', 'reflectedLight.indirectDiffuse *= ambientOcclusion;\n\treflectedLight.indirectSpecular *= mix(1.0, uGoldLift, vPart.x);\n\treflectedLight.indirectSpecular += vPart.x * uGoldFloor * vec3(1.0, 0.62, 0.2) * (0.25 + 0.75 * saturate(normal.y * 0.5 + 0.5));'))
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
         float edge = uRadius - length(vMaskPos.xy);
         if (edge < 0.0) discard;
@@ -151,7 +155,7 @@ function swallowable(material, state) {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         // The ember: hottest where its lens faces the eye, falling to a deep red at its edge.
         float facing = saturate(dot(normal, normalize(vViewPosition)));
-        totalEmissiveRadiance += vPart.z * uEmber * vec3(1.0, 0.24, 0.01) * mix(vec3(0.55, 0.16, 0.0), vec3(1.25, 1.1, 1.0), facing * facing);
+        totalEmissiveRadiance += vPart.z * uEmber * vec3(1.0, 0.24, 0.01) * mix(vec3(0.55, 0.16, 0.0), vec3(1.2, 1.0, 0.3), facing * facing);
         totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.09, edge)) * 4.0 * step(uRadius, 1.6);
         if (uEat > 0.0) totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.14, eaten)) * 5.0;`);
   };
@@ -272,7 +276,7 @@ async function build(el) {
 
   const finishName = el.dataset.tint || kind;
   const f = FINISH[finishName] || FINISH.scam;
-  const state = { radius: { value: 9 }, swirl: { value: 0 }, eat: { value: 0 }, rim: { value: new Color(f.rim) }, ember: { value: 0 }, goldLift: { value: GOLD_LIFT[finishName] || 1 } };
+  const state = { radius: { value: 9 }, swirl: { value: 0 }, eat: { value: 0 }, rim: { value: new Color(f.rim) }, ember: { value: 0 }, goldLift: { value: GOLD_LIFT[finishName] || 1 }, goldFloor: { value: GOLD_FLOOR[finishName] || 0 } };
   const material = new MeshPhysicalMaterial({
     color: new Color(f.color), metalness: f.metalness, roughness: f.roughness, clearcoat: f.clearcoat,
     clearcoatRoughness: f.clearcoatRoughness
@@ -481,6 +485,7 @@ async function build(el) {
     material.clearcoat = fin.clearcoat;
     state.rim.value.set(fin.rim);
     state.goldLift.value = GOLD_LIFT[name] || 1;
+    state.goldFloor.value = GOLD_FLOOR[name] || 0;
     if (eyes) { eyes.on = Boolean(fin.lit); showEyes(eyes, state); }
     // Into or out of onyx: that finish's studio (fetched once, the first time any mask needs it).
     studio(fin.studio).then((env) => { if (current === name) { scene.environment = env; dirty = true; stir(); } }, () => {});
