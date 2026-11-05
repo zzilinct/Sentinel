@@ -64,8 +64,8 @@ const PART = { trim: [1, 0, 0], liner: [0, 1, 0], ember: [0, 0, 1], body: [0, 0,
 // The gold's own light: the onyx studio is dark for metal, so in onyx the gold's reflections are lifted, and it is given
 // a warm glow of its own, brighter on top, so the rivet and the wire read as gold domes where they face the dark room
 // (the stills' softboxes do this in Blender).
-const GOLD_LIFT = { onyx: 2.4 };
-const GOLD_FLOOR = { onyx: 0.32 };
+const GOLD_LIFT = { onyx: 1.5 };
+const GOLD_FLOOR = { onyx: 0.15 };
 // The eyes' light: the ember's glow and the light it throws into the socket, at rest (1) and while watching (EYE_WATCH).
 const EMBER_GLOW = 0.8;
 const EMBER_THROW = 0.14;
@@ -131,7 +131,7 @@ function swallowable(material, state) {
       // The parts (masks.py build): gold, a dark liner that reflects nothing, and the ember. Only the body is mapped.
       .replace('#include <color_fragment>', `#include <color_fragment>
         float anyPart = min(1.0, vPart.x + vPart.y + vPart.z);
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.6, 0.16), vPart.x);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.55, 0.11), vPart.x);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.004, 0.0035, 0.003), vPart.y + vPart.z);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor = mix(roughnessFactor, 0.2, vPart.x) + (0.42 - roughnessFactor) * vPart.y + (0.3 - roughnessFactor) * vPart.z;`)
@@ -147,6 +147,8 @@ function swallowable(material, state) {
         #endif`)
       .replace('#include <aomap_fragment>', ShaderChunk.aomap_fragment.replace('aoMapIntensity + 1.0;', 'aoMapIntensity + 1.0;\n\tambientOcclusion = mix(ambientOcclusion, 1.0, anyPart);')
         .replace('#include <aomap_fragment>', '').replace('reflectedLight.indirectDiffuse *= ambientOcclusion;', 'reflectedLight.indirectDiffuse *= ambientOcclusion;\n\treflectedLight.indirectSpecular *= mix(1.0, uGoldLift, vPart.x);\n\treflectedLight.indirectSpecular += vPart.x * uGoldFloor * vec3(1.0, 0.62, 0.2) * (0.25 + 0.75 * saturate(normal.y * 0.5 + 0.5));'))
+      .replace('#include <tonemapping_fragment>', `#include <tonemapping_fragment>
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, min(emberShown, vec3(1.0)), vPart.z * step(0.001, uEmber));`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
         float edge = uRadius - length(vMaskPos.xy);
         if (edge < 0.0) discard;
@@ -155,7 +157,11 @@ function swallowable(material, state) {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         // The ember: hottest where its lens faces the eye, falling to a deep red at its edge.
         float facing = saturate(dot(normal, normalize(vViewPosition)));
-        totalEmissiveRadiance += vPart.z * uEmber * vec3(1.0, 0.24, 0.01) * mix(vec3(0.55, 0.16, 0.0), vec3(1.2, 1.0, 0.3), facing * facing);
+        vec3 emberGlow = vPart.z * uEmber * vec3(1.0, 0.24, 0.01) * mix(vec3(0.55, 0.16, 0.0), vec3(1.2, 1.0, 0.3), facing * facing);
+        totalEmissiveRadiance += emberGlow;
+        // The ember itself is shown in the stills' own orange (sRGB 200, 118, 22 at rest), not through the tone curve,
+        // which turned it peach: the hand-over from the still picture keeps its colour.
+        vec3 emberShown = vec3(0.578, 0.181, 0.008) * (uEmber / ${EMBER_GLOW.toFixed(3)}) * mix(0.6, 1.1, facing * facing);
         totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.09, edge)) * 4.0 * step(uRadius, 1.6);
         if (uEat > 0.0) totalEmissiveRadiance += uRim * (1.0 - smoothstep(0.0, 0.14, eaten)) * 5.0;`);
   };
