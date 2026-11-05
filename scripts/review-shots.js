@@ -1004,14 +1004,15 @@ async function desktopStart(send) {
     welcome: { view: 'welcome', windows: true, protection: { level: 'starting', items } }
   };
   const failed = [];
-  for (const [size, w, h] of [['window', 1280, 840], ['small', 1093, 567]]) {
+  // The usual window, a 1024x768 screen's (the CI desktop's first start), and the smallest a 1366x768 screen at 125% allows.
+  for (const [size, w, h] of [['window', 1280, 840], ['laptop', 1024, 720], ['small', 1093, 567]]) {
     for (const scheme of ['dark', 'light']) {
       for (const [state, view] of Object.entries(STATES)) {
         const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
         const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
         const run = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId)).result.value;
         await send('Page.enable', {}, sessionId);
-        await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__answers = []; window.sentinelDesktop = { startState: async () => (${JSON.stringify(view)}), onStart: (f) => { window.__start = f; }, startAnswer: async (a) => { window.__answers.push(a); }, retryServer: async () => {}, openLogs: async () => {}, quit: async () => {} };` }, sessionId);
+        await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__answers = []; window.sentinelDesktop = { frame: async () => ({}), startState: async () => (${JSON.stringify(view)}), onStart: (f) => { window.__start = f; }, startAnswer: async (a) => { window.__answers.push(a); }, retryServer: async () => {}, openLogs: async () => {}, quit: async () => {} };` }, sessionId);
         await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }, sessionId);
         await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
         await send('Page.navigate', { url: file }, sessionId);
@@ -1020,13 +1021,16 @@ async function desktopStart(send) {
           const shown = [...document.querySelectorAll('section')].filter((s) => !s.hidden).map((s) => s.id);
           const buttons = [...document.querySelectorAll('section:not([hidden]) button')].map((b) => b.textContent);
           const top = document.querySelector('.mark').getBoundingClientRect().top;
-          return { out, shown, buttons, top, words: document.querySelector('section:not([hidden])').innerText.replace(/\\s+/g, ' ').slice(0, 160), scroll: document.scrollingElement.scrollHeight > innerHeight + 1 }; })()`);
+          // The section's main action, on screen without scrolling: Turn on, Try again.
+          const act = document.querySelector('section:not([hidden]) button.primary');
+          const action = act ? Math.round(act.getBoundingClientRect().bottom) : 0;
+          return { out, shown, buttons, top, action, words: document.querySelector('section:not([hidden])').innerText.replace(/\\s+/g, ' ').slice(0, 160), scroll: document.scrollingElement.scrollHeight > innerHeight + 1 }; })()`);
         const name = `desktop-start-${size}-${scheme}-${state}.png`;
         const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
         fs.writeFileSync(path.join(OUT, name), Buffer.from(shot.data, 'base64'));
         const want = state.startsWith('error') ? 'error' : state === 'welcome' ? 'welcome' : 'starting';
         // Nothing runs out of the window, and the top (the mask) is never above where the page can scroll to.
-        let ok = !fit.out.length && fit.top >= 0 && fit.shown.join() === want && !/\u2014/.test(fit.words);
+        let ok = !fit.out.length && fit.top >= 0 && fit.action <= h && fit.shown.join() === want && !/\u2014/.test(fit.words);
         // A technical cause stays in the log: the failure says it in plain words.
         if (state === 'error-technical') ok = ok && !/ENOENT|\\|spawn/.test(fit.words);
         // The first start's answer: what is ticked, only that. Live scanning is ticked; the sensitive three are not.
@@ -1035,7 +1039,7 @@ async function desktopStart(send) {
           const a = await run('window.__answers[0]');
           ok = ok && a && a.live === true && !a.chat && !a.texts && !a.links;
         }
-        console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  shows ${fit.shown}, '${fit.words}', mask at ${Math.round(fit.top)} px${fit.out.length ? `, out of the window: ${fit.out}` : ''}${fit.scroll ? ', scrolls' : ''}`);
+        console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  shows ${fit.shown}, '${fit.words}', mask at ${Math.round(fit.top)} px, main button's foot at ${fit.action} of ${h}${fit.out.length ? `, out of the window: ${fit.out}` : ''}${fit.scroll ? ', scrolls' : ''}`);
         if (!ok) failed.push(name);
         await send('Target.closeTarget', { targetId });
       }
@@ -1089,14 +1093,19 @@ async function desktopTray(send) {
       const shot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
       const name = `desktop-tray-${scale}-${state}.png`;
       fs.writeFileSync(path.join(OUT, name), Buffer.from(shot.data, 'base64'));
-      const seen = await run(`({ title: document.getElementById('title').textContent, rows: [...document.querySelectorAll('#list li')].map((li) => li.dataset.state + ':' + li.querySelector('.sw').getAttribute('aria-checked')), update: !document.getElementById('update').hidden, lock: !document.getElementById('lock').hidden, focus: document.activeElement && document.activeElement.id })`);
+      const seen = await run(`({ title: document.getElementById('title').textContent, rows: [...document.querySelectorAll('#list li')].map((li) => li.dataset.state + ':' + li.querySelector('.sw').getAttribute('aria-checked')),
+        gold: [...document.querySelectorAll('#list li')].map((li) => /gradient/.test(getComputedStyle(li.querySelector('.sw')).backgroundImage)),
+        pressable: [...document.querySelectorAll('#list li')].map((li) => !li.querySelector('.sw').disabled), update: !document.getElementById('update').hidden, lock: !document.getElementById('lock').hidden, focus: document.activeElement && document.activeElement.id })`);
       // Truth: the title is the state's own, a protection in trouble is never drawn on, and each row's switch is its own.
       let ok = !cut && size.height <= room && seen.title === s.headline && seen.rows.length === s.items.length
-        && s.items.every((i, n) => seen.rows[n] === `${i.state}:${i.enabled}`) && seen.update === s.update.ready && seen.lock === s.lock.locked && seen.focus === 'open';
+        && s.items.every((i, n) => seen.rows[n] === `${i.state}:${i.enabled && i.state !== 'unavailable'}`)
+        // A gold switch is a protection that is running, and only that; one not in the plan cannot be pressed.
+        && s.items.every((i, n) => seen.gold[n] === (i.state === 'on' && i.enabled) && seen.pressable[n] === (i.state !== 'unavailable'))
+        && seen.update === s.update.ready && seen.lock === s.lock.locked && seen.focus === 'open';
       // A press: the switch moves at once and stays where the main process says.
-      const flip = await run(`(async () => { const b = document.querySelector('#list li .sw'); const was = b.getAttribute('aria-checked'); b.click(); await new Promise((r) => setTimeout(r, 600)); return was + '>' + b.getAttribute('aria-checked'); })()`);
+      const flip = await run(`(async () => { const b = document.querySelector('#list li .sw:not(:disabled)'); const was = b.getAttribute('aria-checked'); b.click(); await new Promise((r) => setTimeout(r, 600)); return was + '>' + b.getAttribute('aria-checked'); })()`);
       ok = ok && (flip === 'true>false' || flip === 'false>true');
-      console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  ${size.width}x${size.height}, '${seen.title}', rows ${seen.rows}, switch ${flip}${cut ? `, cut off: ${cut}` : ''}`);
+      console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  ${size.width}x${size.height}, '${seen.title}', rows ${seen.rows}, gold ${seen.gold}, switch ${flip}${cut ? `, cut off: ${cut}` : ''}`);
       if (!ok) failed.push(name);
       await send('Target.closeTarget', { targetId });
     }
