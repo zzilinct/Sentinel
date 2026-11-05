@@ -982,7 +982,7 @@
         <div class="qr-cam" data-qr-camview hidden><video muted playsinline aria-label="Camera view"></video><p class="muted">Hold the QR code up to the camera. It is read here, and the camera turns off as soon as a code is found.</p></div>
       </form>
       ${iphone ? `<p class="field__hint" data-iphone-note>${esc(IPHONE_NOTE)}</p>` : ''}
-      <p class="ask__call">On the phone with someone right now? <a href="/app/call">Is this call a scam?</a></p>
+      <p class="ask__call">On the phone with someone right now? <a href="/call">Is this call a scam?</a></p>
       <div data-qr-out aria-live="polite"></div>
       <div data-out aria-live="polite"></div>`;
 
@@ -1098,7 +1098,8 @@
       // An email checked as a message: its subject and words, from its sender.
       const mail = r.kind === 'email' ? parseEmail(box.value) : null;
       const from = mail ? mail.from.slice(0, 80) : $('[name=from]', form).value.trim();
-      const all = mail ? [mail.subject, mail.body].filter(Boolean).join('\n\n') : box.value;
+      // An email's QR code goes in with its words, so a link in the code is checked with the email's own links.
+      const all = mail ? [mail.subject, mail.body, ...pictureQr.map((q) => `QR code in the email: ${q}`)].filter(Boolean).join('\n\n') : box.value;
       // A long conversation is read up to TEXT_MAX letters: its start (how it began) and its most recent part (where it is now).
       const cut = all.length > TEXT_MAX;
       const text = cut ? `${all.slice(0, 10000)}\n${all.slice(-(TEXT_MAX - 10001))}` : all;
@@ -1127,7 +1128,7 @@
       const found = [...(body.match(/https?:\/\/[^\s<>"')]+/g) || []), ...(body.match(/(?<![\w./@-])www\.[a-z0-9.-]+\.[a-z]{2,}[^\s<>"')]*/gi) || []).map((u) => `https://${u}`)];
       const payload = {
         from: m.from, replyTo: m.replyTo, subject: m.subject, body, links: [...new Set(found)].map((href) => ({ href, text: '' })),
-        attachments: m.attachments, qr: [], headers: m.headers.slice(0, 16000)
+        attachments: m.attachments, qr: pictureQr, headers: m.headers.slice(0, 16000)
       };
       const watch = watchScan(out, EMAIL_STEPS);
       try {
@@ -1169,6 +1170,8 @@
      * (never uploaded) and put in the box to look over before Check is pressed.
      */
     let reading = false;
+    // A QR code read from a screenshot of an email, sent with that email. Typing or pasting another one forgets it.
+    let pictureQr = [];
     async function readPicture(pic) {
       if (reading) return;
       if (pic.size > 20 * 1024 * 1024) { toast('That picture is too large.', 'error'); return; }
@@ -1179,12 +1182,34 @@
       preview.hidden = false;
       preview.classList.add('is-reading');
       shotStatus.textContent = 'Looking for a QR code in the picture…';
+      pictureQr = [];
       try {
         let code = null;
         try { code = await qrFromFile(pic); } catch { /* no reader, or not a picture this browser opens: said below */ }
-        if (code != null) {
+        // The words are read too where the Windows app can, so a code inside a screenshot of an email is judged with
+        // that email, as one answer, and not on a card of its own.
+        const canRead = Boolean(desktop && desktop.readScreenshot) && /^image\/(png|jpeg)$/.test(pic.type);
+        let raw = '';
+        if (code != null && canRead) {
+          shotStatus.textContent = 'Reading the words in the picture…';
+          try { raw = joinSlices(await desktop.readScreenshot(await sliceImage(pic))); } catch { raw = ''; }
+        }
+        const mailed = raw.trim() && (withSender(raw) !== raw || /^(from|sender)\s*:/im.test(raw));
+        if (code != null && !mailed) {
           shotStatus.textContent = 'The QR code in this picture was read and checked below.';
           await fromCode(code);
+          return;
+        }
+        if (code != null) {
+          // Only the code's text goes with the email, and never a secret in it (SentinelQR.redact).
+          pictureQr = [window.SentinelQR.redact(code)];
+          box.value = withSender(raw);
+          choice = 'email';
+          file = null;
+          showFile();
+          box.dispatchEvent(new Event('input', { bubbles: true }));
+          shotStatus.textContent = 'Read on this computer, with the QR code in it. Look over the words, then press Check: the code is checked with the email.';
+          box.focus();
           return;
         }
         if (!/^image\/(png|jpeg)$/.test(pic.type)) {
@@ -1225,7 +1250,13 @@
       }
     }
 
-    box.addEventListener('input', () => { if (!box.value.trim()) choice = null; refresh(); });
+    box.addEventListener('input', (ev) => {
+      // Emptied, or something else pasted in: a new thing to check, without the last picture's code. A word corrected
+      // in what was read keeps it.
+      if (!box.value.trim()) { choice = null; pictureQr = []; }
+      if (ev.inputType === 'insertFromPaste' || ev.inputType === 'insertFromDrop') pictureQr = [];
+      refresh();
+    });
     // Enter sends a link pasted on its own; in a message it starts a new line, and Ctrl+Enter sends.
     box.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Enter' || ev.shiftKey || ev.isComposing) return;

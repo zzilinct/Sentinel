@@ -6,7 +6,9 @@
  *           fast scan and an .exe link a virus scan, as the page said; a double press checking once; a phone number
  *           sent nowhere. Pictures at phone and desktop size, dark and light: check-<state>-<size>-<theme>.png.
  */
-const { sleep, result, launch, evalIn, openPage, goto, shot, typeText, startServer, watchErrors, clickSel, until } = require('./_shared');
+const fs = require('fs');
+const path = require('path');
+const { QR, sleep, result, launch, evalIn, openPage, goto, shot, typeText, startServer, watchErrors, clickSel, until } = require('./_shared');
 
 const SIZES = { phone: [390, 844, true], desktop: [1366, 900, false] };
 const PARCEL = 'USPS: Your parcel is on hold at our depot due to an unpaid $1.99 redelivery fee. Pay within 24 hours or it will be returned: https://usps-redeliver.top/track';
@@ -95,7 +97,7 @@ async function checkCheck() {
     await sleep(500);
     const num = await evalIn(browser, s, "({ focus: document.activeElement.getAttribute('href'), out: document.querySelector('[data-out]').textContent.trim().length })");
     u1 = await used();
-    result('check: Check on a phone number spends nothing and takes the keyboard to the call check', num.focus === '/app/call' && u1.link === u0.link && u1.file === u0.file, { ...num, before: u0, after: u1 });
+    result('check: Check on a phone number spends nothing and takes the keyboard to the call check', num.focus === '/call' && u1.link === u0.link && u1.file === u0.file, { ...num, before: u0, after: u1 });
 
     /* ------------------------------------------------------------- pictures */
 
@@ -122,6 +124,33 @@ async function checkCheck() {
     await browser.send('Emulation.clearDeviceMetricsOverride', {}, s);
     result('check: no sideways scroll at phone or desktop size, and Check sits in the phone\'s bottom bar, current', !wide.length, wide);
     result('check: no console errors', !errors.length, errors.slice(0, 5));
+
+    /* ------------------------------ a screenshot of an email with a QR code in it: one answer */
+
+    const qrPicture = path.join(QR, 'plain.png');
+    if (fs.existsSync(qrPicture)) {
+      if ((await api('/billing/plan', { plan: 'max' })).status !== 200) throw new Error('the test account could not move to Max');
+      const { sessionId: q } = await openPage(browser);
+      const sent = [];
+      await browser.send('Network.enable', {}, q);
+      browser.on('Network.requestWillBeSent', (p) => { if (p.request.method === 'POST' && /\/api\/v1\/scan\//.test(p.request.url)) sent.push({ url: p.request.url, post: p.request.postData || '' }); });
+      // The Windows app's screen reader, stood in for: it "reads" the picture as this email.
+      const words = ['From: Parcel Service <notice@parcel-delivery-help.top>', 'Subject: Your parcel is waiting', '', 'Scan the code below with your phone to pay the redelivery fee.'].join('\n');
+      await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.sentinelDesktop = { info: () => Promise.reject(new Error('stand-in')), readScreenshot: (slices) => Promise.resolve(slices.map((s, i) => (i ? '' : ${JSON.stringify(words)}))) };` }, q);
+      await goto(browser, q, `${base}/app/check`, "document.querySelector('[data-file]')");
+      const { root } = await browser.send('DOM.getDocument', { depth: 0 }, q);
+      const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-file]' }, q);
+      await browser.send('DOM.setFileInputFiles', { nodeId, files: [qrPicture] }, q);
+      const kind = await until(browser, q, "document.querySelector('.ask').dataset.kind === 'email' && document.querySelector('[data-check-text]').value.length > 0 && 'email'", 20000);
+      const cardsBefore = await evalIn(browser, q, "document.querySelectorAll('.qr-card').length");
+      await evalIn(browser, q, "document.querySelector('[data-form]').requestSubmit(), true");
+      const one = await until(browser, q, "(() => { const r = document.querySelector('[data-out] [data-result]'); return r && { results: document.querySelectorAll('#view [data-result]').length, cards: document.querySelectorAll('#view .qr-card').length }; })()", 30000);
+      const mail = sent.filter((r) => r.url.endsWith('/scan/email')).map((r) => JSON.parse(r.post));
+      await shot(browser, q, 'check-email-qr');
+      result('check: a screenshot of an email with a QR code is checked as one email, its code sent with it, with no separate QR card',
+        kind === 'email' && !cardsBefore && Boolean(one) && one.results === 1 && one.cards === 0 && mail.length === 1 && mail[0].qr.length === 1 && !sent.some((r) => r.url.endsWith('/scan/qr')),
+        { kind, cardsBefore, one, qr: mail.map((m) => m.qr), routes: sent.map((r) => r.url.replace(/.*\/api\/v1/, '')) });
+    } else result('check: a screenshot of an email with a QR code (skipped: no qr-samples here)', true);
   } finally {
     await close();
     await server.stop();
