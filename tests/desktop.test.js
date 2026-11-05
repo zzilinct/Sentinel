@@ -35,7 +35,7 @@ test('the reader only works on a browser that is in front and in use, and reads 
   const s = watch._test.SCRIPT;
   // Not in front, minimised, or nobody at the keyboard: the loop goes round without reading anything.
   // (includes, not match: a failure should not print the whole script)
-  assert.ok(s.includes("($browsers -notcontains $fname)) { Off 'not in front'; $pause = 1000; continue }"), 'behind another program: nothing is read');
+  assert.ok(s.includes("($browsers -notcontains $fname)) { Off 'not in front'; $pause = $(if ($testName) { 1000 } else { 5000 }); continue }"), 'behind another program: nothing is read');
   assert.ok(s.includes("IsIconic($h)) { Off 'minimised'; continue }"), 'minimised: nothing is read');
   assert.ok(s.includes('IdleMs() -gt 120000'), 'nobody at the keyboard: nothing is read');
   const gates = s.indexOf("Off 'idle'");
@@ -725,15 +725,21 @@ test('the page follower lines up a scrolled band of text, and ignores a page tha
   } finally { fs.rmSync(file, { force: true }); }
 });
 
-test('the running-browsers helper answers without starting a process each time, and ends when Sentinel does', { skip: process.platform !== 'win32' }, async () => {
+test('the running-browsers helper answers without starting a process each time, and ends when Sentinel does', { skip: process.platform !== 'win32' }, async (t) => {
   const browsers = require('../desktop/src/browsers.js');
   const script = browsers._test.WATCH_SCRIPT.replace('__NAMES__', "'notepad','chrome'");
   const child = require('child_process').spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+  // A failed check must not leave it running: the test file would never end.
+  t.after(() => { try { child.kill(); } catch { /* gone */ } });
+  // The running browsers, and the window in front as Windows tells it, in either order.
+  let heard = '';
   const first = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('no answer in 30 s')), 30000);
-    child.stdout.once('data', (d) => { clearTimeout(timer); resolve(String(d)); });
+    const timer = setTimeout(() => reject(new Error(`no answer in 30 s: ${heard}`)), 30000);
+    const on = (d) => { heard += d; if (/running:/.test(heard) && /front:[^|\r\n]*\|\d+/.test(heard)) { clearTimeout(timer); child.stdout.off('data', on); resolve(heard); } };
+    child.stdout.on('data', on);
   });
-  assert.match(first, /^running:/);
+  assert.match(first, /(^|\n)running:/m);
+  assert.match(first, /(^|\n)front:[a-z0-9_.-]*\|\d+/m, 'which window is in front, and whose');
   // Wallet guard asks who wrote the clipboard and how long since a key or the mouse was used.
   let said = '';
   const clip = await new Promise((resolve, reject) => {
@@ -853,7 +859,7 @@ test('Sentinel stays out of the way: below-normal priority, no Temp folder scann
   // The reader waits quietly when nothing is followed, and looks only once a second when no browser is in front.
   const { SCRIPT } = watch._test;
   assert.match(SCRIPT, /if \(-not \$anchor\) \{ if \(\$pendingLine\.Wait/);
-  assert.match(SCRIPT, /Off 'not in front'; \$pause = 1000; continue/);
+  assert.match(SCRIPT, /Off 'not in front'; \$pause = \$\(if \(\$testName\) \{ 1000 \} else \{ 5000 \}\); continue/);
 });
 
 test('one mark per website, on its main link: sitelinks and AI-answer citations do not each get a mark', () => {

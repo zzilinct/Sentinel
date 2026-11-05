@@ -175,12 +175,25 @@
     return el ? el.textContent.trim() : last;   // Discord names a sender once for a run of their messages
   }
 
-  function sweep() {
+  // Discord names a sender once for a run of their messages: a message read on its own looks back up the run for it.
+  function senderAbove(msg) {
+    let el = msg;
+    for (let i = 0; i < 40 && el; i++, el = el.previousElementSibling) {
+      const who = el.matches(site.message) ? whoSent(el, '') : '';
+      if (who) return who;
+    }
+    return '';
+  }
+
+  /** The messages given, or every message on the page. */
+  function sweep(messages = document.querySelectorAll(site.message)) {
     if (!settings.enabled || (site.path && !site.path.test(location.pathname))) return;
-    let who = '';
     let added = false;
-    for (const msg of document.querySelectorAll(site.message)) {
-      who = whoSent(msg, who);
+    let last = null;
+    let who = '';
+    for (const msg of messages) {
+      who = last && last === msg.previousElementSibling ? whoSent(msg, who) : senderAbove(msg);
+      last = msg;
       const textEl = msg.querySelector(site.text) || msg;
       // Chat hints have their own switch (the options page), as chat safety does in the Windows app; off, no message
       // words are read at all and only the links are marked.
@@ -219,28 +232,55 @@
     if (added || queue.length) flush();
   }
 
-  // At most one look every 400 ms while the chat changes. Not put off until it is quiet: a busy channel, or a typing
+  // At most one look every 400 ms while the chat changes, and only at the messages that changed: a whole page reread
+  // for every typing indicator cost more the longer the chat. Not put off until it is quiet: a busy channel, or a typing
   // indicator, never goes quiet, and its messages were not looked at until it did.
+  const changed = new Set();
+  let everything = false;
   let timer = null;
+  let wasOn = location.pathname;
   function schedule(delay = 400) {
     if (timer !== null) return;
-    timer = setTimeout(() => { timer = null; sweep(); }, delay);
+    timer = setTimeout(() => {
+      timer = null;
+      // Another conversation: its messages may have been drawn before the address changed.
+      if (location.pathname !== wasOn) { wasOn = location.pathname; everything = true; }
+      if (everything) sweep();
+      else if (changed.size) sweep([...changed].filter((m) => m.isConnected).sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)));
+      everything = false;
+      changed.clear();
+    }, delay);
+  }
+  function lookAgain() { everything = true; schedule(0); }
+  function note(records) {
+    for (const r of records) {
+      const at = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+      const msg = at && at.closest(site.message);
+      if (msg) changed.add(msg);
+      for (const n of r.addedNodes) {
+        if (n.nodeType !== 1) continue;
+        // A message, or a part of the page holding many (a list drawn again as the chat scrolls).
+        if (n.matches(site.message)) changed.add(n);
+        else for (const m of n.querySelectorAll(site.message)) changed.add(m);
+      }
+    }
+    if (changed.size || location.pathname !== wasOn) schedule();
   }
   // Links are checked as soon as the tab is looked at again.
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') schedule(50); });
-  window.addEventListener('focus', () => schedule(50));
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush(); });
+  window.addEventListener('focus', () => flush());
 
   let watching = false;
   function start() {
     if (watching) return;
     watching = true;
-    // characterData: an edit that changes a message's words in place.
-    new MutationObserver(() => schedule()).observe(document.body, { childList: true, subtree: true, characterData: true });
+    // characterData: an edit that changes a message's words in place. href: a link pointed elsewhere after it was drawn.
+    new MutationObserver(note).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['href'] });
   }
   Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
     settings = { ...DEFAULTS, ...(stored || {}) };
     if (!settings.enabled) return;
-    schedule(0);
+    lookAgain();
     start();
   });
   ext.storage.onChanged.addListener((changes, area) => {
@@ -250,6 +290,6 @@
     if (changes.chatHints && changes.chatHints.newValue === false) document.querySelectorAll('[data-sentinel-chat]').forEach((n) => n.remove());
     if (changes.enabled && changes.enabled.newValue === false) document.querySelectorAll('[data-sentinel-chat], .sentinel-masks--chat').forEach((n) => n.remove());
     // Switched (back) on with the chat open: it is looked over now, not at the next message.
-    if (settings.enabled && (changes.enabled || changes.chatHints || changes.minimumBadge)) { start(); schedule(0); }
+    if (settings.enabled && (changes.enabled || changes.chatHints || changes.minimumBadge)) { start(); lookAgain(); }
   });
 })();
