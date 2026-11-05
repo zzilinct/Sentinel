@@ -73,7 +73,7 @@ function assess(p) {
 
   const evidence = evidenceFrom(checks, know, ctx);
   // Scored as the app scores an address its lists have nothing on, so the two give the same answer for it.
-  const { threats } = score(checks, know, evidence);
+  const { threats } = score(checks, know, evidence, ctx);
   const kindOf = kinds.classify({ checks, know, comparison: { kits: [] }, threats });
   for (const t of THREATS) Object.assign(threats[t], kinds.describe(kindOf[t]));
 

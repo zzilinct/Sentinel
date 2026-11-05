@@ -123,6 +123,46 @@ test('on an unknown site, other listed pages still count', async () => {
   assert.ok((await scan('https://u.to/WbThIg')).overall.badge, 'still flagged');
 });
 
+test('a storage bucket\'s name is somebody\'s company: words alone never make it a scam, impersonation does', async () => {
+  // Names anyone can rent, usually a real company's. Words or shape only: at most "Nothing conclusive".
+  for (const url of [
+    'https://myaccount.blob.core.windows.net/container/folder/file.png?sv=2022-11-02&ss=b&srt=sco&sp=r&sig=Ab3dEf7hIjkLmNoPqRsTuVwXyZ0123456789abcdefGH%3D',
+    'https://secure-login-portal.s3.amazonaws.com/index.html',
+    'https://mybucket.s3.us-east-1.amazonaws.com/secure/index.html',
+    'https://billing-account-support.blob.core.windows.net/statements/2026-10.pdf'
+  ]) {
+    assert.equal(offline.scanAddress(url).overall.badge, null, url);
+    const app = await scan(url);
+    assert.equal(app.threats.scam.badge, null, `${url}: ${app.threats.scam.label}`);
+  }
+  // A brand it does not own, with sign-in or verify wording or on a web page: still caught.
+  for (const url of [
+    'https://paypal-login.s3.amazonaws.com/index.html',
+    'https://paypal-verify.blob.core.windows.net/x/index.html',
+    'https://s3.amazonaws.com/paypal-verify/index.html',
+    'https://storage.googleapis.com/paypal-secure/login.html'
+  ]) assert.equal(offline.scanAddress(url).threats.scam.level, 'likely', url);
+  // Evidence still wins: a listed bucket page is red.
+  listed('https://acme-docs.s3.amazonaws.com/index.html', 'scam');
+  assert.equal((await scan('https://acme-docs.s3.amazonaws.com/index.html')).threats.scam.badge, 'red');
+});
+
+test('a file is called a virus or malware only with evidence; otherwise its label says signs, not proof', () => {
+  const { summarize } = require('../desktop/src/downloads');
+  const { FILE_LABELS } = require('../server/lib/scan/verdict');
+  const guess = summarize({ checks: [{ id: 'F05', threat: 'malware', status: 'fail', points: 70, detail: 'Reads browser passwords' }], evidence: {} }, null);
+  assert.equal(guess.badge, 'orange');
+  assert.equal(guess.label, 'Warning signs, no proof');
+  const few = summarize({ checks: [{ id: 'F05', threat: 'virus', status: 'fail', points: 40, detail: 'x' }], evidence: {} }, null);
+  assert.equal(few.label, 'A few warning signs');
+  const proof = summarize({ checks: [], evidence: {} }, { threat: 'malware', name: 'Known stealer' });
+  assert.equal(proof.label, 'Malware detected');
+  for (const t of ['virus', 'malware']) {
+    assert.doesNotMatch(`${FILE_LABELS[t].suspicious} ${FILE_LABELS[t].likely}`, /virus|malware/i);
+    assert.match(FILE_LABELS[t].confirmed, /detected/);
+  }
+});
+
 test('the shipped list of well-known sites holds no platform where people pick their own names', () => {
   const text = require('fs').readFileSync(require('path').join(__dirname, '..', 'server', 'lib', 'scan', 'wellknown.txt'), 'utf8');
   assert.match(text, /^# Licence: Creative Commons Attribution 3\.0/m, 'its source and licence are written at the top');

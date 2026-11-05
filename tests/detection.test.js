@@ -648,7 +648,8 @@ test('unlisted phishing-style addresses are flagged from the address alone', asy
     ['https://mysecurebank-online.com/auth', 'U25'],
     ['https://webmail-update-required.com/', 'U25'],
     ['https://portal-hr-payroll.net/adp/login', 'U40'],
-    ['https://mybucket.s3.us-east-1.amazonaws.com/secure/index.html', 'U20'],
+    // A bucket is flagged when it impersonates a brand, not on its name's words alone (tests/longlinks.test.js).
+    ['https://paypal-secure.s3.us-east-1.amazonaws.com/signin/index.html', 'U20'],
     ['https://x7k29q.cloudfront.net/login.html', 'U42'],
     ['https://gardencentre-leeds.co.uk/wp-content/uploads/verify.php', 'U41'],
     ['https://sunnyrentals.com/.well-known/secure/index.php?email=', 'U41'],

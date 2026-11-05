@@ -18,7 +18,7 @@ const bad = [
   'https://storage.googleapis.com/appstatic/index.html',
   'https://webmail-update-required.com/',
   'https://portal-hr-payroll.net/adp/login',
-  'https://mybucket.s3.us-east-1.amazonaws.com/secure/index.html',
+  'https://paypal-secure.s3.us-east-1.amazonaws.com/signin/index.html',
   'https://x7k29q.cloudfront.net/login.html',
   'https://account-verify-center.com/',
   'https://secure-login-portal.net/session/',

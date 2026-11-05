@@ -256,7 +256,8 @@ function summarize(report, known, { failure = null, offline = false } = {}) {
     out[t] = { score, badge };
     if (badge && (!worst || rank[badge] > rank[out[worst].badge])) worst = t;
   }
-  const labels = { virus: { yellow: 'Possible virus', orange: 'Likely virus', red: 'Virus detected' }, malware: { yellow: 'Possible malware', orange: 'Likely malware', red: 'Malware detected' } };
+  // Virus or malware is named only with evidence (red). Without it the words say what was found: signs, not proof.
+  const labels = { virus: { yellow: 'A few warning signs', orange: 'Warning signs, no proof', red: 'Virus detected' }, malware: { yellow: 'A few warning signs', orange: 'Warning signs, no proof', red: 'Malware detected' } };
   // Packed so that only opening it would show the contents, or a zip whose list of contents was out of reach.
   const sealed = Boolean(report) && (['rar', '7z', 'gzip'].includes(report.type) || (report.type === 'zip' && report.checks.some((c) => c.id === 'F11' && c.status === 'skip')));
   const looked = !report ? 'none' : report.part || offline || sealed ? 'part' : 'all';
