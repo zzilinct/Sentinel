@@ -136,7 +136,7 @@ $itemCache.Add($A::BoundingRectangleProperty); $itemCache.Add($A::AutomationIdPr
 $stdin = $in
 $pending = $stdin.ReadLineAsync()
 $lastApp = ''; $lastSig = ''; $lastRows = $null; $chatOpen = $true; $nextMenu = 0; $lastMenu = $null; $menuLum = 0; $msgList = $null; $msgFor = [IntPtr]::Zero; $nextList = 0; $who = ''; $msgTab = $null; $whoKeys = @{}; $plSeen = 0
-$app = ''; $h = [IntPtr]::Zero; $fp = 0; $wait = 700; $nextAlive = 0; $lastItems = ''; $nextFull = 0; $emptyAt = 0
+$app = ''; $h = [IntPtr]::Zero; $fp = 0; $wait = 700; $nextAlive = 0; $lastItems = ''; $nextFull = 0; $emptyAt = 0; $closedBack = 5000
 $eye = @{ dark = 0; blind = $false; ocr = 0; menu = 0 }
 Write-Output '{"ready":true}'
 # Black again and again: Windows is keeping this window's picture from other programs. (Once could be a loading screen.)
@@ -151,7 +151,10 @@ while ($true) {
     $cmd = $pending.Result
     if ($null -eq $cmd) { exit }
     $pending = $stdin.ReadLineAsync()
-    if ($cmd -eq 'chat closed') { $chatOpen = $false } elseif ($cmd -eq 'chat open') { $chatOpen = $true }
+    # A look that found words but no chat in them may have caught a bad frame (white letters over a moving game read
+    # wrong once): looked at again in 5 s, then less and less often while it stays closed (at most once a minute).
+    if ($cmd -eq 'chat closed') { $chatOpen = $false; $emptyAt = [Environment]::TickCount + 5000; $closedBack = 10000 }
+    elseif ($cmd -eq 'chat open') { $chatOpen = $true; $emptyAt = 0; $closedBack = 5000 }
     elseif ($cmd -eq 'front -') { $app = ''; $h = [IntPtr]::Zero; $lastApp = ''; $lastSig = ''; $eye.dark = 0; $eye.blind = $false }
     elseif ($cmd -match '^front ([a-z]+) (\d{1,20})$') { $app = $Matches[1]; $h = [IntPtr][long]$Matches[2]; $fp = 0; [void][CW]::GetWindowThreadProcessId($h, [ref]$fp) }
     if (-not $app) { continue }
@@ -317,7 +320,8 @@ while ($true) {
       if ($eye.blind) { $lastRows = $null } elseif (-not [CW]::Same($lastRows, [CW]::Rows, $cw) -or ($emptyAt -and [Environment]::TickCount -gt $emptyAt)) {
         $lastRows = [CW]::Rows
         $lines = Read-Area $c[0] $c[1] $cw $ch
-        $emptyAt = if (@($lines).Count) { 0 } else { [Environment]::TickCount + 5000 }
+        $emptyAt = if (-not @($lines).Count) { [Environment]::TickCount + 5000 } elseif (-not $chatOpen) { [Environment]::TickCount + $closedBack } else { 0 }
+        if ($emptyAt -and -not $chatOpen) { $closedBack = [Math]::Min(60000, $closedBack * 2) }
         Write-Output (@{ app = 'roblox'; win = $c; area = @($c[0], $c[1], $cw, $ch); lines = @($lines) } | ConvertTo-Json -Compress -Depth 4)
       }
       # The Esc menu dims the whole game. A thin band across the middle is looked at once a second, and the recogniser
