@@ -379,9 +379,13 @@ function createWindow() {
   // Never bigger than the screen: at 1366x768 and 125% the work area is 1093x567, below even the smallest size, and
   // the bottom of the window sat under the taskbar out of reach.
   const area = screen.getPrimaryDisplay().workArea;
+  // Windows draws a one pixel border round a window whose title bar is hidden, outside its size: a few pixels short
+  // of the work area, so the border too stays on the screen.
+  const edge = process.platform === 'win32' ? 4 : 0;
+  const want = { width: Math.min(1280, area.width - edge), height: Math.min(840, area.height - edge) };
   win = new BrowserWindow({
-    width: Math.min(1280, area.width),
-    height: Math.min(840, area.height),
+    width: want.width,
+    height: want.height,
     minWidth: Math.min(960, area.width),
     minHeight: Math.min(640, area.height),
     show: false,
@@ -408,11 +412,11 @@ function createWindow() {
   // With its title bar hidden, Windows makes the window a pixel or two bigger than asked (1282x673 for 1280x672 at
   // 150%): taken back once, so it never hangs past the edge of the screen.
   if (process.platform === 'win32') {
-    const want = { width: Math.min(1280, area.width), height: Math.min(840, area.height) };
     const got = win.getBounds();
     if (got.width > want.width || got.height > want.height) {
       win.setBounds({ x: got.x, y: got.y, width: Math.max(want.width - (got.width - want.width), 200), height: Math.max(want.height - (got.height - want.height), 200) });
     }
+    win.center();
   }
   win.loadFile(path.join(__dirname, 'pages', 'start.html'));
   // Every page of the app gets the strip that moves the window (start.html has its own).
