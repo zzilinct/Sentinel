@@ -27,7 +27,7 @@ test('the protection state never says on while something switched on is not runn
   const ok = protectionState(base());
   assert.equal(ok.level, 'on');
   assert.equal(ok.headline, 'Protection is on');
-  assert.equal(ok.sub, '2 of 5 protections are on.', 'a real count: downloads and Defense of the five');
+  assert.equal(ok.sub, '2 of 5 protections are running.', 'a real count: downloads and Defense of the five');
 
   // Every protection the person switched on, one at a time, in trouble: never "on", and the reason is said.
   for (const [key, broken] of [['downloads', { active: false, reason: 'Cannot watch the Downloads folder' }], ['defense', { active: false, reason: 'Defense: could not start' }],
@@ -48,7 +48,8 @@ test('the protection state never says on while something switched on is not runn
   const f = protectionState(free);
   assert.equal(f.level, 'on');
   assert.equal(f.items.find((i) => i.id === 'downloads').state, 'unavailable');
-  assert.equal(f.sub, '1 of 4 protections are on.');
+  // Counted as it is: not running, so not left out of the count either (it used to say 1 of 4).
+  assert.equal(f.sub, '1 of 5 protections are running.');
 
   // Nothing running at all, the scanner down, and starting.
   const none = base();
@@ -193,6 +194,13 @@ test('main.js: every notification goes through the queue, and the tray reads the
   assert.match(main, /tray\.on\('click', \(\) => toggleTrayCard\(\)\)/);
   // The card goes when it loses the keyboard, and its window with it.
   assert.match(main, /trayWin\.on\('blur', \(\) => \{ if \(trayWin && !trayWin\.isDestroyed\(\)\) trayWin\.close\(\); \}\)/);
+  // A switch pressed in the card redraws the app's own switches (two switches never disagree).
+  const sw = main.slice(main.indexOf('async function traySwitch('), main.indexOf('/**', main.indexOf('async function traySwitch(')));
+  assert.match(sw, /refreshTray\(\);[\s\S]*push\('sentinel:settings', \{ \[id\]: on \}\);/);
+  // Windows: no system title bar; the caption buttons over the page in its own colour, and a strip that moves the window.
+  assert.match(main, /titleBarStyle: 'hidden', titleBarOverlay: frameColours\(/);
+  assert.match(main, /-webkit-app-region: drag;[\s\S]*a, button, input, select, textarea, summary, label, \[role="button"\] \{ -webkit-app-region: no-drag; \}/);
+  assert.match(read('desktop/src/pages/start.html'), /\.drag \{ position: fixed; top: 0; left: 0; right: 0; height: 36px; -webkit-app-region: drag; \}/);
   // Its switches go through the parent lock when they switch something off.
   assert.match(main, /if \(!on && !trayGuard\(what, true\)\) return trayState\(\);/);
 });

@@ -397,7 +397,7 @@ test('a window whose page process ends comes back; a run that did not quit is lo
   assert.match(main, /contents\.on\('render-process-gone'[\s\S]*if \(w === win\) \{ contents\.reload\(\); return; \}[\s\S]*if \(overlay\.revive\(\)\) watch\.keepAbove\(overlay\.handle\(\)\)/);
   assert.match(main, /the last run did not quit normally/);
   assert.match(main, /app\.on\('before-quit'[^\n]*unlinkSync\(runningFile\(\)\)/);
-  assert.equal((main.match(/push\('sentinel:settings'/g) || []).length, 2, 'Start with my computer and Auto scanning');
+  assert.equal((main.match(/push\('sentinel:settings'/g) || []).length, 3, 'Start with my computer, Auto scanning, and every switch in the tray card');
   assert.match(read('desktop/src/preload.js'), /onSettings: \(callback\) => on\('sentinel:settings', callback\)/);
   assert.match(read('web/assets/js/app.js'), /'onDownloadThreat', 'onSettings'\]/);
   const host = read('desktop/src/server-host.js');

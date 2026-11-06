@@ -105,6 +105,8 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   trayState: () => ipcRenderer.invoke('sentinel:tray-state'),
   trayAction: (action, arg) => ipcRenderer.invoke('sentinel:tray-action', String(action), arg == null ? '' : String(arg)),
   onTray: (callback) => on('sentinel:tray', callback),
+  // The app window's page colour, for the caption buttons drawn over it (Windows): a CSS colour, nothing else.
+  frame: (colour) => ipcRenderer.invoke('sentinel:frame', String(colour).slice(0, 40)),
   // The start window (pages/start.html): its state, and the first start's one answer.
   startState: () => ipcRenderer.invoke('sentinel:start-state'),
   onStart: (callback) => on('sentinel:start', callback),

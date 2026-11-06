@@ -57,6 +57,21 @@ $trayHook = "(() => { const e = process.mainModule.require('electron'); if (!glo
 function TrayItems { return [string](Cdp 'main' "global.qaTray ? global.qaTray.items.filter((i) => i.type !== 'separator').map((i) => i.label + (i.type === 'checkbox' ? (i.checked ? ' [x]' : ' [ ]') : '') + (i.enabled ? '' : ' (grey)')).join(' / ') : 'no menu'").value }
 # A click on a tray line, as Windows hands it to Electron (a checkbox ticks or unticks first).
 function TrayClick($label) { return [string](Cdp 'main' "(() => { const i = global.qaTray && global.qaTray.items.find((x) => x.label.startsWith('$label')); if (!i) return 'no such line'; i.click(); return i.label + (i.type === 'checkbox' ? ' ' + i.checked : ''); })()").value }
+# The app window's top (no system title bar): what Windows says is under a point, and the real mouse.
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public static class Frame {
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] static extern void mouse_event(uint f, int x, int y, uint d, UIntPtr e);
+  public static int Hit(IntPtr h, int x, int y) { return SendMessage(h, 0x84, IntPtr.Zero, new IntPtr((y << 16) | (x & 0xFFFF))).ToInt32(); }
+  public static void Click(int x, int y) { SetCursorPos(x, y); System.Threading.Thread.Sleep(150); mouse_event(2, 0, 0, 0, UIntPtr.Zero); mouse_event(4, 0, 0, 0, UIntPtr.Zero); }
+  public static void Drag(int x, int y, int dx, int dy) { SetCursorPos(x, y); System.Threading.Thread.Sleep(150); mouse_event(2, 0, 0, 0, UIntPtr.Zero); for (int i = 1; i <= 12; i++) { SetCursorPos(x + dx * i / 12, y + dy * i / 12); System.Threading.Thread.Sleep(40); } System.Threading.Thread.Sleep(150); mouse_event(4, 0, 0, 0, UIntPtr.Zero); }
+}
+"@
 # The card a click on the mask opens (pages/tray.html), as Windows hands the click to Electron; a switch in it, pressed.
 function TrayCard { [void](Cdp 'main' "(global.qaTrayObj.emit('click'), 1)"); return (Until 10 { [bool](Cdp 'tray.html' "Boolean(document.querySelector('#list li'))").value }) }
 function CardFlip($name) { return [string](Cdp 'tray.html' "(async () => { const b = [...document.querySelectorAll('.sw')].find((x) => x.getAttribute('aria-label') === '$name'); if (!b) return 'none'; b.click(); await new Promise((r) => setTimeout(r, 1500)); return b.getAttribute('aria-checked'); })()").value }
@@ -198,6 +213,26 @@ if ($Part -eq 'install') {
   $front = ''
   $ok = Until 10 { $script:front = (SentinelWindows | Where-Object { $_ -match '^front\|' }) -join ''; [bool]$script:front }
   Check 'tray-open' $ok "Open Sentinel: in front '$front'"
+  # The window's top, with no system title bar (main.js titleBarOverlay): what Windows answers there, and the real
+  # mouse on it. The strip moves the window (caption, so Windows' own snapping), the caption buttons are buttons, and a
+  # link under the strip stays a link.
+  $h = (Get-Process Sentinel | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -match 'Sentinel' } | Select-Object -First 1).MainWindowHandle
+  $r = New-Object Frame+RECT; [void][Frame]::GetWindowRect($h, [ref]$r)
+  $hits = @{ strip = [Frame]::Hit($h, $r.L + 420, $r.T + 14); close = [Frame]::Hit($h, $r.R - 20, $r.T + 14); max = [Frame]::Hit($h, $r.R - 70, $r.T + 14); logo = [Frame]::Hit($h, $r.L + 60, $r.T + 30); page = [Frame]::Hit($h, $r.L + 420, $r.T + 200) }
+  Shot 'title-bar'
+  Say "window top: $(($hits.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name) $($_.Value)" }) -join ', ') (2 caption, 1 client, 9 maximise, 20 close)"
+  [Frame]::Click($r.R - 69, $r.T + 16); $maxed = Until 6 { [Frame]::IsZoomed($h) }
+  Shot 'title-bar-maximised'
+  $r3 = New-Object Frame+RECT; [void][Frame]::GetWindowRect($h, [ref]$r3)
+  [Frame]::Click($r3.R - 69, $r3.T + 16); $restored = Until 6 { -not [Frame]::IsZoomed($h) }
+  Start-Sleep 1
+  $r = New-Object Frame+RECT; [void][Frame]::GetWindowRect($h, [ref]$r); $x0 = $r.L
+  [Frame]::Drag($r.L + 420, $r.T + 14, 120, 60); Start-Sleep 1
+  $r2 = New-Object Frame+RECT; [void][Frame]::GetWindowRect($h, [ref]$r2)
+  [Frame]::Drag($r2.L + 420, $r2.T + 14, -120, -60); Start-Sleep 1
+  Check 'title-bar' ($hits.strip -eq 2 -and $hits.page -eq 1 -and ($r2.L - $x0) -ge 100 -and $maxed -and $restored) "the strip answers caption ($($hits.strip)), the page client ($($hits.page)); dragged by the strip it moved $($r2.L - $x0) px; the maximise button maximised $maxed and restored $restored"
+  $bar = [string](Cdp '127.0.0.1:4782' "(() => { const s = document.querySelector('.sentinel-drag'); return s ? getComputedStyle(s).webkitAppRegion + ' ' + s.getBoundingClientRect().height : 'none'; })()").value
+  Check 'title-bar-strip' ($bar -eq 'drag 36') "the app page's drag strip: $bar"
   Say "tray click: $(TrayClick 'Scan a file')"
   $ok = Until 15 { (AppWindow) -match '^shown\|/app/threats' }
   Check 'tray-scan-file' $ok "Scan a file...: $(AppWindow)"
@@ -217,6 +252,13 @@ if ($Part -eq 'install') {
   Say "card: chat safety $(CardFlip 'Chat safety')"
   $ok = Until 15 { $c = (Info 'info()').chatSafety; -not $c.enabled -and -not $c.running }
   Check 'tray-chat-off' ($ok -and (Shown '[data-chat-safety]') -eq 'false') "switched off: stopped reading $ok; the app's switch shows $(Shown '[data-chat-safety]')"
+  # Download protection has no event of its own in the app: the card's switch must still move the app's (sentinel:settings).
+  Say "card: downloads $(CardFlip 'Downloads')"
+  $ok = Until 15 { -not (Info 'info()').downloads.active -and (Shown '[data-dl]') -eq 'false' }
+  Check 'tray-downloads-app-follows' $ok "Downloads switched off in the card: the app's switch shows $(Shown '[data-dl]'), download protection active $((Info 'info()').downloads.active)"
+  Say "card: downloads $(CardFlip 'Downloads')"
+  $ok = Until 30 { (Info 'info()').downloads.active -and (Shown '[data-dl]') -eq 'true' }
+  Check 'tray-downloads-back' $ok "switched on again: the app's switch shows $(Shown '[data-dl]'), active $((Info 'info()').downloads.active)"
   # The card goes when it loses the keyboard, its window with it.
   [void](Cdp 'main' "((w) => (w.show(), w.focus(), 1))(process.mainModule.require('electron').BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('127.0.0.1:4782')))")
   $gone = Until 10 { [string](Cdp 'main' "process.mainModule.require('electron').BrowserWindow.getAllWindows().filter((w) => w.webContents.getURL().includes('tray.html')).length").value -eq '0' }

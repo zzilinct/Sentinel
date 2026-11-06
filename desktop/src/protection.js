@@ -53,12 +53,12 @@ function protectionState(s) {
   if (!on.length) {
     return { level: 'off', items, headline: 'Protection is off', sub: 'Nothing is being watched right now.' };
   }
-  const counted = items.filter((i) => i.state !== 'unavailable');
+  // Counted as they are: one that is switched on but not part of this plan is not running, and is not left out.
   return {
     level: 'on',
     items,
     headline: 'Protection is on',
-    sub: on.length === counted.length ? `All ${on.length} protections are on.` : `${on.length} of ${counted.length} protections are on.`
+    sub: on.length === items.length ? `All ${on.length} protections are running.` : `${on.length} of ${items.length} protections are running.`
   };
 }
 

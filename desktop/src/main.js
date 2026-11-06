@@ -18,7 +18,7 @@
  */
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session, powerMonitor, screen, globalShortcut } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell, ipcMain, Notification, safeStorage, session, powerMonitor, screen, globalShortcut } = require('electron');
 // The app's own log (logs/app.log), set up in boot.js before anything here loads.
 const { appLog } = require('./boot');
 const downloads = require('./downloads');
@@ -321,6 +321,59 @@ app.setAppUserModelId('com.usesentinel.desktop');
 
 /* ------------------------------------------------------------- window */
 
+/**
+ * The app window's own top (Windows): the caption buttons in the page's colour, with gold symbols on a dark page and
+ * deep gold on a light one. The page tells its colour (frameScript, start.html), so a theme switched in the app or in
+ * Windows is followed without asking again.
+ */
+const FRAME_HEIGHT = 36;
+function frameColours(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const light = (0.3 * (n >> 16) + 0.59 * ((n >> 8) & 255) + 0.11 * (n & 255)) / 255 >= 0.5;
+  return { color: hex, symbolColor: light ? '#7a5a1f' : '#d6b25a', height: FRAME_HEIGHT };
+}
+/** A CSS colour from the page (rgb(), rgba() or #rrggbb), as #rrggbb; null for anything else. */
+function frameHex(colour) {
+  const c = String(colour || '').trim();
+  if (/^#[0-9a-f]{6}$/i.test(c)) return c.toLowerCase();
+  const m = /^rgba?\((\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})/.exec(c);
+  return m ? `#${m.slice(1, 4).map((x) => Math.min(255, Number(x)).toString(16).padStart(2, '0')).join('')}` : null;
+}
+// The smallest drag region the app needs: a strip as tall as the caption buttons across the top of every page of the
+// app, under its links and buttons (they stay pressable). The app's pages keep their own top padding there.
+const FRAME_CSS = `.sentinel-drag { position: fixed; top: 0; left: 0; right: 0; height: ${FRAME_HEIGHT}px; -webkit-app-region: drag; }
+a, button, input, select, textarea, summary, label, [role="button"] { -webkit-app-region: no-drag; }`;
+// The website's own pages opened in the app window (Is this call a scam?, the guest scan, signing in) have their menu
+// fixed at the very top, where the caption buttons are: there it moves down by the strip, which takes the page colour.
+const FRAME_CSS_SITE = `.nav { top: ${FRAME_HEIGHT}px !important; }
+body { margin-top: ${FRAME_HEIGHT}px !important; }
+.sentinel-drag { z-index: 101; }`;
+const FRAME_SCRIPT = `(() => {
+  if (window.__sentinelFrame) return;
+  window.__sentinelFrame = true;
+  const strip = document.createElement('div');
+  strip.className = 'sentinel-drag';
+  strip.setAttribute('aria-hidden', 'true');
+  const keep = () => { if (document.body && !strip.isConnected) document.body.prepend(strip); };
+  keep();
+  new MutationObserver(keep).observe(document.body, { childList: true });
+  const bg = () => {
+    for (const el of [document.body, document.documentElement]) {
+      const c = getComputedStyle(el).backgroundColor;
+      if (c && c !== 'transparent' && !c.endsWith(', 0)')) return c;
+    }
+    return '';
+  };
+  let last = '';
+  const site = !location.pathname.startsWith('/app');
+  const tell = () => { const c = bg(); if (site && c) strip.style.background = c; if (c && c !== last && window.sentinelDesktop && window.sentinelDesktop.frame) { last = c; window.sentinelDesktop.frame(c).catch(() => {}); } };
+  const soon = () => { tell(); setTimeout(tell, 450); };
+  soon();
+  new MutationObserver(soon).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+  new MutationObserver(soon).observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', soon);
+})()`;
+
 function createWindow() {
   // Never bigger than the screen: at 1366x768 and 125% the work area is 1093x567, below even the smallest size, and
   // the bottom of the window sat under the taskbar out of reach.
@@ -335,7 +388,12 @@ function createWindow() {
     title: 'Sentinel',
     icon: ICON,
     autoHideMenuBar: true,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // Windows: no light system bar over the dark app. Windows still draws the three caption buttons (snap layouts on
+    // the maximise button included) in the page's own colour, with gold symbols; the page's top strip moves the window
+    // (frameScript). Elsewhere, the system's own.
+    ...(process.platform === 'win32'
+      ? { titleBarStyle: 'hidden', titleBarOverlay: frameColours(nativeTheme.shouldUseDarkColors ? '#0c0d10' : '#f6f4ef') }
+      : { titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default' }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -347,6 +405,15 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, 'pages', 'start.html'));
+  // Every page of the app gets the strip that moves the window (start.html has its own).
+  if (process.platform === 'win32') {
+    win.webContents.on('dom-ready', () => {
+      if (!ORIGIN || !win.webContents.getURL().startsWith(ORIGIN)) return;
+      const site = !new URL(win.webContents.getURL()).pathname.startsWith('/app');
+      win.webContents.insertCSS(site ? `${FRAME_CSS}\n${FRAME_CSS_SITE}` : FRAME_CSS).catch(() => {});
+      win.webContents.executeJavaScript(FRAME_SCRIPT).catch(() => {});
+    });
+  }
   win.once('ready-to-show', () => { if (!startHidden) win.show(); });
 
   // Only Sentinel itself may load inside the app window.
@@ -877,6 +944,8 @@ async function traySwitch(id, on) {
   if (id === 'texts') setTextSafety(on);
   appLog(`tray card: ${id} ${on ? 'on' : 'off'}`);
   refreshTray();
+  // The app's own switches, if it is open, are drawn again: the card and the app never disagree.
+  push('sentinel:settings', { [id]: on });
   return trayState();
 }
 
@@ -1776,6 +1845,12 @@ function registerBridge() {
 
   handle('sentinel:retry-server', () => { retryCount = 0; boot(); return { ok: true }; }, trustedLocal);
   handle('sentinel:start-state', () => startView, trustedLocal);
+  // The app window's page says its background colour: the caption buttons take it (frameColours).
+  handle('sentinel:frame', (colour) => {
+    const hex = frameHex(colour);
+    if (hex && process.platform === 'win32' && win && !win.isDestroyed()) win.setTitleBarOverlay(frameColours(hex));
+    return { ok: Boolean(hex) };
+  }, (event) => (trusted(event) || trustedLocal(event)) && BrowserWindow.fromWebContents(event.sender) === win);
   // The first start's one answer. Only switches on what was ticked; "Not now" changes nothing. Then the app.
   handle('sentinel:start-answer', async (a) => {
     if (startView.view !== 'welcome') return { ok: false };

@@ -13,9 +13,12 @@
   @media (prefers-color-scheme: light) { :root { --bg: #f6f4ef; --ink: #1c1b18; --soft: #55524b; --faint: #8a867d; --line: rgba(0, 0, 0, .1); --gold: #9c7229; --warm: #a4610f; } }
   html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: var(--t-text)/var(--lh-lead) var(--sans); }
   body { display: flex; overflow: auto; }
-  main { width: min(440px, 100% - 48px); margin: auto; padding: 28px 0; }
+  /* The window has no system bar (main.js titleBarOverlay): this strip, as tall as the caption buttons, moves it. */
+  .drag { position: fixed; top: 0; left: 0; right: 0; height: 36px; -webkit-app-region: drag; }
+  button, input, label { -webkit-app-region: no-drag; }
+  main { width: min(440px, 100% - 48px); margin: auto; padding: 40px 0 24px; }
   /* The mask, lit from behind in gold: the one bit of depth on the page. */
-  .mark { width: 64px; height: 64px; margin: 0 0 20px; color: var(--gold); filter: drop-shadow(0 10px 26px color-mix(in srgb, var(--gold) 45%, transparent)); transition: color .4s ease; }
+  .mark { width: 56px; height: 56px; margin: 0 0 16px; color: var(--gold); filter: drop-shadow(0 10px 26px color-mix(in srgb, var(--gold) 45%, transparent)); transition: color .4s ease; }
   .mark svg { display: block; width: 100%; height: 100%; }
   h1 { margin: 0; font: 400 var(--t-title)/var(--lh-display) var(--display); }
   p { margin: 8px 0 0; color: var(--soft); font-size: var(--t-ui); }
@@ -51,6 +54,9 @@
   label { display: grid; grid-template-columns: 20px 1fr; gap: 12px; align-items: start; padding: 7px 0; cursor: pointer; }
   label span { color: var(--soft); font-size: var(--t-note); }
   label b { display: block; color: var(--ink); font-weight: 500; font-size: var(--t-ui); }
+  label em { font-style: normal; }
+  /* A short window (a laptop at 125%): the question and its answer stay on screen without scrolling; the side notes go. */
+  @media (max-height: 700px) { label em, #welcome small, #welcome > p { display: none; } #welcome h1 { margin-bottom: 4px; } fieldset { margin-top: 14px; } .row { margin-top: 16px; } label { padding: 5px 0; } }
   /* A tick box in the house's gold: the same gold as the buttons when ticked, the tick drawn in dark ink. */
   input[type="checkbox"] { appearance: none; position: relative; width: 18px; height: 18px; margin: 2px 0 0; border: 1.5px solid var(--faint); border-radius: 5px; cursor: pointer; transition: background-color .2s ease, border-color .2s ease; }
   input[type="checkbox"]:checked { border-color: transparent; background: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%); }
@@ -64,6 +70,7 @@
 </style>
 </head>
 <body>
+<div class="drag" aria-hidden="true"></div>
 <main>
   <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/></svg></div>
 
@@ -90,10 +97,10 @@
     <ul id="items" aria-label="What protects you now"></ul>
     <fieldset>
       <legend>Turn on more, if you want</legend>
-      <label><input type="checkbox" id="live" checked><span><b>Check the pages I open</b>Warns you before a scam page in your browser can ask for anything.</span></label>
-      <label data-win><input type="checkbox" id="chat"><span><b>Watch Roblox and Discord chats</b>Points out scams and people who may not be safe to talk to. Messages never leave this computer.</span></label>
-      <label data-win><input type="checkbox" id="texts"><span><b>Check my texts in Phone Link</b>Points out scam texts beside the message, on this computer only.</span></label>
-      <label><input type="checkbox" id="links"><span><b>Check links I copy</b>Warns you about a scam link you copy, before you paste it.</span></label>
+      <label><input type="checkbox" id="live" checked><span><b>Check the pages I open</b><em>Warns you before a scam page can ask you for anything.</em></span></label>
+      <label data-win><input type="checkbox" id="chat"><span><b>Watch Roblox and Discord chats</b><em>Points out scams and unsafe strangers, on this computer only.</em></span></label>
+      <label data-win><input type="checkbox" id="texts"><span><b>Check my texts in Phone Link</b><em>Points out scam texts beside the message, on this computer only.</em></span></label>
+      <label><input type="checkbox" id="links"><span><b>Check links I copy</b><em>Warns you about a scam link before you paste it.</em></span></label>
     </fieldset>
     <small>You can change any of these later in Live protection.</small>
     <div class="row">
@@ -160,6 +167,10 @@
   document.getElementById('logs').onclick = () => d.openLogs && d.openLogs();
   document.getElementById('quit').onclick = () => d.quit && d.quit();
   if (d.onStart) d.onStart(draw);
+  // The caption buttons take this page's colour, light or dark, and follow Windows when it changes.
+  const frame = () => d.frame && d.frame(getComputedStyle(document.body).backgroundColor).catch(() => {});
+  frame();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', frame);
   (d.startState ? d.startState() : Promise.resolve({ stage: 'scanner' })).then(draw);
 </script>
 </body>

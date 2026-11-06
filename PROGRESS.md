@@ -14,5 +14,10 @@ notify() has one gate and one queue (desktop/src/notes.js): nothing over a full-
 - review-shots: tray card too tall at 150% (fixed: off rows one line, tighter rows); start page cut its top on small windows (fixed: margin auto)
 - core install: ports-all-taken looked for error.html (fixed: start.html); core use pay-pause-leaves-with-page failed (not mine, pay pause)
 
+## Round 2 CI
+- 0155eef: all green except review-shots (welcome focus scrolled the top away on small windows): fixed in the final commit
+- final commit: review-shots, Test, live, checkup green; desktop qa (right-click filescan), verify galaxy and perf-a11y failed, all
+  passed on 0155eef and untouched by the last change (one focus() line): reran the failed jobs
+
 ## Next
-- full CI on the merge commit; read shots; report
+- report; wait for the reviewer
