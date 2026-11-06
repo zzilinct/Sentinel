@@ -565,7 +565,7 @@
 
     function deal(again) {
       deck = draw(Math.random, seen).map((m) => ({ ...m }));
-      seen = new Set();   // DELIBERATE BREAK for CI: the next deal may repeat this one
+      seen = new Set(deck.map((m) => m.id));
       log = new Map();
       looked = {};
       added = false;
