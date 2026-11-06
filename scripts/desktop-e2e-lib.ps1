@@ -14,15 +14,18 @@ public static class Qa {
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out int pid);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int size);
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   public struct RECT { public int L, T, R, B; }
-  // Visible top-level windows of these processes, one per line: "front|title|left,top,width,height".
+  // Visible top-level windows of these processes, one per line: "front|title|left,top,width,height", as seen on screen.
   public static string Windows(int[] pids) {
     var set = new HashSet<int>(pids); var lines = new List<string>(); IntPtr fg = GetForegroundWindow();
     EnumWindows((h, l) => {
       int pid; GetWindowThreadProcessId(h, out pid);
       if (set.Contains(pid) && IsWindowVisible(h)) {
-        var sb = new StringBuilder(256); GetWindowText(h, sb, 256); RECT r; GetWindowRect(h, out r);
+        var sb = new StringBuilder(256); GetWindowText(h, sb, 256); RECT r;
+        // What a person sees (DWM's frame bounds), not the invisible resize borders round it; the plain rectangle if DWM has none.
+        if (DwmGetWindowAttribute(h, 9, out r, 16) != 0) GetWindowRect(h, out r);
         if (r.R - r.L > 40 && r.B - r.T > 40) lines.Add((h == fg ? "front" : "back") + "|" + sb + "|" + r.L + "," + r.T + "," + (r.R - r.L) + "," + (r.B - r.T));
       }
       return true;

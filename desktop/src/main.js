@@ -74,6 +74,7 @@ let firstRun = false;
 let startView = { stage: 'scanner' };
 let trayWin = null;           // the tray card (pages/tray.html), made when the mask by the clock is clicked
 let trayCardClosedAt = 0;
+let downloadsWasActive = false; // the last state of download protection the app was told about
 let frontApp = null;          // the program in front that is not a browser, as live scanning's reader last said
 
 /** Started without a window: from the startup entry, or brought back in the tray after an automatic update. */
@@ -404,6 +405,15 @@ function createWindow() {
     }
   });
 
+  // With its title bar hidden, Windows makes the window a pixel or two bigger than asked (1282x673 for 1280x672 at
+  // 150%): taken back once, so it never hangs past the edge of the screen.
+  if (process.platform === 'win32') {
+    const want = { width: Math.min(1280, area.width), height: Math.min(840, area.height) };
+    const got = win.getBounds();
+    if (got.width > want.width || got.height > want.height) {
+      win.setBounds({ x: got.x, y: got.y, width: Math.max(want.width - (got.width - want.width), 200), height: Math.max(want.height - (got.height - want.height), 200) });
+    }
+  }
   win.loadFile(path.join(__dirname, 'pages', 'start.html'));
   // Every page of the app gets the strip that moves the window (start.html has its own).
   if (process.platform === 'win32') {
@@ -1994,7 +2004,13 @@ async function boot() {
     // A program named for a product but from another site: its maker's signature still vouches for it.
     signedBy: (file) => defense.signedBy(file),
     log: appLog,
-    onChange: refreshTray,
+    // Download protection comes on a moment after its switch (it asks the account first): when it really starts or
+    // stops, the app's switch is drawn again, whoever pressed it.
+    onChange: () => {
+      refreshTray();
+      const active = downloads.status().active;
+      if (active !== downloadsWasActive) { downloadsWasActive = active; push('sentinel:settings', { downloads: active }); }
+    },
     onChecked: fileChecked,
     onThreat: (item) => {
       // To the list of recent downloads, where the file's Quarantine button is (not the file scanner's drop zone).
