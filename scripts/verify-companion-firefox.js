@@ -26,6 +26,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const expand = (p) => p.replace(/%([^%]+)%/g, (m, n) => process.env[n] || m);
 const FIREFOX = arg('--firefox', ['%ProgramFiles%\\Mozilla Firefox\\firefox.exe', '%ProgramFiles(x86)%\\Mozilla Firefox\\firefox.exe', '%ProgramFiles%\\LibreWolf\\librewolf.exe', '/usr/bin/firefox', '/Applications/Firefox.app/Contents/MacOS/firefox'].map(expand).find((p) => fs.existsSync(p)));
 
+const DOOR_HOST = 'paypa1-secure-login.com';   // a listed scam (server/lib/scan/lists.js)
 const RESULTS = [
   ['https://www.paypal.com/signin', 'Log in to your PayPal account'],
   ['https://en.wikipedia.org/wiki/PayPal', 'PayPal - Wikipedia'],
@@ -94,8 +95,10 @@ async function main() {
   if (!token) { console.log(`SKIP  no Sentinel answering at ${SERVER} with a device account (start the desktop app)`); return 2; }
 
   // The "search engine": a local proxy that answers the results page and nothing else.
+  let doorHits = 0;
   const proxy = http.createServer((req, res) => {
     if (/^http:\/\/html\.duckduckgo\.com\//.test(req.url)) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(PAGE); return; }
+    if (req.url.includes(DOOR_HOST)) doorHits++;
     res.writeHead(502); res.end();
   });
   await new Promise((r) => proxy.listen(0, '127.0.0.1', r));
@@ -186,6 +189,16 @@ async function main() {
     }
     Object.assign(result, snap || {}, { seenOverlay });
 
+    // A site on the confirmed list stops at the door here too: no request reaches it, and the block page has its words.
+    await m.send('WebDriver:Navigate', { url: `http://${DOOR_HOST}/signin` }).catch(() => {});
+    let door = null;
+    for (let i = 0; i < 20 && !(door && door.title); i++) {
+      await sleep(500);
+      const r = await m.send('WebDriver:ExecuteScript', { script: "return { href: location.href, title: (document.getElementById('title') || {}).textContent || '', go: (document.getElementById('go') || {}).textContent || '' };", args: [] }).catch(() => null);
+      door = r && r.value;
+    }
+    result.door = { ...door, hits: doorHits };
+
     // A private window, once the person has allowed Sentinel there (Add-ons and themes, Run in Private Windows): the
     // same results page gets the same marks.
     const handles = async () => { const r = await m.send('WebDriver:GetWindowHandles'); return Array.isArray(r) ? r : r.value || []; };
@@ -239,8 +252,11 @@ async function main() {
   const pw = result.privateWindow || {};
   const privateOk = pw.allowed === true && pw.isPrivate === true && Boolean(result.privateMarks) && result.privateMarks.results > 0 && result.privateMarks.marked >= result.privateMarks.results;
   const noteOk = result.privateNote === !result.privateAtFirst;
-  const ok = result.results > 0 && result.marked >= result.results && result.seenOverlay && privateOk && noteOk;
+  const door = result.door || {};
+  const doorOk = door.hits === 0 && /^moz-extension:\/\/.*block\.html#http:/.test(door.href || '') && /confirmed scam/.test(door.title || '');
+  const ok = result.results > 0 && result.marked >= result.results && result.seenOverlay && privateOk && noteOk && doorOk;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${result.version || 'firefox'}`);
+  console.log(`      the door: ${JSON.stringify(door)}`);
   console.log(`      companion ${result.companion || '-'} installed as a temporary add-on (event page), signed in on the ${result.paired ? result.paired.plan : '?'} plan`);
   console.log(`      results on the page: ${result.results}, marked: ${result.marked} (clear ${result.kinds ? result.kinds.clear : 0}, yellow ${result.kinds ? result.kinds.yellow : 0}, orange ${result.kinds ? result.kinds.orange : 0}, red ${result.kinds ? result.kinds.red : 0})`);
   console.log(`      scanning overlay seen: ${result.seenOverlay}`);

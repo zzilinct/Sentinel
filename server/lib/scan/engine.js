@@ -27,7 +27,7 @@ const kinds = require('./kinds');
 const mySites = require('./mysites');
 const { scanFile, MAX_FILE_BYTES } = require('./filescan');
 const { analyzeEmail, markHost } = require('./email');
-const { THREATS, LABELS, SEVERITY, score, evidenceFrom, trustedChecks, tallyOf, reasonsOf } = require('./verdict');
+const { THREATS, LABELS, FILE_LABELS, SEVERITY, score, evidenceFrom, trustedChecks, tallyOf, reasonsOf } = require('./verdict');
 const { cluesOf, withPlain, researchGaps, listGaps, noResearchHere, unreadableFile, coverage } = require('./plain');
 
 const q = {
@@ -135,7 +135,7 @@ async function coreScan(p, { research: wanted, budgetMs, hint, onStage = () => {
     const evidence = evidenceFrom(checks, know, ctx);
     if (fileReport) for (const t of ['virus', 'malware']) if (fileReport.evidence[t] && !evidence[t]) evidence[t] = fileReport.evidence[t];
 
-    const { threats, discountApplied } = score(checks, know, evidence);
+    const { threats, discountApplied } = score(checks, know, evidence, ctx);
     // What sort of threat the evidence points at, for the label and the icon.
     const kindOf = kinds.classify({ checks, know, comparison: { kits: ctx.contentCompare.kits }, threats });
     for (const t of THREATS) Object.assign(threats[t], kinds.describe(kindOf[t]));
@@ -440,6 +440,7 @@ function scanUpload(buffer, name, opts = {}) {
   const known = Boolean(report.evidence.virus || report.evidence.malware);
   const { threats } = score(checks, { known, matches: known ? [{}] : [] }, { scam: null, ...report.evidence });
   delete threats.scam;
+  for (const t of ['virus', 'malware']) threats[t].label = FILE_LABELS[t][threats[t].level];
   const kindOf = kinds.classifyFile(report, threats);
   for (const t of ['virus', 'malware']) Object.assign(threats[t], kinds.describe(kindOf[t]));
   const worst = [threats.virus, threats.malware].sort((a, b) => SEVERITY[b.level] - SEVERITY[a.level])[0];

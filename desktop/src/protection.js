@@ -34,8 +34,8 @@ function protectionState(s) {
     ...(s.windows ? [item('defense', 'Defense', { ...s.defense, onNote: 'Startup programs are watched' })] : []),
     item('live', 'Live scanning', { ...s.live, onNote: s.live.window ? 'Watching the browser in front' : 'Ready for your browser' }),
     ...(s.windows ? [
-      item('chat', 'Chat safety', { enabled: s.chat.enabled, active: s.chat.running, reason: 'The chat reader stopped', onNote: 'Roblox and Discord chats are read here' }),
-      item('texts', 'Texts', { enabled: s.texts.enabled, active: s.texts.running, reason: 'The text reader stopped', onNote: 'Phone Link texts are read here' })
+      item('chat', 'Chat safety', { enabled: s.chat.enabled, active: s.chat.running, reason: 'Cannot read chat right now', onNote: 'Roblox and Discord chats are read here' }),
+      item('texts', 'Texts', { enabled: s.texts.enabled, active: s.texts.running, reason: 'Cannot read texts right now', onNote: 'Phone Link texts are read here' })
     ] : [])
   ];
   const on = items.filter((i) => i.state === 'on');

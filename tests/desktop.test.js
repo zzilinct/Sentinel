@@ -35,7 +35,7 @@ test('the reader only works on a browser that is in front and in use, and reads 
   const s = watch._test.SCRIPT;
   // Not in front, minimised, or nobody at the keyboard: the loop goes round without reading anything.
   // (includes, not match: a failure should not print the whole script)
-  assert.ok(s.includes("($browsers -notcontains $fname)) { Off 'not in front'; $pause = 1000; continue }"), 'behind another program: nothing is read');
+  assert.ok(s.includes("($browsers -notcontains $fname)) { Off 'not in front'; $pause = $(if ($testName) { 1000 } else { 5000 }); continue }"), 'behind another program: nothing is read');
   assert.ok(s.includes("IsIconic($h)) { Off 'minimised'; continue }"), 'minimised: nothing is read');
   assert.ok(s.includes('IdleMs() -gt 120000'), 'nobody at the keyboard: nothing is read');
   const gates = s.indexOf("Off 'idle'");
@@ -247,12 +247,14 @@ test('defense: its status never waits on the disk (one folder check held the mai
   } finally { Object.assign(fs, saved); }
 });
 
-test('defense: a signature stops action on a guess, and does not wipe the guess (Discord\'s updater is not malware; certificates get stolen)', async () => {
+// A new download: a signature stops action on a guess but does not wipe it. What starts with Windows signed by its maker
+// is not flagged at all (the Squirrel apps test below).
+test('defense: a signature stops action on a guess, and does not wipe the guess on a new file (certificates get stolen)', async () => {
   const box = sandbox();
   try {
     const full = box.file('Update.exe', fakeStealerExe());
     defense._test.setSigner(async () => 'Discord Inc.');
-    const item = await defense.inspect(full, 'startup entry HKCU Run\\Discord');
+    const item = await defense.inspect(full, 'arrived');
     assert.ok(item.badge, 'the warning keeps its colour');
     assert.equal(item.signedBy, 'Discord Inc.');
     assert.ok(fs.existsSync(full), 'the file is where it was');
@@ -333,6 +335,103 @@ test('defense: whatever it removes can be put back', async () => {
   } finally {
     defense._test.setSigner(null);
     fs.rmSync(box.dir, { recursive: true, force: true });
+  }
+});
+
+// Discord, Teams, Slack, Spotify, GitHub Desktop and other Squirrel apps start at login through their own Update.exe
+// in %LOCALAPPDATA% with arguments; VS Code's user install runs Code.exe from there too. Signed by their makers.
+const SQUIRREL = [
+  ['Discord', 'Discord\\Update.exe', '--processStart Discord.exe', 'Discord Inc.'],
+  ['com.squirrel.Teams.Teams', 'Microsoft\\Teams\\Update.exe', '--processStart "Teams.exe" --process-start-args "--system-initiated"', 'Microsoft Corporation'],
+  ['com.squirrel.slack.slack', 'slack\\Update.exe', '--processStart "slack.exe" --process-start-args "--startup"', 'Slack Technologies, LLC'],
+  ['Spotify', 'Spotify\\Spotify.exe', '--autostart --minimized', 'Spotify AB'],
+  ['GitHubDesktop', 'GitHubDesktop\\Update.exe', '--processStart GitHubDesktop.exe', 'GitHub, Inc.'],
+  ['Visual Studio Code', 'Programs\\Microsoft VS Code\\Code.exe', '--startup', 'Microsoft Corporation']
+];
+
+test('defense: Discord, Teams, Slack, Spotify, GitHub Desktop and VS Code start untouched and unflagged', async () => {
+  const box = sandbox();
+  try {
+    for (const [entry, rel, , publisher] of SQUIRREL) {
+      // The worst case: content that looks like a stealer to the on-device scan. The signature still wins.
+      const full = path.join(box.dir, 'Local', rel);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, fakeStealerExe());
+      defense._test.setSigner(async () => publisher);
+      const item = await defense.inspect(full, `startup entry HKCU Run\\${entry}`);
+      assert.equal(item.badge, null, entry);
+      assert.ok(fs.existsSync(full), `${entry}: the program is where it was`);
+    }
+    assert.equal(box.threats.length, 0, 'nobody was told anything');
+    assert.deepEqual(defense.ledger().filter((e) => e.kind !== 'clean').map((e) => e.name), []);
+  } finally {
+    defense._test.setSigner(null);
+    fs.rmSync(box.dir, { recursive: true, force: true });
+  }
+});
+
+test('defense: a startup program with proof is reported, never changed: the person chooses', async () => {
+  const box = sandbox();
+  try {
+    // A known malicious file (its hash is on a list): evidence, the strongest case there is.
+    defense._test.configure({
+      dataDir: path.join(box.dir, 'data'), quarantineDir: path.join(box.dir, 'data', 'quarantine'), downloads: path.join(box.dir, 'dl'),
+      enabled: () => true, api: async () => ({ known: true, threat: 'malware', name: 'Known stealer' }), onThreat: (t) => box.threats.push(t)
+    });
+    defense._test.setSigner(async () => null);
+    const exe = box.file('Update.exe', Buffer.from('MZ an ordinary-looking program'));
+    const item = await defense.inspect(exe, 'startup entry HKCU Run\\Discord');
+    assert.equal(item.badge, 'red');
+    assert.ok(fs.existsSync(exe), 'not moved');
+    const entry = defense.ledger().find((e) => e.name === 'Update.exe');
+    assert.equal(entry.kind, 'suspect', 'told, and left for the person to decide');
+    assert.deepEqual(entry.actions.map((a) => a.did), ['left as it was']);
+    assert.equal(box.threats.length, 1);
+    assert.equal(box.threats[0].suspect, true);
+  } finally {
+    defense._test.setSigner(null);
+    fs.rmSync(box.dir, { recursive: true, force: true });
+  }
+});
+
+test('defense: a file that appears in the Startup folder is a startup entry, never quarantined on its own', async () => {
+  const box = sandbox();
+  const appdata = process.env.APPDATA;
+  try {
+    process.env.APPDATA = path.join(box.dir, 'Roaming');
+    const startup = path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup');
+    fs.mkdirSync(startup, { recursive: true });
+    const lnk = path.join(startup, 'Helper.exe');
+    fs.writeFileSync(lnk, fakeStealerExe());
+    defense._test.setSigner(async () => null);
+    const item = await defense.inspect(lnk, 'arrived');
+    assert.ok(item.badge, 'flagged');
+    assert.ok(fs.existsSync(lnk), 'still in the Startup folder');
+    assert.equal(defense.ledger().find((e) => e.name === 'Helper.exe').kind, 'suspect');
+  } finally {
+    process.env.APPDATA = appdata;
+    defense._test.setSigner(null);
+    fs.rmSync(box.dir, { recursive: true, force: true });
+  }
+});
+
+test('defense: Run keys, Startup shortcuts and scheduled tasks are changed only at the person\'s request', () => {
+  const src = read('desktop/src/defense.js');
+  const respond = src.slice(src.indexOf('async function respond('), src.indexOf('const psq ='));
+  assert.match(respond, /const chosen = item\.chosen === true;/);
+  assert.match(respond, /if \(chosen\) \{\s*actions\.push\(\.\.\.await removeRunKeys/, 'Run keys');
+  assert.match(respond, /if \(\$chosen -and \$dir/, 'Startup shortcuts');
+  assert.match(respond, /@\(if \(\$chosen\) \{ Get-ScheduledTask \}\)/, 'scheduled tasks');
+  // `chosen` is set only where the person asked: act() and the removal it calls.
+  const sets = src.split('\n').filter((l) => /chosen: true/.test(l));
+  assert.equal(sets.length, 2, sets.join('\n'));
+  assert.ok(sets.every((l) => /const item = \{ path: entry\.path|respond\(\{ path: target/.test(l)), sets.join('\n'));
+  const removers = src.split('\n').filter((l) => /removePersistence\(/.test(l) && !/async function/.test(l));
+  assert.deepEqual(removers.map((l) => l.trim()), ['const actions = await removePersistence(entry.path);'], 'only act() removes what starts a blocked file');
+  // Nothing else in the desktop app writes to the Run keys or scheduled tasks.
+  for (const f of fs.readdirSync(path.join(ROOT, 'desktop', 'src')).filter((n) => n.endsWith('.js') && n !== 'defense.js')) {
+    const s = read(`desktop/src/${f}`);
+    assert.doesNotMatch(s, /CurrentVersion\\\\Run[^"']*['"][^\n]*\b(add|delete)\b|Unregister-ScheduledTask|Disable-ScheduledTask|StartupApproved/, f);
   }
 });
 
@@ -626,15 +725,21 @@ test('the page follower lines up a scrolled band of text, and ignores a page tha
   } finally { fs.rmSync(file, { force: true }); }
 });
 
-test('the running-browsers helper answers without starting a process each time, and ends when Sentinel does', { skip: process.platform !== 'win32' }, async () => {
+test('the running-browsers helper answers without starting a process each time, and ends when Sentinel does', { skip: process.platform !== 'win32' }, async (t) => {
   const browsers = require('../desktop/src/browsers.js');
   const script = browsers._test.WATCH_SCRIPT.replace('__NAMES__', "'notepad','chrome'");
   const child = require('child_process').spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+  // A failed check must not leave it running: the test file would never end.
+  t.after(() => { try { child.kill(); } catch { /* gone */ } });
+  // The running browsers, and the window in front as Windows tells it, in either order.
+  let heard = '';
   const first = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('no answer in 30 s')), 30000);
-    child.stdout.once('data', (d) => { clearTimeout(timer); resolve(String(d)); });
+    const timer = setTimeout(() => reject(new Error(`no answer in 30 s: ${heard}`)), 30000);
+    const on = (d) => { heard += d; if (/running:/.test(heard) && /front:[^|\r\n]*\|\d+/.test(heard)) { clearTimeout(timer); child.stdout.off('data', on); resolve(heard); } };
+    child.stdout.on('data', on);
   });
-  assert.match(first, /^running:/);
+  assert.match(first, /(^|\n)running:/m);
+  assert.match(first, /(^|\n)front:[a-z0-9_.-]*\|\d+/m, 'which window is in front, and whose');
   // Wallet guard asks who wrote the clipboard and how long since a key or the mouse was used.
   let said = '';
   const clip = await new Promise((resolve, reject) => {
@@ -754,7 +859,7 @@ test('Sentinel stays out of the way: below-normal priority, no Temp folder scann
   // The reader waits quietly when nothing is followed, and looks only once a second when no browser is in front.
   const { SCRIPT } = watch._test;
   assert.match(SCRIPT, /if \(-not \$anchor\) \{ if \(\$pendingLine\.Wait/);
-  assert.match(SCRIPT, /Off 'not in front'; \$pause = 1000; continue/);
+  assert.match(SCRIPT, /Off 'not in front'; \$pause = \$\(if \(\$testName\) \{ 1000 \} else \{ 5000 \}\); continue/);
 });
 
 test('one mark per website, on its main link: sitelinks and AI-answer citations do not each get a mark', () => {

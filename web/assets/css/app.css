@@ -775,6 +775,8 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .skeleton--tabs { height: 40px; width: 420px; max-width: 100%; margin-bottom: 18px; }
 .gate h1 { font-size: var(--t-title-l); }
 .panel--danger { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 30%, transparent); }
+/* Chat or texts not being watched: said in the ordinary text colour, a step up from the grey around it, never red or bold. */
+.muted.is-down { color: var(--text); }
 .btn--danger { color: var(--error-text); }
 .connect-head { display: flex; gap: 14px; align-items: center; }
 .ai-tab__mark--lg { width: 44px; height: 44px; border-radius: var(--r); font-size: var(--t-ui); }

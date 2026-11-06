@@ -10,9 +10,22 @@
 const { db } = require('../db');
 const safeBrowsing = require('./safebrowsing');
 const feeds = require('./feeds');
-const { urlKey, isUserContent } = require('./url');
+const fs = require('fs');
+const path = require('path');
+const { urlKey, isUserContent, isWellKnown } = require('./url');
 
 const REPORTS_FOR_CONFIRMED = 3;
+
+// The most linked-to sites on the web (wellknown.txt, made by scripts/wellknown.js; its header names the source and
+// licence). Read once, on the first lookup.
+let popularSet = null;
+function popular() {
+  if (popularSet) return popularSet;
+  let text = '';
+  try { text = fs.readFileSync(path.join(__dirname, 'wellknown.txt'), 'utf8'); } catch { /* not shipped: brands and the verified list still count */ }
+  popularSet = new Set(text.split(/\r?\n/).filter((l) => l && !l.startsWith('#')));
+  return popularSet;
+}
 
 // Lists are queried by the exact host, the registrable domain and the host
 // without "www.", so a list that says "www.evil.com" still catches "evil.com".
@@ -78,12 +91,19 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
   //   only other pages are listed      -> 'inferred'; the engine makes it
   //                                       evidence only when the address also
   //                                       looks wrong on its own checks
+  //
+  // On a well-known site (url.isWellKnown) other listed pages say nothing about this one: URLhaus lists files people
+  // uploaded to cdn.discordapp.com, github.com and drive.google.com, and a GIF beside them is not "likely malware".
+  // There only this exact address, or the site's front page, being listed counts.
+  const wellKnown = isWellKnown(p, popular());
   if (!allowed && !userContent) {
     const frontKeys = [...new Set([p.host, bare, www])].map((h) => urlKey(`http://${h}/`)).filter(Boolean);
     const frontListings = new Set(frontKeys.flatMap(k => q.feedUrl.all(k).map(row => `${row.source}:${row.threat}`)));
     for (const row of q.feedUrlHost.all(p.host, bare, www)) {
+      const front = frontListings.has(`${row.source}:${row.threat}`);
+      if (wellKnown && !front) continue;
       const category = row.n >= 3 ? 'compromised_host' : row.threat === 'scam' ? 'hosts_phishing_page' : 'hosts_malware';
-      add(row.source, row.threat, category, frontListings.has(`${row.source}:${row.threat}`) ? 'confirmed' : 'inferred');
+      add(row.source, row.threat, category, front ? 'confirmed' : 'inferred');
       matches[matches.length - 1].listed = row.n;
     }
   }
@@ -113,6 +133,7 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
     known: matches.some((m) => m.strength === 'confirmed'),
     trusted,
     userContent,
+    wellKnown,
     matches: dedupe(matches),
     reports,
     reportCounts,

@@ -1,0 +1,45 @@
+# Makes server/lib/scan/wellknown.txt (scripts/wellknown.js) from the Majestic Million (CC BY 3.0), less the shared
+# platforms the Public Suffix List (MPL 2.0) names: the most
+# linked-to sites, on which a link's shape is not held against it. Runs only when the script changes. The file is kept
+# as an artifact and committed by hand. Nothing on the domains is opened: they are only names.
+name: Well-known sites
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['work/**']
+    paths: ['scripts/wellknown.js', '.github/workflows/well-known.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: The Majestic Million
+        run: |
+          curl -fsSL -D headers.txt -o majestic_million.csv https://downloads.majestic.com/majestic_million.csv
+          grep -i '^last-modified' headers.txt | tee list-date.txt
+          curl -fsSL -o public_suffix_list.dat https://publicsuffix.org/list/public_suffix_list.dat
+      # The public threat lists Sentinel reads, into a database of its own on this machine: which sites have listed
+      # addresses under many names of their own.
+      - name: The threat lists
+        env:
+          DB_PATH: ${{ runner.temp }}/lists/sentinel.db
+        run: node scripts/admin.js refresh-feeds
+      - name: The list
+        run: |
+          node scripts/wellknown.js --csv majestic_million.csv --psl public_suffix_list.dat --feeds "$RUNNER_TEMP/lists/sentinel-feeds.db" --date "$(sed 's/^[^:]*: *//' list-date.txt | tr -d '\r')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: well-known
+          path: |
+            server/lib/scan/wellknown.txt
+            server/lib/scan/wellknown.txt.dropped
+          retention-days: 7

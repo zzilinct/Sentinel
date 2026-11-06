@@ -414,6 +414,23 @@ function typedUrl(raw) {
   return /^[a-z][a-z0-9+.-]*:/i.test(input) ? input : `https://${input.replace(/^\/\//, '')}`;
 }
 
+/**
+ * A site whose own name is well known: a brand Sentinel protects, a site on its verified list, or one of the most
+ * linked-to sites on the web (`popular`, the list knowledge.js loads from wellknown.txt). Its address is not the
+ * danger, so the shape of a link on it says nothing: links on cdn.discordapp.com, googleusercontent.com or
+ * amazonaws.com are long, signed and random by design. What is served there still can be dangerous: the threat
+ * lists, the download checks and the impersonation checks still apply to it.
+ * Never a name someone else chose on a shared platform: a customer's subdomain, a storage bucket, a dynamic-DNS name.
+ * Never a link shortener: there the address is not the site, the hidden destination is.
+ */
+function isWellKnown(p, popular = null) {
+  if (!p || p.isIp || p.hosting || L.OBJECT_STORAGE.test(p.host) || L.DYNAMIC_DNS.some((d) => p.host === d || p.host.endsWith('.' + d))) return false;
+  if (L.URL_SHORTENERS.has(p.registrable) || L.URL_SHORTENERS.has(p.host)) return false;
+  if (popular && popular.has(p.registrable)) return true;
+  if (L.DEFAULT_ALLOWLIST.some((d) => p.registrable === d || p.host === d || p.host.endsWith('.' + d))) return true;
+  return L.PROTECTED_BRANDS.some((b) => b.domains.some((d) => p.registrable === d || p.host === d || p.host.endsWith('.' + d)));
+}
+
 module.exports = {
-  analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent, isRealWords
+  analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent, isRealWords, isWellKnown
 };
