@@ -216,7 +216,7 @@ async function checkQaWeb() {
     /* ------------------------------------------- is this call a scam? */
     await part('call', async () => {
       await phone();
-      await goto(browser, s, `${base}/app/call`, "document.querySelector('[data-call-answer] .call__empty')");
+      await goto(browser, s, `${base}/call`, "document.querySelector('[data-call-answer] .call__verdict').textContent");
       await sleep(1200);
       await ev('scrollTo(0, 0), document.activeElement && document.activeElement.blur(), true');
       // Keyboard only: Tab until the "code" box has focus, then Space.
@@ -237,19 +237,20 @@ async function checkQaWeb() {
       result('qa-web: call, the box just ticked keeps the keyboard focus', Boolean(seen) && seen.focus === 'code', seen && seen.focus);
       const ax = await browser.send('Accessibility.getFullAXTree', {}, s);
       const boxes = ax.nodes.filter((n) => n.role && n.role.value === 'checkbox' && !n.ignored);
-      const unnamed = boxes.filter((n) => !(n.name && n.name.value));
+      const radios = ax.nodes.filter((n) => n.role && n.role.value === 'radio' && !n.ignored);
+      const unnamed = [...boxes, ...radios].filter((n) => !(n.name && n.name.value));
       const live = ax.nodes.some((n) => (n.properties || []).some((p) => p.name === 'live' && p.value.value === 'polite') && !n.ignored);
-      result('qa-web: call, a screen reader hears a name for every box and the answer is a live region', boxes.length === 14 && !unnamed.length && live, { boxes: boxes.length, unnamed: unnamed.length, live });
+      result('qa-web: call, a screen reader hears a name for every box and the answer is a live region', boxes.length === 11 && radios.length === 10 && !unnamed.length && live, { boxes: boxes.length, radios: radios.length, unnamed: unnamed.length, live });
       // Light theme: the answer is still readable.
       await ev("localStorage.setItem('sentinel:theme', 'light'), true");
-      await goto(browser, s, `${base}/app/call`, "document.querySelector('[data-call-answer] .call__empty')");
+      await goto(browser, s, `${base}/call`, "document.querySelector('[data-call-answer] .call__verdict').textContent");
       await sleep(1000);
       await clickAt('input[value="giftcards"]');
       await sleep(900);
       const contrast = await ev(`(() => {
         const rgb = (c) => (c.match(/[\\d.]+/g) || []).map(Number);
         const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
-        const bg = (el) => { for (let e = el; e; e = e.parentElement) { const c = rgb(getComputedStyle(e).backgroundColor); if (c.length === 3 || (c.length === 4 && c[3] > 0.9)) return c.slice(0, 3); } return [255, 255, 255]; };
+        const bg = (el) => { for (let e = document.querySelector('.call__plate') || el; e; e = e.parentElement) { const c = rgb(getComputedStyle(e).backgroundColor); if (c.length === 3 || (c.length === 4 && c[3] > 0.9)) return c.slice(0, 3); } return [255, 255, 255]; };
         const ratio = (sel) => { const e = document.querySelector(sel); const a = lum(rgb(getComputedStyle(e).color)), b = lum(bg(e)); return Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 10) / 10; };
         return { theme: document.documentElement.dataset.theme, verdict: ratio('.call__verdict'), reason: ratio('.call__reason') }; })()`);
       await shot(browser, s, 'qa-call-light');
@@ -429,13 +430,13 @@ async function checkQaWeb() {
       // Back and forward: what was pasted is still there.
       await ev("(() => { const t = document.querySelector('[data-form] textarea'); t.value = ''; t.focus(); return true; })()");
       await browser.send('Input.insertText', { text: EXPORTS['WhatsApp on Android'] }, s);
-      await clickAt('a[href="/app/call"]');
-      await waitFor("location.pathname === '/app/call' && document.querySelector('[data-call]')");
+      await clickAt('a[href="/app/history"]');
+      await waitFor("location.pathname === '/app/history'");
       await ev('history.back(), true');
       await waitFor("location.pathname === '/app/text' && document.querySelector('#view [data-form] textarea')");
       await sleep(400);
       const kept = await ev("document.querySelector('[data-form] textarea').value.length");
-      result('qa-web: text, a conversation pasted, then the call page opened and Back pressed, is still in the box', kept === EXPORTS['WhatsApp on Android'].length, { kept, pasted: EXPORTS['WhatsApp on Android'].length });
+      result('qa-web: text, a conversation pasted, then another page opened and Back pressed, is still in the box', kept === EXPORTS['WhatsApp on Android'].length, { kept, pasted: EXPORTS['WhatsApp on Android'].length });
     });
 
     await part('text, screenshot without the app', async () => {

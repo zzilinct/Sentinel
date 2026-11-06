@@ -540,5 +540,13 @@ window.UI = (() => {
     </article>`;
   }
 
-  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, resultGlyph, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
+  // A sign-in form's script has bound it: boot.js stops holding presses, and one that was held goes through now.
+  function formReady(form) {
+    form.dataset.live = '1';
+    const held = form.dataset.held !== undefined;
+    window.SentinelReleaseForm(form);
+    if (held) form.requestSubmit();
+  }
+
+  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, busy, formReady, verdict, resultGlyph, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
 })();

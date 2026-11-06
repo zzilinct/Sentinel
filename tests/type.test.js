@@ -49,8 +49,8 @@ test('the faces every page needs are preloaded and precached, under a new cache 
 });
 
 test('every size comes from the scale', () => {
-  // Two deliberate exceptions: the wordmark is sized to the window, and the tab wipe's title is left as it is.
-  const allowed = /\.hero__word|\.wipe__label/;
+  // Deliberate exceptions: the wordmarks are sized to the window, and the tab wipe's title is left as it is.
+  const allowed = /\.hero__word|\.auth__word|\.wipe__label/;
   for (const file of STYLED) {
     const text = read(file).replace(/\/\*[\s\S]*?\*\//g, '');
     for (const m of text.matchAll(/([^{}\n]*)\{[^{}]*?\bfont(?:-size)?:\s*(?:\d{3}\s+)?(?:clamp\()?\d[\d.]*(?:px|rem)[^;}]*/g)) {

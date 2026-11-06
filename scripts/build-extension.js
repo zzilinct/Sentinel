@@ -19,6 +19,18 @@ const OUT_DIR = path.join(ROOT, 'web', 'downloads');
 
 const SKIP = new Set(['.DS_Store', 'Thumbs.db', '.gitignore']);
 
+// Tests run in parallel processes and read these files while extension.test.js runs this build. A plain write
+// truncates first, so a reader could see an empty manifest.json. Same bytes: leave the file alone. New bytes:
+// write beside it and rename over it, so a reader sees the old file or the new one, never half of either.
+function put(to, data) {
+  const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+  try { if (fs.readFileSync(to).equals(buf)) return; } catch { /* not there yet */ }
+  const tmp = `${to}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, buf);
+  fs.renameSync(tmp, to);
+}
+const copy = (from, to) => put(to, fs.readFileSync(from));
+
 /* ------------------------------------------- sync shared sources + brand */
 
 const brand = JSON.parse(fs.readFileSync(path.join(ROOT, 'brand.json'), 'utf8'));
@@ -26,25 +38,27 @@ const manifestPath = path.join(SRC, 'manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
 // One source of truth for the mask glyphs: the web app's copy.
-fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SRC, 'src', 'content', 'masks.js'));
+copy(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SRC, 'src', 'content', 'masks.js'));
 // And for the ClickFix command rules: the engine's copy, the same one the Windows app uses.
-fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'clickfix.js'), path.join(SRC, 'src', 'content', 'clickfix.js'));
+copy(path.join(ROOT, 'server', 'lib', 'scan', 'clickfix.js'), path.join(SRC, 'src', 'content', 'clickfix.js'));
 // And for the pay pause's wording rules (gift cards and crypto by title and labels), the same the Windows app uses.
-fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'paywords.js'), path.join(SRC, 'src', 'content', 'paywords.js'));
+copy(path.join(ROOT, 'server', 'lib', 'scan', 'paywords.js'), path.join(SRC, 'src', 'content', 'paywords.js'));
 // And for chat safety's rules: the hints beside messages in web chats are the Windows app's own.
-fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'chat.js'), path.join(SRC, 'src', 'content', 'chat.js'));
+copy(path.join(ROOT, 'server', 'lib', 'scan', 'chat.js'), path.join(SRC, 'src', 'content', 'chat.js'));
 // And for what to do after a scam: the password alarm gives the same steps as the site and the Windows app.
-fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), path.join(SRC, 'src', 'content', 'steps.js'));
+copy(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), path.join(SRC, 'src', 'content', 'steps.js'));
 // The warning, once more for the page's own world: the browser runs a file only once per frame, and alarm.js
 // already runs there in the companion's world (the block page and the password alarm).
-fs.copyFileSync(path.join(SRC, 'src', 'content', 'alarm.js'), path.join(SRC, 'src', 'content', 'alarm.page.js'));
+copy(path.join(SRC, 'src', 'content', 'alarm.js'), path.join(SRC, 'src', 'content', 'alarm.page.js'));
 // And for the type the popup shares with the website: the scale and the faces, with their licences.
 fs.mkdirSync(path.join(SRC, 'src', 'fonts'), { recursive: true });
 for (const file of ['fonts.css', 'newsreader-opsz-16-72.woff2', 'newsreader-OFL.txt', 'geist-normal-300-700.woff2', 'geist-OFL.txt', 'geist-mono-normal-400-600.woff2', 'geist-mono-OFL.txt']) {
-  fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'fonts', file), path.join(SRC, 'src', 'fonts', file));
+  copy(path.join(ROOT, 'web', 'assets', 'fonts', file), path.join(SRC, 'src', 'fonts', file));
 }
 
-fs.writeFileSync(path.join(SRC, 'src', 'lib', 'brand.js'),
+// The masks on the block page, the popup and the settings are the site's renders made smaller: scripts/extension-masks.py.
+
+put(path.join(SRC, 'src', 'lib', 'brand.js'),
   '// Generated from brand.json by scripts/build-extension.js - edit brand.json instead.\n' +
   `export const BRAND = ${JSON.stringify({ name: brand.name, origin: brand.origin, domain: brand.domain }, null, 2)};\n`);
 
@@ -63,7 +77,7 @@ if (process.argv.includes('--production')) {
   manifest.host_permissions = manifest.host_permissions.filter((h) => !dev(h));
   manifest.externally_connectable.matches = manifest.externally_connectable.matches.filter((h) => !dev(h));
 }
-fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+put(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 
 /* ------------------------------------------------------------ firefox */
 
@@ -76,6 +90,7 @@ function firefoxManifest(base) {
   const ff = JSON.parse(JSON.stringify(base));
   delete ff.minimum_chrome_version;
   delete ff.externally_connectable;
+  delete ff.incognito;   // Chrome needs "split" to show the block page in a private window; Firefox has no such mode
   ff.background = { scripts: ['src/background.firefox.js'] };
   ff.browser_specific_settings = {
     gecko: {
@@ -90,10 +105,10 @@ function flattenBackground() {
   const strip = (file) => fs.readFileSync(path.join(SRC, 'src', file), 'utf8')
     .replace(/^import\s+[^;]+;\s*$/gm, '')
     .replace(/^export\s+(?=(const|let|function|class|async)\b)/gm, '');
-  return '// Generated by scripts/build-extension.js: lib/brand.js + lib/api.js + lib/pwalarm.js + background.js as one classic script for Firefox.\n'
-    + [strip('lib/brand.js'), strip('lib/api.js'), strip('lib/pwalarm.js'), strip('background.js')].join('\n');
+  return '// Generated by scripts/build-extension.js: lib/say.js + lib/brand.js + lib/api.js + lib/pwalarm.js + background.js as one classic script for Firefox.\n'
+    + [strip('lib/say.js'), strip('lib/brand.js'), strip('lib/api.js'), strip('lib/pwalarm.js'), strip('background.js')].join('\n');
 }
-fs.writeFileSync(path.join(SRC, 'src', 'background.firefox.js'), flattenBackground());
+put(path.join(SRC, 'src', 'background.firefox.js'), flattenBackground());
 
 console.log(`  brand origin  ${brand.origin}`);
 console.log(`  firefox id    ${FIREFOX_ID}`);
@@ -210,7 +225,7 @@ for (const [tag, files] of [['', chromiumFiles], ['-firefox', firefoxFiles]]) {
   const zip = buildZip(files);
   const versioned = path.join(OUT_DIR, `sentinel-companion${tag}-${manifest.version}.zip`);
   const latest = path.join(OUT_DIR, `sentinel-companion${tag}-latest.zip`);
-  fs.writeFileSync(versioned, zip);
-  fs.writeFileSync(latest, zip);
+  put(versioned, zip);
+  put(latest, zip);
   console.log(`  packed ${files.length} files -> ${(zip.length / 1024).toFixed(1)} KB  ${path.relative(ROOT, latest)}`);
 }

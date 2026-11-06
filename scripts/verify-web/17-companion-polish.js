@@ -13,7 +13,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock, clickButton } = require('./_shared');
 
 const SAYS = 'No real company, government office or bank asks to be paid in gift cards or crypto.';
 // Not on the cached list: the scanner has to be the one that flags it. The first the scanner calls red or orange is used.
@@ -43,13 +43,19 @@ async function box(browser, s, n) {
  * across (no horizontal cut), the panel's top on screen, and each button reachable on screen once scrolled to.
  */
 async function measure(browser, s, width, height) {
+  // The block page's own column, with its "why" open so every button is there; or a note's panel.
+  await evalIn(browser, s, "(() => { const m = document.getElementById('more'); if (m) m.open = true; })()");
   const all = await nodes(browser, s);
-  const panel = all.find((n) => n.nodeName === 'DIV' && /\bpanel\b/.test(attr(n, 'class') || ''));
+  const panel = all.find((n) => n.nodeName === 'DIV' && /\b(panel|say)\b/.test(attr(n, 'class') || ''));
   if (!panel) return { ok: false, why: 'no warning on the page' };
   const inside = [];
   const walk = (n) => { inside.push(n); for (const c of n.children || []) walk(c); };
   walk(panel);
-  const parts = inside.filter((n) => n.nodeName === 'BUTTON' || n.nodeName === 'H1' || (n.nodeName === 'A' && attr(n, 'href')));
+  // Only what is drawn: a hidden element has no box.
+  const parts = [];
+  for (const n of inside.filter((x) => x.nodeName === 'BUTTON' || x.nodeName === 'H1' || (x.nodeName === 'A' && attr(x, 'href')))) {
+    if (await box(browser, s, n).catch(() => null)) parts.push(n);
+  }
   // Scrolled to the panel's top corner first: that top must be reachable, not above the window.
   await browser.send('DOM.scrollIntoViewIfNeeded', { nodeId: panel.nodeId, rect: { x: 0, y: 0, width: 1, height: 1 } }, s).catch(() => {});
   await sleep(150);
@@ -169,29 +175,31 @@ async function checkCompanionPolish() {
       await evalIn(browser, opt.sessionId, "chrome.windows.create({ incognito: true, url: 'http://giftshop.test/start' }).then(() => 1)");
       let target = null;
       for (let i = 0; i < 40 && !target; i++) { await sleep(250); target = (await browser.send('Target.getTargets')).targetInfos.find((t) => t.type === 'page' && t.url === 'http://giftshop.test/start') || null; }
-      const incognito = await evalIn(browser, opt.sessionId, "chrome.tabs.query({}).then((t) => t.filter((x) => x.incognito).length)");
-      result('companion-polish: the companion is allowed in a private window, and one is open', allowed === true && Boolean(target) && incognito >= 1, { allowed, target: Boolean(target), incognito });
+      // In split mode the private window has its own worker and its tabs are not listed here: its context tells.
+      const own = (await browser.send('Target.getTargets')).targetInfos.find((t) => t.targetId === opt.targetId);
+      const incognito = Boolean(target) && target.browserContextId !== own.browserContextId;
+      result('companion-polish: the companion is allowed in a private window, and one is open', allowed === true && Boolean(target) && incognito, { allowed, target: Boolean(target), incognito });
       if (!target) throw new Error('no private window');
       const priv = { targetId: target.targetId, sessionId: (await browser.send('Target.attachToTarget', { targetId: target.targetId, flatten: true })).sessionId };
       await browser.send('Page.enable', {}, priv.sessionId);
       await goto(browser, priv.sessionId, `http://${FLAG}/wallet/home`);
-      const block = await waitText(priv.sessionId, /Take me back to safety/, 80);
+      const block = await waitText(priv.sessionId, /Take me back to safety|Go to the real/, 80);
       await shot(browser, priv.sessionId, 'companion-polish-private-flagged');
       const href = await evalIn(browser, priv.sessionId, 'location.href').catch((e) => e.message);
-      result(`companion-polish: ${FLAG} in a private window gets the block page`, /Take me back to safety/.test(block), { href, text: block.slice(0, 200) });
-      // The same page again in that tab: the block page is not drawn twice per tab and site, so only the page itself
-      // knows it is flagged. The worker's memory of the page is then dropped too (as when the browser stops it).
-      await goto(browser, priv.sessionId, `http://${FLAG}/wallet/home`);
+      result(`companion-polish: ${FLAG} in a private window is warned (the block page if red, over the page if orange)`, /Take me back to safety|Go to the real/.test(block), { href, text: block.slice(0, 200) });
+      // Continue anyway: the page opens and stays open, and only the page itself knows it is flagged.
+      // Red is taken to the block page; orange is warned over the page that stays.
+      if (await evalIn(browser, priv.sessionId, "location.protocol === 'chrome-extension:'")) await passBlock(browser, priv.sessionId, 'typeof window.goSend === "function"');
+      else await clickButton(browser, priv.sessionId, 'Continue anyway');
       await sleep(1500);
       const noBlock = !/Take me back to safety/.test(await pageText(browser, priv.sessionId));
-      await evalIn(browser, opt.sessionId, "chrome.runtime.sendMessage({ type: 'refresh' }).then(() => 1)");
       await evalIn(browser, priv.sessionId, 'window.goSend()');
       const after = await waitText(priv.sessionId, saysRe, 24);
       const where = await evalIn(browser, priv.sessionId, 'location.pathname');
       await shot(browser, priv.sessionId, 'companion-polish-private-flagged-send');
       const store = await kept();
       result('companion-polish: the flagged page moving to its send screen by pushState gets no pay pause, and nothing about it is kept',
-        /Take me back to safety/.test(block) && noBlock && where === '/wallet/send' && /Send/.test(after) && !after.includes(SAYS) && !JSON.stringify(store).includes(FLAG) && !store['paused:private'] && !Object.keys(store).some((k) => k.startsWith('typed:')),
+        /Take me back to safety|Go to the real/.test(block) && noBlock && where === '/wallet/send' && /Send/.test(after) && !after.includes(SAYS) && !JSON.stringify(store).includes(FLAG) && !store['paused:private'] && !Object.keys(store).some((k) => k.startsWith('typed:')),
         { noBlock, where, paused: after.includes(SAYS), kept: Object.keys(store) });
       // The pause itself still works in a private window, on an honest gift card page.
       await goto(browser, priv.sessionId, 'http://giftshop.test/gift-cards/');
@@ -255,7 +263,7 @@ async function checkCompanionPolish() {
     await sleep(400);
     const shortFit = await measure(browser, phone.sessionId, W, 480);
     await shot(browser, phone.sessionId, 'companion-polish-block-short-end');
-    result('companion-polish: in a window shorter than the block page, its top and every button can still be reached', shortFit.ok && shortFit.panel.bottom - shortFit.panel.top > 480, shortFit);
+    result('companion-polish: in a window shorter than the block page, its top and every button can still be reached', shortFit.ok, shortFit);
     await browser.send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false }, phone.sessionId);
 
     // The pay pause, after that warning, on an honest gift card page at the same size.

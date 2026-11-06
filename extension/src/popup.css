@@ -2,8 +2,7 @@
 @import url('fonts/fonts.css');
 :root {
   --bg: #0a0b0d;
-  --gold-grad: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%);
-  --panel: #131519;
+  --gold-grad: linear-gradient(180deg, #efd79c 0%, #d6b066 34%, #b88e3d 62%, #e2c47f 100%);
   --panel-2: #1e2126;
   --line: rgba(255, 255, 255, .09);
   --text: #efece5;
@@ -12,21 +11,22 @@
   --gold: #d4ae63;
   --gold-hi: #e2c47f;
   --on-gold: #16130b;
-  --yellow: #f5c542;
   --orange: #f08a24;
-  --red: #e5484d;
+  --red: #ff7a7e;
   --green: #4cb782;
+  --spring: linear(0, .063, .207, .382, .555, .706, .828, .918, .98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1);
 }
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f6f4ef; --panel: #ffffff; --panel-2: #f1eee8; --line: rgba(20, 22, 26, .12);
+    --bg: #f6f4ef; --panel-2: #ebe7de; --line: rgba(20, 22, 26, .12);
     --text: #16171a; --text-2: #3b3a36; --muted: #57554f;
-    --gold: #8a6420; --gold-hi: #74531a; --gold-grad: linear-gradient(180deg, #98712a 0%, #8a6420 50%, #6f4f16 100%); --on-gold: #ffffff;
-    --yellow: #8a6100; --orange: #b04a00; --red: #b3261e; --green: #1e7a3c;
+    --gold: #7a5716; --gold-hi: #634610; --gold-grad: linear-gradient(180deg, #a07a30 0%, #8a6420 34%, #6f4f16 62%, #94702a 100%); --on-gold: #ffffff;
+    --orange: #a84600; --red: #b3261e; --green: #1e7a3c;
   }
 }
 
 * { box-sizing: border-box; }
+html { background: var(--bg); }
 body {
   width: 360px;
   margin: 0;
@@ -35,50 +35,55 @@ body {
   font: var(--t-note)/var(--lh-lead) var(--sans);
 }
 
-.top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; }
 .brand { display: flex; align-items: center; gap: 9px; font: 400 var(--t-title-s)/1 var(--display); --track: var(--tr-display); }
 .brand img { border-radius: 4px; }
-.plan { font-size: var(--t-label); font-weight: 500; color: var(--gold); border: 1px solid var(--line); padding: 2px 8px; border-radius: 4px; }
+.plan { font-size: var(--t-label); font-weight: 500; color: var(--gold); }
 
-.view { padding: 16px; min-height: 180px; }
+.view { padding: 4px 16px 14px; min-height: 180px; }
 .loading { display: grid; place-items: center; height: 160px; }
-.spin { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--gold); animation: spin .7s linear infinite; }
+.spin { display: inline-block; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--gold); animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: -4px -4px 10px rgba(255,255,255,.035), 5px 6px 14px rgba(0,0,0,.5); }
-.label { color: var(--muted); font-size: var(--t-note); font-weight: 500; margin-bottom: 8px; }
-.host { --track: 0px; font: 500 var(--t-note)/1.4 var(--mono); word-break: break-all; margin-bottom: 10px; }
+/* The answer: the mask, then what it means. */
+.answer { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 14px; align-items: start; }
+.answer-mask { display: block; width: 76px; height: auto; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .35)); }
+.answer h1 { font: 400 var(--t-title-s)/1.16 var(--display); margin: 2px 0 6px; text-wrap: balance; }
+.answer[data-tone="danger"] h1 { color: var(--red); }
+.answer[data-tone="warn"] h1 { color: var(--orange); }
+.host { --track: 0px; font: 500 var(--t-label)/1.4 var(--mono); color: var(--text-2); overflow-wrap: anywhere; margin-bottom: 8px; }
+.answer-line { margin: 0; color: var(--text); }
+.answer-reason { margin: 6px 0 0; color: var(--text-2); overflow-wrap: anywhere; }
 
-/* One row per threat: its mask, what was found, and how sure. */
-.threats { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.threat { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel); }
-.threat svg { width: 22px; height: 22px; display: block; }
-.threat b { font-size: var(--t-note); font-weight: 600; color: var(--text); }
-.threat span { color: var(--muted); font-size: var(--t-micro); }
-.threat.locked { opacity: .45; }
+.do { display: grid; gap: 8px; margin-top: 14px; }
+.do:empty { display: none; }
+.do-row { display: flex; gap: 8px; }
+.do-row .btn { flex: 1; }
+.note { margin: 10px 0 0; }
+.note:empty { display: none; }
+
+.status { display: flex; justify-content: space-between; gap: 10px; margin: 14px 0 0; padding-top: 11px; border-top: 1px solid var(--line); }
+.status b { font-weight: 500; color: var(--text-2); }
+.status b[data-tone="on"] { color: var(--green); }
+.status b[data-tone="paused"] { color: var(--orange); }
+.status-why { margin: 4px 0 0; }
 
 .reasons { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
 .reasons li { display: flex; gap: 8px; color: var(--text-2); font-size: var(--t-label); }
 .reasons li::before { content: ""; flex: none; width: 5px; height: 5px; margin-top: 7px; border-radius: 50%; background: var(--gold); }
-
-.meter { height: 6px; border-radius: 99px; background: var(--panel-2); overflow: hidden; margin: 8px 0 6px; }
-/* Full-width fill slid in from the left; --p (0-100) is the share used. */
-.meter i { display: block; height: 100%; border-radius: 99px; background: var(--gold); transform: translateX(calc(var(--p, 0) * 1% - 100%)); transition: transform .5s ease; }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .small { color: var(--muted); font-size: var(--t-label); }
 
-.btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; font-size: var(--t-note); padding: 9px 13px; border-radius: 11px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); transition: background .15s ease, transform .1s ease; }
-.btn:hover { border-color: var(--muted); }
-.btn:active { transform: scale(.98); }
-.btn.gold { background: var(--gold-grad); color: var(--on-gold); border-color: transparent; box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 10px 24px -12px rgba(212,174,99,.75); }
-.btn.gold:hover { background: var(--gold-hi); }
+.btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-align: center; font-weight: 600; font-size: var(--t-note); padding: 10px 14px; border-radius: 11px; background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); transition: transform .32s var(--spring), box-shadow .2s ease; }
+.btn:hover { box-shadow: inset 0 0 0 1px var(--muted); }
+.btn:active { transform: scale(.97); }
+/* Gold is metal: the light travels across it on hover, nothing fades. */
+.btn.gold { background: var(--gold-grad) 0 0 / 100% 240%; color: var(--on-gold); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 12px 26px -14px rgba(212, 174, 99, .8); transition: transform .32s var(--spring), background-position .5s ease; }
+.btn.gold:hover { background-position: 0 100%; }
 .btn.block { width: 100%; }
+.btn.quiet { background: none; box-shadow: none; color: var(--text-2); font-weight: 500; padding: 6px; }
+.btn.quiet:hover { color: var(--text); }
 .btn[disabled] { opacity: .55; cursor: default; }
 .actions { display: flex; gap: 8px; margin-top: 12px; }
-
-.lock { display: flex; gap: 10px; align-items: flex-start; }
-.lock svg { flex: none; width: 18px; height: 18px; color: var(--gold); margin-top: 1px; }
-.lock p { margin: 0 0 10px; color: var(--text-2); }
 
 .pw-line { margin: 0; padding: 0 16px 11px; }
 .foot { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); }
@@ -86,15 +91,11 @@ body {
 .foot a:hover, .link:hover { color: var(--gold-hi); }
 
 @media (prefers-reduced-motion: reduce) {
-  .meter i, .btn { transition: none; }
+  .btn, .btn.gold { transition: none; }
+  .btn:active { transform: none; }
+  .spin { animation-duration: 2s; }
 }
 
-.lede { margin: 0 0 12px; color: var(--text-2); }
-.meta { margin: 10px 0 12px; }
-
 /* The keyboard's place, seen: .btn and the links are reset with all: unset, which took the browser's own ring too. */
-.btn:focus-visible, .link:focus-visible, .foot a:focus-visible, .threat:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-.verdict { margin: 0 0 10px; font-size: var(--t-note); }
-.verdict + .reasons { margin: -4px 0 10px; }
-h2.label { margin-top: 0; }
-.scan-error { color: var(--orange); margin: 0 0 10px; }
+.btn:focus-visible, .link:focus-visible, .foot a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.scan-error { color: var(--orange); }

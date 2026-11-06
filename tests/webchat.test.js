@@ -98,3 +98,97 @@ test('the web chats content script: where it runs, what it reads, what it sends'
   ];
   for (const [href, words, want] of cases) assert.equal(ctx.realUrl(href, words, base), want, href.slice(0, 60));
 });
+
+/**
+ * The real script, on a small stand-in for a page: Discord's selectors, a counter of every read of a message, and the
+ * MutationObserver handed to the test so changes can be delivered by hand.
+ */
+function chatPage() {
+  let reads = 0;
+  let wide = 0;
+  const hinted = [];
+  class El {
+    constructor(selector) { this.sel = selector; this.kids = []; this.parent = null; this.nodeType = 1; this.text = ''; this.attrs = {}; this.who = ''; }
+    get isConnected() { return Boolean(this.parent); }
+    get parentElement() { return this.parent; }
+    get previousElementSibling() { const k = this.parent ? this.parent.kids : []; return k[k.indexOf(this) - 1] || null; }
+    matches(s) { return this.sel === s; }
+    closest(s) { let e = this; while (e) { if (e.sel === s) return e; e = e.parent; } return null; }
+    get textContent() { reads++; return this.text; }
+    querySelector(s) {
+      if (s.includes('message-username')) return this.who ? { textContent: this.who } : null;
+      if (s.includes('message-content')) return this;
+      return null;
+    }
+    querySelectorAll(s) {
+      if (s === MSG) { const out = this.kids.flatMap((k) => (k.sel === MSG ? [k] : k.querySelectorAll(s))); return out; }
+      return [];
+    }
+    compareDocumentPosition(b) { const k = this.parent.kids; return k.indexOf(this) < k.indexOf(b) ? 4 : 2; }
+    after(n) { hinted.push(n); }
+  }
+  const MSG = 'li[id^="chat-messages-"]';
+  const list = new El('ol'); list.parent = {};
+  const add = (text, who = '') => { const m = new El(MSG); m.text = text; m.who = who; m.parent = list; list.kids.push(m); return m; };
+  let observer = null;
+  const timers = [];
+  const ctx = {
+    Node: { DOCUMENT_POSITION_FOLLOWING: 4 }, URL, Promise, setTimeout: (f, ms) => { timers.push(f); return timers.length; }, clearTimeout() {},
+    location: { hostname: 'discord.com', pathname: '/channels/1/2', href: 'https://discord.com/channels/1/2' },
+    window: { addEventListener() {} },
+    MutationObserver: class { constructor(f) { observer = f; } observe() {} },
+    SentinelMasks: { SEVERITY: {} }, chrome: { runtime: { sendMessage: async () => ({}) }, storage: { sync: { get: async () => ({ chatHints: true, enabled: true }) }, onChanged: { addListener() {} } } }
+  };
+  ctx.globalThis = ctx;
+  ctx.SentinelChat = { conversation: () => ({ add: ({ who, text }) => { ctx.judged.push([who, text]); return null; } }) };
+  ctx.judged = [];
+  ctx.document = {
+    body: list, visibilityState: 'visible', hasFocus: () => true, addEventListener() {}, createElement: () => new El('span'),
+    querySelectorAll: (s) => { wide++; return list.querySelectorAll(s); }
+  };
+  vm.createContext(ctx);
+  vm.runInContext(read('extension/src/content/webchat.js'), ctx);
+  const run = async () => { await new Promise((r) => setImmediate(r)); while (timers.length) timers.shift()(); await new Promise((r) => setImmediate(r)); };
+  return { ctx, add, list, run, deliver: (records) => observer(records), counts: () => ({ reads, wide }), reset: () => { reads = 0; wide = 0; } };
+}
+
+test('web chats read only what changed: a long chat costs the same as a short one', async () => {
+  for (const size of [50, 5000]) {
+    const page = chatPage();
+    for (let i = 0; i < size; i++) page.add(`message ${i}`, i % 7 ? '' : `person${i}`);
+    await page.run();
+    assert.equal(page.ctx.judged.length, size, 'all of it is read when the page opens');
+    page.reset();
+    // A typing indicator, and any other change outside a message: nothing is read at all.
+    page.deliver([{ target: page.list, addedNodes: [{ nodeType: 1, matches: () => false, querySelectorAll: () => [] }] }]);
+    await page.run();
+    assert.deepEqual(page.counts(), { reads: 0, wide: 0 }, `${size} messages: a change outside any message reads none of them`);
+    const m = page.add('one more');
+    page.deliver([{ target: page.list, addedNodes: [m] }]);
+    await page.run();
+    assert.deepEqual(page.counts(), { reads: 1, wide: 0 }, `${size} messages: one new message is one read, and no look over the page`);
+    assert.equal(page.ctx.judged.at(-1)[0], `person${Math.floor((size - 1) / 7) * 7}`, 'and its sender is found up the run of messages above it');
+  }
+});
+
+test('web chats: a list drawn again, an edit, and another conversation are all still read', async () => {
+  const page = chatPage();
+  const a = page.add('first', 'sam');
+  await page.run();
+  // An edit in place.
+  a.text = 'edited';
+  page.deliver([{ target: { nodeType: 3, parentElement: a }, addedNodes: [] }]);
+  await page.run();
+  assert.equal(page.ctx.judged.at(-1)[1], 'edited');
+  // A block of messages arriving together, in order.
+  const b = page.add('second'); const c = page.add('third');
+  page.deliver([{ target: page.list, addedNodes: [{ nodeType: 1, matches: () => false, querySelectorAll: () => [c, b] }] }]);
+  await page.run();
+  assert.deepEqual(page.ctx.judged.slice(-2).map((j) => j[1]), ['second', 'third'], 'in the order they sit on the page');
+  // Another conversation: every message there, even ones drawn before the address changed.
+  const d = page.add('drawn before the address changed');
+  page.ctx.location.pathname = '/channels/1/3';
+  page.deliver([{ target: page.list, addedNodes: [] }]);
+  await page.run();
+  assert.ok(page.ctx.judged.some((j) => j[1] === d.text));
+});

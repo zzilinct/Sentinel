@@ -103,8 +103,10 @@ async function installed() {
  * printing the browsers only when they change. Starting tasklist every four seconds cost a new process (and its
  * console host) fifteen times a minute, the one thing Sentinel's main process did while nothing else was going on.
  * It ends by itself when Sentinel does: its standard input closes.
- * It also says which program owns the window in front, when that changes ("front:msedge"), looked at twice a second:
- * "Stop pasted commands" looks at the clipboard often only while a browser is in front.
+ * It also says which window is in front and whose it is, the moment that changes ("front:msedge|1234"): Windows tells it
+ * (a WinEvent hook, as screen readers use, which runs nothing inside any other program), and every other part of
+ * Sentinel that cares is told from here, so nothing else has to keep asking. "Stop pasted commands" looks at the
+ * clipboard often only while a browser is in front, and chat safety reads only the window in front.
  * Asked "clip" on its input, it answers which program wrote the clipboard and how many milliseconds ago a key or the
  * mouse was last used ("clip:powershell|5230"), for wallet guard (clipwatch.js).
  * Told "listen", it hears every clipboard change the moment it happens (a message-only window registered with
@@ -115,7 +117,7 @@ async function installed() {
  */
 const WATCH_SCRIPT = `
 $ErrorActionPreference = 'SilentlyContinue'
-Add-Type -Namespace SB -Name F -MemberDefinition '[DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p); [DllImport("user32.dll")] public static extern System.IntPtr GetClipboardOwner(); [DllImport("user32.dll")] public static extern bool GetLastInputInfo([In, Out] int[] p);'
+Add-Type -Namespace SB -Name F -MemberDefinition '[DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p); [DllImport("user32.dll")] public static extern System.IntPtr GetClipboardOwner(); [DllImport("user32.dll")] public static extern bool GetLastInputInfo([In, Out] int[] p);'
 Add-Type -TypeDefinition @'
 using System; using System.Diagnostics; using System.Runtime.InteropServices; using System.Text; using System.Text.RegularExpressions; using System.Threading;
 namespace SB {
@@ -153,8 +155,9 @@ public static class Clip {
     hwnd = CreateWindowExW(0, "SentinelClipboard", "", 0, 0, 0, 0, 0, new IntPtr(-3), IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
     if (hwnd == IntPtr.Zero || !AddClipboardFormatListener(hwnd)) { hwnd = IntPtr.Zero; Say("clipboard:off"); return; }
     Say(on ? "clipboard:on" : "clipboard:off");
-    MSG m; while (GetMessageW(out m, IntPtr.Zero, 0, 0) > 0) DispatchMessageW(ref m);
+    Pump();
   }
+  internal static void Pump() { MSG m; while (GetMessageW(out m, IntPtr.Zero, 0, 0) > 0) DispatchMessageW(ref m); }
   static IntPtr Proc(IntPtr h, uint m, IntPtr w, IntPtr l) { if (m == 0x031D && on) Changed(); return DefWindowProcW(h, m, w, l); }
   static void Changed() {
     int tick = Environment.TickCount; uint seq = GetClipboardSequenceNumber();
@@ -183,6 +186,28 @@ public static class Clip {
     return null;
   }
   internal static void Say(string s) { lock (Shape) { Console.Out.WriteLine(s); Console.Out.Flush(); } }
+}
+// The window in front, as Windows says it changes. Check is also called on the loop's slow beat, for a change the hook
+// was never told about.
+public static class Front {
+  delegate void Heard(IntPtr hook, uint ev, IntPtr h, int obj, int child, uint thread, uint ms);
+  [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr mod, Heard f, uint pid, uint thread, uint flags);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern int GetWindowThreadProcessId(IntPtr h, out int p);
+  static Heard keep; static IntPtr last; static readonly object gate = new object();
+  public static void Start() {
+    Thread t = new Thread(() => { keep = (a, b, c, d, e, f, g) => Check(); SetWinEventHook(3, 3, IntPtr.Zero, keep, 0, 0, 2); Check(); Clip.Pump(); });
+    t.IsBackground = true; t.Start();
+  }
+  public static void Check() {
+    lock (gate) {
+      IntPtr h = GetForegroundWindow();
+      if (h == IntPtr.Zero || h == last) return;
+      last = h; int id; string n = ""; GetWindowThreadProcessId(h, out id);
+      try { n = Process.GetProcessById(id).ProcessName.ToLower(); } catch {}
+      Clip.Say("front:" + n + "|" + h.ToInt64());
+    }
+  }
 }
 // The Run keys (HKCU and HKLM) where programs ask to start with Windows: Windows says the moment either changes, so
 // defense no longer starts reg.exe every minute to look. Read only: nothing is ever written to them from here.
@@ -223,20 +248,16 @@ public static class RunKeys {
 $names = @(__NAMES__)
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
 $pending = $stdin.ReadLineAsync()
-$last = $null; $front = $null; $hwnd = [IntPtr]::Zero; $n = 0
+$last = $null; $clock = $null
+[SB.Front]::Start()
 while ($true) {
-  if ($n % 6 -eq 0) {
+  if (-not $clock -or $clock.ElapsedMilliseconds -ge 2900) {
+    $clock = [Diagnostics.Stopwatch]::StartNew()
     $now = (@(Get-Process -Name $names | ForEach-Object { $_.ProcessName.ToLower() }) | Sort-Object -Unique) -join ','
     if ($now -ne $last) { $last = $now; [Console]::Out.WriteLine('running:' + $now); [Console]::Out.Flush() }
+    [SB.Front]::Check()
   }
-  $n++
-  $h = [SB.F]::GetForegroundWindow()
-  if ($h -ne $hwnd) {
-    $hwnd = $h; $id = 0; [void][SB.F]::GetWindowThreadProcessId($h, [ref]$id); $f = ''
-    try { $f = [Diagnostics.Process]::GetProcessById($id).ProcessName.ToLower() } catch {}
-    if ($f -ne $front) { $front = $f; [Console]::Out.WriteLine('front:' + $f); [Console]::Out.Flush() }
-  }
-  if ($pending.Wait(500)) {
+  if ($pending.Wait(3000)) {
     if ($null -eq $pending.Result) { exit }
     if ($pending.Result -eq 'clip') {
       $o = [SB.F]::GetClipboardOwner(); $c = ''
@@ -253,12 +274,14 @@ while ($true) {
 let watcherChild = null;
 let watcherRunning = null;   // the helper's latest answer: process names, or null before it has one
 let watcherFront = null;     // the program whose window is in front ('' for none), or null before the helper says
+let watcherHandle = '';      // that window
+let frontHandler = null;     // told each time the window in front changes, and null when the helper ended
 const clipWaiters = [];      // answers owed for "clip"
 let clipHandler = null;      // wallet guard's ear for clipboard changes, or null when it does not want them
 let clipHearing = false;     // the helper said "clipboard:on"
 let runKeysHandler = null;   // defense's ear for Run key changes: 'on', 'on|partial', 'off', 'changed', or 'gone'
 
-function startProcessWatcher(onNames, extra = []) {
+function startProcessWatcher(onNames, extra = [], onGone = null) {
   if (process.platform !== 'win32' || watcherChild) return;
   const { spawn } = require('child_process');
   // Browsers, and any other programs a caller asked about (the remote-control programs of remoteguard.js): one
@@ -277,7 +300,10 @@ function startProcessWatcher(onNames, extra = []) {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (line.startsWith('running:')) { watcherRunning = new Set(line.slice(8).split(',').filter(Boolean)); onNames(); }
-      else if (line.startsWith('front:')) watcherFront = line.slice(6);
+      else if (line.startsWith('front:')) {
+        [watcherFront, watcherHandle] = line.slice(6).split('|');
+        tellFront(watcherFront);
+      }
       else if (line.startsWith('clipboard:')) {
         const rest = line.slice(10);
         if (rest === 'on' || rest === 'off') { clipHearing = rest === 'on'; continue; }
@@ -295,10 +321,13 @@ function startProcessWatcher(onNames, extra = []) {
   if (clipHandler) tellHelper('listen');
   if (runKeysHandler) tellHelper('runkeys');
   const child = watcherChild;
+  let ended = false;
   const gone = () => {
+    if (ended) return;
+    ended = true;
     const current = watcherChild === child || watcherChild === null;   // not a newer helper that already said 'on'
     watcherChild = null; watcherRunning = null; watcherFront = null; clipHearing = false; clipWaiters.splice(0).forEach((done) => done(null));
-    if (current) tellRunKeys('gone');
+    if (current) { tellRunKeys('gone'); tellFront(null); if (onGone) onGone(); }
   };
   watcherChild.on('exit', gone);
   watcherChild.on('error', gone);
@@ -327,6 +356,17 @@ function clipListen(handler) {
 function runKeysListen(handler) {
   runKeysHandler = handler || null;
   if (runKeysHandler) tellHelper('runkeys');
+}
+/**
+ * Whoever cares which window is in front hears it here: handler(processName, windowHandle) at each change, and
+ * handler(null) when the helper ended and nobody knows. Told at once when it is already known.
+ */
+function frontListen(handler) {
+  frontHandler = handler || null;
+  if (frontHandler && watcherFront !== null) tellFront(watcherFront);
+}
+function tellFront(name) {
+  if (frontHandler) { try { frontHandler(name, watcherHandle); } catch { /* keep going */ } }
 }
 function tellRunKeys(word) {
   if (runKeysHandler) { try { runKeysHandler(word); } catch { /* keep going */ } }
@@ -484,12 +524,22 @@ function watch({ onChange, everyMs = 15000, others = null }) {
     report();
     if (others && watcherRunning) { try { others.onChange(extra.filter((n) => watcherRunning.has(n))); } catch { /* keep going */ } }
   };
-  startProcessWatcher(heard, extra);
+  // The window in front and the clipboard depend on the helper: it comes back within seconds, not at the next minute,
+  // and more and more slowly if it keeps failing (the live reader's own pace, watch.js). A minute of running resets it.
+  let quickExits = 0;
+  let startedAt = Date.now();
+  const ended = () => {
+    if (stopped) return;
+    quickExits = Date.now() - startedAt > 60000 ? 0 : quickExits + 1;
+    clearTimeout(timer);
+    timer = setTimeout(tick, Math.min(300000, 3000 * 2 ** Math.max(0, quickExits - 1)));
+  };
+  startProcessWatcher(heard, extra, ended);
   const tick = async () => {
     if (stopped) return;
     if (!watcherChild) await report();
     // With the helper running this only looks after it: starts it again if it ended.
-    if (process.platform === 'win32' && !watcherChild) startProcessWatcher(heard, extra);
+    if (process.platform === 'win32' && !watcherChild) { startedAt = Date.now(); startProcessWatcher(heard, extra, ended); }
     if (!stopped) timer = setTimeout(tick, watcherChild ? 60000 : (typeof everyMs === 'function' ? everyMs() : everyMs));
   };
   tick();
@@ -497,4 +547,4 @@ function watch({ onChange, everyMs = 15000, others = null }) {
 }
 
 module.exports = {
-  defaultBrowser, preferred, BROWSERS, installed, running, inFront, clipOwner, clipListen, clipListening, runKeysListen, bringForward, watch, _test: { WATCH_SCRIPT } };
+  defaultBrowser, preferred, BROWSERS, installed, running, inFront, clipOwner, clipListen, clipListening, runKeysListen, frontListen, bringForward, watch, _test: { WATCH_SCRIPT } };

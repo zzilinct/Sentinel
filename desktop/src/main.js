@@ -109,17 +109,17 @@ function push(channel, payload) {
 /* Chat safety: Roblox and the Discord app, read on this computer only (chatwatch.js). */
 function chatSafetyStatus() {
   const enabled = store.get('chatSafety', false);
-  return { enabled, running: enabled && chatwatch.running(), supported: process.platform === 'win32', seen: chatwatch.stats() };
+  return { enabled, running: enabled && chatwatch.running(), reader: enabled ? chatwatch.reader() : 'ok', supported: process.platform === 'win32', seen: chatwatch.stats() };
 }
 /* Text messages in Phone Link: the same reader, its own switch; links in texts are checked by address only. */
 function textSafetyStatus() {
   const enabled = store.get('textSafety', false);
   const s = chatwatch.stats();
-  return { enabled, running: enabled && chatwatch.running(), supported: process.platform === 'win32', seen: { ...s.phonelink, app: s.app === 'phonelink' ? 'phonelink' : null, reading: s.reading } };
+  return { enabled, running: enabled && chatwatch.running(), reader: enabled ? chatwatch.reader() : 'ok', supported: process.platform === 'win32', seen: { ...s.phonelink, app: s.app === 'phonelink' ? 'phonelink' : null, reading: s.reading, blind: s.blind === 'phonelink' } };
 }
 // Roblox, Discord or Phone Link came to the front while its switch is off: say once, for each, that Sentinel can watch it.
-const CHAT_APPS = { RobloxPlayerBeta: 'Roblox', Discord: 'Discord' };
-const TEXT_APPS = { PhoneExperienceHost: 'Phone Link', YourPhone: 'Phone Link' };
+const CHAT_APPS = { robloxplayerbeta: 'Roblox', discord: 'Discord' };
+const TEXT_APPS = { phoneexperiencehost: 'Phone Link', yourphone: 'Phone Link' };
 function offerChatSafety(processName) {
   if (process.platform !== 'win32') return;
   const texts = TEXT_APPS[processName];
@@ -138,16 +138,28 @@ function offerChatSafety(processName) {
 function chatApps() {
   return [...(store.get('chatSafety', false) ? ['discord', 'roblox'] : []), ...(store.get('textSafety', false) ? ['phonelink'] : [])];
 }
+let toldReaderStopped = false;
 function startChatSafety() {
   const apps = chatApps();
   if (!apps.length) { chatwatch.stop(); chatoverlay.show(null); return; }
-  if (chatwatch.running()) { chatwatch.setApps(apps); return; }
+  if (chatwatch.on()) { chatwatch.setApps(apps); return; }
   chatwatch.start({
     apps,
     // Only that it started or failed: never a message, a name, a game or a link.
     log: (text) => appLog(text),
     onState: (s) => chatoverlay.show(s),
     onSeen: () => { push('sentinel:chat-safety', chatSafetyStatus()); push('sentinel:text-safety', textSafetyStatus()); },
+    // The reader died or came back: the switch says on either way, so the page and the tray say which it is, and one
+    // quiet note says so when it will not stay up, in case nobody opens either.
+    onReader: (state) => {
+      push('sentinel:chat-safety', chatSafetyStatus());
+      push('sentinel:text-safety', textSafetyStatus());
+      refreshTray();
+      if (state === 'stopped' && !toldReaderStopped) {
+        toldReaderStopped = true;
+        notify('Sentinel cannot read chat right now', 'Chat is not being watched. Sentinel keeps trying by itself. Click to see more.', () => showWindow('/app/protection#chat-safety'));
+      }
+    },
     onCounted: (c) => { tally('chat_checked', c.checked); tally('chat_flagged', c.flagged); if (c.flagged) pause.sign('chat'); },
     // Links in texts, by address only. The scanner may still be starting: the words still count without it.
     api: (pathname, body) => (ORIGIN ? apiCall(pathname, body) : Promise.reject(new Error('scanner not ready')))
@@ -770,12 +782,12 @@ function refreshTray() {
     { label: status.active ? 'Download protection: on' : status.reason || 'Download protection: off', enabled: false },
     { label: pw.active ? (pw.window ? 'Live scanning: watching the browser in front' : 'Live scanning: ready') : pw.reason || 'Live scanning is off', enabled: false },
     { label: 'Scan a file...', click: () => showWindow('/app/threats') },
-    { label: 'Is this call a scam?', click: () => showWindow('/app/call') },
+    { label: 'Is this call a scam?', click: () => showWindow('/call') },
     { type: 'separator' },
     { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? trayGuard('live scanning off', true) && setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
     ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
     ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => { if (trayGuard('auto scanning off', !item.checked)) setAutoScan(item.checked).catch(() => {}); } }] : []),
-    ...(process.platform === 'win32' ? [{ label: 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { if (trayGuard('chat safety off', !item.checked)) { setChatSafety(item.checked); refreshTray(); } } }] : []),
+    ...(process.platform === 'win32' ? [{ label: chatwatch.reader() === 'stopped' ? 'Chat safety: cannot read chat right now' : 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { if (trayGuard('chat safety off', !item.checked)) { setChatSafety(item.checked); refreshTray(); } } }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => { if (trayGuard('starting with the computer off', !item.checked)) setOpenAtLogin(item.checked); } },
     ...(snipOn() ? [{ label: 'Check something on screen', click: () => snip.open(300) }] : []),
     ...(process.platform === 'win32' ? [{ label: 'Check my texts', type: 'checkbox', checked: store.get('textSafety', false), click: (item) => { if (trayGuard('Check my texts off', !item.checked)) { setTextSafety(item.checked); refreshTray(); } } }] : []),
@@ -970,12 +982,16 @@ async function setScanMenu(enabled) {
 function askedToScan(argv) {
   const file = scanmenu.fileFrom(argv);
   if (!file) return undefined;
-  if (!store.getSecret('token')) { scanHere(file).catch(() => {}); return null; }
+  if (!store.getSecret('token') || tooBigToSend(file)) { scanHere(file).catch(() => {}); return null; }
   menuFile = { file, at: Date.now() };
   appLog('right-click menu: a file was handed over for a scan');
   return '/app/threats';
 }
-/** The file from the right-click menu, once, for the file scan page: { name, size, data }, data only up to 25 MB. */
+/** Over what the account scan takes: the answer comes from this computer, in the small window, with no app opened behind it. */
+function tooBigToSend(file) {
+  try { return require('fs').statSync(file).size > require('../shared/filescan').MAX_FILE_BYTES; } catch { return false; }
+}
+/** The file from the right-click menu, once, for the file scan page: { name, size, data }. Too big to send: checked here. */
 async function takeMenuFile() {
   const m = menuFile;
   menuFile = null;
@@ -984,31 +1000,40 @@ async function takeMenuFile() {
   const stat = await fs.promises.stat(m.file);
   if (!stat.isFile()) return null;
   const name = path.basename(m.file);
-  if (stat.size > require('../shared/filescan').MAX_FILE_BYTES) return { name, size: stat.size, data: null };
+  if (tooBigToSend(m.file)) { scanHere(m.file).catch(() => {}); return null; }
   return { name, size: stat.size, data: await fs.promises.readFile(m.file) };
 }
 /**
- * Signed out: the file is checked by download protection's on-device scanner, without the known-threat lookup (that
- * asks the account), and nothing about it leaves this computer. The log says only the verdict, never the file.
+ * The file is checked by download protection's on-device scanner. Signed out, without the known-threat lookup (that
+ * asks the account), so nothing about it leaves this computer. The log says only the verdict, never the file.
  */
 let menuResultFile = null;     // the file the result window is about, for "Sign in for a deeper check"
+/** The theme the person chose in the app ('light', 'dark'), so the result window matches; '' follows Windows, as Auto does. */
+function appTheme() {
+  if (!win || win.isDestroyed()) return Promise.resolve('');
+  const asked = win.webContents.executeJavaScript("localStorage.getItem('sentinel:theme')").then((v) => v || '').catch(() => '');
+  return Promise.race([asked, new Promise((resolve) => { setTimeout(resolve, 400, ''); })]);   // a hidden page that is still loading
+}
 async function scanHere(file) {
   const fs = require('fs');
-  appLog('right-click menu: a file was checked on this computer (signed out)');
+  const signedIn = Boolean(store.getSecret('token'));
+  appLog(`right-click menu: a file was checked on this computer (signed ${signedIn ? 'in' : 'out'})`);
   let size = 0;
   let report = null;
-  let problem = null;
+  let failure = null;
+  let list = { known: null, offline: false };
+  let asked = false;     // the file's hash did reach the list of known threats
   try {
     const stat = await fs.promises.stat(file);
     size = stat.size;
-    if (!stat.isFile()) problem = 'unreadable';
-    else if (size > require('../shared/filescan').MAX_FILE_BYTES) problem = 'big';
-    else report = await downloads.analyze(file, path.basename(file), null);
-  } catch { problem = 'unreadable'; }
-  const summary = downloads.summarize(report, null);
-  appLog(`right-click menu: ${problem ? `not checked (${problem === 'big' ? 'over 25 MB' : 'could not be read'})` : summary.label}`);
+    if (!stat.isFile()) throw new Error('not a file');
+    if (signedIn) { list = await downloads.lookUp(await downloads.hashStream(file)); asked = !list.offline; }
+    report = await downloads.analyze(file, path.basename(file), list.known);
+  } catch (err) { failure = err; }
+  const summary = downloads.summarize(report, list.known, { failure, offline: list.offline });
+  appLog(`right-click menu: ${summary.label}`);
   menuResultFile = file;
-  const query = scanmenu.offlineResult(file, size, summary, report, problem);
+  const query = { ...scanmenu.offlineResult(file, size, summary, report), account: signedIn ? '1' : '', asked: asked ? '1' : '', theme: await appTheme() };
   if (!menuWin || menuWin.isDestroyed()) {
     menuWin = cardWindow();
     menuWin.on('closed', () => { menuWin = null; menuResultFile = null; });
@@ -1299,8 +1324,9 @@ function tally(metric, n = 1) {
 }
 // A file in Downloads is checked by download protection and by Defense: counted once.
 const checkedFiles = new Map();
-function fileChecked(file) {
-  const key = String(file || '').toLowerCase();
+function fileChecked(item) {
+  if (!item.badge && item.looked !== 'all') return;   // "Files checked" counts only those that were
+  const key = String(item.path || '').toLowerCase();
   const t = Date.now();
   for (const [k, at] of checkedFiles) if (t - at > 10 * 60 * 1000) checkedFiles.delete(k);
   if (checkedFiles.has(key)) return;
@@ -1758,11 +1784,11 @@ async function boot() {
     // Run key changes, heard as they happen by the running-browsers helper instead of reg.exe every minute.
     runKeys: (handler) => browsers.runKeysListen(handler),
     onChange: () => { refreshTray(); push('sentinel:defense', defense.status()); },
-    onChecked: (item) => fileChecked(item.path),
+    onChecked: fileChecked,
     onThreat: (item) => {
       if (item.quarantined) tally('files_quarantined');
       const did = item.actions.map((a) => a.did).filter((d, i, arr) => arr.indexOf(d) === i).join(', ');
-      if (item.suspect) notify('Sentinel: a startup program looks suspicious', `${item.name}\nNothing was changed. Open Sentinel to quarantine it if you do not recognise it.`, () => showWindow('/app/protection'));
+      if (item.suspect) notify(item.badge === 'red' ? 'Sentinel: a startup program is dangerous' :'Sentinel: a startup program looks suspicious', `${item.name}\nNothing was changed. Open Sentinel to quarantine it if you do not recognise it.`, () => showWindow('/app/protection'));
       else notifyAboutFile(item.path, `Sentinel stopped ${item.label}`, `${item.name}\n${did || 'Flagged'}`, () => showWindow('/app/protection'));
       push('sentinel:defense-threat', item);
     }
@@ -1779,7 +1805,7 @@ async function boot() {
     signedBy: (file) => defense.signedBy(file),
     log: appLog,
     onChange: refreshTray,
-    onChecked: (item) => fileChecked(item.path),
+    onChecked: fileChecked,
     onThreat: (item) => {
       // To the list of recent downloads, where the file's Quarantine button is (not the file scanner's drop zone).
       notifyAboutFile(item.path, `Sentinel: ${item.label}`, `${item.name}\n${item.reason}`, () => showWindow('/app/protection#downloads'));
@@ -1793,6 +1819,14 @@ async function boot() {
   // Chat safety (Roblox and the Discord app) and texts in Phone Link: each off until turned on in Live protection;
   // nothing about a chat or a text is logged.
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) chatoverlay.setDryRun((text) => appLog(`chat overlay (dry run): ${text}`));
+  // One fact, heard once: which window is in front. The chat reader sleeps until it matters, the live reader is woken
+  // for a browser, and the offer to watch a chat app is made, whether or not live scanning is on.
+  browsers.frontListen((name, handle) => {
+    chatwatch.front(name, handle);
+    if (!name) return;
+    if (browsers.inFront()) watch.wake();
+    else offerChatSafety(name);
+  });
   if (store.get('chatSafety', false) || store.get('textSafety', false)) startChatSafety();
 
   watch.init({
@@ -1810,7 +1844,6 @@ async function boot() {
     helperDll: path.join(app.getPath('userData'), 'reader-helper-2.dll'),
     // Development runs only: never honoured by an installed build.
     testProcess: app.isPackaged ? null : process.env.SENTINEL_TEST_PROCESS,
-    onFront: (name) => offerChatSafety(name),
     onChange: (s) => { refreshTray(); push('sentinel:live', { ...s, enabled: store.get('liveScanning', false) }); },
     // The browser in front (or none): the overlay follows it, and leaves with it.
     onWindow: (rect) => {

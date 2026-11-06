@@ -7,7 +7,6 @@
     apiBase: 'https://www.usesentinel.technology',
     enabled: true,
     emailProtection: true,
-    badgeStyle: 'mask',
     warnOnNavigate: true,
     notifications: true,
     minimumBadge: 'yellow',
@@ -16,11 +15,16 @@
     commandGuard: true,
     chatHints: true
   };
-  const Masks = window.SentinelMasks;
   const saved = document.getElementById('saved');
 
-  document.getElementById('legend').innerHTML = ['scam', 'virus', 'malware']
-    .map((t) => `<div><span style="color:var(--red)">${Masks.svg(t)}</span>${Masks.NAMES[t]}</div>`).join('');
+  /** The sentence at the top is the one the popup says. */
+  async function headline() {
+    const state = await Promise.resolve(ext.runtime.sendMessage({ type: 'state' })).catch(() => null);
+    const said = globalThis.SentinelSay.protection(state);
+    document.getElementById('headline').textContent = said.title;
+    document.getElementById('headLine').textContent = said.line;
+    return state;
+  }
 
   Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
     stored = stored || {};
@@ -48,7 +52,7 @@
           saved.style.color = 'var(--green)';
           saved.textContent = 'Saved';
           setTimeout(() => { saved.textContent = ''; }, 1400);
-          Promise.resolve(ext.runtime.sendMessage({ type: 'refresh' })).catch(() => {});
+          Promise.resolve(ext.runtime.sendMessage({ type: 'refresh' })).catch(() => {}).then(headline);
         });
       });
     }
@@ -110,7 +114,7 @@
   });
   pwSend({ type: 'pw-list' }).then(paintPw);
 
-  Promise.resolve(ext.runtime.sendMessage({ type: 'state' })).catch(() => null).then((state) => {
+  headline().then((state) => {
     const acc = document.getElementById('account');
     const out = document.getElementById('signout');
     if (!state || !state.ok || !state.account || !state.account.signedIn) {

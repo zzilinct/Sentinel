@@ -233,7 +233,9 @@
       c.t += dt * P.idle * burst * c.own;
       c.spin += dt * P.spin * c.own;
       if (!isHeld) { var k = ease(dt, 1.5); c.t += (clock - c.t) * k; c.spin += (spin - c.spin) * k; }
-      c.gone += ((c.rank < n ? 0 : 1) - c.gone) * ease(dt, 0.4);
+      // On a slow machine the governor sheds cards, but never the one held or enlarged: it would fade out under the
+      // pointer, and a click on it would find nothing (the website check's "a click enlarges" failed this way on CI).
+      c.gone += ((c.rank < n || isHeld || c === boosted ? 0 : 1) - c.gone) * ease(dt, 0.4);
       var u = frac(c.u0 + c.t + scroll);
       var p = spiral(pr, c.arm, u, c.spin);
       var x = cx + p.x, y = cy + p.y;
