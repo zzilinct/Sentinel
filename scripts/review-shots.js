@@ -487,8 +487,12 @@ async function main() {
     await liveMarks(send);
     await desktopCards(send);
     await desktopIsland(send);
-    await desktopStart(send);
-    await desktopTray(send);
+    // The Windows app's start window and tray card are photographed and judged each in full, whichever fails first.
+    const desktopFailed = [];
+    for (const step of [desktopStart, desktopTray]) {
+      try { await step(send); } catch (err) { desktopFailed.push(err.message); }
+    }
+    if (desktopFailed.length) throw new Error(desktopFailed.join('; '));
   } finally {
     try { await send('Browser.close'); } catch { /* gone */ }
     browser.kill();
