@@ -80,5 +80,5 @@ test('the signs are wired: flagged pages, chat warnings, the shield, the call ch
   assert.ok(!/appLog\(`pay pause:[^\n]*(page\.url|host)/.test(main), 'never the address');
   assert.match(read('web/assets/js/callcheck.js'), /r\.verdict === 'hangup' && was && was !== 'hangup' && window\.sentinelDesktop && window\.sentinelDesktop\.callHangUp\) window\.sentinelDesktop\.callHangUp\(\)/);
   const bg = read('extension/src/background.js');
-  assert.match(bg, /if \(severe\) await sessionSet\('paySign', Date\.now\(\)\);\s+else if \(verdict\.paypage\) await payPause/);
+  assert.match(bg, /if \(severe\) await sessionSet\('paySign', Date\.now\(\)\);\s+if \(severe && settings\.warnOnNavigate/);
 });

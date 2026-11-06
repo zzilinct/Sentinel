@@ -289,13 +289,14 @@ if ($Part -eq 'install') {
   Say "check on screen: $(Flip '[data-snip]' $true)"
   $on = (Cdp 'main' "process.mainModule.require('electron').globalShortcut.isRegistered('$key')").value
   Check 'switch-snip' ($off -eq $false -and $on -eq $true) "the shortcut $key held: off $off, on $on"
-  # Chat safety and Check my texts: the reader runs only while one of them is on.
+  # Chat safety and Check my texts: on, they wait for a chat app in front; the reader itself starts only then (the
+  # chat section below reads with it).
   Say "chat safety: $(Flip '[data-chat-safety]' $true)"
   $on = Until 15 { (Info 'info()').chatSafety.running }
   $readers = @(Helpers).Count
   Say "chat safety: $(Flip '[data-chat-safety]' $false)"
   $off = Until 15 { -not (Info 'info()').chatSafety.running }
-  Check 'switch-chat-safety' ($on -and $off -and @(Helpers).Count -lt $readers) "on: reading $on ($readers helpers); off: stopped $off ($(@(Helpers).Count) helpers)"
+  Check 'switch-chat-safety' ($on -and $off -and @(Helpers).Count -le $readers) "on: ready $on ($readers helpers); off: stopped $off ($(@(Helpers).Count) helpers)"
   Say "texts: $(Flip '[data-text-safety]' $true)"
   $on = Until 15 { (Info 'info()').textSafety.running }
   Say "texts: $(Flip '[data-text-safety]' $false)"
@@ -483,7 +484,11 @@ if ($Part -eq 'use') {
   $honest = @(
     'https://en.wikipedia.org/wiki/Phishing', 'https://www.bbc.com/news', 'https://www.amazon.com/gift-cards/b?node=2238192011',
     'https://www.paypal.com/signin', 'https://accounts.google.com/', 'https://login.microsoftonline.com/', 'https://www.coinbase.com/',
-    'https://github.com/login', 'https://www.irs.gov/', 'https://www.chase.com/'
+    'https://github.com/login', 'https://www.irs.gov/', 'https://www.chase.com/',
+    # Long links on well-known sites whose hosts also serve files the threat lists name: a Discord attachment (the
+    # owner's "Likely malware" GIF) and a file on GitHub. Neither is a danger in itself.
+    'https://cdn.discordapp.com/attachments/1093845729384756123/1187234567890123456/image.gif?ex=6789abcd&is=67885a4d&hm=3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a&',
+    'https://raw.githubusercontent.com/nodejs/node/main/README.md'
   )
   Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
   # What the browser in front shows in its address bar (Edge's and Chrome's is OmniboxViewViews); '' when it cannot say.

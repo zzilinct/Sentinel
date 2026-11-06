@@ -8,15 +8,16 @@
  *   arrival     Downloads, Desktop, the user's Temp folder, and the Startup
  *               folder are watched. A new program-like file is scanned the
  *               moment it stops changing.
- *   persistence Run keys (HKCU and HKLM), the Startup folder and scheduled
- *               tasks are checked on a timer. A new entry that launches a
- *               file is scanned; an entry that launches a flagged file is
- *               removed.
- *   response    A flagged file is quarantined; any process running from it
- *               is ended first; every persistence entry pointing at it is
- *               deleted. Each step is written to a ledger so it can be shown,
- *               and quarantine is a move, never a delete: the file can be
- *               put back.
+ *   persistence Run keys (HKCU and HKLM) and the Startup folder are checked
+ *               as they change. The program an entry launches is scanned. An
+ *               entry is never changed by Sentinel on its own, whatever was
+ *               found: the person is told and chooses (STARTUP_IS_THEIRS).
+ *   response    A flagged file that just arrived is quarantined; with
+ *               evidence, any process running from it is ended first. What
+ *               starts it with Windows is removed only when the person asks.
+ *               Each step is written to a ledger so it can be shown, and
+ *               quarantine is a move, never a delete: the file can be put
+ *               back.
  *
  * Limits, said plainly: this runs as an ordinary user program. It has no
  * kernel driver, so it cannot see everything a rootkit hides, and it does not
@@ -50,6 +51,11 @@ const seen = new Map();          // sha256 -> path
 const blockedSeen = new Set();   // files the system antivirus would not let us open
 let ledger = [];                 // newest first, persisted
 let cleanCount = 0;              // files scanned and found clean since start
+
+// STARTUP_IS_THEIRS: what starts with Windows (Run keys, the Startup folder, scheduled tasks) belongs to the programs
+// and the person who set it up. Sentinel never changes it on its own, whatever it found: it says what it found and
+// the person chooses (act). Only a choice the person made sets `chosen` on a response.
+const LEFT_ALONE = { did: 'left as it was', detail: 'Sentinel never changes what starts with Windows on its own. Quarantine it from Sentinel if you do not recognise it.' };
 
 function run(cmd, args, timeout = 15000) {
   return new Promise((resolve) => execFile(cmd, args, { timeout, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => resolve(err ? '' : String(stdout))));
@@ -246,6 +252,9 @@ async function inspectFile(full, how) {
   if (full.startsWith(opts.quarantineDir) || (opts.selfDir && full.startsWith(opts.selfDir))) return null;
 
   const name = path.basename(full);
+  // A file that appears in the Startup folder is a startup entry, whoever put it there (Squirrel apps add shortcuts).
+  const startupDir = folders().find((f) => f.label === 'Startup');
+  if (how === 'arrived' && startupDir && path.dirname(full).toLowerCase() === startupDir.dir.toLowerCase()) how = `startup entry Startup\\${name}`;
   // Hashed as a stream and analysed on a worker thread (downloads.analyze): the main thread, which also draws live
   // scanning's marks, never holds or reads through a whole file.
   let sha256;
@@ -262,11 +271,11 @@ async function inspectFile(full, how) {
       if (blockedSeen.has(full)) return null;
       blockedSeen.add(full);
       if (!(await defenderCaught(full))) return null;
-      const actions = await removePersistence(full).catch(() => []);
-      actions.unshift({ did: 'already blocked by the system antivirus', detail: 'Windows would not let the file be opened' });
-      const item = { path: full, name, size: stat.size, how, at: Date.now(), badge: 'red', label: 'Blocked by the system antivirus', threat: 'virus', reason: 'Windows refused to open this file because its antivirus flagged it' };
-      record({ kind: 'threat', ...item, actions });
-      if (opts.onThreat) opts.onThreat({ ...item, actions });
+      // What would start it again is not Sentinel's to change on its own (see STARTUP_IS_THEIRS): the person decides.
+      const actions = [{ did: 'already blocked by the system antivirus', detail: 'Windows would not let the file be opened' }, LEFT_ALONE];
+      const item = { path: full, name, size: stat.size, how, at: Date.now(), badge: 'red', label: 'Blocked by the system antivirus', threat: 'virus', reason: 'Windows refused to open this file because its antivirus flagged it', blocked: true };
+      const entryId = record({ kind: 'suspect', ...item, actions });
+      if (opts.onThreat) opts.onThreat({ ...item, entryId, suspect: true, actions });
       return item;
     }
     if (err && (err.code === 'EBUSY' || err.code === 'EPERM' || err.code === 'EACCES')) return null;   // still being written, or not ours to read
@@ -302,8 +311,17 @@ async function inspectFile(full, how) {
   // says who signed, not that the program is safe, so the guess is not wiped either: it
   // keeps its colour, is written down with the publisher, and nothing is touched. Evidence
   // (red) outranks a valid signature.
-  if (!known && worst.badge !== 'red') {
+  // A program that starts with Windows, signed by its maker (the Update.exe that Discord, Teams and Slack start
+  // through), is not flagged at all on a guess, red or not: only a known malicious file (a hash on a list) is. The
+  // owner's rule: Sentinel does not call a well-known app's startup "malware".
+  const startupEntry = /^startup entry/.test(how || '');
+  if (!known && (worst.badge !== 'red' || startupEntry)) {
     const publisher = await signer(full);
+    if (publisher && startupEntry) {
+      if (worst.looked === 'all') cleanCount++;
+      record({ kind: 'clean', path: full, name, how: `${how}, signed by ${publisher}` });
+      return { ...item, badge: null, label: `Signed by ${publisher}`, threat: null, reason: null, signedBy: publisher };
+    }
     if (publisher) {
       record({ kind: 'noted', ...item, signedBy: publisher, actions: [{ did: 'noted', detail: `Signed by ${publisher}; warning signs, and nothing was touched` }] });
       return { ...item, signedBy: publisher };
@@ -319,11 +337,11 @@ async function inspectFile(full, how) {
   // Red is evidence: a known malicious file, or a pattern only malware carries. Orange is a strong suspicion from the
   // file's contents alone. Plenty of honest programs are unsigned (a game mod, an AutoHotkey script, a tool someone
   // built with Python), and ending one of those, or deleting how it starts with Windows, broke things people rely
-  // on. So without evidence nothing that already runs at startup is touched: the person is told and decides. A new
-  // file that just arrived is moved to quarantine (it can be put back) and nothing else is done.
+  // on. So nothing that already runs at startup is touched, with or without evidence (STARTUP_IS_THEIRS): the person
+  // is told and decides. A new file that just arrived is moved to quarantine (it can be put back).
   const evidence = worst.badge === 'red';
-  if (!evidence && /^startup entry/.test(how || '')) {
-    const actions = [{ did: 'left as it was', detail: 'Warning signs but no proof: nothing was ended or removed. Quarantine it from Sentinel if you do not recognise it.' }];
+  if (/^startup entry/.test(how || '')) {
+    const actions = [LEFT_ALONE];
     const id = record({ kind: 'suspect', ...item, actions });
     if (opts.onThreat) opts.onThreat({ ...item, entryId: id, suspect: true, actions });
     return item;
@@ -353,8 +371,11 @@ async function respond(item) {
   const actions = [];
   const wantQuarantine = item.badge === 'red' || item.badge === 'orange';
   const startup = folders().find((f) => f.label === 'Startup');
+  // Startup entries and scheduled tasks only at the person's request (STARTUP_IS_THEIRS).
+  const chosen = item.chosen === true;
   const script = `
 $ErrorActionPreference = 'SilentlyContinue'
+$chosen = ${chosen ? '$true' : '$false'}
 # UTF-8 out, as the app reads it: in the console's own code page every letter outside English (an address in
 # another alphabet, an accented name) arrived damaged.
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
@@ -366,7 +387,7 @@ Get-Process | Where-Object { $_.Path -and (($_.Path -eq $target) -or ($moved -an
 $q = ${psq(opts.quarantineDir)}
 New-Item -ItemType Directory -Force -Path $q | Out-Null
 $dir = ${psq(startup ? startup.dir : '')}
-if ($dir -and (Test-Path $dir)) {
+if ($chosen -and $dir -and (Test-Path $dir)) {
   $ws = New-Object -ComObject WScript.Shell
   Get-ChildItem -Path $dir -Filter *.lnk | ForEach-Object { if ($ws.CreateShortcut($_.FullName).TargetPath -eq $target) {
     $bak = Join-Path $q ('lnk-' + [DateTime]::Now.Ticks + '-' + $_.Name)
@@ -375,7 +396,7 @@ if ($dir -and (Test-Path $dir)) {
     "LNK $($_.Name)\`t$($_.FullName)\`t$bak"
   } }
 }
-Get-ScheduledTask | ForEach-Object {
+@(if ($chosen) { Get-ScheduledTask }) | ForEach-Object {
   $t = $_
   foreach ($a in $t.Actions) {
     if ($a.Execute -and (($a.Execute + ' ' + $a.Arguments).ToLower().Contains($target.ToLower()))) {
@@ -434,9 +455,11 @@ Get-ScheduledTask | ForEach-Object {
     return actions;
   }
 
-  // Run keys: reg.exe answers in milliseconds.
-  actions.push(...await removeRunKeys(item.path));
-  if (item.entryId) amend(item.entryId, { actions: [...actions] });
+  // Run keys: reg.exe answers in milliseconds. Only at the person's request.
+  if (chosen) {
+    actions.push(...await removeRunKeys(item.path));
+    if (item.entryId) amend(item.entryId, { actions: [...actions] });
+  }
 
   // A running program can be renamed on Windows, so the early move may have
   // succeeded while it still runs: end it by either path.
@@ -531,8 +554,9 @@ foreach ($e in @(Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-W
   return out.includes('caught');
 }
 
+/** At the person's request only (act): end it and remove what would start it again. */
 async function removePersistence(target) {
-  const actions = await respond({ path: target, name: path.basename(target), badge: null });
+  const actions = await respond({ path: target, name: path.basename(target), badge: null, chosen: true });
   return actions.filter((a) => a.did !== 'left in place');
 }
 
@@ -668,10 +692,16 @@ async function restore(id) {
 async function act(id) {
   const entry = ledger.find((e) => e.id === id && e.kind === 'suspect');
   if (!entry) throw new Error('That entry can no longer be acted on');
+  // A file the system antivirus blocked cannot be read or moved: what would start it again is removed.
+  if (entry.blocked) {
+    const actions = await removePersistence(entry.path);
+    amend(entry.id, { kind: 'threat', actions: [{ did: 'removed at your request' }, ...actions] });
+    return { ok: true, quarantined: false };
+  }
   // Only the file that was checked: a different one saved at the same place since is left alone.
   const now = await hashFile(entry.path).catch(() => null);
   if (!now || (entry.sha256 && now !== entry.sha256)) throw new Error('That file has changed or gone since Sentinel checked it, so it was left alone.');
-  const item = { path: entry.path, name: entry.name, sha256: entry.sha256, badge: entry.badge, label: entry.label, entryId: entry.id };
+  const item = { path: entry.path, name: entry.name, sha256: entry.sha256, badge: entry.badge, label: entry.label, entryId: entry.id, chosen: true };
   const actions = await respond(item);
   amend(entry.id, { kind: 'threat', actions: [{ did: 'quarantined at your request' }, ...actions], quarantined: item.quarantined || null });
   return { ok: true, quarantined: Boolean(item.quarantined) };

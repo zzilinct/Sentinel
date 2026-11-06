@@ -171,11 +171,13 @@ const URL_CHECKS = [
       return e > 3.5 && consonants ? fail(16, 'Random-looking name typical of generated malware domains', { scam: 6 }) : pass('Readable name');
     } },
 
+  // The shape of a link (its length, its encoded or signed parameters) says nothing on a well-known site: a Discord
+  // attachment, a signed download from Google or Amazon, a Teams invite are long by design. Elsewhere it is a faint sign.
   { id: 'U12', group: 'Address', threat: 'scam', title: 'Link is not excessively long',
-    run: ({ p }) => (p.url.length > 180 ? warn(5, `${p.url.length}-character link`) : pass('Normal length')) },
+    run: ({ p, knowledge }) => (knowledge.wellKnown ? pass('A well-known site, where long links are normal') : p.url.length > 180 ? warn(5, `${p.url.length}-character link`) : pass('Normal length')) },
 
   { id: 'U13', group: 'Address', threat: 'scam', title: 'No heavily encoded parameters',
-    run: ({ p }) => ((p.query.match(/%[0-9a-f]{2}/gi) || []).length > 12 ? warn(8, 'Query string is heavily percent-encoded') : pass('Readable parameters')) },
+    run: ({ p, knowledge }) => (knowledge.wellKnown ? pass('A well-known site, where encoded parameters are normal') : (p.query.match(/%[0-9a-f]{2}/gi) || []).length > 12 ? warn(8, 'Query string is heavily percent-encoded') : pass('Readable parameters')) },
 
   { id: 'U14', group: 'Downloads', threat: 'virus', title: 'Link does not download a program',
     run: ({ p }) => {
@@ -262,12 +264,15 @@ const URL_CHECKS = [
     } },
 
   { id: 'U39', group: 'Address', threat: 'scam', title: 'Link does not carry a tracking token identifying you',
-    run: ({ p }) => {
+    run: ({ p, knowledge }) => {
       const segs = p.path.split('/').filter(Boolean);
       const token = segs.find((s) => s.length >= 12 && /^[A-Za-z0-9_-]+={0,2}$/.test(s) && /[A-Z]/.test(s) && /[a-z]/.test(s) && /\d|[A-Z].*[A-Z].*[A-Z]/.test(s) && !/\.(html?|php|aspx?)$/.test(s));
-      const emailInUrl = /[?&=/][^?&=/]*%40|[?&=][a-z0-9._%+-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(p.path + p.query);
+      // A signed cloud download names the service account that signed it ("X-Goog-Credential=svc@proj.iam..."), not a person.
+      const query = p.query.replace(/(^|[?&])x-(goog|amz)-credential=[^&]*/gi, '$1');
+      const emailInUrl = /[?&=/][^?&=/]*%40|[?&=][a-z0-9._%+-]+@[a-z0-9-]+\.[a-z]{2,}/i.test(p.path + query);
       if (emailInUrl) return fail(14, 'The link contains an email address: it was generated for one victim');
-      return token ? warn(6, 'Link carries an encoded per-recipient token') : pass('No per-recipient token');
+      // Generated file and media names (a photo's id on a CDN) are how well-known sites name things.
+      return token && !knowledge.wellKnown ? warn(6, 'Link carries an encoded per-recipient token') : pass('No per-recipient token');
     } },
 
   { id: 'U21', group: 'Hosting', threat: 'malware', title: 'Not a dynamic-DNS throwaway hostname',
@@ -515,8 +520,10 @@ const KNOWLEDGE_CHECKS = [
     } },
 
   { id: 'U42', group: 'Address', threat: 'scam', title: 'No random-looking subdomain in front of bait wording',
-    run: ({ p, words }) => {
+    run: ({ p, words, knowledge }) => {
       const label = p.subdomains[0] || (p.hosting ? p.sld : '');
+      // A well-known site's own server names ("scontent-lax3-1", "rr3---sn-a5mekn6s") are its business, not a lure's.
+      if (knowledge.wellKnown) return pass('A well-known site\'s own server name');
       if (label.length < 6 || !/\d/.test(label) || !/[a-z]/.test(label)) return pass('No random subdomain');
       const digits = (label.match(/\d/g) || []).length;
       const random = entropy(label) > 2.8 || (digits >= 2 && !/[aeiou]{2}/.test(label) && !/^(www|mail|api|cdn|app|m|static|img|ftp)\d*$/.test(label));
@@ -544,6 +551,8 @@ const KNOWLEDGE_CHECKS = [
   { id: 'U44', group: 'Address', threat: 'scam', title: 'Name does not imitate a country ending',
     run: ({ p, brand }) => {
       if (brand.owner || p.isIp || !p.subdomains || !p.subdomains.length) return pass('Not applicable');
+      // A cloud region ("my-bucket.s3.us-east-1.amazonaws.com") is the provider's name for a data centre.
+      if (/^(us|eu|ap|sa|ca|me|af|il|mx)-(gov-)?(east|west|north|south|central|northeast|northwest|southeast|southwest)-\d$/.test(p.sld) && p.hosting === 'amazonaws.com') return pass('A cloud region');
       // "allegrolokalnie.pl-65445.lol" is read as "allegrolokalnie.pl". The real name is "pl-65445".
       const m = /^(pl|de|fr|uk|us|it|es|nl|br|ru|cn|jp|au|ca|in|se|no|dk|fi|ch|at|be|cz|pt|gr|tr|mx|ar|co|com|net|org|gov)-[a-z0-9-]{3,}$/.exec(p.sld.toLowerCase());
       if (!m) return pass('No imitation ending');

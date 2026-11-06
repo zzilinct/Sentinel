@@ -88,7 +88,7 @@ test('the shield closes a window only by asking it to close, and only when the p
   assert.match(main, /if \(!watch\.status\(\)\.window && await fullscreenInFront\(\)\)/, 'never over a game');
   // The helper that lists browsers looks for these programs too: no new process or timer.
   assert.match(main, /others: \{ names: remoteguard\.PROCESS_NAMES/);
-  assert.match(read('desktop/src/browsers.js'), /startProcessWatcher\(heard, extra\)/);
+  assert.match(read('desktop/src/browsers.js'), /startProcessWatcher\(heard, extra, ended\)/);
 });
 
 test('the shield\'s words are plain, with no em dashes', () => {

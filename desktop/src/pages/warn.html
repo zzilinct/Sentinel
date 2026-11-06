@@ -41,7 +41,7 @@
     document.getElementById('host').textContent = q.get('host') || '';
     document.getElementById('lead').innerHTML = badge === 'red'
       ? '<b>Leave this page.</b> Sentinel has evidence this site is dangerous. Do not enter passwords, codes or card details on it.'
-      : '<b>Be careful on this page.</b> It shows many strong warning signs at once. Do not enter any details on it.';
+      : '<b>Be careful on this page.</b> Sentinel found the warning signs below, but no proof. Do not enter any details on it.';
     const ul = document.getElementById('reasons');
     for (const r of (q.get('reasons') || '').split('\n').filter(Boolean).slice(0, 4)) {
       const li = document.createElement('li');

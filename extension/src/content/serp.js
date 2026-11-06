@@ -14,7 +14,7 @@
   const Masks = (globalThis.SentinelMasks || window.SentinelMasks);
   const RANK = { yellow: 1, orange: 2, red: 3 };
   const THREATS = ['scam', 'virus', 'malware'];
-  const DEFAULTS = { enabled: true, badgeStyle: 'mask', minimumBadge: 'yellow', markSafe: true, scanOverlay: true };
+  const DEFAULTS = { enabled: true, minimumBadge: 'yellow', markSafe: true, scanOverlay: true };
 
   let settings = DEFAULTS;
   const seen = new WeakSet();
@@ -145,12 +145,7 @@
     const name = `Sentinel: ${Masks.SEVERITY[info.badge] || 'Caution'}, ${info.label}`;
     el.setAttribute('aria-label', name);
     el.title = name;
-    if (settings.badgeStyle === 'emoji') {
-      el.classList.add('sentinel-mask--emoji');
-      el.textContent = '🎭';
-    } else {
-      el.innerHTML = Masks.mark(threat, info.badge);
-    }
+    el.innerHTML = Masks.mark(threat, info.badge);
     return el;
   }
 
