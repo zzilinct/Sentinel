@@ -61,11 +61,11 @@ const FINISH = {
 const GEOMETRY = { onyx: 'scam', scam: 'scam', virus: 'virus', malware: 'malware' };
 // Which part a vertex belongs to (the part attribute): gold, liner, ember; the body is none of them.
 const PART = { trim: [1, 0, 0], liner: [0, 1, 0], ember: [0, 0, 1], body: [0, 0, 0] };
-// The gold's own light: the onyx studio is dark for metal, so in onyx the gold's reflections are lifted, and it is given
-// a warm glow of its own, brighter on top, so the rivet and the wire read as gold domes where they face the dark room
-// (the stills' softboxes do this in Blender).
-const GOLD_LIFT = { onyx: 1.3 };
-const GOLD_FLOOR = { onyx: 0.1 };
+// The gold's own light: the onyx studio is dark for metal, so in onyx the gold's reflections are lifted, and its upper
+// faces get a warm glow of their own, as the stills' top softbox gives them: the rivet reads as a dome, and the wire as
+// a thin lit edge rather than a lit band.
+const GOLD_LIFT = { onyx: 1.2 };
+const GOLD_FLOOR = { onyx: 0.22 };
 // The eyes' light: the ember's glow and the light it throws into the socket, at rest (1) and while watching (EYE_WATCH).
 const EMBER_GLOW = 0.8;
 const EMBER_THROW = 0.14;
@@ -146,7 +146,7 @@ function swallowable(material, state) {
           material.clearcoat *= 1.0 - anyPart;
         #endif`)
       .replace('#include <aomap_fragment>', ShaderChunk.aomap_fragment.replace('aoMapIntensity + 1.0;', 'aoMapIntensity + 1.0;\n\tambientOcclusion = mix(ambientOcclusion, 1.0, anyPart);')
-        .replace('#include <aomap_fragment>', '').replace('reflectedLight.indirectDiffuse *= ambientOcclusion;', 'reflectedLight.indirectDiffuse *= ambientOcclusion;\n\treflectedLight.indirectSpecular *= mix(1.0, uGoldLift, vPart.x);\n\treflectedLight.indirectSpecular += vPart.x * uGoldFloor * vec3(1.0, 0.62, 0.2) * (0.25 + 0.75 * saturate(normal.y * 0.5 + 0.5));'))
+        .replace('#include <aomap_fragment>', '').replace('reflectedLight.indirectDiffuse *= ambientOcclusion;', 'reflectedLight.indirectDiffuse *= ambientOcclusion;\n\treflectedLight.indirectSpecular *= mix(1.0, uGoldLift, vPart.x);\n\treflectedLight.indirectSpecular += vPart.x * uGoldFloor * vec3(1.0, 0.62, 0.2) * pow(saturate(normal.y), 2.0);'))
       .replace('#include <tonemapping_fragment>', `#include <tonemapping_fragment>
         gl_FragColor.rgb = mix(gl_FragColor.rgb, min(emberShown, vec3(1.0)), vPart.z * step(0.001, uEmber));`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>

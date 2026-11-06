@@ -653,6 +653,18 @@ def web_still(src, dest, lay):
 LOW = dict(body=(0.012, 13000), liner=(0.008, 400), ember=(0.009, 300))   # each part's low model: its voxel and triangles
 
 
+def soften(px, sigma):
+    """A small gaussian blur of an image's colour, along each axis in turn."""
+    r = int(sigma * 3) + 1
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
+    k /= k.sum()
+    for axis in (0, 1):
+        pad = [(r, r) if a == axis else (0, 0) for a in range(3)]
+        p = np.pad(px, pad, mode='edge')
+        px = sum(k[i] * np.take(p, np.arange(i, i + px.shape[axis]), axis=axis) for i in range(len(k)))
+    return px.astype(np.float32)
+
+
 def bake_image(name, colour, size):
     img = bpy.data.images.new(name, size, size, alpha=False, float_buffer=False)
     img.colorspace_settings.name = 'sRGB' if colour else 'Non-Color'
@@ -744,15 +756,22 @@ def export_glb(kind):
         select_only([high, low])
         bpy.context.view_layer.objects.active = low
         bpy.ops.object.bake(type=kind_of, normal_space='TANGENT')
-        if kind_of == 'AO':
+        # Both maps eased by a pixel or two: the sampled surface's fine tremble and the occlusion's sampling noise read
+        # as grain in the mirror of a broad plane (the live hero's brow). Creases are wider than this.
+        size = img.size[0]
+        px = np.empty(size * size * 4, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        px = soften(px.reshape(size, size, 4), 1.0 if kind_of == 'NORMAL' else 1.6)
+        if kind_of == 'NORMAL':
+            n = px[:, :, :3] * 2 - 1
+            px[:, :, :3] = n / (np.linalg.norm(n, axis=2, keepdims=True) + 1e-6) * 0.5 + 0.5
+        else:
             # The site's light is a panorama with no shadows: only this map stops a socket's walls from mirroring a
             # softbox they could never see. Deepened, so the sockets go properly dark and the open planes barely change.
-            px = np.empty(len(img.pixels), dtype=np.float32)
-            img.pixels.foreach_get(px)
-            rgb = np.arange(px.size) % 4 != 3
-            px[rgb] = px[rgb] ** 2.2
-            img.pixels.foreach_set(px)
-            img.update()
+            px[:, :, :3] = np.clip(px[:, :, :3], 0, 1) ** 2.2
+        px[:, :, 3] = 1
+        img.pixels.foreach_set(px.ravel())
+        img.update()
     # Wired the way the glTF exporter reads them: the normal map through a Normal Map node, the occlusion through
     # its glTF Material Output group.
     group = bpy.data.node_groups.get('glTF Material Output') or bpy.data.node_groups.new('glTF Material Output', 'ShaderNodeTree')
