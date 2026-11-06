@@ -113,10 +113,14 @@ body.app::before { opacity: .6; }
   position: relative; display: grid; border-radius: var(--r-lg);
   /* The same edge as every other field (29841a1): a well you can see, empty or not. */
   /* Lit from above in the site's gold, the way the hero's mask is: a well, not a form field. */
-  background: radial-gradient(120% 90% at 50% -30%, rgb(var(--gold-rgb) / .09), transparent 62%), var(--field-bg);
-  caret-color: var(--gold-300); box-shadow: var(--press), inset 0 1px 0 rgb(var(--gold-rgb) / .22), inset 0 0 0 1px var(--field-ring);
+  --well: .17; --well-edge: .36;
+  background: radial-gradient(120% 90% at 50% -30%, rgb(var(--gold-rgb) / var(--well)), transparent 62%), var(--field-bg);
+  caret-color: var(--gold-300); box-shadow: var(--press), inset 0 1px 0 rgb(var(--gold-rgb) / var(--well-edge)), inset 0 0 0 1px var(--field-ring);
   transition: box-shadow .3s var(--ease);
 }
+/* On ivory the same light needs less: it would turn brassy. */
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .ask__box { --well: .08; --well-edge: .2; } }
+:root[data-theme="light"] .ask__box { --well: .08; --well-edge: .2; }
 .ask__box:focus-within, .ask__box.is-over { box-shadow: var(--press), inset 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 4px rgb(var(--gold-rgb) / .08); }
 .ask__text {
   display: block; width: 100%; min-height: calc(4 * 1.55em + 24px); max-height: 50vh; field-sizing: content; resize: none;
