@@ -8,52 +8,58 @@
 <link rel="stylesheet" href="options.css">
 </head>
 <body class="options">
-  <header class="brand-row">
-    <img src="../icons/icon48.png" alt="" width="32" height="32">
+  <header class="head">
+    <img class="head-mask" src="masks/onyx.webp" alt="" width="68" height="100">
     <div>
-      <h1>Sentinel Companion</h1>
+      <h1 id="headline">Sentinel</h1>
+      <p class="head-line" id="headLine"></p>
       <p class="small" id="account">Checking your account&hellip;</p>
     </div>
   </header>
 
-  <section class="card">
-    <h2 class="label">Live protection</h2>
-    <label class="opt"><span><b>Live scanning</b><small>Masks on search results and a warning before dangerous pages load.</small></span><input type="checkbox" id="enabled"></label>
-    <label class="opt"><span><b>Email protection</b><small>Masks in Gmail and Outlook on the web (Pro and up).</small></span><input type="checkbox" id="emailProtection"></label>
-    <label class="opt"><span><b>Scanning line and tint</b><small>A golden line sweeps the results while Sentinel checks them.</small></span><input type="checkbox" id="scanOverlay"></label>
-    <label class="opt"><span><b>Tick on safe results</b><small>A quiet tick beside results that came back clean, so every link shows a verdict.</small></span><input type="checkbox" id="markSafe"></label>
-    <label class="opt"><span><b>Full-page warnings</b><small>Stop likely and confirmed threats before you interact with them.</small></span><input type="checkbox" id="warnOnNavigate"></label>
-    <label class="opt"><span><b>Stop pasted commands</b><small>A page cannot copy a command that only a trick would ask you to paste into Windows (Windows key + R) or a terminal. Checked in the browser; nothing is sent.</small></span><input type="checkbox" id="commandGuard"></label>
-    <label class="opt"><span><b>Hints in web chats</b><small>In Discord, WhatsApp, Messenger, Telegram and X messages, a quiet hint under a message that asks for a code, gift cards or crypto. Read in the page, never sent anywhere.</small></span><input type="checkbox" id="chatHints"></label>
-    <label class="opt"><span><b>Desktop notifications</b><small>Alert when a confirmed threat opens in any tab.</small></span><input type="checkbox" id="notifications"></label>
-    <p class="small" id="privateNote" hidden>Private windows are not checked yet. To check them too, allow Sentinel in private windows: in Firefox, open Add-ons and themes, choose Sentinel and turn on Run in Private Windows. In Chrome or Edge, open Extensions, choose Details under Sentinel and turn on Allow in Incognito (Allow in InPrivate in Edge).</p>
+  <section class="group">
+    <h2>Browsing</h2>
+    <div class="rows">
+      <label class="opt"><span><b>Live scanning</b><small>Masks on search results, and each page checked as it opens.</small></span><input type="checkbox" id="enabled"></label>
+      <label class="opt"><span><b>Stop dangerous pages</b><small>Sites on the confirmed list never load. A page the scanner flags after it opens is closed.</small></span><input type="checkbox" id="warnOnNavigate"></label>
+      <label class="opt"><span><b>Show masks from</b><small>Hide the milder masks on search results.</small></span>
+        <select id="minimumBadge"><option value="yellow">Yellow and above</option><option value="orange">Orange and above</option><option value="red">Red only</option></select></label>
+      <label class="opt"><span><b>Tick on safe results</b><small>A quiet tick beside results that came back clean, so every link shows a verdict.</small></span><input type="checkbox" id="markSafe"></label>
+      <label class="opt"><span><b>Scanning line and tint</b><small>A golden line sweeps the results while Sentinel checks them.</small></span><input type="checkbox" id="scanOverlay"></label>
+      <label class="opt"><span><b>Stop pasted commands</b><small>A page cannot copy a command that only a trick would ask you to paste into Windows (Windows key + R) or a terminal. Checked in the browser; nothing is sent.</small></span><input type="checkbox" id="commandGuard"></label>
+      <label class="opt"><span><b>Desktop notifications</b><small>Tell me when Sentinel stops a page in a tab I am not looking at.</small></span><input type="checkbox" id="notifications"></label>
+      <p class="small note-row" id="privateNote" hidden>Private windows are not checked yet. To check them too, allow Sentinel in private windows: in Firefox, open Add-ons and themes, choose Sentinel and turn on Run in Private Windows. In Chrome or Edge, open Extensions, choose Details under Sentinel and turn on Allow in Incognito (Allow in InPrivate in Edge).</p>
+    </div>
   </section>
 
-  <section class="card">
-    <h2 class="label">Masks</h2>
-    <div class="legend" id="legend"></div>
-    <label class="opt"><span><b>Mask style</b><small>Sentinel's three masks, or the 🎭 emoji in a coloured ring.</small></span>
-      <select id="badgeStyle"><option value="mask">Sentinel masks</option><option value="emoji">🎭 emoji</option></select></label>
-    <label class="opt"><span><b>Show masks from</b><small>Hide lower-severity masks.</small></span>
-      <select id="minimumBadge"><option value="yellow">Yellow and above</option><option value="orange">Orange and above</option><option value="red">Red only</option></select></label>
+  <section class="group">
+    <h2>Email and chat</h2>
+    <div class="rows">
+      <label class="opt"><span><b>Email protection</b><small>Masks in Gmail and Outlook on the web (Pro and up).</small></span><input type="checkbox" id="emailProtection"></label>
+      <label class="opt"><span><b>Hints in web chats</b><small>In Discord, WhatsApp, Messenger, Telegram and X messages, a quiet hint under a message that asks for a code, gift cards or crypto. Read in the page, never sent anywhere.</small></span><input type="checkbox" id="chatHints"></label>
+    </div>
   </section>
 
-  <section class="card" id="pw">
-    <h2 class="label">Password alarm</h2>
-    <p class="small pw-intro">Pick the accounts that matter most. The next time you sign in to one on its own site, Sentinel remembers a scrambled form of the password (never the password itself, and it never leaves this computer). Type that password on any other site and Sentinel empties the box and stops you. It needs you to type the password once: an account you only open with a passkey, or never sign out of, waits until you do.</p>
-    <div id="pwPresets"></div>
-    <form class="opt pw-bank" id="pwBankForm"><span><b>Your bank</b><small>Its own address, like chase.com.</small></span><span class="pw-add"><input type="text" id="pwBank" placeholder="yourbank.com" spellcheck="false" autocomplete="off" aria-label="Your bank's address"><button class="btn" type="submit">Add</button></span></form>
-    <div id="pwBanks"></div>
+  <section class="group" id="pw">
+    <h2>Password alarm</h2>
+    <div class="rows">
+      <p class="small note-row">Pick the accounts that matter most. The next time you sign in to one on its own site, Sentinel remembers a scrambled form of the password (never the password itself, and it never leaves this computer). Type that password on any other site and Sentinel empties the box and stops you. It needs you to type the password once: an account you only open with a passkey, or never sign out of, waits until you do.</p>
+      <div id="pwPresets"></div>
+      <form class="opt pw-bank" id="pwBankForm"><span><b>Your bank</b><small>Its own address, like chase.com.</small></span><span class="pw-add"><input type="text" id="pwBank" placeholder="yourbank.com" spellcheck="false" autocomplete="off" aria-label="Your bank's address"><button class="btn" type="submit">Add</button></span></form>
+      <div id="pwBanks"></div>
+    </div>
   </section>
 
-  <section class="card">
-    <h2 class="label">Advanced</h2>
-    <label class="opt"><span><b>Sentinel server</b><small>Only change this if you run your own Sentinel.</small></span><input type="url" id="apiBase" spellcheck="false"></label>
-    <div class="actions"><button class="btn" id="signout" type="button">Sign out</button></div>
+  <section class="group">
+    <h2>Advanced</h2>
+    <div class="rows">
+      <label class="opt"><span><b>Sentinel server</b><small>Only change this if you run your own Sentinel.</small></span><input type="url" id="apiBase" spellcheck="false"></label>
+      <div class="actions"><button class="btn" id="signout" type="button">Sign out</button></div>
+    </div>
   </section>
 
-  <p class="small saved" id="saved" aria-live="polite"></p>
-  <script src="content/masks.js"></script>
+  <p class="small saved" id="saved" role="status"></p>
+  <script src="lib/say.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

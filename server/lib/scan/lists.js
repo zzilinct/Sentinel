@@ -124,7 +124,7 @@ const NOT_LOOKALIKES = new Set([
 const URL_SHORTENERS = new Set([
   'bit.ly', 'tinyurl.com', 'goo.gl', 't.co', 'ow.ly', 'is.gd', 'buff.ly', 'cutt.ly',
   'rb.gy', 'shorturl.at', 'rebrand.ly', 'tiny.cc', 'bl.ink', 'lnkd.in', 't.ly', 's.id',
-  'v.gd', 'qrco.de', 'shorturl.gg', 'bitly.ws'
+  'v.gd', 'qrco.de', 'shorturl.gg', 'bitly.ws', 'bitly.com', 'u.to', 'clck.ru', 'x.gd', 'bit.do', 'surl.li', 'urlz.fr'
 ]);
 
 // Free site builders and hosting subdomains: legitimate, but a favourite home for phishing kits.
@@ -165,7 +165,7 @@ const PATH_HOSTING = [
   'onedrive.live.com', '1drv.ms', 'linktr.ee', 'telegra.ph', 'ipfs.io', 'dweb.link',
   'new.express.adobe.com', 'express.adobe.com', 'indd.adobe.com', 'acrobat.adobe.com', 'app.hubspot.com', 'forms.office.com',
   'teams.live.com', 'app.box.com', 'airtable.com', 'padlet.com', 't.me', 'vk.com', 'away.vk.com', 'script.google.com',
-  'lookerstudio.google.com',
+  'lookerstudio.google.com', 'raw.githubusercontent.com', 'gist.githubusercontent.com',
   // Archives hold copies of pages that are on the lists. The archive is not the scam; only the exact archived address counts.
   ...ARCHIVES
 ];

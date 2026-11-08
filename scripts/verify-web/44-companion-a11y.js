@@ -108,6 +108,19 @@ async function checkCompanionA11y() {
       result(`companion-a11y: settings, ${scheme}: all text readable, every control named, Hints in web chats on and named`,
         !set.bad.length && !set.nameless.length && hints.checked && hints.name === 'Hints in web chats', { hints, ...set });
       result(`companion-a11y: settings, ${scheme}: the keyboard's focus can be seen on every stop (${setFocus.length} stops)`, setFocus.length >= 8 && setFocus.every((f) => f.ring), setFocus.filter((f) => !f.ring));
+
+      // The block page, with its "why" open.
+      const b = await openPage(browser);
+      await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, b.sessionId);
+      await goto(browser, b.sessionId, SCAM, "document.getElementById('pass') && document.getElementById('pass').onclick");
+      await evalIn(browser, b.sessionId, "document.getElementById('more').open = true");
+      await sleep(800);
+      const blk = await evalIn(browser, b.sessionId, AUDIT);
+      const landmarks = await evalIn(browser, b.sessionId, "({ h1: document.querySelectorAll('h1').length, main: document.querySelectorAll('main').length, title: document.title, focus: document.activeElement.id })");
+      const blkFocus = await walkFocus(browser, b.sessionId, 12);
+      await browser.send('Target.closeTarget', { targetId: b.targetId }).catch(() => {});
+      result(`companion-a11y: block page, ${scheme}: all text readable, every control named, one heading, focus starts on the one action and can be seen on every stop`,
+        !blk.bad.length && !blk.nameless.length && landmarks.h1 === 1 && landmarks.main === 1 && /^Sentinel: /.test(landmarks.title) && landmarks.focus === 'go' && blkFocus.length >= 3 && blkFocus.every((f) => f.ring), { ...blk, landmarks, blkFocus });
     }
   } finally {
     await close();

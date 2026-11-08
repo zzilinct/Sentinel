@@ -74,22 +74,6 @@ Start-Sleep 10
 $i = Info 'info()'
 Say "chat safety: $($i.chatSafety | ConvertTo-Json -Compress -Depth 4)"
 Say "command shield: $($i.commandShield), browsers running: $($i.browsers.running -join ',')"
-if (-not $i.chatSafety.running) {
-  # The chat reader is not running: start the same script the same way, and keep what it said on the way out.
-  $diag = Join-Path $env:RUNNER_TEMP 'reader-diag.js'
-  @'
-const { spawn } = require('child_process');
-const { SCRIPT } = require(process.argv[2])._test;
-const child = spawn('powershell.exe', require(process.argv[2])._test.LAUNCH, { windowsHide: true });
-let out = '', err = '';
-child.stdout.on('data', (d) => { out += d; });
-child.stderr.on('data', (d) => { err += d; });
-child.stdin.write(`${Buffer.from(SCRIPT, 'utf8').toString('base64')}\napps discord,roblox\n`);
-child.on('exit', (code) => { console.log(`reader exited ${code}\nstdout: ${out.slice(0, 600)}\nstderr: ${err.slice(0, 3000)}`); process.exit(0); });
-setTimeout(() => { console.log(`reader still running after 15 s\nstdout: ${out.slice(0, 600)}\nstderr: ${err.slice(0, 3000)}`); child.kill(); process.exit(0); }, 15000);
-'@ | Set-Content -Path $diag -Encoding utf8
-  node $diag (Resolve-Path (Join-Path $PSScriptRoot '..\desktop\src\chatwatch.js')).Path | ForEach-Object { Say "  $_" }
-}
 
 # 1b. Pay pause, before anything scam-shaped happened on this computer: a page that sells gift cards (a harmless local
 # page behind a hosts mapping, known by its address /gift-cards/) is noticed, and nothing is shown. 5e2 comes back.
@@ -160,12 +144,12 @@ const child = spawn('powershell.exe', t.LAUNCH, { windowsHide: true });
 let out = '', err = '';
 child.stdout.on('data', (d) => { out += d; });
 child.stderr.on('data', (d) => { err += d; });
-child.stdin.write(`${Buffer.from(t.SCRIPT, 'utf8').toString('base64')}\napps phonelink\n`);
+child.stdin.write(`${Buffer.from(t.SCRIPT, 'utf8').toString('base64')}\nfront phonelink ${process.argv[3]}\n`);
 setTimeout(() => { console.log(`stdout: ${out.slice(0, 4000)}\nstderr: ${err.slice(0, 2000)}`); child.kill(); process.exit(0); }, 8000);
 '@ | Set-Content -Path $diag -Encoding utf8
-  node $diag (Resolve-Path (Join-Path $PSScriptRoot '..\desktop\src\chatwatch.js')).Path | ForEach-Object { Say "  reader: $_" }
-  Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
   $p = Get-Process PhoneExperienceHost -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  node $diag (Resolve-Path (Join-Path $PSScriptRoot '..\desktop\src\chatwatch.js')).Path $(if ($p) { [string]$p.MainWindowHandle } else { '0' }) | ForEach-Object { Say "  reader: $_" }
+  Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
   if ($p) {
     $all = [System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle).FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
     foreach ($e in $all) {

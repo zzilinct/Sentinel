@@ -485,6 +485,7 @@ while ($true) {
     if ($cmd -eq 'back' -and $overlayH -ne [IntPtr]::Zero -and $browserH -ne [IntPtr]::Zero -and [SW]::GetForegroundWindow() -eq $overlayH) { [SW]::Front($browserH) }
     # A paused site is being checked again: read its links now, not at the next scroll.
     if ($cmd -eq 'reread') { $lastLinks = ''; $forceRead = $true }
+    if ($cmd -eq 'wake') { $pause = 1 }
     # The person pressed "Get me out of this page": the browser window last watched is asked to close.
     if ($cmd -eq 'close') {
       $gone = [SW]::Close($browserH)
@@ -517,7 +518,9 @@ while ($true) {
   $fname = $p.ProcessName
   if ($fname -and $fname -ne $lastFront) { $lastFront = $fname; Write-Output (@{ front = $fname; isBrowser = ($browsers -contains $fname) } | ConvertTo-Json -Compress) }
   # Behind another program, minimised, or nobody at the keyboard: the browser is not "in use".
-  if (-not $p -or ($browsers -notcontains $fname)) { Off 'not in front'; $pause = 1000; continue }
+  # No browser in front: asleep, and woken the moment one is (the helper in browsers.js hears it, main.js says "wake").
+  # The slow look is only for a helper that has died.
+  if (-not $p -or ($browsers -notcontains $fname)) { Off 'not in front'; $pause = $(if ($testName) { 1000 } else { 5000 }); continue }
   if ([SW]::IsIconic($h)) { Off 'minimised'; continue }
   if (-not $testName -and [SW]::IdleMs() -gt 120000) { if (-not $wasIdle) { $wasIdle = $true; Write-Output '{"idle":true}' }; Off 'idle'; continue }
   if ($wasIdle) { $wasIdle = $false; Write-Output '{"awake":true}' }
@@ -832,6 +835,9 @@ function front(handle) {
   if (/^\d{1,20}$/.test(String(handle || ''))) send(`front ${handle}`);
 }
 
+/** A browser just came to the front: look now, not at the end of the reader's rest. */
+function wake() { if (readerReady) send('wake'); }
+
 /** The island's panel has finished with the keyboard: the browser gets it back. */
 function backToBrowser() { send('back'); }
 
@@ -1014,7 +1020,7 @@ function onLine(line) {
   }
   if (msg.raised || msg.noWindow) { const r = raiseWaiters.shift(); if (r) r(Boolean(msg.raised)); return; }
   if ('closed' in msg) { const r = closeWaiters.shift(); if (r) r({ closed: msg.closed === true, pid: Number(msg.pid) || 0 }); return; }
-  if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); else if (opts.onFront) opts.onFront(msg.front); return; }
+  if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); return; }
   if (msg.nodoc) { log(`${msg.browser} is in front, but Windows gave no page address (a start page, a dialog over the page, or the browser's accessibility is off)`); return; }
   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
   if (msg.awake) { log('in use again'); return; }
@@ -1561,4 +1567,4 @@ async function onMail(msg) {
   publishMarks();
 }
 
-module.exports = { init, restart, stop, status, raise, front, closeBrowser, keepAbove, backToBrowser, pauseChanged, _test: { resultLinks, unwrapResult, hoverLink, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, payTitles, SCRIPT } };
+module.exports = { init, restart, stop, status, raise, front, wake, closeBrowser, keepAbove, backToBrowser, pauseChanged, _test: { resultLinks, unwrapResult, hoverLink, worstKind, mailFromRow, distinctRows, readerLaunch, hintsFor, payTitles, SCRIPT } };

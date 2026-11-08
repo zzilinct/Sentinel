@@ -1,61 +1,37 @@
-<!-- Generated from changelog/1.19.3.md by scripts/release-note.js: npm run build:note. Do not edit. -->
-<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.19.3">
+<!-- Generated from changelog/1.19.4.md by scripts/release-note.js: npm run build:note. Do not edit. -->
+<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.19.4">
   <div class="wrap">
-    <h2 id="relnote-title">New in Sentinel 1.19.3 Argus</h2>
-    <p class="relnote__lead">Honest file results, a public call check, clearer pricing, download and sign-in pages.</p>
+    <h2 id="relnote-title">New in Sentinel 1.19.4 Argus</h2>
+    <p class="relnote__lead">Fewer false alarms, a companion that stops scam sites first and a lighter chat safety.</p>
     <p class="relnote__newer" data-release-newer hidden></p>
     <details class="relnote__all">
       <summary>Every change in this version</summary>
       <div class="relnote__groups">
         <section>
-          <h3>File scans</h3>
+          <h3>Fewer false alarms</h3>
           <ul>
-            <li>A file result now says how much of the file Sentinel looked at: all of it, part of it or none of it. It never shows green for a file it did not fully check.</li>
-            <li>A digital signature no longer turns a warning green.</li>
-            <li>An archive Sentinel cannot open now says so instead of looking safe.</li>
+            <li>Long and signed links on well-known sites are no longer judged by their shape or by what other people uploaded there.</li>
+            <li>A storage bucket name is never called a scam on its words alone.</li>
+            <li>A file is called a virus or malware only with proof.</li>
+            <li>Defense never changes startup entries on its own.</li>
+            <li>Signed apps that update themselves, like Discord, are no longer flagged.</li>
           </ul>
         </section>
         <section>
-          <h3>Pricing</h3>
+          <h3>Browser companion</h3>
           <ul>
-            <li>Plans are now one sheet, with each limit shown once.</li>
-            <li>Nothing is on sale yet, so the only button is Start free.</li>
+            <li>It stops confirmed scam sites before they load, in Chrome and in Firefox.</li>
+            <li>An orange warning shows over the page and leaves the page in place.</li>
+            <li>It never downgrades a secure (https) address.</li>
+            <li>The popup, the settings and the warning page are new, and the emoji mask is gone.</li>
           </ul>
         </section>
         <section>
-          <h3>Download page</h3>
+          <h3>Chat safety</h3>
           <ul>
-            <li>It shows the Windows warning you will see when you first run the installer, and lets you practise getting past it.</li>
-            <li>It checks that your download is the real file, without uploading it.</li>
-            <li>The release notes on the page come straight from the changelog.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Home page on phones</h3>
-          <ul>
-            <li>It shows Sentinel's full name, the mask in a gold arch and the Download button on the first screen.</li>
-            <li>On a computer, reduced motion no longer covers the name.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Is this call a scam</h3>
-          <ul>
-            <li>It is now a public page at /call that works without an account and keeps your place. The old address in the app takes you there.</li>
-            <li>It never says a call is fine, and it tells you to wait or use another phone before you call back.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Signing in</h3>
-          <ul>
-            <li>The sign-in pages are rebuilt around the real mask, with fields you can see.</li>
-            <li>If you are already signed in, you go straight to the app.</li>
-            <li>Sign in with Google only shows when it works.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>The galaxy</h3>
-          <ul>
-            <li>An enlarged galaxy card no longer vanishes on slow computers.</li>
+            <li>The chat reader sleeps when no chat app is in front, so it uses much less CPU and memory while you play.</li>
+            <li>It restarts itself if it stops, and says plainly when chat is not being watched.</li>
+            <li>In web chats, only new messages are read.</li>
           </ul>
         </section>
       </div>
