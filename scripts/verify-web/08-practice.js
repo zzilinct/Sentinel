@@ -97,6 +97,15 @@ async function checkPractice() {
     await sleep(1100);
     await snap(s, `${label}-verdict`);
     const fits = await js(s, "({ wide: document.querySelector('[data-sheet]').scrollWidth, screen: document.querySelector('[data-sheet]').clientWidth })");
+    // A text message too, whose sender cannot be looked up: the pill says why, in words.
+    const text = deck.find((id) => byId(id).kind === 'text' && !byId(id).addr.startsWith('+'));
+    if (text) {
+      await js(s, `(() => { document.querySelector('[data-sheet]').close(); document.querySelector('[data-open="${text}"]').click(); return true; })()`);
+      await sleep(900);
+      await js(s, "document.querySelector('[data-card]:last-child [data-peek=sender]').click(), true");
+      await sleep(700);
+      await snap(s, `${label}-text`);
+    }
     const finished = await finishRun(s, (m) => (m.id.startsWith('p') ? 'fine' : truth(m)));
     await sleep(1000);
     await snap(s, `${label}-end`, true);
