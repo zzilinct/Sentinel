@@ -60,9 +60,10 @@ function TrayClick($label) { return [string](Cdp 'main' "(() => { const i = glob
 function AppWindow { return [string](Cdp 'main' "(() => { const w = process.mainModule.require('electron').BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('127.0.0.1:4782')); return w ? (w.isVisible() ? 'shown' : 'hidden') + '|' + w.webContents.getURL().replace(/^http:..127.0.0.1:\d+/, '') : 'none'; })()").value }
 function HideApp { [void](Cdp 'main' "(process.mainModule.require('electron').BrowserWindow.getAllWindows().filter((w) => w.webContents.getURL().includes('127.0.0.1:4782')).forEach((w) => w.hide()), 1)") }
 
-# A switch in Live protection, pressed as a person presses it; returns what it shows afterwards.
+# A switch in Live protection, pressed as a person presses it (its row opened first when it sits inside one); returns
+# what it shows afterwards.
 function Flip($sel, [bool]$want) {
-  $r = [string](Cdp '127.0.0.1:4782' "(() => { const s = document.querySelector('$sel'); if (!s) return 'none'; s.scrollIntoView({ block: 'center' }); if (s.checked !== $(([string]$want).ToLower())) s.click(); return String(s.checked); })()").value
+  $r = [string](Cdp '127.0.0.1:4782' "(() => { const s = document.querySelector('$sel'); if (!s) return 'none'; const row = s.closest('.guard__more') && s.closest('.guard'); if (row && !row.classList.contains('is-open')) row.querySelector('[data-guard-open]').click(); s.scrollIntoView({ block: 'center' }); if (s.checked !== $(([string]$want).ToLower())) s.click(); return String(s.checked); })()").value
   Start-Sleep 3
   return $r
 }
@@ -203,14 +204,14 @@ if ($Part -eq 'install') {
   Page '/app/protection'
   Say "tray click: $(TrayClick 'Chat safety')"
   $ok = Until 15 { $c = (Info 'info()').chatSafety; $c.enabled -and $c.running }
-  Check 'tray-chat-on' $ok "Chat safety ticked in the tray: reading $ok; the app's switch shows $(Shown '[data-chat-safety]')"
+  Check 'tray-chat-on' $ok "Chat safety ticked in the tray: reading $ok; the app's switch shows $(Shown '[data-guard=chat]')"
   Say "tray click: $(TrayClick 'Chat safety')"
   $ok = Until 15 { $c = (Info 'info()').chatSafety; -not $c.enabled -and -not $c.running }
-  Check 'tray-chat-off' ($ok -and (Shown '[data-chat-safety]') -eq 'false') "unticked: stopped reading $ok; the app's switch shows $(Shown '[data-chat-safety]')"
+  Check 'tray-chat-off' ($ok -and (Shown '[data-guard=chat]') -eq 'false') "unticked: stopped reading $ok; the app's switch shows $(Shown '[data-guard=chat]')"
   Say "tray click: $(TrayClick 'Start with my computer')"
   Start-Sleep 3
-  Check 'tray-login-off' (-not (RunEntry) -and (Settings).openAtLogin -eq $false) "unticked: startup entry $(if (RunEntry) { 'still there' } else { 'gone' }); the app's switch shows $(Shown '[data-login]')"
-  Check 'tray-login-app-follows' ((Shown '[data-login]') -eq 'false') "the app's Start with my computer switch, open while the tray changed it: $(Shown '[data-login]')"
+  Check 'tray-login-off' (-not (RunEntry) -and (Settings).openAtLogin -eq $false) "unticked: startup entry $(if (RunEntry) { 'still there' } else { 'gone' }); the app's switch shows $(Shown '[data-guard=login]')"
+  Check 'tray-login-app-follows' ((Shown '[data-guard=login]') -eq 'false') "the app's Start with my computer switch, open while the tray changed it: $(Shown '[data-guard=login]')"
   Say "tray click: $(TrayClick 'Start with my computer')"
   Start-Sleep 3
   Check 'tray-login-on' ([bool](RunEntry)) "ticked again: startup entry $(if (RunEntry) { 'back' } else { 'missing' })"
@@ -220,7 +221,7 @@ if ($Part -eq 'install') {
   Say "tray click: $(TrayClick 'Auto scanning')"
   Say "tray click: $(TrayClick 'Check my texts')"
   $ok = Until 15 { (Info 'info()').textSafety.running }
-  Check 'tray-texts' ($ok -and (Shown '[data-text-safety]') -eq 'true') "Check my texts ticked: reading $ok; the app's switch shows $(Shown '[data-text-safety]')"
+  Check 'tray-texts' ($ok -and (Shown '[data-guard=texts]') -eq 'true') "Check my texts ticked: reading $ok; the app's switch shows $(Shown '[data-guard=texts]')"
   Say "tray click: $(TrayClick 'Check my texts')"
   Say "tray click: $(TrayClick 'Start scanning')"
   $ok = Until 30 { $s = (Info 'info()').live; $s.enabled -and $s.active }
@@ -237,79 +238,79 @@ if ($Part -eq 'install') {
   Page '/app/protection'
   Shot 'protection-page'
   # Download protection: a file arriving while it is off is not looked at; on again, the next one is.
-  Say "download protection: $(Flip '[data-dl]' $false); toast: $(Toasts)"
+  Say "download protection: $(Flip '[data-guard=downloads]' $false); toast: $(Toasts)"
   Arrive 'switch off.txt' (Text 'Milk and eggs')
   Start-Sleep 15
   $offOk = (DlLines 'switch off.txt') -eq 0 -and -not (Info 'info()').downloads.active
-  Say "download protection: $(Flip '[data-dl]' $true); toast: $(Toasts)"
+  Say "download protection: $(Flip '[data-guard=downloads]' $true); toast: $(Toasts)"
   Arrive 'switch on.txt' (Text 'Bread and butter')
   $onOk = Until 60 { (DlLines 'switch on.txt') -ge 1 }
   Check 'switch-downloads' ($offOk -and $onOk) "off: the file that arrived was left alone $offOk; on: the next one was scanned $onOk"
   [void](Cdp '127.0.0.1:4782' 'location.reload(), 1'); Start-Sleep 6
-  Check 'switch-downloads-kept' ((Shown '[data-dl]') -eq 'true') "after a reload the switch shows $(Shown '[data-dl]')"
+  Check 'switch-downloads-kept' ((Shown '[data-guard=downloads]') -eq 'true') "after a reload the switch shows $(Shown '[data-guard=downloads]')"
   # Defense.
-  Say "defense: $(Flip '[data-defense]' $false)"
+  Say "defense: $(Flip '[data-guard=defense]' $false)"
   $off = (Cdp 'main' "process.mainModule.require('./defense').status().active").value
-  Say "defense: $(Flip '[data-defense]' $true)"
+  Say "defense: $(Flip '[data-guard=defense]' $true)"
   $on = Until 20 { (Cdp 'main' "process.mainModule.require('./defense').status().active").value -eq $true }
   Check 'switch-defense' ($off -eq $false -and $on) "off: watching $off; on again: watching $on"
   # Check links I copy (off unless turned on): a copied scam link is checked only while it is on.
   $lines = { ([regex]::Matches((AppLog), 'copied link checked')).Count }
-  Say "copied links: $(Flip '[data-clip]' $true)"
+  Say "copied links: $(Flip '[data-guard=clip]' $true)"
   $n0 = & $lines; Set-Clipboard -Value 'http://paypa1-secure-login.com/account/verify'
   $onOk = Until 15 { (& $lines) -gt $n0 }
-  Say "copied links: $(Flip '[data-clip]' $false)"
+  Say "copied links: $(Flip '[data-guard=clip]' $false)"
   $n1 = & $lines; Set-Clipboard -Value 'http://paypa1-secure-login.com/account/confirm'; Start-Sleep 8
   Check 'switch-copied-links' ($onOk -and (& $lines) -eq $n1) "on: checked $onOk ($(([regex]::Match((AppLog), 'copied link checked[^\r\n]*')).Value)); off: left alone $((& $lines) -eq $n1)"
   # Stop pasted commands: a ClickFix-shaped command copied with a browser in front.
   Say "Edge in front: $(FreshEdge 'http://127.0.0.1:47910/plain.html')"
-  Say "command shield: $(Flip '[data-shield]' $false)"
+  Say "command shield: $(Flip '[data-guard=cmd]' $false)"
   Say "Edge in front: $(Front 'msedge')"
   $cmd = 'powershell -w hidden -enc ' + [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes('Write-Output hi'))
   Set-Clipboard -Value $cmd; Start-Sleep 5
   $offOk = ((Get-Clipboard -Raw) + '').Trim() -eq $cmd
-  Say "command shield: $(Flip '[data-shield]' $true)"
+  Say "command shield: $(Flip '[data-guard=cmd]' $true)"
   Say "Edge in front: $(Front 'msedge')"
   Set-Clipboard -Value ($cmd + ' ');
   $onOk = Until 10 { ((Get-Clipboard -Raw) + '') -like 'Sentinel stopped a command*' }
   Check 'switch-command-shield' ($offOk -and $onOk) "off: the command stayed on the clipboard $offOk; on: stopped $onOk"
   # Wallet guard: an address swapped on the clipboard straight after it was copied.
-  Say "wallet guard: $(Flip '[data-wallet-guard]' $false)"
+  Say "wallet guard: $(Flip '[data-guard=wallet]' $false)"
   Set-Clipboard -Value 'a shopping list'; Start-Sleep 12
   $offClip = Swap
-  Say "wallet guard: $(Flip '[data-wallet-guard]' $true)"
+  Say "wallet guard: $(Flip '[data-guard=wallet]' $true)"
   Set-Clipboard -Value 'a shopping list'; Start-Sleep 12
   $onClip = Swap
   Check 'switch-wallet-guard' ($offClip -eq $btcB -and $onClip -eq $btcA) "off: the swapped address stayed $($offClip -eq $btcB); on: the copied one was put back $($onClip -eq $btcA)"
   Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   # Check something on screen: its shortcut is held only while it is on.
   $key = (Info 'info()').snip.key
-  Say "check on screen: $(Flip '[data-snip]' $false)"
+  Say "check on screen: $(Flip '[data-guard=snip]' $false)"
   $off = (Cdp 'main' "process.mainModule.require('electron').globalShortcut.isRegistered('$key')").value
-  Say "check on screen: $(Flip '[data-snip]' $true)"
+  Say "check on screen: $(Flip '[data-guard=snip]' $true)"
   $on = (Cdp 'main' "process.mainModule.require('electron').globalShortcut.isRegistered('$key')").value
   Check 'switch-snip' ($off -eq $false -and $on -eq $true) "the shortcut $key held: off $off, on $on"
   # Chat safety and Check my texts: the reader runs only while one of them is on.
-  Say "chat safety: $(Flip '[data-chat-safety]' $true)"
+  Say "chat safety: $(Flip '[data-guard=chat]' $true)"
   $on = Until 15 { (Info 'info()').chatSafety.running }
   $readers = @(Helpers).Count
-  Say "chat safety: $(Flip '[data-chat-safety]' $false)"
+  Say "chat safety: $(Flip '[data-guard=chat]' $false)"
   $off = Until 15 { -not (Info 'info()').chatSafety.running }
   Check 'switch-chat-safety' ($on -and $off -and @(Helpers).Count -lt $readers) "on: reading $on ($readers helpers); off: stopped $off ($(@(Helpers).Count) helpers)"
-  Say "texts: $(Flip '[data-text-safety]' $true)"
+  Say "texts: $(Flip '[data-guard=texts]' $true)"
   $on = Until 15 { (Info 'info()').textSafety.running }
-  Say "texts: $(Flip '[data-text-safety]' $false)"
+  Say "texts: $(Flip '[data-guard=texts]' $false)"
   $off = Until 15 { -not (Info 'info()').textSafety.running }
   Check 'switch-texts' ($on -and $off) "on: reading $on; off: stopped $off"
   # The tech-support scam shield.
-  Say "shield: $(Flip '[data-remote-guard]' $false)"
+  Say "shield: $(Flip '[data-guard=remote]' $false)"
   $off = (Info 'info()').remoteGuard.enabled
-  Say "shield: $(Flip '[data-remote-guard]' $true)"
+  Say "shield: $(Flip '[data-guard=remote]' $true)"
   Check 'switch-shield' ($off -eq $false -and (Info 'info()').remoteGuard.enabled -eq $true) "off: $off; on: $((Info 'info()').remoteGuard.enabled)"
   # Start with my computer.
-  Say "login: $(Flip '[data-login]' $false)"
+  Say "login: $(Flip '[data-guard=login]' $false)"
   $off = -not (RunEntry)
-  Say "login: $(Flip '[data-login]' $true)"
+  Say "login: $(Flip '[data-guard=login]' $true)"
   Check 'switch-login' ($off -and [bool](RunEntry)) "off: the startup entry went $off; on: it came back $([bool](RunEntry))"
   # Live scanning: Stop scanning takes the browser reader away; Start scanning brings it back.
   Say "live: $(TrayClick 'Start scanning')"
@@ -317,7 +318,7 @@ if ($Part -eq 'install') {
   Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   Page '/app/protection'
   $h0 = @(Helpers).Count
-  [void](Cdp '127.0.0.1:4782' "(document.querySelector('[data-live-toggle]').click(), 1)")
+  [void](Cdp '127.0.0.1:4782' "(document.querySelector('[data-guard=live]').click(), 1)")
   $off = Until 15 { -not (Info 'info()').live.active }
   Start-Sleep 3
   $h1 = @(Helpers).Count

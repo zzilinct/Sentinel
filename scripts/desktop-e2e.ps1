@@ -905,10 +905,10 @@ Check 'download-source-listed' ($t -match 'Possible fake installer' -and $t -mat
 
 # 7b. Your sites, in Live protection: a site added with the form is listed as added by you (5d proves the warning).
 $ok = Until 30 { (Cdp '127.0.0.1:4782' "Boolean(document.querySelector('[data-my-sites-add]'))").value -eq $true }
-[void](Cdp '127.0.0.1:4782' "(() => { const f = document.querySelector('[data-my-sites-add]'); f.elements.host.value = 'harbourcu.test'; f.requestSubmit(); return 1; })()")
+[void](Cdp '127.0.0.1:4782' "(() => { document.querySelector('[data-guard-open=mysites]').click(); const f = document.querySelector('[data-my-sites-add]'); f.elements.host.value = 'harbourcu.test'; f.requestSubmit(); return 1; })()")
 $s = ''
-$ok = $ok -and (Until 30 { $script:s = [string](Cdp '127.0.0.1:4782' "(document.getElementById('my-sites') || {}).innerText || ''").value; $script:s -match 'harbourcu\.test\s+Added by you' })
-[void](Cdp '127.0.0.1:4782' "(document.getElementById('my-sites').scrollIntoView(), 1)"); Start-Sleep 1
+$ok = $ok -and (Until 30 { $script:s = [string](Cdp '127.0.0.1:4782' "(document.getElementById('guard-mysites') || {}).innerText || ''").value; $script:s -match 'harbourcu\.test\s+Added by you' })
+[void](Cdp '127.0.0.1:4782' "(document.getElementById('guard-mysites').scrollIntoView(), 1)"); Start-Sleep 2
 Shot 'my-sites'
 Check 'my-sites-added' $ok "Your sites panel: $($s.Substring(0, [Math]::Min(300, $s.Length)) -replace '\s+', ' ')"
 
