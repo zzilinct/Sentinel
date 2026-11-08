@@ -29,6 +29,12 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { CAMERA, POSES, halfView, drift } from './pose.js';
 
+// The stills' own look, Blender's "AgX - Medium High Contrast" (contrast 1.2 in AgX's log space), so a live mask is
+// toned like the picture it takes over from. This copy of three.js draws only the masks.
+ShaderChunk.tonemapping_pars_fragment = ShaderChunk.tonemapping_pars_fragment.replace(
+  'color = clamp( color, 0.0, 1.0 );\n\tcolor = agxDefaultContrastApprox',
+  'color = clamp( ( color - 0.6 ) * 1.2 + 0.6, 0.0, 1.0 );\n\tcolor = agxDefaultContrastApprox');
+
 const BASE = (document.currentScript && document.currentScript.src) ? new URL('../models/', document.currentScript.src).href : '/assets/models/';
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // How often a mask that is only drifting (breathing, swaying, its eyes flickering) is redrawn: slow motion needs few
