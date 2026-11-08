@@ -12,7 +12,8 @@
  *   starting     switched on and coming up
  *   trouble      switched on and not running, with the reason
  *   unavailable  not part of this plan or this computer: not a fault, and its switch is not offered
- *   waiting      switched on, but it works only while live scanning runs, and live scanning does not (one fix: start it)
+ *   waiting      switched on, but it works only while live scanning runs, and live scanning does not (its switch is the
+ *                row above)
  * Only the five main protections count in the headline; the others are listed beside the one they help.
  */
 (function (root) {
@@ -78,16 +79,15 @@
       if (core.live.state === 'starting') return { id, name, enabled: true, state: 'starting', note: 'Starting' };
       return { id, name, enabled: true, state: 'waiting', note: 'Works while live scanning is on' };
     };
-    const startLive = core.live.state === 'off' ? { label: 'Start live scanning', guard: 'live' } : null;
 
     const groups = [];
     const web = [row(core.live, { name: 'Live scanning', main: true, what: 'Marks search results and Gmail or Outlook inboxes, and warns before a dangerous page gets your details' })];
     const rg = info.remoteGuard;
-    if (rg && rg.supported) web.push(row(helper('remote', 'Tech-support scam shield', rg.enabled, 'Ready if a scam page takes over the screen'), { what: 'Offers a way out of a full-screen scam page, and asks before a remote-control program runs', fix: startLive }));
+    if (rg && rg.supported) web.push(row(helper('remote', 'Tech-support scam shield', rg.enabled, 'Ready if a scam page takes over the screen'), { what: 'Offers a way out of a full-screen scam page, and asks before a remote-control program runs' }));
     if (live.supported) {
       const n = extra.exposures || 0;
       web.push(row(helper('exposure', 'Exposure alerts', info.exposureAlerts, n ? `${plural(n, 'site', 'sites')} you visited ${n === 1 ? 'was' : 'were'} listed later` : 'None of the sites you visited has been listed since'),
-        { what: 'Tells you if a site you visited is named as a scam later', fix: startLive }));
+        { what: 'Tells you if a site you visited is named as a scam later' }));
     }
     if (info.mySites !== undefined) {
       const n = extra.sites || 0;
@@ -128,7 +128,8 @@
     }
     groups.push({ id: 'pc', title: 'This computer', rows: pc });
 
-    return { ...head, groups };
+    // Every main protection running: the medallion is cast in full gold only then.
+    return { ...head, all: main.every((i) => i.state === 'on'), groups };
   }
 
   // Outside the app, the same groups without any state: what the app guards, never a guess at what it is doing.

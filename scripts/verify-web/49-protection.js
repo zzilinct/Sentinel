@@ -126,8 +126,8 @@ async function checkProtection() {
     const head = await evalIn(browser, s, HEAD);
     const notOn = ['live', 'downloads', 'remote', 'exposure', 'texts', 'scanMenu', 'clip'];
     result('protection: no row says On for a guard that is not running', notOn.every((id) => rows[id] && rows[id].word !== 'On' && !/\bis-on\b/.test(rows[id].cls)), notOn.map((id) => rows[id]));
-    result('protection: a guard waiting on live scanning says so and offers to start it', ['remote', 'exposure'].every((id) => rows[id].word === 'Waiting' && rows[id].line === 'Works while live scanning is on')
-      && Boolean(await evalIn(browser, s, "document.querySelector('#guard-remote [data-guard-fix=\"live\"]')")), [rows.remote, rows.exposure]);
+    result('protection: a guard waiting on live scanning says so', ['remote', 'exposure'].every((id) => rows[id].word === 'Waiting' && rows[id].line === 'Works while live scanning is on'), [rows.remote, rows.exposure]);
+    result('protection: the medallion is not cast in full gold while a main protection is off', (await evalIn(browser, s, "document.querySelector('.board').dataset.all")) === 'false');
     result('protection: running guards say On, with what they are doing', rows.defense.word === 'On' && rows.chat.word === 'On' && rows.defense.line === 'Startup programs are watched', [rows.defense, rows.chat]);
     result('protection: the headline counts as the tray does', head.level === 'on' && head.headline === 'Protection is on' && head.sub === '2 of 5 protections are running.', head);
     result('protection: no "Needs app" and no old feature cards or meters in the app', !/Needs app|Optional add-on|Live scanning this week/.test(head.text) && !(await evalIn(browser, s, "document.querySelector('.feature-grid, .meters, .live__main')")), head.text.slice(0, 300));

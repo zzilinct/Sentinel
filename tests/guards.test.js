@@ -1,7 +1,7 @@
 'use strict';
 /**
  * The Live protection board (web/assets/js/guards.js): no row says On for a guard that is not running, a guard that
- * needs live scanning says so and offers to start it, and the headline is the Windows tray's (desktop/src/protection.js)
+ * needs live scanning says so, and the headline is the Windows tray's (desktop/src/protection.js)
  * for every combination of the five main protections.
  */
 const test = require('node:test');
@@ -30,6 +30,7 @@ test('everything running: every main protection is On and the headline says all 
   assert.equal(b.level, 'on');
   assert.equal(b.headline, 'Protection is on');
   assert.equal(b.sub, 'All 5 protections are running.');
+  assert.equal(b.all, true);
   assert.ok(Object.values(rows(b)).every((r) => r.state === 'on' && r.word === 'On'));
 });
 
@@ -41,13 +42,14 @@ test('live scanning stopped, auto scanning off, downloads off: no row says On th
   const r = rows(board(info));
   assert.equal(r.live.state, 'off');
   assert.equal(r.downloads.state, 'off');
-  // The shield and exposure alerts are switched on but only work with live scanning: waiting, with the one fix.
+  // The shield and exposure alerts are switched on but only work with live scanning: waiting, and saying so.
   for (const id of ['remote', 'exposure']) {
     assert.equal(r[id].state, 'waiting', id);
     assert.equal(r[id].word, 'Waiting');
-    assert.deepEqual(r[id].fix, { label: 'Start live scanning', guard: 'live' });
+    assert.equal(r[id].line, 'Works while live scanning is on');
   }
   assert.ok(!['live', 'downloads', 'remote', 'exposure'].some((id) => r[id].word === 'On'));
+  assert.equal(board(info).all, false, 'not cast in full gold while a main protection is off');
 });
 
 test('switched on but not running is trouble, with the reason the app gives, and the headline names it', () => {

@@ -891,7 +891,7 @@
     }
     if (!state.desktopInfo) return '';
     const b = window.SentinelGuards.board(state.desktopInfo);
-    return `<a class="panel board board--mini" data-level="${b.level}" href="/app/protection">${boardHead(b.headline, esc(b.sub), '<span class="btn btn--sm">See every guard</span>')}</a>`;
+    return `<a class="panel board board--mini" data-level="${b.level}" data-all="${b.all}" href="/app/protection">${boardHead(b.headline, esc(b.sub), '<span class="btn btn--sm">See every guard</span>')}</a>`;
   }
 
   /* =============================================================== check */
@@ -2470,10 +2470,11 @@
     if (!slot.isConnected) return;
     const windows = /Windows NT/.test(navigator.userAgent) && !/Mobile|Phone/.test(navigator.userAgent);
     const get = '<a class="btn btn--ghost" href="/download">Not installed yet? Get it for Windows</a>';
+    const active = app ? `The Sentinel app is signed in to your account and was last active ${ago(app.lastSeenAt || app.createdAt)}.` : '';
     const say = planLocked ? ['Live protection is not part of this plan', 'It comes with Pro, Max and Ultimate. Checking a link, a message or a file works on every plan.', '<a class="btn btn--gold" href="/app/plan">See plans</a>']
-      : app ? ['Open this page in the Sentinel app', `The Sentinel app is signed in to your account and was last active ${ago(app.lastSeenAt || app.createdAt)}. A browser cannot see what it is watching. Open Sentinel from the mask by the clock, in the corner of the taskbar.`, '']
-        : windows ? ['Open this page in the Sentinel app', 'A browser cannot see whether Sentinel is on this computer, or what it is watching. If it is installed, open it from the mask by the clock, in the corner of the taskbar.', get]
-          : ['Live protection runs on a Windows computer', 'The Sentinel app watches pages, downloads and chats on Windows. On this device, paste anything you are unsure of into Check.', `<a class="btn btn--gold" href="/app/check">Check something</a>${get.replace('Not installed yet? ', '')}`];
+      : !windows ? ['Live protection runs on a Windows computer', `${active || 'The Sentinel app watches pages, downloads and chats on Windows.'} On this device, paste anything you are unsure of into Check.`, `<a class="btn btn--gold" href="/app/check">Check something</a>${app ? '' : get.replace('Not installed yet? ', '')}`]
+        : app ? ['Open this page in the Sentinel app', `${active} A browser cannot see what it is watching. Open Sentinel from the mask by the clock, in the corner of the taskbar.`, '']
+          : ['Open this page in the Sentinel app', 'A browser cannot see whether Sentinel is on this computer, or what it is watching. If it is installed, open it from the mask by the clock, in the corner of the taskbar.', get];
     slot.innerHTML = `<section class="panel board" data-level="away" aria-label="What the Sentinel app watches">
       ${boardHead(say[0], esc(say[1]), say[2])}
       ${window.SentinelGuards.outline().map((g) => `<div class="board__group" role="group" aria-labelledby="bg-${g.id}">
@@ -2560,7 +2561,7 @@
   function drawBoard(slot, ctx) {
     const b = boardOf(ctx);
     const up = ctx.info.update || { status: 'idle' };
-    slot.innerHTML = `<section class="panel board" data-level="${b.level}" aria-label="Protection">
+    slot.innerHTML = `<section class="panel board" data-level="${b.level}" data-all="${b.all}" aria-label="Protection">
       ${boardHead(b.headline, esc(b.sub))}
       ${b.groups.map((g) => `<div class="board__group" role="group" aria-labelledby="bg-${g.id}">
         <h3 class="board__title" id="bg-${g.id}">${esc(g.title)}</h3>
@@ -2584,7 +2585,7 @@
           <b>${esc(r.name)}</b><span class="guard__line" id="line-${r.id}" data-line>${esc(r.line)}</span>
         ${more ? `<span class="guard__chev" aria-hidden="true"></span></button>` : '</span>'}
         <span class="guard__word" id="word-${r.id}" data-word>${esc(r.word)}</span>
-        ${r.fix ? (r.fix.href ? `<a class="btn btn--sm guard__fix" href="${esc(r.fix.href)}">${esc(r.fix.label)}</a>` : `<button class="btn btn--sm btn--gold guard__fix" type="button" data-guard-fix="${esc(r.fix.guard)}">${esc(r.fix.label)}</button>`) : ''}
+        ${r.fix ? `<a class="btn btn--sm guard__fix" href="${esc(r.fix.href)}">${esc(r.fix.label)}</a>` : ''}
         ${r.switchable ? `<input class="switch" type="checkbox" data-guard="${r.id}" aria-label="${esc(r.name)}" aria-describedby="word-${r.id} line-${r.id}" ${r.enabled ? 'checked' : ''}>` : ''}
       </div>
       ${more ? `<div class="guard__more" id="more-${r.id}" ${open ? '' : 'inert'}><div class="guard__inner">${more}</div></div>` : ''}
@@ -2738,6 +2739,7 @@
     const rows = b.groups.flatMap((g) => g.rows);
     if (rows.some((r) => { const li = $(`#guard-${r.id}`, board); return li && (Boolean($('.guard__fix', li)) !== Boolean(r.fix) || Boolean($('[data-guard]', li)) !== r.switchable); })) return true;
     board.dataset.level = b.level;
+    board.dataset.all = b.all;
     $('[data-board-headline]', board).textContent = b.headline;
     $('[data-board-sub]', board).textContent = b.sub;
     for (const r of rows) {
@@ -2773,10 +2775,6 @@
       } catch (err) { toast(desktopError(err), 'error'); }
       redraw();
     }));
-    $$('[data-guard-fix]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Starting', async () => {
-      try { await GUARD_SET[b.dataset.guardFix](true, slot); } catch (err) { toast(desktopError(err), 'error'); }
-      redraw();
-    })));
     $$('[data-guard-open]', slot).forEach((b) => b.addEventListener('click', () => {
       const li = b.closest('.guard');
       const open = !li.classList.contains('is-open');
