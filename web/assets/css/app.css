@@ -737,8 +737,9 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .feed__item.is-new { transform: translateY(-6px); background: rgb(var(--gold-rgb) / .08); }
 .feed__empty { padding: 14px 0; font-size: var(--t-ui); }
 .live-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
-.live-dot.is-on { background: var(--green); animation: pulse 1.8s ease-out infinite; }
-@media (prefers-reduced-motion: reduce) { .feed__item { transition: none; } .live-dot.is-on { animation: none; } }
+/* Lit, not pulsing: a light that never stops would repaint the page every frame while scanning runs. */
+.live-dot.is-on { background: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 16%, transparent); }
+@media (prefers-reduced-motion: reduce) { .feed__item { transition: none; } }
 
 /* The mask as a navigation icon, sized like the stroke icons beside it. */
 .side__glyph { width: 18px; height: 18px; flex: none; display: inline-grid; place-items: center; }
