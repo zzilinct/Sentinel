@@ -355,7 +355,11 @@ function frameHex(colour) {
 // The smallest drag region the app needs: a strip as tall as the caption buttons across the top of every page of the
 // app, under its links and buttons (they stay pressable). The app's pages keep their own top padding there.
 const FRAME_CSS = `.sentinel-drag { position: fixed; top: 0; left: 0; right: 0; height: ${FRAME_HEIGHT}px; -webkit-app-region: drag; }
-a, button, input, select, textarea, summary, label, [role="button"] { -webkit-app-region: no-drag; }`;
+a, button, input, select, textarea, summary, label, [role="button"] { -webkit-app-region: no-drag; }
+/* The app's pages: over the page column (the sidebar keeps its own top), a band in the page's colour as tall as the
+   caption buttons, so what scrolls goes under the band and never under the buttons. The column's own top padding is
+   at least as tall, so nothing is hidden before it scrolls. */
+.sentinel-band { position: fixed; top: 0; right: 0; left: 256px; height: ${FRAME_HEIGHT}px; z-index: 40; -webkit-app-region: drag; }`;
 // The website's own pages opened in the app window (Is this call a scam?, the guest scan, signing in) have their menu
 // fixed at the very top, where the caption buttons are: there it moves down by the strip, which takes the page colour.
 const FRAME_CSS_SITE = `.nav { top: ${FRAME_HEIGHT}px !important; }
@@ -367,7 +371,17 @@ const FRAME_SCRIPT = `(() => {
   const strip = document.createElement('div');
   strip.className = 'sentinel-drag';
   strip.setAttribute('aria-hidden', 'true');
-  const keep = () => { if (document.body && !strip.isConnected) document.body.prepend(strip); };
+  const site = !location.pathname.startsWith('/app');
+  const band = site ? null : document.createElement('div');
+  if (band) { band.className = 'sentinel-band'; band.setAttribute('aria-hidden', 'true'); }
+  const keep = () => {
+    if (!document.body) return;
+    if (!strip.isConnected) document.body.prepend(strip);
+    if (band && !band.isConnected) document.body.appendChild(band);
+    // The band starts where the sidebar ends.
+    const side = band && document.querySelector('.side');
+    if (side) band.style.left = Math.round(side.getBoundingClientRect().right) + 'px';
+  };
   keep();
   new MutationObserver(keep).observe(document.body, { childList: true });
   const bg = () => {
@@ -378,8 +392,7 @@ const FRAME_SCRIPT = `(() => {
     return '';
   };
   let last = '';
-  const site = !location.pathname.startsWith('/app');
-  const tell = () => { const c = bg(); if (site && c) strip.style.background = c; if (c && c !== last && window.sentinelDesktop && window.sentinelDesktop.frame) { last = c; window.sentinelDesktop.frame(c).catch(() => {}); } };
+  const tell = () => { const c = bg(); if (site && c) strip.style.background = c; if (band && c) band.style.background = c; if (c && c !== last && window.sentinelDesktop && window.sentinelDesktop.frame) { last = c; window.sentinelDesktop.frame(c).catch(() => {}); } };
   const soon = () => { tell(); setTimeout(tell, 450); };
   soon();
   new MutationObserver(soon).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });

@@ -233,6 +233,16 @@ if ($Part -eq 'install') {
   Check 'title-bar' ($hits.strip -eq 2 -and $hits.page -eq 1 -and ($r2.L - $x0) -ge 100 -and $maxed -and $restored) "the strip answers caption ($($hits.strip)), the page client ($($hits.page)); dragged by the strip it moved $($r2.L - $x0) px; the maximise button maximised $maxed and restored $restored"
   $bar = [string](Cdp '127.0.0.1:4782' "(() => { const s = document.querySelector('.sentinel-drag'); return s ? getComputedStyle(s).webkitAppRegion + ' ' + s.getBoundingClientRect().height : 'none'; })()").value
   Check 'title-bar-strip' ($bar -eq 'drag 36') "the app page's drag strip: $bar"
+  # A page scrolled under the window's top: it goes beneath a band in the page's colour, never under the buttons. Light,
+  # then dark, then back to the theme it had.
+  $under = @()
+  foreach ($theme in 'light', 'dark') {
+    [void](Cdp '127.0.0.1:4782' "(document.documentElement.dataset.theme = '$theme', window.scrollTo(0, 600), 1)"); Start-Sleep 2
+    Shot "title-bar-scrolled-$theme"
+    $under += [string](Cdp '127.0.0.1:4782' "(() => { const b = document.querySelector('.sentinel-band'); if (!b) return 'no band'; const r = b.getBoundingClientRect(); const at = document.elementsFromPoint(innerWidth - 60, 18); return getComputedStyle(b).backgroundColor + '=' + getComputedStyle(document.body).backgroundColor + ' top ' + r.top + ' h ' + r.height + ' first ' + (at[0] === b); })()").value
+  }
+  [void](Cdp '127.0.0.1:4782' "(delete document.documentElement.dataset.theme, window.scrollTo(0, 0), 1)")
+  Check 'title-bar-band' (@($under | Where-Object { $_ -match '^(rgb\([^)]*\))=\1 top 0 h 36 first true$' }).Count -eq 2) "scrolled, light then dark: $($under -join ' / ')"
   Say "tray click: $(TrayClick 'Scan a file')"
   $ok = Until 15 { (AppWindow) -match '^shown\|/app/threats' }
   Check 'tray-scan-file' $ok "Scan a file...: $(AppWindow)"
