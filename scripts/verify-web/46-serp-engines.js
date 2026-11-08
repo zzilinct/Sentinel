@@ -98,10 +98,17 @@ async function checkSerpEngines() {
         if (got.marked >= 3) break;
         await sleep(250);
       }
-      await sleep(300);
+      await sleep(800);
       await shot(browser, s, `serp-engines-${name.toLowerCase().replace(/\W+/g, '-').replace(/-+$/, '')}`);
       result(`serp-engines: ${name}: every result is marked, the listed scam red and only that one`,
         got.marked === 3 && got.red.length === 1 && /PayPal/.test(got.red[0]), got);
+      // The strongest warning is never the faintest thing on the page: nothing it sits in is faded or filtered, mouse or not.
+      const faded = await evalIn(browser, s, `[...document.querySelectorAll('.sentinel-mask')].map((m) => {
+        let opacity = 1; const filters = [];
+        for (let n = m; n; n = n.parentElement) { const cs = getComputedStyle(n); opacity *= Number(cs.opacity); if (cs.filter !== 'none') filters.push(n.tagName.toLowerCase() + '.' + n.className); }
+        return { mark: m.className, opacity: Number(opacity.toFixed(2)), filters };
+      }).filter((m) => m.opacity < 1 || m.filters.length)`);
+      result(`serp-engines: ${name}: every mark, the red one most of all, is drawn at full strength (no faded or filtered row)`, !faded.length, faded);
     }
 
     const opened = seen.filter((u) => LINK_HOSTS.some((h) => u.startsWith(`${h}/`)) || u.startsWith('www.bing.com/ck/') || u.startsWith('duckduckgo.com/l/'));
