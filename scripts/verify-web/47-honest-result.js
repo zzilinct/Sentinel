@@ -139,9 +139,13 @@ async function checkHonestResult() {
 
     // The whole result, however tall: the app's own scrolling boxes laid out at full height for the picture.
     const picture = async (name) => {
-      const clip = await evalIn(browser, s, `(() => {
+      const clip = await evalIn(browser, s, `(async () => {
         for (const el of document.querySelectorAll('main, .main, .app__main, [data-view], .view')) { el.style.overflow = 'visible'; el.style.height = 'auto'; el.style.maxHeight = 'none'; }
         document.documentElement.style.height = 'auto'; document.body.style.height = 'auto'; document.body.style.overflow = 'visible';
+        // Measured once it has stopped moving: a result measured mid-entrance was pictured off its own edges.
+        const moving = document.getAnimations().filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity);
+        await Promise.race([Promise.all(moving.map((a) => a.finished.catch(() => null))), new Promise((done) => setTimeout(done, 2000))]);
+        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
         const r = document.querySelector('[data-out] [data-result]').getBoundingClientRect();
         return { x: Math.max(0, r.left + scrollX - 8), y: Math.max(0, r.top + scrollY - 8), width: Math.min(r.width + 16, innerWidth), height: Math.min(r.height + 16, 3800) };
       })()`);
@@ -174,6 +178,8 @@ async function checkHonestResult() {
     // A picture chosen with Add a file or picture, at phone width: the answer is where the person is looking, and a
     // screen reader is taken to it. The photo of the code stays above it, so the answer starts below the fold.
     const landed = [];
+    // The states above used up the Free plan's fast scans: the link in the code needs one.
+    if ((await api('/billing/plan', { plan: 'max' })).status !== 200) throw new Error('the test account could not move to Max');
     await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, s);
     for (const theme of THEMES) {
       await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, s);

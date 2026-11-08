@@ -249,9 +249,11 @@
    */
   function land(out) {
     const heading = $('h2', out);
-    if (!heading) return;
-    heading.tabIndex = -1;
-    heading.focus({ preventScroll: true });
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+    // A failure (no scans left, no connection) is said where the answer would be, and comes into view the same way.
     out.scrollIntoView({ behavior: smooth(), block: 'nearest' });
   }
 
@@ -1122,7 +1124,7 @@
         // A link read from a QR code is one answer: the link's, saying where it came from.
         showVerdict(out, data.verdict, { lockedLabel: 'Pro & up', via: fromQr ? 'From a QR code' : null });
         watch.done();
-      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); land(out); }
     }
 
     async function runText(r) {
@@ -1148,7 +1150,7 @@
         watch.done();
         wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, shape.tone));
         land(out);
-      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); land(out); }
     }
 
     async function runEmail() {
@@ -1171,7 +1173,7 @@
         watch.done();
         showProof(out, data.verdict.sender);
         showMarks(out, payload, data.verdict.checklist.items);
-      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); land(out); }
     }
 
     async function runFile() {
@@ -1183,7 +1185,7 @@
         applyUsage(data.usage);
         showVerdict(out, data.verdict);
         watch.done();
-      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
+      } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); land(out); }
       drop.removeAttribute('aria-busy');
     }
 
@@ -1194,7 +1196,7 @@
      */
     async function fromCode(code) {
       let qr;
-      try { ({ qr } = await api('/scan/qr', { method: 'POST', body: { text: window.SentinelQR.redact(code) } })); } catch (err) { out.innerHTML = friendlyError(err); return; }
+      try { ({ qr } = await api('/scan/qr', { method: 'POST', body: { text: window.SentinelQR.redact(code) } })); } catch (err) { out.innerHTML = friendlyError(err); land(out); return; }
       if (qr.url) {
         file = null;
         showFile();
