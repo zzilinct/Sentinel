@@ -295,6 +295,11 @@ async function checkLayout() {
               if (entrances.late.length) lateNotes.push(`${page} ${at}: played only once its top was brought to the middle: ${entrances.late.join(', ')}`);
               await browser.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: -500 }, s);
               await sleep(1800);
+              // A part drawn late (History's tiles wait for its list from the server) enters late, and its bounce was
+              // measured mid-flight: scaled 1.009 and cut by its list's corner (run 42138288529). Every entrance that
+              // is still playing ends first (up to 5 s); the page is measured as it rests. Endless motion is not waited for.
+              await evalIn(browser, s, `Promise.race([Promise.all(document.getAnimations().filter((a) => a.playState === 'running' && a.effect && a.effect.getComputedTiming().endTime !== Infinity)
+                .map((a) => a.finished.catch(() => null))), new Promise((r) => setTimeout(r, 5000))]).then(() => true)`);
               let problems = await evalIn(browser, s, `(${measure})(${w})`);
               for (const el of entrances.never) problems.push({ kind: 'never-shown', el, text: '', detail: 'its entrance did not play, even with its top brought to the middle of the screen' });
               if (url === '/app') {
