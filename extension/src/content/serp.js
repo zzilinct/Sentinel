@@ -141,7 +141,7 @@
     el.dataset.threat = threat;
     el.setAttribute('role', 'button');
     el.setAttribute('tabindex', '0');
-    // The severity in words as well as in the seal's shape and colour.
+    // The severity in words as well as in the tile's shape and colour.
     const name = `Sentinel: ${Masks.SEVERITY[info.badge] || 'Caution'}, ${info.label}`;
     el.setAttribute('aria-label', name);
     el.title = name;

@@ -116,9 +116,9 @@ add-on involved:
   a resting pointer or Win+Alt+I opens a panel with the site's verdict, the links
   seen on the page, a one-hour pause for a site found clean, and a way into the
   app; every warning card springs out of it), and a mark beside every search
-  result: the threat's mask in gold on a dark
-  tile, with a corner seal whose shape says how bad (a red diamond for danger,
-  an orange triangle for a warning, a yellow circle for caution), or for a safe
+  result: the threat's mask in gold on a dark tile whose own shape says how bad
+  (a diamond ringed in red for danger, a square ringed in orange for a warning,
+  a circle ringed in yellow for caution), or for a safe
   result only a quiet tick. A mark explains itself on hover. The window cannot take focus,
   and every click and key goes straight through it to the browser.
 - **Only while browsing.** Chrome, Edge, Brave, Opera, Vivaldi, DuckDuckGo,
