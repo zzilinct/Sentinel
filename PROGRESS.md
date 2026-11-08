@@ -1,8 +1,10 @@
-# bar-1 (spot 1: check tools and navigation)
+# bar-20 (spot 20: text and QR results)
 
-Done: route.js classifier + tests/checkroute.test.js; one Check page (app.js checkView) replacing scanView, threatsView,
-emailView, textView; sidebar in four groups; old /app/scan|threats|email|text open Check; dead CSS removed.
-Next: update CI checks (06,11,12,13,15,19,21,30,40,42,47-calm-dig,47-honest-result, review-shots, perf-budget) to /app/check;
-add a check that screenshots the Check page + sidebar (desktop+phone, light+dark); run CI; look at PNGs.
-Status: commits 9849bc2 pushed (CI run 42098121990 website, 42098121914 review shots, 42098122033 test), 26a9778 local
-(site links + manifest). Waiting on CI; then fix failures, download check-*.png, merge origin/main, full run, report.
+Base: work/e2e-bar-1 + origin/main 1.19.4 (merged 2d8fa10).
+Done: one result page (ui.js result) fed by fromVerdict / fromText / fromQr; textResult, qrCard, explainQr, data-qr-out
+and their CSS deleted from app.js/app.css; server coverage for /scan/text (failed links by host, link gaps, unread links)
+and /scan/qr (what a read-only code leaves unchecked); a QR link is one answer (the link verdict, "From a QR code");
+land() focuses the heading and brings it into view on every path; the wait scrolls into view; phone scroll margin
+above the bottom bar. Unit tests in plain.test.js, textscan.test.js, qr.test.js; CI checks 47-honest-result (text and
+QR states, phone QR flow), 21, 19, 40, 42, 48, review-shots updated.
+Next: push, one background CI wait, download honest-*.png and honest-flow-*.png, look, fix, report.

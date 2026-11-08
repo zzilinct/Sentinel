@@ -2,7 +2,7 @@
 (() => {
   'use strict';
 
-  const { api, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, resultGlyph, wireVerdict, color } = window.UI;
+  const { api, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, result, fromText, fromQr, wireVerdict, color } = window.UI;
   const Masks = window.SentinelMasks;
   const view = $('#view');
   const desktop = window.sentinelDesktop || null;
@@ -238,9 +238,21 @@
     wireActions(out, v);
     restoreDrafts();
     riseMask(out);
-    // The answer is somewhere new on the page: keyboard and screen reader users are taken to its heading.
-    const heading = opts.focus && $('h2', out);
-    if (heading) { heading.tabIndex = -1; heading.focus(); }
+    land(out);
+  }
+
+  const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+
+  /**
+   * An answer drawn, on every path (link, text, email, file, QR): its heading takes the focus, so a screen reader says
+   * it, and comes into view if it is not (a phone, below a photo of the code). One already in view does not move.
+   */
+  function land(out) {
+    const heading = $('h2', out);
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+    out.scrollIntoView({ behavior: smooth(), block: 'nearest' });
   }
 
   // The verdict's real 3D mask, over its still picture, which stays where there is no WebGL and with reduced motion
@@ -454,6 +466,8 @@
       <ol class="stages">${steps.map(([id, label, off]) => `<li data-stage="${id}"${off ? ' class="is-skip"' : ''}><i></i>${esc(label)}</li>`).join('')}</ol>
       ${note ? `<p class="scanning__note">${esc(note)}</p>` : ''}
     </div>`;
+    // The wait is where the answer will be: brought into view when it starts off screen, left alone when it is not.
+    out.scrollIntoView({ behavior: smooth(), block: 'nearest' });
     const running = steps.filter(([, , off]) => !off);
     const veil = dig && window.SentinelBinary ? window.SentinelBinary.dig(out, { around: true }) : null;
     const items = Object.fromEntries($$('[data-stage]', out).map((li) => [li.dataset.stage, li]));
@@ -994,7 +1008,6 @@
       ${iphone ? `<p class="field__hint" data-iphone-note>${esc(IPHONE_NOTE)}</p>` : ''}
       <p class="ask__call">On the phone with someone right now? <a href="/call">Is this call a scam?</a></p>
       ${localNote()}
-      <div data-qr-out aria-live="polite"></div>
       <div data-out aria-live="polite"></div>`;
 
     const form = $('[data-form]', el);
@@ -1010,7 +1023,6 @@
     const go = $('.ask__go', el);
     const preview = $('[data-shot-preview]', el);
     const shotStatus = $('[data-shot-status]', el);
-    const qrOut = $('[data-qr-out]', el);
     const out = $('[data-out]', el);
 
     let file = null;
@@ -1084,7 +1096,6 @@
       if (r.kind === 'number') { $('.ask__call a', el).focus(); return; }
       if (r.kind === 'file' && file.size > 25 * 1024 * 1024) { toast('Files up to 25 MB can be checked.', 'error'); return; }
       running = true;
-      if (!fromQr) qrOut.innerHTML = '';
       // What the picture's reader said is done with: the answer is below.
       if (!preview.hidden && !fromQr) { preview.hidden = true; shotStatus.textContent = ''; }
       try {
@@ -1108,7 +1119,8 @@
       try {
         const data = await busy(go, fromQr ? 'Checking the link in the code' : 'Checking', () => api(r.path, { method: 'POST', body: r.path === '/scan/link' ? { url: r.url, mode: r.mode } : { url: r.url }, onStage: watch.onStage }));
         applyUsage(data.usage);
-        showVerdict(out, data.verdict, { lockedLabel: 'Pro & up', focus: !fromQr });
+        // A link read from a QR code is one answer: the link's, saying where it came from.
+        showVerdict(out, data.verdict, { lockedLabel: 'Pro & up', via: fromQr ? 'From a QR code' : null });
         watch.done();
       } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
     }
@@ -1127,14 +1139,15 @@
       try {
         const data = await busy(go, 'Checking', () => api('/scan/text', { method: 'POST', body: { from, text }, onStage: watch.onStage }));
         applyUsage(data.usage);
-        out.innerHTML = textResult(data.text, from)
-          + (cut ? `<p class="field__hint u-mt-sm">This conversation is very long, so Sentinel read its first part and its most recent ${(TEXT_MAX - 10000).toLocaleString('en')} letters.</p>` : '');
+        const shape = fromText(data.text, from);
+        out.innerHTML = result(shape)
+          + (cut ? `<p class="field__hint u-mt-sm">This conversation is very long, so Sentinel read its first part and its most recent ${(TEXT_MAX - 10000).toLocaleString('en')} letters.</p>` : '')
+          + (canWarn(shape.tone) ? warnRow() : '');
+        wireVerdict(out, null);
         riseMask(out);
         watch.done();
-        wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, $('[data-text-result]', out).dataset.textResult));
-        const heading = $('h2', out);
-        if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
-        out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, shape.tone));
+        land(out);
       } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
     }
 
@@ -1154,7 +1167,7 @@
       try {
         const data = await busy(go, 'Checking', () => api('/scan/email', { method: 'POST', body: payload, onStage: watch.onStage }));
         applyUsage(data.usage);
-        showVerdict(out, data.verdict, { focus: true });
+        showVerdict(out, data.verdict);
         watch.done();
         showProof(out, data.verdict.sender);
         showMarks(out, payload, data.verdict.checklist.items);
@@ -1168,21 +1181,31 @@
       try {
         const data = await busy(go, 'Checking', () => api('/scan/file', { method: 'POST', raw: file, headers: { 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, onStage: watch.onStage }));
         applyUsage(data.usage);
-        showVerdict(out, data.verdict, { focus: true });
+        showVerdict(out, data.verdict);
         watch.done();
       } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
       drop.removeAttribute('aria-busy');
     }
 
-    /** A QR code's text: what it does, and a link in it checked with a fast scan, so test pictures never use up delicate ones. */
+    /**
+     * A QR code's text: what it does, in the same result as any check. A link in it is checked with a fast scan (so
+     * test pictures never use up delicate ones) and answered as that link. Only the code's text is sent, and never a
+     * secret in it (a sign-in token, a Wi-Fi password): see SentinelQR.redact.
+     */
     async function fromCode(code) {
-      const info = await explainQr(qrOut, code, { focus: true });
-      if (!info || !info.url) return;
-      file = null;
-      showFile();
-      box.value = info.url;
-      choice = null;
-      await run(Route.pick({ text: info.url }, { features: f }), { fromQr: true });
+      let qr;
+      try { ({ qr } = await api('/scan/qr', { method: 'POST', body: { text: window.SentinelQR.redact(code) } })); } catch (err) { out.innerHTML = friendlyError(err); return; }
+      if (qr.url) {
+        file = null;
+        showFile();
+        box.value = qr.url;
+        choice = null;
+        await run(Route.pick({ text: qr.url }, { features: f }), { fromQr: true });
+        return;
+      }
+      out.innerHTML = result(fromQr(qr)) + (canWarn(qr.tone) ? warnRow() : '');
+      wireWarn(out, () => window.SentinelWarnCard.fromQr(qr));
+      land(out);
     }
 
     /**
@@ -1198,7 +1221,7 @@
       if (reading) return;
       if (pic.size > 20 * 1024 * 1024) { toast('That picture is too large.', 'error'); return; }
       reading = true;
-      qrOut.innerHTML = '';
+      out.innerHTML = '';
       const url = URL.createObjectURL(pic);
       $('img', preview).src = url;
       preview.hidden = false;
@@ -1237,7 +1260,7 @@
         }
         if (!/^image\/(png|jpeg)$/.test(pic.type)) {
           // Said where the answer would be, and kept there: a HEIC photo shared from a phone otherwise left an empty page.
-          qrOut.innerHTML = '<div class="banner banner--error" role="alert" data-shot-wrong>This picture is not a PNG or JPEG, so Sentinel cannot read it. Take a screenshot of it and share or choose that instead, or copy the message and paste it here.</div>';
+          out.innerHTML = '<div class="banner banner--error" role="alert" data-shot-wrong>This picture is not a PNG or JPEG, so Sentinel cannot read it. Take a screenshot of it and share or choose that instead, or copy the message and paste it here.</div>';
           shotStatus.textContent = 'No QR code was found in this picture.';
           return;
         }
@@ -1458,39 +1481,6 @@
       s.onerror = () => { qrLoad = null; s.remove(); reject(new Error('The QR code reader could not load. Try again in a moment.')); };
       document.head.appendChild(s);
     }));
-  }
-
-  /** What a QR code does, as a card in the shape of a verdict, with what to do when it is more than a link. */
-  function qrCard(info) {
-    const tone = info.tone || 'clear';
-    const steps = info.steps || [];
-    return `<article class="result result--${tone} qr-card">
-        <header class="result__head">
-          <div class="result__glyph" style="--c:${color(info.tone || null)}">${ICON.qr}</div>
-          <div class="result__title">
-            <h2>${esc(info.title)}</h2>
-            <p><span class="mono">From a QR code</span></p>
-            <p class="result__sub">${esc(info.detail)}</p>
-          </div>
-        </header>
-        ${steps.length ? `<div class="next-steps next-steps--${tone === 'clear' ? 'yellow' : tone}"><h3>${tone === 'red' || tone === 'orange' ? 'What to do now' : 'Before you use it'}</h3><ol>${steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}
-      </article>`;
-  }
-
-  // Only the code's text is sent, and never a secret in it (a sign-in token, a Wi-Fi password): see SentinelQR.redact.
-  async function explainQr(out, text, { focus = false } = {}) {
-    try {
-      const { qr } = await api('/scan/qr', { method: 'POST', body: { text: window.SentinelQR.redact(text) } });
-      out.innerHTML = qrCard(qr) + (canWarn(qr.tone) ? warnRow() : '');
-      wireWarn(out, () => window.SentinelWarnCard.fromQr(qr));
-      // Read from a picture, the result is somewhere new on the page: keyboard and screen reader users are taken to it.
-      const heading = focus && $('h2', out);
-      if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: false }); }
-      return qr;
-    } catch (err) {
-      out.innerHTML = friendlyError(err);
-      return null;
-    }
   }
 
   const REPORT_CATEGORIES = [
@@ -1745,46 +1735,6 @@
         <p class="u-mt-sm"><a class="btn btn--sm" href="/app/check">Check something</a></p>
       </div>`;
     });
-  }
-
-  /* ============================================================ a text's result */
-
-  /** The verdict card for a text: what it is, why, what to do, and each link's own result. */
-  function textResult(r, from) {
-    const f = r.flag;
-    const red = r.links.some((l) => l.badge === 'red');
-    const tone = !f ? 'clear' : red ? 'red' : f.level === 'danger' ? 'orange' : 'yellow';
-    const who = !from ? 'No sender given' : `From ${from}${r.sender === 'number' ? ', a phone number' : r.sender === 'shortcode' ? ', a business short code' : r.sender === 'email' ? ', an email address' : ''}`;
-    const linkLine = (l) => `${l.host || l.url}: ${l.badge ? `${l.label}${l.reason ? `. ${l.reason}` : ''}` : l.label === 'Not checked' ? 'could not be checked just now' : 'no threat found'}`;
-    const reasons = [...(f ? [[f.detail, tone]] : []), ...r.links.map((l) => [linkLine(l), l.badge])];
-    // Family on a "new number" and slow scams want money sent; the rest want a card number or a sign-in.
-    const happened = f && (/family/i.test(f.title) || r.conversation) ? 'bank' : 'card,password';
-    const scam = f && (f.level === 'danger' || red);
-    const steps = f ? [f.advice] : [`Nothing in this text matches the scams Sentinel knows${r.links.length ? ', and its links are on no threat list' : ''}.`, 'Still unsure? Contact the company or person through their own app, website or a number you already have, not the one in the text.'];
-    return `<article class="result result--${tone}" data-result data-text-result="${tone}">
-      <header class="result__head">
-        ${resultGlyph('scam', tone)}
-        <div class="result__title">
-          <h2>${esc(f ? f.title : 'No signs of a scam in this text')}</h2>
-          <p class="result__sub">${esc(who)}</p>
-        </div>
-      </header>
-      <div class="next-steps next-steps--${tone}"><h3>${f ? 'What to do now' : 'Good to know'}</h3><ol>${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-        ${scam ? `<p class="next-steps__more">${r.links.length ? 'Already tapped the link, paid or replied?' : 'Already paid or replied?'} <a href="/app/recover?happened=${happened}">Open the recovery guide</a> for every step, in order.</p>` : ''}</div>
-      ${r.conversation ? slowSteps(r.conversation) : ''}
-      ${reasons.length ? `<div class="reasons"><h3>Why</h3><ul>${reasons.map(([t, badge]) => `<li><span class="dot" style="--c:${color(badge || null)}"></span>${esc(t)}</li>`).join('')}</ul></div>` : ''}
-      <div class="notes"><p>${r.links.length ? 'Links were checked by their address only and were not opened. ' : ''}The text was checked in memory and not kept, and it is not in your history.</p></div>
-    </article>${scam && canWarn(tone) ? warnRow() : ''}`;
-  }
-
-  /** Where a conversation is on the path of a slow scam (server/lib/scan/slowscam.js), and what usually comes next. */
-  function slowSteps(c) {
-    return `<div class="slow slow--${c.level === 'danger' ? 'orange' : 'yellow'}" data-slow="${esc(c.at)}">
-      <h3>Where this conversation is</h3>
-      <ol class="slow__steps">${c.stages.map((s, i) => `<li class="slow__step${s.seen ? ' is-seen' : ''}${s.id === c.at ? ' is-at' : ''}" style="--i:${i}"${s.id === c.at ? ' aria-current="step"' : ''}>
-        <span class="slow__dot" aria-hidden="true"></span><span>${esc(s.label)}</span><span class="slow__sr">${s.seen ? ' (seen in this conversation)' : ''}</span></li>`).join('')}</ol>
-      <p class="slow__next"><b>What usually comes next.</b> ${esc(c.next)}</p>
-    </div>`;
   }
 
   /** PNG slices of an image, at most 2000 wide and 1600 tall, overlapping by 60 so no line is cut in half. */

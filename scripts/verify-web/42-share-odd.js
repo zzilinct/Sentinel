@@ -45,7 +45,7 @@ async function checkShareOdd() {
       await evalIn(browser, sid, `(() => { ${JSON.stringify(shares.map((_, n) => n))}.forEach((n) => document.getElementById('android-share-' + n).submit()); return true; })()`);
       await sleep(400);
     };
-    const text = (sid = s) => until(browser, sid, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { tone: r.dataset.textResult, title: r.querySelector('h2').textContent.trim(), why: r.innerText, box: document.querySelector('[data-check-text]').value, out: document.querySelector('[data-out]').innerText }; })()", 30000);
+    const text = (sid = s) => until(browser, sid, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { tone: r.dataset.textResult, title: r.querySelector('h2').textContent.trim(), why: r.textContent, box: document.querySelector('[data-check-text]').value, out: document.querySelector('[data-out]').innerText }; })()", 30000);
     const freshApp = () => goto(browser, s, `${base}/app`, "document.querySelector('#view h1')");
 
     const email = `share-odd-${Date.now()}@example.com`;
@@ -88,9 +88,9 @@ async function checkShareOdd() {
 
     /* ------------------------------------------------ pictures */
 
-    const shotState = () => evalIn(browser, s, "(() => { const p = document.querySelector('[data-shot-preview]'); const img = p && p.querySelector('img'); const q = document.querySelector('[data-qr-out]'); const card = q && q.querySelector('.qr-card');"
+    const shotState = () => evalIn(browser, s, "(() => { const p = document.querySelector('[data-shot-preview]'); const img = p && p.querySelector('img'); const card = document.querySelector('[data-out] [data-result]');"
       + " return { at: location.pathname, tab: String(Boolean(p && !p.hidden)), shown: Boolean(p && !p.hidden && img && img.complete && img.naturalWidth), status: (document.querySelector('[data-shot-status]') || {}).textContent || '',"
-      + " card: card ? { tone: [...card.classList].find((c) => /^result--/.test(c)), title: card.querySelector('h2').textContent.trim() } : null, panel: [document.querySelector('.ask'), document.querySelector('[data-qr-out]')].map((e) => (e ? e.innerText : '')).join(' ') }; })()");
+      + " card: card ? { tone: [...card.classList].find((c) => /^result--/.test(c)), title: card.querySelector('h2').textContent.trim() } : null, panel: [document.querySelector('.ask'), document.querySelector('[data-out]')].map((e) => (e ? e.innerText : '')).join(' ') }; })()");
     const manifest = JSON.parse(fs.readFileSync(path.join(QR, 'manifest.json'), 'utf8'));
     const inChat = manifest.find((m) => m.file === 'discord-in-chat.png');
     await freshApp();

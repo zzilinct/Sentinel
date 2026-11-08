@@ -110,9 +110,10 @@ async function checkAppCore() {
     const qrPicture = path.join(QR, 'plain.png');
     if (fs.existsSync(qrPicture)) {
       await setFile('[data-file]', qrPicture);
-      const qr = await until(browser, s, "(() => { const c = document.querySelector('[data-qr-out] .qr-card'); return c && { title: c.querySelector('h2').textContent.trim(), focused: document.activeElement === c.querySelector('h2') }; })()", 20000);
+      const qr = await until(browser, s, "(() => { const c = document.querySelector('[data-out] [data-result]'); return c && { title: c.querySelector('h2').textContent.trim(), via: (c.querySelector('.result__via') || {}).textContent || '', results: document.querySelectorAll('#view [data-result]').length, focused: document.activeElement === c.querySelector('h2') }; })()", 30000);
       await shot(browser, s, 'appcore-qr');
-      result('appcore: a QR picture chosen with Add a file or picture is read on the page, explained, and its heading gets focus', Boolean(qr) && qr.focused, qr);
+      result('appcore: a QR picture chosen with Add a file or picture is read on the page, its link checked as one answer that says it came from a QR code, and its heading gets focus',
+        Boolean(qr) && qr.focused && qr.results === 1 && qr.via === 'From a QR code', qr);
     } else result('appcore: a QR picture (skipped: no qr-samples here)', true);
 
     /* -------------------------------------------------------- file scan */

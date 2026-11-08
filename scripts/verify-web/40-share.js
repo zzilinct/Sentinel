@@ -78,7 +78,7 @@ async function checkShare() {
     if (a !== 201 || b !== 200) throw new Error(`the test account could not sign in: ${a} ${b}`);
     // The sign-in page, signed in, carries on to where it was going.
     await browser.send('Page.navigate', { url: loginUrl }, s);
-    const textOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { tone: r.dataset.textResult, title: r.querySelector('h2').textContent.trim(), why: r.innerText.includes('usps-redeliver.top'), box: document.querySelector('[data-check-text]').value }; })()", 30000);
+    const textOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { tone: r.dataset.textResult, title: r.querySelector('h2').textContent.trim(), why: r.textContent.includes('usps-redeliver.top'), box: document.querySelector('[data-check-text]').value }; })()", 30000);
     await shot(browser, s, 'share-text');
     result('share: after signing in, the shared message opens in Check, filled in, checked with its link, without a press', Boolean(textOut) && textOut.box === SMS && textOut.why, textOut);
     const after = await box();
@@ -94,7 +94,7 @@ async function checkShare() {
 
     await goto(browser, s, `${base}/app`);
     await post({ title: '', text: SMS.replace('USPS', 'Royal Mail'), url: '' });
-    const postOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { box: document.querySelector('[data-check-text]').value, why: r.innerText.includes('usps-redeliver.top') }; })()", 30000);
+    const postOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { box: document.querySelector('[data-check-text]').value, why: r.textContent.includes('usps-redeliver.top') }; })()", 30000);
     result('share: a message shared as a multipart form POST (as Android sends every share) opens Check and is checked', Boolean(postOut) && /^Royal Mail/.test(postOut.box) && postOut.why, postOut);
 
     await goto(browser, s, `${base}/app`);

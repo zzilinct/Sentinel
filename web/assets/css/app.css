@@ -61,6 +61,8 @@ body.app::before { opacity: .6; }
   .side__nav { display: flex; width: 100%; justify-content: space-around; }
   .side__link { flex: 1 1 0; min-width: 0; min-height: 48px; justify-content: center; flex-direction: column; gap: 3px; height: auto; padding: 7px 4px; font-size: var(--t-micro); text-align: center; }
   .main { padding-bottom: 90px !important; }
+  /* A wait or an answer brought into view stops above the bar, not under it (app.js land). */
+  [data-out] { scroll-margin: 16px 0 96px; }
   .topbar-mobile { display: flex !important; }
 }
 
@@ -191,7 +193,6 @@ body.app::before { opacity: .6; }
 .qr-cam { flex-basis: 100%; display: grid; gap: 8px; justify-items: start; }
 .qr-cam video { width: min(100%, 360px); aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--r); background: #000; box-shadow: var(--raise-sm); }
 .qr-cam p { font-size: var(--t-note); }
-[data-qr-out] .qr-card { margin: 14px 0; }
 
 .examples { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { height: 30px; padding: 0 11px; border-radius: var(--r-sm); border: 0; cursor: pointer; font: var(--t-note) var(--mono); color: var(--text-2); background: rgb(var(--ink) / .04); box-shadow: inset 0 0 0 1px var(--line); transition: color .2s, box-shadow .2s; }
@@ -234,6 +235,9 @@ body.app::before { opacity: .6; }
 .result__title h2 { font-size: var(--t-title-l); }
 .result__title p { margin-top: 4px; color: var(--text-2); font-size: var(--t-ui); word-break: break-all; }
 .result__sub { color: var(--muted) !important; word-break: normal !important; }
+/* Where the thing checked came from (a QR code), after its address. */
+.result__via { word-break: normal; white-space: nowrap; }
+.result__via::before { content: '\00b7'; margin: 0 8px; color: var(--muted); }
 /* The reason that matters most, right under the verdict: read first, so it is the largest words after it. */
 .result__lead { margin-top: 10px !important; color: var(--text) !important; font-size: var(--t-body) !important; line-height: 1.45; max-width: 62ch; }
 .result__partly { margin-top: 8px !important; font-size: var(--t-ui) !important; line-height: 1.5; max-width: 62ch; }
@@ -775,7 +779,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 @media (max-width: 560px) { .real-site { padding: 0 20px 18px; } }
 /* What to do now: the first thing someone looks for on a dangerous result. */
 .next-steps { margin: 0; padding: 18px 26px 20px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--c, var(--red)) 7%, transparent); }
-.next-steps--red { --c: var(--red); } .next-steps--orange { --c: var(--orange); } .next-steps--yellow { --c: var(--yellow); } .next-steps--clear { --c: var(--green); }
+.next-steps--red { --c: var(--red); } .next-steps--orange { --c: var(--orange); } .next-steps--yellow { --c: var(--yellow); } .next-steps--partial { --c: var(--muted); }
 .next-steps h3 { margin: 0 0 10px; font: 600 var(--t-text)/var(--lh-ui) var(--sans); color: var(--c); }
 .next-steps ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 /* One step is a sentence, not a list of one. */

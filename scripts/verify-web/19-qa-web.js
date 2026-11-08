@@ -493,8 +493,8 @@ async function checkQaWeb() {
       const { root } = await browser.send('DOM.getDocument', { depth: -1 }, s);
       const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-file]' }, s);
       await browser.send('DOM.setFileInputFiles', { nodeId, files: [discord] }, s);
-      if (!await waitFor("document.querySelector('[data-qr-out] [data-warn]')", 80)) throw new Error(`no Warn a friend after a sign-in QR code: ${await ev("document.querySelector('#view').innerText.slice(0, 300)")}`);
-      await clickAt('[data-qr-out] [data-warn]');
+      if (!await waitFor("document.querySelector('[data-out] [data-warn]')", 80)) throw new Error(`no Warn a friend after a sign-in QR code: ${await ev("document.querySelector('#view').innerText.slice(0, 300)")}`);
+      await clickAt('[data-out] [data-warn]');
       await saveCheck('qr');
     });
 

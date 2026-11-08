@@ -27,6 +27,7 @@ const { KINDS } = require('../lib/scan/kinds');
 const { classify: classifyQr } = require('../lib/scan/qr');
 const texts = require('../lib/scan/texts');
 const slowscam = require('../lib/scan/slowscam');
+const { coverage } = require('../lib/scan/plain');
 const week = require('../lib/week');
 // Kinds the engine can name from evidence; "blocked" is a rule the user set, not a threat kind.
 const NAMED_KINDS = Object.keys(KINDS).filter((k) => k !== 'blocked').length;
@@ -287,14 +288,22 @@ function register(router) {
         onStage('conversation');
         const convo = slowscam.judgeConversation(text);
         const stronger = convo && (!flag || (convo.level === 'danger' && flag.level !== 'danger'));
+        // What did not run, in the shape every scan uses (plain.js coverage): a link whose check did not finish, the
+        // gaps of the link checks themselves (a list not loaded yet), and links the text had that were never looked at.
+        // Named by the site they go to, so the person knows which link not to trust yet.
+        const failed = [...new Set(r.links.filter((url) => !(byUrl[url] && byUrl[url].ok)).map((url) => { const p = analyze(url); return p ? p.host : url.slice(0, 60); }))];
+        const named = failed.length > 2 ? `${failed.slice(0, 2).join(', ')} and ${failed.length - 2} more` : failed.join(' and ');
+        const gaps = [...(failed.length ? [{ what: 'links', retry: true, text: `the link${failed.length === 1 ? '' : 's'} to ${named}, because the check did not finish` }] : []),
+          ...verdicts.flatMap((v) => (v.ok ? v.coverage.missing : [])), ...r.unread];
         return {
           flag: stronger ? { level: convo.level, family: convo.family, words: true, title: convo.title, detail: convo.detail, advice: convo.advice } : flag,
           conversation: convo ? { stages: convo.stages, at: convo.at, next: convo.next, level: convo.level } : null,
           sender: texts.senderKind(from),
+          coverage: coverage(gaps),
           links: r.links.map((url) => {
             const v = byUrl[url];
-            const ok = v && v.ok;
-            return { url, host: ok ? v.host : null, badge: ok ? v.overall.badge : null, label: ok ? v.overall.label : 'Not checked', reason: ok && v.reasons[0] ? v.reasons[0].text : null };
+            const ok = Boolean(v && v.ok);
+            return { url, host: ok ? v.host : null, checked: ok, level: ok ? v.overall.level : null, badge: ok ? v.overall.badge : null, label: ok ? v.overall.label : 'Not checked', reason: ok && v.reasons[0] ? v.reasons[0].text : null };
           })
         };
       });

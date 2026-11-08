@@ -47,7 +47,7 @@ const ADVICE = {
 /**
  * One text message: is it a scam, and which links in it should be checked?
  * @param {{ from?: string, text: string }} m
- * @returns {{ flag: null | { level: 'warn'|'danger', family: 'scam', title: string, detail: string, advice: string }, links: string[] }}
+ * @returns {{ flag: null | { level: 'warn'|'danger', family: 'scam', title: string, detail: string, advice: string }, links: string[], unread: object[] }}
  */
 function judgeText(m) {
   // A whole conversation is read by its start and its newest part, where a scam usually is: only its first 2000 letters
@@ -56,7 +56,7 @@ function judgeText(m) {
   const tail = whole.slice(-2000);
   const text = whole.length > 4000 ? `${whole.slice(0, 2000)} ${tail.slice(tail.indexOf(' ') + 1)}` : whole;
   const from = String((m && m.from) || '').trim().slice(0, 80);
-  if (!text) return { flag: null, links: [] };
+  if (!text) return { flag: null, links: [], unread: [] };
   const kind = senderKind(from);
   const known = kind === 'contact';
 
@@ -103,7 +103,11 @@ function judgeText(m) {
     flag = { level, family: 'scam', title: level === 'danger' ? 'This text looks like a scam' : 'This text may be a scam', detail: `${top}.`.replace(/\.\.$/, '.'), advice: ADVICE[level] };
   }
   if (special && (!flag || (special.level === 'danger' && flag.level !== 'danger'))) flag = { family: 'scam', ...special };
-  return { flag, links };
+  // What was not looked at for links, so a text is never called clear on links nobody checked.
+  const unread = [];
+  if (mail.links.length > links.length) unread.push({ what: 'more-links', text: `${mail.links.length - links.length} of its ${mail.links.length} links, because Sentinel checks the first ${links.length}`, retry: false });
+  if (whole.length > 4000) unread.push({ what: 'middle', text: 'links in the middle of this long conversation, because only its start and newest part are read for them', retry: false });
+  return { flag, links, unread };
 }
 
 /**

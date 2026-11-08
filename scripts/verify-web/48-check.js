@@ -172,9 +172,9 @@ async function checkCheck() {
       const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-file]' }, q);
       await browser.send('DOM.setFileInputFiles', { nodeId, files: [qrPicture] }, q);
       const kind = await until(browser, q, "document.querySelector('.ask').dataset.kind === 'email' && document.querySelector('[data-check-text]').value.length > 0 && 'email'", 20000);
-      const cardsBefore = await evalIn(browser, q, "document.querySelectorAll('.qr-card').length");
+      const cardsBefore = await evalIn(browser, q, "document.querySelectorAll('[data-qr-result]').length");
       await evalIn(browser, q, "document.querySelector('[data-form]').requestSubmit(), true");
-      const one = await until(browser, q, "(() => { const r = document.querySelector('[data-out] [data-result]'); return r && { results: document.querySelectorAll('#view [data-result]').length, cards: document.querySelectorAll('#view .qr-card').length }; })()", 30000);
+      const one = await until(browser, q, "(() => { const r = document.querySelector('[data-out] [data-result]'); return r && { results: document.querySelectorAll('#view [data-result]').length, cards: document.querySelectorAll('#view [data-qr-result]').length }; })()", 30000);
       const mail = sent.filter((r) => r.url.endsWith('/scan/email')).map((r) => JSON.parse(r.post));
       await shot(browser, q, 'check-email-qr');
       result('check: a screenshot of an email with a QR code is checked as one email, its code sent with it, with no separate QR card',

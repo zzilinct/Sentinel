@@ -256,3 +256,85 @@ test('hierarchy: verdict, then the reason that matters most, then details on dem
   assert.match(html, /<details class="result__more"[^>]*>\s*<summary>/, 'a native control, so the keyboard reaches it');
   assert.doesNotMatch(html, /<details class="result__more"[^>]*\bopen\b/, 'closed until asked for');
 });
+
+/* -------------------------------------------- text and QR on the same result page */
+
+const { classify } = require('../server/lib/scan/qr');
+const { judgeText } = require('../server/lib/scan/texts');
+
+const link = (over = {}) => ({ url: 'https://bit.ly/3xYz', host: 'bit.ly', checked: true, level: 'safe', badge: null, label: 'No issues found', reason: null, ...over });
+const text = (over = {}) => ({ flag: null, conversation: null, sender: 'number', links: [link()], coverage: { complete: true, missing: [] }, ...over });
+const NOT_FETCHED = { what: 'links', text: 'the link to bit.ly, because the check did not finish', retry: true };
+
+test('a text is green only when every link in it was checked', () => {
+  const clear = win.UI.result(win.UI.fromText(text(), '+1 415 555 0199'));
+  assert.match(clear, /result--clear/);
+  assert.match(clear, /No signs of a scam/);
+  assert.match(clear, /From \+1 415 555 0199, a phone number/);
+  for (const t of [text({ links: [link({ checked: false, host: null, level: null, label: 'Not checked' })], coverage: { complete: false, missing: [NOT_FETCHED] } }),
+    text({ coverage: { complete: false, missing: [LISTS] } }), text({ coverage: undefined })]) {
+    const shape = win.UI.fromText(t, '');
+    const html = win.UI.result(shape);
+    assert.equal(shape.tone, 'partial', JSON.stringify(t.coverage));
+    assert.equal(shape.title, 'Partly checked');
+    assert.doesNotMatch(html, /result--clear|var\(--green\)|No signs of a scam|no threat list/);
+    assert.match(words(html), /not a sign of danger/);
+  }
+  assert.match(words(win.UI.result(win.UI.fromText(text({ links: [link({ checked: false })], coverage: { complete: false, missing: [NOT_FETCHED] } }), ''))),
+    /Not checked: the link to bit\.ly, because the check did not finish\. This is not a sign of danger\. Scan again in a few minutes/);
+  const unsure = win.UI.fromText(text({ links: [link({ level: 'caution', label: 'Nothing conclusive' })] }), '');
+  assert.equal(unsure.tone, 'partial');
+  assert.equal(unsure.title, 'Nothing conclusive');
+});
+
+test('a scam text leads with its reason, keeps its steps, and says what it could not check', () => {
+  const t = text({ flag: { level: 'danger', family: 'scam', title: 'This text looks like a scam', detail: 'Asks for a fee to release a parcel.', advice: 'Do not tap the link.' },
+    links: [link({ host: 'usps-redeliver.top', badge: 'red', level: 'confirmed', label: 'Confirmed scam', reason: 'Threat lists name this address as a scam.' })],
+    coverage: { complete: false, missing: [LISTS] } });
+  const html = win.UI.result(win.UI.fromText(t, ''));
+  assert.match(html, /result--red/);
+  assert.match(html, /data-text-result="red"/);
+  assert.match(html, /\/app\/recover\?happened=card,password/);
+  assert.match(words(html), /Partly checked\. Not checked: 3 of 15 threat lists/);
+  assert.doesNotMatch(words(html), /not a sign of danger/);
+  assert.match(words(html), /usps-redeliver\.top: Confirmed scam/, 'the dangerous link is a reason of its own');
+  assert.ok(html.indexOf('Asks for a fee') < html.indexOf('data-more'), 'the reason is outside the details');
+});
+
+test('a QR code that is not a link is never green: it was read, not checked', () => {
+  for (const code of ['WIFI:T:WPA;S:Cafe Guest;P:coffee;;', 'Meet at gate 4', 'tel:+14155550199', 'sms:+14155550199', 'mailto:help@example.com', 'myapp://open', ' ']) {
+    const q = classify(code);
+    const shape = win.UI.fromQr(q);
+    const html = win.UI.result(shape);
+    assert.equal(shape.tone, 'partial', code);
+    assert.doesNotMatch(html, /result--clear|var\(--green\)/, code);
+    assert.match(words(html), /Not checked: .*This is not a sign of danger\./, code);
+    assert.match(html, /From a QR code/);
+  }
+  assert.match(words(win.UI.result(win.UI.fromQr(classify('WIFI:S:Cafe;;')))), /Not checked: the network itself/);
+  const signIn = win.UI.fromQr(classify('https://discord.com/ra/abc123'));
+  assert.equal(signIn.tone, 'red');
+  assert.equal(signIn.partly, '', 'what it does is the finding: nothing is left open');
+  assert.match(win.UI.result(signIn), /What to do now/);
+  const url = classify('https://example.com/menu?table=12');
+  assert.equal(url.url, 'https://example.com/menu?table=12', 'a link is the link scan\'s to judge');
+  assert.equal(url.coverage, undefined);
+});
+
+test('a link from a QR code is one answer, the link\'s own, saying where it came from', () => {
+  const html = win.UI.verdict(result(), { via: 'From a QR code' });
+  assert.equal((html.match(/<article/g) || []).length, 1);
+  assert.match(html, /example-bakery\.com<\/span><span class="result__via">From a QR code/);
+});
+
+test('a text says which of its links were never looked at', () => {
+  const many = Array.from({ length: 12 }, (_, i) => `https://shop${i}.example.com/x`).join(' ');
+  assert.match(judgeText({ text: `Deals: ${many}` }).unread[0].text, /^2 of its 12 links, because Sentinel checks the first 10$/);
+  assert.equal(judgeText({ text: `${'Hi there. '.repeat(500)} https://a.example.com/x` }).unread.some((g) => g.what === 'middle'), true);
+  assert.deepEqual(judgeText({ text: 'see you at 5' }).unread, []);
+});
+
+test('the text and QR results are drawn by the one result page, not by renderers of their own', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'js', 'app.js'), 'utf8');
+  assert.doesNotMatch(app, /class="result result--|function (textResult|qrCard|explainQr)\b|data-qr-out/);
+});

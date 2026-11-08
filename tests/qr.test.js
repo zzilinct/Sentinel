@@ -365,6 +365,11 @@ test('the API says what a code does, uses no scans, and takes a QR-only email', 
   assert.equal(r.data.qr.app, 'Discord');
   const link = await c.post('/api/v1/scan/qr', { text: 'https://example.com/menu' });
   assert.equal(link.data.qr.url, 'https://example.com/menu');
+  // A code that was only read says what was not checked, so the page can never call it clear.
+  const wifi = (await c.post('/api/v1/scan/qr', { text: 'WIFI:T:WPA;S:Cafe Guest;P:coffee;;' })).data.qr;
+  assert.equal(wifi.coverage.complete, false);
+  assert.match(wifi.coverage.missing[0].text, /^the network itself/);
+  assert.equal(r.data.qr.coverage.complete, true, 'a sign-in code is judged on what it does');
   assert.equal((await c.post('/api/v1/scan/qr', { text: '  ' })).status, 400);
   const after = (await c.get('/api/v1/auth/me')).data;
   assert.deepEqual(after.usage, before.usage, 'explaining a code is not a scan');

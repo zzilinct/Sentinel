@@ -271,6 +271,7 @@ window.UI = (() => {
 
   /** Filter chips, search and expand/collapse for a rendered checklist. */
   function wireChecklist(root) {
+    $$('[data-show-rest]', root).forEach((b) => b.addEventListener('click', () => b.closest('details').classList.remove('group--focus')));
     const bar = $('[data-check-tools]', root);
     if (!bar) return;
     const checks = $$('.check', root);
@@ -282,7 +283,6 @@ window.UI = (() => {
 
     // Filtering, searching or expanding means the person wants the whole list: groups stop hiding their passes.
     const showAll = () => groups.forEach((g) => g.classList.remove('group--focus'));
-    $$('[data-show-rest]', root).forEach((b) => b.addEventListener('click', () => b.closest('details').classList.remove('group--focus')));
     const apply = () => {
       showAll();
       const q = search.value.trim().toLowerCase();
@@ -356,8 +356,6 @@ window.UI = (() => {
     wireChecklist(root);
     wireCopy(root, v);
   }
-
-  /** The full result view used by link, threat, file and email scans. */
 
   /**
    * What to do now, in plain words, for the kind of threat that was found. A red result used to end at "confirmed
@@ -434,13 +432,15 @@ window.UI = (() => {
     ].filter(Boolean);
   }
 
+  // Past the first steps (money sent, an ID number given, someone let in), the recovery guide puts everything in order.
+  const recoverLine = (ask, href) => `<p class="next-steps__more">${esc(ask)} <a href="${href}">Open the recovery guide</a> for every step, in order.</p>`;
+  const stepsBox = (tone, title, steps, more = '') => `<div class="next-steps next-steps--${tone}"><h3>${esc(title)}</h3><ol>${steps.filter(Boolean).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${more}</div>`;
+
   function nextSteps(head, v) {
     if (!head || (head.tone !== 'red' && head.tone !== 'orange' && head.tone !== 'yellow')) return '';
     const steps = v && v.kind === 'email' ? emailSteps(v) : NEXT_STEPS[head.kind] || (head.threat === 'scam' ? LOGIN : FILE);
-    const title = head.tone === 'yellow' ? 'If you are not sure' : 'What to do now';
-    // Past the first steps (money sent, an ID number given, someone let in), the recovery guide puts everything in order.
-    const more = head.tone === 'yellow' ? '' : `<p class="next-steps__more">Already clicked, paid or let someone in? <a href="${recoverHref(head)}">Open the recovery guide</a> for every step, in order.</p>`;
-    return `<div class="next-steps next-steps--${head.tone}"><h3>${title}</h3><ol>${steps.filter(Boolean).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${more}</div>`;
+    return stepsBox(head.tone, head.tone === 'yellow' ? 'If you are not sure' : 'What to do now', steps,
+      head.tone === 'yellow' ? '' : recoverLine('Already clicked, paid or let someone in?', recoverHref(head)));
   }
 
   // A page flagged as an imitation of a brand or of one of the person's own sites: one way to the real one, the
@@ -460,9 +460,43 @@ window.UI = (() => {
     return `<div class="result__glyph result__glyph--mask" aria-hidden="true"><span class="m3" data-verdict-mask="${threat}" data-tint="${tone}"><img src="/assets/img/masks/${threat}-${tone}.webp" width="788" height="896" alt=""></span></div>`;
   }
 
-  function verdict(v, { lockedLabel } = {}) {
+  /**
+   * The one result page every check lands on: link, threat, file, email, text and QR code. Each kind of answer is put
+   * into the same shape first (fromVerdict, fromText, fromQr), so what is honest about one is honest about all: the
+   * verdict and its one reason first, what could not be checked once, the rest folded, and green only when earned.
+   */
+  function result(r) {
+    const clues = (r.clues && r.clues.items) || [];
+    return `<article class="result result--${r.tone}" data-result${r.data ? ` ${r.data}` : ''}>
+      <header class="result__head">
+        ${resultGlyph(r.threat, r.tone)}
+        <div class="result__title">
+          <h2>${esc(r.title)}</h2>
+          <p><span class="mono">${esc(r.subject)}</span>${r.via ? `<span class="result__via">${esc(r.via)}</span>` : ''}</p>
+          ${r.kind ? `<p class="result__kind">${Masks.kindIcon(r.kind)}<span>${esc(r.kindLabel)}</span></p>` : ''}
+          <p class="result__sub result__lead">${esc(r.sub)}</p>
+          ${r.partly ? `<p class="result__sub result__partly" data-partly>${esc(r.partly)}</p>` : ''}
+        </div>
+      </header>
+      ${r.realSite || ''}
+      ${r.steps || ''}
+      ${r.extra || ''}
+      ${clues.length ? `<div class="reasons"><h3>${esc(r.clues.title)}</h3><ul>${clues.map((c) => `<li${c.clue ? ` data-clue="${esc(c.clue)}"` : ''}><span class="dot" style="--c:${c.color}"></span>${esc(c.text)}</li>`).join('')}</ul></div>` : ''}
+      ${r.more ? `<details class="result__more" data-more>
+        <summary><span>See everything Sentinel checked</span><i></i></summary>
+        ${r.more}
+      </details>` : ''}
+      ${r.notRun ? `<p class="result__notrun" data-not-run>${esc(r.notRun)}</p>` : ''}
+      ${r.foot ? `<p class="result__notrun">${esc(r.foot)}</p>` : ''}
+    </article>`;
+  }
+
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const cluesTitle = (head) => (head.lead ? 'Other clues' : head.tone === 'clear' || head.tone === 'partial' ? 'Small things Sentinel noticed' : 'Why');
+
+  /** A link, threat, file or email verdict in the result's shape. `via`: where the link came from (a QR code). */
+  function fromVerdict(v, { lockedLabel, via } = {}) {
     const head = headline(v);
-    const subject = v.kind === 'file' ? v.file.name : v.kind === 'email' ? (v.sender.address || 'Email') : v.host;
     const facts = [];
     if (v.knowledge) {
       const all = v.knowledge.sources.length;
@@ -491,31 +525,16 @@ window.UI = (() => {
     if (v.comparison && v.comparison.kits.length) notes.push(`Page matches known scam pattern: ${v.comparison.kits.map((k) => k.label).join(', ')}.`);
     if (v.comparison && v.comparison.similarDomains.length) notes.push(`Built like known scam domains: ${v.comparison.similarDomains.slice(0, 5).join(', ')}.`);
 
-    const gaps = partlyLine(v, head);
-    // The clue under the verdict is not said again; a verdict with no lead of its own (a clear one) lists them all.
-    const clues = (v.clues || []).slice(head.lead ? 1 : 0);
-    const cluesTitle = head.lead ? 'Other clues' : head.tone === 'clear' || head.tone === 'partial' ? 'Small things Sentinel noticed' : 'Why';
-    const skipped = notRunLine(v);
     const ran = v.checklist.total - v.checklist.skipped;
-    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
-    return `<article class="result result--${head.tone}" data-result>
-      <header class="result__head">
-        ${resultGlyph(head.threat, head.tone)}
-        <div class="result__title">
-          <h2>${esc(head.title)}</h2>
-          <p><span class="mono">${esc(subject)}</span></p>
-          ${head.kind ? `<p class="result__kind">${Masks.kindIcon(head.kind)}<span>${esc(head.kindLabel)}</span></p>` : ''}
-          <p class="result__sub result__lead">${esc(head.sub)}</p>
-          ${gaps ? `<p class="result__sub result__partly" data-partly>${esc(gaps)}</p>` : ''}
-        </div>
-      </header>
-      ${realSite(v)}
-      ${nextSteps(head, v)}
-      ${clues.length ? `<div class="reasons"><h3>${cluesTitle}</h3><ul>${clues.map((c) => `<li data-clue="${esc(c.clue)}"><span class="dot" style="--c:${v.threats[c.threat] && v.threats[c.threat].badge ? color(v.threats[c.threat].badge) : 'var(--muted)'}"></span>${esc(c.text)}</li>`).join('')}</ul></div>` : ''}
-      <details class="result__more" data-more>
-        <summary><span>See everything Sentinel checked</span><i></i></summary>
-        ${threatTiles(v, { lockedLabel })}
+    return {
+      tone: head.tone, threat: head.threat, title: head.title, sub: head.sub, kind: head.kind, kindLabel: head.kindLabel, via,
+      subject: v.kind === 'file' ? v.file.name : v.kind === 'email' ? (v.sender.address || 'Email') : v.host,
+      partly: partlyLine(v, head),
+      realSite: realSite(v),
+      steps: nextSteps(head, v),
+      // The clue under the verdict is not said again; a verdict with no lead of its own (a clear one) lists them all.
+      clues: { title: cluesTitle(head), items: (v.clues || []).slice(head.lead ? 1 : 0).map((c) => ({ clue: c.clue, text: c.text, color: v.threats[c.threat] && v.threats[c.threat].badge ? color(v.threats[c.threat].badge) : 'var(--muted)' })) },
+      more: `${threatTiles(v, { lockedLabel })}
         ${facts.length ? `<dl class="facts">${facts.map(([k, val]) => `<div><dt>${esc(k)}</dt><dd>${esc(val)}</dd></div>`).join('')}</dl>` : ''}
         ${notes.length ? `<div class="notes">${notes.map((n) => `<p>${esc(n)}</p>`).join('')}</div>` : ''}
         <div class="result__checklist">
@@ -534,10 +553,76 @@ window.UI = (() => {
             <button type="button" class="btn btn--sm" data-expand>Expand all</button>
           </div>
           ${checklist(v.checklist.items)}
-        </div>
-      </details>
-      ${skipped ? `<p class="result__notrun" data-not-run>${esc(skipped)}</p>` : ''}
-    </article>`;
+        </div>`,
+      notRun: notRunLine(v)
+    };
+  }
+
+  const verdict = (v, opts) => result(fromVerdict(v, opts));
+
+  const SENDER = { number: ', a phone number', shortcode: ', a business short code', email: ', an email address' };
+
+  /**
+   * A text message's answer (server/routes/scan.routes.js /scan/text) in the result's shape. Green only when every link
+   * in it was checked and nothing was found: a link that could not be checked makes it partly checked, never clear.
+   */
+  function fromText(t, from) {
+    const f = t.flag;
+    const links = t.links || [];
+    const red = links.some((l) => l.badge === 'red');
+    let head;
+    if (f) head = { tone: red ? 'red' : f.level === 'danger' ? 'orange' : 'yellow', title: f.title, sub: f.detail, lead: true };
+    else if (partly(t)) head = { tone: 'partial', title: 'Partly checked', sub: 'No warning signs in what Sentinel could check.' };
+    else if (links.some((l) => l.level === 'caution')) head = { tone: 'partial', title: 'Nothing conclusive', sub: 'Something about its link stood out, but nothing proves a problem.' };
+    else head = { tone: 'clear', title: 'No signs of a scam', sub: `Nothing in this text matches the scams Sentinel knows${links.length ? ', and nothing stood out about its links' : ''}.` };
+    const scam = Boolean(f) && (f.level === 'danger' || red);
+    // Family on a "new number" and slow scams want money sent; the rest want a card number or a sign-in.
+    const happened = f && (/family/i.test(f.title) || t.conversation) ? 'bank' : 'card,password';
+    const where = (l) => l.host || l.url;
+    const rows = links.map((l) => {
+      const bad = l.badge === 'red' || l.badge === 'orange';
+      const said = l.badge ? `${where(l)}: ${l.label}${l.reason ? `. ${l.reason}` : ''}` : '';
+      return { group: 'Its links', threat: 'scam', status: !l.checked ? 'skip' : bad ? 'fail' : l.badge ? 'warn' : 'pass', title: where(l), plain: said, detail: l.badge ? said
+        : l.level === 'caution' ? 'A few small things stood out; none of them proves a problem' : 'Checked by its address; nothing stood out' };
+    });
+    return {
+      tone: head.tone, threat: 'scam', title: head.title, sub: head.sub,
+      subject: from ? `From ${from}${SENDER[t.sender] || ''}` : 'A text message, with no sender given',
+      data: `data-text-result="${head.tone}"`,
+      partly: partlyLine(t, head),
+      steps: f ? stepsBox(head.tone, 'What to do now', [f.advice], scam ? recoverLine(links.length ? 'Already tapped the link, paid or replied?' : 'Already paid or replied?', `/app/recover?happened=${happened}`) : '') : '',
+      extra: t.conversation ? slowSteps(t.conversation) : '',
+      // A dangerous link is a reason of its own, unless it is already the reason under the verdict.
+      clues: { title: cluesTitle(head), items: rows.filter((c) => c.plain && !head.sub.startsWith(`${c.title}:`)).map((c) => ({ text: c.plain, color: color(links.find((l) => where(l) === c.title).badge) })) },
+      more: rows.some((c) => c.status !== 'skip') ? `<div class="result__checklist">${checklist(rows)}</div>` : '',
+      foot: `${links.length ? 'Links were checked by their address and were not opened. ' : ''}The text was read in memory: never kept, and not in your history.`
+    };
+  }
+
+  /** Where a conversation is on the path of a slow scam (server/lib/scan/slowscam.js), and what usually comes next. */
+  function slowSteps(c) {
+    return `<div class="slow slow--${c.level === 'danger' ? 'orange' : 'yellow'}" data-slow="${esc(c.at)}">
+      <h3>Where this conversation is</h3>
+      <ol class="slow__steps">${c.stages.map((s, i) => `<li class="slow__step${s.seen ? ' is-seen' : ''}${s.id === c.at ? ' is-at' : ''}" style="--i:${i}"${s.id === c.at ? ' aria-current="step"' : ''}>
+        <span class="slow__dot" aria-hidden="true"></span><span>${esc(s.label)}</span><span class="slow__sr">${s.seen ? ' (seen in this conversation)' : ''}</span></li>`).join('')}</ol>
+      <p class="slow__next"><b>What usually comes next.</b> ${esc(c.next)}</p>
+    </div>`;
+  }
+
+  /**
+   * What a QR code that is not a link does (server/lib/scan/qr.js) in the result's shape. A code that does something
+   * risky is judged on that; the rest were read, not checked, and say so in grey. A link in a code is a link verdict.
+   */
+  function fromQr(q) {
+    const tone = q.tone || (partly(q) ? 'partial' : 'clear');
+    const head = { tone, title: q.title };
+    const steps = q.steps || [];
+    return {
+      tone, threat: 'scam', title: q.title, sub: q.detail, subject: 'From a QR code',
+      data: `data-qr-result="${esc(q.kind)}"`,
+      partly: partlyLine(q, head),
+      steps: steps.length ? stepsBox(tone, tone === 'red' || tone === 'orange' ? 'What to do now' : 'Before you use it', steps) : ''
+    };
   }
 
   // A sign-in form's script has bound it: boot.js stops holding presses, and one that was held goes through now.
@@ -548,5 +633,5 @@ window.UI = (() => {
     if (held) form.requestSubmit();
   }
 
-  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, busy, formReady, verdict, resultGlyph, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
+  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, busy, formReady, verdict, result, fromVerdict, fromText, fromQr, resultGlyph, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
 })();

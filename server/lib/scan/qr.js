@@ -44,7 +44,7 @@ function asLink(t) {
  * @returns {{kind: string, title: string, detail: string, tone: ('red'|'orange'|'yellow'|null), steps: string[],
  *            url?: string, host?: string, app?: string}}
  */
-function classify(text) {
+function read(text) {
   const t = String(text == null ? '' : text).trim().slice(0, MAX);
   if (!t) return { kind: 'empty', title: 'An empty QR code', detail: 'The code holds no text.', tone: null, steps: [] };
   const link = asLink(t);
@@ -145,7 +145,28 @@ function classify(text) {
     return { kind: 'app', tone: null, title: 'A link for an app', detail: `It opens an app on the phone that reads it (${clip(t.split(':')[0], 30)}), not a website.`, steps: [] };
   }
 
-  return { kind: 'text', tone: null, title: 'Text', detail: `It holds text, not a link: "${clip(t, 160)}"`, steps: [] };
+  return { kind: 'text', tone: null, title: 'Words, not a link', detail: `It holds: "${clip(t, 160)}"`, steps: [] };
+}
+
+// What a code that was only read, not checked, leaves open, in the shape every scan uses (plain.js coverage). A code that
+// does something risky is judged on that, and a link is the link scan's to judge; the rest are never called clear.
+const UNCHECKED = {
+  empty: 'what it was meant to do, because the code holds nothing',
+  wifi: 'the network itself, because a Wi-Fi code holds only its name and password',
+  email: 'who the address belongs to',
+  phone: 'who answers this number',
+  sms: 'who reads texts sent to this number',
+  app: 'what the app does with it',
+  text: 'whether the words are true, because a code with only words is read out, not judged'
+};
+
+/** What a code does, and what Sentinel could not look at in it. */
+function classify(text) {
+  const r = read(text);
+  if (r.kind === 'url') return r;
+  // Written out, not plain.js's coverage(): the Windows app copies this file on its own (desktop/scripts/sync-shared.js).
+  const missing = UNCHECKED[r.kind] ? [{ what: r.kind, text: UNCHECKED[r.kind], retry: false }] : [];
+  return { ...r, coverage: { complete: !missing.length, missing } };
 }
 
 module.exports = { classify };

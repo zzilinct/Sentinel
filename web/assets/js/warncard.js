@@ -57,7 +57,7 @@
     };
   }
 
-  /** A card from a text scan (app.js textResult): its flag and the worst of its links. */
+  /** A card from a text scan (ui.js fromText): its flag and the worst of its links. */
   function fromText(r, from, tone) {
     const link = r.links.find((l) => l.badge === 'red') || r.links.find((l) => l.badge) || r.links[0];
     return { tone, threat: 'scam', title: r.flag.title, what: 'A text message', from: from || null, link: link ? link.url : null, tells: [r.flag.detail] };

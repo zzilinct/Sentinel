@@ -621,7 +621,7 @@ async function textScan(send) {
     await run("document.querySelector('[data-form]').requestSubmit()");
     await sleep(3500);
     const scam = await run(`(() => { const r = document.querySelector('[data-text-result]'); const a = r && r.querySelector('a[href^="/app/recover?happened="]');
-      return r && [r.dataset.textResult, r.querySelector('h2').textContent, a ? a.getAttribute('href') : '', r.querySelector('.reasons') ? r.querySelector('.reasons').textContent : '']; })()`);
+      return r && [r.dataset.textResult, r.querySelector('h2').textContent, a ? a.getAttribute('href') : '', r.textContent]; })()`);
     check(scam && ['orange', 'red'].includes(scam[0]) && scam[1] === 'This text looks like a scam' && scam[2].startsWith('/app/recover?happened=') && /usps-redeliver\.top/.test(scam[3]), 'the scam text gets a scam verdict, its reasons and the recovery guide', scam);
     const left = await run("document.querySelector('[data-says]').textContent");
     check(/^A message\..*Uses 1 fast scan: \d+ of \d+ left this week/.test(left), 'the page says what it saw and how it counts against the plan', left);

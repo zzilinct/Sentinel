@@ -72,11 +72,18 @@ test('text scan: family on a new number, an ordinary text, and a link on a threa
   const mum = await c.post('/api/v1/scan/text', { from: '', text: 'Hi Mum, this is my new number, my phone broke. Can you send me money for a bill today?' });
   assert.equal(mum.data.text.flag.level, 'danger');
   assert.equal(mum.data.text.flag.title, 'Someone may be pretending to be family');
-  assert.equal((await c.post('/api/v1/scan/text', { from: 'Mom', text: 'can you pick me up at 5' })).data.text.flag, null);
+  const ordinary = (await c.post('/api/v1/scan/text', { from: 'Mom', text: 'can you pick me up at 5' })).data.text;
+  assert.equal(ordinary.flag, null);
+  assert.deepEqual(ordinary.coverage, { complete: true, missing: [] }, 'no links, nothing left unchecked');
   const listed = await c.post('/api/v1/scan/text', { from: '+1 917 555 0101', text: 'Your order is ready, details at https://paypa1-secure-login.com/' });
   assert.ok(listed.data.text.flag, 'the link alone makes the text a warning');
   assert.ok(['red', 'orange'].includes(listed.data.text.links[0].badge), JSON.stringify(listed.data.text.links));
   assert.equal(listed.data.text.links[0].host, 'paypa1-secure-login.com');
+  assert.equal(listed.data.text.links[0].checked, true);
+  // The link check's own gaps (a list not loaded yet on this test server) are the text's: it is never clear on them.
+  const cov = listed.data.text.coverage;
+  assert.equal(cov.complete, !cov.missing.length);
+  assert.ok(cov.missing.every((g) => typeof g.text === 'string' && g.text), JSON.stringify(cov));
   assert.equal(listed.data.usage.linkScans.used, 3);
 });
 
