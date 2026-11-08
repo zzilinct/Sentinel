@@ -809,12 +809,14 @@
   // In the Windows app, the week is asked of the app: what it counted on this computer is handed over first.
   const loadWeek = () => (desktop && desktop.week ? desktop.week() : api('/week'));
 
-  // The overview's one notice: an allowance nearly gone (under a quarter left), in one calm line. While the email is
-  // still to be confirmed, that bar is the page's notice, unless an allowance has run out.
+  // The overview's one notice, by state: an allowance run out, then the email still to confirm (render() puts its bar
+  // above every page), then an allowance nearly gone (under a quarter left). One calm line, never two.
   function allowanceNotice() {
     const low = scarcest();
     if (!low || low.frac >= 0.25) return '';
-    if (state.config.verificationAvailable && !state.me.user.emailVerified && low.n > 0) return '';
+    const bar = $('.verify-bar', view);
+    if (bar && low.n > 0) return '';
+    if (bar) bar.remove();
     const back = until(state.me.week.resetsAt);
     const said = low.n <= 0 ? `No ${low.name} left this week. ${low.live ? 'It comes' : 'They come'} back ${back}.`
       : `${low.live ? low.text : `${low.n} of ${low.limit}`} ${low.live ? 'of ' : ''}${low.name} left this week. More ${back}.`;

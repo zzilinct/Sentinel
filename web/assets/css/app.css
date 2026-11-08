@@ -18,7 +18,14 @@ body.app::before { opacity: .6; }
   overflow-y: auto; /* a short window still reaches the account, theme and legal links at the foot */
 }
 .side .logo { padding: 4px 10px 22px; }
-.side__nav { display: grid; gap: 2px; }
+.side__nav { display: grid; align-content: start; gap: 2px; }
+/* On a computer the foot (allowance, account, theme) always stays in view: on a short screen, 1366x768 or less, the
+   pages scroll inside the sidebar instead of pushing the foot off the bottom. */
+@media (min-width: 901px) {
+  .side { overflow: hidden; }
+  .side__nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; margin: 0 -6px 12px; padding: 0 6px 4px; }
+  .side__foot { flex: none; }
+}
 .side__label { margin: 22px 12px 8px; font: 500 var(--t-label) var(--sans); color: var(--faint); }
 .side__link {
   position: relative;

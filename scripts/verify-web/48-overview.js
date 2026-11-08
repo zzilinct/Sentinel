@@ -75,7 +75,7 @@ async function checkOverview() {
     const f = fresh['desktop-dark'];
     result('overview: the box comes straight after the greeting, then one card, and no list of allowances or locked advert',
       /page-title/.test(f.first) && /^FORM\.scanbox/.test(f.second) && !f.lists && f.card && f.card.index > 1 && f.card.index <= 4, f);
-    result('overview: with every allowance mostly left there is no notice at all', Object.values(fresh).every((t) => !t.notices.length), fresh);
+    result('overview: with every allowance mostly left there is no notice beyond the email to confirm', Object.values(fresh).every((t) => t.notices.every((n) => /^Confirm your email address\./.test(n)) && t.notices.length <= 1), fresh);
     result('overview: the card says whether Sentinel is watching, then the week as the server counts it',
       Boolean(f.card) && !f.card.busy && f.card.h === week.headline && /Sentinel app for Windows/.test(f.card.guard), { card: f.card, week: week.headline });
     result('overview: the sidebar holds one allowance, the one closest to running out', f.meters === 1 && /^Fast scans 10 left Resets in \d+ (day|hour)s?$/.test(f.side), f.side);
@@ -85,9 +85,9 @@ async function checkOverview() {
     for (const [w, hgt] of [[1366, 768], [1280, 720]]) {
       await browser.send('Emulation.setDeviceMetricsOverride', { width: w, height: hgt, deviceScaleFactor: 1, mobile: false }, s);
       await sleep(250);
-      clip[`${w}x${hgt}`] = await evalIn(browser, s, "(() => { const side = document.querySelector('.side'); const r = document.querySelector('[data-usage-mini]').getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), view: side.clientHeight, scrolls: side.scrollHeight > side.clientHeight }; })()");
+      clip[`${w}x${hgt}`] = await evalIn(browser, s, "(() => { const side = document.querySelector('.side'); const r = document.querySelector('[data-usage-mini]').getBoundingClientRect(); const nav = document.querySelector('.side__nav'); return { top: Math.round(r.top), bottom: Math.round(r.bottom), height: innerHeight, navScrolls: nav.scrollHeight > nav.clientHeight }; })()");
     }
-    result('overview: the sidebar\'s allowance is never cut off on a laptop screen (1366x768, 1280x720)', Object.values(clip).every((c) => c.top >= 0 && c.bottom <= c.view), clip);
+    result('overview: the sidebar\'s allowance is never cut off on a laptop screen (1366x768, 1280x720)', Object.values(clip).every((c) => c.top >= 0 && c.bottom <= c.height), clip);
 
     /* ------------------------------------------------- the 3D mask and the phone */
 
@@ -135,8 +135,17 @@ async function checkOverview() {
 
     /* ------------------------------------------ one notice, when an allowance is low */
 
+    // The email still to confirm is the page's one notice while an allowance is merely low; once it is confirmed the
+    // low allowance is said; an allowance run out is said even before the email, and then the email's bar waits.
+    const verified = (yes) => { const d = new DatabaseSync(server.dbPath); d.prepare('UPDATE users SET email_verified_at = ? WHERE id = ?').run(yes ? Date.now() : null, userId); d.close(); };
+    const asking = (await api('/auth/config')).body.verificationAvailable;
     await size('desktop', 'dark');
     for (let i = 0; i < 8; i++) await api('/scan/link', { url: `https://example.com/overview-${i}`, mode: 'fast' });
+    await goto(browser, s, `${base}/app`, settled);
+    const waiting = await evalIn(browser, s, TOP);
+    result('overview: with the email to confirm and an allowance only low, the email is the one notice',
+      !asking || (waiting.notices.length === 1 && /^Confirm your email address\./.test(waiting.notices[0])), { asking, notices: waiting.notices });
+    verified(true);
     const low = {};
     for (const name of Object.keys(SIZES)) {
       for (const theme of ['dark', 'light']) {
@@ -150,11 +159,14 @@ async function checkOverview() {
     const l = low['desktop-dark'];
     result('overview: with 2 of 10 fast scans left, one calm line says so, with when more come, and the sidebar names the same one',
       Object.values(low).every((t) => t.notices.length === 1) && /^2 of 10 fast scans left this week\. More in \d+ (day|hour)s?\. Plan & usage$/.test(l.notices[0]) && /^Fast scans 2 left/.test(l.side), l);
+    if (asking) verified(false);
     for (let i = 8; i < 10; i++) await api('/scan/link', { url: `https://example.com/overview-${i}`, mode: 'fast' });
+    await size('desktop', 'dark');
     await goto(browser, s, `${base}/app`, settled);
     const gone = await evalIn(browser, s, TOP);
     await shot(browser, s, 'overview-none-desktop-dark');
-    result('overview: with none left, the line says so and when they come back', gone.notices.length === 1 && /^No fast scans left this week\. They come back in \d+ (day|hour)s?\./.test(gone.notices[0]), gone);
+    result('overview: with none left, one line says so and when they come back, even before the email to confirm',
+      gone.notices.length === 1 && /^No fast scans left this week\. They come back in \d+ (day|hour)s?\./.test(gone.notices[0]), gone);
 
     result('overview: no errors on the page', !errors.length, errors);
   } finally {
