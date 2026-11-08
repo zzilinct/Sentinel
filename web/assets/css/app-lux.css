@@ -1,6 +1,6 @@
 /* =============================================================================
    The app, in the luxury edition's motion: mist and motes of light, a gold sweep when the page changes, an
-   entrance of its own for every page (also played as parts scroll into view), headings that rise word by word, a
+   entrance of its own for every page, played once a session (and as parts scroll into view), headings that rise word by word, a
    Victorian rule that draws itself, numbers that count, and hover light that follows the pointer.
 
    Everything here is added on top of app.css and switched on by app-lux.js (html.lux-app). Nothing is hidden
@@ -200,7 +200,7 @@ html.lux-app[data-theme="light"] {
 .lux-in.lux-title { animation-name: lux-pop; animation-duration: .7s; animation-timing-function: var(--lux-out); animation-delay: 0s; }
 
 /* Tiles, cards and icon grids, on every page: a short staggered spring, a little past full size and back, with
-   each one's icon popping just after. Once per page view (app-lux.js stages each only once). */
+   each one's icon popping just after. Once a session, on the page's first visit (app-lux.js). */
 [data-tab] .lux-in.lux-tile { animation-name: lux-tile; animation-duration: .6s; animation-timing-function: var(--lux-bounce); animation-delay: calc(var(--li, 0) * 45ms); }
 @keyframes lux-tile { from { opacity: 0; transform: translateY(14px) scale(.9); } 30% { opacity: 1; } }
 .lux-in.lux-tile :is(.usage-row__icon, .feature__icon, .list__icon) { animation: lux-icon .48s var(--lux-bounce) calc(var(--li, 0) * 45ms + 90ms) backwards; }
@@ -214,9 +214,34 @@ html.lux-app[data-theme="light"] {
 /* A meter beside a figure that counts up fills again as the count starts (it may have been off screen before). */
 .lux-app .lux-grow .meter i { animation: lux-grow 1.2s var(--lux-out) .25s backwards; }
 @keyframes lux-grow { from { transform: scaleX(0); } }
-/* Empty places are not dead: their mask floats. */
-.lux-app .empty svg { animation: lux-float 3.6s ease-in-out infinite alternate; }
-@keyframes lux-float { from { transform: translateY(-3px) rotate(-3deg); } to { transform: translateY(3px) rotate(3deg); } }
+
+/* A page seen before in this session comes back as it was left (app-lux.js): its headline, rule, meters, bars and
+   the overview's mask are simply there. */
+#view.lux-again :is(.lux-word, .lux-rule *, .meter i, .week-bars__col i, .lux-mask) { animation: none; }
+#view.lux-again .lux-word { transform: none; clip-path: none; }
+#view.lux-again .lux-rule * { stroke-dashoffset: 0; }
+
+/* ------------------------------------------------- the sidebar's plate */
+
+/* One raised plate under the current page's link, moved between links on a spring (app-lux.js), carrying a gold
+   thread at its edge. The links keep their own colours; only their own plate gives way to this one. */
+.lux-app .side__nav { position: relative; }
+.lux-plate {
+  position: absolute; left: 0; top: 0; border-radius: var(--r); pointer-events: none; opacity: 0;
+  background: var(--relief), var(--surface); box-shadow: var(--raise-sm), inset 0 0 0 1px rgb(var(--gold-rgb) / .14);
+  transition: transform .62s var(--lux-settle), opacity .2s ease;
+}
+.lux-plate.is-on { opacity: 1; }
+.lux-plate.is-still { transition: opacity .2s ease; }
+.lux-plate::before {
+  content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 2px;
+  background: var(--gold-300); box-shadow: 0 0 10px rgb(var(--gold-rgb) / .6);
+}
+.lux-plated .side__link[aria-current="page"] { background: transparent; box-shadow: none; }
+/* In the phone's bottom bar the thread lies along the plate's top. */
+@media (max-width: 900px) {
+  .lux-plate::before { left: 30%; right: 30%; top: 0; bottom: auto; width: auto; height: 2px; }
+}
 
 /* ------------------------------------------------------------ hover */
 
@@ -230,11 +255,7 @@ html.lux-app[data-theme="light"] {
   }
   .lux-app :is(.panel, .usage-list, .locked, .feature):hover::after { opacity: 1; }
 
-  /* Sidebar: a gold thread grows beside the link under the pointer, and its icon steps forward. */
-  .lux-app .side__link::before { content: ''; position: absolute; left: -2px; top: 9px; bottom: 9px; width: 2px; border-radius: 2px; background: var(--gold-300);
-    box-shadow: 0 0 10px rgb(var(--gold-rgb) / .7); transform: scaleY(0); transition: transform .3s var(--lux-out); }
-  .lux-app .side__link:hover::before { transform: scaleY(.6); }
-  .lux-app .side__link[aria-current="page"]::before { transform: scaleY(1); }
+  /* Sidebar: the icon under the pointer steps forward. */
   .lux-app .side__link svg, .lux-app .side__glyph { transition: transform .3s var(--lux-out); }
   .lux-app .side__link:hover svg { transform: translateX(2px) scale(1.08); }
   .lux-app .side__link:hover .side__glyph { transform: rotate(-10deg) scale(1.1); }
@@ -298,9 +319,10 @@ html.lux-app[data-theme="light"] {
 /* ----------------------------------------------------- reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
-  .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .empty svg,
+  .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i,
   .lux-wipe, .lux-ghost, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i, .lux-app .warn-card { animation: none !important; }
   .lux-wipe, .lux-ghost { display: none; }
+  .lux-plate { transition: none; }
   /* The island only fades in and out, at its size, and swaps its words in place. */
   .lux-island { transform: translateX(-50%); transition: opacity .15s ease; }
   .lux-island__msg.is-out { display: none; }

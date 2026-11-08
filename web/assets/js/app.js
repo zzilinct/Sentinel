@@ -500,10 +500,24 @@
     }).join('');
   }
 
+  // An empty place says which kind of empty it is, still, never moving. The onyx mask that watches over the Overview
+  // waits where nothing has happened yet; a seal on its cheek, shaped so it reads without colour, says the rest: a
+  // green tick for good news that was earned (something was read and nothing was there), a grey bar where Sentinel
+  // could not look, a gold glass where only a search or a filter left nothing. A threat's mask is never used here.
+  // `text` and `action` are markup: whatever came from outside is escaped by the caller.
+  const EMPTY_SEALS = {
+    clear: '<path d="M7 12.5l3.5 3.5L17 9"/>',
+    unavailable: '<path d="M7.5 12h9"/>',
+    nomatch: '<circle cx="11" cy="11" r="4.5"/><path d="M14.5 14.5 18 18"/>'
+  };
+  function emptyState(kind, text, { action = '', small = false } = {}) {
+    const seal = EMPTY_SEALS[kind] ? `<i class="empty__seal"><svg viewBox="0 0 24 24" focusable="false">${EMPTY_SEALS[kind]}</svg></i>` : '';
+    return `<div class="empty empty--${kind}${small ? ' empty--small' : ''}"><span class="empty__mark" aria-hidden="true"><img src="/assets/img/masks/onyx-480.webp" width="480" height="546" alt="" decoding="async">${seal}</span>
+      <div class="empty__body"><p>${text}</p>${action}</div></div>`;
+  }
+
   function historyList(items, { clickable = false } = {}) {
-    if (!items.length) {
-      return `<div class="empty">${Masks.svg('scam')}<p>No scans yet. Paste a link above to run your first one.</p></div>`;
-    }
+    if (!items.length) return emptyState('waiting', 'No scans yet. Paste a link above to run your first one.', { small: true });
     // On the History page a link's address is a real link (the keyboard reaches it; the whole row answers the mouse),
     // and every entry has its own Delete beside it.
     return `<ul class="list">${items.map((it) => {
@@ -852,7 +866,7 @@
           <span class="usage-row__icon">${ICON[icon]}</span>
           <span class="usage-row__l">${esc(label)}<small>last week: ${before.counts[k].toLocaleString()}</small></span>
           <b class="usage-row__n tabular">${w.counts[k].toLocaleString()}</b></div>`).join('')}</div>`
-        : `<div class="empty u-mt">${Masks.svg('scam')}<p>Nothing yet. As Sentinel checks links, files and messages for you, your week fills in here.</p></div>`}
+        : `<div class="panel u-mt">${emptyState('waiting', 'Nothing yet. As Sentinel checks links, files and messages for you, your week fills in here.', { action: '<a class="btn btn--sm btn--gold" href="/app/check">Check something</a>' })}</div>`}
       ${caughtAny || weeks.some((x) => x.checked) ? `<div class="panel u-mt">
         <div class="panel__head"><div><h2>${caughtAny ? 'Caught, week by week' : 'Checked, week by week'}</h2><p>The last four weeks. Each week starts on Monday.</p></div></div>
         <div class="week-bars" role="img" aria-label="${esc(weeks.map((x, i) => `${weekLabel(x, i, weeks)}: ${val(x)}`).join(', '))}">
@@ -1941,7 +1955,9 @@
       });
       $('[data-count]', list).textContent = `${items.length} of ${data.items.length}`;
       $('[data-rows]', list).innerHTML = items.length ? historyList(items, { clickable: true })
-        : `<div class="empty">${Masks.svg('scam')}<p>${data.items.length ? 'Nothing matches that filter.' : 'No scans yet. Paste a link on the Overview page to run your first one.'}</p></div>`;
+        : data.items.length
+          ? emptyState('nomatch', hs.q ? `Nothing in your history matches &ldquo;${esc(hs.q)}&rdquo;${hs.filter === 'all' ? '' : ' with that filter'}.` : 'Nothing in your history matches that filter.', { action: '<button type="button" class="btn btn--sm" data-show-all>Show every scan</button>' })
+          : emptyState('waiting', 'No scans yet. What you check shows here for 30 days, so you can look again.', { action: '<a class="btn btn--sm btn--gold" href="/app/check">Check something</a>' });
       $$('[data-filter]', list).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === hs.filter)));
       $$('[data-stat]', el).forEach((b) => {
         b.classList.toggle('is-active', b.dataset.stat === hs.filter);
@@ -1962,6 +1978,13 @@
       $('[data-history-clear]', list).hidden = !data.items.length;
     };
     list.addEventListener('click', (ev) => {
+      if (ev.target.closest('[data-show-all]')) {
+        hs.filter = 'all'; hs.q = '';
+        $('[data-q]', list).value = '';
+        paint();
+        $('[data-filter="all"]', list).focus();
+        return;
+      }
       const del = ev.target.closest('[data-forget]');
       if (del) {
         busy(del, '', async () => {
@@ -2044,7 +2067,7 @@
             <span class="list__icon">${action === 'allow' ? ICON.check : ICON.lock}</span>
             <span class="list__main"><b class="mono">${esc(o.host)}</b><span>Added ${ago(o.created_at)}</span></span>
             <button class="btn btn--sm" data-remove="${esc(o.host)}">Remove</button>
-          </li>`).join('')}</ul>` : `<div class="empty"><p>${empty}</p></div>`}`;
+          </li>`).join('')}</ul>` : emptyState('waiting', empty, { small: true })}`;
       };
       section($('[data-allow]', el), 'allow', 'Trusted', 'No trusted sites yet. Use "Trust this site" on any scan result, or add one above.');
       section($('[data-block]', el), 'block', 'Blocked', 'No blocked sites. Block a site to give it a red mask everywhere, for you.');
@@ -2172,12 +2195,12 @@
           ${addons.length ? `${bad.length ? `<ul class="list">${bad.map(addonRow).join('')}</ul>` : ''}
             ${clean.length ? `<details class="group" data-clean-addons><summary><span>${clean.length}${bad.length ? ' more' : ''} add-on${clean.length === 1 ? '' : 's'}, nothing to look at</span><i></i></summary>
               <ul class="list">${clean.map(addonRow).join('')}</ul></details>` : ''}`
-            : '<div class="empty"><p>No add-ons.</p></div>'}
+            : emptyState('clear', 'No add-ons.', { small: true })}
           <h4 class="u-mt">Sites allowed to send notifications</h4>
-          ${p.notifications === null ? '<div class="empty"><p>These could not be read.</p></div>'
+          ${p.notifications === null ? emptyState('unavailable', 'These could not be read.', { small: true })
             : sites.length ? `<ul class="list">${sites.map((s) => siteRow(s.origin.replace(/^https?:\/\//, ''), s, 'Can send you notifications')).join('')}</ul>
               <p class="muted u-mt-xs">Fake virus alerts and prize pop-ups arrive this way. To stop a site, remove it at ${copy(b.places.notifications)}</p>`
-              : '<div class="empty"><p>No site may send notifications.</p></div>'}
+              : emptyState('clear', 'No site may send notifications.', { small: true })}
           ${p.search ? `<h4 class="u-mt">Search engine</h4><ul class="list">${row(searchBadge ? Masks.svg('scam') : ICON.search, searchBadge, p.search.name || p.search.host || 'Custom',
             p.search.host && !p.search.known ? `${p.search.host} is not a search engine people know. Unwanted software changes your search to earn from what you look for.${p.search.verdict && p.search.verdict.badge ? ` ${p.search.verdict.label}.` : ''}` : `${p.search.engine || p.search.name || p.search.host || 'A search engine'} runs your searches.`,
             searchBadge ? `To choose your own, ${settings ? `open ${copy(settings)} and search its settings for "search engine"` : `go to ${copy(b.places.search)}`}` : '')}</ul>` : ''}
@@ -2200,7 +2223,7 @@
         <p class="muted">Checked ${esc(ago(r.at))}. Sentinel changed nothing. Removing anything is your choice, in the browser, and you can add it back.${r.sitesChecked ? '' : ` Site addresses were not checked, so only add-ons, search engines and policies were judged. ${esc(r.sitesWhy || 'Sentinel could not reach its scanner just now.')}`}</p>
         ${notChecked}
       </div>${panels}`
-      : `<div class="panel u-mt"><div class="empty"><p>No ${esc(list(r.looked || []))} settings were found on this computer.</p>${notChecked}</div></div>`;
+      : `<div class="panel u-mt">${emptyState('unavailable', `No ${esc(list(r.looked || []))} settings were found on this computer.`, { action: notChecked })}</div>`;
 
     $$('[data-copy-text]', out).forEach((btn) => btn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(btn.dataset.copyText); toast('Copied. Paste it into the browser\'s address bar.', 'success'); }
@@ -2324,7 +2347,7 @@
     const record = s.record || [];
     const recordList = `<h3 class="u-mt">Record</h3>
         <p class="field__hint">Times and switches only. Nothing about a chat or a page is ever written here.</p>
-        ${record.length ? `<ul class="list">${record.slice(0, 10).map((r) => `<li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>${esc(r.text)}${r.times > 1 ? ` (${r.times} times)` : ''}</b><span>${esc(when(r.at))}</span></span></li>`).join('')}</ul>` : '<div class="empty"><p>Nothing yet.</p></div>'}`;
+        ${record.length ? `<ul class="list">${record.slice(0, 10).map((r) => `<li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>${esc(r.text)}${r.times > 1 ? ` (${r.times} times)` : ''}</b><span>${esc(when(r.at))}</span></span></li>`).join('')}</ul>` : emptyState('waiting', 'Nothing yet.', { small: true })}`;
     const minutes = (n) => (n >= 60 ? `${Math.ceil(n / 60)} minute${Math.ceil(n / 60) === 1 ? '' : 's'}` : `${n} second${n === 1 ? '' : 's'}`);
     let body;
     if (!s.set) {
@@ -2728,7 +2751,7 @@
             <span class="list__icon">${ICON.globe}</span>
             <span class="list__main"><b>${esc(b.name)}</b><span data-browser-state="${esc(b.id)}">${running.has(b.id) ? 'Open now' : 'Installed'}</span></span>
             <button class="btn btn--sm btn--gold" data-scan-with="${esc(b.id)}" ${live.supported ? '' : 'disabled'}>Scan with ${esc(b.name.replace(/^(Google|Microsoft|Mozilla) /, ''))}</button>
-          </li>`).join('')}</ul>` : '<div class="empty"><p>No supported browser found on this computer.</p></div>'}
+          </li>`).join('')}</ul>` : emptyState('unavailable', 'No supported browser found on this computer.')}
         </div>
         <div class="panel">
           <h2 class="u-mb">This computer</h2>
@@ -2773,13 +2796,13 @@
             <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'suspect' ? `${e.label}: runs at startup; nothing was changed. Quarantine it if you do not recognise it.` : e.kind === 'restored' ? 'Put back' : e.kind === 'noted' ? `${e.label}: ${e.signedBy ? `signed by ${e.signedBy}, ` : ''}noted, nothing touched` : `Clean (${e.how || 'scanned'})`)}</span></span>
             ${e.kind === 'threat' && !e.restored && (e.quarantined || (e.actions || []).some((a) => a.undo)) ? `<button class="btn btn--sm" data-restore="${esc(e.id)}">Put back</button>` : ''}
             ${e.kind === 'suspect' ? `<button class="btn btn--sm" data-suspect="${esc(e.id)}">Quarantine</button>` : ''}
-          </li>`).join('')}</ul>` : '<div class="empty"><p>Nothing has needed stopping.</p></div>'}
+          </li>`).join('')}</ul>` : emptyState('waiting', 'Nothing yet. Each file Sentinel scans, and anything it stops, is listed here.')}
         </div>
       </div>
 
       <div class="panel u-mt" id="downloads">
         <h2 class="u-mb">Recent downloads</h2>
-        ${recent.length ? `<ul class="list">${[...recent].sort((a, b) => downloadRank(b) - downloadRank(a)).slice(0, 8).map(downloadRow).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they are scanned.</p></div>'}
+        ${recent.length ? `<ul class="list">${[...recent].sort((a, b) => downloadRank(b) - downloadRank(a)).slice(0, 8).map(downloadRow).join('')}</ul>` : emptyState('waiting', 'New downloads will appear here once they are scanned.')}
       </div>`;
 
     if (focusKey) {

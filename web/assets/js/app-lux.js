@@ -1,6 +1,6 @@
 /*
  * The app's motion layer (see app-lux.css). It only adds: app.js draws every page exactly as before, and this
- * watches #view to give each new page its entrance. Parts already on screen enter at once, the rest as they are
+ * watches #view to give each page its entrance, the first time it opens in a session. Parts already on screen enter at once, the rest as they are
  * scrolled to; each page has its own way of entering (data-tab picks it in the CSS).
  *
  * Nothing is left hidden: only parts that arrive in the first moments of a page wait to enter, and every one of
@@ -38,13 +38,20 @@
 
   // Tiles, cards and icon grids pop in on a short spring instead of their page's entrance.
   const TILES = '.usage-list > *, .feature-grid > .feature, [data-checkup-out] .list > li';
-  const PARTS = `.page-title, .verify-bar, .banner, .scanbox, .drop, .panel:not(.scanning), .usage-mini, .locked, .grid2 > *, .list > li, .result, .ai-tab, .empty, .live, ${TILES}`;
+  const PARTS = `.page-title, .verify-bar, .banner, .scanbox, .drop, .panel:not(.scanning), .usage-mini, .locked, .grid2 > *, .list > li, .result, .ai-tab, .live, ${TILES}`;
   const STAGE_MS = 1800;   // parts arriving later than this after a page change simply appear
   const MAX_ROWS = 40;     // a longer list enters as one piece
   let tab = '';
   let pageAt = 0;
   let latePop = false;     // the checkup's findings arrive after a click: they pop in once per page view
   const seen = new WeakSet();
+  // A page enters once a session. app.js draws every page anew each time it opens, so the memory is of pages (by
+  // tab), not of their parts: on a return the page is simply there, with only the wipe between, and nothing in it
+  // springs, counts, fills or draws itself again. sessionStorage, so a reload does not replay it either.
+  const SEEN_KEY = 'sentinel.lux.seen';
+  const visited = new Set();
+  try { for (const t of JSON.parse(sessionStorage.getItem(SEEN_KEY)) || []) visited.add(String(t)); } catch { /* storage closed: this load remembers */ }
+  let fresh = true;
 
   const io = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
     for (const e of entries) {
@@ -85,8 +92,14 @@
     // Under the opening's sketch (intro.js) nothing enters yet: the page must be laid out as it will be, for the
     // sketch to be drawn from it. Entrances start as the sketch becomes the page.
     if (root.classList.contains('intro')) return;
-    findCounts();
-    if (performance.now() - pageAt > STAGE_MS) {
+    const early = performance.now() - pageAt <= STAGE_MS;
+    if (!fresh) {
+      // Seen before: what is there now is the page, and stays still. Only the checkup's findings, which come later
+      // from a press, still pop in.
+      view.querySelectorAll('.page-title').forEach(dressTitle);
+      if (early) { view.querySelectorAll(PARTS).forEach((el) => seen.add(el)); return; }
+    } else findCounts();
+    if (!early) {
       if (latePop || tab !== 'checkup') return;
       const rows = view.querySelectorAll('[data-checkup-out] .list > li');
       if (!rows.length) return;
@@ -108,9 +121,17 @@
     view.dataset.tab = tab;
     pageAt = performance.now();
     latePop = false;
+    fresh = !visited.has(tab);
+    // Under the opening's sketch the page has not entered yet: it is remembered when it does.
+    if (fresh && !root.classList.contains('intro')) {
+      visited.add(tab);
+      try { sessionStorage.setItem(SEEN_KEY, JSON.stringify([...visited])); } catch { /* remembered for this load */ }
+    }
+    view.classList.toggle('lux-again', !fresh);
     if (changed) {
       if (reduced) { const v = view.querySelector('.view'); if (v) v.classList.add('lux-calm'); }
-      else { wipe(current); ghostTitle(old, was); }
+      // A page coming back has its headline in place at once, so the old one does not fade over it.
+      else { wipe(current); if (fresh) ghostTitle(old, was); }
     }
     if (tab === 'home') addMask();
     scan();
@@ -119,10 +140,10 @@
   let queued = false;
   new MutationObserver((records) => {
     const isView = (n) => n.nodeType === 1 && n.classList.contains('view');
-    const fresh = records.some((r) => r.target === view && [...r.addedNodes].some(isView));
+    const drawn = records.some((r) => r.target === view && [...r.addedNodes].some(isView));
     let old = null;
     for (const r of records) if (r.target === view) old = [...r.removedNodes].find(isView) || old;
-    if (fresh) newPage(old);
+    if (drawn) newPage(old);
     else if (!queued) {
       queued = true;
       requestAnimationFrame(() => { queued = false; scan(); });
@@ -130,6 +151,36 @@
   }).observe(view, { childList: true, subtree: true });
   if (view.querySelector('.view')) newPage();
   document.addEventListener('sentinel:intro-done', () => { if (view.querySelector('.view')) newPage(); }, { once: true });
+
+  /* ------------------------------------------- the sidebar's one marker */
+
+  // The raised plate behind the current page's link is one object that travels between links on a spring, as a lift's
+  // marker does, instead of one plate going out while another comes in. app.js still sets aria-current, which is what
+  // a screen reader hears and what colours the link; this only moves the plate to it. In the phone's bottom bar it
+  // slides sideways; for a page with no link showing it fades where it stands, and it never moves by itself.
+  const nav = document.querySelector('.side__nav');
+  if (nav) {
+    const plate = document.createElement('i');
+    plate.className = 'lux-plate';
+    plate.setAttribute('aria-hidden', 'true');
+    nav.prepend(plate);
+    let at = null;
+    const place = (travel) => {
+      const link = nav.querySelector('.side__link[aria-current="page"]');
+      const showing = link && link.offsetParent !== null;
+      if (!showing) { plate.classList.remove('is-on'); nav.classList.remove('lux-plated'); at = null; return; }
+      // From nowhere (first draw, or back from a page with no link) it appears in place rather than flying in.
+      plate.classList.toggle('is-still', !travel || !at);
+      plate.style.cssText = `width:${link.offsetWidth}px;height:${link.offsetHeight}px;transform:translate(${link.offsetLeft}px,${link.offsetTop}px)`;
+      plate.classList.add('is-on');
+      nav.classList.add('lux-plated');
+      at = link;
+    };
+    new MutationObserver(() => place(true)).observe(nav, { subtree: true, attributes: true, attributeFilter: ['aria-current'] });
+    // The window narrowing to the phone's bar, or the font arriving, moves the links: the plate follows at once.
+    if ('ResizeObserver' in window) new ResizeObserver(() => place(false)).observe(nav);
+    place(false);
+  }
 
   /* -------------------------------------------- the wipe, between pages */
 

@@ -453,8 +453,32 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .list__masks { display: flex; gap: 5px; }
 .list__masks .m { transform: none; opacity: 1; width: 24px; height: 24px; border-radius: var(--r-sm); }
 .list__masks .m svg { width: 15px; height: 15px; }
-.empty { text-align: center; padding: 36px 16px; color: var(--muted); }
-.empty svg { width: 46px; height: 46px; margin: 0 auto 12px; color: var(--faint); }
+/* An empty place (app.js emptyState): the onyx mask, still, standing on a soft pool of gold light, with a seal on
+   its cheek shaped by what the empty means (a tick for earned good news, a bar where Sentinel could not look, a glass
+   where a search left nothing; none while it waits), then one sentence and the next step. Small: the mask beside
+   the words, for a list inside a panel. */
+.empty { display: grid; justify-items: center; gap: 16px; padding: 32px 16px 30px; text-align: center; color: var(--text-2); }
+.empty__mark { position: relative; isolation: isolate; width: 58px; }
+.empty__mark::before { content: ''; position: absolute; z-index: -1; left: -36%; right: -36%; bottom: -14%; height: 36%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(var(--gold-rgb) / .26), rgb(var(--gold-rgb) / .08) 60%, transparent); }
+.empty__mark img { display: block; width: 100%; height: auto; filter: drop-shadow(0 7px 9px rgb(20 12 2 / .38)); }
+.empty--unavailable .empty__mark img { filter: grayscale(1) drop-shadow(0 7px 9px rgb(20 12 2 / .3)); opacity: .5; }
+.empty--unavailable .empty__mark::before { opacity: .35; }
+.empty--nomatch .empty__mark img { opacity: .72; }
+.empty__seal { position: absolute; right: -9px; bottom: 1px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--gold-400); box-shadow: 0 0 0 2.5px var(--surface), 0 3px 8px rgb(20 12 2 / .3); }
+.empty__seal svg { width: 16px; height: 16px; fill: none; stroke: var(--on-gold, #1a1206); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.empty--clear .empty__seal { background: var(--green); }
+.empty--clear .empty__seal svg { stroke: var(--on-status); }
+.empty--unavailable .empty__seal { background: var(--surface-3); }
+.empty--unavailable .empty__seal svg { stroke: var(--text-2); }
+.empty__body { display: grid; justify-items: center; gap: 14px; min-width: 0; }
+.empty__body p { max-width: 40ch; margin: 0; font-size: var(--t-ui); line-height: 1.55; text-wrap: pretty; overflow-wrap: anywhere; }
+.empty--small { grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-items: start; gap: 16px; padding: 14px 6px; text-align: left; }
+.empty--small .empty__mark { width: 34px; }
+.empty--small .empty__seal { right: -7px; bottom: -2px; width: 18px; height: 18px; box-shadow: 0 0 0 2px var(--surface); }
+.empty--small .empty__seal svg { width: 12px; height: 12px; stroke-width: 3; }
+.empty--small .empty__body { justify-items: start; gap: 10px; }
 
 /* ------------------------------------------------------------ locked */
 
