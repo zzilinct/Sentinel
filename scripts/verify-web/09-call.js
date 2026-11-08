@@ -55,7 +55,7 @@ async function checkCall() {
       const rgb = (c) => (c.match(/[\\d.]+/g) || []).map(Number).slice(0, 3);
       const red = getComputedStyle(plate, '::after').backgroundImage;
       return { verdict: a.dataset.verdict, big: t('.call__verdict'), reason: t('.call__reason'), next: t('.call__next'), recover: more ? more.getAttribute('href') : '', size: parseFloat(getComputedStyle(big).fontSize),
-        top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), screen: innerHeight, scrolled: Math.round(scrollY), seal: a.querySelector('svg').innerHTML.includes('M50 36 64 50'),
+        top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), screen: innerHeight, scrolled: Math.round(scrollY), seal: a.querySelector('svg').innerHTML.includes('M32 2.5 61.5 32'),
         colours: [rgb(getComputedStyle(big).color), rgb(getComputedStyle(plate).backgroundColor), rgb(red.slice(red.indexOf('rgb')))] }; })()`);
     // No colour on the answer leans green, whatever is ticked.
     const noGreen = (a) => a.colours.every(([r, g, b]) => !(g > r + 12 && g > b + 12));

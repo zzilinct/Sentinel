@@ -3,7 +3,7 @@
 .sentinel-masks {
   display: inline-flex !important;
   align-items: center;
-  gap: 3px;
+  gap: 8px;
   margin-left: 8px;
   vertical-align: middle;
   cursor: pointer;
@@ -15,36 +15,29 @@
 .sentinel-masks--lead { margin: 0 6px 0 0; }
 .sentinel-masks--mail, .sentinel-masks--chat { margin-left: 6px; cursor: help; }
 
-/* A flagged link: its mask in cast gold on a dark tile, the same mark the Windows app draws (masks.js mark()). The
-   corner seal's shape says how bad (diamond, triangle, circle), so it reads without colour. The dark tile keeps the
-   gold readable on white pages, and the ring in the severity colour sets it apart on dark ones. */
+/* A flagged link: its mask in cast gold on a dark tile whose outline says how bad (a diamond for danger, a square for
+   a warning, a circle for caution), ringed in that colour: the same mark the Windows app draws (masks.js mark()). The
+   tile is in the drawing, so its shape holds on any page and without colour. The drawing is 26 px over a 22 px place,
+   so the line of text it sits in keeps its height and only the diamond's points reach past it. */
 .sentinel-mask {
   display: inline-grid !important;
   place-items: center;
   width: 22px;
   height: 22px;
-  border-radius: 7px;
-  background: #0c0d10 !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 70%, transparent), 0 1px 3px rgba(0, 0, 0, .25);
-  transition: transform .15s ease, background .15s ease;
+  transition: transform .15s ease;
 }
 
-.sentinel-mask svg { width: 19px; height: 19px; display: block; }
+.sentinel-mask svg { width: 26px; height: 26px; margin: -2px; display: block; overflow: visible; }
 .sentinel-masks:hover .sentinel-mask,
-.sentinel-masks:focus-visible .sentinel-mask { transform: translateY(-1px); background: #1b1d22 !important; }
-.sentinel-masks:focus-visible { outline: 2px solid #c9a64e; outline-offset: 2px; border-radius: 8px; }
+.sentinel-masks:focus-visible .sentinel-mask { transform: translateY(-1px); }
+.sentinel-masks:focus-visible { outline: 2px solid #c9a64e; outline-offset: 3px; border-radius: 8px; }
 
 
 /* Checked, nothing found: only a small tick, never a mask and never a threat colour. Quiet by its size, not by
    fading: its dark edge keeps it readable on white and dark pages alike. */
-.sentinel-mask--clear { color: #2f8f63 !important; width: 18px; height: 18px; border-radius: 6px; background: transparent !important; box-shadow: none; }
-.sentinel-mask--clear svg { width: 14px; height: 14px; }
+.sentinel-mask--clear { color: #2f8f63 !important; width: 18px; height: 18px; border-radius: 6px; }
+.sentinel-mask--clear svg { width: 14px; height: 14px; margin: 0; }
 .sentinel-masks--clear:hover .sentinel-mask--clear { background: color-mix(in srgb, currentColor 14%, transparent) !important; }
-
-/* The ring sits on the dark tile, so it takes the bright colours in light and dark pages alike. */
-.sentinel-mask--yellow { color: #f5c542 !important; }
-.sentinel-mask--orange { color: #f08a24 !important; }
-.sentinel-mask--red    { color: #e5484d !important; box-shadow: inset 0 0 0 2px #e5484d, 0 1px 3px rgba(0, 0, 0, .25); }
 
 @media (prefers-color-scheme: dark) {
   .sentinel-mask--clear { color: #4cb782 !important; }
@@ -55,9 +48,6 @@
 @media (forced-colors: active) {
   .sentinel-mask { forced-color-adjust: none; }
 }
-
-.sentinel-row--danger { opacity: .6; filter: saturate(.5); transition: opacity .15s ease, filter .15s ease; }
-.sentinel-row--danger:hover { opacity: 1; filter: none; }
 
 @keyframes sentinel-in {
   from { opacity: 0; transform: translateY(2px) scale(.9); }

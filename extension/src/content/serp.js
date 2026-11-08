@@ -185,9 +185,6 @@
     group.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') open(ev); });
     // Brave cuts its title off after one line, so marks put after a long one would be hidden: they go in front.
     if (heading.matches('.title')) { group.classList.add('sentinel-masks--lead'); heading.prepend(group); } else heading.appendChild(group);
-
-    const row = anchor.closest('[data-hveid], li, .result, article') || anchor.parentElement;
-    if (row) row.classList.toggle('sentinel-row--danger', verdict.overall.badge === 'red');
   }
 
   /* ---------------------------------------------------------- popover */

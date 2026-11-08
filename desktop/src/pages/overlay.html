@@ -97,20 +97,19 @@
   #marks { position: absolute; inset: 0; will-change: transform, opacity; transition: opacity .16s ease; }
   /* While the page is really moving the marks step aside (see overlay:shift), and come back in place once it stops. */
   #marks.is-moving { opacity: 0; transition: opacity .09s ease; }
-  .mark { position: absolute; left: 0; top: 0; width: 28px; height: 28px; margin: 0; display: grid; place-items: center; border-radius: 8px; pointer-events: none;
-    background: rgba(12, 13, 16, .88); box-shadow: 0 2px 10px rgba(0, 0, 0, .28), 0 0 12px -2px color-mix(in srgb, var(--c, #8f8a7a) 55%, transparent); border: 1px solid color-mix(in srgb, var(--c, #8f8a7a) 50%, transparent); color: var(--c, #8f8a7a);
+  .mark { position: absolute; left: 0; top: 0; width: 28px; height: 28px; margin: 0; display: grid; place-items: center; pointer-events: none; color: var(--c, #8f8a7a);
     opacity: 0; scale: .6; will-change: transform; transition: transform .18s cubic-bezier(.2, .8, .2, 1); }
   .mark.is-still { transition: none; }
-  /* A flagged result: its mask in cast gold, the corner seal's shape saying how bad (masks.js mark()). */
-  .mark svg { width: 24px; height: 24px; display: block; }
-  .mark.is-red { border-width: 2px; }
+  /* A flagged result: its mask in cast gold on a dark tile whose outline says how bad, a diamond, square or circle
+     ringed in that colour (masks.js mark()). The tile is in the drawing, 30 px over the 28 px place. */
+  .mark svg { width: 30px; height: 30px; margin: -1px; display: block; }
   /* Checked, nothing found: only a small tick, no tile and no mask, so an honest page of results stays calm. */
-  .mark.is-clear { width: 20px; height: 20px; background: none; border: 0; box-shadow: none; }
-  .mark.is-clear svg { width: 16px; height: 16px; }
-  /* Windows High Contrast would flatten every mark into one outlined square: the marks keep their own dark tile,
-     gold and seal shapes, which carry the meaning without hue. */
+  .mark.is-clear { width: 20px; height: 20px; }
+  .mark.is-clear svg { width: 16px; height: 16px; margin: 0; }
+  /* Windows High Contrast would flatten every mark into one outline: the marks keep their own dark tile, gold and
+     tile shapes, which carry the meaning without hue. */
   @media (forced-colors: active) { .mark { forced-color-adjust: none; } }
-  .mark.is-pending { width: 10px; height: 10px; border-radius: 3px; border: 0; box-shadow: none; background: #d6b25a; opacity: .0; animation: wait 1s ease-in-out infinite; }
+  .mark.is-pending { width: 10px; height: 10px; border-radius: 3px; background: #d6b25a; opacity: .0; animation: wait 1s ease-in-out infinite; }
   .mark.is-in { animation: pop .34s cubic-bezier(.2, 1.4, .4, 1) var(--d, 0ms) forwards; }
   @keyframes pop { 0% { opacity: 0; scale: .55; } 100% { opacity: 1; scale: 1; } }
   /* A mark that has popped in once just shows when it comes back (scrolled away and back, or its verdict refined). */

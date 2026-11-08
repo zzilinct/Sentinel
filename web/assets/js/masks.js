@@ -49,37 +49,40 @@
   /* ------------------------------------------------------------- marks */
 
   // The live-scanning mark beside a link, the same in the desktop overlay and the companion: the threat's mask in
-  // cast gold on a dark tile, and in its corner a seal whose shape says how bad, so it reads without colour too
-  // (red a diamond, orange a triangle, yellow a circle). Vector, so it is sharp at 20 px and on any screen scale.
+  // cast gold on a dark tile whose own outline says how bad, ringed in that colour. Red is a diamond, orange a square,
+  // yellow a circle: the whole mark changes shape, so a severity reads without colour, in greyscale and in High
+  // Contrast, at the size it is met (proven on photographs by scripts/verify-web/49-live-marks.js). The dark fill
+  // carries the shape on white pages, the ring on dark ones. Vector, so it is sharp on any screen scale.
   // The gold is three copies of the mask (shadow below, light above, face on top), which bevels its edges and the
   // insides of its eyes without gradients: a gradient needs a document-wide id, and on a host page that id can clash
   // or vanish with the first mark that carried it.
   var GOLD_SHADOW = '#5a4216', GOLD_LIGHT = '#fff0c4', GOLD_FACE = '#d9b65f', INK = '#0c0d10';
-  var SEALS = {
-    // A diamond, not an octagon: at the real size an octagon read as the yellow circle (review shot live-marks-2x).
-    red: '<path d="M50 36 64 50 50 64 36 50Z"/>',
-    orange: '<path d="M50 36.5 64 62.5H36Z"/>',
-    yellow: '<circle cx="50" cy="50" r="12.5"/>'
-  };
-  // The "!" inside each seal, lower in the triangle where it has room.
-  var BANG = {
-    red: '<rect x="48.4" y="42" width="3.2" height="9.5" rx="1.6"/><circle cx="50" cy="56.2" r="1.9"/>',
-    orange: '<rect x="48.4" y="45" width="3.2" height="8.6" rx="1.6"/><circle cx="50" cy="57.8" r="1.8"/>',
-    yellow: '<rect x="48.4" y="42.5" width="3.2" height="9" rx="1.6"/><circle cx="50" cy="56.2" r="1.9"/>'
+  var TILES = {
+    red: '<path d="M32 2.5 61.5 32 32 61.5 2.5 32Z"/>',
+    orange: '<rect x="7" y="7" width="50" height="50" rx="7"/>',
+    yellow: '<circle cx="32" cy="32" r="25.5"/>'
   };
   var SEVERITY = { red: 'Danger', orange: 'Warning', yellow: 'Caution' };
-  // Each mask as large as it fits up and left of the seal: the bare helmet has room to grow, horns and spores less.
-  var FIT = { scam: 'translate(-10.4 -9.6) scale(1.2)', malware: 'translate(-6.6 -3.2) scale(1.08)', virus: 'translate(-4 -4)' };
+  // Each mask as large as it fits inside its tile's ring, about its own middle (y): horns and spores reach for the
+  // corners, so they shrink most in the diamond. The face stays clear of the ring; horn tips and spores may touch it.
+  var FIT = {
+    scam: { y: 30.5, red: 0.96, orange: 1.02, yellow: 1.08 },
+    malware: { y: 26.6, red: 0.67, orange: 0.86, yellow: 0.82 },
+    virus: { y: 31, red: 0.62, orange: 0.74, yellow: 0.74 }
+  };
 
   /** The mark for a threat at a severity (yellow, orange or red). Decorative: the element holding it carries the name. */
   function mark(threat, badge) {
-    var g = GLYPHS[threat] || GLYPHS.scam;
-    var seal = SEALS[badge] || SEALS.yellow;
+    var kind = GLYPHS[threat] ? threat : 'scam';
+    var level = TILES[badge] ? badge : 'yellow';
+    var g = GLYPHS[kind], tile = TILES[level], fit = FIT[kind];
     var layer = function (color, dy) { return '<g style="color:' + color + '" transform="translate(0 ' + dy + ')">' + g + '</g>'; };
-    return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g transform="' + (FIT[threat] || FIT.scam) + '">' +
-      layer(GOLD_SHADOW, 2.4) + layer(GOLD_LIGHT, -1.4) + layer(GOLD_FACE, 0) + '</g>' +
-      '<g fill="' + (COLORS[badge] || COLORS.yellow) + '" stroke="' + INK + '" stroke-width="4" stroke-linejoin="round" paint-order="stroke">' + seal + '</g>' +
-      '<g fill="' + INK + '">' + (BANG[badge] || BANG.yellow) + '</g></svg>';
+    var edge = ' stroke-width="4" stroke-linejoin="round">' + tile + '</g>';
+    return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">' +
+      '<g fill="#000" stroke="#000" opacity=".3" transform="translate(0 1.8)"' + edge +
+      '<g fill="' + INK + '" stroke="' + COLORS[level] + '"' + edge +
+      '<g transform="translate(32 32) scale(' + fit[level] + ') translate(-32 -' + fit.y + ')">' +
+      layer(GOLD_SHADOW, 2.4) + layer(GOLD_LIGHT, -1.4) + layer(GOLD_FACE, 0) + '</g></svg>';
   }
 
   /** Checked, nothing found: a small tick, never a mask, with a dark edge so it reads on white pages as well as dark. */
