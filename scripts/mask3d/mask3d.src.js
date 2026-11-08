@@ -56,7 +56,7 @@ const RISE_TURN = 0.42;
 // reflects (web/assets/models/studio-*.hdr, masks.py --env): the gold one, or the onyx one, with its key light and
 // room turned down so the black lacquer stays black and only the softboxes show in it.
 const FINISH = {
-  onyx: { color: '#0b0a09', metalness: 0, roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.03, rim: '#ffb455', studio: 'onyx', lit: true },
+  onyx: { color: '#0b0a09', metalness: 0, roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.1, rim: '#ffb455', studio: 'onyx', lit: true },
   scam: { color: '#f2b64b', metalness: 1, roughness: 0.16, clearcoat: 0.4, clearcoatRoughness: 0.03, rim: '#ffa04a', studio: 'scam' },
   virus: { color: '#ff5a10', metalness: 1, roughness: 0.22, clearcoat: 0.7, clearcoatRoughness: 0.03, rim: '#ff7a2a', studio: 'scam' },
   malware: { color: '#a1040c', metalness: 0.85, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.03, rim: '#ff2a20', studio: 'scam' },
@@ -70,7 +70,7 @@ const PART = { trim: [1, 0, 0], liner: [0, 1, 0], ember: [0, 0, 1], body: [0, 0,
 // The gold's own light: the onyx studio is dark for metal, so in onyx the gold's reflections are lifted, and its upper
 // faces get a warm glow of their own, as the stills' top softbox gives them: the rivet reads as a dome, and the wire as
 // a thin lit edge rather than a lit band.
-const GOLD_LIFT = { onyx: 1.2 };
+const GOLD_LIFT = { onyx: 0.8 };
 const GOLD_FLOOR = { onyx: 0.22 };
 // The eyes' light: the ember's glow and the light it throws into the socket, at rest (1) and while watching (EYE_WATCH).
 const EMBER_GLOW = 0.8;
