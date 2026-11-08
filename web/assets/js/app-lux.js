@@ -154,7 +154,7 @@
 
   /* ------------------------------------------- the sidebar's one marker */
 
-  // The raised plate behind the current page's link is one object that travels between links on a spring, as a lift's
+  // The raised plate behind the current page's link is one object that glides between links, as a lift's
   // marker does, instead of one plate going out while another comes in. app.js still sets aria-current, which is what
   // a screen reader hears and what colours the link; this only moves the plate to it. In the phone's bottom bar it
   // slides sideways; for a page with no link showing it fades where it stands, and it never moves by itself.

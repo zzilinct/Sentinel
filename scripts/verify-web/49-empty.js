@@ -111,7 +111,6 @@ async function checkEmpty() {
         await evalIn(browser, s, '(scrollTo(0, 0), true)');
         await sleep(200);
         await clickSel(browser, s, '.side__link[data-route="home"]');
-        await sleep(90);
         await shot(browser, s, `empty-plate-moving-${size}-${theme}`);
         await sleep(900);
         await goto(browser, s, `${base}/app/week`, "document.querySelector('#view .empty')");

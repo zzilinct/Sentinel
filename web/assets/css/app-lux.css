@@ -223,13 +223,14 @@ html.lux-app[data-theme="light"] {
 
 /* ------------------------------------------------- the sidebar's plate */
 
-/* One raised plate under the current page's link, moved between links on a spring (app-lux.js), carrying a gold
+/* One raised plate under the current page's link, glided between links (app-lux.js), carrying a gold
    thread at its edge. The links keep their own colours; only their own plate gives way to this one. */
 .lux-app .side__nav { position: relative; }
 .lux-plate {
   position: absolute; left: 0; top: 0; border-radius: var(--r); pointer-events: none; opacity: 0;
   background: var(--relief), var(--surface); box-shadow: var(--raise-sm), inset 0 0 0 1px rgb(var(--gold-rgb) / .14);
-  transition: transform .62s var(--lux-settle), opacity .2s ease;
+  /* Eased to a stop, no overshoot: a spring's overshoot grows with the distance, and a long jump threw it onto the search box. */
+  transition: transform .5s var(--lux-out), opacity .2s ease;
 }
 .lux-plate.is-on { opacity: 1; }
 .lux-plate.is-still { transition: opacity .2s ease; }

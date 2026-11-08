@@ -503,16 +503,20 @@
   // An empty place says which kind of empty it is, still, never moving. The onyx mask that watches over the Overview
   // waits where nothing has happened yet; a seal on its cheek, shaped so it reads without colour, says the rest: a
   // green tick for good news that was earned (something was read and nothing was there), a grey bar where Sentinel
-  // could not look, a gold glass where only a search or a filter left nothing. A threat's mask is never used here.
+  // could not look, a gold glass where only a search or a filter left nothing, three gold dots for "nothing yet" in a
+  // small one. A threat's mask is never used here.
   // `text` and `action` are markup: whatever came from outside is escaped by the caller.
   const EMPTY_SEALS = {
+    waiting: '<circle cx="7.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="16.5" cy="12" r="1.4"/>',
     clear: '<path d="M7 12.5l3.5 3.5L17 9"/>',
     unavailable: '<path d="M7.5 12h9"/>',
     nomatch: '<circle cx="11" cy="11" r="4.5"/><path d="M14.5 14.5 18 18"/>'
   };
   function emptyState(kind, text, { action = '', small = false } = {}) {
-    const seal = EMPTY_SEALS[kind] ? `<i class="empty__seal"><svg viewBox="0 0 24 24" focusable="false">${EMPTY_SEALS[kind]}</svg></i>` : '';
-    return `<div class="empty empty--${kind}${small ? ' empty--small' : ''}"><span class="empty__mark" aria-hidden="true"><img src="/assets/img/masks/onyx-480.webp" width="480" height="546" alt="" decoding="async">${seal}</span>
+    // A small one, in a list inside a panel, is the seal alone: a column of masks would repeat itself down the page.
+    const seal = small || kind !== 'waiting' ? `<i class="empty__seal"><svg viewBox="0 0 24 24" focusable="false">${EMPTY_SEALS[kind]}</svg></i>` : '';
+    const mask = small ? '' : '<img src="/assets/img/masks/onyx-480.webp" width="480" height="546" alt="" decoding="async">';
+    return `<div class="empty empty--${kind}${small ? ' empty--small' : ''}"><span class="empty__mark" aria-hidden="true">${mask}${seal}</span>
       <div class="empty__body"><p>${text}</p>${action}</div></div>`;
   }
 
