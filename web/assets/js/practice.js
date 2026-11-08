@@ -402,7 +402,7 @@
         return p.ask ? `<span class="pask">${esc(p.text)}</span>` : esc(p.text);
       }).join('')}</p>`).join('');
       const place = deck.indexOf(m) + 1;
-      return `<div class="pcard-wrap" data-card>
+      return `<div class="pcard-wrap" data-card data-id="${m.id}">
         <article class="pcard pcard--${m.kind}" aria-labelledby="pcard-h">
           <div class="pcard__top">
             <button type="button" class="pback" data-back>Inbox</button>

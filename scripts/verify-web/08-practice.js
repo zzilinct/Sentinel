@@ -72,7 +72,7 @@ async function checkPractice() {
       const inSheet = await js(s, "document.querySelector('[data-sheet]').open ? (document.querySelector('[data-card]:last-child [data-next]') ? 'verdict' : 'message') : ''");
       if (inSheet === 'verdict') { await js(s, "document.querySelector('[data-card]:last-child [data-next]').click(), true"); await sleep(120); continue; }
       if (!inSheet) { const id = await nextId(s); await js(s, `document.querySelector('[data-open="${id}"]').click(), true`); await sleep(120); }
-      const id = await js(s, "document.querySelector('[data-card]:last-child') && history.state && history.state.pm");
+      const id = await js(s, "(document.querySelector('[data-card]:last-child') || {}).dataset?.id");
       await clickAnswer(s, choose(byId(id)));
       await sleep(120);
     }
@@ -100,7 +100,9 @@ async function checkPractice() {
     // A text message too, whose sender cannot be looked up: the pill says why, in words.
     const text = deck.find((id) => byId(id).kind === 'text' && !byId(id).addr.startsWith('+'));
     if (text) {
-      await js(s, `(() => { document.querySelector('[data-sheet]').close(); document.querySelector('[data-open="${text}"]').click(); return true; })()`);
+      await js(s, `(() => { document.querySelector('[data-sheet]').close(); return true; })()`);
+      await sleep(400);
+      await js(s, `(() => { document.querySelector('[data-open="${text}"]').click(); return true; })()`);
       await sleep(900);
       await js(s, "document.querySelector('[data-card]:last-child [data-peek=sender]').click(), true");
       await sleep(700);

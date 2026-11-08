@@ -23,6 +23,8 @@
 
 /* The rows: each lies over the one before, and on scroll they gather under the header as a pile. */
 .plist { --pile: 92px; display: block; margin: 0; padding: 0; list-style: none; }
+/* Room for the ten rows before the script deals them, so nothing below jumps when they arrive. */
+.plist:empty { min-height: 770px; }
 .plist li { position: sticky; top: calc(var(--pile) + var(--i) * 7px); margin-top: -10px; }
 .plist li:first-child { margin-top: 0; }
 .prow { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 2px 8px; align-items: baseline; width: 100%; min-height: 86px; padding: 14px 18px 22px 12px; border: 0; border-radius: 16px; background: var(--relief), var(--surface-2); box-shadow: var(--edge); color: var(--text-2); font: inherit; text-align: left; cursor: pointer; transition: transform .55s var(--spring); }
