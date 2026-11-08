@@ -472,7 +472,7 @@ window.UI = (() => {
         ${resultGlyph(r.threat, r.tone)}
         <div class="result__title">
           <h2>${esc(r.title)}</h2>
-          <p><span class="mono">${esc(r.subject)}</span>${r.via ? `<span class="result__via">${esc(r.via)}</span>` : ''}</p>
+          <p><span class="${r.words ? 'result__words' : 'mono'}">${esc(r.subject)}</span>${r.via ? `<span class="result__via">${esc(r.via)}</span>` : ''}</p>
           ${r.kind ? `<p class="result__kind">${Masks.kindIcon(r.kind)}<span>${esc(r.kindLabel)}</span></p>` : ''}
           <p class="result__sub result__lead">${esc(r.sub)}</p>
           ${r.partly ? `<p class="result__sub result__partly" data-partly>${esc(r.partly)}</p>` : ''}
@@ -587,7 +587,7 @@ window.UI = (() => {
     });
     return {
       tone: head.tone, threat: 'scam', title: head.title, sub: head.sub,
-      subject: from ? `From ${from}${SENDER[t.sender] || ''}` : 'A text message, with no sender given',
+      subject: from ? `From ${from}${SENDER[t.sender] || ''}` : 'A text message, with no sender given', words: true,
       data: `data-text-result="${head.tone}"`,
       partly: partlyLine(t, head),
       steps: f ? stepsBox(head.tone, 'What to do now', [f.advice], scam ? recoverLine(links.length ? 'Already tapped the link, paid or replied?' : 'Already paid or replied?', `/app/recover?happened=${happened}`) : '') : '',
@@ -618,7 +618,7 @@ window.UI = (() => {
     const head = { tone, title: q.title };
     const steps = q.steps || [];
     return {
-      tone, threat: 'scam', title: q.title, sub: q.detail, subject: 'From a QR code',
+      tone, threat: 'scam', title: q.title, sub: q.detail, subject: 'From a QR code', words: true,
       data: `data-qr-result="${esc(q.kind)}"`,
       partly: partlyLine(q, head),
       steps: steps.length ? stepsBox(tone, tone === 'red' || tone === 'orange' ? 'What to do now' : 'Before you use it', steps) : ''

@@ -235,6 +235,8 @@ body.app::before { opacity: .6; }
 .result__title h2 { font-size: var(--t-title-l); }
 .result__title p { margin-top: 4px; color: var(--text-2); font-size: var(--t-ui); word-break: break-all; }
 .result__sub { color: var(--muted) !important; word-break: normal !important; }
+/* Who sent a text, or "From a QR code": words, not an address, so they break between words. */
+.result__words { word-break: normal; }
 /* Where the thing checked came from (a QR code), after its address. */
 .result__via { word-break: normal; white-space: nowrap; }
 .result__via::before { content: '\00b7'; margin: 0 8px; color: var(--muted); }

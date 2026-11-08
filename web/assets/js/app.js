@@ -1219,6 +1219,7 @@
     let pictured = false;
     async function readPicture(pic) {
       if (reading) return;
+      if (running) { toast('One check at a time. This one is still running.', 'info'); return; }
       if (pic.size > 20 * 1024 * 1024) { toast('That picture is too large.', 'error'); return; }
       reading = true;
       out.innerHTML = '';
