@@ -231,10 +231,15 @@
 
   function addMask() {
     const head = view.querySelector('.page-title');
-    if (!head || head.querySelector('.lux-mask')) return;
-    // In 3D when it can be (cosmos.js fetches the models): it turns to watch the pointer as it comes near.
+    // Not on a phone, where app-lux.css hides it: the models (mask3d.js and scam.glb, near 0.5 MB) were fetched there
+    // for nothing, and raced the page's own words to the screen.
+    if (!head || head.querySelector('.lux-mask') || matchMedia('(max-width: 720px)').matches) return;
+    // In 3D when it can be (cosmos.js fetches the models): it turns to watch the pointer as it comes near. The picture
+    // stands in until then; the models are asked for only once the page has loaded and the browser is idle.
     head.insertAdjacentHTML('beforeend', '<div class="lux-mask" aria-hidden="true"><span class="m3" data-mask3d="onyx" data-pose="lay" data-look="380"><img src="/assets/img/masks/onyx.webp" width="788" height="896" alt=""></span></div>');
-    if (window.SentinelLoadMask3D) window.SentinelLoadMask3D();
+    const load = () => { if (window.SentinelLoadMask3D) window.SentinelLoadMask3D(); };
+    const idle = () => (window.requestIdleCallback ? requestIdleCallback(load, { timeout: 3000 }) : setTimeout(load, 600));
+    if (document.readyState === 'complete') idle(); else addEventListener('load', idle, { once: true });
   }
 
   /* ---------------------------------------------- numbers that count */

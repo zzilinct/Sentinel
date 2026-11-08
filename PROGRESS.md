@@ -1,8 +1,10 @@
-# bar-1 (spot 1: check tools and navigation)
+# bar-5 (spot 5: Overview and page tops)
 
-Done: route.js classifier + tests/checkroute.test.js; one Check page (app.js checkView) replacing scanView, threatsView,
-emailView, textView; sidebar in four groups; old /app/scan|threats|email|text open Check; dead CSS removed.
-Next: update CI checks (06,11,12,13,15,19,21,30,40,42,47-calm-dig,47-honest-result, review-shots, perf-budget) to /app/check;
-add a check that screenshots the Check page + sidebar (desktop+phone, light+dark); run CI; look at PNGs.
-Status: commits 9849bc2 pushed (CI run 42098121990 website, 42098121914 review shots, 42098122033 test), 26a9778 local
-(site links + manifest). Waiting on CI; then fix failures, download check-*.png, merge origin/main, full run, report.
+Base: work/e2e-bar-1 (Check page, four-group sidebar).
+Done: Overview = greeting, box, at most one notice (allowance under a quarter, or gone), one card (guard line + week
+headline); offers moved below Recent scans; sidebar card = the scarcest allowance only; slim email bar; Your week rows
+without "last week", this week's bar an outline "So far"; scanbox icon sized by `.scanbox > svg` (AI padlock);
+Overview mask not added on phones, models fetched after load + idle on computers; Plan rows: no meter when locked or
+unlimited. Deleted protectionTeaser, old weekCard, the four-row usage list on home, the last-week glow.
+Check: scripts/verify-web/48-overview.js (commit 8f8e319 alone, dispatched to see it fail: run 42528974322).
+Next: commit fix, dispatch overview + perf-a11y, read PNGs, full run on final commit, report.

@@ -19,7 +19,7 @@
     link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>',
     shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 8.2 7 9 4-.8 7-4.5 7-9V6l-7-3Z"/></svg>',
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>',
-    search: '<svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
     lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
     download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg>',
     mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
@@ -127,26 +127,32 @@
     $('[data-name]').textContent = u.name || u.email;
     $('[data-plan]').textContent = `${plan().name} plan`;
 
+    // One allowance, the one closest to running out: all of them are on Plan & usage, one link up.
+    const low = scarcest();
+    $('[data-usage-mini]').innerHTML = low
+      ? `<div class="usage-mini__row"><span>${low.label}</span><b class="tabular">${low.text} left</b></div>
+        <div class="meter${low.frac <= 0 ? ' is-full' : ''}"><i style="width:${Math.round(low.frac * 100)}%"></i></div>
+        <small class="usage-mini__note">Resets ${until(state.me.week.resetsAt)}</small>`
+      : '<div class="usage-mini__row"><span>This week</span><b>No limits</b></div>';
+  }
+
+  // The week's allowances that can run out, each with the share of it left. One that is unlimited, or not in this
+  // plan, has nothing to say and is left out. Live time is in the unit it is sold in: Free has 15 minutes, not 0.3h.
+  const ALLOWANCES = [['linkScans', 'Fast scans', 'fast scans'], ['deepScans', 'Delicate scans', 'delicate scans'], ['fileScans', 'Virus scans', 'virus scans'],
+    ['fastMinutes', 'Fast live', 'fast live scanning'], ['liveMinutes', 'Delicate live', 'delicate live scanning']];
+  function scarcest() {
     const us = usage();
-    const row = (label, used, limit, unit = '') => {
-      const pct = limit ? Math.min(100, (used / limit) * 100) : 100;
-      return `<div class="usage-mini__row"><span>${label}</span><b class="tabular">${limit ? `${Math.max(0, limit - used)}${unit} left` : 'Locked'}</b></div>
-              <div class="meter${pct >= 100 ? ' is-full' : ''}"><i style="width:${limit ? 100 - pct : 0}%"></i></div>`;
-    };
-    // Both live allowances, each in the unit it is sold in: Free has 15 minutes of fast scanning, not "Locked".
-    const liveRow = (label, m) => {
-      if (!m) return '';
-      if (uncapped(m.limit)) return `<div class="usage-mini__row"><span>${label}</span><b class="tabular">Unlimited</b></div><div class="meter is-uncapped"><i style="width:100%"></i></div>`;
-      if (m.limit < 120) return row(label, Math.round(m.used), m.limit, ' min');
-      const leftH = Math.max(0, m.limit - m.used) / 60;
-      return row(label, m.used / 60, m.limit / 60, 'h').replace(/>[\d.]+h left</, () => `>${leftH.toFixed(leftH < 10 && leftH % 1 ? 1 : 0)}h left<`);
-    };
-    $('[data-usage-mini]').innerHTML =
-      (uncapped(us.linkScans.limit) ? '<div class="usage-mini__row"><span>Fast scans</span><b class="tabular">Unlimited</b></div><div class="meter is-uncapped"><i style="width:100%"></i></div>' : row('Fast scans', us.linkScans.used, us.linkScans.limit)) +
-      row('Delicate scans', (us.deepScans || {}).used || 0, (us.deepScans || {}).limit || 0) +
-      row('Virus scans', us.fileScans.used, us.fileScans.limit) +
-      liveRow('Fast live', us.fastMinutes) +
-      liveRow('Delicate live', us.liveMinutes);
+    let low = null;
+    for (const [key, label, name] of ALLOWANCES) {
+      const m = us[key];
+      if (!m || uncapped(m.limit) || !(m.limit > 0)) continue;
+      const n = Math.max(0, m.limit - m.used);
+      const live = key.endsWith('Minutes');
+      const text = !live ? String(n) : m.limit < 120 ? `${Math.floor(n)} min` : `${(n / 60).toFixed(n < 600 && n % 60 ? 1 : 0)}h`;
+      const frac = n / m.limit;
+      if (!low || frac < low.frac) low = { key, label, name, live, n, limit: m.limit, text, frac };
+    }
+    return low;
   }
 
   async function pairDesktop() {
@@ -409,8 +415,8 @@
 
   function verifyBar() {
     const bar = h(`<div class="verify-bar" role="status">
-      <span><b>Confirm your email address.</b> <span class="verify-bar__more">We sent a link to ${esc(state.me.user.email)}. Confirming it shows the address is yours, so nobody else can claim this account with it.</span></span>
-      <button class="btn btn--sm" type="button" data-resend>Resend email</button>
+      <span><b>Confirm your email address.</b> <span class="verify-bar__more">The link is in ${esc(state.me.user.email)}.</span></span>
+      <button class="verify-bar__go" type="button" data-resend>Send it again</button>
     </div>`);
     $('[data-resend]', bar).addEventListener('click', (ev) => busy(ev.currentTarget, 'Sending', async () => {
       try {
@@ -554,8 +560,8 @@
     return `<div class="usage-row${locked ? ' is-locked' : ''}">
       <span class="usage-row__icon">${icon}</span>
       <span class="usage-row__l">${label}<small>${meta || (locked ? 'Pro & up' : `resets ${until(state.me.week.resetsAt)}`)}</small></span>
-      <b class="usage-row__n tabular">${locked ? '·' : n}<span>${locked ? '' : unit}</span></b>
-      <div class="meter${pct >= 100 ? ' is-full' : ''}"><i style="width:${locked ? 0 : 100 - pct}%"></i></div>
+      ${locked ? '' : `<b class="usage-row__n tabular">${n}<span>${unit}</span></b>`}
+      ${locked || !limit ? '' : `<div class="meter${pct >= 100 ? ' is-full' : ''}"><i style="width:${100 - pct}%"></i></div>`}
     </div>`;
   }
 
@@ -733,8 +739,6 @@
 
   async function home(el) {
     const u = state.me.user;
-    const f = plan().features;
-    const us = usage();
     const hour = new Date().getHours();
     const greet = hour < 5 ? 'Up late' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
@@ -746,25 +750,18 @@
         <button class="btn btn--gold" type="submit">Check</button>
       </form>
       <div class="scan-meta"><span>Sentinel works out what it is and says which check it runs.</span><a href="/app/check">Check an email, a file or a picture &rarr;</a></div>
-
-      <div class="usage-list u-mt-lg">
-        ${scanCards(us)}
-        <a class="usage-link" href="/app/check">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
-        <a class="usage-link" href="/app/protection">${liveCard(us, f)}</a>
-      </div>
-
-      <div class="u-mt">${protectionTeaser()}</div>
-      <div data-week-card></div>
-      <div data-chat-ask></div>
-      <div data-exposure-ask></div>
+      ${allowanceNotice()}
+      ${weekCard()}
 
       <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
         <div data-recent><div class="skeleton u-h-md" ></div></div>
-      </div>`;
+      </div>
+      <div data-chat-ask></div>
+      <div data-exposure-ask></div>`;
 
-    weekCard($('[data-week-card]', el));
-    // One offer at a time: exposure alerts are offered only while chat safety's question is not showing.
+    fillWeekCard($('[data-week-card]', el));
+    // Offers wait below what the page is for, one at a time: exposure alerts only while chat safety's question is not showing.
     const chatAsk = $('[data-chat-ask]', el);
     askChatSafety(chatAsk).then(() => { if (!chatAsk.innerHTML) askExposureAlerts($('[data-exposure-ask]', el)); }).catch(() => {});
     $('[data-quick]', el).addEventListener('submit', (ev) => {
@@ -807,19 +804,54 @@
     ['manual_flagged', 'Scan results flagged', 'search'], ['chat_flagged', 'Chat messages flagged', 'mail'],
     ['live_links', 'Links checked by live scanning', 'link'], ['manual_scans', 'Scans you ran', 'search'], ['files_checked', 'Files checked', 'file'], ['chat_checked', 'Chat messages checked', 'mail']
   ];
-  const weekLabel = (w, i, all) => (i === all.length - 1 ? 'This week' : new Date(w.startsAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }));
+  const weekLabel = (w, i, all) => (i === all.length - 1 ? 'This week, so far' : new Date(w.startsAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }));
 
   // In the Windows app, the week is asked of the app: what it counted on this computer is handed over first.
   const loadWeek = () => (desktop && desktop.week ? desktop.week() : api('/week'));
 
-  async function weekCard(slot) {
-    let data;
-    try { data = await loadWeek(); } catch { return; }
-    const w = data.weeks[data.weeks.length - 1];
-    if (!slot.isConnected || (!w.checked && !w.caught)) return;
-    slot.innerHTML = `<div class="panel u-mt week-card"><div class="panel__head"><div><h2>${esc(w.headline)}</h2>
-      <p>${esc(w.biggest || `Sentinel checked ${w.checked.toLocaleString()} links, files and messages for you, and found nothing dangerous.`)}</p></div>
-      <a class="btn btn--sm" href="/app/week">See your week</a></div></div>`;
+  // The overview's one notice: an allowance nearly gone (under a quarter left), in one calm line. While the email is
+  // still to be confirmed, that bar is the page's notice, unless an allowance has run out.
+  function allowanceNotice() {
+    const low = scarcest();
+    if (!low || low.frac >= 0.25) return '';
+    if (state.config.verificationAvailable && !state.me.user.emailVerified && low.n > 0) return '';
+    const back = until(state.me.week.resetsAt);
+    const said = low.n <= 0 ? `No ${low.name} left this week. ${low.live ? 'It comes' : 'They come'} back ${back}.`
+      : `${low.live ? low.text : `${low.n} of ${low.limit}`} ${low.live ? 'of ' : ''}${low.name} left this week. More ${back}.`;
+    return `<p class="top-notice" role="status"><span>${said}</span><a href="/app/plan">Plan &amp; usage</a></p>`;
+  }
+
+  // Whether Sentinel is watching now, from what the Windows app says, in one line: [watching, words, the one action].
+  function guardLine() {
+    if (!desktop) return [false, 'Live protection runs in the Sentinel app for Windows.', '<a href="/app/protection">How it works</a>'];
+    const info = state.desktopInfo || {};
+    const live = info.live || {};
+    if (live.supported && !live.enabled) return [false, 'Live scanning is off.', '<a class="btn btn--sm btn--gold" href="/app/protection">Start scanning</a>'];
+    if (live.enabled) return [true, 'Live scanning is on. Look for the gold mask in the corner of your browser.', '<a href="/app/protection">Manage</a>'];
+    if (info.downloads && info.downloads.active) return [true, 'Your Downloads folder is being watched.', '<a href="/app/protection">Manage</a>'];
+    return [false, 'Live protection is off.', '<a class="btn btn--sm btn--gold" href="/app/protection">Turn it on</a>'];
+  }
+
+  // The overview's card: whether Sentinel is watching now, then what it did this week. The week's words arrive after
+  // the page, into room held for them, so nothing below moves when they land.
+  function weekCard() {
+    const [on, line, action] = guardLine();
+    return `<section class="panel u-mt week-card" aria-labelledby="week-card-h">
+      <p class="week-card__guard"><span class="live-dot${on ? ' is-on' : ''}" aria-hidden="true"></span><span>${line}</span>${action}</p>
+      <div class="week-card__week" data-week-card aria-busy="true"><h2 id="week-card-h"><span class="skeleton"></span></h2><p><span class="skeleton"></span></p></div>
+      <a class="btn btn--sm week-card__go" href="/app/week">See your week</a>
+    </section>`;
+  }
+
+  async function fillWeekCard(slot) {
+    let w = null;
+    try { const data = await loadWeek(); w = data.weeks[data.weeks.length - 1]; } catch { /* said below */ }
+    if (!slot.isConnected) return;
+    slot.removeAttribute('aria-busy');
+    $('h2', slot).textContent = w ? w.headline : 'Your week could not be loaded';
+    $('p', slot).textContent = !w ? 'It will be back next time you open this page.'
+      : w.biggest || (w.checked ? `Sentinel checked ${w.checked.toLocaleString()} links, files and messages for you, and none of them was dangerous.`
+        : 'As Sentinel checks links, files and messages for you, they are counted here.');
   }
 
   async function weekView(el) {
@@ -834,7 +866,8 @@
     if (!slot.isConnected) return;
     const weeks = data.weeks;
     const w = weeks[weeks.length - 1];
-    const before = weeks[weeks.length - 2];
+    // Each row is this week so far, set against nothing: the server keeps one number per week, so last week's could only
+    // be its whole seven days, and a half week beside a whole one reads as Sentinel doing less.
     const rows = WEEK_ROWS.filter(([k]) => weeks.some((x) => x.counts[k] > 0));
     // The bars show what was caught; in weeks that were all quiet, how much was checked.
     const caughtAny = weeks.some((x) => x.caught > 0);
@@ -843,20 +876,20 @@
     const info = state.desktopInfo;
     slot.innerHTML = `
       <div class="panel week-hero">
-        <p class="week-hero__k">${esc(weekLabel(w, weeks.length - 1, weeks))}, so far</p>
+        <p class="week-hero__k">${esc(weekLabel(w, weeks.length - 1, weeks))}</p>
         <h2 data-week-n>${esc(w.headline)}</h2>
         ${w.biggest ? `<p class="week-hero__catch"><b>Biggest catch</b>${esc(w.biggest)}</p>`
           : w.checked ? `<p class="week-hero__catch">Sentinel checked ${w.checked.toLocaleString()} links, files and messages, and none of them was dangerous.</p>` : ''}
       </div>
       ${rows.length ? `<div class="usage-list u-mt week-rows">${rows.map(([k, label, icon]) => `<div class="usage-row">
           <span class="usage-row__icon">${ICON[icon]}</span>
-          <span class="usage-row__l">${esc(label)}<small>last week: ${before.counts[k].toLocaleString()}</small></span>
+          <span class="usage-row__l">${esc(label)}</span>
           <b class="usage-row__n tabular">${w.counts[k].toLocaleString()}</b></div>`).join('')}</div>`
         : `<div class="empty u-mt">${Masks.svg('scam')}<p>Nothing yet. As Sentinel checks links, files and messages for you, your week fills in here.</p></div>`}
       ${caughtAny || weeks.some((x) => x.checked) ? `<div class="panel u-mt">
-        <div class="panel__head"><div><h2>${caughtAny ? 'Caught, week by week' : 'Checked, week by week'}</h2><p>The last four weeks. Each week starts on Monday.</p></div></div>
+        <div class="panel__head"><div><h2>${caughtAny ? 'Caught, week by week' : 'Checked, week by week'}</h2><p>The last four weeks, each from Monday. This week is not over, so its bar is still filling.</p></div></div>
         <div class="week-bars" role="img" aria-label="${esc(weeks.map((x, i) => `${weekLabel(x, i, weeks)}: ${val(x)}`).join(', '))}">
-          ${weeks.map((x, i) => `<div class="week-bars__col" style="--li:${i}"><b class="tabular">${val(x).toLocaleString()}</b><i style="height:${Math.round((val(x) / top) * 100)}%"></i><span>${esc(weekLabel(x, i, weeks))}</span></div>`).join('')}
+          ${weeks.map((x, i) => `<div class="week-bars__col${i === weeks.length - 1 ? ' is-now' : ''}" style="--li:${i}"><b class="tabular">${val(x).toLocaleString()}</b><i style="height:${Math.round((val(x) / top) * 100)}%"></i><span>${i === weeks.length - 1 ? 'So far' : esc(weekLabel(x, i, weeks))}</span></div>`).join('')}
         </div></div>` : ''}
       ${desktop && desktop.setWeekRecap ? `<div class="panel u-mt"><label class="setting"><div><b>A note about your week</b>
           <span>Once a week, a Windows notification with last week in one line. Never while a game or video is full screen.</span></div>
@@ -873,33 +906,6 @@
         toast(sw.checked ? 'Done. Your first note comes after this week is over.' : 'No more weekly notes.', 'success');
       } catch (err) { sw.checked = !sw.checked; toast(desktopError(err), 'error'); }
     });
-  }
-
-  function protectionTeaser() {
-    const f = plan().features;
-    if (!f.liveScanning) {
-      return lockedCard({
-        tag: 'Pro & up',
-        heading: 'Research every result, and protect email and downloads',
-        body: `Your plan includes ${plan().limits.fastMinutes} minutes a week of fast live scanning. Pro and up add delicate live scanning, which researches every result, and mark emails and downloads too.`,
-        actions: '<a class="btn btn--gold" href="/app/plan">See plans</a>'
-      });
-    }
-    if (!desktop) {
-      return lockedCard({
-        tag: 'Needs the Sentinel app',
-        heading: 'Your live protection is ready to switch on',
-        body: 'Live search masks, email masks and download protection run through the Sentinel app. Download it once and sign in.',
-        actions: `<a class="btn btn--gold" href="/download">${ICON.download}Download Sentinel</a><a class="btn" href="/app/protection">Learn more</a>`
-      });
-    }
-    const live = (state.desktopInfo && state.desktopInfo.live) || {};
-    if (live.supported && !live.enabled) {
-      return `<div class="panel live"><div class="live__main"><span class="live__mask" aria-hidden="true">${Masks.svg('scam')}</span>
-        <div class="live__text"><h2>Live scanning is off</h2><p>One click. Sentinel then watches whichever browser is in front of you, and rests when none is.</p></div>
-        <a class="btn btn--gold live__button" href="/app/protection">Start scanning</a></div></div>`;
-    }
-    return `<div class="panel"><div class="panel__head"><div><h2>${live.enabled ? 'Live scanning is on' : 'Protection is on'}</h2><p>${live.enabled ? 'Look for the gold mask in the corner of your browser. Downloads and new programs are watched too.' : 'Downloads and new programs on this computer are being watched.'}</p></div><a class="btn btn--sm" href="/app/protection">Manage</a></div></div>`;
   }
 
   /* =============================================================== check */
