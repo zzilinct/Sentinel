@@ -852,7 +852,8 @@ a.board--mini .board__head { border-bottom: 0; }
 a.board--mini:hover .board__acts .btn { color: var(--text); background: rgb(var(--ink) / .05); }
 @media (prefers-reduced-motion: reduce) { .guard__more, .guard__chev, .board__seal { transition: none; } }
 @media (max-width: 560px) {
-  .board__head { grid-template-columns: auto minmax(0, 1fr); gap: 16px; padding: 22px 18px 20px; }
+  /* The medallion beside the first line of the heading, not floating halfway down a long one. */
+  .board__head { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 16px; padding: 22px 18px 20px; }
   .board__seal { width: 52px; height: 52px; }
   .board__seal svg { width: 30px; height: 30px; }
   .board__acts { grid-column: 1 / -1; justify-content: flex-start; }
