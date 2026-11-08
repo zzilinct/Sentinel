@@ -185,7 +185,11 @@ async function checkLiveMarks() {
       if (grey) await ev("document.documentElement.style.filter = 'grayscale(1)'; true");
       await sleep(700);
       const size = await ev('({ w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight })');
-      const { data } = await browser.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: size.w, height: size.h, scale: 1 } }, s);
+      // The window made as tall as the sheet, so every mark is painted on screen (a capture beyond the window left the
+      // dark page's overlay marks, each on its own layer, unpainted at 1x).
+      await browser.send('Emulation.setDeviceMetricsOverride', { width, height: size.h, deviceScaleFactor: dpr, mobile }, s);
+      await sleep(500);
+      const { data } = await browser.send('Page.captureScreenshot', { format: 'png' }, s);
       const png = Buffer.from(data, 'base64');
       fs.writeFileSync(path.join(OUT, `live-marks-${name}.png`), png);
       const img = readPng(png);

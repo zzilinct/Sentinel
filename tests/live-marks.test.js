@@ -12,7 +12,7 @@ const HELMET = 'M32 11.6';
 
 test('each severity is its own tile shape, ringed in its colour, and has its own word', () => {
   // The pictures prove it reads (scripts/verify-web/49-live-marks.js); this pins which shape is which.
-  const tile = { red: '<path d="M32 2.5 61.5 32 32 61.5 2.5 32Z"/>', orange: '<rect x="7" y="7"', yellow: '<circle cx="32" cy="32" r="25.5"/>' };
+  const tile = { red: '<path d="M32-2 66 32 32 66-2 32Z"/>', orange: '<rect x="7" y="7"', yellow: '<circle cx="32" cy="32" r="25.5"/>' };
   for (const [badge, shape] of Object.entries(tile)) {
     const svg = M.mark('scam', badge);
     assert.equal(svg.split(shape).length - 1, 2, `${badge}: its tile and the tile's shadow`);

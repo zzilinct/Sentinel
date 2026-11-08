@@ -27,7 +27,7 @@
   transition: transform .15s ease;
 }
 
-.sentinel-mask svg { width: 26px; height: 26px; margin: -2px; display: block; overflow: visible; }
+.sentinel-mask svg { width: 26px; height: 26px; margin: -2px; display: block; overflow: visible !important; }
 .sentinel-masks:hover .sentinel-mask,
 .sentinel-masks:focus-visible .sentinel-mask { transform: translateY(-1px); }
 .sentinel-masks:focus-visible { outline: 2px solid #c9a64e; outline-offset: 3px; border-radius: 8px; }

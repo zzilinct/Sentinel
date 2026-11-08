@@ -58,7 +58,9 @@
   // or vanish with the first mark that carried it.
   var GOLD_SHADOW = '#5a4216', GOLD_LIGHT = '#fff0c4', GOLD_FACE = '#d9b65f', INK = '#0c0d10';
   var TILES = {
-    red: '<path d="M32 2.5 61.5 32 32 61.5 2.5 32Z"/>',
+    // The diamond's points reach past the drawing's edge (the marks' svg shows its overflow), so it is as large as
+    // the circle and its mask nearly as large: inside the edge it was the smallest tile, with the smallest mask.
+    red: '<path d="M32-2 66 32 32 66-2 32Z"/>',
     orange: '<rect x="7" y="7" width="50" height="50" rx="7"/>',
     yellow: '<circle cx="32" cy="32" r="25.5"/>'
   };
@@ -66,9 +68,9 @@
   // Each mask as large as it fits inside its tile's ring, about its own middle (y): horns and spores reach for the
   // corners, so they shrink most in the diamond. The face stays clear of the ring; horn tips and spores may touch it.
   var FIT = {
-    scam: { y: 30.5, red: 0.96, orange: 1.02, yellow: 1.08 },
-    malware: { y: 26.6, red: 0.67, orange: 0.86, yellow: 0.82 },
-    virus: { y: 31, red: 0.62, orange: 0.74, yellow: 0.74 }
+    scam: { y: 30.5, red: 1.08, orange: 1.02, yellow: 1.08 },
+    malware: { y: 26.6, red: 0.77, orange: 0.86, yellow: 0.82 },
+    virus: { y: 31, red: 0.7, orange: 0.74, yellow: 0.74 }
   };
 
   /** The mark for a threat at a severity (yellow, orange or red). Decorative: the element holding it carries the name. */
@@ -78,7 +80,7 @@
     var g = GLYPHS[kind], tile = TILES[level], fit = FIT[kind];
     var layer = function (color, dy) { return '<g style="color:' + color + '" transform="translate(0 ' + dy + ')">' + g + '</g>'; };
     var edge = ' stroke-width="4" stroke-linejoin="round">' + tile + '</g>';
-    return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">' +
+    return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" overflow="visible">' +
       '<g fill="#000" stroke="#000" opacity=".3" transform="translate(0 1.8)"' + edge +
       '<g fill="' + INK + '" stroke="' + COLORS[level] + '"' + edge +
       '<g transform="translate(32 32) scale(' + fit[level] + ') translate(-32 -' + fit.y + ')">' +
