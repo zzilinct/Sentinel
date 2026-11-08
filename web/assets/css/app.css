@@ -23,7 +23,7 @@ body.app::before { opacity: .6; }
    pages scroll inside the sidebar instead of pushing the foot off the bottom. */
 @media (min-width: 901px) {
   .side { overflow: hidden; }
-  .side__nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; margin: 0 -6px 12px; padding: 0 6px 4px; }
+  .side__nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgb(var(--ink) / .14) transparent; margin: 0 -6px 12px; padding: 0 6px 4px; }
   .side__foot { flex: none; }
 }
 .side__label { margin: 22px 12px 8px; font: 500 var(--t-label) var(--sans); color: var(--faint); }
@@ -740,7 +740,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .verify-bar__go, .top-notice a { flex: none; padding: 6px 10px; border: 0; border-radius: var(--r-sm); background: none; cursor: pointer; font: 500 var(--t-ui) var(--sans); color: var(--gold-300); transition: background-color .2s, color .2s; }
 .verify-bar__go:hover, .top-notice a:hover { color: var(--gold-200); background: rgb(var(--gold-rgb) / .1); }
 /* On a phone the notice folds to one line, so the page's own box and button stay on screen. */
-@media (max-width: 560px) { .verify-bar { flex-wrap: nowrap; padding-left: 14px; margin-bottom: 12px; } .verify-bar__more { display: none; } }
+@media (max-width: 560px) { .verify-bar { flex-wrap: nowrap; padding-left: 14px; } .verify-bar__more { display: none; } }
 
 /* The overview's card: whether Sentinel is watching now, then the week. The light is still: nothing moves at rest. */
 .week-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 24px; align-items: end; }
