@@ -35,8 +35,9 @@ const CAUGHT = [
   ['https://page-violation-center.pages.dev/', 'U46'],
   // A brand spelled one letter wrong as a user's page name.
   ['https://someone-qq.github.io/l_inshtagram/', 'U40'],
-  // A storage bucket page under generated names.
-  ['https://9qk3x8ypz2m7w4bv1tde.s3.amazonaws.com/qwer_ty7vziox4nslwio9fezt_mn_c4mot3l33xce28c5x.html', 'U20'],
+  // A storage bucket page under generated names is shape alone: a quiet note now, not a warning
+  // (tests/longlinks.test.js). A bucket page that impersonates a brand is still caught.
+  ['https://paypal-verify.s3.amazonaws.com/qwer_ty7vziox4nslwio9fezt_mn_c4mot3l33xce28c5x.html', 'U20'],
   // A brand's own server copied into a path, and a host that begins with a brand's own address.
   ['https://shopfoo.example/grp01.id.rakuten.co.jp/jp/0a1b2c3d/?cmd=', 'U50'],
   ['https://hacked.example/login.microsoftonline.com/common/oauth2/', 'U50'],

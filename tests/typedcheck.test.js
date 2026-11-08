@@ -96,6 +96,7 @@ function worker({ tabs = {} } = {}) {
     intel: { hosts: [{ host: 'paypa1-secure-login.com', threat: 'scam' }, { host: 'netflix-billing-update.top', threat: 'scam' }], at: Date.now() }
   };
   const session = {};
+  const rules = [];
   const ext = {
     runtime: { id: 'me', getURL: (p) => `chrome-extension://me/${p}`, getManifest: () => ({ content_scripts: [], version: '1' }), onMessage: listener('message'), onMessageExternal: listener('external'), onInstalled: listener('installed'), onStartup: listener('startup'), lastError: null },
     storage: { local: area(store), session: area(session), sync: { get: async (d) => ({ ...d }), set: async () => {} }, onChanged: listener('changed') },
@@ -113,6 +114,10 @@ function worker({ tabs = {} } = {}) {
     notifications: { create: async () => {} },
     webNavigation: { onCommitted: listener('committed'), onCompleted: listener('completed'), onHistoryStateUpdated: listener('history'), onReferenceFragmentUpdated: listener('fragment') },
     scripting: { executeScript: async (o) => { injected.push(o); } },
+    declarativeNetRequest: {
+      getSessionRules: async () => rules,
+      updateSessionRules: async ({ addRules = [] }) => { rules.push(...addRules); }
+    },
     permissions: { contains: async () => true }
   };
   const ctx = { chrome: ext, crypto: globalThis.crypto, TextEncoder, URL, btoa, atob, Uint8Array, AbortController, setTimeout, clearTimeout, console, Promise,
@@ -126,7 +131,13 @@ function worker({ tabs = {} } = {}) {
     return JSON.parse(JSON.stringify(await ctx.handlers[type]({ type, ...msg }, { id: 'me', url: frame.url || url, frameId: frame.frameId, tab: { id: tabId, url } })));
   };
   const settle = () => new Promise((r) => setTimeout(r, 30));
-  return { on, sent, created, injected, session, call, settle, tabs };
+  // A flagged page stays open only after Continue anyway on the block page: everything asked about it comes after that.
+  const continued = async (tabId) => {
+    await ctx.handlers['block-pass']({ url: tabs[tabId].url }, { id: 'me', url: 'chrome-extension://me/src/block.html', tab: { id: tabId } });
+    await w.on.committed({ frameId: 0, tabId, url: tabs[tabId].url });
+  };
+  const w = { on, sent, created, injected, session, call, settle, tabs, continued };
+  return w;
 }
 
 test('companion: a flagged sign-in page closed asks once, on the page in front, and Yes opens the matching guide', async () => {
@@ -136,7 +147,7 @@ test('companion: a flagged sign-in page closed asks once, on the page in front, 
   };
   const w = worker({ tabs });
   await w.settle();
-  await w.on.committed({ frameId: 0, tabId: 5, url: tabs[5].url });
+  await w.continued(5);
   assert.ok(w.sent.some((s) => s.tabId === 5 && s.msg.type === 'sentinel:typed-watch'), 'the flagged page is watched for boxes');
   assert.deepEqual(await w.call('typed-fields', { pw: true }, 5), { kept: true });
   assert.doesNotMatch(JSON.stringify(w.session), /example\.com/);
@@ -156,7 +167,7 @@ test('companion: a flagged sign-in page closed asks once, on the page in front, 
 
   // The same site again: never asked twice.
   tabs[7] = { id: 7, windowId: 1, active: true, url: 'https://paypa1-secure-login.com/login', incognito: false };
-  await w.on.committed({ frameId: 0, tabId: 7, url: tabs[7].url });
+  await w.continued(7);
   await w.call('typed-fields', { pw: true }, 7);
   delete tabs[7];
   await w.on.removed(7, { windowId: 1 });
@@ -168,7 +179,7 @@ test('companion: leaving a flagged card page for another site asks on that next 
   const tabs = { 3: { id: 3, windowId: 2, active: true, url: 'https://netflix-billing-update.top/pay', incognito: false } };
   const w = worker({ tabs });
   await w.settle();
-  await w.on.committed({ frameId: 0, tabId: 3, url: tabs[3].url });
+  await w.continued(3);
   await w.call('typed-fields', { card: true }, 3);
   // The next page in the same tab: asked once it has loaded.
   tabs[3].url = 'https://example.org/';
@@ -180,7 +191,7 @@ test('companion: leaving a flagged card page for another site asks on that next 
 
   // A flagged page without a password or card box, closed: nothing to ask.
   tabs[4] = { id: 4, windowId: 2, active: false, url: 'https://paypa1-secure-login.com/', incognito: false };
-  await w.on.committed({ frameId: 0, tabId: 4, url: tabs[4].url });
+  await w.continued(4);
   delete tabs[4];
   await w.on.removed(4, { windowId: 2 });
   await w.settle();
@@ -188,7 +199,7 @@ test('companion: leaving a flagged card page for another site asks on that next 
 
   // A private window is never watched.
   tabs[9] = { id: 9, windowId: 3, active: true, url: 'https://paypa1-secure-login.com/', incognito: true };
-  await w.on.committed({ frameId: 0, tabId: 9, url: tabs[9].url });
+  await w.continued(9);
   assert.equal(w.session['typed:9'], undefined);
 });
 
@@ -196,7 +207,7 @@ test('companion: a card box in a payment frame of a flagged page counts, and the
   const tabs = { 3: { id: 3, windowId: 2, active: true, url: 'https://netflix-billing-update.top/checkout', incognito: false } };
   const w = worker({ tabs });
   await w.settle();
-  await w.on.committed({ frameId: 0, tabId: 3, url: tabs[3].url });
+  await w.continued(3);
   // The provider's frame finished loading: it alone is told to look for the boxes.
   await w.on.completed({ frameId: 7, tabId: 3 });
   assert.ok(w.sent.some((s) => s.tabId === 3 && s.msg.type === 'sentinel:typed-watch' && s.opts && s.opts.frameId === 7), JSON.stringify(w.sent));
@@ -223,7 +234,7 @@ test('companion: a web app that changes screens without loading gets the same ru
   await w.on.history({ frameId: 0, tabId: 5, url: 'https://wallet.example/portfolio' });
   assert.equal(w.injected.length, 0, 'no warning yet, nothing read');
   // A warning in another tab; then the open wallet moves to its send screen by pushState: its wording is read.
-  await w.on.committed({ frameId: 0, tabId: 3, url: tabs[3].url });
+  await w.continued(3);
   await w.on.history({ frameId: 0, tabId: 5, url: 'https://wallet.example/send' });
   assert.equal(w.injected.length, 1);
   assert.deepEqual(JSON.parse(JSON.stringify(w.injected[0].target)), { tabId: 5, frameIds: [0] });

@@ -48,7 +48,7 @@ test('every script reaches the browser through the shared `ext` namespace, with 
 
 test('content scripts find the masks in both engines', () => {
   // Firefox runs content scripts in a sandbox: globalThis is not the page's window.
-  for (const name of ['serp.js', 'mail.js', 'guard.js']) {
+  for (const name of ['serp.js', 'mail.js']) {
     const code = strip(fs.readFileSync(path.join(SRC, 'content', name), 'utf8'));
     assert.match(code, /globalThis\.SentinelMasks/, `${name} must read the masks from globalThis`);
     assert.doesNotMatch(code.replace(/globalThis\.SentinelMasks \|\| window\.SentinelMasks/g, ''), /window\.SentinelMasks/, `${name} reads the masks from window only`);
@@ -222,7 +222,7 @@ test('the pay pause is declined on a page the companion flagged, kept only in th
   assert.match(bg, /cacheForHost\(hostOf\(details\.url\), isFlagged\)\) return;/);
 });
 
-test('the block page and its notes scroll instead of being cut in a small window', () => {
+test('the warnings over an open page scroll instead of being cut in a small window', () => {
   const alarm = fs.readFileSync(path.join(SRC, 'content', 'alarm.js'), 'utf8');
   assert.equal(alarm, fs.readFileSync(path.join(SRC, 'content', 'alarm.page.js'), 'utf8'), 'alarm.page.js is a copy of alarm.js');
   assert.match(alarm, /\.wrap\{position:fixed;inset:0;display:flex;[^}]*overflow-y:auto/);

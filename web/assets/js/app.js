@@ -2394,7 +2394,7 @@
       <div class="panel__head"><div><h2>Chat safety: Roblox and Discord</h2>
         <p>Points out scams and people who may not be safe to talk to (someone asking a child to keep secrets, to send pictures, to move to another app, or to meet), right beside the message, while Roblox or the Discord app is in front.</p></div>
         <input class="switch" type="checkbox" data-chat-safety aria-label="Chat safety" ${cs.enabled ? 'checked' : ''} ${cs.supported ? '' : 'disabled'}></div>
-      <p class="muted u-mt-sm" data-chat-seen>${chatSeenText(cs)}</p>
+      <p class="muted u-mt-sm${cs.enabled && readerDown(cs, '') ? ' is-down' : ''}" role="status" data-chat-seen>${chatSeenText(cs)}</p>
       <ul class="list">
         <li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>Read on this computer only</b><span>Messages are read from the screen as they appear, judged here and forgotten. No message, name or game is sent to Sentinel or anyone else, saved, or logged.</span></span></li>
         <li><span class="list__icon">${Masks.svg('logo')}</span><span class="list__main"><b>Always plain to see</b><span>A Sentinel badge shows while chat is watched. In a Roblox game it shows only when you open the Esc menu, so it never covers the game; warnings sit small, beside the chat box.</span></span></li>
@@ -2478,12 +2478,20 @@
     // Opened from a refused tray click: straight to the PIN.
     if (location.hash === '#parent-lock' && !slot._scrolled) { slot._scrolled = true; slot.scrollIntoView({ block: 'start' }); const pin = $('input', slot); if (pin) pin.focus({ preventScroll: true }); }
   }
+  // The switch says on either way: when the reader is not running, that is the first thing said.
+  function readerDown(status, what) {
+    if (status.reader === 'restarting') return `Paused for a moment and starting again. For now ${what} not being watched.`;
+    if (status.reader === 'stopped') return `Sentinel cannot read chat on this computer right now, so ${what} not being watched. It keeps trying by itself.`;
+    return '';
+  }
   // What chat safety is doing right now, in numbers only: proof that it works, without a word of anyone's chat.
   function chatSeenText(cs) {
     if (!cs.enabled) return 'Off. Turn it on, then open Roblox or the Discord app.';
+    const down = readerDown(cs, 'Roblox and Discord are');
+    if (down) return down;
     const s = cs.seen || {};
     const name = { discord: 'Discord', roblox: 'Roblox' }[s.app];
-    const now = name ? (s.reading ? `Watching ${name} now.` : `${name} is in front, but its chat cannot be read yet.`) : 'On. It starts watching when Roblox or the Discord app is in front.';
+    const now = s.blind ? `${name} is in front, but Windows shows Sentinel only a black picture of it, so Sentinel cannot see its chat. Playing in a window may help.` : name ? (s.reading ? `Watching ${name} now.` : `${name} is in front, but its chat cannot be read yet.`) : 'On. It starts watching when Roblox or the Discord app is in front.';
     const d = (s.discord && s.discord.checked) || 0, r = (s.roblox && s.roblox.checked) || 0;
     const f = ((s.discord && s.discord.flagged) || 0) + ((s.roblox && s.roblox.flagged) || 0);
     if (!d && !r) return now;
@@ -2497,7 +2505,7 @@
       <div class="panel__head"><div><h2>Check my texts</h2>
         <p>If your phone's texts show on this computer through Phone Link, Sentinel points out English scam texts (unpaid tolls, parcel fees, "Hi Mum, this is my new number", task jobs, "your account is locked") right beside the message, while Phone Link is in front.</p></div>
         <input class="switch" type="checkbox" data-text-safety aria-label="Check my texts" ${ts.enabled ? 'checked' : ''} ${ts.supported ? '' : 'disabled'}></div>
-      <p class="muted u-mt-sm" data-text-seen>${textSeenText(ts)}</p>
+      <p class="muted u-mt-sm${ts.enabled && readerDown(ts, '') ? ' is-down' : ''}" role="status" data-text-seen>${textSeenText(ts)}</p>
       <ul class="list">
         <li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>Read on this computer only</b><span>The conversation on screen is read as it appears, judged here and forgotten. No text, name or number is sent to Sentinel or anyone else, saved, or logged.</span></span></li>
         <li><span class="list__icon">${ICON.globe}</span><span class="list__main"><b>Links checked, never opened</b><span>A link in a text is checked by its address, the way a copied link is. Sentinel never opens it, and it is not added to your history.</span></span></li>
@@ -2509,8 +2517,10 @@
   // What Check my texts is doing right now, in numbers only.
   function textSeenText(ts) {
     if (!ts.enabled) return 'Off. Turn it on, then open a conversation in Phone Link.';
+    const down = readerDown(ts, 'texts in Phone Link are');
+    if (down) return down;
     const s = ts.seen || {};
-    const now = s.app === 'phonelink' ? (s.reading ? 'Checking Phone Link now.' : s.otherTab ? 'Phone Link is in front. Texts are checked on its Messages tab.' : 'Phone Link is in front, but its texts cannot be read yet.') : 'On. It starts checking when Phone Link is in front.';
+    const now = s.blind ? 'Phone Link is in front, but Windows shows Sentinel only a black picture of it, so Sentinel cannot see its texts.' : s.app === 'phonelink' ? (s.reading ? 'Checking Phone Link now.' : s.otherTab ? 'Phone Link is in front. Texts are checked on its Messages tab.' : 'Phone Link is in front, but its texts cannot be read yet.') : 'On. It starts checking when Phone Link is in front.';
     const n = s.checked || 0, f = s.flagged || 0;
     const u = s.unchecked || 0;
     const missed = u ? ` ${u} link${u === 1 ? '' : 's'} in texts could not be checked against the threat lists: ${String(s.why || "Sentinel's scanner could not be reached").replace(/\.$/, '')}. The words were still checked.` : '';
@@ -2522,7 +2532,7 @@
     if (!sw || sw.disabled) return;
     const line = $('[data-text-seen]', slot);
     if (line && desktop.onTextSafety) {
-      const off = desktop.onTextSafety((ts) => { if (ts) { line.textContent = textSeenText(ts); sw.checked = Boolean(ts.enabled); } });
+      const off = desktop.onTextSafety((ts) => { if (ts) { line.textContent = textSeenText(ts); line.classList.toggle('is-down', Boolean(ts.enabled && readerDown(ts, ''))); sw.checked = Boolean(ts.enabled); } });
       if (slot._off && typeof off === 'function') slot._off.push(off);
     }
     sw.addEventListener('change', async () => {
@@ -2580,7 +2590,7 @@
     if (!sw || sw.disabled) return;
     const line = $('[data-chat-seen]', slot);
     if (line && desktop.onChatSafety) {
-      const off = desktop.onChatSafety((cs) => { if (cs) { line.textContent = chatSeenText(cs); sw.checked = Boolean(cs.enabled); } });
+      const off = desktop.onChatSafety((cs) => { if (cs) { line.textContent = chatSeenText(cs); line.classList.toggle('is-down', Boolean(cs.enabled && readerDown(cs, ''))); sw.checked = Boolean(cs.enabled); } });
       if (slot._off && typeof off === 'function') slot._off.push(off);
     }
     sw.addEventListener('change', async () => {
