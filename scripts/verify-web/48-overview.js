@@ -24,9 +24,9 @@ const TOP = `(() => { const v = document.querySelector('#view .view'); const kid
   return { first: kids[0] && kids[0].className, second: kids[1] && kids[1].tagName + '.' + kids[1].className,
     notices: [...document.querySelectorAll('#view .top-notice, #view .verify-bar, #view .banner')].map((n) => n.innerText.replace(/\\s+/g, ' ').trim()),
     lists: v.querySelectorAll('.usage-list, .usage-row, .locked').length,
-    card: card && { guard: card.querySelector('.week-card__guard').innerText.replace(/\\s+/g, ' ').trim(), h: card.querySelector('h2').textContent, busy: card.querySelector('[aria-busy]') !== null,
+    card: card && { guard: (card.querySelector('.week-card__guard')?.innerText || '').replace(/\\s+/g, ' ').trim(), h: card.querySelector('h2')?.textContent, busy: card.querySelector('[aria-busy]') !== null,
       index: kids.indexOf(card) },
-    side: document.querySelector('[data-usage-mini]').innerText.replace(/\\s+/g, ' ').trim(), meters: document.querySelectorAll('[data-usage-mini] .meter').length }; })()`;
+    side: (document.querySelector('[data-usage-mini]')?.innerText || '').replace(/\\s+/g, ' ').trim(), meters: document.querySelectorAll('[data-usage-mini] .meter').length }; })()`;
 
 async function checkOverview() {
   const server = await startServer('overview');
@@ -110,7 +110,7 @@ async function checkOverview() {
         await size(name, theme);
         await goto(browser, s, `${base}/app/week`, "document.querySelector('.week-bars')");
         await sleep(300);
-        weekPage[`${name}-${theme}`] = await evalIn(browser, s, "(() => { const cols = [...document.querySelectorAll('.week-bars__col')]; const last = cols.at(-1); return { rows: document.querySelector('.week-rows').innerText.replace(/\\s+/g, ' '), now: last && last.classList.contains('is-now'), label: last && last.querySelector('span').textContent, aria: document.querySelector('.week-bars').getAttribute('aria-label'), others: cols.slice(0, -1).some((c) => c.classList.contains('is-now')), over: document.documentElement.scrollWidth - innerWidth }; })()");
+        weekPage[`${name}-${theme}`] = await evalIn(browser, s, "(() => { const cols = [...document.querySelectorAll('.week-bars__col')]; const last = cols.at(-1); return { rows: (document.querySelector('.week-rows')?.innerText || '').replace(/\\s+/g, ' '), now: last && last.classList.contains('is-now'), label: last && last.querySelector('span').textContent, aria: document.querySelector('.week-bars').getAttribute('aria-label'), others: cols.slice(0, -1).some((c) => c.classList.contains('is-now')), over: document.documentElement.scrollWidth - innerWidth }; })()");
         await shot(browser, s, `week-${name}-${theme}`);
       }
     }
@@ -127,7 +127,7 @@ async function checkOverview() {
         await size(name, theme);
         await goto(browser, s, `${base}/app/assistants`, "document.querySelector('[data-connect]')");
         await sleep(200);
-        lock[`${name}-${theme}`] = await evalIn(browser, s, "(() => { const r = document.querySelector('[data-connect] > svg').getBoundingClientRect(); const q = document.querySelector('[data-connect]').getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), box: Math.round(q.height) }; })()");
+        lock[`${name}-${theme}`] = await evalIn(browser, s, "(() => { const r = (document.querySelector('[data-connect] > svg') || document.body).getBoundingClientRect(); const q = document.querySelector('[data-connect]').getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), box: Math.round(q.height) }; })()");
         await shot(browser, s, `assistants-${name}-${theme}`);
       }
     }
