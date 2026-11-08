@@ -398,8 +398,9 @@ function createWindow() {
   win = new BrowserWindow({
     width: want.width,
     height: want.height,
-    minWidth: Math.min(960, area.width),
-    minHeight: Math.min(640, area.height),
+    // The smallest size never more than the window itself: at 1366x768 and 125% a 640 px minimum held it over the taskbar.
+    minWidth: Math.min(960, want.width - 4),
+    minHeight: Math.min(640, want.height - 4),
     show: false,
     backgroundColor: '#0c0d10',
     title: 'Sentinel',
