@@ -203,7 +203,7 @@ html.lux-app[data-theme="light"] {
    each one's icon popping just after. Once per page view (app-lux.js stages each only once). */
 [data-tab] .lux-in.lux-tile { animation-name: lux-tile; animation-duration: .6s; animation-timing-function: var(--lux-bounce); animation-delay: calc(var(--li, 0) * 45ms); }
 @keyframes lux-tile { from { opacity: 0; transform: translateY(14px) scale(.9); } 30% { opacity: 1; } }
-.lux-in.lux-tile :is(.usage-row__icon, .feature__icon, .list__icon) { animation: lux-icon .48s var(--lux-bounce) calc(var(--li, 0) * 45ms + 90ms) backwards; }
+.lux-in.lux-tile :is(.usage-row__icon, .list__icon) { animation: lux-icon .48s var(--lux-bounce) calc(var(--li, 0) * 45ms + 90ms) backwards; }
 @keyframes lux-icon { from { opacity: 0; transform: scale(.4) rotate(-14deg); } }
 
 /* ------------------------------------------------ small moments */
@@ -222,13 +222,13 @@ html.lux-app[data-theme="light"] {
 
 @media (hover: hover) and (pointer: fine) {
   /* A light that follows the pointer across panels (app-lux.js sets --mx and --my). */
-  .lux-app :is(.panel, .usage-list, .locked, .feature) { position: relative; }
-  .lux-app :is(.panel, .usage-list, .locked, .feature)::after {
+  .lux-app :is(.panel, .usage-list, .locked) { position: relative; }
+  .lux-app :is(.panel, .usage-list, .locked)::after {
     content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 1; mix-blend-mode: screen;
     background: radial-gradient(320px circle at var(--mx, 50%) var(--my, -200px), rgb(var(--gold-rgb) / .1), transparent 70%);
     opacity: 0; transition: opacity .4s ease;
   }
-  .lux-app :is(.panel, .usage-list, .locked, .feature):hover::after { opacity: 1; }
+  .lux-app :is(.panel, .usage-list, .locked):hover::after { opacity: 1; }
 
   /* Sidebar: a gold thread grows beside the link under the pointer, and its icon steps forward. */
   .lux-app .side__link::before { content: ''; position: absolute; left: -2px; top: 9px; bottom: 9px; width: 2px; border-radius: 2px; background: var(--gold-300);

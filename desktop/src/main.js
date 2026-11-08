@@ -1522,7 +1522,7 @@ function registerBridge() {
     mySites: store.get('mySites', true),
     weekRecap: store.get('weekRecap', false),
     pairedUserId: store.getSecret('token') ? store.get('pairedUserId', null) : null,
-    downloads: downloads.status(),
+    downloads: { enabled: store.get('downloadProtection', true), ...downloads.status() },
     live: { ...watch.status(), enabled: store.get('liveScanning', false) },
     chatSafety: chatSafetyStatus(),
     parentLock: lock.status(),

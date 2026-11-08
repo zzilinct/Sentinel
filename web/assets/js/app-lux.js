@@ -37,8 +37,8 @@
   /* ------------------------------------------------------ entrances */
 
   // Tiles, cards and icon grids pop in on a short spring instead of their page's entrance.
-  const TILES = '.usage-list > *, .feature-grid > .feature, [data-checkup-out] .list > li';
-  const PARTS = `.page-title, .verify-bar, .banner, .scanbox, .drop, .panel:not(.scanning), .usage-mini, .locked, .grid2 > *, .list > li, .result, .ai-tab, .empty, .live, ${TILES}`;
+  const TILES = '.usage-list > *, [data-checkup-out] .list > li';
+  const PARTS = `.page-title, .verify-bar, .banner, .scanbox, .drop, .panel:not(.scanning), .usage-mini, .locked, .grid2 > *, .list > li, .result, .ai-tab, .empty, ${TILES}`;
   const STAGE_MS = 1800;   // parts arriving later than this after a page change simply appear
   const MAX_ROWS = 40;     // a longer list enters as one piece
   let tab = '';
@@ -242,7 +242,7 @@
   // Usage figures, live minutes and the counts of what was checked run up from 0 to the real figure as they come on
   // screen, while the meter beside them fills over the same time. Only the text app.js wrote is used: if it writes
   // a newer figure mid-count (a live count refreshing), the count stops and its figure stands.
-  const COUNTS = '.usage-row__n, .meters__head .mono, .intel__total b, [data-live-counts], [data-chat-seen], [data-text-seen], [data-week-n]';
+  const COUNTS = '.usage-row__n, .intel__total b, [data-live-counts], [data-chat-seen], [data-text-seen], [data-week-n]';
   const COUNT_MS = 1200;   // the meters' fill (app-lux.css, lux-fill) takes as long, after the same delay
   const COUNT_DELAY = 250;
   const countIo = !reduced && 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
@@ -272,7 +272,7 @@
     }).filter((x) => Number.isFinite(x.n) && x.n > 0);
     if (!nums.length) return;
     el.classList.add('lux-count');
-    const row = el.closest('.usage-row, .meters__item');
+    const row = el.closest('.usage-row');
     if (row) row.classList.add('lux-grow');
     const frame = (u) => {
       let out = '';
@@ -300,7 +300,7 @@
   /* ------------------------------------------------- pointer light */
 
   if (fine) {
-    const LIT = '.panel, .usage-list, .locked, .feature';
+    const LIT = '.panel, .usage-list, .locked';
     let pending = null;
     addEventListener('pointermove', (e) => {
       if (pending) { pending.e = e; return; }

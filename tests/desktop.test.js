@@ -399,7 +399,7 @@ test('a window whose page process ends comes back; a run that did not quit is lo
   assert.match(main, /app\.on\('before-quit'[^\n]*unlinkSync\(runningFile\(\)\)/);
   assert.equal((main.match(/push\('sentinel:settings'/g) || []).length, 2, 'Start with my computer and Auto scanning');
   assert.match(read('desktop/src/preload.js'), /onSettings: \(callback\) => on\('sentinel:settings', callback\)/);
-  assert.match(read('web/assets/js/app.js'), /'onDownloadThreat', 'onSettings'\]/);
+  assert.match(read('web/assets/js/app.js'), /\['onSettings', 'onDefense', 'onUpdate', 'onDownloadThreat', 'onExposures'\]/);
   const host = read('desktop/src/server-host.js');
   assert.match(host, /Another program is using the connections/);
   assert.doesNotMatch(host, /No free port/);

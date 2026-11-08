@@ -472,13 +472,6 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .locked p { margin-top: 6px; color: var(--text-2); font-size: var(--t-ui); max-width: 58ch; }
 .locked__actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
-/* Four features, two by two on a wide screen. */
-.feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 18px; }
-@media (max-width: 860px) { .feature-grid { grid-template-columns: 1fr; } }
-.feature { padding: 20px; border-radius: var(--r-lg); background: rgb(var(--ink) / .02); box-shadow: inset 0 0 0 1px var(--line); }
-.feature__top { display: flex; justify-content: space-between; align-items: center; }
-.feature__icon { width: 36px; height: 36px; border-radius: var(--r); display: grid; place-items: center; color: var(--gold-300); background: rgb(var(--gold-rgb) / .08); }
-.feature__icon svg { width: 18px; height: 18px; }
 .status { display: inline-flex; align-items: center; gap: 6px; font: 500 var(--t-label) var(--mono); color: var(--muted); }
 .status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
 .status.is-on { color: var(--green); }
@@ -494,8 +487,6 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .read-strip--none { --lit: transparent; }
 .read-strip--flag { --lit: var(--orange); }   /* never green beside a warning, however much was read */
 @media (max-width: 520px) { #downloads .list li { flex-wrap: wrap; } #downloads .list__main { flex-basis: calc(100% - 48px); } .dl-end { width: 100%; grid-template-columns: 1fr auto; align-items: center; justify-items: stretch; } .dl-end .status, .dl-end .btn { justify-self: end; } .read-strip { width: 100%; } }
-.feature h3 { --track: var(--tr-text); margin-top: 16px; font: 500 var(--t-body)/var(--lh-ui) var(--sans); }
-.feature p { margin-top: 5px; font-size: var(--t-ui); color: var(--muted); }
 
 /* ---------------------------------------------------------- 2fa / keys */
 
@@ -753,23 +744,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .side__glyph { width: 18px; height: 18px; flex: none; display: inline-grid; place-items: center; }
 .side__glyph svg { width: 18px; height: 18px; }
 
-/* Holds the place of the desktop panels until the app has answered. */
-.desktop-skeleton { height: 560px; margin-top: 18px; border-radius: var(--r-lg); }
 
-/* ---------- Live scanning: one switch ---------- */
-.live { position: relative; overflow: hidden; }
-.live__main { display: flex; align-items: center; gap: 18px; }
-.live__mask { width: 52px; height: 52px; flex: none; display: grid; place-items: center; border-radius: var(--r); color: var(--muted);
-  background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-2); transition: color .4s var(--ease-out), box-shadow .4s var(--ease-out); }
-.live__mask svg { width: 30px; height: 30px; }
-.live__mask.is-on { color: var(--gold-300); box-shadow: inset 0 0 0 1px var(--line-gold), 0 0 24px -6px rgb(var(--gold-rgb) / .45); }
-.live__text { flex: 1; min-width: 0; }
-.live__text h2 { margin: 0 0 4px; }
-.live__text p { margin: 0; color: var(--muted); font-size: var(--t-ui); }
-.live__text .live__counts { margin-top: 6px; font-size: var(--t-note); color: var(--faint); font-variant-numeric: tabular-nums; }
-.live__button { flex: none; min-width: 150px; }
-/* The auto scanning switch sits under the main row; .setting:first-child would otherwise drop its divider. */
-.live__auto.setting { margin-top: 18px; padding: 16px 0 0; border-top: 1px solid var(--line); }
 /* The real site, for a result that imitates one (ui.js realSite). */
 .real-site { margin: 0; padding: 0 30px 22px 118px; }
 @media (max-width: 560px) { .real-site { padding: 0 20px 18px; } }
@@ -783,21 +758,114 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .next-steps li { line-height: 1.5; }
 .next-steps__more { margin: 12px 0 0; font-size: var(--t-ui); color: var(--text-2); }
 .next-steps__more a { color: var(--c); text-decoration: underline; text-underline-offset: 3px; }
-.live__facts { margin: 20px 0 0; padding: 16px 0 0; list-style: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 28px;
-  border-top: 1px solid var(--line); color: var(--muted); font-size: var(--t-note); line-height: 1.5; }
-.live__facts li { padding-left: 14px; position: relative; }
-.my-sites__add { display: flex; gap: 10px; margin-top: 14px; }
-.my-sites__add .input { flex: 1; min-width: 0; }
-.live__facts li::before { content: ""; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 1px; background: var(--gold-500); }
+/* ---------- Live protection: one board for every guard (app.js protectionView, guards.js) ---------- */
+/* The top: the brand mask as a medallion, cast in gold while protection runs, pressed into the page while it does not. */
+.board { padding: 0; overflow: hidden; --glow: .13; }
+.board__head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 22px; padding: 26px 28px 24px;
+  background: radial-gradient(70% 160% at 0% 0%, rgb(var(--gold-rgb) / var(--glow)), transparent 70%); border-bottom: 1px solid var(--line); }
+.board[data-level="partly"] .board__head { background: radial-gradient(70% 160% at 0% 0%, color-mix(in srgb, var(--orange) 14%, transparent), transparent 70%); }
+.board:is([data-level="off"], [data-level="away"]) { --glow: .05; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .board { --glow: .08; } :root:not([data-theme="dark"]) .board:is([data-level="off"], [data-level="away"]) { --glow: .03; } }
+:root[data-theme="light"] .board { --glow: .08; }
+:root[data-theme="light"] .board:is([data-level="off"], [data-level="away"]) { --glow: .03; }
+.board__seal { position: relative; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 50%;
+  color: var(--on-gold); background: var(--gold-grad); box-shadow: var(--gold-glow), inset 0 1px 0 rgb(255 255 255 / .45), inset 0 -2px 4px rgb(0 0 0 / .25);
+  transition: background .5s var(--ease-out), color .5s var(--ease-out), box-shadow .5s var(--ease-out); }
+.board__seal svg { width: 36px; height: 36px; }
+.board[data-level="starting"] .board__seal { opacity: .6; }
+.board:is([data-level="off"], [data-level="away"]) .board__seal { color: var(--muted); background: var(--bg-2); box-shadow: var(--press); }
+.board[data-level="away"] .board__seal { color: var(--gold-300); }
+/* Partly: still gold, with the warning seal's triangle in its corner, so it reads without colour too. */
+.board[data-level="partly"] .board__seal::after { content: ''; position: absolute; right: -2px; bottom: 0; width: 20px; height: 18px;
+  background: var(--orange); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.board__say { min-width: 0; }
+.panel .board__say h2 { font: 400 var(--t-title-l)/var(--lh-display) var(--display); --track: var(--tr-display); text-wrap: balance; }
+.board__say p { margin-top: 6px; max-width: 62ch; color: var(--text-2); font-size: var(--t-ui); }
+.board__acts { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.board-skeleton { height: 680px; border-radius: var(--r-lg); }
+
+/* A group: what it guards, then one line for each guard. */
+.board__group { padding: 4px 28px 6px; }
+.board__group + .board__group { border-top: 1px solid var(--line); }
+.board__title { margin: 18px 0 2px; font: 500 var(--t-note)/1.4 var(--sans); color: var(--gold-300); }
+.guards { list-style: none; margin: 0; padding: 0; }
+.guard + .guard { border-top: 1px solid var(--line); }
+.guard__row { display: flex; align-items: center; gap: 0 14px; min-height: 58px; padding: 8px 0; }
+.guard__say { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; align-items: center; padding: 4px 0;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+button.guard__say { cursor: pointer; border-radius: var(--r-sm); }
+button.guard__say:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 4px; }
+.guard__say b { grid-column: 1; font-weight: 500; font-size: var(--t-text); color: var(--text); }
+.guard__line { grid-column: 1; margin-top: 2px; font-size: var(--t-note); line-height: 1.45; color: var(--muted); }
+/* The ones that help a main protection are said a step quieter than it. */
+.guard:not(.guard--main) .guard__say b { font-size: var(--t-ui); color: var(--text-2); }
+.guard__chev { grid-column: 2; grid-row: 1 / span 2; width: 8px; height: 8px; margin: 0 4px; border: solid var(--faint); border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-2px) rotate(45deg); transition: transform .35s var(--ease-out), border-color .2s; }
+button.guard__say:hover .guard__chev { border-color: var(--gold-300); }
+.guard.is-open .guard__chev { transform: translateY(2px) rotate(225deg); border-color: var(--gold-300); }
+/* The light: a shape for each state, so it reads without colour. On a filled disc, off a ring, starting half filled,
+   waiting a gold ring, not working a triangle, not available a dash. */
+.guard__dot { flex: none; width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--faint); }
+.guard.is-on .guard__dot { background: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 16%, transparent); }
+.guard.is-starting .guard__dot { background: linear-gradient(90deg, var(--gold-400) 50%, transparent 0); box-shadow: inset 0 0 0 1.5px var(--gold-400); }
+.guard.is-waiting .guard__dot { box-shadow: inset 0 0 0 2px var(--gold-400); }
+.guard.is-trouble .guard__dot { width: 11px; border-radius: 0; background: var(--orange); box-shadow: none; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.guard.is-unavailable .guard__dot { height: 2px; border-radius: 1px; background: var(--faint); box-shadow: none; }
+.guard__word { flex: none; min-width: 6.5ch; text-align: right; font: 500 var(--t-label) var(--mono); color: var(--muted); }
+.guard.is-on .guard__word { color: var(--green); }
+.guard.is-trouble .guard__word { color: var(--orange); }
+.guard:is(.is-starting, .is-waiting) .guard__word { color: var(--gold-300); }
+.guard__fix { flex: none; }
+/* Outside the app: what each guard watches, and nothing that looks like a state. */
+.guard--away .guard__row { min-height: 0; padding: 12px 0; }
+
+/* What opens under a row. Its height springs open from nothing; nothing in it fades. */
+.guard__more { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s var(--ease-out); }
+.guard.is-open > .guard__more { grid-template-rows: 1fr; }
+.guard__inner { min-height: 0; overflow: hidden; padding-left: 24px; }
+.guard__inner > :last-child { margin-bottom: 18px; }
+.guard__opt { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 0; border-top: 1px solid var(--line); }
+.guard__inner > .guard__opt:first-child { border-top: 0; padding-top: 2px; }
+.guard__opt b { display: block; font-weight: 500; font-size: var(--t-ui); }
+.guard__opt span { display: block; margin-top: 2px; color: var(--muted); font-size: var(--t-note); line-height: 1.45; }
+.guard__opt--list { align-items: flex-start; }
+.guard__browsers { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.guard__browsers .guard__open { display: inline; margin: 0 0 0 7px; font: 500 var(--t-micro) var(--mono); color: var(--green); }
+.guard__browsers .guard__open:empty { display: none; }
+.guard__key { width: auto; min-width: 170px; flex: none; }
+.guard__counts { margin: 4px 0 0; font-size: var(--t-note); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.guard__add { display: flex; gap: 10px; margin-top: 2px; }
+.guard__add .input { flex: 1; min-width: 0; }
+.guard__facts { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; color: var(--muted); font-size: var(--t-note); line-height: 1.5; max-width: 72ch; }
+.guard__facts li { position: relative; padding-left: 14px; }
+.guard__facts li::before { content: ''; position: absolute; left: 0; top: .6em; width: 5px; height: 5px; border-radius: 1px; background: var(--gold-500); }
+.board__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 16px 28px; border-top: 1px solid var(--line); font-size: var(--t-note); color: var(--muted); }
+.board__foot b { margin-right: 6px; font-weight: 500; color: var(--text); }
+/* The Overview's line: the board's top, and the way to it. */
+a.board--mini { display: block; color: inherit; text-decoration: none; }
+a.board--mini .board__head { border-bottom: 0; }
+a.board--mini:hover .board__acts .btn { color: var(--text); background: rgb(var(--ink) / .05); }
+@media (prefers-reduced-motion: reduce) { .guard__more, .guard__chev, .board__seal { transition: none; } }
+@media (max-width: 560px) {
+  .board__head { grid-template-columns: auto minmax(0, 1fr); gap: 16px; padding: 22px 18px 20px; }
+  .board__seal { width: 52px; height: 52px; }
+  .board__seal svg { width: 30px; height: 30px; }
+  .board__acts { grid-column: 1 / -1; justify-content: flex-start; }
+  .board__group { padding: 2px 18px 4px; }
+  .board__foot { padding: 14px 18px; }
+  /* A fix goes under its line, never squeezing it. */
+  .guard__row { flex-wrap: wrap; }
+  .guard__row::after { content: ''; order: 9; flex-basis: 100%; }
+  .guard__fix { order: 10; margin: 0 0 4px 24px; }
+  .guard__inner { padding-left: 0; }
+  .guard__opt { flex-wrap: wrap; }
+  .guard__key { min-width: 0; width: 100%; }
+}
+
 /* Exposure alerts: a listed site, what it means, and what to do. */
 .exposure { align-items: flex-start; }
 .exposure .list__main > span + span { margin-top: 6px; color: var(--text); line-height: 1.5; }
 .list__main > .exposure__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-@media (max-width: 860px) {
-  .live__main { flex-wrap: wrap; }
-  .live__button { width: 100%; }
-  .live__facts { grid-template-columns: 1fr; gap: 10px; }
-}
 
 /* ---------- Fast / Delicate ---------- */
 .seg { display: inline-flex; flex: none; border: 1px solid var(--line-2); border-radius: var(--r-sm); overflow: hidden; }
@@ -807,11 +875,6 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .seg__btn.is-on { background: var(--gold-grad); color: var(--on-gold); font-weight: 600; }
 .seg__btn:disabled { opacity: .45; cursor: not-allowed; }
 .seg__btn:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
-.meters { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.meters__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-.meters__item p { margin: 8px 0 0; font-size: var(--t-note); color: var(--muted); }
-.meters__item.is-off { opacity: .6; }
-@media (max-width: 860px) { .meters { grid-template-columns: 1fr; } }
 
 /* ---------- Spacing utilities (in place of inline styles) ---------- */
 .u-mt { margin-top: 18px; }
@@ -840,13 +903,12 @@ select.input option { background: var(--surface-3); color: var(--text); }
 /* ------------------------------------------------------------ soft relief */
 
 /* Raised: panels and results stand up from the page, lit from the top left (tokens in sentinel.css). */
-.panel, .result, .usage-list, .locked, .usage-mini, .feature, .palette__box {
+.panel, .result, .usage-list, .locked, .usage-mini, .palette__box {
   background: var(--relief), var(--surface);
   box-shadow: var(--raise);
 }
 .locked { box-shadow: var(--raise), inset 0 0 0 1px var(--line-gold); }
 .panel--danger { box-shadow: var(--raise), inset 0 0 0 1px color-mix(in srgb, var(--red) 30%, transparent); }
-.feature { box-shadow: var(--raise-sm); }
 .toast { background: var(--relief), var(--surface-2); }
 .side { background: var(--bg); }
 .side__link[aria-current="page"] { background: var(--relief), var(--surface); box-shadow: var(--raise-sm); }
