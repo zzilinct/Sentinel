@@ -86,10 +86,11 @@ async function checkSender() {
     })()`);
     if (!signed) throw new Error('the test account could not sign in on Max');
     const openTab = async () => {
-      await goto(browser, s, `${base}/app/email`, "document.querySelector('#view [data-emode=\"paste\"]')");
+      await goto(browser, s, `${base}/app/check`, "document.querySelector('#view [data-check-text]')");
       await sleep(800);   // the page's entrance (app-lux.js) settles
-      await evalIn(browser, s, "document.querySelector('[data-emode=\"paste\"]').click(), true");
     };
+    // Pasted into the one box, as a person does: the page hears it as typing.
+    const paste = (text) => evalIn(browser, s, `(() => { const t = document.querySelector('[data-check-text]'); t.value = ${JSON.stringify(text)}; t.dispatchEvent(new Event('input', { bubbles: true })); return document.querySelector('.ask').dataset.kind; })()`);
     const scan = async (name) => {
       const before = requests.length;
       await evalIn(browser, s, "document.querySelector('form[data-form]').requestSubmit(), true");
@@ -97,8 +98,7 @@ async function checkSender() {
       for (let i = 0; i < 120 && !got; i++) {
         await sleep(250);
         got = await evalIn(browser, s, `(() => { const p = document.querySelector('[data-sender-proof]'); const r = document.querySelector('#view .result');
-          return r && { proof: p ? p.dataset.proof : null, text: p ? p.querySelector('b').textContent : '', marked: [...document.querySelectorAll('[data-email-marks] .emark__tag')].map((t) => t.textContent),
-            body: document.querySelector('form[data-form]').body.value, from: document.querySelector('form[data-form]').from.value, subject: document.querySelector('form[data-form]').subject.value }; })()`);
+          return r && { proof: p ? p.dataset.proof : null, text: p ? p.querySelector('b').textContent : '', marked: [...document.querySelectorAll('[data-email-marks] .emark__tag')].map((t) => t.textContent) }; })()`);
       }
       // The picture shows the verdict and the proof line under it, without the toast over them.
       await evalIn(browser, s, "document.querySelectorAll('.toast').forEach((t) => t.remove()), (document.querySelector('#view .result') || document.body).scrollIntoView({ block: 'start' }), true");
@@ -111,10 +111,13 @@ async function checkSender() {
 
     /* Pasted from Gmail's Show original: a forged PayPal email. */
     await openTab();
+    const kindBare = await paste(['From: PayPal <service@paypal.com>', 'Subject: Your receipt', '', 'Your receipt is ready.'].join('\n'));
     const help = await evalIn(browser, s, "document.querySelector('[data-header-help]').innerText");
-    result('sender: the paste box says in one line each how to copy the headers in Gmail and Outlook',
-      /Gmail:.*Show original/.test(help) && /Outlook:.*View message source/.test(help) && !/—/.test(help), help);
-    await evalIn(browser, s, `(() => { const t = document.querySelector('[data-paste] textarea'); t.value = ${JSON.stringify(XRAY_SPOOF)}; document.querySelector('[data-parse]').click(); return true; })()`);
+    result('sender: an email pasted without its headers says in one line each how to copy them in Gmail and Outlook',
+      kindBare === 'email' && /Gmail:.*Show original/.test(help) && /Outlook:.*View message source/.test(help) && !/—/.test(help), { kindBare, help });
+    const kind = await paste(XRAY_SPOOF);
+    const helpGone = await evalIn(browser, s, "document.querySelector('[data-header-help]').hidden");
+    result('sender: pasted with its headers, it is named an email and the how-to goes', kind === 'email' && helpGone, { kind, helpGone });
     const spoof = await scan('spoofed');
     result('sender: a pasted email that only claims paypal.com says "Not sent by paypal.com: it came from mailer-xyz.ru", in red, and marks the From address',
       spoof.got && spoof.got.proof === 'not' && spoof.got.text === 'Not sent by paypal.com: it came from mailer-xyz.ru' && spoof.got.marked.some((m) => /Not really from here/.test(m)), spoof.got);
@@ -123,28 +126,23 @@ async function checkSender() {
       /^Authentication-Results:/m.test(hdr) && /^Return-Path:/m.test(hdr) && !/Received: by|X-Originating-IP|Delivered-To|alex@example\.com/.test(hdr), hdr);
     result('sender: nothing is looked up anywhere but Sentinel', !spoof.elsewhere.length, spoof.elsewhere.map((r) => r.url));
 
-    /* An .eml file, chosen with the button: the real PayPal, its words encoded and its text a web page in base64. */
+    /* An .eml file, chosen with Add a file or picture: the real PayPal, its words encoded and its text a web page in base64. */
     await openTab();
     const { root } = await browser.send('DOM.getDocument', { depth: -1 }, s);
-    const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-eml]' }, s);
+    const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-file]' }, s);
     await browser.send('DOM.setFileInputFiles', { nodeId, files: [eml] }, s);
     let filled = '';
-    for (let i = 0; i < 40 && !filled; i++) { await sleep(150); filled = await evalIn(browser, s, "document.querySelector('form[data-form]').from.value"); }
+    for (let i = 0; i < 40 && !filled; i++) { await sleep(150); filled = await evalIn(browser, s, "document.querySelector('.ask').dataset.kind === 'email' && document.querySelector('[data-check-text]').value"); }
     const real = await scan('real-eml');
+    const mail = real.payload || {};
     result('sender: an .eml file of the real paypal.com says "Really sent by paypal.com", in green',
       real.got && real.got.proof === 'really' && real.got.text === 'Really sent by paypal.com', real.got);
     result('sender: the .eml file is decoded: its encoded From and Subject, and its web page text with the link written as words and address',
-      real.got && real.got.from === 'PayPal <service@paypal.com>' && real.got.subject === 'Your receipt' && /Your receipt is ready/.test(real.got.body) && real.got.body.includes('www.paypal.com <https://www.paypal.com/myaccount/activity>') && !/<p>|PGh0bWw/.test(real.got.body),
-      real.got && { from: real.got.from, subject: real.got.subject, body: real.got.body.slice(0, 300) });
-
-    /* Typed by hand afterwards: the headers of the pasted email do not go with a different sender. */
-    await evalIn(browser, s, "(() => { const f = document.querySelector('form[data-form]'); f.from.value = 'Shop <hello@tinyshop.example>'; return true; })()");
-    const typed = await scan('typed');
-    result('sender: once the From is changed by hand, the earlier headers are not sent and no proof line is shown',
-      typed.got && typed.got.proof === null && typed.payload && typed.payload.headers === '', typed.got && { proof: typed.got.proof, headers: typed.payload && typed.payload.headers });
+      mail.from === 'PayPal <service@paypal.com>' && mail.subject === 'Your receipt' && /Your receipt is ready/.test(mail.body || '') && (mail.body || '').includes('www.paypal.com <https://www.paypal.com/myaccount/activity>') && !/<p>|PGh0bWw/.test(mail.body || ''),
+      { from: mail.from, subject: mail.subject, body: (mail.body || '').slice(0, 300) });
 
     await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, s);
-    await evalIn(browser, s, `(() => { const f = document.querySelector('form[data-form]'); f.from.value = ''; document.querySelector('[data-emode="paste"]').click(); const t = document.querySelector('[data-paste] textarea'); t.value = ${JSON.stringify(XRAY_SPOOF)}; document.querySelector('[data-parse]').click(); return true; })()`);
+    await paste(XRAY_SPOOF);
     await scan('phone');
     const fits = await evalIn(browser, s, 'document.documentElement.scrollWidth <= innerWidth + 1');
     result('sender: at phone width the proof line fits with no sideways scroll', fits);

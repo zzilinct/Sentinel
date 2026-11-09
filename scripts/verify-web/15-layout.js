@@ -17,7 +17,7 @@ const SIZES = [[390, 844], [768, 1024], [1366, 900], [1920, 1080]];
 const THEMES = ['dark', 'light'];
 const PUBLIC = [['index', '/'], ['pricing', '/pricing'], ['download', '/download'], ['privacy', '/privacy'], ['terms', '/terms'], ['refunds', '/refunds'],
   ['recover', '/recover'], ['call', '/call'], ['practice', '/practice'], ['login', '/login'], ['signup', '/signup'], ['404', '/no-such-page']];
-const APP = ['/app', '/app/week', '/app/scan', '/app/threats', '/app/email', '/app/text', '/app/history', '/app/sites', '/app/checkup',
+const APP = ['/app', '/app/week', '/app/check', '/app/history', '/app/sites', '/app/checkup',
   '/app/protection', '/app/plan', '/app/security', '/app/assistants', '/app/recover'].map((p) => [p.slice(1).replace('/', '-'), p]);
 
 // Deliberate, each with its reason. A finding matches when its kind is the same and `el` is found in its description.

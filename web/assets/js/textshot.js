@@ -2,7 +2,7 @@
  * A phone screenshot of a text conversation (SMS, WhatsApp, a DM), as Windows read it on this computer
  * (desktop/src/ocr.js gives lines, top to bottom, without positions): which line says who it is from, and which lines
  * are the messages. The phone's own words around them (the clock, "Text Message", "Delivered", the reply box, the
- * encryption notice) are left out. Runs in the page, on the Text scan tab (app.js); it sends nothing anywhere.
+ * encryption notice) are left out. Runs in the page, on the Check page (app.js); it sends nothing anywhere.
  *
  *   SentinelTextShot.read(text) -> { from, text }
  */

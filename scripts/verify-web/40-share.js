@@ -78,28 +78,28 @@ async function checkShare() {
     if (a !== 201 || b !== 200) throw new Error(`the test account could not sign in: ${a} ${b}`);
     // The sign-in page, signed in, carries on to where it was going.
     await browser.send('Page.navigate', { url: loginUrl }, s);
-    const textOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/text' && r && { tone: r.dataset.textResult, title: r.querySelector('h2').textContent.trim(), why: r.innerText.includes('usps-redeliver.top'), box: document.querySelector('#t-text').value }; })()", 30000);
+    const textOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { tone: r.dataset.textResult, title: r.querySelector('h2').textContent.trim(), why: r.innerText.includes('usps-redeliver.top'), box: document.querySelector('[data-check-text]').value }; })()", 30000);
     await shot(browser, s, 'share-text');
-    result('share: after signing in, the shared message opens in Text scan, filled in, checked with its link, without a press', Boolean(textOut) && textOut.box === SMS && textOut.why, textOut);
+    result('share: after signing in, the shared message opens in Check, filled in, checked with its link, without a press', Boolean(textOut) && textOut.box === SMS && textOut.why, textOut);
     const after = await box();
     result('share: once the check opens, nothing shared is left on the device', !after.data && !after.image, after);
 
     /* ------------------------------------------------ signed in: a link, a POST of words, a picture */
 
     await goto(browser, s, `${base}/app/share?title=${encodeURIComponent('PayPal: Log in')}&text=&url=${encodeURIComponent(SCAM)}`);
-    const linkOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); return location.pathname === '/app/scan' && r && { tone: r.className, title: r.querySelector('h2').textContent.trim(), box: document.querySelector('.scanbox input').value }; })()", 30000);
+    const linkOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); return location.pathname === '/app/check' && r && { tone: r.className, title: r.querySelector('h2').textContent.trim(), box: document.querySelector('[data-check-text]').value }; })()", 30000);
     await shot(browser, s, 'share-link');
-    result('share: a shared link (a GET with title and url, as Chrome on Android sends a page) opens Link scan and is scanned: the listed scam is red',
+    result('share: a shared link (a GET with title and url, as Chrome on Android sends a page) opens Check and is scanned: the listed scam is red',
       Boolean(linkOut) && linkOut.box === SCAM && /red/.test(linkOut.tone), { ...linkOut, at: await here() });
 
     await goto(browser, s, `${base}/app`);
     await post({ title: '', text: SMS.replace('USPS', 'Royal Mail'), url: '' });
-    const postOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/text' && r && { box: document.querySelector('#t-text').value, why: r.innerText.includes('usps-redeliver.top') }; })()", 30000);
-    result('share: a message shared as a multipart form POST (as Android sends every share) opens Text scan and is checked', Boolean(postOut) && /^Royal Mail/.test(postOut.box) && postOut.why, postOut);
+    const postOut = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { box: document.querySelector('[data-check-text]').value, why: r.innerText.includes('usps-redeliver.top') }; })()", 30000);
+    result('share: a message shared as a multipart form POST (as Android sends every share) opens Check and is checked', Boolean(postOut) && /^Royal Mail/.test(postOut.box) && postOut.why, postOut);
 
     await goto(browser, s, `${base}/app`);
     await post({ title: '', text: '', url: '' }, PICTURE);
-    const picOut = await until(browser, s, "(() => { const p = document.querySelector('[data-shot-preview]'); const img = p && p.querySelector('img'); return location.pathname === '/app/text' && p && !p.hidden && img.complete && img.naturalWidth > 0 && (() => { const r = p.getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight - 40; })() && { tab: document.querySelector('[data-tmode=shot]').getAttribute('aria-selected'), status: document.querySelector('[data-shot-status]').textContent.trim(), width: img.naturalWidth }; })()", 20000);
+    const picOut = await until(browser, s, "(() => { const p = document.querySelector('[data-shot-preview]'); const img = p && p.querySelector('img'); return location.pathname === '/app/check' && p && !p.hidden && img.complete && img.naturalWidth > 0 && (() => { const r = p.getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight - 40; })() && { tab: String(!p.hidden), status: document.querySelector('[data-shot-status]').textContent.trim(), width: img.naturalWidth }; })()", 20000);
     // The status settles once the picture has been looked at for a QR code (it says "Looking for a QR code" meanwhile).
     if (picOut) picOut.status = (await until(browser, s, "(() => { const t = (document.querySelector('[data-shot-status]') || {}).textContent || ''; return /Windows/.test(t) && t; })()")) || picOut.status;
     const picFits = await fits();
@@ -130,12 +130,12 @@ async function checkShare() {
     /* ------------------------------------------------ iPhone */
 
     await browser.send('Emulation.setUserAgentOverride', { userAgent: IPHONE, platform: 'iPhone' }, s);
-    await goto(browser, s, `${base}/app/text`, "document.querySelector('#view h1')");
+    await goto(browser, s, `${base}/app/check`, "document.querySelector('#view h1')");
     await sleep(400);
     const ios = await evalIn(browser, s, "(() => { const n = document.querySelector('[data-iphone-note]'); return n && n.getClientRects().length ? n.textContent.trim() : null; })()");
     const iosFits = await fits();
     await shot(browser, s, 'share-iphone');
-    result('share: on an iPhone, Text scan says honestly that web apps cannot be in the Share menu, and what to do instead', /cannot be in the Share menu/.test(ios || '') && /Copy/.test(ios || '') && iosFits, { note: ios, fits: iosFits });
+    result('share: on an iPhone, Check says honestly that web apps cannot be in the Share menu, and what to do instead', /cannot be in the Share menu/.test(ios || '') && /Copy/.test(ios || '') && iosFits, { note: ios, fits: iosFits });
 
     const noisy = errors.filter((e) => !/status of 401/.test(e));
     result('share: no page logs a console error along the way', !noisy.length, noisy);

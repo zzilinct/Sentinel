@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { QR, OUT, sleep, result, launch, evalIn, openPage, goto, shot, typeText, pressEnter, startServer, watchErrors, clickSel, pressKey, until } = require('./_shared');
 
-const PAGES = ['/app', '/app/week', '/app/scan', '/app/threats', '/app/email', '/app/text', '/app/history', '/app/sites', '/app/checkup',
+const PAGES = ['/app', '/app/week', '/app/check', '/app/history', '/app/sites', '/app/checkup',
   '/app/protection', '/app/plan', '/app/security', '/app/assistants', '/app/recover'];
 
 async function checkAppCore() {
@@ -78,10 +78,10 @@ async function checkAppCore() {
     const lost = await fetch(`${base}/app/no-such-page`);
     result('appcore: a mistyped app address answers 404 with the site not-found page, not a quiet Overview', lost.status === 404 && /Nothing behind this mask/.test(await lost.text()), lost.status);
 
-    /* ------------------------------------------------------- link scan */
+    /* ------------------------------------------------------- link check */
 
-    await open('/app/scan', "document.querySelector('.scanbox input')");
-    await fill('.scanbox input', 'https://github.com');
+    await open('/app/check', "document.querySelector('[data-check-text]')");
+    await fill('[data-check-text]', 'https://github.com');
     let t = Date.now();
     await pressEnter(browser, s);
     const github = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); return r && { title: r.querySelector('h2').textContent.trim(), tone: r.className }; })()", 30000);
@@ -92,40 +92,44 @@ async function checkAppCore() {
     result('appcore: a fast link scan of github.com answers in under 5 s, without a warning', Boolean(github) && fastMs < 5000 && !/red|orange/.test(github.tone), { ...github, ms: fastMs });
     result('appcore: a screen reader is told the scan\'s answer (a live region, or the answer gets focus)', heard.live || heard.focusInResult, heard);
 
-    // Two quick presses on an example: one scan, one answer, never "Scan failed".
-    await evalIn(browser, s, "document.querySelector('[data-example^=\"paypa1\"]').scrollIntoView({ block: 'center' })");
-    await clickSel(browser, s, '[data-example^="paypa1"]');
+    // Two quick presses on Check: one scan, one answer, never "Scan failed".
+    await fill('[data-check-text]', 'paypa1-secure-login.com/account');
+    await clickSel(browser, s, '.ask__go');
     await sleep(60);
-    await clickSel(browser, s, '[data-example^="paypa1"]');
+    await clickSel(browser, s, '.ask__go');
     const failedFlash = await until(browser, s, "/Scan failed/.test(document.querySelector('[data-out]').innerText) && document.querySelector('[data-out]').innerText.slice(0, 200)", 2500);
     const scam = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); return r && { title: r.querySelector('h2').textContent.trim(), tone: r.className }; })()", 30000);
     await sleep(1500);
     const after = await evalIn(browser, s, "document.querySelector('[data-out]').innerText.slice(0, 200)");
     await shot(browser, s, 'appcore-scan-scam');
-    result('appcore: a double press on an example scans once and never flashes "Scan failed"', !failedFlash && !/Scan failed/.test(after), { failedFlash, after });
+    result('appcore: a double press on Check scans once and never flashes "Scan failed"', !failedFlash && !/Scan failed/.test(after), { failedFlash, after });
     result('appcore: the listed scam example gets a red warning', Boolean(scam) && /red/.test(scam.tone), scam);
 
     /* ---------------------------------------------------------------- QR */
 
     const qrPicture = path.join(QR, 'plain.png');
     if (fs.existsSync(qrPicture)) {
-      await setFile('[data-qr-file]', qrPicture);
+      await setFile('[data-file]', qrPicture);
       const qr = await until(browser, s, "(() => { const c = document.querySelector('[data-qr-out] .qr-card'); return c && { title: c.querySelector('h2').textContent.trim(), focused: document.activeElement === c.querySelector('h2') }; })()", 20000);
       await shot(browser, s, 'appcore-qr');
-      result('appcore: a QR picture chosen with Choose a picture is read on the page, explained, and its heading gets focus', Boolean(qr) && qr.focused, qr);
+      result('appcore: a QR picture chosen with Add a file or picture is read on the page, explained, and its heading gets focus', Boolean(qr) && qr.focused, qr);
     } else result('appcore: a QR picture (skipped: no qr-samples here)', true);
 
     /* -------------------------------------------------------- file scan */
 
     const harmless = path.join(OUT, 'appcore-shopping list.txt');
     fs.writeFileSync(harmless, 'Milk\nBread\nApples\n');
-    await open('/app/threats', "document.querySelector('[data-file]')");
-    const fileFocus = await evalIn(browser, s, `(() => { const i = document.querySelector('[data-file]'); i.focus(); const d = i.closest('.drop');
-      const cs = getComputedStyle(d); return { focused: document.activeElement === i, ring: cs.boxShadow + ' ' + cs.outlineStyle }; })()`);
-    const unfocused = await evalIn(browser, s, "(() => { document.activeElement.blur(); const cs = getComputedStyle(document.querySelector('.drop')); return cs.boxShadow + ' ' + cs.outlineStyle; })()");
-    result('appcore: the file drop box shows a focus ring when the keyboard reaches it', fileFocus.focused && fileFocus.ring !== unfocused, { focused: fileFocus.ring, unfocused });
-    t = Date.now();
+    await open('/app/check', "document.querySelector('[data-file]')");
+    const unfocused = await evalIn(browser, s, "(() => { const cs = getComputedStyle(document.querySelector('[data-add]')); return cs.outlineStyle; })()");
+    await evalIn(browser, s, "(document.querySelector('[data-check-text]').focus(), true)");
+    await pressKey(browser, s, 'Tab');
+    const fileFocus = await evalIn(browser, s, "(() => { const a = document.activeElement; return { focused: a.matches('[data-add]'), ring: getComputedStyle(a).outlineStyle }; })()");
+    result('appcore: Tab from the box reaches Add a file or picture, with a focus ring', fileFocus.focused && fileFocus.ring === 'solid' && unfocused !== 'solid', { ...fileFocus, unfocused });
     await setFile('[data-file]', harmless);
+    const chipSays = await until(browser, s, "(() => { const c = document.querySelector('[data-file-chip]'); return !c.hidden && document.querySelector('[data-says]').textContent; })()", 5000);
+    result('appcore: a chosen file waits for Check and says it uses a virus scan', /virus scan/.test(chipSays || ''), chipSays);
+    t = Date.now();
+    await clickSel(browser, s, '.ask__go');
     const file = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); return r && { title: r.querySelector('h2').textContent.trim(), tone: r.className }; })()", 30000);
     await shot(browser, s, 'appcore-file');
     result('appcore: a harmless text file is scanned in under 5 s and found clean', Boolean(file) && Date.now() - t < 5000 && !/red|orange/.test(file.tone), { ...file, ms: Date.now() - t });
@@ -190,21 +194,23 @@ async function checkAppCore() {
     const usage = async () => (await api('/account/usage')).body;
     let u = await usage();
     for (let i = u.usage.linkScans.used; i < u.usage.linkScans.limit; i++) await api('/scan/link', { url: `https://example.com/page-${i}`, mode: 'fast' });
-    await open('/app/scan', "document.querySelector('.scanbox input')");
-    const leftText = await evalIn(browser, s, "({ meta: document.querySelector('[data-left]').textContent, side: document.querySelector('[data-usage-mini]').innerText.replace(/\\s+/g, ' ') })");
-    await fill('.scanbox input', 'https://wikipedia.org');
+    await open('/app/check', "document.querySelector('[data-check-text]')");
+    await fill('[data-check-text]', 'https://wikipedia.org');
+    const leftText = await evalIn(browser, s, "({ meta: document.querySelector('[data-says]').textContent, side: document.querySelector('[data-usage-mini]').innerText.replace(/\\s+/g, ' ') })");
     await pressEnter(browser, s);
     const limit = await until(browser, s, "(() => { const b = document.querySelector('[data-out] .banner'); return b && { text: b.innerText.trim(), link: (b.querySelector('a') || {}).getAttribute && b.querySelector('a').getAttribute('href') }; })()", 10000);
     await shot(browser, s, 'appcore-limit');
-    result('appcore: with the week\'s 10 fast scans used, the scan page and the sidebar say 0 left', /^0 of 10/.test(leftText.meta) && /Fast scans 0 left/.test(leftText.side), leftText);
+    result('appcore: with the week\'s 10 fast scans used, the Check page and the sidebar say none are left', /No fast scans are left this week/.test(leftText.meta) && /Fast scans 0 left/.test(leftText.side), leftText);
     result('appcore: an 11th scan says the week\'s scans are used, when they come back, and links to plans', Boolean(limit) && /used all 10 fast link scans/.test(limit.text) && /come back in/.test(limit.text) && limit.link === '/app/plan', limit);
     u = await usage();
     const hdr = { 'Content-Type': 'application/octet-stream', 'X-File-Name': 'note.txt' };
     for (let i = u.usage.fileScans.used; i < u.usage.fileScans.limit; i++) {
       await evalIn(browser, s, `fetch('/api/v1/scan/file', { method: 'POST', credentials: 'same-origin', headers: ${JSON.stringify(hdr)}, body: 'hello ${i}' }).then((r) => r.status)`);
     }
-    await open('/app/threats', "document.querySelector('[data-file]')");
+    await open('/app/check', "document.querySelector('[data-file]')");
     await setFile('[data-file]', harmless);
+    await until(browser, s, "!document.querySelector('[data-file-chip]').hidden", 5000);
+    await clickSel(browser, s, '.ask__go');
     const fileLimit = await until(browser, s, "(() => { const b = document.querySelector('[data-out] .banner'); return b && b.innerText.trim(); })()", 10000);
     result('appcore: a 6th file scan on Free says the week\'s scans are used, in words', /used all 5 virus/.test(fileLimit || ''), fileLimit);
     const planMs = await open('/app/plan', "document.querySelector('.ledger')");
@@ -212,8 +218,7 @@ async function checkAppCore() {
     result('appcore: Plan & usage shows what is left of each allowance, here none', planInfo.current === 'Free' && planInfo.cards.some((c) => /\b0\b/.test(c)), { ms: planMs, ...planInfo });
     await clickSel(browser, s, '[data-plan=pro]');
     const upgraded = await until(browser, s, "(document.querySelector('.ledger') || { dataset: {} }).dataset.pick === 'pro' && document.querySelector('.side [data-plan]').textContent", 10000);
-    await open('/app/scan', "document.querySelector('.scanbox input')");
-    await clickSel(browser, s, '[data-scan-mode=delicate]');
+    await open('/app/check', "document.querySelector('[data-check-text]')");
     // A well-known, verified site skips research, so a delicate scan of it counts as a fast one.
     const u0 = (await usage()).usage;
     const known = (await api('/scan/link', { url: 'https://github.com', mode: 'delicate' })).body;
@@ -221,7 +226,8 @@ async function checkAppCore() {
     result('appcore: a delicate scan of github.com (verified, nothing to research) counts as a fast scan, not a delicate one',
       known.verdict.researched === false && u1.deepScans.used === u0.deepScans.used && u1.linkScans.used === u0.linkScans.used + 1,
       { deep: [u0.deepScans.used, u1.deepScans.used], fast: [u0.linkScans.used, u1.linkScans.used] });
-    await fill('.scanbox input', 'https://httpbin.org/');
+    await fill('[data-check-text]', 'https://httpbin.org/');
+    if (await evalIn(browser, s, "document.querySelector('[data-deeper]').getAttribute('aria-pressed')") !== 'true') await clickSel(browser, s, '[data-deeper]');
     t = Date.now();
     await pressEnter(browser, s);
     const deep = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); const b = document.querySelector('[data-out] .banner'); return (r && { title: r.querySelector('h2').textContent.trim(), tone: r.className, facts: r.textContent.includes('Domain age') || r.textContent.includes('Redirects') }) || (b && { banner: b.innerText }); })()", 60000);
@@ -234,7 +240,7 @@ async function checkAppCore() {
       d.prepare("UPDATE usage_counters SET used = 40 WHERE metric = 'deep_scans' AND user_id = (SELECT id FROM users WHERE email = ?)").run(email);
       d.close();
     }
-    await fill('.scanbox input', 'https://httpbin.org/get');
+    await fill('[data-check-text]', 'https://httpbin.org/get');
     await pressEnter(browser, s);
     const deepLimit = await until(browser, s, "(() => { const b = document.querySelector('[data-out] .banner'); return b && b.innerText.trim(); })()", 15000);
     result('appcore: with the delicate scans used up, the page says it is the delicate ones and that Fast still works', /delicate/.test(deepLimit || '') && /Fast scans still work/.test(deepLimit || ''), deepLimit);

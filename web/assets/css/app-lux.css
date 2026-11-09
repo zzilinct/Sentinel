@@ -257,7 +257,7 @@ html.lux-app[data-theme="light"] {
   .lux-app .side .logo__mark { display: inline-block; transition: transform .8s var(--lux-out); transform: perspective(300px) rotateY(var(--ry, 0deg)) rotateX(var(--rx, 0deg)); }
 
   /* The drop zone breathes while a file is held over it. */
-  .lux-app .drop.is-over { animation: lux-hold 1.1s ease-in-out infinite alternate; }
+  .lux-app .ask__box.is-over { animation: lux-hold 1.1s ease-in-out infinite alternate; }
   @keyframes lux-hold { to { transform: scale(1.012); box-shadow: inset 0 0 0 1.5px var(--gold-300), 0 0 40px -6px rgb(var(--gold-rgb) / .5); } }
 }
 

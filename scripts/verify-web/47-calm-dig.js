@@ -100,13 +100,18 @@ async function checkCalmDig() {
     const keep = (taken, name, at) => { const f = taken.reduce((b, x) => (Math.abs(x.t - at) < Math.abs(b.t - at) ? x : b)); fs.writeFileSync(path.join(OUT, `${name}.png`), Buffer.from(f.data, 'base64')); };
     const open = (url, ready) => goto(browser, s, base + url, ready);
     const state = () => evalIn(browser, s, 'JSON.parse(JSON.stringify(window.__scan))');
-    const pick = (mode) => clickSel(browser, s, `[data-scan-mode=${mode}]`);
-    const submit = (url) => evalIn(browser, s, `(() => { const f = document.querySelector('[data-form]'); f.url.value = ${JSON.stringify(url)}; f.requestSubmit(); })()`);
+    // Look deeper on or off: shown once a link is in the box, and remembered for the next.
+    const pick = async (mode) => {
+      await evalIn(browser, s, `(() => { const t = document.querySelector('[data-check-text]'); t.value = ${JSON.stringify(SCAN)}; t.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      const on = await evalIn(browser, s, "document.querySelector('[data-deeper]').getAttribute('aria-pressed') === 'true'");
+      if (on !== (mode === 'delicate')) await clickSel(browser, s, '[data-deeper]');
+    };
+    const submit = (url) => evalIn(browser, s, `(() => { const f = document.querySelector('[data-form]'); f.text.value = ${JSON.stringify(url)}; f.requestSubmit(); })()`);
     const landed = () => until(browser, s, "document.querySelector('[data-result]') && window.__scan.shown", 90000);
 
     /* ---------------------------------------------- the counter catches a real flash */
 
-    await open('/app/scan', "document.querySelector('[data-form]')");
+    await open('/app/check', "document.querySelector('[data-form]')");
     await sleep(800);
     const control = rated(await record(async () => {
       await evalIn(browser, s, `(() => { const d = document.createElement('div'); d.id = 'flash'; d.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#000'; document.body.appendChild(d);
@@ -172,7 +177,7 @@ async function checkCalmDig() {
 
     /* ------------------------------------------------------------- a quick scan */
 
-    await open('/app/scan', "document.querySelector('[data-form]')");
+    await open('/app/check', "document.querySelector('[data-form]')");
     await sleep(500);
     await pick('fast');
     await evalIn(browser, s, 'window.__scanReset(0)');
@@ -186,7 +191,7 @@ async function checkCalmDig() {
 
     /* ------------------------------------------- digging into links (the Windows overlay) */
 
-    await open('/app/scan', "document.querySelector('[data-form]')");
+    await open('/app/check', "document.querySelector('[data-form]')");
     const links = rated(await record(async () => {
       await evalIn(browser, s, `window.__dig = window.SentinelBinary.dig(null, { grace: 0, links: () => [...document.querySelectorAll('a')].slice(0, 16).map((a, i) => { const r = a.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, color: [null, 'green', 'yellow', 'orange', 'red'][i % 5] }; }) }); true`);
       await sleep(1500);
@@ -210,24 +215,26 @@ async function checkCalmDig() {
       await shot(browser, s, `${name}-result`);
       return state();
     };
-    await open('/app/text', "document.querySelector('#view textarea')");
+    await open('/app/check', "document.querySelector('#view textarea')");
     const text = await photo('calm-text', () => evalIn(browser, s, `(() => { const f = document.querySelector('#view form:has([name=text])'); f.text.value = 'USPS: Your package is on hold due to an unpaid redelivery fee of $1.99. Pay at https://paypa1-secure-login.com/pay'; f.requestSubmit(); })()`));
-    await open('/app/email', "document.querySelector('#view textarea')");
-    const mail = await photo('calm-email', () => evalIn(browser, s, `(() => { const f = document.querySelector('#view form:has([name=body])'); f.from.value = 'PayPal <service@paypa1-secure-login.com>'; f.subject.value = 'Your account is limited'; f.body.value = 'Verify now at https://paypa1-secure-login.com/login and https://example.org/'; f.requestSubmit(); })()`));
-    await open('/app/threats?mode=file', "document.querySelector('[data-file]')");
+    await open('/app/check', "document.querySelector('#view textarea')");
+    const mail = await photo('calm-email', () => evalIn(browser, s, `(() => { const f = document.querySelector('#view form:has([name=text])'); f.text.value = 'From: PayPal <service@paypa1-secure-login.com>\\nSubject: Your account is limited\\n\\nVerify now at https://paypa1-secure-login.com/login and https://example.org/'; f.requestSubmit(); })()`));
+    await open('/app/check', "document.querySelector('[data-file]')");
     const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'calm-')), 'invoice.txt');
     fs.writeFileSync(file, 'An ordinary note, for the file scan.\n');
     const fileScan = await photo('calm-file', async () => {
       const { root } = await browser.send('DOM.getDocument', { depth: 0 }, s);
       const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-file]' }, s);
       await browser.send('DOM.setFileInputFiles', { nodeId, files: [file] }, s);
+      await until(browser, s, "!document.querySelector('[data-file-chip]').hidden", 5000);
+      await evalIn(browser, s, "document.querySelector('[data-form]').requestSubmit(), true");
     });
     result('calm-dig: Text, Email and File scans each say what they are really checking', text.said.some((x) => /Reading the message/.test(x)) && text.said.some((x) => /slow scam/.test(x)) && mail.said.some((x) => /links and sender/.test(x)) && fileScan.said.some((x) => /signatures/.test(x)), { text: text.said, mail: mail.said, file: fileScan.said });
 
     /* ------------------------------------------------------------ a phone, and light */
 
     await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, s);
-    await open('/app/scan', "document.querySelector('[data-form]')");
+    await open('/app/check', "document.querySelector('[data-form]')");
     await sleep(400);
     await pick('delicate');
     await evalIn(browser, s, `window.__scanReset(${held})`);
@@ -241,7 +248,7 @@ async function checkCalmDig() {
     result('calm-dig: a phone never scrolls sideways at the verdict', !wide, { wide });
     await browser.send('Emulation.clearDeviceMetricsOverride', {}, s);
 
-    await open('/app/scan', "document.querySelector('[data-form]')");
+    await open('/app/check', "document.querySelector('[data-form]')");
     await evalIn(browser, s, "document.documentElement.setAttribute('data-theme', 'light')");
     await sleep(400);
     await pick('delicate');
@@ -256,7 +263,7 @@ async function checkCalmDig() {
     /* ------------------------------------------------------------- reduced motion */
 
     await motion('reduce');
-    await open('/app/scan', "document.querySelector('[data-form]')");
+    await open('/app/check', "document.querySelector('[data-form]')");
     await sleep(400);
     await pick('delicate');
     await evalIn(browser, s, `window.__scanReset(${held})`);
@@ -291,8 +298,8 @@ async function checkCalmDig() {
     const email = `calm-flat-${Date.now()}@example.com`;
     await api('/auth/signup', { email, password: 'Calm-Check-Lamp-2026', firstName: 'Sam', ageConfirmed: true, termsAccepted: true });
     await api('/auth/login', { email, password: 'Calm-Check-Lamp-2026' });
-    await goto(off.browser, s, `${flat.base}/app/scan`, "document.querySelector('[data-form]')");
-    await evalIn(off.browser, s, `(() => { const f = document.querySelector('[data-form]'); f.url.value = ${JSON.stringify(SCAN)}; f.requestSubmit(); })()`);
+    await goto(off.browser, s, `${flat.base}/app/check`, "document.querySelector('[data-form]')");
+    await evalIn(off.browser, s, `(() => { const f = document.querySelector('[data-form]'); f.text.value = ${JSON.stringify(SCAN)}; f.requestSubmit(); })()`);
     await until(off.browser, s, "document.querySelector('[data-result]')", 30000);
     await sleep(2500);
     const seen = await evalIn(off.browser, s, "(() => { const m = document.querySelector('[data-verdict-mask]'); const i = m && m.querySelector('img'); return i && { loaded: i.complete && i.naturalWidth > 0, shown: Number(getComputedStyle(i).opacity), ready: m.classList.contains('mask3d--ready') }; })()");

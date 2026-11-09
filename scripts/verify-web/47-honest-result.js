@@ -65,7 +65,7 @@ async function checkHonestResult() {
       [lists, safe, warning, scam, partly, scamPartly].map((v) => (v && v.coverage ? JSON.stringify(v.coverage) : String(v))));
     if (!warning) throw new Error('none of the warning addresses got a warning');
 
-    await goto(browser, s, `${base}/app/scan`, "document.querySelector('.scanbox input')");
+    await goto(browser, s, `${base}/app/check`, "document.querySelector('[data-check-text]')");
     const STATES = { safe, warning, scam, partly, 'scam-partly': scamPartly };
     const show = (v) => evalIn(browser, s, `(() => { const out = document.querySelector('[data-out]'); const v = ${JSON.stringify(v)}; out.innerHTML = UI.verdict(v); UI.wireVerdict(out, v); window.scrollTo(0, 0); return true; })()`);
     const read = () => evalIn(browser, s, `(() => { const r = document.querySelector('[data-out] [data-result]'); const seen = (e) => e && e.checkVisibility();

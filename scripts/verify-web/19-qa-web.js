@@ -205,12 +205,12 @@ async function checkQaWeb() {
 
     /* ------------------------------------------------------ signed out */
     await part('signed out', async () => {
-      await goto(browser, s, `${base}/app/text`, "location.pathname === '/login'");
+      await goto(browser, s, `${base}/app/check`, "location.pathname === '/login'");
       const where = await ev('location.pathname + location.search');
-      result('qa-web: signed out, /app/text goes to sign in and remembers where it was going', where === '/login?next=%2Fapp%2Ftext', where);
+      result('qa-web: signed out, /app/check goes to sign in and remembers where it was going', where === '/login?next=%2Fapp%2Fcheck', where);
       if (!await account('max')) throw new Error('the Max test account could not sign in');
-      await goto(browser, s, `${base}/login?next=%2Fapp%2Ftext`, "location.pathname === '/app/text' && document.querySelector('#view [data-form]')");
-      result('qa-web: once signed in, the person lands back on the text scan', await ev("location.pathname === '/app/text'"));
+      await goto(browser, s, `${base}/login?next=%2Fapp%2Fcheck`, "location.pathname === '/app/check' && document.querySelector('#view [data-form]')");
+      result('qa-web: once signed in, the person lands back on Check', await ev("location.pathname === '/app/check'"));
     });
 
     /* ------------------------------------------- is this call a scam? */
@@ -259,35 +259,41 @@ async function checkQaWeb() {
       await desk();
     });
 
-    /* ------------------------------------------------------ email scan */
+    /* ------------------------------------------------------ an email, on Check */
     const openEmail = async () => {
-      await goto(browser, s, `${base}/app/email`, "document.querySelector('#view [data-emode=\"paste\"]')");
+      await goto(browser, s, `${base}/app/check`, "document.querySelector('#view [data-check-text]')");
       await sleep(800);
-      await ev("sessionStorage.clear(), document.querySelector('[data-emode=\"paste\"]').click(), true");
+      await ev("(() => { sessionStorage.clear(); const t = document.querySelector('[data-check-text]'); t.value = ''; t.dispatchEvent(new Event('input', { bubbles: true })); return true; })()");
     };
     const emailScan = async () => {
       const before = requests.length;
       await ev("document.querySelectorAll('#view [data-out] > *').forEach((e) => e.remove()), document.querySelector('form[data-form]').requestSubmit(), true");
       const got = await waitFor(`(() => { const r = document.querySelector('#view [data-out] .result, #view [data-out] .banner'); if (!r) return null; const p = document.querySelector('[data-sender-proof]');
         return { proof: p ? p.dataset.proof : null, proofText: p ? p.querySelector('b').textContent : '', banner: r.classList.contains('banner') ? r.innerText : '' }; })()`, 160);
-      return { got, posts: requests.slice(before).filter((r) => r.method === 'POST' && r.url.endsWith('/api/v1/scan/email')) };
+      const posts = requests.slice(before).filter((r) => r.method === 'POST' && r.url.endsWith('/api/v1/scan/email'));
+      // What was read out of the paste is what was sent: the sender, the subject and the decoded words.
+      let filled = {};
+      try { filled = posts.length ? JSON.parse(posts[0].post) : {}; } catch { filled = {}; }
+      return { got, posts, filled: { from: filled.from || '', subject: filled.subject || '', body: filled.body || '' } };
     };
-    const pasteEmail = (raw) => ev(`(() => { const t = document.querySelector('[data-paste] textarea'); t.value = ${JSON.stringify(raw)}; t.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('[data-parse]').click(); const f = document.querySelector('form[data-form]');
-      return { from: f.from.value, subject: f.subject.value, body: f.body.value }; })()`);
+    // Pasted into the one box, as a person does: the page hears it as typing and names it.
+    const pasteEmail = (raw) => ev(`(() => { const t = document.querySelector('[data-check-text]'); t.value = ${JSON.stringify(raw)}; t.dispatchEvent(new Event('input', { bubbles: true })); return document.querySelector('.ask').dataset.kind; })()`);
 
     await part('email, Gmail Show original', async () => {
       await openEmail();
-      const filled = await pasteEmail(GMAIL_PAGE);
+      const kind = await pasteEmail(GMAIL_PAGE);
       const r = await emailScan();
-      result('qa-web: email, Gmail\'s Show original page copied whole: sender and subject found, body decoded, and "Not sent by paypal.com"',
-        filled.from === 'PayPal <service@paypal.com>' && filled.subject === 'Your account is limited' && /within 24 hours to restore/.test(filled.body) && r.got && r.got.proof === 'not' && /mailer-xyz\.ru/.test(r.got.proofText),
-        { filled, got: r.got });
+      const filled = r.filled;
+      result('qa-web: email, Gmail\'s Show original page copied whole: named an email, sender and subject found, body decoded, and "Not sent by paypal.com"',
+        kind === 'email' && filled.from === 'PayPal <service@paypal.com>' && filled.subject === 'Your account is limited' && /within 24 hours to restore/.test(filled.body) && r.got && r.got.proof === 'not' && /mailer-xyz\.ru/.test(r.got.proofText),
+        { kind, filled, got: r.got });
     });
 
     await part('email, Outlook View message source', async () => {
       await openEmail();
-      const filled = await pasteEmail(OUTLOOK_SOURCE);
+      await pasteEmail(OUTLOOK_SOURCE);
       const r = await emailScan();
+      const filled = r.filled;
       await shot(browser, s, 'qa-email-outlook');
       result('qa-web: email, Outlook\'s View message source: "Really sent by paypal.com", the encoded subject and quoted-printable body decoded',
         r.got && r.got.proof === 'really' && filled.subject === 'Your receipt from Café Lumière' && filled.body.includes('Café Lumière') && filled.body.includes('myaccount/activity') && !/=C3|=\r?\n/.test(filled.body),
@@ -296,46 +302,46 @@ async function checkQaWeb() {
 
     await part('email, Outlook headers only', async () => {
       await openEmail();
-      const filled = await pasteEmail(OUTLOOK_HEADERS);
+      const kind = await pasteEmail(OUTLOOK_HEADERS);
       const r = await emailScan();
-      result('qa-web: email, Outlook\'s message headers on their own (no body): the From line is found and "Not sent by microsoft.com"',
-        filled.from === 'Microsoft Account Team <account-security-noreply@microsoft.com>' && r.got && r.got.proof === 'not',
-        { from: filled.from, subject: filled.subject, got: r.got });
+      result('qa-web: email, Outlook\'s message headers on their own (no body): named an email, the From line is found and "Not sent by microsoft.com"',
+        kind === 'email' && r.filled.from === 'Microsoft Account Team <account-security-noreply@microsoft.com>' && r.got && r.got.proof === 'not',
+        { kind, from: r.filled.from, subject: r.filled.subject, got: r.got });
     });
 
     await part('email, keyboard', async () => {
       await openEmail();
-      await ev(`(() => { const t = document.querySelector('[data-paste] textarea'); t.value = ${JSON.stringify(GMAIL_PAGE)}; document.querySelector('[data-parse]').focus(); return true; })()`);
-      await pressEnter(browser, s);
-      await sleep(900);
-      const focus = await ev(`(() => { const a = document.activeElement; const r = a.getBoundingClientRect();
-        return { tag: a.tagName, name: a.name || '', inForm: Boolean(a.closest('form[data-form]')), visible: r.width > 0 && r.height > 0 }; })()`);
-      result('qa-web: email, keyboard only: after Read this email, the focus goes to the filled-in form, not lost on a hidden button', focus.inForm && focus.visible, focus);
+      await pasteEmail(GMAIL_PAGE);
+      await ev("(document.querySelector('[data-check-text]').focus(), true)");
+      const before = requests.length;
+      // Ctrl+Enter in the box sends it; a plain Enter is a new line in an email.
+      for (const type of ['keyDown', 'keyUp']) await browser.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, modifiers: 2 }, s);
+      const got = await waitFor("(() => { const r = document.querySelector('#view [data-out] .result'); return r && { focus: document.activeElement.tagName, inResult: r.contains(document.activeElement) }; })()", 160);
+      const posts = requests.slice(before).filter((r) => r.method === 'POST' && r.url.endsWith('/scan/email')).length;
+      result('qa-web: email, keyboard only: Ctrl+Enter in the box checks it once, and the focus lands on the verdict', posts === 1 && got && got.inResult, { posts, got });
     });
 
     await part('email, an .eml dropped on the box', async () => {
       await openEmail();
-      const [x, y] = await ev("(() => { const r = document.querySelector('[data-paste] textarea').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()");
+      const [x, y] = await ev("(() => { const r = document.querySelector('[data-check-text]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()");
       const drag = { items: [], files: [eml], dragOperationsMask: 1 };
       for (const type of ['dragEnter', 'dragOver', 'drop']) await browser.send('Input.dispatchDragEvent', { type, x, y, data: drag }, s);
-      const from = await waitFor("document.querySelector('form[data-form]').from.value", 40);
-      result('qa-web: email, an .eml file dropped on the paste box is read and fills the form', from === 'PayPal <service@paypal.com>', from);
+      const read = await waitFor("(() => { const t = document.querySelector('[data-check-text]'); return /^From: /im.test(t.value) && document.querySelector('.ask').dataset.kind; })()", 40);
+      result('qa-web: email, an .eml file dropped on the box is read into it as an email, not scanned as a file', read === 'email', read);
     });
 
     await part('email, empty, double and slow', async () => {
       await openEmail();
-      // Emptied by hand: the last email's draft (kept for the back button) came back with the page.
-      await ev("(() => { document.querySelector('[data-emode=\"fields\"]').click(); const f = document.querySelector('form[data-form]'); [...f.elements].forEach((x) => { if (x.name) x.value = ''; }); return true; })()");
       const before = requests.length;
       await clickAt('form[data-form] button[type=submit]');
       await sleep(1500);
       const said = await ev("(() => { const t = [...document.querySelectorAll('.toast')].map((x) => x.textContent).join(' | '); const o = document.querySelector('#view [data-out]').innerText; return { toast: t, out: o, focus: (document.activeElement || {}).name || '' }; })()");
-      const sent = requests.slice(before).filter((r) => r.url.endsWith('/scan/email')).length;
-      result('qa-web: email, Scan email with nothing filled in says what to do, calmly, without "Scan failed" and without spending a scan',
+      const sent = requests.slice(before).filter((r) => /\/scan\//.test(r.url)).length;
+      result('qa-web: email, Check with nothing pasted says what to do, calmly, without "Scan failed" and without spending a scan',
         !/Scan failed/.test(said.out) && /Paste/.test(said.toast + said.out) && !sent, { ...said, sent });
       // A slow connection, and two quick presses.
       await browser.send('Network.emulateNetworkConditions', { offline: false, latency: 1500, downloadThroughput: 50000, uploadThroughput: 50000 }, s);
-      await ev("(() => { const f = document.querySelector('form[data-form]'); f.from.value = 'PayPal <service@paypa1-help.top>'; f.subject.value = 'Your account is limited'; f.body.value = 'Verify your account within 24 hours at https://paypa1-secure-login.com/verify'; return true; })()");
+      await pasteEmail('From: PayPal <service@paypa1-help.top>\nSubject: Your account is limited\n\nVerify your account within 24 hours at https://paypa1-secure-login.com/verify or it will be closed.');
       const b2 = requests.length;
       await clickAt('form[data-form] button[type=submit]', 2);
       await sleep(400);
@@ -343,37 +349,36 @@ async function checkQaWeb() {
       const got = await waitFor("(() => { const r = document.querySelector('#view [data-out] .result, #view [data-out] .banner'); return r ? r.innerText.slice(0, 120) : null; })()", 200);
       await browser.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }, s);
       const posts = requests.slice(b2).filter((r) => r.method === 'POST' && r.url.endsWith('/scan/email')).length;
-      result('qa-web: email, on a slow connection a double press scans once, says it is scanning, then shows the verdict', posts === 1 && /Scanning/.test(busy) && Boolean(got) && !/Scan failed/.test(got), { posts, busy, got });
+      result('qa-web: email, on a slow connection a double press checks once, says it is checking, then shows the verdict', posts === 1 && /Checking/.test(busy) && Boolean(got) && !/Scan failed/.test(got), { posts, busy, got });
     });
 
     await part('email, 5 MB', async () => {
       await openEmail();
       const big = `From: Shop <hello@tinyshop.example>\nSubject: Newsletter\n\n${'Our autumn range is here, with new colours and sizes for everyone. '.repeat(80000)}`;
       const t0 = Date.now();
-      await pasteEmail(big);
+      const kind = await pasteEmail(big);
       const readMs = Date.now() - t0;
       const r = await emailScan();
-      result('qa-web: email, a 5 MB paste is read in under 5 s and scanned (its first part), with no "check your connection" error',
-        readMs < 5000 && r.got && !r.got.banner, { readMs, mb: Math.round(big.length / 1e5) / 10, got: r.got });
+      result('qa-web: email, a 5 MB paste is named in under 5 s and checked (its first part), with no "check your connection" error',
+        kind === 'email' && readMs < 5000 && r.got && !r.got.banner, { kind, readMs, mb: Math.round(big.length / 1e5) / 10, got: r.got });
     });
 
     await part('email, right to left and emoji', async () => {
       await openEmail();
-      await ev("document.querySelector('[data-emode=\"fields\"]').click(), true");
-      await ev("(() => { const f = document.querySelector('form[data-form]'); f.from.value = 'بنك <alerts@bank-alrajhi-verify.top>'; f.subject.value = 'تحديث الحساب 🔒'; f.body.value = 'عزيزي العميل، تم تعليق حسابك 😟 يرجى تحديث بياناتك خلال 24 ساعة: https://bank-alrajhi-verify.top/login'; f.body.dispatchEvent(new Event('input', { bubbles: true })); return true; })()");
-      // Right to left: the box sets each line's direction from its own words (unicode-bidi: plaintext), or is rtl.
-      const dir = await ev("(() => { const c = getComputedStyle(document.querySelector('form[data-form] [name=body]')); return c.unicodeBidi === 'plaintext' ? 'rtl' : c.direction; })()");
+      await pasteEmail('From: بنك <alerts@bank-alrajhi-verify.top>\nSubject: تحديث الحساب 🔒\n\nعزيزي العميل، تم تعليق حسابك 😟 يرجى تحديث بياناتك خلال 24 ساعة: https://bank-alrajhi-verify.top/login');
+      // Right to left: the box sets its direction from its first letters (app.js), here Arabic after "From: ".
+      const dir = await ev("getComputedStyle(document.querySelector('[data-check-text]')).direction");
       const r = await emailScan();
       const marks = await ev("(() => { const v = document.querySelector('[data-efield=\"body\"] .email-marks__v'); return v ? getComputedStyle(v).direction : null; })()");
       const fits = await ev('document.documentElement.scrollWidth <= innerWidth + 1');
       await shot(browser, s, 'qa-email-rtl');
-      result('qa-web: email, Arabic words with emoji are written right to left in the box and in the marked email, and get a verdict',
-        dir === 'rtl' && (marks === null || marks === 'rtl') && r.got && !r.got.banner && fits, { dir, marks, fits, got: r.got });
+      result('qa-web: email, Arabic words with emoji get a verdict, are written right to left in the marked email, and nothing scrolls sideways',
+        (marks === null || marks === 'rtl') && r.got && !r.got.banner && fits, { dir, marks, fits, got: r.got });
     });
 
     /* ------------------------------------------------------- text scan */
     const openText = async () => {
-      await goto(browser, s, `${base}/app/text`, "document.querySelector('#view [data-form] textarea')");
+      await goto(browser, s, `${base}/app/check`, "document.querySelector('#view [data-check-text]')");
       await sleep(800);
     };
     const textScan = async (text, { insert = false } = {}) => {
@@ -418,7 +423,7 @@ async function checkQaWeb() {
       await clickAt('#view [data-form] button[type=submit]');
       await sleep(700);
       const toast = await ev("[...document.querySelectorAll('.toast')].map((x) => x.textContent).join(' | ')");
-      result('qa-web: text, Check this text with nothing in it asks for the message and sends nothing', /Paste the message/.test(toast) && !requests.slice(before).some((r) => r.url.endsWith('/scan/text')), toast);
+      result('qa-web: text, Check with nothing in it asks for the message and sends nothing', /Paste a link, a message/.test(toast) && !requests.slice(before).some((r) => r.url.endsWith('/scan/text')), toast);
 
       const ar = 'مرحبا! هل هذا رقم أحمد؟ 😊🙏 أنا آسف، أرسلت إلى الرقم الخطأ';
       const r = await textScan(ar);
@@ -433,7 +438,7 @@ async function checkQaWeb() {
       await clickAt('a[href="/app/history"]');
       await waitFor("location.pathname === '/app/history'");
       await ev('history.back(), true');
-      await waitFor("location.pathname === '/app/text' && document.querySelector('#view [data-form] textarea')");
+      await waitFor("location.pathname === '/app/check' && document.querySelector('#view [data-form] textarea')");
       await sleep(400);
       const kept = await ev("document.querySelector('[data-form] textarea').value.length");
       result('qa-web: text, a conversation pasted, then another page opened and Back pressed, is still in the box', kept === EXPORTS['WhatsApp on Android'].length, { kept, pasted: EXPORTS['WhatsApp on Android'].length });
@@ -441,10 +446,9 @@ async function checkQaWeb() {
 
     await part('text, screenshot without the app', async () => {
       await openText();
-      await ev("document.querySelector('[data-tmode=\"shot\"]').click(), true");
       const before = requests.length;
       const { root } = await browser.send('DOM.getDocument', { depth: -1 }, s);
-      const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-shot-file]' }, s);
+      const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-file]' }, s);
       await browser.send('DOM.setFileInputFiles', { nodeId, files: [shotPng] }, s);
       // The settled status (it says "Looking for a QR code" while the picture is checked for one, on the device).
       const status = await waitFor("(() => { const t = document.querySelector('[data-shot-status]').textContent; return /Windows/.test(t) && t; })()", 40);
@@ -484,10 +488,10 @@ async function checkQaWeb() {
     await part('warn, QR code', async () => {
       const discord = path.join(QR, 'discord.png');
       if (!fs.existsSync(discord)) throw new Error(`no ${discord}`);
-      await goto(browser, s, `${base}/app/scan`, "document.querySelector('#view [data-qr-file]')");
+      await goto(browser, s, `${base}/app/check`, "document.querySelector('#view [data-file]')");
       await sleep(800);
       const { root } = await browser.send('DOM.getDocument', { depth: -1 }, s);
-      const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-qr-file]' }, s);
+      const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-file]' }, s);
       await browser.send('DOM.setFileInputFiles', { nodeId, files: [discord] }, s);
       if (!await waitFor("document.querySelector('[data-qr-out] [data-warn]')", 80)) throw new Error(`no Warn a friend after a sign-in QR code: ${await ev("document.querySelector('#view').innerText.slice(0, 300)")}`);
       await clickAt('[data-qr-out] [data-warn]');
@@ -498,25 +502,25 @@ async function checkQaWeb() {
     await part('free plan', async () => {
       await goto(browser, s, `${base}/login`);
       if (!await account(null)) throw new Error('the free test account could not sign in');
-      await goto(browser, s, `${base}/app/email`, "document.querySelector('#view h1, #view h2')");
-      await sleep(600);
-      const locked = await ev("document.querySelector('#view').innerText");
-      result('qa-web: free plan, the email scan says plainly it is part of Max, with a way to upgrade', /part of Sentinel Max/.test(locked) && /Upgrade to Max/.test(locked), locked.slice(0, 300));
+      await openEmail();
+      const freeKind = await pasteEmail(GMAIL_PAGE);
+      const locked = await ev("document.querySelector('[data-says]').textContent");
+      result('qa-web: free plan, a pasted email is still checked, as a message, and says plainly that who really sent it is part of Max: no locked wall', freeKind === 'email' && /as a message/.test(locked) && /part of Max/.test(locked) && /fast scan/.test(locked), { freeKind, locked });
       await openText();
       const used = await ev(`(async () => { let n = 0; for (let i = 0; i < 10; i++) { const r = await fetch('/api/v1/scan/text', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'see you at 7 ' + i }) }); if (r.ok) n++; } return n; })()`);
       const r = await textScan('Hi mum, this is my new number, I lost my phone. Can you send me $300 for rent today?');
       const words = await ev("(document.querySelector('#view [data-out]') || {}).innerText || ''");
       const kept = await ev("document.querySelector('[data-form] textarea').value.length > 0");
       await shot(browser, s, 'qa-text-limit');
-      result('qa-web: free plan, past the week\'s scans the text scan says so in plain words with when it resets, and keeps what was pasted',
+      result('qa-web: free plan, past the week\'s scans Check says so in plain words with when it resets, and keeps what was pasted',
         // The limit message names the allowance a text scan draws on (the plan's fast link scans) and when it comes back.
         used === 10 && /used all 10 fast link scans/.test(words) && /come back/.test(words) && kept, { used, r, words: words.slice(0, 200), kept });
       // Signed out in another tab: the next scan says to sign in again, with a link back here.
       await ev("fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then((r) => r.ok)");
       await textScan('Your parcel is waiting. Pay the fee at https://usps-redeliver.top/pay');
       const out = await ev("(() => { const o = document.querySelector('#view [data-out]'); const a = o.querySelector('a[href^=\"/login\"]'); return { words: o.innerText, link: a ? a.getAttribute('href') : '' }; })()");
-      result('qa-web: signed out while using it, the scan says to sign in again with a link that comes back to the text scan',
-        /sign in/i.test(out.words) && out.link === '/login?next=%2Fapp%2Ftext', out);
+      result('qa-web: signed out while using it, the scan says to sign in again with a link that comes back to Check',
+        /sign in/i.test(out.words) && out.link === '/login?next=%2Fapp%2Fcheck', out);
     });
 
     result('qa-web: no script errors', !errors.length, errors);
