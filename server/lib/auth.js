@@ -204,8 +204,17 @@ function completeChallenge(token, code) {
   }
   const user = uq.byId.get(ch.userId);
   if (!user || !user.totp_enabled) throw new HttpError(401, 'challenge_expired', 'Please sign in again.');
+  // Wrong codes count toward the same lock as wrong passwords: a fresh challenge per sign-in must not reset the count
+  // (with the password known, five tries a challenge was otherwise thousands of guesses a day from many addresses).
+  if (user.locked_until > now()) {
+    challenges.delete(key);
+    const minutes = Math.ceil((user.locked_until - now()) / 60000);
+    throw new HttpError(423, 'account_locked', `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`);
+  }
   const counter = security.verifyTotp(decryptSecret(user.totp_secret), code, user.totp_last_counter);
   if (counter === null) {
+    uq.failed.run(LOCK_AFTER, LOCK_AFTER, now() + 15 * 60 * 1000, user.id);
+    security.audit('login_2fa_failed', { userId: user.id });
     if (++ch.attempts >= 5) challenges.delete(key);
     throw new HttpError(401, 'bad_code', 'That code is not correct');
   }
