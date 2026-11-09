@@ -40,6 +40,15 @@ const SWEEP_EVERY_MS = 20 * 1000;
 const FIRST_PERSIST_MS = 75 * 1000;   // not while the computer is still starting up
 
 let opts = null;
+/**
+ * Is `file` inside the folder `dir`? A plain prefix test also matched a neighbour folder ("...\Programs\Sentinel"
+ * covered "...\Programs\Sentinel Helper\x.exe"), and Windows paths compare without regard to case.
+ */
+function inside(dir, file) {
+  if (!dir) return false;
+  const rel = process.platform === 'win32' ? path.relative(dir.toLowerCase(), file.toLowerCase()) : path.relative(dir, file);
+  return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
 let watchers = [];
 let persistTimer = null;
 let firstPersistTimer = null;
@@ -249,7 +258,7 @@ async function inspectFile(full, how) {
   try { stat = fs.statSync(full); } catch { return null; }
   if (!stat.isFile() || stat.size === 0) return null;
   // Sentinel's own files and quarantine are never targets.
-  if (full.startsWith(opts.quarantineDir) || (opts.selfDir && full.startsWith(opts.selfDir))) return null;
+  if (inside(opts.quarantineDir, full) || inside(opts.selfDir, full)) return null;
 
   const name = path.basename(full);
   // A file that appears in the Startup folder is a startup entry, whoever put it there (Squirrel apps add shortcuts).
