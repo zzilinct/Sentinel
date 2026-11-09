@@ -52,7 +52,7 @@ document.documentElement.classList.add('js');
     var id = 'motion-' + (++uid);
     var box = document.createElement('div');
     box.className = 'motion-set';
-    box.innerHTML = '<div class="setting"><div><b id="' + id + '">Motion</b><span data-motion-note></span></div>'
+    box.innerHTML = '<div class="setting"><div><b id="' + id + '">Animation</b><span data-motion-note></span></div>'
       + '<div class="seg motion-set__seg" role="radiogroup" aria-labelledby="' + id + '">'
       + LEVELS.map(function (l) { return '<label class="seg__btn"><input class="sr-only" type="radio" name="' + id + '" value="' + l + '">' + l[0].toUpperCase() + l.slice(1) + '</label>'; }).join('')
       + '</div></div>'

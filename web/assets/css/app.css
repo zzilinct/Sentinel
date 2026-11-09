@@ -751,7 +751,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .seg__btn:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
 /* Motion (boot.js control): the same segments over real radio buttons, so the arrow keys move between them. When the
    computer asks for less motion they are locked, and Off stays plainly chosen. */
-label.seg__btn { display: inline-flex; align-items: center; }
+label.seg__btn { position: relative; display: inline-flex; align-items: center; }
 .seg__btn:has(:focus-visible) { outline: 2px solid var(--gold-300); outline-offset: -2px; }
 .seg__btn:has(:disabled):not(.is-on) { opacity: .45; cursor: not-allowed; }
 .seg__btn:has(:disabled).is-on { cursor: default; }

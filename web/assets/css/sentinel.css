@@ -969,7 +969,7 @@ p.hero__fine span { white-space: nowrap; }
    drifting light, floating masks, pulsing dots, marquees and orbits. Spinners and reading lines stay, they mean "working". */
 :root[data-motion="calm"] :is(.motes span, .marquee__track, .lockart__orbit, .lockart__core img, .cta__mask, .page-head__mask, .scroll-cue i,
   .window__shield .dot, .live-dot.is-on, .model-badge__dot, .lux-atmos i, .lux-mask img, .lux-app .empty svg) { animation: none !important; }
-:root[data-motion="calm"] body::before, :root[data-motion="calm"] body::after { animation: none !important; }
+:root[data-motion="calm"] body::before, :root[data-motion="calm"] body::after, :root[data-motion="calm"] .lux-atmos::before { animation: none !important; }
 
 /* ------------------------------------------------------ the opening */
 /* A pencil sketch of the page on warm paper, which becomes the page (intro.js, started by boot.js). Until

@@ -49,7 +49,7 @@ async function checkMotionLevel() {
     result('motion-level: Full digs during a delicate scan', await evalIn(browser, s, DIG) === true);
 
     /* Calm, by mouse: the loops that move by themselves stop at once, the working signs stay. */
-    await clickSel(browser, s, '.motion-set input[value=calm]');
+    await clickSel(browser, s, '.motion-set .seg__btn:nth-child(2)');
     await sleep(500);
     const calm = await state();
     const calmLoops = await evalIn(browser, s, LOOPS);
@@ -71,7 +71,7 @@ async function checkMotionLevel() {
     result('motion-level: Off digs nothing, and the scan effect switch says why it is off', await evalIn(browser, s, DIG) === false && off.sw.disabled && !off.sw.on, off.sw);
 
     /* The scan effect on its own: Full motion, no digits. */
-    await clickSel(browser, s, '.motion-set input[value=full]');
+    await clickSel(browser, s, '.motion-set .seg__btn:nth-child(1)');
     await sleep(300);
     await clickSel(browser, s, '[data-scan-effect-switch]');
     await sleep(300);
