@@ -26,7 +26,7 @@ const standIn = `(() => {
   const known = {
     info: async () => JSON.parse(JSON.stringify(info)),
     mySites: async () => [{ host: 'mycu.org', source: 'you' }],
-    lockStatus: async () => ({ supported: true, set: false, record: [] }),
+    lockStatus: async () => ({ supported: true, set: false, record: [] }), checkUpdates: async () => ({ status: 'current' }),
     recentDownloads: async () => [], defense: async () => ({ ledger: [] }), exposures: async () => []
   };
   window.sentinelDesktop = new Proxy(known, { get: (k, name) => {
@@ -145,7 +145,7 @@ async function checkSettings() {
     await sleep(1200);
     const account = await evalIn(browser, s, "({ at: location.pathname + location.hash, top: Math.round(document.getElementById('account').getBoundingClientRect().top), twoFactor: Boolean(document.querySelector('[data-2fa] [data-setup]')) })");
     result('settings: /app/security opens the account group, two-factor ready to set up', account.at === '/app/settings#account' && account.top < 200 && account.twoFactor, account);
-    await goto(browser, s, `${server.base}/app/settings#not-a-setting`);
+    await goto(browser, s, `${server.base}/app/settings?from=old#not-a-setting`);   // a new page, not a jump within this one
     await until(browser, s, ready, 20000);
     await sleep(800);
     const stale = await evalIn(browser, s, '({ y: scrollY, found: document.querySelectorAll(".is-found").length })');

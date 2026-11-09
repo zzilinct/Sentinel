@@ -2772,7 +2772,7 @@
       control: () => seg('set-theme-l', [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']], window.SentinelTheme ? window.SentinelTheme.get() : 'auto'),
       bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelTheme) window.SentinelTheme.set(b.dataset.seg); ctx.draw(); })) },
 
-    { id: 'reduce-motion', group: 'motion', kind: 'custom', label: 'Motion', hint: 'Sentinel follows your computer. With Reduce motion turned on in your computer or phone settings, nothing slides, springs or draws.',
+    { id: 'reduce-motion', group: 'motion', kind: 'custom', label: 'Less motion', hint: 'Sentinel follows your computer. With Reduce motion turned on in your computer or phone settings, nothing slides, springs or draws.',
       words: ['animation', 'animations', 'reduce', 'still', 'calm', 'effects', 'moving'],
       state: () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'Your computer asks for less motion, so Sentinel keeps still.' : 'Full motion: your computer does not ask for less.'),
       control: () => '<span class="set-row__value">Follows your computer</span>' },
@@ -3081,7 +3081,7 @@
     };
     el.innerHTML = `${title('Settings', 'Every choice Sentinel offers, in one place. A change is saved the moment you make it.')}
       <div class="set" data-desktop>
-        <nav class="set-rail" aria-label="Settings groups">${SETTING_GROUPS.map(([g, name]) => `<a href="#${g}" data-set-go="${g}">${name}</a>`).join('')}</nav>
+        <nav class="set-rail" aria-label="Settings groups">${SETTING_GROUPS.map(([g, name], i) => `<a href="#${g}" data-set-go="${g}"${i ? '' : ' aria-current="true"'}>${name}</a>`).join('')}</nav>
         <div class="set-main">
           <div class="set-find">${ICON.search}<input class="input" type="search" placeholder="Find a setting" aria-label="Find a setting" aria-describedby="set-count" autocomplete="off" spellcheck="false" data-set-find></div>
           <p class="sr-only" id="set-count" role="status" data-set-count></p>

@@ -7,7 +7,6 @@
 
 .set { display: grid; grid-template-columns: 188px minmax(0, 1fr); gap: 0 52px; align-items: start; }
 @media (max-width: 1100px) { .set { grid-template-columns: 160px minmax(0, 1fr); gap: 0 36px; } }
-@media (max-width: 900px) { .set { grid-template-columns: minmax(0, 1fr); } .set-rail { display: none; } }
 
 /* The groups, one link each; the one in view carries a gold hairline that springs in. */
 .set-rail { position: sticky; top: 36px; display: grid; gap: 2px; padding-top: 6px; }
@@ -17,9 +16,11 @@
 .set-rail a[aria-current] { color: var(--gold-200); }
 .set-rail a[aria-current]::before { transform: scaleY(1); }
 .set-rail a:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; border-radius: 4px; }
+/* A phone gets one column: the search, then the groups as headed sections. */
+@media (max-width: 900px) { .set { grid-template-columns: minmax(0, 1fr); } .set-rail { display: none; } }
 
 /* Search stays in reach while the page scrolls under it. */
-.set-find { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; margin: -8px 0 6px; padding: 8px 0 14px; background: var(--bg); }
+.set-find { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; margin: -8px 0 6px; padding: 8px 0 14px; }
 .set-find svg { position: absolute; left: 16px; width: 18px; height: 18px; color: var(--gold-300); pointer-events: none; }
 .set-find .input { padding-left: 46px; }
 .set-find .input::-webkit-search-cancel-button { cursor: pointer; }
@@ -41,7 +42,7 @@
 .set-row.is-out { border-bottom-color: transparent; }
 .set-row__head { display: flex; align-items: center; justify-content: space-between; gap: 12px 28px; flex-wrap: wrap; min-height: 56px; padding: 16px 0; }
 .set-row__text { flex: 1 1 300px; min-width: 0; }
-.set-row__label { position: relative; display: inline-block; font-size: var(--t-text); font-weight: 500; color: var(--text); line-height: 1.35; }
+.set-row__label { position: relative; display: inline-block; font-family: var(--sans); letter-spacing: normal; font-size: var(--t-text); font-weight: 500; color: var(--text); line-height: 1.35; }
 .set-row__hint { margin-top: 4px; max-width: 64ch; color: var(--muted); font-size: var(--t-ui); }
 .set-row__state { margin-top: 6px; max-width: 64ch; color: var(--text-2); font-size: var(--t-note); }
 .set-row__state:empty { display: none; }
