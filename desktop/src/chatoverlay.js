@@ -9,7 +9,8 @@
  *
  * A warning card can be answered (its close, "This is wrong"): while one shows, the window's shape is only its cards
  * (setShape, the window region Windows hit-tests by), so a click on a card reaches it and a click anywhere else still
- * lands in the app below. No mouse hook and no polling: nothing runs while the pointer moves.
+ * lands in the app below. No mouse hook and no polling: nothing runs while the pointer moves. In a Roblox game, or over
+ * anything in full screen, not even a card takes a click: every click is the game's.
  */
 const path = require('path');
 const { BrowserWindow, screen, ipcMain } = require('electron');
@@ -65,13 +66,24 @@ function show(state) {
     inGame: Boolean(state.inGame),
     area: state.area ? local({ x: state.area[0], y: state.area[1], w: state.area[2], h: state.area[3] }) : null,
     canMute: state.canMute !== false,
+    keyHint: String(state.keyHint || ''),
+    // In a game, or over anything that fills the screen, the cards never take a click: they fold to their mask, and are
+    // answered by the shortcut, the tray card or the app instead.
+    interactive: !(state.app === 'roblox' && state.inGame) && !fillsScreen(dip),
     flags: (state.flags || []).slice(0, 6).map((f) => ({ n: f.n, level: f.level, family: f.family, title: f.title, detail: f.detail, advice: f.advice, rect: local(f.rect) }))
   };
+  if (!last.interactive) shape([]);
   if (dryRun) { dryRun(`${last.app}: badge ${last.indicator ? 'on' : 'off'}, ${last.flags.length} warning(s)`); return; }
   const wnd = ensure();
   wnd.setBounds({ x: Math.round(dip.x), y: Math.round(dip.y), width: Math.max(1, Math.round(dip.width)), height: Math.max(1, Math.round(dip.height)) });
   if (!wnd.isVisible()) wnd.showInactive();
   if (ready) wnd.webContents.send('chat:state', last);
+}
+
+/** The app's window covers its whole screen (a game or video in full screen). */
+function fillsScreen(dip) {
+  const d = screen.getDisplayMatching({ x: Math.round(dip.x), y: Math.round(dip.y), width: Math.max(1, Math.round(dip.width)), height: Math.max(1, Math.round(dip.height)) }).bounds;
+  return dip.x <= d.x + 1 && dip.y <= d.y + 1 && dip.x + dip.width >= d.x + d.width - 1 && dip.y + dip.height >= d.y + d.height - 1;
 }
 
 /**
@@ -80,6 +92,7 @@ function show(state) {
  */
 function shape(rects) {
   if (!win || win.isDestroyed()) return;
+  if (!last || !last.interactive) rects = [];
   const b = win.getContentBounds();
   const r = (Array.isArray(rects) ? rects : []).slice(0, 6).map((q) => {
     const x = Math.max(0, Math.round(Number(q && q.x) || 0)), y = Math.max(0, Math.round(Number(q && q.y) || 0));

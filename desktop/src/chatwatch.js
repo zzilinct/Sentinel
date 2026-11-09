@@ -543,6 +543,14 @@ let lastState = null;
 const muteKey = (s) => crypto.createHmac('sha256', String((opts && opts.salt) || 'sentinel')).update(s).digest('base64url').slice(0, 22);
 const isMuted = (s) => muted.size > 0 && muted.has(muteKey(s));
 function emit(s) { lastState = s; opts.onState(s); }
+/**
+ * The newest warning on screen now, for the ways to answer it that never touch the chat or game: the tray card, the
+ * app, and the keyboard shortcut. Its words only; null when none shows.
+ */
+function latest() {
+  const f = ((lastState && lastState.app && lastState.flags) || []).filter((x) => !hidden.has(x.n)).sort((a, b) => b.n - a.n)[0];
+  return f ? { n: f.n, app: lastState.app, level: f.level, title: f.title, detail: f.detail } : null;
+}
 
 function chatFor(key, context) {
   if (!chats.has(key)) chats.set(key, conversation(context, { muted: (who, id) => isMuted(`${key}|${who}|${id}`) }));
@@ -904,6 +912,6 @@ function stop() {
 }
 
 module.exports = {
-  start, stop, setApps, front, answer, on: () => active, reader: () => reader, running: () => active && reader !== 'stopped', stats: () => JSON.parse(JSON.stringify(seen)),
+  start, stop, setApps, front, answer, latest, on: () => active, reader: () => reader, running: () => active && reader !== 'stopped', stats: () => JSON.parse(JSON.stringify(seen)),
   _test: { followLog, state: () => ({ inGame: roblox.inGame, placeId: roblox.placeId, logFile: roblox.logFile, logAt: roblox.logAt, following, timer: Boolean(logTimer), child: Boolean(child) }), SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, receivedSide, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
 };

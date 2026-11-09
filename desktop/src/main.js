@@ -120,8 +120,10 @@ function push(channel, payload) {
 /* Chat safety: Roblox and the Discord app, read on this computer only (chatwatch.js). */
 function chatSafetyStatus() {
   const enabled = store.get('chatSafety', false);
-  return { enabled, running: enabled && chatwatch.running(), reader: enabled ? chatwatch.reader() : 'ok', supported: process.platform === 'win32', seen: chatwatch.stats() };
+  return { enabled, running: enabled && chatwatch.running(), reader: enabled ? chatwatch.reader() : 'ok', supported: process.platform === 'win32', seen: chatwatch.stats(), last: chatwatch.latest(), canMute: canMuteChat() };
 }
+/** "This is wrong" weakens chat safety for one sender: with a parent lock on, only the close is offered. */
+function canMuteChat() { return !(lock && lock.isSet() && lock.locked()); }
 /* Text messages in Phone Link: the same reader, its own switch; links in texts are checked by address only. */
 function textSafetyStatus() {
   const enabled = store.get('textSafety', false);
@@ -159,14 +161,37 @@ function chatSalt() {
   if (!salt) { salt = require('crypto').randomBytes(32).toString('base64'); try { store.setSecret('chatMuteKey', salt); } catch { /* this run only */ } }
   return salt;
 }
-// A chat warning answered on its card: hidden, or "This is wrong" (with a parent lock on, only by the PIN's holder).
-chatoverlay.onAnswer((n, action) => {
+/**
+ * A chat warning answered: hidden, or "This is wrong" (with a parent lock on, only by the PIN's holder). From its card
+ * (where the card takes the pointer), the tray card, the app, or the shortcut: the same answer each way.
+ */
+function answerChat(n, action) {
   if (action === 'wrong') {
     try { lock.guard('a chat warning off for one person', true); } catch (err) { return { ok: false, locked: true, message: err.message }; }
   }
-  appLog(`chat safety: a warning was ${action === 'wrong' ? 'marked wrong' : 'hidden'}`);
-  return { ok: chatwatch.answer(n, action) };
-});
+  const ok = chatwatch.answer(n, action);
+  if (ok) appLog(`chat safety: a warning was ${action === 'wrong' ? 'marked wrong' : 'hidden'}`);
+  return { ok };
+}
+chatoverlay.onAnswer(answerChat);
+/**
+ * The keyboard's way to put a chat warning away: Win+Alt+H hides the newest one. Held only while a warning shows, so
+ * it takes no key from a game or from anything else the rest of the time; the window never takes the keyboard.
+ */
+const CHAT_KEY = 'Super+Alt+H';
+let chatKeyHeld = false;
+let chatNewest = null;
+function chatChanged() {
+  const now = chatwatch.latest();
+  if ((now && now.n) === (chatNewest && chatNewest.n)) return;
+  chatNewest = now;
+  if (now && !chatKeyHeld) {
+    try { chatKeyHeld = globalShortcut.register(CHAT_KEY, () => { if (chatNewest) answerChat(chatNewest.n, 'hide'); }); } catch { chatKeyHeld = false; }
+    if (!chatKeyHeld) appLog(`chat safety: the shortcut ${CHAT_KEY} is taken by another program`);
+  } else if (!now && chatKeyHeld) { globalShortcut.unregister(CHAT_KEY); chatKeyHeld = false; }
+  push('sentinel:chat-safety', chatSafetyStatus());
+  refreshTray();
+}
 function startChatSafety() {
   const apps = chatApps();
   if (!apps.length) { chatwatch.stop(); chatoverlay.show(null); return; }
@@ -176,7 +201,7 @@ function startChatSafety() {
     // Only that it started or failed: never a message, a name, a game or a link.
     log: (text) => appLog(text),
     // "This is wrong" on a card weakens chat safety for one sender, so with a parent lock on, the card offers only its close.
-    onState: (s) => chatoverlay.show(s && s.app ? { ...s, canMute: !(lock.isSet() && lock.locked()) } : s),
+    onState: (s) => { chatoverlay.show(s && s.app ? { ...s, canMute: canMuteChat(), keyHint: chatKeyHeld ? 'Win+Alt+H' : '' } : s); chatChanged(); },
     // Muted signs, as keyed hashes (chatwatch.js answer): kept across restarts, never readable, never sent.
     muted: store.get('chatMuted', []),
     salt: chatSalt(),
@@ -947,7 +972,7 @@ function currentProtection() {
 /** What the tray card shows: the protection state, an update waiting, and the parent lock. */
 function trayState() {
   const up = updater.status();
-  return { ...currentProtection(), update: { ready: up.status === 'ready', version: up.version || null }, lock: { set: Boolean(lock && lock.isSet()), locked: Boolean(lock && lock.isSet() && lock.locked()) } };
+  return { ...currentProtection(), chat: chatwatch.latest(), canMuteChat: canMuteChat(), update: { ready: up.status === 'ready', version: up.version || null }, lock: { set: Boolean(lock && lock.isSet()), locked: Boolean(lock && lock.isSet() && lock.locked()) } };
 }
 
 const trayImages = {};
@@ -1953,8 +1978,12 @@ function registerBridge() {
     return { ok: true };
   }, trustedLocal);
   handle('sentinel:tray-state', () => trayState(), trustedLocal);
+  // The last chat warning, answered in the app (Live protection, Chat safety).
+  handle('sentinel:chat-answer', (n, action) => (Number.isInteger(n) && (action === 'hide' || action === 'wrong') ? answerChat(n, action) : { ok: false }), trustedLocal);
   handle('sentinel:tray-action', (action, arg) => {
     if (action === 'switch') { const [id, want] = String(arg).split(':'); return traySwitch(id, want === 'on'); }
+    // The last chat warning, answered from the tray card: it stays open to show what is left.
+    if (action === 'chat-hide' || action === 'chat-wrong') { const r = answerChat(Number(arg), action === 'chat-hide' ? 'hide' : 'wrong'); return { ...trayState(), answer: r }; }
     closeTrayCard();
     if (action === 'open') showWindow();
     if (action === 'update') updater.install().catch(() => {});

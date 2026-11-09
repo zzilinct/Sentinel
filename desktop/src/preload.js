@@ -103,6 +103,8 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   callHangUp: () => ipcRenderer.invoke('sentinel:call-hangup'),
   // The tray card (pages/tray.html): the protection state, kept current while it is open, and its switches.
   trayState: () => ipcRenderer.invoke('sentinel:tray-state'),
+  // The last chat warning, hidden or marked wrong from the app.
+  chatAnswer: (n, action) => ipcRenderer.invoke('sentinel:chat-answer', Number(n), String(action)),
   trayAction: (action, arg) => ipcRenderer.invoke('sentinel:tray-action', String(action), arg == null ? '' : String(arg)),
   onTray: (callback) => on('sentinel:tray', callback),
   // The app window's page colour, for the caption buttons drawn over it (Windows): a CSS colour, nothing else.

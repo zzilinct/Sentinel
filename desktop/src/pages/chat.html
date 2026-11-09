@@ -51,6 +51,17 @@
   .card [hidden] { display: none; }
   .card .thanks { color: #e2c47f; font-size: var(--t-note); }
   .card .thanks small { display: block; margin-top: 3px; color: #b9b4a9; font-size: var(--t-label); }
+  .card .key { margin-top: 5px; color: #8f8a80; font-size: var(--t-label); }
+  .card .key:empty { display: none; }
+  /* In a game or over anything in full screen the cards take no click at all (the game keeps every one): no buttons,
+     and after a moment to read it the card folds back into its mask beside the message. The shortcut, the tray card
+     and the app still answer it. */
+  body.passive .card .x, body.passive .card .no { display: none; }
+  body.passive .card { padding-right: 12px; }
+  .card.is-folded > .card__bg { animation: fold .42s cubic-bezier(.4, 0, 1, 1) forwards; }
+  .card.is-folded > .card__body { animation: fold-words .2s ease forwards; }
+  @keyframes fold { to { opacity: 0; transform: scale(.14, .55); } }
+  @keyframes fold-words { to { opacity: 0; } }
   /* Answered: back into its tile, quickly, the way it came. */
   .card.is-going { transform-origin: 20px 20px; transform: scale(.2); opacity: 0; transition: transform .24s cubic-bezier(.4, 0, 1, 1), opacity .18s ease .06s; }
   /* In a game: smaller, and only what matters, so the game stays the game. */
@@ -70,6 +81,7 @@
     .badge__bg, .badge.is-on .badge__bg, .badge__tile, .badge__text, .badge.is-on .badge__text { transform: none; transition: opacity .2s ease; }
     .card__bg, .card__tile, .card__body, .card .x { animation: fade .2s ease both; }
     .card.is-going { transform: none; transition: opacity .2s ease; }
+    .card.is-folded > .card__bg, .card.is-folded > .card__body { animation: fold-words .2s ease forwards; }
   }
 </style>
 </head>
@@ -123,7 +135,8 @@
   }
 
   window.sentinelChat.onState(function (s) {
-    document.body.className = (s.app || '') + (s.inGame ? ' in-game' : '');
+    var passive = s.interactive === false;
+    document.body.className = (s.app || '') + (s.inGame ? ' in-game' : '') + (passive ? ' passive' : '');
     canMute = s.canMute !== false;
     // While a card shows, the card is the sign that Sentinel is watching: the badge steps back (the window then takes
     // the pointer only over the cards, and the badge would be cut out of it).
@@ -164,12 +177,20 @@
         el.setAttribute('role', 'alert');
         el.innerHTML = '<i class="card__bg"></i><span class="card__tile">' + M.svg(f.family === 'scam' ? 'scam' : 'malware') + '</span><div class="card__body"><b>' + esc(f.title)
           + '</b><div class="what">' + esc(f.detail) + '</div><div class="do">' + esc(f.advice) + '</div>'
-          + (canMute ? '<button class="no" type="button">This is wrong</button>' : '') + '</div>'
+          + '<div class="key"></div>' + (canMute ? '<button class="no" type="button">This is wrong</button>' : '') + '</div>'
           + '<button class="x" type="button" aria-label="Hide this warning" title="Hide this warning">' + X + '</button>';
         el.querySelector('.x').onclick = function () { answer(el, f.n, 'hide'); };
         if (canMute) el.querySelector('.no').onclick = function () { answer(el, f.n, 'wrong'); };
         cards.appendChild(el);
       }
+      // The keyboard's way out, said in the card and to a screen reader, while Sentinel holds the shortcut.
+      var hint = s.keyHint ? s.keyHint + ' hides the newest warning.' : '';
+      var keyEl = el.querySelector('.key');
+      if (keyEl && keyEl.textContent !== hint) keyEl.textContent = hint;
+      el.setAttribute('aria-label', [f.title, f.detail, hint].filter(Boolean).join(' '));
+      // Passive (a game): folded into its mask once there was time to read it. Answerable again: open again.
+      if (passive && !el.dataset.fold) el.dataset.fold = String(setTimeout(function () { el.classList.add('is-folded'); }, 8000));
+      if (!passive && el.dataset.fold) { clearTimeout(Number(el.dataset.fold)); delete el.dataset.fold; el.classList.remove('is-folded'); }
       // Cards do not cover each other: each goes below any card it would overlap, by its real height (a long piece of
       // advice made a card taller than the 74 px once assumed, and the next card hid its words).
       var h = el.offsetHeight;
