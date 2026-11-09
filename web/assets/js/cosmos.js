@@ -16,7 +16,7 @@
   'use strict';
 
   const root = document.documentElement;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = document.documentElement.dataset.motion === 'off';
   const script = document.currentScript;
   const here = script ? new URL('.', script.src).href : '/assets/js/';
 

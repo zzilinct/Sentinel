@@ -23,7 +23,7 @@
 
   const { $, $$ } = Site;
   const root = document.documentElement;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = document.documentElement.dataset.motion === 'off';
   const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const afterIntro = (fn) => (root.classList.contains('intro') ? document.addEventListener('sentinel:intro-done', fn, { once: true }) : fn());
 

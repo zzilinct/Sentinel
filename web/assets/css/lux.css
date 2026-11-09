@@ -253,7 +253,7 @@ html.lenis { scroll-behavior: auto; }
 .stat__bar { display: block; width: 64px; height: 2px; margin: 14px auto 0; border-radius: 2px; background: var(--metal);
   box-shadow: 0 0 10px rgb(var(--gold-rgb) / .6); transform-origin: 0 50%; }
 
-@media (prefers-reduced-motion: reduce) {
+:root[data-motion="off"] {
   .ch, .wd { opacity: 1 !important; transform: none !important; filter: none !important; }
   .laser { display: none; }
   .motes, body::after { display: none; }

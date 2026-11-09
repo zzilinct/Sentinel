@@ -21,6 +21,19 @@
   'use strict';
   if (globalThis.SentinelAlarm) return;
   const attach = Element.prototype.attachShadow;
+  // Motion, from the companion's settings (Full, Calm or Off); the system asking for less motion is Off. The styles read
+  // it from :host([data-motion]). Read when the first warning on a page is drawn, never before: this runs in every frame.
+  let motion = null;
+  const motionOf = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : motion === 'calm' || motion === 'off' ? motion : 'full');
+  function readMotion(host) {
+    host.dataset.motion = motionOf();
+    if (motion) return;
+    motion = 'full';
+    try {
+      const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
+      Promise.resolve(ext.storage.sync.get({ motion: 'full' })).then((s) => { motion = (s && s.motion) || 'full'; host.dataset.motion = motionOf(); }, () => {});
+    } catch { /* a page without the companion's storage: Full */ }
+  }
   const make = Document.prototype.createElement;
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -44,7 +57,7 @@
       @keyframes r{from{transform:translateY(14px) scale(.98);opacity:0}to{transform:none;opacity:1}}
       /* A corner note opens the way the companion's corner pill and the Windows app's island do, out of a 34 px mask. */
       @keyframes isl{from{clip-path:inset(calc(100% - 34px) 0 0 calc(100% - 34px) round 17px)}to{clip-path:inset(0 round 18px)}}
-      @media (prefers-reduced-motion: reduce){.wrap,.panel,.small .panel{animation:f .25s ease}}
+      :host([data-motion=off]) :is(.wrap,.panel,.small .panel){animation:f .25s ease}
       .ring{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;background:${accent}1f;box-shadow:inset 0 0 0 1px ${accent}66;color:${accent};margin-bottom:20px}
       .ring svg{width:38px;height:38px}
       h1{font-size:26px;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px;font-weight:700}
@@ -95,7 +108,7 @@
       .brand .more .row{margin-top:10px;gap:8px 22px}
       .brand .more .help{margin:10px 0 0}
       .brand .foot{display:none}
-      @media (prefers-reduced-motion: reduce){.brand .mask img{animation:none}}
+      :host([data-motion=off]) .brand .mask img{animation:none}
       @media (max-width:640px){
         .brand .panel{display:block;padding:26px 22px 22px}
         .brand .mask{justify-items:start;width:84px;margin-bottom:16px;background:radial-gradient(closest-side at 40px 50%,${accent}38,transparent)}
@@ -120,6 +133,7 @@
     const host = make.call(document, 'div');
     host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483647;';
     if (o.small) host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;';
+    readMotion(host);
     const root = attach.call(host, { mode: 'closed' });
     const list = (o.steps || []).map((s) => `<li>${esc(s)}</li>`).join('');
     // The folded buttons are numbered after the open ones: one list, one click handler.

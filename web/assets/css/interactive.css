@@ -166,7 +166,7 @@ html:not(.js) .finder { display: none; }
 .seg-toggle:has(button:last-child[aria-checked="true"])::before { transform: translateX(100%); }
 .seg-toggle button { position: relative; min-height: 34px; padding: 4px 10px; border: 0; border-radius: 10px; background: none; cursor: pointer; color: var(--muted); font: 500 var(--t-ui) var(--sans); transition: color .2s var(--ease); }
 .seg-toggle button[aria-checked="true"] { color: var(--text); }
-@media (prefers-reduced-motion: reduce) { .seg-toggle::before { transition: none; } }
+:root[data-motion="off"] { .seg-toggle::before { transition: none; } }
 .range { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: var(--r-sm); outline: none; cursor: pointer; background: linear-gradient(90deg, var(--gold-400) var(--p, 20%), rgb(var(--ink) / .08) var(--p, 20%)); }
 .range::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #f4e2b3; box-shadow: 0 0 0 4px rgb(var(--gold-rgb) / .25), 0 4px 10px rgba(0, 0, 0, .4); transition: transform .15s; }
 .range::-webkit-slider-thumb:hover { transform: scale(1.12); }
@@ -199,7 +199,7 @@ html:not(.js) .finder { display: none; }
 }
 .severity-cycle:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
 .mask-card[data-cycling="true"] .severity-cycle { color: var(--c); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
-@media (prefers-reduced-motion: reduce) { .severity-cycle { display: none; } }
+:root[data-motion="off"] { .severity-cycle { display: none; } }
 
 /* --------------------------------------------------------- threat kinds */
 

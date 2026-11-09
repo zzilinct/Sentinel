@@ -18,7 +18,10 @@
   const Chat = globalThis.SentinelChat;
   const RANK = { yellow: 1, orange: 2, red: 3 };
   const THREATS = ['scam', 'virus', 'malware'];
-  const DEFAULTS = { enabled: true, minimumBadge: 'yellow', chatHints: true };
+  const DEFAULTS = { enabled: true, minimumBadge: 'yellow', chatHints: true, motion: 'full' };
+  // Motion, from the companion's settings (Full, Calm or Off); the system asking for less motion is Off. The shadow
+  // styles below read it from :host([data-motion]).
+  const motionOf = (m) => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : m === 'calm' || m === 'off' ? m : 'full');
 
   // Each chat site: which pages are chats, what one message is, its words, who sent it, the person's own messages
   // (never judged: they are not the ones asking), and the site's own links (never checked).
@@ -130,6 +133,7 @@
     const host = document.createElement('span');
     host.setAttribute('data-sentinel-chat', r.level);
     host.style.cssText = 'display:block;margin:4px 0 2px;';
+    host.dataset.motion = motionOf(settings.motion);
     const root = host.attachShadow({ mode: 'closed' });
     root.innerHTML = `<style>
       :host{color:inherit}
@@ -141,7 +145,7 @@
       .h b{font-weight:650}
       .h p{margin:0}
       @keyframes in{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
-      @media (prefers-reduced-motion: reduce){.h{animation:none}}
+      :host([data-motion=off]) .h{animation:none}
     </style><div class="h" role="note">${Masks.svg('scam')}<p><b></b> <span class="d"></span> <span class="a"></span></p></div>`;
     root.querySelector('b').textContent = `Sentinel: ${r.title}.`;
     root.querySelector('.d').textContent = r.detail;

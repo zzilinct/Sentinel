@@ -145,7 +145,7 @@
       const to = out.offsetHeight;
       // The answer sits above the boxes on a phone: when it changes height, the box under the finger stays where it is.
       if (to !== before && matchMedia('(max-width: 999px)').matches && scrollY > 0 && out.getBoundingClientRect().top < 40) scrollBy({ top: to - before, behavior: 'instant' });
-      if (to === from || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (to === from || document.documentElement.dataset.motion === 'off') return;
       // The plate behind the words springs to the new height, both ways. Only it moves, so nothing else is laid out again.
       for (const a of [...plate.getAnimations(), ...body.getAnimations()]) a.cancel();
       plate.animate({ height: [`${from}px`, `${to}px`] }, SPRING);

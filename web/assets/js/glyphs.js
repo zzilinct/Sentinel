@@ -79,7 +79,8 @@
   const api = { bands, veil, veilStops, LEVELS, MAX, PERIOD };
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
 
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Calm and Off (boot.js data-motion): the field stands still.
+  const reduced = document.documentElement.dataset.motion !== 'full';
   const pointerFine = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const root = document.documentElement;
   const state = { running: false, frames: 0, phase: 0, scroll: 0, glow: 0, dpr: 1, max: 0, theme: 'dark', h: 0, clear: 0 };

@@ -25,6 +25,7 @@ let dryRun = null;       // development only: compute everything, show nothing, 
 let holdingKeys = false; // the island's panel has the keyboard
 let giveBack = null;     // how the keyboard goes back to the browser (watch.backToBrowser)
 let keyHint = '';        // the island's shortcut in words, when Windows gave it to Sentinel
+let motion = { motion: 'full', scanEffect: true };   // the person's Motion setting (the app's, boot.js); the page adds the system's
 const ACTIONS = new Set(['pause', 'resume', 'open', 'released']);
 
 function send(channel, payload) {
@@ -75,6 +76,7 @@ function ensure() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.once('did-finish-load', () => {
     ready = true;
+    win.webContents.send('overlay:motion', motion);
     for (const [channel, payload] of queue) win.webContents.send(channel, payload);
     queue = [];
   });
@@ -137,6 +139,12 @@ function sweep(kind, opts = {}) {
   if (!area) return;
   // binary: delicate scanning digs in (binary.js) after the gold line, on the results until they are checked.
   send('overlay:sweep', { kind: kind || 'search', binary: Boolean(opts.binary) });
+}
+
+/** Motion (full, calm or off) and the scan effect, from the app's settings: the page applies them at once. */
+function setMotion(m) {
+  motion = { motion: ['calm', 'off'].includes(m && m.motion) ? m.motion : 'full', scanEffect: !(m && m.scanEffect === false) };
+  send('overlay:motion', motion);
 }
 
 /** The verdict on the page in front, shown by the corner mask. */
@@ -258,4 +266,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { init, handle, revive, setWindow, isFullscreen, sweep, setVerdict, setPage, setPaused, setPay, setMarks, shift, wheel, pixels, keyboard, destroy, setKeyHint: (words) => { keyHint = words; }, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { init, handle, revive, setWindow, isFullscreen, sweep, setVerdict, setPage, setPaused, setPay, setMarks, shift, wheel, pixels, keyboard, destroy, setKeyHint: (words) => { keyHint = words; }, setMotion, setDryRun: (logger) => { dryRun = logger || null; } };

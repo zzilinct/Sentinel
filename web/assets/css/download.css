@@ -112,6 +112,6 @@ main > .relnote { padding-top: 0; }
 @media (max-width: 560px) {
   .ss__btn { min-width: 0; flex: 1; }
 }
-@media (prefers-reduced-motion: reduce) {
+:root[data-motion="off"] {
   .ss__dialog, .ss__btn, .ss__after, .ss.is-live .ss__ring { transition: none; }
 }

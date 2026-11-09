@@ -5,7 +5,8 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const Masks = window.SentinelMasks;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Off (boot.js data-motion): no smooth scroll, no page wipe, no rising headings.
+  const reduced = document.documentElement.dataset.motion === 'off';
 
   // Browsers without IntersectionObserver still get everything, revealed at once.
   const Observer = window.IntersectionObserver || class {

@@ -15,7 +15,7 @@
 (() => {
   'use strict';
 
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (document.documentElement.dataset.motion === 'off') return;
   // A touch screen has no lamp to follow.
   if (!matchMedia('(hover: hover) and (pointer: fine)').matches) return;
   const root = document.documentElement;

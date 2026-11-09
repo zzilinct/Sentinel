@@ -136,7 +136,7 @@
   .pay b { display: block; font-weight: 600; color: #e2c47f; margin-bottom: 3px; }
   .pay span { color: #cfcbc1; font-size: var(--t-note); }
 
-  @media (prefers-reduced-motion: reduce) {
+  :root[data-motion="off"] {
     .pay, .pay.is-on { transform: none; transition: opacity .2s ease; }
     body.sweeping .line { animation: none; }
     body.sweeping .tint { animation: tint 1.2s ease-out forwards; }
@@ -590,6 +590,17 @@
   });
 
   var api = window.sentinelOverlay;
+  // Motion: the app's choice (Full, Calm or Off) and its scan effect, except that Windows asking for less motion is Off.
+  // The stylesheet above and binary.js read only these two attributes.
+  var reduce = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var chosen = { motion: 'full', scanEffect: true };
+  function applyMotion() {
+    document.documentElement.dataset.motion = reduce && reduce.matches ? 'off' : chosen.motion;
+    document.documentElement.dataset.scanEffect = chosen.scanEffect ? 'on' : 'off';
+  }
+  applyMotion();
+  if (reduce) reduce.addEventListener('change', applyMotion);
+  api.on('overlay:motion', function (m) { if (m) chosen = m; applyMotion(); });
   var restTimer = null;
   function wake() {
     clearTimeout(restTimer);

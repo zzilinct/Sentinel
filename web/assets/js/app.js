@@ -6,6 +6,9 @@
   const Masks = window.SentinelMasks;
   const view = $('#view');
   const desktop = window.sentinelDesktop || null;
+  // Motion Off (boot.js data-motion): nothing glides or rises. Asked each time: it can change while the app is open.
+  const still = () => document.documentElement.dataset.motion === 'off';
+  const glide = () => (still() ? 'auto' : 'smooth');
 
   const state = { me: null, config: null, plans: null, desktopInfo: null };
   const Share = window.SentinelShare;
@@ -251,7 +254,7 @@
   // (cosmos.js fetches the models). data-rise says when the verdict landed: a mask ready soon enough rises into place.
   function riseMask(out) {
     const mask = $('[data-verdict-mask]', out);
-    if (!mask || !window.SentinelLoadMask3D || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!mask || !window.SentinelLoadMask3D || still()) return;
     mask.dataset.rise = String(performance.now());
     mask.dataset.mask3d = mask.dataset.verdictMask;
     window.SentinelLoadMask3D();
@@ -1307,7 +1310,7 @@
       row.appendChild(panel);
       btn.setAttribute('aria-expanded', 'true');
       $('a, button', panel).focus({ preventScroll: true });
-      panel.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
+      panel.scrollIntoView({ behavior: glide(), block: 'nearest' });
     });
   }
 
@@ -1384,7 +1387,7 @@
       if (!m || !el.isConnected) return;
       scanFile(new File([m.data], m.name));
       // The answer is what the person came for: below the drop zone it was out of sight.
-      out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      out.scrollIntoView({ behavior: glide(), block: 'start' });
     },() => toast('That file could not be opened. Drop it here instead.', 'error'));
   }
 
@@ -1462,7 +1465,7 @@
       toast(m.from ? `Found sender ${m.from}. Check the fields, then scan.` : 'No headers found, so the text went into the message field.', 'info', 5000);
       // The box just used is hidden now: the keyboard goes on to the fields to check, not back to the top of the page.
       form.from.focus({ preventScroll: true });
-      form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      form.scrollIntoView({ behavior: glide(), block: 'start' });
     };
     $('[data-parse]', el).addEventListener('click', () => {
       const raw = $('textarea', pasteBox).value;
@@ -1838,7 +1841,7 @@
         watch.done();
         const from = form.from.value.trim();
         wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, $('[data-text-result]', out).dataset.textResult));
-        out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        out.scrollIntoView({ behavior: glide(), block: 'start' });
       } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
     });
 
@@ -1855,7 +1858,7 @@
       } else if (share.image) {
         setMode('shot');
         readShot(share.image);
-        preview.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        preview.scrollIntoView({ block: 'center', behavior: glide() });
       }
     });
   }
@@ -2359,6 +2362,7 @@
         </div>
       </div>` : ''}
 
+      <div class="panel u-mt" data-motion-slot><div class="panel__head"><div><h2>Motion</h2><p>How much Sentinel moves on this ${desktop ? 'computer, here and over your browser' : 'device'}.</p></div></div></div>
       <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
       <div id="parent-lock" data-parent-lock></div>
       <div class="panel u-mt" data-intel>
@@ -2366,6 +2370,8 @@
         <div class="skeleton u-h-sm"></div>
       </div>`;
 
+    // Motion lives here until the app has a Settings page: SentinelMotionLevel.control() drops in anywhere (boot.js).
+    if (window.SentinelMotionLevel) $('[data-motion-slot]', el).append(window.SentinelMotionLevel.control());
     if (desktop && !planLocked) renderDesktopControls($('[data-desktop]', el));
     if (desktop) renderParentLock($('[data-parent-lock]', el));
     renderIntel($('[data-intel]', el));

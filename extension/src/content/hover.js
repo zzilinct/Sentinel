@@ -60,7 +60,7 @@
       .tip svg{width:18px;height:18px;flex:none;color:var(--c)}
       .tip b{font-weight:650;color:var(--c)}
       .tip span{color:#9aa0a8;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      @media (prefers-reduced-motion: reduce){.tip{transition:none;transform:none}}
+      :host([data-motion=off]) .tip{transition:none;transform:none}
     </style><div class="tip" role="status" aria-live="polite"></div>`;
     document.documentElement.appendChild(host);
     tip = { host, el: root.querySelector('.tip') };
@@ -102,12 +102,16 @@
     const top = r.right + 8 + w <= innerWidth ? r.top + (r.height - h) / 2 : (r.bottom + 6 + h <= innerHeight ? r.bottom + 6 : r.top - h - 6);
     el.style.left = `${Math.round(left)}px`;
     el.style.top = `${Math.round(Math.max(4, top))}px`;
+    tip.host.dataset.motion = motionOf(settings.motion);
     requestAnimationFrame(() => el.classList.add('on'));
   }
 
   /* ------------------------------------------------------------ hover */
 
-  const DEFAULTS = { enabled: true, markSafe: true, minimumBadge: 'yellow' };
+  const DEFAULTS = { enabled: true, markSafe: true, minimumBadge: 'yellow', motion: 'full' };
+  // Motion, from the companion's settings (Full, Calm or Off); the system asking for less motion is Off. The shadow
+  // styles below read it from :host([data-motion]).
+  const motionOf = (m) => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : m === 'calm' || m === 'off' ? m : 'full');
   let settings = DEFAULTS;
   const verdicts = new Map();     // url -> verdict, for this page
   let current = null;

@@ -12,7 +12,7 @@
  *   data-rise="<performance.now()>"         a verdict's mask, from that moment: rises into place if the model is ready
  *                                           soon enough, then holds still (no drift, and no more frames drawn)
  *
- * The <img> inside stays until the model is drawn (and stays for good without WebGL or with reduced motion: a
+ * The <img> inside stays until the model is drawn (and stays for good without WebGL or with Calm or Off motion: a
  * still render is the right answer there). window.SentinelMask3D.get(el) returns the mask's controls: tint(name),
  * swallow(newTint, ms) for the threat plates' black hole, and mix(a, b, t) for the colour reading.
  */
@@ -25,7 +25,8 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { CAMERA, POSES, halfView, drift } from './pose.js';
 
 const BASE = (document.currentScript && document.currentScript.src) ? new URL('../models/', document.currentScript.src).href : '/assets/models/';
-const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Calm and Off (boot.js data-motion): a still render, posed, that neither drifts nor turns to the pointer.
+const reduced = document.documentElement.dataset.motion !== 'full';
 // How often a mask that is only drifting (breathing, swaying, its eyes flickering) is redrawn: slow motion needs few
 // frames, and on a phone fewer still (the drift is the same, the phone stays cool).
 const IDLE_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;

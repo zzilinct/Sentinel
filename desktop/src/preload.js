@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   lockRemove: () => ipcRenderer.invoke('sentinel:lock-remove'),
   lockReset: () => ipcRenderer.invoke('sentinel:lock-reset'),
   setLiveMode:(mode) => ipcRenderer.invoke('sentinel:live-mode', mode === 'delicate' ? 'delicate' : 'fast'),
+  // Motion (full, calm or off) and the scan effect, for the live scanning overlay (boot.js sends it).
+  setMotion: (m) => ipcRenderer.invoke('sentinel:motion', { motion: String(m && m.motion), scanEffect: !(m && m.scanEffect === false) }),
   // Texts in Phone Link: one switch.
   setTextSafety: (enabled) => ipcRenderer.invoke('sentinel:text-safety', Boolean(enabled)),
   onTextSafety: (callback) => on('sentinel:text-safety', callback),

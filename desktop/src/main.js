@@ -1586,6 +1586,15 @@ function registerBridge() {
     refreshTray();
     return { ...watch.status(), enabled: store.get('liveScanning', false) };
   });
+  // Motion (full, calm or off) and the scan effect: chosen in the app (boot.js), kept here for the live scanning overlay,
+  // which is not a web page and cannot read the app's storage. Written only when it changed: every app page says it.
+  handle('sentinel:motion', (m) => {
+    const next = { motion: ['calm', 'off'].includes(m && m.motion) ? m.motion : 'full', scanEffect: !(m && m.scanEffect === false) };
+    if (store.get('motion', 'full') !== next.motion) store.set('motion', next.motion);
+    if (store.get('scanEffect', true) !== next.scanEffect) store.set('scanEffect', next.scanEffect);
+    overlay.setMotion(next);
+    return next;
+  });
   handle('sentinel:scan-with', (id) => {
     if (typeof id !== 'string' || !browsers.BROWSERS.some((b) => b.id === id)) throw new Error('Unknown browser');
     return scanWith(id);
@@ -1815,6 +1824,7 @@ async function boot() {
 
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) overlay.setDryRun((text) => appLog(`overlay (dry run): ${text}`));
   overlay.init({ onAction: islandAction });
+  overlay.setMotion({ motion: store.get('motion', 'full'), scanEffect: store.get('scanEffect', true) });
 
   // Chat safety (Roblox and the Discord app) and texts in Phone Link: each off until turned on in Live protection;
   // nothing about a chat or a text is logged.

@@ -13,7 +13,8 @@
     markSafe: true,
     scanOverlay: true,
     commandGuard: true,
-    chatHints: true
+    chatHints: true,
+    motion: 'full'
   };
   const saved = document.getElementById('saved');
 

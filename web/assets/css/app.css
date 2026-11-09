@@ -142,7 +142,7 @@ body.app::before { opacity: .6; }
 .stages li.is-done { color: var(--muted); }
 .stages li.is-done i { box-shadow: none; background: var(--gold-400); }
 .stages li.is-skip { text-decoration: line-through; }
-@media (prefers-reduced-motion: reduce) { .stages { display: none; } .scanning__line i { transition: none; } }
+:root[data-motion="off"] { .stages { display: none; } .scanning__line i { transition: none; } }
 
 /* ------------------------------------------------------------- result */
 
@@ -222,7 +222,7 @@ body.app::before { opacity: .6; }
   .slow__step { grid-template-columns: 16px minmax(0, 1fr); justify-items: start; align-items: center; gap: 12px; text-align: left; }
   .slow__step::before { top: -12px; left: 7px; width: 2px; height: 12px; }
 }
-@media (prefers-reduced-motion: reduce) { .slow__step { animation: none; } }
+:root[data-motion="off"] { .slow__step { animation: none; } }
 
 /* The scanned email, each warning sign marked where it is (app.js showMarks). */
 .email-marks { padding: 22px 30px; border-bottom: 1px solid var(--line); }
@@ -249,7 +249,7 @@ body.app::before { opacity: .6; }
 .email-marks__why small + b { margin-top: 12px; }
 .email-marks__why p { font-size: var(--t-ui); color: var(--text-2); }
 .email-marks__why small { display: block; margin-top: 4px; font-size: var(--t-note); color: var(--muted); overflow-wrap: anywhere; }
-@media (prefers-reduced-motion: reduce) { .emark { transition: none; } .email-marks__why { animation: none; } }
+:root[data-motion="off"] { .emark { transition: none; } .email-marks__why { animation: none; } }
 /* Who really sent it, from the pasted headers (sender-xray): one plain line above the marked email. */
 .sender-proof { --c: var(--muted); display: flex; gap: 12px; align-items: baseline; padding: 18px 30px; border-bottom: 1px solid var(--line); box-shadow: inset 3px 0 0 var(--c); }
 @media (max-width: 560px) { .sender-proof { padding: 16px 20px; flex-direction: column; gap: 2px; } }
@@ -689,7 +689,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .feed__empty { padding: 14px 0; font-size: var(--t-ui); }
 .live-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
 .live-dot.is-on { background: var(--green); animation: pulse 1.8s ease-out infinite; }
-@media (prefers-reduced-motion: reduce) { .feed__item { transition: none; } .live-dot.is-on { animation: none; } }
+:root[data-motion="off"] { .feed__item { transition: none; } .live-dot.is-on { animation: none; } }
 
 /* The mask as a navigation icon, sized like the stroke icons beside it. */
 .side__glyph { width: 18px; height: 18px; flex: none; display: inline-grid; place-items: center; }
@@ -749,6 +749,13 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .seg__btn.is-on { background: var(--gold-grad); color: var(--on-gold); font-weight: 600; }
 .seg__btn:disabled { opacity: .45; cursor: not-allowed; }
 .seg__btn:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
+/* Motion (boot.js control): the same segments over real radio buttons, so the arrow keys move between them. When the
+   computer asks for less motion they are locked, and Off stays plainly chosen. */
+label.seg__btn { display: inline-flex; align-items: center; }
+.seg__btn:has(:focus-visible) { outline: 2px solid var(--gold-300); outline-offset: -2px; }
+.seg__btn:has(:disabled):not(.is-on) { opacity: .45; cursor: not-allowed; }
+.seg__btn:has(:disabled).is-on { cursor: default; }
+@media (max-width: 560px) { .motion-set .setting:first-child { flex-wrap: wrap; } }
 .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .meters__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
 .meters__item p { margin: 8px 0 0; font-size: var(--t-note); color: var(--muted); }
@@ -874,5 +881,5 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .model-badge:hover { background: rgb(var(--gold-rgb) / .14); box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .45), 0 0 18px -4px rgb(var(--gold-rgb) / .6); }
 .model-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold-300); box-shadow: 0 0 8px var(--gold-300); animation: model-pulse 2.6s ease-in-out infinite; }
 @keyframes model-pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .model-badge__dot { animation: none; } }
+:root[data-motion="off"] { .model-badge__dot { animation: none; } }
 

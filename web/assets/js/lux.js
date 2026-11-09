@@ -8,7 +8,7 @@
   'use strict';
 
   const A = window.anime;
-  if (!A || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!A || document.documentElement.dataset.motion === 'off') return;
   const { animate, stagger, createTimeline, createDrawable, utils } = A;
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
