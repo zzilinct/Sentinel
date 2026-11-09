@@ -11,7 +11,7 @@ const path = require('path');
 const { QR, OUT, sleep, result, launch, evalIn, openPage, goto, shot, typeText, pressEnter, startServer, watchErrors, clickSel, pressKey, until } = require('./_shared');
 
 const PAGES = ['/app', '/app/week', '/app/check', '/app/history', '/app/sites', '/app/checkup',
-  '/app/protection', '/app/plan', '/app/security', '/app/assistants', '/app/recover'];
+  '/app/protection', '/app/plan', '/app/settings', '/app/assistants', '/app/recover'];
 
 async function checkAppCore() {
   // Delicate scans research the site from the server, which is this CI runner: never a person's computer.

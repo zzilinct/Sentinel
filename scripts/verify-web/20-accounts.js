@@ -168,7 +168,7 @@ async function checkAccounts() {
     await clickSel(browser, s, '[data-signout]');
     const out = await until(browser, s, "location.pathname === '/' && document.readyState === 'complete' && location.pathname", 15000);
     const me = await evalIn(browser, s, "fetch('/api/v1/auth/me').then((r) => r.status)");
-    result('accounts: Sign out asks for a second press, then signs out and goes home', armed.at === '/app/security' && /Press again/.test(armed.text) && out === '/' && me === 401, { armed, out, me });
+    result('accounts: Sign out asks for a second press, then signs out and goes home', armed.at === '/app/settings' && /Press again/.test(armed.text) && out === '/' && me === 401, { armed, out, me });
 
     /* ------------------------------------------------------ 2-step sign in */
 

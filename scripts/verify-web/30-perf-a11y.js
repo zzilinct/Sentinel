@@ -18,7 +18,7 @@ const { CANDIDATES, expand } = require('../verify-companion');
 
 const PUBLIC = ['/', '/pricing', '/download', '/privacy', '/terms', '/refunds', '/recover', '/call', '/practice', '/login', '/signup', '/forgot', '/guest', '/connect', '/reset', '/verify', '/no-such-page'];
 const APP = ['/app', '/app/week', '/app/check', '/app/history', '/app/sites', '/app/checkup',
-  '/app/protection', '/app/plan', '/app/security', '/app/assistants', '/app/recover'];
+  '/app/protection', '/app/plan', '/app/settings', '/app/assistants', '/app/recover'];
 // Lighthouse often loses the start of its trace (NO_NAVSTART) when the page moves to a renderer process of its own;
 // kept in one process, it reads every page (runs 40151667784 and 40153531591).
 const ONE_PROCESS = '--disable-site-isolation-trials --disable-features=IsolateOrigins,site-per-process';

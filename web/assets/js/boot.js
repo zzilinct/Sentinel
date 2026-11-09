@@ -85,12 +85,17 @@ document.documentElement.classList.add('js');
   };
   apply(read());
   document.addEventListener('DOMContentLoaded', () => apply(read()));
+  const set = (mode) => {
+    try { if (mode === 'auto') localStorage.removeItem(KEY); else localStorage.setItem(KEY, mode); } catch { /* this page only */ }
+    apply(mode);
+  };
+  // The app's Settings page chooses one directly (Appearance), and hears when the button here changes it.
+  window.SentinelTheme = { get: read, set };
   document.addEventListener('click', (ev) => {
     const b = ev.target.closest && ev.target.closest('[data-theme-toggle]');
     if (!b) return;
-    const next = order[(order.indexOf(read()) + 1) % order.length];
-    try { if (next === 'auto') localStorage.removeItem(KEY); else localStorage.setItem(KEY, next); } catch { /* this page only */ }
-    apply(next);
+    set(order[(order.indexOf(read()) + 1) % order.length]);
+    document.dispatchEvent(new CustomEvent('sentinel:theme'));
   });
 })();
 if (!('IntersectionObserver' in window)) document.documentElement.classList.add('no-io');

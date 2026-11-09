@@ -24,7 +24,7 @@
   "mobile /app/checkup": {"performance": 93, "accessibility": 100, "best-practices": 100, "seo": 54},
   "mobile /app/protection": {"performance": 92, "accessibility": 100, "best-practices": 100, "seo": 54},
   "mobile /app/plan": {"performance": 92, "accessibility": 96, "best-practices": 100, "seo": 54},
-  "mobile /app/security": {"performance": 92, "accessibility": 100, "best-practices": 100, "seo": 54},
+  "mobile /app/settings": {"performance": 92, "accessibility": 100, "best-practices": 100, "seo": 54},
   "mobile /app/assistants": {"performance": 92, "accessibility": 100, "best-practices": 100, "seo": 54},
   "mobile /app/recover": {"performance": 93, "accessibility": 100, "best-practices": 100, "seo": 54},
   "desktop /": {"performance": 72, "accessibility": 100, "best-practices": 96, "seo": 100},
@@ -51,7 +51,7 @@
   "desktop /app/checkup": {"performance": 100, "accessibility": 100, "best-practices": 100, "seo": 54},
   "desktop /app/protection": {"performance": 100, "accessibility": 100, "best-practices": 100, "seo": 54},
   "desktop /app/plan": {"performance": 100, "accessibility": 100, "best-practices": 96, "seo": 54},
-  "desktop /app/security": {"performance": 99, "accessibility": 100, "best-practices": 100, "seo": 54},
+  "desktop /app/settings": {"performance": 99, "accessibility": 100, "best-practices": 100, "seo": 54},
   "desktop /app/assistants": {"performance": 100, "accessibility": 100, "best-practices": 100, "seo": 54},
   "desktop /app/recover": {"performance": 100, "accessibility": 100, "best-practices": 100, "seo": 54}
 }

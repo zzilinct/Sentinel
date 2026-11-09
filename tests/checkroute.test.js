@@ -68,7 +68,7 @@ test('the app has one Check page: the five scan pages, their sidebar entries and
   const side = html.slice(html.indexOf('<nav class="side__nav"'), html.indexOf('</nav>'));
   assert.equal((side.match(/href="\/app\/check"/g) || []).length, 1, 'one Check entry in the sidebar');
   for (const gone of ['/app/scan"', '/app/threats"', '/app/email"', '/app/text"']) assert.ok(!side.includes(gone), `${gone} is still in the sidebar`);
-  assert.deepEqual([...side.matchAll(/class="side__label"[^>]*>([^<]+)</g)].map((m) => m[1]), ['Check', 'Protect', 'Review', 'Account']);
+  assert.deepEqual([...side.matchAll(/class="side__label"[^>]*>([^<]+)</g)].map((m) => m[1]), ['Check', 'Protect', 'Review']);   // Account is one Settings link (tests/settings.test.js)
   assert.ok(html.includes('/assets/js/route.js'), 'app.html loads route.js');
 });
 

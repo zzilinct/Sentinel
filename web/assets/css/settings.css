@@ -1,0 +1,95 @@
+/* Settings (/app/settings): one home for every choice. Flat rows on the page itself, gold hairlines between groups,
+   a sticky search, and a list of groups beside them on a wide screen. Loaded after app.css. */
+
+:root { --set-spring: linear(0, .063, .207, .382, .555, .706, .828, .918, .98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
+
+.side__settings { margin-top: 18px; }
+
+.set { display: grid; grid-template-columns: 188px minmax(0, 1fr); gap: 0 52px; align-items: start; }
+@media (max-width: 1100px) { .set { grid-template-columns: 160px minmax(0, 1fr); gap: 0 36px; } }
+@media (max-width: 900px) { .set { grid-template-columns: minmax(0, 1fr); } .set-rail { display: none; } }
+
+/* The groups, one link each; the one in view carries a gold hairline that springs in. */
+.set-rail { position: sticky; top: 36px; display: grid; gap: 2px; padding-top: 6px; }
+.set-rail a { position: relative; display: flex; align-items: center; min-height: 34px; padding: 0 0 0 16px; color: var(--muted); font-size: var(--t-ui); transition: color .2s; }
+.set-rail a::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--gold-grad); transform: scaleY(0); transition: transform .5s var(--set-spring); }
+.set-rail a:hover { color: var(--text); }
+.set-rail a[aria-current] { color: var(--gold-200); }
+.set-rail a[aria-current]::before { transform: scaleY(1); }
+.set-rail a:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; border-radius: 4px; }
+
+/* Search stays in reach while the page scrolls under it. */
+.set-find { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; margin: -8px 0 6px; padding: 8px 0 14px; background: var(--bg); }
+.set-find svg { position: absolute; left: 16px; width: 18px; height: 18px; color: var(--gold-300); pointer-events: none; }
+.set-find .input { padding-left: 46px; }
+.set-find .input::-webkit-search-cancel-button { cursor: pointer; }
+
+.set-app { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; padding: 14px 0 18px; border-bottom: 1px solid var(--line-gold); color: var(--text-2); font-size: var(--t-ui); }
+.set-app p { max-width: 60ch; }
+.set-app b { color: var(--text); font-weight: 500; }
+
+/* Groups and rows fold away when a search leaves them out: a height spring, nothing fades in. */
+.set-group, .set-row { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .55s var(--set-spring); }
+.set-group.is-out, .set-row.is-out { grid-template-rows: 0fr; }
+.set-fold { min-height: 0; overflow: hidden; margin: 0 -4px; padding: 0 4px; }
+
+.set-group { scroll-margin-top: 84px; }
+.set-group__title { margin-top: 44px; padding-bottom: 12px; border-bottom: 1px solid var(--line-gold); font-size: var(--t-title); font-weight: 500; color: var(--text); }
+.set-app + .set-group .set-group__title, .set-find + .sr-only + .set-group .set-group__title { margin-top: 18px; }
+
+.set-row { scroll-margin-top: 84px; border-bottom: 1px solid var(--line); transition: grid-template-rows .55s var(--set-spring), border-color .3s; }
+.set-row.is-out { border-bottom-color: transparent; }
+.set-row__head { display: flex; align-items: center; justify-content: space-between; gap: 12px 28px; flex-wrap: wrap; min-height: 56px; padding: 16px 0; }
+.set-row__text { flex: 1 1 300px; min-width: 0; }
+.set-row__label { position: relative; display: inline-block; font-size: var(--t-text); font-weight: 500; color: var(--text); line-height: 1.35; }
+.set-row__hint { margin-top: 4px; max-width: 64ch; color: var(--muted); font-size: var(--t-ui); }
+.set-row__state { margin-top: 6px; max-width: 64ch; color: var(--text-2); font-size: var(--t-note); }
+.set-row__state:empty { display: none; }
+.set-row__state.is-down { color: var(--text); }
+.set-row__control { flex: none; display: flex; align-items: center; gap: 10px; }
+.set-row__control:empty { display: none; }
+.set-row__value { color: var(--muted); font-size: var(--t-note); }
+.set-why { color: var(--gold-300); }
+.set-skel { display: block; width: 42px; height: 24px; border-radius: 99px; }
+
+.set-row__body:not(:empty) { padding: 0 0 18px; }
+.set-row__body .list { margin-top: 4px; }
+.set-row__body .row2 + .field, .set-row__body .row2 { margin-top: 0; }
+.set-sub { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin-top: 10px; color: var(--text-2); font-size: var(--t-ui); }
+.set-sub:first-child { margin-top: 0; }
+.set-sub p { flex: 1 1 260px; max-width: 64ch; }
+.set-sub select { width: auto; min-width: 200px; }
+.set-add .input { flex: 1 1 200px; min-width: 0; }
+
+.set-facts { margin-top: 10px; font-size: var(--t-note); color: var(--muted); }
+.set-facts summary { display: inline-block; cursor: pointer; color: var(--gold-300); text-decoration: underline; text-decoration-color: rgb(var(--gold-rgb) / .35); text-underline-offset: 3px; }
+.set-facts summary::-webkit-details-marker { display: none; }
+.set-facts summary:hover { text-decoration-color: currentColor; }
+.set-facts summary:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 3px; border-radius: 3px; }
+.set-facts ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; max-width: 70ch; }
+.set-facts li { position: relative; padding-left: 14px; }
+.set-facts li::before { content: ''; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 1px; background: var(--gold-500); }
+.set-facts b { color: var(--text-2); font-weight: 500; }
+
+/* A row reached by a search or a link: its name is underlined in gold, drawn once, then let go. */
+.set-row__label::after { content: ''; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px; background: var(--gold-grad); transform: scaleX(0); transform-origin: left; opacity: 0; pointer-events: none; }
+.set-row.is-found .set-row__label::after { animation: set-draw 2.6s var(--ease-out) both; }
+@keyframes set-draw { 0% { transform: scaleX(0); opacity: 1; } 28% { transform: scaleX(1); opacity: 1; } 78% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+
+.set-none { padding: 56px 0; text-align: center; color: var(--muted); }
+.set-none p { margin-bottom: 14px; font-size: var(--t-text); color: var(--text-2); }
+
+/* Elsewhere in the app: where a moved choice now lives. */
+.set-away { font-size: var(--t-ui); color: var(--muted); }
+.set-away a { color: var(--gold-300); text-decoration: underline; text-decoration-color: rgb(var(--gold-rgb) / .35); text-underline-offset: 3px; }
+.set-away a:hover { text-decoration-color: currentColor; }
+
+@media (max-width: 600px) {
+  .set-row__head { align-items: flex-start; gap: 12px 18px; }
+  .set-row__text { flex-basis: 200px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set-group, .set-row, .set-rail a::before { transition: none; }
+  .set-row.is-found .set-row__label::after { animation: none; transform: none; opacity: 1; }
+}

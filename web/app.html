@@ -3,6 +3,7 @@
 <head>
 <!-- @include head -->
 <link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="/assets/css/settings.css">
 <link rel="stylesheet" href="/assets/css/app-lux.css">
 <title>Sentinel</title>
 <meta name="robots" content="noindex">
@@ -63,18 +64,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.7"/><path d="M4 4v4.7h4.7M12 8v4l3 2"/></svg>
         History
       </a>
-      <div class="side__label">Account</div>
-      <a class="side__link is-secondary" href="/app/plan" data-route="plan">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.4 6.7 19.1l1-5.8L3.5 9.2l5.9-.9Z"/></svg>
-        Plan &amp; usage
-      </a>
-      <a class="side__link is-secondary" href="/app/security" data-route="security">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        Security
-      </a>
-      <a class="side__link is-secondary" href="/app/assistants" data-route="assistants">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M6.3 17.7l2.1-2.1M15.6 8.4l2.1-2.1"/></svg>
-        AI assistants
+      <a class="side__link side__settings" href="/app/settings" data-route="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+        Settings
       </a>
       <button class="side__link side__more" type="button" data-palette data-phone aria-label="More: every page, and Sign out">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
@@ -102,7 +94,7 @@
   <main class="main" id="main">
     <div class="topbar-mobile">
       <a class="logo" href="/app"><span class="logo__mark" data-glyph="logo"></span>Sentinel</a>
-      <span style="display:flex;gap:8px"><button class="btn btn--sm" type="button" data-palette aria-label="Search or scan"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button><a class="btn btn--sm" href="/app/security" aria-label="Account"><span class="avatar" data-avatar style="width:24px;height:24px;font-size:var(--t-micro)"></span></a></span>
+      <span style="display:flex;gap:8px"><button class="btn btn--sm" type="button" data-palette aria-label="Search or scan"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button><a class="btn btn--sm" href="/app/settings#account" aria-label="Account and settings"><span class="avatar" data-avatar style="width:24px;height:24px;font-size:var(--t-micro)"></span></a></span>
     </div>
     <div id="view"></div>
   </main>

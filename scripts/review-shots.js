@@ -37,7 +37,7 @@ const PAGES = [
   ['app-check-phishing', `/app/check?url=${encodeURIComponent('https://paypa1-secure-login.com/account/verify')}`, { wait: 6000 }],
   ['app-check-clean', `/app/check?url=${encodeURIComponent('https://www.wikipedia.org/')}`, { wait: 6000 }],
   ['app-history', '/app/history'], ['app-sites', '/app/sites'],
-  ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-security', '/app/security'], ['app-assistants', '/app/assistants'],
+  ['app-protection', '/app/protection'], ['app-plan', '/app/plan'], ['app-settings', '/app/settings'], ['app-assistants', '/app/assistants'],
   ['call', '/call'], ['practice', '/practice']
 ];
 // Name, width, height, phone, colour scheme: the site follows the system's light or dark setting, so both are photographed.

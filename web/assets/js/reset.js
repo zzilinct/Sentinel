@@ -34,7 +34,7 @@
     if (!token) {
       title.textContent = 'Confirm your email';
       status.textContent = 'This page needs the link from your verification email.';
-      note('You can request a new link from <a href="/app/security">Security settings</a> once signed in.');
+      note('You can request a new link from <a href="/app/settings#account">Account settings</a> once signed in.');
       return;
     }
     api('/auth/verify', { method: 'POST', body: { token } })
