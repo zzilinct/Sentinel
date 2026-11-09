@@ -30,14 +30,14 @@
     dark: {
       50: '#f7eed6', 200: '#f3dca4', 300: '#e2c27f', 400: '#d2ac63', 500: '#b8913f', 600: '#8a6424',
       grad: ['#efd79c', '#d6b066', '#b88e3d'], hover: ['#f4e0ad', '#dcb870', '#bf9544'],
-      btn: ['#f6e1ab', '#d2ac63', '#a97f35'], btnHover: ['#fbe9bd', '#ddb873', '#b48a3e'],
+      btn: ['#f6e1ab', '#d2ac63', '#a97f35'], btnHover: ['#fbe9bd', '#ddb873', '#b48a3e'], gilt: ['#f0d28c', '#c99a45', '#8e6626'],
       metal: ['#f3dca4', '#d2ac63', '#8a6424', '#e9c983', '#7a561c'], at: [0, 30, 56, 72, 100], line: 0.3, sketch: 0.55,
       glow: '0 14px 34px -14px', glowA: 0.75
     },
     light: {
       50: '#3d2c0c', 200: '#6f5217', 300: '#7d5c1c', 400: '#8a6420', 500: '#9c7229', 600: '#b08433',
       grad: ['#98712a', '#8a6420', '#6f4f16'], hover: ['#96701f', '#7a5818', '#624512'],
-      btn: ['#f6e1ab', '#d2ac63', '#a97f35'], btnHover: ['#fbe9bd', '#ddb873', '#b48a3e'],
+      btn: ['#f6e1ab', '#d2ac63', '#a97f35'], btnHover: ['#fbe9bd', '#ddb873', '#b48a3e'], gilt: ['#f0d28c', '#c99a45', '#8e6626'],
       metal: ['#c79a45', '#9a7029', '#5e4210', '#a8803a', '#4c3409'], at: [0, 34, 58, 74, 100], line: 0.35, sketch: 0.6,
       glow: '0 14px 30px -14px', glowA: 0.6
     }
@@ -116,6 +116,7 @@
     const free = (list, stops) => list.map((hex) => tone(hex, a)).map((c, i) => `${c} ${stops[i]}%`).join(', ');
     out['--btn-grad'] = `linear-gradient(176deg, ${free(g.btn, [0, 48, 100])})`;
     out['--btn-grad-hover'] = `linear-gradient(176deg, ${free(g.btnHover, [0, 48, 100])})`;
+    out['--gilt'] = `linear-gradient(176deg, ${free(g.gilt, [0, 50, 100])})`;
     out['--metal-stops'] = free(g.metal, g.at);
     out['--metal'] = `linear-gradient(176deg, ${out['--metal-stops']})`;
     out['--line-gold'] = `rgb(${rgb} / ${g.line})`;
