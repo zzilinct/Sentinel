@@ -44,8 +44,9 @@ async function checkLook() {
     const open = async () => { await goto(browser, s, `${sentinel.base}/app/protection`, "document.querySelector('[data-look] .look')"); await sleep(900); };
     const store = (mode, accent) => ev(`(() => { localStorage.removeItem('sentinel:theme'); localStorage.removeItem('sentinel:accent'); ${mode !== 'auto' ? `localStorage.setItem('sentinel:theme', '${mode}');` : ''} ${accent !== 'gold' ? `localStorage.setItem('sentinel:accent', '${accent}');` : ''} return true; })()`);
     const lookPhoto = async (name) => {
-      await ev("document.getElementById('look').scrollIntoView({ block: 'center' }), true");
-      await sleep(400);
+      // Instantly, then long enough for the app's own entrance of a part scrolled into view (app-lux.js) to finish.
+      await ev("document.getElementById('look').scrollIntoView({ block: 'center', behavior: 'instant' }), true");
+      await sleep(1800);
       await shot(browser, s, name);
     };
 
@@ -96,8 +97,8 @@ async function checkLook() {
     // The picker by mouse: the new look opens out of the coin (photographed mid-reveal), and is kept.
     await store('dark', 'gold');
     await open();
-    await ev("document.getElementById('look').scrollIntoView({ block: 'center' }), true");
-    await sleep(300);
+    await ev("document.getElementById('look').scrollIntoView({ block: 'center', behavior: 'instant' }), true");
+    await sleep(1800);
     await clickSel(browser, s, '.look__coin input[value="rose"]');
     await sleep(260);
     await shot(browser, s, 'look-app-reveal-mid');
@@ -145,7 +146,7 @@ async function checkLook() {
     const cardSeen = {};
     for (const [accent, scheme] of [['gold', 'dark'], ['rose', 'light'], ['platinum', 'dark']]) {
       await size('desktop', scheme);
-      await browser.send('Emulation.setDeviceMetricsOverride', { width: 520, height: 400, deviceScaleFactor: 1, mobile: false }, s);
+      await browser.send('Emulation.setDeviceMetricsOverride', { width: 520, height: 560, deviceScaleFactor: 1, mobile: false }, s);
       const q = new URLSearchParams({ badge: 'orange', label: 'Likely scam', host: 'paypa1-secure-login.example', reasons: 'The address imitates paypal.com\nThe site is three days old', real: 'paypal.com', browser: 'Microsoft Edge', theme: scheme, accent });
       await goto(browser, s, `${files.base}/d/pages/warn.html?${q}`, "document.getElementById('real').textContent");
       await sleep(900);
