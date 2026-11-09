@@ -63,6 +63,7 @@ async function checkColour() {
         const row = await evalIn(browser, s, `(() => { const g = [...document.querySelectorAll('.colour__pick .swatch__gem')].map((e) => e.getBoundingClientRect());
           return { tops: new Set(g.map((r) => Math.round(r.top))).size, left: Math.min(...g.map((r) => r.left)), right: Math.max(...g.map((r) => r.right)), sideways: document.documentElement.scrollWidth - innerWidth,
             radios: [...document.querySelectorAll('.colour__pick [role=radio]')].map((b) => b.getAttribute('aria-checked') + ':' + (b.textContent.trim() || '?')) }; })()`);
+        await sleep(1500);
         result(`${tag}: seven named gems in one row, gold chosen, nothing scrolls sideways`, row.tops === 1 && row.left >= 0 && row.right <= width && row.sideways <= 0
           && row.radios.length === 7 && row.radios.filter((r) => r.startsWith('true')).join() === 'true:Gold' && gold.accent === 'gold', row);
         await shot(browser, s, `colour-${label}-${scheme}-gold`);
@@ -84,7 +85,7 @@ async function checkColour() {
         // The pick, stopped half way and photographed: a circle opening from the gem.
         await click(s, gem('sapphire'));
         const circle = await until(browser, s, `(() => { const a = document.getAnimations().find((x) => x.effect && x.effect.pseudoElement === '::view-transition-new(root)');
-          if (!a || !document.documentElement.classList.contains('vt-pick')) return null; a.pause(); a.currentTime = 260; return a.effect.getKeyframes().map((k) => k.clipPath).join(' '); })()`, 3000);
+          if (!a || !document.documentElement.classList.contains('vt-pick')) return null; a.pause(); a.currentTime = 90; return a.effect.getKeyframes().map((k) => k.clipPath).join(' '); })()`, 3000);
         if (scheme === 'dark' || mobile) await shot(browser, s, `colour-${label}-${scheme}-opening`);
         result(`${tag}: the pick opens as a circle from the gem`, /circle\(/.test(String(circle)), { circle });
         // A second click while it runs: the first finishes at once, the second wins, nothing is left over.

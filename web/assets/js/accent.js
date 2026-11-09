@@ -156,7 +156,7 @@
     const r = gem ? null : ramp(a.id, 'dark');
     const c = (s) => (gem ? gem[s] : r[`--gold-${s}`]);
     return `<button type="button" class="swatch" role="radio" aria-checked="${a.id === 'gold'}" tabindex="${a.id === 'gold' ? 0 : -1}" data-accent="${a.id}"`
-      + ` style="--sw-hi:${c(50)};--sw:${c(300)};--sw-lo:${c(600)}"><span class="swatch__gem" aria-hidden="true"></span><span class="swatch__name">${a.name}</span></button>`;
+      + ` style="--sw-hi:${c(200)};--sw:${c(400)};--sw-lo:${c(600)}"><span class="swatch__gem" aria-hidden="true"></span><span class="swatch__name">${a.name}</span></button>`;
   }).join('');
   const swatches = [...group.querySelectorAll('.swatch')];
 

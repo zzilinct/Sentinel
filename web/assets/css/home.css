@@ -358,9 +358,15 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .colour__switch::after { content: ''; position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(180deg, #fff, #e9e5dc); box-shadow: 1px 2px 5px rgb(0 0 0 / .35); }
 .colour__view .btn { justify-self: start; margin-top: 4px; pointer-events: none; }
 @media (max-width: 960px) { .colour { grid-template-columns: 1fr; gap: 44px; } .colour__view { max-width: 480px; } }
-/* On a phone the gems fill one row and the chosen name is read in the view below them. */
+/* On a phone the view comes first, the gems under it near the thumb, so the change is seen where it is made; the
+   gems fill one row and the chosen name is read in the view. */
 @media (max-width: 560px) {
-  .colour__pick { gap: 4px; margin: 32px 0 24px; }
+  .colour { display: flex; flex-direction: column; gap: 0; }
+  .colour__copy { display: contents; }
+  .colour__view { order: 1; margin-top: 32px; }
+  .colour__pick { order: 2; gap: 4px; margin: 28px 0 20px; }
+  .colour__note { order: 3; }
+  .colour__view .demo-row + .demo-row { display: none; }
   .swatch__name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .colour__view { padding: 26px 22px; }
 }
