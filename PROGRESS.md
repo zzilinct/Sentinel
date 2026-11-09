@@ -18,8 +18,15 @@
 - CI run 42709796653 (checks=look): 12/12 PASS. Shots read: island, card, popup good; picker was photographed
   mid-entrance (fixed in the check), card viewport too short (fixed). Re-run 42711186312.
 
+## Paused (owner's usage limit at 84%)
+- Final commit f0efb0d pushed (full CI). Done green: Test, Live scanning e2e, Browser checkup e2e.
+  Still running/queued at pause: Review screenshots 42712203517, Desktop protections e2e 42712203373,
+  Website/companion (verify-web, includes the look check) 42712204501. Re-run 42711186312 was cancelled.
+- 784d2f4 (double-press reveal fix) is in f0efb0d.
+
 ## Next
-- Read the re-run's shots; full CI run on the final commit (push without [skip ci]).
+- Check those three runs; download verify-web artifact, read look-*.png (picker now photographed after the
+  entrance; card at 520x560), then write the report.
 - Still gold: the companion's red-alarm "go" button gradient (alarm.js .brand .go), legal copy ("gold line"),
   installer/taskbar .ico and the popup's brand icon PNG (files, by design).
 - Bytes: +20 KB raw / 7.3 KB gzip look.js in every page's head, -1.6 KB boot.js, +3.1 KB sentinel.css.
