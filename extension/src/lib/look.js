@@ -251,9 +251,12 @@
     html.style.setProperty('--look-x', from.x + 'px');
     html.style.setProperty('--look-y', from.y + 'px');
     html.classList.add('look-vt');
-    var vt = document.startViewTransition(draw);
-    vt.finished.then(function () { html.classList.remove('look-vt'); }, function () { html.classList.remove('look-vt'); });
+    // A second press before the first has opened takes over: only the last one clears the class.
+    var mine = ++show.n;
+    var done = function () { if (mine === show.n) html.classList.remove('look-vt'); };
+    document.startViewTransition(draw).finished.then(done, done);
   }
+  show.n = 0;
   /** Changes the look (any of mode, accent). `from` is the point it was chosen at, for the reveal. */
   function set(change, from) {
     var look = normal({ mode: change && 'mode' in change ? change.mode : current.mode, accent: change && 'accent' in change ? change.accent : current.accent });

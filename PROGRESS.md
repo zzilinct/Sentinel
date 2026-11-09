@@ -14,7 +14,12 @@
   paint; serp.js line, tint, pill and marks follow the cached accent.
 - tests/look.test.js; scripts/verify-web/49-look.js (screenshots look-*.png).
 
+- snip.html, chat.html badge and the companion's calm notes (alarm.js 'calm') follow the accent too.
+- CI run 42709796653 (checks=look): 12/12 PASS. Shots read: island, card, popup good; picker was photographed
+  mid-entrance (fixed in the check), card viewport too short (fixed). Re-run 42711186312.
+
 ## Next
-- Read CI screenshots of 49-look; fix what they show.
-- Still gold: snip.html, chat.html badge, companion alarm/guard/pwalarm/typed pages, legal copy ("gold line").
-- Full CI run on the final commit.
+- Read the re-run's shots; full CI run on the final commit (push without [skip ci]).
+- Still gold: the companion's red-alarm "go" button gradient (alarm.js .brand .go), legal copy ("gold line"),
+  installer/taskbar .ico and the popup's brand icon PNG (files, by design).
+- Bytes: +20 KB raw / 7.3 KB gzip look.js in every page's head, -1.6 KB boot.js, +3.1 KB sentinel.css.
