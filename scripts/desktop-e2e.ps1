@@ -881,7 +881,7 @@ Shot 'checkup'
 Check 'checkup-folds-clean-addons' ($ok -and $c -eq '3 more add-ons, nothing to look at|closed|Coupon Helper E2E|Dark Reader E2E/Tab Notes E2E/Word Count E2E|true') "Vivaldi: $c"
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection', 1)")
 $t = ''
-$ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; [bool]$script:t }
+$ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('guard-texts') || {}).textContent || ''").value; [bool]$script:t }
 Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -match 'English texts for now' -and $t -match 'left-to-right') "Check my texts panel: $(([string]$t).Substring(0, [Math]::Min(200, ([string]$t).Length)))"
 
 # 4c, seen in the app (signed in since 7; the restart before it emptied the list): a Discord installer someone

@@ -114,7 +114,7 @@
     if (core.chat) {
       groups.push({ id: 'chats', title: 'Chats and texts', rows: [
         row(core.chat, { main: true, what: 'Points out scams and unsafe strangers in Roblox and Discord chats' }),
-        row(core.texts, { name: 'Check my texts', main: true, what: 'Points out scam texts in Phone Link' })
+        row(core.texts, { name: 'Check my texts', main: true, what: 'Points out English scam texts in Phone Link' })
       ] });
     }
 

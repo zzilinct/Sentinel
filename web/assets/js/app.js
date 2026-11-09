@@ -2662,7 +2662,8 @@
       return `<p class="guard__counts" data-text-seen>${esc(textSeenText(info.textSafety || {}))}</p>
         ${facts(['If your phone&rsquo;s texts show on this computer through Phone Link, Sentinel points out scam texts (unpaid tolls, parcel fees, "Hi Mum, this is my new number") beside the message.',
           'Read on this computer only, judged and forgotten. A link in a text is checked by its address and never opened.',
-          'Sentinel knows the wording of scam texts in English, and never types, clicks or replies in Phone Link.'])}`;
+          'English texts for now: Sentinel knows the wording of English scam texts only, and tells the texts you received from the ones you sent by their side, so Phone Link needs a left-to-right language.',
+          'Sentinel never types, clicks or replies in Phone Link.'])}`;
     }
     if (id === 'login') return facts(['Keeps protection running from the moment you sign in to Windows. Sentinel starts quietly, in the corner of the taskbar.']);
     if (id === 'snip') {
