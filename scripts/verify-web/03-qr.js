@@ -16,7 +16,7 @@ async function checkQr() {
   // The app's own reading code, taken from app.js so this checks what ships: qrFrom (two sizes) and qrFromFile.
   const app = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'app.js'), 'utf8');
   const start = app.indexOf('  function qrFrom(');
-  const end = app.indexOf('\n  /** What a QR code does');
+  const end = app.indexOf('\n  const REPORT_CATEGORIES');
   if (start < 0 || end < start) throw new Error('could not find qrFrom and qrFromFile in web/assets/js/app.js');
   const page = `<!doctype html><meta charset="utf-8"><title>QR</title><script src="/assets/js/qr.js"></script><script>\n${app.slice(start, end)}\nwindow.qrFromFile = qrFromFile;</script>`;
   const files = await serveFiles({ '/samples/': QR, '/': path.join(ROOT, 'web') }, { '/qr.html': page });
