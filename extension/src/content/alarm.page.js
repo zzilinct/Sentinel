@@ -112,10 +112,17 @@
   }
 
   let shown = null;
+  // 'calm' (a note, not a warning) is the accent the Windows app chose, as the popup keeps it (popup.js); gold until
+  // there is one, and in the page's own world, which cannot read the companion's storage.
+  let calm = '#d6b25a';
+  try {
+    const store = (globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome || {}).storage;
+    if (store) Promise.resolve(store.local.get('look')).then((r) => { const a = r && r.look && r.look.live && r.look.live.acc; if (/^#[0-9a-f]{6}$/.test(a || '')) calm = a; }, () => {});
+  } catch { /* gold */ }
 
   function show(o) {
     if (shown) shown.close();
-    const accent = o.accent || '#e5484d';
+    const accent = o.accent === 'calm' ? calm : o.accent || '#e5484d';
     const before = document.activeElement;
     const host = make.call(document, 'div');
     host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483647;';

@@ -44,7 +44,7 @@
     paid = true;
     globalThis.SentinelAlarm.show({
       small: true,
-      accent: '#d6b25a',
+      accent: 'calm',
       title: 'Before you pay',
       lead: text,
       buttons: [{ text: 'OK', kind: 'quiet', on: (ev, c) => c.close() }]
@@ -58,7 +58,7 @@
     paused = true;
     globalThis.SentinelAlarm.show({
       small: true,
-      accent: '#d6b25a',
+      accent: 'calm',
       title: 'A moment before you pay',
       lead: 'No real company, government office or bank asks to be paid in gift cards or crypto. Once paid this way, the money is almost always gone.',
       steps: ['Is someone on the phone telling you to do this? Hang up. Then call your bank on the number on the back of your card.'],

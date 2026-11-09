@@ -61,7 +61,7 @@
     const show = () => {
       const ctl = globalThis.SentinelAlarm.show({
         small: true,
-        accent: '#d6b25a',
+        accent: 'calm',
         title: `Your ${name} password is now protected`,
         lead: 'If you type it on any other site, Sentinel empties the box and warns you. You can change this in the companion\'s settings.',
         buttons: [{ text: 'OK', kind: 'quiet', on: (ev, c) => c.close() }]
