@@ -24,14 +24,14 @@ function loadCard(heightAt, buttons = [], trims = []) {
     head: { appendChild() {} },
     createElement: () => ({ textContent: '' }),
     addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
-    documentElement: { style: style() },
+    documentElement: { style: style(), dataset: {} },
     body: { style: style(), getBoundingClientRect() { return { height: heightAt(parseInt(this.style.width, 10) || 0, trims.filter((t) => !t.hidden).length) }; } },
     activeElement: null,
     querySelector: (sel) => (sel === '[data-escape]' ? buttons.find((b) => b.escape) || null : null),
     querySelectorAll: (sel) => (sel === '[data-trim]' ? trims : sel === '[data-trimmed]' ? trims.filter((t) => t.attrs['data-trimmed']) : buttons)
   };
   const window = {};
-  vm.runInNewContext(card, { window, document: doc, getComputedStyle: () => ({}), requestAnimationFrame: (f) => f(), MutationObserver: class { observe() {} } });
+  vm.runInNewContext(card, { window, document: doc, getComputedStyle: () => ({}), requestAnimationFrame: (f) => f(), MutationObserver: class { observe() {} }, URLSearchParams, location: { search: '' }, matchMedia: () => ({ matches: false }) });
   const key = (k, shiftKey = false, defaultPrevented = false) => {
     const e = { key: k, shiftKey, defaultPrevented, preventDefault() { this.defaultPrevented = true; } };
     for (const fn of listeners.keydown || []) fn(e);
@@ -101,7 +101,9 @@ test('the card springs with the island\'s curve, once, and only fades for reduce
   const pill = Number(read('desktop/src/pages/overlay.html').match(/var PILL = (\d+);/)[1]);
   assert.equal(pill, 34);
   assert.match(card, /@keyframes card-open \{ from \{ clip-path: inset\(calc\(100% - 34px\) 0 0 calc\(100% - 34px\) round 17px\); \}/, 'out of the 34 px mask in its corner');
-  assert.match(card, /@media \(prefers-reduced-motion: reduce\) \{ body, \.mark, \.head > div, \.body, \.row \{ animation: card-fade \.2s ease both; \} \}/);
+  // Motion Off (the app's setting, passed as ?motion=, or Windows asking for less motion): it only fades in.
+  assert.match(card, /:root\[data-motion="off"\] \{ body, \.mark, \.head > div, \.body, \.row \{ animation: card-fade \.2s ease both; \} \}/);
+  for (const page of ['warn.html', 'guard.html', 'filescan.html']) assert.match(read('desktop/src/main.js'), new RegExp(`'${page.replace('.', '\\.')}'\\), \\{ query: \\{ [^}]*motion: store\\.get\\('motion', 'full'\\) \\} \\}`), page);
   assert.doesNotMatch(card, /infinite|transition:/);
 });
 

@@ -438,7 +438,7 @@ function showWarning(item) {
     warnWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     warnWin.webContents.on('will-navigate', (e) => e.preventDefault());
   }
-  warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
+  warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query: { ...query, motion: store.get('motion', 'full') } });
   if (warnWin.isVisible()) warnWin.moveTop();
 }
 
@@ -536,7 +536,7 @@ function showGuard(mode, data = {}) {
   }
   guardMode = mode;
   if (mode === 'escape') placeOnPage();
-  guardWin.loadFile(path.join(__dirname, 'pages', 'guard.html'), { query: { mode, ...data } });
+  guardWin.loadFile(path.join(__dirname, 'pages', 'guard.html'), { query: { mode, ...data, motion: store.get('motion', 'full') } });
   if (guardWin.isVisible()) { guardWin.moveTop(); if (mode === 'escape') takeKeyboard(); }
 }
 /** The shield's window in front with the keyboard. focus() alone loses to a full-screen browser: the reader asks. */
@@ -1047,7 +1047,7 @@ async function scanHere(file) {
       });
     });
   }
-  menuWin.loadFile(path.join(__dirname, 'pages', 'filescan.html'), { query });
+  menuWin.loadFile(path.join(__dirname, 'pages', 'filescan.html'), { query: { ...query, motion: store.get('motion', 'full') } });
   if (menuWin.isVisible()) { menuWin.moveTop(); menuWin.focus(); }
 }
 /** The result window's buttons. "Sign in" hands the file to the app's account scan, the way a signed-in right-click does. */
