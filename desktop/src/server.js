@@ -118,7 +118,9 @@ function spawnNow(store) {
       RESEARCH_ENABLED: '0',
       // Delicate live scanning may still ask the public registry how old a domain is, and whether it resolves.
       RESEARCH_LITE: '1',
-      SENTINEL_DEVICE_ACCOUNTS: '1'
+      SENTINEL_DEVICE_ACCOUNTS: '1',
+      // The look chosen in the app (main.js writes it), which the companion's popup asks this server for.
+      SENTINEL_LOOK_FILE: path.join(app.getPath('userData'), 'look.json')
     };
     delete env.ELECTRON_RUN_AS_NODE;
 

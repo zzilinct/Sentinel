@@ -61,38 +61,6 @@ document.documentElement.classList.add('js');
   window.addEventListener('load', giveUp);
 })();
 
-/*
- * Light or dark. "Auto" (nothing stored) follows the system; a choice is remembered on this device. Applied here,
- * before the page is painted, so it never flashes the other theme. Any [data-theme-toggle] button cycles
- * Auto, Light, Dark and says which is on.
- */
-(function () {
-  const KEY = 'sentinel:theme';
-  const order = ['auto', 'light', 'dark'];
-  const read = () => { try { const v = localStorage.getItem(KEY); return v === 'light' || v === 'dark' ? v : 'auto'; } catch { return 'auto'; } };
-  const apply = (mode) => {
-    if (mode === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = mode;
-    for (const b of document.querySelectorAll('[data-theme-toggle]')) {
-      // The spoken name holds the word on the button (Auto, Light, Dark), so saying what you see works.
-      const word = mode === 'auto' ? 'Auto' : mode === 'light' ? 'Light' : 'Dark';
-      const label = `Theme: ${word}`;
-      b.setAttribute('aria-label', `${label}. Change theme`);
-      b.title = label;
-      b.dataset.mode = mode;
-      const text = b.querySelector('[data-theme-label]');
-      if (text) text.textContent = word;
-    }
-  };
-  apply(read());
-  document.addEventListener('DOMContentLoaded', () => apply(read()));
-  document.addEventListener('click', (ev) => {
-    const b = ev.target.closest && ev.target.closest('[data-theme-toggle]');
-    if (!b) return;
-    const next = order[(order.indexOf(read()) + 1) % order.length];
-    try { if (next === 'auto') localStorage.removeItem(KEY); else localStorage.setItem(KEY, next); } catch { /* this page only */ }
-    apply(next);
-  });
-})();
 if (!('IntersectionObserver' in window)) document.documentElement.classList.add('no-io');
 
 /*

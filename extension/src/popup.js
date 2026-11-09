@@ -12,6 +12,28 @@
 
   document.getElementById('settings').onclick = () => ext.runtime.openOptionsPage();
 
+  /*
+   * The look (light or dark, and the accent) is the Windows app's, chosen once there. The popup asks the app's server
+   * on this computer as it opens (an answer in a moment, or none at all without the app) and keeps it: for the next
+   * popup, the block page and the settings (localStorage, read by lib/look.js before their first paint), and for the
+   * line and the marks on search pages (storage.local). Without the app nothing changes: the system's light or dark,
+   * and gold.
+   */
+  (async () => {
+    const L = globalThis.SentinelLook;
+    if (!L) return;
+    let look;
+    try {
+      const res = await fetch('http://127.0.0.1:47821/api/v1/look', { credentials: 'omit', signal: AbortSignal.timeout(1500) });
+      if (!res.ok) return;
+      look = L.normal(await res.json());
+    } catch { return; }
+    const r = L.ramp(look.accent, 'dark');
+    try { localStorage.setItem('sentinel:look', JSON.stringify(look)); } catch { /* storage blocked: this popup only */ }
+    try { await ext.storage.local.set({ look: { ...look, live: { acc: r['--live'], hi: r['--live-hi'], lite: r['--live-lite'], rgb: r['--live-rgb'] }, metal: L.metal(look.accent) } }); } catch { /* the marks stay as they were */ }
+    L.paint(document.documentElement, look);
+  })();
+
   /** One line on the password alarm, with a link to its setting: what it protects, or that nothing is chosen yet. */
   async function pwLine() {
     const el = document.getElementById('pwLine');

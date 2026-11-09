@@ -193,7 +193,37 @@ h1 em, h2 em { font-style: normal; color: var(--text); }
 .nav__links a:hover { color: var(--text); background: rgb(var(--ink) / .04); }
 .nav__actions { margin-left: 8px; display: flex; align-items: center; gap: 8px; }
 .nav__toggle { display: none; margin-left: 4px; background: none; border: 0; padding: 8px; cursor: pointer; color: var(--text); }
-/* Light, dark or automatic (see boot.js). */
+/* The look picker (look.js picker()): Theme as a pressed well with the choice raised out of it, Colour as a row of
+   struck coins, each in its own metal. Both are radio groups, so the arrow keys move the choice. */
+.look { display: grid; gap: 22px; }
+.look__group { margin: 0; padding: 0; border: 0; min-width: 0; }
+.look__group legend { padding: 0; margin-bottom: 10px; font: 500 var(--t-ui)/1.3 var(--sans); color: var(--text); }
+.look__modes { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--r); box-shadow: var(--press); }
+.look__mode, .look__coin { position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.look__mode input, .look__coin input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.look__mode span { display: flex; align-items: center; height: 36px; padding: 0 16px; border-radius: var(--r-sm); font: 500 var(--t-ui)/1 var(--sans); color: var(--muted); transition: color .2s, background-color .2s, box-shadow .2s; }
+.look__mode:hover span { color: var(--text); }
+.look__mode input:checked + span { color: var(--on-gold); background: var(--gold-grad); box-shadow: var(--raise-sm); }
+.look__coins { display: flex; flex-wrap: wrap; gap: 6px 4px; }
+.look__coin { display: grid; justify-items: center; gap: 7px; width: 76px; padding: 8px 0 6px; border-radius: var(--r); }
+.look__coin i { width: 42px; height: 42px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, rgb(255 255 255 / .55), transparent 24%), radial-gradient(circle at 50% 38%, var(--c1), var(--c2) 54%, var(--c3) 100%);
+  box-shadow: inset 0 1px 1px rgb(255 255 255 / .55), inset 0 -4px 7px rgb(0 0 0 / .32), 0 7px 14px -7px rgb(0 0 0 / .65);
+  transition: transform .5s var(--spring), box-shadow .3s; }
+.look__coin:hover i { transform: translateY(-2px) rotate(-8deg); }
+.look__coin input:checked + i { transform: scale(1.1); box-shadow: inset 0 1px 1px rgb(255 255 255 / .55), inset 0 -4px 7px rgb(0 0 0 / .32), 0 0 0 3px var(--bg), 0 0 0 5px var(--c2), 0 10px 22px -8px var(--c2); }
+.look__coin span { font: 500 var(--t-note)/1.2 var(--sans); color: var(--muted); }
+.look__coin input:checked ~ span { color: var(--text); }
+.look__mode input:focus-visible + span, .look__coin input:focus-visible + i { outline: 2px solid var(--gold-300); outline-offset: 3px; }
+.look__note { margin: 10px 0 0; font-size: var(--t-note); color: var(--muted); max-width: 46ch; }
+@media (prefers-reduced-motion: reduce) { .look__coin i, .look__coin:hover i, .look__coin input:checked + i { transform: none; } }
+/* A new look opens out of the coin (or theme button) that was pressed, over the old one: one paint, on the
+   compositor. Only for a press; a page that loads draws its stored look straight away. */
+html.look-vt::view-transition-old(root) { animation: none; }
+html.look-vt::view-transition-new(root) { animation: look-in .72s cubic-bezier(.65, 0, .25, 1) both; }
+@keyframes look-in { from { clip-path: circle(0 at var(--look-x, 50%) var(--look-y, 50%)); } to { clip-path: circle(150vmax at var(--look-x, 50%) var(--look-y, 50%)); } }
+
+/* Light, dark or automatic (see look.js). */
 .theme-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 11px; border: 0; border-radius: var(--r);
   background: transparent; color: var(--text-2); font: 500 var(--t-ui)/1 var(--sans); cursor: pointer; box-shadow: inset 0 0 0 1px var(--line-2); transition: color .2s, background .2s; }
 .theme-toggle:hover { color: var(--text); background: rgb(var(--ink) / .05); }

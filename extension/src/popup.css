@@ -1,5 +1,7 @@
 /* The website's own type and colours (web/assets/css/sentinel.css), so the companion looks like the same product. */
 @import url('fonts/fonts.css');
+/* Light or dark and the accent are the Windows app's (look.js: data-theme and the --gold-* ramp on <html>); without
+   the app, the system's light or dark, and gold. */
 :root {
   --bg: #0a0b0d;
   --gold-grad: linear-gradient(180deg, #efd79c 0%, #d6b066 34%, #b88e3d 62%, #e2c47f 100%);
@@ -8,8 +10,10 @@
   --text: #efece5;
   --text-2: #b9b6ae;
   --muted: #9a978f;
-  --gold: #d4ae63;
-  --gold-hi: #e2c47f;
+  --gold-400: #d4ae63;
+  --gold-300: #e2c47f;
+  --gold: var(--gold-400);
+  --gold-hi: var(--gold-300);
   --on-gold: #16130b;
   --orange: #f08a24;
   --red: #ff7a7e;
@@ -17,12 +21,18 @@
   --spring: linear(0, .063, .207, .382, .555, .706, .828, .918, .98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1);
 }
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --bg: #f6f4ef; --panel-2: #ebe7de; --line: rgba(20, 22, 26, .12);
     --text: #16171a; --text-2: #3b3a36; --muted: #57554f;
-    --gold: #7a5716; --gold-hi: #634610; --gold-grad: linear-gradient(180deg, #a07a30 0%, #8a6420 34%, #6f4f16 62%, #94702a 100%); --on-gold: #ffffff;
+    --gold-400: #7a5716; --gold-300: #634610; --gold-grad: linear-gradient(180deg, #a07a30 0%, #8a6420 34%, #6f4f16 62%, #94702a 100%); --on-gold: #ffffff;
     --orange: #a84600; --red: #b3261e; --green: #1e7a3c;
   }
+}
+:root[data-theme="light"] {
+    --bg: #f6f4ef; --panel-2: #ebe7de; --line: rgba(20, 22, 26, .12);
+    --text: #16171a; --text-2: #3b3a36; --muted: #57554f;
+    --gold-400: #7a5716; --gold-300: #634610; --gold-grad: linear-gradient(180deg, #a07a30 0%, #8a6420 34%, #6f4f16 62%, #94702a 100%); --on-gold: #ffffff;
+    --orange: #a84600; --red: #b3261e; --green: #1e7a3c;
 }
 
 * { box-sizing: border-box; }
@@ -77,7 +87,7 @@ body {
 .btn:hover { box-shadow: inset 0 0 0 1px var(--muted); }
 .btn:active { transform: scale(.97); }
 /* Gold is metal: the light travels across it on hover, nothing fades. */
-.btn.gold { background: var(--gold-grad) 0 0 / 100% 240%; color: var(--on-gold); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 12px 26px -14px rgba(212, 174, 99, .8); transition: transform .32s var(--spring), background-position .5s ease; }
+.btn.gold { background: var(--gold-grad) 0 0 / 100% 240%; color: var(--on-gold); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 12px 26px -14px rgb(var(--gold-rgb, 212 174 99) / .8); transition: transform .32s var(--spring), background-position .5s ease; }
 .btn.gold:hover { background-position: 0 100%; }
 .btn.block { width: 100%; }
 .btn.quiet { background: none; box-shadow: none; color: var(--text-2); font-weight: 500; padding: 6px; }

@@ -5,19 +5,29 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel live scanning</title>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<script src="../../shared/look.js"></script>
+<script>SentinelLook.paint(document.documentElement, SentinelLook.fromQuery(location.search));</script>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: #e9e6df; }
+  /* The app's look (look.js, from main.js): --acc-* is the accent in this scheme, --live-* the accent as light, for
+     the line, the tint and the marks, which are drawn over any page. The island's own fill follows light or dark. */
+  :root { --sheet: #0c0d10; --ink: #e9e6df; --ink-2: #cfcbc1; --ink-3: #b9b5ab; --ink-4: #a09c93; --edge: #3a3b40;
+    --btn: #1a1c21; --btn-hi: #24272d; --hair: rgba(255, 255, 255, .1); --hair-2: rgba(255, 255, 255, .08); }
+  :root[data-theme="light"] { --sheet: #f6f1e7; --ink: #2b2720; --ink-2: #4a453a; --ink-3: #4a453a; --ink-4: #6b6558; --edge: #cfc6b4;
+    --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .14); --hair-2: rgba(60, 45, 20, .1); }
+  @media (prefers-color-scheme: light) { :root:not([data-theme]) { --sheet: #f6f1e7; --ink: #2b2720; --ink-2: #4a453a; --ink-3: #4a453a; --ink-4: #6b6558; --edge: #cfc6b4;
+    --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .14); --hair-2: rgba(60, 45, 20, .1); } }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: var(--ink); }
   * { box-sizing: border-box; }
   body { position: relative; }
 
   /* The tint and the line */
   .tint { position: absolute; inset: 0; opacity: 0; pointer-events: none;
-    background: linear-gradient(180deg, rgba(214, 178, 90, .17), rgba(214, 178, 90, .07) 60%, rgba(214, 178, 90, .04)); }
+    background: linear-gradient(180deg, rgb(var(--live-rgb) / .17), rgb(var(--live-rgb) / .07) 60%, rgb(var(--live-rgb) / .04)); }
   .line { position: absolute; left: 0; right: 0; top: 0; height: 3px; opacity: 0; pointer-events: none; will-change: transform;
-    background: linear-gradient(90deg, rgba(233, 207, 138, 0), #e2c47f 18%, #fff4d2 50%, #e2c47f 82%, rgba(233, 207, 138, 0));
-    box-shadow: 0 0 22px 5px rgba(214, 178, 90, .5), 0 0 3px 1px rgba(255, 244, 210, .8); }
+    background: linear-gradient(90deg, rgb(var(--live-rgb) / 0), var(--live-hi) 18%, var(--live-lite) 50%, var(--live-hi) 82%, rgb(var(--live-rgb) / 0));
+    box-shadow: 0 0 22px 5px rgb(var(--live-rgb) / .5), 0 0 3px 1px color-mix(in srgb, var(--live-lite) 80%, transparent); }
   .line::before { content: ""; position: absolute; left: 0; right: 0; bottom: 3px; height: 140px;
-    background: linear-gradient(0deg, rgba(214, 178, 90, .16), rgba(214, 178, 90, 0)); }
+    background: linear-gradient(0deg, rgb(var(--live-rgb) / .16), rgb(var(--live-rgb) / 0)); }
   body.sweeping .tint { animation: tint 2.7s ease-out forwards; }
   body.sweeping .line { animation: line 1.35s cubic-bezier(.45, .05, .25, 1) forwards; }
   @keyframes tint { 0% { opacity: 0; } 12% { opacity: 1; } 55% { opacity: .85; } 100% { opacity: 0; } }
@@ -36,8 +46,8 @@
   /* The rim is the fill's own shape one pixel wider: a border would be cut off by the clip. Its own dark tone keeps the
      edge on black pages, and the fill is solid, so the words read the same on any page. */
   .isl__rim, .isl__sheet { position: absolute; clip-path: inset(calc(280px - var(--h) * 1px) 0 0 calc(360px - var(--w) * 1px) round calc(var(--r) * 1px)); transition: clip-path .5s var(--spring); }
-  .isl__rim { inset: 0; background: color-mix(in srgb, var(--c, #d6b25a) 46%, #3a3b40); }
-  .isl__sheet { inset: 1px; clip-path: inset(calc(280px - var(--h) * 1px) 0 0 calc(360px - var(--w) * 1px) round calc((var(--r) - 1) * 1px)); background: #0c0d10; }
+  .isl__rim { inset: 0; background: color-mix(in srgb, var(--c, var(--acc)) 46%, var(--edge)); }
+  .isl__sheet { inset: 1px; clip-path: inset(calc(280px - var(--h) * 1px) 0 0 calc(360px - var(--w) * 1px) round calc((var(--r) - 1) * 1px)); background: var(--sheet); }
   /* Getting smaller: no bounce, once the words have gone. */
   .corner.is-folding .isl__rim, .corner.is-folding .isl__sheet { transition: clip-path .34s cubic-bezier(.3, 0, .2, 1) .06s; }
   .corner.is-on { opacity: 1; transform: none; }
@@ -49,23 +59,23 @@
   /* The pointer near it: the page's own corner buttons ("Share feedback", "Back to top", chat bubbles) can be seen, and
      every click still goes to them. Only a pointer that rests on the island opens it. */
   .corner.is-on.is-shy { opacity: .12; transition-duration: .18s; }
-  .corner__mask { position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: var(--c, #d6b25a); }
+  .corner__mask { position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: var(--c, var(--acc)); }
   /* A glow that breathes twice when the mask arrives (and stays lit on a dangerous page), then stops: opacity only,
      and never an endless loop over a game or a page being read. */
-  .corner__mask::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 12px 1px color-mix(in srgb, var(--c, #d6b25a) 40%, transparent); opacity: 0; }
+  .corner__mask::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 12px 1px color-mix(in srgb, var(--c, var(--acc)) 40%, transparent); opacity: 0; }
   .corner.is-on:not(.is-quiet):not(.is-rested) .corner__mask::after { animation: breathe 1.8s ease-in-out 2; }
   .corner.is-on.is-flagged .corner__mask::after { animation: breathe 1.8s ease-in-out 1.5 forwards; }   /* 1.5 runs: it ends lit */
   .corner__mask svg { width: 24px; height: 24px; display: block; }
   /* The words sit left of the mask. Each message is its own line: the old one rises out as the new one rises in, while
      the pill springs to the new width. They show once it is nearly open (at 160 ms they still stood out past its edge
      in the e2e frames). */
-  .corner__label { position: absolute; right: 34px; bottom: 0; height: 32px; color: #e9e6df; font-size: var(--t-label); font-weight: 500; }
+  .corner__label { position: absolute; right: 34px; bottom: 0; height: 32px; color: var(--ink); font-size: var(--t-label); font-weight: 500; }
   .corner__label > span { position: absolute; right: 0; top: 50%; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     opacity: 0; transform: translate(10px, -50%); transition: opacity .2s ease .16s, transform .5s var(--spring) .04s; }
   .corner__label > span.is-in { opacity: 1; transform: translate(0, -50%); }
   .corner__label > span.is-swap { transition-delay: .07s, 0s; }
   .corner__label > span.is-out { opacity: 0; transform: translate(0, calc(-50% - 7px)); transition: opacity .14s ease, transform .2s ease; }
-  .corner__label b { font-weight: 600; color: var(--c, #e2c47f); }
+  .corner__label b { font-weight: 600; color: var(--c, var(--acc-hi)); }
   @keyframes breathe { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
   /* The panel: the pill row stays where it is at the bottom, and the panel's lines rise above it. Hidden, it takes no
      focus and a screen reader skips it. */
@@ -74,21 +84,21 @@
   .corner.is-open .isl__sheet { pointer-events: auto; }
   .corner.is-open .panel { visibility: visible; opacity: 1; transform: none; transition: opacity .2s ease .1s, transform .5s var(--spring) .04s; }
   .panel p { margin: 0; }
-  .panel__site { --track: 0px; font: var(--t-label)/1.35 var(--mono); color: #b9b5ab; overflow-wrap: anywhere; }
-  .panel__verdict { margin-top: 2px !important; font-size: var(--t-text); line-height: 1.3; font-weight: 600; letter-spacing: -.005em; color: var(--c, #e9e6df); }
-  .panel__why { margin-top: 3px !important; font-size: var(--t-note); line-height: 1.4; color: #cfcbc1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-  .panel__links { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid rgba(255, 255, 255, .08); display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--t-label); color: #cfcbc1; font-variant-numeric: tabular-nums; }
+  .panel__site { --track: 0px; font: var(--t-label)/1.35 var(--mono); color: var(--ink-3); overflow-wrap: anywhere; }
+  .panel__verdict { margin-top: 2px !important; font-size: var(--t-text); line-height: 1.3; font-weight: 600; letter-spacing: -.005em; color: var(--c, var(--ink)); }
+  .panel__why { margin-top: 3px !important; font-size: var(--t-note); line-height: 1.4; color: var(--ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .panel__links { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid var(--hair-2); display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--t-label); color: var(--ink-2); font-variant-numeric: tabular-nums; }
   .panel__links li { display: flex; align-items: center; gap: 5px; }
   .panel__links li::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--c, #8d8a82); }
-  .panel__links b { font-weight: 600; color: #e9e6df; }
+  .panel__links b { font-weight: 600; color: var(--ink); }
   .panel__row { display: flex; gap: 8px; margin-top: 12px; }
-  .panel__row button { flex: 1 1 0; height: 30px; padding: 0 10px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 9px; cursor: pointer; font: 500 var(--t-label) var(--sans); color: #e9e6df; background: #1a1c21; white-space: nowrap; transition: transform .1s ease, background .12s ease; }
-  .panel__row button:hover { background: #24272d; }
+  .panel__row button { flex: 1 1 0; height: 30px; padding: 0 10px; border: 1px solid var(--hair); border-radius: 9px; cursor: pointer; font: 500 var(--t-label) var(--sans); color: var(--ink); background: var(--btn); white-space: nowrap; transition: transform .1s ease, background .12s ease; }
+  .panel__row button:hover { background: var(--btn-hi); }
   .panel__row button:active { transform: scale(.97); }
-  .panel__row button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 1px; }
-  .panel__key { margin-top: 8px !important; font-size: var(--t-micro); color: #a09c93; }
+  .panel__row button:focus-visible { outline: 2px solid var(--acc-hi); outline-offset: 1px; }
+  .panel__key { margin-top: 8px !important; font-size: var(--t-micro); color: var(--ink-4); }
   [hidden] { display: none !important; }
-  /* Windows High Contrast: the island keeps its own dark fill and gold, as the marks do. */
+  /* Windows High Contrast: the island keeps its own fill and accent, as the marks do. */
   @media (forced-colors: active) { .corner { forced-color-adjust: none; } }
 
   /* A mask beside every result. The layer moves with the page between reads (see overlay:shift). */
@@ -110,7 +120,7 @@
   /* Windows High Contrast would flatten every mark into one outlined square: the marks keep their own dark tile,
      gold and seal shapes, which carry the meaning without hue. */
   @media (forced-colors: active) { .mark { forced-color-adjust: none; } }
-  .mark.is-pending { width: 10px; height: 10px; border-radius: 3px; border: 0; box-shadow: none; background: #d6b25a; opacity: .0; animation: wait 1s ease-in-out infinite; }
+  .mark.is-pending { width: 10px; height: 10px; border-radius: 3px; border: 0; box-shadow: none; background: var(--live); opacity: .0; animation: wait 1s ease-in-out infinite; }
   .mark.is-in { animation: pop .34s cubic-bezier(.2, 1.4, .4, 1) var(--d, 0ms) forwards; }
   @keyframes pop { 0% { opacity: 0; scale: .55; } 100% { opacity: 1; scale: 1; } }
   /* A mark that has popped in once just shows when it comes back (scrolled away and back, or its verdict refined). */
@@ -126,15 +136,15 @@
   /* Before you pay: a calm card at the top right of a shop's checkout whose address is young or unknown. It springs in
      (transforms and opacity only) and stays while the page does; the pointer near it makes it step aside, like the
      corner mask, so the page under it can be read and clicked. */
-  .pay { position: absolute; right: 18px; top: 18px; width: 300px; padding: 12px 14px 12px 50px; border-radius: 12px; background: #0c0d10;
-    border: 1px solid color-mix(in srgb, #d6b25a 34%, transparent); box-shadow: 0 10px 30px rgba(0, 0, 0, .4); pointer-events: none;
+  .pay { position: absolute; right: 18px; top: 18px; width: 300px; padding: 12px 14px 12px 50px; border-radius: 12px; background: var(--sheet);
+    border: 1px solid color-mix(in srgb, var(--acc) 34%, transparent); box-shadow: 0 10px 30px rgba(0, 0, 0, .4); pointer-events: none;
     opacity: 0; transform: translateY(-8px) scale(.97); transform-origin: 100% 0; transition: opacity .22s ease, transform .5s var(--spring); }
   .pay.is-on { opacity: 1; transform: none; }
   .pay.is-on.is-shy { opacity: .12; transition-duration: .18s; }
-  .pay__mask { position: absolute; left: 12px; top: 12px; width: 26px; height: 26px; color: #d6b25a; }
+  .pay__mask { position: absolute; left: 12px; top: 12px; width: 26px; height: 26px; color: var(--acc); }
   .pay__mask svg { width: 26px; height: 26px; display: block; }
-  .pay b { display: block; font-weight: 600; color: #e2c47f; margin-bottom: 3px; }
-  .pay span { color: #cfcbc1; font-size: var(--t-note); }
+  .pay b { display: block; font-weight: 600; color: var(--acc-hi); margin-bottom: 3px; }
+  .pay span { color: var(--ink-2); font-size: var(--t-note); }
 
   @media (prefers-reduced-motion: reduce) {
     .pay, .pay.is-on { transform: none; transition: opacity .2s ease; }
@@ -184,7 +194,12 @@
 (function () {
   'use strict';
   var M = window.SentinelMasks;
-  var GOLD = '#d6b25a';
+  var L = window.SentinelLook;
+  var look = L.fromQuery(location.search);
+  M.setMetal(L.metal(look.accent));
+  // A verdict on the island is said in its scheme's status colour (dark: the marks' own). The marks keep their dark
+  // tile and M.COLORS in every look. Neither ever follows the accent.
+  function tone(badge) { return L.STATUS[L.scheme(look.mode)][badge === 'clear' ? 'green' : badge]; }
   var tracing = /[?&]trace=1\b/.test(location.search);   // end-to-end runs only (see overlay.js)
   var corner = document.getElementById('corner');
   var cornerMask = document.getElementById('cornerMask');
@@ -235,7 +250,7 @@
     cornerLabel.querySelectorAll(':scope > span:not(.is-out)').forEach(leave);
     if (!html) { if (!panelOpen) island(PILL); return; }
     var s = document.createElement('span');
-    s.style.setProperty('--c', color || '#e2c47f');
+    if (color) s.style.setProperty('--c', color);
     s.innerHTML = html;
     // Already wide: the new words come in sooner, as the old ones leave (the pill only changes width).
     if (islandW > PILL) s.classList.add('is-swap');
@@ -286,11 +301,11 @@
   function rest() {
     var c = linkCounts();
     var flaggedLinks = c.red + c.orange + c.yellow;
-    if (site && site.badge) return { html: '<b>' + esc(site.label) + '</b>', color: M.COLORS[site.badge] };
+    if (site && site.badge) return { html: '<b>' + esc(site.label) + '</b>', color: tone(site.badge) };
     if (site && site.paused) return { html: 'Paused here' };
     if (flaggedLinks) {
       var worst = WORST.filter(function (b) { return c[b]; })[0];
-      return { html: '<b>' + flaggedLinks + ' flagged</b>', color: M.COLORS[worst] };
+      return { html: '<b>' + flaggedLinks + ' flagged</b>', color: tone(worst) };
     }
     // A results page has no verdict of its own: its links are its news. A hovered link does not unsay a page's verdict.
     if (!site || !site.label || site.search) {
@@ -316,8 +331,7 @@
   var LINK_ROWS = [['red', null], ['orange', null], ['yellow', null], ['clear', 'Nothing found'], ['pending', 'Being checked']];
   function fillPanel() {
     var s = site || newSite(null);
-    var color = s.badge ? M.COLORS[s.badge] : '';
-    panel.style.setProperty('--c', color || '#e9e6df');
+    if (s.badge) panel.style.setProperty('--c', tone(s.badge)); else panel.style.removeProperty('--c');
     document.getElementById('panelSite').textContent = s.host || (s.private ? 'Private window' : 'This browser');
     document.getElementById('panelVerdict').textContent = s.badge ? (M.SEVERITY[s.badge] || 'Caution') + ': ' + s.label
       : s.paused ? 'Paused here' : s.checking ? 'Checking this site' : s.unchecked ? 'Could not check this site' : s.label || 'Watching this browser';
@@ -332,7 +346,7 @@
     LINK_ROWS.forEach(function (row) {
       if (!c[row[0]]) return;
       var li = document.createElement('li');
-      li.style.setProperty('--c', row[0] === 'pending' ? '#8d8a82' : M.COLORS[row[0]]);
+      li.style.setProperty('--c', row[0] === 'pending' ? '#8d8a82' : tone(row[0]));
       var b = document.createElement('b'); b.textContent = String(c[row[0]]);
       li.appendChild(b);
       li.appendChild(document.createTextNode(' ' + (row[1] || M.SEVERITY[row[0]])));
@@ -423,8 +437,9 @@
   });
   window.addEventListener('blur', function () { if (byKeyboard) closePanel(); });
 
+  // No colour: the accent (var(--acc)).
   function setCorner(kind, color) {
-    corner.style.setProperty('--c', color || GOLD);
+    if (color) corner.style.setProperty('--c', color); else corner.style.removeProperty('--c');
     cornerMask.innerHTML = M.svg(kind || 'scam');
   }
 
@@ -602,9 +617,9 @@
     corner.classList.toggle('is-quiet', Boolean(s.fullscreen));
     if (s.fullscreen && !flagged) closePanel();
     keyHint = s.key || '';
-    if (!flagged) setCorner('scam', GOLD);
-    if (s.private) say('<b>Private window.</b> Protected, and nothing is kept.', '#e2c47f');
-    else if (s.appeared) say('<b>Sentinel is scanning</b> this browser.', '#e2c47f');
+    if (!flagged) setCorner('scam');
+    if (s.private) say('<b>Private window.</b> Protected, and nothing is kept.');
+    else if (s.appeared) say('<b>Sentinel is scanning</b> this browser.');
     else if (shownWords === null) hush();
   });
   // A new page (or none): everything known about the last one is gone.
@@ -622,6 +637,13 @@
     refresh();
   });
   api.on('overlay:open', function () { openPanel(true); });
+  // The look changed in the app: drawn at once, and the marks on screen are cast again in the new metal.
+  api.on('overlay:look', function (l) {
+    look = L.paint(document.documentElement, l);
+    M.setMetal(L.metal(look.accent));
+    nodes.forEach(function (n) { var st = (n.dataset.state || '').split(':'); if (st.length === 2) n.innerHTML = M.mark(st[1], st[0]); });
+    refresh();
+  });
   api.on('overlay:close', closePanel);
   api.on('overlay:sweep', function (p) {
     sweep(); wake();
@@ -640,12 +662,12 @@
       site.why = String(v.why || '');
     }
     if (flagged) {
-      var color = M.COLORS[v.badge];
+      var color = tone(v.badge);
       setCorner(v.kind, color);
       say('<b>' + esc(v.label) + '.</b> ' + (v.badge === 'yellow' ? 'Take care on this page.' : 'Do not enter anything here.'), color, v.badge !== 'yellow');
       if (panelOpen) refresh();
     } else {
-      setCorner('scam', GOLD);
+      setCorner('scam');
       // A warning about the last page must not hang over this one.
       if (sticky) hush(); else refresh();
     }

@@ -895,7 +895,7 @@
         <div class="live__text"><h2>Live scanning is off</h2><p>One click. Sentinel then watches whichever browser is in front of you, and rests when none is.</p></div>
         <a class="btn btn--gold live__button" href="/app/protection">Start scanning</a></div></div>`;
     }
-    return `<div class="panel"><div class="panel__head"><div><h2>${live.enabled ? 'Live scanning is on' : 'Protection is on'}</h2><p>${live.enabled ? 'Look for the gold mask in the corner of your browser. Downloads and new programs are watched too.' : 'Downloads and new programs on this computer are being watched.'}</p></div><a class="btn btn--sm" href="/app/protection">Manage</a></div></div>`;
+    return `<div class="panel"><div class="panel__head"><div><h2>${live.enabled ? 'Live scanning is on' : 'Protection is on'}</h2><p>${live.enabled ? 'Look for the mask in the corner of your browser. Downloads and new programs are watched too.' : 'Downloads and new programs on this computer are being watched.'}</p></div><a class="btn btn--sm" href="/app/protection">Manage</a></div></div>`;
   }
 
   /* ============================================================ link scan */
@@ -2346,7 +2346,7 @@
 
       <div class="feature-grid">
         ${feature(Masks.svg('scam'), 'Page warnings', 'While a browser is in front, Sentinel checks the address of the page it shows and warns you before a dangerous one gets your details. No add-on.', st(!lock && desktop, lock || 'Needs app'))}
-        ${feature(ICON.search, 'Search result masks', `A gold line crosses the page when you search, then a mask appears beside every result. Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock && desktop, lock || 'Needs app'))}
+        ${feature(ICON.search, 'Search result masks', `A line of light crosses the page when you search, then a mask appears beside every result. Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock && desktop, lock || 'Needs app'))}
         ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: the messages in your inbox list get a green mask or a warning mask before you open them. Sentinel reads only what the list shows (sender, subject, first line) and never opens a message.', f.emailLive && !planLocked ? '<span class="status">Optional add-on</span>' : st(false, 'Pro & up'))}
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
@@ -2361,6 +2361,10 @@
 
       <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
       <div id="parent-lock" data-parent-lock></div>
+      <div class="panel u-mt" id="look">
+        <div class="panel__head"><div><h2>Colour and theme</h2><p>${desktop ? 'One choice for this app, live scanning, its warnings, the mask in the corner, the tray icon and the companion in your browser.' : 'Remembered on this device. In the Sentinel app for Windows it also colours live scanning and its warnings.'}</p></div></div>
+        <div data-look></div>
+      </div>
       <div class="panel u-mt" data-intel>
         <div class="panel__head"><div><h2>Threat intelligence</h2><p>The public feeds every scan is checked against, refreshed automatically.</p></div></div>
         <div class="skeleton u-h-sm"></div>
@@ -2368,6 +2372,8 @@
 
     if (desktop && !planLocked) renderDesktopControls($('[data-desktop]', el));
     if (desktop) renderParentLock($('[data-parent-lock]', el));
+    // ponytail: here until the Settings home (work/e2e-c-settings) places SentinelLook.picker() itself.
+    if (window.SentinelLook && SentinelLook.picker) $('[data-look]', el).appendChild(SentinelLook.picker());
     renderIntel($('[data-intel]', el));
   }
 

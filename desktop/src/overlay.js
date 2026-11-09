@@ -25,6 +25,7 @@ let dryRun = null;       // development only: compute everything, show nothing, 
 let holdingKeys = false; // the island's panel has the keyboard
 let giveBack = null;     // how the keyboard goes back to the browser (watch.backToBrowser)
 let keyHint = '';        // the island's shortcut in words, when Windows gave it to Sentinel
+let look = { mode: 'auto', accent: 'gold' };   // the app's look (main.js applyLook), drawn from the first paint
 const ACTIONS = new Set(['pause', 'resume', 'open', 'released']);
 
 function send(channel, payload) {
@@ -90,7 +91,7 @@ function ensure() {
       if (/^[FRM] /.test(String(message))) { try { require('fs').appendFileSync(trace, `${message}\n`); } catch { /* best effort */ } }
     });
   }
-  win.loadFile(path.join(__dirname, 'pages', 'overlay.html'), trace ? { query: { trace: '1' } } : undefined);
+  win.loadFile(path.join(__dirname, 'pages', 'overlay.html'), { query: { theme: look.mode, accent: look.accent, ...(trace ? { trace: '1' } : {}) } });
   return win;
 }
 
@@ -188,6 +189,9 @@ function init({ onAction }) {
   });
 }
 
+/** The look changed in the app: one message, and the island, the line and the marks are drawn in it. */
+function setLook(l) { look = l; send('overlay:look', l); }
+
 /** Before you pay: the card's words for the checkout in front, or null to take it away. */
 function setPay(text) { send('overlay:pay', text ? { text: String(text) } : null); }
 
@@ -258,4 +262,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { init, handle, revive, setWindow, isFullscreen, sweep, setVerdict, setPage, setPaused, setPay, setMarks, shift, wheel, pixels, keyboard, destroy, setKeyHint: (words) => { keyHint = words; }, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { init, handle, revive, setWindow, isFullscreen, sweep, setVerdict, setPage, setPaused, setPay, setLook, setMarks, shift, wheel, pixels, keyboard, destroy, setKeyHint: (words) => { keyHint = words; }, setDryRun: (logger) => { dryRun = logger || null; } };

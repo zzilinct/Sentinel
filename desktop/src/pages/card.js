@@ -1,7 +1,7 @@
 'use strict';
 /**
- * The one look of every desktop warning (warn.html, guard.html, filescan.html): a frameless card in Sentinel's black
- * and gold that springs out of the corner island (overlay.html .corner) the way the island opens, as tall as its
+ * The one look of every desktop warning (warn.html, guard.html, filescan.html): a frameless card in the app's look
+ * (look.js: light or dark and the accent, from the page's query, as the corner island has it) that springs out of the corner island (overlay.html .corner) the way the island opens, as tall as its
  * words, with no scrollbar inside at any length. Loaded in <head>, before the page draws: it brings the card's
  * styles, the keyboard (Escape, Tab kept inside the card) and the measure main.js sizes the window by.
  *
@@ -12,41 +12,51 @@
   const PAD = 14;
   const WIDTHS = [480, 560, 660];   // the card's widths, tried in turn until the words fit the screen's height
 
+  // Drawn in the app's look before the first paint. The look is in the query main.js loaded the page with.
+  const look = window.SentinelLook ? window.SentinelLook.paint(document.documentElement, window.SentinelLook.fromQuery(location.search)) : null;
+  /** A status colour (red, orange, yellow, green) as this card's scheme draws it: never the accent. */
+  const tone = (badge) => window.SentinelLook.STATUS[window.SentinelLook.scheme(look && look.mode)][badge];
   const style = document.createElement('style');
   style.textContent = `
-  :root { color-scheme: dark; --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
+  :root { color-scheme: dark; --sheet: #0c0d10; --ink: #e9e6df; --ink-2: #c9c5bb; --ink-3: #b9b5ab; --ink-4: #8d8a82; --btn: #1a1c21; --btn-hi: #22252b; --hair: rgba(255, 255, 255, .06);
+    --lift: inset 0 1px 0 rgba(255, 255, 255, .05), 0 6px 12px rgba(0, 0, 0, .45); }
+  :root[data-theme="light"] { --sheet: #f6f1e7; --ink: #2b2720; --ink-2: #4a453a; --ink-3: #4a453a; --ink-4: #6b6558; --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .12);
+    --lift: inset 0 1px 0 rgba(255, 255, 255, .7), 0 6px 12px rgba(60, 45, 20, .22); color-scheme: light; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme]) { --sheet: #f6f1e7; --ink: #2b2720; --ink-2: #4a453a; --ink-3: #4a453a; --ink-4: #6b6558; --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .12);
+    --lift: inset 0 1px 0 rgba(255, 255, 255, .7), 0 6px 12px rgba(60, 45, 20, .22); color-scheme: light; } }
+  :root { --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
   html { height: 100%; margin: 0; padding: ${PAD}px; box-sizing: border-box; background: transparent; overflow: hidden; }
   body { height: 100%; margin: 0; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; padding: 22px 24px 20px; overflow: hidden;
-    color: #e9e6df; font: var(--t-ui)/var(--lh-lead) var(--sans);
-    background: radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--c, #d6b25a) 10%, transparent), transparent 62%), #0c0d10;
-    border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 42%, transparent); border-radius: 18px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 6px 12px rgba(0, 0, 0, .45); }
+    color: var(--ink); font: var(--t-ui)/var(--lh-lead) var(--sans);
+    background: radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--c, var(--acc)) 10%, transparent), transparent 62%), var(--sheet);
+    border: 1px solid color-mix(in srgb, var(--c, var(--acc)) 42%, transparent); border-radius: 18px;
+    box-shadow: var(--lift); }
   /* The card is moved by its head, as a title bar would; its buttons stay buttons. */
   .head { display: flex; align-items: center; gap: 14px; -webkit-app-region: drag; }
   button, a { -webkit-app-region: no-drag; }
-  .mark { width: 46px; height: 46px; flex: none; color: var(--c, #d6b25a); }
+  .mark { width: 46px; height: 46px; flex: none; color: var(--c, var(--acc)); }
   .mark svg { display: block; width: 100%; height: 100%; }
   /* The title and address may wrap anywhere: a long address must not push the card wider than its window. */
   .head > div { min-width: 0; }
-  h1 { margin: 0; font: 400 var(--t-title-s)/var(--lh-display) var(--display); color: var(--c, #d6b25a); }
-  .host, .sub, .name { --track: 0px; margin: 2px 0 0; font: var(--t-note) var(--mono); color: #c9c5bb; overflow-wrap: anywhere; }
+  h1 { margin: 0; font: 400 var(--t-title-s)/var(--lh-display) var(--display); color: var(--c, var(--acc)); }
+  .host, .sub, .name { --track: 0px; margin: 2px 0 0; font: var(--t-note) var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
   .body { margin-top: 16px; min-height: 0; }
-  .body p { margin: 0 0 10px; color: #b9b5ab; }
-  .body b { color: #e9e6df; font-weight: 500; }
-  ul { margin: 0 0 4px; padding-left: 18px; color: #c9c5bb; }
+  .body p { margin: 0 0 10px; color: var(--ink-3); }
+  .body b { color: var(--ink); font-weight: 500; }
+  ul { margin: 0 0 4px; padding-left: 18px; color: var(--ink-2); }
   ul:empty { display: none; }
   li { margin: 4px 0; overflow-wrap: anywhere; }
-  li::marker { color: color-mix(in srgb, var(--c, #d6b25a) 70%, transparent); }
-  small { display: block; margin-top: 12px; color: #8d8a82; font-size: var(--t-label); }
+  li::marker { color: color-mix(in srgb, var(--c, var(--acc)) 70%, transparent); }
+  small { display: block; margin-top: 12px; color: var(--ink-4); font-size: var(--t-label); }
   .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 18px; }
-  button { min-height: 38px; padding: 7px 16px; overflow-wrap: anywhere; border: 1px solid rgba(255, 255, 255, .06); border-radius: 11px; cursor: pointer; font: 500 var(--t-ui) var(--sans); color: #e9e6df; background: #1a1c21; }
-  button:hover { background: #22252b; }
-  button.primary { border-color: transparent; color: #16130b; background: linear-gradient(180deg, #efd79c 0%, #d6b066 48%, #b88e3d 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 14px 34px -14px rgba(212,174,99,.75); }
-  button:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }
+  button { min-height: 38px; padding: 7px 16px; overflow-wrap: anywhere; border: 1px solid var(--hair); border-radius: 11px; cursor: pointer; font: 500 var(--t-ui) var(--sans); color: var(--ink); background: var(--btn); }
+  button:hover { background: var(--btn-hi); }
+  button.primary { border-color: transparent; color: var(--on-acc); background: var(--acc-grad); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 14px 34px -14px rgb(var(--acc-rgb) / .75); }
+  button:focus-visible { outline: 2px solid var(--acc-hi); outline-offset: 2px; }
   [hidden] { display: none !important; }
   button[disabled] { opacity: .6; cursor: default; }
-  button.quiet { margin-right: auto; padding: 0 2px; border: 0; background: none; color: #8d8a82; text-decoration: underline; text-underline-offset: 3px; }
-  button.link { height: auto; padding: 0; border: 0; background: none; border-radius: 4px; color: #e2c47f; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+  button.quiet { margin-right: auto; padding: 0 2px; border: 0; background: none; color: var(--ink-4); text-decoration: underline; text-underline-offset: 3px; }
+  button.link { height: auto; padding: 0; border: 0; background: none; border-radius: 4px; color: var(--acc-hi); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
   /* Opening: the card grows out of the island's 34 px mask in its bottom right corner with the island's own spring,
      then the mask pops and the words settle. Once per opening (a new warning loads the page again); nothing loops. */
   body { animation: card-open .62s var(--spring) both; }
@@ -131,5 +141,5 @@
     }).observe(document.body, { childList: true, subtree: true, characterData: true });
   });
 
-  window.SentinelCard = { PAD, WIDTHS, measure, clipped };
+  window.SentinelCard = { PAD, WIDTHS, measure, clipped, tone };
 })();

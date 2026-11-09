@@ -39,6 +39,8 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
 // One source of truth for the mask glyphs: the web app's copy.
 copy(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SRC, 'src', 'content', 'masks.js'));
+// And for the look (the accents and light or dark): the popup, the block page and the marks read the site's table.
+copy(path.join(ROOT, 'web', 'assets', 'js', 'look.js'), path.join(SRC, 'src', 'lib', 'look.js'));
 // And for the ClickFix command rules: the engine's copy, the same one the Windows app uses.
 copy(path.join(ROOT, 'server', 'lib', 'scan', 'clickfix.js'), path.join(SRC, 'src', 'content', 'clickfix.js'));
 // And for the pay pause's wording rules (gift cards and crypto by title and labels), the same the Windows app uses.
