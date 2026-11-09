@@ -55,6 +55,7 @@ let tray = null;
 let quitting = false;
 let warnWin = null;
 let warnReal = null;          // the real site the open warning offers (the server's realSite), never one the page names
+let warnPage = null;          // the page the open warning is about, for "I know this site": kept here, never taken from the card
 let guardWin = null;
 let menuWin = null;           // the right-click scan's own result window, signed out (pages/filescan.html)
 let booting = false;
@@ -151,6 +152,21 @@ function chatApps() {
   return [...(store.get('chatSafety', false) ? ['discord', 'roblox'] : []), ...(store.get('textSafety', false) ? ['phonelink'] : [])];
 }
 let toldReaderStopped = false;
+/** The key chat safety's muted signs are hashed with: made once, on this computer, and kept with its secrets. */
+function chatSalt() {
+  let salt = store.getSecret('chatMuteKey');
+  // Without Windows' secure storage the key lives only until Sentinel stops, and so do the answers made with it.
+  if (!salt) { salt = require('crypto').randomBytes(32).toString('base64'); try { store.setSecret('chatMuteKey', salt); } catch { /* this run only */ } }
+  return salt;
+}
+// A chat warning answered on its card: hidden, or "This is wrong" (with a parent lock on, only by the PIN's holder).
+chatoverlay.onAnswer((n, action) => {
+  if (action === 'wrong') {
+    try { lock.guard('a chat warning off for one person', true); } catch (err) { return { ok: false, locked: true, message: err.message }; }
+  }
+  appLog(`chat safety: a warning was ${action === 'wrong' ? 'marked wrong' : 'hidden'}`);
+  return { ok: chatwatch.answer(n, action) };
+});
 function startChatSafety() {
   const apps = chatApps();
   if (!apps.length) { chatwatch.stop(); chatoverlay.show(null); return; }
@@ -159,7 +175,12 @@ function startChatSafety() {
     apps,
     // Only that it started or failed: never a message, a name, a game or a link.
     log: (text) => appLog(text),
-    onState: (s) => chatoverlay.show(s),
+    // "This is wrong" on a card weakens chat safety for one sender, so with a parent lock on, the card offers only its close.
+    onState: (s) => chatoverlay.show(s && s.app ? { ...s, canMute: !(lock.isSet() && lock.locked()) } : s),
+    // Muted signs, as keyed hashes (chatwatch.js answer): kept across restarts, never readable, never sent.
+    muted: store.get('chatMuted', []),
+    salt: chatSalt(),
+    onMuted: (list) => store.set('chatMuted', list),
     onSeen: () => { push('sentinel:chat-safety', chatSafetyStatus()); push('sentinel:text-safety', textSafetyStatus()); },
     // The reader died or came back: the switch says on either way, so the page and the tray say which it is, and one
     // quiet note says so when it will not stay up, in case nobody opens either.
@@ -549,6 +570,7 @@ function showWarning(item) {
   };
   // "Go to the real paypal.com": only the server's realSite (brands.js, or the person's own site), a bare https address.
   warnReal = v.realSite && /^https:\/\/[a-z0-9.-]+\/$/.test(v.realSite.url) ? v.realSite.url : null;
+  warnPage = { url: item.url, host: item.host };
   if (warnReal) query.real = v.realSite.host;
   if (!warnWin || warnWin.isDestroyed()) {
     warnWin = cardWindow({ alwaysOnTop: true });
@@ -564,6 +586,30 @@ function showWarning(item) {
   }
   warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
   if (warnWin.isVisible()) warnWin.moveTop();
+}
+
+/**
+ * "I know this site" on a warning (or "This is wrong", then "Trust it anyway"): the site becomes one the person trusts,
+ * the same rule as Site rules in the app (server/lib/scan/engine.js overrides), so the scanner itself stops flagging it,
+ * here and wherever that account is used. The embedded scanner keeps it on this computer and nothing is sent; a
+ * Sentinel server the person chose keeps it in their account there, and the card says which. With a parent lock on, it
+ * needs the PIN, as switching a protection off does. The log says that a site was trusted, never which.
+ */
+async function trustFromWarning(action) {
+  const page = warnPage;
+  if (!page || !page.url) return { ok: false };
+  if (action === 'trust') {
+    try { lock.guard('warnings off for one site', true); } catch (err) { return { ok: false, locked: true, message: err.message }; }
+  }
+  try {
+    await apiCall('/api/v1/sites/override', { url: page.url, action: action === 'trust' ? 'allow' : 'clear' });
+  } catch (err) {
+    return { ok: false, message: err.status === 401 ? 'Sign in to Sentinel first, then try again.' : err.code === 'shared_site' ? err.message : 'Sentinel could not reach its scanner. Try again in a moment.' };
+  }
+  appLog(`warning: ${action === 'trust' ? 'a site was trusted from its warning' : 'a site trusted from its warning was untrusted'}`);
+  // The page in front is checked again, so the corner island says what the scanner now says.
+  watch.pauseChanged();
+  return { ok: true, local: embedded };
 }
 
 /* --------------------------------------------- tech-support scam shield */
@@ -1916,7 +1962,10 @@ function registerBridge() {
   }, trustedLocal);
   handle('sentinel:open-logs', () => { shell.showItemInFolder(server.logPath()); return { ok: true }; }, trustedLocal);
   handle('sentinel:quit', () => { lock.guard('Sentinel off', true); quitting = true; app.quit(); return { ok: true }; }, trustedLocal);
-  handle('sentinel:warn-action', (action, url) => {
+  ipcMain.handle('sentinel:warn-action', async (event, action, url) => {
+    if (!trustedLocal(event)) throw new Error('Not allowed');
+    // "I know this site" and its undo: only from the warning itself, answered in the card, which stays open to say so.
+    if (action === 'trust' || action === 'untrust') return warnWin && BrowserWindow.fromWebContents(event.sender) === warnWin ? trustFromWarning(action) : { ok: false };
     if (warnWin && !warnWin.isDestroyed()) warnWin.close();
     // Signed out, the app's scan asked for an account first: the guest scan says why without one.
     if (action === 'open' && typeof url === 'string' && /^https?:\/\//.test(url) && url.length < 2000) showWindow(`${store.getSecret('token') ? '/app/scan' : '/guest'}?url=${encodeURIComponent(url)}`);
@@ -1924,7 +1973,7 @@ function registerBridge() {
     // The real site: the address kept when the warning was made, opened fresh in the browser. What the page sends is ignored.
     if (action === 'real' && warnReal) { appLog('warning: opened the real site'); shell.openExternal(warnReal); }
     return { ok: true };
-  }, trustedLocal);
+  });
   // A warning card's words changed (the shield's next step): its window fits them again. Only the card windows.
   ipcMain.handle('sentinel:card-fit', async (event) => {
     if (!trustedLocal(event)) throw new Error('Not allowed');

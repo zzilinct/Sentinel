@@ -26,10 +26,12 @@
   .badge__text { position: relative; font-size: var(--t-label); color: #e2c47f; white-space: nowrap; opacity: 0; transform: translateX(8px); transition: opacity .15s ease, transform .2s ease; }
   .badge.is-on .badge__text { opacity: 1; transform: none; transition: opacity .22s ease .1s, transform .5s var(--spring) .06s; }
   body.discord .badge, body.phonelink .badge { top: auto; bottom: 86px; }
-  /* A warning, beside the message it is about: the mask tile pops in at the message, and the card opens out of it. */
-  .card { position: absolute; width: 300px; padding: 10px 12px 11px 42px; pointer-events: none; }
-  .card__bg { position: absolute; inset: 0; border-radius: 11px; background: rgba(14, 14, 18, .94);
-    border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); box-shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 0 16px -4px var(--c);
+  /* A warning, beside the message it is about: the mask tile pops in at the message, and the card opens out of it.
+     It can be answered: its close hides it, "This is wrong" tells Sentinel it misjudged. The window takes the pointer
+     only over the cards (chatoverlay.js shape), 12 px round each, so their shadows stay inside that and are drawn. */
+  .card { position: absolute; width: 300px; padding: 10px 34px 9px 42px; }
+  .card__bg { position: absolute; inset: 0; border-radius: 11px; background: rgba(14, 14, 18, .95);
+    border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); box-shadow: 0 4px 8px rgba(0, 0, 0, .45), 0 0 10px -3px var(--c);
     transform-origin: 0 0; animation: open .52s var(--spring) both; }
   .card__tile { position: absolute; left: 6px; top: 7px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px;
     background: #0c0d10; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); animation: pop .45s var(--spring) both; }
@@ -38,11 +40,26 @@
   .card b { display: block; color: var(--c); font-size: var(--t-note); margin-bottom: 2px; }
   .card .what { color: #ece8df; font-size: var(--t-note); }
   .card .do { color: #b9b4a9; font-size: var(--t-label); margin-top: 5px; }
+  .card button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  /* The close: a small mask-dark disc in the corner; it fills with the warning's colour under the pointer. */
+  .card .x { position: absolute; top: 7px; right: 7px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%;
+    color: #b9b4a9; background: rgba(255, 255, 255, .04); animation: words .3s ease .12s both; }
+  .card .x svg { width: 10px; height: 10px; color: currentColor; }
+  .card .x:hover { color: #0c0d10; background: var(--c); }
+  .card .no { margin-top: 6px; font-size: var(--t-label); color: #8f8a80; text-decoration: underline; text-decoration-color: rgba(185, 180, 169, .35); text-underline-offset: 3px; }
+  .card .no:hover { color: #ece8df; text-decoration-color: currentColor; }
+  .card [hidden] { display: none; }
+  .card .thanks { color: #e2c47f; font-size: var(--t-note); }
+  .card .thanks small { display: block; margin-top: 3px; color: #b9b4a9; font-size: var(--t-label); }
+  /* Answered: back into its tile, quickly, the way it came. */
+  .card.is-going { transform-origin: 20px 20px; transform: scale(.2); opacity: 0; transition: transform .24s cubic-bezier(.4, 0, 1, 1), opacity .18s ease .06s; }
   /* In a game: smaller, and only what matters, so the game stays the game. */
-  body.roblox.in-game .card { width: 250px; padding: 8px 10px 9px 36px; }
+  body.roblox.in-game .card { width: 250px; padding: 8px 30px 8px 36px; }
   body.roblox.in-game .card .do { display: none; }
   body.roblox.in-game .card__tile { left: 5px; top: 5px; width: 24px; height: 24px; border-radius: 7px; }
   body.roblox.in-game .card svg { width: 17px; height: 17px; }
+  body.roblox.in-game .card .x { top: 5px; right: 5px; }
+  body.roblox.in-game .card .x svg { width: 9px; height: 9px; }
   /* From the size of the tile it starts as (about 40 by 40 px of a 300 by 75 card). */
   @keyframes open { from { transform: scale(.14, .55); } }
   @keyframes pop { from { opacity: 0; transform: scale(.6); } }
@@ -51,7 +68,8 @@
   /* Calm: the badge and the cards still appear (they are the message), by fading, without the spring. */
   @media (prefers-reduced-motion: reduce) {
     .badge__bg, .badge.is-on .badge__bg, .badge__tile, .badge__text, .badge.is-on .badge__text { transform: none; transition: opacity .2s ease; }
-    .card__bg, .card__tile, .card__body { animation: fade .2s ease both; }
+    .card__bg, .card__tile, .card__body, .card .x { animation: fade .2s ease both; }
+    .card.is-going { transform: none; transition: opacity .2s ease; }
   }
 </style>
 </head>
@@ -64,15 +82,52 @@
   'use strict';
   var M = window.SentinelMasks;
   var COLORS = { warn: '#f08a24', danger: '#e5484d' };
+  var SHAPE = 12;          // px round each card that still takes the pointer: its shadow's reach
   var badge = document.getElementById('badge');
   var cards = document.getElementById('cards');
-  var live = new Map();   // the cards showing, by what they say
+  var live = new Map();    // the cards showing, by the warning's number
+  var canMute = true;
+  var X = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>';
   document.getElementById('badgeMask').innerHTML = M.svg('logo');
   function esc(s) { return String(s || '').replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
+  // Where the window takes the pointer: each card and its shadow, nothing else. Sent after every change.
+  function shape() {
+    var rects = [];
+    for (var i = 0; i < cards.children.length; i++) {
+      var el = cards.children[i];
+      rects.push({ x: el.offsetLeft - SHAPE, y: el.offsetTop - SHAPE, w: el.offsetWidth + 2 * SHAPE, h: el.offsetHeight + 2 * SHAPE });
+    }
+    window.sentinelChat.shape(rects);
+  }
+  // Back into its tile, then gone.
+  function go(el) {
+    if (el.classList.contains('is-going')) return;
+    el.classList.add('is-going');
+    setTimeout(function () { el.remove(); shape(); }, 260);
+  }
+  // The card's answer. "This is wrong" says what it did, in the card, for a moment; the close just closes.
+  function answer(el, n, action) {
+    el.dataset.answered = action;
+    window.sentinelChat.answer(n, action).then(function (r) {
+      if (action === 'hide' || !r || !r.ok) {
+        if (r && r.locked) { el.querySelector('.card__body').innerHTML = '<div class="thanks">Hidden. The parent lock is on, so Sentinel still warns about this.</div>'; setTimeout(function () { go(el); }, 4500); shape(); return; }
+        go(el);
+        return;
+      }
+      el.querySelector('.card__body').innerHTML = '<div class="thanks">Thanks. Sentinel will not warn about this from them here again.<small>Kept on this computer. Nothing was sent.</small></div>';
+      el.querySelector('.x').hidden = true;
+      shape();
+      setTimeout(function () { go(el); }, 4500);
+    }, function () { go(el); });
+  }
+
   window.sentinelChat.onState(function (s) {
     document.body.className = (s.app || '') + (s.inGame ? ' in-game' : '');
-    badge.classList.toggle('is-on', Boolean(s.indicator));
+    canMute = s.canMute !== false;
+    // While a card shows, the card is the sign that Sentinel is watching: the badge steps back (the window then takes
+    // the pointer only over the cards, and the badge would be cut out of it).
+    badge.classList.toggle('is-on', Boolean(s.indicator) && !(s.flags || []).length);
     // Never claims to watch what it cannot read.
     document.getElementById('badgeText').textContent = s.app === 'phonelink'
       ? (s.reading === false ? 'Sentinel cannot read these texts yet' : 'Sentinel is checking these texts')
@@ -80,6 +135,8 @@
     var W = window.innerWidth, H = window.innerHeight;
     var taken = [];
     var next = new Map();
+    // A card being answered stays where it is until it has gone; the others keep clear of it.
+    live.forEach(function (el) { if (el.dataset.answered) taken.push({ y: el.offsetTop, h: el.offsetHeight }); });
     (s.flags || []).forEach(function (f) {
       var r = f.rect || { x: 20, y: 20, w: 0, h: 0 };
       var w = s.app === 'roblox' && s.inGame ? 250 : 300;
@@ -98,14 +155,19 @@
         y = r.y;
       }
       // A card already showing stays the same element and only moves: it opens once, not again at every read.
-      var key = [f.level, f.family, f.title, f.detail].join('|');
-      while (next.has(key)) key += '+';
+      var key = String(f.n);
       var el = live.get(key);
+      if (el && el.dataset.answered) return;
       if (!el) {
         el = document.createElement('div');
         el.className = 'card';
+        el.setAttribute('role', 'alert');
         el.innerHTML = '<i class="card__bg"></i><span class="card__tile">' + M.svg(f.family === 'scam' ? 'scam' : 'malware') + '</span><div class="card__body"><b>' + esc(f.title)
-          + '</b><div class="what">' + esc(f.detail) + '</div><div class="do">' + esc(f.advice) + '</div></div>';
+          + '</b><div class="what">' + esc(f.detail) + '</div><div class="do">' + esc(f.advice) + '</div>'
+          + (canMute ? '<button class="no" type="button">This is wrong</button>' : '') + '</div>'
+          + '<button class="x" type="button" aria-label="Hide this warning" title="Hide this warning">' + X + '</button>';
+        el.querySelector('.x').onclick = function () { answer(el, f.n, 'hide'); };
+        if (canMute) el.querySelector('.no').onclick = function () { answer(el, f.n, 'wrong'); };
         cards.appendChild(el);
       }
       // Cards do not cover each other: each goes below any card it would overlap, by its real height (a long piece of
@@ -117,8 +179,11 @@
       el.style.cssText = '--c:' + (COLORS[f.level] || COLORS.warn) + ';left:' + Math.round(x) + 'px;top:' + Math.round(y) + 'px';
       next.set(key, el);
     });
-    live.forEach(function (el, key) { if (!next.has(key)) el.remove(); });
+    live.forEach(function (el, key) { if (el.dataset.answered) next.set(key, el); else if (!next.has(key)) el.remove(); });
     live = next;
+    // Gone cards leave the list as they leave the page.
+    live.forEach(function (el, key) { if (!el.isConnected) live.delete(key); });
+    shape();
   });
 })();
 </script>

@@ -28,6 +28,7 @@
  * its memory is read, and no key or click is sent to it. The Sentinel badge shows in Roblox only away from a game or
  * when its Esc menu is open, and no gold line ever crosses a game.
  */
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -528,9 +529,49 @@ let saidNoList = false;
 function counted(checked, flagged) { if (opts && opts.onCounted) opts.onCounted({ checked, flagged }); }
 function noteSeen() { if (!seenTimer) seenTimer = setTimeout(() => { seenTimer = null; if (opts && opts.onSeen) opts.onSeen(); }, 3000); }
 
+/*
+ * The person's answers to a warning. "Hide" (the card's close) is kept per message, so the same message is not
+ * flagged again at the next read. "This is wrong" also reaches the rules (shared/chat.js `muted`): the signs that
+ * message showed are not counted again for that sender in that chat, while any other sign still is. Muted signs are
+ * kept as keyed hashes (as "Your sites" keeps sites it is learning), so the settings file never holds a readable name
+ * or chat; nothing about them leaves this computer.
+ */
+const hidden = new Set();        // warnings hidden by the person, by their number
+let muted = new Set();           // hashes of chat|sender|sign the person said were wrong
+let flagNo = 0;
+let lastState = null;
+const muteKey = (s) => crypto.createHmac('sha256', String((opts && opts.salt) || 'sentinel')).update(s).digest('base64url').slice(0, 22);
+const isMuted = (s) => muted.size > 0 && muted.has(muteKey(s));
+function emit(s) { lastState = s; opts.onState(s); }
+
 function chatFor(key, context) {
-  if (!chats.has(key)) chats.set(key, conversation(context));
+  if (!chats.has(key)) chats.set(key, conversation(context, { muted: (who, id) => isMuted(`${key}|${who}|${id}`) }));
   return chats.get(key);
+}
+
+/**
+ * The person answered a warning card: `n` its number, `action` 'hide' or 'wrong'. Returns false when that warning is
+ * no longer known (chat safety stopped meanwhile). The overlay is drawn again without it.
+ */
+function answer(n, action) {
+  const entry = [...told.values()].find((e) => e && e.n === n);
+  if (!entry || (action !== 'hide' && action !== 'wrong')) return false;
+  hidden.add(n);
+  if (action === 'wrong') {
+    // What this warning was about, per sender in this chat; Phone Link's texts by the kind of warning.
+    const keys = entry.app === 'phonelink' ? [`phonelink|${entry.who}|${entry.flag && entry.flag.title}`] : (entry.own || []).map((id) => `${entry.chat}|${entry.who}|${id}`);
+    for (const k of keys) muted.add(muteKey(k));
+    while (muted.size > 500) muted.delete(muted.values().next().value);
+    // Other warnings on screen for the same thing go with it.
+    for (const e of told.values()) {
+      if (!e || e.who !== entry.who) continue;
+      if (e.app === 'phonelink' ? e.flag && isMuted(`phonelink|${e.who}|${e.flag.title}`) : e.chat === entry.chat && (e.own || []).every((id) => isMuted(`${e.chat}|${e.who}|${id}`))) hidden.add(e.n);
+    }
+    if (opts && opts.onMuted) opts.onMuted([...muted]);
+  }
+  roblox.flags = roblox.flags.filter((f) => !hidden.has(f.n));
+  if (lastState && lastState.app) emit({ ...lastState, flags: (lastState.flags || []).filter((f) => !hidden.has(f.n)) });
+  return true;
 }
 
 function judge(app, key, context, messages) {
@@ -540,15 +581,16 @@ function judge(app, key, context, messages) {
     if (!m.text) continue;
     // Each message is judged once, however often it stays on screen.
     const id = `${key}|${m.k || ''}|${m.who}|${m.text}`;
-    if (told.has(id)) { const f = told.get(id); if (f) flags.push({ ...f, rect: { x: m.x, y: m.y, w: m.w, h: m.h } }); continue; }
+    if (told.has(id)) { const f = told.get(id); if (f && !hidden.has(f.n)) flags.push({ ...f, rect: { x: m.x, y: m.y, w: m.w, h: m.h } }); continue; }
     const f = c.add({ who: m.who, text: m.text });
-    told.set(id, f ? { ...f, app } : null);
+    if (f) Object.assign(f, { app, chat: key, n: ++flagNo });
+    told.set(id, f || null);
     seen[app].checked++;
     if (f) seen[app].flagged++;
     counted(1, f ? 1 : 0);
     noteSeen();
     if (told.size > 2000) told.delete(told.keys().next().value);
-    if (f) flags.push({ ...f, app, rect: { x: m.x, y: m.y, w: m.w, h: m.h } });
+    if (f) flags.push({ ...f, rect: { x: m.x, y: m.y, w: m.w, h: m.h } });
   }
   return flags;
 }
@@ -567,7 +609,7 @@ function judgeTexts(who, messages) {
     let entry = told.get(id);
     if (entry === undefined) {
       const r = texts.judgeText({ from: who, text });
-      entry = { flag: r.flag, app: 'phonelink' };
+      entry = { flag: r.flag, app: 'phonelink', who: who.toLowerCase(), n: ++flagNo };
       told.set(id, entry);
       seen.phonelink.checked++;
       if (r.flag) seen.phonelink.flagged++;
@@ -576,7 +618,7 @@ function judgeTexts(who, messages) {
       if (told.size > 2000) told.delete(told.keys().next().value);
       if (r.links.length && opts && opts.api) checkLinks(id, r);
     }
-    if (entry && entry.flag) flags.push({ ...entry.flag, app: 'phonelink', rect: { x: m.x, y: m.y, w: m.w, h: m.h } });
+    if (entry && entry.flag && !hidden.has(entry.n) && !isMuted(`phonelink|${entry.who}|${entry.flag.title}`)) flags.push({ ...entry.flag, app: 'phonelink', n: entry.n, rect: { x: m.x, y: m.y, w: m.w, h: m.h } });
   }
   return flags;
 }
@@ -612,7 +654,7 @@ function onMessage(msg) {
   // Windows hands over only black for this window: it is in front and nothing can be read, which is not "chat closed".
   if (typeof msg.blind === 'boolean') { seen.blind = msg.blind ? msg.app : null; if (msg.blind) seen.reading = false; noteSeen(); return; }
   if (msg.app !== 'phonelink') lastPhone = null;
-  if (msg.app === null) { seen.app = null; seen.reading = false; seen.blind = null; noteSeen(); opts.onState({ app: null }); return; }
+  if (msg.app === null) { seen.app = null; seen.reading = false; seen.blind = null; noteSeen(); emit({ app: null }); return; }
   seen.app = msg.app; seen.at = Date.now();
   if (msg.app === 'discord') {
     const ctx = discordContext(msg.title);
@@ -624,14 +666,14 @@ function onMessage(msg) {
     seen.reading = !msg.noList;
     noteSeen();
     const flags = judge('discord', key, ctx, items);
-    opts.onState({ app: 'discord', win: msg.win, indicator: true, reading: !msg.noList, flags });
+    emit({ app: 'discord', win: msg.win, indicator: true, reading: !msg.noList, flags });
     return;
   }
   if (msg.app === 'phonelink') {
     lastPhone = msg;
     // Calls, photos or notifications are open: nothing is read there, and the badge does not claim otherwise.
     seen.phonelink.otherTab = Boolean(msg.noTab);
-    if (msg.noTab) { seen.reading = false; noteSeen(); opts.onState({ app: 'phonelink', win: msg.win, indicator: false, reading: false, flags: [] }); return; }
+    if (msg.noTab) { seen.reading = false; noteSeen(); emit({ app: 'phonelink', win: msg.win, indicator: false, reading: false, flags: [] }); return; }
     let who = String(msg.who || '');
     let items;
     if (Array.isArray(msg.items)) items = msg.items.filter((i) => i.rx !== false).map((i) => ({ ...i, text: i.t }));
@@ -641,12 +683,12 @@ function onMessage(msg) {
     seen.reading = reading;
     noteSeen();
     const flags = judgeTexts(who.slice(0, 80), items);
-    opts.onState({ app: 'phonelink', win: msg.win, indicator: true, reading, flags });
+    emit({ app: 'phonelink', win: msg.win, indicator: true, reading, flags });
     return;
   }
   if (msg.app === 'roblox') {
     // The Esc menu opened or closed: the badge changes, and the warnings by the chat box stay.
-    if (typeof msg.menu === 'boolean') { roblox.menu = msg.menu; opts.onState(robloxState(roblox.flags)); return; }
+    if (typeof msg.menu === 'boolean') { roblox.menu = msg.menu; emit(robloxState(roblox.flags)); return; }
     const { open, messages } = robloxMessages(msg.lines);
     // A closed chat box is not read: the reader is told, and looks only for it coming back.
     if (open !== roblox.open) { roblox.open = open; send(open ? 'chat open' : 'chat closed'); }
@@ -654,11 +696,11 @@ function onMessage(msg) {
     seen.reading = open;
     noteSeen();
     roblox.area = msg.area;
-    if (!open) { roblox.flags = []; opts.onState(robloxState([])); return; }
+    if (!open) { roblox.flags = []; emit(robloxState([])); return; }
     const ctx = roblox.inGame ? { ...(roblox.info || {}), place: roblox.placeId } : { game: 'Roblox app', description: 'friends and chat' };
     const flags = judge('roblox', `roblox|${roblox.inGame ? roblox.placeId : 'app'}`, ctx, messages);
     roblox.flags = flags;
-    opts.onState(robloxState(flags));
+    emit(robloxState(flags));
   }
 }
 
@@ -690,7 +732,7 @@ async function followLog() {
     roblox.placeId = s.placeId;
     // Joined or left while Roblox is in front, after its chat was last read: the overlay changes now (in a game the
     // badge waits for the Esc menu), not at the next new message, which may be a long time coming.
-    if (s.inGame !== wasInGame && seen.app === 'roblox' && opts) opts.onState(robloxState(roblox.flags));
+    if (s.inGame !== wasInGame && seen.app === 'roblox' && opts) emit(robloxState(roblox.flags));
     if (s.placeId && s.placeId !== before) {
       roblox.info = null;
       gameInfo(s.placeId).then((info) => { if (roblox.placeId === s.placeId) roblox.info = info; });
@@ -834,6 +876,7 @@ function start(o) {
   opts = o;
   active = true;
   if (o.apps) apps = o.apps.filter((a) => NAMES[a]);
+  muted = new Set(Array.isArray(o.muted) ? o.muted.filter((h) => typeof h === 'string').slice(-500) : []);
   o.log(`chat safety: watching ${watching()} while in front`);
   // The helper has not said yet (Sentinel is starting): it has a minute, as when it dies.
   if (frontName === undefined) helperTimer = setTimeout(() => { if (active) setReader('stopped'); }, NO_HELPER_MS);
@@ -853,12 +896,14 @@ function stop() {
   if (child) { const old = child; child = null; try { old.kill(); } catch { /* gone */ } }
   chats.clear();
   told.clear();
+  hidden.clear();
+  lastState = null;
   seen = fresh();
   lastPhone = null;
   if (opts) opts.onState({ app: null });
 }
 
 module.exports = {
-  start, stop, setApps, front, on: () => active, reader: () => reader, running: () => active && reader !== 'stopped', stats: () => JSON.parse(JSON.stringify(seen)),
+  start, stop, setApps, front, answer, on: () => active, reader: () => reader, running: () => active && reader !== 'stopped', stats: () => JSON.parse(JSON.stringify(seen)),
   _test: { followLog, state: () => ({ inGame: roblox.inGame, placeId: roblox.placeId, logFile: roblox.logFile, logAt: roblox.logAt, following, timer: Boolean(logTimer), child: Boolean(child) }), SCRIPT, LAUNCH, onMessage, robloxMessages, readLog, discordContext, judge, phonelinkMessages, receivedSide, judgeTexts, textOf, setOpts: (o) => { opts = o; } }
 };

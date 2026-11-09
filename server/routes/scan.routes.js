@@ -21,7 +21,7 @@ const exposure = require('../lib/scan/exposure');
 const mySites = require('../lib/scan/mysites');
 const { payCheck, payPage } = require('../lib/scan/paycheck');
 const feeds = require('../lib/scan/feeds');
-const { analyze, typedUrl } = require('../lib/scan/url');
+const { analyze, typedUrl, isUserContent } = require('../lib/scan/url');
 const { MAX_FILE_BYTES } = require('../lib/scan/filescan');
 const { KINDS } = require('../lib/scan/kinds');
 const { classify: classifyQr } = require('../lib/scan/qr');
@@ -511,6 +511,11 @@ function register(router) {
     const body = await readJson(req);
     const parsed = analyze(String(body.url || body.host || ''));
     if (!parsed) throw new HttpError(400, 'bad_url', 'That does not look like a web address');
+    // A rule covers the whole site. Where anyone can publish (Google Forms, a storage bucket, a free site builder's
+    // pages), trusting the site would trust every page on it, a scammer's included: refused, and said why.
+    if (body.action === 'allow' && isUserContent(parsed.host) && !parsed.hosting) {
+      throw new HttpError(400, 'shared_site', `Anyone can publish pages on ${parsed.host}, so Sentinel cannot trust all of it.`);
+    }
     if (body.action === 'clear') q.clearOverride.run(user.id, parsed.registrable);
     else if (body.action === 'allow' || body.action === 'block') q.setOverride.run(user.id, parsed.registrable, body.action, now());
     else throw new HttpError(400, 'bad_action', 'action must be allow, block or clear');

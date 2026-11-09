@@ -144,8 +144,11 @@ const WHAT = {
 /**
  * A conversation: feed it messages as they appear; it says which ones to flag. One per chat (a game, a server
  * channel, a direct message). Nothing is kept beyond each sender's signs for the last 30 minutes.
+ *
+ * `muted(who, id)`, when given, names a sign the person said was wrong for this sender here ("This is wrong" on a
+ * warning): it is not counted again, so the same mistake is not made twice, while any other sign still is.
  */
-function conversation(context = {}) {
+function conversation(context = {}, { muted } = {}) {
   const kinds = placeKinds(context);
   const people = new Map();   // sender -> { signs: [{ id, family, w, at }] }
   const WINDOW = 30 * 60 * 1000;
@@ -157,9 +160,9 @@ function conversation(context = {}) {
      */
     add(m) {
       const at = typeof m.at === 'number' ? m.at : Date.now();
-      const found = signsIn(m.text, kinds);
-      if (!found.length) return null;
       const who = String(m.who || '?').slice(0, 64).toLowerCase();
+      const found = signsIn(m.text, kinds).filter((s) => !(muted && muted(who, s.id)));
+      if (!found.length) return null;
       const p = people.get(who) || { signs: [] };
       p.signs = p.signs.filter((s) => at - s.at < WINDOW);
       for (const s of found) p.signs.push({ ...s, at });
@@ -188,7 +191,10 @@ function conversation(context = {}) {
         title: TITLE[family],
         detail: `${m.who ? `${String(m.who).slice(0, 40)} ` : 'Someone '}${done.slice(0, 3).join(', ')}.`,
         advice: found.every((s) => s.id === 'number' || s.id === 'scamnum') && PHONE_ADVICE[family] ? PHONE_ADVICE[family] : ADVICE[family],
-        signs: [...kindsSeen.keys()]
+        signs: [...kindsSeen.keys()],
+        // This message's own signs: what "This is wrong" on its warning takes back.
+        own: found.map((s) => s.id),
+        who
       };
     }
   };

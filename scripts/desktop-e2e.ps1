@@ -98,10 +98,48 @@ Check 'chat-discord-read' ($seen.discord.checked -ge 3) "messages checked in Dis
 Check 'chat-discord-flagged' $ok "messages flagged in Discord: $($seen.discord.flagged) (the phone number and the secret)"
 $o = (Cdp 'chat.html' "document.querySelectorAll('#cards .card').length + '|' + getComputedStyle(document.getElementById('badge')).display + '|' + document.body.className").value
 Check 'chat-discord-overlay' ($o -match '^[1-9]\d*\|(?!none)') "chat overlay over Discord (warnings|badge|app): $o"
-# The island in chat: the badge springs open from its mask tile, and each card opens out of its tile beside the message.
-$replay = "const b = document.getElementById('badge'); b.classList.remove('is-on'); b.getAnimations({ subtree: true }).forEach((x) => { try { x.finish(); } catch (e) {} }); b.classList.add('is-on')"
+# The island in chat: each card opens out of its mask tile beside the message (the badge steps back while one shows).
+$replay = "document.querySelectorAll('#cards .card').forEach((c) => c.getAnimations({ subtree: true }).forEach((x) => { x.cancel(); x.play(); }))"
 $n = @(80, 180, 700 | ForEach-Object { Frame 'chat.html' $replay $_ "motion-chat-$($_)ms" -Layer })
 Check 'motion-chat' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations paused mid-spring in the chat overlay, per frame: $($n -join ', ')"
+# 2a. A chat card can be answered, with the real mouse: the window takes the pointer over its cards and nowhere else
+# (its shape), a click on one never takes Discord's place in front, "This is wrong" says what it did and the card
+# goes, the close hides the other, and neither comes back at the next reads.
+function ChatCards { return [string](Cdp 'chat.html' "[...document.querySelectorAll('#cards .card')].filter((c) => !c.classList.contains('is-going')).map((c) => c.querySelector('b') ? c.querySelector('b').textContent : c.innerText.replace(/\s+/g, ' ')).join(' / ')").value }
+$cw = ([string](Cdp 'main' "(() => { const e = process.mainModule.require('electron'); const w = e.BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('chat.html')); if (!w) return ''; const r = e.screen.dipToScreenRect(w, w.getBounds()); return r.x + '|' + r.y; })()").value) -split '\|'
+# Screen pixels of one part of a card (a CSS selector inside the nth card), from the window's place and the page's scale.
+function CardPoint($i, $sel) {
+  $p = ([string](Cdp 'chat.html' "(() => { const c = document.querySelectorAll('#cards .card')[$i]; const e = c && (c.querySelector('$sel') || c); if (!e) return ''; const q = e.getBoundingClientRect(); return [devicePixelRatio, q.left + q.width / 2, q.top + q.height / 2].join('|'); })()").value) -split '\|'
+  if ($p.Count -ne 3 -or $cw.Count -ne 2) { return $null }
+  return @([int]([double]$cw[0] + [double]$p[1] * [double]$p[0]), [int]([double]$cw[1] + [double]$p[2] * [double]$p[0]))
+}
+function RealClick($pt) { [void][K]::SetCursorPos($pt[0], $pt[1]); Start-Sleep -Milliseconds 120; [K]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 60; [K]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero) }
+# Whose window is under a point of the screen: what Windows would hand a click there to.
+function OwnerAt($pt) { $o = 0; [void][K]::GetWindowThreadProcessId([IntPtr][K]::At($pt[0], $pt[1]), [ref]$o); return (Get-Process -Id $o -ErrorAction SilentlyContinue).ProcessName }
+function FrontName { $fg = 0; [void][K]::GetWindowThreadProcessId([K]::GetForegroundWindow(), [ref]$fg); return (Get-Process -Id $fg -ErrorAction SilentlyContinue).ProcessName }
+$before = ChatCards
+$onCard = CardPoint 0 '.what'
+$offCard = $(if ($cw.Count -eq 2) { @([int]$cw[0] + 60, [int]$cw[1] + 60) })
+$hitCard = $(if ($onCard) { OwnerAt $onCard })
+$hitOff = $(if ($offCard) { OwnerAt $offCard })
+Check 'chat-card-takes-pointer' ($hitCard -eq 'Sentinel' -and $hitOff -eq 'Discord') "under a card the pointer goes to $hitCard; under Discord's own words to $hitOff; cards: $before"
+$no = CardPoint 0 '.no'
+if ($no) { RealClick $no }
+Start-Sleep -Milliseconds 500
+$thanks = [string](Cdp 'chat.html' "(document.querySelector('#cards .thanks') || {}).textContent || ''").value
+[void](Frame 'chat.html' '1' 5000 'chat-card-marked-wrong' -Layer)
+Check 'chat-card-wrong-says' ($thanks -match 'will not warn about this from them here again' -and $thanks -match 'Nothing was sent' -and (FrontName) -eq 'Discord') "after a real click on This is wrong: '$thanks'; in front: $(FrontName)"
+Start-Sleep 4
+$x = CardPoint 0 '.x'
+if ($x) { RealClick $x }
+Start-Sleep 8
+$after = ChatCards
+$st = (Info 'info()').chatSafety.seen
+Shot 'chat-cards-answered'
+Check 'chat-card-answers-kept' ($before -ne '' -and $after -eq '' -and $st.discord.flagged -ge 2 -and (FrontName) -eq 'Discord' -and (AppLog) -match 'chat safety: a warning was marked wrong' -and (AppLog) -match 'chat safety: a warning was hidden') "cards before: '$before'; after both answers and 8 s of reading: '$after'; flagged so far $($st.discord.flagged); in front: $(FrontName)"
+$badge = [string](Cdp 'chat.html' "document.getElementById('badge').classList.contains('is-on') + '|' + Boolean(document.querySelector('#cards .card'))").value
+Check 'chat-card-pointer-back' ($badge -eq 'true|false' -and $offCard -and (OwnerAt $offCard) -eq 'Discord' -and $onCard -and (OwnerAt $onCard) -eq 'Discord') "no cards: the badge is back ($badge), and the window takes the pointer nowhere"
+Check 'chat-mute-unreadable' (-not ((Get-Content "$data\settings.json" -Raw) -match 'Stranger|stranger|general|Test Server')) 'what was marked wrong is kept as hashes, never a name or a chat'
 Get-Process Discord -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep 3
 
@@ -621,7 +659,7 @@ Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAct
 # called what it is.
 $r = Info "addMySite('harbourcu.test')"
 Check 'my-sites-add' ((@($r) | ForEach-Object { $_.host }) -contains 'harbourcu.test') "the list: $($r | ConvertTo-Json -Compress)"
-Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 harbourcu.test`r`n127.0.0.1 harbourcu-secure-login.test"
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 harbourcu.test`r`n127.0.0.1 harbourcu-secure-login.test`r`n127.0.0.1 harbourcu-online-help.test"
 function WatchLine($pattern) { return [string](Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-String $pattern | Select-Object -Last 1) }
 Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', 'http://harbourcu.test:47910/plain.html')"
 $ok = Until 45 { [bool](WatchLine 'msedge \S+ .* http://harbourcu\.test:47910/') }
@@ -654,7 +692,7 @@ Check 'motion-warn' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations a
 # Warnings that lead to the real site: the warning offers the person's own site, and pressing it opens exactly that
 # address, kept by the app when the warning was made. The browser's opening is stood in for in the main process, so
 # nothing else comes to the front; the log says that it was opened, never which.
-$rb = [string](Cdp 'warn.html' "(document.getElementById('realRow').hidden ? 'hidden' : 'shown') + '|' + document.getElementById('real').textContent").value
+$rb = [string](Cdp 'warn.html' "(document.getElementById('real').hidden ? 'hidden' : 'shown') + '|' + document.getElementById('real').textContent").value
 Check 'real-site-offered' ($rb -eq 'shown|Go to the real harbourcu.test') "the warning's button: $rb"
 $stub = (Cdp 'main' "(() => { const s = process.mainModule.require('electron').shell; global.e2eOpened = []; global.e2eOpen = s.openExternal; s.openExternal = (u) => { global.e2eOpened.push(String(u)); return Promise.resolve(); }; return s.openExternal !== global.e2eOpen; })()").value
 [void](Cdp 'warn.html' "document.getElementById('real').click(), 1")
@@ -663,6 +701,32 @@ $opened = ''
 [void](Cdp 'main' "(() => { if (global.e2eOpen) process.mainModule.require('electron').shell.openExternal = global.e2eOpen; return 1; })()")
 Check 'real-site-opens' ($stub -and $opened -eq '["https://harbourcu.test/"]' -and (AppLog) -match 'warning: opened the real site' -and (AppLog) -notmatch 'opened the real site[^\r\n]*harbourcu') "stood in: $stub; opened: $opened"
 Check 'real-site-closes' (Until 10 { [string](Cdp 'warn.html' '1').error -match 'no window' }) 'the warning closed after the button'
+Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# 5d2. The answer back: another copy of the person's site, and on its warning "Why" opened, then "I know this site".
+# The card says what it did and where it is kept, and the scanner itself stops flagging the site (the page checked
+# again, as the card asks: the next line in watch.log is clean). Undo, and it is flagged again.
+Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', 'http://harbourcu-online-help.test:47910/plain.html')"
+$ok = (Until 45 { [bool](WatchLine 'msedge (orange|red) .* http://harbourcu-online-help\.test:47910/') }) -and (Until 20 { [string](Cdp 'warn.html' "document.getElementById('trust').textContent").value -eq 'I know this site' })
+$one = [string](Cdp 'warn.html' "[document.getElementById('reason').textContent, document.querySelectorAll('#reasons li').length, document.getElementById('why').open, [...document.querySelectorAll('.row button')].filter((x) => x.offsetParent).map((x) => x.textContent).join('/')].join('|')").value
+Check 'warning-one-reason' ($ok -and $one -match '^[^|]+\|\d\|false\|I know this site/Got it/Go to the real harbourcu\.test$') "one reason in the open, the rest behind Why, and the row: $one"
+$n = @(120, 600 | ForEach-Object { Frame 'warn.html' "document.getElementById('why').open = true" $_ "warning-why-$($_)ms" })
+$f = Fit 'warn.html' 'warning-why-open'
+Check 'warning-why-fits' ($f.ok -and ($n | Measure-Object -Minimum).Minimum -gt 0) "Why open: the card grew to its words ($($f.words) px), cut off or scrolling '$($f.cut)', on screen $($f.onScreen); animations $($n -join ', ')"
+$lines = ([regex]::Matches((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '', 'harbourcu-online-help')).Count
+[void](Cdp 'warn.html' "document.getElementById('trust').click(), 1")
+$said = ''
+[void](Until 20 { $script:said = [string](Cdp 'warn.html' "document.body.innerText.replace(/\s+/g, ' ')").value; $script:said -match 'Sentinel trusts this site now' })
+Shot 'warning-trusted'
+[void](Frame 'warn.html' '1' 2000 'warning-trusted-card')
+$clean = Until 30 { ([regex]::Matches((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '', 'harbourcu-online-help')).Count -gt $lines -and (WatchLine 'harbourcu-online-help\.test:47910/') -notmatch ' (orange|red) ' }
+Check 'warning-trust-stops-it' ($said -match 'It will not warn you about it again' -and $said -match 'Kept on this computer\. Nothing was sent\.' -and $clean -and (AppLog) -match 'warning: a site was trusted from its warning' -and (AppLog) -notmatch 'trusted from its warning[^\r\n]*harbourcu') "the card: $said; checked again since: $(WatchLine 'harbourcu-online-help\.test:47910/')"
+$lines = ([regex]::Matches((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '', 'harbourcu-online-help')).Count
+[void](Cdp 'warn.html' "[...document.querySelectorAll('.row button')].find((x) => x.textContent === 'Undo').click(), 1")
+$back = Until 30 { ([regex]::Matches((Get-Content "$data\logs\watch.log" -Raw -ErrorAction SilentlyContinue) + '', 'harbourcu-online-help')).Count -gt $lines -and (WatchLine 'harbourcu-online-help\.test:47910/') -match ' (orange|red) ' }
+$undone = [string](Cdp 'warn.html' "document.body.innerText.replace(/\s+/g, ' ')").value
+Check 'warning-trust-undo' ($back -and $undone -match 'Sentinel will warn you about this site again') "Undo: $undone; checked again: $(WatchLine 'harbourcu-online-help\.test:47910/')"
+[void](Cdp 'warn.html' "[...document.querySelectorAll('.row button')].find((x) => x.textContent === 'Done').click(), 1")
+Check 'warning-done-closes' (Until 10 { [string](Cdp 'warn.html' '1').error -match 'no window' }) 'Done closed the card'
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 # 5e. Before you pay: a shop's checkout. A young shop (registered 3 weeks ago) gets a calm card beside the page, found

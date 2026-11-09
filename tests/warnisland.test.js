@@ -87,8 +87,8 @@ test('each warning page is drawn by the card, has no scrolling box of its own, a
   assert.match(read('desktop/src/pages/warn.html'), /id="close" data-escape>Got it/);
   assert.match(read('desktop/src/pages/filescan.html'), /id="close" data-escape>Done/);
   // What may be left out on a very short screen: never the first reason, the verdict, the advice or a button.
-  for (const name of ['warn', 'filescan']) assert.match(read(`desktop/src/pages/${name}.html`), /if \(ul\.children\.length\) li\.dataset\.trim = '';/);
-  assert.match(read('desktop/src/pages/warn.html'), /<small id="browser" data-trim><\/small>/);
+  assert.match(read('desktop/src/pages/filescan.html'), /if \(ul\.children\.length\) li\.dataset\.trim = '';/);
+  assert.match(read('desktop/src/pages/warn.html'), /for \(const r of reasons\.slice\(1\)\) \{[^}]*li\.dataset\.trim = '';/, 'only the reasons behind Why, never the one in the open');
   assert.doesNotMatch(card, /overflow(-y)?: (auto|scroll)/);
   assert.match(card, /grid-template-columns: minmax\(0, 1fr\)/, 'a long unbroken button must not widen the column past the card');
   assert.ok(!card.includes('\u2014'));
@@ -101,7 +101,7 @@ test('the card springs with the island\'s curve, once, and only fades for reduce
   const pill = Number(read('desktop/src/pages/overlay.html').match(/var PILL = (\d+);/)[1]);
   assert.equal(pill, 34);
   assert.match(card, /@keyframes card-open \{ from \{ clip-path: inset\(calc\(100% - 34px\) 0 0 calc\(100% - 34px\) round 17px\); \}/, 'out of the 34 px mask in its corner');
-  assert.match(card, /@media \(prefers-reduced-motion: reduce\) \{ body, \.mark, \.head > div, \.body, \.row \{ animation: card-fade \.2s ease both; \} \}/);
+  assert.match(card, /@media \(prefers-reduced-motion: reduce\) \{ body, \.mark, \.head > div, \.body, \.row, \.why\[open\] > :not\(summary\) \{ animation: card-fade \.2s ease both; \} \.why\[open\] > summary::after \{ animation: none; \} \}/);
   assert.doesNotMatch(card, /infinite|transition:/);
 });
 
@@ -158,4 +158,35 @@ test('new words in the same card size its window again, through the card windows
   const h = main.slice(main.indexOf("ipcMain.handle('sentinel:card-fit'"), main.indexOf("handle('sentinel:guard-action'"));
   assert.match(h, /if \(!trustedLocal\(event\)\) throw new Error\('Not allowed'\);/);
   assert.match(h, /w === win/, 'never the app\'s own window');
+});
+
+test('the warning is one verdict, one reason, one thing to do, and it can be answered back', () => {
+  const warn = read('desktop/src/pages/warn.html');
+  // The strongest reason in the open, the rest behind Why, and nothing else gets a button row of its own.
+  assert.match(warn, /\$\('reason'\)\.textContent = reasons\[0\] \|\| '';/);
+  assert.match(warn, /<details class="why" id="why">[\s\S]*<ul id="reasons"><\/ul>[\s\S]*id="recover"[\s\S]*id="details"[\s\S]*<\/details>/);
+  assert.doesNotMatch(warn, /realRow|id="browser"/, 'the old rows are gone');
+  assert.equal((warn.match(/<div class="row"/g) || []).length, 1);
+  // Warning signs alone: I know this site trusts at once. Evidence: This is wrong, then a plain second step.
+  assert.match(warn, /\$\('trust'\)\.textContent = 'I know this site';\s*\$\('trust'\)\.onclick = trust;/);
+  assert.match(warn, /if \(badge === 'red'\) \{\s*\$\('trust'\)\.textContent = 'This is wrong';/);
+  assert.match(warn, /told you to press this, it is a scam/);
+  assert.match(warn, /'Keep the warning', done, 'primary', true/, 'the safe answer is the gold one, and Escape');
+  assert.match(warn, /Kept on this computer\. Nothing was sent\./);
+  assert.match(warn, /\['Undo', untrust\]/);
+  assert.ok(!warn.includes('—'));
+  // The site trusted is the one the warning was made for, kept in main.js; only the warning window may ask.
+  const fn = main.slice(main.indexOf('async function trustFromWarning('), main.indexOf('\n}\n', main.indexOf('async function trustFromWarning(')));
+  assert.match(fn, /const page = warnPage;/);
+  assert.match(fn, /lock\.guard\('warnings off for one site', true\)/, 'the parent lock covers it');
+  assert.match(fn, /apiCall\('\/api\/v1\/sites\/override', \{ url: page\.url, action: action === 'trust' \? 'allow' : 'clear' \}\)/, 'the scanner\'s own rule, so it stops flagging the site');
+  assert.match(fn, /watch\.pauseChanged\(\)/, 'the island checks the page again');
+  assert.match(fn, /return \{ ok: true, local: embedded \}/, 'the card says where it is kept');
+  assert.doesNotMatch(fn, /appLog\([^)]*page\./, 'the log never says which site');
+  assert.match(main, /BrowserWindow\.fromWebContents\(event\.sender\) === warnWin \? trustFromWarning\(action\)/);
+});
+
+test('card.js: Why opens and closes the card to its words; summary is in the Tab ring', () => {
+  assert.match(card, /document\.addEventListener\('toggle', refit, true\)/);
+  assert.match(card, /querySelectorAll\('button, a\[href\], summary'\)/);
 });

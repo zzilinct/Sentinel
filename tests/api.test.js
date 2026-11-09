@@ -386,6 +386,16 @@ test('trusting a site clears its masks for that user only', async () => {
   assert.notEqual(vb.threats.scam.badge, null);
 });
 
+test('a site where anyone can publish cannot be trusted whole: the rule would trust every page on it', async () => {
+  const a = await newUser('pro');
+  const r = await a.post('/api/v1/sites/override', { url: 'https://docs.google.com/forms/d/e/1FAIpQL/viewform', action: 'allow' });
+  assert.equal(r.status, 400);
+  assert.equal(r.data.error.code, 'shared_site');
+  assert.match(r.data.error.message, /Anyone can publish pages on docs\.google\.com/);
+  // A page on its own address on a hosting platform is its own site, and can be trusted.
+  assert.equal((await a.post('/api/v1/sites/override', { url: 'https://my-club.pages.dev/', action: 'allow' })).status, 200);
+});
+
 test('password reset: emailed one-time link, sessions revoked, unknown emails get the same answer', async () => {
   const mailer = require('../server/lib/mailer');
   const c = await newUser('free');

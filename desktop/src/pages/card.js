@@ -47,6 +47,20 @@
   [hidden] { display: none !important; }
   button[disabled] { opacity: .6; cursor: default; }
   button.quiet { margin-right: auto; padding: 0 2px; border: 0; background: none; color: #8d8a82; text-decoration: underline; text-underline-offset: 3px; }
+  /* "Why": the rest of the proof, folded under the one reason in the open. Opening it grows the card (card-fit). */
+  .why { margin: 2px 0 0; }
+  .why > summary { display: inline-flex; align-items: center; gap: 8px; padding: 2px 0; border-radius: 4px; cursor: pointer; list-style: none;
+    color: #e2c47f; font-size: var(--t-note); -webkit-app-region: no-drag; }
+  .why > summary::-webkit-details-marker { display: none; }
+  .why > summary::after { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); }
+  .why[open] > summary::after { transform: translateY(2px) rotate(225deg); animation: card-flip .45s var(--spring) both; }
+  .why > summary:hover { color: #efd79c; }
+  .why > summary:focus-visible { outline: 2px solid #e2c47f; outline-offset: 2px; }
+  .why > :not(summary) { margin-top: 10px; }
+  .why > ul { margin-bottom: 0; }
+  .why[open] > :not(summary) { animation: card-rise .4s cubic-bezier(.16, 1, .3, 1) both; }
+  button.quiet:hover { color: #e9e6df; }
   button.link { height: auto; padding: 0; border: 0; background: none; border-radius: 4px; color: #e2c47f; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
   /* Opening: the card grows out of the island's 34 px mask in its bottom right corner with the island's own spring,
      then the mask pops and the words settle. Once per opening (a new warning loads the page again); nothing loops. */
@@ -60,11 +74,12 @@
   @keyframes card-pop { from { opacity: 0; transform: scale(.55) rotate(-8deg); } }
   @keyframes card-rise { from { opacity: 0; transform: translateY(10px); } }
   @keyframes card-fade { from { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { body, .mark, .head > div, .body, .row { animation: card-fade .2s ease both; } }
+  @keyframes card-flip { from { transform: translateY(-2px) rotate(45deg); } }
+  @media (prefers-reduced-motion: reduce) { body, .mark, .head > div, .body, .row, .why[open] > :not(summary) { animation: card-fade .2s ease both; } .why[open] > summary::after { animation: none; } }
   `;
   document.head.appendChild(style);
 
-  const focusable = () => [...document.querySelectorAll('button, a[href]')].filter((x) => x.offsetParent && !x.disabled);
+  const focusable = () => [...document.querySelectorAll('button, a[href], summary')].filter((x) => x.offsetParent && !x.disabled);
   document.addEventListener('keydown', (e) => {
     // Escape presses the button marked for it (the one that changes nothing). guard.html answers Escape itself.
     if (e.key === 'Escape' && !e.defaultPrevented) {
@@ -76,7 +91,10 @@
       const all = focusable();
       if (!all.length) return;
       const i = all.indexOf(document.activeElement);
-      if (e.shiftKey && i <= 0) { e.preventDefault(); all[all.length - 1].focus(); }
+      // From nowhere in the card (a click into its words), the first Tab lands on the gold button: what to do.
+      const gold = all.find((x) => x.classList && x.classList.contains('primary'));
+      if (i === -1 && !e.shiftKey && gold) { e.preventDefault(); gold.focus(); }
+      else if (e.shiftKey && i <= 0) { e.preventDefault(); all[all.length - 1].focus(); }
       else if (!e.shiftKey && (i === -1 || i === all.length - 1)) { e.preventDefault(); all[0].focus(); }
     }
   });
@@ -122,14 +140,17 @@
       .map((e) => e.id || e.className || e.tagName.toLowerCase());
   }
 
-  // New words in the same window (the shield's next step): the window is sized to them again.
+  // New words in the same window (the shield's next step, a warning answered), or "Why" opened or closed: the window
+  // is sized to them again.
+  let queued = false;
+  const refit = () => {
+    if (queued || !window.sentinelDesktop || !window.sentinelDesktop.cardFit) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; window.sentinelDesktop.cardFit().catch(() => {}); });
+  };
+  document.addEventListener('toggle', refit, true);
   document.addEventListener('DOMContentLoaded', () => {
-    let queued = false;
-    new MutationObserver(() => {
-      if (queued || !window.sentinelDesktop || !window.sentinelDesktop.cardFit) return;
-      queued = true;
-      requestAnimationFrame(() => { queued = false; window.sentinelDesktop.cardFit().catch(() => {}); });
-    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    new MutationObserver(refit).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
   });
 
   window.SentinelCard = { PAD, WIDTHS, measure, clipped };

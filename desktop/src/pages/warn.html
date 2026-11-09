@@ -7,13 +7,19 @@
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <script src="card.js"></script>
 <style>
-  .body .recover { margin: 10px 0 0; font-size: var(--t-note); color: #b9b5ab; }
-  .real { margin: 16px 0 0; }
-  .real[hidden] { display: none; }
-  .real button { width: 100%; height: auto; min-height: 38px; padding: 8px 16px; overflow-wrap: anywhere; }
+  .host .in { font-family: var(--sans); color: #8d8a82; }
+  .body p { overflow-wrap: anywhere; }
+  #lead { margin-bottom: 6px; }
+  #reason { color: #e9e6df; }
 </style>
 </head>
-<body role="alertdialog" aria-labelledby="title" aria-describedby="host lead reasons">
+<!--
+  A warning over the browser (main.js showWarning): one verdict, the single strongest reason, one thing to do. The
+  rest of the proof waits behind "Why". The person can answer back: "I know this site" (or, with evidence against the
+  site, "This is wrong" and a second, plain step) trusts it from then on, the same rule as Site rules in the app, and
+  stops the same warning coming back.
+-->
+<body role="alertdialog" aria-labelledby="title" aria-describedby="lead reason">
   <div class="head">
     <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/></svg></div>
     <div>
@@ -23,48 +29,115 @@
   </div>
   <div class="body">
     <p id="lead"></p>
-    <ul id="reasons"></ul>
-    <small id="browser" data-trim></small>
-    <p class="recover">Already typed a password or paid on it? <button class="link" id="recover">Open the recovery guide</button></p>
+    <p id="reason"></p>
+    <details class="why" id="why">
+      <summary>Why Sentinel thinks so</summary>
+      <ul id="reasons"></ul>
+      <p>Already typed a password or paid on it? <button class="link" id="recover">Open the recovery guide</button></p>
+      <p><button class="link" id="details">See the full check in Sentinel</button></p>
+      <small id="seen"></small>
+    </details>
   </div>
-  <p class="real" id="realRow" hidden><button class="primary" id="real"></button></p>
-  <div class="row">
-    <button id="details">Open in Sentinel</button>
-    <button class="primary" id="close" data-escape>Got it</button>
+  <div class="row" id="row">
+    <button class="quiet" id="trust"></button>
+    <button id="close" data-escape>Got it</button>
+    <button class="primary" id="real" hidden></button>
   </div>
   <script>
     const q = new URLSearchParams(location.search);
+    const $ = (id) => document.getElementById(id);
     const badge = q.get('badge') || 'orange';
+    const host = q.get('host') || '';
     const color = { red: '#e5484d', orange: '#f08a24', yellow: '#f5c542' }[badge] || '#f08a24';
     document.documentElement.style.setProperty('--c', color);
-    document.getElementById('title').textContent = q.get('label') || 'Sentinel warning';
-    document.getElementById('host').textContent = q.get('host') || '';
-    document.getElementById('lead').innerHTML = badge === 'red'
-      ? '<b>Leave this page.</b> Sentinel has evidence this site is dangerous. Do not enter passwords, codes or card details on it.'
-      : '<b>Be careful on this page.</b> Sentinel found the warning signs below, but no proof. Do not enter any details on it.';
-    const ul = document.getElementById('reasons');
-    for (const r of (q.get('reasons') || '').split('\n').filter(Boolean).slice(0, 4)) {
+    $('title').textContent = q.get('label') || 'Sentinel warning';
+    $('host').textContent = host;
+    const b = q.get('browser');
+    if (b) { const at = document.createElement('span'); at.className = 'in'; at.textContent = ` in ${b}`; $('host').append(at); }
+    $('lead').innerHTML = badge === 'red'
+      ? '<b>Leave this page.</b> Sentinel has evidence it is dangerous. Do not enter passwords, codes or card details.'
+      : '<b>Be careful on this page.</b> Sentinel sees warning signs, but no proof. Do not enter any details on it.';
+    // The strongest reason in the open; the rest behind "Why".
+    const reasons = (q.get('reasons') || '').split('\n').filter(Boolean).slice(0, 4);
+    $('reason').textContent = reasons[0] || '';
+    $('reason').hidden = !reasons[0];
+    for (const r of reasons.slice(1)) {
       const li = document.createElement('li');
       li.textContent = r;
-      if (ul.children.length) li.dataset.trim = '';
-      ul.appendChild(li);
+      // On a very short screen with "Why" open, these go first (they are all in the app behind "See the full check").
+      li.dataset.trim = '';
+      $('reasons').appendChild(li);
     }
+    $('seen').textContent = `Sentinel watched the address of the page in front${b ? ` in ${b}` : ''}; it did not read the page.`;
     // The real site (the brand's official address, or one of the person's own sites), never this page's address.
-    // One gold button: with a real site to go to, that one, and "Got it" steps back.
+    // With one to go to, that is the gold button, and "Got it" steps back.
     const real = q.get('real');
     if (real) {
-      document.getElementById('real').textContent = `Go to the real ${real}`;
-      document.getElementById('realRow').hidden = false;
-      document.getElementById('close').classList.remove('primary');
-      document.getElementById('real').onclick = () => window.sentinelDesktop.warnAction('real');
+      $('real').textContent = `Go to the real ${real}`;
+      $('real').hidden = false;
+      $('real').onclick = () => window.sentinelDesktop.warnAction('real');
+    } else $('close').classList.add('primary');
+    $('close').onclick = () => window.sentinelDesktop.warnAction('close');
+    $('details').onclick = () => window.sentinelDesktop.warnAction('open', q.get('url') || '');
+    $('recover').onclick = () => window.sentinelDesktop.warnAction('recover', 'password');
+
+    /* The answer back. Warning signs alone: "I know this site" trusts it at once. Evidence against the site: "This is
+       wrong" first says plainly what trusting it means, because "press this" is what a scammer on the phone asks. */
+    const row = $('row');
+    const buttons = (list) => {
+      row.replaceChildren(...list.map(([text, on, kind, esc]) => {
+        const x = document.createElement('button');
+        x.textContent = text;
+        if (kind) x.className = kind;
+        if (esc) x.dataset.escape = '';
+        x.onclick = on;
+        return x;
+      }));
+      (row.querySelector('.primary') || row.lastChild).focus();
+    };
+    const say = (lead, note) => {
+      $('lead').innerHTML = lead;
+      $('reason').hidden = true;
+      $('why').hidden = true;
+      if (note) { $('reason').textContent = note; $('reason').hidden = false; }
+    };
+    const done = () => window.sentinelDesktop.warnAction('close');
+    async function trust() {
+      for (const x of row.querySelectorAll('button')) x.disabled = true;
+      let r;
+      try { r = await window.sentinelDesktop.warnAction('trust'); } catch (err) { r = { ok: false, message: err.message }; }
+      if (!r || !r.ok) {
+        say(`<b>${r && r.locked ? 'The parent lock is on.' : 'Sentinel could not save that.'}</b>`, (r && r.message) || 'Try again in a moment, or add the site under Site rules in the app.');
+        buttons([['Got it', done, 'primary', true]]);
+        return;
+      }
+      document.documentElement.style.setProperty('--c', '#d6b25a');
+      $('title').textContent = 'Trusted by you';
+      say('<b>Sentinel trusts this site now.</b> It will not warn you about it again.',
+        `${r.local ? 'Kept on this computer. Nothing was sent.' : 'Saved to your Sentinel account.'} You can undo it here, or later under Site rules in the app.`);
+      buttons([['Undo', untrust], ['Done', done, 'primary', true]]);
     }
-    const b = q.get('browser');
-    document.getElementById('browser').textContent = b ? `Seen in ${b}. Sentinel watched the address of the page in front; it did not read the page.` : '';
-    document.getElementById('close').onclick = () => window.sentinelDesktop.warnAction('close');
-    document.getElementById('details').onclick = () => window.sentinelDesktop.warnAction('open', q.get('url') || '');
-    document.getElementById('recover').onclick = () => window.sentinelDesktop.warnAction('recover', 'password');
+    async function untrust() {
+      for (const x of row.querySelectorAll('button')) x.disabled = true;
+      const r = await window.sentinelDesktop.warnAction('untrust').catch(() => null);
+      document.documentElement.style.setProperty('--c', color);
+      $('title').textContent = r && r.ok ? 'Warnings back on' : 'Sentinel could not undo that';
+      say(r && r.ok ? '<b>Undone.</b> Sentinel will warn you about this site again.' : '<b>The site is still trusted.</b>', r && r.ok ? '' : 'Remove it under Site rules in the app.');
+      buttons([['Done', done, 'primary', true]]);
+    }
+    if (badge === 'red') {
+      $('trust').textContent = 'This is wrong';
+      $('trust').onclick = () => {
+        say('<b>Only if you are sure.</b> Sentinel has evidence against this site. Trusting it turns every warning about it off.',
+          'If someone on the phone or in a message told you to press this, it is a scam: keep the warning.');
+        buttons([['Trust it anyway', trust], ['Keep the warning', done, 'primary', true]]);
+      };
+    } else {
+      $('trust').textContent = 'I know this site';
+      $('trust').onclick = trust;
+    }
     // The keyboard starts on the one gold button once the person clicks into the card (the window never takes it).
-    document.getElementById(real ? 'real' : 'close').focus();
+    (real ? $('real') : $('close')).focus();
   </script>
 </body>
 </html>

@@ -201,6 +201,60 @@ test('messages are judged in their place, each once, and a flag keeps its place 
   assert.equal(again[0].rect.y, 40, 'where the message is now');
 });
 
+test('a warning answered on its card: hidden stays hidden, and "This is wrong" stops that sign for that sender in that chat, kept unreadable', () => {
+  const saved = [];
+  const states = [];
+  setOpts({ log() {}, onState: (st) => states.push(st), salt: 'test key', onMuted: (l) => saved.push(l) });
+  try {
+    const ctx = { server: 'Friends', channel: 'general' };
+    const at = (who, text, y) => ({ who, text, x: 0, y, w: 100, h: 18 });
+    const screen = [at('Sam', 'call me 415-555-0123', 10), at('Max', 'call me 415-555-0199', 40)];
+    const flags = judge('discord', 'discord|Friends|general', ctx, screen);
+    assert.equal(flags.length, 2, 'two phone numbers, two warnings');
+    assert.ok(flags.every((f) => Number.isInteger(f.n)), 'each warning has a number the card answers with');
+    // Hide: that message only, and it stays hidden at every later read.
+    assert.equal(chatwatch.answer(flags[0].n, 'hide'), true);
+    assert.deepEqual(judge('discord', 'discord|Friends|general', ctx, screen).map((f) => f.who), ['max']);
+    assert.equal(saved.length, 0, 'hiding keeps nothing');
+    // This is wrong: Max's phone number is not a warning sign here any more, on screen now or in a new message.
+    assert.equal(chatwatch.answer(flags[1].n, 'wrong'), true);
+    assert.equal(judge('discord', 'discord|Friends|general', ctx, screen).length, 0);
+    assert.equal(judge('discord', 'discord|Friends|general', ctx, [at('Max', 'or call me 415-555-0100', 70)]).length, 0, 'the same sign again: not flagged');
+    // Anything else still is: another sign from Max, the same sign from someone else, Max in another chat.
+    assert.equal(judge('discord', 'discord|Friends|general', ctx, [at('Max', "don't tell your parents, our secret", 100)]).length, 1);
+    assert.equal(judge('discord', 'discord|Friends|general', ctx, [at('Sam', 'my number is 415-555-0177 call me', 130)]).length, 1);
+    assert.equal(judge('discord', 'discord|Other|general', { server: 'Other', channel: 'general' }, [at('Max', 'call me 415-555-0199', 10)]).length, 1);
+    // What is kept: hashes only, never a name, a chat or a sign, and the person's numbers answer nothing else.
+    assert.equal(saved.length, 1);
+    assert.ok(saved[0].length >= 1 && saved[0].every((h) => /^[A-Za-z0-9_-]{22}$/.test(h)), JSON.stringify(saved[0]));
+    assert.doesNotMatch(JSON.stringify(saved), /max|friends|general|number/i);
+    assert.equal(chatwatch.answer(999999, 'wrong'), false, 'an unknown warning');
+    assert.equal(chatwatch.answer(flags[1].n, 'block'), false, 'only hide or wrong');
+  } finally { setOpts(null); }
+  // A new start with what was kept: still not flagged.
+  chatwatch.stop();
+  chatwatch.start({ spawn: () => { throw new Error('not started here'); }, apps: [], log() {}, onState() {}, muted: saved[0], salt: 'test key' });
+  try {
+    assert.equal(judge('discord', 'discord|Friends|general', { server: 'Friends', channel: 'general' }, [{ who: 'Max', text: 'call me 415-555-0199', x: 0, y: 0, w: 1, h: 1 }]).length, 0);
+  } finally { chatwatch.stop(); setOpts(null); }
+});
+
+test('the chat card can be answered without a mouse hook: the window takes the pointer only over its cards', () => {
+  const overlay = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src', 'chatoverlay.js'), 'utf8');
+  const page = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src', 'pages', 'chat.html'), 'utf8');
+  assert.doesNotMatch(overlay, /forward: true/, 'no forwarded pointer (a mouse hook over every game)');
+  assert.match(overlay, /win\.setShape\(r\);\s*if \(!shaped\) win\.setIgnoreMouseEvents\(false\);/, 'the shape first, then the pointer');
+  assert.match(overlay, /win\.setIgnoreMouseEvents\(true\);\s*win\.setShape\(\[\]\);/, 'and the pointer let go before the shape grows back');
+  assert.match(overlay, /event\.sender === win\.webContents/, 'only its own page may shape it or answer');
+  assert.doesNotMatch(page, /\.card \{[^}]*pointer-events: none/, 'cards are not a ghost');
+  assert.match(page, /aria-label="Hide this warning"/);
+  assert.match(page, />This is wrong</);
+  assert.match(page, /Kept on this computer\. Nothing was sent\./);
+  const main = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src', 'main.js'), 'utf8');
+  assert.match(main, /if \(action === 'wrong'\) \{\s*try \{ lock\.guard\(/, 'with a parent lock on, This is wrong needs the PIN');
+  assert.ok(!page.includes('—'));
+});
+
 test('chat safety reads only, and keeps nothing: no keys or clicks sent, nothing written, no other program touched', () => {
   assert.doesNotMatch(SCRIPT, /SendInput|keybd_event|mouse_event|PostMessage|SendMessage|WriteProcessMemory|ReadProcessMemory|OpenProcess|CreateRemoteThread|SetWindowsHookEx/i, 'nothing sent to or taken from another program');
   assert.doesNotMatch(SCRIPT, /Out-File|Set-Content|Add-Content|Export-|\.Save\(|WriteAllBytes|WriteAllText/i, 'nothing written to disk');
