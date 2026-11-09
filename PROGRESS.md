@@ -7,4 +7,4 @@ tests/settings.test.js; scripts/verify-web/48-settings.js (in the features job l
 
 Slots: group 'look' (accent picker, window.SentinelTheme get/set in boot.js), group 'motion' (motion builder).
 
-Next: read CI screenshots settings-*; fix what they show; full run on the final commit; report.
+Next: full CI run on the final commit, then report.
