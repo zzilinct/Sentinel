@@ -368,6 +368,8 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 /* The change itself. A pick opens the new colour as a circle from the gem; gold comes back as a band of light sweeping
    down the page. Both are the browser's view transition: two pictures composited, nothing laid out per frame. */
 html.vt-pick::view-transition-old(root), html.vt-gold::view-transition-old(root) { animation: none; }
+/* The pictures never take a click: a second gem pressed while the first change runs reaches its button. */
+html.vt-pick::view-transition, html.vt-gold::view-transition { pointer-events: none; }
 html.vt-pick::view-transition-new(root) { animation: accent-open .72s cubic-bezier(.16, 1, .3, 1) both; }
 html.vt-gold::view-transition-new(root) { animation: gold-down .9s cubic-bezier(.65, 0, .35, 1) both; }
 @keyframes accent-open { from { clip-path: circle(0 at var(--vt-x) var(--vt-y)); } to { clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y)); } }
