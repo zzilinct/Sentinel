@@ -334,7 +334,8 @@ function createWindow() {
     minWidth: Math.min(960, area.width),
     minHeight: Math.min(640, area.height),
     show: false,
-    backgroundColor: '#0c0d10',
+    // The look's own ground (applyLook has set Windows' light or dark by now), so a light look never opens on black.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0c0d10' : '#f6f4ef',
     title: 'Sentinel',
     icon: ICON,
     autoHideMenuBar: true,

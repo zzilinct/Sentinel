@@ -5,6 +5,8 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel: check something on screen</title>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<script src="../../shared/look.js"></script>
+<script>SentinelLook.paint(document.documentElement, SentinelLook.fromQuery(location.search));</script>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: #ece8df; }
   * { box-sizing: border-box; }
@@ -13,15 +15,15 @@
   #sheet { position: fixed; inset: 0; cursor: crosshair; background: rgba(8, 8, 10, .32); transition: background .2s ease; }
   body.drawing #sheet, body.picked #sheet { background: rgba(255, 255, 255, .004); }
   /* The box: clear inside, the dimming moved around it. */
-  #box { position: fixed; display: none; border: 1.5px solid #d6b25a; border-radius: 3px; box-shadow: 0 0 0 100vmax rgba(8, 8, 10, .38); pointer-events: none; }
+  #box { position: fixed; display: none; border: 1.5px solid var(--live); border-radius: 3px; box-shadow: 0 0 0 100vmax rgba(8, 8, 10, .38); pointer-events: none; }
   body.drawing #box, body.picked #box { display: block; }
   body.picked #box { animation: settle .35s var(--spring) both; }
   .hint { position: fixed; left: 50%; top: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 6px;
-    border-radius: 12px; background: #0c0d10; border: 1px solid rgba(214, 178, 90, .45); box-shadow: 0 6px 20px rgba(0, 0, 0, .4); color: #e2c47f;
+    border-radius: 12px; background: #0c0d10; border: 1px solid rgb(var(--live-rgb) / .45); box-shadow: 0 6px 20px rgba(0, 0, 0, .4); color: var(--live-hi);
     pointer-events: none; animation: drop .45s var(--spring) both; white-space: nowrap; }
   .hint span:last-child { color: #b9b4a9; }
-  .tile { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: #0c0d10; border: 1px solid color-mix(in srgb, var(--c, #d6b25a) 60%, transparent); flex: none; }
-  .tile svg { width: 20px; height: 20px; display: block; color: var(--c, #d6b25a); }
+  .tile { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: #0c0d10; border: 1px solid color-mix(in srgb, var(--c, var(--live)) 60%, transparent); flex: none; }
+  .tile svg { width: 20px; height: 20px; display: block; color: var(--c, var(--live)); }
   body.drawing .hint, body.picked .hint { opacity: 0; transition: opacity .15s ease; }
   /* The verdict: a card that opens out of its mask tile beside the box, as chat safety's cards do. */
   #card { position: fixed; width: 360px; max-height: calc(100vh - 24px); overflow: auto; padding: 12px 14px 12px 50px; cursor: default; display: none; }
@@ -38,9 +40,9 @@
   #card li::before { content: ""; position: absolute; left: 0; top: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--d, #8a857b); }
   #card li b { display: block; font-weight: 600; color: #ece8df; overflow-wrap: anywhere; }
   #card li span { color: #b9b4a9; font-size: var(--t-label); }
-  #card .do { margin-top: 10px; color: #e2c47f; font-size: var(--t-note); }
+  #card .do { margin-top: 10px; color: var(--live-hi); font-size: var(--t-note); }
   #card .row { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
-  #card button { font: inherit; color: #0c0d10; background: #d6b25a; border: 0; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+  #card button { font: inherit; color: #0c0d10; background: var(--live); border: 0; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
   #card button:focus-visible { outline: 2px solid #ece8df; outline-offset: 2px; }
   #card.reading .card__body { animation: none; }
   @keyframes open { from { transform: scale(.12, .3); } }
@@ -68,7 +70,7 @@
 (function () {
   'use strict';
   var M = window.SentinelMasks;
-  var COLORS = { danger: '#e5484d', warn: '#f08a24', safe: '#4cb782', empty: '#d6b25a', info: '#8a857b', pending: '#d6b25a' };
+  var COLORS = { danger: '#e5484d', warn: '#f08a24', safe: '#4cb782', empty: 'var(--live)', info: '#8a857b', pending: 'var(--live)' };
   var $ = function (id) { return document.getElementById(id); };
   var box = $('box'), card = $('card');
   var start = null, rect = null;

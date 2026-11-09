@@ -87,10 +87,10 @@ test('every other accent reads at 4.5:1 where its words sit, and stays clear of 
 
 test('the live surfaces have no gold of their own left: they draw the look', () => {
   const gold = /#d6b25a|#e2c47f|#fff4d2|214, ?178, ?90|212, ?174, ?99|\bGOLD\b/;
-  for (const page of ['overlay.html', 'card.js', 'warn.html', 'guard.html', 'filescan.html', 'error.html', 'loading.html']) {
+  for (const page of ['overlay.html', 'card.js', 'warn.html', 'guard.html', 'filescan.html', 'error.html', 'loading.html', 'snip.html', 'chat.html']) {
     assert.doesNotMatch(read('desktop', 'src', 'pages', page), gold, page);
   }
-  for (const page of ['overlay.html', 'warn.html', 'guard.html', 'filescan.html', 'error.html', 'loading.html']) {
+  for (const page of ['overlay.html', 'warn.html', 'guard.html', 'filescan.html', 'error.html', 'loading.html', 'snip.html', 'chat.html']) {
     assert.match(read('desktop', 'src', 'pages', page), /<script src="\.\.\/\.\.\/shared\/look\.js"><\/script>/, `${page} loads the look before it paints`);
   }
   assert.doesNotMatch(read('desktop', 'src', 'main.js'), /appTheme|executeJavaScript\("localStorage/, 'the app no longer peeks into the page for its theme');
