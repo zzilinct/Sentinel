@@ -291,6 +291,13 @@ test('defense: an unsigned program with strong evidence is still stopped, and "p
   }
 });
 
+test('the app window hands a new window to the browser only for https or its own origin, compared as an origin', () => {
+  const m = read('desktop/src/main.js');
+  const handler = m.slice(m.indexOf('win.webContents.setWindowOpenHandler(({ url })'), m.indexOf("win.on('close'"));
+  assert.doesNotMatch(handler, /url\.startsWith\(ORIGIN\)/, '"http://127.0.0.1:47821@elsewhere/" starts with the origin');
+  assert.match(handler, /new URL\(url\)\.origin === ORIGIN/);
+});
+
 test('defense: only Sentinel\'s own folder is exempt, not a neighbour whose name starts the same', async () => {
   const box = sandbox();
   try {
