@@ -104,9 +104,11 @@ async function checkColour() {
         // Arrow keys move the choice, as in any group of radio buttons.
         await evalIn(browser, s, `document.querySelector('${gem('rose')}').focus(); true`);
         await pressKey(browser, s, 'ArrowRight');
+        await sleep(200);
+        await pressKey(browser, s, 'ArrowRight');
         await sleep(1000);
         const key = await evalIn(browser, s, `[document.documentElement.dataset.accent, document.activeElement.dataset.accent]`);
-        result(`${tag}: the right arrow moves to the next colour, and focus with it`, key[0] === 'gold' && key[1] === 'gold', key);
+        result(`${tag}: the right arrow moves through the colours (rose, gold, teal), and focus with it`, key[0] === 'teal' && key[1] === 'teal', key);
 
         // Scrolled away: nothing while the page moves, then the gold band sweeps down. Photographed half way.
         await evalIn(browser, s, `window.__band = null; new MutationObserver(() => { if (document.documentElement.classList.contains('vt-gold')) window.__band = window.__band || 'seen'; }).observe(document.documentElement, { attributes: true }); Site.scrollTo(0); true`);
