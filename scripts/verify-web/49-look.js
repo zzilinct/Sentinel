@@ -87,8 +87,10 @@ async function checkLook() {
     }
     await size('desktop', 'dark');
 
-    // First paint: a reload draws the stored look before anything else (no gold flash).
+    // First paint: a reload draws the stored look before anything else (no gold flash). boot.js draws what look.js
+    // kept on the visit before, so the page is opened once first, as a person who chose teal has.
     await store('dark', 'teal');
+    await open();
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: "document.addEventListener('readystatechange', () => { if (document.readyState === 'interactive' && !window.__firstLook) window.__firstLook = document.documentElement.dataset.accent + ' ' + getComputedStyle(document.documentElement).getPropertyValue('--gold-400').trim(); });" }, s);
     await open();
     const first = await ev('window.__firstLook');
@@ -118,6 +120,26 @@ async function checkLook() {
     result('look: the keyboard moves the colour (arrows) and the theme (arrows), and every choice is named for a screen reader',
       keyed === 'amethyst' && (await ev('document.documentElement.dataset.theme')) === 'light' && named, { keyed, theme: await ev('document.documentElement.dataset.theme'), named });
     await lookPhoto('look-app-keyboard-light');
+    const said = await ev("document.querySelector('.look__sync').textContent");
+    result('look: signed in, the picker says the choice is kept with the account', /with your account/.test(said), said);
+
+    // A second device (a separate browser profile) signs in to the same account: the look arrives by itself.
+    const { browserContextId } = await browser.send('Target.createBrowserContext');
+    const { targetId: t2 } = await browser.send('Target.createTarget', { url: 'about:blank', browserContextId });
+    const s2 = (await browser.send('Target.attachToTarget', { targetId: t2, flatten: true })).sessionId;
+    await browser.send('Page.enable', {}, s2);
+    await browser.send('Emulation.setDeviceMetricsOverride', { ...SIZES.phone, deviceScaleFactor: 1 }, s2);
+    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, s2);
+    await goto(browser, s2, `${sentinel.base}/login`);
+    await evalIn(browser, s2, `fetch('/api/v1/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify({ email, password: 'Look-Check-Lamp-2026' }))} }).then((r) => r.status)`);
+    await goto(browser, s2, `${sentinel.base}/app/protection`, "document.querySelector('[data-look] .look')");
+    const arrived = await until(browser, s2, "document.documentElement.dataset.accent === 'amethyst' && document.documentElement.dataset.theme === 'light' && /with your account/.test(document.querySelector('.look__sync').textContent)", 10000);
+    await evalIn(browser, s2, "document.getElementById('look').scrollIntoView({ block: 'center', behavior: 'instant' }), true");
+    await sleep(1800);
+    await shot(browser, s2, 'look-sync-second-device-phone');
+    result('look: the same account on another device takes the look chosen on the first, with no setting made there', Boolean(arrived),
+      { accent: await evalIn(browser, s2, 'document.documentElement.dataset.accent'), theme: await evalIn(browser, s2, 'document.documentElement.dataset.theme') });
+    await browser.send('Target.disposeBrowserContext', { browserContextId }).catch(() => {});
 
     /* ------------------------------------- the Windows app's own pages */
 

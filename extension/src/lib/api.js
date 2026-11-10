@@ -1,5 +1,7 @@
 /** Sentinel API client shared by the service worker, popup and options page. */
 import { BRAND } from './brand.js';
+// The look's one table (globalThis.SentinelLook), the site's own file.
+import './look.js';
 
 // Firefox answers through `browser` (promises); Chrome, Edge and Brave through
 // `chrome` (promises too, in Manifest V3). One name, promise style everywhere.
@@ -81,7 +83,35 @@ export async function apiFetch(path, { method = 'GET', body, timeout = 20000 } =
     const message = res.status >= 500 || !e.message ? 'Sentinel could not do that right now. Try again in a moment.' : e.message;
     throw new ApiError(message, res.status, e.code, e);
   }
+  if (data && typeof data.lookRev === 'number') followLook(data.lookRev);
   return data;
+}
+
+/**
+ * The look chosen on the person's other devices. Every live-scanning answer says when the account's look last
+ * changed (lookRev); only when that moved is the look itself asked for. Nothing polls.
+ */
+let lookAsking = null;
+async function followLook(revision) {
+  if (lookAsking || !globalThis.SentinelLook) return;
+  const { look } = await ext.storage.local.get('look').catch(() => ({}));
+  if (look && look.rev === revision) return;
+  lookAsking = apiFetch('/api/v1/account/look')
+    .then((r) => keepLook(globalThis.SentinelLook.merge(look, r), revision))
+    .catch(() => { /* asked again with the next answer */ })
+    .finally(() => { lookAsking = null; });
+}
+
+/**
+ * Keeps a look (a look.js record) for every part of the companion: the line and the marks on search pages read the
+ * accent as light and the marks' metal from here. `rev` is the account's, when known.
+ */
+export async function keepLook(r, rev) {
+  const L = globalThis.SentinelLook;
+  const rec = L.record(r);
+  const x = L.ramp(rec.accent, 'dark');
+  await ext.storage.local.set({ look: { ...rec, rev: rev || 0, live: { acc: x['--live'], hi: x['--live-hi'], lite: x['--live-lite'], rgb: x['--live-rgb'] }, metal: L.metal(rec.accent) } });
+  return rec;
 }
 
 export function siteUrl(apiBase, path) {

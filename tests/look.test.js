@@ -94,8 +94,13 @@ test('the live surfaces have no gold of their own left: they draw the look', () 
     assert.match(read('desktop', 'src', 'pages', page), /<script src="\.\.\/\.\.\/shared\/look\.js"><\/script>/, `${page} loads the look before it paints`);
   }
   assert.doesNotMatch(read('desktop', 'src', 'main.js'), /appTheme|executeJavaScript\("localStorage/, 'the app no longer peeks into the page for its theme');
-  assert.match(read('web', 'partials', 'head.html'), /boot\.js"><\/script>\r?\n<script src="\/assets\/js\/look\.js"><\/script>/, 'the site draws the look before its first paint');
-  assert.doesNotMatch(read('web', 'assets', 'js', 'boot.js'), /sentinel:theme/, 'one theme switch: look.js');
+  // Before the first paint only boot.js runs: it reads what look.js kept and computes nothing. look.js loads after.
+  const head = read('web', 'partials', 'head.html');
+  assert.match(head, /boot\.js"><\/script>\r?\n<script src="\/assets\/js\/look\.js" defer><\/script>/, 'look.js waits for the page');
+  const boot = read('web', 'assets', 'js', 'boot.js');
+  assert.match(boot, /localStorage\.getItem\('sentinel:look-vars'\)/, 'boot.js draws the kept colours');
+  assert.doesNotMatch(boot, /oklch|ramp\(|Math\.cbrt|data-theme-toggle/, 'and does no colour work or theme switching itself');
+  assert.match(read('web', 'assets', 'js', 'look.js'), /KEY = \{ mode: 'sentinel:theme', accent: 'sentinel:accent', at: 'sentinel:look-at', vars: 'sentinel:look-vars' \}/);
   // One table: the companion and the Windows app read copies of the site's.
   assert.equal(read('extension', 'src', 'lib', 'look.js'), read('web', 'assets', 'js', 'look.js'), 'run node scripts/build-extension.js');
   assert.equal(read('extension', 'src', 'content', 'masks.js'), read('web', 'assets', 'js', 'masks.js'));
@@ -110,7 +115,7 @@ test('the tray mask is gold untouched, and cast in another accent keeps its shap
   assert.ok(!blue.equals(px));
   assert.ok(blue[0] > blue[2], 'the face turns blue');
   assert.deepEqual([blue[3], blue[7], blue[11]], [255, 255, 0], 'alpha is kept');
-  assert.ok(Math.abs(L.toOklch('#' + [blue[2], blue[1], blue[0]].map((v) => v.toString(16).padStart(2, '0')).join(''))[0] - L.toOklch('#d6b25a')[0]) < 0.03, 'the same lightness');
+  assert.ok(Math.abs(L.toOklch('#' + [blue[2], blue[1], blue[0]].map((v) => v.toString(16).padStart(2, '0')).join(''))[0] - L.toOklch('#d6b25a')[0]) < 0.08, 'about the same lightness (the dark tuning sits a little lower)');
   assert.match(read('desktop', 'src', 'main.js'), /tray = new Tray\(trayImage\(look\(\)\.accent\)\)/);
   assert.match(read('desktop', 'src', 'main.js'), /if \(tray\) tray\.setImage\(trayImage\(l\.accent\)\)/);
 });
@@ -128,10 +133,10 @@ test('GET /api/v1/look: only the app\'s server, only this computer, only the loo
     assert.equal((await c.get('/api/v1/look')).status, 404, 'nor a server that was not given the file');
     process.env.SENTINEL_LOOK_FILE = file;
     let r = await c.get('/api/v1/look');
-    assert.deepEqual([r.status, r.data], [200, { mode: 'auto', accent: 'gold' }], 'nothing chosen yet');
-    fs.writeFileSync(file, JSON.stringify({ mode: 'light', accent: 'sapphire', token: 'secret' }));
+    assert.deepEqual([r.status, r.data], [200, { mode: 'auto', accent: 'gold', at: { mode: 0, accent: 0 } }], 'nothing chosen yet');
+    fs.writeFileSync(file, JSON.stringify({ mode: 'light', accent: 'sapphire', at: { mode: 5, accent: 6 }, token: 'secret' }));
     r = await c.get('/api/v1/look');
-    assert.deepEqual(r.data, { mode: 'light', accent: 'sapphire' }, 'the two words and nothing else');
+    assert.deepEqual(r.data, { mode: 'light', accent: 'sapphire', at: { mode: 5, accent: 6 } }, 'the two settings, when each was chosen, and nothing else');
     // An extension may read it, without credentials (the 1.19.2 rule), and a website may not read it at all.
     const ext = await fetch(`${app.base}/api/v1/look`, { headers: { Origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' } });
     assert.equal(ext.headers.get('access-control-allow-origin'), 'chrome-extension://abcdefghijklmnopabcdefghijklmnop');
@@ -139,11 +144,54 @@ test('GET /api/v1/look: only the app\'s server, only this computer, only the loo
     const site = await fetch(`${app.base}/api/v1/look`, { headers: { Origin: 'https://evil.example' } });
     assert.equal(site.headers.get('access-control-allow-origin'), null);
     fs.writeFileSync(file, '{ half a file');
-    assert.deepEqual((await c.get('/api/v1/look')).data, { mode: 'auto', accent: 'gold' }, 'a broken file is Auto and Gold');
+    assert.deepEqual((await c.get('/api/v1/look')).data, { mode: 'auto', accent: 'gold', at: { mode: 0, accent: 0 } }, 'a broken file is Auto and Gold');
   } finally {
     config.deviceAccounts = false;
     delete process.env.SENTINEL_LOOK_FILE;
     app.server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('one look across devices: each setting from whichever chose it last, kept by the account, followed by the companion', async () => {
+  // merge: newest per setting, a tie keeps what is held, junk is dropped.
+  const a = { mode: 'dark', accent: 'teal', at: { mode: 10, accent: 30 } };
+  const b = { mode: 'light', accent: 'rose', at: { mode: 20, accent: 5 }, token: 'x' };
+  assert.deepEqual(L.merge(a, b), { mode: 'light', accent: 'teal', at: { mode: 20, accent: 30 } });
+  assert.deepEqual(L.merge(a, { ...a, mode: 'light' }), a, 'a tie keeps what is held');
+  assert.deepEqual(L.record({ mode: 'neon', accent: 'teal', at: { mode: 'soon', accent: -4 } }), { mode: 'auto', accent: 'teal', at: { mode: 0, accent: 0 } });
+  assert.equal(L.rev(a), 30);
+  // The website's preview may turn gold to any hue, through the same ramp.
+  assert.ok(L.contrast(L.ramp({ h: 25, c: 1 }, 'dark')['--gold-300'], '#111215') >= 4.5);
+
+  const { startApp, client } = require('./fixtures');
+  const app = await startApp();
+  try {
+    const c = client(app.base);
+    assert.equal((await c.get('/api/v1/account/look')).status, 401, 'signed out: nothing is kept for anyone');
+    const email = `look${Date.now()}@example.com`;
+    assert.equal((await c.post('/api/v1/auth/signup', { email, password: 'Correct-Horse-42', firstName: 'Lu', lastName: '', ageConfirmed: true, termsAccepted: true })).status, 201);
+    assert.equal((await c.post('/api/v1/auth/login', { email, password: 'Correct-Horse-42' })).status, 200);
+    let r = await c.get('/api/v1/account/look');
+    assert.deepEqual(r.data, { mode: 'auto', accent: 'gold', at: { mode: 0, accent: 0 }, computer: false });
+    r = await c.post('/api/v1/account/look', { mode: 'dark', accent: 'sapphire', at: { mode: 100, accent: 100 }, red: '#000000' });
+    assert.deepEqual(r.data, { mode: 'dark', accent: 'sapphire', at: { mode: 100, accent: 100 }, computer: false }, 'kept, and only the look');
+    // Another device chose the theme later and the colour earlier: each setting from the newer choice.
+    r = await c.post('/api/v1/account/look', { mode: 'light', accent: 'rose', at: { mode: 200, accent: 50 } });
+    assert.deepEqual([r.data.mode, r.data.accent], ['light', 'sapphire']);
+    // A clock set years ahead cannot pin a choice for ever: it counts as now.
+    const far = Date.now() + 10 * 365 * 864e5;
+    r = await c.post('/api/v1/account/look', { accent: 'teal', at: { accent: far } });
+    assert.ok(r.data.accent === 'teal' && r.data.at.accent <= Date.now());
+    assert.equal((await c.post('/api/v1/account/look', { accent: 'x'.repeat(600) })).status, 413, 'a body past 512 bytes is refused');
+    // Scan answers say when it changed, so the companion asks again only then.
+    const scan = await c.post('/api/v1/live/visit', { url: 'https://example.com/' });
+    assert.equal(scan.status, 200, JSON.stringify(scan.data));
+    assert.equal(scan.data.lookRev, r.data.at.accent);
+  } finally { app.server.close(); }
+  const api = read('extension', 'src', 'lib', 'api.js');
+  assert.match(api, /if \(data && typeof data\.lookRev === 'number'\) followLook\(data\.lookRev\);/);
+  assert.match(api, /if \(look && look\.rev === revision\) return;/, 'the companion asks only when the account\'s look moved');
+  assert.match(read('scripts', 'build-extension.js'), /strip\('lib\/look\.js'\)/, 'Firefox gets the table too');
+  assert.match(read('web', 'assets', 'js', 'app.js'), /SentinelLook\.sync\(\)/);
 });

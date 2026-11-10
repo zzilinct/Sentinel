@@ -14,13 +14,16 @@
 (function (root) {
   'use strict';
 
+  // h: OKLCH hue; c: depth against gold's. dark: on dark grounds gold's own depth reads as pastel in a cool hue, so
+  // each takes more (c) and sits a little lower (l); words are then lifted back only as far as 4.5:1 needs. The
+  // website's colour preview (accent.js on work/e2e-c-rainbow) uses these same rows.
   var ACCENTS = [
     { id: 'gold', name: 'Gold' },
-    { id: 'rose', name: 'Rose', h: 354, c: 0.95 },
-    { id: 'amethyst', name: 'Amethyst', h: 308, c: 1 },
-    { id: 'sapphire', name: 'Sapphire', h: 262, c: 1.05 },
-    { id: 'teal', name: 'Teal', h: 200, c: 0.85 },
-    { id: 'platinum', name: 'Platinum', h: 255, c: 0.12 }
+    { id: 'rose', name: 'Rose', h: 354, c: 0.95, dark: { c: 1.55, l: -0.05 } },
+    { id: 'amethyst', name: 'Amethyst', h: 308, c: 1, dark: { c: 1.7, l: -0.06 } },
+    { id: 'sapphire', name: 'Sapphire', h: 262, c: 1.05, dark: { c: 1.75, l: -0.07 } },
+    { id: 'teal', name: 'Teal', h: 200, c: 0.85, dark: { c: 1.65, l: -0.06 } },
+    { id: 'platinum', name: 'Platinum', h: 255, c: 0.12, dark: { c: 0.2, l: 0 } }
   ];
   var BY_ID = {};
   for (var i = 0; i < ACCENTS.length; i++) BY_ID[ACCENTS[i].id] = ACCENTS[i];
@@ -91,14 +94,15 @@
 
   /** Gold's colour `hex` turned to the accent's hue; `words` lifts (dark) or deepens (light) it to 4.5:1 on its grounds. */
   function turn(hex, accent, scheme, words) {
-    var o = toOklch(hex), L = o[0];
-    var out = oklchHex(L, o[1] * accent.c, accent.h);
+    var tune = accent[scheme] || {};
+    var o = toOklch(hex), L = o[0] + (tune.l || 0), C = o[1] * (isFinite(tune.c) ? tune.c : accent.c);
+    var out = oklchHex(L, C, accent.h);
     if (!words) return out;
     var grounds = GROUND[scheme];
     var worst = function (c) { var w = 99; for (var i = 0; i < grounds.length; i++) w = Math.min(w, contrast(c, grounds[i])); return w; };
     for (var n = 0; n < 60 && worst(out) < 4.5; n++) {
       L += scheme === 'dark' ? 0.01 : -0.01;
-      out = oklchHex(L, o[1] * accent.c, accent.h);
+      out = oklchHex(L, C, accent.h);
     }
     return out;
   }
@@ -119,10 +123,13 @@
    * nothing else is renamed; --acc-* are for the pages without sentinel.css; --live-* is the accent as light (the
    * dark scheme's), for the scanning line and the marks drawn over any page. Gold leaves --gold-* out: the
    * stylesheets already hold its hand-tuned ramp.
+   *
+   * `id` may also be { id, h, c, dark, light } (a hue in OKLCH degrees and a depth, 1 being gold's): the website's colour preview
+   * turns gold to hues the product never offers, through this same function, and only there.
    */
   function ramp(id, scheme) {
     scheme = scheme === 'light' ? 'light' : 'dark';
-    var accent = BY_ID[id] || BY_ID.gold;
+    var accent = id && typeof id === 'object' && isFinite(id.h) ? { id: String(id.id || 'preview'), h: Number(id.h), c: isFinite(id.c) ? Number(id.c) : 1, dark: id.dark, light: id.light } : BY_ID[id] || BY_ID.gold;
     var out = {};
     if (accent.id !== 'gold') {
       var w = GOLD[scheme].web, t = function (hex, words) { return turn(hex, accent, scheme, words); };
@@ -187,6 +194,26 @@
     look = look && typeof look === 'object' ? look : {};
     return { mode: look.mode === 'light' || look.mode === 'dark' ? look.mode : 'auto', accent: BY_ID[look.accent] ? look.accent : 'gold' };
   }
+  /**
+   * The look as it travels between the site, the app, the Windows app and the companion: each setting with the time
+   * it was chosen (`at`, ms). Anything else in it is dropped.
+   */
+  function record(r) {
+    r = r && typeof r === 'object' ? r : {};
+    var look = normal(r), at = r.at && typeof r.at === 'object' ? r.at : {};
+    var when = function (k) { var t = Number(at[k]); return isFinite(t) && t > 0 ? Math.floor(t) : 0; };
+    return { mode: look.mode, accent: look.accent, at: { mode: when('mode'), accent: when('accent') } };
+  }
+  /** Two records made one: each setting from whichever chose it last. A tie keeps `a`. */
+  function merge(a, b) {
+    a = record(a); b = record(b);
+    var out = { at: {} };
+    ['mode', 'accent'].forEach(function (k) { var w = b.at[k] > a.at[k] ? b : a; out[k] = w[k]; out.at[k] = w.at[k]; });
+    return out;
+  }
+  /** When a record last changed: the companion compares it with what it holds and asks again only when it moved. */
+  function rev(r) { r = record(r); return Math.max(r.at.mode, r.at.accent); }
+
   var mq = root.matchMedia ? root.matchMedia('(prefers-color-scheme: light)') : null;
   function scheme(mode) { return mode === 'light' || mode === 'dark' ? mode : mq && mq.matches ? 'light' : 'dark'; }
 
@@ -209,7 +236,7 @@
     return normal({ mode: q.get('theme'), accent: q.get('accent') });
   }
 
-  var api = { ACCENTS: ACCENTS, STATUS: STATUS, GOLD: GOLD, SHEET: SHEET, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, scheme: scheme, paint: paint, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
+  var api = { ACCENTS: ACCENTS, STATUS: STATUS, GOLD: GOLD, SHEET: SHEET, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, rev: rev, scheme: scheme, paint: paint, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
   root.SentinelLook = api;
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
   // The companion's own pages (popup, block page, settings): the look the Windows app gave it (popup.js asks the app
@@ -223,23 +250,35 @@
 
   /* ------------------------------------------------- the site and the web app */
 
-  // Remembered on this device (the theme under the key it always had). Inside the Windows app the app's own setting
-  // is the one choice: it is asked once, and every change goes to it, which tells the island, the cards and the
-  // companion.
-  var KEY = { mode: 'sentinel:theme', accent: 'sentinel:accent' };
+  // Remembered on this device first, so nothing waits on the network: the theme under the key it always had, the
+  // accent, when each was chosen, and the accent's colours for both schemes, which boot.js draws before the first
+  // paint (this file loads after it). Inside the Windows app, the app's own setting is the one choice; signed in, the
+  // account carries it to the person's other devices (sync()).
+  var KEY = { mode: 'sentinel:theme', accent: 'sentinel:accent', at: 'sentinel:look-at', vars: 'sentinel:look-vars' };
   var desktop = root.sentinelDesktop && root.sentinelDesktop.look ? root.sentinelDesktop : null;
   var listeners = [];
   var html = document.documentElement;
   function stored() {
-    try { return normal({ mode: localStorage.getItem(KEY.mode), accent: localStorage.getItem(KEY.accent) }); } catch (e) { return normal(); }
-  }
-  function keep(look) {
     try {
-      if (look.mode === 'auto') localStorage.removeItem(KEY.mode); else localStorage.setItem(KEY.mode, look.mode);
-      if (look.accent === 'gold') localStorage.removeItem(KEY.accent); else localStorage.setItem(KEY.accent, look.accent);
+      return record({ mode: localStorage.getItem(KEY.mode), accent: localStorage.getItem(KEY.accent), at: JSON.parse(localStorage.getItem(KEY.at) || '{}') });
+    } catch (e) { return record(); }
+  }
+  function keep(r) {
+    try {
+      if (r.mode === 'auto') localStorage.removeItem(KEY.mode); else localStorage.setItem(KEY.mode, r.mode);
+      if (r.accent === 'gold') { localStorage.removeItem(KEY.accent); localStorage.removeItem(KEY.vars); } else {
+        localStorage.setItem(KEY.accent, r.accent);
+        var v = JSON.parse(localStorage.getItem(KEY.vars) || '{}');
+        if (v.accent !== r.accent) localStorage.setItem(KEY.vars, JSON.stringify({ accent: r.accent, dark: webVars(r.accent, 'dark'), light: webVars(r.accent, 'light') }));
+      }
+      localStorage.setItem(KEY.at, JSON.stringify(r.at));
     } catch (e) { /* this page only */ }
   }
-  var current = paint(html, stored());
+  // What boot.js needs before the first paint: the stylesheets' own names only.
+  function webVars(id, s) { var all = ramp(id, s), out = {}; for (var k in all) if (/^--(gold|metal|line-gold|sketch-gold)/.test(k)) out[k] = all[k]; return out; }
+  var current = stored();
+  paint(html, current);
+  keep(current);   // a device that had the accent before boot.js drew it gets its colours kept now
   function show(look, from) {
     var was = current;
     current = look;
@@ -257,21 +296,55 @@
     document.startViewTransition(draw).finished.then(done, done);
   }
   show.n = 0;
+  /** A record from elsewhere (the Windows app, the account, another tab): kept, and drawn if it changes anything. */
+  function take(r) {
+    var m = merge(current, r);
+    var changed = m.mode !== current.mode || m.accent !== current.accent;
+    keep(m);
+    if (changed) show(m); else current = m;
+    return m;
+  }
   /** Changes the look (any of mode, accent). `from` is the point it was chosen at, for the reveal. */
   function set(change, from) {
-    var look = normal({ mode: change && 'mode' in change ? change.mode : current.mode, accent: change && 'accent' in change ? change.accent : current.accent });
-    if (look.mode === current.mode && look.accent === current.accent) return Promise.resolve(look);
-    keep(look);
-    show(look, from);
-    return desktop ? desktop.setLook(look).then(function () { return look; }, function () { return look; }) : Promise.resolve(look);
+    var r = record(current), now = Date.now();
+    ['mode', 'accent'].forEach(function (k) { if (change && k in change && normal(Object.assign({}, r, change))[k] !== r[k]) { r[k] = normal(Object.assign({}, r, change))[k]; r.at[k] = now; } });
+    if (r.mode === current.mode && r.accent === current.accent) return Promise.resolve(current);
+    keep(r);
+    show(r, from);
+    if (syncing) sync(true);
+    return desktop ? desktop.setLook(r).then(function () { return r; }, function () { return r; }) : Promise.resolve(r);
   }
   if (desktop) {
-    desktop.look().then(function (l) { l = normal(l); keep(l); if (l.mode !== current.mode || l.accent !== current.accent) show(l); }, function () {});
-    if (desktop.onLook) desktop.onLook(function (l) { l = normal(l); keep(l); if (l.mode !== current.mode || l.accent !== current.accent) show(l); });
+    desktop.look().then(take, function () {});
+    if (desktop.onLook) desktop.onLook(take);
   }
   // Auto follows the system: its ramp changes with it. The same choice made in another tab is drawn here too.
   if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (current.mode === 'auto') paint(html, current); });
-  root.addEventListener('storage', function (ev) { if (ev.key === KEY.mode || ev.key === KEY.accent) { var l = stored(); if (l.mode !== current.mode || l.accent !== current.accent) show(l); } });
+  root.addEventListener('storage', function (ev) { if (ev.key === KEY.at) take(stored()); });
+
+  /*
+   * Signed in, the look follows the person to their other devices: the account keeps one record, and each setting
+   * comes from whichever device chose it last (GET and POST /api/v1/account/look). The app asks when it starts
+   * (SentinelLook.sync()) and when it comes back into view after a minute or more; a change is sent at once. Nothing
+   * polls. Signed out, or the account unreachable, the look stays on this device and says so.
+   */
+  var syncing = false, asked = 0;
+  var state = 'local';   // local: this device only; synced: with the account; computer: the Windows app's own account; failed
+  function sync(push) {
+    syncing = true;
+    asked = Date.now();
+    var opts = push ? { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(record(current)) } : { credentials: 'same-origin' };
+    return fetch('/api/v1/account/look', opts).then(function (res) {
+      if (res.status === 401) { syncing = false; return { state: 'local' }; }
+      if (!res.ok) throw new Error(String(res.status));
+      return res.json().then(function (d) { var m = take(d); if (!push && rev(m) > rev(d)) sync(true); return { state: d.computer ? 'computer' : 'synced' }; });
+    }).catch(function () { return { state: 'failed' }; }).then(function (r) {
+      state = r.state;
+      listeners.slice().forEach(function (fn) { fn(current, current); });
+      return state;
+    });
+  }
+  document.addEventListener('visibilitychange', function () { if (syncing && document.visibilityState === 'visible' && Date.now() - asked > 60000) sync(false); });
 
   /* The theme button (any [data-theme-toggle]): Auto, Light, Dark in turn, and it says which is on. */
   var WORD = { auto: 'Auto', light: 'Light', dark: 'Dark' };
@@ -315,7 +388,9 @@
     }).join('');
     box.innerHTML = '<fieldset class="look__group"><legend>Theme</legend><div class="look__modes">' + modes + '</div></fieldset>' +
       '<fieldset class="look__group"><legend>Colour</legend><div class="look__coins">' + coins + '</div>' +
-      '<p class="look__note">Red, orange, yellow and green are kept for warnings, so they are never a colour here.</p></fieldset>';
+      '<p class="look__note">Red, orange, yellow and green are kept for warnings, so they are never a colour here.</p></fieldset>' +
+      '<p class="look__sync" role="status"></p>';
+    var said = box.querySelector('.look__sync');
     var placed = false;
     var sync = function () {
       // A view drawn again leaves its old picker behind: it stops listening.
@@ -323,6 +398,8 @@
       else if (placed) { listeners.splice(listeners.indexOf(sync), 1); return; }
       var inputs = box.querySelectorAll('input');
       for (var i = 0; i < inputs.length; i++) inputs[i].checked = inputs[i].value === (inputs[i].name.indexOf('mode') > 0 ? current.mode : current.accent);
+      said.textContent = SAID[state];
+      said.dataset.state = state;
     };
     box.addEventListener('change', function (ev) {
       var t = ev.target, r = t.parentNode.getBoundingClientRect();
@@ -334,9 +411,17 @@
     return box;
   }
   picker.n = 0;
+  var SAID = {
+    local: 'Saved on this device.',
+    synced: 'Saved with your account, so your other devices use it too.',
+    computer: 'Saved on this computer, for the app, live scanning, its warnings and the companion.',
+    failed: 'Your account could not be reached. Your choice is saved on this device.'
+  };
 
   api.get = function () { return current; };
   api.set = set;
   api.on = function (fn) { listeners.push(fn); return function () { var i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; };
   api.picker = picker;
+  api.sync = function () { return sync(false); };
+  api.state = function () { return state; };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

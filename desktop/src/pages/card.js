@@ -14,6 +14,8 @@
 
   // Drawn in the app's look before the first paint. The look is in the query main.js loaded the page with.
   const look = window.SentinelLook ? window.SentinelLook.paint(document.documentElement, window.SentinelLook.fromQuery(location.search)) : null;
+  // A card opens and closes in a moment: it keeps the scheme it opened in, said on <html> for its styles and checks.
+  if (look) document.documentElement.dataset.theme = window.SentinelLook.scheme(look.mode);
   /** A status colour (red, orange, yellow, green) as this card's scheme draws it: never the accent. */
   const tone = (badge) => window.SentinelLook.STATUS[window.SentinelLook.scheme(look && look.mode)][badge];
   const style = document.createElement('style');

@@ -216,6 +216,8 @@ h1 em, h2 em { font-style: normal; color: var(--text); }
 .look__coin input:checked ~ span { color: var(--text); }
 .look__mode input:focus-visible + span, .look__coin input:focus-visible + i { outline: 2px solid var(--gold-300); outline-offset: 3px; }
 .look__note { margin: 10px 0 0; font-size: var(--t-note); color: var(--muted); max-width: 46ch; }
+.look__sync { margin: 0; font-size: var(--t-note); color: var(--muted); }
+.look__sync[data-state="failed"] { color: var(--text-2); }
 @media (prefers-reduced-motion: reduce) { .look__coin i, .look__coin:hover i, .look__coin input:checked + i { transform: none; } }
 /* A new look opens out of the coin (or theme button) that was pressed, over the old one: one paint, on the
    compositor. Only for a press; a page that loads draws its stored look straight away. */

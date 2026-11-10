@@ -259,7 +259,7 @@ function register(router) {
   /**
    * The look the person chose in the Windows app (light, dark or Auto, and the accent), for the companion's popup.
    * Only the app's embedded server offers it, only to this computer. It reads no cookie and no token and says only
-   * those two words, so the 1.19.2 rules stand: an extension origin is answered without credentials (corsHeaders),
+   * those two settings and when each was chosen, so the 1.19.2 rules stand: an extension origin is answered without credentials (corsHeaders),
    * and nothing here reaches the account.
    */
   router.get('/api/v1/look', (req, res) => {
@@ -268,7 +268,7 @@ function register(router) {
     if (!['127.0.0.1', '::1', 'localhost'].includes(security.clientIp(req))) throw new HttpError(403, 'local_only', 'This is for this computer only');
     let saved = null;
     try { saved = JSON.parse(require('fs').readFileSync(file, 'utf8')); } catch { /* not chosen yet: Auto and Gold */ }
-    sendJson(res, 200, Look.normal(saved), { 'Cache-Control': 'no-store' });
+    sendJson(res, 200, Look.record(saved));
   });
 
   router.get('/api/v1/auth/google/start', (req, res) => {

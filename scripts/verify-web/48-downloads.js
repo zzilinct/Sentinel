@@ -20,6 +20,8 @@ async function realDownloads() {
   const shared = path.join(ROOT, 'desktop', 'shared');
   fs.mkdirSync(shared, { recursive: true });
   for (const file of ['filescan.js', 'lists.js', 'brands.js']) fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', file), path.join(shared, file));
+  // The cards draw the app's look from it (desktop/scripts/sync-shared.js copies it when the app is built).
+  fs.copyFileSync(path.join(ROOT, 'web', 'assets', 'js', 'look.js'), path.join(shared, 'look.js'));
   const downloads = require(path.join(ROOT, 'desktop', 'src', 'downloads.js'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-downloads-'));
   const make = (name, mb, head) => {

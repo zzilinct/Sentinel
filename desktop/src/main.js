@@ -764,7 +764,7 @@ function buildTray() {
 /* ---------------------------------------------------------------- look */
 
 /** The look chosen in the app (look.js): light, dark or Auto, and the accent. One setting for every surface. */
-function look() { return Look.normal(store.get('look')); }
+function look() { return Look.record(store.get('look')); }
 /** The query every page main.js opens is given, so it is drawn in the look before its first paint. */
 function lookQuery() { const l = look(); return { theme: l.mode, accent: l.accent }; }
 const trayImages = new Map();
@@ -1548,7 +1548,8 @@ function registerBridge() {
   // look first, so a page can never hand the island or the companion something else.
   handle('sentinel:look', () => look());
   handle('sentinel:set-look', (l) => {
-    const next = Look.normal(l);
+    // Each setting from whichever choice was made last (look.js merge), so an older page cannot undo a newer one.
+    const next = Look.merge(look(), l);
     store.set('look', next);
     applyLook(next);
     return next;

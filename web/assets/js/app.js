@@ -53,6 +53,8 @@
       state.me = me;
       state.config = config;
       state.plans = config.plans;
+      // Signed in: the look this account chose on its other devices (look.js), without waiting for it.
+      if (window.SentinelLook && SentinelLook.sync) SentinelLook.sync();
       // Signed in on any other page: a share made signed out moments ago (in another tab, or before signing in here)
       // opens its check here; anything older is emptied out. Signed out, it is left waiting for the sign-in.
       if (location.pathname.replace(/\/$/, '') !== '/app/share' && await Share.waiting()) history.replaceState({}, '', '/app/share');

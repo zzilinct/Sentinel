@@ -2,6 +2,24 @@
 document.documentElement.classList.add('js');
 
 /*
+ * The look (look.js, which loads after the page), drawn before the first paint from what this device keeps: light or
+ * dark, and for an accent other than gold the colours look.js worked out when it was chosen. Nothing to compute here,
+ * so it costs nothing on a slow computer; gold and Auto need nothing at all.
+ */
+(function () {
+  try {
+    var r = document.documentElement, m = localStorage.getItem('sentinel:theme'), a = localStorage.getItem('sentinel:accent');
+    if (m === 'light' || m === 'dark') r.setAttribute('data-theme', m);
+    if (!a) return;
+    var v = JSON.parse(localStorage.getItem('sentinel:look-vars') || '{}');
+    var s = m === 'light' || m === 'dark' ? m : matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    if (v.accent !== a || !v[s]) return;
+    r.setAttribute('data-accent', a);
+    for (var k in v[s]) if (/^--[a-z0-9-]+$/.test(k)) r.style.setProperty(k, v[s][k]);
+  } catch (e) { /* storage blocked: gold, as the system has it */ }
+})();
+
+/*
  * The opening (intro.js) plays once per visit, never with reduced motion, never in a test browser, and never for a
  * page that is only being printed or prerendered. The class goes on now, before the first paint, so the page does
  * not flash before the cover; whatever happens to intro.js, it comes off by itself after 10 s (intro.js itself never runs
