@@ -47,3 +47,28 @@ body.options { width: auto; max-width: 880px; margin: 0 auto; padding: 48px clam
 @media (prefers-reduced-motion: reduce) {
   .opt input[type=checkbox], .opt input[type=checkbox]::before { transition: none; }
 }
+
+/* Look: Theme as a pressed well with the choice raised out of it, Colour as a row of struck coins, each in its own
+   metal (the app's picker, web/assets/css/sentinel.css .look). Real radio buttons under both. */
+.look-set { margin: 0 0 18px; padding: 0; border: 0; min-width: 0; }
+.look-set legend { padding: 0; margin-bottom: 10px; font-weight: 500; font-size: var(--t-text); }
+.look-modes { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .28), inset 0 0 0 1px var(--line); }
+.look-mode, .look-coin { position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.look-mode input, .look-coin input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.look-mode span { display: flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 9px; font-weight: 500; color: var(--muted); transition: color .2s, background-color .2s; }
+.look-mode:hover span { color: var(--text); }
+.look-mode input:checked + span { color: var(--on-gold); background: var(--gold-grad) 0 0 / 100% 240%; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 4px 10px -6px rgba(0, 0, 0, .6); }
+.look-coins { display: flex; flex-wrap: wrap; gap: 6px 4px; }
+.look-coin { display: grid; justify-items: center; gap: 7px; width: 76px; padding: 8px 0 6px; }
+.look-coin i { width: 42px; height: 42px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, rgba(255, 255, 255, .55), transparent 24%), radial-gradient(circle at 50% 38%, var(--c1), var(--c2) 54%, var(--c3) 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .55), inset 0 -4px 7px rgba(0, 0, 0, .32), 0 7px 14px -7px rgba(0, 0, 0, .65);
+  transition: transform .5s var(--spring), box-shadow .3s; }
+.look-coin:hover i { transform: translateY(-2px) rotate(-8deg); }
+.look-coin input:checked + i { transform: scale(1.1); box-shadow: inset 0 1px 1px rgba(255, 255, 255, .55), inset 0 -4px 7px rgba(0, 0, 0, .32), 0 0 0 3px var(--bg), 0 0 0 5px var(--c2), 0 10px 22px -8px var(--c2); }
+.look-coin span { font-size: var(--t-note); line-height: 1.2; color: var(--muted); }
+.look-coin input:checked ~ span { color: var(--text); }
+.look-mode input:focus-visible + span, .look-coin input:focus-visible + i { outline: 2px solid var(--gold); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .look-coin i, .look-coin:hover i, .look-coin input:checked + i { transform: none; transition: none; }
+}

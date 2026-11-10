@@ -104,13 +104,16 @@ async function followLook(revision) {
 
 /**
  * Keeps a look (a look.js record) for every part of the companion: the line and the marks on search pages read the
- * accent as light and the marks' metal from here. `rev` is the account's, when known.
+ * accent as light and the marks' metal from here. `rev` is the account's, when known. The same look again is not
+ * written: every open page and search page hears a write (storage.onChanged).
  */
 export async function keepLook(r, rev) {
   const L = globalThis.SentinelLook;
   const rec = L.record(r);
   const x = L.ramp(rec.accent, 'dark');
-  await ext.storage.local.set({ look: { ...rec, rev: rev || 0, live: { acc: x['--live'], hi: x['--live-hi'], lite: x['--live-lite'], rgb: x['--live-rgb'] }, metal: L.metal(rec.accent) } });
+  const look = { ...rec, rev: rev || 0, live: { acc: x['--live'], hi: x['--live-hi'], lite: x['--live-lite'], rgb: x['--live-rgb'] }, metal: L.metal(rec.accent) };
+  const { look: was } = await ext.storage.local.get('look').catch(() => ({}));
+  if (JSON.stringify(was) !== JSON.stringify(look)) await ext.storage.local.set({ look });
   return rec;
 }
 

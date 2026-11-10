@@ -83,6 +83,116 @@ function marionette(port) {
   });
 }
 
+/* ------------------------------------------------------- --look: the companion's own pages */
+
+const LOOK = process.argv.includes('--look');
+const OUT_DIR = path.resolve(ROOT, arg('--out', 'verify-web'));
+// The companion's own colours for danger, warning and safe in each scheme (extension/src/popup.css).
+const STATUS = { dark: '#ff7a7e #f08a24 #4cb782', light: '#b3261e #a84600 #1e7a3c' };
+
+/**
+ * The popup, the settings and the block page as Firefox draws them, in dark and in light: photographed, the look the
+ * Windows app chose taken from its server, the status colours the same in every accent, a switch's thumb really drawn,
+ * and nothing wider than the window.
+ */
+async function lookPhotos(m, host) {
+  const out = { photos: [] };
+  const run = async (script, args = []) => (await m.send('WebDriver:ExecuteScript', { script, args })).value;
+  const wait = async (script, ms = 8000) => { for (let t = 0; t < ms; t += 250) { if (await run(script).catch(() => false)) return true; await sleep(250); } return false; };
+  const prefs = async (pairs) => {
+    await m.send('Marionette:SetContext', { value: 'chrome' });
+    await m.send('WebDriver:ExecuteScript', { script: `const S = globalThis.Services || ChromeUtils.importESModule('resource://gre/modules/Services.sys.mjs').Services;
+      for (const [k, v] of arguments[0]) S.prefs.setIntPref(k, v);`, args: [pairs], sandbox: 'system' });
+    await m.send('Marionette:SetContext', { value: 'content' });
+  };
+  const photo = async (name) => {
+    const r = await m.send('WebDriver:TakeScreenshot', { full: true });
+    fs.writeFileSync(path.join(OUT_DIR, `${name}.png`), Buffer.from(r.value || r, 'base64'));
+    out.photos.push(name);
+  };
+  const size = (width, height) => m.send('WebDriver:SetWindowRect', { width, height }).catch(() => {});
+  const wide = () => run('return document.documentElement.scrollWidth - window.innerWidth;');
+  const here = 'const H = window.SentinelLookHere || window.wrappedJSObject.SentinelLookHere;';
+  // Still pictures: no view transition caught half way.
+  await prefs([['ui.prefersReducedMotion', 1]]);
+
+  // The settings page, opened first: the worker asks the app, and the page takes its look.
+  await size(1280, 900);
+  await m.send('WebDriver:Navigate', { url: `moz-extension://${host}/src/options.html` });
+  out.fromApp = await wait("return document.documentElement.dataset.accent === 'sapphire' && document.documentElement.dataset.theme === 'light';");
+  out.ticked = await run("return [...document.querySelectorAll('#look input:checked')].map((i) => i.value).join(' ');");
+
+  // Danger, warning and safe in every accent, in both schemes.
+  out.status = await run(`const L = window.SentinelLook || window.wrappedJSObject.SentinelLook, html = document.documentElement, seen = { dark: [], light: [] };
+    for (const mode of ['dark', 'light']) for (const a of L.ACCENTS) {
+      L.paint(html, { mode, accent: a.id });
+      const c = getComputedStyle(html);
+      const v = ['--red', '--orange', '--green'].map((k) => c.getPropertyValue(k).trim()).join(' ');
+      if (!seen[mode].includes(v)) seen[mode].push(v);
+    }
+    L.paint(html, JSON.parse(localStorage.getItem('sentinel:look')));
+    return seen;`);
+
+  // A checked switch, photographed on its own: a drawn thumb is a second colour far from the track's.
+  const sw = await m.send('WebDriver:FindElement', { using: 'css selector', value: '#enabled' });
+  const swPng = await m.send('WebDriver:TakeScreenshot', { id: Object.values(sw.value || sw)[0] });
+  out.thumb = thumbDistance(Buffer.from(swPng.value || swPng, 'base64'));
+
+  for (const scheme of ['dark', 'light']) {
+    await prefs([['layout.css.prefers-color-scheme.content-override', scheme === 'dark' ? 0 : 1]]);
+    // Auto, so the page follows the scheme asked for; teal in dark, sapphire in light.
+    const accent = scheme === 'dark' ? 'teal' : 'sapphire';
+    await run(`${here} return H.set({ mode: 'auto' }).then(() => H.set({ accent: '${accent}' })).then(() => true);`).catch(() => {});
+    await size(1280, 900);
+    await m.send('WebDriver:Navigate', { url: `moz-extension://${host}/src/options.html` });
+    await wait(`return document.documentElement.dataset.accent === '${accent}' && document.fonts.status === 'loaded';`);
+    await sleep(400);
+    out[`options-${scheme}-wide`] = await wide();
+    await photo(`companion-look-firefox-options-${scheme}`);
+    await size(400, 900);
+    await sleep(300);
+    out[`options-${scheme}-phone-wide`] = await wide();
+    await photo(`companion-look-firefox-options-phone-${scheme}`);
+    await size(360, 600);
+    await m.send('WebDriver:Navigate', { url: `moz-extension://${host}/src/popup.html` });
+    await wait("return !document.querySelector('.loading') && document.fonts.status === 'loaded';");
+    await sleep(400);
+    out[`popup-${scheme}-wide`] = await wide();
+    await photo(`companion-look-firefox-popup-${scheme}`);
+    await size(1280, 800);
+    await m.send('WebDriver:Navigate', { url: `http://${DOOR_HOST}/signin` }).catch(() => {});
+    await wait("return /confirmed scam/.test((document.getElementById('title') || {}).textContent || '');");
+    await sleep(400);
+    out[`block-${scheme}-accent`] = await run('return document.documentElement.dataset.accent;');
+    await photo(`companion-look-firefox-block-${scheme}`);
+  }
+  await prefs([['layout.css.prefers-color-scheme.content-override', 2], ['ui.prefersReducedMotion', 0]]);
+  return out;
+}
+
+/**
+ * How far apart, in colour, a checked switch's thumb (its right end) and its track (its left end) are: a switch
+ * whose thumb is not drawn is one gold track, near 0.
+ */
+function thumbDistance(buf) {
+  const { readPng } = require('./verify-web/_shared');
+  const { w, h, bpp, px } = readPng(buf);
+  const at = (fx) => { const i = (Math.round(h / 2) * w + Math.round(w * fx)) * bpp; return [px[i], px[i + 1], px[i + 2]]; };
+  const thumb = at(0.7);
+  const track = at(0.22);
+  return Math.abs(thumb[0] - track[0]) + Math.abs(thumb[1] - track[1]) + Math.abs(thumb[2] - track[2]);
+}
+
+function lookReport(r) {
+  const same = (s) => r.status && r.status[s] && r.status[s].length === 1 && r.status[s][0] === STATUS[s];
+  const fits = ['dark', 'light'].every((s) => r[`options-${s}-wide`] <= 0 && r[`options-${s}-phone-wide`] <= 0 && r[`popup-${s}-wide`] <= 0);
+  const block = ['dark', 'light'].every((s) => r[`block-${s}-accent`] === (s === 'dark' ? 'teal' : 'sapphire'));
+  const ok = r.fromApp && /sapphire/.test(r.ticked) && /light/.test(r.ticked) && same('dark') && same('light') && r.thumb >= 120 && fits && block && r.photos.length === 8;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  firefox look`);
+  console.log(`      ${JSON.stringify(r)}`);
+  return ok ? 0 : 1;
+}
+
 async function main() {
   if (!FIREFOX) { console.log('SKIP  Firefox is not installed on this computer'); return 2; }
   if (!fs.existsSync(path.join(ADDON, 'manifest.json'))) throw new Error('build the Firefox companion folder first: node desktop/scripts/sync-shared.js');
@@ -167,6 +277,7 @@ async function main() {
     });
     result.paired = paired.value;
     if (!result.paired || !result.paired.signedIn) throw new Error(`the companion could not sign in: ${JSON.stringify(result.paired)}`);
+    if (LOOK) return lookReport(await lookPhotos(m, ext.host));
 
     // Bring the (headless) window to the front the way a person's click would.
     const handle = await m.send('WebDriver:GetWindowHandle');
