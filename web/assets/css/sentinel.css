@@ -56,6 +56,11 @@
 
   /* Faces, sizes, tracking and leading: fonts.css. */
 
+  /* Spacing, from Settings (<html data-density>, boot.js): Comfortable, or Compact for more on one screen. It takes in
+     the padding of panels and rows and the height of controls. A control also grows with Text size (--ts), so larger
+     words never sit cramped in it, and Compact never takes one under 36px. */
+  --ds: 1;
+
   /* Soft corners, never pills. */
   --r-sm: 9px;
   --r: 13px;
@@ -67,6 +72,7 @@
   --shadow-lg: 0 40px 120px -20px rgba(0, 0, 0, .7), 0 0 0 1px var(--line);
   color-scheme: dark;
 }
+:root[data-density="compact"] { --ds: .86; }
 
 /* Light: warm paper and ink, gold deepened so it still reads as text. Follows the system unless the person chose
    (data-theme on <html>, set by the theme switch and remembered). The status colours are darkened too, so they pass
@@ -221,7 +227,7 @@ h1 em, h2 em { font-style: normal; color: var(--text); }
   align-items: center;
   justify-content: center;
   gap: 9px;
-  height: var(--h);
+  height: max(calc(var(--h) * var(--ds) * var(--ts)), min(var(--h), 36px));
   padding: 0 18px;
   border-radius: var(--r);
   border: 0;

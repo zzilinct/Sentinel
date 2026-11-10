@@ -66,7 +66,7 @@ jobs:
           python scripts/verify-web-qr.py qr-samples
       - run: node scripts/verify-web.js --only $env:CHECKS --out verify-web-features
         env:
-          CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings' }}
+          CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,first-choices' }}
           CHECK_MINUTES: '25'
       - uses: actions/upload-artifact@v4
         if: always()

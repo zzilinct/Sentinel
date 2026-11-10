@@ -44,14 +44,17 @@
   --sans: 'Geist', 'Geist Stand-in', 'Geist Stand-in Android', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono', 'Geist Mono Stand-in', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* The scale. Every size in the product is one of these. */
-  --t-micro: 11px;     /* a tag inside a small control, nothing longer than two words */
-  --t-label: 12px;     /* captions, table heads, meta lines */
-  --t-note: 13px;      /* secondary text */
-  --t-ui: 14px;        /* menus, buttons, inputs, list rows */
-  --t-text: 15px;      /* cards and panels */
-  --t-body: 16px;      /* reading */
-  --t-lead: 18px;      /* the sentence under a heading */
+  /* The scale. Every size in the product is one of these. The reading sizes grow with Text size in Settings (--ts, set by
+     <html data-text>: boot.js on the web, pages/type.js in the Windows app's own windows). Titles and display sizes
+     do not: they are large already, and growing them is what breaks a hero. */
+  --ts: 1;
+  --t-micro: calc(11px * var(--ts));     /* a tag inside a small control, nothing longer than two words */
+  --t-label: calc(12px * var(--ts));     /* captions, table heads, meta lines */
+  --t-note: calc(13px * var(--ts));      /* secondary text */
+  --t-ui: calc(14px * var(--ts));        /* menus, buttons, inputs, list rows */
+  --t-text: calc(15px * var(--ts));      /* cards and panels */
+  --t-body: calc(16px * var(--ts));      /* reading */
+  --t-lead: calc(18px * var(--ts));      /* the sentence under a heading */
   --t-title-s: 21px;   /* from here up in Newsreader */
   --t-title: 26px;
   --t-title-l: clamp(28px, 3vw, 34px);
@@ -64,7 +67,7 @@
      element uses them).
      Geist: +.017em at 12px, nothing at 16px, -.006em at 18px. Small sizes open up, large ones close.
      Newsreader: nothing at 21px, -.012em at 36px, -.022em at 96px. */
-  --tr-text: calc((16px - 1em) * .05);
+  --tr-text: calc((16px * var(--ts) - 1em) * .05);
   --tr-display: calc((21px - 1em) * .028);
   /* Newsreader's leading: 1.24 at 21px, 1.12 at 36px, 1.02 at 96px. */
   --lh-display: calc(.96em + 5.8px);
@@ -75,6 +78,8 @@
   --measure: 62ch;       /* a paragraph */
   --measure-wide: 72ch;  /* long reading: terms, privacy */
 }
+:root[data-text="large"] { --ts: 1.15; }
+:root[data-text="larger"] { --ts: 1.3; }
 
 /* Every element tracks by its own size. An element picks the other curve, or none, by setting --track; a letter-spacing on
    the element itself would stop at its children. */

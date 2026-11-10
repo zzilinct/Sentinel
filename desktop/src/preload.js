@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   lockRemove: () => ipcRenderer.invoke('sentinel:lock-remove'),
   lockReset: () => ipcRenderer.invoke('sentinel:lock-reset'),
   setLiveMode:(mode) => ipcRenderer.invoke('sentinel:live-mode', mode === 'delicate' ? 'delicate' : 'fast'),
+  // Text size and spacing (boot.js sends them), for Sentinel's own windows; they hear them back (pages/type.js).
+  setType: (t) => ipcRenderer.invoke('sentinel:type', { text: String(t && t.text), density: String(t && t.density) }),
+  onType: (callback) => ipcRenderer.on('sentinel:type-level', (_event, t) => callback(t)),
   // Texts in Phone Link: one switch.
   setTextSafety: (enabled) => ipcRenderer.invoke('sentinel:text-safety', Boolean(enabled)),
   onTextSafety: (callback) => on('sentinel:text-safety', callback),

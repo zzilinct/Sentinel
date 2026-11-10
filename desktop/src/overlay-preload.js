@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('sentinelOverlay', {
     if (!CHANNELS.includes(channel)) return;
     ipcRenderer.on(channel, (_event, payload) => callback(payload));
   },
+  // Text size and spacing: told when the page has loaded and on every change (pages/type.js).
+  onType: (callback) => ipcRenderer.on('sentinel:type-level', (_event, t) => callback(t)),
   interact: (on) => ipcRenderer.send('overlay:interact', Boolean(on)),
   act: (action) => ipcRenderer.send('overlay:act', String(action))
 });
