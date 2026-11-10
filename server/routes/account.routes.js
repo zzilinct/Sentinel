@@ -80,6 +80,57 @@ function register(router) {
     sendJson(res, 200, { ok: true, removed });
   });
 
+  // A copy of everything the account holds, one entry per row of "What an account stores" in the Privacy Policy
+  // (tests/export.test.js holds the two in step), and the two Windows-app memories the policy describes. Secrets go
+  // out as whether they exist: never a password hash, a link, a 2FA secret or an AI key. POST, because it asks for the
+  // password again: a borrowed session must not be able to take the history, the sign-in IPs and the security log.
+  router.post('/api/v1/account/export', async (req, res) => {
+    const user = A.requireUser(req);
+    security.rateLimit(`export:${user.id}`, 5, 60 * 60 * 1000, 'You can download your data 5 times an hour. Try again later.');
+    const body = await readJson(req);
+    await requireRecentPassword(user, body.password, req);
+    const all = (sql, ...args) => db.prepare(sql).all(user.id, ...args);
+    const weekly = new Set([...week.SERVER, ...week.DESKTOP]);
+    const counters = all('SELECT week, metric, used FROM usage_counters WHERE user_id = ? ORDER BY week, metric');
+    const at = (t) => (t ? new Date(t).toISOString() : null);
+    const rows = [
+      ['Email address, first name, optional last name', { email: user.email, firstName: user.first_name, lastName: user.last_name || null, createdAt: at(user.created_at) }],
+      ['Password, stored as a scrypt hash (never the password itself)', { set: Boolean(user.password_hash) }],
+      ['The date you confirmed you are 18+ and accepted the Terms, and which version', { ageConfirmedAt: at(user.age_confirmed_at), termsAcceptedAt: at(user.terms_accepted_at), termsVersion: user.terms_version || null }],
+      ['Whether your email is confirmed, and one-time confirmation and reset links (stored hashed)', {
+        emailConfirmedAt: at(user.email_verified_at),
+        unusedLinks: all('SELECT COUNT(*) AS n FROM email_verifications WHERE user_id = ? AND used_at IS NULL')[0].n + all('SELECT COUNT(*) AS n FROM password_resets WHERE user_id = ? AND used_at IS NULL')[0].n
+      }],
+      ['Plan and weekly usage counters', {
+        plan: plans.planFor(user).id,
+        counters: counters.filter((c) => !weekly.has(c.metric)),
+        liveMinutes: all('SELECT COUNT(*) AS n FROM live_minutes WHERE user_id = ?')[0].n,
+        fastMinutes: all('SELECT COUNT(*) AS n FROM fast_minutes WHERE user_id = ?')[0].n
+      }],
+      ["Weekly counts for Your week: numbers only, such as links checked or files quarantined", counters.filter((c) => weekly.has(c.metric))],
+      ['Scan history: what was checked, when, and the result', all('SELECT kind, target, mode, scam, virus, malware, kinds, created_at FROM scan_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 20000')
+        .map((r) => ({ ...r, created_at: at(r.created_at) }))],
+      ['Sites you have trusted or blocked', all('SELECT host, action, created_at FROM overrides WHERE user_id = ? ORDER BY created_at').map((r) => ({ ...r, created_at: at(r.created_at) }))],
+      ['Reports you file: the site, the link you reported, your category and any note', all('SELECT host, url, category, note, created_at FROM reports WHERE user_id = ? ORDER BY created_at').map((r) => ({ ...r, created_at: at(r.created_at) }))],
+      ['Signed-in devices: browser name, IP address, last activity', all('SELECT kind, user_agent, ip, created_at, last_seen_at FROM sessions WHERE user_id = ? AND expires_at > ?', Date.now())
+        .map((r) => ({ kind: r.kind, browser: r.user_agent, ip: r.ip, signedInAt: at(r.created_at), lastActive: at(r.last_seen_at) }))],
+      ['Security log: sign-ins, password and 2FA changes, reports, plan changes, downloads of your data, with IP address', all('SELECT event, ip, detail, created_at FROM audit_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 20000')
+        .map((r) => ({ ...r, created_at: at(r.created_at) }))],
+      ['Two-factor secret, encrypted', { on: Boolean(user.totp_enabled) }],
+      ['API keys for optional AI assistants, encrypted with AES-256-GCM', all('SELECT provider, label, created_at FROM ai_connections WHERE user_id = ?').map((r) => ({ ...r, created_at: at(r.created_at) }))],
+      ['Exposure alerts in the Windows app', {
+        sitesRemembered: all('SELECT COUNT(*) AS n FROM visit_marks WHERE user_id = ?')[0].n,
+        note: 'Each remembered site is a scrambled code that cannot be turned back into its address, so only the number is here.',
+        found: all('SELECT host, threat, category, listed_at FROM exposures WHERE user_id = ?').map((r) => ({ ...r, listed_at: at(r.listed_at) }))
+      }],
+      ['Your sites in the Windows app', { sites: all('SELECT host, source, added_at FROM my_sites WHERE user_id = ?').map((r) => ({ ...r, added_at: at(r.added_at) })), stillLearning: all('SELECT COUNT(*) AS n FROM site_days WHERE user_id = ?')[0].n }]
+    ];
+    security.audit('data_exported', { userId: user.id, req });
+    const day = new Date().toISOString().slice(0, 10);
+    sendJson(res, 200, { exportedAt: new Date().toISOString(), from: config.brand.name, policy: `${config.brand.origin}/privacy`, held: rows.map(([what, data]) => ({ what, data })) },
+      { 'Content-Disposition': `attachment; filename="sentinel-data-${day}.json"` });
+  });
+
   // Your week with Sentinel (week.js): the last four weeks, in numbers only.
   router.get('/api/v1/week', (req, res) => {
     const user = A.requireUser(req);

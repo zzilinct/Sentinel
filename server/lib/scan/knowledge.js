@@ -35,7 +35,7 @@ const q = {
   feedHost: db.prepare('SELECT host, source, threat, category FROM feed_hosts WHERE host IN (?, ?, ?, ?)'),
   feedUrl: db.prepare('SELECT source, threat, category FROM feed_urls WHERE url_key = ?'),
   feedUrlHost: db.prepare('SELECT source, threat, COUNT(*) AS n FROM feed_urls WHERE host IN (?, ?, ?) GROUP BY source, threat ORDER BY n DESC'),
-  reports: db.prepare("SELECT CASE WHEN category = 'malware' THEN 'malware' ELSE 'scam' END AS threat, COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ? GROUP BY threat"),
+  reports: db.prepare("SELECT CASE WHEN category = 'malware' THEN 'malware' ELSE 'scam' END AS threat, COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ? AND category != 'false_alarm' GROUP BY threat"),
   sources: db.prepare("SELECT source, entries FROM feed_status WHERE ok = 1 AND substr(source, 1, 1) != '_'")
 };
 

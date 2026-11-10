@@ -59,6 +59,9 @@ function register(router) {
       verificationAvailable: config.mailConfigured,
       researchAvailable: config.researchEnabled,
       termsVersion: A.TERMS_VERSION,
+      // For Settings, Help: the version this server runs and who answers when Sentinel is wrong.
+      version: require('../../package.json').version,
+      supportEmail: config.brand.supportEmail,
       plans: plans.publicPlans()
     });
   });

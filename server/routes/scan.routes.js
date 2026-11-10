@@ -48,7 +48,9 @@ function countLive(userId, verdicts) {
 
 const REPORT_CATEGORIES = new Set([
   'phishing', 'fake_store', 'crypto_scam', 'tech_support_scam', 'investment_scam',
-  'romance_scam', 'malware', 'impersonation', 'other'
+  'romance_scam', 'malware', 'impersonation', 'other',
+  // "Sentinel warned me about a safe site". Kept with the report, never counted toward condemning the site.
+  'false_alarm'
 ]);
 
 const REPORTER_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -56,11 +58,11 @@ const REPORTER_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const q = {
   insertReport: db.prepare('INSERT INTO reports (id, host, url, user_id, category, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
   myReportFor: db.prepare('SELECT 1 FROM reports WHERE host = ? AND user_id = ?'),
-  countReports: db.prepare('SELECT COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ?'),
+  countReports: db.prepare("SELECT COUNT(DISTINCT user_id) AS n FROM reports WHERE host = ? AND category != 'false_alarm'"),
   // Only accounts that confirmed their email and are at least a week old count toward condemning a site for everyone:
   // three accounts made in a minute must not be able to paint a competitor red.
   countThreatReports: db.prepare(`SELECT COUNT(DISTINCT r.user_id) AS n FROM reports r JOIN users u ON u.id = r.user_id
-    WHERE r.host = ? AND (CASE WHEN r.category = 'malware' THEN 'malware' ELSE 'scam' END) = ?
+    WHERE r.host = ? AND r.category != 'false_alarm' AND (CASE WHEN r.category = 'malware' THEN 'malware' ELSE 'scam' END) = ?
       AND u.email_verified_at IS NOT NULL AND u.created_at <= ?`),
   allowlisted: db.prepare('SELECT 1 FROM allowlist WHERE host = ?'),
   promote: db.prepare(`INSERT INTO blocklist (host, category, source, note, threat, added_at) VALUES (?, ?, 'community', ?, ?, ?)
@@ -499,7 +501,7 @@ function register(router) {
     const threat = category === 'malware' ? 'malware' : 'scam';
     const agreeing = q.countThreatReports.get(host, threat, now() - REPORTER_MIN_AGE_MS).n;
     // A well-known site is never condemned by reports alone.
-    const promoted = agreeing >= 3 && !q.allowlisted.get(host);
+    const promoted = category !== 'false_alarm' && agreeing >= 3 && !q.allowlisted.get(host);
     if (promoted) q.promote.run(host, category, `Promoted after ${agreeing} ${threat} reports`, threat, now());
     engine.invalidate(host);
     security.audit('report', { userId: user.id, req, detail: host });
