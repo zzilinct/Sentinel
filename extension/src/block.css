@@ -18,7 +18,7 @@ body.block { --glow: rgba(212, 174, 99, .16); width: auto; min-height: 100vh; mi
 /* The mask comes to rest once, and the page never moves again. */
 .block:not([data-tone="none"]) .mask { animation: settle .72s var(--spring) backwards; }
 @keyframes settle { from { transform: translateY(14px) scale(.94); } }
-@media (prefers-reduced-motion: reduce) { .block:not([data-tone="none"]) .mask { animation: none; } }
+:root[data-motion="off"] .block:not([data-tone="none"]) .mask { animation: none; }
 
 .say { min-width: 0; }
 .say h1 { font: 400 var(--t-title-l)/1.12 var(--display); margin: 0 0 14px; text-wrap: balance; }

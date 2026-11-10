@@ -438,7 +438,7 @@ function showWarning(item) {
     warnWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     warnWin.webContents.on('will-navigate', (e) => e.preventDefault());
   }
-  warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query: { ...query, motion: store.get('motion', 'full') } });
+  warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
   if (warnWin.isVisible()) warnWin.moveTop();
 }
 
@@ -536,7 +536,7 @@ function showGuard(mode, data = {}) {
   }
   guardMode = mode;
   if (mode === 'escape') placeOnPage();
-  guardWin.loadFile(path.join(__dirname, 'pages', 'guard.html'), { query: { mode, ...data, motion: store.get('motion', 'full') } });
+  guardWin.loadFile(path.join(__dirname, 'pages', 'guard.html'), { query: { mode, ...data } });
   if (guardWin.isVisible()) { guardWin.moveTop(); if (mode === 'escape') takeKeyboard(); }
 }
 /** The shield's window in front with the keyboard. focus() alone loses to a full-screen browser: the reader asks. */
@@ -1047,7 +1047,7 @@ async function scanHere(file) {
       });
     });
   }
-  menuWin.loadFile(path.join(__dirname, 'pages', 'filescan.html'), { query: { ...query, motion: store.get('motion', 'full') } });
+  menuWin.loadFile(path.join(__dirname, 'pages', 'filescan.html'), { query });
   if (menuWin.isVisible()) { menuWin.moveTop(); menuWin.focus(); }
 }
 /** The result window's buttons. "Sign in" hands the file to the app's account scan, the way a signed-in right-click does. */
@@ -1586,13 +1586,16 @@ function registerBridge() {
     refreshTray();
     return { ...watch.status(), enabled: store.get('liveScanning', false) };
   });
-  // Motion (full, calm or off) and the scan effect: chosen in the app (boot.js), kept here for the live scanning overlay,
-  // which is not a web page and cannot read the app's storage. Written only when it changed: every app page says it.
+  // Motion (full, calm or off) and the scan effect: chosen in the app (boot.js), kept here for Sentinel's own windows
+  // (the overlay, the cards, the chat cards, the screen check), which are not web pages and cannot read the app's
+  // storage. Written only when it changed (every app page says it), and then told to every open window at once.
   handle('sentinel:motion', (m) => {
     const next = { motion: ['calm', 'off'].includes(m && m.motion) ? m.motion : 'full', scanEffect: !(m && m.scanEffect === false) };
-    if (store.get('motion', 'full') !== next.motion) store.set('motion', next.motion);
-    if (store.get('scanEffect', true) !== next.scanEffect) store.set('scanEffect', next.scanEffect);
-    overlay.setMotion(next);
+    const was = motionLevel();
+    if (was.motion === next.motion && was.scanEffect === next.scanEffect) return next;
+    store.set('motion', next.motion);
+    store.set('scanEffect', next.scanEffect);
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('sentinel:motion-level', next);
     return next;
   });
   handle('sentinel:scan-with', (id) => {
@@ -1824,7 +1827,6 @@ async function boot() {
 
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) overlay.setDryRun((text) => appLog(`overlay (dry run): ${text}`));
   overlay.init({ onAction: islandAction });
-  overlay.setMotion({ motion: store.get('motion', 'full'), scanEffect: store.get('scanEffect', true) });
 
   // Chat safety (Roblox and the Discord app) and texts in Phone Link: each off until turned on in Live protection;
   // nothing about a chat or a text is logged.
@@ -2029,9 +2031,17 @@ app.on('before-quit', () => { if (!primary) return; quitting = true; heartbeat(t
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 
+/** Motion (full, calm or off) and the scan effect, as the app last chose them (boot.js, sentinel:motion). */
+function motionLevel() {
+  const m = store.get('motion', 'full');
+  return { motion: ['calm', 'off'].includes(m) ? m : 'full', scanEffect: store.get('scanEffect', true) !== false };
+}
+
 // Refuse to attach webviews or navigate any other contents to foreign origins.
 app.on('web-contents-created', (event, contents) => {
   contents.on('will-attach-webview', (e) => e.preventDefault());
+  // Every window's page learns the Motion setting as it loads (pages/motion.js); the app's own pages ignore it.
+  contents.on('did-finish-load', () => { if (!contents.isDestroyed()) contents.send('sentinel:motion-level', motionLevel()); });
   // A window's page process ended (out of memory, a graphics driver): the app's window was left blank, and the live
   // scanning overlay drew nothing more until Sentinel restarted. The app's page loads again; any other window goes,
   // and the overlay is made again over the browser in front.

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel live scanning</title>
+<script src="motion.js"></script>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: #e9e6df; }
@@ -590,17 +591,6 @@
   });
 
   var api = window.sentinelOverlay;
-  // Motion: the app's choice (Full, Calm or Off) and its scan effect, except that Windows asking for less motion is Off.
-  // The stylesheet above and binary.js read only these two attributes.
-  var reduce = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
-  var chosen = { motion: 'full', scanEffect: true };
-  function applyMotion() {
-    document.documentElement.dataset.motion = reduce && reduce.matches ? 'off' : chosen.motion;
-    document.documentElement.dataset.scanEffect = chosen.scanEffect ? 'on' : 'off';
-  }
-  applyMotion();
-  if (reduce) reduce.addEventListener('change', applyMotion);
-  api.on('overlay:motion', function (m) { if (m) chosen = m; applyMotion(); });
   var restTimer = null;
   function wake() {
     clearTimeout(restTimer);

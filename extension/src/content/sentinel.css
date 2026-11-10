@@ -64,6 +64,5 @@
   to { opacity: 1; transform: none; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .sentinel-masks { animation: none; }
-}
+/* Motion Off (the companion's setting, or the system asking for less): the masks appear without their entrance. */
+.sentinel-masks[data-motion="off"] { animation: none; }

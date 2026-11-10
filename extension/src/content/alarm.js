@@ -32,6 +32,8 @@
     try {
       const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
       Promise.resolve(ext.storage.sync.get({ motion: 'full' })).then((s) => { motion = (s && s.motion) || 'full'; host.dataset.motion = motionOf(); }, () => {});
+      // Changed on the settings page while this page is open: the next warning follows it.
+      ext.storage.onChanged.addListener((changes, area) => { if (area === 'sync' && changes.motion) motion = changes.motion.newValue || 'full'; });
     } catch { /* a page without the companion's storage: Full */ }
   }
   const make = Document.prototype.createElement;

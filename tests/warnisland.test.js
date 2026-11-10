@@ -101,9 +101,9 @@ test('the card springs with the island\'s curve, once, and only fades for reduce
   const pill = Number(read('desktop/src/pages/overlay.html').match(/var PILL = (\d+);/)[1]);
   assert.equal(pill, 34);
   assert.match(card, /@keyframes card-open \{ from \{ clip-path: inset\(calc\(100% - 34px\) 0 0 calc\(100% - 34px\) round 17px\); \}/, 'out of the 34 px mask in its corner');
-  // Motion Off (the app's setting, passed as ?motion=, or Windows asking for less motion): it only fades in.
+  // Motion Off (the app's setting through pages/motion.js, or Windows asking for less motion): it only fades in.
   assert.match(card, /:root\[data-motion="off"\] \{ body, \.mark, \.head > div, \.body, \.row \{ animation: card-fade \.2s ease both; \} \}/);
-  for (const page of ['warn.html', 'guard.html', 'filescan.html']) assert.match(read('desktop/src/main.js'), new RegExp(`'${page.replace('.', '\\.')}'\\), \\{ query: \\{ [^}]*motion: store\\.get\\('motion', 'full'\\) \\} \\}`), page);
+  for (const page of ['warn.html', 'guard.html', 'filescan.html']) assert.match(read(`desktop/src/pages/${page}`), /<script src="motion\.js"><\/script>\r?\n<script src="card\.js"><\/script>/, page);
   assert.doesNotMatch(card, /infinite|transition:/);
 });
 

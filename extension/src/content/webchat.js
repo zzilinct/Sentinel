@@ -76,6 +76,7 @@
     if (!shown.length) return;
     const group = document.createElement('span');
     group.className = 'sentinel-masks sentinel-masks--chat';
+    group.dataset.motion = motionOf(settings.motion);
     group.setAttribute('role', 'img');
     const label = `Sentinel: ${shown.map((t) => `${Masks.SEVERITY[verdict.threats[t].badge] || 'Caution'}, ${verdict.threats[t].label}`).join('; ')}`;
     group.setAttribute('aria-label', label);

@@ -102,29 +102,75 @@ test('motion: only the places that decide read the system setting', () => {
     for (const f of fs.readdirSync(path.join(ROOT, dir), { recursive: true })) {
       const rel = `${dir}/${f}`.split(path.sep).join('/');
       if (!/\.(js|css)$/.test(rel) || allowed.has(rel)) continue;
-      if (read(rel).includes('prefers-reduced-motion')) found.push(rel);
+      // The page-to-page wipe's opt-in cannot sit under a selector: that one rule is allowed, nothing else.
+      if (read(rel).replace('@media (prefers-reduced-motion: no-preference) { @view-transition { navigation: auto; } }', '').includes('prefers-reduced-motion')) found.push(rel);
     }
   }
   assert.deepEqual(found, []);
-  // The overlay and the companion each resolve it once, and style only through data-motion.
-  const overlay = read('desktop/src/pages/overlay.html');
-  assert.equal(overlay.split('prefers-reduced-motion').length - 1, 1);
-  assert.match(overlay, /:root\[data-motion="off"\] \{/);
-  assert.match(overlay, /api\.on\('overlay:motion'/);
-  for (const f of ['serp.js', 'hover.js', 'webchat.js', 'alarm.js']) {
-    const s = read(`extension/src/content/${f}`);
-    assert.doesNotMatch(s, /@media \(prefers-reduced-motion/, f);
-    assert.match(s, /:host\(\[data-motion=off\]\)/, f);
+  // Sentinel's own windows resolve it in one file (pages/motion.js); the companion once per script or page.
+  const pages = path.join(ROOT, 'desktop/src/pages');
+  for (const f of fs.readdirSync(pages)) {
+    const s = read(`desktop/src/pages/${f}`);
+    if (f !== 'motion.js') assert.doesNotMatch(s, /prefers-reduced-motion/, f);
+    if (f.endsWith('.html') && /animation:|transition:|card\.js/.test(s)) assert.match(s, /<script src="motion\.js"><\/script>/, `${f} loads pages/motion.js`);
   }
+  for (const f of ['serp.js', 'hover.js', 'webchat.js', 'alarm.js', 'mail.js']) {
+    const s = read(`extension/src/content/${f}`);
+    assert.equal(s.split('prefers-reduced-motion').length - 1, 1, `${f} resolves it once`);
+  }
+  for (const f of ['popup.css', 'options.css', 'block.css', 'content/sentinel.css']) assert.doesNotMatch(read(`extension/src/${f}`), /prefers-reduced-motion/, f);
+  for (const f of ['popup.html', 'options.html', 'block.html']) assert.match(read(`extension/src/${f}`), /<script src="lib\/motion\.js"><\/script>/, f);
   assert.equal(read('extension/src/content/alarm.page.js'), read('extension/src/content/alarm.js'));
 });
 
-test('motion: the Windows app keeps the choice and hands it to the overlay', () => {
+// A window's page, live: told the setting by main.js through its preload, and by the system.
+function windowPage(bridgeName) {
+  let told = null;
+  let sysChange = null;
+  const sys = { matches: false, addEventListener: (_t, f) => { sysChange = f; } };
+  const root = { dataset: {} };
+  const ctx = { document: { documentElement: root }, matchMedia: () => sys };
+  ctx.window = { matchMedia: ctx.matchMedia, [bridgeName]: { onMotion: (f) => { told = f; } } };
+  vm.runInNewContext(read('desktop/src/pages/motion.js'), ctx);
+  return { root, tell: (m) => told(m), system: (on) => { sys.matches = on; sysChange(); } };
+}
+
+test('motion: every Sentinel window follows a change at once, and the system asking for less is Off', () => {
+  for (const bridge of ['sentinelOverlay', 'sentinelDesktop', 'sentinelChat', 'sentinelSnip']) {
+    const w = windowPage(bridge);
+    assert.equal(w.root.dataset.motion, 'full', bridge);
+    w.tell({ motion: 'calm', scanEffect: false });
+    assert.equal(w.root.dataset.motion, 'calm', bridge);
+    assert.equal(w.root.dataset.scanEffect, 'off', bridge);
+    w.system(true);
+    assert.equal(w.root.dataset.motion, 'off', bridge);
+    w.system(false);
+    w.tell({ motion: 'sideways' });
+    assert.equal(w.root.dataset.motion, 'full', bridge);
+  }
+});
+
+test('motion: the companion\'s own pages follow the settings page at once', async () => {
+  let changed = null;
+  const root = { dataset: {} };
+  const storage = { sync: { get: async () => ({ motion: 'off' }) }, onChanged: { addListener: (f) => { changed = f; } } };
+  const ctx = { document: { documentElement: root }, matchMedia: () => ({ matches: false, addEventListener() {} }), globalThis: null, Promise };
+  ctx.globalThis = { chrome: { runtime: {}, storage } };
+  ctx.chrome = ctx.globalThis.chrome;
+  vm.runInNewContext(read('extension/src/lib/motion.js'), ctx);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(root.dataset.motion, 'off');
+  changed({ motion: { newValue: 'calm' } }, 'sync');
+  assert.equal(root.dataset.motion, 'calm');
+});
+
+test('motion: the Windows app keeps the choice and tells every window, as it loads and when it changes', () => {
   const main = read('desktop/src/main.js');
   assert.match(main, /handle\('sentinel:motion'/);
-  assert.match(main, /overlay\.setMotion\(\{ motion: store\.get\('motion', 'full'\)/);
+  assert.match(main, /for \(const w of BrowserWindow\.getAllWindows\(\)\) if \(!w\.isDestroyed\(\)\) w\.webContents\.send\('sentinel:motion-level', next\);/);
+  assert.match(main, /contents\.on\('did-finish-load', \(\) => \{ if \(!contents\.isDestroyed\(\)\) contents\.send\('sentinel:motion-level', motionLevel\(\)\); \}\);/);
   assert.match(read('desktop/src/preload.js'), /setMotion: \(m\) => ipcRenderer\.invoke\('sentinel:motion'/);
-  assert.match(read('desktop/src/overlay-preload.js'), /'overlay:motion'/);
+  for (const f of ['preload.js', 'overlay-preload.js', 'chat-preload.js', 'snip-preload.js']) assert.match(read(`desktop/src/${f}`), /onMotion: \(callback\) => ipcRenderer\.on\('sentinel:motion-level'/, f);
   // The companion's settings page offers the same three, defaulting to Full everywhere a default is read.
   assert.match(read('extension/src/options.html'), /<select id="motion"><option value="full">Full<\/option><option value="calm">Calm<\/option><option value="off">Off<\/option><\/select>/);
   for (const f of ['lib/api.js', 'options.js', 'content/serp.js', 'content/hover.js', 'content/webchat.js']) {

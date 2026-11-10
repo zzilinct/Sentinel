@@ -90,7 +90,7 @@ body {
 .foot a, .link { all: unset; cursor: pointer; color: var(--gold); font-weight: 600; font-size: var(--t-label); }
 .foot a:hover, .link:hover { color: var(--gold-hi); }
 
-@media (prefers-reduced-motion: reduce) {
+:root[data-motion="off"] {
   .btn, .btn.gold { transition: none; }
   .btn:active { transform: none; }
   .spin { animation-duration: 2s; }

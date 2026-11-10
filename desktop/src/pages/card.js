@@ -11,9 +11,6 @@
 (function () {
   const PAD = 14;
   const WIDTHS = [480, 560, 660];   // the card's widths, tried in turn until the words fit the screen's height
-  // Motion, the app's setting (main.js passes it as ?motion=), except that Windows asking for less motion is Off.
-  const asked = new URLSearchParams(location.search).get('motion');
-  document.documentElement.dataset.motion = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : asked === 'calm' || asked === 'off' ? asked : 'full';
 
   const style = document.createElement('style');
   style.textContent = `

@@ -1166,9 +1166,8 @@ test('the corner island, chat cards and shield window lay nothing out as they mo
   assert.doesNotMatch(overlay + chat + guard, /transition:[^;]*\b(width|height|left|top|box-shadow)\b/);
   // It still steps aside from the pointer, over its whole open width.
   assert.match(overlay, /corner\.classList\.toggle\('is-shy', x > left - 60 && y > top - 60\);/);
-  // A calm version for reduced motion, in each window. The overlay's is the app's Motion Off, which reduced motion sets.
-  for (const html of [overlay, guard]) assert.match(html, /:root\[data-motion="off"\] \{/);
-  assert.match(chat, /@media \(prefers-reduced-motion: reduce\)/);
+  // A calm version for reduced motion, in each window: the app's Motion Off, which reduced motion also sets (pages/motion.js).
+  for (const html of [overlay, chat, guard]) assert.match(html, /:root\[data-motion="off"\] \{/);
 });
 
 test('boot() does not hide the tech-support scam shield behind a local "remote": a flagged page still logs and warns', () => {

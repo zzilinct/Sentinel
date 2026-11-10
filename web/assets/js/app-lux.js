@@ -22,7 +22,8 @@
 
   /* ---------------------------------------------------- atmosphere */
 
-  if (!reduced()) {
+  // Always laid down: Calm stills it and Off hides its motes (app-lux.css), so a change of Motion applies at once.
+  {
     const atmos = document.createElement('div');
     atmos.className = 'lux-atmos';
     atmos.setAttribute('aria-hidden', 'true');
@@ -246,7 +247,7 @@
   const COUNTS = '.usage-row__n, .meters__head .mono, .intel__total b, [data-live-counts], [data-chat-seen], [data-text-seen], [data-week-n]';
   const COUNT_MS = 1200;   // the meters' fill (app-lux.css, lux-fill) takes as long, after the same delay
   const COUNT_DELAY = 250;
-  const countIo = !reduced() && 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
+  const countIo = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       countIo.unobserve(e.target);
@@ -257,7 +258,7 @@
   function findCounts() {
     if (!countIo) return;
     view.querySelectorAll(COUNTS).forEach((el) => {
-      if (el.dataset.counted) return;
+      if (el.dataset.counted || reduced()) return;
       el.dataset.counted = '1';
       countIo.observe(el);
     });

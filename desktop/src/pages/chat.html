@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel chat safety</title>
+<script src="motion.js"></script>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: #ece8df; }
@@ -49,7 +50,7 @@
   @keyframes words { from { opacity: 0; transform: translateX(-6px); } }
   @keyframes fade { from { opacity: 0; } }
   /* Calm: the badge and the cards still appear (they are the message), by fading, without the spring. */
-  @media (prefers-reduced-motion: reduce) {
+  :root[data-motion="off"] {
     .badge__bg, .badge.is-on .badge__bg, .badge__tile, .badge__text, .badge.is-on .badge__text { transform: none; transition: opacity .2s ease; }
     .card__bg, .card__tile, .card__body { animation: fade .2s ease both; }
   }

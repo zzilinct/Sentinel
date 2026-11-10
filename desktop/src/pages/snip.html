@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel: check something on screen</title>
+<script src="motion.js"></script>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: #ece8df; }
@@ -49,7 +50,7 @@
   @keyframes drop { from { opacity: 0; transform: translate(-50%, -10px) scale(.9); } }
   @keyframes settle { from { transform: scale(1.02); } }
   @keyframes fade { from { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) {
+  :root[data-motion="off"] {
     .card__bg, #card .tile, .card__body, body.picked #box { animation: fade .2s ease both; }
     .hint { animation: none; }
     #sheet { transition: none; }

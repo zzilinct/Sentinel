@@ -168,6 +168,7 @@
 
     const group = document.createElement('span');
     group.className = 'sentinel-masks';
+    group.dataset.motion = motionOf(settings.motion);
     group.dataset.researched = verdict.researched ? '1' : '0';
     if (shown.length) {
       for (const t of shown) group.appendChild(badgeFor(t, verdict.threats[t]));

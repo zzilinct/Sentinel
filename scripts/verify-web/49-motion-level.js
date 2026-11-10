@@ -48,7 +48,10 @@ async function checkMotionLevel() {
     result('motion-level: under Full something drifts by itself (so the Calm count below can see it)', ambient(fullLoops).length > 0, fullLoops);
     result('motion-level: Full digs during a delicate scan', await evalIn(browser, s, DIG) === true);
 
-    /* Calm, by mouse: the loops that move by themselves stop at once, the working signs stay. */
+    /* Calm, by mouse: the loops that move by themselves stop at once, the working signs stay. The page scrolls smoothly
+       under Full, so the control is brought into view first and pressed where it then is. */
+    await evalIn(browser, s, "document.querySelector('[data-motion-slot]').scrollIntoView({ block: 'center', behavior: 'instant' })");
+    await sleep(300);
     await clickSel(browser, s, '.motion-set .seg__btn:nth-child(2)');
     await sleep(500);
     const calm = await state();
@@ -108,6 +111,21 @@ async function checkMotionLevel() {
     await sleep(300);
     const back = await state();
     result('motion-level: and when it no longer asks, the choice comes back', back.motion === 'calm' && !back.locked, back);
+
+    /* The public site, changed while open (another tab, or the system): no reload. */
+    await evalIn(browser, s, "localStorage.removeItem('sentinel:motion')");
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, s);
+    await goto(browser, s, `${base}/`, 'window.SentinelMotion');
+    await sleep(1500);
+    const siteFull = await evalIn(browser, s, LOOPS);
+    await evalIn(browser, s, "window.SentinelMotionLevel.set('calm')");
+    await sleep(400);
+    const siteCalm = await evalIn(browser, s, LOOPS);
+    await evalIn(browser, s, "window.SentinelMotionLevel.set('off')");
+    await sleep(400);
+    const siteOff = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName || 'script')");
+    result('motion-level: on the home page, Calm stills every loop that moves by itself at once, and Off everything, without a reload', ambient(siteFull).length > 0 && ambient(siteCalm).length === 0 && siteOff.length === 0, { full: siteFull, calm: siteCalm, off: siteOff });
+    await evalIn(browser, s, "localStorage.removeItem('sentinel:motion')");
     result('motion-level: no errors on the page', errors.length === 0, errors);
   } finally {
     await close();

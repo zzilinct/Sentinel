@@ -938,7 +938,9 @@ p.hero__fine span { white-space: nowrap; }
 :root[data-motion="off"] { .sight { display: none; } .is-sighted, .is-sighted :is(h2, .section__title) { animation: none; } }
 
 /* Arriving on another page: the new page is uncovered from the bottom, where the panels left off. */
-@view-transition { navigation: auto; }
+/* The one place CSS asks the system itself: @view-transition cannot sit under a selector. Motion Off chosen in Sentinel
+   keeps the opt-in, and the new page is shown at once (:root[data-motion="off"] below). */
+@media (prefers-reduced-motion: no-preference) { @view-transition { navigation: auto; } }
 ::view-transition-old(root) { animation: none; }
 ::view-transition-new(root) { animation: vt-in .7s cubic-bezier(.7, 0, .2, 1) both; }
 @keyframes vt-in { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
