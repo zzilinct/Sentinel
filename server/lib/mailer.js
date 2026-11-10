@@ -48,13 +48,16 @@ async function send({ to, subject, text, html }) {
   }
 }
 
-/** Minimal, client-safe branded layout. */
+// The mark's gold (brand.json), the same as the icons and the site's --gold-400.
+const GOLD = config.brand.mark.gold;
+
+/** Minimal, client-safe branded layout: the app icon and the name, as in a browser tab. */
 function layout(title, bodyHtml) {
   return `<!doctype html><html><body style="margin:0;background:#0a0b0d;padding:40px 16px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#efece5">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
   <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background:#131519;border:1px solid #26292e;border-radius:18px">
   <tr><td style="padding:34px 32px">
-    <div style="font-size:15px;font-weight:600;letter-spacing:.02em;color:#d4ae63;margin-bottom:24px">Sentinel</div>
+    <div style="font-size:15px;font-weight:600;letter-spacing:.02em;color:${GOLD};margin-bottom:24px"><img src="${config.publicOrigin}/assets/img/icon-192.png" width="28" height="28" alt="" style="vertical-align:middle;border-radius:7px;margin-right:10px">Sentinel</div>
     <h1 style="margin:0 0 14px;font-size:24px;font-weight:500;color:#efece5">${title}</h1>
     ${bodyHtml}
   </td></tr></table>
@@ -62,4 +65,4 @@ function layout(title, bodyHtml) {
   </td></tr></table></body></html>`;
 }
 
-module.exports = { send, layout, outbox };
+module.exports = { send, layout, outbox, GOLD };
