@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   lockRemove: () => ipcRenderer.invoke('sentinel:lock-remove'),
   lockReset: () => ipcRenderer.invoke('sentinel:lock-reset'),
   setLiveMode:(mode) => ipcRenderer.invoke('sentinel:live-mode', mode === 'delicate' ? 'delicate' : 'fast'),
+  // Marks beside links and pop-up warnings: three words each, checked again by the app (masks.js level).
+  setMarksLevel: (level) => ipcRenderer.invoke('sentinel:marks-level', String(level)),
+  setWarningsLevel: (level) => ipcRenderer.invoke('sentinel:warnings-level', String(level)),
   // Texts in Phone Link: one switch.
   setTextSafety: (enabled) => ipcRenderer.invoke('sentinel:text-safety', Boolean(enabled)),
   onTextSafety: (callback) => on('sentinel:text-safety', callback),

@@ -88,6 +88,10 @@
 @media (max-width: 600px) {
   .set-row__head { align-items: flex-start; gap: 12px 18px; }
   .set-row__text { flex-basis: 200px; }
+  /* Three choices across a phone: the row's full width, equal parts, so none is cut off. */
+  .set-row__control:has(.seg) { flex: 1 1 100%; }
+  .set-row__control .seg { width: 100%; }
+  .set-row__control .seg__btn { flex: 1 1 0; padding: 0 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

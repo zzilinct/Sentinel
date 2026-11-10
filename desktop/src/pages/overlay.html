@@ -200,6 +200,7 @@
   // back, or whose quick verdict was replaced by the researched one, was popping in again after every scroll.
   var shown = new Set();
   var current = [];
+  var marksLevel = 'all';   // which results get a mark: every link, risky links, or warnings and danger (masks.js shows)
   var labelTimer = null;
   var sweepTimer = null;
   var flagged = false;
@@ -514,6 +515,8 @@
     var W = window.innerWidth;
     var glide = [];
     list.forEach(function (m, i) {
+      // Marks beside links (Settings): every result is still checked and counted above; only its mark is left out.
+      if (!M.shows(marksLevel, m.pending ? null : m.badge)) { m._cx = null; return; }
       var key = m.k || ('#' + i);
       seen[key] = true;
       var state = m.pending ? 'pending' : (m.badge ? m.badge + ':' + m.kind : 'clear');
@@ -816,7 +819,10 @@
     // A little room above and below, so a mark on the first or last row is not cut in half.
     clipEl.style.clipPath = c ? 'inset(' + Math.max(0, Math.round(c.top - 6)) + 'px 0 ' + Math.max(0, Math.round(window.innerHeight - c.bottom - 6)) + 'px 0)' : '';
   }
+  // Marks beside links changed in Settings: the marks on screen now follow it at once, without waiting for a read.
+  api.on('overlay:level', function (p) { marksLevel = (p && p.marks) || 'all'; place(current, null, true); });
   api.on('overlay:marks', function (p) {
+    if (p && p.level) marksLevel = p.level;
     setClip(p && p.clip);
     ends = (p && p.ends) || '';
     var rebase = null;

@@ -426,6 +426,19 @@ if ($scamAt -and $safeAt) {
   $ok = Until 20 { $script:marks = HoverMarks; (HoverLog 'clean') -gt $before -and $script:marks -eq 'clear' }
   Shot 'hover-safe'
   Check 'hover-safe' $ok "resting on a link to an honest site: overlay marks '$marks' (one quiet mark)"
+  # Marks beside links set to Serious only in Settings: the safe link's tick goes at once, the scam keeps its mark.
+  $lv = Info "setMarksLevel('danger')"
+  $ok = Until 10 { $script:marks = HoverMarks; $script:marks -eq '' }
+  Shot 'marks-serious-safe'
+  Check 'marks-serious-safe' ($lv -eq 'danger' -and $ok) "serious only, resting on the honest link: overlay marks '$marks', level $lv"
+  [void][K]::SetCursorPos($scamAt[0], $scamAt[1])
+  $ok = Until 20 { $script:marks = HoverMarks; $script:marks -eq 'red:scam' }
+  Shot 'marks-serious-scam'
+  Check 'marks-serious-scam' $ok "serious only, resting on the scam link: overlay marks '$marks'"
+  $lv = Info "setMarksLevel('all')"
+  [void][K]::SetCursorPos($safeAt[0], $safeAt[1])
+  $ok = Until 20 { $script:marks = HoverMarks; $script:marks -eq 'clear' }
+  Check 'marks-every-link' ($lv -eq 'all' -and $ok) "every link again, on the honest link: overlay marks '$marks'"
   [void][K]::SetCursorPos($safeAt[0], $safeAt[1] + 150)
   $ok = Until 10 { $script:marks = HoverMarks; $script:marks -eq '' }
   Check 'hover-gone' $ok "pointer moved off the link: overlay marks '$marks'"
@@ -605,10 +618,17 @@ $opened = $pressed -and (Until 30 { $script:guide = [string](Cdp '127.0.0.1:4782
 Shot 'typed-recover'
 Check 'typed-yes-recover' $opened "Yes opened the recovery guide with the password ticked: $guide"
 Check 'typed-question-gone' (Until 10 { [string](Cdp 'guard.html' '1').error -match 'no window' }) 'the question closed after Yes'
-# The same site again, closed again: not asked twice.
+# The same site again, closed again: not asked twice. Pop-up warnings set to Never in Settings meanwhile: no card and
+# no notification for the flagged page, while the corner island still says it is flagged.
 $boxes = BoxLines; $asks = AskLines
+$quiet = Info "setWarningsLevel('quiet')"
 Say "Edge in front: $(FreshEdge '--no-first-run', '--no-default-browser-check', 'http://paypal-account-verify-login.test:47910/signin.html')"
 $seenAgain = Until 60 { [K]::Tap(0x11); (BoxLines) -gt $boxes }
+$flaggedHere = Until 20 { [string](Cdp 'overlay.html' "document.getElementById('corner').classList.contains('is-flagged')").value -eq 'True' }
+Start-Sleep 5
+Shot 'warnings-never'
+Check 'warnings-never' ($quiet -eq 'quiet' -and $seenAgain -and $flaggedHere -and [string](Cdp 'warn.html' '1').error -match 'no window') "level $quiet; the island says flagged: $flaggedHere; no warning card: $([string](Cdp 'warn.html' '1').error -match 'no window')"
+Check 'warnings-back' ((Info "setWarningsLevel('all')") -eq 'all' -and (Info 'info()').warningsLevel -eq 'all') 'Always again, read back from the app'
 [void](Cdp 'warn.html' 'window.close(), 1')
 CloseEdge
 Start-Sleep 20

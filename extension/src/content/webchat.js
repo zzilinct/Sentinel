@@ -16,9 +16,8 @@
 
   const Masks = (globalThis.SentinelMasks || window.SentinelMasks);
   const Chat = globalThis.SentinelChat;
-  const RANK = { yellow: 1, orange: 2, red: 3 };
   const THREATS = ['scam', 'virus', 'malware'];
-  const DEFAULTS = { enabled: true, minimumBadge: 'yellow', chatHints: true };
+  const DEFAULTS = { enabled: true, marksLevel: 'all', chatHints: true };
 
   // Each chat site: which pages are chats, what one message is, its words, who sent it, the person's own messages
   // (never judged: they are not the ones asking), and the site's own links (never checked).
@@ -69,7 +68,7 @@
     if (!a.isConnected || !verdict || !verdict.ok) return;
     const next = a.nextElementSibling;
     if (next && next.classList.contains('sentinel-masks')) return;
-    const shown = THREATS.filter((t) => verdict.threats[t] && verdict.threats[t].badge && RANK[verdict.threats[t].badge] >= RANK[settings.minimumBadge || 'yellow']);
+    const shown = THREATS.filter((t) => verdict.threats[t] && verdict.threats[t].badge && Masks.shows(settings.marksLevel, verdict.threats[t].badge));
     if (!shown.length) return;
     const group = document.createElement('span');
     group.className = 'sentinel-masks sentinel-masks--chat';
@@ -290,6 +289,6 @@
     if (changes.chatHints && changes.chatHints.newValue === false) document.querySelectorAll('[data-sentinel-chat]').forEach((n) => n.remove());
     if (changes.enabled && changes.enabled.newValue === false) document.querySelectorAll('[data-sentinel-chat], .sentinel-masks--chat').forEach((n) => n.remove());
     // Switched (back) on with the chat open: it is looked over now, not at the next message.
-    if (settings.enabled && (changes.enabled || changes.chatHints || changes.minimumBadge)) { start(); lookAgain(); }
+    if (settings.enabled && (changes.enabled || changes.chatHints || changes.marksLevel)) { start(); lookAgain(); }
   });
 })();

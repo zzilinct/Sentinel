@@ -12,9 +12,8 @@
   window.__sentinelSerp = true;
 
   const Masks = (globalThis.SentinelMasks || window.SentinelMasks);
-  const RANK = { yellow: 1, orange: 2, red: 3 };
   const THREATS = ['scam', 'virus', 'malware'];
-  const DEFAULTS = { enabled: true, minimumBadge: 'yellow', markSafe: true, scanOverlay: true };
+  const DEFAULTS = { enabled: true, marksLevel: 'all', scanOverlay: true };
 
   let settings = DEFAULTS;
   const seen = new WeakSet();
@@ -158,10 +157,10 @@
     const old = heading.querySelector(':scope > .sentinel-masks');
     if (old) old.remove();
 
-    const shown = THREATS.filter((t) => verdict.threats[t] && verdict.threats[t].badge && RANK[verdict.threats[t].badge] >= RANK[settings.minimumBadge]);
-    // Nothing found (or nothing at the level this person asked to see): a quiet
-    // tick, so every result visibly has a verdict. It is never coloured like a threat.
-    if (!shown.length && !settings.markSafe) return;
+    const shown = THREATS.filter((t) => verdict.threats[t] && verdict.threats[t].badge && Masks.shows(settings.marksLevel, verdict.threats[t].badge));
+    // Nothing found: a quiet tick, so every result visibly has a verdict, unless the person asked for marks on risky
+    // links only (Marks beside links). It is never coloured like a threat, and never stands in for a hidden caution.
+    if (!shown.length && !Masks.shows(settings.marksLevel, null)) return;
 
     const group = document.createElement('span');
     group.className = 'sentinel-masks';

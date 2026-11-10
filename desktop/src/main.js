@@ -40,6 +40,11 @@ const scanmenu = require('./scanmenu');
 const store = require('./store');
 const parentlock = require('./parentlock');
 const server = require('./server');
+require('../shared/masks.js');
+// Marks beside links and pop-up warnings (Settings): the same words and rules as the overlay and the companion.
+const Masks = globalThis.SentinelMasks;
+const marksLevel = () => Masks.level('marks', store.get('marksLevel', 'all'));
+const warningsLevel = () => Masks.level('warnings', store.get('warningsLevel', 'all'));
 
 const DEV = process.argv.includes('--dev');
 // Windows gets the .ico (every size, so the taskbar and Alt+Tab never show a blank page); elsewhere the PNG.
@@ -191,6 +196,17 @@ function trayGuard(what, weakens) {
     showWindow('/app/settings#parent-lock');
     return false;
   }
+}
+
+/** Pop-up warnings: for warning and danger pages, danger only, or never. Quieter than before needs the parent lock open. */
+const WARNINGS_TRAY = { all: 'For warnings and danger', danger: 'For danger only', quiet: 'Never, only mark the page' };
+function setWarningsLevel(level) {
+  const to = Masks.level('warnings', level);
+  const order = Masks.LEVELS.warnings;
+  lock.guard('pop-up warnings quieter', order.indexOf(to) > order.indexOf(warningsLevel()));
+  store.set('warningsLevel', to);
+  refreshTray();
+  return to;
 }
 
 function runPowerShell(script, timeout = 15000) {
@@ -787,6 +803,7 @@ function refreshTray() {
     { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? trayGuard('live scanning off', true) && setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
     ...(pw.supported && browserState.installed.length ? [{ label: 'Scan with', submenu: browserState.installed.map((b) => ({ label: b.name, click: () => scanWith(b.id).catch((err) => appLog(`scan with ${b.id} failed: ${err.message}`)) })) }] : []),
     ...(pw.supported ? [{ label: 'Auto scanning (when a browser opens)', type: 'checkbox', checked: store.get('autoScan', false), click: (item) => { if (trayGuard('auto scanning off', !item.checked)) setAutoScan(item.checked).catch(() => {}); } }] : []),
+    ...(pw.supported ? [{ label: 'Pop-up warnings', submenu: Masks.LEVELS.warnings.map((l) => ({ label: WARNINGS_TRAY[l], type: 'radio', checked: warningsLevel() === l, click: () => { try { setWarningsLevel(l); } catch { trayGuard('pop-up warnings quieter', true); } } })) }] : []),
     ...(process.platform === 'win32' ? [{ label: chatwatch.reader() === 'stopped' ? 'Chat safety: cannot read chat right now' : 'Chat safety (Roblox and Discord)', type: 'checkbox', checked: store.get('chatSafety', false), click: (item) => { if (trayGuard('chat safety off', !item.checked)) { setChatSafety(item.checked); refreshTray(); } } }] : []),
     { label: 'Start with my computer', type: 'checkbox', checked: store.get('openAtLogin', true), click: (item) => { if (trayGuard('starting with the computer off', !item.checked)) setOpenAtLogin(item.checked); } },
     ...(snipOn() ? [{ label: 'Check something on screen', click: () => snip.open(300) }] : []),
@@ -1541,6 +1558,8 @@ function registerBridge() {
     remoteGuard: remoteGuardStatus(),
     textSafety: textSafetyStatus(),
     liveMode: store.get('liveMode', 'fast'),
+    marksLevel: marksLevel(),
+    warningsLevel: warningsLevel(),
     autoScan: store.get('autoScan', false),
     defense: { ...defense.status(), enabled: store.get('defense', true) },
     deviceProtection: Boolean(store.getSecret('deviceToken')) && !store.getSecret('token'),
@@ -1581,6 +1600,12 @@ function registerBridge() {
     lockChanged();
     return lockStatus();
   });
+  handle('sentinel:marks-level', (level) => {
+    store.set('marksLevel', Masks.level('marks', level));
+    overlay.setMarksLevel(marksLevel());
+    return marksLevel();
+  });
+  handle('sentinel:warnings-level', (level) => setWarningsLevel(level));
   handle('sentinel:live-mode', (mode) => {
     store.set('liveMode', mode === 'delicate' ? 'delicate' : 'fast');
     refreshTray();
@@ -1815,6 +1840,7 @@ async function boot() {
 
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) overlay.setDryRun((text) => appLog(`overlay (dry run): ${text}`));
   overlay.init({ onAction: islandAction });
+  overlay.setMarksLevel(marksLevel());
 
   // Chat safety (Roblox and the Discord app) and texts in Phone Link: each off until turned on in Live protection;
   // nothing about a chat or a text is logged.
@@ -1918,8 +1944,11 @@ async function boot() {
       const first = item.verdict.reasons && item.verdict.reasons[0];
       // A private window is warned like any other, and nothing about it is kept: the notification (which
       // Windows stores in its notification centre) names no site, and the app's lists are not told.
-      notify(`Sentinel: ${item.verdict.overall.label}`, `${item.private ? 'The page in your private window' : item.host}\n${first ? first.text : 'Leave this site.'}`, () => showWarning(item));
-      showWarning(item);
+      // Pop-up warnings (Settings) decide the notification and the card. The mark and the island say it either way.
+      if (Masks.warns(warningsLevel(), item.verdict.overall.badge)) {
+        notify(`Sentinel: ${item.verdict.overall.label}`, `${item.private ? 'The page in your private window' : item.host}\n${first ? first.text : 'Leave this site.'}`, () => showWarning(item));
+        showWarning(item);
+      }
       if (!item.private) push('sentinel:page-threat', { browser: browserName(item.browser), host: item.host, url: item.url, label: item.verdict.overall.label, badge: item.verdict.overall.badge, at: Date.now() });
     }
   });

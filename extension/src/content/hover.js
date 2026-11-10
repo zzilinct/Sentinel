@@ -78,8 +78,8 @@
 
   function show(anchor, verdict) {
     if (!anchor.isConnected || anchor !== current) return;
-    const shown = THREATS.filter((t) => verdict.threats[t] && verdict.threats[t].badge && RANK[verdict.threats[t].badge] >= RANK[settings.minimumBadge]);
-    if (!shown.length && !settings.markSafe) return;
+    const shown = THREATS.filter((t) => verdict.threats[t] && verdict.threats[t].badge && Masks.shows(settings.marksLevel, verdict.threats[t].badge));
+    if (!shown.length && !Masks.shows(settings.marksLevel, null)) return;
     const worst = shown.sort((a, b) => RANK[verdict.threats[b].badge] - RANK[verdict.threats[a].badge])[0];
     const badge = worst ? verdict.threats[worst].badge : null;
     const { el } = ensureTip();
@@ -107,7 +107,7 @@
 
   /* ------------------------------------------------------------ hover */
 
-  const DEFAULTS = { enabled: true, markSafe: true, minimumBadge: 'yellow' };
+  const DEFAULTS = { enabled: true, marksLevel: 'all' };
   let settings = DEFAULTS;
   const verdicts = new Map();     // url -> verdict, for this page
   let current = null;

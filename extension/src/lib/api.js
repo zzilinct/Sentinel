@@ -10,15 +10,35 @@ export const DEFAULTS = {
   enabled: true,
   emailProtection: true,
   warnOnNavigate: true,
-  notifications: true,
-  minimumBadge: 'yellow',
-  markSafe: true,          // a quiet tick beside results that came back clean
+  marksLevel: 'all',       // Marks beside links: every link (a quiet tick on clean ones), risky links, or serious only
+  warningsLevel: 'all',    // Pop-up warnings: always (orange and red), danger only, or never (masks.js warns)
   scanOverlay: true,       // the golden line and tint while results are being checked
   commandGuard: true,      // Stop pasted commands: a page cannot copy a command only a trick would ask you to paste
   chatHints: true          // A quiet hint under a web-chat message that asks for a code, gift cards or crypto (read in the page)
 };
 
 export const COLORS = { yellow: '#f5c542', orange: '#f08a24', red: '#e5484d' };
+
+/**
+ * The companion's older settings in the words the Windows app uses, once. "Show masks from orange" or "red only" becomes
+ * serious only (a warning mark is never hidden now); no ticks becomes risky links. "Red only" also meant no warning over
+ * an orange page: danger only. Turning off desktop notifications did not stop that warning, so it stays: always.
+ */
+export function levelsFrom(old) {
+  const strict = old.minimumBadge === 'orange' || old.minimumBadge === 'red';
+  return {
+    marksLevel: strict ? 'danger' : old.markSafe === false ? 'risky' : 'all',
+    warningsLevel: old.minimumBadge === 'red' ? 'danger' : 'all'
+  };
+}
+export const OLD_LEVEL_KEYS = ['minimumBadge', 'markSafe', 'notifications'];
+
+/** Pop-up warnings: does a page at this severity get one? The rule of masks.js warns, which the Windows app uses. */
+export function warns(level, badge) {
+  if (level === 'quiet') return false;
+  if (level === 'danger') return badge === 'red';
+  return badge === 'red' || badge === 'orange';
+}
 
 export async function getSettings() {
   return { ...DEFAULTS, ...(await ext.storage.sync.get(DEFAULTS)) };

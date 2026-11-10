@@ -89,6 +89,27 @@
       '<path d="' + d + '" stroke="' + INK + '" stroke-opacity=".6" stroke-width="5.4"/><path d="' + d + '" stroke="currentColor" stroke-width="2.6"/></svg>';
   }
 
+  /*
+   * How much Sentinel shows and says, as the person set it in Settings. The Windows app and the companion read these
+   * same words. Marks beside links: every link, risky links (caution and up), or warnings and danger only. A warning
+   * or danger mark always shows, whatever is chosen. Pop-up warnings: for warning and danger pages, danger only, or
+   * never (the page is still marked). A value Sentinel does not know means the first, which is how it always was.
+   */
+  var LEVELS = { marks: ['all', 'risky', 'danger'], warnings: ['all', 'danger', 'quiet'] };
+  function level(kind, value) { return LEVELS[kind].indexOf(value) >= 0 ? value : LEVELS[kind][0]; }
+  /** Does a mark at this severity show? `badge` is red, orange, yellow, or none for a safe or unchecked link. */
+  function shows(marks, badge) {
+    if (badge === 'red' || badge === 'orange') return true;
+    marks = level('marks', marks);
+    return marks === 'all' || (marks === 'risky' && badge === 'yellow');
+  }
+  /** Does a page at this severity get a pop-up warning? Yellow pages never do. */
+  function warns(warnings, badge) {
+    warnings = level('warnings', warnings);
+    if (warnings === 'all') return badge === 'red' || badge === 'orange';
+    return warnings === 'danger' && badge === 'red';
+  }
+
   /* ------------------------------------------------------------- kinds */
 
   // One line icon per threat kind, so a result reads at a glance without the
@@ -132,5 +153,5 @@
     return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" ' + (attrs || '') + '>' + KIND_GLYPHS[kind] + '</svg>';
   }
 
-  root.SentinelMasks = { svg: svg, mark: mark, tick: tick, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES, SEVERITY: SEVERITY };
+  root.SentinelMasks = { svg: svg, mark: mark, tick: tick, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES, SEVERITY: SEVERITY, LEVELS: LEVELS, level: level, shows: shows, warns: warns };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -230,11 +230,14 @@ async function checkCompanionCore() {
       return { account: document.getElementById('account').textContent, headings: [...document.querySelectorAll('h1, h2, h3')].map((h) => h.tagName + ' ' + h.textContent.trim()),
         unnamed, scroll: document.documentElement.scrollWidth > innerWidth };
     })()`);
-    await click(opt.sessionId, '#markSafe');
-    await goto(browser, opt.sessionId, `${ext}/src/options.html`, "document.getElementById('markSafe') && document.readyState === 'complete'");
+    // Marks beside links, chosen as a person would, kept after a reload, then put back.
+    const pick = (v) => evalIn(browser, opt.sessionId, `(() => { const e = document.getElementById('marksLevel'); e.value = ${JSON.stringify(v)}; e.dispatchEvent(new Event('change')); })()`);
+    await pick('risky');
+    await sleep(300);
+    await goto(browser, opt.sessionId, `${ext}/src/options.html`, "document.getElementById('marksLevel') && document.readyState === 'complete'");
     await sleep(500);
-    const kept = await evalIn(browser, opt.sessionId, "document.getElementById('markSafe').checked");
-    await click(opt.sessionId, '#markSafe');
+    const kept = await evalIn(browser, opt.sessionId, "document.getElementById('marksLevel').value");
+    await pick('all');
     // A server address that is not https is refused, and the field goes back.
     const refused = await evalIn(browser, opt.sessionId, `(async () => { const e = document.getElementById('apiBase'); const was = e.value; e.value = 'http://sentinel.example.com'; e.dispatchEvent(new Event('change'));
       await new Promise((r) => setTimeout(r, 300)); return { said: document.getElementById('saved').textContent, value: e.value, was }; })()`);
@@ -256,7 +259,7 @@ async function checkCompanionCore() {
     await shot(browser, opt.sessionId, 'companion-core-options-narrow');
     await browser.send('Emulation.clearDeviceMetricsOverride', {}, opt.sessionId);
     result('companion-core: options page: every switch is named, a change is kept after reload, a non-https server is refused and put back, it fits a narrow window, no console errors',
-      !optInfo.unnamed.length && kept === false && /https/.test(refused.said) && refused.value === refused.was && !optInfo.scroll && !narrow && !optErrors.length,
+      !optInfo.unnamed.length && kept === 'risky' && /https/.test(refused.said) && refused.value === refused.was && !optInfo.scroll && !narrow && !optErrors.length,
       { ...optInfo, kept, refused, narrow, errors: optErrors });
     result('companion-core: options page: the keyboard\'s focus is visible on its buttons, and its sections are headings a screen reader can jump between',
       visible(ringAdd) && visible(ringOut) && optInfo.headings.filter((h) => /^H2/.test(h)).length >= 4, { add: ringAdd, signOut: ringOut, headings: optInfo.headings });
