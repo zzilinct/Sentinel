@@ -199,8 +199,8 @@ if ($Part -eq 'install') {
   Say "tray click: $(TrayClick 'Is this call a scam')"
   $ok = Until 15 { (AppWindow) -match '^shown\|/call' }
   Check 'tray-call' $ok "Is this call a scam?: $(AppWindow)"
-  # The app open on Live protection while the tray changes things: the switches there should follow.
-  Page '/app/protection'
+  # The app open on Settings while the tray changes things: the switches there should follow.
+  Page '/app/settings'
   Say "tray click: $(TrayClick 'Chat safety')"
   $ok = Until 15 { $c = (Info 'info()').chatSafety; $c.enabled -and $c.running }
   Check 'tray-chat-on' $ok "Chat safety ticked in the tray: reading $ok; the app's switch shows $(Shown '[data-chat-safety]')"
@@ -233,9 +233,9 @@ if ($Part -eq 'install') {
   Check 'tray-stop-scanning' ($ok -and (TrayItems) -match 'Start scanning') "Stop scanning: off $ok; the menu now: $(TrayItems)"
   Get-Process msedge, chrome -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
-  # 5. Every switch in Live protection, pressed in the app, and its protection really off, then really on again.
-  Page '/app/protection'
-  Shot 'protection-page'
+  # 5. Every switch in Settings, pressed in the app, and its protection really off, then really on again.
+  Page '/app/settings'
+  Shot 'settings-page'
   # Download protection: a file arriving while it is off is not looked at; on again, the next one is.
   Say "download protection: $(Flip '[data-dl]' $false); toast: $(Toasts)"
   Arrive 'switch off.txt' (Text 'Milk and eggs')
@@ -324,12 +324,13 @@ if ($Part -eq 'install') {
   $h1 = @(Helpers).Count
   Check 'switch-live' ($off -and $h1 -lt $h0) "Stop scanning: inactive $off; helpers $h0 then $h1"
   # Auto scanning: on, a browser opening starts fast scanning by itself; off, nothing starts.
+  Page '/app/settings'
   Say "auto: $(Flip '[data-auto-scan]' $true)"
   Start-Process msedge -ArgumentList '--no-first-run', 'http://127.0.0.1:47910/plain.html'
   $on = Until 30 { (Info 'info()').live.enabled }
   Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   $closed = Until 40 { -not (Info 'info()').live.enabled }
-  Page '/app/protection'
+  Page '/app/settings'
   Say "auto: $(Flip '[data-auto-scan]' $false)"
   Start-Process msedge -ArgumentList '--no-first-run', 'http://127.0.0.1:47910/plain.html'
   Start-Sleep 20
@@ -338,18 +339,18 @@ if ($Part -eq 'install') {
   Check 'switch-auto-scan' ($on -and $closed -and $stayed) "on: a browser opening started scanning $on, closing it stopped it $closed; off: nothing started $stayed"
 
   # 6. The parent lock, met in the tray: a switch off and Quit are refused there, and the app opens on Parent lock.
-  Page '/app/protection'
+  Page '/app/settings'
   [void](Info "lockSet('2468')")
   [void](Info 'setChatSafety(true)'); Start-Sleep 2
   [void](Cdp 'main' $trayHook); Start-Sleep 3
   HideApp
   Say "tray click (locked): $(TrayClick 'Chat safety')"
   Start-Sleep 3
-  Check 'lock-tray-switch' ((Info 'info()').chatSafety.enabled -and (TrayItems) -match 'Chat safety \(Roblox and Discord\) \[x\]' -and (AppWindow) -match '^shown\|/app/protection#parent-lock') "chat safety still on: $((Info 'info()').chatSafety.enabled); the menu: $(TrayItems); the app: $(AppWindow)"
+  Check 'lock-tray-switch' ((Info 'info()').chatSafety.enabled -and (TrayItems) -match 'Chat safety \(Roblox and Discord\) \[x\]' -and (AppWindow) -match '^shown\|/app/settings#parent-lock') "chat safety still on: $((Info 'info()').chatSafety.enabled); the menu: $(TrayItems); the app: $(AppWindow)"
   HideApp
   Say "tray click (locked): $(TrayClick 'Quit Sentinel')"
   Start-Sleep 5
-  Check 'lock-tray-quit' ((@(MainProcs).Count -eq 1) -and (AppWindow) -match '^shown\|/app/protection#parent-lock') "still running: $(@(MainProcs).Count) main process; the app: $(AppWindow)"
+  Check 'lock-tray-quit' ((@(MainProcs).Count -eq 1) -and (AppWindow) -match '^shown\|/app/settings#parent-lock') "still running: $(@(MainProcs).Count) main process; the app: $(AppWindow)"
   Shot 'lock-tray'
   [void](Info "lockUnlock('2468')"); [void](Info 'lockRemove()'); [void](Info 'setChatSafety(false)')
 

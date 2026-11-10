@@ -45,8 +45,8 @@ async function checkCheck() {
       return { labels: [...nav.querySelectorAll('.side__label')].map((l) => l.textContent.trim()), checks: nav.querySelectorAll('a[href="/app/check"]').length,
         old: [...nav.querySelectorAll('a')].map((a) => a.getAttribute('href')).filter((h) => /\\/app\\/(scan|threats|email|text)$/.test(h)),
         current: (nav.querySelector('[aria-current=page]') || {}).textContent.trim(), links: nav.querySelectorAll('a.side__link').length, h1: document.querySelector('#view h1').textContent, title: document.title }; })()`);
-    result('check: the sidebar is four groups (Check, Protect, Review, Account) with one Check entry and none of the old scan pages',
-      side.labels.join() === 'Check,Protect,Review,Account' && side.checks === 1 && !side.old.length && side.current === 'Check something' && side.h1 === 'Check something' && side.title === 'Check · Sentinel', side);
+    result('check: the sidebar is three groups (Check, Protect, Review) and a Settings link, with one Check entry and none of the old scan pages',
+      side.labels.join() === 'Check,Protect,Review' && side.checks === 1 && !side.old.length && side.current === 'Check something' && side.h1 === 'Check something' && side.title === 'Check · Sentinel', side);
     // Every word in the sidebar at one size: the Check entry's label once came out smaller than its neighbours.
     const words = await evalIn(browser, s, `(() => { const sizes = []; const walk = document.createTreeWalker(document.querySelector('.side__nav'), NodeFilter.SHOW_TEXT);
       for (let n = walk.nextNode(); n; n = walk.nextNode()) { if (!n.textContent.trim()) continue; const e = n.parentElement; if (e.closest('.side__label') || !e.closest('.side__link')) continue;

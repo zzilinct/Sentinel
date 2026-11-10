@@ -126,13 +126,13 @@ function offerChatSafety(processName) {
   if (texts) {
     if (store.get('textSafety', false) || store.get('textsOffered', false)) return;
     store.set('textsOffered', true);
-    notify('Phone Link is open. Sentinel can check your texts', 'It points out scam texts beside the message, on this computer only. Click to turn it on.', () => showWindow('/app/protection#text-safety'));
+    notify('Phone Link is open. Sentinel can check your texts', 'It points out scam texts beside the message, on this computer only. Click to turn it on.', () => showWindow('/app/settings#text-safety'));
     return;
   }
   const name = CHAT_APPS[processName];
   if (!name || store.get('chatSafety', false) || store.get(`chatOffered:${name}`, false)) return;
   store.set(`chatOffered:${name}`, true);
-  notify(`${name} is open. Sentinel can watch its chat`, 'Chat safety points out scams and people who may not be safe to talk to, on this computer only. Click to turn it on.', () => showWindow('/app/protection#chat-safety'));
+  notify(`${name} is open. Sentinel can watch its chat`, 'Chat safety points out scams and people who may not be safe to talk to, on this computer only. Click to turn it on.', () => showWindow('/app/settings#chat-safety'));
 }
 /** One reader for both switches: it reads only the apps whose switch is on, and stops when both are off. */
 function chatApps() {
@@ -157,7 +157,7 @@ function startChatSafety() {
       refreshTray();
       if (state === 'stopped' && !toldReaderStopped) {
         toldReaderStopped = true;
-        notify('Sentinel cannot read chat right now', 'Chat is not being watched. Sentinel keeps trying by itself. Click to see more.', () => showWindow('/app/protection#chat-safety'));
+        notify('Sentinel cannot read chat right now', 'Chat is not being watched. Sentinel keeps trying by itself. Click to see more.', () => showWindow('/app/settings#chat-safety'));
       }
     },
     onCounted: (c) => { tally('chat_checked', c.checked); tally('chat_flagged', c.flagged); if (c.flagged) pause.sign('chat'); },
@@ -188,7 +188,7 @@ function setTextSafety(enabled) {
 function trayGuard(what, weakens) {
   try { lock.guard(what, weakens); return true; } catch {
     refreshTray();
-    showWindow('/app/protection#parent-lock');
+    showWindow('/app/settings#parent-lock');
     return false;
   }
 }

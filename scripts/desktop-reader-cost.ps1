@@ -64,7 +64,7 @@ Stop-Process -Name Sentinel -Force -ErrorAction SilentlyContinue; Start-Sleep 3
 Check 'restart' (StartSentinel) 'started with its debugging port'
 # Signed in, as most people are: the protection page and live scanning need it. A test account on this runner only.
 $r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then((x) => x.status); const a = { email: 'reader-cost-$(Get-Random)@example.com', password: 'Willow-harbour-83Pn' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Kim', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', Object.assign({ staySignedIn: true }, a))].join(','); })()"
-Page '/app/protection'
+Page '/app/settings'
 Check 'signed-in' (Until 40 { [bool](Info 'info()').pairedUserId }) "sign-up, sign-in: $($r.value)"
 # Start-up (lists, compiling) is over before anything is measured.
 Start-Sleep 60
@@ -111,7 +111,7 @@ Say "A black game in front: $(Fake 'RobloxPlayerBeta' 'roblox.html?black')"
 # Full screen: Chrome draws its title bar inside its window, where the chat box of a real game would be.
 [K]::Tap(0x7A)
 $black = Until 25 { (Chat).seen.blind -eq 'roblox' }
-Page '/app/protection'
+Page '/app/settings'
 Say "  the panel: $(Line)"
 Check 'black-game-told' ($black -and (Line) -match 'cannot see') "seen.blind $((Chat).seen.blind); the panel: $(Line)"
 Get-Process RobloxPlayerBeta -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -126,7 +126,7 @@ $idleChat = Cost 'discord' 45
 # 5. The reader is killed while it reads: it comes back by itself, and the page says what happened meanwhile.
 $before = @(ChatReader | ForEach-Object { $_.ProcessId })
 Check 'reader-running' ($before.Count -eq 1) "chat readers with Discord in front: $($before.Count)"
-Page '/app/protection'
+Page '/app/settings'
 foreach ($id in $before) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Milliseconds 300
 $said = (Chat).reader -eq 'restarting'
@@ -141,7 +141,7 @@ $end = (Get-Date).AddSeconds(90); $kills = 0
 while ((Get-Date) -lt $end -and (Chat).reader -ne 'stopped') { foreach ($r in ChatReader) { Stop-Process -Id $r.ProcessId -Force -ErrorAction SilentlyContinue; $kills++ }; Start-Sleep 1 }
 $state = (Chat).reader
 Check 'reader-stopped-told' ($state -eq 'stopped') "after $kills kills the state is $state; the switch still says on: $((Chat).enabled)"
-Page '/app/protection'
+Page '/app/settings'
 Say "  the panel, reader failing: $(Line)"
 Check 'reader-stopped-words' ((Line) -match 'cannot read') "the panel: $(Line)"
 PanelShots 'reader-stopped'

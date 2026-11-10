@@ -95,7 +95,8 @@ async function checkSettings() {
         home = await evalIn(browser, s, `(() => { const on = (id) => (document.querySelector('#set-' + id + '-c') || {}).checked;
           return { on: { copied: on('copied-links'), wallet: on('wallet-guard'), chat: on('chat-safety'), login: on('start-with-computer') },
             why: [...document.querySelectorAll('.set-why')].map((e) => e.textContent), wide: document.documentElement.scrollWidth - innerWidth,
-            rail: [...document.querySelectorAll('.set-rail a')].map((a) => a.textContent), sites: (document.querySelector('#my-sites .list') || {}).innerText || '' }; })()`);
+            rail: [...document.querySelectorAll('.set-rail a')].map((a) => a.textContent), sites: (document.querySelector('#my-sites .list') || {}).innerText || '',
+            said: ['[data-chat-seen]', '[data-text-seen]'].map((q) => { const e = document.querySelector(q); return e ? e.getAttribute('role') + ': ' + e.textContent : 'none'; }) }; })()`);
         if (home.wide > 0) wide.push(`home ${size} ${theme}: ${home.wide} px`);
         await shot(browser, s, `settings-home-${size}-${theme}`);
 
@@ -116,6 +117,7 @@ async function checkSettings() {
       }
     }
     result('settings: with the app the switches say what the app says', home.on.copied === true && home.on.wallet === false && home.on.chat === false && home.on.login === true && !home.why.length, home);
+    result('settings: what chat safety and Check my texts are doing is read out as it changes', home.said.every((t) => /^status: Off. Turn it on/.test(t)), home.said);
     result('settings: the group list names every group, and your sites are listed', home.rail.length === 9 && /Appearance/.test(home.rail[0]) && /Motion/.test(home.rail[1]) && /mycu\.org/.test(home.sites), home);
     result('settings: nothing scrolls sideways', !wide.length, wide);
 

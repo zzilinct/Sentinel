@@ -863,9 +863,9 @@ $c = ''
 $ok = $ok -and (Until 90 { $script:c = (Cdp '127.0.0.1:4782' "(() => { const p = [...document.querySelectorAll('[data-checkup-out] .panel')].find((x) => (x.querySelector('h2') || {}).textContent === 'Vivaldi'); if (!p) return ''; const d = p.querySelector('details[data-clean-addons]'); const names = (els) => [...els].map((b) => b.textContent).sort().join('/'); return [d ? d.querySelector('summary').textContent.trim() : 'no fold', d && d.open ? 'open' : 'closed', names([...p.querySelectorAll('ul.list b')].filter((b) => !b.closest('details'))), d ? names(d.querySelectorAll('b')) : '', /and you can add it back/.test(document.querySelector('[data-checkup-out]').textContent)].join('|'); })()").value; [bool]$script:c })
 Shot 'checkup'
 Check 'checkup-folds-clean-addons' ($ok -and $c -eq '3 more add-ons, nothing to look at|closed|Coupon Helper E2E|Dark Reader E2E/Tab Notes E2E/Word Count E2E|true') "Vivaldi: $c"
-[void](Cdp '127.0.0.1:4782' "(location.href = '/app/protection', 1)")
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app/settings', 1)")
 $t = ''
-$ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; [bool]$script:t }
+$ok = Until 30 { $script:t = (Cdp '127.0.0.1:4782' "(document.getElementById('text-safety') || {}).textContent || ''").value; $script:t -match 'left-to-right' }
 Check 'texts-english-only' ($ok -and $t -match 'English scam texts' -and $t -match 'English texts for now' -and $t -match 'left-to-right') "Check my texts panel: $(([string]$t).Substring(0, [Math]::Min(200, ([string]$t).Length)))"
 
 # 4c, seen in the app (signed in since 7; the restart before it emptied the list): a Discord installer someone
@@ -887,7 +887,8 @@ Shot 'download-source'
 $t = [string](Cdp '127.0.0.1:4782' "(document.getElementById('downloads') || {}).innerText || ''").value
 Check 'download-source-listed' ($t -match 'Possible fake installer' -and $t -match 'This says it is Discord, but it came from cdn\.discordapp\.com, not discord\.com\. Get Discord from discord\.com\.') "Recent downloads: $(($t.Substring(0, [Math]::Min(300, $t.Length))) -replace '\s+', ' ')"
 
-# 7b. Your sites, in Live protection: a site added with the form is listed as added by you (5d proves the warning).
+# 7b. Your sites, in Settings: a site added with the form is listed as added by you (5d proves the warning).
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app/settings#my-sites', 1)")
 $ok = Until 30 { (Cdp '127.0.0.1:4782' "Boolean(document.querySelector('[data-my-sites-add]'))").value -eq $true }
 [void](Cdp '127.0.0.1:4782' "(() => { const f = document.querySelector('[data-my-sites-add]'); f.elements.host.value = 'harbourcu.test'; f.requestSubmit(); return 1; })()")
 $s = ''

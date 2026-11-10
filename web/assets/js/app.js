@@ -2789,18 +2789,18 @@
         ctx.refresh();
       })) },
     appSwitch({ id: 'auto-scan', group: 'protection', label: 'Auto scanning', hint: 'Starts fast scanning by itself whenever you open a browser, and stops when every browser is closed.',
-      words: ['automatic', 'browser', 'start', 'live'], method: 'setAutoScan', on: (i) => i.autoScan, off: (i) => onWindows(liveOf(i).supported),
+      words: ['automatic', 'browser', 'start', 'live'], method: 'setAutoScan', hook: 'auto-scan', on: (i) => i.autoScan, off: (i) => onWindows(liveOf(i).supported),
       said: (on) => (on ? 'Auto scanning is on. Open a browser and Sentinel starts scanning it.' : 'Auto scanning is off.') }),
     appSwitch({ id: 'download-protection', group: 'protection', label: 'Download protection', hint: 'Every new file in your Downloads folder is inspected on your computer.',
-      words: ['downloads', 'files', 'folder', 'virus', 'malware'], method: 'setDownloadProtection', on: (i) => i.downloads && i.downloads.active,
+      words: ['downloads', 'files', 'folder', 'virus', 'malware'], method: 'setDownloadProtection', hook: 'dl', on: (i) => i.downloads && i.downloads.active,
       state: (i) => (i.downloads && i.downloads.active ? `Watching ${i.downloads.folder || 'Downloads'}.` : (i.downloads && i.downloads.reason) || ''),
       said: (on, r) => (on ? 'Download protection is on.' : (r && r.reason) || 'Download protection is off.') }),
     appSwitch({ id: 'defense-watch', group: 'protection', label: 'Defense', hint: 'Watches new programs and startup entries. A dangerous program is stopped, quarantined and its startup entries removed.',
-      words: ['startup', 'quarantine', 'malware', 'program', 'virus', 'stop'], method: 'setDefense', on: (i) => i.defense && i.defense.active, off: (i) => onWindows(i.defense && i.defense.supported),
+      words: ['startup', 'quarantine', 'malware', 'program', 'virus', 'stop'], method: 'setDefense', hook: 'defense', on: (i) => i.defense && i.defense.active, off: (i) => onWindows(i.defense && i.defense.supported),
       state: (i) => (i.defense.active ? `Watching ${(i.defense.watched || []).join(', ')} and startup entries.` : i.defense.reason || ''),
       said: (on, r) => (on ? 'Defense is on.' : (r && r.reason) || 'Defense is off.') }),
     appSwitch({ id: 'my-sites', group: 'protection', label: 'Your sites', hint: 'Sentinel knows the big brands. Here it learns yours: your bank or credit union, your school portal, your work sign-in. A link or page made to look like one of them gets a warning.',
-      words: ['bank', 'look-alike', 'lookalike', 'credit union', 'school', 'fake', 'sites', 'impersonation'], method: 'setMySites', on: (i) => i.mySites !== false,
+      words: ['bank', 'look-alike', 'lookalike', 'credit union', 'school', 'fake', 'sites', 'impersonation'], method: 'setMySites', hook: 'my-sites', on: (i) => i.mySites !== false,
       off: (i) => (i.embeddedServer ? '' : 'Available when the app uses its own scanner on this computer.'),
       said: (on, r) => (on ? 'Your sites: on. Sentinel will learn the sites you use.' : r && r.erased === false ? 'Your sites: off. The sites could not be erased just now, so Sentinel will try again each time it starts.' : 'Your sites: off. Every site is forgotten.'),
       body: (i, data) => `${i.mySites !== false ? `<form class="set-sub set-add" data-my-sites-add>
@@ -2827,17 +2827,17 @@
         });
       } }),
     appSwitch({ id: 'scan-menu', group: 'protection', label: 'Scan with Sentinel in the right-click menu', hint: 'Right-click any file, choose Show more options, then Scan with Sentinel. The file is checked on this computer and the answer opens here.',
-      words: ['context menu', 'explorer', 'file', 'right click'], method: 'setScanMenu', on: (i) => i.scanMenu && i.scanMenu.enabled, off: (i) => onWindows(i.scanMenu && i.scanMenu.supported),
+      words: ['context menu', 'explorer', 'file', 'right click'], method: 'setScanMenu', hook: 'scan-menu', on: (i) => i.scanMenu && i.scanMenu.enabled, off: (i) => onWindows(i.scanMenu && i.scanMenu.supported),
       said: (on) => (on ? 'Scan with Sentinel is in the right-click menu.' : 'Scan with Sentinel is no longer in the right-click menu.') }),
     appSwitch({ id: 'start-with-computer', group: 'protection', label: 'Start with my computer', hint: 'Keeps protection running from the moment you sign in to Windows.',
-      words: ['startup', 'boot', 'login', 'sign in', 'launch'], method: 'setOpenAtLogin', on: (i) => i.openAtLogin,
+      words: ['startup', 'boot', 'login', 'sign in', 'launch'], method: 'setOpenAtLogin', hook: 'login', on: (i) => i.openAtLogin,
       said: (on) => (on ? 'Sentinel starts with your computer.' : 'Sentinel no longer starts with your computer.') }),
 
     appSwitch({ id: 'copied-links', group: 'guards', label: 'Check links I copy', hint: 'Copy a link from a text message, a chat or a PDF and Sentinel checks it, and warns you only if it is dangerous. Only copied web links are read; nothing else on your clipboard is sent or kept.',
-      words: ['clipboard', 'copy', 'paste', 'link'], method: 'setClipboardCheck', on: (i) => i.clipboardCheck,
+      words: ['clipboard', 'copy', 'paste', 'link'], method: 'setClipboardCheck', hook: 'clip', on: (i) => i.clipboardCheck,
       said: (on) => (on ? 'Check links I copy is on. Copy a link and Sentinel checks it.' : 'Check links I copy is off.') }),
     appSwitch({ id: 'pasted-commands', group: 'guards', label: 'Stop pasted commands', hint: 'Fake "I am not a robot" pages copy a command and ask you to paste it into Windows. Copied in a browser, Sentinel takes it off your clipboard and tells you, with a way to put it back; copied in another program, it only tells you. Checked on this computer, never sent or kept.',
-      words: ['clickfix', 'captcha', 'robot', 'powershell', 'command', 'clipboard', 'run'], method: 'setCommandShield', on: (i) => i.commandShield, off: (i) => onWindows(i.platform === 'win32'),
+      words: ['clickfix', 'captcha', 'robot', 'powershell', 'command', 'clipboard', 'run'], method: 'setCommandShield', hook: 'shield', on: (i) => i.commandShield, off: (i) => onWindows(i.platform === 'win32'),
       said: (on) => (on ? 'Stop pasted commands is on.' : 'Stop pasted commands is off.'),
       // For the two minutes Sentinel holds a stopped command, the way to put it back (the notification has it too).
       body: (i) => {
@@ -2856,10 +2856,10 @@
         });
       } }),
     appSwitch({ id: 'wallet-guard', group: 'guards', label: 'Wallet guard', hint: 'Some malware waits for you to copy a crypto wallet address or an IBAN and swaps in its own. If the address you copied changes by itself a moment later, Sentinel puts yours back and tells you. Compared in memory, never sent, saved or logged.',
-      words: ['crypto', 'bitcoin', 'iban', 'bank', 'address', 'clipboard', 'swap'], method: 'setWalletGuard', on: (i) => i.walletGuard, off: (i) => onWindows(i.platform === 'win32'),
+      words: ['crypto', 'bitcoin', 'iban', 'bank', 'address', 'clipboard', 'swap'], method: 'setWalletGuard', hook: 'wallet-guard', on: (i) => i.walletGuard, off: (i) => onWindows(i.platform === 'win32'),
       said: (on) => (on ? 'Wallet guard is on.' : 'Wallet guard is off.') }),
     appSwitch({ id: 'remote-guard', group: 'guards', label: 'Tech-support scam shield', hint: 'When a page flagged as a scam takes the whole screen, Sentinel offers to close it. When a remote-control program such as AnyDesk or TeamViewer starts soon after a flagged page, or soon after it was downloaded, Sentinel asks whether someone on the phone told you to install it. Nothing is stopped unless you say so.',
-      words: ['anydesk', 'teamviewer', 'remote', 'support', 'phone', 'full screen', 'popup'], method: 'setRemoteGuard', on: (i) => i.remoteGuard && i.remoteGuard.enabled, off: (i) => onWindows(i.remoteGuard && i.remoteGuard.supported),
+      words: ['anydesk', 'teamviewer', 'remote', 'support', 'phone', 'full screen', 'popup'], method: 'setRemoteGuard', hook: 'remote-guard', on: (i) => i.remoteGuard && i.remoteGuard.enabled, off: (i) => onWindows(i.remoteGuard && i.remoteGuard.supported),
       state: (i) => (i.remoteGuard.enabled && !liveOf(i).enabled ? 'Needs live scanning: the way out of a full-screen page and the bank warning work while live scanning is on.' : ''),
       said: (on) => (on ? 'The tech-support scam shield is on.' : 'The tech-support scam shield is off.'),
       body: (i) => { const t = i.remoteGuard.trusted || []; return t.length ? `<div class="set-sub"><p>You use ${esc(t.join(', '))} yourself, so Sentinel does not ask about ${t.length === 1 ? 'it' : 'them'}.</p><button class="btn btn--sm" type="button" data-forget-remote>Ask again</button></div>` : ''; },
@@ -2870,7 +2870,7 @@
         });
       } }),
     appSwitch({ id: 'snip', group: 'guards', label: 'Check something on screen', hint: 'Press the shortcut, or choose Check something on screen in the tray menu, then draw a box around a pop-up, an ad, a message, a QR code or a phone number. Sentinel reads it on this computer and tells you whether it looks like a scam. Only the links it finds are checked; the picture and the words are never sent or kept.',
-      words: ['screenshot', 'snip', 'shortcut', 'keyboard', 'qr', 'popup', 'screen'], method: 'setSnip', on: (i) => i.snip.enabled, off: (i) => onWindows(i.snip && i.snip.supported),
+      words: ['screenshot', 'snip', 'shortcut', 'keyboard', 'qr', 'popup', 'screen'], method: 'setSnip', hook: 'snip', on: (i) => i.snip.enabled, off: (i) => onWindows(i.snip && i.snip.supported),
       state: (i) => (i.snip.enabled && !i.snip.registered ? 'Another program already uses this shortcut. Choose another one.' : ''),
       save: (input, row) => desktop.setSnip(input.checked, $('[data-snip-key]', row).value),
       said: (on, r) => (r && r.enabled && !r.registered ? 'Another program already uses this shortcut. Choose another one.' : on ? 'Check something on screen is on.' : 'Check something on screen is off.'),
@@ -2887,16 +2887,16 @@
       } }),
 
     appSwitch({ id: 'chat-safety', group: 'chat', label: 'Chat safety: Roblox and Discord', hint: 'Points out scams and people who may not be safe to talk to (someone asking a child to keep secrets, to send pictures, to move to another app, or to meet), right beside the message, while Roblox or the Discord app is in front.',
-      words: ['roblox', 'discord', 'child', 'children', 'kids', 'games', 'grooming', 'messages', 'family'], method: 'setChatSafety', on: (i) => i.chatSafety && i.chatSafety.enabled, off: (i) => onWindows(i.chatSafety && i.chatSafety.supported),
-      state: (i) => chatSeenText(i.chatSafety), down: (i) => Boolean(i.chatSafety.enabled && readerDown(i.chatSafety, '')),
+      words: ['roblox', 'discord', 'child', 'children', 'kids', 'games', 'grooming', 'messages', 'family'], method: 'setChatSafety', hook: 'chat-safety', on: (i) => i.chatSafety && i.chatSafety.enabled, off: (i) => onWindows(i.chatSafety && i.chatSafety.supported),
+      seen: 'chat-seen', state: (i) => chatSeenText(i.chatSafety), down: (i) => Boolean(i.chatSafety.enabled && readerDown(i.chatSafety, '')),
       said: (on) => (on ? CHAT_ON : 'Chat safety is off.'), saved: () => markAsked('chat'),
       body: () => facts('What it reads, and what it never does', [
         ['Read on this computer only.', 'Messages are read from the screen as they appear, judged here and forgotten. No message, name or game is sent to Sentinel or anyone else, saved, or logged.'],
         ['Always plain to see.', 'A Sentinel badge shows while chat is watched. In a Roblox game it shows only when you open the Esc menu, so it never covers the game; warnings sit small, beside the chat box.'],
         ['Never in the way.', 'Nothing is read while a game\'s chat is closed. Sentinel never changes Roblox or Discord, never types or clicks in them, and only speaks up when a message is suspicious.']]) }),
     appSwitch({ id: 'text-safety', group: 'chat', label: 'Check my texts', hint: 'If your phone\'s texts show on this computer through Phone Link, Sentinel points out English scam texts (unpaid tolls, parcel fees, "Hi Mum, this is my new number", "your account is locked") right beside the message, while Phone Link is in front.',
-      words: ['sms', 'phone link', 'text messages', 'phone', 'toll', 'parcel'], method: 'setTextSafety', on: (i) => i.textSafety && i.textSafety.enabled, off: (i) => onWindows(i.textSafety && i.textSafety.supported),
-      state: (i) => textSeenText(i.textSafety), down: (i) => Boolean(i.textSafety.enabled && readerDown(i.textSafety, '')),
+      words: ['sms', 'phone link', 'text messages', 'phone', 'toll', 'parcel'], method: 'setTextSafety', hook: 'text-safety', on: (i) => i.textSafety && i.textSafety.enabled, off: (i) => onWindows(i.textSafety && i.textSafety.supported),
+      seen: 'text-seen', state: (i) => textSeenText(i.textSafety), down: (i) => Boolean(i.textSafety.enabled && readerDown(i.textSafety, '')),
       said: (on) => (on ? 'Check my texts is on. Open a conversation in Phone Link and Sentinel checks it.' : 'Check my texts is off.'),
       body: () => facts('What it reads, and what it never does', [
         ['Read on this computer only.', 'The conversation on screen is read as it appears, judged here and forgotten. No text, name or number is sent to Sentinel or anyone else, saved, or logged.'],
@@ -2905,7 +2905,7 @@
         ['English texts for now.', 'Sentinel knows the wording of scam texts in English only, and Phone Link needs to show a left-to-right language.']]) }),
 
     appSwitch({ id: 'exposure-alerts', group: 'alerts', label: 'Exposure alerts', hint: 'A scam page often reaches the threat lists hours or days after it goes up. With this on, Sentinel remembers the sites live scanning found safe for 14 days, and tells you if a list names one of them afterwards, with what to do.',
-      words: ['listed', 'later', 'visited', 'history', 'warning', 'notification'], method: 'setExposureAlerts', on: (i) => i.exposureAlerts, off: (i) => (liveOf(i).supported ? '' : 'Needs Windows, with live scanning.'),
+      words: ['listed', 'later', 'visited', 'history', 'warning', 'notification'], method: 'setExposureAlerts', hook: 'exposure-alerts', on: (i) => i.exposureAlerts, off: (i) => (liveOf(i).supported ? '' : 'Needs Windows, with live scanning.'),
       state: (i) => (i.exposureAlerts && !liveOf(i).enabled ? 'On, but live scanning is off, so no sites are being remembered.' : ''),
       said: (on, r) => (on ? EXPOSURE_ON : r && r.erased === false ? 'Exposure alerts are off. The remembered sites could not be erased just now, so Sentinel will try again each time it starts.' : 'Exposure alerts are off. Every remembered site is erased.'),
       saved: () => markAsked('exposure'),
@@ -2918,7 +2918,7 @@
           ['Private windows are never remembered.', 'Pages on shared sites (a Google Sites page, a Netlify site) are left out, since one bad page there says nothing about the one you saw.']]);
       } }),
     appSwitch({ id: 'week-note', group: 'alerts', label: 'A note about your week', hint: 'Once a week, a Windows notification with last week in one line. Never while a game or video is full screen.',
-      words: ['weekly', 'notification', 'summary', 'recap'], method: 'setWeekRecap', on: (i) => i.weekRecap,
+      words: ['weekly', 'notification', 'summary', 'recap'], method: 'setWeekRecap', hook: 'week-recap', on: (i) => i.weekRecap,
       said: (on) => (on ? 'Done. Your first note comes after this week is over.' : 'No more weekly notes.') }),
 
     { id: 'parent-lock', group: 'lock', kind: 'block', app: true, label: 'Parent lock', hint: 'With a PIN set, switching off any of Sentinel\'s protection, here or in the tray, or quitting Sentinel, needs the PIN. So do putting a quarantined file back, telling the tech-support scam shield that you use a remote-control program yourself, and switching accounts. Turning protection on never does. It does not cover the browser companion or Windows administrator accounts.',
@@ -3075,7 +3075,7 @@
     const rowHTML = (r) => {
       const label = r.kind === 'switch' ? `<label class="set-row__label" id="set-${r.id}-l" for="set-${r.id}-c">${esc(r.label)}</label>` : `<h3 class="set-row__label" id="set-${r.id}-l">${esc(r.label)}</h3>`;
       return `<div class="set-row" id="${r.id}" data-set-row="${r.id}"><div class="set-fold">
-        <div class="set-row__head"><div class="set-row__text">${label}<p class="set-row__hint" id="set-${r.id}-hint">${esc(r.hint)}</p><p class="set-row__state" data-set-state></p></div>
+        <div class="set-row__head"><div class="set-row__text">${label}<p class="set-row__hint" id="set-${r.id}-hint">${esc(r.hint)}</p><p class="set-row__state" data-set-state${r.seen ? ` data-${r.seen} role="status"` : ""}></p></div>
           <div class="set-row__control" data-set-control>${r.app && desktop ? '<span class="skeleton set-skel" aria-hidden="true"></span>' : ''}</div></div>
         <div class="set-row__body" data-set-body></div></div></div>`;
     };
@@ -3112,7 +3112,7 @@
           continue;
         }
         const control = r.kind === 'switch'
-          ? `<input class="switch" type="checkbox" id="set-${r.id}-c" aria-describedby="set-${r.id}-hint" ${!why && r.on(info) ? 'checked' : ''} ${why ? 'disabled' : ''}>`
+          ? `<input class="switch" type="checkbox" id="set-${r.id}-c"${r.hook ? ` data-${r.hook}` : ""} aria-describedby="set-${r.id}-hint" ${!why && r.on(info) ? 'checked' : ''} ${why ? 'disabled' : ''}>`
           : why ? '' : r.control(info);
         const body = why || !r.body ? '' : r.body(info, ctx.data);
         const key = `${control}|${stateHTML}|${body}`;
