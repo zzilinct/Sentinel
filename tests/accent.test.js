@@ -10,12 +10,34 @@ const A = require('../web/assets/js/accent.js');
 const others = A.ACCENTS.filter((a) => a.h !== undefined);
 const stops = (grad) => grad.match(/#[0-9a-f]{6}/g);
 
-test('the rainbow: seven accents, gold in the middle as its yellow, one place to change them', () => {
-  assert.deepStrictEqual(A.ACCENTS.map((a) => a.id), ['ruby', 'amber', 'gold', 'emerald', 'sapphire', 'indigo', 'amethyst']);
+test("the accents: gold in rainbow order with the product's own, gold never derived", () => {
+  assert.deepStrictEqual(A.ACCENTS.map((a) => a.id), ['rose', 'gold', 'teal', 'sapphire', 'amethyst', 'platinum']);
   assert.strictEqual(A.ramp('gold', 'dark'), null, 'gold is never derived: it keeps its hand-tuned values');
-  // Each accent really is its own hue, at least 25 degrees from its neighbours.
-  const hues = others.map((a) => A.oklch(A.ramp(a.id, 'dark')['--gold-400']).h);
+  // Each coloured accent really is its own hue, at least 25 degrees from the others.
+  const hues = others.filter((a) => a.c > 0.3).map((a) => A.oklch(A.ramp(a.id, 'dark')['--gold-400']).h);
   hues.forEach((h, i) => hues.slice(i + 1).forEach((g) => assert.ok(Math.min(Math.abs(h - g), 360 - Math.abs(h - g)) > 25, `${h} and ${g} are too close`)));
+});
+
+test('no accent can be mistaken for a warning: every tone sits 25 degrees or more from red, orange, yellow and green', () => {
+  const status = Object.entries(A.STATUS).map(([k, v]) => [k, A.oklch(v).h]);
+  for (const a of others) for (const scheme of ['dark', 'light']) {
+    const r = A.ramp(a.id, scheme);
+    for (const s of A.STEPS) {
+      const o = A.oklch(r[`--gold-${s}`]);
+      if (o.C < 0.04) continue; // grey has no hue to confuse
+      for (const [k, h] of status) assert.ok(Math.min(Math.abs(o.h - h), 360 - Math.abs(o.h - h)) >= 25, `${a.id} ${scheme} --gold-${s} (${o.h.toFixed(0)}) is near ${k} (${h.toFixed(0)})`);
+    }
+  }
+});
+
+test("dark pages: the coloured accents are deep, not pastel (at least 1.2 times gold's depth)", () => {
+  const gold = A.oklch('#d2ac63').C;
+  for (const a of others.filter((x) => x.c > 0.3)) {
+    const o = A.oklch(A.ramp(a.id, 'dark')['--gold-400']);
+    // Or as much colour as the screen can show at that lightness and hue (a teal this light cannot be deeper).
+    const most = A.oklch(A.hexOf(A.fit(o.L, 1, o.h))).C;
+    assert.ok(o.C >= Math.min(gold * 1.2, most * 0.95), `${a.id} is pastel: ${o.C.toFixed(3)} of ${most.toFixed(3)}`);
+  }
 });
 
 test('dark: text tones on the page and the dark words on the buttons pass 4.5:1', () => {

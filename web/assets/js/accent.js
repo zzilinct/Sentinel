@@ -1,11 +1,12 @@
-/* The colour preview on the home page (#colour): a rainbow of accents a visitor can try on the whole page.
+/* The colour preview on the home page (#colour): the accents a visitor can try on the whole page.
  *
- * Gold keeps its hand-tuned values. Every other colour is derived from them: each gold tone is turned to the new hue
- * and its lightness is solved so its luminance is gold's, so every text and button pair has the contrast gold has,
- * in light and in dark (tests/accent.test.js proves it). Warnings never take the accent: yellow, orange, red and
- * green have their own tokens.
+ * Gold keeps its hand-tuned values. Every other accent takes each gold tone's own OKLCH lightness and depth, turned
+ * to its hue, so a blue is as deep a blue as gold is a gold rather than a pastel matched to gold's brightness. Each
+ * tone that carries words is then lifted (dark pages) or deepened (light pages) only as far as 4.6:1 needs
+ * (tests/accent.test.js). No accent sits near red, orange, yellow or green: those say danger, warning, caution and
+ * safe, keep their own tokens, and never change.
  *
- * A pick opens the new colour as a circle from the swatch. Gold comes back with a different motion, a band of gold
+ * A pick opens the new colour as a circle from the gem. Gold comes back with a different motion, a band of gold
  * light sweeping down, when the section is scrolled away from (once the scrolling stops), instantly under the tab
  * panels when a tab is clicked, and instantly when the browser tab is hidden. Nothing is saved. Nothing runs at
  * rest: one IntersectionObserver, and a scroll listener only while a return to gold is waiting.
@@ -13,16 +14,17 @@
 (function (root) {
   'use strict';
 
-  // The accents, in rainbow order, gold as its yellow. One place, so the product's own table can replace it.
-  // h: OKLCH hue, k: chroma against gold's (jewel tones carry a little more colour than gold).
+  // The accents, the product's own (web/assets/js/look.js on work/e2e-c-design: same ids, hues and depth, so that
+  // table replaces this one at merge), in rainbow order with gold as the yellow. h: OKLCH hue; c: depth against gold's.
+  // dark: each one's own tuning on dark pages, where gold's depth alone reads as pastel in a cool hue: c, more depth,
+  // and l, a lower lightness (words are then lifted back only as far as 4.6:1 needs).
   const ACCENTS = [
-    { id: 'ruby', name: 'Ruby', h: 12, k: 1.35 },
-    { id: 'amber', name: 'Amber', h: 52, k: 1.25 },
+    { id: 'rose', name: 'Rose', h: 354, c: 0.95, dark: { c: 1.55, l: -0.05 } },
     { id: 'gold', name: 'Gold' },
-    { id: 'emerald', name: 'Emerald', h: 158, k: 1.2 },
-    { id: 'sapphire', name: 'Sapphire', h: 245, k: 1.3 },
-    { id: 'indigo', name: 'Indigo', h: 275, k: 1.4 },
-    { id: 'amethyst', name: 'Amethyst', h: 312, k: 1.35 }
+    { id: 'teal', name: 'Teal', h: 200, c: 0.85, dark: { c: 1.65, l: -0.06 } },
+    { id: 'sapphire', name: 'Sapphire', h: 262, c: 1.05, dark: { c: 1.75, l: -0.07 } },
+    { id: 'amethyst', name: 'Amethyst', h: 308, c: 1, dark: { c: 1.7, l: -0.06 } },
+    { id: 'platinum', name: 'Platinum', h: 255, c: 0.12, dark: { c: 0.2, l: 0 } }
   ];
 
   // Gold as the marketing pages draw it (sentinel.css under lux.css and hover.css): dark, then light.
@@ -42,6 +44,11 @@
       glow: '0 14px 30px -14px', glowA: 0.6
     }
   };
+  // What words in the accent sit on (the pages' grounds), and the words that sit on the accent's fills.
+  const GROUND = { dark: ['#111215', '#15120e', '#1e1a14', '#262019'], light: ['#efece6', '#efe8da', '#f4eee3', '#f5f2ec'] };
+  const INK = { dark: '#16130b', light: '#ffffff', button: '#1a1206' };
+  // The hues that carry meaning (sentinel.css, dark): no accent may sit within 25 degrees of one.
+  const STATUS = { red: '#e5484d', orange: '#f08a24', yellow: '#f5c542', green: '#4cb782' };
   const STEPS = [50, 200, 300, 400, 500, 600];
 
   /* ------------------------------------------------------------- colour */
@@ -80,21 +87,21 @@
     for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (inGamut(linear(L, mid, h))) lo = mid; else hi = mid; }
     return linear(L, lo, h);
   }
-  const Y = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-  const hexOf = (c) => '#' + c.map((v) => Math.round(Math.min(1, Math.max(0, gam(v))) * 255).toString(16).padStart(2, '0')).join('');
+    const hexOf = (c) => '#' + c.map((v) => Math.round(Math.min(1, Math.max(0, gam(v))) * 255).toString(16).padStart(2, '0')).join('');
 
-  const GOLD_H = oklch(GOLD.dark[400]).h;
-  // The brightest a light-page text tone may be: 4.6:1 against the darkest paper it sits on (lux.css --bg).
-  const LIGHT_CAP = (luminance(rgbOf('#efe8da')) + 0.05) / 4.6 - 0.05;
-  // One gold tone in another hue: the same luminance (or less, up to cap), the hue turned, as much colour as fits.
-  function tone(hex, accent, cap = 1) {
+  // One gold tone at the accent's hue: gold's lightness, its depth times c, as much as fits the screen. `need` lists
+  // what it must read against at 4.6:1; dir is the way lightness moves until it does (+1 lighter, -1 deeper).
+  function tone(hex, a, need = [], dir = 1, t = { c: a.c, l: 0 }) {
     const g = oklch(hex);
-    const target = Math.min(cap, luminance(rgbOf(hex)));
-    const h = (accent.h + g.h - GOLD_H + 360) % 360;
-    const C = g.C * accent.k;
-    let lo = 0, hi = 1;
-    for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (Y(fit(mid, C, h)) < target) lo = mid; else hi = mid; }
-    return hexOf(fit((lo + hi) / 2, C, h));
+    const h = a.h;
+    const C = g.C * t.c;
+    let L = g.L + t.l;
+    let out = hexOf(fit(L, C, h));
+    for (let n = 0; n < 120 && need.some((x) => contrast(out, x) < 4.6); n++) {
+      L = Math.min(1, Math.max(0, L + dir * 0.005));
+      out = hexOf(fit(L, C, h));
+    }
+    return out;
   }
 
   // Every token the page draws gold with, for one accent and one scheme.
@@ -102,22 +109,24 @@
     const a = ACCENTS.find((x) => x.id === id);
     const g = GOLD[scheme];
     if (!a || a.h === undefined) return null;
-    // On paper, gold's text tones and white-on-gold fills sit just under 4.5:1 (4.39 and 4.44); the derived ones are
-    // held a little darker so they pass.
-    const cap = scheme === 'light' ? LIGHT_CAP : 1;
-    const t = (hex) => tone(hex, a, cap);
+    const dark = scheme === 'dark';
+    const tune = dark ? a.dark : { c: a.c, l: 0 };
+    const words = (hex) => tone(hex, a, GROUND[scheme], dark ? 1 : -1, tune);
     const out = {};
-    STEPS.forEach((s) => { out[`--gold-${s}`] = s === 600 ? tone(g[s], a) : t(g[s]); });
+    STEPS.forEach((s) => { out[`--gold-${s}`] = s === 600 ? tone(g[s], a, [], 1, tune) : words(g[s]); });
     const rgb = rgbOf(out['--gold-400']).join(' ');
-    const lg = (list, stops) => list.map(t).map((c, i) => `${c} ${stops[i]}%`).join(', ');
+    const list = (hexes, stops, f) => hexes.map(f).map((c, i) => `${c} ${stops[i]}%`).join(', ');
+    // The gold fills carry dark words on dark pages and white words on paper; the lux button carries dark words on both.
+    const fill = (hex) => tone(hex, a, [INK[scheme]], dark ? 1 : -1, tune);
+    const button = (hex) => tone(hex, a, [INK.button], 1, tune);
+    const free = (hex) => tone(hex, a, [], 1, tune);
     out['--gold-rgb'] = rgb;
-    out['--gold-grad'] = `linear-gradient(180deg, ${lg(g.grad, [0, scheme === 'dark' ? 48 : 50, 100])})`;
-    out['--gold-hover'] = `linear-gradient(180deg, ${lg(g.hover, [0, scheme === 'dark' ? 48 : 50, 100])})`;
-    const free = (list, stops) => list.map((hex) => tone(hex, a)).map((c, i) => `${c} ${stops[i]}%`).join(', ');
-    out['--btn-grad'] = `linear-gradient(176deg, ${free(g.btn, [0, 48, 100])})`;
-    out['--btn-grad-hover'] = `linear-gradient(176deg, ${free(g.btnHover, [0, 48, 100])})`;
-    out['--gilt'] = `linear-gradient(176deg, ${free(g.gilt, [0, 50, 100])})`;
-    out['--metal-stops'] = free(g.metal, g.at);
+    out['--gold-grad'] = `linear-gradient(180deg, ${list(g.grad, [0, dark ? 48 : 50, 100], fill)})`;
+    out['--gold-hover'] = `linear-gradient(180deg, ${list(g.hover, [0, dark ? 48 : 50, 100], fill)})`;
+    out['--btn-grad'] = `linear-gradient(176deg, ${list(g.btn, [0, 48, 100], button)})`;
+    out['--btn-grad-hover'] = `linear-gradient(176deg, ${list(g.btnHover, [0, 48, 100], button)})`;
+    out['--gilt'] = `linear-gradient(176deg, ${list(g.gilt, [0, 50, 100], free)})`;
+    out['--metal-stops'] = list(g.metal, g.at, free);
     out['--metal'] = `linear-gradient(176deg, ${out['--metal-stops']})`;
     out['--line-gold'] = `rgb(${rgb} / ${g.line})`;
     out['--sketch-gold'] = `rgb(${rgb} / ${g.sketch})`;
@@ -135,7 +144,7 @@
       + `:root[data-accent][data-theme="light"]{${light}}`;
   }
 
-  const api = { ACCENTS, GOLD, STEPS, ramp, css, tone, contrast, luminance, oklch };
+  const api = { ACCENTS, GOLD, GROUND, STATUS, STEPS, ramp, css, tone, contrast, luminance, oklch, fit, hexOf };
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
   root.SentinelAccent = api;
 
@@ -173,9 +182,9 @@
   function go(id, how, from) {
     if (id === current) return;
     // A second click finishes the first change at once, so two never fight.
-    if (vt) vt.skipTransition();
-    if (how === 'instant' || still() || !doc.startViewTransition) { apply(id); return; }
+    if (vt) { vt.skipTransition(); vt = null; }
     html.classList.remove('vt-pick', 'vt-gold');
+    if (how === 'instant' || still() || !doc.startViewTransition) { apply(id); return; }
     if (from) {
       const b = from.getBoundingClientRect();
       const x = b.left + b.width / 2, y = b.top + b.height / 2;
@@ -196,8 +205,11 @@
     });
   }
 
-  group.addEventListener('click', (e) => {
-    const b = e.target.closest('.swatch');
+  // While a change runs, the browser shows pictures over the page and a click lands on <html>, not on the gem under
+  // it, so the gem is found by where the click fell. The second click then finishes the first and wins.
+  doc.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.swatch')
+      || (vt && swatches.find((s) => { const r = s.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; }));
     if (b) go(b.dataset.accent, 'pick', b);
   });
   group.addEventListener('keydown', (e) => {

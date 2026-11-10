@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { STATIC, sleep, result, serveFiles, launch, evalIn, openPage, goto, shot, pressKey, until } = require('./_shared');
 
-const IDS = ['ruby', 'amber', 'gold', 'emerald', 'sapphire', 'indigo', 'amethyst'];
+const IDS = ['rose', 'gold', 'teal', 'sapphire', 'amethyst', 'platinum'];
 // Read the tokens the page is really drawn with, and the contrast of the accent's text tone on the page.
 const READ = `(() => {
   const cs = getComputedStyle(document.documentElement);
@@ -33,13 +33,19 @@ async function checkColour() {
   const files = await serveFiles({ '/': STATIC });
   const { browser, close } = await launch();
   const at = async (s, sel) => evalIn(browser, s, `(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
+  // A real click, as a finger or mouse makes it; the page is first moved (as a person scrolls) if it is out of sight.
   const click = async (s, sel) => {
-    const [x, y] = await at(s, sel);
+    let [x, y] = await at(s, sel);
+    const h = await evalIn(browser, s, 'innerHeight');
+    if (y < 80 || y > h - 40) {
+      await evalIn(browser, s, `Site.scrollTo(scrollY + ${y} - innerHeight * 0.7); new Promise((r) => setTimeout(r, 400))`);
+      [x, y] = await at(s, sel);
+    }
     for (const type of ['mousePressed', 'mouseReleased']) await browser.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }, s);
   };
   const gem = (id) => `.swatch[data-accent="${id}"]`;
   // To the section, exactly, through the page's own scroller (Lenis when it is there).
-  const toColour = (s) => evalIn(browser, s, `(() => { const t = document.getElementById('colour').getBoundingClientRect().top + scrollY - 90; Site.scrollTo(t); return new Promise((r) => setTimeout(r, 400)); })()`);
+  const toColour = (s) => evalIn(browser, s, `(() => { const t = document.querySelector(innerWidth <= 560 ? '.colour__view' : '#colour').getBoundingClientRect().top + scrollY - (innerWidth <= 560 ? 110 : 90); Site.scrollTo(t); return new Promise((r) => setTimeout(r, 400)); })()`);
   try {
     const open = async (width, height, mobile, scheme, motion) => {
       const { targetId, sessionId: s } = await openPage(browser);
@@ -48,7 +54,7 @@ async function checkColour() {
       await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: motion }] }, s);
       // Every view transition the page starts, counted.
       await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__vts = 0; if (document.startViewTransition) { const st = document.startViewTransition.bind(document); document.startViewTransition = (f) => { window.__vts++; return st(f); }; }` }, s);
-      await goto(browser, s, `${files.base}/index.html`, "document.querySelectorAll('.colour__pick .swatch').length === 7");
+      await goto(browser, s, `${files.base}/index.html`, "document.querySelectorAll('.colour__pick .swatch').length === 6");
       for (let i = 0; i < 60 && !(await evalIn(browser, s, "getComputedStyle(document.querySelector('.hero .hero__cta')).opacity === '1'")); i++) await sleep(250);
       await sleep(1200);
       await toColour(s);
@@ -61,11 +67,11 @@ async function checkColour() {
         const tag = `colour: ${label}, ${scheme}`;
         const gold = await evalIn(browser, s, READ);
         const row = await evalIn(browser, s, `(() => { const g = [...document.querySelectorAll('.colour__pick .swatch__gem')].map((e) => e.getBoundingClientRect());
-          return { tops: new Set(g.map((r) => Math.round(r.top))).size, left: Math.min(...g.map((r) => r.left)), right: Math.max(...g.map((r) => r.right)), sideways: document.documentElement.scrollWidth - innerWidth,
+          return { tops: new Set(g.map((r) => Math.round(r.top))).size, smallest: Math.min(...g.map((r) => r.width)), below: Math.max(...g.map((r) => r.bottom)) - innerHeight, left: Math.min(...g.map((r) => r.left)), right: Math.max(...g.map((r) => r.right)), sideways: document.documentElement.scrollWidth - innerWidth,
             radios: [...document.querySelectorAll('.colour__pick [role=radio]')].map((b) => b.getAttribute('aria-checked') + ':' + (b.textContent.trim() || '?')) }; })()`);
         await sleep(1500);
-        result(`${tag}: seven named gems in one row, gold chosen, nothing scrolls sideways`, row.tops === 1 && row.left >= 0 && row.right <= width && row.sideways <= 0
-          && row.radios.length === 7 && row.radios.filter((r) => r.startsWith('true')).join() === 'true:Gold' && gold.accent === 'gold', row);
+        result(`${tag}: six named gems in one row, each a real size, gold chosen, nothing scrolls sideways`, row.tops === 1 && row.smallest >= 36 && row.below <= 0 && row.left >= 0 && row.right <= width && row.sideways <= 0
+          && row.radios.length === 6 && row.radios.filter((r) => r.startsWith('true')).join() === 'true:Gold' && gold.accent === 'gold', row);
         await shot(browser, s, `colour-${label}-${scheme}-gold`);
 
         // Every colour, clicked: the page's gold tokens change, the warnings do not, and the text still reads.
@@ -89,18 +95,18 @@ async function checkColour() {
         if (scheme === 'dark' || mobile) await shot(browser, s, `colour-${label}-${scheme}-opening`);
         result(`${tag}: the pick opens as a circle from the gem`, /circle\(/.test(String(circle)), { circle });
         // A second click while it runs: the first finishes at once, the second wins, nothing is left over.
-        await click(s, gem('ruby'));
+        await click(s, gem('rose'));
         await sleep(1100);
         const twice = await evalIn(browser, s, READ);
-        result(`${tag}: a second click mid-change ends on the second colour, with nothing left running`, twice.accent === 'ruby' && twice.vt === ''
+        result(`${tag}: a second click mid-change ends on the second colour, with nothing left running`, twice.accent === 'rose' && twice.vt === ''
           && (await evalIn(browser, s, "document.getAnimations().filter((x) => x.effect && /view-transition/.test(x.effect.pseudoElement || '')).length")) === 0, twice);
 
         // Arrow keys move the choice, as in any group of radio buttons.
-        await evalIn(browser, s, `document.querySelector('${gem('ruby')}').focus(); true`);
+        await evalIn(browser, s, `document.querySelector('${gem('rose')}').focus(); true`);
         await pressKey(browser, s, 'ArrowRight');
         await sleep(1000);
         const key = await evalIn(browser, s, `[document.documentElement.dataset.accent, document.activeElement.dataset.accent]`);
-        result(`${tag}: the right arrow moves to the next colour, and focus with it`, key[0] === 'amber' && key[1] === 'amber', key);
+        result(`${tag}: the right arrow moves to the next colour, and focus with it`, key[0] === 'gold' && key[1] === 'gold', key);
 
         // Scrolled away: nothing while the page moves, then the gold band sweeps down. Photographed half way.
         await evalIn(browser, s, `window.__band = null; new MutationObserver(() => { if (document.documentElement.classList.contains('vt-gold')) window.__band = window.__band || 'seen'; }).observe(document.documentElement, { attributes: true }); Site.scrollTo(0); true`);
@@ -116,7 +122,7 @@ async function checkColour() {
         // A tab clicked: gold comes back under the panels, with no band of its own.
         if (!mobile) {
           await toColour(s);
-          await click(s, gem('emerald'));
+          await click(s, gem('teal'));
           await sleep(1000);
           await evalIn(browser, s, 'window.__band = null; true');
           await click(s, '.nav__links a[href$="#how"]');
@@ -127,7 +133,7 @@ async function checkColour() {
 
         // The browser tab hidden: gold, at once.
         await toColour(s);
-        await click(s, gem('indigo'));
+        await click(s, gem('amethyst'));
         await sleep(1000);
         const hidden = await evalIn(browser, s, `(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange'));
           const r = [document.documentElement.dataset.accent || 'gold', document.documentElement.className.includes('vt-')]; delete document.hidden; return r; })()`);

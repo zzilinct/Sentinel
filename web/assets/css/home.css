@@ -329,10 +329,10 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 @media (prefers-reduced-motion: reduce) { .galaxy__tag, .galaxy__caption, .galaxy__core, .galaxy__core svg { transition: none; } }
 
 /* ------------------------------------------------- colour preview (accent.js) */
-/* Seven gems in rainbow order, gold as the yellow, beside a small view of Sentinel drawn in the chosen colour. */
+/* Six gems in rainbow order, gold as the yellow, beside a small view of Sentinel drawn in the chosen colour. */
 .colour { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); gap: 72px; align-items: center; }
 .colour .section__head { margin-bottom: 0; }
-.colour__pick { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; max-width: 620px; margin: 40px 0 30px; }
+.colour__pick { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; max-width: 540px; margin: 40px 0 30px; }
 .swatch { display: grid; justify-items: center; gap: 12px; min-width: 0; padding: 8px 0; border: 0; background: none; color: var(--muted); font: 500 var(--t-note)/1 var(--sans); cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .swatch__gem { width: min(46px, 100%); aspect-ratio: 1; border-radius: 50%;
   background: radial-gradient(circle at 34% 28%, rgb(255 255 255 / .6), transparent 38%), linear-gradient(160deg, var(--sw-hi), var(--sw) 46%, var(--sw-lo));
@@ -361,7 +361,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 /* On a phone the view comes first, the gems under it near the thumb, so the change is seen where it is made; the
    gems fill one row and the chosen name is read in the view. */
 @media (max-width: 560px) {
-  .colour { display: flex; flex-direction: column; gap: 0; }
+  .colour { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
   .colour__copy { display: contents; }
   .colour__view { order: 1; margin-top: 32px; }
   .colour__pick { order: 2; gap: 4px; margin: 28px 0 20px; }
