@@ -27,8 +27,12 @@ const kinds = require('./kinds');
 const mySites = require('./mysites');
 const { scanFile, MAX_FILE_BYTES } = require('./filescan');
 const { analyzeEmail, markHost } = require('./email');
-const { THREATS, LABELS, FILE_LABELS, SEVERITY, score, evidenceFrom, trustedChecks, tallyOf, reasonsOf } = require('./verdict');
-const { cluesOf, withPlain, researchGaps, listGaps, noResearchHere, unreadableFile, coverage } = require('./plain');
+const { THREATS, LABELS, FILE_LABELS, SEVERITY, score, evidenceFrom, trustedChecks, tallyOf, reasonsOf: checkReasons } = require('./verdict');
+const { plainFor, cluesOf, withPlain, researchGaps, listGaps, noResearchHere, unreadableFile, coverage } = require('./plain');
+
+// Each reason also in the plain words a person reads (plain.js), for the tip beside a mark; `text` stays the detail.
+// Here, not in verdict.js, so the website's in-browser check does not carry every sentence.
+const reasonsOf = (checks) => checkReasons(checks).map((r) => ({ ...r, plain: plainFor({ id: r.id, detail: r.text }) || r.text }));
 
 const q = {
   override: db.prepare('SELECT action FROM overrides WHERE user_id = ? AND (host = ? OR host = ?)'),

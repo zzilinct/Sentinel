@@ -35,6 +35,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
+const { reasonLine } = require('../shared/masks');
 
 const RECHECK_MS = 10 * 60 * 1000;     // same host warned again after this long
 const SETTLE_MS = 350;                 // a page must stay in front this long before it is checked (long enough to skip pages flicked past)
@@ -1411,8 +1412,8 @@ async function checkLinks(links, page, forUrl) {
       const v = byUrl && byUrl[u];
       if (!v) continue;
       const badge = (v.overall && v.overall.badge) || null;
-      const first = v.reasons && v.reasons[0];
-      verdicts.set(u, { at: Date.now(), fast, mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      const kind = worstKind(v);
+      verdicts.set(u, { at: Date.now(), fast, mark: { badge, kind, label: v.overall ? v.overall.label : 'Checked', reason: badge ? reasonLine(v.reasons, kind) : '' } });
       if (final) count(page.private, badge);
     }
   };
@@ -1548,8 +1549,8 @@ async function onMail(msg) {
       const v = item.verdict;
       if (!v || !item.key) continue;
       const badge = (v.overall && v.overall.badge) || null;
-      const first = v.reasons && v.reasons[0];
-      verdicts.set(item.key, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      const kind = worstKind(v);
+      verdicts.set(item.key, { at: Date.now(), mark: { badge, kind, label: v.overall ? v.overall.label : 'Checked', reason: badge ? reasonLine(v.reasons, kind) : '' } });
       if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
       count(isPrivate, badge);
     }

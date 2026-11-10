@@ -135,18 +135,43 @@
 
   /* ----------------------------------------------------------- badges */
 
-  function badgeFor(threat, info) {
+  function badgeFor(threat, verdict) {
+    const info = verdict.threats[threat];
     const el = document.createElement('span');
     el.className = `sentinel-mask sentinel-mask--${info.badge}`;
     el.dataset.threat = threat;
     el.setAttribute('role', 'button');
     el.setAttribute('tabindex', '0');
-    // The severity in words as well as in the seal's shape and colour.
-    const name = `Sentinel: ${Masks.SEVERITY[info.badge] || 'Caution'}, ${info.label}`;
-    el.setAttribute('aria-label', name);
-    el.title = name;
+    // The severity in words as well as in the seal's shape and colour, and why: the same words as the tip.
+    el.setAttribute('aria-label', `Sentinel: ${Masks.SEVERITY[info.badge] || 'Caution'}, ${info.label}. ${Masks.reasonLine(verdict.reasons, threat)}`);
     el.innerHTML = Masks.mark(threat, info.badge);
+    tips.set(el, [verdict, threat]);
     return el;
+  }
+
+  // A mark explains itself in the companion's own tip (hover.js): after a short rest of the pointer, so crossing marks
+  // does not flash it, and at once for the keyboard's focus. Leaving, blur and Escape close it; a click opens the card.
+  const tips = new WeakMap();   // mark -> [verdict, threat]
+  let tipTimer = null;
+  const markOf = (node) => (node && node.closest ? node.closest('.sentinel-mask') : null);
+  function tipShow(mark, wait) {
+    clearTimeout(tipTimer);
+    const at = tips.get(mark);
+    const tip = window.__sentinelTip;
+    if (!at || !tip) return;
+    tipTimer = setTimeout(() => { if (mark.isConnected) tip.paint(mark, tip.lineFor(at[0], at[1]), true); }, wait);
+  }
+  function tipHide() {
+    clearTimeout(tipTimer);
+    if (window.__sentinelTip) window.__sentinelTip.hide();
+  }
+  // Delegated, and only once the companion is on: nothing per mark, nothing at rest.
+  function listenForTips() {
+    document.addEventListener('pointerover', (ev) => { const m = markOf(ev.target); if (m) tipShow(m, 250); });
+    document.addEventListener('pointerout', (ev) => { const m = markOf(ev.target); if (m && !m.contains(ev.relatedTarget)) tipHide(); });
+    document.addEventListener('focusin', (ev) => { const m = markOf(ev.target); if (m) tipShow(m, 0); });
+    document.addEventListener('focusout', (ev) => { if (markOf(ev.target)) tipHide(); });
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') tipHide(); });
   }
 
   // Where a result's marks go: its heading, or on Brave (no heading) the title line inside the link.
@@ -167,7 +192,7 @@
     group.className = 'sentinel-masks';
     group.dataset.researched = verdict.researched ? '1' : '0';
     if (shown.length) {
-      for (const t of shown) group.appendChild(badgeFor(t, verdict.threats[t]));
+      for (const t of shown) group.appendChild(badgeFor(t, verdict));
     } else {
       const ok = document.createElement('span');
       ok.className = 'sentinel-mask sentinel-mask--clear';
@@ -175,12 +200,12 @@
       ok.setAttribute('tabindex', '0');
       const label = verdict.knowledge && verdict.knowledge.trusted ? 'a verified site' : 'no warning signs found';
       ok.setAttribute('aria-label', `Sentinel: ${label}`);
-      ok.title = `Sentinel: ${label}`;
       ok.innerHTML = Masks.tick();
+      tips.set(ok, [verdict, null]);
       group.classList.add('sentinel-masks--clear');
       group.appendChild(ok);
     }
-    const open = (ev) => { ev.preventDefault(); ev.stopPropagation(); showPopover(group, verdict); };
+    const open = (ev) => { ev.preventDefault(); ev.stopPropagation(); tipHide(); showPopover(group, verdict); };
     group.addEventListener('click', open);
     group.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') open(ev); });
     // Brave cuts its title off after one line, so marks put after a long one would be hidden: they go in front.
@@ -472,6 +497,7 @@
     settings = { ...DEFAULTS, ...(stored || {}) };
     if (!settings.enabled) return;
     schedule(0);
+    listenForTips();
     new MutationObserver(() => schedule()).observe(document.body, { childList: true, subtree: true });
   });
   ext.storage.onChanged.addListener((changes, area) => {
