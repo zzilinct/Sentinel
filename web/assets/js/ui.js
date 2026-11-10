@@ -42,6 +42,14 @@ window.UI = (() => {
     throw new ApiError('Could not reach Sentinel. Check your connection and try again.', 0);
   }
 
+  // Whether the last call reached Sentinel. The app shows one slim line while it did not (app.js netBar).
+  let unreachable = false;
+  function reachable(ok) {
+    if (unreachable === !ok) return;
+    unreachable = !ok;
+    document.dispatchEvent(new CustomEvent('sentinel:reach', { detail: { ok } }));
+  }
+
   async function api(path, { method = 'GET', body, raw, headers = {}, signal, onStage } = {}) {
     // Nothing waits forever: a call nobody cancels gives up after 75 s (past the 60 s an AI reply may take) with a plain
     // message instead of a spinner that never stops.
@@ -55,8 +63,13 @@ window.UI = (() => {
     } catch (err) {
       if (err.name === 'AbortError') throw err;
       if (err.name === 'TimeoutError') throw new ApiError('Sentinel is taking too long to answer. Try again in a moment.', 0);
-      throw new ApiError('Could not reach Sentinel. Check your connection and try again.', 0);
+      // fetch only throws this way when nothing answered at all: that, not navigator.onLine, is what "offline" means here.
+      reachable(false);
+      const down = new ApiError('Could not reach Sentinel. Check your connection and try again.', 0);
+      down.offline = true;
+      throw down;
     }
+    reachable(true);
     if (onStage && res.ok && /ndjson/.test(res.headers.get('Content-Type') || '')) return readStages(res, onStage);
     let data = null;
     try { data = await res.json(); } catch { /* empty */ }
@@ -119,6 +132,35 @@ window.UI = (() => {
     toastHost.appendChild(el);
     requestAnimationFrame(() => el.classList.add('is-on'));
     setTimeout(() => { el.classList.remove('is-on'); setTimeout(() => el.remove(), 300); }, ms);
+  }
+
+  /* ---------------------------------------------------------- states */
+
+  /*
+   * Every place with nothing to show says which kind of nothing, the same way everywhere: the onyx mask, still, with a
+   * seal on its cheek shaped so it reads without colour, then a title, one sentence and at most one button.
+   *   waiting      nothing has happened yet               three dots
+   *   clear        something was read and nothing was there: good news that was earned   a tick
+   *   nomatch      only a search or a filter left nothing  a glass
+   *   unavailable  Sentinel could not look here            a bar
+   *   error        this could not be loaded                an exclamation mark
+   *   offline      nothing answered at all                 a broken line
+   * Small, for a list inside a panel: the seal alone beside the words. It never moves, and never uses a verdict's
+   * red, orange or yellow. `text`, `title` and `action` are markup: the caller escapes whatever came from outside.
+   */
+  const STATE_SEALS = {
+    waiting: '<circle cx="7.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="16.5" cy="12" r="1.4"/>',
+    clear: '<path d="M7 12.5l3.5 3.5L17 9"/>',
+    nomatch: '<circle cx="11" cy="11" r="4.5"/><path d="M14.5 14.5 18 18"/>',
+    unavailable: '<path d="M7.5 12h9"/>',
+    error: '<path d="M12 7v6M12 16.6v.4"/>',
+    offline: '<path d="M6 12h3.5M14.5 12H18"/>'
+  };
+  function stateBlock(kind, text, { title = '', action = '', small = false } = {}) {
+    const role = kind === 'error' ? ' role="alert"' : kind === 'offline' ? ' role="status"' : '';
+    const mask = small ? '' : '<img src="/assets/img/masks/onyx-480.webp" width="480" height="546" alt="" decoding="async">';
+    return `<div class="empty empty--${kind}${small ? ' empty--small' : ''}" data-state="${kind}"${role}><span class="empty__mark" aria-hidden="true">${mask}<i class="empty__seal"><svg viewBox="0 0 24 24" focusable="false">${STATE_SEALS[kind]}</svg></i></span>
+      <div class="empty__body">${title ? `<p class="empty__title">${title}</p>` : ''}<p>${text}</p>${action}</div></div>`;
   }
 
   /* ----------------------------------------------------------- busy */
@@ -355,6 +397,14 @@ window.UI = (() => {
   function wireVerdict(root, v) {
     wireChecklist(root);
     wireCopy(root, v);
+    // Simple view (boot.js) keeps the answer and what to do; this brings the clues, the checklist and the actions back
+    // for this one result.
+    const details = $('[data-details]', root);
+    if (details) details.addEventListener('click', () => {
+      const open = details.closest('[data-result]').classList.toggle('is-full');
+      details.setAttribute('aria-expanded', String(open));
+      details.firstChild.textContent = open ? 'Hide details' : 'Show details';
+    });
   }
 
   /** The full result view used by link, threat, file and email scans. */
@@ -512,6 +562,7 @@ window.UI = (() => {
       </header>
       ${realSite(v)}
       ${nextSteps(head, v)}
+      <button type="button" class="result__details" data-details aria-expanded="false"><span>Show details</span><i aria-hidden="true"></i></button>
       ${clues.length ? `<div class="reasons"><h3>${cluesTitle}</h3><ul>${clues.map((c) => `<li data-clue="${esc(c.clue)}"><span class="dot" style="--c:${v.threats[c.threat] && v.threats[c.threat].badge ? color(v.threats[c.threat].badge) : 'var(--muted)'}"></span>${esc(c.text)}</li>`).join('')}</ul></div>` : ''}
       <details class="result__more" data-more>
         <summary><span>See everything Sentinel checked</span><i></i></summary>
@@ -548,5 +599,5 @@ window.UI = (() => {
     if (held) form.requestSubmit();
   }
 
-  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, busy, formReady, verdict, resultGlyph, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
+  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, stateBlock, busy, formReady, verdict, resultGlyph, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
 })();

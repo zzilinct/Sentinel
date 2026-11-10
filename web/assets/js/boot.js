@@ -98,6 +98,22 @@ document.documentElement.classList.add('js');
     document.dispatchEvent(new CustomEvent('sentinel:theme'));
   });
 })();
+
+/*
+ * Simple view: fewer pages, fewer words, the answer first in bigger type (app.css, html[data-simple]). Chosen in
+ * Settings, remembered on this device and set here before the page is painted, like the theme. With storage blocked
+ * it holds for this page only, and the page reads the attribute, so it never says one thing and shows another.
+ */
+(function () {
+  const KEY = 'sentinel:simple';
+  const root = document.documentElement;
+  const apply = (on) => { if (on) root.dataset.simple = ''; else delete root.dataset.simple; };
+  try { apply(localStorage.getItem(KEY) === '1'); } catch { /* full view */ }
+  window.SentinelSimple = {
+    get: () => root.dataset.simple !== undefined,
+    set: (on) => { try { if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY); } catch { /* this page only */ } apply(on); }
+  };
+})();
 if (!('IntersectionObserver' in window)) document.documentElement.classList.add('no-io');
 
 /*
