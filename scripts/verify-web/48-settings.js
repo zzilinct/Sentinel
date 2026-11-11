@@ -141,7 +141,7 @@ async function checkSettings() {
       fits: [...r.querySelectorAll('[data-seg]')].every((b) => b.scrollWidth <= b.clientWidth + 1 && b.getBoundingClientRect().right <= innerWidth),
       toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | ') }; })()`;
     const press = (row, word) => evalIn(browser, s, `[...document.querySelectorAll('#${row} [data-seg]')].find((b) => b.textContent === ${JSON.stringify(word)}).click()`);
-    const first = { marks: await evalIn(browser, s, level('marks-beside-links')), warnings: await evalIn(browser, s, level('pop-up-warnings')) };
+    const first = { marks: await evalIn(browser, s, level('marks-beside-links')), warnings: await evalIn(browser, s, level('warn-level')) };
     result('settings: marks beside links and pop-up warnings start where they always were: every link, always',
       first.marks.pressed.join() === 'Every link' && first.warnings.pressed.join() === 'Always' && first.marks.buttons.join() === 'Every link,Risky links,Serious only' && first.warnings.buttons.join() === 'Always,Danger only,Never', first);
     await press('marks-beside-links', 'Serious only');
@@ -150,11 +150,11 @@ async function checkSettings() {
     result('settings: "Serious only" is saved through the app and says the island still counts every link',
       marksSet.pressed.join() === 'Serious only' && /island still counts every link/.test(marksSet.state) && /Only warning and danger links get a mark/.test(marksSet.toast)
       && (await evalIn(browser, s, "window.__calls.some(([n, v]) => n === 'setMarksLevel' && v === 'danger')")), marksSet);
-    await press('pop-up-warnings', 'Danger only');
+    await press('warn-level', 'Danger only');
     await sleep(900);
-    await press('pop-up-warnings', 'Never');
+    await press('warn-level', 'Never');
     await sleep(900);
-    const quietRefused = await evalIn(browser, s, level('pop-up-warnings'));
+    const quietRefused = await evalIn(browser, s, level('warn-level'));
     result('settings: "Never" refused by the parent lock stays on "Danger only" and says why',
       quietRefused.pressed.join() === 'Danger only' && quietRefused.toast.includes('Parent lock is on') && /without a notification or a card/.test(quietRefused.state), quietRefused);
     const fit = [];
@@ -164,7 +164,7 @@ async function checkSettings() {
         await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
         await goto(browser, s, `${server.base}/app/settings`);
         await until(browser, s, ready, 20000);
-        for (const [row, name] of [['marks-beside-links', 'marks'], ['pop-up-warnings', 'warnings']]) {
+        for (const [row, name] of [['marks-beside-links', 'marks'], ['warn-level', 'warnings']]) {
           await evalIn(browser, s, `document.getElementById(${JSON.stringify(row)}).scrollIntoView({ block: 'center' })`);
           await sleep(300);
           const r = await evalIn(browser, s, level(row));

@@ -2921,7 +2921,7 @@
         ['Never in the way.', 'Only texts you received are checked. Sentinel never types, clicks or replies in Phone Link.'],
         ['English texts for now.', 'Sentinel knows the wording of scam texts in English only, and Phone Link needs to show a left-to-right language.']]) }),
 
-    levelRow({ id: 'pop-up-warnings', group: 'alerts', label: 'Pop-up warnings', method: 'setWarningsLevel', key: 'warningsLevel',
+    levelRow({ id: 'warn-level', group: 'alerts', label: 'Pop-up warnings', method: 'setWarningsLevel', key: 'warningsLevel',
       hint: 'When a page you open looks like a warning or a danger, Sentinel tells you with a notification and a small card in the corner. Whatever you choose, the page is still marked in the corner, and Sentinel still asks before you pay with gift cards or crypto, or after you typed a password on it.',
       words: ['notifications', 'notification', 'alerts', 'loud', 'quiet', 'popup', 'pop up', 'card', 'interrupt', 'warn'],
       options: [['all', 'Always'], ['danger', 'Danger only'], ['quiet', 'Never']],
