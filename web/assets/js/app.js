@@ -291,14 +291,17 @@
    */
   const waitingForNet = new Map();
   let retryPressed = false;
-  function failed(slot, err, retry, { small = false, what = 'This' } = {}) {
+  // `quiet`, for something optional (a card or an offer on the Overview): one grey line, `what` as its sentence.
+  function failed(slot, err, retry, { small = false, quiet = false, what = 'This' } = {}) {
     if (!slot || !slot.isConnected) return;
     const off = Boolean(err && err.offline);
-    const text = off ? 'Sentinel cannot be reached. Check your internet connection.' : esc((err && err.message) || 'Sentinel had a problem on its side. Try again in a moment.');
-    slot.innerHTML = stateBlock(off ? 'offline' : 'error', text, {
-      title: off ? `${what} will load when you are back online` : `${what} could not be loaded`,
-      action: retry ? '<button class="btn btn--sm" type="button" data-retry>Try again</button>' : '', small
-    });
+    const action = retry ? '<button class="btn btn--sm" type="button" data-retry>Try again</button>' : '';
+    if (quiet) {
+      slot.innerHTML = stateBlock(off ? 'offline' : 'unavailable', esc(what), { action, small: true }).replace('class="empty ', off ? 'class="empty empty--line ' : 'role="status" class="empty empty--line ');
+    } else {
+      const text = off ? 'Sentinel cannot be reached. Check your internet connection.' : esc((err && err.message) || 'Sentinel had a problem on its side. Try again in a moment.');
+      slot.innerHTML = stateBlock(off ? 'offline' : 'error', text, { title: off ? `${what} will load when you are back online` : `${what} could not be loaded`, action, small });
+    }
     if (!retry) return;
     const again = $('[data-retry]', slot);
     again.addEventListener('click', () => { retryPressed = true; waitingForNet.delete(slot); retry(); });
@@ -307,6 +310,26 @@
     if (retryPressed) again.focus();
     retryPressed = false;
   }
+  /*
+   * A wait is as tall as what it waits for, so nothing under it jumps when the answer comes: the height that part had
+   * the last time it loaded on this device at this width (kept by `keep`), or, the first time, the height of what a
+   * new account sees there (app.css .h-<key>). Kept on this device only; with storage blocked, the first-time height.
+   */
+  const HEIGHTS = 'sentinel:heights';
+  const heightKey = (key) => `${key}:${innerWidth < 700 ? 'phone' : 'wide'}`;
+  const heights = () => { try { return JSON.parse(localStorage.getItem(HEIGHTS) || '{}') || {}; } catch { return {}; } };
+  function skel(key) {
+    const h = Number(heights()[heightKey(key)]) || 0;
+    return `<div class="skeleton h-${key}" data-skel="${key}"${h > 0 && h < 4000 ? ` style="height:${h}px"` : ''}></div>`;
+  }
+  function keep(slot, key) {
+    if (!slot || !slot.isConnected) return;
+    const cs = getComputedStyle(slot);
+    const all = heights();
+    all[heightKey(key)] = Math.round(slot.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
+    try { localStorage.setItem(HEIGHTS, JSON.stringify(all)); } catch { /* the first-time height, next time too */ }
+  }
+
   // The one line under the top while nothing answers (ui.js decides that from fetch itself, not navigator.onLine).
   document.addEventListener('sentinel:reach', (ev) => { const bar = $('[data-netbar]'); if (bar) bar.hidden = ev.detail.ok; });
   addEventListener('online', () => {
@@ -819,13 +842,15 @@
 
       <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
-        <div data-recent><div class="skeleton u-h-md" ></div></div>
+        <div data-recent>${skel('recent')}</div>
       </div>`;
 
     weekCard($('[data-week-card]', el));
     // One offer at a time: exposure alerts are offered only while chat safety's question is not showing.
     const chatAsk = $('[data-chat-ask]', el);
-    askChatSafety(chatAsk).then(() => { if (!chatAsk.innerHTML) askExposureAlerts($('[data-exposure-ask]', el)); }).catch(() => {});
+    // A failure says so quietly in the offer's place (askChatSafety), with Try again running both offers again.
+    const offers = () => { chatAsk.innerHTML = ''; return askChatSafety(chatAsk, offers).then(() => { if (!chatAsk.innerHTML) askExposureAlerts($('[data-exposure-ask]', el)); }); };
+    offers();
     $('[data-quick]', el).addEventListener('submit', (ev) => {
       ev.preventDefault();
       const url = ev.target.url.value.trim();
@@ -846,8 +871,8 @@
       if (row && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); row.click(); }
     });
     const recent = async () => {
-      try { slot.innerHTML = historyList((await api('/account/history?limit=6')).items.slice(0, 6), { clickable: true }); }
-      catch (err) { failed(slot, err, () => { slot.innerHTML = '<div class="skeleton u-h-md"></div>'; recent(); }, { small: true, what: 'Your recent scans' }); }
+      try { slot.innerHTML = historyList((await api('/account/history?limit=6')).items.slice(0, 6), { clickable: true }); keep(slot, 'recent'); }
+      catch (err) { failed(slot, err, () => { slot.innerHTML = skel('recent'); recent(); }, { small: true, what: 'Your recent scans' }); }
     };
     recent();
   }
@@ -869,7 +894,11 @@
 
   async function weekCard(slot) {
     let data;
-    try { data = await loadWeek(); } catch { return; }
+    // An optional card: a failure is one quiet line in its place, with Try again, never a red box.
+    try { data = await loadWeek(); } catch (err) {
+      failed(slot, desktop && desktop.week && !err.offline ? { message: desktopError(err) } : err, () => { slot.innerHTML = ''; weekCard(slot); }, { small: true, quiet: true, what: 'Your week could not be loaded.' });
+      return;
+    }
     const w = data.weeks[data.weeks.length - 1];
     if (!slot.isConnected || (!w.checked && !w.caught)) return;
     slot.innerHTML = `<div class="panel u-mt week-card"><div class="panel__head"><div><h2>${esc(w.headline)}</h2>
@@ -879,7 +908,7 @@
 
   async function weekView(el) {
     el.innerHTML = `${title('Your week with Sentinel', 'What Sentinel did for you, Monday to Sunday. Only real counts, never what the links, files or messages were.')}
-      <div data-week><div class="skeleton u-h-md"></div></div>`;
+      <div data-week>${skel('week')}</div>`;
     const slot = $('[data-week]', el);
     let data;
     // In the Windows app the week comes from the app, whose own message is plain already (desktopError).
@@ -918,6 +947,7 @@
         <li>Counted as numbers for each week and kept for five weeks. Sentinel never keeps which links, files, commands or messages they were for this page.</li>
         <li>Private browser windows are not counted.${desktop ? '' : ' Files, copied commands, wallet swaps and chat messages are counted by the Sentinel app for Windows.'}</li>
       </ul>`;
+    keep(slot, 'week');
   }
 
   function protectionTeaser() {
@@ -1960,8 +1990,8 @@
 
   async function historyView(el, params) {
     el.innerHTML = `${title('History', 'Everything Sentinel checked for you in the last 30 days. Click a link to scan it again.')}
-      <div class="usage-list" data-stats><div class="skeleton u-h-sm"></div></div>
-      <div class="panel u-mt" data-list><div class="skeleton u-h-lg"></div></div>`;
+      <div class="usage-list" data-stats>${skel('stats')}</div>
+      <div class="panel u-mt" data-list>${skel('history')}</div>`;
     let data;
     try { data = await api('/account/history'); }
     catch (err) { $('[data-stats]', el).innerHTML = ''; failed($('[data-list]', el), err, () => historyView(el, params), { what: 'Your history' }); return; }
@@ -2067,6 +2097,8 @@
       }).then(() => { clear.textContent = 'Clear history'; });
     });
     paint();
+    keep($('[data-stats]', el), 'stats');
+    keep(list, 'history');
   }
 
   /* ========================================================== site rules */
@@ -2081,8 +2113,8 @@
         <div class="report__foot"><span class="muted">Rules apply to the whole site, including its subdomains. Only your account is affected.</span><button class="btn btn--gold" type="submit">Add rule</button></div>
       </form>
       <div class="grid2 u-mt">
-        <div class="panel" data-allow><div class="skeleton u-h-md" ></div></div>
-        <div class="panel" data-block><div class="skeleton u-h-md" ></div></div>
+        <div class="panel" data-allow>${skel('allow')}</div>
+        <div class="panel" data-block>${skel('block')}</div>
       </div>`;
 
     let rule = 'allow';
@@ -2097,7 +2129,7 @@
       catch (err) {
         // One answer for both lists, in the first: they come from the same place.
         $('[data-block]', el).hidden = true;
-        failed($('[data-allow]', el), err, () => { $('[data-allow]', el).innerHTML = '<div class="skeleton u-h-md"></div>'; load(); }, { what: 'Your site rules' });
+        failed($('[data-allow]', el), err, () => { $('[data-allow]', el).innerHTML = skel('allow'); load(); }, { what: 'Your site rules' });
         return;
       }
       $('[data-block]', el).hidden = false;
@@ -2112,6 +2144,8 @@
       };
       section($('[data-allow]', el), 'allow', 'Trusted', 'No trusted sites yet. Use "Trust this site" on any scan result, or add one above.');
       section($('[data-block]', el), 'block', 'Blocked', 'No blocked sites. Block a site to give it a red mask everywhere, for you.');
+      keep($('[data-allow]', el), 'allow');
+      keep($('[data-block]', el), 'block');
       $$('[data-remove]', el).forEach((b) => b.addEventListener('click', () => busy(b, 'Removing', async () => {
         try {
           await api('/sites/override', { method: 'POST', body: { host: b.dataset.remove, action: 'clear' } });
@@ -2490,10 +2524,13 @@
     });
   }
 
-  async function askChatSafety(slot) {
+  async function askChatSafety(slot, again) {
     if (!slot || !desktop || !desktop.setChatSafety || asked('chat')) return;
     let info = state.desktopInfo;
-    try { if (!info) info = state.desktopInfo = await desktop.info(); } catch { return; }
+    try { if (!info) info = state.desktopInfo = await desktop.info(); } catch (err) {
+      failed(slot, { message: desktopError(err) }, again || (() => askChatSafety(slot)), { small: true, quiet: true, what: 'The Sentinel app did not answer, so its suggestions are not shown.' });
+      return;
+    }
     if (!info.chatSafety || !info.chatSafety.supported || info.chatSafety.enabled || !slot.isConnected) return;
     askOnce(slot, {
       name: 'chat', title: 'Chat safety for Roblox and Discord', yes: 'Turn on chat safety', howHref: '/app/settings#chat-safety',
@@ -3090,7 +3127,7 @@
   }
 
   async function loadSessions(slot) {
-    if (!slot.innerHTML) slot.innerHTML = '<div class="skeleton u-h-md"></div>';
+    if (!slot.innerHTML) slot.innerHTML = skel('devices');
     try {
       const { sessions } = await api('/account/sessions');
       slot.innerHTML = `<div class="set-sub"><span class="muted">${sessions.length} active session${sessions.length === 1 ? '' : 's'}</span>${sessions.length > 1 ? '<button class="btn btn--sm" type="button" data-revoke>Sign out other devices</button>' : ''}</div>
@@ -3106,6 +3143,7 @@
         } catch (err) { toast(err.message, 'error'); }
         loadSessions(slot);
       })));
+      keep(slot, 'devices');
       // This device: the same as the account button, here too because a phone has no side bar.
       const here = $('[data-signout-here]', slot);
       if (here) here.addEventListener('click', () => busy(here, 'Signing out', () => signOut()));
@@ -3349,7 +3387,7 @@
 
   async function assistantsView(el, params) {
     el.innerHTML = `${title('AI assistants', 'Optional. Ask ChatGPT, Claude, Gemini or DeepSeek about anything. Sentinel\'s scans never depend on them.')}
-      <div data-tabs><div class="skeleton skeleton--tabs"></div></div><div class="panel" data-pane id="ai-pane" role="tabpanel"><div class="skeleton u-h-lg"></div></div>`;
+      <div data-tabs><div class="skeleton skeleton--tabs"></div></div><div class="panel" data-pane id="ai-pane" role="tabpanel">${skel('assistants')}</div>`;
     let providers;
     try { ({ providers } = await api('/ai/providers')); } catch (err) { $('[data-tabs]', el).innerHTML = ''; failed($('[data-pane]', el), err, () => assistantsView(el, params), { what: 'The assistants' }); return; }
     const active = providers.find((p) => p.id === params.get('ai')) || providers[0];
@@ -3365,6 +3403,7 @@
     pane.style.setProperty('--accent', active.accent);
     if (active.connected) renderChat(pane, active, el);
     else renderConnect(pane, active);
+    keep(pane, 'assistants');
   }
 
   function renderConnect(pane, p) {

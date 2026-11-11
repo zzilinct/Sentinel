@@ -31,7 +31,7 @@ async function checkStates() {
     // How the stood-in answers behave: 'pass' (the real server), 'fault' (a 500), 'down' (no answer at all), 'hold'.
     let mode = 'pass';
     const held = [];
-    await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/v1/account/history*' }, { urlPattern: '*/api/v1/sites/overrides*' }] }, s);
+    await browser.send('Fetch.enable', { patterns: ['account/history', 'sites/overrides', 'week', 'account/sessions'].map((p) => ({ urlPattern: `*/api/v1/${p}*` })) }, s);
     browser.on('Fetch.requestPaused', (p, sid) => {
       if (sid !== s) return;
       if (mode === 'fault') browser.send('Fetch.fulfillRequest', { requestId: p.requestId, responseCode: 500, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from('{"error":{"message":"x"}}').toString('base64') }, s).catch(() => {});
@@ -40,6 +40,34 @@ async function checkStates() {
       else browser.send('Fetch.continueRequest', { requestId: p.requestId }, s).catch(() => {});
     });
     const release = () => { for (const id of held.splice(0)) browser.send('Fetch.continueRequest', { requestId: id }, s).catch(() => {}); };
+
+    /* ---------------------------------------------- a wait is as tall as what replaces it */
+    // Each place's wait, held, then what came, at the same width: the first time (a new account's empty places, from
+    // app.css) and the next time (the height kept on this device). A difference is the page jumping under the reader.
+    const SLOTS = { recent: '[data-recent]', week: '[data-week]', stats: '[data-stats]', history: '[data-list]', allow: '[data-allow]', block: '[data-block]', devices: '[data-sessions]' };
+    const PAGES = { '/app': ['recent'], '/app/week': ['week'], '/app/history': ['stats', 'history'], '/app/sites': ['allow', 'block'], '/app/settings': ['devices'] };
+    const jumps = [];
+    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
+    for (const [name, [width, height, mobile]] of Object.entries(SIZES)) {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, s);
+      await evalIn(browser, s, "localStorage.removeItem('sentinel:heights')");
+      for (const visit of ['first', 'next']) {
+        for (const [page, keys] of Object.entries(PAGES)) {
+          mode = 'hold';
+          await goto(browser, s, `${server.base}${page}`, keys.map((k) => `document.querySelector('[data-skel="${k}"]')`).join(' && '));
+          const wait = await evalIn(browser, s, `(${JSON.stringify(keys)}).map((k) => document.querySelector('[data-skel="' + k + '"]').offsetHeight)`);
+          mode = 'pass';
+          release();
+          await until(browser, s, `!document.querySelector('[data-skel]')`, 15000);
+          await sleep(300);
+          const came = await evalIn(browser, s, `(${JSON.stringify(keys.map((k) => SLOTS[k]))}).map((q) => { const e = document.querySelector(q); const c = getComputedStyle(e); return Math.round(e.clientHeight - parseFloat(c.paddingTop) - parseFloat(c.paddingBottom)); })`);
+          keys.forEach((k, i) => jumps.push({ at: `${name} ${visit} ${k}`, wait: wait[i], came: came[i], jump: came[i] - wait[i] }));
+        }
+      }
+    }
+    console.log(`      heights: ${jumps.map((j) => `${j.at} ${j.wait}->${j.came}`).join('; ')}`);
+    result('states: the first time, each wait is as tall as what a new account sees there', jumps.filter((j) => / first /.test(j.at)).every((j) => Math.abs(j.jump) <= 2), jumps.filter((j) => / first /.test(j.at)));
+    result('states: after that, each wait is as tall as that place was last time, so nothing jumps', jumps.filter((j) => / next /.test(j.at)).every((j) => Math.abs(j.jump) <= 1), jumps.filter((j) => / next /.test(j.at)));
 
     const seen = { empty: [], fault: [], down: [], slow: [] };
     for (const [name, [width, height, mobile]] of Object.entries(SIZES)) {
@@ -108,6 +136,17 @@ async function checkStates() {
     await evalIn(browser, s, "document.querySelector('[data-retry]').click()");
     const sitesBack = await until(browser, s, "!document.querySelector('[data-block]').hidden && document.querySelectorAll('[data-state=waiting]').length === 2", 15000);
     result('states: site rules that could not load say so once, and Try again brings both lists', sites.state === 'error' && sites.blockHidden && sitesBack, { sites, sitesBack });
+
+    // An optional card that could not load is one quiet line with Try again, never a red block.
+    mode = 'fault';
+    await goto(browser, s, `${server.base}/app`, "document.querySelector('[data-week-card] [data-state]')");
+    const card = await evalIn(browser, s, `({ ...${BLOCK('[data-week-card]')}, line: document.querySelector('[data-week-card] .empty--line') ? document.querySelector('[data-week-card] .empty--line').offsetHeight : 0 })`);
+    await shot(browser, s, 'states-quiet-desktop-dark');
+    mode = 'pass';
+    await evalIn(browser, s, "document.querySelector('[data-week-card] [data-retry]').click()");
+    const cardBack = await until(browser, s, "!document.querySelector('[data-week-card] [data-state]')", 15000);
+    result('states: the week card that could not load is one quiet line, read out politely, and Try again asks again',
+      card.state === 'unavailable' && card.role === 'status' && card.retry && /Your week could not be loaded/.test(card.text) && card.line > 0 && card.line < 60 && cardBack, { card, cardBack });
     await browser.send('Fetch.disable', {}, s);
   } finally {
     await close();
