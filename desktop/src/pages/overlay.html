@@ -6,16 +6,13 @@
 <title>Sentinel live scanning</title>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <script src="../../shared/look.js"></script>
-<script>SentinelLook.paint(document.documentElement, SentinelLook.fromQuery(location.search));</script>
+<script>SentinelLook.paint(document.documentElement, SentinelLook.dark(SentinelLook.fromQuery(location.search)));</script>
 <style>
-  /* The app's look (look.js, from main.js): --acc-* is the accent in this scheme, --live-* the accent as light, for
-     the line, the tint and the marks, which are drawn over any page. The island's own fill follows light or dark. */
+  /* The app's accent (look.js, from main.js), drawn on the island's own dark fill in every theme: the island is a
+     dynamic island, dark like the marks' tiles, so it reads the same over any page. --live-* is the accent as light,
+     for the line, the tint and the marks. */
   :root { --sheet: #0c0d10; --ink: #e9e6df; --ink-2: #cfcbc1; --ink-3: #b9b5ab; --ink-4: #a09c93; --edge: #3a3b40;
     --btn: #1a1c21; --btn-hi: #24272d; --hair: rgba(255, 255, 255, .1); --hair-2: rgba(255, 255, 255, .08); }
-  :root[data-theme="light"] { --sheet: #f6f1e7; --ink: #2b2720; --ink-2: #4a453a; --ink-3: #4a453a; --ink-4: #6b6558; --edge: #cfc6b4;
-    --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .14); --hair-2: rgba(60, 45, 20, .1); }
-  @media (prefers-color-scheme: light) { :root:not([data-theme]) { --sheet: #f6f1e7; --ink: #2b2720; --ink-2: #4a453a; --ink-3: #4a453a; --ink-4: #6b6558; --edge: #cfc6b4;
-    --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .14); --hair-2: rgba(60, 45, 20, .1); } }
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: var(--ink); }
   * { box-sizing: border-box; }
   body { position: relative; }
@@ -195,7 +192,7 @@
   'use strict';
   var M = window.SentinelMasks;
   var L = window.SentinelLook;
-  var look = L.fromQuery(location.search);
+  var look = L.dark(L.fromQuery(location.search));
   M.setMetal(L.metal(look.accent));
   // A verdict on the island is said in its scheme's status colour (dark: the marks' own). The marks keep their dark
   // tile and M.COLORS in every look. Neither ever follows the accent.
@@ -639,7 +636,7 @@
   api.on('overlay:open', function () { openPanel(true); });
   // The look changed in the app: drawn at once, and the marks on screen are cast again in the new metal.
   api.on('overlay:look', function (l) {
-    look = L.paint(document.documentElement, l);
+    look = L.paint(document.documentElement, L.dark(l));
     M.setMetal(L.metal(look.accent));
     nodes.forEach(function (n) { var st = (n.dataset.state || '').split(':'); if (st.length === 2) n.innerHTML = M.mark(st[1], st[0]); });
     refresh();

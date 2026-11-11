@@ -230,13 +230,16 @@
     return look;
   }
 
+  /** The look on a surface that stays dark in every theme (the corner island): its accent, in the dark scheme. */
+  function dark(look) { return { mode: 'dark', accent: normal(look).accent }; }
+
   /** ?theme=light&accent=sapphire, as main.js loads its pages. */
   function fromQuery(search) {
     var q = new URLSearchParams(search || '');
     return normal({ mode: q.get('theme'), accent: q.get('accent') });
   }
 
-  var api = { ACCENTS: ACCENTS, STATUS: STATUS, GOLD: GOLD, SHEET: SHEET, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, rev: rev, scheme: scheme, paint: paint, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
+  var api = { ACCENTS: ACCENTS, STATUS: STATUS, GOLD: GOLD, SHEET: SHEET, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, rev: rev, scheme: scheme, paint: paint, dark: dark, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
   root.SentinelLook = api;
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
   // The companion's own pages (popup, block page, settings): the look the Windows app gave it (popup.js asks the app
@@ -386,8 +389,10 @@
     var modes = ['auto', 'light', 'dark'].map(function (m) {
       return '<label class="look__mode"><input type="radio" name="look-mode-' + n + '" value="' + m + '"><span>' + WORD[m] + '</span></label>';
     }).join('');
-    box.innerHTML = '<fieldset class="look__group"><legend>Theme</legend><div class="look__modes">' + modes + '</div></fieldset>' +
-      '<fieldset class="look__group"><legend>Colour</legend><div class="look__coins">' + coins + '</div>' +
+    // The first picker on a page carries the Settings rows' ids (theme, accent), which the first-run step looks for.
+    var rowId = function (row) { return 'data-row="' + row + '"' + (n === 1 && !document.getElementById(row) ? ' id="' + row + '"' : ''); };
+    box.innerHTML = '<fieldset class="look__group" ' + rowId('theme') + '><legend>Theme</legend><div class="look__modes">' + modes + '</div></fieldset>' +
+      '<fieldset class="look__group" ' + rowId('accent') + '><legend>Colour</legend><div class="look__coins">' + coins + '</div>' +
       '<p class="look__note">Red, orange, yellow and green are kept for warnings, so they are never a colour here.</p></fieldset>' +
       '<p class="look__sync" role="status"></p>';
     var said = box.querySelector('.look__sync');

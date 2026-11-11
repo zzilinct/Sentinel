@@ -28,7 +28,8 @@
     let look = L.record(kept);
     try {
       const res = await fetch('http://127.0.0.1:47821/api/v1/look', { credentials: 'omit', signal: AbortSignal.timeout(1500) });
-      if (res.ok) look = L.merge(look, await res.json());
+      // The app on this computer wins a tie: what it says is a choice, what the popup kept may only be the default.
+      if (res.ok) look = L.merge(await res.json(), look);
     } catch { /* no app on this computer */ }
     try { localStorage.setItem('sentinel:look', JSON.stringify(look)); } catch { /* storage blocked: this popup only */ }
     const x = L.ramp(look.accent, 'dark');

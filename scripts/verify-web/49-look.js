@@ -20,7 +20,7 @@ const SIZES = { desktop: { width: 1366, height: 900, mobile: false }, phone: { w
 async function checkLook() {
   const lookDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-look-'));
   const lookFile = path.join(lookDir, 'look.json');
-  fs.writeFileSync(lookFile, JSON.stringify({ mode: 'light', accent: 'sapphire' }));
+  fs.writeFileSync(lookFile, JSON.stringify({ mode: 'light', accent: 'sapphire', at: { mode: Date.now(), accent: Date.now() } }));
   process.env.SENTINEL_LOOK_FILE = lookFile;   // the Windows app's server, as main.js starts it
   const sentinel = await startSentinel('look', 47821);
   const files = await serveFiles({ '/shared/fonts/': path.join(ROOT, 'web', 'assets', 'fonts'), '/shared/': path.join(ROOT, 'web', 'assets', 'js'), '/d/': path.join(ROOT, 'desktop', 'src') });
@@ -160,9 +160,10 @@ async function checkLook() {
       await shot(browser, s, `look-island-${accent}-${scheme}-danger`);
       const got = await ev(`(() => { const c = document.getElementById('corner'); const seal = document.querySelector('.mark.is-red svg g[fill]'); return { corner: c.style.getPropertyValue('--c'), seal: seal && seal.getAttribute('fill'), sheet: getComputedStyle(document.querySelector('.isl__sheet')).backgroundColor, acc: ${VAR('--acc')} }; })()`);
       islandSeen[`${accent} ${scheme}`] = got;
-      if (got.corner !== L.STATUS[scheme].red || got.seal !== L.STATUS.dark.red || got.acc !== L.ramp(accent, scheme)['--acc']) islandOk = false;
+      // The island stays dark in every theme (the owner's call): the dark red, the accent's dark-scheme shade, a dark fill.
+      if (got.corner !== L.STATUS.dark.red || got.seal !== L.STATUS.dark.red || got.acc !== L.ramp(accent, 'dark')['--acc'] || got.sheet !== 'rgb(12, 13, 16)') islandOk = false;
     }
-    result('look: the island and the marks draw the app\'s look; a danger page is still red, its seal still the marks\' red', islandOk, islandSeen);
+    result('look: the island draws the app\'s accent on its own dark fill in light and dark; a danger page is still red', islandOk, islandSeen);
 
     let cardOk = true;
     const cardSeen = {};
@@ -193,7 +194,7 @@ async function checkLook() {
     const cached = await pe("chrome.storage.local.get('look').then((r) => r.look)");
     result('look: the companion\'s popup takes the look the Windows app chose, from its server on this computer, and keeps it for the marks',
       Boolean(took) && cached && cached.accent === 'sapphire' && /^#[0-9a-f]{6}$/.test(cached.metal.face) && cached.live.rgb === L.ramp('sapphire', 'dark')['--live-rgb'], { cached });
-    fs.writeFileSync(lookFile, JSON.stringify({ mode: 'dark', accent: 'teal' }));
+    fs.writeFileSync(lookFile, JSON.stringify({ mode: 'dark', accent: 'teal', at: { mode: Date.now(), accent: Date.now() } }));
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: "document.addEventListener('readystatechange', () => { if (document.readyState === 'interactive' && !window.__firstLook) window.__firstLook = document.documentElement.dataset.accent; });" }, pop.sessionId);
     await goto(browser, pop.sessionId, `chrome-extension://${id}/src/popup.html`);
     const firstPop = await pe('window.__firstLook');

@@ -301,11 +301,12 @@ test('it is labelled, keeps out of the tab order closed, respects reduced motion
   assert.match(html, /<button type="button" id="panelPause">/);
   assert.match(html, /\.isl__rim, \.isl__sheet, \.corner\.is-folding \.isl__rim, \.corner\.is-folding \.isl__sheet \{ transition: none; \}/);
   assert.match(html, /@media \(forced-colors: active\) \{ \.corner \{ forced-color-adjust: none; \} \}/);
-  // Solid fill, so it reads the same on light and dark pages: the app's dark or light sheet (look.js). Nothing scaled,
-  // nothing looping.
+  // Solid dark fill in every theme (a dynamic island), so it reads the same on light and dark pages; only the accent
+  // follows the app (look.js dark()). Nothing scaled, nothing looping.
   assert.match(html, /\.isl__sheet \{[^}]*background: var\(--sheet\);/);
   assert.match(html, /:root \{ --sheet: #0c0d10;/);
-  assert.match(html, /:root\[data-theme="light"\] \{ --sheet: #f6f1e7;/);
+  assert.doesNotMatch(html, /--sheet: #f6f1e7/, 'no light island');
+  assert.match(html, /SentinelLook\.paint\(document\.documentElement, SentinelLook\.dark\(/);
   const islandCss = html.slice(html.indexOf('.corner {'), html.indexOf('.mark {'));
   assert.doesNotMatch(islandCss, /infinite|scale\((?!\.97)/);
   assert.ok(!html.includes('—'), 'no em dash');
