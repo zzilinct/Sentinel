@@ -149,15 +149,12 @@ async function lookPhotos(m, host) {
     await sleep(400);
     out[`options-${scheme}-wide`] = await wide();
     await photo(`companion-look-firefox-options-${scheme}`);
-    await size(400, 900);
-    await sleep(300);
-    out[`options-${scheme}-phone-wide`] = await wide();
-    await photo(`companion-look-firefox-options-phone-${scheme}`);
     await size(360, 600);
     await m.send('WebDriver:Navigate', { url: `moz-extension://${host}/src/popup.html` });
     await wait("return !document.querySelector('.loading') && document.fonts.status === 'loaded';");
     await sleep(400);
     out[`popup-${scheme}-wide`] = await wide();
+    out[`popup-${scheme}-width`] = await run('return window.innerWidth;');
     await photo(`companion-look-firefox-popup-${scheme}`);
     await size(1280, 800);
     await m.send('WebDriver:Navigate', { url: `http://${DOOR_HOST}/signin` }).catch(() => {});
@@ -185,9 +182,9 @@ function thumbDistance(buf) {
 
 function lookReport(r) {
   const same = (s) => r.status && r.status[s] && r.status[s].length === 1 && r.status[s][0] === STATUS[s];
-  const fits = ['dark', 'light'].every((s) => r[`options-${s}-wide`] <= 0 && r[`options-${s}-phone-wide`] <= 0 && r[`popup-${s}-wide`] <= 0);
+  const fits = ['dark', 'light'].every((s) => r[`options-${s}-wide`] <= 0 && r[`popup-${s}-wide`] <= 0);
   const block = ['dark', 'light'].every((s) => r[`block-${s}-accent`] === (s === 'dark' ? 'teal' : 'sapphire'));
-  const ok = r.fromApp && /sapphire/.test(r.ticked) && /light/.test(r.ticked) && same('dark') && same('light') && r.thumb >= 120 && fits && block && r.photos.length === 8;
+  const ok = r.fromApp && /sapphire/.test(r.ticked) && /light/.test(r.ticked) && same('dark') && same('light') && r.thumb >= 120 && fits && block && r.photos.length === 6;
   console.log(`${ok ? 'PASS' : 'FAIL'}  firefox look`);
   console.log(`      ${JSON.stringify(r)}`);
   return ok ? 0 : 1;

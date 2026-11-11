@@ -35,7 +35,8 @@ async function checkCompanionLook() {
     const s = opt.sessionId;
     const ev = (expr) => evalIn(browser, s, expr);
     const media = (sid, scheme, motion = 'reduce') => browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: motion }] }, sid);
-    const size = (sid, width, height) => browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 500 }, sid);
+    // A phone (mobile, the page's own viewport) or a desktop window; the popup is a 360 px desktop window, never a phone.
+    const size = (sid, width, height, mobile = false) => browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, sid);
     const wide = (sid) => evalIn(browser, sid, 'document.documentElement.scrollWidth - innerWidth');
     await size(s, 1280, 900);
     await media(s, 'dark');
@@ -82,7 +83,7 @@ async function checkCompanionLook() {
     await sleep(400);
     result('companion-look: the arrow keys move the theme as they move any radio group (Light, then Dark)', Boolean(keyed), { keyed: await ev(LOOK) });
     await shot(browser, s, 'companion-look-chrome-options-teal-dark');
-    await size(s, 390, 844);
+    await size(s, 390, 844, true);
     await sleep(300);
     const phoneWide = await wide(s);
     await ev("document.getElementById('look').scrollIntoView({ block: 'start' }), true");
