@@ -962,7 +962,7 @@ p.hero__fine span { white-space: nowrap; }
 /* ---------------------------------------------------- reduced motion */
 
 :root[data-motion="off"] {
-  &, *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  &, *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
   [data-reveal], [data-reveal="doors"] > *, [data-stagger] > *, .word { opacity: 1 !important; transform: none !important; filter: none !important; clip-path: none !important; }
   .wipe { display: none !important; }
   &::view-transition-new(root) { animation: none; }

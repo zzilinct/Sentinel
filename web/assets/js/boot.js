@@ -36,6 +36,14 @@ document.documentElement.classList.add('js');
       root.dataset.motion = level;
       root.dataset.scanEffect = effect;
       if (!first) document.dispatchEvent(new CustomEvent('sentinel:motion', { detail: level }));
+      // Turned Off while the page is open: what scripts set moving (anime.js, a panel's spring) lands where it ends, at
+      // once; the stylesheets already stop their own.
+      if (!first && level === 'off' && document.getAnimations) {
+        document.getAnimations().forEach(function (a) {
+          if (window.CSSAnimation && (a instanceof CSSAnimation || a instanceof CSSTransition)) return;
+          try { a.finish(); } catch (e) { a.cancel(); }
+        });
+      }
     }
     // Once per page and on every change: the Windows app keeps it for windows that are not web pages.
     tellApp();
@@ -52,7 +60,8 @@ document.documentElement.classList.add('js');
     var id = 'motion-' + (++uid);
     var box = document.createElement('div');
     box.className = 'motion-set';
-    box.innerHTML = '<div class="setting"><div><b id="' + id + '">Animation</b><span data-motion-note></span></div>'
+    // The row is #motion (the first-run step and links point at it); a second copy on the same page goes without.
+    box.innerHTML = '<div class="setting"' + (document.getElementById('motion') ? '' : ' id="motion"') + '><div><b id="' + id + '">Animation</b><span data-motion-note></span></div>'
       + '<div class="seg motion-set__seg" role="radiogroup" aria-labelledby="' + id + '">'
       + LEVELS.map(function (l) { return '<label class="seg__btn"><input class="sr-only" type="radio" name="' + id + '" value="' + l + '">' + l[0].toUpperCase() + l.slice(1) + '</label>'; }).join('')
       + '</div></div>'

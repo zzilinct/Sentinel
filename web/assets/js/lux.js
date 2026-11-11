@@ -12,6 +12,12 @@
   const { animate, stagger, createTimeline, createDrawable, utils } = A;
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  // Loops that move by themselves (the hero mask's float, the 404's petals) rest under Calm and Off, and go on again
+  // under Full, the moment Motion changes (boot.js).
+  const loops = [];
+  const full = () => document.documentElement.dataset.motion === 'full';
+  const loop = (a) => { loops.push(a); if (!full()) a.pause(); return a; };
+  document.addEventListener('sentinel:motion', () => loops.forEach((a) => (full() ? a.resume() : a.pause())));
 
   // Run a function the first time an element comes on screen.
   const whenSeen = (el, fn, margin = '0px 0px -12% 0px') => {
@@ -20,7 +26,8 @@
     const io = new IntersectionObserver((entries) => {
       if (!entries[0].isIntersecting) return;
       io.disconnect();
-      fn();
+      // Motion turned Off since the page loaded: it is simply there, as Off would have drawn it.
+      if (document.documentElement.dataset.motion !== 'off') fn();
     }, { rootMargin: margin });
     io.observe(el);
   };
@@ -70,7 +77,7 @@
     else entrance();
 
     const mask = $('[data-hero-mask] img');
-    if (mask) animate(mask, { translateY: [-8, 8], rotate: [-1.2, 1.2], duration: 3800, alternate: true, loop: true, ease: 'inOutSine' });
+    if (mask) loop(animate(mask, { translateY: [-8, 8], rotate: [-1.2, 1.2], duration: 3800, alternate: true, loop: true, ease: 'inOutSine' }));
     // The name's drift with the pointer and with the scroll, and the mask's sink, are motion.js's (GSAP).
   }
 
@@ -99,7 +106,7 @@
       const p = document.createElement('i');
       p.style.left = `${utils.random(0, 100)}%`;
       petals.appendChild(p);
-      animate(p, {
+      loop(animate(p, {
         translateY: [0, innerHeight + 60],
         translateX: [0, utils.random(-120, 120)],
         rotate: [utils.random(0, 90), utils.random(180, 540)],
@@ -108,7 +115,7 @@
         delay: utils.random(0, 8000),
         loop: true,
         ease: 'linear'
-      });
+      }));
     }
   }
 })();
