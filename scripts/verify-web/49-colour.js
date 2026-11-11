@@ -45,7 +45,7 @@ async function checkColour() {
   };
   const gem = (id) => `.swatch[data-accent="${id}"]`;
   // To the section, exactly, through the page's own scroller (Lenis when it is there).
-  const toColour = (s) => evalIn(browser, s, `(() => { const t = document.querySelector(innerWidth <= 560 ? '.colour__view' : '#colour').getBoundingClientRect().top + scrollY - (innerWidth <= 560 ? 110 : 90); Site.scrollTo(t); return new Promise((r) => setTimeout(r, 400)); })()`);
+  const toColour = (s) => evalIn(browser, s, `(() => { const t = document.querySelector(innerWidth <= 560 ? '#colour h2' : '#colour').getBoundingClientRect().top + scrollY - (innerWidth <= 560 ? 100 : 90); Site.scrollTo(t); return new Promise((r) => setTimeout(r, 400)); })()`);
   try {
     const open = async (width, height, mobile, scheme, motion) => {
       const { targetId, sessionId: s } = await openPage(browser);
@@ -67,10 +67,11 @@ async function checkColour() {
         const tag = `colour: ${label}, ${scheme}`;
         const gold = await evalIn(browser, s, READ);
         const row = await evalIn(browser, s, `(() => { const g = [...document.querySelectorAll('.colour__pick .swatch__gem')].map((e) => e.getBoundingClientRect());
-          return { tops: new Set(g.map((r) => Math.round(r.top))).size, smallest: Math.min(...g.map((r) => r.width)), below: Math.max(...g.map((r) => r.bottom)) - innerHeight, left: Math.min(...g.map((r) => r.left)), right: Math.max(...g.map((r) => r.right)), sideways: document.documentElement.scrollWidth - innerWidth,
+          return { tops: new Set(g.map((r) => Math.round(r.top))).size, smallest: Math.min(...g.map((r) => r.width)), below: Math.max(...g.map((r) => r.bottom), document.querySelector('.colour__view').getBoundingClientRect().bottom) - innerHeight,
+            headTop: document.querySelector('#colour h2').getBoundingClientRect().top, left: Math.min(...g.map((r) => r.left)), right: Math.max(...g.map((r) => r.right)), sideways: document.documentElement.scrollWidth - innerWidth,
             radios: [...document.querySelectorAll('.colour__pick [role=radio]')].map((b) => b.getAttribute('aria-checked') + ':' + (b.textContent.trim() || '?')) }; })()`);
         await sleep(1500);
-        result(`${tag}: six named gems in one row, each a real size, gold chosen, nothing scrolls sideways`, row.tops === 1 && row.smallest >= 36 && row.below <= 0 && row.left >= 0 && row.right <= width && row.sideways <= 0
+        result(`${tag}: heading, six real-size gems in one row and the view all on one screen, gold chosen, nothing scrolls sideways`, row.tops === 1 && row.smallest >= 36 && row.below <= 0 && row.headTop >= 0 && row.left >= 0 && row.right <= width && row.sideways <= 0
           && row.radios.length === 6 && row.radios.filter((r) => r.startsWith('true')).join() === 'true:Gold' && gold.accent === 'gold', row);
         await shot(browser, s, `colour-${label}-${scheme}-gold`);
 
