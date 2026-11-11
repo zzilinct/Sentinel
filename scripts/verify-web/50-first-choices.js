@@ -10,6 +10,29 @@
 const { sleep, result, launch, evalIn, openPage, goto, startServer, watchErrors, until, shot } = require('./_shared');
 
 const SIZES = { desktop: [1366, 900, false], phone: [390, 844, true] };
+
+/** The Windows app's bridge, as far as home reads it; every setter is recorded. As in 48-settings.js. */
+const APP = `(() => {
+  const info = { version: '1.20.0', platform: 'win32', embeddedServer: true, liveMode: 'fast', autoScan: true, openAtLogin: true,
+    live: { supported: true, enabled: false, active: false }, downloads: { active: true, folder: 'Downloads' },
+    defense: { supported: true, active: true, watched: ['Downloads'] }, mySites: true, scanMenu: { supported: true, enabled: false },
+    clipboardCheck: true, commandShield: true, walletGuard: false, remoteGuard: { supported: true, enabled: true, trusted: [] },
+    snip: { supported: true, enabled: true, registered: true, key: 'k', keys: [{ id: 'k', label: 'Ctrl + Shift + S' }] },
+    chatSafety: { supported: true, enabled: false }, textSafety: { supported: true, enabled: false }, exposureAlerts: false, weekRecap: false,
+    update: { status: 'current', supported: true } };
+  window.__calls = [];
+  const known = {
+    info: async () => JSON.parse(JSON.stringify(info)), mySites: async () => [], lockStatus: async () => ({ supported: true, set: false, record: [] }),
+    checkUpdates: async () => ({ status: 'current' }), recentDownloads: async () => [], defense: async () => ({ ledger: [] }), exposures: async () => []
+  };
+  window.sentinelDesktop = new Proxy(known, { get: (k, name) => {
+    if (k[name]) return k[name];
+    if (typeof name !== 'string') return undefined;
+    if (/^on[A-Z]/.test(name)) return () => () => {};
+    if (/^set[A-Z]/.test(name)) return async (v) => { window.__calls.push([name, v]); return {}; };
+    return undefined;
+  } });
+})();`;
 const THEMES = ['dark', 'light'];
 
 // What a person would see go wrong at a bigger size: the page wider than the screen, words cut inside a control, or a
@@ -21,6 +44,8 @@ const LAYOUT = `(() => {
     wide: document.documentElement.scrollWidth - innerWidth,
     cut: controls.filter((e) => e.scrollWidth > e.clientWidth + 1 && !e.matches('input')).map((e) => e.textContent.trim().slice(0, 30)),
     small: controls.filter((e) => e.getBoundingClientRect().height < 33.5).map((e) => (e.textContent.trim() || e.className).slice(0, 30) + ' ' + Math.round(e.getBoundingClientRect().height)),
+    // The side bar's rows: a name that wraps must make its row taller, never spill into the next one.
+    crowd: [...document.querySelectorAll('.side__link, .side__search')].filter(seen).filter((e) => e.scrollHeight > e.clientHeight + 1).map((e) => e.textContent.trim().slice(0, 30)),
     text: document.documentElement.dataset.text || 'standard', density: document.documentElement.dataset.density || 'comfortable',
     ui: getComputedStyle(document.querySelector('#view .btn') || document.body).fontSize
   };
@@ -57,7 +82,7 @@ async function checkFirstChoices() {
         await sleep(400);
         step = await evalIn(browser, s, STEP);
         const l = await evalIn(browser, s, LAYOUT);
-        if (l.wide > 0 || l.cut.length || l.small.length) wide.push({ at: `first ${name} ${theme}`, ...l });
+        if (l.wide > 0 || l.cut.length || l.small.length || l.crowd.length) wide.push({ at: `first ${name} ${theme}`, ...l });
         await shot(browser, s, `first-step-${name}-${theme}`);
       }
     }
@@ -77,7 +102,7 @@ async function checkFirstChoices() {
     result('first-choices: Larger and Light pressed in the step work at once and are kept', picked.html.text === 'larger' && picked.html.theme === 'light'
       && picked.ui === '18.2px' && /"text":"larger"/.test(picked.kept || '') && picked.theme === 'light' && picked.step.pressed.join() === 'Light,Larger', picked);
     const l1 = await evalIn(browser, s, LAYOUT);
-    if (l1.wide > 0 || l1.cut.length || l1.small.length) wide.push({ at: 'first larger phone light', ...l1 });
+    if (l1.wide > 0 || l1.cut.length || l1.small.length || l1.crowd.length) wide.push({ at: 'first larger phone light', ...l1 });
     await shot(browser, s, 'first-larger-phone-light');
 
     // Escape on the step is Done: the step goes, the cursor is in the box to paste into, and it never comes back.
@@ -113,14 +138,14 @@ async function checkFirstChoices() {
             await until(browser, s, ready, 20000);
             await sleep(300);
             const l = await evalIn(browser, s, LAYOUT);
-            if (l.text !== text || l.density !== density || l.wide > 0 || l.cut.length || l.small.length) wide.push({ at: `${page} ${text} ${density} ${name} ${theme}`, ...l });
+            if (l.text !== text || l.density !== density || l.wide > 0 || l.cut.length || l.small.length || l.crowd.length) wide.push({ at: `${page} ${text} ${density} ${name} ${theme}`, ...l });
             // Every combination is measured; the pictures are the ones a reviewer compares.
             if (density === 'comfortable' || name === 'phone') await shot(browser, s, `type-${page}-${text}-${density}-${name}-${theme}`);
           }
         }
       }
     }
-    result('first-choices: at Larger, and Larger with Compact, nothing scrolls sideways, no words are cut, no control is under 34px', !wide.length, wide);
+    result('first-choices: at Larger, and Larger with Compact, nothing scrolls sideways, no words are cut or crowded, no control is under 34px', !wide.length, wide);
 
     // Compact really is tighter, and Comfortable is the old spacing to the pixel.
     await size(SIZES.desktop);
@@ -133,6 +158,19 @@ async function checkFirstChoices() {
     }
     result('first-choices: Comfortable keeps the old sizes, Compact is tighter and never under 36px',
       heights.comfortable.seg === 38 && heights.comfortable.input === 46 && heights.compact.seg >= 36 && heights.compact.seg < 38 && heights.compact.input < 46 && heights.compact.input >= 36, heights);
+
+    /* ---------------------------- in the Windows app: the step says the tray line the old notification said */
+    await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: APP }, s);
+    await media('dark');
+    await evalIn(browser, s, "(localStorage.removeItem('sentinel:first-choices'), localStorage.removeItem('sentinel:type'), 1)");
+    await goto(browser, s, `${server.base}/app`);
+    await until(browser, s, "document.querySelector('.first')", 20000);
+    await sleep(500);
+    const app = await evalIn(browser, s, "({ line: (document.querySelector('.first__end p') || {}).textContent || '', calls: window.__calls })");
+    result('first-choices: in the Windows app the step says Sentinel stays in the tray, and the app is told the text size',
+      /Closing this window leaves Sentinel running in the tray\. Right-click the mask there to quit\./.test(app.line)
+      && app.calls.some(([n, v]) => n === 'setType' && v && v.text === 'standard'), app);
+    await shot(browser, s, 'first-step-app-desktop-dark');
 
     result('first-choices: no errors on the page', !errors.length, errors);
   } finally {
