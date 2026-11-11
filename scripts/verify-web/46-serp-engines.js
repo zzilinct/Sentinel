@@ -22,7 +22,7 @@ const SCAM = 'https://paypa1-secure-login.com/account';   // a listed scam (serv
 const HONEST = ['https://www.wikipedia.org/', 'https://github.com/'];
 const LINK_HOSTS = ['paypa1-secure-login.com', 'www.wikipedia.org', 'github.com', 'r.search.yahoo.com'];
 
-const page = (title, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>
+const page = (title, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>
   <style>body{font:14px/1.5 Arial,sans-serif;margin:0;padding:24px 40px;background:#fff;color:#202124}h2,h3{font-size:18px;margin:4px 0}</style></head><body>${body}</body></html>`;
 const enc = encodeURIComponent;
 // [address, title, the site's own name]
@@ -118,7 +118,7 @@ async function checkTips(browser, s) {
   const closed = await tipText();
   await browser.send('Emulation.clearDeviceMetricsOverride', {}, s);
   result('hover reasons: the keyboard\'s focus shows the same tip at once, at phone width too, and Escape closes it',
-    focused === red.tip && !closed, { focused, closed, width: fits });
+    focused === red.tip && !closed && fits === 390, { focused, closed, width: fits });
 }
 
 async function checkSerpEngines() {

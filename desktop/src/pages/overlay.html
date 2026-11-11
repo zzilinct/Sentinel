@@ -582,6 +582,7 @@
     tip.style.left = left + 'px';
     tip.style.top = top + 'px';
     tip.classList.add('is-on');
+    if (tracing) console.log('T ' + tip.querySelector('b').textContent + ' | ' + tip.querySelector('span').textContent);
   });
   window.addEventListener('mouseleave', function () {
     tip.classList.remove('is-on'); corner.classList.remove('is-shy'); pay.classList.remove('is-shy');
@@ -842,6 +843,8 @@
       setMoving(false);
     } else place((p && p.marks) || [], rebase);
     if (tracing) console.log('M ' + performance.now().toFixed(1) + ' marks ' + ((p && p.marks) || []).length + (fresh ? ' fresh' : '') + ' ends ' + (ends || '-'));
+    // Where the first flagged mark is on the screen, so the end-to-end run can rest the pointer on it.
+    if (tracing) { var fl = ((p && p.marks) || []).filter(function (m) { return m.badge && m._cx != null; })[0]; if (fl) console.log('K ' + Math.round(window.screenX + fl._cx + shiftX) + ' ' + Math.round(window.screenY + fl._cy + shiftY) + ' ' + fl.reason); }
   });
   api.on('overlay:shift', function (p) {
     // Always eased, even when Windows' animation effects are off (common on gaming PCs): following the page is

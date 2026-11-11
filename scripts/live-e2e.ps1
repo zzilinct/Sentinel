@@ -129,6 +129,41 @@ Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871,
 # 4. An inbox (a Pro feature, given above). Everyday mail and scams side by side: the scams should get a mask, the
 # rest a tick, and marks must stay inside the message list while it scrolls.
 Search 'http://127.0.0.1:47900/mail/' 'inbox'
+# 4a. Hover reasons: the pointer rests on a flagged mark and the overlay's tip says why, in the words masks.js
+# reasonLine() gives for that message's scan (links.jsonl), in Windows' dark theme and then its light one.
+function SetTheme($light) {
+  $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+  Set-ItemProperty $k AppsUseLightTheme $light -Type DWord -ErrorAction SilentlyContinue
+  Set-ItemProperty $k SystemUsesLightTheme $light -Type DWord -ErrorAction SilentlyContinue
+}
+function HoverReason($theme) {
+  [K]::Tap(0x24); [K]::SetCursorPos(5, 600) | Out-Null; Start-Sleep 5
+  $k = Get-Content "$Out\frames.txt" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^K ' } | Select-Object -Last 1
+  if (-not $k) { Say "hover reason ${theme}: no flagged mark on screen"; return $null }
+  $p = $k.Split(' ', 4)
+  $before = @(Get-Content "$Out\frames.txt" | Where-Object { $_ -match '^T ' }).Count
+  [K]::SetCursorPos([int]$p[1] - 30, [int]$p[2]) | Out-Null; Start-Sleep -Milliseconds 300
+  [K]::SetCursorPos([int]$p[1], [int]$p[2]) | Out-Null; [K]::mouse_event(1, 1, 0, 0, [UIntPtr]::Zero); Start-Sleep 2
+  Shot "live-hover-reason-$theme"
+  Copy-Item ("{0}\{1:D2}-live-hover-reason-{2}.png" -f $Out, $script:shot, $theme) "$Out\live-hover-reason-$theme.png"
+  $t = @(Get-Content "$Out\frames.txt" | Where-Object { $_ -match '^T ' }) | Select-Object -Skip $before -Last 1
+  Say "hover reason ${theme}: mark at $($p[1]),$($p[2]) reason '$($p[3])'; tip '$t'"
+  return @{ reason = $p[3]; tip = $t }
+}
+SetTheme 0; Start-Sleep 3
+$hd = HoverReason 'dark'
+SetTheme 1; Start-Sleep 3
+$hl = HoverReason 'light'
+# The tip's reason line is reasonLine() of that message's own reasons, computed here from the repo's masks.js.
+$hoverOk = $false
+if ($hd -and $hd.tip -and $hl -and $hl.tip) {
+  $env:E2E_REASON = ($hd.tip -split ' \| ', 2)[1]
+  $check = node -e "const M=require(process.argv[1]);const want=process.env.E2E_REASON;const rows=require('fs').readFileSync(process.argv[2],'utf8').trim().split('\n').map(JSON.parse).filter(r=>r.inbox).flatMap(r=>r.inbox).filter(r=>r.badge&&r.badge!=='none'&&r.reasons);const hit=rows.find(r=>M.reasonLine(r.reasons,r.kind)===want&&r.reason===want);console.log(hit?'ok '+hit.t:'no row whose reasonLine is: '+want+' (rows: '+rows.map(r=>M.reasonLine(r.reasons,r.kind)).join(' / ')+')')" (Join-Path $PSScriptRoot '..\web\assets\js\masks.js') "$Out\links.jsonl"
+  Say "hover reason check: $check"
+  $hoverOk = ($check -match '^ok ') -and ($hd.tip -eq $hl.tip) -and ($hd.tip -match '^(Danger|Warning|Caution): ')
+}
+if (-not $hoverOk) { $hoverFailed = $true }
+SetTheme 0
 if ($inboxServer) { Stop-Process -Id $inboxServer.Id -Force -ErrorAction SilentlyContinue }
 
 # 4b. Other browsers people use: the same search in Chrome and Firefox (links.jsonl says whether each page was read).
@@ -231,3 +266,4 @@ Say '--- watch.log'; Get-Content "$data\logs\watch.log" -ErrorAction SilentlyCon
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 30 | ForEach-Object { Say "  $_" }
 
 if ($regFailed) { Say 'FAILED: Run keys are still polled, or a new entry was not heard'; exit 1 }
+if ($hoverFailed) { Say 'FAILED: resting on a flagged mark did not show its reasonLine() in the tip'; exit 1 }
