@@ -3075,18 +3075,16 @@
     });
   }
 
-  // The newest version's notes, read from the download page, which the release writes from changelog/<version>.md.
+  // The newest version's notes, from web/assets/release-note.json, which npm run build:note writes from
+  // changelog/<version>.md beside the download page's note.
   async function whatsNewBlock(body) {
     body.innerHTML = '<div class="skeleton u-h-md"></div>';
     try {
-      const res = await fetch('/download', { credentials: 'same-origin' });
-      const note = new DOMParser().parseFromString(await res.text(), 'text/html').querySelector('[data-release-note]');
-      const lead = note && note.querySelector('.relnote__lead');
-      const all = note && note.querySelector('.relnote__all');
-      if (!res.ok || !lead || !all) throw new Error('no note');
-      body.innerHTML = `<div class="set-note"><p><b>${esc(note.querySelector('h2').textContent)}.</b> ${esc(lead.textContent)}</p></div>`;
-      all.className = 'set-facts';
-      $('.set-note', body).append(all);
+      const res = await fetch('/assets/release-note.json', { credentials: 'same-origin' });
+      const note = res.ok ? await res.json() : null;
+      if (!note || !note.version || !Array.isArray(note.groups)) throw new Error('no note');
+      body.innerHTML = `<div class="set-note"><p><b>New in Sentinel ${esc(note.version)} ${esc(note.model || '')}.</b> ${esc(note.summary)}.</p>
+        <details class="set-facts"><summary>Every change in this version</summary>${note.groups.map((g) => `<h3>${esc(g.title)}</h3><ul>${g.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('')}</details></div>`;
     } catch {
       body.innerHTML = '<p class="set-sub">The notes could not be loaded just now. They are also on the <a href="/download">download page</a>.</p>';
     }

@@ -193,11 +193,14 @@ async function checkSettings() {
     result('settings: no errors on the page', !errors.length, errors);
 
     /* ---------------- the mark, as a stranger meets it: tab, app icons, installer panel, on light and on dark */
+    const i16 = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'extension', 'icons', 'icon16.png')).toString('base64');
     const bmp = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'desktop', 'build', 'installerSidebar.bmp')).toString('base64');
     await evalIn(browser, s, `(() => {
       const img = (src, px) => '<img src="' + src + '" width="' + px + '" height="' + px + '" style="image-rendering:auto">';
       const row = (bg) => '<div style="display:flex;gap:24px;align-items:center;padding:24px;background:' + bg + '">'
-        + [16, 32, 64].map((px) => img('/assets/img/favicon.svg', px)).join('')
+        // The tray's 16 px picture at 100%, then 8 times, pixel for pixel; then the tab icon at 16 and 32.
+        + '<img src="data:image/png;base64,${i16}" width="16" height="16"><img src="data:image/png;base64,${i16}" width="128" height="128" style="image-rendering:pixelated">'
+        + [16, 32].map((px) => img('/assets/img/favicon.svg', px)).join('')
         + img('/assets/img/icon-192.png', 96) + img('/assets/img/icon-maskable-512.png', 96).replace('<img', '<img style="border-radius:50%"')
         + '<img src="data:image/bmp;base64,${bmp}" width="164" height="314"></div>';
       document.body.innerHTML = row('#ffffff') + row('#0a0b0d');

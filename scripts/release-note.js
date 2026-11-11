@@ -1,6 +1,7 @@
 'use strict';
 /**
- * The download page's "New in x.y.z", written from changelog/<version>.md into web/partials/release-note.html.
+ * The download page's "New in x.y.z", written from changelog/<version>.md into web/partials/release-note.html, and the
+ * same note as data (web/assets/release-note.json) for What changed in the app's Settings, Help.
  * The version is package.json's, so a release writes its changelog, bumps its versions and runs this:
  *
  *   npm run build:note
@@ -13,6 +14,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const PARTIAL = path.join(ROOT, 'web', 'partials', 'release-note.html');
+const JSON_NOTE = path.join(ROOT, 'web', 'assets', 'release-note.json');
 const NOTES_URL = 'https://github.com/zzilinct/Sentinel/tree/main/changelog';
 
 const esc = (v) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -65,23 +67,33 @@ ${groups}
 `;
 }
 
-/** What the partial should hold for the version in package.json. */
-function expected() {
+/** The note for the version in package.json. */
+function current() {
   const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const file = path.join(ROOT, 'changelog', `${version}.md`);
   if (!fs.existsSync(file)) throw new Error(`changelog/${version}.md does not exist. Write it, then run: npm run build:note`);
-  return renderNote(parseNote(fs.readFileSync(file, 'utf8'), version));
+  return parseNote(fs.readFileSync(file, 'utf8'), version);
 }
+
+/** What the partial should hold. */
+function expected() { return renderNote(current()); }
+
+/** What the JSON should hold. */
+function expectedJson() { return `${JSON.stringify(current(), null, 2)}
+`; }
 
 /** Throws unless the partial is what the changelog says. Line endings do not count: a Windows checkout has its own. */
 function assertInStep() {
   const have = fs.existsSync(PARTIAL) ? lf(fs.readFileSync(PARTIAL, 'utf8')) : '';
   if (have !== expected()) throw new Error('web/partials/release-note.html is out of step with changelog/. Run: npm run build:note');
+  const json = fs.existsSync(JSON_NOTE) ? lf(fs.readFileSync(JSON_NOTE, 'utf8')) : '';
+  if (json !== expectedJson()) throw new Error('web/assets/release-note.json is out of step with changelog/. Run: npm run build:note');
 }
 
 if (require.main === module) {
   fs.writeFileSync(PARTIAL, expected());
-  console.log(`  release note    ${path.relative(ROOT, PARTIAL)}`);
+  fs.writeFileSync(JSON_NOTE, expectedJson());
+  console.log(`  release note    ${path.relative(ROOT, PARTIAL)}, ${path.relative(ROOT, JSON_NOTE)}`);
 }
 
-module.exports = { parseNote, renderNote, expected, assertInStep };
+module.exports = { parseNote, renderNote, expected, expectedJson, assertInStep };
