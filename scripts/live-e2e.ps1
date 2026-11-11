@@ -15,6 +15,9 @@ public static class K {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, UIntPtr w, string l, uint flags, uint timeout, out UIntPtr result);
+  // Windows' light or dark theme changed: tell every window, as the Settings app does, so open windows repaint in it.
+  public static void ThemeChanged() { UIntPtr r; SendMessageTimeout((IntPtr)0xffff, 0x1A, UIntPtr.Zero, "ImmersiveColorSet", 2, 3000, out r); }
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, int data, UIntPtr extra);
   // One notch of the mouse wheel: what a person scrolling a results page does, smooth-scrolled by the browser.
   public static void Wheel(int notches) { mouse_event(0x0800, 0, 0, -120 * notches, UIntPtr.Zero); }
@@ -135,11 +138,12 @@ function SetTheme($light) {
   $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
   Set-ItemProperty $k AppsUseLightTheme $light -Type DWord -ErrorAction SilentlyContinue
   Set-ItemProperty $k SystemUsesLightTheme $light -Type DWord -ErrorAction SilentlyContinue
+  [K]::ThemeChanged()
 }
 function HoverReason($theme) {
   [K]::Tap(0x24); [K]::SetCursorPos(5, 600) | Out-Null; Start-Sleep 5
   $k = Get-Content "$Out\frames.txt" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^K ' } | Select-Object -Last 1
-  if (-not $k) { Say "hover reason ${theme}: no flagged mark on screen"; return $null }
+  if (-not $k) { Say "hover reason ${theme}: no flagged mark on screen" | Out-Null; return $null }
   $p = $k.Split(' ', 4)
   $before = @(Get-Content "$Out\frames.txt" | Where-Object { $_ -match '^T ' }).Count
   [K]::SetCursorPos([int]$p[1] - 30, [int]$p[2]) | Out-Null; Start-Sleep -Milliseconds 300
@@ -147,7 +151,8 @@ function HoverReason($theme) {
   Shot "live-hover-reason-$theme"
   Copy-Item ("{0}\{1:D2}-live-hover-reason-{2}.png" -f $Out, $script:shot, $theme) "$Out\live-hover-reason-$theme.png"
   $t = @(Get-Content "$Out\frames.txt" | Where-Object { $_ -match '^T ' }) | Select-Object -Skip $before -Last 1
-  Say "hover reason ${theme}: mark at $($p[1]),$($p[2]) reason '$($p[3])'; tip '$t'"
+  if ($t) { $t = $t.Substring(2) }
+  Say "hover reason ${theme}: mark at $($p[1]),$($p[2]) reason '$($p[3])'; tip '$t'" | Out-Null
   return @{ reason = $p[3]; tip = $t }
 }
 SetTheme 0; Start-Sleep 3
