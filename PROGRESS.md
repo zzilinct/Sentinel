@@ -1,6 +1,6 @@
 # c-quiet (spots 10 and 11): where it stands
 
-Paused at the coordinator's word (usage limit). Branch work/e2e-c-quiet, built on work/e2e-c-settings. No CI run yet.
+Resumed. Warning row id is warn-level (c-onboard). Targeted CI green: verify-web 43119623218 (settings, companion-core), desktop-e2e 43119626626 (e2e). Full run on the final commit next.
 
 ## Done (npm test 822/822 locally)
 - web/assets/js/masks.js (+ extension/src/content/masks.js copy): LEVELS, level(), shows(marks, badge), warns(warnings, badge).
