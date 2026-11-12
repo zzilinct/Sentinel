@@ -42,7 +42,8 @@ async function checkSimple() {
     const media = (theme) => browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
     const size = ([width, height, mobile]) => browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, s);
     const scan = async (url) => {
-      await goto(browser, s, `${base}/app/check?url=${encodeURIComponent(url)}`);
+      // A fresh address each time: the same one again is a reload, which shows the last answer without scanning.
+      await goto(browser, s, `${base}/app/check?url=${encodeURIComponent(url)}&n=${Date.now()}`);
       return until(browser, s, `${RESULT} && !document.querySelector('[data-out] .scanning')`, 40000);
     };
     // The whole answer, however tall: the app's own scrolling boxes laid out at full height for the picture.

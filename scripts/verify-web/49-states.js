@@ -28,13 +28,16 @@ async function checkStates() {
     await api('/auth/signup', { email, password, firstName: 'Sam', ageConfirmed: true, termsAccepted: true });
     await api('/auth/login', { email, password });
 
-    // How the stood-in answers behave: 'pass' (the real server), 'fault' (a 500), 'down' (no answer at all), 'hold'.
+    // How the stood-in answers behave: 'pass' (the real server), 'fault' (a 500), 'hold', for the four answers named
+    // here; 'down' fails every call to Sentinel, as a lost connection does.
     let mode = 'pass';
     const held = [];
-    await browser.send('Fetch.enable', { patterns: ['account/history', 'sites/overrides', 'week', 'account/sessions'].map((p) => ({ urlPattern: `*/api/v1/${p}*` })) }, s);
+    const STOOD_IN = /\/api\/v1\/(account\/history|sites\/overrides|week|account\/sessions|ai\/providers)/;
+    await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/v1/*' }] }, s);
     browser.on('Fetch.requestPaused', (p, sid) => {
       if (sid !== s) return;
-      if (mode === 'fault') browser.send('Fetch.fulfillRequest', { requestId: p.requestId, responseCode: 500, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from('{"error":{"message":"x"}}').toString('base64') }, s).catch(() => {});
+      if (mode !== 'down' && !STOOD_IN.test(p.request.url)) browser.send('Fetch.continueRequest', { requestId: p.requestId }, s).catch(() => {});
+      else if (mode === 'fault') browser.send('Fetch.fulfillRequest', { requestId: p.requestId, responseCode: 500, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from('{"error":{"message":"x"}}').toString('base64') }, s).catch(() => {});
       else if (mode === 'down') browser.send('Fetch.failRequest', { requestId: p.requestId, errorReason: 'InternetDisconnected' }, s).catch(() => {});
       else if (mode === 'hold') held.push(p.requestId);
       else browser.send('Fetch.continueRequest', { requestId: p.requestId }, s).catch(() => {});
@@ -44,8 +47,8 @@ async function checkStates() {
     /* ---------------------------------------------- a wait is as tall as what replaces it */
     // Each place's wait, held, then what came, at the same width: the first time (a new account's empty places, from
     // app.css) and the next time (the height kept on this device). A difference is the page jumping under the reader.
-    const SLOTS = { recent: '[data-recent]', week: '[data-week]', stats: '[data-stats]', history: '[data-list]', allow: '[data-allow]', block: '[data-block]', devices: '[data-sessions]' };
-    const PAGES = { '/app': ['recent'], '/app/week': ['week'], '/app/history': ['stats', 'history'], '/app/sites': ['allow', 'block'], '/app/settings': ['devices'] };
+    const SLOTS = { recent: '[data-recent]', week: '[data-week]', stats: '[data-stats]', history: '[data-list]', allow: '[data-allow]', block: '[data-block]', devices: '[data-sessions]', assistants: '[data-pane]' };
+    const PAGES = { '/app': ['recent'], '/app/week': ['week'], '/app/history': ['stats', 'history'], '/app/sites': ['allow', 'block'], '/app/settings': ['devices'], '/app/assistants': ['assistants'] };
     const jumps = [];
     await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
     for (const [name, [width, height, mobile]] of Object.entries(SIZES)) {
@@ -95,8 +98,12 @@ async function checkStates() {
         seen.fault.push({ tag, ...fault, again });
 
         // Nothing answers: the line under the top, the block waits, and it loads by itself when the connection is back.
+        mode = 'pass';
+        await goto(browser, s, `${server.base}/app/settings`, "document.querySelector('[data-set-row]')");
         mode = 'down';
-        await goto(browser, s, `${server.base}/app/history`, "document.querySelector('[data-list] [data-state]')");
+        await evalIn(browser, s, "document.querySelector('a[href=\"/app/history\"][data-route]').click()");
+        await until(browser, s, "document.querySelector('[data-list] [data-state]')", 15000);
+        await sleep(300);
         const down = await evalIn(browser, s, BLOCK('[data-list]'));
         await sleep(300);
         await shot(browser, s, `states-offline-${tag}`);

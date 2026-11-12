@@ -30,3 +30,10 @@ Next on continue:
 5. Measure bytes (normalize CRLF): roughly app.js +3 KB, ui.js +3.5 KB, app.css +5.5 KB, boot.js +1 KB.
 6. Report (under 400 words). Weakest so far: skeleton min-heights not matched to content; slow note has no Try
    again until the 75 s timeout; simple view covers sidebar, palette, results, history filters only.
+
+## Resumed 11/11
+- Coordinator asks: waits as tall as content (done: app.js skel/keep, remembered per device and width; first-time
+  heights in app.css .h-*, to tune from the states check's "heights:" log line), and week card / chat-safety offer
+  fail as one quiet line with Try again (done: failed(..., { quiet })).
+- tests/states.test.js added; seen fail locally (hid result__partly, dropped keep week): 2 fail, restored: pass.
+- Targeted run 43120139219 (simple,states,settings,honest-result,appcore,qa-web) on 0cb... pending.

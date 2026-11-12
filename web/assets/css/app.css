@@ -587,8 +587,11 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .skeleton { position: relative; border-radius: var(--r); background: linear-gradient(90deg, rgb(var(--ink) / .03), rgb(var(--ink) / .07), rgb(var(--ink) / .03)); background-size: 200% 100%; }
 /* First-time heights: what a new account sees in each place (measured by the states check). After that, app.js keeps
    the height each place really had on this device. */
-.h-recent { height: 60px; } .h-week { height: 260px; } .h-stats { height: 74px; } .h-history { height: 330px; }
-.h-allow, .h-block { height: 120px; } .h-devices { height: 72px; } .h-assistants { height: 220px; }
+.h-recent { height: 56px; } .h-week { height: 513px; } .h-stats { height: 186px; } .h-history { height: 359px; }
+.h-allow, .h-block { height: 147px; } .h-devices { height: 113px; } .h-assistants { height: 220px; }
+@media (max-width: 699px) {
+  .h-recent { height: 71px; } .h-week { height: 644px; } .h-history { height: 469px; } .h-allow { height: 168px; } .h-devices { height: 154px; }
+}
 .usage-list > .skeleton { grid-column: 1 / -1; }
 .skeleton:is([data-skel], .u-h-sm, .desktop-skeleton)::after { content: 'This is taking longer than usual.'; position: absolute; inset: 0; display: grid; place-items: center; padding: 16px;
   font-size: var(--t-note); color: var(--muted); text-align: center; visibility: hidden; animation: skeleton-late 0s 8s forwards; }
