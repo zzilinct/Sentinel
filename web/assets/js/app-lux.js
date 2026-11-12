@@ -65,6 +65,13 @@
     if (el.classList.contains('page-title')) dressTitle(el);
   }
 
+  // A part still waiting to enter is hidden, and Tab passes over what is hidden: the moment someone uses Tab, every
+  // waiting part is shown, so the keyboard reaches every control on the page (the Motion setting below the fold too).
+  addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || !io) return;
+    document.querySelectorAll('.lux-wait').forEach((el) => { io.unobserve(el); enter(el); });
+  }, true);
+
   function stage(el) {
     if (seen.has(el)) return;
     seen.add(el);

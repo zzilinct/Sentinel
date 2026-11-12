@@ -65,9 +65,13 @@ async function checkMotionLevel() {
     result('motion-level: Calm is still Calm after a reload, set before the page drew', again.motion === 'calm' && again.checked === 'calm', again);
 
     /* Off, by the arrow keys: the radio group moves like any other. */
-    await evalIn(browser, s, "document.querySelector('.motion-set input:checked').focus()");
-    // As a keyboard sends it (a key with no text is a raw key down, as Puppeteer sends it).
-    for (const type of ['rawKeyDown', 'keyUp']) await browser.send('Input.dispatchKeyEvent', { type, key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 }, s);
+    // From the top of the page, with Tab alone, as a keyboard user gets there (the panel is below the fold, not yet
+    // entered): a key with no text is a raw key down, as Puppeteer sends it.
+    const key = async (k, code) => { for (const type of ['rawKeyDown', 'keyUp']) await browser.send('Input.dispatchKeyEvent', { type, key: k, code: k, windowsVirtualKeyCode: code }, s); };
+    let tabs = 0;
+    for (; tabs < 120 && !(await evalIn(browser, s, "Boolean(document.activeElement && document.activeElement.closest('.motion-set [role=radiogroup]'))")); tabs++) await key('Tab', 9);
+    result('motion-level: Tab alone reaches the setting from the top of the page', tabs < 120, { tabs, at: await evalIn(browser, s, '(document.activeElement || {}).outerHTML') });
+    await key('ArrowDown', 40);
     await sleep(500);
     const off = await state();
     const offRunning = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName || a.transitionProperty || 'script')");
@@ -125,7 +129,8 @@ async function checkMotionLevel() {
     const siteCalm = await evalIn(browser, s, LOOPS);
     await evalIn(browser, s, "window.SentinelMotionLevel.set('off')");
     await sleep(400);
-    const siteOff = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName || a.transitionProperty || 'script')");
+    // What is still running, with its own timing, so a failure says why.
+    const siteOff = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running').map((a) => { const t = a.effect.getComputedTiming(); const el = a.effect.target; return [a.animationName || a.transitionProperty || 'script', el && (el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className), Math.round(t.duration), Math.round(t.delay), Math.round(a.currentTime)].join(' '); })");
     result('motion-level: on the home page, Calm stills every loop that moves by itself at once, and Off everything, without a reload', ambient(siteFull).length > 0 && ambient(siteCalm).length === 0 && siteOff.length === 0, { full: siteFull, calm: siteCalm, off: siteOff });
     await evalIn(browser, s, "localStorage.removeItem('sentinel:motion')");
     result('motion-level: no errors on the page', errors.length === 0, errors);
