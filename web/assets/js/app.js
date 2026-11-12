@@ -2364,7 +2364,7 @@
       <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
       <div id="parent-lock" data-parent-lock></div>
       <div class="panel u-mt" id="look">
-        <div class="panel__head"><div><h2>Colour and theme</h2><p>${desktop ? 'One choice for this app, live scanning, its warnings, the mask in the corner, the tray icon and the companion in your browser.' : 'Remembered on this device. In the Sentinel app for Windows it also colours live scanning and its warnings.'}</p></div></div>
+        <div class="panel__head"><div><h2>Colour and theme</h2><p>${desktop ? 'One choice for this app, live scanning, its warnings, the mask in the corner, the tray icon and the companion in your browser.' : 'One choice for the whole app. In the Sentinel app for Windows it also colours live scanning and its warnings.'}</p></div></div>
         <div data-look></div>
       </div>
       <div class="panel u-mt" data-intel>
