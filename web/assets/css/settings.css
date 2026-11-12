@@ -79,6 +79,7 @@
 .set-sub--start { justify-content: flex-start; }
 /* A tick box in a row's form lines up with the fields above it, not inset like the sign-up page's. */
 .set-row__body .consent__row { padding-left: 0; padding-right: 0; }
+.set-row__body .consent__row input { margin-left: 0; }
 
 /* A row reached by a search or a link: its name is underlined in gold, drawn once, then let go. */
 .set-row__label::after { content: ''; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px; background: var(--gold-grad); transform: scaleX(0); transform-origin: left; opacity: 0; pointer-events: none; }
