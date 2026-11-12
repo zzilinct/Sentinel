@@ -148,6 +148,9 @@ async function checkStates() {
     mode = 'fault';
     await goto(browser, s, `${server.base}/app`, "document.querySelector('[data-week-card] [data-state]')");
     const card = await evalIn(browser, s, `({ ...${BLOCK('[data-week-card]')}, line: document.querySelector('[data-week-card] .empty--line') ? document.querySelector('[data-week-card] .empty--line').offsetHeight : 0 })`);
+    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
+    await evalIn(browser, s, "document.querySelector('[data-week-card]').scrollIntoView({ block: 'center' })");
+    await sleep(300);
     await shot(browser, s, 'states-quiet-desktop-dark');
     mode = 'pass';
     await evalIn(browser, s, "document.querySelector('[data-week-card] [data-retry]').click()");

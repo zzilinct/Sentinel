@@ -37,3 +37,7 @@ Next on continue:
   fail as one quiet line with Try again (done: failed(..., { quiet })).
 - tests/states.test.js added; seen fail locally (hid result__partly, dropped keep week): 2 fail, restored: pass.
 - Targeted run 43120139219 (simple,states,settings,honest-result,appcore,qa-web) on 0cb... pending.
+- Run 43120139219: 119 pass; simple could not run (same URL reload, fixed with &n=), states offline (other calls
+  answered, fixed: 'down' fails every /api call), first-time heights (set from measured values).
+- Run 43124092739 (simple,states): all pass except assistants first-time height (now set 1026/538). Pictures read.
+- Final full run: push without [skip ci].
