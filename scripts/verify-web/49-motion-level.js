@@ -129,6 +129,8 @@ async function checkMotionLevel() {
     const siteCalm = await evalIn(browser, s, LOOPS);
     await evalIn(browser, s, "window.SentinelMotionLevel.set('off')");
     await sleep(400);
+    // Measured after the page has drawn two frames: on this runner a frame can wait a second or two for the 3D masks.
+    await evalIn(browser, s, 'new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))');
     // What is still running, with its own timing, so a failure says why.
     const siteOff = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running').map((a) => { const t = a.effect.getComputedTiming(); const el = a.effect.target; return [a.animationName || a.transitionProperty || 'script', el && (el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className), Math.round(t.duration), Math.round(t.delay), Math.round(a.currentTime)].join(' '); })");
     result('motion-level: on the home page, Calm stills every loop that moves by itself at once, and Off everything, without a reload', ambient(siteFull).length > 0 && ambient(siteCalm).length === 0 && siteOff.length === 0, { full: siteFull, calm: siteCalm, off: siteOff });

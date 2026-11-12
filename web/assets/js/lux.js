@@ -9,7 +9,12 @@
 
   const A = window.anime;
   if (!A || document.documentElement.dataset.motion === 'off') return;
-  const { animate, stagger, createTimeline, createDrawable, utils } = A;
+  const { stagger, createDrawable, utils } = A;
+  // Every entrance is kept until it ends: turned Off while one plays, it lands where it ends, at once.
+  const playing = new Set();
+  const track = (a) => { playing.add(a); a.then(() => playing.delete(a)); return a; };
+  const animate = (...args) => track(A.animate(...args));
+  const createTimeline = (...args) => track(A.createTimeline(...args));
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   // Loops that move by themselves (the hero mask's float, the 404's petals) rest under Calm and Off, and go on again
@@ -17,7 +22,10 @@
   const loops = [];
   const full = () => document.documentElement.dataset.motion === 'full';
   const loop = (a) => { loops.push(a); if (!full()) a.pause(); return a; };
-  document.addEventListener('sentinel:motion', () => loops.forEach((a) => (full() ? a.resume() : a.pause())));
+  document.addEventListener('sentinel:motion', () => {
+    loops.forEach((a) => (full() ? a.resume() : a.pause()));
+    if (document.documentElement.dataset.motion === 'off') playing.forEach((a) => { if (!loops.includes(a)) a.complete(); });
+  });
 
   // Run a function the first time an element comes on screen.
   const whenSeen = (el, fn, margin = '0px 0px -12% 0px') => {
