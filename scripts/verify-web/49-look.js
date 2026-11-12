@@ -20,7 +20,8 @@ const SIZES = { desktop: { width: 1366, height: 900, mobile: false }, phone: { w
 async function checkLook() {
   const lookDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-look-'));
   const lookFile = path.join(lookDir, 'look.json');
-  fs.writeFileSync(lookFile, JSON.stringify({ mode: 'light', accent: 'sapphire' }));
+  // As main.js writes it: each setting with when it was chosen, so it is newer than the companion's untouched gold.
+  fs.writeFileSync(lookFile, JSON.stringify({ mode: 'light', accent: 'sapphire', at: { mode: Date.now(), accent: Date.now() } }));
   process.env.SENTINEL_LOOK_FILE = lookFile;   // the Windows app's server, as main.js starts it
   const sentinel = await startSentinel('look', 47821);
   const files = await serveFiles({ '/shared/fonts/': path.join(ROOT, 'web', 'assets', 'fonts'), '/shared/': path.join(ROOT, 'web', 'assets', 'js'), '/d/': path.join(ROOT, 'desktop', 'src') });
@@ -193,7 +194,7 @@ async function checkLook() {
     const cached = await pe("chrome.storage.local.get('look').then((r) => r.look)");
     result('look: the companion\'s popup takes the look the Windows app chose, from its server on this computer, and keeps it for the marks',
       Boolean(took) && cached && cached.accent === 'sapphire' && /^#[0-9a-f]{6}$/.test(cached.metal.face) && cached.live.rgb === L.ramp('sapphire', 'dark')['--live-rgb'], { cached });
-    fs.writeFileSync(lookFile, JSON.stringify({ mode: 'dark', accent: 'teal' }));
+    fs.writeFileSync(lookFile, JSON.stringify({ mode: 'dark', accent: 'teal', at: { mode: Date.now(), accent: Date.now() } }));
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: "document.addEventListener('readystatechange', () => { if (document.readyState === 'interactive' && !window.__firstLook) window.__firstLook = document.documentElement.dataset.accent; });" }, pop.sessionId);
     await goto(browser, pop.sessionId, `chrome-extension://${id}/src/popup.html`);
     const firstPop = await pe('window.__firstLook');
