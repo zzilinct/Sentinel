@@ -137,8 +137,6 @@
       requestAnimationFrame(() => { queued = false; scan(); });
     }
   }).observe(view, { childList: true, subtree: true });
-  if (view.querySelector('.view')) newPage();
-  document.addEventListener('sentinel:intro-done', () => { if (view.querySelector('.view')) newPage(); }, { once: true });
 
   /* -------------------------------------------- the wipe, between pages */
 
@@ -407,4 +405,9 @@
     });
     watch.observe(document.body, { childList: true });
   }
+
+  // A page already drawn when this file runs is dressed now, last, once every constant above exists (RULE, COUNTS and
+  // countIo are read by newPage's scan; called before them it threw, and the page kept no title rule or counts).
+  if (view.querySelector('.view')) newPage();
+  document.addEventListener('sentinel:intro-done', () => { if (view.querySelector('.view')) newPage(); }, { once: true });
 })();
