@@ -123,6 +123,7 @@ function register(router) {
     const rows = [
       ['Email address, first name, optional last name', { email: user.email, firstName: user.first_name, lastName: user.last_name || null, createdAt: at(user.created_at) }],
       ['Password, stored as a scrypt hash (never the password itself)', { set: Boolean(user.password_hash) }],
+      ['Your theme (Auto, light or dark) and colour, and when you chose each', lookOf(user)],
       ['The date you confirmed you are 18+ and accepted the Terms, and which version', { ageConfirmedAt: at(user.age_confirmed_at), termsAcceptedAt: at(user.terms_accepted_at), termsVersion: user.terms_version || null }],
       ['Whether your email is confirmed, and one-time confirmation and reset links (stored hashed)', {
         emailConfirmedAt: at(user.email_verified_at),

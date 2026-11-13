@@ -2765,6 +2765,17 @@
   const onWindows = (ok) => (ok ? '' : 'Needs Windows.');
   /** A switch saved through the app: `on` reads it, `off` says why it cannot work (past needing the app), `said` is the toast. */
   const appSwitch = (o) => ({ ...o, kind: 'switch', app: true, why: (info) => appWhy(info, o.method) || (o.off ? o.off(info) : '') });
+  /** One of three words saved through the app (Marks beside links, Pop-up warnings): `key` reads it, `said` and `state` per word. */
+  const levelRow = (o) => ({ ...o, kind: 'custom', app: true,
+    why: (i) => appWhy(i, o.method) || onWindows(liveOf(i).supported),
+    state: (i) => o.state[i[o.key]] || '',
+    control: (i) => seg(`set-${o.id}-l`, o.options, i[o.key]),
+    bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', async () => {
+      if (b.getAttribute('aria-pressed') === 'true') return;
+      $$('[data-seg]', row).forEach((x) => { x.disabled = true; });
+      try { toast(o.said[await desktop[o.method](b.dataset.seg)], 'success'); } catch (err) { toast(desktopError(err), 'error'); }
+      ctx.refresh();
+    })) });
   const seg = (labelId, options, current) => `<div class="seg" role="group" aria-labelledby="${labelId}">${options.map(([v, name, off]) => `<button type="button" class="seg__btn${v === current ? ' is-on' : ''}" data-seg="${v}" aria-pressed="${v === current}" ${off ? 'disabled' : ''}>${name}</button>`).join('')}</div>`;
   const facts = (summary, items) => `<details class="set-facts"><summary>${summary}</summary><ul>${items.map(([b, t]) => `<li><b>${b}</b> ${t}</li>`).join('')}</ul></details>`;
   const linkControl = (href) => `<a class="btn btn--sm" href="${href}">Open</a>`;
@@ -2795,6 +2806,12 @@
         try { await desktop.setLiveMode(b.dataset.seg); toast(b.dataset.seg === 'delicate' ? 'Live scanning is delicate now.' : 'Live scanning is fast now.', 'success'); } catch (err) { toast(desktopError(err), 'error'); }
         ctx.refresh();
       })) },
+    levelRow({ id: 'marks-beside-links', group: 'protection', label: 'Marks beside links', method: 'setMarksLevel', key: 'marksLevel',
+      hint: 'Sentinel checks every link either way. This only changes which ones get a mark. A warning or danger mark always shows.',
+      words: ['marks', 'ticks', 'tick', 'safe', 'busy', 'clutter', 'quiet', 'search results', 'less', 'density'],
+      options: [['all', 'Every link'], ['risky', 'Risky links'], ['danger', 'Serious only']],
+      said: { all: 'Every link gets a mark. Safe ones get a small tick.', risky: 'Risky links get a mark. Safe ones get none.', danger: 'Only warning and danger links get a mark.' },
+      state: { all: 'Safe links get a small tick, so every result shows its answer.', risky: 'Caution, warning and danger links get a mark. Safe links get none.', danger: 'Only warning and danger links get a mark. The corner island still counts every link.' } }),
     appSwitch({ id: 'auto-scan', group: 'protection', label: 'Auto scanning', hint: 'Starts fast scanning by itself whenever you open a browser, and stops when every browser is closed.',
       words: ['automatic', 'browser', 'start', 'live'], method: 'setAutoScan', hook: 'auto-scan', on: (i) => i.autoScan, off: (i) => onWindows(liveOf(i).supported),
       said: (on) => (on ? 'Auto scanning is on. Open a browser and Sentinel starts scanning it.' : 'Auto scanning is off.') }),
@@ -2911,6 +2928,12 @@
         ['Never in the way.', 'Only texts you received are checked. Sentinel never types, clicks or replies in Phone Link.'],
         ['English texts for now.', 'Sentinel knows the wording of scam texts in English only, and Phone Link needs to show a left-to-right language.']]) }),
 
+    levelRow({ id: 'warn-level', group: 'alerts', label: 'Pop-up warnings', method: 'setWarningsLevel', key: 'warningsLevel',
+      hint: 'When a page you open looks like a warning or a danger, Sentinel tells you with a notification and a small card in the corner. Whatever you choose, the page is still marked in the corner, and Sentinel still asks before you pay with gift cards or crypto, or after you typed a password on it.',
+      words: ['notifications', 'notification', 'alerts', 'loud', 'quiet', 'popup', 'pop up', 'card', 'interrupt', 'warn'],
+      options: [['all', 'Always'], ['danger', 'Danger only'], ['quiet', 'Never']],
+      said: { all: 'Sentinel warns you about warning and danger pages.', danger: 'Sentinel warns you only about danger pages.', quiet: 'No more pop-up warnings. Flagged pages are still marked in the corner.' },
+      state: { all: 'A notification and a card for every warning or danger page.', danger: 'A warning page is marked in the corner, without a notification or a card.', quiet: 'Nothing pops up. A flagged page is marked in the corner only, so look there before you sign in or pay.' } }),
     appSwitch({ id: 'exposure-alerts', group: 'alerts', label: 'Exposure alerts', hint: 'A scam page often reaches the threat lists hours or days after it goes up. With this on, Sentinel remembers the sites live scanning found safe for 14 days, and tells you if a list names one of them afterwards, with what to do.',
       words: ['listed', 'later', 'visited', 'history', 'warning', 'notification'], method: 'setExposureAlerts', hook: 'exposure-alerts', on: (i) => i.exposureAlerts, off: (i) => (liveOf(i).supported ? '' : 'Needs Windows, with live scanning.'),
       state: (i) => (i.exposureAlerts && !liveOf(i).enabled ? 'On, but live scanning is off, so no sites are being remembered.' : ''),

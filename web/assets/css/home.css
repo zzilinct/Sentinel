@@ -368,7 +368,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   .colour__view::after { inset: 8px; border-radius: 18px; }
   .colour__crest { gap: 12px; margin-bottom: 0; }
   .colour__mask { width: 40px; height: 40px; }
-  .colour__crest b { font-size: 30px; }
+  .colour__crest b { font-size: var(--t-title-l); }
   .colour__view .colour__row, .colour__view .demo-row + .demo-row { display: none; }
   .colour__view .btn { margin-top: 0; }
 }

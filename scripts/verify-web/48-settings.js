@@ -20,8 +20,8 @@ const standIn = `(() => {
     clipboardCheck: true, commandShield: true, walletGuard: false, remoteGuard: { supported: true, enabled: true, trusted: [] },
     snip: { supported: true, enabled: true, registered: true, key: 'ctrl-shift-s', keys: [{ id: 'ctrl-shift-s', label: 'Ctrl + Shift + S' }] },
     chatSafety: { supported: true, enabled: false }, textSafety: { supported: true, enabled: false }, exposureAlerts: false, weekRecap: true,
-    update: { status: 'current', supported: true } };
-  const field = { setClipboardCheck: 'clipboardCheck', setWeekRecap: 'weekRecap', setOpenAtLogin: 'openAtLogin' };
+    update: { status: 'current', supported: true }, marksLevel: 'all', warningsLevel: 'all' };
+  const field = { setClipboardCheck: 'clipboardCheck', setWeekRecap: 'weekRecap', setOpenAtLogin: 'openAtLogin', setMarksLevel: 'marksLevel', setWarningsLevel: 'warningsLevel' };
   window.__calls = [];
   const known = {
     info: async () => JSON.parse(JSON.stringify(info)),
@@ -35,9 +35,9 @@ const standIn = `(() => {
     if (/^on[A-Z]/.test(name)) return () => () => {};
     if (/^set[A-Z]/.test(name)) return async (v) => {
       window.__calls.push([name, v]);
-      if (name === 'setWalletGuard') throw new Error(${JSON.stringify(REFUSED)});
+      if (name === 'setWalletGuard' || (name === 'setWarningsLevel' && v === 'quiet')) throw new Error(${JSON.stringify(REFUSED)});
       if (field[name]) info[field[name]] = v;
-      return {};
+      return /Level$/.test(name) ? v : {};
     };
     return undefined;
   } });
@@ -149,6 +149,48 @@ async function checkSettings() {
     await sleep(900);
     const refused = await evalIn(browser, s, "({ checked: document.querySelector('#set-wallet-guard-c').checked, disabled: document.querySelector('#set-wallet-guard-c').disabled, toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | ') })");
     result('settings: a save the app refuses puts the switch back and says why', refused.checked === false && !refused.disabled && refused.toast.includes('Parent lock is on'), refused);
+
+    /* ------------------------- marks beside links and pop-up warnings, as a person sets them */
+    const level = (row) => `(() => { const r = document.getElementById(${JSON.stringify(row)}); return { pressed: [...r.querySelectorAll('[data-seg][aria-pressed="true"]')].map((b) => b.textContent),
+      buttons: [...r.querySelectorAll('[data-seg]')].map((b) => b.textContent), state: r.querySelector('[data-set-state]').textContent,
+      fits: [...r.querySelectorAll('[data-seg]')].every((b) => b.scrollWidth <= b.clientWidth + 1 && b.getBoundingClientRect().right <= innerWidth),
+      toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | ') }; })()`;
+    const press = (row, word) => evalIn(browser, s, `[...document.querySelectorAll('#${row} [data-seg]')].find((b) => b.textContent === ${JSON.stringify(word)}).click()`);
+    const first = { marks: await evalIn(browser, s, level('marks-beside-links')), warnings: await evalIn(browser, s, level('warn-level')) };
+    result('settings: marks beside links and pop-up warnings start where they always were: every link, always',
+      first.marks.pressed.join() === 'Every link' && first.warnings.pressed.join() === 'Always' && first.marks.buttons.join() === 'Every link,Risky links,Serious only' && first.warnings.buttons.join() === 'Always,Danger only,Never', first);
+    await press('marks-beside-links', 'Serious only');
+    await sleep(900);
+    const marksSet = await evalIn(browser, s, level('marks-beside-links'));
+    result('settings: "Serious only" is saved through the app and says the island still counts every link',
+      marksSet.pressed.join() === 'Serious only' && /island still counts every link/.test(marksSet.state) && /Only warning and danger links get a mark/.test(marksSet.toast)
+      && (await evalIn(browser, s, "window.__calls.some(([n, v]) => n === 'setMarksLevel' && v === 'danger')")), marksSet);
+    await press('warn-level', 'Danger only');
+    await sleep(900);
+    await press('warn-level', 'Never');
+    await sleep(900);
+    const quietRefused = await evalIn(browser, s, level('warn-level'));
+    result('settings: "Never" refused by the parent lock stays on "Danger only" and says why',
+      quietRefused.pressed.join() === 'Danger only' && quietRefused.toast.includes('Parent lock is on') && /without a notification or a card/.test(quietRefused.state), quietRefused);
+    const fit = [];
+    for (const [size, [width, height, mobile]] of Object.entries(SIZES)) {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, s);
+      for (const theme of THEMES) {
+        await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
+        await goto(browser, s, `${server.base}/app/settings`);
+        await until(browser, s, ready, 20000);
+        for (const [row, name] of [['marks-beside-links', 'marks'], ['warn-level', 'warnings']]) {
+          await evalIn(browser, s, `document.getElementById(${JSON.stringify(row)}).scrollIntoView({ block: 'center' })`);
+          await sleep(300);
+          const r = await evalIn(browser, s, level(row));
+          if (!r.fits) fit.push(`${row} ${size} ${theme}`);
+          await shot(browser, s, `settings-${name}-${size}-${theme}`);
+        }
+      }
+    }
+    result('settings: the three choices fit whole on a phone and on a computer, in both themes', !fit.length, fit);
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, s);
+    await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, s);
 
     /* ------------------------------------------------------- old addresses */
     await goto(browser, s, `${server.base}/app/protection#chat-safety`);

@@ -8,9 +8,8 @@
     enabled: true,
     emailProtection: true,
     warnOnNavigate: true,
-    notifications: true,
-    minimumBadge: 'yellow',
-    markSafe: true,
+    marksLevel: 'all',
+    warningsLevel: 'all',
     scanOverlay: true,
     commandGuard: true,
     chatHints: true

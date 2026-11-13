@@ -9,7 +9,7 @@
  * Plans with delicate scanning (Pro and up) get a second, researched pass: masks
  * appear instantly from the checklist, then upgrade once research finishes.
  */
-import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError, keepLook } from './lib/api.js';
+import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError, keepLook, warns, levelsFrom, OLD_LEVEL_KEYS } from './lib/api.js';
 // SentinelSay: the words of the warnings, shared with the block page, popup and settings.
 import './lib/say.js';
 import { PRESETS, MIN_LENGTH, KEEP, bankDomain, newSalt, hashPassword, sameHash, homeAccount, guardedHere, hashesOf } from './lib/pwalarm.js';
@@ -323,7 +323,8 @@ async function onNavigate(details) {
   // A shop's checkout whose address is young or unknown: a calm note in the corner, the same rules as the Windows app.
   if (verdict.pay && verdict.pay.text) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:pay', text: String(verdict.pay.text) })).catch(() => {});
 
-  const severe = verdict.overall && (verdict.overall.badge === 'red' || (verdict.overall.badge === 'orange' && settings.minimumBadge !== 'red'));
+  // Pop-up warnings (Settings) decide only whether an orange page is warned over; the rest follows every flagged page.
+  const severe = verdict.overall && (verdict.overall.badge === 'red' || verdict.overall.badge === 'orange');
   // The page itself keeps that it is flagged, for as long as it is open: a later pay pause on it is declined there,
   // in a private window too, with nothing about the page kept here.
   if (isFlagged(verdict)) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:flagged' }, { frameId: 0 })).catch(() => {});
@@ -331,7 +332,7 @@ async function onNavigate(details) {
   if (severe && settings.warnOnNavigate && !(await isLetThroughHere(details.tabId, details.url))) {
     // Red is evidence: the page goes. Orange is a guess: it is warned over and kept, with whatever was typed in it.
     if (verdict.overall.badge === 'red') return closeFlagged(details);
-    await warnInPlace(details.tabId, verdict, settings);
+    if (warns(settings.warningsLevel, 'orange')) await warnInPlace(details.tabId, verdict, settings);
   }
   if (severe) await typedFlagged(details.tabId, details.url);
   else if (verdict.paypage) await payPause(details.tabId, details.url, verdict.paypage);
@@ -749,7 +750,7 @@ const handlers = {
     paint(tabId, verdict);
     await sessionSet('paySign', Date.now());
     const settings = await getSettings();
-    if (verdict.overall.badge === 'red' && settings.notifications && !sender.tab.active) {
+    if (verdict.overall.badge === 'red' && warns(settings.warningsLevel, 'red') && !sender.tab.active) {
       Promise.resolve(ext.notifications.create(`sentinel-${Date.now()}`, {
         type: 'basic',
         iconUrl: ext.runtime.getURL('icons/icon128.png'),
@@ -881,6 +882,11 @@ ext.runtime.onInstalled.addListener(async (details) => {
   try { ext.contextMenus.create({ id: 'sentinel-check-link', title: 'Scan this link with Sentinel', contexts: ['link'] }, () => void ext.runtime.lastError); } catch { /* already there */ }
   ext.alarms.create('sentinel:intel', { periodInMinutes: 60 });
   ext.alarms.create('sentinel:account', { periodInMinutes: 15 });
+  // The older mask and notification settings, once, in the words Settings uses now (lib/api.js levelsFrom).
+  try {
+    const old = await ext.storage.sync.get(OLD_LEVEL_KEYS);
+    if (old && Object.keys(old).length) { await ext.storage.sync.set(levelsFrom(old)); await ext.storage.sync.remove(OLD_LEVEL_KEYS); }
+  } catch { /* kept as it was; tried again at the next update */ }
   await restore();
   if (!account.signedIn) await connect();
   if (await wantsConnectTab(details.reason, account.signedIn)) {
@@ -1047,7 +1053,7 @@ ext.webNavigation.onCompleted.addListener((details) => inTabOrder(details.tabId,
   if (isFlagged(known)) {
     Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:flagged' }, { frameId: 0 })).catch(() => {});
     const settings = await getSettings();
-    if (known.overall.badge === 'orange' && settings.warnOnNavigate && settings.minimumBadge !== 'red' && !(await isLetThroughHere(details.tabId, details.url))) warnInPlace(details.tabId, known, settings);
+    if (known.overall.badge === 'orange' && settings.warnOnNavigate && warns(settings.warningsLevel, 'orange') && !(await isLetThroughHere(details.tabId, details.url))) warnInPlace(details.tabId, known, settings);
   }
   if (await sessionGet(typedKey(details.tabId))) typedWatch(details.tabId);
   else await typedDeliver(details.tabId);

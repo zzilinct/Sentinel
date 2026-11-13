@@ -32,12 +32,12 @@
     <div class="rows">
       <label class="opt"><span><b>Live scanning</b><small>Masks on search results, and each page checked as it opens.</small></span><input type="checkbox" id="enabled"></label>
       <label class="opt"><span><b>Stop dangerous pages</b><small>Sites on the confirmed list never load. A page the scanner flags after it opens is closed.</small></span><input type="checkbox" id="warnOnNavigate"></label>
-      <label class="opt"><span><b>Show masks from</b><small>Hide the milder masks on search results.</small></span>
-        <select id="minimumBadge"><option value="yellow">Yellow and above</option><option value="orange">Orange and above</option><option value="red">Red only</option></select></label>
-      <label class="opt"><span><b>Tick on safe results</b><small>A quiet tick beside results that came back clean, so every link shows a verdict.</small></span><input type="checkbox" id="markSafe"></label>
+      <label class="opt"><span><b>Marks beside links</b><small>Sentinel checks every link either way. This only changes which ones get a mark. A warning or danger mark always shows.</small></span>
+        <select id="marksLevel"><option value="all">Every link</option><option value="risky">Risky links</option><option value="danger">Serious only</option></select></label>
       <label class="opt"><span><b>Scanning line and tint</b><small>A line in your colour sweeps the results while Sentinel checks them.</small></span><input type="checkbox" id="scanOverlay"></label>
       <label class="opt"><span><b>Stop pasted commands</b><small>A page cannot copy a command that only a trick would ask you to paste into Windows (Windows key + R) or a terminal. Checked in the browser; nothing is sent.</small></span><input type="checkbox" id="commandGuard"></label>
-      <label class="opt"><span><b>Desktop notifications</b><small>Tell me when Sentinel stops a page in a tab I am not looking at.</small></span><input type="checkbox" id="notifications"></label>
+      <label class="opt"><span><b>Pop-up warnings</b><small>A warning over a risky page, and a notification when Sentinel stops a page in a tab you are not looking at. A dangerous page is stopped whatever you choose, while Stop dangerous pages is on.</small></span>
+        <select id="warningsLevel"><option value="all">Always</option><option value="danger">Danger only</option><option value="quiet">Never</option></select></label>
       <p class="small note-row" id="privateNote" hidden>Private windows are not checked yet. To check them too, allow Sentinel in private windows: in Firefox, open Add-ons and themes, choose Sentinel and turn on Run in Private Windows. In Chrome or Edge, open Extensions, choose Details under Sentinel and turn on Allow in Incognito (Allow in InPrivate in Edge).</p>
     </div>
   </section>

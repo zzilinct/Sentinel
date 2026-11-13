@@ -17,6 +17,8 @@ const overlay = read('desktop/src/overlay.js');
 const watchSrc = read('desktop/src/watch.js');
 const COLORS = { red: '#e5484d', orange: '#f08a24', yellow: '#f5c542', clear: '#4cb782' };
 const SEVERITY = { red: 'Danger', orange: 'Warning', yellow: 'Caution' };
+require('../web/assets/js/masks.js');
+const REAL = globalThis.SentinelMasks;
 
 function island() {
   const code = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
@@ -55,7 +57,7 @@ function island() {
   ctx.window = Object.assign(ctx, {
     innerWidth: 1000, innerHeight: 700,
     addEventListener: (n, f) => { listeners[n] = f; },
-    SentinelMasks: { COLORS, SEVERITY, svg: () => '', mark: () => '', tick: () => '', setMetal() {} },
+    SentinelMasks: { COLORS, SEVERITY, svg: () => '', mark: () => '', tick: () => '', setMetal() {}, shows: REAL.shows },
     SentinelLook: require('../web/assets/js/look.js'),
     sentinelOverlay: { on: (n, f) => { handlers[n] = f; }, interact: (on) => calls.push(['interact', on]), act: (a) => calls.push(['act', a]) }
   });
@@ -117,6 +119,24 @@ test('a results page shows its links: seen on this page, each once, worst first'
   o.send('overlay:open');
   assert.deepEqual(o.links(), []);
   assert.equal(o.els.panelLinks.hidden, true, 'no links seen: no row, not a zero');
+});
+
+test('marks beside links: fewer marks, the same count, and a change shows at once', () => {
+  const o = island();
+  on(o, { host: 'www.bing.com', search: true });
+  o.send('overlay:marks', { ...marks('clear', 'yellow', 'orange', 'pending'), level: 'danger' });
+  assert.equal(o.els.marks.kids.length, 1, 'serious only: the warning mark alone');
+  assert.equal(o.words(), '2 flagged', 'the island still counts every link');
+  o.send('overlay:open');
+  assert.deepEqual(o.links(), ['1 Warning', '1 Caution', '1 Nothing found', '1 Being checked']);
+  o.key('Escape');
+  // A hidden safe link explains nothing under the pointer.
+  o.pointer(118, 10);
+  assert.equal(o.els.tip.classList.contains('is-on'), false);
+  o.send('overlay:level', { marks: 'risky' });
+  assert.equal(o.els.marks.kids.length, 2, 'risky links: the caution mark joins it, without a new read');
+  o.send('overlay:level', { marks: 'all' });
+  assert.equal(o.els.marks.kids.length, 4, 'every link: the tick and the waiting dot come back');
 });
 
 test('a hovered link does not unsay the page\'s verdict', () => {

@@ -26,6 +26,7 @@ let holdingKeys = false; // the island's panel has the keyboard
 let giveBack = null;     // how the keyboard goes back to the browser (watch.backToBrowser)
 let keyHint = '';        // the island's shortcut in words, when Windows gave it to Sentinel
 let look = { mode: 'auto', accent: 'gold' };   // the app's look (main.js applyLook), drawn from the first paint
+let marksLevel = 'all';  // Marks beside links, as set in Settings (masks.js shows)
 const ACTIONS = new Set(['pause', 'resume', 'open', 'released']);
 
 function send(channel, payload) {
@@ -216,7 +217,13 @@ function setMarks({ marks, checking, epoch, clip, ends }) {
     dryRun(`marks: ${local.length} (${local.filter((m) => m.badge).length} flagged, ${local.filter((m) => m.pending).length} waiting), ${inside} inside the page area; first at ${Math.round(local[0].x)},${Math.round(local[0].y)}`);
   }
   const band = clip ? { top: (clip.top - area.y) / scale, bottom: (clip.bottom - area.y) / scale } : null;
-  send('overlay:marks', { marks: local, checking: checking || 0, epoch: epoch || 0, clip: band, ends: /^[01]{2}$/.test(ends) ? ends : '' });
+  send('overlay:marks', { marks: local, checking: checking || 0, epoch: epoch || 0, clip: band, ends: /^[01]{2}$/.test(ends) ? ends : '', level: marksLevel });
+}
+
+/** Marks beside links changed: the marks already on screen follow it at once. */
+function setMarksLevel(level) {
+  marksLevel = level;
+  send('overlay:level', { marks: level });
 }
 
 /** The page moved by (dx, dy) screen pixels since the marks of `epoch` were placed. Sent straight through, every frame. */
@@ -262,4 +269,4 @@ function destroy() {
   win = null;
 }
 
-module.exports = { init, handle, revive, setWindow, isFullscreen, sweep, setVerdict, setPage, setPaused, setPay, setLook, setMarks, shift, wheel, pixels, keyboard, destroy, setKeyHint: (words) => { keyHint = words; }, setDryRun: (logger) => { dryRun = logger || null; } };
+module.exports = { init, handle, revive, setWindow, isFullscreen, sweep, setVerdict, setPage, setPaused, setPay, setLook, setMarks, setMarksLevel, shift, wheel, pixels, keyboard, destroy, setKeyHint: (words) => { keyHint = words; }, setDryRun: (logger) => { dryRun = logger || null; } };

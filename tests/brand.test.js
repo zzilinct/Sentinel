@@ -23,7 +23,7 @@ test("the mark's gold is the site's gold", () => {
   assert.strictEqual(brand.mark.gold, token('gold-400'));
   assert.strictEqual(brand.mark.goldDeep, token('gold-500'));
   assert.strictEqual(require('../server/lib/mailer').GOLD, brand.mark.gold);
-  assert.match(read('extension/src/popup.css'), new RegExp(`--gold:\\s*${brand.mark.gold}`, 'i'));
+  assert.match(read('extension/src/popup.css'), new RegExp(`--gold-400:\\s*${brand.mark.gold}`, 'i'));
 });
 
 test('every drawn copy of the logo is the shield in masks.js', () => {

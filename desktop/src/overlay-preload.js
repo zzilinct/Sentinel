@@ -4,7 +4,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const CHANNELS = ['overlay:watching', 'overlay:sweep', 'overlay:verdict', 'overlay:marks', 'overlay:shift', 'overlay:wheel', 'overlay:px', 'overlay:pay', 'overlay:clear',
-  'overlay:page', 'overlay:paused', 'overlay:open', 'overlay:close', 'overlay:look'];
+  'overlay:page', 'overlay:paused', 'overlay:open', 'overlay:close', 'overlay:look', 'overlay:level'];
 
 contextBridge.exposeInMainWorld('sentinelOverlay', {
   on(channel, callback) {
