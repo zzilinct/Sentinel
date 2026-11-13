@@ -771,10 +771,20 @@ const trayImages = new Map();
 /** The tray's mask cast in the accent: the gold picture's own pixels turned to it, made once per accent. */
 function trayImage(accent) {
   if (!trayImages.has(accent)) {
-    const base = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', process.platform === 'darwin' ? 'icon16.png' : 'icon32.png'));
+    const file = (name) => nativeImage.createFromPath(path.join(__dirname, '..', 'assets', name));
     // The menu bar on a Mac draws its icons in its own colours.
-    const keep = process.platform === 'darwin' || accent === 'gold' || base.isEmpty();
-    trayImages.set(accent, keep ? base : nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), base.getSize()));
+    if (process.platform === 'darwin') { trayImages.set(accent, file('icon16.png')); return trayImages.get(accent); }
+    // The hand-drawn 16 px mark at 100%, the 32 px one at 200%: Windows picks the one for the screen instead of
+    // shrinking the large one into a blur. Each is cast in the accent the same way.
+    const image = nativeImage.createEmpty();
+    for (const [name, scaleFactor] of [['icon16.png', 1], ['icon32.png', 2]]) {
+      const base = file(name);
+      if (base.isEmpty()) continue;
+      const size = base.getSize();
+      const cast = accent === 'gold' ? base : nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), size);
+      image.addRepresentation({ scaleFactor, width: size.width, height: size.height, dataURL: cast.toDataURL() });
+    }
+    trayImages.set(accent, image.isEmpty() ? file('icon32.png') : image);
   }
   return trayImages.get(accent);
 }

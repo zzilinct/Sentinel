@@ -20,6 +20,7 @@ const SIZES = { desktop: { width: 1366, height: 900, mobile: false }, phone: { w
 async function checkLook() {
   const lookDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-look-'));
   const lookFile = path.join(lookDir, 'look.json');
+  // As main.js writes it: each setting with when it was chosen, so it is newer than the companion's untouched gold.
   fs.writeFileSync(lookFile, JSON.stringify({ mode: 'light', accent: 'sapphire', at: { mode: Date.now(), accent: Date.now() } }));
   process.env.SENTINEL_LOOK_FILE = lookFile;   // the Windows app's server, as main.js starts it
   const sentinel = await startSentinel('look', 47821);

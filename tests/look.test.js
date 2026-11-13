@@ -118,6 +118,9 @@ test('the tray mask is gold untouched, and cast in another accent keeps its shap
   assert.ok(Math.abs(L.toOklch('#' + [blue[2], blue[1], blue[0]].map((v) => v.toString(16).padStart(2, '0')).join(''))[0] - L.toOklch('#d6b25a')[0]) < 0.08, 'about the same lightness (the dark tuning sits a little lower)');
   assert.match(read('desktop', 'src', 'main.js'), /tray = new Tray\(trayImage\(look\(\)\.accent\)\)/);
   assert.match(read('desktop', 'src', 'main.js'), /if \(tray\) tray\.setImage\(trayImage\(l\.accent\)\)/);
+  // The 16 px mark at 100% and the 32 px one at 200%, both cast in the accent.
+  assert.match(read('desktop', 'src', 'main.js'), /\[\['icon16\.png', 1\], \['icon32\.png', 2\]\]/);
+  assert.match(read('desktop', 'src', 'main.js'), /Look\.tintBitmap\(base\.toBitmap\(\), accent\)/);
 });
 
 test('GET /api/v1/look: only the app\'s server, only this computer, only the look', async () => {
