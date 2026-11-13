@@ -830,6 +830,7 @@
         <button class="btn btn--gold" type="submit">Check</button>
       </form>
       <div class="scan-meta"><span>Sentinel works out what it is and says which check it runs.</span><a href="/app/check">Check an email, a file or a picture &rarr;</a></div>
+      <div data-first></div>
 
       <div class="usage-list u-mt-lg">
         ${scanCards(us)}
@@ -848,11 +849,11 @@
       </div>`;
 
     weekCard($('[data-week-card]', el));
-    // One offer at a time: exposure alerts are offered only while chat safety's question is not showing.
+    // One offer at a time: the first-run choices, then chat safety, then exposure alerts, each on a later visit.
     const chatAsk = $('[data-chat-ask]', el);
     // A failure says so quietly in the offer's place (askChatSafety), with Try again running both offers again.
     const offers = () => { chatAsk.innerHTML = ''; return askChatSafety(chatAsk, offers).then(() => { if (!chatAsk.innerHTML) askExposureAlerts($('[data-exposure-ask]', el)); }); };
-    offers();
+    if (!firstChoices($('[data-first]', el))) offers();
     $('[data-quick]', el).addEventListener('submit', (ev) => {
       ev.preventDefault();
       const url = ev.target.url.value.trim();
@@ -2617,6 +2618,62 @@
     });
   }
 
+  /*
+   * The first-run step: once on this device, the first time home opens, a few of Settings' own rows in one calm panel,
+   * so the main choices are made in the first minute. It is a view of Settings, not a copy: each row is drawn and saved
+   * by its SETTINGS entry, so a choice made here works at once and is the same choice there. Each slot below takes the
+   * first of its ids that has a row; a row that cannot work here (its why) is left out. Hooks for rows built elsewhere:
+   *   'accent'      the accent colours (work/e2e-c-design); 'theme' (light or dark) stands in until it lands
+   *   'motion'      Full, Calm or Off (work/e2e-c-motion)
+   *   'warn-level'  how loud Sentinel is (work/e2e-c-quiet)
+   * Done, or Escape, keeps what is chosen, and the step never comes back. Storage that cannot be used: never shown.
+   */
+  const FIRST_CHOICES = [['accent', 'theme'], ['motion'], ['warn-level'], ['text-size']];
+  const FIRST_KEY = 'sentinel:first-choices';
+  function firstChoices(slot) {
+    try { if (localStorage.getItem(FIRST_KEY)) return false; } catch { return false; }
+    const rows = FIRST_CHOICES.map((ids) => ids.map((id) => SETTINGS.find((r) => r.id === id)).find(Boolean)).filter(Boolean);
+    if (!rows.length) return false;
+    slot.innerHTML = `<section class="first" aria-labelledby="first-h"><div class="first__fold"><div class="first__in">
+      <h2 id="first-h">Make Sentinel yours</h2>
+      <p class="first__lead">Each choice works the moment you make it, and every one of them is in Settings too.</p>
+      <div class="first__rows">${rows.map(rowHTML).join('')}</div>
+      <div class="first__end">${desktop ? '<p>Closing this window leaves Sentinel running in the tray. Right-click the mask there to quit.</p>' : ''}
+        <a class="btn btn--ghost" href="/app/settings#look">All settings</a><button class="btn btn--gold" type="button" data-first-done>Done</button></div>
+    </div></div></section>`;
+    const box = $('.first', slot);
+    const ctx = { info: state.desktopInfo, ready: !desktop || Boolean(state.desktopInfo), data: { mine: [] }, offs: [], draw, refresh };
+    function draw() {
+      if (!box.isConnected) return;
+      for (const r of rows) {
+        const row = $(`[data-set-row="${r.id}"]`, box);
+        if (r.app && !ctx.ready) continue;
+        row.hidden = Boolean(r.why && r.why(ctx.info));
+        if (!row.hidden) paintRow(r, row, ctx);
+      }
+    }
+    async function refresh() {
+      if (desktop) { try { ctx.info = state.desktopInfo = await desktop.info(); } catch { /* an app row says the app did not answer */ } ctx.ready = true; }
+      draw();
+    }
+    if (rows.some((r) => r.app) && !ctx.ready) refresh(); else draw();
+
+    // Done folds the panel away (a height spring, as a Settings row leaves a search); with motion off it simply goes.
+    const done = () => {
+      try { localStorage.setItem(FIRST_KEY, '1'); } catch { /* asked again next time: nothing lost */ }
+      const back = box.contains(document.activeElement);
+      const gone = () => { slot.innerHTML = ''; if (back) { const q = $('[data-quick] input'); if (q) q.focus({ preventScroll: true }); } };
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'off') { gone(); return; }
+      box.addEventListener('transitionend', (ev) => { if (ev.target === box) gone(); });
+      setTimeout(gone, 800);   // a transition that never ends (a hidden tab) still leaves
+      box.classList.add('is-out');
+      box.inert = true;
+    };
+    $('[data-first-done]', box).addEventListener('click', done);
+    box.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); done(); } });
+    return true;
+  }
+
   // Most in need of the person first: flagged, then the files Sentinel could not stand behind.
   const downloadRank = (d) => (d.badge && !d.quarantined ? 3 : d.looked === 'none' ? 2 : d.looked === 'part' ? 1 : 0);
 
@@ -2891,6 +2948,14 @@
       words: ['simple', 'easy', 'less', 'basic', 'bigger', 'large', 'older', 'beginner', 'clutter', 'plain'],
       on: () => simpleView(), save: (input) => window.SentinelSimple.set(input.checked),
       said: (on) => (on ? 'Simple view is on. Pages you may not need are tucked away; search still finds every one.' : 'Simple view is off. Every page and detail is back.') },
+    { id: 'text-size', group: 'look', kind: 'custom', label: 'Text size', hint: 'Larger words in the app, on the website and in Sentinel\'s warnings, on this device. Headings stay as they are.',
+      words: ['font', 'bigger', 'larger', 'read', 'reading', 'eyes', 'zoom', 'small', 'accessibility'],
+      control: () => seg('set-text-size-l', [['standard', 'Standard'], ['large', 'Large'], ['larger', 'Larger']], window.SentinelType ? window.SentinelType.get().text : 'standard'),
+      bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelType) window.SentinelType.set({ text: b.dataset.seg }); ctx.draw(); })) },
+    { id: 'density', group: 'look', kind: 'custom', label: 'Spacing', hint: 'Compact fits more on one screen. Buttons stay easy to press.',
+      words: ['compact', 'dense', 'density', 'comfortable', 'padding', 'space', 'tight'],
+      control: () => seg('set-density-l', [['comfortable', 'Comfortable'], ['compact', 'Compact']], window.SentinelType ? window.SentinelType.get().density : 'comfortable'),
+      bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelType) window.SentinelType.set({ density: b.dataset.seg }); ctx.draw(); })) },
 
     { id: 'reduce-motion', group: 'motion', kind: 'custom', label: 'Less motion', hint: 'Sentinel follows your computer. With Reduce motion turned on in your computer or phone settings, nothing slides, springs or draws.',
       words: ['animation', 'animations', 'reduce', 'still', 'calm', 'effects', 'moving'],
@@ -3314,15 +3379,50 @@
     ctx.refresh();
   }
 
+  /** One row's frame: its name, hint, state line, control and body. Settings draws every row; the first-run step a few. */
+  function rowHTML(r) {
+    const label = r.kind === 'switch' ? `<label class="set-row__label" id="set-${r.id}-l" for="set-${r.id}-c">${esc(r.label)}</label>` : `<h3 class="set-row__label" id="set-${r.id}-l">${esc(r.label)}</h3>`;
+    return `<div class="set-row" id="${r.id}" data-set-row="${r.id}"><div class="set-fold">
+      <div class="set-row__head"><div class="set-row__text">${label}<p class="set-row__hint" id="set-${r.id}-hint">${esc(r.hint)}</p><p class="set-row__state" data-set-state${r.seen ? ` data-${r.seen} role="status"` : ""}></p></div>
+        <div class="set-row__control" data-set-control>${r.app && desktop ? '<span class="skeleton set-skel" aria-hidden="true"></span>' : ''}</div></div>
+      <div class="set-row__body" data-set-body></div></div></div>`;
+  }
+
+  /* A row's control, state line and body, redrawn only when what they say changes, so focus stays put. */
+  function paintRow(r, row, ctx) {
+    const info = ctx.info;
+    const why = r.why ? r.why(info) : '';
+    const stateHTML = why ? `<span class="set-why">${esc(why)}</span>` : r.state ? esc(r.state(info) || '') : '';
+    if (r.kind === 'block') {
+      $('[data-set-state]', row).innerHTML = stateHTML;
+      $('[data-set-control]', row).innerHTML = '';
+      if (!why && !row._mounted) { row._mounted = true; r.mount($('[data-set-body]', row), ctx); }
+      return;
+    }
+    const control = r.kind === 'switch'
+      ? `<input class="switch" type="checkbox" id="set-${r.id}-c"${r.hook ? ` data-${r.hook}` : ""} aria-describedby="set-${r.id}-hint" ${!why && r.on(info) ? 'checked' : ''} ${why ? 'disabled' : ''}>`
+      : why ? '' : r.control(info);
+    const body = why || !r.body ? '' : r.body(info, ctx.data);
+    const key = `${control}|${stateHTML}|${body}`;
+    if (row._key === key) return;
+    row._key = key;
+    const focused = row.contains(document.activeElement) ? document.activeElement : null;
+    const again = focused && (focused.id ? `#${focused.id}` : focused.dataset.seg ? `[data-seg="${focused.dataset.seg}"]` : null);
+    $('[data-set-control]', row).innerHTML = control;
+    const line = $('[data-set-state]', row);
+    line.innerHTML = stateHTML;
+    line.classList.toggle('is-down', Boolean(!why && r.down && r.down(info)));
+    $('[data-set-body]', row).innerHTML = body;
+    if (!why) {
+      const input = r.kind === 'switch' ? $('.switch', row) : null;
+      if (input) input.addEventListener('change', () => saveSwitch(r, row, input, ctx));
+      if (r.bind) r.bind(row, info, ctx);
+    }
+    if (focused) { const back = (again && $(again, row)) || $('button, input, select, a', row); if (back) back.focus({ preventScroll: true }); }
+  }
+
   function settingsView(el) {
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const rowHTML = (r) => {
-      const label = r.kind === 'switch' ? `<label class="set-row__label" id="set-${r.id}-l" for="set-${r.id}-c">${esc(r.label)}</label>` : `<h3 class="set-row__label" id="set-${r.id}-l">${esc(r.label)}</h3>`;
-      return `<div class="set-row" id="${r.id}" data-set-row="${r.id}"><div class="set-fold">
-        <div class="set-row__head"><div class="set-row__text">${label}<p class="set-row__hint" id="set-${r.id}-hint">${esc(r.hint)}</p><p class="set-row__state" data-set-state${r.seen ? ` data-${r.seen} role="status"` : ""}></p></div>
-          <div class="set-row__control" data-set-control>${r.app && desktop ? '<span class="skeleton set-skel" aria-hidden="true"></span>' : ''}</div></div>
-        <div class="set-row__body" data-set-body></div></div></div>`;
-    };
     el.innerHTML = `${title('Settings', 'Every choice Sentinel offers, in one place. A change is saved the moment you make it.')}
       <div class="set" data-desktop>
         <nav class="set-rail" aria-label="Settings groups">${SETTING_GROUPS.map(([g, name], i) => `<a href="#${g}" data-set-go="${g}"${i ? '' : ' aria-current="true"'}>${name}</a>`).join('')}</nav>
@@ -3340,42 +3440,9 @@
     const ctx = { info: null, ready: !desktop, data: { mine: [] }, offs: box._off, draw, refresh };
     const rowOf = (id) => $(`[data-set-row="${id}"]`, el);
 
-    /* Each row's control, state line and body, redrawn only when what they say changes, so focus stays put. */
     function draw() {
       if (!el.isConnected) return;
-      for (const r of SETTINGS) {
-        if (r.app && !ctx.ready) continue;
-        const row = rowOf(r.id);
-        const info = ctx.info;
-        const why = r.why ? r.why(info) : '';
-        const stateHTML = why ? `<span class="set-why">${esc(why)}</span>` : r.state ? esc(r.state(info) || '') : '';
-        if (r.kind === 'block') {
-          $('[data-set-state]', row).innerHTML = stateHTML;
-          $('[data-set-control]', row).innerHTML = '';
-          if (!why && !row._mounted) { row._mounted = true; r.mount($('[data-set-body]', row), ctx); }
-          continue;
-        }
-        const control = r.kind === 'switch'
-          ? `<input class="switch" type="checkbox" id="set-${r.id}-c"${r.hook ? ` data-${r.hook}` : ""} aria-describedby="set-${r.id}-hint" ${!why && r.on(info) ? 'checked' : ''} ${why ? 'disabled' : ''}>`
-          : why ? '' : r.control(info);
-        const body = why || !r.body ? '' : r.body(info, ctx.data);
-        const key = `${control}|${stateHTML}|${body}`;
-        if (row._key === key) continue;
-        row._key = key;
-        const focused = row.contains(document.activeElement) ? document.activeElement : null;
-        const again = focused && (focused.id ? `#${focused.id}` : focused.dataset.seg ? `[data-seg="${focused.dataset.seg}"]` : null);
-        $('[data-set-control]', row).innerHTML = control;
-        const line = $('[data-set-state]', row);
-        line.innerHTML = stateHTML;
-        line.classList.toggle('is-down', Boolean(!why && r.down && r.down(info)));
-        $('[data-set-body]', row).innerHTML = body;
-        if (!why) {
-          const input = r.kind === 'switch' ? $('.switch', row) : null;
-          if (input) input.addEventListener('change', () => saveSwitch(r, row, input, ctx));
-          if (r.bind) r.bind(row, info, ctx);
-        }
-        if (focused) { const back = (again && $(again, row)) || $('button, input, select, a', row); if (back) back.focus({ preventScroll: true }); }
-      }
+      for (const r of SETTINGS) if (!r.app || ctx.ready) paintRow(r, rowOf(r.id), ctx);
     }
     async function refresh() {
       if (!desktop) return draw();

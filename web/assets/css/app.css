@@ -23,7 +23,8 @@ body.app::before { opacity: .6; }
 .side__link {
   position: relative;
   display: flex; align-items: center; gap: 11px;
-  height: 38px; padding: 0 12px; border-radius: var(--r);
+  /* At a larger text size a long name ("Is this call a scam?") wraps: the row grows with it instead of crowding the next. */
+  min-height: 38px; padding: 5px 12px; border-radius: var(--r); line-height: 1.25;
   color: var(--text-2); font-size: var(--t-ui);
   transition: background .18s, color .18s;
 }
@@ -77,7 +78,7 @@ body.app::before { opacity: .6; }
 .page-title p { margin-top: 8px; color: var(--text-2); max-width: 60ch; }
 .page-title b { color: var(--gold-200); font-weight: 500; }
 
-.panel { border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); padding: 26px; }
+.panel { border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); padding: calc(26px * var(--ds)); }
 .panel + .panel, .grid2 + .panel, .panel + .grid2 { margin-top: 18px; }
 .panel h2 { font-size: var(--t-title); }
 .panel__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
@@ -387,7 +388,7 @@ html[data-simple] .next-steps li { font-size: var(--t-lead); }
 .check__tag { font: var(--t-micro) var(--mono); color: var(--faint); padding-top: 3px; }
 
 .segmented { display: inline-flex; padding: 4px; border-radius: var(--r); background: rgb(var(--ink) / .03); box-shadow: inset 0 0 0 1px var(--line); }
-.segmented button { height: 34px; padding: 0 16px; border: 0; border-radius: var(--r-sm); background: none; cursor: pointer; color: var(--muted); font: 500 var(--t-ui) var(--sans); transition: background .2s, color .2s, box-shadow .2s; }
+.segmented button { height: max(calc(34px * var(--ds) * var(--ts)), 34px); padding: 0 16px; border: 0; border-radius: var(--r-sm); background: none; cursor: pointer; color: var(--muted); font: 500 var(--t-ui) var(--sans); transition: background .2s, color .2s, box-shadow .2s; }
 .segmented button[aria-selected="true"], .segmented button[aria-checked="true"] { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
 
 /* -------------------------------------------------------------- forms */
@@ -403,7 +404,7 @@ html[data-simple] .next-steps li { font-size: var(--t-lead); }
   color: var(--text); font: var(--t-text) var(--sans);
   transition: box-shadow .2s, background .2s;
 }
-.input { height: 46px; }
+.input { height: max(calc(46px * var(--ds) * var(--ts)), 36px); }
 .textarea { min-height: 150px; resize: vertical; line-height: 1.55; }
 .input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px rgba(229, 72, 77, .7); }
 .field__error { font-size: var(--t-note); color: var(--error-text); min-height: 0; }
@@ -452,7 +453,7 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 /* --------------------------------------------------------------- lists */
 
 .list { list-style: none; margin: 0; padding: 0; }
-.list li { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-top: 1px solid var(--line); }
+.list li { display: flex; align-items: center; gap: 14px; padding: calc(13px * var(--ds)) 0; border-top: 1px solid var(--line); }
 .list li:first-child { border-top: 0; }
 .list__icon { width: 34px; height: 34px; border-radius: var(--r); flex: none; display: grid; place-items: center; background: rgb(var(--ink) / .04); color: var(--muted); }
 .list__icon svg { width: 17px; height: 17px; }
@@ -690,7 +691,9 @@ body:has(.auth)::before { animation: none; }
 .side__search { display: flex; align-items: center; gap: 9px; width: 100%; margin: 14px 0 6px; padding: 0 12px; height: 38px; border: 0; border-radius: var(--r); cursor: pointer; text-align: left; color: var(--muted); font: var(--t-ui) var(--sans); background: rgb(var(--ink) / .035); box-shadow: inset 0 0 0 1px var(--line); transition: color .2s, box-shadow .2s; }
 .side__search:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
 .side__search svg { width: 15px; height: 15px; flex: none; }
-.side__search span { flex: 1; }
+.side__search span { flex: 1; white-space: nowrap; }
+/* At a larger text size the words and the shortcut do not both fit: the words stay, the shortcut is in its name. */
+:root[data-text] .side__search kbd { display: none; }
 kbd { font: var(--t-micro) var(--mono); color: var(--muted); padding: 2px 6px; border-radius: var(--r-sm); background: rgb(var(--ink) / .05); box-shadow: inset 0 0 0 1px var(--line); }
 
 .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 14px 0 12px; }
@@ -858,7 +861,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 
 /* ---------- Fast / Delicate ---------- */
 .seg { display: inline-flex; flex: none; border: 1px solid var(--line-2); border-radius: var(--r-sm); overflow: hidden; }
-.seg__btn { height: 38px; padding: 0 14px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: var(--t-ui); cursor: pointer; }
+.seg__btn { height: max(calc(38px * var(--ds) * var(--ts)), 36px); padding: 0 14px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: var(--t-ui); cursor: pointer; }
 .seg__btn + .seg__btn { border-left: 1px solid var(--line-2); }
 /* The button gold: white on it is 5.3:1 in light, where the paler gold-500 fell short of 4.5:1. */
 .seg__btn.is-on { background: var(--gold-grad); color: var(--on-gold); font-weight: 600; }

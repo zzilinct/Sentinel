@@ -94,6 +94,42 @@ document.documentElement.classList.add('js');
     set: (on) => { try { if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY); } catch { /* this page only */ } apply(on); }
   };
 })();
+
+/*
+ * Text size (Standard, Large, Larger) and spacing (Comfortable, Compact), chosen in Settings and kept on this device
+ * as one record. Set here before the first paint as <html data-text> and <html data-density>, which fonts.css and
+ * sentinel.css read, so a page never draws at one size and jumps to another. The Windows app is told too, for its
+ * own windows (the live scanning card, the warnings). Standard and Comfortable store nothing.
+ */
+(function () {
+  const KEY = 'sentinel:type';
+  const TEXT = ['standard', 'large', 'larger'];
+  const DENSITY = ['comfortable', 'compact'];
+  const root = document.documentElement;
+  const read = () => {
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(KEY)); } catch { /* storage blocked or bad: the defaults */ }
+    return { text: v && TEXT.includes(v.text) ? v.text : 'standard', density: v && DENSITY.includes(v.density) ? v.density : 'comfortable' };
+  };
+  const apply = (t) => {
+    if (t.text === 'standard') delete root.dataset.text; else root.dataset.text = t.text;
+    if (t.density === 'comfortable') delete root.dataset.density; else root.dataset.density = t.density;
+  };
+  const tellApp = (t) => { const d = window.sentinelDesktop; if (d && d.setType) d.setType(t).catch(() => { /* the app keeps its last */ }); };
+  const set = (change) => {
+    const t = { ...read(), ...change };
+    if (!TEXT.includes(t.text) || !DENSITY.includes(t.density)) return read();
+    try { if (t.text === 'standard' && t.density === 'comfortable') localStorage.removeItem(KEY); else localStorage.setItem(KEY, JSON.stringify(t)); } catch { /* this page only */ }
+    apply(t);
+    tellApp(t);
+    return t;
+  };
+  const now = read();
+  apply(now);
+  tellApp(now);
+  addEventListener('storage', (ev) => { if (ev.key === KEY) apply(read()); });
+  window.SentinelType = { get: read, set };
+})();
 if (!('IntersectionObserver' in window)) document.documentElement.classList.add('no-io');
 
 /*

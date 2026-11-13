@@ -40,7 +40,7 @@
 
 .set-row { scroll-margin-top: 84px; border-bottom: 1px solid var(--line); transition: grid-template-rows .55s var(--set-spring), border-color .3s; }
 .set-row.is-out { border-bottom-color: transparent; }
-.set-row__head { display: flex; align-items: center; justify-content: space-between; gap: 12px 28px; flex-wrap: wrap; min-height: 56px; padding: 16px 0; }
+.set-row__head { display: flex; align-items: center; justify-content: space-between; gap: 12px 28px; flex-wrap: wrap; min-height: 56px; padding: calc(16px * var(--ds)) 0; }
 .set-row__text { flex: 1 1 300px; min-width: 0; }
 .set-row__label { position: relative; display: inline-block; font-family: var(--sans); letter-spacing: normal; font-size: var(--t-text); font-weight: 500; color: var(--text); line-height: 1.35; }
 .set-row__hint { margin-top: 4px; max-width: 64ch; color: var(--muted); font-size: var(--t-ui); }
@@ -94,6 +94,20 @@
 .set-away a { color: var(--gold-300); text-decoration: underline; text-decoration-color: rgb(var(--gold-rgb) / .35); text-underline-offset: 3px; }
 .set-away a:hover { text-decoration-color: currentColor; }
 
+/* The first-run step on home (app.js firstChoices): a few of these rows, flat on the page as Settings draws them, under
+   a gold hairline. It leaves by folding its height, as a row does when a search leaves it out; nothing fades. */
+.first { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .55s var(--set-spring); }
+.first.is-out { grid-template-rows: 0fr; }
+.first__fold { min-height: 0; overflow: hidden; }
+.first__in { padding: 34px 0 6px; }
+.first h2 { font-size: var(--t-title); font-weight: 500; color: var(--text); }
+.first__lead { margin-top: 6px; max-width: 60ch; color: var(--muted); font-size: var(--t-ui); }
+.first__rows { margin-top: 14px; border-top: 1px solid var(--line-gold); }
+.first .set-row__hint { display: none; }
+.first .set-row__label { margin-top: 0; }
+.first__end { display: flex; align-items: center; justify-content: flex-end; gap: 10px 12px; flex-wrap: wrap; padding-top: 16px; }
+.first__end p { flex: 1 1 260px; color: var(--muted); font-size: var(--t-note); }
+
 @media (max-width: 600px) {
   .set-row__head { align-items: flex-start; gap: 12px 18px; }
   .set-row__text { flex-basis: 200px; }
@@ -104,6 +118,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .set-group, .set-row, .set-rail a::before { transition: none; }
+  .set-group, .set-row, .set-rail a::before, .first { transition: none; }
   .set-row.is-found .set-row__label::after { animation: none; transform: none; opacity: 1; }
 }

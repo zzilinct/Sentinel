@@ -7,6 +7,20 @@
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <script src="../../shared/look.js"></script>
 <script src="card.js"></script>
+<script src="type.js"></script>
+<style>
+  /* This window opens from the person's own files, so it follows their theme as the app does. The warnings that open
+     over a web page stay dark: they have to look the same over any site. */
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="light"] body { color: #2b2720; background: radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--c) 8%, transparent), transparent 62%), #f6f1e7; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 6px 12px rgba(60, 45, 20, .22); }
+  :root[data-theme="light"] .name { color: #4a453a; }
+  :root[data-theme="light"] .body p, :root[data-theme="light"] ul { color: #4a453a; }
+  :root[data-theme="light"] .body b { color: #2b2720; }
+  :root[data-theme="light"] small { color: #6b6558; }
+  :root[data-theme="light"] button:not(.primary) { color: #2b2720; background: #ebe4d5; border-color: rgba(60, 45, 20, .12); }
+  :root[data-theme="light"] button:not(.primary):hover { background: #e2dac8; }
+  :root[data-theme="light"] button:focus-visible { outline-color: #8a6424; }
+</style>
 </head>
 <body role="dialog" aria-labelledby="label" aria-describedby="name lead found">
   <div class="head">

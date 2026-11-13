@@ -392,11 +392,8 @@ function createWindow() {
   win.on('close', (event) => {
     if (quitting) return;
     event.preventDefault();
+    // Said once, in the app's first-run step (app.js firstChoices), rather than in a notification as the window closes.
     win.hide();
-    if (!store.get('trayHintShown')) {
-      store.set('trayHintShown', true);
-      notify('Sentinel is still protecting you', 'Sentinel keeps running in the tray. Right-click the mask icon to quit.');
-    }
   });
 }
 
@@ -1661,6 +1658,18 @@ function registerBridge() {
     return scanWith(id);
   });
 
+  // Text size and spacing: chosen in the app's Settings (boot.js), kept here for Sentinel's own windows (the live
+  // scanning card, the warnings), which cannot read the app's storage. Written only when it changed, then told to
+  // every open window at once.
+  handle('sentinel:type', (t) => {
+    const next = typeLevel(t);
+    const was = typeLevel(store.get('type'));
+    if (was.text === next.text && was.density === next.density) return next;
+    store.set('type', next);
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('sentinel:type-level', next);
+    return next;
+  });
+
   handle('sentinel:checkup', () => runCheckup());
   // "Open <browser>" beside a finding: brings it to the front, where the person removes what they choose.
   handle('sentinel:checkup-open', (id) => {
@@ -2094,6 +2103,15 @@ app.whenReady().then(() => {
 app.on('before-quit', () => { if (!primary) return; quitting = true; heartbeat(true); try { require('fs').unlinkSync(runningFile()); } catch { /* none */ } snip.close(); globalShortcut.unregisterAll(); clipwatch.stop(); defense.stop(null, true); watch.stop(null, true); overlay.destroy(); if (browserWatcher) browserWatcher.stop(); server.stop(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
+
+/** Text size and spacing as the app last chose them (sentinel:type), never anything but the known steps. */
+function typeLevel(t) {
+  return { text: ['large', 'larger'].includes(t && t.text) ? t.text : 'standard', density: t && t.density === 'compact' ? 'compact' : 'comfortable' };
+}
+// Every window's page learns them as it loads (pages/type.js); the app's own pages read their own storage instead.
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('did-finish-load', () => { if (!contents.isDestroyed()) contents.send('sentinel:type-level', typeLevel(store.get('type'))); });
+});
 
 // Refuse to attach webviews or navigate any other contents to foreign origins.
 app.on('web-contents-created', (event, contents) => {
