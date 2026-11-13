@@ -12,6 +12,31 @@
 
   document.getElementById('settings').onclick = () => ext.runtime.openOptionsPage();
 
+  /*
+   * The look (light or dark, and the accent) is chosen once, in the app. Two places give it to the companion: the
+   * account, whose answers say when it changed (lib/api.js keeps it in storage.local), and the Windows app's server on
+   * this computer, asked here as the popup opens (an answer in a moment, or none without the app). Each setting comes
+   * from whichever was chosen last (look.js merge). Kept for the next popup, the block page and the settings
+   * (localStorage, read by lib/look.js before their first paint), and for the line and the marks on search pages.
+   * With neither, nothing changes: the system's light or dark, and gold.
+   */
+  (async () => {
+    const L = globalThis.SentinelLook;
+    if (!L) return;
+    let kept = null;
+    try { kept = (await ext.storage.local.get('look')).look || null; } catch { /* nothing kept */ }
+    let look = L.record(kept);
+    try {
+      const res = await fetch('http://127.0.0.1:47821/api/v1/look', { credentials: 'omit', signal: AbortSignal.timeout(1500) });
+      // The app on this computer wins a tie: what it says is a choice, what the popup kept may only be the default.
+      if (res.ok) look = L.merge(await res.json(), look);
+    } catch { /* no app on this computer */ }
+    try { localStorage.setItem('sentinel:look', JSON.stringify(look)); } catch { /* storage blocked: this popup only */ }
+    const x = L.ramp(look.accent, 'dark');
+    try { await ext.storage.local.set({ look: { ...look, rev: (kept && kept.rev) || 0, live: { acc: x['--live'], hi: x['--live-hi'], lite: x['--live-lite'], rgb: x['--live-rgb'] }, metal: L.metal(look.accent) } }); } catch { /* the marks stay as they were */ }
+    L.paint(document.documentElement, look);
+  })();
+
   /** One line on the password alarm, with a link to its setting: what it protects, or that nothing is chosen yet. */
   async function pwLine() {
     const el = document.getElementById('pwLine');

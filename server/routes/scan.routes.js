@@ -16,6 +16,11 @@ const A = require('../lib/auth');
 const plans = require('../lib/plans');
 const security = require('../lib/security');
 const { db, now } = require('../lib/db');
+const Look = require('../../web/assets/js/look.js');
+// When this account's look last changed (look.js rev()), on every live-scanning answer: the companion asks for the
+// look itself only when this moved, so a choice made on another device arrives without anything polling.
+const lookRow = db.prepare('SELECT look FROM users WHERE id = ?');
+const lookRev = (user) => { try { return Look.rev(JSON.parse((lookRow.get(user.id) || {}).look || 'null')); } catch { return 0; } };
 const engine = require('../lib/scan/engine');
 const exposure = require('../lib/scan/exposure');
 const mySites = require('../lib/scan/mysites');
@@ -324,7 +329,7 @@ function register(router) {
       const verdicts = await engine.scanUrls(urls, { userId: user.id, planId: plan.id, research: false, threats: ALL, mode: 'live', detail: 'compact', recordFlagged: false });
       const byUrl = {};
       for (const v of verdicts) byUrl[v.requested] = v;
-      sendJson(res, 200, { byUrl, mode: 'fast', fellBack: null, researched: false, live: liveUsage(user, plan) });
+      sendJson(res, 200, { byUrl, mode: 'fast', fellBack: null, researched: false, live: liveUsage(user, plan), lookRev: lookRev(user) });
       return;
     }
     security.rateLimit(`live:${user.id}`, 240, 60 * 1000);
@@ -353,7 +358,7 @@ function register(router) {
     if (!isPrivate && body.quick !== true) countLive(user.id, verdicts);
     const byUrl = {};
     for (const v of verdicts) byUrl[v.requested] = v;
-    sendJson(res, 200, { byUrl, mode, fellBack, researched: research, tookMs: Date.now() - started, live: liveUsage(user, plan) });
+    sendJson(res, 200, { byUrl, mode, fellBack, researched: research, tookMs: Date.now() - started, live: liveUsage(user, plan), lookRev: lookRev(user) });
   });
 
   router.post('/api/v1/live/visit', async (req, res) => {
@@ -387,7 +392,7 @@ function register(router) {
     // Pay pause: a page that sells gift cards or sends crypto, by its address or by what the client saw in its title
     // (body.paykind, only the kind). The client decides whether to pause (a recent sign).
     const paypage = payPage(String(url), verdict, body.paykind);
-    sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan), ...(pay ? { pay } : {}), ...(paypage ? { paypage } : {}) });
+    sendJson(res, 200, { verdict, mode, fellBack, live: liveUsage(user, plan), lookRev: lookRev(user), ...(pay ? { pay } : {}), ...(paypage ? { paypage } : {}) });
   });
 
   /* ------------------------------------------------- exposure alerts */
@@ -465,7 +470,7 @@ function register(router) {
       const verdict = await engine.scanEmail(mail, { userId: user.id, planId: plan.id, research: false, mode: 'live', detail: 'compact', preview: body.preview === true || (item && item.preview === true) });
       results.push({ key: String((item && item.key) || '').slice(0, 200), verdict });
     }
-    sendJson(res, 200, { results, live: liveUsage(user, plan) });
+    sendJson(res, 200, { results, live: liveUsage(user, plan), lookRev: lookRev(user) });
   });
 
   /** Desktop download protection: is this file hash a known threat? (Pro/Max, not metered) */

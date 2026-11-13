@@ -68,7 +68,7 @@
       const what = words(happened);
       globalThis.SentinelAlarm.show({
         small: true,
-        accent: '#d6b25a',
+        accent: 'calm',
         title: `Did you type ${what} on that page?`,
         chip: site || '',
         lead: `Sentinel warned you about that page, and it asked for ${what}. If you typed one there, the recovery guide shows what to do now, most urgent first.`,

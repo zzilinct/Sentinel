@@ -32,7 +32,8 @@ function ensure() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.once('did-finish-load', () => { ready = true; if (last) win.webContents.send('chat:state', last); });
   win.on('closed', () => { win = null; ready = false; });
-  win.loadFile(path.join(__dirname, 'pages', 'chat.html'));
+  // In the app's accent (look.js), as the island is.
+  win.loadFile(path.join(__dirname, 'pages', 'chat.html'), { query: { accent: require('../shared/look').normal(require('./store').get('look')).accent } });
   return win;
 }
 

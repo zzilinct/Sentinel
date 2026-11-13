@@ -980,7 +980,7 @@ function overlaySandbox() {
     document: { getElementById: (id) => (els[id] = els[id] || el()), createElement: el, body: el() },
   };
   ctx.window = Object.assign(ctx, { innerWidth: 1000, innerHeight: 700, addEventListener() {},
-    SentinelMasks: { COLORS: {}, svg: () => '' }, sentinelOverlay: { on: (n, f) => { handlers[n] = f; } } });
+    SentinelMasks: { COLORS: {}, svg: () => '', setMetal() {} }, SentinelLook: require('../web/assets/js/look.js'), sentinelOverlay: { on: (n, f) => { handlers[n] = f; } } });
   vm.runInNewContext(code, ctx);
   const shift = () => Number(/,(-?[\d.]+)px,0\)/.exec(els.marks.style.transform || 'translate3d(0px,0px,0)')[1]);
   return {

@@ -7,6 +7,8 @@ const config = require('../config');
 const crypto = require('crypto');
 const mailer = require('../lib/mailer');
 const { db } = require('../lib/db');
+// The look's one table and its reader, the same file the site, the Windows app and the companion load.
+const Look = require('../../web/assets/js/look.js');
 
 const resets = {
   insert: db.prepare('INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'),
@@ -252,6 +254,21 @@ function register(router) {
     A.db.prepare(`DELETE FROM sessions WHERE user_id = ? AND token_hash NOT IN
       (SELECT token_hash FROM sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 5)`).run(user.id, user.id);
     sendJson(res, 200, { token, expiresAt, user: A.publicUser(user) });
+  });
+
+  /**
+   * The look the person chose in the Windows app (light, dark or Auto, and the accent), for the companion's popup.
+   * Only the app's embedded server offers it, only to this computer. It reads no cookie and no token and says only
+   * those two settings and when each was chosen, so the 1.19.2 rules stand: an extension origin is answered without credentials (corsHeaders),
+   * and nothing here reaches the account.
+   */
+  router.get('/api/v1/look', (req, res) => {
+    const file = process.env.SENTINEL_LOOK_FILE;
+    if (!config.deviceAccounts || !file) throw new HttpError(404, 'not_found', 'Not found');
+    if (!['127.0.0.1', '::1', 'localhost'].includes(security.clientIp(req))) throw new HttpError(403, 'local_only', 'This is for this computer only');
+    let saved = null;
+    try { saved = JSON.parse(require('fs').readFileSync(file, 'utf8')); } catch { /* not chosen yet: Auto and Gold */ }
+    sendJson(res, 200, Look.record(saved));
   });
 
   router.get('/api/v1/auth/google/start', (req, res) => {

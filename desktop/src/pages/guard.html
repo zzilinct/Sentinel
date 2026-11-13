@@ -5,6 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel</title>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<script src="../../shared/look.js"></script>
 <script src="card.js"></script>
 </head>
 <body role="alertdialog" aria-labelledby="title" aria-describedby="sub lead steps note">
@@ -40,7 +41,8 @@
     // `cancel` is the button Escape presses: always the one that changes nothing.
     let cancel = null;
     function show({ title, sub, lead, steps, note, buttons, color }) {
-      document.body.style.setProperty('--c', color || '#f08a24');
+      // A warning in its status colour; 'calm' (what to do now, all done) in the accent.
+      document.body.style.setProperty('--c', color === 'calm' ? 'var(--acc-hi)' : SentinelCard.tone(color === 'red' ? 'red' : 'orange'));
       $('title').textContent = title;
       $('sub').textContent = sub || '';
       $('lead').innerHTML = lead;
@@ -71,7 +73,7 @@
     });
 
     function done(lead) {
-      show({ title: 'What to do now', lead, steps: STEPS, color: '#e2c47f', buttons: [
+      show({ title: 'What to do now', lead, steps: STEPS, color: 'calm', buttons: [
         { label: 'Open the recovery guide', run: () => act('recover', 'remote') },
         { label: 'Got it', primary: true, cancel: true, run: () => act('dismiss') }
       ] });
@@ -88,7 +90,7 @@
         sub: toolName,
         lead: `<b>Turn off Wi-Fi or unplug the network cable now.</b> That ends the connection straight away. ${toolName} is installed on this computer, so Windows needs an administrator to close it.`,
         note: 'Windows will ask whether Sentinel may make changes. Say yes to close it.',
-        color: '#e5484d',
+        color: 'red',
         buttons: [
           { label: 'Not now', cancel: true, run: () => done(stillRunning) },
           { label: `Close ${toolName}`, primary: true, run: async () => {
@@ -105,7 +107,7 @@
       title: `Do you use ${toolName} yourself?`,
       sub: toolName,
       lead: '<b>Only if nobody asked you to install it.</b> Sentinel will stop asking about it. You can turn the question back on under Live protection.',
-      color: '#f08a24',
+      color: 'orange',
       buttons: [
         { label: 'Yes, stop asking', run: async () => {
           const r = await act('trust-tool', tool);
@@ -114,7 +116,7 @@
             title: 'Parent lock is on',
             sub: toolName,
             lead: `<b>Sentinel keeps asking about ${toolName}.</b> To stop the question, a parent enters the PIN in Sentinel first.`,
-            color: '#f08a24',
+            color: 'orange',
             buttons: [{ label: 'Back', primary: true, cancel: true, run: back }]
           });
         } },
@@ -133,7 +135,7 @@
           ? '<b>Your computer is not locked, and no real company sends this.</b> Pages like this fill the screen with a fake virus alert and a phone number to call. Do not call it.'
           : '<b>Sentinel warned you about this page, and it now fills the screen.</b> If it will not let you leave, Sentinel can close it for you. Do not enter any details on it.',
         note: `Sentinel will ask ${browser} to close this window. It never opens or reads the page.`,
-        color: scare ? '#e5484d' : '#f08a24',
+        color: scare ? 'red' : 'orange',
         buttons: [
           { label: 'Not now', cancel: true, run: () => act('dismiss') },
           { label: 'Get me out of this page', primary: true, run: async () => {
@@ -143,7 +145,7 @@
               title: 'The page is holding the window open',
               sub: browser,
               lead: `<b>Sentinel can close ${browser} completely.</b> Every ${browser} window closes. Tabs you had open may not come back.`,
-              color: '#e5484d',
+              color: 'red',
               buttons: [
                 { label: 'Not now', cancel: true, run: () => act('dismiss') },
                 { label: `Close ${browser}`, primary: true, run: async () => {
@@ -168,7 +170,7 @@
         sub: toolName,
         lead: `<b>${why}</b> It lets another person see and control this computer. Microsoft, your bank and antivirus companies never call you and ask you to install one.`,
         note: 'Nothing has been stopped. If you did not expect this, end the connection.',
-        color: '#e5484d',
+        color: 'red',
         buttons: [trust(remote), { label: 'Not now', cancel: true, run: () => act('dismiss') }, end]
       });
     }
@@ -178,7 +180,7 @@
         title: 'A remote-control program is running',
         sub: toolName,
         lead: `<b>${toolName} is running while a bank or payment site is open.</b> If someone is connected to this computer, they can see what you do here. Do not log in, read out a code or move money while they are connected.`,
-        color: '#f08a24',
+        color: 'orange',
         buttons: [trust(bank), { label: 'Got it', cancel: true, run: () => act('dismiss') }, end]
       });
     }
@@ -198,7 +200,7 @@
         sub: site || 'The page Sentinel warned you about',
         lead: `<b>Sentinel warned you about that page, and it asked for ${what}.</b> If you typed one there, the recovery guide shows what to do now: ${next}, most urgent first.`,
         note: 'Sentinel never sees what you type. It only noticed the box on the page.',
-        color: '#e2c47f',
+        color: 'calm',
         buttons: [
           { label: 'No', cancel: true, run: () => act('dismiss') },
           { label: 'Yes, I did', primary: true, run: () => act('typed-yes', [pw && 'password', card && 'card'].filter(Boolean).join(',') || 'password') }
@@ -221,7 +223,7 @@
         lead: '<b>No real company, government office or bank asks to be paid in gift cards or crypto.</b> Once paid this way, the money is almost always gone.',
         steps: ['Is someone on the phone telling you to do this? Hang up. Then call your bank on the number on the back of your card.'],
         note: `Sentinel shows this because ${why} in the last hour.`,
-        color: '#e2c47f',
+        color: 'calm',
         buttons: [{ label: 'I am buying this for myself', primary: true, cancel: true, run: () => act('dismiss') }]
       });
     }

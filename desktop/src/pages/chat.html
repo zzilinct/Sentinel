@@ -5,6 +5,8 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel chat safety</title>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<script src="../../shared/look.js"></script>
+<script>SentinelLook.paint(document.documentElement, SentinelLook.fromQuery(location.search));</script>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: #ece8df; }
   * { box-sizing: border-box; }
@@ -16,14 +18,14 @@
   .badge { position: absolute; right: 14px; top: 12px; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px;
     opacity: 0; transition: opacity .2s ease; pointer-events: none; }
   .badge.is-on { opacity: 1; }
-  .badge__bg { position: absolute; inset: 0; border-radius: 17px; background: #0c0d10; border: 1px solid rgba(214, 178, 90, .45); box-shadow: 0 4px 18px rgba(0, 0, 0, .35);
+  .badge__bg { position: absolute; inset: 0; border-radius: 17px; background: #0c0d10; border: 1px solid rgb(var(--live-rgb) / .45); box-shadow: 0 4px 18px rgba(0, 0, 0, .35);
     transform-origin: 100% 50%; transform: scaleX(.16); transition: transform .34s cubic-bezier(.3, 0, .2, 1); }
   .badge.is-on .badge__bg { transform: none; transition: transform .5s var(--spring); }
   .badge__tile { position: relative; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%;
     transform: scale(.7); transition: transform .45s var(--spring); }
   .badge.is-on .badge__tile { transform: none; }
-  .badge svg { width: 18px; height: 18px; color: #d6b25a; display: block; }
-  .badge__text { position: relative; font-size: var(--t-label); color: #e2c47f; white-space: nowrap; opacity: 0; transform: translateX(8px); transition: opacity .15s ease, transform .2s ease; }
+  .badge svg { width: 18px; height: 18px; color: var(--live); display: block; }
+  .badge__text { position: relative; font-size: var(--t-label); color: var(--live-hi); white-space: nowrap; opacity: 0; transform: translateX(8px); transition: opacity .15s ease, transform .2s ease; }
   .badge.is-on .badge__text { opacity: 1; transform: none; transition: opacity .22s ease .1s, transform .5s var(--spring) .06s; }
   body.discord .badge, body.phonelink .badge { top: auto; bottom: 86px; }
   /* A warning, beside the message it is about: the mask tile pops in at the message, and the card opens out of it. */

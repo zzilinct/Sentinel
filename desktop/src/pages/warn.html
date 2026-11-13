@@ -5,9 +5,10 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel</title>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<script src="../../shared/look.js"></script>
 <script src="card.js"></script>
 <style>
-  .body .recover { margin: 10px 0 0; font-size: var(--t-note); color: #b9b5ab; }
+  .body .recover { margin: 10px 0 0; font-size: var(--t-note); color: var(--ink-3); }
   .real { margin: 16px 0 0; }
   .real[hidden] { display: none; }
   .real button { width: 100%; height: auto; min-height: 38px; padding: 8px 16px; overflow-wrap: anywhere; }
@@ -35,8 +36,7 @@
   <script>
     const q = new URLSearchParams(location.search);
     const badge = q.get('badge') || 'orange';
-    const color = { red: '#e5484d', orange: '#f08a24', yellow: '#f5c542' }[badge] || '#f08a24';
-    document.documentElement.style.setProperty('--c', color);
+    document.documentElement.style.setProperty('--c', SentinelCard.tone(['red', 'orange', 'yellow'].includes(badge) ? badge : 'orange'));
     document.getElementById('title').textContent = q.get('label') || 'Sentinel warning';
     document.getElementById('host').textContent = q.get('host') || '';
     document.getElementById('lead').innerHTML = badge === 'red'
@@ -50,7 +50,7 @@
       ul.appendChild(li);
     }
     // The real site (the brand's official address, or one of the person's own sites), never this page's address.
-    // One gold button: with a real site to go to, that one, and "Got it" steps back.
+    // One primary button: with a real site to go to, that one, and "Got it" steps back.
     const real = q.get('real');
     if (real) {
       document.getElementById('real').textContent = `Go to the real ${real}`;
@@ -63,7 +63,7 @@
     document.getElementById('close').onclick = () => window.sentinelDesktop.warnAction('close');
     document.getElementById('details').onclick = () => window.sentinelDesktop.warnAction('open', q.get('url') || '');
     document.getElementById('recover').onclick = () => window.sentinelDesktop.warnAction('recover', 'password');
-    // The keyboard starts on the one gold button once the person clicks into the card (the window never takes it).
+    // The keyboard starts on the one primary button once the person clicks into the card (the window never takes it).
     document.getElementById(real ? 'real' : 'close').focus();
   </script>
 </body>

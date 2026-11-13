@@ -53,8 +53,10 @@
   // (red a diamond, orange a triangle, yellow a circle). Vector, so it is sharp at 20 px and on any screen scale.
   // The gold is three copies of the mask (shadow below, light above, face on top), which bevels its edges and the
   // insides of its eyes without gradients: a gradient needs a document-wide id, and on a host page that id can clash
-  // or vanish with the first mark that carried it.
-  var GOLD_SHADOW = '#5a4216', GOLD_LIGHT = '#fff0c4', GOLD_FACE = '#d9b65f', INK = '#0c0d10';
+  // or vanish with the first mark that carried it. The metal is the person's accent (look.js metal(), set by the page
+  // through setMetal); gold until then. The seal keeps COLORS in every accent.
+  var METAL = { shadow: '#5a4216', light: '#fff0c4', face: '#d9b65f' }, INK = '#0c0d10';
+  function setMetal(m) { if (m && /^#[0-9a-f]{6}$/.test(m.shadow) && /^#[0-9a-f]{6}$/.test(m.light) && /^#[0-9a-f]{6}$/.test(m.face)) METAL = { shadow: m.shadow, light: m.light, face: m.face }; }
   var SEALS = {
     // A diamond, not an octagon: at the real size an octagon read as the yellow circle (review shot live-marks-2x).
     red: '<path d="M50 36 64 50 50 64 36 50Z"/>',
@@ -77,7 +79,7 @@
     var seal = SEALS[badge] || SEALS.yellow;
     var layer = function (color, dy) { return '<g style="color:' + color + '" transform="translate(0 ' + dy + ')">' + g + '</g>'; };
     return '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g transform="' + (FIT[threat] || FIT.scam) + '">' +
-      layer(GOLD_SHADOW, 2.4) + layer(GOLD_LIGHT, -1.4) + layer(GOLD_FACE, 0) + '</g>' +
+      layer(METAL.shadow, 2.4) + layer(METAL.light, -1.4) + layer(METAL.face, 0) + '</g>' +
       '<g fill="' + (COLORS[badge] || COLORS.yellow) + '" stroke="' + INK + '" stroke-width="4" stroke-linejoin="round" paint-order="stroke">' + seal + '</g>' +
       '<g fill="' + INK + '">' + (BANG[badge] || BANG.yellow) + '</g></svg>';
   }
@@ -132,5 +134,5 @@
     return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" ' + (attrs || '') + '>' + KIND_GLYPHS[kind] + '</svg>';
   }
 
-  root.SentinelMasks = { svg: svg, mark: mark, tick: tick, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES, SEVERITY: SEVERITY };
+  root.SentinelMasks = { svg: svg, mark: mark, setMetal: setMetal, tick: tick, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES, SEVERITY: SEVERITY };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

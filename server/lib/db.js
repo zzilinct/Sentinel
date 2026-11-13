@@ -373,6 +373,12 @@ const MIGRATIONS = [
     site_hash TEXT NOT NULL, days INTEGER NOT NULL, last_day INTEGER NOT NULL,
     PRIMARY KEY (user_id, site_hash)
   );
+  `,
+
+  // 12 - the look (web/assets/js/look.js record()): light or dark and the accent, each with when it was chosen, so the
+  //      person's devices agree. Appearance only: nothing about what they browse or scan.
+  `
+  ALTER TABLE users ADD COLUMN look TEXT;
   `
 ];
 

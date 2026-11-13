@@ -25,7 +25,7 @@ function island() {
     const e = {
       id, kids: [], hidden: false, text: '', get textContent() { return e.text; }, set textContent(t) { e.text = t; e.kids = []; },
       innerHTML: '', offsetWidth: 100, offsetHeight: 180, dataset: {},
-      vars: {}, style: { setProperty(k, v) { e.vars[k] = v; }, transform: '' },
+      vars: {}, style: { setProperty(k, v) { e.vars[k] = v; }, removeProperty(k) { delete e.vars[k]; }, transform: '' },
       classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)), toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), contains: (c) => classes.has(c) },
       appendChild(k) { e.kids.push(k); e.lastChild = k; },
       remove() {}, querySelector: () => el(), getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0 }),
@@ -55,7 +55,8 @@ function island() {
   ctx.window = Object.assign(ctx, {
     innerWidth: 1000, innerHeight: 700,
     addEventListener: (n, f) => { listeners[n] = f; },
-    SentinelMasks: { COLORS, SEVERITY, svg: () => '', mark: () => '', tick: () => '' },
+    SentinelMasks: { COLORS, SEVERITY, svg: () => '', mark: () => '', tick: () => '', setMetal() {} },
+    SentinelLook: require('../web/assets/js/look.js'),
     sentinelOverlay: { on: (n, f) => { handlers[n] = f; }, interact: (on) => calls.push(['interact', on]), act: (a) => calls.push(['act', a]) }
   });
   vm.runInNewContext(code, ctx);
@@ -300,8 +301,12 @@ test('it is labelled, keeps out of the tab order closed, respects reduced motion
   assert.match(html, /<button type="button" id="panelPause">/);
   assert.match(html, /\.isl__rim, \.isl__sheet, \.corner\.is-folding \.isl__rim, \.corner\.is-folding \.isl__sheet \{ transition: none; \}/);
   assert.match(html, /@media \(forced-colors: active\) \{ \.corner \{ forced-color-adjust: none; \} \}/);
-  // Solid fill, so it reads the same on light and dark pages. Nothing scaled, nothing looping.
-  assert.match(html, /\.isl__sheet \{[^}]*background: #0c0d10;/);
+  // Solid dark fill in every theme (a dynamic island), so it reads the same on light and dark pages; only the accent
+  // follows the app (look.js dark()). Nothing scaled, nothing looping.
+  assert.match(html, /\.isl__sheet \{[^}]*background: var\(--sheet\);/);
+  assert.match(html, /:root \{ --sheet: #0c0d10;/);
+  assert.doesNotMatch(html, /--sheet: #f6f1e7/, 'no light island');
+  assert.match(html, /SentinelLook\.paint\(document\.documentElement, SentinelLook\.dark\(/);
   const islandCss = html.slice(html.indexOf('.corner {'), html.indexOf('.mark {'));
   assert.doesNotMatch(islandCss, /infinite|scale\((?!\.97)/);
   assert.ok(!html.includes('—'), 'no em dash');

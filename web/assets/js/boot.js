@@ -2,6 +2,24 @@
 document.documentElement.classList.add('js');
 
 /*
+ * The look (look.js, which loads after the page), drawn before the first paint from what this device keeps: light or
+ * dark, and for an accent other than gold the colours look.js worked out when it was chosen. Nothing to compute here,
+ * so it costs nothing on a slow computer; gold and Auto need nothing at all.
+ */
+(function () {
+  try {
+    var r = document.documentElement, m = localStorage.getItem('sentinel:theme'), a = localStorage.getItem('sentinel:accent');
+    if (m === 'light' || m === 'dark') r.setAttribute('data-theme', m);
+    if (!a) return;
+    var v = JSON.parse(localStorage.getItem('sentinel:look-vars') || '{}');
+    var s = m === 'light' || m === 'dark' ? m : matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    if (v.accent !== a || !v[s]) return;
+    r.setAttribute('data-accent', a);
+    for (var k in v[s]) if (/^--[a-z0-9-]+$/.test(k)) r.style.setProperty(k, v[s][k]);
+  } catch (e) { /* storage blocked: gold, as the system has it */ }
+})();
+
+/*
  * The opening (intro.js) plays once per visit, never with reduced motion, never in a test browser, and never for a
  * page that is only being printed or prerendered. The class goes on now, before the first paint, so the page does
  * not flash before the cover; whatever happens to intro.js, it comes off by itself after 10 s (intro.js itself never runs
@@ -61,43 +79,6 @@ document.documentElement.classList.add('js');
   window.addEventListener('load', giveUp);
 })();
 
-/*
- * Light or dark. "Auto" (nothing stored) follows the system; a choice is remembered on this device. Applied here,
- * before the page is painted, so it never flashes the other theme. Any [data-theme-toggle] button cycles
- * Auto, Light, Dark and says which is on.
- */
-(function () {
-  const KEY = 'sentinel:theme';
-  const order = ['auto', 'light', 'dark'];
-  const read = () => { try { const v = localStorage.getItem(KEY); return v === 'light' || v === 'dark' ? v : 'auto'; } catch { return 'auto'; } };
-  const apply = (mode) => {
-    if (mode === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = mode;
-    for (const b of document.querySelectorAll('[data-theme-toggle]')) {
-      // The spoken name holds the word on the button (Auto, Light, Dark), so saying what you see works.
-      const word = mode === 'auto' ? 'Auto' : mode === 'light' ? 'Light' : 'Dark';
-      const label = `Theme: ${word}`;
-      b.setAttribute('aria-label', `${label}. Change theme`);
-      b.title = label;
-      b.dataset.mode = mode;
-      const text = b.querySelector('[data-theme-label]');
-      if (text) text.textContent = word;
-    }
-  };
-  apply(read());
-  document.addEventListener('DOMContentLoaded', () => apply(read()));
-  const set = (mode) => {
-    try { if (mode === 'auto') localStorage.removeItem(KEY); else localStorage.setItem(KEY, mode); } catch { /* this page only */ }
-    apply(mode);
-  };
-  // The app's Settings page chooses one directly (Appearance), and hears when the button here changes it.
-  window.SentinelTheme = { get: read, set };
-  document.addEventListener('click', (ev) => {
-    const b = ev.target.closest && ev.target.closest('[data-theme-toggle]');
-    if (!b) return;
-    set(order[(order.indexOf(read()) + 1) % order.length]);
-    document.dispatchEvent(new CustomEvent('sentinel:theme'));
-  });
-})();
 if (!('IntersectionObserver' in window)) document.documentElement.classList.add('no-io');
 
 /*

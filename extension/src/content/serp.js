@@ -17,6 +17,7 @@
   const DEFAULTS = { enabled: true, minimumBadge: 'yellow', markSafe: true, scanOverlay: true };
 
   let settings = DEFAULTS;
+  let live = null;                         // the accent as light, from the look the Windows app gave the companion
   const seen = new WeakSet();
   const byUrl = new Map();                 // url -> [anchor]
   let popover = null;
@@ -213,18 +214,18 @@
     host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483646;pointer-events:none;';
     const root = host.attachShadow({ mode: 'closed' });
     root.innerHTML = `<style>
-      :host{all:initial}
+      :host{all:initial;--s-rgb:212 174 99;--s-hi:#ecd499;--s-lite:#fff3cf;--s-acc:#d6b25a}
       .veil{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .45s ease}
       .veil.on{opacity:1}
       .tint{position:absolute;inset:0;background:
-        radial-gradient(120% 80% at 50% 0%, rgba(212,174,99,.10), rgba(212,174,99,.035) 55%, rgba(212,174,99,.02)),
-        linear-gradient(180deg, rgba(212,174,99,.05), rgba(212,174,99,.015))}
+        radial-gradient(120% 80% at 50% 0%, rgb(var(--s-rgb) / .10), rgb(var(--s-rgb) / .035) 55%, rgb(var(--s-rgb) / .02)),
+        linear-gradient(180deg, rgb(var(--s-rgb) / .05), rgb(var(--s-rgb) / .015))}
       .line{position:absolute;left:0;right:0;top:0;height:2px;
-        background:linear-gradient(90deg, transparent, rgba(236,212,153,.0) 4%, #ecd499 30%, #fff3cf 50%, #ecd499 70%, rgba(236,212,153,.0) 96%, transparent);
-        box-shadow:0 0 14px 2px rgba(212,174,99,.55), 0 0 46px 10px rgba(212,174,99,.22);
+        background:linear-gradient(90deg, transparent, rgb(var(--s-rgb) / 0) 4%, var(--s-hi) 30%, var(--s-lite) 50%, var(--s-hi) 70%, rgb(var(--s-rgb) / 0) 96%, transparent);
+        box-shadow:0 0 14px 2px rgb(var(--s-rgb) / .55), 0 0 46px 10px rgb(var(--s-rgb) / .22);
         transform:translateY(-4px);will-change:transform}
       .line::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:120px;
-        background:linear-gradient(180deg, transparent, rgba(212,174,99,.10));}
+        background:linear-gradient(180deg, transparent, rgb(var(--s-rgb) / .10));}
       .veil.on .line{animation:sweep 1.7s cubic-bezier(.45,.05,.35,1) infinite}
       @keyframes sweep{0%{transform:translateY(-4px);opacity:0}8%{opacity:1}92%{opacity:1}100%{transform:translateY(100vh);opacity:0}}
       /* The same pill as the Windows app's corner island (desktop/src/pages/overlay.html): the mask on the right, the
@@ -234,11 +235,13 @@
         box-shadow:inset 0 0 0 1px #6f6243;
         opacity:0;clip-path:inset(0 0 0 calc(100% - 34px) round 17px);transition:clip-path .34s cubic-bezier(.3,0,.2,1), opacity .2s ease .14s}
       .chip.on{opacity:1;clip-path:inset(0 round 17px);transition:clip-path .5s linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1), opacity .12s ease}
-      .chip svg{width:24px;height:24px;color:#d6b25a;flex:none}
+      .chip svg{width:24px;height:24px;color:var(--s-acc);flex:none}
       @media (prefers-reduced-motion: reduce){.veil.on .line{animation:none;opacity:0}.veil,.chip,.chip.on{transition:none}.chip{clip-path:none}}
     </style>
     <div class="veil" part="veil"><div class="tint"></div><div class="line"></div></div>
     <div class="chip" role="status" aria-live="polite">${Masks.svg('logo')}<span class="txt">Sentinel is checking these results</span></div>`;
+    // The accent chosen in the Windows app (cached by the popup): gold, as above, until there is one.
+    if (live) for (const [k, v] of Object.entries({ '--s-rgb': live.rgb, '--s-hi': live.hi, '--s-lite': live.lite, '--s-acc': live.acc })) if (/^[#0-9a-f ]{4,12}$/.test(String(v))) host.style.setProperty(k, v);
     (document.body || document.documentElement).appendChild(host);
     overlay = { host, veil: root.querySelector('.veil'), chip: root.querySelector('.chip'), txt: root.querySelector('.txt') };
     return overlay;
@@ -468,8 +471,10 @@
     timer = setTimeout(collect, delay);
   }
 
-  Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
+  Promise.all([ext.storage.sync.get(DEFAULTS), Promise.resolve(ext.storage.local.get('look')).catch(() => ({}))]).then(([stored, cached]) => {
     settings = { ...DEFAULTS, ...(stored || {}) };
+    const look = cached && cached.look;
+    if (look) { live = look.live || null; Masks.setMetal(look.metal); }
     if (!settings.enabled) return;
     schedule(0);
     new MutationObserver(() => schedule()).observe(document.body, { childList: true, subtree: true });

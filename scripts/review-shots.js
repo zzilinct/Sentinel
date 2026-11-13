@@ -1000,7 +1000,7 @@ async function desktopCards(send) {
 async function desktopIsland(send) {
   const file = `file:///${path.join(ROOT, 'desktop', 'src', 'pages', 'overlay.html').replace(/\\/g, '/')}`;
   // desktop/shared is made at build time and not in the repository: the masks come from where it copies them from.
-  const stand = `window.__h = {}; window.sentinelOverlay = { on: (n, f) => { window.__h[n] = f; }, interact() {}, act() {} };\n${fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), 'utf8')}`;
+  const stand = `window.__h = {}; window.sentinelOverlay = { on: (n, f) => { window.__h[n] = f; }, interact() {}, act() {} };\n${fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), 'utf8')}\n${fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'look.js'), 'utf8')}`;
   const PAGES = {
     light: { bg: '#ffffff', ink: '#202124', soft: '#e8eaed' },
     dark: { bg: '#121317', ink: '#e8e6e3', soft: '#2a2c31' }

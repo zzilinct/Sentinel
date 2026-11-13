@@ -47,6 +47,8 @@ for (const file of ['filescan.js', 'lists.js', 'brands.js', 'chat.js', 'clickfix
   copyIfChanged(path.join(ROOT, 'server', 'lib', 'scan', file), path.join(SHARED, file));
 }
 copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'masks.js'), path.join(SHARED, 'masks.js'));
+// The look's one table (light, dark, the accents): main.js, the island and every card read the website's own.
+copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'look.js'), path.join(SHARED, 'look.js'));
 copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'binary.js'), path.join(SHARED, 'binary.js'));
 copyIfChanged(path.join(ROOT, 'web', 'assets', 'js', 'steps.js'), path.join(SHARED, 'steps.js'));
 // The QR reader, for "Check something on screen" (snip.js). shared/qr.js is the server's: what a code does.

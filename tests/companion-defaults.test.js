@@ -38,7 +38,7 @@ test('companion: the install tab opens only for a new install that is not signed
   // The companion's modules are plain .js with no package.json of their own, so they are imported from a copy marked as modules.
   const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'sentinel-api-'));
   fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"module"}');
-  for (const f of ['api.js', 'brand.js']) fs.copyFileSync(path.join(SRC, 'lib', f), path.join(dir, f));
+  for (const f of ['api.js', 'brand.js', 'look.js']) fs.copyFileSync(path.join(SRC, 'lib', f), path.join(dir, f));
   const { wantsConnectTab } = await import(require('url').pathToFileURL(path.join(dir, 'api.js')).href);
   fs.rmSync(dir, { recursive: true, force: true });
   assert.equal(await wantsConnectTab('install', false), true, 'a new install with no account gets the tab');

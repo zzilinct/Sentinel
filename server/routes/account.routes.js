@@ -7,6 +7,8 @@ const models = require('../lib/models');
 const week = require('../lib/week');
 const { db } = require('../lib/db');
 const config = require('../config');
+// The look's one table and its rules (record, merge): the same file the site, the Windows app and the companion load.
+const Look = require('../../web/assets/js/look.js');
 
 const q = {
   history: db.prepare('SELECT id, kind, target, mode, scam, virus, malware, kinds, created_at FROM scan_history WHERE user_id = ? AND created_at > ? ORDER BY created_at DESC LIMIT ?'),
@@ -18,7 +20,9 @@ const q = {
       COUNT(*) AS total
     FROM scan_history WHERE user_id = ? AND created_at > ?`),
   forgetOne: db.prepare('DELETE FROM scan_history WHERE user_id = ? AND id = ?'),
-  forgetAll: db.prepare('DELETE FROM scan_history WHERE user_id = ?')
+  forgetAll: db.prepare('DELETE FROM scan_history WHERE user_id = ?'),
+  look: db.prepare('SELECT look FROM users WHERE id = ?'),
+  setLook: db.prepare('UPDATE users SET look = ? WHERE id = ?')
 };
 
 /**
@@ -53,6 +57,29 @@ function register(router) {
     const user = A.requireUser(req);
     await Promise.race([models.refresh(), new Promise((r) => setTimeout(r, 3000))]);
     sendJson(res, 200, models.catalogue(plans.planFor(user).id));
+  });
+
+  /*
+   * The look, so a person's devices agree: light, dark or Auto and the accent, each with when it was chosen. Each
+   * setting comes from whichever device chose it last; a time from the future (a clock set wrong) counts as now.
+   * Appearance only, a few dozen bytes; anything else sent is dropped. The Windows app's own account says so
+   * (`computer`): it never claims to reach other devices.
+   */
+  const lookOf = (user) => { try { return Look.record(JSON.parse(q.look.get(user.id).look || 'null')); } catch { return Look.record(); } };
+  const lookReply = (user, r) => ({ ...r, computer: Boolean(config.deviceAccounts && user.email === 'this-computer@sentinel.local') });
+  router.get('/api/v1/account/look', (req, res) => {
+    const user = A.requireUser(req);
+    sendJson(res, 200, lookReply(user, lookOf(user)));
+  });
+  router.post('/api/v1/account/look', async (req, res) => {
+    const user = A.requireUser(req);
+    security.rateLimit(`look:${user.id}`, 60, 60 * 1000);
+    const sent = Look.record(await readJson(req, 512));
+    const now = Date.now();
+    for (const k of ['mode', 'accent']) sent.at[k] = Math.min(sent.at[k], now);
+    const merged = Look.merge(lookOf(user), sent);
+    q.setLook.run(JSON.stringify(merged), user.id);
+    sendJson(res, 200, lookReply(user, merged));
   });
 
   router.get('/api/v1/account/usage', (req, res) => {

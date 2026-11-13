@@ -175,7 +175,8 @@ async function open(delay = 0) {
     win.once('ready-to-show', () => { if (win) { win.show(); win.focus(); } });
     // Escape closes it even when another program kept the keyboard; the key is given back as soon as it closes.
     globalShortcut.register('Escape', close);
-    win.loadFile(path.join(__dirname, 'pages', 'snip.html'));
+    // In the app's accent (look.js), as the island is.
+    win.loadFile(path.join(__dirname, 'pages', 'snip.html'), { query: { accent: require('../shared/look').normal(require('./store').get('look')).accent } });
   } catch (err) {
     close();
     if (opts) opts.log(`check on screen: could not start (${err.message})`);

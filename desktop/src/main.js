@@ -18,7 +18,7 @@
  */
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, Notification, safeStorage, session, powerMonitor, screen, globalShortcut } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell, ipcMain, Notification, safeStorage, session, powerMonitor, screen, globalShortcut } = require('electron');
 // The app's own log (logs/app.log), set up in boot.js before anything here loads.
 const { appLog } = require('./boot');
 const downloads = require('./downloads');
@@ -40,6 +40,8 @@ const scanmenu = require('./scanmenu');
 const store = require('./store');
 const parentlock = require('./parentlock');
 const server = require('./server');
+// The look (light, dark or Auto, and the accent): the website's own table, copied by scripts/sync-shared.js.
+const Look = require('../shared/look');
 
 const DEV = process.argv.includes('--dev');
 // Windows gets the .ico (every size, so the taskbar and Alt+Tab never show a blank page); elsewhere the PNG.
@@ -332,7 +334,8 @@ function createWindow() {
     minWidth: Math.min(960, area.width),
     minHeight: Math.min(640, area.height),
     show: false,
-    backgroundColor: '#0c0d10',
+    // The look's own ground (applyLook has set Windows' light or dark by now), so a light look never opens on black.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0c0d10' : '#f6f4ef',
     title: 'Sentinel',
     icon: ICON,
     autoHideMenuBar: true,
@@ -347,7 +350,7 @@ function createWindow() {
     }
   });
 
-  win.loadFile(path.join(__dirname, 'pages', 'loading.html'));
+  win.loadFile(path.join(__dirname, 'pages', 'loading.html'), { query: lookQuery() });
   win.once('ready-to-show', () => { if (!startHidden) win.show(); });
 
   // Only Sentinel itself may load inside the app window.
@@ -405,7 +408,7 @@ function showError(message) {
   clearTimeout(retryTimer);
   retryTimer = setTimeout(() => boot(), wait * 1000);
   if (!win) createWindow();
-  win.loadFile(path.join(__dirname, 'pages', 'error.html'), { query: { message, log: server.logPath(), retryIn: String(wait) } });
+  win.loadFile(path.join(__dirname, 'pages', 'error.html'), { query: { message, log: server.logPath(), retryIn: String(wait), ...lookQuery() } });
   // A start that fails while Sentinel is tucked away in the tray should not jump in front of the person, and neither
   // should each retry: the window is shown once, for the first failure of a start the person asked for.
   if (first && !win.isVisible() && !startHidden) win.show();
@@ -438,7 +441,7 @@ function showWarning(item) {
     warnWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     warnWin.webContents.on('will-navigate', (e) => e.preventDefault());
   }
-  warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query });
+  warnWin.loadFile(path.join(__dirname, 'pages', 'warn.html'), { query: { ...query, ...lookQuery() } });
   if (warnWin.isVisible()) warnWin.moveTop();
 }
 
@@ -536,7 +539,7 @@ function showGuard(mode, data = {}) {
   }
   guardMode = mode;
   if (mode === 'escape') placeOnPage();
-  guardWin.loadFile(path.join(__dirname, 'pages', 'guard.html'), { query: { mode, ...data } });
+  guardWin.loadFile(path.join(__dirname, 'pages', 'guard.html'), { query: { mode, ...data, ...lookQuery() } });
   if (guardWin.isVisible()) { guardWin.moveTop(); if (mode === 'escape') takeKeyboard(); }
 }
 /** The shield's window in front with the keyboard. focus() alone loses to a full-screen browser: the reader asks. */
@@ -752,11 +755,49 @@ async function guardAction(action, arg) {
 /* --------------------------------------------------------------- tray */
 
 function buildTray() {
-  const image = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', process.platform === 'darwin' ? 'icon16.png' : 'icon32.png'));
-  tray = new Tray(image);
+  tray = new Tray(trayImage(look().accent));
   tray.setToolTip(`Sentinel ${app.getVersion()}`);
   tray.on('click', () => showWindow());
   refreshTray();
+}
+
+/* ---------------------------------------------------------------- look */
+
+/** The look chosen in the app (look.js): light, dark or Auto, and the accent. One setting for every surface. */
+function look() { return Look.record(store.get('look')); }
+/** The query every page main.js opens is given, so it is drawn in the look before its first paint. */
+function lookQuery() { const l = look(); return { theme: l.mode, accent: l.accent }; }
+const trayImages = new Map();
+/** The tray's mask cast in the accent: the gold picture's own pixels turned to it, made once per accent. */
+function trayImage(accent) {
+  if (!trayImages.has(accent)) {
+    const file = (name) => nativeImage.createFromPath(path.join(__dirname, '..', 'assets', name));
+    // The menu bar on a Mac draws its icons in its own colours.
+    if (process.platform === 'darwin') { trayImages.set(accent, file('icon16.png')); return trayImages.get(accent); }
+    // The hand-drawn 16 px mark at 100%, the 32 px one at 200%: Windows picks the one for the screen instead of
+    // shrinking the large one into a blur. Each is cast in the accent the same way.
+    const image = nativeImage.createEmpty();
+    for (const [name, scaleFactor] of [['icon16.png', 1], ['icon32.png', 2]]) {
+      const base = file(name);
+      if (base.isEmpty()) continue;
+      const size = base.getSize();
+      const cast = accent === 'gold' ? base : nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), size);
+      image.addRepresentation({ scaleFactor, width: size.width, height: size.height, dataURL: cast.toDataURL() });
+    }
+    trayImages.set(accent, image.isEmpty() ? file('icon32.png') : image);
+  }
+  return trayImages.get(accent);
+}
+/**
+ * Draws a look everywhere at once: Windows' light or dark for the app's own pages (each follows it through
+ * prefers-color-scheme), the island and its marks, the tray icon, and the file the companion's popup asks the app's
+ * server for (GET /api/v1/look). The taskbar and installer icons are files in the installer and stay gold.
+ */
+function applyLook(l) {
+  nativeTheme.themeSource = l.mode === 'auto' ? 'system' : l.mode;
+  overlay.setLook(l);
+  if (tray) tray.setImage(trayImage(l.accent));
+  try { require('fs').writeFileSync(path.join(app.getPath('userData'), 'look.json'), JSON.stringify(l)); } catch { /* the companion keeps the look it has */ }
 }
 
 /** The tray's update line: what is happening, not just a button that goes grey. */
@@ -1008,12 +1049,6 @@ async function takeMenuFile() {
  * asks the account), so nothing about it leaves this computer. The log says only the verdict, never the file.
  */
 let menuResultFile = null;     // the file the result window is about, for "Sign in for a deeper check"
-/** The theme the person chose in the app ('light', 'dark'), so the result window matches; '' follows Windows, as Auto does. */
-function appTheme() {
-  if (!win || win.isDestroyed()) return Promise.resolve('');
-  const asked = win.webContents.executeJavaScript("localStorage.getItem('sentinel:theme')").then((v) => v || '').catch(() => '');
-  return Promise.race([asked, new Promise((resolve) => { setTimeout(resolve, 400, ''); })]);   // a hidden page that is still loading
-}
 async function scanHere(file) {
   const fs = require('fs');
   const signedIn = Boolean(store.getSecret('token'));
@@ -1033,7 +1068,7 @@ async function scanHere(file) {
   const summary = downloads.summarize(report, list.known, { failure, offline: list.offline });
   appLog(`right-click menu: ${summary.label}`);
   menuResultFile = file;
-  const query = { ...scanmenu.offlineResult(file, size, summary, report), account: signedIn ? '1' : '', asked: asked ? '1' : '', theme: await appTheme() };
+  const query = { ...scanmenu.offlineResult(file, size, summary, report), account: signedIn ? '1' : '', asked: asked ? '1' : '', ...lookQuery() };
   if (!menuWin || menuWin.isDestroyed()) {
     menuWin = cardWindow();
     menuWin.on('closed', () => { menuWin = null; menuResultFile = null; });
@@ -1519,6 +1554,16 @@ function handle(channel, fn, check = trusted) {
 }
 
 function registerBridge() {
+  // The look: asked by the app's pages as they load (look.js), and set from its picker. Anything sent is made a known
+  // look first, so a page can never hand the island or the companion something else.
+  handle('sentinel:look', () => look());
+  handle('sentinel:set-look', (l) => {
+    // Each setting from whichever choice was made last (look.js merge), so an older page cannot undo a newer one.
+    const next = Look.merge(look(), l);
+    store.set('look', next);
+    applyLook(next);
+    return next;
+  });
   handle('sentinel:info', () => ({
     version: app.getVersion(),
     origin: ORIGIN,
@@ -1725,7 +1770,7 @@ async function boot() {
   clearTimeout(retryTimer);
   // Not "remote": that name is the tech-support scam shield (remoteguard.create()), which onVerdict below calls.
   const serverOrigin = process.env.SENTINEL_ORIGIN || (DEV ? 'http://localhost:8787' : store.get('serverOrigin', null));
-  if (win) win.loadFile(path.join(__dirname, 'pages', 'loading.html'));
+  if (win) win.loadFile(path.join(__dirname, 'pages', 'loading.html'), { query: lookQuery() });
   appLog(`boot: ${serverOrigin ? `using ${serverOrigin}` : 'starting the embedded scanner'} (app ${app.getVersion()})`);
 
   try {
@@ -1964,6 +2009,8 @@ app.whenReady().then(() => {
   appLog(`starting Sentinel ${app.getVersion()}${startHidden ? ' (hidden)' : ''}`);
   cpuProfileOnRequest();
   store.init(app.getPath('userData'), safeStorage);
+  // Before any window: the first one is drawn in the chosen look.
+  step('look', () => applyLook(look()));
   lock = parentlock.create(store);
   // A run that ended without quitting (Windows shutting down, Task Manager, or a crash) left nothing in the log at all.
   step('last run', () => {

@@ -15,6 +15,10 @@ function on(channel, callback) {
 
 contextBridge.exposeInMainWorld('sentinelDesktop', {
   info: () => ipcRenderer.invoke('sentinel:info'),
+  // The look (light, dark or Auto, and the accent), one setting for the app, live scanning, its cards and the companion.
+  look: () => ipcRenderer.invoke('sentinel:look'),
+  setLook: (look) => ipcRenderer.invoke('sentinel:set-look', { mode: String((look && look.mode) || ''), accent: String((look && look.accent) || ''),
+    at: { mode: Number(look && look.at && look.at.mode) || 0, accent: Number(look && look.at && look.at.accent) || 0 } }),
   setToken: (token, userId) => ipcRenderer.invoke('sentinel:set-token', token, userId),
   clearToken: () => ipcRenderer.invoke('sentinel:clear-token'),
   setDownloadProtection: (enabled) => ipcRenderer.invoke('sentinel:set-download-protection', Boolean(enabled)),

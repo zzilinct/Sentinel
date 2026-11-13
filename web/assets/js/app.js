@@ -53,6 +53,8 @@
       state.me = me;
       state.config = config;
       state.plans = config.plans;
+      // Signed in: the look this account chose on its other devices (look.js), without waiting for it.
+      if (window.SentinelLook && SentinelLook.sync) SentinelLook.sync();
       // Signed in on any other page: a share made signed out moments ago (in another tab, or before signing in here)
       // opens its check here; anything older is emptied out. Signed out, it is left waiting for the sign-in.
       if (location.pathname.replace(/\/$/, '') !== '/app/share' && await Share.waiting()) history.replaceState({}, '', '/app/share');
@@ -903,7 +905,7 @@
         <div class="live__text"><h2>Live scanning is off</h2><p>One click. Sentinel then watches whichever browser is in front of you, and rests when none is.</p></div>
         <a class="btn btn--gold live__button" href="/app/protection">Start scanning</a></div></div>`;
     }
-    return `<div class="panel"><div class="panel__head"><div><h2>${live.enabled ? 'Live scanning is on' : 'Protection is on'}</h2><p>${live.enabled ? 'Look for the gold mask in the corner of your browser. Downloads and new programs are watched too.' : 'Downloads and new programs on this computer are being watched.'}</p></div><a class="btn btn--sm" href="/app/protection">Manage</a></div></div>`;
+    return `<div class="panel"><div class="panel__head"><div><h2>${live.enabled ? 'Live scanning is on' : 'Protection is on'}</h2><p>${live.enabled ? 'Look for the mask in the corner of your browser. Downloads and new programs are watched too.' : 'Downloads and new programs on this computer are being watched.'}</p></div><a class="btn btn--sm" href="/app/protection">Manage</a></div></div>`;
   }
 
   /* =============================================================== check */
@@ -2243,7 +2245,7 @@
 
       <div class="feature-grid">
         ${feature(Masks.svg('scam'), 'Page warnings', 'While a browser is in front, Sentinel checks the address of the page it shows and warns you before a dangerous one gets your details. No add-on.', st(!lock && desktop, lock || 'Needs app'))}
-        ${feature(ICON.search, 'Search result masks', `A gold line crosses the page when you search, then a mask appears beside every result. Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock && desktop, lock || 'Needs app'))}
+        ${feature(ICON.search, 'Search result masks', `A line of light crosses the page when you search, then a mask appears beside every result. Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock && desktop, lock || 'Needs app'))}
         ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: the messages in your inbox list get a green mask or a warning mask before you open them. Sentinel reads only what the list shows (sender, subject, first line) and never opens a message.', f.emailLive && !planLocked ? '<span class="status">Optional add-on</span>' : st(false, 'Pro & up'))}
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
@@ -2767,10 +2769,14 @@
   const linkControl = (href) => `<a class="btn btn--sm" href="${href}">Open</a>`;
 
   const SETTINGS = [
-    { id: 'theme', group: 'look', kind: 'custom', label: 'Theme', hint: 'Auto follows your computer. Light or Dark stays as you choose it, on this device.',
-      words: ['dark', 'light', 'mode', 'colour', 'color', 'night', 'appearance'],
-      control: () => seg('set-theme-l', [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']], window.SentinelTheme ? window.SentinelTheme.get() : 'auto'),
-      bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelTheme) window.SentinelTheme.set(b.dataset.seg); ctx.draw(); })) },
+    // The look (look.js): its picker draws both rows, Theme as its radio well and Colour as its coins.
+    { id: 'theme', group: 'look', kind: 'block', label: 'Theme', hint: 'Auto follows your computer. Light or Dark stays as you choose it.',
+      words: ['dark', 'light', 'mode', 'night', 'appearance'],
+      mount: (body) => { if (window.SentinelLook && SentinelLook.picker) body.appendChild(SentinelLook.picker({ only: 'mode' })); } },
+    { id: 'accent', group: 'look', kind: 'block', label: 'Colour',
+      hint: desktop ? 'One colour for this app, live scanning, its warnings, the mask in the corner, the tray icon and the companion in your browser.' : 'One colour for the whole app. In the Sentinel app for Windows it also colours live scanning and its warnings.',
+      words: ['colour', 'color', 'accent', 'gold', 'rose', 'amethyst', 'sapphire', 'teal', 'platinum', 'appearance'],
+      mount: (body) => { if (window.SentinelLook && SentinelLook.picker) body.appendChild(SentinelLook.picker({ only: 'accent' })); } },
 
     { id: 'reduce-motion', group: 'motion', kind: 'custom', label: 'Less motion', hint: 'Sentinel follows your computer. With Reduce motion turned on in your computer or phone settings, nothing slides, springs or draws.',
       words: ['animation', 'animations', 'reduce', 'still', 'calm', 'effects', 'moving'],
@@ -3217,10 +3223,6 @@
         if (typeof off === 'function') box._off.push(off);
       }
     }
-    const onTheme = () => draw();
-    document.addEventListener('sentinel:theme', onTheme);
-    box._off.push(() => document.removeEventListener('sentinel:theme', onTheme));
-
     draw();
     // After the rows have their real size, so the row asked for lands where it should.
     const arrived = location.hash.slice(1);
