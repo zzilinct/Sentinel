@@ -41,3 +41,6 @@ Next on continue:
   answered, fixed: 'down' fails every /api call), first-time heights (set from measured values).
 - Run 43124092739 (simple,states): all pass except assistants first-time height (now set 1026/538). Pictures read.
 - Final full run: push without [skip ci].
+- Full run on ed63d8c: Test, Desktop protections, Browser checkup, Live scanning, Review screenshots pass; Website
+  43128034375: all checks pass except perf-a11y mobile /app 85 (floor 95, slack 8). Rerun 43507283585 (perf only,
+  mobile /app): 89, pass; c-settings base scores 89 there too (run 42893217699). DONE, reported.
