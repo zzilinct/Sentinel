@@ -385,7 +385,10 @@ function createWindow() {
     }
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https:\/\//.test(url) || (ORIGIN && url.startsWith(ORIGIN))) shell.openExternal(url);
+    // The app's own origin compared as an origin: "http://127.0.0.1:47821@elsewhere/" begins with it too.
+    let own = false;
+    try { own = Boolean(ORIGIN) && new URL(url).origin === ORIGIN; } catch { /* not an address */ }
+    if (/^https:\/\//.test(url) || own) shell.openExternal(url);
     return { action: 'deny' };
   });
 

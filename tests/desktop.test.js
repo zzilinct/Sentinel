@@ -291,6 +291,35 @@ test('defense: an unsigned program with strong evidence is still stopped, and "p
   }
 });
 
+test('the app window hands a new window to the browser only for https or its own origin, compared as an origin', () => {
+  const m = read('desktop/src/main.js');
+  const handler = m.slice(m.indexOf('win.webContents.setWindowOpenHandler(({ url })'), m.indexOf("win.on('close'"));
+  assert.doesNotMatch(handler, /url\.startsWith\(ORIGIN\)/, '"http://127.0.0.1:47821@elsewhere/" starts with the origin');
+  assert.match(handler, /new URL\(url\)\.origin === ORIGIN/);
+});
+
+test('defense: only Sentinel\'s own folder is exempt, not a neighbour whose name starts the same', async () => {
+  const box = sandbox();
+  try {
+    defense._test.setSigner(async () => null);
+    const self = path.join(box.dir, 'Programs', 'Sentinel');
+    defense._test.configure({ dataDir: path.join(box.dir, 'data'), quarantineDir: path.join(box.dir, 'data', 'quarantine'), downloads: path.join(box.dir, 'dl'), selfDir: self, enabled: () => true, api: async () => ({ known: false }), onThreat: () => {} });
+    for (const dir of [self, `${self} Helper`, path.join(box.dir, 'data', 'quarantine-x')]) fs.mkdirSync(dir, { recursive: true });
+    const own = path.join(self, 'FreeRobuxGenerator.exe');
+    fs.writeFileSync(own, fakeStealerExe());
+    assert.equal(await defense.inspect(own, 'startup entry HKCU Run\\Own'), null, 'Sentinel\'s own folder is left alone');
+    for (const dir of [`${self} Helper`, path.join(box.dir, 'data', 'quarantine-x')]) {
+      const next = path.join(dir, 'FreeRobuxGenerator.exe');
+      fs.writeFileSync(next, fakeStealerExe());
+      const item = await defense.inspect(next, 'startup entry HKCU Run\\Next');
+      assert.ok(item && item.badge, `${dir} is looked at like any other folder`);
+    }
+  } finally {
+    defense._test.setSigner(null);
+    fs.rmSync(box.dir, { recursive: true, force: true });
+  }
+});
+
 test('defense: a startup program with warning signs but no proof is left running, and the person decides', async () => {
   const box = sandbox();
   try {

@@ -136,6 +136,29 @@ test('two-factor authentication: setup, login challenge, replay protection', asy
   assert.equal(replay.status, 401);
 });
 
+test('two-factor codes: wrong ones lock the account however many fresh challenges are asked for', async () => {
+  const security = require('../server/lib/security');
+  const c = await signedIn();
+  const setup = await c.post('/api/v1/account/2fa/setup', {});
+  const secret = security.base32Decode(setup.data.secret);
+  const codeAt = (t) => security.hotp(secret, Math.floor(t / 30000));
+  assert.equal((await c.post('/api/v1/account/2fa/enable', { code: codeAt(Date.now()), password: 'Correct-Horse-42' })).status, 200);
+  const right = codeAt(Date.now());
+  const wrong = right === '000000' ? '111111' : '000000';
+
+  const guesser = client(app.base);
+  let tries = 0;
+  for (let round = 0; round < 2; round++) {
+    const step1 = await guesser.post('/api/v1/auth/login', { email: c.email, password: 'Correct-Horse-42' });
+    assert.equal(step1.data.twoFactorRequired, true, `round ${round}: ${JSON.stringify(step1.data)}`);
+    for (let i = 0; i < 4 && tries < 8; i++, tries++) {
+      assert.equal((await guesser.post('/api/v1/auth/login/2fa', { challenge: step1.data.challenge, code: wrong })).status, 401);
+    }
+  }
+  const after = await guesser.post('/api/v1/auth/login', { email: c.email, password: 'Correct-Horse-42' });
+  assert.equal(after.status, 423, 'eight wrong codes lock the account, as eight wrong passwords do');
+});
+
 /* ----------------------------------------------------------------- SSRF */
 
 test('research refuses private, loopback and metadata addresses', async () => {
