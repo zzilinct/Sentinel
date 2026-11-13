@@ -7,7 +7,7 @@
 @property --sheen { syntax: '<angle>'; inherits: true; initial-value: 176deg; }
 @property --near { syntax: '<number>'; inherits: false; initial-value: 0; }
 
-:root { --metal-stops: #f3dca4 0%, #d2ac63 30%, #8a6424 56%, #e9c983 72%, #7a561c 100%; }
+:root { --metal-stops: #f3dca4 0%, #d2ac63 30%, #8a6424 56%, #e9c983 72%, #7a561c 100%; --gilt: linear-gradient(176deg, #f0d28c 0%, #c99a45 50%, #8e6626 100%); }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --metal-stops: #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%; } }
 :root[data-theme="light"] { --metal-stops: #c79a45 0%, #9a7029 34%, #5e4210 58%, #a8803a 74%, #4c3409 100%; }
 
@@ -33,7 +33,7 @@
 /* Polished metal: a specular highlight sits under the pointer, and the button's glow leans away from it. */
 .hv .btn--gold.is-gilt, .hv .chip-q[aria-selected="true"].is-gilt {
   /* The metal deepens under the lamp so its hot spot reads, in the light theme too. */
-  background: radial-gradient(58px 40px at var(--mx) var(--my), #fffdf6, rgb(255 244 214 / .7) 30%, rgb(255 232 180 / 0) 72%), radial-gradient(140px 90px at var(--mx) var(--my), transparent 40%, rgb(90 60 15 / .16) 100%), linear-gradient(176deg, #f0d28c, #c99a45 50%, #8e6626);
+  background: radial-gradient(58px 40px at var(--mx) var(--my), #fffdf6, rgb(255 244 214 / .7) 30%, rgb(255 232 180 / 0) 72%), radial-gradient(140px 90px at var(--mx) var(--my), transparent 40%, rgb(90 60 15 / .16) 100%), var(--gilt);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .55), calc(var(--lx) * -12px) calc(var(--ly) * -6px + 14px) 32px -12px rgb(var(--gold-rgb) / .8), 6px 8px 18px var(--lo, var(--neu-lo));
 }
 .hv .seg__btn.is-on.is-gilt { background: radial-gradient(60px 36px at var(--mx) var(--my), rgb(255 253 244 / .7), transparent 75%), var(--gold-grad); }

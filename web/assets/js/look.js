@@ -53,6 +53,9 @@
 
   // What words in the accent sit on: the pages' darkest and lightest grounds, and the island's and cards' own fills.
   var GROUND = { dark: ['#111215', '#15120e', '#1e1a14', '#0c0d10'], light: ['#efece6', '#efe8da', '#e4dbca', '#f6f1e7'] };
+  // The marketing pages' gold button and its polished hover (lux.css, hover.css): a bright fill with dark words
+  // (LUX.ink) in both schemes, so each tone is lifted until those words read at 4.5:1.
+  var LUX = { btn: ['#f6e1ab', '#d2ac63', '#a97f35'], btnHover: ['#fbe9bd', '#ddb873', '#b48a3e'], gilt: ['#f0d28c', '#c99a45', '#8e6626'], ink: '#1a1206' };
   var SHEET = { dark: '#0c0d10', light: '#f6f1e7' };
 
   /* ------------------------------------------------------------- colour */
@@ -92,16 +95,19 @@
   function luminance(hex) { var c = hexRgb(hex).map(lin); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
   function contrast(a, b) { var x = luminance(a), y = luminance(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
 
-  /** Gold's colour `hex` turned to the accent's hue; `words` lifts (dark) or deepens (light) it to 4.5:1 on its grounds. */
+  /**
+   * Gold's colour `hex` turned to the accent's hue; `words` lifts (dark) or deepens (light) it to 4.5:1 on its grounds.
+   * `words` may instead be the colour of the words drawn on it (dark ink): the tone is lifted until they read.
+   */
   function turn(hex, accent, scheme, words) {
     var tune = accent[scheme] || {};
     var o = toOklch(hex), L = o[0] + (tune.l || 0), C = o[1] * (isFinite(tune.c) ? tune.c : accent.c);
     var out = oklchHex(L, C, accent.h);
     if (!words) return out;
-    var grounds = GROUND[scheme];
+    var grounds = typeof words === 'string' ? [words] : GROUND[scheme], up = typeof words === 'string' || scheme === 'dark';
     var worst = function (c) { var w = 99; for (var i = 0; i < grounds.length; i++) w = Math.min(w, contrast(c, grounds[i])); return w; };
     for (var n = 0; n < 60 && worst(out) < 4.5; n++) {
-      L += scheme === 'dark' ? 0.01 : -0.01;
+      L += up ? 0.01 : -0.01;
       out = oklchHex(L, C, accent.h);
     }
     return out;
@@ -139,6 +145,12 @@
       out['--gold-hover'] = grad(w.hover.map(function (c) { return t(c); }));
       var m = w.metal.map(function (c) { return t(c); });
       out['--metal'] = 'linear-gradient(176deg, ' + m[0] + ' 0%, ' + m[1] + ' 30%, ' + m[2] + ' 56%, ' + m[3] + ' 72%, ' + m[4] + ' 100%)';
+      var at = scheme === 'light' ? [0, 34, 58, 74, 100] : [0, 30, 56, 72, 100];
+      out['--metal-stops'] = m.map(function (c, i) { return c + ' ' + at[i] + '%'; }).join(', ');
+      var lux = function (hexes, mid) { return 'linear-gradient(176deg, ' + hexes.map(function (c, i) { return t(c, LUX.ink) + ' ' + [0, mid, 100][i] + '%'; }).join(', ') + ')'; };
+      out['--btn-grad'] = lux(LUX.btn, 48);
+      out['--btn-grad-hover'] = lux(LUX.btnHover, 48);
+      out['--gilt'] = lux(LUX.gilt, 50);
       var rgb = rgbOf(stop[400]);
       out['--gold-rgb'] = rgb;
       out['--line-gold'] = 'rgb(' + rgb + ' / ' + (scheme === 'light' ? '.35' : '.28') + ')';
@@ -239,7 +251,7 @@
     return normal({ mode: q.get('theme'), accent: q.get('accent') });
   }
 
-  var api = { ACCENTS: ACCENTS, STATUS: STATUS, GOLD: GOLD, SHEET: SHEET, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, rev: rev, scheme: scheme, paint: paint, dark: dark, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
+  var api = { ACCENTS: ACCENTS, STATUS: STATUS, GOLD: GOLD, SHEET: SHEET, LUX: LUX, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, rev: rev, scheme: scheme, paint: paint, dark: dark, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
   root.SentinelLook = api;
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
   // The companion's own pages (popup, block page, settings): the look the Windows app gave it (popup.js asks the app
@@ -278,7 +290,7 @@
     } catch (e) { /* this page only */ }
   }
   // What boot.js needs before the first paint: the stylesheets' own names only.
-  function webVars(id, s) { var all = ramp(id, s), out = {}; for (var k in all) if (/^--(gold|metal|line-gold|sketch-gold)/.test(k)) out[k] = all[k]; return out; }
+  function webVars(id, s) { var all = ramp(id, s), out = {}; for (var k in all) if (/^--(gold|metal|line-gold|sketch-gold|btn-grad|gilt)/.test(k)) out[k] = all[k]; return out; }
   var current = stored();
   paint(html, current);
   keep(current);   // a device that had the accent before boot.js drew it gets its colours kept now

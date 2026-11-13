@@ -31,7 +31,7 @@ test('danger red, warning orange and caution yellow are the same bytes in every 
   const before = JSON.stringify(L.STATUS);
   for (const a of L.ACCENTS) for (const s of SCHEMES) {
     const keys = Object.keys(L.ramp(a.id, s));
-    assert.ok(keys.length > 0 && keys.every((k) => /^--(gold|acc|live|on-acc|metal|line-gold|sketch-gold)/.test(k) && !statusVar.test(k)), `${a.id} ${s}: ${keys.join(' ')}`);
+    assert.ok(keys.length > 0 && keys.every((k) => /^--(gold|acc|live|on-acc|metal|line-gold|sketch-gold|btn-grad|gilt)/.test(k) && !statusVar.test(k)), `${a.id} ${s}: ${keys.join(' ')}`);
     assert.equal(JSON.stringify(L.STATUS), before);
   }
   // The island and the cards say a verdict in STATUS, never M.COLORS mixed with the accent and never a literal.
