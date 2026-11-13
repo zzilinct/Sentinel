@@ -100,7 +100,7 @@ async function checkLook() {
     // The picker by mouse: the new look opens out of the coin (photographed mid-reveal), and is kept.
     await store('dark', 'gold');
     await open();
-    await ev("document.getElementById('look').scrollIntoView({ block: 'center', behavior: 'instant' }), true");
+    await ev("document.getElementById('accent').scrollIntoView({ block: 'center', behavior: 'instant' }), true");
     await sleep(1800);
     await clickSel(browser, s, '.look__coin input[value="rose"]');
     await sleep(260);
@@ -135,7 +135,7 @@ async function checkLook() {
     await evalIn(browser, s2, `fetch('/api/v1/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify({ email, password: 'Look-Check-Lamp-2026' }))} }).then((r) => r.status)`);
     await goto(browser, s2, `${sentinel.base}/app/settings#accent`, "document.querySelector('#accent .look__coin')");
     const arrived = await until(browser, s2, "document.documentElement.dataset.accent === 'amethyst' && document.documentElement.dataset.theme === 'light' && /with your account/.test(document.querySelector('.look__sync').textContent)", 10000);
-    await evalIn(browser, s2, "document.getElementById('look').scrollIntoView({ block: 'center', behavior: 'instant' }), true");
+    await evalIn(browser, s2, "document.getElementById('accent').scrollIntoView({ block: 'center', behavior: 'instant' }), true");
     await sleep(1800);
     await shot(browser, s2, 'look-sync-second-device-phone');
     result('look: the same account on another device takes the look chosen on the first, with no setting made there', Boolean(arrived),
