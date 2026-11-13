@@ -338,7 +338,7 @@ async function checkQaWeb() {
       const said = await ev("(() => { const t = [...document.querySelectorAll('.toast')].map((x) => x.textContent).join(' | '); const o = document.querySelector('#view [data-out]').innerText; return { toast: t, out: o, focus: (document.activeElement || {}).name || '' }; })()");
       const sent = requests.slice(before).filter((r) => /\/scan\//.test(r.url)).length;
       result('qa-web: email, Check with nothing pasted says what to do, calmly, without "Scan failed" and without spending a scan',
-        !/Scan failed/.test(said.out) && /Paste/.test(said.toast + said.out) && !sent, { ...said, sent });
+        !/Scan failed|did not finish/.test(said.out) && /Paste/.test(said.toast + said.out) && !sent, { ...said, sent });
       // A slow connection, and two quick presses.
       await browser.send('Network.emulateNetworkConditions', { offline: false, latency: 1500, downloadThroughput: 50000, uploadThroughput: 50000 }, s);
       await pasteEmail('From: PayPal <service@paypa1-help.top>\nSubject: Your account is limited\n\nVerify your account within 24 hours at https://paypa1-secure-login.com/verify or it will be closed.');

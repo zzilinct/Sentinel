@@ -299,5 +299,21 @@ async function until(browser, sessionId, expression, ms = 15000) {
   return v;
 }
 
+// The feed list as the server has it, read from its source: these scripts must not load the server's database code.
+const feedIds = () => [...fs.readFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'feeds.js'), 'utf8').matchAll(/^\s*\{ id: '(\w+)', name:/gm)].map((m) => m[1]);
+
+/** A throwaway server's lists marked as loaded, one left out when `missing` is set, so a scan is partly checked. Nothing is downloaded. */
+function markLists(dbPath, missing) {
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(dbPath.replace(/\.db$/i, '-feeds.db'));
+  db.exec('PRAGMA busy_timeout = 5000');
+  const ids = feedIds();
+  const put = db.prepare('INSERT INTO feed_status (source, fetched_at, entries, ok, error) VALUES (?, ?, 1, 1, NULL) ON CONFLICT(source) DO UPDATE SET ok = 1, entries = 1, error = NULL');
+  for (const id of ids) put.run(id, Date.now());
+  if (missing) db.prepare('DELETE FROM feed_status WHERE source = ?').run(ids[0]);
+  db.close();
+  return ids.length;
+}
+
 module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton, passBlock, NO_UPGRADE,
-  readPng, startServer, watchErrors, clickSel, pressKey, until };
+  readPng, startServer, watchErrors, clickSel, pressKey, until, markLists };

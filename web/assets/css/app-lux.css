@@ -214,9 +214,6 @@ html.lux-app[data-theme="light"] {
 /* A meter beside a figure that counts up fills again as the count starts (it may have been off screen before). */
 .lux-app .lux-grow .meter i { animation: lux-grow 1.2s var(--lux-out) .25s backwards; }
 @keyframes lux-grow { from { transform: scaleX(0); } }
-/* Empty places are not dead: their mask floats. */
-.lux-app .empty svg { animation: lux-float 3.6s ease-in-out infinite alternate; }
-@keyframes lux-float { from { transform: translateY(-3px) rotate(-3deg); } to { transform: translateY(3px) rotate(3deg); } }
 
 /* ------------------------------------------------------------ hover */
 
@@ -298,7 +295,7 @@ html.lux-app[data-theme="light"] {
 /* ----------------------------------------------------- reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
-  .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .empty svg,
+  .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i,
   .lux-wipe, .lux-ghost, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i, .lux-app .warn-card { animation: none !important; }
   .lux-wipe, .lux-ghost { display: none; }
   /* The island only fades in and out, at its size, and swaps its words in place. */

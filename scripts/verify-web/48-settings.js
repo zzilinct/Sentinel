@@ -71,7 +71,7 @@ async function checkSettings() {
         await goto(browser, s, `${server.base}/app/settings`);
         await until(browser, s, ready, 20000);
         bare = await evalIn(browser, s, `(() => ({ rows: ${ROWS}.length, shown: ${SHOWN}.length, on: document.querySelectorAll('[data-set-row] .switch:checked').length,
-          switches: document.querySelectorAll('[data-set-row] .switch').length, why: [...document.querySelectorAll('.set-why')].map((e) => e.textContent),
+          switches: document.querySelectorAll('[data-set-row] .switch:not(#set-simple-view-c)').length, why: [...document.querySelectorAll('.set-why')].map((e) => e.textContent),
           wide: document.documentElement.scrollWidth - innerWidth, download: Boolean(document.querySelector('.set-app a[href="/download"]')) }))()`);
         if (bare.wide > 0) wide.push(`no app ${size} ${theme}: ${bare.wide} px`);
         await sleep(300);

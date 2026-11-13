@@ -17,7 +17,7 @@
       <span class="logo__mark" data-glyph="logo"></span>
       Sentinel
     </a>
-    <a class="model-badge" href="/app/plan" data-model-badge hidden aria-label="The model running here. Open Plan &amp; usage to choose another"></a>
+    <a class="model-badge" href="/app/plan" data-model-badge data-full hidden aria-label="The model running here. Open Plan &amp; usage to choose another"></a>
 
     <button class="side__search" type="button" data-palette aria-label="Search or scan (Ctrl K)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -29,7 +29,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1Z"/></svg>
         Overview
       </a>
-      <div class="side__label">Check</div>
+      <div class="side__label" data-full>Check</div>
       <a class="side__link" href="/app/check" data-route="check" data-phone data-short="Check" aria-label="Check something">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m7.8 10.6 1.9 1.9 3.6-3.8M15.3 15.3 20 20"/></svg>
         Check something
@@ -42,21 +42,21 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-7-10.2A4.3 4.3 0 0 1 12 8a4.3 4.3 0 0 1 7 2.8C19 16.6 12 21 12 21Z"/><path d="M9 13h6M12 10v6"/></svg>
         Been scammed?
       </a>
-      <div class="side__label">Protect</div>
+      <div class="side__label" data-full>Protect</div>
       <a class="side__link" href="/app/protection" data-route="protection" data-phone>
         <span class="side__glyph" data-glyph="scam" aria-hidden="true"></span>
         Live protection
       </a>
-      <a class="side__link" href="/app/sites" data-route="sites">
+      <a class="side__link" href="/app/sites" data-route="sites" data-full>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h7"/><path d="m15 16 2 2 4-4"/></svg>
         Site rules
       </a>
-      <a class="side__link" href="/app/checkup" data-route="checkup">
+      <a class="side__link" href="/app/checkup" data-route="checkup" data-full>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/><path d="m9 15 2 2 4-4"/></svg>
         Browser checkup
       </a>
-      <div class="side__label">Review</div>
-      <a class="side__link" href="/app/week" data-route="week">
+      <div class="side__label" data-full>Review</div>
+      <a class="side__link" href="/app/week" data-route="week" data-full>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V12M10 20V6M15 20v-9M20 20V9"/></svg>
         Your week
       </a>
@@ -96,6 +96,7 @@
       <a class="logo" href="/app"><span class="logo__mark" data-glyph="logo"></span>Sentinel</a>
       <span style="display:flex;gap:8px"><button class="btn btn--sm" type="button" data-palette aria-label="Search or scan"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button><a class="btn btn--sm" href="/app/settings#account" aria-label="Account and settings"><span class="avatar" data-avatar style="width:24px;height:24px;font-size:var(--t-micro)"></span></a></span>
     </div>
+    <p class="netbar" role="status" data-netbar hidden><b>Sentinel cannot be reached.</b> Check your internet connection. Pages that could not load try again by themselves when it is back.</p>
     <div id="view"></div>
   </main>
 </div>

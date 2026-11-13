@@ -239,15 +239,29 @@ body.app::before { opacity: .6; }
 .result__partly { margin-top: 8px !important; font-size: var(--t-ui) !important; line-height: 1.5; max-width: 62ch; }
 /* Everything else, on demand. The tiles and the rest keep their own padding, so the row lines up with them. */
 .result__more { border-top: 1px solid var(--line); }
-.result__more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 12px 30px; font-size: var(--t-ui); color: var(--text-2); }
+.result__more > summary, .result__details { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 12px 30px; font-size: var(--t-ui); color: var(--text-2); }
 .result__more > summary::-webkit-details-marker { display: none; }
-.result__more > summary:hover { color: var(--text); }
-.result__more > summary:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
-.result__more > summary i { width: 10px; height: 10px; flex: none; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg); }
-.result__more[open] > summary i { transform: rotate(225deg) translate(-2px, -1px); }
+.result__more > summary:hover, .result__details:hover { color: var(--text); }
+.result__more > summary:focus-visible, .result__details:focus-visible { outline: 2px solid var(--gold-300); outline-offset: -2px; }
+.result__more > summary i, .result__details i { width: 10px; height: 10px; flex: none; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg); }
+.result__more[open] > summary i, .result__details[aria-expanded="true"] i { transform: rotate(225deg) translate(-2px, -1px); }
 /* Everything that did not run, as one quiet line (ui.js notRunLine). */
 .result__notrun { margin: 0; padding: 12px 30px 16px; border-top: 1px solid var(--line); font-size: var(--t-note); line-height: 1.5; color: var(--muted); }
-@media (max-width: 560px) { .result__more > summary { padding: 12px 20px; } .result__notrun { padding: 12px 20px 14px; } }
+@media (max-width: 560px) { .result__more > summary, .result__details { padding: 12px 20px; } .result__notrun { padding: 12px 20px 14px; } }
+
+/* Simple view (boot.js; Settings, Appearance): fewer pages and fewer words. A result keeps its answer, what was not
+   checked, what to do and the way to the real site, in bigger words; Show details brings the clues, the checklist and
+   the actions back for that one result. Hidden parts are display: none, so a screen reader skips them too. */
+.result__details { display: none; width: 100%; border: 0; border-top: 1px solid var(--line); background: none; font-family: inherit; font-weight: 500; text-align: left; }
+html[data-simple] [data-full] { display: none !important; }
+html[data-simple] .result__details { display: flex; }
+html[data-simple] .result:not(.is-full) :is(.reasons, .result__more) { display: none; }
+html[data-simple] .result:not(.is-full) ~ .actions { display: none; }
+html[data-simple] .result__title h2 { font-size: var(--t-d3); overflow-wrap: anywhere; }
+html[data-simple] .result__lead { font-size: var(--t-lead) !important; }
+html[data-simple] .result__partly { font-size: var(--t-body) !important; }
+html[data-simple] .next-steps ol { gap: 12px; }
+html[data-simple] .next-steps li { font-size: var(--t-lead); }
 @media (max-width: 560px) { .result__head { flex-direction: column; align-items: flex-start; padding: 24px 20px 18px; } }
 
 /* The three threats as a stacked list, a row each: the mask, what was found, how strongly, and the score. */
@@ -448,8 +462,47 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .list__masks { display: flex; gap: 5px; }
 .list__masks .m { transform: none; opacity: 1; width: 24px; height: 24px; border-radius: var(--r-sm); }
 .list__masks .m svg { width: 15px; height: 15px; }
-.empty { text-align: center; padding: 36px 16px; color: var(--muted); }
-.empty svg { width: 46px; height: 46px; margin: 0 auto 12px; color: var(--faint); }
+/* A place with nothing to show, or that could not load (ui.js stateBlock): the onyx mask, still, on a soft pool of gold
+   light, with a seal on its cheek shaped by what the empty means, then a title, one sentence and at most one button.
+   Where Sentinel could not look or could not load, the mask goes grey. Small, for a list inside a panel: the seal
+   alone beside the words. Never a verdict colour, never moving. */
+.empty { display: grid; justify-items: center; gap: 16px; padding: 32px 16px 30px; text-align: center; color: var(--text-2); }
+.empty__mark { position: relative; isolation: isolate; width: 64px; }
+.empty__mark::before { content: ''; position: absolute; z-index: -1; left: -36%; right: -36%; bottom: -14%; height: 36%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(var(--gold-rgb) / .26), rgb(var(--gold-rgb) / .08) 60%, transparent); }
+.empty__mark img { display: block; width: 100%; height: auto; filter: drop-shadow(0 7px 9px rgb(20 12 2 / .38)); }
+.empty__seal { position: absolute; right: -9px; bottom: 1px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--gold-400); box-shadow: 0 0 0 2.5px var(--surface), 0 3px 8px rgb(20 12 2 / .3); }
+.empty__seal svg { width: 16px; height: 16px; fill: none; stroke: var(--on-gold, #1a1206); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.empty--waiting .empty__seal svg { fill: currentColor; stroke: none; color: var(--on-gold, #1a1206); }
+.empty--clear .empty__seal { background: var(--green); }
+.empty--clear .empty__seal svg { stroke: var(--on-status); }
+.empty--nomatch .empty__mark img { opacity: .72; }
+:is(.empty--unavailable, .empty--error, .empty--offline) .empty__mark img { filter: grayscale(1) drop-shadow(0 7px 9px rgb(20 12 2 / .3)); opacity: .5; }
+:is(.empty--unavailable, .empty--error, .empty--offline) .empty__mark::before { opacity: .35; }
+:is(.empty--unavailable, .empty--error, .empty--offline) .empty__seal { background: var(--surface-3); }
+:is(.empty--unavailable, .empty--error, .empty--offline) .empty__seal svg { stroke: var(--text-2); }
+.empty__body { display: grid; justify-items: center; gap: 6px; min-width: 0; }
+.empty__body p { max-width: 44ch; margin: 0; font-size: var(--t-ui); line-height: 1.55; text-wrap: pretty; overflow-wrap: anywhere; }
+.empty__body .empty__title { font-size: var(--t-text); font-weight: 500; color: var(--text); }
+.empty__body > :not(p) { margin-top: 8px; }
+.empty--small { grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-items: start; gap: 16px; padding: 14px 6px; text-align: left; }
+.empty--small .empty__mark { width: auto; }
+.empty--small .empty__mark::before { content: none; }
+.empty--small .empty__seal { position: static; width: 28px; height: 28px; box-shadow: var(--raise-sm); }
+.empty--small .empty__body { justify-items: start; }
+/* One quiet line, for something optional that could not load: the words and Try again side by side. */
+.empty--line { margin-top: 14px; padding: 6px 2px; gap: 12px; }
+.empty--line .empty__seal { width: 22px; height: 22px; box-shadow: none; }
+.empty--line .empty__seal svg { width: 14px; height: 14px; }
+.empty--line .empty__body { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.empty--line .empty__body p { color: var(--muted); }
+.empty--line .empty__body > :not(p) { margin-top: 0; }
+
+/* The one line under the top while nothing answers (app.js, from fetch itself). */
+.netbar { margin: 0 0 18px; padding: 10px 14px; border-radius: var(--r); font-size: var(--t-note); line-height: 1.5; color: var(--text-2); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.netbar[hidden] { display: none; }
+.netbar b { color: var(--text); font-weight: 500; }
 
 /* ------------------------------------------------------------ locked */
 
@@ -529,7 +582,20 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .banner--error { background: rgba(229, 72, 77, .06); box-shadow: inset 0 0 0 1px rgba(229, 72, 77, .3); }
 .banner b { color: var(--text); font-weight: 500; }
 
-.skeleton { border-radius: var(--r); background: linear-gradient(90deg, rgb(var(--ink) / .03), rgb(var(--ink) / .07), rgb(var(--ink) / .03)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+/* A wait, still (it never had a shimmer: its keyframes did not exist). One that runs past 8 seconds says so in its own
+   place; a call that never answers ends at 75 seconds (ui.js api) with Try again. No timer: the note is a delayed style. */
+.skeleton { position: relative; border-radius: var(--r); background: linear-gradient(90deg, rgb(var(--ink) / .03), rgb(var(--ink) / .07), rgb(var(--ink) / .03)); background-size: 200% 100%; }
+/* First-time heights: what a new account sees in each place (measured by the states check). After that, app.js keeps
+   the height each place really had on this device. */
+.h-recent { height: 56px; } .h-week { height: 513px; } .h-stats { height: 186px; } .h-history { height: 359px; }
+.h-allow, .h-block { height: 147px; } .h-devices { height: 113px; } .h-assistants { height: 1026px; }
+@media (max-width: 699px) {
+  .h-recent { height: 71px; } .h-week { height: 644px; } .h-history { height: 469px; } .h-allow { height: 168px; } .h-devices { height: 154px; } .h-assistants { height: 538px; }
+}
+.usage-list > .skeleton { grid-column: 1 / -1; }
+.skeleton:is([data-skel], .u-h-sm, .desktop-skeleton)::after { content: 'This is taking longer than usual.'; position: absolute; inset: 0; display: grid; place-items: center; padding: 16px;
+  font-size: var(--t-note); color: var(--muted); text-align: center; visibility: hidden; animation: skeleton-late 0s 8s forwards; }
+@keyframes skeleton-late { to { visibility: visible; } }
 
 /* ------------------------------------------------------------ auth pages */
 
@@ -812,8 +878,6 @@ select.input option { background: var(--surface-3); color: var(--text); }
 .u-mb { margin-bottom: 16px; }
 .u-ml { margin-left: 8px; }
 .u-h-sm { height: 110px; }
-.u-h-md { height: 120px; }
-.u-h-lg { height: 220px; }
 .u-gold { color: var(--gold-300); }
 
 /* Small pieces the app's views share, in place of inline styles. */

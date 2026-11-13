@@ -97,12 +97,12 @@ async function checkAppCore() {
     await clickSel(browser, s, '.ask__go');
     await sleep(60);
     await clickSel(browser, s, '.ask__go');
-    const failedFlash = await until(browser, s, "/Scan failed/.test(document.querySelector('[data-out]').innerText) && document.querySelector('[data-out]').innerText.slice(0, 200)", 2500);
+    const failedFlash = await until(browser, s, "document.querySelector('[data-out] [data-state=\"error\"], [data-out] [data-state=\"offline\"]') && document.querySelector('[data-out]').innerText.slice(0, 200)", 2500);
     const scam = await until(browser, s, "(() => { const r = document.querySelector('[data-out] [data-result]'); return r && { title: r.querySelector('h2').textContent.trim(), tone: r.className }; })()", 30000);
     await sleep(1500);
     const after = await evalIn(browser, s, "document.querySelector('[data-out]').innerText.slice(0, 200)");
     await shot(browser, s, 'appcore-scan-scam');
-    result('appcore: a double press on Check scans once and never flashes "Scan failed"', !failedFlash && !/Scan failed/.test(after), { failedFlash, after });
+    result('appcore: a double press on Check scans once and never flashes "Scan failed"', !failedFlash && !/Scan failed|did not finish|cannot be reached/.test(after), { failedFlash, after });
     result('appcore: the listed scam example gets a red warning', Boolean(scam) && /red/.test(scam.tone), scam);
 
     /* ---------------------------------------------------------------- QR */

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
 
-  const { api, esc, $, $$, h, ago, until, bytes, toast, busy, verdict, resultGlyph, wireVerdict, color } = window.UI;
+  const { api, esc, $, $$, h, ago, until, bytes, toast, stateBlock, busy, verdict, resultGlyph, wireVerdict, color } = window.UI;
   const Masks = window.SentinelMasks;
   const view = $('#view');
   const desktop = window.sentinelDesktop || null;
@@ -63,7 +63,8 @@
         location.replace(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
         return;
       }
-      view.innerHTML = `<div class="banner banner--error"><b>Sentinel could not load.</b>&nbsp;${esc(err.message)}</div>`;
+      // Nothing else has been drawn yet, so loading again is this part's own loader.
+      failed(view, err, () => location.reload(), { what: 'Sentinel' });
       return;
     }
 
@@ -284,6 +285,59 @@
     return technical ? 'That did not work. Try again, or choose Open log folder from the Sentinel icon in the system tray.' : text;
   }
 
+  /*
+   * A part of a page that could not load says so in its own place, the same way everywhere (ui.js stateBlock), with
+   * Try again running that part's own loader, never the whole page. When nothing answered at all, it waits for the
+   * connection instead, and loads again by itself when the browser says it is back. Focus goes to the new Try again
+   * only when Try again was what failed, so a person pressing it is never left on nothing.
+   */
+  const waitingForNet = new Map();
+  let retryPressed = false;
+  // `quiet`, for something optional (a card or an offer on the Overview): one grey line, `what` as its sentence.
+  function failed(slot, err, retry, { small = false, quiet = false, what = 'This' } = {}) {
+    if (!slot || !slot.isConnected) return;
+    const off = Boolean(err && err.offline);
+    const action = retry ? '<button class="btn btn--sm" type="button" data-retry>Try again</button>' : '';
+    if (quiet) {
+      slot.innerHTML = stateBlock(off ? 'offline' : 'unavailable', esc(what), { action, small: true }).replace('class="empty ', off ? 'class="empty empty--line ' : 'role="status" class="empty empty--line ');
+    } else {
+      const text = off ? 'Sentinel cannot be reached. Check your internet connection.' : esc((err && err.message) || 'Sentinel had a problem on its side. Try again in a moment.');
+      slot.innerHTML = stateBlock(off ? 'offline' : 'error', text, { title: off ? `${what} will load when you are back online` : `${what} could not be loaded`, action, small });
+    }
+    if (!retry) return;
+    const again = $('[data-retry]', slot);
+    again.addEventListener('click', () => { retryPressed = true; waitingForNet.delete(slot); retry(); });
+    for (const old of waitingForNet.keys()) if (!old.isConnected) waitingForNet.delete(old);
+    if (off) waitingForNet.set(slot, retry);
+    if (retryPressed) again.focus();
+    retryPressed = false;
+  }
+  /*
+   * A wait is as tall as what it waits for, so nothing under it jumps when the answer comes: the height that part had
+   * the last time it loaded on this device at this width (kept by `keep`), or, the first time, the height of what a
+   * new account sees there (app.css .h-<key>). Kept on this device only; with storage blocked, the first-time height.
+   */
+  const HEIGHTS = 'sentinel:heights';
+  const heightKey = (key) => `${key}:${innerWidth < 700 ? 'phone' : 'wide'}`;
+  const heights = () => { try { return JSON.parse(localStorage.getItem(HEIGHTS) || '{}') || {}; } catch { return {}; } };
+  function skel(key) {
+    const h = Number(heights()[heightKey(key)]) || 0;
+    return `<div class="skeleton h-${key}" data-skel="${key}"${h > 0 && h < 4000 ? ` style="height:${h}px"` : ''}></div>`;
+  }
+  function keep(slot, key) {
+    if (!slot || !slot.isConnected) return;
+    const cs = getComputedStyle(slot);
+    const all = heights();
+    all[heightKey(key)] = Math.round(slot.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
+    try { localStorage.setItem(HEIGHTS, JSON.stringify(all)); } catch { /* the first-time height, next time too */ }
+  }
+
+  // The one line under the top while nothing answers (ui.js decides that from fetch itself, not navigator.onLine).
+  document.addEventListener('sentinel:reach', (ev) => { const bar = $('[data-netbar]'); if (bar) bar.hidden = ev.detail.ok; });
+  addEventListener('online', () => {
+    for (const [slot, retry] of [...waitingForNet]) { waitingForNet.delete(slot); if (slot.isConnected) retry(); }
+  });
+
   /* ========================================================== shortcuts */
 
   const PAGES = [
@@ -292,6 +346,10 @@
     ['Live protection', '/app/protection', 'protection'], ['Settings', '/app/settings', 'settings'], ['Plan & usage', '/app/plan', 'plan'],
     ['AI assistants', '/app/assistants', 'assistants'], ['Recovery guide', '/app/recover', 'recover']
   ];
+  // Simple view lists the pages most people need; the side bar hides the rest the same way (app.html data-full).
+  // They are never gone: a search finds every page, and the palette ends with Show all pages.
+  const FULL_ONLY = ['week', 'sites', 'checkup', 'plan', 'assistants'];
+  const simpleView = () => Boolean(window.SentinelSimple && window.SentinelSimple.get());
   const looksLikeUrl = (s) => /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(\/\S*)?$/i.test(s.trim()) || /^https?:\/\/\S+$/i.test(s.trim());
 
   let palette = null;
@@ -314,7 +372,9 @@
     let items = [];
     let active = 0;
     let recent = [];
-    api('/account/history').then((d) => { recent = d.items.filter((i) => i.kind === 'url').slice(0, 30); paint(); }).catch(() => {});
+    let recentLost = false;
+    let allPages = !simpleView();
+    api('/account/history').then((d) => { recent = d.items.filter((i) => i.kind === 'url').slice(0, 30); paint(); }).catch(() => { recentLost = true; paint(); });
 
     const paint = () => {
       const q = input.value.trim();
@@ -325,7 +385,8 @@
         const kind = window.SentinelRoute.guess({ text: q });
         items.push({ label: 'Check what you pasted', hint: kind === 'number' ? 'Phone number' : 'Message', run: () => { shared = { text: q }; navigate('/app/check'); }, icon: ICON.search });
       }
-      for (const [label, href] of PAGES) if (!q || label.toLowerCase().includes(q.toLowerCase())) items.push({ label, hint: 'Page', href, icon: ICON.shield });
+      for (const [label, href, route] of PAGES) if (q ? label.toLowerCase().includes(q.toLowerCase()) : allPages || !FULL_ONLY.includes(route)) items.push({ label, hint: 'Page', href, icon: ICON.shield });
+      if (!q && !allPages) items.push({ label: 'Show all pages', hint: 'Simple view', run: () => { allPages = true; paint(); }, keep: true, icon: ICON.search });
       // A single setting, by any of its words ("roblox", "pin", "dark"), straight to its row.
       if (q) for (const r of SETTINGS) if (settingMatches(r, q)) items.push({ label: r.label, hint: 'Setting', href: `/app/settings#${r.id}`, icon: ICON.shield });
       for (const r of recent) if (q && r.target.toLowerCase().includes(q.toLowerCase())) items.push({ label: r.target, hint: 'Check again', href: `/app/check?url=${encodeURIComponent(r.target)}`, icon: ICON.clock });
@@ -335,11 +396,12 @@
       active = Math.min(active, Math.max(0, items.length - 1));
       list.innerHTML = items.length ? items.map((it, i) => `<li role="option" id="palette-${i}" aria-selected="${i === active}" data-i="${i}"><span class="palette__icon">${it.icon}</span><span class="palette__label">${esc(it.label)}</span><span class="palette__hint">${esc(it.hint)}</span></li>`).join('')
         : '<li class="palette__empty" role="option" aria-disabled="true">Nothing matches. Paste a link or a message to check it.</li>';
+      if (q && recentLost) list.insertAdjacentHTML('beforeend', '<li class="palette__empty" role="option" aria-disabled="true">Your recent checks could not be loaded, so they are not in this search.</li>');
       if (items.length) input.setAttribute('aria-activedescendant', `palette-${active}`); else input.removeAttribute('aria-activedescendant');
       const on = $(`#palette-${active}`, list);
       if (on) on.scrollIntoView({ block: 'nearest' });
     };
-    const go = () => { const it = items[active]; if (!it) return; paletteFrom = null; closePalette(); if (it.run) it.run(); else navigate(it.href); };
+    const go = () => { const it = items[active]; if (!it) return; if (it.keep) { it.run(); input.focus(); return; } paletteFrom = null; closePalette(); if (it.run) it.run(); else navigate(it.href); };
     input.addEventListener('input', () => { active = 0; paint(); });
     input.addEventListener('keydown', (ev) => {
       if (ev.key === 'ArrowDown') { ev.preventDefault(); active = (active + 1) % Math.max(1, items.length); paint(); }
@@ -519,7 +581,7 @@
 
   function historyList(items, { clickable = false } = {}) {
     if (!items.length) {
-      return `<div class="empty">${Masks.svg('scam')}<p>No scans yet. Paste a link above to run your first one.</p></div>`;
+      return stateBlock('waiting', 'No scans yet. Paste a link above to run your first one.', { small: true });
     }
     // On the History page a link's address is a real link (the keyboard reaches it; the whole row answers the mouse),
     // and every entry has its own Delete beside it.
@@ -630,7 +692,10 @@
     let cat;
     // Kept for a minute: the protection page redraws on every update event.
     const cached = state.models && Date.now() - state.models.at < 60000 ? state.models.cat : null;
-    try { cat = cached || await api('/models'); } catch { slot.innerHTML = '<p class="muted">The list of models is unavailable right now.</p>'; return; }
+    try { cat = cached || await api('/models'); } catch (err) {
+      failed(slot, err, () => { slot.innerHTML = '<div class="skeleton models__skeleton"></div>'; mountModels(root); }, { small: true, what: 'The list of models' });
+      return;
+    }
     state.models = { cat, at: cached ? state.models.at : Date.now() };
     if (!slot.isConnected) return;
     let up = (state.desktopInfo && state.desktopInfo.update) || null;
@@ -743,7 +808,9 @@
     if (err.code === 'plan_required') {
       return `<div class="banner"><div><b>${esc(err.message)}</b> <a href="/app/plan" class="u-gold">Compare plans</a></div></div>`;
     }
-    return `<div class="banner banner--error"><div><b>Scan failed.</b> ${esc(err.message)}</div></div>`;
+    // The form above still holds what was given, so pressing Check again is the way to try again.
+    if (err.offline) return stateBlock('offline', 'Check your internet connection, then press Check again.', { title: 'Sentinel cannot be reached', small: true });
+    return stateBlock('error', esc(err.message || 'Sentinel had a problem on its side. Try again in a moment.'), { title: 'The check did not finish', small: true });
   }
 
   /* ================================================================ home */
@@ -777,13 +844,15 @@
 
       <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
-        <div data-recent><div class="skeleton u-h-md" ></div></div>
+        <div data-recent>${skel('recent')}</div>
       </div>`;
 
     weekCard($('[data-week-card]', el));
     // One offer at a time: exposure alerts are offered only while chat safety's question is not showing.
     const chatAsk = $('[data-chat-ask]', el);
-    askChatSafety(chatAsk).then(() => { if (!chatAsk.innerHTML) askExposureAlerts($('[data-exposure-ask]', el)); }).catch(() => {});
+    // A failure says so quietly in the offer's place (askChatSafety), with Try again running both offers again.
+    const offers = () => { chatAsk.innerHTML = ''; return askChatSafety(chatAsk, offers).then(() => { if (!chatAsk.innerHTML) askExposureAlerts($('[data-exposure-ask]', el)); }); };
+    offers();
     $('[data-quick]', el).addEventListener('submit', (ev) => {
       ev.preventDefault();
       const url = ev.target.url.value.trim();
@@ -793,25 +862,21 @@
       else { shared = { text: url }; navigate('/app/check'); }
     });
 
-    try {
-      const data = await api('/account/history?limit=6');
-      const slot = $('[data-recent]', el);
-      if (!slot) return;
-      slot.innerHTML = historyList(data.items.slice(0, 6), { clickable: true });
-      slot.addEventListener('click', (ev) => {
-        const row = ev.target.closest('[data-rescan]');
-        if (row) navigate(`/app/check?url=${encodeURIComponent(row.dataset.rescan)}`);
-      });
-      // The rows say they are buttons, so Enter and Space must work on them too.
-      slot.addEventListener('keydown', (ev) => {
-        const row = ev.target.closest('[data-rescan]');
-        if (row && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); row.click(); }
-      });
-    } catch {
-      // Never a skeleton that loads forever: say so, plainly.
-      const slot = $('[data-recent]', el);
-      if (slot) slot.innerHTML = '<p class="muted">Recent scans could not be loaded. They will be back next time you open this page.</p>';
-    }
+    const slot = $('[data-recent]', el);
+    slot.addEventListener('click', (ev) => {
+      const row = ev.target.closest('[data-rescan]');
+      if (row) navigate(`/app/check?url=${encodeURIComponent(row.dataset.rescan)}`);
+    });
+    // The rows say they are buttons, so Enter and Space must work on them too.
+    slot.addEventListener('keydown', (ev) => {
+      const row = ev.target.closest('[data-rescan]');
+      if (row && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); row.click(); }
+    });
+    const recent = async () => {
+      try { slot.innerHTML = historyList((await api('/account/history?limit=6')).items.slice(0, 6), { clickable: true }); keep(slot, 'recent'); }
+      catch (err) { failed(slot, err, () => { slot.innerHTML = skel('recent'); recent(); }, { small: true, what: 'Your recent scans' }); }
+    };
+    recent();
   }
 
   /* ============================================================ your week */
@@ -831,7 +896,11 @@
 
   async function weekCard(slot) {
     let data;
-    try { data = await loadWeek(); } catch { return; }
+    // An optional card: a failure is one quiet line in its place, with Try again, never a red box.
+    try { data = await loadWeek(); } catch (err) {
+      failed(slot, desktop && desktop.week && !err.offline ? { message: desktopError(err) } : err, () => { slot.innerHTML = ''; weekCard(slot); }, { small: true, quiet: true, what: 'Your week could not be loaded.' });
+      return;
+    }
     const w = data.weeks[data.weeks.length - 1];
     if (!slot.isConnected || (!w.checked && !w.caught)) return;
     slot.innerHTML = `<div class="panel u-mt week-card"><div class="panel__head"><div><h2>${esc(w.headline)}</h2>
@@ -841,11 +910,12 @@
 
   async function weekView(el) {
     el.innerHTML = `${title('Your week with Sentinel', 'What Sentinel did for you, Monday to Sunday. Only real counts, never what the links, files or messages were.')}
-      <div data-week><div class="skeleton u-h-md"></div></div>`;
+      <div data-week>${skel('week')}</div>`;
     const slot = $('[data-week]', el);
     let data;
-    try { data = await loadWeek(); } catch {
-      slot.innerHTML = '<p class="muted">Your week could not be loaded. It will be back next time you open this page.</p>';
+    // In the Windows app the week comes from the app, whose own message is plain already (desktopError).
+    try { data = await loadWeek(); } catch (err) {
+      failed(slot, desktop && desktop.week && !err.offline ? { message: desktopError(err) } : err, () => weekView(el), { what: 'Your week' });
       return;
     }
     if (!slot.isConnected) return;
@@ -868,7 +938,7 @@
           <span class="usage-row__icon">${ICON[icon]}</span>
           <span class="usage-row__l">${esc(label)}<small>last week: ${before.counts[k].toLocaleString()}</small></span>
           <b class="usage-row__n tabular">${w.counts[k].toLocaleString()}</b></div>`).join('')}</div>`
-        : `<div class="empty u-mt">${Masks.svg('scam')}<p>Nothing yet. As Sentinel checks links, files and messages for you, your week fills in here.</p></div>`}
+        : `<div class="panel u-mt">${stateBlock('waiting', 'Nothing yet. As Sentinel checks links, files and messages for you, your week fills in here.', { action: '<a class="btn btn--sm btn--gold" href="/app/check">Check something</a>' })}</div>`}
       ${caughtAny || weeks.some((x) => x.checked) ? `<div class="panel u-mt">
         <div class="panel__head"><div><h2>${caughtAny ? 'Caught, week by week' : 'Checked, week by week'}</h2><p>The last four weeks. Each week starts on Monday.</p></div></div>
         <div class="week-bars" role="img" aria-label="${esc(weeks.map((x, i) => `${weekLabel(x, i, weeks)}: ${val(x)}`).join(', '))}">
@@ -879,6 +949,7 @@
         <li>Counted as numbers for each week and kept for five weeks. Sentinel never keeps which links, files, commands or messages they were for this page.</li>
         <li>Private browser windows are not counted.${desktop ? '' : ' Files, copied commands, wallet swaps and chat messages are counted by the Sentinel app for Windows.'}</li>
       </ul>`;
+    keep(slot, 'week');
   }
 
   function protectionTeaser() {
@@ -1243,7 +1314,7 @@
         }
         if (!/^image\/(png|jpeg)$/.test(pic.type)) {
           // Said where the answer would be, and kept there: a HEIC photo shared from a phone otherwise left an empty page.
-          qrOut.innerHTML = '<div class="banner banner--error" role="alert" data-shot-wrong>This picture is not a PNG or JPEG, so Sentinel cannot read it. Take a screenshot of it and share or choose that instead, or copy the message and paste it here.</div>';
+          qrOut.innerHTML = stateBlock('unavailable', 'Take a screenshot of it and share or choose that instead, or copy the message and paste it here.', { title: 'This picture is not a PNG or JPEG, so Sentinel cannot read it', small: true }).replace('<div ', '<div role="alert" data-shot-wrong ');
           shotStatus.textContent = 'No QR code was found in this picture.';
           return;
         }
@@ -1922,11 +1993,11 @@
 
   async function historyView(el, params) {
     el.innerHTML = `${title('History', 'Everything Sentinel checked for you in the last 30 days. Click a link to scan it again.')}
-      <div class="usage-list" data-stats><div class="skeleton u-h-sm"></div></div>
-      <div class="panel u-mt" data-list><div class="skeleton u-h-lg"></div></div>`;
+      <div class="usage-list" data-stats>${skel('stats')}</div>
+      <div class="panel u-mt" data-list>${skel('history')}</div>`;
     let data;
     try { data = await api('/account/history'); }
-    catch (err) { $('[data-list]', el).innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; return; }
+    catch (err) { $('[data-stats]', el).innerHTML = ''; failed($('[data-list]', el), err, () => historyView(el, params), { what: 'Your history' }); return; }
 
     const s = data.stats;
     const stat = (glyph, n, label, color, filter) => `<button type="button" class="usage-row" data-stat="${filter}" aria-pressed="false"><span class="usage-row__icon" style="color:${color}">${Masks.svg(glyph)}</span><span class="usage-row__l">${label}</span><b class="usage-row__n tabular">${n}</b></button>`;
@@ -1939,7 +2010,7 @@
     list.innerHTML = `<div class="panel__head"><div><h2 data-total>${s.total} scan${s.total === 1 ? '' : 's'}</h2><p>${s.flagged} flagged</p></div>
         <span class="tools__end"><button type="button" class="btn btn--sm btn--ghost" data-history-clear ${data.items.length ? '' : 'hidden'}>Clear history</button>
         <label class="tools__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Search history" aria-label="Search history" data-q></label></span></div>
-      <div class="tools" data-filters>${FILTERS.map(([id, label]) => `<button type="button" class="fchip" data-filter="${id}" aria-pressed="${id === hs.filter}">${label}</button>`).join('')}<span class="mono muted" data-count></span></div>
+      <div class="tools" data-filters data-full>${FILTERS.map(([id, label]) => `<button type="button" class="fchip" data-filter="${id}" aria-pressed="${id === hs.filter}">${label}</button>`).join('')}<span class="mono muted" data-count></span></div>
       <div data-rows></div>`;
 
     const paint = () => {
@@ -1952,7 +2023,9 @@
       });
       $('[data-count]', list).textContent = `${items.length} of ${data.items.length}`;
       $('[data-rows]', list).innerHTML = items.length ? historyList(items, { clickable: true })
-        : `<div class="empty">${Masks.svg('scam')}<p>${data.items.length ? 'Nothing matches that filter.' : 'No scans yet. Paste a link on the Overview page to run your first one.'}</p></div>`;
+        : data.items.length
+          ? stateBlock('nomatch', hs.q ? `Nothing in your history matches &ldquo;${esc(hs.q)}&rdquo;${hs.filter === 'all' ? '' : ' with that filter'}.` : 'Nothing in your history matches that filter.', { action: '<button type="button" class="btn btn--sm" data-show-all>Show every scan</button>' })
+          : stateBlock('waiting', 'No scans yet. What you check shows here for 30 days, so you can look again.', { action: '<a class="btn btn--sm btn--gold" href="/app/check">Check something</a>' });
       $$('[data-filter]', list).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === hs.filter)));
       $$('[data-stat]', el).forEach((b) => {
         b.classList.toggle('is-active', b.dataset.stat === hs.filter);
@@ -1973,6 +2046,13 @@
       $('[data-history-clear]', list).hidden = !data.items.length;
     };
     list.addEventListener('click', (ev) => {
+      if (ev.target.closest('[data-show-all]')) {
+        hs.filter = 'all'; hs.q = '';
+        $('[data-q]', list).value = '';
+        paint();
+        $('[data-q]', list).focus();
+        return;
+      }
       const del = ev.target.closest('[data-forget]');
       if (del) {
         busy(del, '', async () => {
@@ -2020,6 +2100,8 @@
       }).then(() => { clear.textContent = 'Clear history'; });
     });
     paint();
+    keep($('[data-stats]', el), 'stats');
+    keep(list, 'history');
   }
 
   /* ========================================================== site rules */
@@ -2034,8 +2116,8 @@
         <div class="report__foot"><span class="muted">Rules apply to the whole site, including its subdomains. Only your account is affected.</span><button class="btn btn--gold" type="submit">Add rule</button></div>
       </form>
       <div class="grid2 u-mt">
-        <div class="panel" data-allow><div class="skeleton u-h-md" ></div></div>
-        <div class="panel" data-block><div class="skeleton u-h-md" ></div></div>
+        <div class="panel" data-allow>${skel('allow')}</div>
+        <div class="panel" data-block>${skel('block')}</div>
       </div>`;
 
     let rule = 'allow';
@@ -2047,7 +2129,13 @@
     const load = async () => {
       let overrides = [];
       try { ({ overrides } = await api('/sites/overrides')); }
-      catch (err) { $('[data-allow]', el).innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; return; }
+      catch (err) {
+        // One answer for both lists, in the first: they come from the same place.
+        $('[data-block]', el).hidden = true;
+        failed($('[data-allow]', el), err, () => { $('[data-allow]', el).innerHTML = skel('allow'); load(); }, { what: 'Your site rules' });
+        return;
+      }
+      $('[data-block]', el).hidden = false;
       const section = (slot, action, heading, empty) => {
         const rows = overrides.filter((o) => o.action === action);
         slot.innerHTML = `<div class="panel__head"><div><h2>${heading}</h2><p>${rows.length} site${rows.length === 1 ? '' : 's'}</p></div></div>
@@ -2055,10 +2143,12 @@
             <span class="list__icon">${action === 'allow' ? ICON.check : ICON.lock}</span>
             <span class="list__main"><b class="mono">${esc(o.host)}</b><span>Added ${ago(o.created_at)}</span></span>
             <button class="btn btn--sm" data-remove="${esc(o.host)}">Remove</button>
-          </li>`).join('')}</ul>` : `<div class="empty"><p>${empty}</p></div>`}`;
+          </li>`).join('')}</ul>` : stateBlock('waiting', empty, { small: true })}`;
       };
       section($('[data-allow]', el), 'allow', 'Trusted', 'No trusted sites yet. Use "Trust this site" on any scan result, or add one above.');
       section($('[data-block]', el), 'block', 'Blocked', 'No blocked sites. Block a site to give it a red mask everywhere, for you.');
+      keep($('[data-allow]', el), 'allow');
+      keep($('[data-block]', el), 'block');
       $$('[data-remove]', el).forEach((b) => b.addEventListener('click', () => busy(b, 'Removing', async () => {
         try {
           await api('/sites/override', { method: 'POST', body: { host: b.dataset.remove, action: 'clear' } });
@@ -2183,12 +2273,12 @@
           ${addons.length ? `${bad.length ? `<ul class="list">${bad.map(addonRow).join('')}</ul>` : ''}
             ${clean.length ? `<details class="group" data-clean-addons><summary><span>${clean.length}${bad.length ? ' more' : ''} add-on${clean.length === 1 ? '' : 's'}, nothing to look at</span><i></i></summary>
               <ul class="list">${clean.map(addonRow).join('')}</ul></details>` : ''}`
-            : '<div class="empty"><p>No add-ons.</p></div>'}
+            : stateBlock('clear', 'No add-ons.', { small: true })}
           <h4 class="u-mt">Sites allowed to send notifications</h4>
-          ${p.notifications === null ? '<div class="empty"><p>These could not be read.</p></div>'
+          ${p.notifications === null ? stateBlock('unavailable', 'These could not be read.', { small: true })
             : sites.length ? `<ul class="list">${sites.map((s) => siteRow(s.origin.replace(/^https?:\/\//, ''), s, 'Can send you notifications')).join('')}</ul>
               <p class="muted u-mt-xs">Fake virus alerts and prize pop-ups arrive this way. To stop a site, remove it at ${copy(b.places.notifications)}</p>`
-              : '<div class="empty"><p>No site may send notifications.</p></div>'}
+              : stateBlock('clear', 'No site may send notifications.', { small: true })}
           ${p.search ? `<h4 class="u-mt">Search engine</h4><ul class="list">${row(searchBadge ? Masks.svg('scam') : ICON.search, searchBadge, p.search.name || p.search.host || 'Custom',
             p.search.host && !p.search.known ? `${p.search.host} is not a search engine people know. Unwanted software changes your search to earn from what you look for.${p.search.verdict && p.search.verdict.badge ? ` ${p.search.verdict.label}.` : ''}` : `${p.search.engine || p.search.name || p.search.host || 'A search engine'} runs your searches.`,
             searchBadge ? `To choose your own, ${settings ? `open ${copy(settings)} and search its settings for "search engine"` : `go to ${copy(b.places.search)}`}` : '')}</ul>` : ''}
@@ -2211,7 +2301,7 @@
         <p class="muted">Checked ${esc(ago(r.at))}. Sentinel changed nothing. Removing anything is your choice, in the browser, and you can add it back.${r.sitesChecked ? '' : ` Site addresses were not checked, so only add-ons, search engines and policies were judged. ${esc(r.sitesWhy || 'Sentinel could not reach its scanner just now.')}`}</p>
         ${notChecked}
       </div>${panels}`
-      : `<div class="panel u-mt"><div class="empty"><p>No ${esc(list(r.looked || []))} settings were found on this computer.</p>${notChecked}</div></div>`;
+      : `<div class="panel u-mt">${stateBlock('unavailable', `No ${esc(list(r.looked || []))} settings were found on this computer.`, { action: notChecked })}</div>`;
 
     $$('[data-copy-text]', out).forEach((btn) => btn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(btn.dataset.copyText); toast('Copied. Paste it into the browser\'s address bar.', 'success'); }
@@ -2293,7 +2383,12 @@
           <span class="list__main"><b>${esc(names[f.source] || f.source)}</b><span>${f.entries.toLocaleString()} entries &middot; ${f.fetchedAt ? `updated ${ago(f.fetchedAt)}` : 'not fetched yet'}</span></span>
         </li>`).join('')}</ul>
       </div>`;
-    } catch { $('.skeleton', slot).outerHTML = '<p class="muted">Feed status is unavailable right now.</p>'; }
+    } catch (err) {
+      const wait = $('.skeleton', slot);
+      const box = document.createElement('div');
+      wait.replaceWith(box);
+      failed(box, err, () => { box.outerHTML = '<div class="skeleton u-h-sm"></div>'; renderIntel(slot); }, { small: true, what: 'The status of the threat lists' });
+    }
   }
 
   /**
@@ -2316,7 +2411,7 @@
     const record = s.record || [];
     const recordList = `<h3 class="u-mt">Record</h3>
         <p class="field__hint">Times and switches only. Nothing about a chat or a page is ever written here.</p>
-        ${record.length ? `<ul class="list">${record.slice(0, 10).map((r) => `<li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>${esc(r.text)}${r.times > 1 ? ` (${r.times} times)` : ''}</b><span>${esc(when(r.at))}</span></span></li>`).join('')}</ul>` : '<div class="empty"><p>Nothing yet.</p></div>'}`;
+        ${record.length ? `<ul class="list">${record.slice(0, 10).map((r) => `<li><span class="list__icon">${ICON.shield}</span><span class="list__main"><b>${esc(r.text)}${r.times > 1 ? ` (${r.times} times)` : ''}</b><span>${esc(when(r.at))}</span></span></li>`).join('')}</ul>` : stateBlock('waiting', 'Nothing yet.', { small: true })}`;
     const minutes = (n) => (n >= 60 ? `${Math.ceil(n / 60)} minute${Math.ceil(n / 60) === 1 ? '' : 's'}` : `${n} second${n === 1 ? '' : 's'}`);
     let body;
     if (!s.set) {
@@ -2432,10 +2527,13 @@
     });
   }
 
-  async function askChatSafety(slot) {
+  async function askChatSafety(slot, again) {
     if (!slot || !desktop || !desktop.setChatSafety || asked('chat')) return;
     let info = state.desktopInfo;
-    try { if (!info) info = state.desktopInfo = await desktop.info(); } catch { return; }
+    try { if (!info) info = state.desktopInfo = await desktop.info(); } catch (err) {
+      failed(slot, { message: desktopError(err) }, again || (() => askChatSafety(slot)), { small: true, quiet: true, what: 'The Sentinel app did not answer, so its suggestions are not shown.' });
+      return;
+    }
     if (!info.chatSafety || !info.chatSafety.supported || info.chatSafety.enabled || !slot.isConnected) return;
     askOnce(slot, {
       name: 'chat', title: 'Chat safety for Roblox and Discord', yes: 'Turn on chat safety', howHref: '/app/settings#chat-safety',
@@ -2584,7 +2682,7 @@
             <span class="list__icon">${ICON.globe}</span>
             <span class="list__main"><b>${esc(b.name)}</b><span data-browser-state="${esc(b.id)}">${running.has(b.id) ? 'Open now' : 'Installed'}</span></span>
             <button class="btn btn--sm btn--gold" data-scan-with="${esc(b.id)}" ${live.supported ? '' : 'disabled'}>Scan with ${esc(b.name.replace(/^(Google|Microsoft|Mozilla) /, ''))}</button>
-          </li>`).join('')}</ul>` : '<div class="empty"><p>No supported browser found on this computer.</p></div>'}
+          </li>`).join('')}</ul>` : stateBlock('unavailable', 'No supported browser found on this computer.')}
         </div>
 
       ${exposurePanel(info, exposures)}
@@ -2601,13 +2699,13 @@
             <span class="list__main"><b>${esc(e.name || e.path || '')}</b><span>${ago(e.at)} &middot; ${esc(e.kind === 'threat' ? `${e.label}: ${(e.actions || []).map((a) => a.did).join(', ')}` : e.kind === 'suspect' ? `${e.label}: runs at startup; nothing was changed. Quarantine it if you do not recognise it.` : e.kind === 'restored' ? 'Put back' : e.kind === 'noted' ? `${e.label}: ${e.signedBy ? `signed by ${e.signedBy}, ` : ''}noted, nothing touched` : `Clean (${e.how || 'scanned'})`)}</span></span>
             ${e.kind === 'threat' && !e.restored && (e.quarantined || (e.actions || []).some((a) => a.undo)) ? `<button class="btn btn--sm" data-restore="${esc(e.id)}">Put back</button>` : ''}
             ${e.kind === 'suspect' ? `<button class="btn btn--sm" data-suspect="${esc(e.id)}">Quarantine</button>` : ''}
-          </li>`).join('')}</ul>` : '<div class="empty"><p>Nothing has needed stopping.</p></div>'}
+          </li>`).join('')}</ul>` : stateBlock('waiting', 'Nothing yet. Each file Sentinel scans, and anything it stops, is listed here.')}
         </div>
       </div>
 
       <div class="panel u-mt" id="downloads">
         <h2 class="u-mb">Recent downloads</h2>
-        ${recent.length ? `<ul class="list">${[...recent].sort((a, b) => downloadRank(b) - downloadRank(a)).slice(0, 8).map(downloadRow).join('')}</ul>` : '<div class="empty"><p>New downloads will appear here once they are scanned.</p></div>'}
+        ${recent.length ? `<ul class="list">${[...recent].sort((a, b) => downloadRank(b) - downloadRank(a)).slice(0, 8).map(downloadRow).join('')}</ul>` : stateBlock('waiting', 'New downloads will appear here once they are scanned.')}
       </div>`;
 
     if (focusKey) {
@@ -2789,6 +2887,10 @@
       hint: desktop ? 'One colour for this app, live scanning, its warnings, the mask in the corner, the tray icon and the companion in your browser.' : 'One colour for the whole app. In the Sentinel app for Windows it also colours live scanning and its warnings.',
       words: ['colour', 'color', 'accent', 'gold', 'rose', 'amethyst', 'sapphire', 'teal', 'platinum', 'appearance'],
       mount: (body) => { if (window.SentinelLook && SentinelLook.picker) body.appendChild(SentinelLook.picker({ only: 'accent' })); } },
+    { id: 'simple-view', group: 'look', kind: 'switch', label: 'Simple view', hint: 'Fewer pages and fewer words. A check shows its answer and what to do, in bigger type, with the details one press away. On this device.',
+      words: ['simple', 'easy', 'less', 'basic', 'bigger', 'large', 'older', 'beginner', 'clutter', 'plain'],
+      on: () => simpleView(), save: (input) => window.SentinelSimple.set(input.checked),
+      said: (on) => (on ? 'Simple view is on. Pages you may not need are tucked away; search still finds every one.' : 'Simple view is off. Every page and detail is back.') },
 
     { id: 'reduce-motion', group: 'motion', kind: 'custom', label: 'Less motion', hint: 'Sentinel follows your computer. With Reduce motion turned on in your computer or phone settings, nothing slides, springs or draws.',
       words: ['animation', 'animations', 'reduce', 'still', 'calm', 'effects', 'moving'],
@@ -3166,7 +3268,7 @@
   }
 
   async function loadSessions(slot) {
-    if (!slot.innerHTML) slot.innerHTML = '<div class="skeleton u-h-md"></div>';
+    if (!slot.innerHTML) slot.innerHTML = skel('devices');
     try {
       const { sessions } = await api('/account/sessions');
       slot.innerHTML = `<div class="set-sub"><span class="muted">${sessions.length} active session${sessions.length === 1 ? '' : 's'}</span>${sessions.length > 1 ? '<button class="btn btn--sm" type="button" data-revoke>Sign out other devices</button>' : ''}</div>
@@ -3182,6 +3284,7 @@
         } catch (err) { toast(err.message, 'error'); }
         loadSessions(slot);
       })));
+      keep(slot, 'devices');
       // This device: the same as the account button, here too because a phone has no side bar.
       const here = $('[data-signout-here]', slot);
       if (here) here.addEventListener('click', () => busy(here, 'Signing out', () => signOut()));
@@ -3193,7 +3296,7 @@
           loadSessions(slot);
         } catch (err) { toast(err.message, 'error'); }
       }));
-    } catch (err) { slot.innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; }
+    } catch (err) { failed(slot, err, () => { slot.innerHTML = ''; loadSessions(slot); }, { small: true, what: 'Your signed-in devices' }); }
   }
 
   /** Saves one switch row. The app's answer (active or enabled) is believed over the switch; a failure puts it back. */
@@ -3421,9 +3524,9 @@
 
   async function assistantsView(el, params) {
     el.innerHTML = `${title('AI assistants', 'Optional. Ask ChatGPT, Claude, Gemini or DeepSeek about anything. Sentinel\'s scans never depend on them.')}
-      <div data-tabs><div class="skeleton skeleton--tabs"></div></div><div class="panel" data-pane id="ai-pane" role="tabpanel"><div class="skeleton u-h-lg"></div></div>`;
+      <div data-tabs><div class="skeleton skeleton--tabs"></div></div><div class="panel" data-pane id="ai-pane" role="tabpanel">${skel('assistants')}</div>`;
     let providers;
-    try { ({ providers } = await api('/ai/providers')); } catch (err) { $('[data-pane]', el).innerHTML = `<div class="banner banner--error">${esc(err.message)}</div>`; return; }
+    try { ({ providers } = await api('/ai/providers')); } catch (err) { $('[data-tabs]', el).innerHTML = ''; failed($('[data-pane]', el), err, () => assistantsView(el, params), { what: 'The assistants' }); return; }
     const active = providers.find((p) => p.id === params.get('ai')) || providers[0];
 
     $('[data-tabs]', el).innerHTML = `<div class="ai-tabs" role="tablist">${providers.map((p) => `
@@ -3437,6 +3540,7 @@
     pane.style.setProperty('--accent', active.accent);
     if (active.connected) renderChat(pane, active, el);
     else renderConnect(pane, active);
+    keep(pane, 'assistants');
   }
 
   function renderConnect(pane, p) {

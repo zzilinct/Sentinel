@@ -8,7 +8,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { ROOT, OUT, sleep, result, launch, evalIn, openPage, goto, startServer, watchErrors, pressKey } = require('./_shared');
+const { OUT, sleep, result, launch, evalIn, openPage, goto, startServer, watchErrors, pressKey, markLists } = require('./_shared');
 
 const SIZES = { phone: [390, 844, true], desktop: [1366, 900, false] };
 const THEMES = ['dark', 'light'];
@@ -17,22 +17,6 @@ const LISTED = 'https://metamask-wallet-restore.cfd/';
 // Words on an address, no list involved: the first one that gets a warning short of red is the warning state.
 const WARNINGS = ['https://secure-account-update.top/', 'https://amaz0n-delivery-update.shop/track', 'https://login-verify-account.xyz/signin'];
 const RULE_ID = /\b(?:[UKCRPXEFTY]\d{2}|D-limit|EL-\w+)\b/;
-
-// The feed list as the server has it, read from its source: this script must not load the server's database code.
-const feedIds = () => [...fs.readFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'feeds.js'), 'utf8').matchAll(/^\s*\{ id: '(\w+)', name:/gm)].map((m) => m[1]);
-
-/** The throwaway server's lists marked as loaded, one left out when `missing` is set. Nothing is downloaded. */
-function markLists(dbPath, missing) {
-  const { DatabaseSync } = require('node:sqlite');
-  const db = new DatabaseSync(dbPath.replace(/\.db$/i, '-feeds.db'));
-  db.exec('PRAGMA busy_timeout = 5000');
-  const ids = feedIds();
-  const put = db.prepare('INSERT INTO feed_status (source, fetched_at, entries, ok, error) VALUES (?, ?, 1, 1, NULL) ON CONFLICT(source) DO UPDATE SET ok = 1, entries = 1, error = NULL');
-  for (const id of ids) put.run(id, Date.now());
-  if (missing) db.prepare('DELETE FROM feed_status WHERE source = ?').run(ids[0]);
-  db.close();
-  return ids.length;
-}
 
 async function checkHonestResult() {
   const server = await startServer('honest');
