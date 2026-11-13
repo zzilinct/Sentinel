@@ -42,7 +42,7 @@ async function checkLook() {
     const api = (p, body) => ev(`fetch('/api/v1${p}', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify(body))} }).then((r) => r.status)`);
     await api('/auth/signup', { email, password: 'Look-Check-Lamp-2026', firstName: 'Sam', ageConfirmed: true, termsAccepted: true });
     await api('/auth/login', { email, password: 'Look-Check-Lamp-2026' });
-    const open = async () => { await goto(browser, s, `${sentinel.base}/app/settings#accent`, "document.querySelector('#accent .look__coin')"); await sleep(900); };
+    const open = async () => { await goto(browser, s, `${sentinel.base}/app/settings?at=${Date.now()}#accent`, "document.querySelector('#accent .look__coin')"); await sleep(900); };
     const store = (mode, accent) => ev(`(() => { localStorage.removeItem('sentinel:theme'); localStorage.removeItem('sentinel:accent'); ${mode !== 'auto' ? `localStorage.setItem('sentinel:theme', '${mode}');` : ''} ${accent !== 'gold' ? `localStorage.setItem('sentinel:accent', '${accent}');` : ''} return true; })()`);
     const lookPhoto = async (name) => {
       // Instantly, then long enough for the app's own entrance of a part scrolled into view (app-lux.js) to finish.

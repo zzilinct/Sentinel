@@ -151,7 +151,7 @@ async function checkCompanionLook() {
     /* ------------------------------------- 7. a change that is not saved */
 
     const failed = await ev(`(async () => {
-      const box = document.getElementById('markSafe');
+      const box = document.getElementById('scanOverlay');
       const was = box.checked;
       chrome.storage.sync.set = () => Promise.reject(new Error('QUOTA_BYTES quota exceeded'));
       box.click();

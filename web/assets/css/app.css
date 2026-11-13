@@ -597,6 +597,8 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .skeleton:is([data-skel], .u-h-sm, .desktop-skeleton)::after { content: 'This is taking longer than usual.'; position: absolute; inset: 0; display: grid; place-items: center; padding: 16px;
   font-size: var(--t-note); color: var(--muted); text-align: center; visibility: hidden; animation: skeleton-late 0s 8s forwards; }
 @keyframes skeleton-late { to { visibility: visible; } }
+/* The wait is a fact, not motion: Motion Off (sentinel.css zeroes every delay) still says it after 8 seconds. */
+:root[data-motion="off"] .skeleton:is([data-skel], .u-h-sm, .desktop-skeleton)::after { animation-delay: 8s !important; }
 
 /* ------------------------------------------------------------ auth pages */
 

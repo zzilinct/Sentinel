@@ -86,8 +86,8 @@ async function checkFirstChoices() {
         await shot(browser, s, `first-step-${name}-${theme}`);
       }
     }
-    result('first-choices: a new account finds one step on home, drawn from Settings rows (look and text size on this branch)',
-      Boolean(step) && step.title === 'Make Sentinel yours' && step.rows.join() === 'theme,text-size' && step.pressed.join() === 'Auto,Standard', step);
+    result('first-choices: a new account finds one step on home, drawn from Settings rows (colour, animation and text size; pop-up warnings need the Windows app)',
+      Boolean(step) && step.title === 'Make Sentinel yours' && step.rows.join() === 'accent,motion,text-size' && step.pressed.join() === 'Standard', step);
 
     /* ------------------------------------- a choice works at once, and is the same choice in Settings */
     await size(SIZES.phone);
@@ -95,15 +95,15 @@ async function checkFirstChoices() {
     await goto(browser, s, `${server.base}/app`);
     await until(browser, s, homeReady, 20000);
     await evalIn(browser, s, press('text-size', 'larger'));
-    await evalIn(browser, s, press('theme', 'light'));
+    await evalIn(browser, s, "document.querySelector('.first [data-set-row=\"accent\"] input[value=\"sapphire\"]').click()");
     await sleep(400);
     const picked = await evalIn(browser, s, `({ step: ${STEP}, html: { ...document.documentElement.dataset }, ui: getComputedStyle(document.querySelector('[data-quick] .btn')).fontSize,
-      kept: localStorage.getItem('sentinel:type'), theme: localStorage.getItem('sentinel:theme') })`);
-    result('first-choices: Larger and Light pressed in the step work at once and are kept', picked.html.text === 'larger' && picked.html.theme === 'light'
-      && picked.ui === '18.2px' && /"text":"larger"/.test(picked.kept || '') && picked.theme === 'light' && picked.step.pressed.join() === 'Light,Larger', picked);
+      kept: localStorage.getItem('sentinel:type'), accent: localStorage.getItem('sentinel:accent') })`);
+    result('first-choices: Larger and Sapphire chosen in the step work at once and are kept', picked.html.text === 'larger' && picked.html.accent === 'sapphire'
+      && picked.ui === '18.2px' && /"text":"larger"/.test(picked.kept || '') && picked.accent === 'sapphire' && picked.step.pressed.join() === 'Larger', picked);
     const l1 = await evalIn(browser, s, LAYOUT);
     if (l1.wide > 0 || l1.cut.length || l1.small.length || l1.crowd.length) wide.push({ at: 'first larger phone light', ...l1 });
-    await shot(browser, s, 'first-larger-phone-light');
+    await shot(browser, s, 'first-larger-sapphire-phone-dark');
 
     // Escape on the step is Done: the step goes, the cursor is in the box to paste into, and it never comes back.
     await evalIn(browser, s, "document.querySelector('.first [data-seg]').focus()");
@@ -114,16 +114,16 @@ async function checkFirstChoices() {
     await goto(browser, s, `${server.base}/app`);
     await until(browser, s, homeReady, 20000);
     await sleep(300);
-    const again = await evalIn(browser, s, "({ step: Boolean(document.querySelector('.first')), text: document.documentElement.dataset.text, theme: document.documentElement.dataset.theme })");
+    const again = await evalIn(browser, s, "({ step: Boolean(document.querySelector('.first')), text: document.documentElement.dataset.text, accent: document.documentElement.dataset.accent })");
     result('first-choices: Escape keeps the choices, puts the cursor in the box, and the step never comes back',
-      !gone.step && gone.focus === 'url' && gone.done === '1' && !again.step && again.text === 'larger' && again.theme === 'light', { gone, again });
-    await shot(browser, s, 'first-after-phone-light');
+      !gone.step && gone.focus === 'url' && gone.done === '1' && !again.step && again.text === 'larger' && again.accent === 'sapphire', { gone, again });
+    await shot(browser, s, 'first-after-sapphire-phone-dark');
 
     // Settings says the same: Larger is pressed there.
     await goto(browser, s, `${server.base}/app/settings#look`);
     await until(browser, s, "document.querySelector('#text-size [aria-pressed=true]')", 20000);
-    const there = await evalIn(browser, s, "[...document.querySelectorAll('#text-size [aria-pressed=true], #theme [aria-pressed=true]')].map((b) => b.textContent)");
-    result('first-choices: Settings shows the choices made in the step', there.join() === 'Light,Larger', there);
+    const there = await evalIn(browser, s, "[...document.querySelectorAll('#text-size [aria-pressed=true]')].map((b) => b.textContent).concat([...document.querySelectorAll('#accent input:checked')].map((i) => i.value))");
+    result('first-choices: Settings shows the choices made in the step', there.join() === 'Larger,sapphire', there);
 
     /* --------------------------------- Text size and Spacing across home and Settings, every size and theme */
     const STEPS = [['larger', 'comfortable'], ['larger', 'compact'], ['standard', 'compact']];
@@ -132,7 +132,7 @@ async function checkFirstChoices() {
         await size(dims);
         for (const theme of THEMES) {
           await media(theme);
-          await evalIn(browser, s, `(localStorage.setItem('sentinel:type', JSON.stringify({ text: '${text}', density: '${density}' })), localStorage.removeItem('sentinel:theme'))`);
+          await evalIn(browser, s, `(localStorage.setItem('sentinel:type', JSON.stringify({ text: '${text}', density: '${density}' })), localStorage.removeItem('sentinel:theme'), localStorage.removeItem('sentinel:accent'))`);
           for (const [page, url, ready] of [['home', '/app', homeReady], ['settings', '/app/settings', "document.querySelectorAll('[data-set-row]').length > 20 && document.querySelector('[data-sessions] .list')"]]) {
             await goto(browser, s, `${server.base}${url}`);
             await until(browser, s, ready, 20000);
