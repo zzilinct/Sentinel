@@ -83,3 +83,13 @@ test('settings: the side bar has one Settings link in place of the Account group
   assert.ok(/\['Settings', '\/app\/settings', 'settings'\]/.test(app), 'the palette lists Settings');
   assert.ok(/for \(const r of SETTINGS\) if \(settingMatches\(r, q\)\)/.test(fn('openPalette')), 'the palette finds single settings');
 });
+
+test('home and Live protection call on only what is running: no "Protection is on", no switched-off feature marked On', () => {
+  const teaser = fn('protectionTeaser');
+  assert.doesNotMatch(teaser, /Protection is on/);
+  assert.match(teaser, /downloads\.active/);
+  assert.match(teaser, /defense\.active/);
+  const page = fn('protectionView');
+  assert.doesNotMatch(page, /st\(!lock && desktop,/, 'page warnings and search marks are On only while live scanning is');
+  assert.match(page, /st\(!lock && liveOn, lock \|\| 'Off'\)/);
+});

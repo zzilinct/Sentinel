@@ -980,7 +980,16 @@
         <div class="live__text"><h2>Live scanning is off</h2><p>One click. Sentinel then watches whichever browser is in front of you, and rests when none is.</p></div>
         <a class="btn btn--gold live__button" href="/app/protection">Start scanning</a></div></div>`;
     }
-    return `<div class="panel"><div class="panel__head"><div><h2>${live.enabled ? 'Live scanning is on' : 'Protection is on'}</h2><p>${live.enabled ? 'Look for the mask in the corner of your browser. Downloads and new programs are watched too.' : 'Downloads and new programs on this computer are being watched.'}</p></div><a class="btn btn--sm" href="/app/protection">Manage</a></div></div>`;
+    // Only what the app says is running is named: never "on" for something that is off, never a count.
+    const info = state.desktopInfo;
+    if (!info) return `<div class="panel"><div class="panel__head"><div><h2>Live protection</h2><p>The Sentinel app did not say what it is watching. Open Live protection to see.</p></div><a class="btn btn--sm" href="/app/protection">Open</a></div></div>`;
+    const watched = [info.downloads && info.downloads.active && 'new downloads', info.defense && info.defense.active && 'new programs and startup entries'].filter(Boolean);
+    const also = watched.join(' and ');
+    const head = live.enabled ? 'Live scanning is on' : watched.length ? `Sentinel is watching ${also}` : 'Sentinel is not watching anything right now';
+    const body = live.enabled ? `Look for the mask in the corner of your browser.${also ? ` Sentinel is also watching ${also}.` : ''}`
+      : watched.length ? 'Live scanning is off, so pages and search results are not checked as you browse.'
+        : 'Live scanning, Download protection and Defense are all off.';
+    return `<div class="panel"><div class="panel__head"><div><h2>${head}</h2><p>${body}</p></div><a class="btn btn--sm${live.enabled || watched.length ? '' : ' btn--gold'}" href="/app/settings#protection">${live.enabled || watched.length ? 'Manage' : 'Turn on'}</a></div></div>`;
   }
 
   /* =============================================================== check */
@@ -2330,6 +2339,8 @@
 
     const needsApp = !desktop;
     const lock = planLocked ? 'Pro & up' : needsApp ? 'Needs app' : null;
+    // "On" only for what is running now: page warnings and search marks are live scanning's.
+    const liveOn = Boolean(state.desktopInfo && state.desktopInfo.live && state.desktopInfo.live.enabled);
 
     el.innerHTML = `
       ${title('Live protection', 'Sentinel watching in real time: on search results, in your inbox and on every download.')}
@@ -2339,8 +2350,8 @@
         : ''}
 
       <div class="feature-grid">
-        ${feature(Masks.svg('scam'), 'Page warnings', 'While a browser is in front, Sentinel checks the address of the page it shows and warns you before a dangerous one gets your details. No add-on.', st(!lock && desktop, lock || 'Needs app'))}
-        ${feature(ICON.search, 'Search result masks', `A line of light crosses the page when you search, then a mask appears beside every result. Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock && desktop, lock || 'Needs app'))}
+        ${feature(Masks.svg('scam'), 'Page warnings', 'While a browser is in front, Sentinel checks the address of the page it shows and warns you before a dangerous one gets your details. No add-on.', st(!lock && liveOn, lock || 'Off'))}
+        ${feature(ICON.search, 'Search result masks', `A line of light crosses the page when you search, then a mask appears beside every result. Google, Bing, DuckDuckGo, Brave, Yahoo, Ecosia and more.${f.liveResearch ? ' Every result is researched.' : ''}`, st(!lock && liveOn, lock || 'Off'))}
         ${feature(ICON.mail, 'Email masks', 'Gmail and Outlook on the web: the messages in your inbox list get a green mask or a warning mask before you open them. Sentinel reads only what the list shows (sender, subject, first line) and never opens a message.', f.emailLive && !planLocked ? '<span class="status">Optional add-on</span>' : st(false, 'Pro & up'))}
         ${feature(ICON.download, 'Download protection', 'Every new file in your Downloads folder is inspected on your computer.', st(!lock && desktop && state.desktopInfo && state.desktopInfo.downloads.active, lock || 'Off'))}
       </div>
