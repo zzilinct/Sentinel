@@ -1519,7 +1519,7 @@
       </span>
       <form class="report" data-report-form data-draft="report:${esc(v.url)}" hidden>
         <div class="row2">
-          <div class="field"><label for="rp-cat">What kind of site is it?</label><select class="input" id="rp-cat" name="category">${REPORT_CATEGORIES.map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></div>
+          <div class="field"><label for="rp-cat">What kind of site is it?</label><select class="input" id="rp-cat" name="category">${(canWarn(window.UI.headline(v).tone) ? [['false_alarm', 'It is safe: Sentinel got this wrong']] : []).concat(REPORT_CATEGORIES).map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></div>
           <div class="field"><label for="rp-note">Anything else? <span class="opt">(optional)</span></label><input class="input" id="rp-note" name="note" maxlength="500" placeholder="How did you come across it?"></div>
         </div>
         <div class="report__foot"><span class="muted">Three reports from different accounts confirm a site for everyone.</span><button class="btn btn--gold btn--sm" type="submit">Send report</button></div>
@@ -1542,7 +1542,8 @@
       busy($('button[type=submit]', form), 'Sending', async () => {
         try {
           const r = await api('/report', { method: 'POST', body: { url: v.url, category: form.category.value, note: form.note.value } });
-          toast(r.promoted ? 'Reported. This site is now confirmed for everyone.' : `Thanks. ${r.reports} report${r.reports === 1 ? '' : 's'} so far.`, 'success');
+          toast(form.category.value === 'false_alarm' ? 'Sent, thank you. On its own a report changes no one’s result. Trust this site to stop its warning for you.'
+            : r.promoted ? 'Reported. This site is now confirmed for everyone.' : `Thanks. ${r.reports} report${r.reports === 1 ? '' : 's'} so far.`, 'success');
           form.hidden = true;
           report.disabled = true;
           report.textContent = 'Reported';
@@ -2750,7 +2751,7 @@
    */
   const SETTING_GROUPS = [
     ['look', 'Appearance'], ['motion', 'Motion'], ['protection', 'Live protection'], ['guards', 'Everyday guards'],
-    ['chat', 'Chat and texts'], ['alerts', 'Alerts'], ['lock', 'Parent lock'], ['account', 'Account and security'], ['plan', 'Plan and app']
+    ['chat', 'Chat and texts'], ['alerts', 'Alerts'], ['lock', 'Parent lock'], ['account', 'Account and security'], ['data', 'Your data'], ['plan', 'Plan and app'], ['help', 'Help']
   ];
   const NEEDS_APP = 'Needs the Sentinel app for Windows.';
   /** Why a row that needs the Windows app cannot work here, or '' when it can. */
@@ -2937,7 +2938,15 @@
       why: () => (state.me.user.hasPassword ? '' : 'You sign in with Google, so there is no Sentinel password to change.'), mount: passwordBlock },
     { id: 'devices', group: 'account', kind: 'block', label: 'Signed-in devices', hint: 'Every browser, Sentinel app and companion signed in to your account.', words: ['sessions', 'sign out', 'logout', 'devices', 'computers'],
       mount: (body) => { body.setAttribute('data-sessions', ''); loadSessions(body); } },
-    { id: 'delete-account', group: 'account', kind: 'block', label: 'Delete account', hint: 'Permanently removes your account, history, reports and trusted sites.', words: ['remove', 'erase', 'close account', 'data'], mount: deleteBlock },
+
+    // Your data: what the Privacy Policy says an account holds, how to take it and how to remove it.
+    { id: 'download-data', group: 'data', kind: 'block', label: 'Download my data', hint: 'One file with everything your account holds, item by item as the Privacy Policy lists it. Your password, sign-in links, two-factor secret and AI keys are never in it.',
+      words: ['export', 'copy', 'gdpr', 'ccpa', 'privacy', 'download', 'json'], mount: downloadBlock },
+    { id: 'history-data', group: 'data', kind: 'custom', label: 'Scan history', hint: 'Kept for 90 days. Delete one entry or all of it on the History page.', words: ['history', 'erase', 'clear', 'scans'],
+      control: () => linkControl('/app/history') },
+    { id: 'live-memory', group: 'data', kind: 'block', label: 'What live scanning remembers', hint: 'Exposure alerts keep a scrambled code for each safe site you visited, for 14 days. Your sites keeps the sites you added and the ones it learned. Either can be erased here at once.',
+      words: ['exposure', 'my sites', 'your sites', 'forget', 'erase', 'remembered'], mount: forgetBlock },
+    { id: 'delete-account', group: 'data', kind: 'block', label: 'Delete account', hint: 'Permanently removes your account, history, reports and trusted sites.', words: ['remove', 'erase', 'close account', 'data'], mount: deleteBlock },
 
     { id: 'plan-usage', group: 'plan', kind: 'custom', label: 'Plan and usage', hint: 'What is left this week, and the plans to choose from.', words: ['billing', 'pro', 'max', 'ultimate', 'upgrade', 'subscription', 'limits'],
       state: () => `You are on ${plan().name}.`, control: () => linkControl('/app/plan') },
@@ -2957,7 +2966,13 @@
         }));
         const install = $('[data-install-update]', row);
         if (install) install.addEventListener('click', () => desktop.installUpdate());
-      } }
+      } },
+
+    { id: 'whats-new', group: 'help', kind: 'block', label: 'What changed', hint: 'The notes for the newest version of Sentinel.', words: ['changelog', 'release notes', 'new', 'version', 'about'], mount: whatsNewBlock },
+    { id: 'false-alarm', group: 'help', kind: 'block', label: 'Report a false alarm', hint: 'Sentinel warned you about a site you know is safe. Tell us which one.', words: ['wrong', 'mistake', 'safe', 'false positive', 'report', 'feedback'], mount: falseAlarmBlock },
+    { id: 'support', group: 'help', kind: 'custom', label: 'Write to us', hint: 'A question, a problem, or a scam Sentinel missed.', words: ['help', 'contact', 'support', 'email', 'privacy', 'terms'],
+      body: () => '<p class="set-sub">How Sentinel treats your data, and the rules for using it: <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms</a></p>',
+      control: () => (state.config.supportEmail ? `<a class="btn btn--sm" href="mailto:${esc(state.config.supportEmail)}">Email support</a>` : '') }
   ];
   const settingWords = (r) => `${r.label} ${r.hint} ${(r.words || []).join(' ')} ${SETTING_GROUPS.find(([g]) => g === r.group)[1]}`.toLowerCase();
   const settingMatches = (r, q) => q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => settingWords(r).includes(w));
@@ -3004,6 +3019,103 @@
           toast('Password updated. Other sessions were signed out.', 'success');
           const devices = $('[data-sessions]');
           if (devices) loadSessions(devices);
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    });
+  }
+
+  // The file comes from the server, which lists each thing the Privacy Policy says an account holds (a test keeps
+  // the two in step). It asks for the password again: a borrowed session must not be able to take it.
+  function downloadBlock(body) {
+    const u = state.me.user;
+    body.innerHTML = `<form data-export>
+        ${u.hasPassword ? '<div class="row2"><div class="field"><label for="ex-pw">Password</label><input class="input" id="ex-pw" type="password" name="password" autocomplete="current-password" required></div></div>' : ''}
+        <button class="btn${u.hasPassword ? ' u-mt' : ''}" type="submit">Download my data</button>
+      </form>`;
+    $('form', body).addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const f = ev.target;
+      await busy($('button', f), 'Preparing', async () => {
+        try {
+          const data = await api('/account/export', { method: 'POST', body: { password: f.password ? f.password.value : '' } });
+          const name = `sentinel-data-${data.exportedAt.slice(0, 10)}.json`;
+          const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+          const a = Object.assign(document.createElement('a'), { href: url, download: name });
+          document.body.append(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          f.reset();
+          toast(`Your data is ready as ${name}.`, 'success');
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    });
+  }
+
+  // Erasing what live scanning keeps. A second press within a few seconds erases, so one stray click never does.
+  function forgetBlock(body, ctx) {
+    const WHAT = {
+      exposures: ['Forget visited sites', '/live/exposures/forget', (n) => (n ? `Forgot ${n} visited site${n === 1 ? '' : 's'}, and every alert found for them.` : 'Nothing was remembered. Every alert is cleared.')],
+      'my-sites': ['Forget Your sites', '/my-sites/forget', (n) => (n ? `Forgot ${n} of Your sites.` : 'Your sites held nothing to forget.')]
+    };
+    body.innerHTML = `<div class="set-sub set-sub--start">${Object.entries(WHAT).map(([k, [label]]) => `<button class="btn btn--sm" type="button" data-forget="${k}">${label}</button>`).join('')}</div>`;
+    $$('[data-forget]', body).forEach((b) => {
+      const [label, path, said] = WHAT[b.dataset.forget];
+      let armed = 0;
+      b.addEventListener('click', () => {
+        if (!armed) {
+          b.textContent = 'Press again to erase';
+          armed = setTimeout(() => { armed = 0; b.textContent = label; }, 4000);
+          return;
+        }
+        clearTimeout(armed);
+        armed = 0;
+        busy(b, 'Erasing', async () => {
+          try {
+            const r = await api(path, { method: 'POST', body: {} });
+            toast(said(r.forgotten), 'success');
+            ctx.refresh();
+          } catch (err) { toast(err.message, 'error'); }
+        }).then(() => { b.textContent = label; });
+      });
+    });
+  }
+
+  // The newest version's notes, from web/assets/release-note.json, which npm run build:note writes from
+  // changelog/<version>.md beside the download page's note.
+  async function whatsNewBlock(body) {
+    body.innerHTML = '<div class="skeleton u-h-md"></div>';
+    try {
+      const res = await fetch('/assets/release-note.json', { credentials: 'same-origin' });
+      const note = res.ok ? await res.json() : null;
+      if (!note || !note.version || !Array.isArray(note.groups)) throw new Error('no note');
+      body.innerHTML = `<div class="set-note"><p><b>New in Sentinel ${esc(note.version)} ${esc(note.model || '')}.</b> ${esc(note.summary)}.</p>
+        <details class="set-facts"><summary>Every change in this version</summary>${note.groups.map((g) => `<h3>${esc(g.title)}</h3><ul>${g.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('')}</details></div>`;
+    } catch {
+      body.innerHTML = '<p class="set-sub">The notes could not be loaded just now. They are also on the <a href="/download">download page</a>.</p>';
+    }
+  }
+
+  // A false alarm is kept with the site for Sentinel to learn from. It never counts against the site, and on its own
+  // it changes nobody's result: trusting the site is what stops the warning, for this account.
+  function falseAlarmBlock(body) {
+    body.innerHTML = `<form data-false-alarm data-draft="false-alarm">
+        <div class="row2">
+          <div class="field"><label for="fa-site">The site</label><input class="input" id="fa-site" name="url" required maxlength="2048" placeholder="mybakery.com" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="fa-note">What it is <span class="opt">(optional)</span></label><input class="input" id="fa-note" name="note" maxlength="500" placeholder="My local bakery"></div>
+        </div>
+        <label class="consent__row u-mt"><input type="checkbox" name="trust"><span>Also trust this site for me, so its warning stops now</span></label>
+        <button class="btn u-mt" type="submit">Send</button>
+      </form>`;
+    $('form', body).addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const f = ev.target;
+      await busy($('button[type=submit]', f), 'Sending', async () => {
+        try {
+          const r = await api('/report', { method: 'POST', body: { url: f.url.value, category: 'false_alarm', note: f.note.value } });
+          if (f.trust.checked) await api('/sites/override', { method: 'POST', body: { url: f.url.value, action: 'allow' } });
+          toast(f.trust.checked ? `Sent, and ${r.host} is trusted for you now.` : 'Sent, thank you. On its own a report changes no one’s result.', 'success');
+          f.reset();
         } catch (err) { toast(err.message, 'error'); }
       });
     });

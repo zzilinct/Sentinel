@@ -6,5 +6,11 @@
   "apexDomain": "usesentinel.technology",
   "supportEmail": "support@usesentinel.technology",
   "privacyEmail": "privacy@usesentinel.technology",
-  "launched": false
+  "launched": false,
+  "mark": {
+    "plate": "#17191d",
+    "gold": "#d4ae63",
+    "goldLight": "#e2c47f",
+    "goldDeep": "#c09647"
+  }
 }

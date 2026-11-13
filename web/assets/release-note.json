@@ -1,0 +1,20 @@
+{
+  "version": "1.19.5",
+  "model": "Argus",
+  "summary": "Roblox chat read from the start, and two fixes on the website",
+  "groups": [
+    {
+      "title": "Chat safety",
+      "items": [
+        "Roblox chat that is already on screen when a game opens is now read. Chat safety no longer waits for a new message before it checks what is there."
+      ]
+    },
+    {
+      "title": "Website and web app",
+      "items": [
+        "A double press on an example on the guest scan page no longer uses two of your guest scans.",
+        "Sharing twice quickly from your phone no longer loses the second share. The second one is checked."
+      ]
+    }
+  ]
+}

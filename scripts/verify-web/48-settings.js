@@ -85,6 +85,7 @@ async function checkSettings() {
     /* ------------------------------------------------------ with the app */
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: standIn }, s);
     let home = null;
+    let trust = null;
     for (const [size, [width, height, mobile]] of Object.entries(SIZES)) {
       await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, s);
       for (const theme of THEMES) {
@@ -99,6 +100,17 @@ async function checkSettings() {
             said: ['[data-chat-seen]', '[data-text-seen]'].map((q) => { const e = document.querySelector(q); return e ? e.getAttribute('role') + ': ' + e.textContent : 'none'; }) }; })()`);
         if (home.wide > 0) wide.push(`home ${size} ${theme}: ${home.wide} px`);
         await shot(browser, s, `settings-home-${size}-${theme}`);
+
+        // Your data and Help, each brought to the top as a link to it would. What changed is read from the download page.
+        for (const g of ['data', 'help']) {
+          await evalIn(browser, s, `document.getElementById('${g}').scrollIntoView({ block: 'start' })`);
+          if (g === 'help') await until(browser, s, "document.querySelector('#whats-new .set-note, #whats-new .set-sub')", 10000);
+          await sleep(300);
+          await shot(browser, s, `settings-${g}-${size}-${theme}`);
+        }
+        trust = await evalIn(browser, s, `(() => ({ data: [...document.querySelectorAll('#data [data-set-row]')].map((r) => r.id),
+          note: (document.querySelector('#whats-new .set-note') || {}).innerText || '', mail: (document.querySelector('#support a[href^="mailto:"]') || {}).href || '',
+          account: [...document.querySelectorAll('#account [data-set-row]')].map((r) => r.id) }))()`);
 
         await evalIn(browser, s, "(() => { const f = document.querySelector('[data-set-find]'); f.focus(); f.value = 'roblox'; f.dispatchEvent(new Event('input', { bubbles: true })); })()");
         await sleep(700);
@@ -118,7 +130,10 @@ async function checkSettings() {
     }
     result('settings: with the app the switches say what the app says', home.on.copied === true && home.on.wallet === false && home.on.chat === false && home.on.login === true && !home.why.length, home);
     result('settings: what chat safety and Check my texts are doing is read out as it changes', home.said.every((t) => /^status: Off. Turn it on/.test(t)), home.said);
-    result('settings: the group list names every group, and your sites are listed', home.rail.length === 9 && /Appearance/.test(home.rail[0]) && /Motion/.test(home.rail[1]) && /mycu\.org/.test(home.sites), home);
+    result('settings: Your data holds download, history, what live scanning remembers and delete, and Account no longer holds delete',
+      trust.data.join() === 'download-data,history-data,live-memory,delete-account' && !trust.account.includes('delete-account'), trust);
+    result('settings: Help shows the newest release note and a way to write to support', /New in Sentinel \d+\.\d+\.\d+/.test(trust.note) && /^mailto:support@/.test(trust.mail), trust);
+    result('settings: the group list names every group, and your sites are listed', home.rail.length === 11 && /Appearance/.test(home.rail[0]) && /Motion/.test(home.rail[1]) && /mycu\.org/.test(home.sites), home);
     result('settings: nothing scrolls sideways', !wide.length, wide);
 
     /* -------------------------------------------------- saving, at desktop size */
@@ -153,6 +168,22 @@ async function checkSettings() {
     const stale = await evalIn(browser, s, '({ y: scrollY, found: document.querySelectorAll(".is-found").length })');
     result('settings: an unknown address is ignored', stale.y === 0 && stale.found === 0, stale);
 
+    /* ------------------------------------- Download my data, and a false alarm */
+    await evalIn(browser, s, `(() => { window.__saved = []; const click = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () { if (this.download) window.__saved.push(this.download); else click.call(this); }; })()`);
+    await evalIn(browser, s, `(() => { const f = document.querySelector('[data-export]'); f.password.value = 'wrong-password-1'; f.requestSubmit(); })()`);
+    await until(browser, s, "[...document.querySelectorAll('.toast')].some((t) => /incorrect/i.test(t.textContent))", 10000);
+    const wrongPw = await evalIn(browser, s, "({ saved: window.__saved.length, said: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' ') })");
+    result('settings: Download my data with a wrong password saves nothing and says why', wrongPw.saved === 0 && /incorrect/i.test(wrongPw.said), wrongPw);
+    await evalIn(browser, s, `(() => { const f = document.querySelector('[data-export]'); f.password.value = ${JSON.stringify(password)}; f.requestSubmit(); })()`);
+    await until(browser, s, 'window.__saved.length > 0', 10000);
+    const file = await evalIn(browser, s, "window.__saved[0]");
+    result('settings: Download my data saves one dated file', /^sentinel-data-\d{4}-\d{2}-\d{2}\.json$/.test(file || ''), file);
+    await evalIn(browser, s, `(() => { const f = document.querySelector('[data-false-alarm]'); f.url.value = 'mybakery.example'; f.trust.checked = true; f.requestSubmit(); })()`);
+    await until(browser, s, "[...document.querySelectorAll('.toast')].some((t) => /trusted for you/.test(t.textContent))", 10000);
+    const rules = await evalIn(browser, s, "fetch('/api/v1/sites/overrides', { credentials: 'same-origin' }).then((r) => r.json())");
+    result('settings: a false alarm with trust ticked trusts the site for this account', JSON.stringify(rules).includes('mybakery.example'), rules);
+
     /* ---------------------------------------------- the palette finds one setting */
     await evalIn(browser, s, "document.querySelector('[data-palette]').click()");
     await evalIn(browser, s, "(() => { const i = document.querySelector('.palette input'); i.value = 'wallet'; i.dispatchEvent(new Event('input', { bubbles: true })); })()");
@@ -160,6 +191,23 @@ async function checkSettings() {
     result('settings: the search palette finds a single setting by its words', options.some((o) => /Wallet guard/.test(o) && /Setting/.test(o)), options);
 
     result('settings: no errors on the page', !errors.length, errors);
+
+    /* ---------------- the mark, as a stranger meets it: tab, app icons, installer panel, on light and on dark */
+    const i16 = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'extension', 'icons', 'icon16.png')).toString('base64');
+    const bmp = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'desktop', 'build', 'installerSidebar.bmp')).toString('base64');
+    await evalIn(browser, s, `(() => {
+      const img = (src, px) => '<img src="' + src + '" width="' + px + '" height="' + px + '" style="image-rendering:auto">';
+      const row = (bg) => '<div style="display:flex;gap:24px;align-items:center;padding:24px;background:' + bg + '">'
+        // The tray's 16 px picture at 100%, then 8 times, pixel for pixel; then the tab icon at 16 and 32.
+        + '<img src="data:image/png;base64,${i16}" width="16" height="16"><img src="data:image/png;base64,${i16}" width="128" height="128" style="image-rendering:pixelated">'
+        + [16, 32].map((px) => img('/assets/img/favicon.svg', px)).join('')
+        + img('/assets/img/icon-192.png', 96) + img('/assets/img/icon-maskable-512.png', 96).replace('<img', '<img style="border-radius:50%"')
+        + '<img src="data:image/bmp;base64,${bmp}" width="164" height="314"></div>';
+      document.body.innerHTML = row('#ffffff') + row('#0a0b0d');
+      document.body.style.margin = '0';
+    })()`);
+    await sleep(500);
+    await shot(browser, s, 'brand-marks');
   } finally {
     await close();
     await server.stop();

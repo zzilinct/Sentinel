@@ -45,7 +45,7 @@ ${link}
 
 If you didn't create a Sentinel account, you can ignore this email.`,
     html: mailer.layout('Confirm your email address', `<p style="color:#b9b6ae;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(user.first_name)}, confirm this is your email address to finish setting up Sentinel. The link works once and expires in 24 hours.</p>
-      <a href="${link}" style="display:inline-block;background:#d4ae63;color:#16130b;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:11px">Confirm email address</a>
+      <a href="${link}" style="display:inline-block;background:${mailer.GOLD};color:#16130b;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:11px">Confirm email address</a>
       <p style="color:#86847e;font-size:13px;line-height:1.6;margin:24px 0 0">Didn't create a Sentinel account? Ignore this email.</p>`)
   });
   security.audit('verification_sent', { userId: user.id, req, detail: result.ok ? 'ok' : result.reason });
@@ -61,6 +61,9 @@ function register(router) {
       verificationAvailable: config.mailConfigured,
       researchAvailable: config.researchEnabled,
       termsVersion: A.TERMS_VERSION,
+      // For Settings, Help: the version this server runs and who answers when Sentinel is wrong.
+      version: require('../../package.json').version,
+      supportEmail: config.brand.supportEmail,
       plans: plans.publicPlans()
     });
   });
@@ -151,7 +154,7 @@ function register(router) {
         subject: 'Reset your Sentinel password',
         text: `Hi ${user.first_name},\n\nUse this link to choose a new Sentinel password. It expires in 30 minutes and works once:\n\n${link}\n\nIf you didn't ask for this, you can ignore this email: your password hasn't changed.`,
         html: mailer.layout('Reset your password', `<p style="color:#b9b6ae;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(user.first_name)}, use the button below to choose a new password. The link expires in 30 minutes and works once.</p>
-          <a href="${link}" style="display:inline-block;background:#d4ae63;color:#16130b;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:11px">Choose a new password</a>
+          <a href="${link}" style="display:inline-block;background:${mailer.GOLD};color:#16130b;text-decoration:none;font-weight:600;padding:13px 22px;border-radius:11px">Choose a new password</a>
           <p style="color:#86847e;font-size:13px;line-height:1.6;margin:24px 0 0">Didn't ask for this? Ignore this email. Your password hasn't changed.</p>`)
       });
       security.audit('password_reset_requested', { userId: user.id, req });
