@@ -11,7 +11,7 @@ const { sleep, result, launch, evalIn, openPage, goto, startServer, watchErrors,
 
 const SIZES = { desktop: [1366, 900, false], phone: [390, 844, true] };
 
-/** The Windows app's bridge, as far as home reads it; every setter is recorded. As in 48-settings.js. */
+/** The Windows app's bridge, as far as home reads it; every setter is recorded. As in 50-settings.js. */
 const APP = `(() => {
   const info = { version: '1.20.0', platform: 'win32', embeddedServer: true, liveMode: 'fast', autoScan: true, openAtLogin: true,
     live: { supported: true, enabled: false, active: false }, downloads: { active: true, folder: 'Downloads' },

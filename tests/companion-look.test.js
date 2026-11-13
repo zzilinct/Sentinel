@@ -3,7 +3,7 @@
  * The companion's own pages and the look: danger, warning and safe keep their exact colours in every accent and
  * scheme, written once per scheme in popup.css and never by the accent; each page draws the kept look before its
  * first paint and asks for the chosen one after (lib/lookhere.js). In a real Chrome and Firefox:
- * scripts/verify-web/50-companion-look.js.
+ * scripts/verify-web/53-companion-look.js.
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');

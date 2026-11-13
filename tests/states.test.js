@@ -1,6 +1,6 @@
 'use strict';
 // One way to say empty, failed, offline and slow (ui.js stateBlock, app.js failed), and simple view never hiding what
-// keeps a result honest. The browser check is scripts/verify-web/49-states.js and 49-simple.js; this one needs no browser.
+// keeps a result honest. The browser check is scripts/verify-web/55-states.js and 54-simple.js; this one needs no browser.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
