@@ -74,7 +74,7 @@ async function checkMotionLevel() {
     await key('ArrowDown', 40);
     await sleep(500);
     const off = await state();
-    const offRunning = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName || a.transitionProperty || 'script')");
+    const offRunning = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running' && a.effect.getComputedTiming().endTime > 0.05).map((a) => a.animationName || a.transitionProperty || 'script')");
     result('motion-level: the arrow keys move to Off', off.motion === 'off' && off.checked === 'off', off);
     result('motion-level: Off leaves nothing running', offRunning.length === 0, offRunning);
     result('motion-level: Off digs nothing, and the scan effect switch says why it is off', await evalIn(browser, s, DIG) === false && off.sw.disabled && !off.sw.on, off.sw);
@@ -131,8 +131,9 @@ async function checkMotionLevel() {
     await sleep(400);
     // Measured after the page has drawn two frames: on this runner a frame can wait a second or two for the 3D masks.
     await evalIn(browser, s, 'new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))');
-    // What is still running, with its own timing, so a failure says why.
-    const siteOff = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running').map((a) => { const t = a.effect.getComputedTiming(); const el = a.effect.target; return [a.animationName || a.transitionProperty || 'script', el && (el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className), Math.round(t.duration), Math.round(t.delay), Math.round(a.currentTime)].join(' '); })");
+    // What is still moving (anything longer than a twentieth of a millisecond: a style landing at once, such as a 3D mask
+    // arriving, makes a zero-length transition that moves nothing), with its own timing, so a failure says why.
+    const siteOff = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running' && a.effect.getComputedTiming().endTime > 0.05).map((a) => { const t = a.effect.getComputedTiming(); const el = a.effect.target; return [a.animationName || a.transitionProperty || 'script', el && (el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className), Math.round(t.duration), Math.round(t.delay), Math.round(a.currentTime)].join(' '); })");
     result('motion-level: on the home page, Calm stills every loop that moves by itself at once, and Off everything, without a reload', ambient(siteFull).length > 0 && ambient(siteCalm).length === 0 && siteOff.length === 0, { full: siteFull, calm: siteCalm, off: siteOff });
     await evalIn(browser, s, "localStorage.removeItem('sentinel:motion')");
     result('motion-level: no errors on the page', errors.length === 0, errors);
