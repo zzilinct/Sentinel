@@ -838,7 +838,7 @@ function refreshTray() {
     { type: 'separator' },
     { label: status.active ? 'Download protection: on' : status.reason || 'Download protection: off', enabled: false },
     { label: pw.active ? (pw.window ? 'Live scanning: watching the browser in front' : 'Live scanning: ready') : pw.reason || 'Live scanning is off', enabled: false },
-    { label: 'Scan a file...', click: () => showWindow('/app/threats') },
+    { label: 'Check a link or file...', click: () => showWindow('/app/check') },
     { label: 'Is this call a scam?', click: () => showWindow('/call') },
     { type: 'separator' },
     { label: store.get('liveScanning', false) ? 'Stop scanning' : 'Start scanning', enabled: pw.supported, click: () => (store.get('liveScanning', false) ? trayGuard('live scanning off', true) && setLiveScanning(false, { byPerson: true }) : (setAutoSession(false), startScanning())) },
@@ -900,7 +900,7 @@ async function startScanning() {
 let autoInstalling = false;
 
 /**
- * Auto scanning (a switch in Live protection): fast live scanning starts by itself when a browser is opened, and
+ * Auto scanning (a switch in Settings): fast live scanning starts by itself when a browser is opened, and
  * switches off when the last browser is closed. A minimised browser is not being used: the reader rests, nothing is
  * checked and no time is counted, as always. `autoSession` marks scanning that auto scanning started, so closing
  * the browsers never switches off scanning the person started themselves.
@@ -1911,7 +1911,7 @@ async function boot() {
   overlay.init({ onAction: islandAction });
   overlay.setMarksLevel(marksLevel());
 
-  // Chat safety (Roblox and the Discord app) and texts in Phone Link: each off until turned on in Live protection;
+  // Chat safety (Roblox and the Discord app) and texts in Phone Link: each off until turned on in Settings;
   // nothing about a chat or a text is logged.
   if (!app.isPackaged && process.env.SENTINEL_OVERLAY_DRYRUN) chatoverlay.setDryRun((text) => appLog(`chat overlay (dry run): ${text}`));
   // One fact, heard once: which window is in front. The chat reader sleeps until it matters, the live reader is woken

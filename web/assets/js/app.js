@@ -2515,7 +2515,7 @@
 
   /*
    * "New in Sentinel" cards: asked once, in the Windows app, before a feature ever reads anything. What it does, then
-   * Turn on or Not now. The answer (or switching the feature in Live protection) is kept in local storage as
+   * Turn on or Not now. The answer (or switching the feature in Settings) is kept in local storage as
    * sentinel:asked:<name>, never sent anywhere. Before 1.12.1 the keys were sentinel.chatAsked and
    * sentinel.exposureAsked; they are moved over once.
    */

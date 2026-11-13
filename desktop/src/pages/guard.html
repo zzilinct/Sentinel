@@ -108,7 +108,7 @@
     const trust = (back) => ({ label: `I use ${toolName} myself`, quiet: true, run: () => show({
       title: `Do you use ${toolName} yourself?`,
       sub: toolName,
-      lead: '<b>Only if nobody asked you to install it.</b> Sentinel will stop asking about it. You can turn the question back on under Live protection.',
+      lead: '<b>Only if nobody asked you to install it.</b> Sentinel will stop asking about it. You can turn the question back on in Settings.',
       color: 'orange',
       buttons: [
         { label: 'Yes, stop asking', run: async () => {

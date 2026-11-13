@@ -41,7 +41,7 @@
     return `${hoursLeft.toFixed(hoursLeft < 10 ? 1 : 0)} of ${limit / 60} hours left`;
   }
 
-  /** One quiet line under the answer: is live protection on, how much time is left, and why not when it is not. */
+  /** One quiet line under the answer: is live scanning on, how much time is left, and why not when it is not. */
   function statusLine() {
     const f = state.account.plan.features;
     if (!f.liveScanning && !f.liveFast) {
@@ -54,7 +54,7 @@
     const known = f.liveScanning ? state.live.limitMinutes : state.live.fastLimitMinutes;
     const limit = known !== undefined && known !== 0 ? known : (f.liveScanning ? limits.liveMinutes : limits.fastMinutes);
     const time = said.word === 'On' ? `<span>${timeLeftText(used, limit)}</span>` : '';
-    return `<p class="status small" data-live="${said.word}"><b data-tone="${said.tone}">Live protection ${said.word.toLowerCase()}</b>${time}</p>${said.word === 'On' ? '' : `<p class="status-why small">${esc(said.line)}</p>`}`;
+    return `<p class="status small" data-live="${said.word}"><b data-tone="${said.tone}">Live scanning ${said.word.toLowerCase()}</b>${time}</p>${said.word === 'On' ? '' : `<p class="status-why small">${esc(said.line)}</p>`}`;
   }
 
   /** The one answer, in the shape every state shares. */

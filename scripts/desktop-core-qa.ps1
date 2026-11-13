@@ -193,9 +193,9 @@ if ($Part -eq 'install') {
   $front = ''
   $ok = Until 10 { $script:front = (SentinelWindows | Where-Object { $_ -match '^front\|' }) -join ''; [bool]$script:front }
   Check 'tray-open' $ok "Open Sentinel: in front '$front'"
-  Say "tray click: $(TrayClick 'Scan a file')"
+  Say "tray click: $(TrayClick 'Check a link or file')"
   $ok = Until 15 { (AppWindow) -match '^shown\|/app/check' }
-  Check 'tray-scan-file' $ok "Scan a file...: $(AppWindow)"
+  Check 'tray-scan-file' $ok "Check a link or file...: $(AppWindow)"
   Say "tray click: $(TrayClick 'Is this call a scam')"
   $ok = Until 15 { (AppWindow) -match '^shown\|/call' }
   Check 'tray-call' $ok "Is this call a scam?: $(AppWindow)"

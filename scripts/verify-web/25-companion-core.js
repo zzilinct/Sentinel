@@ -162,7 +162,7 @@ async function checkCompanionCore() {
     await goto(browser, web.sessionId, 'http://plain.test/plain.html');
     const paired = await popup('paired');
     await paired.close();
-    result('companion-core: popup paired answers about this page first (never green unless it was checked), then its action, Live protection On (or Paused with why), and the password alarm line',
+    result('companion-core: popup paired answers about this page first (never green unless it was checked), then its action, Live scanning On (or Paused with why), and the password alarm line',
       // "On", or, when this server's model is one of the five newest (Free gets no live answers then), "Paused" with why.
       paired.ready && paired.info.plan === 'Free' && paired.info.host === 'plain.test' && /^(No warning signs|Not checked yet)/.test(paired.info.text) && /Check (this page|again)/.test(paired.info.text)
         && (paired.info.live === 'On' || (paired.info.live === 'Paused' && /five newest/.test(paired.info.text))) && /Password alarm is off/.test(paired.info.pw) && !paired.info.scroll && !paired.errors.length,

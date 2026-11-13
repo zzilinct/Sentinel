@@ -132,7 +132,7 @@ function create(store, now = Date.now) {
     if (!weakens || !isSet()) return;
     if (locked()) {
       note(`Tried to ${verb} ${what} without the PIN`);
-      throw new Error('Locked by a parent. Unlock it with the PIN under Parent lock, in Live protection.');
+      throw new Error('Locked by a parent. Unlock it with the PIN under Parent lock, in Settings.');
     }
     note(`${did} ${what} with the PIN`);
   }
