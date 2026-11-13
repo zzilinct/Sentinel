@@ -89,7 +89,7 @@ function summarize(v, extra = {}) {
     host: v.host,
     threats: Object.fromEntries(ALL.map((t) => [t, v.threats[t] && { badge: v.threats[t].badge, level: v.threats[t].level, label: v.threats[t].label, score: v.threats[t].score, kind: v.threats[t].kind || null, kindLabel: v.threats[t].kindLabel || null, kindShort: v.threats[t].kindShort || null }])),
     overall: v.overall,
-    reasons: (v.reasons || []).slice(0, 5).map((r) => ({ threat: r.threat, text: r.text })),
+    reasons: (v.reasons || []).slice(0, 5).map((r) => ({ threat: r.threat, text: r.text, plain: r.plain })),
     known: Boolean(v.knowledge && v.knowledge.known),
     discounted: Boolean(v.knowledge && v.knowledge.discountApplied),
     checks: { total: v.checklist.total, failed: v.checklist.failed, warned: v.checklist.warned, passed: v.checklist.passed, skipped: v.checklist.skipped || 0 }

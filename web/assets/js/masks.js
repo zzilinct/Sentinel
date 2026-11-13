@@ -134,5 +134,28 @@
     return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" ' + (attrs || '') + '>' + KIND_GLYPHS[kind] + '</svg>';
   }
 
-  root.SentinelMasks = { svg: svg, mark: mark, setMetal: setMetal, tick: tick, kindIcon: kindIcon, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES, SEVERITY: SEVERITY };
+  /* ------------------------------------------------------------ reason */
+
+  var REASON_MAX = 110;
+  /**
+   * Why a flagged site is flagged, in one plain sentence for the tip beside its mark: the strongest reason about the
+   * threat the mark shows, else the strongest of all. The server's plain sentence when it sent one (reasonsOf), its
+   * technical detail from an older server. Cut at a word, never mid-word. The same words in the Windows app's overlay,
+   * the companion and the site. Only for a mark that has a severity: a clear link gets no reason.
+   */
+  function reasonLine(reasons, threat) {
+    var list = reasons || [];
+    var r = null;
+    for (var i = 0; i < list.length && !r; i++) if (list[i] && list[i].threat === threat) r = list[i];
+    r = r || list[0];
+    var text = String((r && (r.plain || r.text)) || '').replace(/\s+/g, ' ').trim();
+    if (!text) return 'Open it with care.';
+    if (text.length <= REASON_MAX) return text;
+    var cut = text.slice(0, REASON_MAX - 1);
+    var space = cut.lastIndexOf(' ');
+    return cut.slice(0, space > 60 ? space : cut.length).replace(/[\s,;:.]+$/, '') + '…';
+  }
+
+  root.SentinelMasks = { svg: svg, mark: mark, setMetal: setMetal, tick: tick, kindIcon: kindIcon, reasonLine: reasonLine, GLYPHS: GLYPHS, KIND_GLYPHS: KIND_GLYPHS, COLORS: COLORS, NAMES: NAMES, SEVERITY: SEVERITY };
+  if (typeof module === 'object' && module.exports) module.exports = root.SentinelMasks;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

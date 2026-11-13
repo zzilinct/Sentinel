@@ -52,14 +52,19 @@
     const root = host.attachShadow({ mode: 'closed' });
     root.innerHTML = `<style>
       :host{all:initial}
-      .tip{position:fixed;display:flex;align-items:center;gap:8px;max-width:320px;padding:7px 11px 7px 8px;border-radius:10px;pointer-events:none;
-        background:rgba(18,19,22,.94);color:#ecebe7;font:500 12.5px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      .tip{position:fixed;display:flex;align-items:flex-start;gap:9px;max-width:300px;padding:8px 12px 9px 9px;border-radius:10px;pointer-events:none;
+        background:#0c0d10;color:#ecebe7;font:500 12.5px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
         box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent);
         opacity:0;transform:translateY(4px) scale(.96);transition:opacity .16s ease, transform .2s cubic-bezier(.2,1.4,.4,1)}
       .tip.on{opacity:1;transform:none}
-      .tip svg{width:18px;height:18px;flex:none;color:var(--c)}
+      .tip svg{width:18px;height:18px;flex:none;margin-top:1px;color:var(--c)}
+      .tip div{display:grid;gap:2px;min-width:0}
       .tip b{font-weight:650;color:var(--c)}
-      .tip span{color:#9aa0a8;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .tip p{margin:0;color:#d6d3cb;overflow-wrap:anywhere}
+      .tip span{color:#9aa0a8;font-size:11.5px;overflow-wrap:anywhere}
+      @media (prefers-color-scheme: light){
+        .tip{background:#fbf8f1;color:#1d1c19;box-shadow:0 10px 30px rgba(40,30,10,.16), inset 0 0 0 1px color-mix(in srgb, var(--c) 70%, #0000)}
+        .tip b{color:color-mix(in srgb, var(--c) 45%, #1d1c19)}.tip p{color:#36332d}.tip span{color:#6b665c}}
       @media (prefers-reduced-motion: reduce){.tip{transition:none;transform:none}}
     </style><div class="tip" role="status" aria-live="polite"></div>`;
     document.documentElement.appendChild(host);
@@ -81,16 +86,34 @@
     const shown = THREATS.filter((t) => verdict.threats[t] && verdict.threats[t].badge && RANK[verdict.threats[t].badge] >= RANK[settings.minimumBadge]);
     if (!shown.length && !settings.markSafe) return;
     const worst = shown.sort((a, b) => RANK[verdict.threats[b].badge] - RANK[verdict.threats[a].badge])[0];
-    const badge = worst ? verdict.threats[worst].badge : null;
+    paint(anchor, lineFor(verdict, worst));
+  }
+
+  // What the tip says for one threat of a verdict: the severity in words (never colour alone) with the label, and for
+  // a flagged site why, in the plain sentence the Windows app's overlay shows too (masks.js reasonLine). A link with
+  // nothing found gets no reason, only that, and where it leads.
+  function lineFor(verdict, threat) {
+    const t = threat && verdict.threats && verdict.threats[threat];
+    const host = verdict.host || '';
+    if (!t || !t.badge) {
+      return { key: 'clear', color: Masks.COLORS.clear, icon: CHECK, head: verdict.knowledge && verdict.knowledge.trusted ? 'A verified site' : 'No warning signs found', reason: '', host };
+    }
+    return { key: `${threat}:${t.badge}`, color: Masks.COLORS[t.badge], icon: Masks.svg(threat), head: `${Masks.SEVERITY[t.badge] || 'Caution'}: ${t.label}`, reason: Masks.reasonLine(verdict.reasons, threat), host };
+  }
+
+  // Text goes in with textContent: a host name and a reason can carry a page's own words.
+  // Quiet for a mark whose own name already carries these words, so a screen reader does not hear them twice.
+  function paint(anchor, line, quiet) {
     const { el } = ensureTip();
     clearTimeout(tip.clear);
-    el.style.setProperty('--c', badge ? Masks.COLORS[badge] : Masks.COLORS.clear);
-    el.dataset.verdict = badge ? `${worst}:${badge}` : 'clear';
-    const label = badge ? verdict.threats[worst].label : (verdict.knowledge && verdict.knowledge.trusted ? 'A verified site' : 'No warning signs found');
-    el.innerHTML = `${badge ? Masks.svg(worst) : CHECK}<b></b><span></span>`;
-    el.querySelector('b').textContent = label;
-    el.querySelector('span').textContent = verdict.host || '';
-    el.setAttribute('aria-label', `Sentinel: ${label}`);
+    el.setAttribute('aria-live', quiet ? 'off' : 'polite');
+    el.style.setProperty('--c', line.color);
+    el.dataset.verdict = line.key;
+    el.innerHTML = `${line.icon}<div><b></b>${line.reason ? '<p></p>' : ''}<span></span></div>`;
+    el.querySelector('b').textContent = line.head;
+    if (line.reason) el.querySelector('p').textContent = line.reason;
+    el.querySelector('span').textContent = line.host;
+    el.setAttribute('aria-label', `Sentinel: ${[line.head, line.reason].filter(Boolean).join('. ')}`);
     // Beside the end of the link's last line; above it when there is no room to the right or below.
     const rects = anchor.getClientRects();
     const r = rects.length ? rects[rects.length - 1] : anchor.getBoundingClientRect();
@@ -104,6 +127,8 @@
     el.style.top = `${Math.round(Math.max(4, top))}px`;
     requestAnimationFrame(() => el.classList.add('on'));
   }
+  // The search results' marks (serp.js) explain themselves in this same tip.
+  window.__sentinelTip = { lineFor, paint, hide };
 
   /* ------------------------------------------------------------ hover */
 

@@ -35,6 +35,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
+const { reasonLine } = require('../shared/masks');
 
 const RECHECK_MS = 10 * 60 * 1000;     // same host warned again after this long
 const SETTLE_MS = 350;                 // a page must stay in front this long before it is checked (long enough to skip pages flicked past)
@@ -1411,8 +1412,8 @@ async function checkLinks(links, page, forUrl) {
       const v = byUrl && byUrl[u];
       if (!v) continue;
       const badge = (v.overall && v.overall.badge) || null;
-      const first = v.reasons && v.reasons[0];
-      verdicts.set(u, { at: Date.now(), fast, mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      const kind = worstKind(v);
+      verdicts.set(u, { at: Date.now(), fast, mark: { badge, kind, label: v.overall ? v.overall.label : 'Checked', reason: badge ? reasonLine(v.reasons, kind) : '' } });
       if (final) count(page.private, badge);
     }
   };
@@ -1542,14 +1543,16 @@ async function onMail(msg) {
   const missing = rows.filter((r) => !markFor(r.u) && !pending.has(r.u));
   if (!missing.length) return;
   missing.forEach((r) => pending.add(r.u));
+  const scanned = new Map();   // the end-to-end run's dump only: each message's reasons as the scan returned them
   try {
     const { results } = await opts.api('/api/v1/live/email', { preview: true, emails: missing.map((r) => ({ key: r.u, ...mailFromRow(r.text) })) });
     for (const item of results || []) {
       const v = item.verdict;
       if (!v || !item.key) continue;
       const badge = (v.overall && v.overall.badge) || null;
-      const first = v.reasons && v.reasons[0];
-      verdicts.set(item.key, { at: Date.now(), mark: { badge, kind: worstKind(v), label: v.overall ? v.overall.label : 'Checked', reason: first ? first.text : '' } });
+      const kind = worstKind(v);
+      verdicts.set(item.key, { at: Date.now(), mark: { badge, kind, label: v.overall ? v.overall.label : 'Checked', reason: badge ? reasonLine(v.reasons, kind) : '' } });
+      if (process.env.SENTINEL_LINK_DUMP) scanned.set(item.key, { kind, reasons: v.reasons || [] });
       if (verdicts.size > 2000) { for (const k of [...verdicts.keys()].slice(0, 1000)) verdicts.delete(k); }
       count(isPrivate, badge);
     }
@@ -1561,7 +1564,7 @@ async function onMail(msg) {
   }
   // The end-to-end run's stand-in inbox (see onLinks): what each message got.
   if (process.env.SENTINEL_LINK_DUMP && !isPrivate) {
-    const got = rows.map((r) => { const m = markFor(r.u); return { t: r.text.slice(0, 70), y: r.y, badge: m ? m.badge : 'none', label: m ? m.label : '' }; });
+    const got = rows.map((r) => { const m = markFor(r.u); return { t: r.text.slice(0, 70), y: r.y, badge: m ? m.badge : 'none', label: m ? m.label : '', reason: m ? m.reason : '', ...(scanned.get(r.u) || {}) }; });
     try { fs.appendFileSync(process.env.SENTINEL_LINK_DUMP, JSON.stringify({ for: msg.for, inbox: got }) + '\n'); } catch { /* best effort */ }
   }
   publishMarks();

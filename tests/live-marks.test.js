@@ -60,3 +60,42 @@ test('the overlay and the companion draw the marks from masks.js, and the compan
   assert.doesNotMatch(css.slice(css.indexOf('.sentinel-mask--clear {')).split('}')[0], /opacity/, 'the tick is quiet by size, not faded below contrast');
   assert.match(css, /@media \(forced-colors: active\)/);
 });
+
+test('hover reasons: one plain sentence why a site is flagged, the same in the overlay, the companion\'s tip and its marks', () => {
+  const { SENTENCES } = require('../server/lib/scan/plain');
+  // Every sentence a reason can be, cut to the tip's length at a word, with no em dash.
+  for (const [id, entry] of Object.entries(SENTENCES)) {
+    for (let i = 1; i < entry.length; i += 2) {
+      if (typeof entry[i] !== 'string') continue;
+      const line = M.reasonLine([{ threat: 'scam', plain: entry[i], text: 'raw detail' }], 'scam');
+      assert.ok(line.length > 0 && line.length <= 110, `${id}: ${line}`);
+      assert.doesNotMatch(line, /\u2014/, id);
+      if (entry[i].length <= 110) assert.equal(line, entry[i].replace(/\s+/g, ' ').trim(), id);
+      else assert.match(line, /\S\u2026$/, `${id} is cut at a word`);
+    }
+  }
+  // The reason about the threat the mark shows, then the strongest; an older server's detail; never empty.
+  const reasons = [{ threat: 'virus', plain: 'A virus reason.' }, { threat: 'scam', plain: 'A scam reason.' }];
+  assert.equal(M.reasonLine(reasons, 'scam'), 'A scam reason.');
+  assert.equal(M.reasonLine(reasons, 'malware'), 'A virus reason.');
+  assert.equal(M.reasonLine([{ threat: 'scam', text: 'Older server detail' }], 'scam'), 'Older server detail');
+  assert.equal(M.reasonLine([], 'scam'), 'Open it with care.');
+  assert.equal(M.reasonLine(undefined, 'scam'), 'Open it with care.');
+
+  // The engine sends the plain sentence beside the detail.
+  assert.match(read('server/lib/scan/engine.js'), /plain: plainFor\(\{ id: r\.id, detail: r\.text \}\) \|\| r\.text/);
+  // The overlay's marks carry it, only when flagged.
+  assert.equal((read('desktop/src/watch.js').match(/reason: badge \? reasonLine\(v\.reasons, kind\) : ''/g) || []).length, 2);
+  // The companion's search marks: no native title (it carried no reason, waited a second and never showed for the
+  // keyboard), the reason in their name, and the shared tip on hover and focus.
+  const serp = read('extension/src/content/serp.js');
+  assert.doesNotMatch(serp, /\.title = |title=/, 'no native title on a mark');
+  assert.match(serp, /aria-label', `Sentinel: \$\{Masks\.SEVERITY\[info\.badge\] \|\| 'Caution'\}, \$\{info\.label\}\. \$\{Masks\.reasonLine\(verdict\.reasons, threat\)\}`/);
+  assert.match(serp, /'focusin'[^\n]*tipShow\(m, 0\)/);
+  assert.match(serp, /'pointerover'[^\n]*tipShow\(m, 250\)/);
+  const hover = read('extension/src/content/hover.js');
+  assert.match(hover, /reason: Masks\.reasonLine\(verdict\.reasons, threat\)/);
+  assert.match(hover, /el\.querySelector\('p'\)\.textContent = line\.reason/, 'set as text, never as HTML');
+  assert.doesNotMatch(hover, /nowrap/, 'a reason wraps to a second line instead of being cut off');
+  assert.match(hover, /reason: '', host \}/, 'a clear link gets no reason');
+});

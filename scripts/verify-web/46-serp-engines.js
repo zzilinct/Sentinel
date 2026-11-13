@@ -22,7 +22,7 @@ const SCAM = 'https://paypa1-secure-login.com/account';   // a listed scam (serv
 const HONEST = ['https://www.wikipedia.org/', 'https://github.com/'];
 const LINK_HOSTS = ['paypa1-secure-login.com', 'www.wikipedia.org', 'github.com', 'r.search.yahoo.com'];
 
-const page = (title, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>
+const page = (title, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>
   <style>body{font:14px/1.5 Arial,sans-serif;margin:0;padding:24px 40px;background:#fff;color:#202124}h2,h3{font-size:18px;margin:4px 0}</style></head><body>${body}</body></html>`;
 const enc = encodeURIComponent;
 // [address, title, the site's own name]
@@ -67,6 +67,60 @@ const ENGINES = [
   ['Yahoo Japan (search.yahoo.co.jp)', 'search.yahoo.co.jp/search?p=paypal+login']
 ];
 
+// Hover reasons: a mark explains itself in the companion's tip (hover.js) after the pointer rests, and at once for the
+// keyboard's focus, in the same words its name gives a screen reader. Photographed in dark, light and at phone width.
+async function checkTips(browser, s) {
+  // The tip's own lines (heading, reason, site), read through its closed shadow root.
+  const tipLines = async () => {
+    const { root } = await browser.send('DOM.getDocument', { depth: -1, pierce: true }, s);
+    const out = [];
+    const walk = (n, inTip) => {
+      const tip = inTip || (n.attributes || []).includes('data-sentinel-hover');
+      if (tip && n.nodeType === 3 && n.nodeValue.trim()) out.push(n.nodeValue.trim());
+      if (n.nodeName === 'STYLE') return;
+      for (const c of [...(n.shadowRoots || []), ...(n.children || [])]) walk(c, tip);
+    };
+    walk(root, false);
+    return out;
+  };
+  const tipText = async () => (await tipLines()).join(' | ');
+  const centre = (sel) => evalIn(browser, s, `(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
+  const mouse = async ([x, y]) => browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, s);
+  const away = async () => { await mouse([5, 5]); await sleep(400); };
+  const hover = async (sel) => { await away(); await mouse(await centre(sel)); await sleep(120); const early = await tipText(); await sleep(700); return { early, tip: await tipText() }; };
+  const scheme = (value) => browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value }] }, s);
+
+  await scheme('dark');
+  const red = await hover('.sentinel-mask--red');
+  const name = await evalIn(browser, s, "({ label: document.querySelector('.sentinel-mask--red').getAttribute('aria-label'), titles: document.querySelectorAll('.sentinel-mask[title]').length })");
+  await shot(browser, s, 'hover-reason-red-dark');
+  const [head, reason = '', site] = red.tip.split(' | ');
+  result('hover reasons: resting on a red mark shows, after a short rest, "Danger:", the label, one plain reason and the site; its name says the same',
+    !red.early && /^Danger: /.test(head) && reason.length > 8 && reason.length <= 110 && !/—/.test(red.tip) && site === 'paypa1-secure-login.com'
+      && name.label.includes(reason) && name.titles === 0, { ...red, name });
+  await scheme('light');
+  await hover('.sentinel-mask--red');
+  await shot(browser, s, 'hover-reason-red-light');
+  const clear = await hover('.sentinel-mask--clear');
+  await shot(browser, s, 'hover-reason-clear-light');
+  result('hover reasons: a clear mark says only that nothing was found, with no reason and no "safe"',
+    /^(No warning signs found|A verified site)/.test(clear.tip) && !/safe|danger|scam/i.test(clear.tip), clear);
+  await away();
+  await scheme('dark');
+  await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, s);
+  await evalIn(browser, s, "document.querySelector('.sentinel-mask--red').focus(), true");
+  await sleep(300);
+  const focused = await tipText();
+  const fits = await evalIn(browser, s, "innerWidth");
+  await shot(browser, s, 'hover-reason-red-phone-focus');
+  await evalIn(browser, s, "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })), true");
+  await sleep(400);
+  const closed = await tipText();
+  await browser.send('Emulation.clearDeviceMetricsOverride', {}, s);
+  result('hover reasons: the keyboard\'s focus shows the same tip at once, at phone width too, and Escape closes it',
+    focused === red.tip && !closed && fits === 390, { focused, closed, width: fits });
+}
+
 async function checkSerpEngines() {
   const seen = [];
   const hosts = [...new Set(ENGINES.map(([, u]) => u.split('/')[0]))];
@@ -102,6 +156,7 @@ async function checkSerpEngines() {
       await shot(browser, s, `serp-engines-${name.toLowerCase().replace(/\W+/g, '-').replace(/-+$/, '')}`);
       result(`serp-engines: ${name}: every result is marked, the listed scam red and only that one`,
         got.marked === 3 && got.red.length === 1 && /PayPal/.test(got.red[0]), got);
+      if (name === 'Google') await checkTips(browser, s);
     }
 
     const opened = seen.filter((u) => LINK_HOSTS.some((h) => u.startsWith(`${h}/`)) || u.startsWith('www.bing.com/ck/') || u.startsWith('duckduckgo.com/l/'));
