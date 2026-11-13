@@ -23,7 +23,7 @@
 
   const { $, $$ } = Site;
   const root = document.documentElement;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = document.documentElement.dataset.motion === 'off';
   const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const afterIntro = (fn) => (root.classList.contains('intro') ? document.addEventListener('sentinel:intro-done', fn, { once: true }) : fn());
 
@@ -39,7 +39,26 @@
     groups.get(g).push({ el, bar: stat.querySelector('.stat__bar') });
   }
 
-  if (reduced) { window.SentinelMotion = true; return; }
+  // Off when the page loaded: nothing here runs, until Motion is turned up; then it all starts, as a page would.
+  if (reduced) {
+    window.SentinelMotion = true;
+    const up = () => { if (root.dataset.motion !== 'off') { document.removeEventListener('sentinel:motion', up); start(); } };
+    document.addEventListener('sentinel:motion', up);
+    return;
+  }
+  start();
+
+  // Turned to Off while the page is open: every tween lands where it ends, the scroll triggers and Lenis are let go,
+  // and the page is as Off would have drawn it. (Turned up again, it stays so until the next page.)
+  document.addEventListener('sentinel:motion', function down() {
+    if (root.dataset.motion !== 'off') return;
+    document.removeEventListener('sentinel:motion', down);
+    for (const t of ST.getAll()) { if (t.animation) t.animation.progress(1); t.kill(); }
+    for (const tw of G.globalTimeline.getChildren(true, true, true)) tw.progress(1);
+    if (window.SentinelScroll && window.SentinelScroll.lenis) { window.SentinelScroll.lenis.stop(); window.SentinelScroll.lenis.destroy(); delete window.SentinelScroll; }
+  });
+
+  function start() {
 
   /* ------------------------------------------------------------- Lenis */
 
@@ -76,7 +95,7 @@
     // Links to a place on this page glide there too (the tabs and rail have their own wipe, in site.js, and say so
     // by preventing the default first). Keyboard focus follows, as a native jump would move it.
     document.addEventListener('click', (ev) => {
-      if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+      if (!window.SentinelScroll || ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
       const a = ev.target.closest && ev.target.closest('a[href*="#"]');
       if (!a || (a.target && a.target !== '_self')) return;
       let url;
@@ -284,5 +303,6 @@
       py = e.clientY;
       if (!queued && magnets.some((m) => m.on)) { queued = true; requestAnimationFrame(pull); }
     }, { passive: true });
+  }
   }
 })();

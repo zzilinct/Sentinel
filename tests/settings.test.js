@@ -34,7 +34,7 @@ test('settings: every row has its own address, and none is taken by a group', ()
   assert.deepStrictEqual(ids.filter((id, i) => ids.indexOf(id) !== i), [], 'no row twice');
   assert.deepStrictEqual(ids.filter((id) => groups.includes(id)), [], 'a row id is not a group id');
   for (const g of groups) assert.ok(new RegExp(`group: '${g}'`).test(rows), `group ${g} has a row`);
-  for (const slot of ['look', 'motion']) assert.ok(groups.includes(slot), `the ${slot} group is there for the look and motion settings`);
+  for (const slot of ['look', 'moving']) assert.ok(groups.includes(slot), `the ${slot} group is there for the look and motion settings`);
 });
 
 test('settings: every switch of the Windows app is a row, exactly once', () => {

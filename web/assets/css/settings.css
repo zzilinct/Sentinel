@@ -117,7 +117,7 @@
   .set-row__control .seg__btn { flex: 1 1 0; padding: 0 8px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
+:root[data-motion="off"] {
   .set-group, .set-row, .set-rail a::before, .first { transition: none; }
   .set-row.is-found .set-row__label::after { animation: none; transform: none; opacity: 1; }
 }

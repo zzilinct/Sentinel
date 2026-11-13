@@ -20,7 +20,115 @@ document.documentElement.classList.add('js');
 })();
 
 /*
- * The opening (intro.js) plays once per visit, never with reduced motion, never in a test browser, and never for a
+ * Motion: Full, Calm or Off, chosen once for this device, and the scan effect (the gold digits of delicate scanning),
+ * on or off. Set here before the first paint as <html data-motion> and <html data-scan-effect>, which every stylesheet
+ * and script reads: nothing asks the system on its own. When the computer asks for less motion it is Off, whatever was
+ * chosen. Calm keeps what answers you (a panel opening, a verdict arriving) and stops what moves by itself.
+ *
+ *   SentinelMotionLevel.get()             'full' | 'calm' | 'off', what is in effect
+ *   SentinelMotionLevel.set(level)        remember a choice ('full' | 'calm' | 'off')
+ *   SentinelMotionLevel.scanEffect()      true when the digits may show
+ *   SentinelMotionLevel.setScanEffect(on)
+ *   SentinelMotionLevel.system()          true when the computer asks for less motion (Off, locked)
+ *   SentinelMotionLevel.control()         the settings for it, ready to put on a page
+ * A change fires `sentinel:motion` on document. The Windows app is told too, for its live scanning overlay.
+ */
+(function () {
+  var LEVELS = ['full', 'calm', 'off'];
+  var root = document.documentElement;
+  var sys = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
+  var read = function (key) { try { return localStorage.getItem(key); } catch (e) { return null; } };
+  var write = function (key, v) { try { if (v == null) localStorage.removeItem(key); else localStorage.setItem(key, v); } catch (e) { /* this page only */ } };
+  var system = function () { return Boolean(sys && sys.matches); };
+  var chosen = function () { var v = read('sentinel:motion'); return LEVELS.indexOf(v) > 0 ? v : 'full'; };
+  var get = function () { return system() ? 'off' : chosen(); };
+  var scanEffect = function () { return read('sentinel:scan-effect') !== 'off'; };
+  var tellApp = function () {
+    var d = window.sentinelDesktop;
+    if (d && d.setMotion) d.setMotion({ motion: chosen(), scanEffect: scanEffect() }).catch(function () { /* the app keeps its last */ });
+  };
+  function apply() {
+    var level = get(), effect = scanEffect() ? 'on' : 'off';
+    var first = !root.dataset.motion;
+    if (root.dataset.motion !== level || root.dataset.scanEffect !== effect) {
+      root.dataset.motion = level;
+      root.dataset.scanEffect = effect;
+      if (!first) document.dispatchEvent(new CustomEvent('sentinel:motion', { detail: level }));
+      // Turned Off while the page is open: what scripts set moving (anime.js, a panel's spring) lands where it ends, at
+      // once; the stylesheets already stop their own.
+      if (!first && level === 'off' && document.getAnimations) {
+        document.getAnimations().forEach(function (a) {
+          if (window.CSSAnimation && (a instanceof CSSAnimation || a instanceof CSSTransition)) return;
+          try { a.finish(); } catch (e) { a.cancel(); }
+        });
+      }
+    }
+    // Once per page and on every change: the Windows app keeps it for windows that are not web pages.
+    tellApp();
+  }
+
+  var NOTES = {
+    full: 'Masks turn, panels spring open and backgrounds drift.',
+    calm: 'Panels still open and answers still fade in. Nothing drifts, turns or loops by itself.',
+    off: 'Nothing moves. Pages and answers appear at once.',
+    locked: 'Your computer asks for less motion, so Sentinel follows.'
+  };
+  var uid = 0;
+  function control() {
+    var id = 'motion-' + (++uid);
+    var box = document.createElement('div');
+    box.className = 'motion-set';
+    // The row is #motion (the first-run step and links point at it); a second copy on the same page goes without.
+    box.innerHTML = '<div class="setting"' + (document.getElementById('motion') ? '' : ' id="motion"') + '><div><b id="' + id + '">Animation</b><span data-motion-note></span></div>'
+      + '<div class="seg motion-set__seg" role="radiogroup" aria-labelledby="' + id + '">'
+      + LEVELS.map(function (l) { return '<label class="seg__btn"><input class="sr-only" type="radio" name="' + id + '" value="' + l + '">' + l[0].toUpperCase() + l.slice(1) + '</label>'; }).join('')
+      + '</div></div>'
+      + '<label class="setting"><div><b>Scan effect</b><span data-scan-note></span></div><input class="switch" type="checkbox" data-scan-effect-switch></label>';
+    var radios = box.querySelectorAll('input[type=radio]');
+    var sw = box.querySelector('[data-scan-effect-switch]');
+    var seen = false;
+    function show() {
+      // Taken off the page (its view was drawn again): it stops listening.
+      if (!box.isConnected && seen) { document.removeEventListener('sentinel:motion', show); return; }
+      seen = seen || box.isConnected;
+      var level = get(), locked = system();
+      radios.forEach(function (r) {
+        r.checked = r.value === level;
+        r.disabled = locked;
+        r.parentNode.classList.toggle('is-on', r.checked);
+      });
+      box.querySelector('[data-motion-note]').textContent = locked ? NOTES.locked : NOTES[level];
+      sw.checked = scanEffect() && level !== 'off';
+      sw.disabled = level === 'off';
+      box.querySelector('[data-scan-note]').textContent = level === 'off'
+        ? 'Motion is off, so delicate scanning shows only the gold line and the marks.'
+        : 'Faint gold digits settle over the results while delicate scanning checks them.' + (level === 'calm' ? ' Calm shows fewer, turning slower.' : '');
+    }
+    radios.forEach(function (r) { r.addEventListener('change', function () { if (r.checked) set(r.value); }); });
+    sw.addEventListener('change', function () { setScanEffect(sw.checked); });
+    document.addEventListener('sentinel:motion', show);
+    show();
+    return box;
+  }
+  function set(level) {
+    if (LEVELS.indexOf(level) < 0) return;
+    write('sentinel:motion', level === 'full' ? null : level);
+    apply();
+  }
+  function setScanEffect(on) {
+    write('sentinel:scan-effect', on ? null : 'off');
+    apply();
+  }
+
+  apply();
+  // The system setting changed, or another tab chose: this page follows at once.
+  if (sys && sys.addEventListener) sys.addEventListener('change', apply);
+  addEventListener('storage', function (ev) { if (ev.key === 'sentinel:motion' || ev.key === 'sentinel:scan-effect') apply(); });
+  window.SentinelMotionLevel = { get: get, set: set, scanEffect: scanEffect, setScanEffect: setScanEffect, system: system, control: control };
+})();
+
+/*
+ * The opening (intro.js) plays once per visit, only with Full motion, never in a test browser, and never for a
  * page that is only being printed or prerendered. The class goes on now, before the first paint, so the page does
  * not flash before the cover; whatever happens to intro.js, it comes off by itself after 10 s (intro.js itself never runs
  * past 8 s, the longest a slow page is allowed to keep its sketch).
@@ -31,7 +139,8 @@ document.documentElement.classList.add('js');
     var forced = /[?&]intro=1\b/.test(location.search);
     // Crawlers and speed tests see the page itself: the opening is for people.
     if (!forced && (sessionStorage.getItem('sentinel:intro') || navigator.webdriver || /HeadlessChrome|bot|crawl|spider|slurp|Lighthouse|PageSpeed/i.test(navigator.userAgent))) return;
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // Calm and Off skip it: it is the largest thing on the site that moves by itself.
+    if (document.documentElement.dataset.motion !== 'full') return;
     if (!forced && (document.visibilityState === 'hidden' || document.prerendering)) return;
     document.documentElement.classList.add('intro');
     // Fail open: if intro.js never ran, the page still uncovers and whatever waits for the opening still starts.

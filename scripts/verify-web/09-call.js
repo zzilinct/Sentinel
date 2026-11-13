@@ -168,6 +168,8 @@ async function checkCall() {
       const box = document.querySelector('input[value=giftcards]'); box.click(); setTimeout(() => box.click(), 650); })`);
     result('call: no frame stalls while the panel opens and shuts (worst gap under 100 ms)', frames.worst < 100, frames);
     await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
+    // The page hears the change on its next frame (boot.js sets Motion Off), as it would when Windows' setting changes.
+    for (let i = 0; i < 20 && await evalIn(browser, s, "document.documentElement.dataset.motion") !== 'off'; i++) await sleep(100);
     const still = await evalIn(browser, s, "(() => { const box = document.querySelector('input[value=giftcards]'); box.click(); const n = document.querySelector('.call__plate').getAnimations().filter((a) => a.effect.getKeyframes().some((k) => k.height)).length; box.click(); return n; })()");
     result('call: asked for reduced motion, the panel does not spring', still === 0, still);
 

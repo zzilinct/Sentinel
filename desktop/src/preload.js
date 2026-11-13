@@ -14,6 +14,8 @@ function on(channel, callback) {
 }
 
 contextBridge.exposeInMainWorld('sentinelDesktop', {
+  // Motion (Full, Calm or Off) and the scan effect: told when the page has loaded and on every change (pages/motion.js).
+  onMotion: (callback) => ipcRenderer.on('sentinel:motion-level', (_event, m) => callback(m)),
   info: () => ipcRenderer.invoke('sentinel:info'),
   // The look (light, dark or Auto, and the accent), one setting for the app, live scanning, its cards and the companion.
   look: () => ipcRenderer.invoke('sentinel:look'),
@@ -74,6 +76,8 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   // Text size and spacing (boot.js sends them), for Sentinel's own windows; they hear them back (pages/type.js).
   setType: (t) => ipcRenderer.invoke('sentinel:type', { text: String(t && t.text), density: String(t && t.density) }),
   onType: (callback) => ipcRenderer.on('sentinel:type-level', (_event, t) => callback(t)),
+  // Motion (full, calm or off) and the scan effect, for the live scanning overlay (boot.js sends it).
+  setMotion: (m) => ipcRenderer.invoke('sentinel:motion', { motion: String(m && m.motion), scanEffect: !(m && m.scanEffect === false) }),
   // Texts in Phone Link: one switch.
   setTextSafety: (enabled) => ipcRenderer.invoke('sentinel:text-safety', Boolean(enabled)),
   onTextSafety: (callback) => on('sentinel:text-safety', callback),

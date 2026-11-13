@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('sentinelOverlay', {
   },
   // Text size and spacing: told when the page has loaded and on every change (pages/type.js).
   onType: (callback) => ipcRenderer.on('sentinel:type-level', (_event, t) => callback(t)),
+  // Motion (Full, Calm or Off) and the scan effect: told when the page has loaded and on every change (pages/motion.js).
+  onMotion: (callback) => ipcRenderer.on('sentinel:motion-level', (_event, m) => callback(m)),
   interact: (on) => ipcRenderer.send('overlay:interact', Boolean(on)),
   act: (action) => ipcRenderer.send('overlay:act', String(action))
 });

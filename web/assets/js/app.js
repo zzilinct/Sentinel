@@ -6,6 +6,9 @@
   const Masks = window.SentinelMasks;
   const view = $('#view');
   const desktop = window.sentinelDesktop || null;
+  // Motion Off (boot.js data-motion): nothing glides or rises. Asked each time: it can change while the app is open.
+  const still = () => document.documentElement.dataset.motion === 'off';
+  const glide = () => (still() ? 'auto' : 'smooth');
 
   const state = { me: null, config: null, plans: null, desktopInfo: null };
   const Share = window.SentinelShare;
@@ -263,7 +266,7 @@
   // (cosmos.js fetches the models). data-rise says when the verdict landed: a mask ready soon enough rises into place.
   function riseMask(out) {
     const mask = $('[data-verdict-mask]', out);
-    if (!mask || !window.SentinelLoadMask3D || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!mask || !window.SentinelLoadMask3D || still()) return;
     mask.dataset.rise = String(performance.now());
     mask.dataset.mask3d = mask.dataset.verdictMask;
     window.SentinelLoadMask3D();
@@ -1212,7 +1215,7 @@
         wireWarn(out, () => window.SentinelWarnCard.fromText(data.text, from, $('[data-text-result]', out).dataset.textResult));
         const heading = $('h2', out);
         if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
-        out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        out.scrollIntoView({ behavior: glide(), block: 'start' });
       } catch (err) { watch.fail(); out.innerHTML = friendlyError(err); }
     }
 
@@ -1484,7 +1487,7 @@
       } else if (handed && handed.image) {
         refresh();
         readPicture(handed.image);
-        preview.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        preview.scrollIntoView({ block: 'center', behavior: glide() });
       } else refresh();
     });
   }
@@ -1690,7 +1693,7 @@
       row.appendChild(panel);
       btn.setAttribute('aria-expanded', 'true');
       $('a, button', panel).focus({ preventScroll: true });
-      panel.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
+      panel.scrollIntoView({ behavior: glide(), block: 'nearest' });
     });
   }
 
@@ -2663,7 +2666,7 @@
       try { localStorage.setItem(FIRST_KEY, '1'); } catch { /* asked again next time: nothing lost */ }
       const back = box.contains(document.activeElement);
       const gone = () => { slot.innerHTML = ''; if (back) { const q = $('[data-quick] input'); if (q) q.focus({ preventScroll: true }); } };
-      if (matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'off') { gone(); return; }
+      if (still()) { gone(); return; }
       box.addEventListener('transitionend', (ev) => { if (ev.target === box) gone(); });
       setTimeout(gone, 800);   // a transition that never ends (a hidden tab) still leaves
       box.classList.add('is-out');
@@ -2902,10 +2905,10 @@
    * filters it as you type and feeds the search palette, so a setting is found by its words wherever it is asked for.
    * A row that cannot work here says why in place of working: its control disabled, never hidden, never shown as on.
    * A change is saved when it is pressed; a failed save puts the control back and says why.
-   * The groups are fixed. The accent and look picker adds its rows to 'look', motion and the scan effect to 'motion'.
+   * The groups are fixed. The accent and look picker adds its rows to 'look', motion and the scan effect to 'moving'.
    */
   const SETTING_GROUPS = [
-    ['look', 'Appearance'], ['motion', 'Motion'], ['protection', 'Live protection'], ['guards', 'Everyday guards'],
+    ['look', 'Appearance'], ['moving', 'Motion'], ['protection', 'Live protection'], ['guards', 'Everyday guards'],
     ['chat', 'Chat and texts'], ['alerts', 'Alerts'], ['lock', 'Parent lock'], ['account', 'Account and security'], ['data', 'Your data'], ['plan', 'Plan and app'], ['help', 'Help']
   ];
   const NEEDS_APP = 'Needs the Sentinel app for Windows.';
@@ -2957,10 +2960,17 @@
       control: () => seg('set-density-l', [['comfortable', 'Comfortable'], ['compact', 'Compact']], window.SentinelType ? window.SentinelType.get().density : 'comfortable'),
       bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelType) window.SentinelType.set({ density: b.dataset.seg }); ctx.draw(); })) },
 
-    { id: 'reduce-motion', group: 'motion', kind: 'custom', label: 'Less motion', hint: 'Sentinel follows your computer. With Reduce motion turned on in your computer or phone settings, nothing slides, springs or draws.',
-      words: ['animation', 'animations', 'reduce', 'still', 'calm', 'effects', 'moving'],
-      state: () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'Your computer asks for less motion, so Sentinel keeps still.' : 'Full motion: your computer does not ask for less.'),
-      control: () => '<span class="set-row__value">Follows your computer</span>' },
+    // Motion (boot.js SentinelMotionLevel): its own control, Animation (Full, Calm, Off) and the Scan effect switch. The
+    // row's heading names it, so the control's own name is kept for screen readers only.
+    { id: 'motion', group: 'moving', kind: 'block', label: 'Animation', hint: `How much Sentinel moves on this ${desktop ? 'computer, here and over your browser' : 'device'}. Off whenever your computer asks for less motion.`,
+      words: ['animation', 'animations', 'motion', 'reduce', 'still', 'calm', 'effects', 'moving', 'scan effect', 'digits', 'glitch', 'binary'],
+      mount: (body) => {
+        if (!window.SentinelMotionLevel) return;
+        const c = window.SentinelMotionLevel.control();
+        const name = $('.setting b', c);
+        if (name) name.classList.add('sr-only');
+        body.append(c);
+      } },
 
     { id: 'live-mode', group: 'protection', kind: 'custom', app: true, label: 'Scanning mode', hint: 'Fast marks search results about a second after you search. Delicate also looks up how old each site is and whether it resolves, and takes about five seconds.',
       words: ['fast', 'delicate', 'live', 'speed', 'research', 'search results'],
@@ -3422,7 +3432,6 @@
   }
 
   function settingsView(el) {
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     el.innerHTML = `${title('Settings', 'Every choice Sentinel offers, in one place. A change is saved the moment you make it.')}
       <div class="set" data-desktop>
         <nav class="set-rail" aria-label="Settings groups">${SETTING_GROUPS.map(([g, name], i) => `<a href="#${g}" data-set-go="${g}"${i ? '' : ' aria-current="true"'}>${name}</a>`).join('')}</nav>
@@ -3480,7 +3489,7 @@
     function goTo(id, found) {
       const target = id && (SETTINGS.some((r) => r.id === id) || SETTING_GROUPS.some(([g]) => g === id)) ? $(`#${id}`, el) : null;
       if (!target) return;   // an unknown or old address: the page as it is
-      target.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+      target.scrollIntoView({ block: 'start', behavior: glide() });
       if (!found || !target.matches('.set-row')) return;
       target.classList.remove('is-found');
       void target.offsetWidth;

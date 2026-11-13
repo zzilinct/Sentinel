@@ -9,17 +9,18 @@
  *   Ink      links fill with gold from the side the pointer came in, and drain out of the side it leaves.
  *   Trace    rows and options have an engraved border that draws itself from where the pointer entered.
  *
- * Mouse only, and nothing at all with reduced motion; the CSS that goes with it (hover.css) only applies under
- * html.hv, which this file sets. Nothing here hides content or changes layout.
+ * Mouse only, and nothing at all with Motion Off (followed at once when it changes); the CSS that goes with it
+ * (hover.css) only applies under html.hv, which this file sets. Nothing here hides content or changes layout.
  */
 (() => {
   'use strict';
 
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   // A touch screen has no lamp to follow.
   if (!matchMedia('(hover: hover) and (pointer: fine)').matches) return;
   const root = document.documentElement;
-  root.classList.add('hv');
+  const on = () => root.classList.toggle('hv', root.dataset.motion !== 'off');
+  on();
+  document.addEventListener('sentinel:motion', on);
   const clamp = (v, a = -1, b = 1) => Math.max(a, Math.min(b, v));
 
   const LAMP = '.btn:not(.btn--gold):not(.btn--ghost), .chip-q:not([aria-selected="true"]), .chip, .fchip, .card, .tile, .stat, .answer, .plate__info, .hero__card, .game, .try, .kinds, .faq details, .window, .float, .compare-wrap, .panel, .feature, .usage-list, .models--bar';
@@ -35,7 +36,7 @@
   let frame = 0;
   const wake = () => { if (!frame) frame = requestAnimationFrame(tick); };
 
-  addEventListener('pointermove', (e) => { px = e.clientX; py = e.clientY; target = e.target; present = true; wake(); }, { passive: true });
+  addEventListener('pointermove', (e) => { if (!root.classList.contains('hv')) return; px = e.clientX; py = e.clientY; target = e.target; present = true; wake(); }, { passive: true });
   document.addEventListener('mouseout', (e) => { if (!e.relatedTarget) { present = false; wake(); } });
   addEventListener('blur', () => { present = false; wake(); });
   addEventListener('scroll', () => { target = null; wake(); }, { passive: true });

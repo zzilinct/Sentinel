@@ -65,7 +65,7 @@
       @media (prefers-color-scheme: light){
         .tip{background:#fbf8f1;color:#1d1c19;box-shadow:0 10px 30px rgba(40,30,10,.16), inset 0 0 0 1px color-mix(in srgb, var(--c) 70%, #0000)}
         .tip b{color:color-mix(in srgb, var(--c) 45%, #1d1c19)}.tip p{color:#36332d}.tip span{color:#6b665c}}
-      @media (prefers-reduced-motion: reduce){.tip{transition:none;transform:none}}
+      :host([data-motion=off]) .tip{transition:none;transform:none}
     </style><div class="tip" role="status" aria-live="polite"></div>`;
     document.documentElement.appendChild(host);
     tip = { host, el: root.querySelector('.tip') };
@@ -125,6 +125,7 @@
     const top = r.right + 8 + w <= innerWidth ? r.top + (r.height - h) / 2 : (r.bottom + 6 + h <= innerHeight ? r.bottom + 6 : r.top - h - 6);
     el.style.left = `${Math.round(left)}px`;
     el.style.top = `${Math.round(Math.max(4, top))}px`;
+    tip.host.dataset.motion = motionOf(settings.motion);
     requestAnimationFrame(() => el.classList.add('on'));
   }
   // The search results' marks (serp.js) explain themselves in this same tip.
@@ -132,7 +133,10 @@
 
   /* ------------------------------------------------------------ hover */
 
-  const DEFAULTS = { enabled: true, marksLevel: 'all' };
+  const DEFAULTS = { enabled: true, marksLevel: 'all', motion: 'full' };
+  // Motion, from the companion's settings (Full, Calm or Off); the system asking for less motion is Off. The shadow
+  // styles below read it from :host([data-motion]).
+  const motionOf = (m) => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : m === 'calm' || m === 'off' ? m : 'full');
   let settings = DEFAULTS;
   const verdicts = new Map();     // url -> verdict, for this page
   let current = null;

@@ -5,7 +5,10 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const Masks = window.SentinelMasks;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Off (boot.js data-motion): no smooth scroll, no page wipe, no rising headings. still() is asked at the moment, so a
+  // change of Motion holds at once; reduced is how the page was when it loaded (its entrances are decided once).
+  const still = () => document.documentElement.dataset.motion === 'off';
+  const reduced = still();
 
   // Browsers without IntersectionObserver still get everything, revealed at once.
   const Observer = window.IntersectionObserver || class {
@@ -19,7 +22,7 @@
   // head is revealed by its laser timeline there, not by the reveals here. A page without them keeps the reveals.
   const gs = !reduced && Boolean(document.querySelector('script[src*="vendor/gsap"]'));
 
-  window.Site = { $, $$, reduced, Observer };
+  window.Site = { $, $$, get reduced() { return still(); }, Observer };
 
   // Shown: its entrance plays (CSS).
   function reveal(el) {
@@ -30,7 +33,7 @@
   // idea of where the page is never drifts from where the page is; natively otherwise. Lands exactly unless smooth.
   Site.scrollTo = (top, smooth) => {
     if (window.SentinelScroll) window.SentinelScroll.to(top, smooth);
-    else scrollTo({ top, behavior: smooth && !reduced ? 'smooth' : 'instant' });
+    else scrollTo({ top, behavior: smooth && !still() ? 'smooth' : 'instant' });
   };
 
   /* ------------------------------------------------------------- glyphs */
@@ -182,7 +185,7 @@
 
   function onTab(ev) {
     const a = ev.currentTarget;
-    if (reduced || ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+    if (still() || ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
     if (a.target && a.target !== '_self') return;
     if (a.getAttribute('aria-disabled') === 'true' || !a.getAttribute('href') || a.getAttribute('href') === '#') return;
     let url;
@@ -492,10 +495,11 @@
   /* --------------------------------------------------------------- tilt */
 
   // Panels lean toward the pointer. Mouse only: touch scrolling never tilts anything.
-  if (!reduced && matchMedia('(hover: hover) and (pointer: fine)').matches) {
+  if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
     $$('[data-tilt]').forEach((el) => {
       const max = Number(el.dataset.tilt) || 6;
       el.addEventListener('pointermove', (ev) => {
+        if (still()) return;
         const r = el.getBoundingClientRect();
         el.style.setProperty('--ry', `${((ev.clientX - r.left) / r.width - 0.5) * max}deg`);
         el.style.setProperty('--rx', `${(0.5 - (ev.clientY - r.top) / r.height) * max}deg`);
@@ -511,7 +515,8 @@
 
   /* ------------------------------------------------------------- ripples */
 
-  if (!reduced) document.addEventListener('pointerdown', (ev) => {
+  document.addEventListener('pointerdown', (ev) => {
+    if (still()) return;
     const b = ev.target.closest && ev.target.closest('.chip-q, .severity button, .seg-toggle button');
     if (!b) return;
     const r = b.getBoundingClientRect();
@@ -527,7 +532,7 @@
 
   // The words lean with the speed of the scroll.
   const marquee = $('[data-marquee]');
-  if (marquee && !reduced) {
+  if (marquee) {
     let lastY = scrollY;
     let skew = 0;
     let running = false;
@@ -544,7 +549,7 @@
     new Observer((entries) => {
       visible = entries[0].isIntersecting;
       lastY = scrollY;
-      if (visible && !running) { running = true; requestAnimationFrame(lean); }
+      if (visible && !running && !still()) { running = true; requestAnimationFrame(lean); }
     }).observe(marquee);
   }
 })();

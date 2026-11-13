@@ -79,7 +79,9 @@
   const api = { bands, veil, veilStops, LEVELS, MAX, PERIOD };
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
 
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Calm and Off (boot.js data-motion): the field stands still.
+  let reduced = document.documentElement.dataset.motion !== 'full';
+  document.addEventListener('sentinel:motion', () => { reduced = document.documentElement.dataset.motion !== 'full'; });
   const pointerFine = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const root = document.documentElement;
   const state = { running: false, frames: 0, phase: 0, scroll: 0, glow: 0, dpr: 1, max: 0, theme: 'dark', h: 0, clear: 0 };
@@ -209,7 +211,7 @@
 
     function frame(now) {
       raf = 0;
-      if (!visible || document.hidden) { state.running = false; return; }
+      if (!visible || document.hidden || reduced) { state.running = false; if (reduced) draw(now); return; }
       raf = requestAnimationFrame(frame);
       if (now - last < 32) return;
       last = now;
@@ -229,6 +231,8 @@
     size();
     new IntersectionObserver((es) => { visible = es[es.length - 1].isIntersecting; run(); }, { rootMargin: '80px 0px' }).observe(section);
     document.addEventListener('visibilitychange', run);
+    // Motion changed: Calm or Off stops the field on its next frame (drawn still), Full starts it again.
+    document.addEventListener('sentinel:motion', () => { if (reduced) draw(performance.now()); else run(); });
     let pending = 0;
     new ResizeObserver(() => {
       if (pending) return;
@@ -237,7 +241,7 @@
     const retheme = () => { theme(); retint(); draw(performance.now()); };
     new MutationObserver(retheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
     matchMedia('(prefers-color-scheme: light)').addEventListener('change', retheme);
-    if (!reduced && pointerFine) {
+    if (pointerFine) {
       section.addEventListener('pointermove', (e) => {
         const r = section.getBoundingClientRect();
         ptr.tx = e.clientX - r.left; ptr.ty = e.clientY - r.top;

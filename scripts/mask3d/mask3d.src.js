@@ -12,7 +12,7 @@
  *   data-rise="<performance.now()>"         a verdict's mask, from that moment: rises into place if the model is ready
  *                                           soon enough, then holds still (no drift, and no more frames drawn)
  *
- * The <img> inside stays until the model is drawn (and stays for good without WebGL or with reduced motion: a
+ * The <img> inside stays until the model is drawn (and stays for good without WebGL or with Calm or Off motion: a
  * still render is the right answer there). window.SentinelMask3D.get(el) returns the mask's controls: tint(name),
  * swallow(newTint, ms) for the threat plates' black hole, and mix(a, b, t) for the colour reading.
  */
@@ -25,7 +25,9 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { CAMERA, POSES, halfView, drift } from './pose.js';
 
 const BASE = (document.currentScript && document.currentScript.src) ? new URL('../models/', document.currentScript.src).href : '/assets/models/';
-const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Calm and Off (boot.js data-motion): a still render, posed, that neither drifts nor turns to the pointer. Asked each
+// frame, so a change of Motion takes hold at once (each mask redraws on sentinel:motion, below).
+const reduced = () => document.documentElement.dataset.motion !== 'full';
 // How often a mask that is only drifting (breathing, swaying, its eyes flickering) is redrawn: slow motion needs few
 // frames, and on a phone fewer still (the drift is the same, the phone stays cool).
 const IDLE_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;
@@ -335,6 +337,7 @@ async function build(el) {
   };
   let visible = false;
   new ResizeObserver(resize).observe(el);
+  document.addEventListener('sentinel:motion', () => { dirty = true; stir(); });
   new IntersectionObserver((e) => { visible = e[0].isIntersecting; if (visible) { mask.last = performance.now(); stir(); } }, { rootMargin: '80px' }).observe(el);
   resize();
 
@@ -351,13 +354,13 @@ async function build(el) {
   let anim = null;   // a running swallow or colour change
   let swallowing = null;   // the black hole, while it runs
   const still = el.dataset.rise !== undefined;
-  let riseFrom = still && !reduced && performance.now() - Number(el.dataset.rise) < RISE_LATE_MS ? performance.now() : 0;
+  let riseFrom = still && !reduced() && performance.now() - Number(el.dataset.rise) < RISE_LATE_MS ? performance.now() : 0;
   const colorFrom = new Color();
   const colorTo = new Color();
 
   const target = () => {
     tx = 0; ty = 0; tw = 0;
-    if (!reach || !pointer || reduced) return;
+    if (!reach || !pointer || reduced()) return;
     const r = el.getBoundingClientRect();
     const cx = r.left + r.width / 2;
     const cy = r.top + r.height * 0.42;
@@ -413,7 +416,7 @@ async function build(el) {
       const face = look.w * 0.5;
       holder.rotation.set(rest.x * (1 - face), rest.y * (1 - face), rest.z * (1 - face));
       // Breathing, and for masks that do not watch a slow sway, like a piece turning on a display stand.
-      const d = drift(t, look, !reach, reduced || still);
+      const d = drift(t, look, !reach, reduced() || still);
       pivot.rotation.set(d.x, d.y, d.z);
       pivot.position.y = frame.y + d.lift;
       if (riseFrom) {
@@ -437,7 +440,7 @@ async function build(el) {
       const idle = !moving && !anim && !riseFrom;
       const scrolling = now < scrollingUntil;
       const every = resting ? REST_MS - 8 : IDLE_MS;
-      const fixed = reduced || still;
+      const fixed = reduced() || still;
       if (dirty || !idle || (!fixed && !scrolling && now - drawnAt > every)) { draw(); drawnAt = now; dirty = false; }
       return !idle ? 2 : (!fixed || eyes) ? 1 : 0;
     }

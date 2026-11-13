@@ -120,7 +120,13 @@
   var capEl = host.querySelector('.galaxy__caption');
   var listEl = host.querySelector('.galaxy__list');
   var rootEl = document.documentElement;
-  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Calm and Off (boot.js data-motion): one still spiral.
+  var reduced = document.documentElement.dataset.motion !== 'full';
+  // A change of Motion takes hold at once: stilled, or turning again (still and wake are declared below).
+  document.addEventListener('sentinel:motion', function () {
+    reduced = document.documentElement.dataset.motion !== 'full';
+    if (reduced) still(); else wake();
+  });
   var script = document.currentScript;
   var imgBase = script ? new URL('../img/', script.src).href : '/assets/img/';
   var M = root.SentinelMasks;

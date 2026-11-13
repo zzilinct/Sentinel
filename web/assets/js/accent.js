@@ -41,7 +41,8 @@
   const name = section.querySelector('[data-accent-name]');
   const sheet = doc.createElement('style');
   doc.head.appendChild(sheet);
-  const still = () => root.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Motion Off (boot.js data-motion, which the system asking for less motion also sets): every change is instant.
+  const still = () => html.dataset.motion === 'off';
 
   group.innerHTML = ACCENTS.map((a) => {
     const r = a.id === 'gold' ? null : L.ramp(a.id, 'dark');

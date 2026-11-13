@@ -16,6 +16,7 @@ export const DEFAULTS = {
   warningsLevel: 'all',    // Pop-up warnings: always (orange and red), danger only, or never (masks.js warns)
   scanOverlay: true,       // the golden line and tint while results are being checked
   commandGuard: true,      // Stop pasted commands: a page cannot copy a command only a trick would ask you to paste
+  motion: 'full',          // Full, Calm or Off: how much the companion's warnings, pills and lines move
   chatHints: true          // A quiet hint under a web-chat message that asks for a code, gift cards or crypto (read in the page)
 };
 

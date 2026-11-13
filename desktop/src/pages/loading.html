@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; img-src data:; script-src 'unsafe-inline' file:">
 <title>Sentinel</title>
+<script src="motion.js"></script>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <script src="../../shared/look.js"></script>
 <script>SentinelLook.paint(document.documentElement, SentinelLook.fromQuery(location.search));</script>
@@ -18,7 +19,8 @@
   .bar { width: 160px; height: 3px; margin: 22px auto 0; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
   .bar i { display: block; width: 40%; height: 100%; background: var(--acc); animation: slide 1.2s ease-in-out infinite; }
   @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
-  @media (prefers-reduced-motion: reduce) { .bar i { animation: none; width: 100%; opacity: .5; } }
+  /* Off: a still bar, half lit (Motion, pages/motion.js). Calm keeps it: it says Sentinel is working. */
+  :root[data-motion="off"] .bar i { animation: none; width: 100%; opacity: .5; }
   @media (prefers-color-scheme: light) {
     html, body { background: #f6f4ef; color: #1c1b18; }
     p { color: #5f5c55; }

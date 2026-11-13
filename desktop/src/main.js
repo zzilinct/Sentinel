@@ -1656,6 +1656,18 @@ function registerBridge() {
     refreshTray();
     return { ...watch.status(), enabled: store.get('liveScanning', false) };
   });
+  // Motion (full, calm or off) and the scan effect: chosen in the app (boot.js), kept here for Sentinel's own windows
+  // (the overlay, the cards, the chat cards, the screen check), which are not web pages and cannot read the app's
+  // storage. Written only when it changed (every app page says it), and then told to every open window at once.
+  handle('sentinel:motion', (m) => {
+    const next = { motion: ['calm', 'off'].includes(m && m.motion) ? m.motion : 'full', scanEffect: !(m && m.scanEffect === false) };
+    const was = motionLevel();
+    if (was.motion === next.motion && was.scanEffect === next.scanEffect) return next;
+    store.set('motion', next.motion);
+    store.set('scanEffect', next.scanEffect);
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('sentinel:motion-level', next);
+    return next;
+  });
   handle('sentinel:scan-with', (id) => {
     if (typeof id !== 'string' || !browsers.BROWSERS.some((b) => b.id === id)) throw new Error('Unknown browser');
     return scanWith(id);
@@ -2115,10 +2127,17 @@ function typeLevel(t) {
 app.on('web-contents-created', (_event, contents) => {
   contents.on('did-finish-load', () => { if (!contents.isDestroyed()) contents.send('sentinel:type-level', typeLevel(store.get('type'))); });
 });
+/** Motion (full, calm or off) and the scan effect, as the app last chose them (boot.js, sentinel:motion). */
+function motionLevel() {
+  const m = store.get('motion', 'full');
+  return { motion: ['calm', 'off'].includes(m) ? m : 'full', scanEffect: store.get('scanEffect', true) !== false };
+}
 
 // Refuse to attach webviews or navigate any other contents to foreign origins.
 app.on('web-contents-created', (event, contents) => {
   contents.on('will-attach-webview', (e) => e.preventDefault());
+  // Every window's page learns the Motion setting as it loads (pages/motion.js); the app's own pages ignore it.
+  contents.on('did-finish-load', () => { if (!contents.isDestroyed()) contents.send('sentinel:motion-level', motionLevel()); });
   // A window's page process ended (out of memory, a graphics driver): the app's window was left blank, and the live
   // scanning overlay drew nothing more until Sentinel restarted. The app's page loads again; any other window goes,
   // and the overlay is made again over the browser in front.

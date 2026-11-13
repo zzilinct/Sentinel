@@ -13,13 +13,15 @@
  *   SentinelBinary.lens(selector)          hovering a card shows binary around the pointer
  *
  * Shared by the website, the web app and the Windows app's live scanning overlay (copied there by sync-shared.js).
- * With reduced motion it draws nothing, and every call still resolves.
+ * It follows <html data-motion> and <html data-scan-effect> (boot.js on the web; the overlay's page in the Windows app):
+ * Off, or the scan effect off, draws nothing and every call still resolves. Calm digs with half the digits, turning a
+ * third as often, and no moving band; the heading and the lens are Full only.
  */
 (function () {
   'use strict';
 
-  var motion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
-  var isReduced = function () { return Boolean(motion && motion.matches); };
+  var root = document.documentElement;
+  function level() { return root.dataset.scanEffect === 'off' ? 'off' : root.dataset.motion === 'off' || root.dataset.motion === 'calm' ? root.dataset.motion : 'full'; }
   // Severity colours made for black: the yellow is lemon, nothing like the gold.
   var COLORS = { gold: '#d6b25a', yellow: '#fff23a', orange: '#ff7a1a', red: '#ff3b3b', green: '#34e07a' };
   var CW = 9;
@@ -81,7 +83,9 @@
 
   function dig(host, opts) {
     opts = opts || {};
-    if (isReduced()) return { progress: function () {}, finish: function () { return Promise.resolve(); }, stop: function () {} };
+    var lv = level();
+    if (lv === 'off') return { progress: function () {}, finish: function () { return Promise.resolve(); }, stop: function () {} };
+    var calm = lv === 'calm';
     var A = glyphs();
     var canvas = null, ctx = null;
     var W = 0, H = 0;
@@ -104,7 +108,7 @@
       for (var y = 0; y < H; y += GAP_Y) {
         for (var x = 0; x < W; x += GAP_X) {
           var h = hash(x, y, 1);
-          if (h % 1000 < FILL * 1000) cells.push({ x: x, y: y, h: h, a: 0.6 + (h % 41) / 100 });
+          if (h % 1000 < FILL * (calm ? 500 : 1000)) cells.push({ x: x, y: y, h: h, a: 0.6 + (h % 41) / 100 });
         }
       }
       lastTick = -1;
@@ -124,7 +128,7 @@
       var dt = Math.min(100, now - lastDraw);
       if (dt < 33) return;    // thirty frames a second is plenty for something this slow
       lastDraw = now;
-      var tick = Math.floor(now / TICK_MS);
+      var tick = Math.floor(now / (calm ? TICK_MS * 3 : TICK_MS));
       var goal = want === null ? 0 : want * H;
       var moving = Math.abs(goal - reach) > 0.5;
       if (!moving && tick === lastTick) return;
@@ -145,7 +149,7 @@
         for (var ly = 0; ly < l.h; ly += CH + 2) {
           for (var lx = 0; lx < l.w; lx += CW + 3) {
             var lh = hash(lx, ly, k + 2);
-            if (lh % 10 < 6) ctx.drawImage(A.canvas, digit(lh, tick) * A.w, row * A.h, A.w, A.h, l.x + lx, l.y + ly, CW, CH);
+            if (lh % 10 < (calm ? 3 : 6)) ctx.drawImage(A.canvas, digit(lh, tick) * A.w, row * A.h, A.w, A.h, l.x + lx, l.y + ly, CW, CH);
           }
         }
       }
@@ -174,7 +178,7 @@
     begin.timer = setTimeout(begin, opts.grace == null ? GRACE_MS : opts.grace);
     return {
       // How far the scan has really got, from 0 to 1: only ever what it reported.
-      progress: function (p) { want = Math.max(0, Math.min(1, p)); },
+      progress: function (p) { if (!calm) want = Math.max(0, Math.min(1, p)); },
       // The answer is in: the digits fade by themselves, over whatever is there by now. Nothing waits for this.
       finish: function () {
         if (done) return Promise.resolve();
@@ -201,7 +205,7 @@
   /* -------------------------------------------- a heading out of binary */
 
   function decode(el, ms) {
-    if (isReduced() || !el || el.dataset.decoding) return;
+    if (level() !== 'full' || !el || el.dataset.decoding) return;
     el.dataset.decoding = '1';
     var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     var nodes = [];
@@ -230,7 +234,7 @@
   /* ------------------------------------- a lens of binary under the pointer */
 
   function lens(selector) {
-    if (isReduced() || !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
+    if (level() !== 'full' || !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
     var A = null, canvas = null, ctx = null, host = null, px = 0, py = 0, alpha = 0, raf = 0;
     function draw() {
       raf = 0;

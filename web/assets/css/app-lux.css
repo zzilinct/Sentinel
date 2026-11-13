@@ -294,8 +294,8 @@ html.lux-app[data-theme="light"] {
 
 /* ----------------------------------------------------- reduced motion */
 
-@media (prefers-reduced-motion: reduce) {
-  .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i,
+:root[data-motion="off"] {
+  .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .empty svg,
   .lux-wipe, .lux-ghost, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i, .lux-app .warn-card { animation: none !important; }
   .lux-wipe, .lux-ghost { display: none; }
   /* The island only fades in and out, at its size, and swaps its words in place. */

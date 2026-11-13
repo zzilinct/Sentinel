@@ -1006,7 +1006,7 @@ function overlaySandbox() {
     localStorage: { getItem: () => null, setItem() {} },
     location: { search: '' },
     Map, Math, Number, String, Boolean, console,
-    document: { getElementById: (id) => (els[id] = els[id] || el()), createElement: el, body: el() },
+    document: { getElementById: (id) => (els[id] = els[id] || el()), createElement: el, body: el(), documentElement: { dataset: {} } },
   };
   ctx.window = Object.assign(ctx, { innerWidth: 1000, innerHeight: 700, addEventListener() {},
     SentinelMasks: { COLORS: {}, svg: () => '', setMetal() {} }, SentinelLook: require('../web/assets/js/look.js'), sentinelOverlay: { on: (n, f) => { handlers[n] = f; } } });
@@ -1195,8 +1195,8 @@ test('the corner island, chat cards and shield window lay nothing out as they mo
   assert.doesNotMatch(overlay + chat + guard, /transition:[^;]*\b(width|height|left|top|box-shadow)\b/);
   // It still steps aside from the pointer, over its whole open width.
   assert.match(overlay, /corner\.classList\.toggle\('is-shy', x > left - 60 && y > top - 60\);/);
-  // A calm version for reduced motion, in each window.
-  for (const html of [overlay, chat, guard]) assert.match(html, /@media \(prefers-reduced-motion: reduce\)/);
+  // A calm version for reduced motion, in each window: the app's Motion Off, which reduced motion also sets (pages/motion.js).
+  for (const html of [overlay, chat, guard]) assert.match(html, /:root\[data-motion="off"\] \{/);
 });
 
 test('boot() does not hide the tech-support scam shield behind a local "remote": a flagged page still logs and warns', () => {

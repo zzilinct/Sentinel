@@ -3,7 +3,9 @@
   'use strict';
 
   const Site = window.Site;
-  const { $, $$, reduced } = Site;
+  const { $, $$ } = Site;
+  // Off, asked at the moment (Site.reduced follows boot.js data-motion), so a change of Motion holds at once.
+  const reduced = () => Site.reduced;
   const Masks = window.SentinelMasks;
 
   const ORDER = ['scam', 'virus', 'malware'];
@@ -14,7 +16,7 @@
   const rank = (badge) => RANK[badge || null];
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const wait = (ms) => new Promise((r) => setTimeout(r, reduced ? 0 : ms));
+  const wait = (ms) => new Promise((r) => setTimeout(r, reduced() ? 0 : ms));
 
   /** Masks for every threat that earned a colour, worst first. */
   const flagged = (v) => ORDER.filter((t) => v.threats[t] && v.threats[t].badge)
@@ -114,7 +116,7 @@
     }
 
     async function typeQuery(text, id) {
-      if (reduced) { queryText.textContent = text; return; }
+      if (reduced()) { queryText.textContent = text; return; }
       queryText.textContent = '';
       for (let i = 1; i <= text.length; i++) {
         if (id !== run) return;
@@ -137,7 +139,7 @@
       serp.style.setProperty('--scan-end', `${serp.offsetHeight + 20}px`);
       scanline.classList.remove('is-running');
       void scanline.offsetWidth;
-      if (!reduced) scanline.classList.add('is-running');
+      if (!reduced()) scanline.classList.add('is-running');
 
       // After the gold line, delicate scanning digs in (binary.js): faint gold digits, and over each result's title the
       // same, taking its own verdict's colour once it is in.
@@ -169,7 +171,7 @@
           m.setAttribute('aria-label', `${Masks.NAMES[t]}: ${result.threats[t].label}`);
           m.innerHTML = Masks.svg(t);
           slot.appendChild(m);
-          setTimeout(() => m.classList.add('is-on'), reduced ? 0 : k * 110);
+          setTimeout(() => m.classList.add('is-on'), reduced() ? 0 : k * 110);
         });
         if (threats.length && result.threats[threats[0]].badge === 'red') row.classList.add('is-danger');
       }));
@@ -317,7 +319,7 @@
       cycle.setAttribute('aria-label', `Play ${name} severity stages`);
     };
     const start = () => {
-      if (reduced) return;
+      if (reduced()) return;
       clearInterval(timer);
       card.dataset.cycling = 'true';
       cycle.textContent = 'Pause stages';
@@ -668,7 +670,7 @@
     const hero = stage.closest('.hero');
     const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
     const narrow = matchMedia('(max-width: 860px)');   // the same width as home.css's phones
-    const stays = () => reduced || !fine || narrow.matches;
+    const stays = () => reduced() || !fine || narrow.matches;
     const now = () => performance.now();
     let seen = false;
     let scrollingUntil = 0;
@@ -754,7 +756,7 @@
       const loop = {
         wake() { if (!raf && seen && energy > 0.01) raf = requestAnimationFrame(frame); },
         point(x, y) {
-          if (reduced) return;
+          if (reduced()) return;
           if (px < -1e3) { px = x; py = y; }
           tx = x; ty = y; movedAt = now();
           if (energy < 0.02) energy = 0.02;
@@ -1063,7 +1065,7 @@
     });
 
     // The pointer, read once a frame, in the stage's own pixels.
-    if (fine && !reduced) {
+    if (fine && !reduced()) {
       let queued = null;
       hero.addEventListener('pointermove', (e) => {
         if (e.pointerType === 'touch') return;

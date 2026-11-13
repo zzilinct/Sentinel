@@ -13,7 +13,10 @@
 
   const Masks = (globalThis.SentinelMasks || window.SentinelMasks);
   const THREATS = ['scam', 'virus', 'malware'];
-  const DEFAULTS = { enabled: true, marksLevel: 'all', scanOverlay: true };
+  const DEFAULTS = { enabled: true, marksLevel: 'all', scanOverlay: true, motion: 'full' };
+  // Motion, from the companion's settings (Full, Calm or Off); the system asking for less motion is Off. The shadow
+  // styles below read it from :host([data-motion]).
+  const motionOf = (m) => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : m === 'calm' || m === 'off' ? m : 'full');
 
   let settings = DEFAULTS;
   let live = null;                         // the accent as light, from the look the Windows app gave the companion
@@ -190,6 +193,7 @@
 
     const group = document.createElement('span');
     group.className = 'sentinel-masks';
+    group.dataset.motion = motionOf(settings.motion);
     group.dataset.researched = verdict.researched ? '1' : '0';
     if (shown.length) {
       for (const t of shown) group.appendChild(badgeFor(t, verdict));
@@ -260,7 +264,11 @@
         opacity:0;clip-path:inset(0 0 0 calc(100% - 34px) round 17px);transition:clip-path .34s cubic-bezier(.3,0,.2,1), opacity .2s ease .14s}
       .chip.on{opacity:1;clip-path:inset(0 round 17px);transition:clip-path .5s linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1), opacity .12s ease}
       .chip svg{width:24px;height:24px;color:var(--s-acc);flex:none}
-      @media (prefers-reduced-motion: reduce){.veil.on .line{animation:none;opacity:0}.veil,.chip,.chip.on{transition:none}.chip{clip-path:none}}
+      /* Calm: the line crosses once, the tint stays. Off: no line, and the pill and tint appear without travel. */
+      :host([data-motion=calm]) .veil.on .line{animation-iteration-count:1}
+      :host([data-motion=off]) .veil.on .line{animation:none;opacity:0}
+      :host([data-motion=off]) :is(.veil,.chip,.chip.on){transition:none}
+      :host([data-motion=off]) .chip{clip-path:none}
     </style>
     <div class="veil" part="veil"><div class="tint"></div><div class="line"></div></div>
     <div class="chip" role="status" aria-live="polite">${Masks.svg('logo')}<span class="txt">Sentinel is checking these results</span></div>`;
@@ -273,6 +281,7 @@
 
   function scanStarted(count) {
     const o = ensureOverlay();
+    o.host.dataset.motion = motionOf(settings.motion);
     scanning++;
     clearTimeout(hideTimer);
     if (!o.veil.classList.contains('on')) shownAt = Date.now();

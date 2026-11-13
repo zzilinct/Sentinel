@@ -299,8 +299,9 @@
     current = look;
     var draw = function () { paint(html, look); listeners.slice().forEach(function (fn) { fn(look, was); }); };
     // A press is answered with the new look opening out from where it was pressed (sentinel.css .look-vt). A change
-    // from elsewhere, or with reduced motion, is simply drawn.
-    var still = root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // from elsewhere, or with Motion off, is simply drawn.
+    // Motion Off (boot.js data-motion, which the system asking for less motion also sets): simply drawn.
+    var still = html.dataset.motion === 'off';
     if (!from || still || !document.startViewTransition || document.visibilityState !== 'visible') { draw(); return; }
     html.style.setProperty('--look-x', from.x + 'px');
     html.style.setProperty('--look-y', from.y + 'px');

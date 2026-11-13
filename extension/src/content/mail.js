@@ -9,6 +9,13 @@
 (() => {
   'use strict';
   const ext = globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome;
+  // Motion, from the companion's settings (Full, Calm or Off); the system asking for less motion is Off.
+  let motion = 'full';
+  if (ext.storage) {
+    Promise.resolve(ext.storage.sync.get({ motion: 'full' })).then((s) => { motion = (s && s.motion) || 'full'; }, () => {});
+    ext.storage.onChanged.addListener((changes, area) => { if (area === 'sync' && changes.motion) motion = changes.motion.newValue; });
+  }
+  const motionOf = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : motion === 'calm' || motion === 'off' ? motion : 'full');
   if (window.__sentinelMail) return;
   window.__sentinelMail = true;
 
@@ -93,6 +100,7 @@
     if (!shown.length) return;
     const group = document.createElement('span');
     group.className = 'sentinel-masks sentinel-masks--mail';
+    group.dataset.motion = motionOf();
     const found = `Sentinel: ${shown.map((t) => `${Masks.SEVERITY[verdict.threats[t].badge] || 'Caution'}, ${verdict.threats[t].label}`).join('; ')}`;
     const why = (verdict.reasons || []).slice(0, 3).map((r) => r.text);
     group.title = `${found}\n${why.map((r) => `- ${r}`).join('\n')}`;

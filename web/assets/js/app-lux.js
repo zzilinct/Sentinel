@@ -14,14 +14,16 @@
   const view = document.getElementById('view');
   if (!view) return;
   const root = document.documentElement;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Off (boot.js data-motion), asked each time: the Motion setting can change while the app is open.
+  const reduced = () => document.documentElement.dataset.motion === 'off';
   const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
   root.classList.add('lux-app');
 
 
   /* ---------------------------------------------------- atmosphere */
 
-  if (!reduced) {
+  // Always laid down: Calm stills it and Off hides its motes (app-lux.css), so a change of Motion applies at once.
+  {
     const atmos = document.createElement('div');
     atmos.className = 'lux-atmos';
     atmos.setAttribute('aria-hidden', 'true');
@@ -63,6 +65,13 @@
     if (el.classList.contains('page-title')) dressTitle(el);
   }
 
+  // A part still waiting to enter is hidden, and Tab passes over what is hidden: the moment someone uses Tab, every
+  // waiting part is shown, so the keyboard reaches every control on the page (the Motion setting below the fold too).
+  addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || !io) return;
+    document.querySelectorAll('.lux-wait').forEach((el) => { io.unobserve(el); enter(el); });
+  }, true);
+
   function stage(el) {
     if (seen.has(el)) return;
     seen.add(el);
@@ -81,7 +90,7 @@
 
   function scan() {
     // With reduced motion nothing waits or moves, but the page still wears its rule beneath the title.
-    if (reduced) { view.querySelectorAll('.page-title').forEach(dressTitle); return; }
+    if (reduced()) { view.querySelectorAll('.page-title').forEach(dressTitle); return; }
     // Under the opening's sketch (intro.js) nothing enters yet: the page must be laid out as it will be, for the
     // sketch to be drawn from it. Entrances start as the sketch becomes the page.
     if (root.classList.contains('intro')) return;
@@ -109,7 +118,7 @@
     pageAt = performance.now();
     latePop = false;
     if (changed) {
-      if (reduced) { const v = view.querySelector('.view'); if (v) v.classList.add('lux-calm'); }
+      if (reduced()) { const v = view.querySelector('.view'); if (v) v.classList.add('lux-calm'); }
       else { wipe(current); ghostTitle(old, was); }
     }
     if (tab === 'home') addMask();
@@ -245,7 +254,7 @@
   const COUNTS = '.usage-row__n, .meters__head .mono, .intel__total b, [data-live-counts], [data-chat-seen], [data-text-seen], [data-week-n]';
   const COUNT_MS = 1200;   // the meters' fill (app-lux.css, lux-fill) takes as long, after the same delay
   const COUNT_DELAY = 250;
-  const countIo = !reduced && 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
+  const countIo = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       countIo.unobserve(e.target);
@@ -256,7 +265,7 @@
   function findCounts() {
     if (!countIo) return;
     view.querySelectorAll(COUNTS).forEach((el) => {
-      if (el.dataset.counted) return;
+      if (el.dataset.counted || reduced()) return;
       el.dataset.counted = '1';
       countIo.observe(el);
     });
@@ -314,7 +323,7 @@
           lit.style.setProperty('--mx', `${ev.clientX - r.left}px`);
           lit.style.setProperty('--my', `${ev.clientY - r.top}px`);
         }
-        if (reduced) return;
+        if (reduced()) return;
         // The logo and the overview's mask lean toward the pointer.
         const x = ev.clientX / innerWidth - 0.5;
         const y = ev.clientY / innerHeight - 0.5;
@@ -374,7 +383,7 @@
       island.getBoundingClientRect();
       island.classList.add('is-open');
       // The pill lands first, then opens into the card.
-      if (!reduced) { closing = setTimeout(() => size(w, h), 110); return; }
+      if (!reduced()) { closing = setTimeout(() => size(w, h), 110); return; }
     }
     size(w, h);
   }
@@ -382,7 +391,7 @@
   function islandClose() {
     clearTimeout(closing);
     for (const m of island.querySelectorAll('.lux-island__msg')) { m.classList.add('is-out'); setTimeout(() => m.remove(), 260); }
-    if (reduced) { island.classList.remove('is-open'); return; }
+    if (reduced()) { island.classList.remove('is-open'); return; }
     size(PILL_W, PILL_H);
     closing = setTimeout(() => island.classList.remove('is-open'), 300);
   }

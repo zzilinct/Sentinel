@@ -79,7 +79,7 @@ input:checked + .call__tick--checkbox::after { transform: rotate(40deg) scale(1)
 }
 @keyframes call-land-a { from { opacity: .35; transform: scale(.93); } }
 @keyframes call-land-b { from { opacity: .35; transform: scale(.95); } }
-@media (prefers-reduced-motion: reduce) {
+:root[data-motion="off"] {
   .call__verdict, .call__mark { animation: none !important; }
   .call__plate::after, .call__tick, .call__tick::after { transition: none; }
 }

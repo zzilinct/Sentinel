@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; script-src 'unsafe-inline' file:">
 <title>Sentinel live scanning</title>
+<script src="motion.js"></script>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <script src="../../shared/look.js"></script>
 <script>SentinelLook.paint(document.documentElement, SentinelLook.dark(SentinelLook.fromQuery(location.search)));</script>
@@ -146,7 +147,7 @@
   .pay b { display: block; font-weight: 600; color: var(--acc-hi); margin-bottom: 3px; }
   .pay span { color: var(--ink-2); font-size: var(--t-note); }
 
-  @media (prefers-reduced-motion: reduce) {
+  :root[data-motion="off"] {
     .pay, .pay.is-on { transform: none; transition: opacity .2s ease; }
     body.sweeping .line { animation: none; }
     body.sweeping .tint { animation: tint 1.2s ease-out forwards; }

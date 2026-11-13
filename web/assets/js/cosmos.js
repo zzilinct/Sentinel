@@ -16,7 +16,8 @@
   'use strict';
 
   const root = document.documentElement;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Off (boot.js data-motion), asked at the moment: a change of Motion holds at once.
+  const reduced = () => document.documentElement.dataset.motion === 'off';
   const script = document.currentScript;
   const here = script ? new URL('.', script.src).href : '/assets/js/';
 
@@ -347,7 +348,7 @@
     const art = card.querySelector('.plate__art');
     const color = COLORS[sev] || COLORS.red;
     const m3 = window.SentinelMask3D && art && window.SentinelMask3D.get(art);
-    if (!art || reduced || !m3) { if (m3) m3.blend(sev, 500); return; }
+    if (!art || reduced() || !m3) { if (m3) m3.blend(sev, 500); return; }
     if (busy.has(card)) { card.dataset.queued = sev; return; }
     busy.add(card);
     card.classList.add('is-singular');
@@ -437,7 +438,7 @@
     const m3 = window.SentinelMask3D && art && window.SentinelMask3D.get(art);
     if (!m3) return;
     m3.blend(sev, 900);
-    if (reduced || busy.has(card)) return;
+    if (reduced() || busy.has(card)) return;
     const svg = scope(art);
     svg.style.setProperty('--bh', COLORS[sev] || COLORS.red);
     const gems = [...svg.querySelectorAll('.bh-gem')];

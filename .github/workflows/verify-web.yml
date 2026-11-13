@@ -38,7 +38,7 @@ jobs:
         run: |
           python -m pip install --quiet qrcode pillow
           python scripts/verify-web-qr.py qr-samples
-      - run: node scripts/verify-web.js --skip share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states --out verify-web
+      - run: node scripts/verify-web.js --skip share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level --out verify-web
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,7 +66,7 @@ jobs:
           python scripts/verify-web-qr.py qr-samples
       - run: node scripts/verify-web.js --only $env:CHECKS --out verify-web-features
         env:
-          CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices' }}
+          CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level' }}
           CHECK_MINUTES: '25'
       - uses: actions/upload-artifact@v4
         if: always()

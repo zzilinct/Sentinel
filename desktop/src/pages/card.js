@@ -71,7 +71,7 @@
   @keyframes card-pop { from { opacity: 0; transform: scale(.55) rotate(-8deg); } }
   @keyframes card-rise { from { opacity: 0; transform: translateY(10px); } }
   @keyframes card-fade { from { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { body, .mark, .head > div, .body, .row { animation: card-fade .2s ease both; } }
+  :root[data-motion="off"] { body, .mark, .head > div, .body, .row { animation: card-fade .2s ease both; } }
   `;
   document.head.appendChild(style);
 

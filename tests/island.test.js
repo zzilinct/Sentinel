@@ -52,7 +52,7 @@ function island() {
     localStorage: { getItem: () => null, setItem() {} },
     location: { search: '' },
     Map, Set, Math, Number, String, Boolean, console, Promise,
-    document: { getElementById: (id) => (els[id] = els[id] || el(id)), createElement: () => el(), createTextNode: (t) => ({ text: t }), body: el() }
+    document: { getElementById: (id) => (els[id] = els[id] || el(id)), createElement: () => el(), createTextNode: (t) => ({ text: t }), body: el(), documentElement: { dataset: {} } }
   };
   ctx.window = Object.assign(ctx, {
     innerWidth: 1000, innerHeight: 700,
