@@ -96,11 +96,18 @@ test('the live surfaces have no gold of their own left: they draw the look', () 
   assert.doesNotMatch(read('desktop', 'src', 'main.js'), /appTheme|executeJavaScript\("localStorage/, 'the app no longer peeks into the page for its theme');
   // Before the first paint only boot.js runs: it reads what look.js kept and computes nothing. look.js loads after.
   const head = read('web', 'partials', 'head.html');
-  assert.match(head, /boot\.js"><\/script>\r?\n<script src="\/assets\/js\/look\.js" defer><\/script>/, 'look.js waits for the page');
+  assert.match(head, /boot\.js"><\/script>\r?\n<script src="\/assets\/js\/look-site\.js" defer><\/script>/, 'look-site.js waits for the page');
+  // The marketing pages carry no table and no colour maths: the theme button and the kept colours only. The app
+  // carries the table and the choice (look.js, then look-app.js, before app.js); the home page the table, for its preview.
+  assert.doesNotMatch(read('web', 'assets', 'js', 'look-site.js'), /oklch|ramp\(|Math\.cbrt|ACCENTS/);
+  assert.match(read('web', 'app.html'), /<script src="\/assets\/js\/look\.js"><\/script>\r?\n<script src="\/assets\/js\/look-app\.js"><\/script>\r?\n<script src="\/assets\/js\/app\.js">/);
+  assert.match(read('web', 'index.html'), /<script src="\/assets\/js\/look\.js" defer><\/script>\r?\n<script src="\/assets\/js\/accent\.js" defer>/);
+  for (const page of ['pricing.html', 'download.html', 'privacy.html', 'login.html']) assert.doesNotMatch(read('web', page), /look\.js|look-app\.js/, `${page} loads only look-site.js`);
+  assert.doesNotMatch(read('web', 'assets', 'js', 'look.js'), /localStorage\.setItem|fetch\(|picker/, 'the table keeps no choice and asks nothing');
   const boot = read('web', 'assets', 'js', 'boot.js');
   assert.match(boot, /localStorage\.getItem\('sentinel:look-vars'\)/, 'boot.js draws the kept colours');
   assert.doesNotMatch(boot, /oklch|ramp\(|Math\.cbrt|data-theme-toggle/, 'and does no colour work or theme switching itself');
-  assert.match(read('web', 'assets', 'js', 'look.js'), /KEY = \{ mode: 'sentinel:theme', accent: 'sentinel:accent', at: 'sentinel:look-at', vars: 'sentinel:look-vars' \}/);
+  for (const file of ['look-app.js', 'look-site.js']) assert.match(read('web', 'assets', 'js', file), /KEY = \{ mode: 'sentinel:theme', accent: 'sentinel:accent', at: 'sentinel:look-at', vars: 'sentinel:look-vars' \}/);
   // One table: the companion and the Windows app read copies of the site's.
   assert.equal(read('extension', 'src', 'lib', 'look.js'), read('web', 'assets', 'js', 'look.js'), 'run node scripts/build-extension.js');
   assert.equal(read('extension', 'src', 'content', 'masks.js'), read('web', 'assets', 'js', 'masks.js'));
@@ -198,7 +205,7 @@ test('one look across devices: each setting from whichever chose it last, kept b
   assert.match(read('scripts', 'build-extension.js'), /strip\('lib\/look\.js'\)/, 'Firefox gets the table too');
   assert.match(read('web', 'assets', 'js', 'app.js'), /SentinelLook\.sync\(\)/);
   // The Settings home's first-run step finds the picker's rows by these ids.
-  assert.match(read('web', 'assets', 'js', 'look.js'), /rowId\('theme'\)[^]*rowId\('accent'\)/);
+  assert.match(read('web', 'assets', 'js', 'look-app.js'), /rowId\('theme'\)[^]*rowId\('accent'\)/);
   // The Windows app on this computer wins a tie over what the popup kept (which may be only the default).
   assert.match(read('extension', 'src', 'background.js'), /rec = L\.merge\(await res\.json\(\), rec\)/);
 });
