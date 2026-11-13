@@ -109,3 +109,10 @@ body {
 /* The keyboard's place, seen: .btn and the links are reset with all: unset, which took the browser's own ring too. */
 .btn:focus-visible, .link:focus-visible, .foot a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .scan-error { color: var(--orange); }
+
+/* A new look (lib/lookhere.js): chosen here, it opens out from the coin pressed, as in the app; from elsewhere (the
+   app, another device) it crossfades. One paint, on the compositor. */
+::view-transition-group(root) { animation-duration: .28s; }
+html.look-vt::view-transition-old(root) { animation: none; }
+html.look-vt::view-transition-new(root) { animation: look-in .72s cubic-bezier(.65, 0, .25, 1) both; }
+@keyframes look-in { from { clip-path: circle(0 at var(--look-x, 50%) var(--look-y, 50%)); } to { clip-path: circle(150vmax at var(--look-x, 50%) var(--look-y, 50%)); } }

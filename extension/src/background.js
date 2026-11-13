@@ -9,7 +9,7 @@
  * Plans with delicate scanning (Pro and up) get a second, researched pass: masks
  * appear instantly from the checklist, then upgrade once research finishes.
  */
-import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError } from './lib/api.js';
+import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError, keepLook } from './lib/api.js';
 // SentinelSay: the words of the warnings, shared with the block page, popup and settings.
 import './lib/say.js';
 import { PRESETS, MIN_LENGTH, KEEP, bankDomain, newSalt, hashPassword, sameHash, homeAccount, guardedHere, hashesOf } from './lib/pwalarm.js';
@@ -640,6 +640,28 @@ const handlers = {
     const settings = await getSettings();
     await refreshAccount();
     return { settings, account, live, locked: liveBlockReason(), site: settings.apiBase, siteAccess: await siteAccess(), browser: globalThis.browser ? 'firefox' : 'chromium' };
+  },
+  /**
+   * The look (light or dark, and the accent) for the companion's own pages, which ask as they open (lib/lookhere.js).
+   * Three places choose it: the Windows app, asked here on this computer (an answer in a moment, or none without the
+   * app); the account, whose answers lib/api.js keeps; and the companion's own settings (`change`). Each setting comes
+   * from whichever chose it last (look.js merge). Kept for the marks on search pages; written only when it changed.
+   */
+  async look({ change }, sender) {
+    fromOptions(sender);
+    const L = globalThis.SentinelLook;
+    const { look: kept } = await ext.storage.local.get('look');
+    let rec = L.record(kept);
+    try {
+      const res = await fetch('http://127.0.0.1:47821/api/v1/look', { credentials: 'omit', signal: AbortSignal.timeout(1500) });
+      // The app on this computer wins a tie: what it says is a choice, what was kept may only be the default.
+      if (res.ok) rec = L.merge(await res.json(), rec);
+    } catch { /* no app on this computer */ }
+    if (change && typeof change === 'object') {
+      const now = Date.now();
+      for (const k of ['mode', 'accent']) if (k in change) rec = L.merge(rec, { [k]: change[k], at: { [k]: now } });
+    }
+    return { look: await keepLook(rec, kept && kept.rev) };
   },
   async connect() { return { account: await connect() }; },
   async 'set-token'({ token }, sender) {

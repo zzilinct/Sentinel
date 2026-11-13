@@ -379,7 +379,7 @@ async function checkCompanionDoor() {
     const optFit = await evalIn(browser, opt.sessionId, 'document.documentElement.scrollWidth <= innerWidth');
     await pictures(opt.sessionId, 'settings-phone');
     await browser.send('Emulation.clearDeviceMetricsOverride', {}, opt.sessionId);
-    result('companion-door: settings are Browsing, Email and chat, Password alarm and Advanced, with no emoji option, and fit a phone', String(groups) === 'Browsing,Email and chat,Password alarm,Advanced' && !emoji && optFit, { groups, emoji, optFit });
+    result('companion-door: settings are Look, Browsing, Email and chat, Password alarm and Advanced, with no emoji option, and fit a phone', String(groups) === 'Look,Browsing,Email and chat,Password alarm,Advanced' && !emoji && optFit, { groups, emoji, optFit });
 
     // The switch: off, the door opens, as it says.
     await evalIn(browser, opt.sessionId, "chrome.storage.sync.set({ warnOnNavigate: false })");

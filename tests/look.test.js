@@ -200,5 +200,5 @@ test('one look across devices: each setting from whichever chose it last, kept b
   // The Settings home's first-run step finds the picker's rows by these ids.
   assert.match(read('web', 'assets', 'js', 'look.js'), /rowId\('theme'\)[^]*rowId\('accent'\)/);
   // The Windows app on this computer wins a tie over what the popup kept (which may be only the default).
-  assert.match(read('extension', 'src', 'popup.js'), /look = L\.merge\(await res\.json\(\), look\)/);
+  assert.match(read('extension', 'src', 'background.js'), /rec = L\.merge\(await res\.json\(\), rec\)/);
 });

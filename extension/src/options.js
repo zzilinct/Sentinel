@@ -17,6 +17,32 @@
   };
   const saved = document.getElementById('saved');
 
+  /*
+   * Look: Theme and Colour as two groups of radio buttons, as in the app's own picker (the arrow keys move the choice
+   * and a screen reader says the group, the name and which is on). Each coin is struck in its accent's own colours
+   * from the one table (look.js). A choice opens out from where it was pressed.
+   */
+  const L = globalThis.SentinelLook;
+  const Here = globalThis.SentinelLookHere;
+  if (L && Here) {
+    document.getElementById('lookModes').innerHTML = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']]
+      .map(([v, name]) => `<label class="look-mode"><input type="radio" name="look-mode" value="${v}"><span>${name}</span></label>`).join('');
+    document.getElementById('lookCoins').innerHTML = L.ACCENTS.map((a) => {
+      const v = a.id === 'gold' ? L.GOLD.dark.web : null;
+      const r = v ? [v[200], v[400], v[600]] : ((x) => [x['--gold-200'], x['--gold-400'], x['--gold-600']])(L.ramp(a.id, 'dark'));
+      return `<label class="look-coin" style="--c1:${r[0]};--c2:${r[1]};--c3:${r[2]}"><input type="radio" name="look-accent" value="${a.id}"><i aria-hidden="true"></i><span>${a.name}</span></label>`;
+    }).join('');
+    const look = document.getElementById('look');
+    const tick = (r) => { for (const i of look.querySelectorAll('input')) i.checked = i.value === (i.name === 'look-mode' ? r.mode : r.accent); };
+    tick(Here.get());
+    Here.on(tick);
+    look.addEventListener('change', (ev) => {
+      const t = ev.target;
+      const box = t.parentNode.getBoundingClientRect();
+      Here.set(t.name === 'look-mode' ? { mode: t.value } : { accent: t.value }, { x: box.left + box.width / 2, y: box.top + box.height / 2 });
+    });
+  }
+
   /** The sentence at the top is the one the popup says. */
   async function headline() {
     const state = await Promise.resolve(ext.runtime.sendMessage({ type: 'state' })).catch(() => null);
@@ -53,6 +79,12 @@
           saved.textContent = 'Saved';
           setTimeout(() => { saved.textContent = ''; }, 1400);
           Promise.resolve(ext.runtime.sendMessage({ type: 'refresh' })).catch(() => {}).then(headline);
+        }, () => {
+          // Not kept (the browser's settings storage refused it): the control goes back to what is really saved.
+          if (el.type === 'checkbox') el.checked = Boolean(stored[key]); else el.value = stored[key];
+          saved.style.color = 'var(--red)';
+          saved.textContent = 'That change could not be saved. Try again in a moment.';
+          setTimeout(() => { saved.textContent = ''; }, 4000);
         });
       });
     }
