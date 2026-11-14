@@ -109,6 +109,8 @@ function MarksAtRest($label) {
 
 # 3. A search in Edge, maximised.
 function Search($url, $name, $menuAt) {
+  # A new tab over the last page's marks: they must go at once (scripts/marks-at-rest.js --tab), checked below.
+  Add-Content "$Out\frames.txt" "# $name opens"
   Start-Process msedge -ArgumentList '--no-first-run', '--start-maximized', '--hide-crash-restore-bubble', $url
   Start-Sleep 12
   $p = Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
@@ -117,6 +119,9 @@ function Search($url, $name, $menuAt) {
   [K]::Tap(0x11); [K]::SetCursorPos(500, 420) | Out-Null
   Start-Sleep 10
   Shot "$name-results"
+  $m = node (Join-Path $PSScriptRoot 'marks-at-rest.js') "$Out\frames.txt" --tab "the $name tab"
+  if ($LASTEXITCODE) { $script:marksOff += "the $name tab" }
+  Say $m | Out-Null
   # Scroll in small steps, photographing between them: marks should travel with their results.
   for ($s = 1; $s -le 10; $s++) { if ($s -le 4) { [K]::Wheel(1) }; Start-Sleep -Milliseconds 70; Shot "$name-wheel$s" }
   Start-Sleep 3; Shot "$name-settled"

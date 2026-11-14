@@ -109,6 +109,8 @@ test('Simple view reaches the Windows warning card: the answer and its main reas
   assert.match(warn, /<h1 id="title"><span id="label">Sentinel warning<\/span><span class="why" id="why"><\/span><\/h1>/);
   assert.match(warn, /document\.getElementById\('why'\)\.textContent = reasons\.shift\(\) \|\| '';\n\s+const ul = document\.getElementById\('reasons'\);\n\s+for \(const r of reasons\)/);
   assert.doesNotMatch(warn, /warning signs below/, 'the first sign is above now, in the heading');
+  // A clear image on <html>: without one the body's sheet is handed to the whole window (a pale square round the card).
+  assert.match(read('desktop/src/pages/card.js'), /html \{ height: 100%;[^\n]*background: linear-gradient\(transparent, transparent\);/);
   assert.match(read('desktop/src/pages/card.js'), /fit\.observe\(document\.documentElement, \{ attributes: true, attributeFilter: \['data-simple', 'data-text', 'data-density'\] \}\)/, 'an open card fits its words again');
 });
 

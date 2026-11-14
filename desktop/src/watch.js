@@ -448,6 +448,13 @@ while ($true) {
         if ([double]::IsInfinity($ar.Y) -or $ar.Width -lt 1 -or $ar.Height -lt 1) { $anchor = $null }
         else {
           $dx = [int]$ar.X - $anchorX; $dy = [int]$ar.Y - $anchorY
+          if (($dx -ne $lastDx -or $dy -ne $lastDy) -and $anchor.Current.IsOffscreen) {
+            # The page went behind another tab (a new tab opened over it): its links "move" as the tab is hidden, and
+            # the marks slid 80 px before the new page was noticed. Gone at once instead, as for a new page.
+            $anchor = $null; $lastLinks = ''; $forceRead = $true
+            Write-Output (@{ links = @(); covered = 0; for = $url; ends = ''; ms = 0 } | ConvertTo-Json -Compress)
+            break
+          }
           if ($dx -ne $lastDx -or $dy -ne $lastDy) {
             $lastDx = $dx; $lastDy = $dy; $moved = $true
             Write-Output ('{"shift":{"dx":' + $dx + ',"dy":' + $dy + ',"t":' + [Environment]::TickCount + '}}')

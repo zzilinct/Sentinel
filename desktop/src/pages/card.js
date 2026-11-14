@@ -27,7 +27,9 @@
   @media (prefers-color-scheme: light) { :root:not([data-theme]) { --sheet: #f6f1e7; --ink: #2b2720; --ink-2: #4a453a; --ink-3: #4a453a; --ink-4: #6b6558; --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .12);
     --lift: inset 0 1px 0 rgba(255, 255, 255, .7), 0 6px 12px rgba(60, 45, 20, .22); color-scheme: light; } }
   :root { --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
-  html { height: 100%; margin: 0; padding: ${PAD}px; box-sizing: border-box; background: transparent; overflow: hidden; }
+  /* A clear image, not just no colour: with none, CSS hands the body's sheet to the whole window, and a pale square
+     showed around the card out to the window's edges. */
+  html { height: 100%; margin: 0; padding: ${PAD}px; box-sizing: border-box; background: linear-gradient(transparent, transparent); overflow: hidden; }
   body { height: 100%; margin: 0; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; padding: 22px 24px 20px; overflow: hidden;
     color: var(--ink); font: var(--t-ui)/var(--lh-lead) var(--sans);
     background: radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--c, var(--acc)) 10%, transparent), transparent 62%), var(--sheet);
