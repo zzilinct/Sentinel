@@ -67,7 +67,8 @@
   function gold() {
     if (!goldVars) {
       const theirs = [...html.style].filter((p) => /^--(gold|metal|line-gold|sketch-gold|btn-grad|gilt)/.test(p)).map((p) => [p, html.style.getPropertyValue(p)]);
-      const theme = html.getAttribute('data-theme');
+      const theme = html.getAttribute('data-theme'), shown = sheet.textContent;
+      sheet.textContent = '';
       theirs.forEach(([p]) => html.style.removeProperty(p));
       const read = (s) => {
         html.setAttribute('data-theme', s);
@@ -77,6 +78,7 @@
       goldVars = { dark: read('dark'), light: read('light') };
       if (theme) html.setAttribute('data-theme', theme); else html.removeAttribute('data-theme');
       theirs.forEach(([p, v]) => html.style.setProperty(p, v));
+      sheet.textContent = shown;
     }
     return css('gold', (s) => goldVars[s]);
   }

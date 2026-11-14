@@ -173,6 +173,9 @@ async function checkColour() {
       await sleep(1500);
       await toColour(s);
       const theirs = await evalIn(browser, s, READ);
+      // Rose first, so gold is worked out while another colour is drawn over the page.
+      await click(s, gem('rose'));
+      await sleep(1100);
       await click(s, gem('gold'));
       await sleep(1100);
       const real = await evalIn(browser, s, READ);
