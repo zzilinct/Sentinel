@@ -593,6 +593,8 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .skeleton__late { position: absolute; inset: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px; padding: 8px 16px;
   font-size: var(--t-note); color: var(--muted); text-align: center; visibility: hidden; animation: skeleton-late 0s 8s forwards; }
 @keyframes skeleton-late { to { visibility: visible; } }
+/* Try again draws the whole page again, so a page waiting in two places offers it once, in the first. */
+:has(> .skeleton) ~ * [data-skel-again] { display: none; }
 /* The wait is a fact, not motion: Motion Off (sentinel.css zeroes every delay) still says it after 8 seconds. */
 :root[data-motion="off"] .skeleton__late { animation-delay: 8s !important; }
 

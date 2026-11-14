@@ -120,14 +120,16 @@ async function checkStates() {
         // A long wait says so after 8 seconds, in its own place, with Try again there; pressed, it asks again.
         mode = 'hold';
         await goto(browser, s, `${server.base}/app/history`, "document.querySelector('[data-list] .skeleton')");
-        const late = () => evalIn(browser, s, `(() => { const e = document.querySelector('[data-list] .skeleton__late'); const b = e && e.querySelector('[data-skel-again]');
-          return e ? getComputedStyle(e).visibility + ' ' + e.innerText.replace(/\\s+/g, ' ').trim() + (b && b.checkVisibility({ visibilityProperty: true }) ? ' [button]' : '') : 'gone'; })()`);
+        // The page waits in two places (the counts and the list): each says so, and Try again is offered once.
+        const late = () => evalIn(browser, s, `(() => { const e = document.querySelector('[data-list] .skeleton__late');
+          const seen = [...document.querySelectorAll('[data-skel-again]')].filter((b) => b.checkVisibility({ visibilityProperty: true })).length;
+          return e ? getComputedStyle(e).visibility + ' ' + e.innerText.replace(/\\s+/g, ' ').trim() + ' [' + seen + ' button]' : 'gone'; })()`);
         const early = await late();
         await sleep(8600);
         const after = await late();
         await shot(browser, s, `states-slow-${tag}`);
         const asked = held.length;
-        await evalIn(browser, s, "(() => { const b = document.querySelector('[data-list] [data-skel-again]'); if (b) b.click(); return Boolean(b); })()");
+        await evalIn(browser, s, "(() => { const b = [...document.querySelectorAll('[data-skel-again]')].find((x) => x.checkVisibility({ visibilityProperty: true })); if (b) b.click(); return Boolean(b); })()");
         await sleep(600);
         const retried = { asked, now: held.length, fresh: await evalIn(browser, s, "(() => { const e = document.querySelector('[data-list] .skeleton__late'); return Boolean(e) && getComputedStyle(e).visibility === 'hidden'; })()") };
         mode = 'pass';
@@ -141,7 +143,7 @@ async function checkStates() {
       seen.fault.every((e) => e.state === 'error' && e.role === 'alert' && /Your history could not be loaded/.test(e.text) && e.retry && e.again && !e.bar), seen.fault);
     result('states: with no answer at all, the line under the top says so and the part loads again by itself when the connection is back',
       seen.down.every((e) => e.state === 'offline' && e.role === 'status' && /cannot be reached/.test(e.text) && e.bar && e.back), seen.down);
-    result('states: a long wait says so after 8 seconds and not before, with Try again beside it, then shows what came', seen.slow.every((e) => /^hidden/.test(e.early) && /^visible .*taking longer.*Try again \[button\]$/.test(e.after) && e.loaded), seen.slow);
+    result('states: a long wait says so after 8 seconds and not before, with Try again offered once, then shows what came', seen.slow.every((e) => /^hidden/.test(e.early) && /^visible .*taking longer.*\[1 button\]$/.test(e.after) && e.loaded), seen.slow);
     result('states: Try again on a long wait asks again at once and starts a fresh wait', seen.slow.every((e) => e.retried.now > e.retried.asked && e.retried.fresh), seen.slow.map((e) => e.retried));
     result('states: nothing scrolls sideways', [...seen.fault, ...seen.down].every((e) => e.wide <= 0), [...seen.fault, ...seen.down].map((e) => `${e.tag}: ${e.wide}`));
 
