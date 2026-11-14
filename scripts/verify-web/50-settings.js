@@ -6,7 +6,7 @@
  *           works and one the app refuses, which puts the switch back. Only the Electron bridge is a stand-in.
  *           Pictures: settings-<state>-<size>-<theme>.png.
  */
-const { sleep, result, launch, evalIn, openPage, goto, startServer, watchErrors, until, shot } = require('./_shared');
+const { sleep, result, launch, evalIn, openPage, goto, startServer, watchErrors, until, shot, pressKey } = require('./_shared');
 
 const SIZES = { desktop: [1366, 900, false], phone: [390, 844, true] };
 const THEMES = ['dark', 'light'];
@@ -118,16 +118,33 @@ async function checkSettings() {
         result(`settings: "roblox" finds chat safety and only it (${size}, ${theme})`, found.shown.join() === 'chat-safety' && found.none && /1 setting shown/.test(found.said), found);
         await shot(browser, s, `settings-search-${size}-${theme}`);
 
-        await evalIn(browser, s, "(() => { const f = document.querySelector('[data-set-find]'); f.value = 'zzqx'; f.dispatchEvent(new Event('input', { bubbles: true })); })()");
+        // Typed from far down the page, as the sticky search is used: the answer must be on screen where the person
+        // is looking, above a phone's bottom bar, not somewhere they have to scroll to.
+        await evalIn(browser, s, "(() => { scrollTo(0, document.documentElement.scrollHeight); const f = document.querySelector('[data-set-find]'); f.value = 'zzqx'; f.dispatchEvent(new Event('input', { bubbles: true })); })()");
         await sleep(700);
-        const nothing = await evalIn(browser, s, `(() => ({ shown: ${SHOWN}.length, none: document.querySelector('[data-set-none]').hidden, text: document.querySelector('[data-set-none]').innerText, title: document.querySelector('#view h1').textContent, find: Boolean(document.querySelector('[data-set-find]').getBoundingClientRect().height) }))()`);
-        result(`settings: a search with no match says so and offers to clear it, never a blank page (${size}, ${theme})`, nothing.shown === 0 && !nothing.none && /Nothing matches/.test(nothing.text) && /Clear search/.test(nothing.text) && nothing.title === 'Settings' && nothing.find, nothing);
+        const nothing = await evalIn(browser, s, `(() => { const side = document.querySelector('.side'); const floor = side && getComputedStyle(side).position === 'fixed' ? side.getBoundingClientRect().top : innerHeight;
+          const on = (e) => { const r = e.getBoundingClientRect(); return r.height > 0 && r.top >= 0 && r.bottom <= floor; };
+          return { shown: ${SHOWN}.length, none: document.querySelector('[data-set-none]').hidden, text: document.querySelector('[data-set-none]').innerText, title: document.querySelector('#view h1').textContent,
+            find: on(document.querySelector('[data-set-find]')), seen: on(document.querySelector('[data-set-none] p')) && on(document.querySelector('[data-set-clear]')), floor, y: scrollY }; })()`);
+        result(`settings: a search with no match says so and offers to clear it, never a blank page (${size}, ${theme})`, nothing.shown === 0 && !nothing.none && /Nothing matches/.test(nothing.text) && /Clear search/.test(nothing.text) && nothing.title === 'Settings', nothing);
+        result(`settings: typed from far down the page, the box, "Nothing matches" and Clear search are all on screen (${size}, ${theme})`, nothing.find && nothing.seen, nothing);
         await shot(browser, s, `settings-none-${size}-${theme}`);
         await evalIn(browser, s, "document.querySelector('[data-set-clear]').click()");
         const back = await evalIn(browser, s, `${SHOWN}.length === ${ROWS}.length && document.activeElement === document.querySelector('[data-set-find]')`);
         result(`settings: Clear search brings every row back and keeps the cursor in the box (${size}, ${theme})`, back === true, back);
       }
     }
+
+    /* ------------------------------------------- the / key, on Settings and elsewhere */
+    const slash = async (path) => {
+      await goto(browser, s, `${server.base}${path}`, path === '/app/settings' ? ready : "document.querySelector('[data-check-text], .scanbox input')");
+      await evalIn(browser, s, 'document.activeElement && document.activeElement.blur()');
+      await pressKey(browser, s, '/');
+      await sleep(200);
+      return evalIn(browser, s, "(() => { const a = document.activeElement; return a ? (a.matches('[data-set-find]') ? 'settings search' : a.matches('[data-check-text], .scanbox input') ? 'scan box' : a.tagName) : 'none'; })()");
+    };
+    const slashed = { settings: await slash('/app/settings'), check: await slash('/app/check') };
+    result('settings: the / key goes to the Settings search on Settings, and to the scan box elsewhere', slashed.settings === 'settings search' && slashed.check === 'scan box', slashed);
     result('settings: with the app the switches say what the app says', home.on.copied === true && home.on.wallet === false && home.on.chat === false && home.on.login === true && !home.why.length, home);
     result('settings: what chat safety and Check my texts are doing is read out as it changes', home.said.every((t) => /^status: Off. Turn it on/.test(t)), home.said);
     result('settings: Your data holds download, history, what live scanning remembers and delete, and Account no longer holds delete',

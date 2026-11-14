@@ -51,10 +51,14 @@ async function checkStates() {
     const PAGES = { '/app': ['recent'], '/app/week': ['week'], '/app/history': ['stats', 'history'], '/app/sites': ['allow', 'block'], '/app/settings': ['devices'], '/app/assistants': ['assistants'] };
     const jumps = [];
     await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
-    for (const [name, [width, height, mobile]] of Object.entries(SIZES)) {
+    // A computer and a phone; then a width between the two and a computer with Larger text, the first time only: a
+    // first-time height written down as a number fits only the widths and text size it was measured at.
+    const VISITS = [...Object.entries(SIZES).map(([n, v]) => [n, v, ['first', 'next'], null]),
+      ['between', [560, 900, true], ['first'], null], ['larger', SIZES.desktop, ['first'], '{"text":"larger","density":"comfortable"}']];
+    for (const [name, [width, height, mobile], visits, type] of VISITS) {
       await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, s);
-      await evalIn(browser, s, "localStorage.removeItem('sentinel:heights')");
-      for (const visit of ['first', 'next']) {
+      await evalIn(browser, s, `(localStorage.removeItem('sentinel:heights'), ${type ? `localStorage.setItem('sentinel:type', ${JSON.stringify(type)})` : "localStorage.removeItem('sentinel:type')"}, true)`);
+      for (const visit of visits) {
         for (const [page, keys] of Object.entries(PAGES)) {
           mode = 'hold';
           await goto(browser, s, `${server.base}${page}`, keys.map((k) => `document.querySelector('[data-skel="${k}"]')`).join(' && '));
@@ -68,6 +72,7 @@ async function checkStates() {
         }
       }
     }
+    await evalIn(browser, s, "(localStorage.removeItem('sentinel:type'), true)");
     console.log(`      heights: ${jumps.map((j) => `${j.at} ${j.wait}->${j.came}`).join('; ')}`);
     result('states: the first time, each wait is as tall as what a new account sees there', jumps.filter((j) => / first /.test(j.at)).every((j) => Math.abs(j.jump) <= 2), jumps.filter((j) => / first /.test(j.at)));
     result('states: after that, each wait is as tall as that place was last time, so nothing jumps', jumps.filter((j) => / next /.test(j.at)).every((j) => Math.abs(j.jump) <= 1), jumps.filter((j) => / next /.test(j.at)));
@@ -112,18 +117,23 @@ async function checkStates() {
         const back = await until(browser, s, "Boolean(document.querySelector('[data-list] [data-total]')) && document.querySelector('[data-netbar]').hidden", 15000);
         seen.down.push({ tag, ...down, back });
 
-        // A long wait says so after 8 seconds, in its own place.
+        // A long wait says so after 8 seconds, in its own place, with Try again there; pressed, it asks again.
         mode = 'hold';
         await goto(browser, s, `${server.base}/app/history`, "document.querySelector('[data-list] .skeleton')");
-        const late = (q) => evalIn(browser, s, `(() => { const e = document.querySelector('${q}'); const a = e && getComputedStyle(e, '::after'); return a ? a.visibility + ' ' + a.content : 'gone'; })()`);
-        const early = await late('[data-list] .skeleton');
+        const late = () => evalIn(browser, s, `(() => { const e = document.querySelector('[data-list] .skeleton__late'); const b = e && e.querySelector('[data-skel-again]');
+          return e ? getComputedStyle(e).visibility + ' ' + e.innerText.replace(/\\s+/g, ' ').trim() + (b && b.checkVisibility({ visibilityProperty: true }) ? ' [button]' : '') : 'gone'; })()`);
+        const early = await late();
         await sleep(8600);
-        const after = await late('[data-list] .skeleton');
+        const after = await late();
         await shot(browser, s, `states-slow-${tag}`);
+        const asked = held.length;
+        await evalIn(browser, s, "document.querySelector('[data-list] [data-skel-again]').click()");
+        await sleep(600);
+        const again = { asked, now: held.length, fresh: await evalIn(browser, s, "(() => { const e = document.querySelector('[data-list] .skeleton__late'); return Boolean(e) && getComputedStyle(e).visibility === 'hidden'; })()") };
         mode = 'pass';
         release();
         const loaded = await until(browser, s, "Boolean(document.querySelector('[data-list] [data-total]'))", 15000);
-        seen.slow.push({ tag, early, after, loaded });
+        seen.slow.push({ tag, early, after, again, loaded });
       }
     }
     result('states: an empty history says it is empty, calmly, with the way to fill it', seen.empty.every((e) => e.state === 'waiting' && /No scans yet/.test(e.text) && e.link), seen.empty);
@@ -131,7 +141,8 @@ async function checkStates() {
       seen.fault.every((e) => e.state === 'error' && e.role === 'alert' && /Your history could not be loaded/.test(e.text) && e.retry && e.again && !e.bar), seen.fault);
     result('states: with no answer at all, the line under the top says so and the part loads again by itself when the connection is back',
       seen.down.every((e) => e.state === 'offline' && e.role === 'status' && /cannot be reached/.test(e.text) && e.bar && e.back), seen.down);
-    result('states: a long wait says so after 8 seconds and not before, then shows what came', seen.slow.every((e) => /^hidden/.test(e.early) && /^visible .*taking longer/.test(e.after) && e.loaded), seen.slow);
+    result('states: a long wait says so after 8 seconds and not before, with Try again beside it, then shows what came', seen.slow.every((e) => /^hidden/.test(e.early) && /^visible .*taking longer.*Try again \[button\]$/.test(e.after) && e.loaded), seen.slow);
+    result('states: Try again on a long wait asks again at once and starts a fresh wait', seen.slow.every((e) => e.again.now > e.again.asked && e.again.fresh), seen.slow.map((e) => e.again));
     result('states: nothing scrolls sideways', [...seen.fault, ...seen.down].every((e) => e.wide <= 0), [...seen.fault, ...seen.down].map((e) => `${e.tag}: ${e.wide}`));
 
     // Site rules: both lists come from one answer, so one block says it, and the empty second list does not shimmer on.
