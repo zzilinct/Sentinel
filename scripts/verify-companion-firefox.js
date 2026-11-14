@@ -149,13 +149,21 @@ async function lookPhotos(m, host) {
     await sleep(400);
     out[`options-${scheme}-wide`] = await wide();
     await photo(`companion-look-firefox-options-${scheme}`);
-    await size(360, 600);
-    await m.send('WebDriver:Navigate', { url: `moz-extension://${host}/src/popup.html` });
-    await wait("return !document.querySelector('.loading') && document.fonts.status === 'loaded';");
+    // Headless Firefox ignores a window size, so the popup is opened in a frame the size Firefox gives it (360 by
+    // 600) on the settings page just photographed, then measured and photographed inside that frame.
+    await run(`window.scrollTo(0, 0); document.body.replaceChildren(); const f = document.createElement('iframe'); f.id = 'popupFrame'; f.src = 'popup.html';
+      f.style.cssText = 'position:fixed;left:0;top:0;width:360px;height:600px;border:0;display:block;margin:0'; document.body.append(f); return true;`);
+    const frame = "const f = document.getElementById('popupFrame'), d = f && f.contentDocument;";
+    await wait(`${frame} return Boolean(d && d.readyState === 'complete' && d.body && !d.querySelector('.loading') && d.fonts.status === 'loaded');`, 15000);
     await sleep(400);
-    out[`popup-${scheme}-wide`] = await wide();
-    out[`popup-${scheme}-width`] = await run('return window.innerWidth;');
-    await photo(`companion-look-firefox-popup-${scheme}`);
+    out[`popup-${scheme}-wide`] = await run(`${frame} return d.documentElement.scrollWidth - f.contentWindow.innerWidth;`);
+    out[`popup-${scheme}-width`] = await run(`${frame} return f.contentWindow.innerWidth;`);
+    // Anything inside wider than the popup itself (a long word, a button), not only the page's own scroll width.
+    out[`popup-${scheme}-over`] = await run(`${frame} const w = f.contentWindow.innerWidth; return [...d.body.querySelectorAll('*')].filter((n) => n.getBoundingClientRect().right > w + 0.5).map((n) => n.className || n.tagName).slice(0, 5);`);
+    const pf = await m.send('WebDriver:FindElement', { using: 'css selector', value: '#popupFrame' });
+    const pfPng = await m.send('WebDriver:TakeScreenshot', { id: Object.values(pf.value || pf)[0] });
+    fs.writeFileSync(path.join(OUT_DIR, `companion-look-firefox-popup-${scheme}.png`), Buffer.from(pfPng.value || pfPng, 'base64'));
+    out.photos.push(`companion-look-firefox-popup-${scheme}`);
     await size(1280, 800);
     await m.send('WebDriver:Navigate', { url: `http://${DOOR_HOST}/signin` }).catch(() => {});
     await wait("return /confirmed scam/.test((document.getElementById('title') || {}).textContent || '');");
@@ -182,7 +190,8 @@ function thumbDistance(buf) {
 
 function lookReport(r) {
   const same = (s) => r.status && r.status[s] && r.status[s].length === 1 && r.status[s][0] === STATUS[s];
-  const fits = ['dark', 'light'].every((s) => r[`options-${s}-wide`] <= 0 && r[`popup-${s}-wide`] <= 0);
+  // The popup measured at its own 360 px (a frame of that size), with nothing inside it running past its edge.
+  const fits = ['dark', 'light'].every((s) => r[`options-${s}-wide`] <= 0 && r[`popup-${s}-wide`] <= 0 && r[`popup-${s}-width`] === 360 && Array.isArray(r[`popup-${s}-over`]) && !r[`popup-${s}-over`].length);
   const block = ['dark', 'light'].every((s) => r[`block-${s}-accent`] === (s === 'dark' ? 'teal' : 'sapphire'));
   const ok = r.fromApp && /sapphire/.test(r.ticked) && /light/.test(r.ticked) && same('dark') && same('light') && r.thumb >= 120 && fits && block && r.photos.length === 6;
   console.log(`${ok ? 'PASS' : 'FAIL'}  firefox look`);

@@ -123,7 +123,7 @@ function worker({ tabs = {} } = {}) {
   const ctx = { chrome: ext, crypto: globalThis.crypto, TextEncoder, URL, btoa, atob, Uint8Array, AbortController, setTimeout, clearTimeout, console, Promise,
     fetch: async () => { throw new Error('offline'); } };
   vm.createContext(ctx);
-  const code = [flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n');
+  const code = [flat('lib/store.js'), flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n');
   vm.runInContext(`${code}\n;this.handlers = handlers;`, ctx);
   // A frame's message carries its own address; the tab's is the page in front.
   const call = async (type, msg, tabId, frame = { frameId: 0 }) => {

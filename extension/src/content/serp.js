@@ -504,7 +504,7 @@
     timer = setTimeout(collect, delay);
   }
 
-  Promise.all([ext.storage.sync.get(DEFAULTS), Promise.resolve(ext.storage.local.get('look')).catch(() => ({}))]).then(([stored, cached]) => {
+  Promise.all([SentinelStore.get(DEFAULTS), Promise.resolve(ext.storage.local.get('look')).catch(() => ({}))]).then(([stored, cached]) => {
     settings = { ...DEFAULTS, ...(stored || {}) };
     const look = cached && cached.look;
     if (look) { live = look.live || null; Masks.setMetal(look.metal); }
@@ -514,6 +514,6 @@
     new MutationObserver(() => schedule()).observe(document.body, { childList: true, subtree: true });
   });
   ext.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync') for (const [k, { newValue }] of Object.entries(changes)) settings[k] = newValue;
+    Object.assign(settings, SentinelStore.changed(changes, area, DEFAULTS));
   });
 })();

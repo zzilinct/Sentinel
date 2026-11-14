@@ -87,7 +87,7 @@ function worker(store = {}, session = {}) {
   const ctx = { chrome: ext, crypto: globalThis.crypto, TextEncoder, URL, btoa, atob, Uint8Array, AbortController, setTimeout, clearTimeout, console, Promise,
     fetch: async () => { throw new Error('offline'); } };
   vm.createContext(ctx);
-  const code = [flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n');
+  const code = [flat('lib/store.js'), flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n');
   vm.runInContext(`${code}\n;this.handlers = handlers;`, ctx);
   const page = (url, tabId = 7) => ({ id: 'me', url, tab: { id: tabId, url } });
   const options = { id: 'me', url: 'chrome-extension://me/src/options.html', tab: { id: 1, url: 'chrome-extension://me/src/options.html' } };

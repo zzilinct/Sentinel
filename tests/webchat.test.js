@@ -53,7 +53,7 @@ test('the web chats content script: where it runs, what it reads, what it sends'
   const manifest = JSON.parse(read('extension/manifest.json'));
   const entry = manifest.content_scripts.find((c) => c.js.includes('src/content/webchat.js'));
   assert.ok(entry, 'declared in the manifest');
-  assert.deepEqual(entry.js, ['src/content/masks.js', 'src/content/chat.js', 'src/content/webchat.js'], 'the masks and the rules load first');
+  assert.deepEqual(entry.js, ['src/lib/store.js', 'src/content/masks.js', 'src/content/chat.js', 'src/content/webchat.js'], 'the settings helper, the masks and the rules load first');
   assert.ok(entry.css.includes('src/content/sentinel.css'));
   assert.ok(!entry.all_frames);
   for (const host of ['discord.com', 'web.whatsapp.com', 'www.messenger.com', 'www.facebook.com', 'web.telegram.org', 'x.com']) {
@@ -147,6 +147,7 @@ function chatPage() {
     querySelectorAll: (s) => { wide++; return list.querySelectorAll(s); }
   };
   vm.createContext(ctx);
+  vm.runInContext(read('extension/src/lib/store.js'), ctx);
   vm.runInContext(read('extension/src/content/webchat.js'), ctx);
   const run = async () => { await new Promise((r) => setImmediate(r)); while (timers.length) timers.shift()(); await new Promise((r) => setImmediate(r)); };
   return { ctx, add, list, run, deliver: (records) => observer(records), counts: () => ({ reads, wide }), reset: () => { reads = 0; wide = 0; } };

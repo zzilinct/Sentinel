@@ -52,7 +52,7 @@
     return state;
   }
 
-  Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
+  SentinelStore.get(DEFAULTS).then((stored) => {
     stored = stored || {};
     for (const key of Object.keys(DEFAULTS)) {
       const el = document.getElementById(key);
@@ -73,14 +73,14 @@
             return;
           }
         }
-        Promise.resolve(ext.storage.sync.set({ [key]: value })).then(() => {
+        SentinelStore.set({ [key]: value }).then(() => {
           stored[key] = value;
           saved.style.color = 'var(--green)';
           saved.textContent = 'Saved';
           setTimeout(() => { saved.textContent = ''; }, 1400);
           Promise.resolve(ext.runtime.sendMessage({ type: 'refresh' })).catch(() => {}).then(headline);
         }, () => {
-          // Not kept (the browser's settings storage refused it): the control goes back to what is really saved.
+          // Not kept (neither of the browser's settings storages took it): the control goes back to what is really saved.
           if (el.type === 'checkbox') el.checked = Boolean(stored[key]); else el.value = stored[key];
           saved.style.color = 'var(--red)';
           saved.textContent = 'That change could not be saved. Try again in a moment.';

@@ -22,10 +22,11 @@
   function draw(look, from) {
     const r = L.record(look);
     try { localStorage.setItem('sentinel:look', JSON.stringify(r)); } catch { /* this page only */ }
-    const same = r.mode === shown.mode && r.accent === shown.accent;
+    const same = L.KEYS.every((k) => r[k] === shown[k]);
     shown = r;
     if (same) return;
-    const paint = () => { L.paint(html, r); listeners.forEach((fn) => fn(r)); };
+    // Text size and spacing come with the look (chosen in the app's Settings): the popup's words follow them too.
+    const paint = () => { L.paint(html, r); L.type(html, r); listeners.forEach((fn) => fn(r)); };
     if (still.matches || !document.startViewTransition || document.visibilityState !== 'visible') { paint(); return; }
     if (from) { html.style.setProperty('--look-x', `${from.x}px`); html.style.setProperty('--look-y', `${from.y}px`); }
     html.classList.toggle('look-vt', Boolean(from));

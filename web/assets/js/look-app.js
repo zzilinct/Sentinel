@@ -19,12 +19,18 @@
   var desktop = root.sentinelDesktop && root.sentinelDesktop.look ? root.sentinelDesktop : null;
   var listeners = [];
   var html = document.documentElement;
+  // Text size and spacing are boot.js's (SentinelType, drawn before the first paint); the record carries when each was
+  // chosen, so they travel to the Windows app, the companion and the account with the rest.
+  var Type = root.SentinelType;
   function stored() {
+    var t = Type ? Type.get() : {};
     try {
-      return L.record({ mode: localStorage.getItem(KEY.mode), accent: localStorage.getItem(KEY.accent), at: JSON.parse(localStorage.getItem(KEY.at) || '{}') });
-    } catch (e) { return L.record(); }
+      return L.record({ mode: localStorage.getItem(KEY.mode), accent: localStorage.getItem(KEY.accent), text: t.text, density: t.density, at: JSON.parse(localStorage.getItem(KEY.at) || '{}') });
+    } catch (e) { return L.record(t); }
   }
+  var same = function (a, b) { return L.KEYS.every(function (k) { return a[k] === b[k]; }); };
   function keep(r) {
+    if (Type) { var t = Type.get(); if (t.text !== r.text || t.density !== r.density) Type.set({ text: r.text, density: r.density }); }
     try {
       if (r.mode === 'auto') localStorage.removeItem(KEY.mode); else localStorage.setItem(KEY.mode, r.mode);
       if (r.accent === 'gold') { localStorage.removeItem(KEY.accent); localStorage.removeItem(KEY.vars); } else {
@@ -61,16 +67,16 @@
   /** A record from elsewhere (the Windows app, the account, another tab): kept, and drawn if it changes anything. */
   function take(r) {
     var m = L.merge(current, r);
-    var changed = m.mode !== current.mode || m.accent !== current.accent;
+    var changed = !same(m, current);
     keep(m);
     if (changed) show(m); else current = m;
     return m;
   }
-  /** Changes the look (any of mode, accent). `from` is the point it was chosen at, for the reveal. */
+  /** Changes the look (any of mode, accent, text, density). `from` is the point it was chosen at, for the reveal. */
   function set(change, from) {
     var r = L.record(current), now = Date.now();
-    ['mode', 'accent'].forEach(function (k) { if (change && k in change && L.normal(Object.assign({}, r, change))[k] !== r[k]) { r[k] = L.normal(Object.assign({}, r, change))[k]; r.at[k] = now; } });
-    if (r.mode === current.mode && r.accent === current.accent) return Promise.resolve(current);
+    L.KEYS.forEach(function (k) { if (change && k in change && L.normal(Object.assign({}, r, change))[k] !== r[k]) { r[k] = L.normal(Object.assign({}, r, change))[k]; r.at[k] = now; } });
+    if (same(r, current)) return Promise.resolve(current);
     keep(r);
     show(r, from);
     if (syncing) sync(true);

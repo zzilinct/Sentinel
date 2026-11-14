@@ -281,15 +281,16 @@
     // characterData: an edit that changes a message's words in place. href: a link pointed elsewhere after it was drawn.
     new MutationObserver(note).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['href'] });
   }
-  Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
+  SentinelStore.get(DEFAULTS).then((stored) => {
     settings = { ...DEFAULTS, ...(stored || {}) };
     if (!settings.enabled) return;
     lookAgain();
     start();
   });
   ext.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'sync') return;
-    for (const [k, { newValue }] of Object.entries(changes)) settings[k] = newValue;
+    const got = SentinelStore.changed(changes, area, DEFAULTS);
+    if (!got) return;
+    Object.assign(settings, got);
     // Hints switched off: the ones already shown go too. The companion switched off: its masks go as well.
     if (changes.chatHints && changes.chatHints.newValue === false) document.querySelectorAll('[data-sentinel-chat]').forEach((n) => n.remove());
     if (changes.enabled && changes.enabled.newValue === false) document.querySelectorAll('[data-sentinel-chat], .sentinel-masks--chat').forEach((n) => n.remove());

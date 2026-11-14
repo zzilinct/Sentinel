@@ -42,9 +42,9 @@ test('danger red, warning orange and caution yellow are the same bytes in every 
 });
 
 test('gold is the default and keeps its hand-tuned values', () => {
-  assert.deepEqual(L.normal(null), { mode: 'auto', accent: 'gold' });
-  assert.deepEqual(L.normal({ mode: 'neon', accent: 'red' }), { mode: 'auto', accent: 'gold' }, 'an unknown look is Auto and Gold, never an error');
-  assert.deepEqual(L.normal({ mode: 'light', accent: 'teal' }), { mode: 'light', accent: 'teal' });
+  assert.deepEqual(L.normal(null), { mode: 'auto', accent: 'gold', text: 'standard', density: 'comfortable' });
+  assert.deepEqual(L.normal({ mode: 'neon', accent: 'red', text: 'huge' }), { mode: 'auto', accent: 'gold', text: 'standard', density: 'comfortable' }, 'an unknown look is Auto and Gold, never an error');
+  assert.deepEqual(L.normal({ mode: 'light', accent: 'teal', text: 'larger', density: 'compact' }), { mode: 'light', accent: 'teal', text: 'larger', density: 'compact' });
   assert.ok(!L.ACCENTS.some((a) => /red|orange|yellow|green|amber|lime/.test(a.id)), 'the warning colours are never offered');
   for (const s of SCHEMES) {
     const r = L.ramp('gold', s);
@@ -143,10 +143,10 @@ test('GET /api/v1/look: only the app\'s server, only this computer, only the loo
     assert.equal((await c.get('/api/v1/look')).status, 404, 'nor a server that was not given the file');
     process.env.SENTINEL_LOOK_FILE = file;
     let r = await c.get('/api/v1/look');
-    assert.deepEqual([r.status, r.data], [200, { mode: 'auto', accent: 'gold', at: { mode: 0, accent: 0 } }], 'nothing chosen yet');
+    assert.deepEqual([r.status, r.data], [200, { mode: 'auto', accent: 'gold', text: 'standard', density: 'comfortable', at: { mode: 0, accent: 0, text: 0, density: 0 } }], 'nothing chosen yet');
     fs.writeFileSync(file, JSON.stringify({ mode: 'light', accent: 'sapphire', at: { mode: 5, accent: 6 }, token: 'secret' }));
     r = await c.get('/api/v1/look');
-    assert.deepEqual(r.data, { mode: 'light', accent: 'sapphire', at: { mode: 5, accent: 6 } }, 'the two settings, when each was chosen, and nothing else');
+    assert.deepEqual(r.data, { mode: 'light', accent: 'sapphire', text: 'standard', density: 'comfortable', at: { mode: 5, accent: 6, text: 0, density: 0 } }, 'the look, when each was chosen, and nothing else');
     // An extension may read it, without credentials (the 1.19.2 rule), and a website may not read it at all.
     const ext = await fetch(`${app.base}/api/v1/look`, { headers: { Origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' } });
     assert.equal(ext.headers.get('access-control-allow-origin'), 'chrome-extension://abcdefghijklmnopabcdefghijklmnop');
@@ -154,7 +154,7 @@ test('GET /api/v1/look: only the app\'s server, only this computer, only the loo
     const site = await fetch(`${app.base}/api/v1/look`, { headers: { Origin: 'https://evil.example' } });
     assert.equal(site.headers.get('access-control-allow-origin'), null);
     fs.writeFileSync(file, '{ half a file');
-    assert.deepEqual((await c.get('/api/v1/look')).data, { mode: 'auto', accent: 'gold', at: { mode: 0, accent: 0 } }, 'a broken file is Auto and Gold');
+    assert.deepEqual((await c.get('/api/v1/look')).data, { mode: 'auto', accent: 'gold', text: 'standard', density: 'comfortable', at: { mode: 0, accent: 0, text: 0, density: 0 } }, 'a broken file is Auto and Gold');
   } finally {
     config.deviceAccounts = false;
     delete process.env.SENTINEL_LOOK_FILE;
@@ -167,9 +167,9 @@ test('one look across devices: each setting from whichever chose it last, kept b
   // merge: newest per setting, a tie keeps what is held, junk is dropped.
   const a = { mode: 'dark', accent: 'teal', at: { mode: 10, accent: 30 } };
   const b = { mode: 'light', accent: 'rose', at: { mode: 20, accent: 5 }, token: 'x' };
-  assert.deepEqual(L.merge(a, b), { mode: 'light', accent: 'teal', at: { mode: 20, accent: 30 } });
-  assert.deepEqual(L.merge(a, { ...a, mode: 'light' }), a, 'a tie keeps what is held');
-  assert.deepEqual(L.record({ mode: 'neon', accent: 'teal', at: { mode: 'soon', accent: -4 } }), { mode: 'auto', accent: 'teal', at: { mode: 0, accent: 0 } });
+  assert.deepEqual(L.merge(a, b), { mode: 'light', accent: 'teal', text: 'standard', density: 'comfortable', at: { mode: 20, accent: 30, text: 0, density: 0 } });
+  assert.deepEqual(L.merge(a, { ...a, mode: 'light' }), L.record(a), 'a tie keeps what is held');
+  assert.deepEqual(L.record({ mode: 'neon', accent: 'teal', at: { mode: 'soon', accent: -4 } }), { mode: 'auto', accent: 'teal', text: 'standard', density: 'comfortable', at: { mode: 0, accent: 0, text: 0, density: 0 } });
   assert.equal(L.rev(a), 30);
   // The website's preview may turn gold to any hue, through the same ramp.
   assert.ok(L.contrast(L.ramp({ h: 25, c: 1 }, 'dark')['--gold-300'], '#111215') >= 4.5);
@@ -183,9 +183,9 @@ test('one look across devices: each setting from whichever chose it last, kept b
     assert.equal((await c.post('/api/v1/auth/signup', { email, password: 'Correct-Horse-42', firstName: 'Lu', lastName: '', ageConfirmed: true, termsAccepted: true })).status, 201);
     assert.equal((await c.post('/api/v1/auth/login', { email, password: 'Correct-Horse-42' })).status, 200);
     let r = await c.get('/api/v1/account/look');
-    assert.deepEqual(r.data, { mode: 'auto', accent: 'gold', at: { mode: 0, accent: 0 }, computer: false });
+    assert.deepEqual(r.data, { mode: 'auto', accent: 'gold', text: 'standard', density: 'comfortable', at: { mode: 0, accent: 0, text: 0, density: 0 }, computer: false });
     r = await c.post('/api/v1/account/look', { mode: 'dark', accent: 'sapphire', at: { mode: 100, accent: 100 }, red: '#000000' });
-    assert.deepEqual(r.data, { mode: 'dark', accent: 'sapphire', at: { mode: 100, accent: 100 }, computer: false }, 'kept, and only the look');
+    assert.deepEqual(r.data, { mode: 'dark', accent: 'sapphire', text: 'standard', density: 'comfortable', at: { mode: 100, accent: 100, text: 0, density: 0 }, computer: false }, 'kept, and only the look');
     // Another device chose the theme later and the colour earlier: each setting from the newer choice.
     r = await c.post('/api/v1/account/look', { mode: 'light', accent: 'rose', at: { mode: 200, accent: 50 } });
     assert.deepEqual([r.data.mode, r.data.accent], ['light', 'sapphire']);
@@ -193,11 +193,16 @@ test('one look across devices: each setting from whichever chose it last, kept b
     const far = Date.now() + 10 * 365 * 864e5;
     r = await c.post('/api/v1/account/look', { accent: 'teal', at: { accent: far } });
     assert.ok(r.data.accent === 'teal' && r.data.at.accent <= Date.now());
+    // Text size and spacing travel the same way, so the companion's popup follows the app's Settings.
+    r = await c.post('/api/v1/account/look', { text: 'larger', density: 'compact', at: { text: far, density: 300 } });
+    assert.deepEqual([r.data.mode, r.data.accent, r.data.text, r.data.density], ['light', 'teal', 'larger', 'compact']);
+    assert.ok(r.data.at.text <= Date.now(), 'a clock set ahead counts as now for text size too');
     assert.equal((await c.post('/api/v1/account/look', { accent: 'x'.repeat(600) })).status, 413, 'a body past 512 bytes is refused');
     // Scan answers say when it changed, so the companion asks again only then.
     const scan = await c.post('/api/v1/live/visit', { url: 'https://example.com/' });
     assert.equal(scan.status, 200, JSON.stringify(scan.data));
-    assert.equal(scan.data.lookRev, r.data.at.accent);
+    assert.equal(scan.data.lookRev, L.rev(r.data));
+    assert.equal(scan.data.lookRev, r.data.at.text, 'a text size chosen last moves lookRev');
   } finally { app.server.close(); }
   const api = read('extension', 'src', 'lib', 'api.js');
   assert.match(api, /if \(data && typeof data\.lookRev === 'number'\) followLook\(data\.lookRev\);/);

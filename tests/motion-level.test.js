@@ -154,10 +154,10 @@ test('motion: the companion\'s own pages follow the settings page at once', asyn
   let changed = null;
   const root = { dataset: {} };
   const storage = { sync: { get: async () => ({ motion: 'off' }) }, onChanged: { addListener: (f) => { changed = f; } } };
-  const ctx = { document: { documentElement: root }, matchMedia: () => ({ matches: false, addEventListener() {} }), globalThis: null, Promise };
-  ctx.globalThis = { chrome: { runtime: {}, storage } };
-  ctx.chrome = ctx.globalThis.chrome;
-  vm.runInNewContext(read('extension/src/lib/motion.js'), ctx);
+  const ctx = { document: { documentElement: root }, matchMedia: () => ({ matches: false, addEventListener() {} }), Promise, chrome: { runtime: {}, storage } };
+  ctx.globalThis = ctx;
+  // lib/store.js loads before it on every page (popup.html, options.html, block.html).
+  vm.runInNewContext(read('extension/src/lib/store.js') + read('extension/src/lib/motion.js'), ctx);
   await new Promise((r) => setImmediate(r));
   assert.equal(root.dataset.motion, 'off');
   changed({ motion: { newValue: 'calm' } }, 'sync');

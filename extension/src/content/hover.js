@@ -200,13 +200,14 @@
   }
 
   // Nothing at all is listened to on a page while the companion is off.
-  Promise.resolve(ext.storage.sync.get(DEFAULTS)).then((stored) => {
+  SentinelStore.get(DEFAULTS).then((stored) => {
     settings = { ...DEFAULTS, ...(stored || {}) };
     toggle(Boolean(settings.enabled));
   });
   ext.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'sync') return;
-    for (const [k, { newValue }] of Object.entries(changes)) settings[k] = newValue;
-    if (changes.enabled) toggle(Boolean(settings.enabled));
+    const got = SentinelStore.changed(changes, area, DEFAULTS);
+    if (!got) return;
+    Object.assign(settings, got);
+    if ('enabled' in got) toggle(Boolean(settings.enabled));
   });
 })();

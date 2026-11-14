@@ -262,7 +262,7 @@ function register(router) {
   /**
    * The look the person chose in the Windows app (light, dark or Auto, and the accent), for the companion's popup.
    * Only the app's embedded server offers it, only to this computer. It reads no cookie and no token and says only
-   * those two settings and when each was chosen, so the 1.19.2 rules stand: an extension origin is answered without credentials (corsHeaders),
+   * the look (look.js record: theme, accent, text size, spacing) and when each was chosen, so the 1.19.2 rules stand: an extension origin is answered without credentials (corsHeaders),
    * and nothing here reaches the account.
    */
   router.get('/api/v1/look', (req, res) => {
