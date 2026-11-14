@@ -99,6 +99,14 @@ function Footprint($when) {
 }
 Footprint 'after start'
 
+# Once the page is still, every mark sits where the browser last said its result is (scripts/marks-at-rest.js).
+$marksOff = @()
+function MarksAtRest($label) {
+  $m = node (Join-Path $PSScriptRoot 'marks-at-rest.js') "$Out\frames.txt" $label
+  if ($LASTEXITCODE) { $script:marksOff += $label }
+  Say $m | Out-Null
+}
+
 # 3. A search in Edge, maximised.
 function Search($url, $name, $menuAt) {
   Start-Process msedge -ArgumentList '--no-first-run', '--start-maximized', '--hide-crash-restore-bubble', $url
@@ -113,10 +121,12 @@ function Search($url, $name, $menuAt) {
   for ($s = 1; $s -le 10; $s++) { if ($s -le 4) { [K]::Wheel(1) }; Start-Sleep -Milliseconds 70; Shot "$name-wheel$s" }
   Start-Sleep 3; Shot "$name-settled"
   for ($s = 1; $s -le 3; $s++) { [K]::Tap(0x22); Start-Sleep -Milliseconds 150; Shot "$name-page$s" }
-  Start-Sleep 3; Shot "$name-page-settled"
+  Start-Sleep 3; Shot "$name-page-settled"; MarksAtRest "$name after Page Down"
+  # Jumps the page follower cannot line up (further than its band): the marks must still end on their results.
+  [K]::Tap(0x23); Start-Sleep 4; Shot "$name-end"; MarksAtRest "$name after End"
   # One long, smooth scroll with nothing else going on (no screenshots in the middle): frames.txt records how the
   # marks followed it.
-  [K]::Tap(0x24); Start-Sleep 4; Shot "$name-top"
+  [K]::Tap(0x24); Start-Sleep 4; Shot "$name-top"; MarksAtRest "$name after Home"
   Add-Content "$Out\frames.txt" "# $name long scroll"
   for ($s = 1; $s -le 14; $s++) { [K]::Wheel(1); Start-Sleep -Milliseconds 45 }
   Start-Sleep 3; Shot "$name-long-scroll-settled"
@@ -142,7 +152,10 @@ function SetTheme($light) {
 }
 function HoverReason($theme) {
   [K]::Tap(0x24); [K]::SetCursorPos(5, 600) | Out-Null; Start-Sleep 5
-  $k = Get-Content "$Out\frames.txt" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^K ' } | Select-Object -Last 1
+  # A theme change repaints the whole page without moving it: 1.20.0 once took that for a scroll and drew every mark
+  # two rows low.
+  MarksAtRest "inbox after the $theme theme"
+  $k =Get-Content "$Out\frames.txt" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^K ' } | Select-Object -Last 1
   if (-not $k) { Say "hover reason ${theme}: no flagged mark on screen" | Out-Null; return $null }
   $p = $k.Split(' ', 4)
   $before = @(Get-Content "$Out\frames.txt" | Where-Object { $_ -match '^T ' }).Count
@@ -271,4 +284,5 @@ Say '--- watch.log'; Get-Content "$data\logs\watch.log" -ErrorAction SilentlyCon
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 30 | ForEach-Object { Say "  $_" }
 
 if ($regFailed) { Say 'FAILED: Run keys are still polled, or a new entry was not heard'; exit 1 }
+if ($marksOff.Count) { Say "FAILED: marks off their results at rest: $($marksOff -join ', ')"; exit 1 }
 if ($hoverFailed) { Say 'FAILED: resting on a flagged mark did not show its reasonLine() in the tip'; exit 1 }

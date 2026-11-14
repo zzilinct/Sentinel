@@ -832,7 +832,12 @@
     var k = 1 - Math.exp(-step / (pxActive(now) ? PX_EASE_MS : EASE_MS));
     var nx = shiftX + (goal.x - shiftX) * k;
     var ny = shiftY + (goal.y - shiftY) * k;
-    if (Math.abs(goal.x - nx) < 0.4 && Math.abs(goal.y - ny) < 0.4) { setShift(goal.x, goal.y); raf = 0; return; }
+    if (Math.abs(goal.x - nx) < 0.4 && Math.abs(goal.y - ny) < 0.4) {
+      setShift(goal.x, goal.y); raf = 0;
+      // At rest: the end-to-end run (scripts/marks-at-rest.js) checks this place against the browser's last word.
+      if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + goal.y.toFixed(1) + ' ' + goal.y.toFixed(1));
+      return;
+    }
     setShift(nx, ny);
     if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + ny.toFixed(1) + ' ' + goal.y.toFixed(1));
     raf = requestAnimationFrame(frame);

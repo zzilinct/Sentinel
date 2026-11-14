@@ -705,6 +705,20 @@ test('marks move with the wheel the moment it turns, and only while there are ma
   assert.match(html, /if \(gesture\) \{ gesture\.base -= report\.y; gesture\.start -= report\.y; \}/);
 });
 
+test('a movement only the pixels saw is undone: once the page is still, the marks are where its links are', () => {
+  const s = watch._test.SCRIPT;
+  assert.ok(s.includes('$needRead = $forceRead -or $moved -or $glideOff'), 'pixels the links never followed: read again at once');
+  assert.equal((s.match(/\} elseif \(\$glideOff\) \{ Settle \}/g) || []).length, 2, 'results pages and inboxes both say where the links really are');
+  assert.match(s, /function Settle \{ Write-Output \('\{"shift":\{"dx":' \+ \$script:lastDx/);
+  assert.match(s, /\[Glide\]::Total = 0 \} catch \{ \}\s+if \(\$list\.Count\) \{ try \{ \[Glide\]::Region\(\[int\]\$list\[0\]\.x/, 'an inbox is followed by its own message list, counted from its own read');
+  assert.ok(read('desktop/src/pages/overlay.html').includes("if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + goal.y.toFixed(1) + ' ' + goal.y.toFixed(1));"), 'the trace records where the marks came to rest');
+  // live-e2e 43527738258, first attempt: a theme change was read as an 80 px scroll the browser never confirmed.
+  const { atRest } = require('../scripts/marks-at-rest.js');
+  assert.equal(atRest('M 1 marks 14 fresh ends -\nR 2 1 0.0\nF 3 40.0 80.0\nF 4 79.6 80.0\n').off, 80);
+  assert.equal(atRest('M 1 marks 14 fresh ends -\nF 3 40.0 80.0\nF 4 79.6 80.0\nR 5 1 0.0\nF 6 0.0 0.0\n').off, 0);
+  assert.equal(atRest('M 1 marks 3 fresh ends 01\nR 2 1 1403.0\nF 3 1402.4 1403.0\nM 4 marks 3 fresh ends 01\n').off, 0, 'new positions start from zero');
+});
+
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /#marks\.is-moving \{ opacity: 0;/);
@@ -866,7 +880,7 @@ test('hover a link: the link under the resting pointer gets one mark, through re
 
 test('the reader reads links only when something can have changed, and reuses the page between passes', () => {
   const { SCRIPT } = watch._test;
-  assert.match(SCRIPT, /\$needRead = \$forceRead -or \$moved -or -not \$anchor -or \$lastCount -eq 0 -or \(\$tick - \$readAt\) -gt 2500/);
+  assert.match(SCRIPT, /\$needRead = \$forceRead -or \$moved -or \$glideOff -or -not \$anchor -or \$lastCount -eq 0 -or \(\$tick - \$readAt\) -gt 2500/);
   assert.match(SCRIPT, /if \(\$needRead -and \$url -match \$search\)/);
   assert.match(SCRIPT, /\$reuse = \$cachedDoc -and \$h -eq \$cachedFor -and \$title -eq \$cachedTitle/);
   // A lost anchor is let go, never followed to an empty rectangle.

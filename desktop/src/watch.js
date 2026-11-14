@@ -406,6 +406,9 @@ function Covered($el, $b) {
     return $true
   } catch { return $false }
 }
+# A read found every link where the last one did: whatever the pixels saw was not the page moving. Say where the
+# links are, and the pixels' count starts again from there.
+function Settle { Write-Output ('{"shift":{"dx":' + $script:lastDx + ',"dy":' + $script:lastDy + ',"t":' + [Environment]::TickCount + '}}'); try { [Glide]::Total = $script:lastDy } catch { } }
 function Off($why) { $script:anchor = $null; try { [Wheel]::Enabled = $false; [Glide]::Enabled = $false } catch { }; $script:hoverEl = $null; $script:hoverTried = ''; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
   # Between full looks: follow the anchor about 60 times a second and report how far the page has moved, so the
@@ -623,7 +626,12 @@ while ($true) {
   try { $fe = $A::FocusedElement; if ($fe) { $focusKey = ($fe.GetRuntimeId() -join '.') } } catch { $focusKey = '' }
   if ($focusKey -ne $lastFocus) { $lastFocus = $focusKey; $forceRead = $true; $recheckAt = $tick + 450 }
   if ($recheckAt -and $tick -ge $recheckAt) { $recheckAt = 0; $forceRead = $true }
-  $needRead = $forceRead -or $moved -or -not $anchor -or $lastCount -eq 0 -or ($tick - $readAt) -gt 2500
+  # The page's pixels say it moved and its links never did (a repaint that looked like a scroll: a theme change, rows
+  # that look alike): read now, and if nothing moved, say where the links really are, or the marks stay where the
+  # pixels sent them (seen in live-e2e: two rows below their messages after a theme change).
+  $glideOff = $false
+  try { $glideOff = [bool]$anchor -and [Math]::Abs([Glide]::Total - $lastDy) -gt 20 } catch { }
+  $needRead = $forceRead -or $moved -or $glideOff -or -not $anchor -or $lastCount -eq 0 -or ($tick - $readAt) -gt 2500
   if ($needRead -and ($url -match $search -or $url -match $mail)) { $forceRead = $false; $readAt = $tick }
 
   # Hover a link, on any other page (results and inboxes have their marks already). Where the pointer is costs
@@ -721,7 +729,7 @@ while ($true) {
         $bx = [int][Math]::Max($r.Left, $bandX); $by = [int][Math]::Max($r.Top, $bandTop - 20)
         try { [Glide]::Region($bx, $by, [int][Math]::Min(160, $r.Right - $bx), [int]($r.Bottom - $by)) } catch { }
       }
-    }
+    } elseif ($glideOff) { Settle }
     # A heavy page must not make the reader spin: rest at least twice as long as the read took.
     if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
     # A light page is read more often, so marks arrive sooner and keep up with scrolling.
@@ -764,7 +772,11 @@ while ($true) {
       $clip = if ($list.Count) { @{ top = $clipTop; bottom = $clipBottom } } else { $null }
       Write-Output (@{ mail = @($list); clip = $clip; for = $url; ms = [int]$sw.ElapsedMilliseconds } | ConvertTo-Json -Compress -Depth 4)
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0
-    }
+      # The pixels follow the message list itself (its senders' column), from these positions. Left to the last
+      # results page's band, they watched the wrong part of the screen and counted from the wrong start.
+      try { [Glide]::Total = 0 } catch { }
+      if ($list.Count) { try { [Glide]::Region([int]$list[0].x, [int]$clipTop, 160, [int]($clipBottom - $clipTop)) } catch { } }
+    } elseif ($glideOff) { Settle }
     if ($sw.ElapsedMilliseconds * 2 -gt $pause) { $pause = [int][Math]::Min(3000, $sw.ElapsedMilliseconds * 2) }
   }
 }
