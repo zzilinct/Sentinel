@@ -202,12 +202,12 @@ async function checkColour() {
       const GROUNDS = ['#efe8da', '#e4dbca', '#f6f1e7'];
       const tone = (r) => r['--gold-400'] || L.GOLD.light.web[400];
       const cells = (r) => { const c = tone(r); const worst = Math.min(...GROUNDS.map((g) => L.contrast(c, g)));
-        return GROUNDS.map((g) => `<div style="background:${g};padding:14px 16px;border-radius:12px;display:grid;gap:8px"><b style="color:${c};font:500 17px/1.2 var(--sans)">Check a link</b><span style="color:${c};font:400 13px/1.2 var(--mono)">${c} ${L.contrast(c, g).toFixed(2)}:1</span></div>`).join('')
+        return GROUNDS.map((g) => `<div style="background:${g};padding:9px 14px;border-radius:10px;display:grid;gap:4px"><b style="color:${c};font:500 17px/1.2 var(--sans)">Check a link</b><span style="color:${c};font:400 13px/1.2 var(--mono)">${c} ${L.contrast(c, g).toFixed(2)}:1</span></div>`).join('')
           + `<div style="display:grid;place-items:center;border-radius:12px;background:${r['--acc-grad'] || ''};background-color:${c};color:#fff;font:600 15px var(--sans)">Button</div><div style="font:500 13px var(--mono);align-self:center;color:${worst >= 4.5 ? '#1a6e35' : '#b3261e'}">worst ${worst.toFixed(2)}</div>`; };
       const row = (label, r) => `<div style="display:grid;grid-template-columns:150px repeat(3,1fr) 110px 100px;gap:10px;align-items:stretch"><div style="font:500 15px var(--sans);align-self:center">${label}</div>${cells(r)}</div>`;
       const html = [];
       for (const a of L.ACCENTS) html.push(row(`${a.name}, 1.20.0`, { '--gold-400': BEFORE[a.id] }), row(`${a.name}, now`, L.ramp(a.id, 'light')));
-      await evalIn(browser, s, `(() => { document.body.innerHTML = ${JSON.stringify(`<div style="display:grid;gap:10px;padding:24px;background:#efe8da;color:#1d1811">${html.join('')}</div>`)}; document.body.style.margin = '0'; scrollTo(0, 0); return true; })()`);
+      await evalIn(browser, s, `(() => { document.body.innerHTML = ${JSON.stringify(`<div style="display:grid;gap:6px;padding:16px 24px;background:#efe8da;color:#1d1811">${html.join('')}</div>`)}; document.body.style.margin = '0'; scrollTo(0, 0); return true; })()`);
       await sleep(400);
       await shot(browser, s, 'colour-swatches-light');
       await done();
