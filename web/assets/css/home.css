@@ -360,7 +360,8 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .colour__view .btn { justify-self: start; margin-top: 4px; pointer-events: none; }
 @media (max-width: 960px) { .colour { grid-template-columns: 1fr; gap: 44px; } .colour__view { max-width: 480px; } }
 /* On a phone the heading, the gems and a compact view fit one screen, so the change is seen as it is chosen: the
-   gems fill one row (the chosen name is read in the view), the view keeps the mark, one warning and the button. */
+   gems fill one row (the chosen name is read in the view), the view keeps the mark, the red warning and the green safe
+   link under it, and the button. */
 @media (max-width: 560px) {
   .colour { gap: 28px; }
   .colour__pick { gap: 4px; margin: 24px 0 16px; }
@@ -370,7 +371,9 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   .colour__crest { gap: 12px; margin-bottom: 0; }
   .colour__mask { width: 40px; height: 40px; }
   .colour__crest b { font-size: var(--t-title-l); }
-  .colour__view .colour__row, .colour__view .demo-row + .demo-row { display: none; }
+  .colour__view .colour__row { display: none; }
+  .colour__view .demo-list { gap: 8px; }
+  .colour__view .demo-row { padding: 10px 12px; }
   .colour__view .btn { margin-top: 0; }
 }
 }

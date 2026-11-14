@@ -15,15 +15,17 @@
   'use strict';
 
   // h: OKLCH hue; c: depth against gold's. dark: on dark grounds gold's own depth reads as pastel in a cool hue, so
-  // each takes more (c) and sits a little lower (l); words are then lifted back only as far as 4.5:1 needs. The
-  // website's colour preview (accent.js on work/e2e-c-rainbow) uses these same rows.
+  // each takes more (c) and sits a little lower (l); words are then lifted back only as far as 4.5:1 needs. light:
+  // deepened to 4.5:1 with gold's depth, every hue landed on one muddy shade, so each takes its own: rose and teal
+  // stay as light as 4.5:1 allows (teal has no more depth to give on a screen), amethyst and sapphire go deep and
+  // vivid, platinum to graphite. The website's colour preview (accent.js) uses these same rows.
   var ACCENTS = [
     { id: 'gold', name: 'Gold' },
-    { id: 'rose', name: 'Rose', h: 354, c: 0.95, dark: { c: 1.55, l: -0.05 } },
-    { id: 'amethyst', name: 'Amethyst', h: 308, c: 1, dark: { c: 1.7, l: -0.06 } },
-    { id: 'sapphire', name: 'Sapphire', h: 262, c: 1.05, dark: { c: 1.75, l: -0.07 } },
-    { id: 'teal', name: 'Teal', h: 200, c: 0.85, dark: { c: 1.65, l: -0.06 } },
-    { id: 'platinum', name: 'Platinum', h: 255, c: 0.12, dark: { c: 0.2, l: 0 } }
+    { id: 'rose', name: 'Rose', h: 354, c: 0.95, dark: { c: 1.55, l: -0.05 }, light: { c: 1.6, l: 0.01 } },
+    { id: 'amethyst', name: 'Amethyst', h: 308, c: 1, dark: { c: 1.7, l: -0.06 }, light: { c: 1.7, l: -0.045 } },
+    { id: 'sapphire', name: 'Sapphire', h: 262, c: 1.05, dark: { c: 1.75, l: -0.07 }, light: { c: 1.75, l: -0.075 } },
+    { id: 'teal', name: 'Teal', h: 200, c: 0.85, dark: { c: 1.65, l: -0.06 }, light: { c: 1, l: 0 } },
+    { id: 'platinum', name: 'Platinum', h: 255, c: 0.12, dark: { c: 0.2, l: 0 }, light: { c: 0.18, l: -0.1 } }
   ];
   var BY_ID = {};
   for (var i = 0; i < ACCENTS.length; i++) BY_ID[ACCENTS[i].id] = ACCENTS[i];
@@ -44,9 +46,9 @@
       app: { acc: '#d6b25a', hi: '#e2c47f', lite: '#fff4d2' }
     },
     light: {
-      web: { 50: '#3d2c0c', 200: '#6f5217', 300: '#7d5c1c', 400: '#8a6420', 500: '#9c7229', 600: '#b08433',
+      web: { 50: '#3d2c0c', 200: '#6f5217', 300: '#75540d', 400: '#7c5a0b', 500: '#9c7229', 600: '#b08433',
         grad: ['#98712a', '#8a6420', '#6f4f16'], hover: ['#96701f', '#7a5818', '#624512'], metal: ['#c79a45', '#9a7029', '#5e4210', '#a8803a', '#4c3409'] },
-      app: { acc: '#8a6420', hi: '#7d5c1c', lite: '#6f5217' }
+      app: { acc: '#7c5a0b', hi: '#75540d', lite: '#6f5217' }
     },
     metal: { shadow: '#5a4216', light: '#fff0c4', face: '#d9b65f' }
   };

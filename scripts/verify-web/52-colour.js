@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { STATIC, sleep, result, serveFiles, launch, evalIn, openPage, goto, shot, pressKey, until } = require('./_shared');
+const L = require('../../web/assets/js/look.js');
 
 const IDS = ['rose', 'gold', 'teal', 'sapphire', 'amethyst', 'platinum'];
 // Read the tokens the page is really drawn with, and the contrast of the accent's text tone on the page.
@@ -68,10 +69,11 @@ async function checkColour() {
         const gold = await evalIn(browser, s, READ);
         const row = await evalIn(browser, s, `(() => { const g = [...document.querySelectorAll('.colour__pick .swatch__gem')].map((e) => e.getBoundingClientRect());
           return { tops: new Set(g.map((r) => Math.round(r.top))).size, smallest: Math.min(...g.map((r) => r.width)), below: Math.max(...g.map((r) => r.bottom), document.querySelector('.colour__view').getBoundingClientRect().bottom) - innerHeight,
+            green: (() => { const g = document.querySelector('.colour__view .m--clear').getBoundingClientRect(); return g.height > 0 && g.bottom <= innerHeight; })(),
             headTop: document.querySelector('#colour h2').getBoundingClientRect().top, left: Math.min(...g.map((r) => r.left)), right: Math.max(...g.map((r) => r.right)), sideways: document.documentElement.scrollWidth - innerWidth,
             radios: [...document.querySelectorAll('.colour__pick [role=radio]')].map((b) => b.getAttribute('aria-checked') + ':' + (b.textContent.trim() || '?')) }; })()`);
         await sleep(1500);
-        result(`${tag}: heading, six real-size gems in one row and the view all on one screen, gold chosen, nothing scrolls sideways`, row.tops === 1 && row.smallest >= 36 && row.below <= 0 && row.headTop >= 0 && row.left >= 0 && row.right <= width && row.sideways <= 0
+        result(`${tag}: heading, six real-size gems in one row and the view with its red and green examples all on one screen, gold chosen, nothing scrolls sideways`, row.green && row.tops === 1 && row.smallest >= 36 && row.below <= 0 && row.headTop >= 0 && row.left >= 0 && row.right <= width && row.sideways <= 0
           && row.radios.length === 6 && row.radios.filter((r) => r.startsWith('true')).join() === 'true:Gold' && gold.accent === 'gold', row);
         await shot(browser, s, `colour-${label}-${scheme}-gold`);
 
@@ -159,6 +161,52 @@ async function checkColour() {
         const d = await evalIn(browser, s, READ);
         result('colour: light system, dark theme chosen: the dark tones are drawn and read', d.contrast >= 4.5 && d.gold400 !== m.gold400, { d, m });
       }
+      await done();
+    }
+    // A visitor who chose sapphire in the app (kept as look-app.js keeps it): the page rests in sapphire with its gem
+    // chosen, the Gold gem draws the stylesheets' real gold over it, and moving on gives sapphire back.
+    for (const scheme of ['dark', 'light']) {
+      const { s, done } = await open(1366, 900, false, scheme, 'no-preference');
+      await evalIn(browser, s, `(() => { const pick = (sc) => Object.fromEntries(Object.entries(SentinelLook.ramp('sapphire', sc)).filter(([k]) => /^--(gold|metal|line-gold|sketch-gold|btn-grad|gilt)/.test(k)));
+        localStorage.setItem('sentinel:accent', 'sapphire'); localStorage.setItem('sentinel:look-vars', JSON.stringify({ accent: 'sapphire', dark: pick('dark'), light: pick('light') })); return true; })()`);
+      await goto(browser, s, `${files.base}/index.html`, "document.querySelectorAll('.colour__pick .swatch').length === 6");
+      await sleep(1500);
+      await toColour(s);
+      const theirs = await evalIn(browser, s, READ);
+      await click(s, gem('gold'));
+      await sleep(1100);
+      const real = await evalIn(browser, s, READ);
+      await shot(browser, s, `colour-own-${scheme}-gold`);
+      // The marketing pages' own gold (lux.css) in dark, sentinel.css's in light.
+      const want = { dark: '#d2ac63', light: L.GOLD.light.web[400] }[scheme];
+      result(`colour: own accent sapphire, ${scheme}: the page rests in it, the Gold gem draws real gold (${real.gold400}) over it`,
+        theirs.accent === 'sapphire' && theirs.checked.join() === 'sapphire' && theirs.gold400 === L.ramp('sapphire', scheme)['--gold-400']
+        && real.accent === 'gold' && real.checked.join() === 'gold' && real.gold400 === want && real.btn !== theirs.btn && real.name === 'Gold', { theirs, real });
+      await evalIn(browser, s, 'Site.scrollTo(0); true');
+      await sleep(2600);
+      const back = await evalIn(browser, s, READ);
+      result(`colour: own accent sapphire, ${scheme}: moving on gives their sapphire back`, back.accent === 'sapphire' && back.gold400 === theirs.gold400 && back.checked.join() === 'sapphire', back);
+      await evalIn(browser, s, 'localStorage.clear(); true');
+      await done();
+    }
+
+    // The swatch sheet: each colour's words, button and chip on the light pages' grounds, as 1.20.0 drew them (every
+    // hue deepened to one shade, gold at 4.39:1) beside how they are drawn now, with each one's worst contrast.
+    {
+      const { s, done } = await open(1366, 900, false, 'light', 'no-preference');
+      // 1.20.0's light word tones, as its look.js drew them.
+      const BEFORE = { gold: '#8a6420', rose: '#8b4c67', amethyst: '#72538d', sapphire: '#405f99', teal: '#006b70', platinum: '#5c6167' };
+      const GROUNDS = ['#efe8da', '#e4dbca', '#f6f1e7'];
+      const tone = (r) => r['--gold-400'] || L.GOLD.light.web[400];
+      const cells = (r) => { const c = tone(r); const worst = Math.min(...GROUNDS.map((g) => L.contrast(c, g)));
+        return GROUNDS.map((g) => `<div style="background:${g};padding:14px 16px;border-radius:12px;display:grid;gap:8px"><b style="color:${c};font:500 17px/1.2 var(--sans)">Check a link</b><span style="color:${c};font:400 13px/1.2 var(--mono)">${c} ${L.contrast(c, g).toFixed(2)}:1</span></div>`).join('')
+          + `<div style="display:grid;place-items:center;border-radius:12px;background:${r['--acc-grad'] || ''};background-color:${c};color:#fff;font:600 15px var(--sans)">Button</div><div style="font:500 13px var(--mono);align-self:center;color:${worst >= 4.5 ? '#1a6e35' : '#b3261e'}">worst ${worst.toFixed(2)}</div>`; };
+      const row = (label, r) => `<div style="display:grid;grid-template-columns:150px repeat(3,1fr) 110px 100px;gap:10px;align-items:stretch"><div style="font:500 15px var(--sans);align-self:center">${label}</div>${cells(r)}</div>`;
+      const html = [];
+      for (const a of L.ACCENTS) html.push(row(`${a.name}, 1.20.0`, { '--gold-400': BEFORE[a.id] }), row(`${a.name}, now`, L.ramp(a.id, 'light')));
+      await evalIn(browser, s, `(() => { document.body.innerHTML = ${JSON.stringify(`<div style="display:grid;gap:10px;padding:24px;background:#efe8da;color:#1d1811">${html.join('')}</div>`)}; document.body.style.margin = '0'; scrollTo(0, 0); return true; })()`);
+      await sleep(400);
+      await shot(browser, s, 'colour-swatches-light');
       await done();
     }
   } finally { await close(); files.server.close(); }

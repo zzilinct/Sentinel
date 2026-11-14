@@ -20,8 +20,8 @@
    * it shows. !important, so it is drawn over a look this visitor chose in the app (look.js draws that on the page
    * itself); taking the sheet away gives their own look back.
    */
-  function css(id) {
-    const decl = (s) => Object.entries(L.ramp(id, s)).map(([k, v]) => `${k}:${v} !important`).join(';');
+  function css(id, vars = (s) => L.ramp(id, s)) {
+    const decl = (s) => Object.entries(vars(s)).map(([k, v]) => `${k}:${v} !important`).join(';');
     const light = decl('light');
     return `:root[data-accent]{${decl('dark')}}`
       + `@media (prefers-color-scheme: light){:root[data-accent]:not([data-theme="dark"]){${light}}}`
@@ -44,22 +44,48 @@
   // Motion Off (boot.js data-motion, which the system asking for less motion also sets): every change is instant.
   const still = () => html.dataset.motion === 'off';
 
+  // The accent look.js drew for this visitor: gold, or their own from the app. The page rests in it, its gem chosen,
+  // and goes back to it when they move on.
+  const own = html.getAttribute('data-accent');
+  const rest = ACCENTS.some((a) => a.id === own) ? own : 'gold';
+
   group.innerHTML = ACCENTS.map((a) => {
     const r = a.id === 'gold' ? null : L.ramp(a.id, 'dark');
     const c = (s) => (r ? r[`--gold-${s}`] : L.GOLD.dark.web[s]);
-    return `<button type="button" class="swatch" role="radio" aria-checked="${a.id === 'gold'}" tabindex="${a.id === 'gold' ? 0 : -1}" data-accent="${a.id}"`
+    return `<button type="button" class="swatch" role="radio" aria-checked="${a.id === rest}" tabindex="${a.id === rest ? 0 : -1}" data-accent="${a.id}"`
       + ` style="--sw-hi:${c(200)};--sw:${c(400)};--sw-lo:${c(600)}"><span class="swatch__gem" aria-hidden="true"></span><span class="swatch__name">${a.name}</span></button>`;
   }).join('');
   const swatches = [...group.querySelectorAll('.swatch')];
+  if (name) name.textContent = ACCENTS.find((a) => a.id === rest).name;
 
-  // The accent look.js drew for this visitor (gold, or their own from the app), given back when gold comes back.
-  // ponytail: with an accent of their own, the Gold gem gives back theirs, not gold; a gold sheet when that matters.
-  const own = html.getAttribute('data-accent');
-  let current = 'gold';
+  /*
+   * Real gold over a visitor's own accent. Gold's tones live in the stylesheets, and their accent is written on <html>
+   * itself, so the stylesheets' values are read with it lifted off, in both schemes, and drawn over it as any other
+   * colour is. Read once, synchronously: nothing is painted in between.
+   */
+  let goldVars = null;
+  function gold() {
+    if (!goldVars) {
+      const theirs = [...html.style].filter((p) => /^--(gold|metal|line-gold|sketch-gold|btn-grad|gilt)/.test(p)).map((p) => [p, html.style.getPropertyValue(p)]);
+      const theme = html.getAttribute('data-theme');
+      theirs.forEach(([p]) => html.style.removeProperty(p));
+      const read = (s) => {
+        html.setAttribute('data-theme', s);
+        const cs = getComputedStyle(html);
+        return Object.assign(Object.fromEntries(theirs.map(([p]) => [p, cs.getPropertyValue(p).trim()]).filter(([, v]) => v)), L.ramp('gold', s));
+      };
+      goldVars = { dark: read('dark'), light: read('light') };
+      if (theme) html.setAttribute('data-theme', theme); else html.removeAttribute('data-theme');
+      theirs.forEach(([p, v]) => html.style.setProperty(p, v));
+    }
+    return css('gold', (s) => goldVars[s]);
+  }
+
+  let current = rest;
   let vt = null;
   function apply(id) {
     current = id;
-    if (id === 'gold') { if (own) html.setAttribute('data-accent', own); else html.removeAttribute('data-accent'); sheet.textContent = ''; } else { sheet.textContent = css(id); html.dataset.accent = id; }
+    if (id === rest) { if (own) html.setAttribute('data-accent', own); else html.removeAttribute('data-accent'); sheet.textContent = ''; } else { sheet.textContent = id === 'gold' ? gold() : css(id); html.dataset.accent = id; }
     swatches.forEach((b) => { const on = b.dataset.accent === id; b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; });
     if (name) name.textContent = ACCENTS.find((a) => a.id === id).name;
   }
@@ -109,7 +135,7 @@
     go(b.dataset.accent, 'pick', b);
   });
 
-  // Back to gold. Under the tab panels (site.js's wipe) the change is hidden, so it is instant; otherwise the band
+  // Back to gold (or the visitor's own colour). Under the tab panels (site.js's wipe) the change is hidden, so it is instant; otherwise the band
   // sweeps once the page has stopped moving, so the picture it animates is never a moving one.
   const covered = () => Boolean(doc.querySelector('.wipe.is-cover'));
   let wait = 0;
@@ -117,14 +143,14 @@
   function stopWaiting() { clearTimeout(wait); root.removeEventListener('scroll', settle); }
   function home() {
     stopWaiting();
-    if (current !== 'gold') go('gold', covered() ? 'instant' : 'gold');
+    if (current !== rest) go(rest, covered() ? 'instant' : 'gold');
   }
   new IntersectionObserver(([e]) => {
-    if (e.isIntersecting || current === 'gold') { stopWaiting(); return; }
+    if (e.isIntersecting || current === rest) { stopWaiting(); return; }
     if (covered()) { home(); return; }
     root.addEventListener('scroll', settle, { passive: true });
     settle();
   }).observe(section);
-  doc.addEventListener('visibilitychange', () => { if (doc.hidden && current !== 'gold') { stopWaiting(); go('gold', 'instant'); } });
-  root.addEventListener('pageshow', (e) => { if (e.persisted && current !== 'gold') go('gold', 'instant'); });
+  doc.addEventListener('visibilitychange', () => { if (doc.hidden && current !== rest) { stopWaiting(); go(rest, 'instant'); } });
+  root.addEventListener('pageshow', (e) => { if (e.persisted && current !== rest) go(rest, 'instant'); });
 })(typeof window !== 'undefined' ? window : globalThis);

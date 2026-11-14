@@ -70,7 +70,7 @@ async function checkLook() {
         if (st !== want) statusSame = false;
         const g = await ev(VAR('--gold-400'));
         seen[`${a.id} ${scheme}`] = `${g} | ${st}`;
-        if (a.id !== 'gold' && g.toLowerCase() === (scheme === 'dark' ? '#d2ac63' : '#8a6420')) accentMoved = false;
+        if (a.id !== 'gold' && g.toLowerCase() === (scheme === 'dark' ? '#d2ac63' : L.GOLD.light.web[400])) accentMoved = false;
         if (['gold', 'sapphire', 'rose', 'teal'].includes(a.id)) await lookPhoto(`look-app-${a.id}-${scheme}`);
       }
     }
