@@ -133,14 +133,17 @@
       .map((e) => e.id || e.className || e.tagName.toLowerCase());
   }
 
-  // New words in the same window (the shield's next step): the window is sized to them again.
+  // New words in the same window (the shield's next step), or the same words at another size or in Simple view
+  // (Settings, while the card is open): the window is sized to them again.
   document.addEventListener('DOMContentLoaded', () => {
     let queued = false;
-    new MutationObserver(() => {
+    const fit = new MutationObserver(() => {
       if (queued || !window.sentinelDesktop || !window.sentinelDesktop.cardFit) return;
       queued = true;
       requestAnimationFrame(() => { queued = false; window.sentinelDesktop.cardFit().catch(() => {}); });
-    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
+    fit.observe(document.body, { childList: true, subtree: true, characterData: true });
+    fit.observe(document.documentElement, { attributes: true, attributeFilter: ['data-simple', 'data-text', 'data-density'] });
   });
 
   window.SentinelCard = { PAD, WIDTHS, measure, clipped, tone };

@@ -74,7 +74,7 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   setMarksLevel: (level) => ipcRenderer.invoke('sentinel:marks-level', String(level)),
   setWarningsLevel: (level) => ipcRenderer.invoke('sentinel:warnings-level', String(level)),
   // Text size and spacing (boot.js sends them), for Sentinel's own windows; they hear them back (pages/type.js).
-  setType: (t) => ipcRenderer.invoke('sentinel:type', { text: String(t && t.text), density: String(t && t.density) }),
+  setType: (t) => ipcRenderer.invoke('sentinel:type', { text: String(t && t.text), density: String(t && t.density), simple: Boolean(t && t.simple === true) }),
   onType: (callback) => ipcRenderer.on('sentinel:type-level', (_event, t) => callback(t)),
   // Motion (full, calm or off) and the scan effect, for the live scanning overlay (boot.js sends it).
   setMotion: (m) => ipcRenderer.invoke('sentinel:motion', { motion: String(m && m.motion), scanEffect: !(m && m.scanEffect === false) }),

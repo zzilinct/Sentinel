@@ -56,7 +56,7 @@ test('text size: applied before the page draws, anything unknown is Standard, th
   assert.deepEqual({ ...b.api.get() }, { text: 'standard', density: 'comfortable' });
   b = bootType(JSON.stringify({ text: 'larger', density: 'compact' }), true);
   assert.deepEqual({ ...b.root.dataset }, { text: 'larger', density: 'compact' });
-  assert.deepEqual({ ...b.sent[0] }, { text: 'larger', density: 'compact' }, 'the Windows app is told, for its own windows');
+  assert.deepStrictEqual({ ...b.sent[0] }, { text: 'larger', density: 'compact', simple: false }, 'the Windows app is told, for its own windows');
   b = bootType('{"text":"huge"}');
   assert.equal(b.api.get().text, 'standard');
   b = bootType('not json');
@@ -77,14 +77,39 @@ test('the Windows app keeps only the known steps and tells its own windows', () 
   const main = read('desktop/src/main.js');
   const fn = /function typeLevel\(t\) \{[\s\S]*?\n\}/.exec(main);
   const typeLevel = vm.runInNewContext(`(${fn[0]})`);
-  assert.deepEqual(typeLevel({ text: 'larger', density: 'compact' }), { text: 'larger', density: 'compact' });
-  assert.deepEqual(typeLevel({ text: '<b>', density: 1 }), { text: 'standard', density: 'comfortable' });
-  assert.deepEqual(typeLevel(undefined), { text: 'standard', density: 'comfortable' });
+  assert.deepStrictEqual({ ...typeLevel({ text: 'larger', density: 'compact', simple: true }) }, { text: 'larger', density: 'compact', simple: true });
+  assert.deepStrictEqual({ ...typeLevel({ text: '<b>', density: 1, simple: 'yes' }) }, { text: 'standard', density: 'comfortable', simple: false });
+  assert.deepStrictEqual({ ...typeLevel(undefined) }, { text: 'standard', density: 'comfortable', simple: false });
+  assert.match(main, /was\.simple === next\.simple\) return next;/, 'turning Simple view on or off is told to the windows');
   assert.match(main, /handle\('sentinel:type'/);
   for (const page of ['overlay', 'warn', 'guard', 'filescan']) assert.match(read(`desktop/src/pages/${page}.html`), /<script src="type\.js"><\/script>/, page);
   assert.match(read('desktop/src/pages/overlay.html'), /:root\[data-text\] \.panel__why \{ -webkit-line-clamp: 3; \}/, 'a reason at larger text is not cut mid-sentence');
   assert.match(read('desktop/src/preload.js'), /setType:/);
   assert.match(read('desktop/src/overlay-preload.js'), /onType:/);
+});
+
+test('Simple view reaches the Windows warning card: the answer and its main reason, bigger, and fewer words', () => {
+  // boot.js: switching Simple view tells the app at once, with the text size.
+  const src = read('web/assets/js/boot.js');
+  assert.match(src, /apply\(on\); if \(window\.SentinelType\) window\.SentinelType\.set\(\{\}\); \}/);
+  assert.match(src, /d\.setType\(\{ \.\.\.t, simple: Boolean\(window\.SentinelSimple && window\.SentinelSimple\.get\(\)\) \}\)/);
+  assert.match(read('desktop/src/preload.js'), /simple: Boolean\(t && t\.simple === true\)/);
+  // type.js in the card sets <html data-simple>, which warn.html's styles read.
+  const root = { dataset: {} };
+  let told = null;
+  vm.runInNewContext(read('desktop/src/pages/type.js'), { window: { sentinelDesktop: { onType: (cb) => { told = cb; } } }, document: { documentElement: root } });
+  told({ text: 'standard', density: 'comfortable', simple: true });
+  assert.equal(root.dataset.simple, '');
+  told({ text: 'standard', density: 'comfortable', simple: false });
+  assert.equal('simple' in root.dataset, false);
+  const warn = read('desktop/src/pages/warn.html');
+  assert.match(warn, /:root\[data-simple\] h1 \{ font-size: var\(--t-title\); \}/, 'a bigger answer');
+  assert.match(warn, /:root\[data-simple\] :is\(#reasons, #browser\) \{ display: none; \}/, 'fewer words');
+  // The heading line says why: the strongest reason is in the h1, and not repeated below it.
+  assert.match(warn, /<h1 id="title"><span id="label">Sentinel warning<\/span><span class="why" id="why"><\/span><\/h1>/);
+  assert.match(warn, /document\.getElementById\('why'\)\.textContent = reasons\.shift\(\) \|\| '';\n\s+const ul = document\.getElementById\('reasons'\);\n\s+for \(const r of reasons\)/);
+  assert.doesNotMatch(warn, /warning signs below/, 'the first sign is above now, in the heading');
+  assert.match(read('desktop/src/pages/card.js'), /fit\.observe\(document\.documentElement, \{ attributes: true, attributeFilter: \['data-simple', 'data-text', 'data-density'\] \}\)/, 'an open card fits its words again');
 });
 
 test('first run: one step drawn from Settings rows, and the tray notification it replaced is gone', () => {

@@ -127,6 +127,11 @@
   /* A mark that has popped in once just shows when it comes back (scrolled away and back, or its verdict refined). */
   .mark.is-on { opacity: 1; scale: 1; }
   @keyframes wait { 0%, 100% { opacity: .25; } 50% { opacity: .8; } }
+  /* Leaving: from where it is (dropMark sets its opacity and scale), never popping back first. */
+  .mark.is-out { animation: mark-out .16s cubic-bezier(.4, 0, 1, 1) forwards; }
+  :root[data-motion="calm"] .mark.is-out { animation-name: mark-fade; }
+  @keyframes mark-out { to { opacity: 0; scale: .6; } }
+  @keyframes mark-fade { to { opacity: 0; } }
 
   .tip { position: absolute; max-width: 300px; padding: 9px 12px; border-radius: 9px; background: rgba(12, 13, 16, .95); border: 1px solid rgba(255, 255, 255, .1);
     box-shadow: 0 10px 30px rgba(0, 0, 0, .45); opacity: 0; transition: opacity .15s ease; pointer-events: none; z-index: 5; }
@@ -461,7 +466,9 @@
   var DIG_COLOR = { yellow: 'yellow', orange: 'orange', red: 'red' };
   function digLinks() {
     return current.filter(function (m) { return !m.row; }).map(function (m) {
-      return { x: m.x + shiftX, y: m.y + shiftY, w: m.w, h: m.h, color: m.pending ? null : m.badge ? DIG_COLOR[m.badge] : 'green' };
+      // A verdict whose mark is left out (Marks beside links, in Settings) is not told by the digits either: they stay gold.
+      var told = !m.pending && M.shows(marksLevel, m.badge);
+      return { x: m.x + shiftX, y: m.y + shiftY, w: m.w, h: m.h, color: !told ? null : m.badge ? DIG_COLOR[m.badge] : 'green' };
     });
   }
   function allChecked() { return current.length && !current.some(function (m) { return m.pending; }); }
@@ -509,6 +516,17 @@
       if (x + size > W - 6) x = Math.max(4, m.x - size - 8);
     }
     return { x: Math.round(x), y: Math.round(y) };
+  }
+
+  // A mark that is no longer wanted (its result scrolled away, or Marks beside links now leaves it out) eases out from
+  // wherever it is: shrinking a little as it fades in Full motion, fading only in Calm, gone at once with motion Off.
+  function dropMark(n) {
+    if (document.documentElement.dataset.motion === 'off') { n.remove(); return; }
+    var cs = getComputedStyle(n);
+    n.style.opacity = cs.opacity;
+    n.style.scale = cs.scale === 'none' ? '1' : cs.scale;
+    n.classList.add('is-out');
+    setTimeout(function () { n.remove(); }, 200);
   }
 
   function moveTo(n, x, y) { n.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)'; n._x = x; n._y = y; }
@@ -567,11 +585,24 @@
       void n.offsetWidth;
       n.classList.add('is-in');
     });
-    nodes.forEach(function (n, key) { if (!seen[key]) { n.remove(); nodes.delete(key); } });
+    nodes.forEach(function (n, key) { if (!seen[key]) { dropMark(n); nodes.delete(key); } });
     // One layout for all of them, then every mark that moved glides to its new place.
     void marksEl.offsetWidth;
     nodes.forEach(function (n) { n.classList.remove('is-still'); });
     glide.forEach(function (g) { moveTo(g[0], g[1], g[2]); });
+  }
+
+  // Where the tip goes for the mark at (cx, cy): below it, else above, else to its left, the first that covers no
+  // other mark (below, it hid the next row's verdict in an inbox); below when none is clear. others: [x, y] centres.
+  function tipSpot(cx, cy, tw, th, W, H, others) {
+    function clear(l, t) {
+      if (l < 4 || t < 4 || l + tw > W - 4 || t + th > H - 4) return false;
+      return !others.some(function (o) { return o[0] > l - 14 && o[0] < l + tw + 14 && o[1] > t - 14 && o[1] < t + th + 14; });
+    }
+    var x = Math.min(W - tw - 12, Math.max(8, cx - tw / 2));
+    var spots = [[x, cy + 20], [x, cy - 20 - th], [cx - 24 - tw, cy - th / 2]];
+    for (var i = 0; i < spots.length; i++) if (clear(spots[i][0], spots[i][1])) return { left: Math.round(spots[i][0]), top: Math.round(spots[i][1]) };
+    return { left: Math.round(x), top: Math.round(cy + 20 + th > H - 4 ? cy - 20 - th : cy + 20) };
   }
 
   // A mark explains itself when the pointer is over it. Clicks still go to the browser.
@@ -593,13 +624,11 @@
     // The severity in words first, so the tip never relies on its colour either.
     tip.querySelector('b').textContent = hit.badge ? (M.SEVERITY[hit.badge] || 'Caution') + ': ' + hit.label : 'Nothing found';
     tip.querySelector('span').textContent = hit.badge ? (hit.reason || 'Open it with care.') : 'Sentinel checked this address and found no warning signs.';
-    var cx = hit._cx + shiftX;
-    var cy = hit._cy + shiftY;
-    var left = Math.min(window.innerWidth - 312, Math.max(8, cx - 150));
-    var top = cy + 20;
-    if (top + 90 > window.innerHeight) top = cy - 84;
-    tip.style.left = left + 'px';
-    tip.style.top = top + 'px';
+    var others = [];
+    current.forEach(function (o) { if (o !== hit && o._cx != null) others.push([o._cx + shiftX, o._cy + shiftY]); });
+    var at = tipSpot(hit._cx + shiftX, hit._cy + shiftY, tip.offsetWidth, tip.offsetHeight, window.innerWidth, window.innerHeight, others);
+    tip.style.left = at.left + 'px';
+    tip.style.top = at.top + 'px';
     tip.classList.add('is-on');
     if (tracing) console.log('T ' + tip.querySelector('b').textContent + ' | ' + tip.querySelector('span').textContent);
   });

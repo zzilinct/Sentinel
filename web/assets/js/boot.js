@@ -200,7 +200,8 @@ document.documentElement.classList.add('js');
   try { apply(localStorage.getItem(KEY) === '1'); } catch { /* full view */ }
   window.SentinelSimple = {
     get: () => root.dataset.simple !== undefined,
-    set: (on) => { try { if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY); } catch { /* this page only */ } apply(on); }
+    // The Windows app's own warning cards follow it too: told with the text size (SentinelType, below).
+    set: (on) => { try { if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY); } catch { /* this page only */ } apply(on); if (window.SentinelType) window.SentinelType.set({}); }
   };
 })();
 
@@ -224,7 +225,7 @@ document.documentElement.classList.add('js');
     if (t.text === 'standard') delete root.dataset.text; else root.dataset.text = t.text;
     if (t.density === 'comfortable') delete root.dataset.density; else root.dataset.density = t.density;
   };
-  const tellApp = (t) => { const d = window.sentinelDesktop; if (d && d.setType) d.setType(t).catch(() => { /* the app keeps its last */ }); };
+  const tellApp = (t) => { const d = window.sentinelDesktop; if (d && d.setType) d.setType({ ...t, simple: Boolean(window.SentinelSimple && window.SentinelSimple.get()) }).catch(() => { /* the app keeps its last */ }); };
   const set = (change) => {
     const t = { ...read(), ...change };
     if (!TEXT.includes(t.text) || !DENSITY.includes(t.density)) return read();

@@ -671,6 +671,14 @@ Check 'warning-dialog' ($a11y -eq 'alertdialog|1') "role and visible gold button
 # The spring out of the island, photographed at fixed times in.
 $n = @(70, 160, 320, 800 | ForEach-Object { Frame 'warn.html' '1' $_ "motion-warn-$('{0:D4}' -f $_)ms" })
 Check 'motion-warn' (($n | Measure-Object -Minimum).Minimum -gt 0) "animations at each frame: $($n -join ', ')"
+# Simple view, switched on in the app's Settings, reaches the open card: the answer and its main reason (in the
+# heading) in bigger type, the other reasons and the side note left out. Then back off.
+[void](Cdp '127.0.0.1:4782' "(window.SentinelSimple.set(true), 1)")
+$sv = ''
+$ok = Until 15 { $script:sv = [string](Cdp 'warn.html' "[document.documentElement.dataset.simple === '' ? 'simple' : 'full', getComputedStyle(document.getElementById('reasons')).display, getComputedStyle(document.getElementById('browser')).display, document.getElementById('why').textContent ? 'reason in the heading' : 'no reason'].join('|')").value; $script:sv -eq 'simple|none|none|reason in the heading' }
+Shot 'warning-simple'
+[void](Cdp '127.0.0.1:4782' "(window.SentinelSimple.set(false), 1)")
+Check 'warning-simple' $ok "Simple view on the warning card: $sv"
 # Warnings that lead to the real site: the warning offers the person's own site, and pressing it opens exactly that
 # address, kept by the app when the warning was made. The browser's opening is stood in for in the main process, so
 # nothing else comes to the front; the log says that it was opened, never which.
