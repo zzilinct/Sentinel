@@ -875,6 +875,12 @@ label.seg__btn { position: relative; display: inline-flex; align-items: center; 
 .seg__btn:has(:focus-visible) { outline: 2px solid var(--gold-300); outline-offset: -2px; }
 .seg__btn:has(:disabled):not(.is-on) { opacity: .45; cursor: not-allowed; }
 .seg__btn:has(:disabled).is-on { cursor: default; }
+/* Its two lines, inside a Settings row: what the chosen level does beside the segments, the scan effect beside its switch. */
+.motion-set .setting { display: flex; align-items: center; justify-content: space-between; gap: 12px 28px; padding: 14px 0 0; }
+.motion-set .setting:first-child { padding-top: 4px; }
+.motion-set .setting b { display: block; font-weight: 500; font-size: var(--t-text); color: var(--text); }
+.motion-set .setting span { display: block; max-width: 56ch; margin-top: 2px; color: var(--muted); font-size: var(--t-note); line-height: 1.45; }
+.motion-set .setting > .switch, .motion-set .setting > .seg { flex: none; }
 @media (max-width: 560px) { .motion-set .setting:first-child { flex-wrap: wrap; } }
 .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .meters__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
