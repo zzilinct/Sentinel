@@ -127,13 +127,13 @@ async function checkStates() {
         const after = await late();
         await shot(browser, s, `states-slow-${tag}`);
         const asked = held.length;
-        await evalIn(browser, s, "document.querySelector('[data-list] [data-skel-again]').click()");
+        await evalIn(browser, s, "(() => { const b = document.querySelector('[data-list] [data-skel-again]'); if (b) b.click(); return Boolean(b); })()");
         await sleep(600);
-        const again = { asked, now: held.length, fresh: await evalIn(browser, s, "(() => { const e = document.querySelector('[data-list] .skeleton__late'); return Boolean(e) && getComputedStyle(e).visibility === 'hidden'; })()") };
+        const retried = { asked, now: held.length, fresh: await evalIn(browser, s, "(() => { const e = document.querySelector('[data-list] .skeleton__late'); return Boolean(e) && getComputedStyle(e).visibility === 'hidden'; })()") };
         mode = 'pass';
         release();
         const loaded = await until(browser, s, "Boolean(document.querySelector('[data-list] [data-total]'))", 15000);
-        seen.slow.push({ tag, early, after, again, loaded });
+        seen.slow.push({ tag, early, after, retried, loaded });
       }
     }
     result('states: an empty history says it is empty, calmly, with the way to fill it', seen.empty.every((e) => e.state === 'waiting' && /No scans yet/.test(e.text) && e.link), seen.empty);
@@ -142,7 +142,7 @@ async function checkStates() {
     result('states: with no answer at all, the line under the top says so and the part loads again by itself when the connection is back',
       seen.down.every((e) => e.state === 'offline' && e.role === 'status' && /cannot be reached/.test(e.text) && e.bar && e.back), seen.down);
     result('states: a long wait says so after 8 seconds and not before, with Try again beside it, then shows what came', seen.slow.every((e) => /^hidden/.test(e.early) && /^visible .*taking longer.*Try again \[button\]$/.test(e.after) && e.loaded), seen.slow);
-    result('states: Try again on a long wait asks again at once and starts a fresh wait', seen.slow.every((e) => e.again.now > e.again.asked && e.again.fresh), seen.slow.map((e) => e.again));
+    result('states: Try again on a long wait asks again at once and starts a fresh wait', seen.slow.every((e) => e.retried.now > e.retried.asked && e.retried.fresh), seen.slow.map((e) => e.retried));
     result('states: nothing scrolls sideways', [...seen.fault, ...seen.down].every((e) => e.wide <= 0), [...seen.fault, ...seen.down].map((e) => `${e.tag}: ${e.wide}`));
 
     // Site rules: both lists come from one answer, so one block says it, and the empty second list does not shimmer on.
