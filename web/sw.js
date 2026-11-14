@@ -8,14 +8,14 @@
  *                    as a form POST to /app/share: put in the share box on this device (share.js reads it once and
  *                    deletes it), then the page opens. Nothing is sent anywhere from here.
  */
-const VERSION = 'sentinel-v8';
+const VERSION = 'sentinel-v9';
 const SHARE = 'sentinel-share';
 const PRECACHE = [
   '/assets/fonts/fonts.css',
   '/assets/fonts/geist-normal-300-700.woff2',
   '/assets/fonts/geist-mono-normal-400-600.woff2',
   '/assets/fonts/newsreader-opsz-16-72.woff2',
-  '/assets/img/favicon.svg',
+  '/assets/img/favicon.ico',
   '/assets/img/icon-192.png'
 ];
 
