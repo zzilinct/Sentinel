@@ -107,4 +107,7 @@ test('the look carries text size and spacing, so the companion follows the app\'
   assert.match(app, /SentinelLook\.set\(\{ density: b\.dataset\.seg \}\)/);
   const lookApp = fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'js', 'look-app.js'), 'utf8');
   assert.match(lookApp, /Type\.set\(\{ text: r\.text, density: r\.density \}\)/, 'a newer choice from elsewhere is drawn through SentinelType');
+  // The Windows app keeps them in its look file, which the companion on this computer reads (GET /api/v1/look).
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src', 'preload.js'), 'utf8');
+  assert.match(preload, /for \(const k of \['mode', 'accent', 'text', 'density'\]\) \{ out\[k\] = String\(l\[k\] \|\| ''\); out\.at\[k\] = Number\(at\[k\]\) \|\| 0; \}/);
 });
