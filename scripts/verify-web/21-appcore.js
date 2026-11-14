@@ -247,7 +247,7 @@ async function checkAppCore() {
 
     /* ---------------------------------------------------------- security */
 
-    await open('/app/security', "document.querySelector('[data-sessions] .list')");
+    await open('/app/security', "document.querySelector('[data-sessions] > .list')");
     const sessions = await evalIn(browser, s, "document.querySelector('[data-sessions]').innerText.replace(/\\s+/g, ' ')");
     await fill('#p-first', 'Samira');
     await clickSel(browser, s, '[data-name-form] button[type=submit]');

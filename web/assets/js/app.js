@@ -317,16 +317,28 @@
   }
   /*
    * A wait is as tall as what it waits for, so nothing under it jumps when the answer comes: the height that part had
-   * the last time it loaded on this device at this width (kept by `keep`), or, the first time, the height of what a
-   * new account sees there (app.css .h-<key>). Kept on this device only; with storage blocked, the first-time height.
+   * the last time it loaded on this device at this width (kept by `keep`), or, the first time, what a new account
+   * sees there (`ghost`), drawn unseen inside the wait, so its height comes from the layout itself at any width, text
+   * size or spacing. Its data-* marks are taken off: nothing that looks for the real part finds the ghost.
+   * Kept on this device only; with storage blocked, the first-time height.
    */
   const HEIGHTS = 'sentinel:heights';
   const heightKey = (key) => `${key}:${innerWidth < 700 ? 'phone' : 'wide'}`;
   const heights = () => { try { return JSON.parse(localStorage.getItem(HEIGHTS) || '{}') || {}; } catch { return {}; } };
-  function skel(key) {
+  // Past 8 seconds a wait says so, with Try again, which draws the page again (app.css shows it late; no timer).
+  const LATE = '<p class="skeleton__late">This is taking longer than usual. <button class="btn btn--sm" type="button" data-skel-again>Try again</button></p>';
+  function skel(key, ghost) {
     const h = Number(heights()[heightKey(key)]) || 0;
-    return `<div class="skeleton h-${key}" data-skel="${key}"${h > 0 && h < 4000 ? ` style="height:${h}px"` : ''}></div>`;
+    const kept = h > 0 && h < 4000;
+    const unseen = kept ? '' : `<div class="skeleton__ghost" aria-hidden="true" inert>${ghost.replace(/ data-[\w-]+(="[^"]*")?/g, '')}</div>`;
+    return `<div class="skeleton" data-skel="${key}"${kept ? ` style="height:${h}px"` : ''}>${unseen}${LATE}</div>`;
   }
+  document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('[data-skel-again]')) return;
+    render();
+    const heading = $('#view h1');
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+  });
   function keep(slot, key) {
     if (!slot || !slot.isConnected) return;
     const cs = getComputedStyle(slot);
@@ -429,7 +441,7 @@
   }
 
   function showShortcuts() {
-    toast('Shortcuts: / focuses the scan box, Ctrl+K opens search, Esc closes, ? shows this.', 'info', 6000);
+    toast('Shortcuts: / goes to the scan box (on Settings, its search), Ctrl+K opens search, Esc closes, ? shows this.', 'info', 6000);
   }
 
   function wireShortcuts() {
@@ -441,7 +453,8 @@
       if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
       if (ev.key === '/') {
         ev.preventDefault();
-        const box = $('[data-check-text]') || $('.scanbox input');
+        // On Settings it finds a setting; everywhere else it is the scan box.
+        const box = $('[data-set-find]') || $('[data-check-text]') || $('.scanbox input');
         if (box && !box.hidden) { box.focus(); box.select(); } else navigate('/app/check');
       } else if (ev.key === '?') showShortcuts();
     });
@@ -848,7 +861,7 @@
 
       <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
-        <div data-recent>${skel('recent')}</div>
+        <div data-recent>${skel('recent', historyList([]))}</div>
       </div>`;
 
     weekCard($('[data-week-card]', el));
@@ -878,7 +891,7 @@
     });
     const recent = async () => {
       try { slot.innerHTML = historyList((await api('/account/history?limit=6')).items.slice(0, 6), { clickable: true }); keep(slot, 'recent'); }
-      catch (err) { failed(slot, err, () => { slot.innerHTML = skel('recent'); recent(); }, { small: true, what: 'Your recent scans' }); }
+      catch (err) { failed(slot, err, () => { slot.innerHTML = skel('recent', historyList([])); recent(); }, { small: true, what: 'Your recent scans' }); }
     };
     recent();
   }
@@ -912,9 +925,12 @@
       <a class="btn btn--sm" href="/app/week">See your week</a></div></div>`;
   }
 
+  // A new account's week, as the server words it: what the first wait on Your week is drawn from.
+  const NEW_WEEK = Array.from({ length: 4 }, () => ({ headline: 'Nothing to report yet this week', checked: 0, caught: 0, counts: {}, startsAt: 0 }));
+
   async function weekView(el) {
     el.innerHTML = `${title('Your week with Sentinel', 'What Sentinel did for you, Monday to Sunday. Only real counts, never what the links, files or messages were.')}
-      <div data-week>${skel('week')}</div>`;
+      <div data-week>${skel('week', weekHTML(NEW_WEEK))}</div>`;
     const slot = $('[data-week]', el);
     let data;
     // In the Windows app the week comes from the app, whose own message is plain already (desktopError).
@@ -923,7 +939,11 @@
       return;
     }
     if (!slot.isConnected) return;
-    const weeks = data.weeks;
+    slot.innerHTML = weekHTML(data.weeks);
+    keep(slot, 'week');
+  }
+
+  function weekHTML(weeks) {
     const w = weeks[weeks.length - 1];
     const before = weeks[weeks.length - 2];
     const rows = WEEK_ROWS.filter(([k]) => weeks.some((x) => x.counts[k] > 0));
@@ -931,7 +951,7 @@
     const caughtAny = weeks.some((x) => x.caught > 0);
     const val = (x) => (caughtAny ? x.caught : x.checked);
     const top = Math.max(1, ...weeks.map(val));
-    slot.innerHTML = `
+    return `
       <div class="panel week-hero">
         <p class="week-hero__k">${esc(weekLabel(w, weeks.length - 1, weeks))}, so far</p>
         <h2 data-week-n>${esc(w.headline)}</h2>
@@ -953,7 +973,6 @@
         <li>Counted as numbers for each week and kept for five weeks. Sentinel never keeps which links, files, commands or messages they were for this page.</li>
         <li>Private browser windows are not counted.${desktop ? '' : ' Files, copied commands, wallet swaps and chat messages are counted by the Sentinel app for Windows.'}</li>
       </ul>`;
-    keep(slot, 'week');
   }
 
   function protectionTeaser() {
@@ -2004,27 +2023,33 @@
 
   /* ============================================================ history */
 
+  // The three counts above History, and the list's frame: drawn for real and, empty, as the first wait (skel).
+  const statsHTML = (s) => [['scam', s.scams, 'Scams caught', 'var(--red)'], ['virus', s.viruses, 'Viruses caught', 'var(--orange)'], ['malware', s.malware, 'Malware caught', 'var(--yellow)']]
+    .map(([glyph, n, label, color]) => `<button type="button" class="usage-row" data-stat="${glyph}" aria-pressed="false"><span class="usage-row__icon" style="color:${color}">${Masks.svg(glyph)}</span><span class="usage-row__l">${label}</span><b class="usage-row__n tabular">${n}</b></button>`).join('');
+  const HISTORY_FILTERS = [['all', 'All'], ['flagged', 'Flagged'], ['clear', 'Clear'], ['scam', 'Scam'], ['virus', 'Virus'], ['malware', 'Malware'], ['live', 'Live'], ['manual', 'Manual']];
+  const NO_SCANS = () => stateBlock('waiting', 'No scans yet. What you check shows here for 30 days, so you can look again.', { action: '<a class="btn btn--sm btn--gold" href="/app/check">Check something</a>' });
+  const historyFrame = (s, any, filter, rows = '') => `<div class="panel__head"><div><h2 data-total>${s.total} scan${s.total === 1 ? '' : 's'}</h2><p>${s.flagged} flagged</p></div>
+        <span class="tools__end"><button type="button" class="btn btn--sm btn--ghost" data-history-clear ${any ? '' : 'hidden'}>Clear history</button>
+        <label class="tools__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Search history" aria-label="Search history" data-q></label></span></div>
+      <div class="tools" data-filters data-full>${HISTORY_FILTERS.map(([id, label]) => `<button type="button" class="fchip" data-filter="${id}" aria-pressed="${id === filter}">${label}</button>`).join('')}<span class="mono muted" data-count>${rows ? '0 of 0' : ''}</span></div>
+      <div data-rows>${rows}</div>`;
+
   async function historyView(el, params) {
+    const zero = { total: 0, flagged: 0, scams: 0, viruses: 0, malware: 0 };
     el.innerHTML = `${title('History', 'Everything Sentinel checked for you in the last 30 days. Click a link to scan it again.')}
-      <div class="usage-list" data-stats>${skel('stats')}</div>
-      <div class="panel u-mt" data-list>${skel('history')}</div>`;
+      <div class="usage-list" data-stats>${skel('stats', `<div class="usage-list">${statsHTML(zero)}</div>`)}</div>
+      <div class="panel u-mt" data-list>${skel('history', historyFrame(zero, false, params.get('filter') || 'all', NO_SCANS()))}</div>`;
     let data;
     try { data = await api('/account/history'); }
     catch (err) { $('[data-stats]', el).innerHTML = ''; failed($('[data-list]', el), err, () => historyView(el, params), { what: 'Your history' }); return; }
 
     const s = data.stats;
-    const stat = (glyph, n, label, color, filter) => `<button type="button" class="usage-row" data-stat="${filter}" aria-pressed="false"><span class="usage-row__icon" style="color:${color}">${Masks.svg(glyph)}</span><span class="usage-row__l">${label}</span><b class="usage-row__n tabular">${n}</b></button>`;
-    $('[data-stats]', el).innerHTML = stat('scam', s.scams, 'Scams caught', 'var(--red)', 'scam') + stat('virus', s.viruses, 'Viruses caught', 'var(--orange)', 'virus') + stat('malware', s.malware, 'Malware caught', 'var(--yellow)', 'malware');
+    $('[data-stats]', el).innerHTML = statsHTML(s);
 
-    const FILTERS = [['all', 'All'], ['flagged', 'Flagged'], ['clear', 'Clear'], ['scam', 'Scam'], ['virus', 'Virus'], ['malware', 'Malware'], ['live', 'Live'], ['manual', 'Manual']];
     const flaggedLevel = (lvl) => ['suspicious', 'likely', 'confirmed'].includes(lvl);
     const hs = { filter: params.get('filter') || 'all', q: '' };
     const list = $('[data-list]', el);
-    list.innerHTML = `<div class="panel__head"><div><h2 data-total>${s.total} scan${s.total === 1 ? '' : 's'}</h2><p>${s.flagged} flagged</p></div>
-        <span class="tools__end"><button type="button" class="btn btn--sm btn--ghost" data-history-clear ${data.items.length ? '' : 'hidden'}>Clear history</button>
-        <label class="tools__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Search history" aria-label="Search history" data-q></label></span></div>
-      <div class="tools" data-filters data-full>${FILTERS.map(([id, label]) => `<button type="button" class="fchip" data-filter="${id}" aria-pressed="${id === hs.filter}">${label}</button>`).join('')}<span class="mono muted" data-count></span></div>
-      <div data-rows></div>`;
+    list.innerHTML = historyFrame(s, data.items.length > 0, hs.filter);
 
     const paint = () => {
       const q = hs.q.toLowerCase();
@@ -2038,7 +2063,7 @@
       $('[data-rows]', list).innerHTML = items.length ? historyList(items, { clickable: true })
         : data.items.length
           ? stateBlock('nomatch', hs.q ? `Nothing in your history matches &ldquo;${esc(hs.q)}&rdquo;${hs.filter === 'all' ? '' : ' with that filter'}.` : 'Nothing in your history matches that filter.', { action: '<button type="button" class="btn btn--sm" data-show-all>Show every scan</button>' })
-          : stateBlock('waiting', 'No scans yet. What you check shows here for 30 days, so you can look again.', { action: '<a class="btn btn--sm btn--gold" href="/app/check">Check something</a>' });
+          : NO_SCANS();
       $$('[data-filter]', list).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === hs.filter)));
       $$('[data-stat]', el).forEach((b) => {
         b.classList.toggle('is-active', b.dataset.stat === hs.filter);
@@ -2119,6 +2144,19 @@
 
   /* ========================================================== site rules */
 
+  // One of the two lists, Trusted or Blocked; empty, it is also the first wait's shape (skel).
+  const RULE_LISTS = { allow: ['Trusted', 'No trusted sites yet. Use "Trust this site" on any scan result, or add one above.'], block: ['Blocked', 'No blocked sites. Block a site to give it a red mask everywhere, for you.'] };
+  function rulesHTML(overrides, action) {
+    const [heading, empty] = RULE_LISTS[action];
+    const rows = overrides.filter((o) => o.action === action);
+    return `<div class="panel__head"><div><h2>${heading}</h2><p>${rows.length} site${rows.length === 1 ? '' : 's'}</p></div></div>
+      ${rows.length ? `<ul class="list">${rows.map((o) => `<li>
+        <span class="list__icon">${action === 'allow' ? ICON.check : ICON.lock}</span>
+        <span class="list__main"><b class="mono">${esc(o.host)}</b><span>Added ${ago(o.created_at)}</span></span>
+        <button class="btn btn--sm" data-remove="${esc(o.host)}">Remove</button>
+      </li>`).join('')}</ul>` : stateBlock('waiting', empty, { small: true })}`;
+  }
+
   async function sitesView(el) {
     el.innerHTML = `${title('Site rules', 'Sites you trust never show a mask for you. Sites you block always show a red one, in scans, search results and email.')}
       <form class="panel" data-add data-draft="site-rule">
@@ -2129,8 +2167,8 @@
         <div class="report__foot"><span class="muted">Rules apply to the whole site, including its subdomains. Only your account is affected.</span><button class="btn btn--gold" type="submit">Add rule</button></div>
       </form>
       <div class="grid2 u-mt">
-        <div class="panel" data-allow>${skel('allow')}</div>
-        <div class="panel" data-block>${skel('block')}</div>
+        <div class="panel" data-allow>${skel('allow', rulesHTML([], 'allow'))}</div>
+        <div class="panel" data-block>${skel('block', rulesHTML([], 'block'))}</div>
       </div>`;
 
     let rule = 'allow';
@@ -2145,21 +2183,12 @@
       catch (err) {
         // One answer for both lists, in the first: they come from the same place.
         $('[data-block]', el).hidden = true;
-        failed($('[data-allow]', el), err, () => { $('[data-allow]', el).innerHTML = skel('allow'); load(); }, { what: 'Your site rules' });
+        failed($('[data-allow]', el), err, () => { $('[data-allow]', el).innerHTML = skel('allow', rulesHTML([], 'allow')); load(); }, { what: 'Your site rules' });
         return;
       }
       $('[data-block]', el).hidden = false;
-      const section = (slot, action, heading, empty) => {
-        const rows = overrides.filter((o) => o.action === action);
-        slot.innerHTML = `<div class="panel__head"><div><h2>${heading}</h2><p>${rows.length} site${rows.length === 1 ? '' : 's'}</p></div></div>
-          ${rows.length ? `<ul class="list">${rows.map((o) => `<li>
-            <span class="list__icon">${action === 'allow' ? ICON.check : ICON.lock}</span>
-            <span class="list__main"><b class="mono">${esc(o.host)}</b><span>Added ${ago(o.created_at)}</span></span>
-            <button class="btn btn--sm" data-remove="${esc(o.host)}">Remove</button>
-          </li>`).join('')}</ul>` : stateBlock('waiting', empty, { small: true })}`;
-      };
-      section($('[data-allow]', el), 'allow', 'Trusted', 'No trusted sites yet. Use "Trust this site" on any scan result, or add one above.');
-      section($('[data-block]', el), 'block', 'Blocked', 'No blocked sites. Block a site to give it a red mask everywhere, for you.');
+      $('[data-allow]', el).innerHTML = rulesHTML(overrides, 'allow');
+      $('[data-block]', el).innerHTML = rulesHTML(overrides, 'block');
       keep($('[data-allow]', el), 'allow');
       keep($('[data-block]', el), 'block');
       $$('[data-remove]', el).forEach((b) => b.addEventListener('click', () => busy(b, 'Removing', async () => {
@@ -2364,10 +2393,10 @@
         </div>
       </div>` : ''}
 
-      <div data-desktop>${desktop && !planLocked ? '<div class="skeleton desktop-skeleton" aria-hidden="true"></div>' : ''}</div>
+      <div data-desktop>${desktop && !planLocked ? `<div class="skeleton desktop-skeleton">${LATE}</div>` : ''}</div>
       <div class="panel u-mt" data-intel>
         <div class="panel__head"><div><h2>Threat intelligence</h2><p>The public feeds every scan is checked against, refreshed automatically.</p></div></div>
-        <div class="skeleton u-h-sm"></div>
+        <div class="skeleton u-h-sm">${LATE}</div>
       </div>
       <p class="set-away u-mt"><a href="/app/settings#protection">Change what Sentinel watches in Settings</a></p>`;
 
@@ -2402,7 +2431,7 @@
       const wait = $('.skeleton', slot);
       const box = document.createElement('div');
       wait.replaceWith(box);
-      failed(box, err, () => { box.outerHTML = '<div class="skeleton u-h-sm"></div>'; renderIntel(slot); }, { small: true, what: 'The status of the threat lists' });
+      failed(box, err, () => { box.outerHTML = `<div class="skeleton u-h-sm">${LATE}</div>`; renderIntel(slot); }, { small: true, what: 'The status of the threat lists' });
     }
   }
 
@@ -2972,16 +3001,10 @@
       bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelType) window.SentinelType.set({ density: b.dataset.seg }); ctx.draw(); })) },
 
     // Motion (boot.js SentinelMotionLevel): its own control, Animation (Full, Calm, Off) and the Scan effect switch. The
-    // row's heading names it, so the control's own name is kept for screen readers only.
+    // row's heading names the choices, for a screen reader too.
     { id: 'motion', group: 'moving', kind: 'block', label: 'Animation', hint: `How much Sentinel moves on this ${desktop ? 'computer, here and over your browser' : 'device'}. Off whenever your computer asks for less motion.`,
       words: ['animation', 'animations', 'motion', 'reduce', 'still', 'calm', 'effects', 'moving', 'scan effect', 'digits', 'glitch', 'binary'],
-      mount: (body) => {
-        if (!window.SentinelMotionLevel) return;
-        const c = window.SentinelMotionLevel.control();
-        const name = $('.setting b', c);
-        if (name) name.classList.add('sr-only');
-        body.append(c);
-      } },
+      mount: (body) => { if (window.SentinelMotionLevel) body.append(window.SentinelMotionLevel.control({ labelledBy: 'set-motion-l' })); } },
 
     { id: 'live-mode', group: 'protection', kind: 'custom', app: true, label: 'Scanning mode', hint: 'Fast marks search results about a second after you search. Delicate also looks up how old each site is and whether it resolves, and takes about five seconds.',
       words: ['fast', 'delicate', 'live', 'speed', 'research', 'search results'],
@@ -3353,16 +3376,21 @@
     });
   }
 
-  async function loadSessions(slot) {
-    if (!slot.innerHTML) slot.innerHTML = skel('devices');
-    try {
-      const { sessions } = await api('/account/sessions');
-      slot.innerHTML = `<div class="set-sub"><span class="muted">${sessions.length} active session${sessions.length === 1 ? '' : 's'}</span>${sessions.length > 1 ? '<button class="btn btn--sm" type="button" data-revoke>Sign out other devices</button>' : ''}</div>
+  function sessionsHTML(sessions) {
+    return `<div class="set-sub"><span class="muted">${sessions.length} active session${sessions.length === 1 ? '' : 's'}</span>${sessions.length > 1 ? '<button class="btn btn--sm" type="button" data-revoke>Sign out other devices</button>' : ''}</div>
         <ul class="list">${sessions.map((s) => `<li>
           <span class="list__icon">${s.kind === 'web' ? ICON.link : s.kind === 'desktop' ? ICON.download : ICON.shield}</span>
           <span class="list__main"><b>${esc(s.device)}${s.current ? ' <span class="status is-on u-ml">This device</span>' : ''}</b><span>${esc(s.kind === 'web' ? 'Browser' : s.kind === 'desktop' ? 'Sentinel app' : 'Browser companion')} &middot; ${s.ip ? esc(s.ip) + ' &middot; ' : ''}active ${ago(s.lastSeenAt || s.createdAt)} &middot; ${s.kind === 'web' ? (s.staySignedIn ? 'stays signed in, ends after 30 days unused' : 'ends when the browser closes') : 'ends after 90 days unused'}</span></span>
           ${s.current ? '<button class="btn btn--sm" type="button" data-signout-here>Sign out</button>' : `<button class="btn btn--sm" type="button" data-revoke-one="${esc(s.id)}">Sign out</button>`}
         </li>`).join('')}</ul>`;
+  }
+
+  async function loadSessions(slot) {
+    // The first wait is this browser alone, as a new account sees it (the address and device name are stand-ins).
+    if (!slot.innerHTML) slot.innerHTML = skel('devices', sessionsHTML([{ id: '', kind: 'web', device: 'Chrome on Windows', current: true, ip: '127.0.0.1', createdAt: Date.now() }]));
+    try {
+      const { sessions } = await api('/account/sessions');
+      slot.innerHTML = sessionsHTML(sessions);
       $$('[data-revoke-one]', slot).forEach((b) => b.addEventListener('click', () => busy(b, 'Signing out', async () => {
         try {
           await api('/account/sessions/revoke', { method: 'POST', body: { id: b.dataset.revokeOne } });
@@ -3429,7 +3457,10 @@
     row._key = key;
     const focused = row.contains(document.activeElement) ? document.activeElement : null;
     const again = focused && (focused.id ? `#${focused.id}` : focused.dataset.seg ? `[data-seg="${focused.dataset.seg}"]` : null);
+    const was = $('.seg__btn.is-on', row);
+    const from = was && was.getBoundingClientRect();
     $('[data-set-control]', row).innerHTML = control;
+    if (from && window.SentinelMotionLevel) window.SentinelMotionLevel.glide($('.seg', row), from);
     const line = $('[data-set-state]', row);
     line.innerHTML = stateHTML;
     line.classList.toggle('is-down', Boolean(!why && r.down && r.down(info)));
@@ -3609,9 +3640,12 @@
   const MARKS = { chatgpt: 'GPT', claude: 'Cl', gemini: 'Gm', deepseek: 'DS' };
   const chats = {};
 
+  // The first tab, unconnected, as a new account first sees it (server/routes/ai.routes.js): the first wait's shape.
+  const FIRST_ASSISTANT = { id: 'chatgpt', name: 'ChatGPT', vendor: 'OpenAI', model: 'gpt-4o-mini', keyUrl: 'https://platform.openai.com/api-keys', accent: '' };
+
   async function assistantsView(el, params) {
     el.innerHTML = `${title('AI assistants', 'Optional. Ask ChatGPT, Claude, Gemini or DeepSeek about anything. Sentinel\'s scans never depend on them.')}
-      <div data-tabs><div class="skeleton skeleton--tabs"></div></div><div class="panel" data-pane id="ai-pane" role="tabpanel">${skel('assistants')}</div>`;
+      <div data-tabs><div class="skeleton skeleton--tabs"></div></div><div class="panel" data-pane id="ai-pane" role="tabpanel">${skel('assistants', connectHTML(FIRST_ASSISTANT))}</div>`;
     let providers;
     try { ({ providers } = await api('/ai/providers')); } catch (err) { $('[data-tabs]', el).innerHTML = ''; failed($('[data-pane]', el), err, () => assistantsView(el, params), { what: 'The assistants' }); return; }
     const active = providers.find((p) => p.id === params.get('ai')) || providers[0];
@@ -3631,16 +3665,7 @@
   }
 
   function renderConnect(pane, p) {
-    pane.innerHTML = `
-      <div class="connect-head"><span class="ai-tab__mark ai-tab__mark--lg" style="--accent:${esc(p.accent)}">${MARKS[p.id]}</span>
-        <div><h2>Connect ${esc(p.name)}</h2><p class="note">Uses ${esc(p.vendor)}'s official API with a key from your own account &middot; <span class="mono">${esc(p.model)}</span></p></div></div>
-      <ol class="steps-list">
-        <li>Open <a href="${esc(p.keyUrl)}" target="_blank" rel="noopener noreferrer" class="u-gold">${esc(new URL(p.keyUrl).host)}</a> and sign in to ${esc(p.vendor)} there.</li>
-        <li>Create an API key and copy it.</li>
-        <li>Paste it below. Sentinel checks it with ${esc(p.vendor)} and stores it encrypted.</li>
-      </ol>
-      <form class="scanbox" data-connect data-no-draft>${ICON.lock}<input name="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ${esc(p.vendor)} API key" aria-label="${esc(p.vendor)} API key" data-no-draft required><button class="btn btn--gold" type="submit">Connect</button></form>
-      <p class="note u-mt">Sentinel never asks for your ${esc(p.vendor)} password. A login form for another company inside our app is exactly what we warn you about.</p>`;
+    pane.innerHTML = connectHTML(p);
     $('[data-connect]', pane).addEventListener('submit', async (ev) => {
       ev.preventDefault();
       await busy($('button', ev.target), 'Verifying', async () => {
@@ -3651,6 +3676,19 @@
         } catch (err) { toast(err.message, 'error'); }
       });
     });
+  }
+
+  function connectHTML(p) {
+    return `
+      <div class="connect-head"><span class="ai-tab__mark ai-tab__mark--lg" style="--accent:${esc(p.accent)}">${MARKS[p.id]}</span>
+        <div><h2>Connect ${esc(p.name)}</h2><p class="note">Uses ${esc(p.vendor)}'s official API with a key from your own account &middot; <span class="mono">${esc(p.model)}</span></p></div></div>
+      <ol class="steps-list">
+        <li>Open <a href="${esc(p.keyUrl)}" target="_blank" rel="noopener noreferrer" class="u-gold">${esc(new URL(p.keyUrl).host)}</a> and sign in to ${esc(p.vendor)} there.</li>
+        <li>Create an API key and copy it.</li>
+        <li>Paste it below. Sentinel checks it with ${esc(p.vendor)} and stores it encrypted.</li>
+      </ol>
+      <form class="scanbox" data-connect data-no-draft>${ICON.lock}<input name="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ${esc(p.vendor)} API key" aria-label="${esc(p.vendor)} API key" data-no-draft required><button class="btn btn--gold" type="submit">Connect</button></form>
+      <p class="note u-mt">Sentinel never asks for your ${esc(p.vendor)} password. A login form for another company inside our app is exactly what we warn you about.</p>`;
   }
 
   function renderChat(pane, p, el) {

@@ -39,32 +39,44 @@
     groups.get(g).push({ el, bar: stat.querySelector('.stat__bar') });
   }
 
-  // Off when the page loaded: nothing here runs, until Motion is turned up; then it all starts, as a page would.
-  if (reduced) {
-    window.SentinelMotion = true;
-    const up = () => { if (root.dataset.motion !== 'off') { document.removeEventListener('sentinel:motion', up); start(); } };
-    document.addEventListener('sentinel:motion', up);
-    return;
-  }
-  start();
-
+  // Off when the page loaded: nothing here runs until Motion is turned up; then it all starts, as a page would.
   // Turned to Off while the page is open: every tween lands where it ends, the scroll triggers and Lenis are let go,
-  // and the page is as Off would have drawn it. (Turned up again, it stays so until the next page.)
-  document.addEventListener('sentinel:motion', function down() {
-    if (root.dataset.motion !== 'off') return;
-    document.removeEventListener('sentinel:motion', down);
+  // and the page is as Off would have drawn it. Turned up again: the smooth wheel and everything that follows the
+  // scroll come back without a reload, and what already played, or was landed by Off, does not play again.
+  let built = false;
+  let on = false;
+  let smooth = () => {};        // Lenis, made again each time Motion comes up
+  const followers = [];         // what follows the scroll, set up again likewise
+  const follow = (fn) => { followers.push(fn); fn(); };
+  let land = () => {};          // what Off must mark as played
+  const up = () => {
+    on = true;
+    if (!built) { built = true; start(); return; }
+    smooth();
+    followers.forEach((fn) => fn());
+  };
+  const down = () => {
+    on = false;
+    land();
     for (const t of ST.getAll()) { if (t.animation) t.animation.progress(1); t.kill(); }
     for (const tw of G.globalTimeline.getChildren(true, true, true)) tw.progress(1);
     if (window.SentinelScroll && window.SentinelScroll.lenis) { window.SentinelScroll.lenis.stop(); window.SentinelScroll.lenis.destroy(); delete window.SentinelScroll; }
+  };
+  document.addEventListener('sentinel:motion', () => {
+    const off = root.dataset.motion === 'off';
+    if (off && on) down();
+    else if (!off && !on) up();
   });
+  window.SentinelMotion = true;
+  if (!reduced) up();
 
   function start() {
 
   /* ------------------------------------------------------------- Lenis */
 
   if (fine && window.Lenis) {
-    const lenis = new window.Lenis({ lerp: 0.1, smoothWheel: true, syncTouch: false, anchors: false });
-    lenis.on('scroll', ST.update);
+    // Made here, and again when Motion comes back up after Off (which destroys it). The listeners below stay.
+    let lenis = null;
     G.ticker.lagSmoothing(0);
     // GSAP's clock drives Lenis only while it glides. Lenis keeps time on its own clock, which skips the rests, so
     // the first frame after one is a frame long, not the whole rest (which would land the glide at once).
@@ -81,17 +93,22 @@
     const wake = () => { if (!ticking && lenis.animate.isRunning) { ticking = true; G.ticker.add(tick); } };
     // After Lenis's own wheel listener (added first), which starts the glide.
     addEventListener('wheel', wake, { passive: true });
-    window.SentinelScroll = {
-      lenis,
-      // Where the page jumps (a tab's chapter, under its wipe), it lands exactly, at once; a smooth one glides there.
-      to(top, smooth) {
-        // From where the page really is: a native scroll earlier in this frame has not reached Lenis yet.
-        lenis.reset();
-        lenis.scrollTo(top, { immediate: !smooth, force: true });
-        wake();
-      },
-      get ticking() { return ticking; }
+    smooth = () => {
+      lenis = new window.Lenis({ lerp: 0.1, smoothWheel: true, syncTouch: false, anchors: false });
+      lenis.on('scroll', ST.update);
+      window.SentinelScroll = {
+        lenis,
+        // Where the page jumps (a tab's chapter, under its wipe), it lands exactly, at once; a smooth one glides there.
+        to(top, glide) {
+          // From where the page really is: a native scroll earlier in this frame has not reached Lenis yet.
+          lenis.reset();
+          lenis.scrollTo(top, { immediate: !glide, force: true });
+          wake();
+        },
+        get ticking() { return ticking; }
+      };
     };
+    smooth();
     // Links to a place on this page glide there too (the tabs and rail have their own wipe, in site.js, and say so
     // by preventing the default first). Keyboard focus follows, as a native jump would move it.
     document.addEventListener('click', (ev) => {
@@ -197,8 +214,15 @@
     });
   });
 
-  afterIntro(() => {
+  const counted = new Set();
+  // Off lands every chapter and figure where it ends (the bars full, as Off draws them); back on, none plays again.
+  land = () => {
+    heads.forEach((h) => { h.done = true; });
+    for (const [group, items] of groups) if (!counted.has(group)) { counted.add(group); G.set(items.map((i) => i.bar), { scaleX: 1 }); }
+  };
+  follow(() => afterIntro(() => {
     for (const h of heads) {
+      if (h.done) continue;
       const st = ST.create({ trigger: h.head, start: 'top 92%', once: true, onEnter: () => fire(h) });
       // A page opened (or restored) further down: the chapters above were passed before there was anything to see.
       if (st.scroll() > st.start) fire(h);
@@ -208,14 +232,13 @@
         .fromTo($$('.wd', p), { opacity: 0.12, yPercent: 35 }, { opacity: 1, yPercent: 0, stagger: 0.08, ease: 'power1.out' });
     }
     for (const [group, items] of groups) {
+      if (counted.has(group)) continue;
       // The stats sit at the top of a stack that holds still (CSS sticky), so the stack, which never does, triggers.
-      let going = false;
-      const go = () => { if (!going) { going = true; count(items); } };
+      const go = () => { if (!counted.has(group)) { counted.add(group); count(items); } };
       const st = ST.create({ trigger: group.closest('[data-stack]') || group, start: 'top 72%', once: true, onEnter: go });
       if (st.scroll() > st.start) go();
     }
-  });
-  window.SentinelMotion = true;
+  }));
 
   /* ---------------------------------------------------------- parallax */
 
@@ -225,23 +248,25 @@
   const mask = $('[data-hero-mask] .m3');
   const stack = word && word.closest('[data-stack]');
   if (word && stack) {
-    G.timeline({ defaults: { ease: 'none' }, scrollTrigger: { trigger: stack, start: 'top top', end: () => `+=${word.closest('.hero').offsetHeight}`, scrub: true, invalidateOnRefresh: true } })
+    follow(() => G.timeline({ defaults: { ease: 'none' }, scrollTrigger: { trigger: stack, start: 'top top', end: () => `+=${word.closest('.hero').offsetHeight}`, scrub: true, invalidateOnRefresh: true } })
       .fromTo(word, { yPercent: 0 }, { yPercent: -18 }, 0)
-      .fromTo(mask || {}, { y: 0 }, { y: () => (innerWidth > 860 ? innerHeight * 0.12 : 18) }, 0);  // on a phone it stays in its niche (home.css)
+      .fromTo(mask || {}, { y: 0 }, { y: () => (innerWidth > 860 ? innerHeight * 0.12 : 18) }, 0));  // on a phone it stays in its niche (home.css)
     // With a mouse, the name also drifts the other way from the pointer a little, for depth (the mask itself
     // watches the pointer, hover.js).
     if (fine) {
       const xTo = G.quickTo(word, 'x', { duration: 1.4, ease: 'power4.out' });
-      addEventListener('pointermove', (e) => { if (scrollY < innerHeight) xTo((e.clientX / innerWidth - 0.5) * -18); }, { passive: true });
+      addEventListener('pointermove', (e) => { if (on && scrollY < innerHeight) xTo((e.clientX / innerWidth - 0.5) * -18); }, { passive: true });
     }
   }
   // Each threat plate's cartouche turns a few degrees as the plate passes, the other way on alternate plates.
-  for (const plate of $$('.plate')) {
-    const cart = $('.cartouche', plate);
-    if (!cart) continue;
-    const turn = plate.classList.contains('plate--flip') ? -4 : 4;
-    G.fromTo(cart, { rotation: -turn, yPercent: 3 }, { rotation: turn, yPercent: -3, ease: 'none', scrollTrigger: { trigger: plate, start: 'top bottom', end: 'bottom top', scrub: true } });
-  }
+  follow(() => {
+    for (const plate of $$('.plate')) {
+      const cart = $('.cartouche', plate);
+      if (!cart) continue;
+      const turn = plate.classList.contains('plate--flip') ? -4 : 4;
+      G.fromTo(cart, { rotation: -turn, yPercent: 3 }, { rotation: turn, yPercent: -3, ease: 'none', scrollTrigger: { trigger: plate, start: 'top bottom', end: 'bottom top', scrub: true } });
+    }
+  });
 
   /* ----------------------------------- React Bits, ported: ShinyText and Magnet */
 
@@ -255,14 +280,14 @@
     const shine = () => {
       clearTimeout(timer);
       timer = setTimeout(shine, 9000);
-      if (!seen || document.hidden || word.classList.contains('is-shining')) return;
+      if (!on || !seen || document.hidden || word.classList.contains('is-shining')) return;
       const letters = [...word.children];
       if (!letters.length) return;
       letters.forEach((c, i) => c.style.setProperty('--i', i));
       word.classList.add('is-shining');
       letters[letters.length - 1].addEventListener('animationend', () => word.classList.remove('is-shining'), { once: true });
     };
-    ST.create({ trigger: word.closest('.hero'), start: 'top bottom', end: 'bottom top', onToggle: (self) => { seen = self.isActive; } });
+    follow(() => ST.create({ trigger: word.closest('.hero'), start: 'top bottom', end: 'bottom top', onToggle: (self) => { seen = self.isActive; } }));
     afterIntro(() => { timer = setTimeout(shine, 2600); });
   }
 
@@ -301,7 +326,7 @@
     addEventListener('pointermove', (e) => {
       px = e.clientX;
       py = e.clientY;
-      if (!queued && magnets.some((m) => m.on)) { queued = true; requestAnimationFrame(pull); }
+      if (on && !queued && magnets.some((m) => m.on)) { queued = true; requestAnimationFrame(pull); }
     }, { passive: true });
   }
   }

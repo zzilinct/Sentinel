@@ -61,7 +61,7 @@ async function checkSettings() {
     await api('/billing/plan', { plan: 'max' });
 
     /* --------------------------------------------------- without the app */
-    const ready = "document.querySelectorAll('[data-set-row]').length > 20 && !document.querySelector('.set-skel') && document.querySelector('[data-sessions] .list')";
+    const ready = "document.querySelectorAll('[data-set-row]').length > 20 && !document.querySelector('.set-skel') && document.querySelector('[data-sessions] > .list')";
     const wide = [];
     let bare = null;
     for (const [size, [width, height, mobile]] of Object.entries(SIZES)) {

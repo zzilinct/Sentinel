@@ -30,7 +30,9 @@ document.documentElement.classList.add('js');
  *   SentinelMotionLevel.scanEffect()      true when the digits may show
  *   SentinelMotionLevel.setScanEffect(on)
  *   SentinelMotionLevel.system()          true when the computer asks for less motion (Off, locked)
- *   SentinelMotionLevel.control()         the settings for it, ready to put on a page
+ *   SentinelMotionLevel.control(opts)     the settings for it, ready to put on a page; { labelledBy: id } names the
+ *                                         choices by a heading already on the page instead of their own
+ *   SentinelMotionLevel.glide(seg, from)  under Full, the gold of a row of choices springs from where it was (a rect)
  * A change fires `sentinel:motion` on document. The Windows app is told too, for its live scanning overlay.
  */
 (function () {
@@ -74,13 +76,15 @@ document.documentElement.classList.add('js');
     locked: 'Your computer asks for less motion, so Sentinel follows.'
   };
   var uid = 0;
-  function control() {
-    var id = 'motion-' + (++uid);
+  function control(opts) {
+    var named = opts && opts.labelledBy;
+    var id = named || 'motion-' + (++uid);
     var box = document.createElement('div');
     box.className = 'motion-set';
     // The row is #motion (the first-run step and links point at it); a second copy on the same page goes without.
-    box.innerHTML = '<div class="setting"' + (document.getElementById('motion') ? '' : ' id="motion"') + '><div><b id="' + id + '">Animation</b><span data-motion-note></span></div>'
-      + '<div class="seg motion-set__seg" role="radiogroup" aria-labelledby="' + id + '">'
+    // Under a heading that already says Animation, the choices take their name from it and draw none of their own.
+    box.innerHTML = '<div class="setting"' + (document.getElementById('motion') ? '' : ' id="motion"') + '><div>' + (named ? '' : '<b id="' + id + '">Animation</b>') + '<span data-motion-note id="' + id + '-note"></span></div>'
+      + '<div class="seg motion-set__seg" role="radiogroup" aria-labelledby="' + id + '" aria-describedby="' + id + '-note">'
       + LEVELS.map(function (l) { return '<label class="seg__btn"><input class="sr-only" type="radio" name="' + id + '" value="' + l + '">' + l[0].toUpperCase() + l.slice(1) + '</label>'; }).join('')
       + '</div></div>'
       + '<label class="setting"><div><b>Scan effect</b><span data-scan-note></span></div><input class="switch" type="checkbox" data-scan-effect-switch></label>';
@@ -92,11 +96,13 @@ document.documentElement.classList.add('js');
       if (!box.isConnected && seen) { document.removeEventListener('sentinel:motion', show); return; }
       seen = seen || box.isConnected;
       var level = get(), locked = system();
+      var was = box.querySelector('.seg__btn.is-on'), from = was && was.getBoundingClientRect();
       radios.forEach(function (r) {
         r.checked = r.value === level;
         r.disabled = locked;
         r.parentNode.classList.toggle('is-on', r.checked);
       });
+      glide(box.querySelector('.seg'), from);
       box.querySelector('[data-motion-note]').textContent = locked ? NOTES.locked : NOTES[level];
       sw.checked = scanEffect() && level !== 'off';
       sw.disabled = level === 'off';
@@ -109,6 +115,17 @@ document.documentElement.classList.add('js');
     document.addEventListener('sentinel:motion', show);
     show();
     return box;
+  }
+  // A row of choices (.seg): under Full, the gold of the one just chosen springs over from where the last one was (a
+  // rect), on the curve a Settings row folds on. Only its ::before moves: the words stay put and nothing is laid out.
+  function glide(seg, from) {
+    var on = seg && seg.querySelector('.seg__btn.is-on');
+    if (!on || !from || !on.animate || get() !== 'full') return;
+    var to = on.getBoundingClientRect();
+    if (!to.width || Math.abs(from.left - to.left) < 1) return;
+    var spring = getComputedStyle(root).getPropertyValue('--set-spring').trim() || 'cubic-bezier(.16, 1, .3, 1)';
+    on.animate([{ transform: 'translateX(' + (from.left - to.left) + 'px) scaleX(' + from.width / to.width + ')' }, { transform: 'none' }],
+      { duration: 550, easing: spring, pseudoElement: '::before' });
   }
   function set(level) {
     if (LEVELS.indexOf(level) < 0) return;
@@ -124,7 +141,7 @@ document.documentElement.classList.add('js');
   // The system setting changed, or another tab chose: this page follows at once.
   if (sys && sys.addEventListener) sys.addEventListener('change', apply);
   addEventListener('storage', function (ev) { if (ev.key === 'sentinel:motion' || ev.key === 'sentinel:scan-effect') apply(); });
-  window.SentinelMotionLevel = { get: get, set: set, scanEffect: scanEffect, setScanEffect: setScanEffect, system: system, control: control };
+  window.SentinelMotionLevel = { get: get, set: set, scanEffect: scanEffect, setScanEffect: setScanEffect, system: system, control: control, glide: glide };
 })();
 
 /*

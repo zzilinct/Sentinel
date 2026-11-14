@@ -133,7 +133,7 @@ async function checkFirstChoices() {
         for (const theme of THEMES) {
           await media(theme);
           await evalIn(browser, s, `(localStorage.setItem('sentinel:type', JSON.stringify({ text: '${text}', density: '${density}' })), localStorage.removeItem('sentinel:theme'), localStorage.removeItem('sentinel:accent'))`);
-          for (const [page, url, ready] of [['home', '/app', homeReady], ['settings', '/app/settings', "document.querySelectorAll('[data-set-row]').length > 20 && document.querySelector('[data-sessions] .list')"]]) {
+          for (const [page, url, ready] of [['home', '/app', homeReady], ['settings', '/app/settings', "document.querySelectorAll('[data-set-row]').length > 20 && document.querySelector('[data-sessions] > .list')"]]) {
             await goto(browser, s, `${server.base}${url}`);
             await until(browser, s, ready, 20000);
             await sleep(300);
