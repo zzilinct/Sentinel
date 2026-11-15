@@ -63,13 +63,13 @@ Evidence is `file:line` at the audited commit. Line numbers in files changed on 
 | High | Updates are trusted on the GitHub account alone: the installer is not code-signed, and the SHA-512 comes from the same release as the file | missing, plan below |
 | Medium | Defense skipped any folder whose path merely started with Sentinel's install folder or quarantine folder (`desktop/src/defense.js:252` at `c07c90a`) | fixed `75200b8` |
 | Medium | Two-factor codes could be guessed without end: each sign-in gave a fresh challenge with five tries, and wrong codes did not count toward the account lock (`server/lib/auth.js:205` at `c07c90a`) | fixed, see the commit "Sign-in: wrong two-factor codes" |
-| Medium | Electron fuses are left at defaults: `RunAsNode`, `NODE_OPTIONS` and `--inspect` work on the shipped exe, so any local program can run code as Sentinel | missing, plan below |
-| Medium | The release and site workflows, which hold write tokens, ran third-party actions by floating tag | fixed (pins) for the two privileged workflows; other workflows listed |
+| Medium | Electron fuses are left at defaults: `RunAsNode`, `NODE_OPTIONS` and `--inspect` work on the shipped exe, so any local program can run code as Sentinel | fixed for releases in 1.20.2 (E17) |
+| Medium | The release and site workflows, which hold write tokens, ran third-party actions by floating tag | fixed (pins) for the two privileged workflows; every other workflow pinned in 1.20.2 (C3) |
 | Low | The app window let `http://127.0.0.1:47821@elsewhere/` through its own-origin check to the browser (`desktop/src/main.js:369` at `c07c90a`) | fixed |
-| Low | Password rules differ from NIST SP 800-63B rev. 4: a letter and a digit are required (composition rules SHALL NOT be imposed), and the minimum is 10 (15 for a password used alone) | missing, design decision |
-| Low | Desktop local pages allow `'unsafe-inline'` scripts in their CSP | missing, plan below |
-| Low | Several extension worker messages (`override`, `report`, `deep-scan`, `live-batch`) accept any content script without checking where it runs | missing, plan below |
-| Low | The rate-limit table in memory has no size cap; unique keys (one per email tried) live for the whole window | missing, plan below |
+| Low | Password rules differ from NIST SP 800-63B rev. 4: a letter and a digit are required (composition rules SHALL NOT be imposed), and the minimum is 10 (15 for a password used alone) | fixed in 1.20.2 (A5, A6) |
+| Low | Desktop local pages allow `'unsafe-inline'` scripts in their CSP | fixed in 1.20.2 (E7) |
+| Low | Several extension worker messages (`override`, `report`, `deep-scan`, `live-batch`) accept any content script without checking where it runs | fixed in 1.20.2 (X5) |
+| Low | The rate-limit table in memory has no size cap; unique keys (one per email tried) live for the whole window | fixed in 1.20.2 (S21) |
 | Low | Build-time only: minimatch (moderate) inside electron-builder; needs a major electron-builder change | left, build machines only |
 
 Everything else checked passes; the details follow.
@@ -98,7 +98,7 @@ Everything else checked passes; the details follow.
 | S18 | Error responses never include stack traces or internal messages | T10 A05, CS-NODE | pass | `server/index.js:96-107` |
 | S19 | A global per-IP API rate limit | API4 | pass | `server/index.js:64` (600 a minute) |
 | S20 | Client IP is taken from `X-Forwarded-For` only when a proxy is declared | ASVS 1.4 | pass | `security.js:103-108` |
-| S21 | Rate-limit state is bounded in memory | API4 | missing | `security.js:112-129`: cleared only when windows expire; unique keys (`login:email:<any text>`) grow with traffic |
+| S21 | Rate-limit state is bounded in memory | API4 | fixed (1.20.2) | `security.js` `makeRoom`: past 100,000 keys only keys counted once are dropped, oldest first; long keys kept as a SHA-256; test `tests/security.test.js` "the rate-limit table stays bounded" |
 
 ## 2. Server: accounts, passwords, sessions, 2FA
 
@@ -108,8 +108,8 @@ Everything else checked passes; the details follow.
 | A2 | Hash comparison is constant time | CS-PW | pass | `auth.js:34` |
 | A3 | Unknown emails cost the same hashing time as known ones | CS-AUTH | pass | `auth.js:38`, `auth.js:166-174` |
 | A4 | New passwords are checked against a breach corpus without sending the password | NIST | pass | `security.js:172-185` (HIBP range API, padded) |
-| A5 | No composition rules are imposed | NIST ("SHALL NOT impose") | missing | `security.js:158` requires a letter and a digit |
-| A6 | Minimum length 15 for a password used alone, 8 with MFA | NIST rev. 4 | missing | `security.js:156` (10) |
+| A5 | No composition rules are imposed | NIST ("SHALL NOT impose") | fixed (1.20.2) | the letter-and-digit rule is gone (`security.js` `passwordProblem`); breach, common-password, name and email checks kept |
+| A6 | Minimum length 15 for a password used alone, 8 with MFA | NIST rev. 4 | fixed (1.20.2) | 15 characters for every password (stricter than 8 with MFA); sign-up, reset and the change form say so; test "passwords follow NIST SP 800-63B rev. 4" |
 | A7 | At least 64 characters are accepted | NIST | pass | `security.js:157` (200) |
 | A8 | Failed password attempts are rate-limited per account and per IP | NIST, CS-AUTH | pass | `server/routes/auth.routes.js:108-109`, lock after 8 at `auth.js:14,177` |
 | A9 | Failed OTP attempts are rate-limited per account, and a new challenge does not reset the count | NIST ("generating a new secret does not reset the failure count"), CS-MFA | fixed | was per challenge and per IP only; now `auth.js:205-216`, test `tests/security.test.js` "wrong ones lock the account however many fresh challenges" |
@@ -168,7 +168,7 @@ Everything else checked passes; the details follow.
 | W3 | Nothing assigns `location` from the query or hash without validation | CS-REDIR | pass | `auth.js` (web) `next` checked client and server side |
 | W4 | No inline scripts or `eval` (CSP enforced) | CS-CSP | pass | `security.js:15` |
 | W5 | Third-party scripts are self-hosted, not pulled from a CDN at run time | CR-MV3, CISA | pass | `web/assets/js/vendor/` |
-| W6 | A small set of fixed values go into markup unescaped (`tone`, `badge`, `c.status`) | CS-XSS (defence in depth) | pass with note | `ui.js:261,460`; values come from Sentinel's own engine, wrapping them in `esc()` would cost nothing |
+| W6 | A small set of fixed values go into markup unescaped (`tone`, `badge`, `c.status`) | CS-XSS (defence in depth) | fixed (1.20.2) | `ui.js` `esc()` around `c.status`, `c.threat`, `threat`, `tone`; test `tests/plain.test.js` "values from a result never reach the markup raw" |
 
 ## 5. Electron desktop app
 
@@ -180,7 +180,7 @@ Everything else checked passes; the details follow.
 | E4 | `sandbox` on in every window (EL 4) | EL | pass | same lines |
 | E5 | A permission request handler on the session denies everything but the camera for Sentinel's own page (EL 5) | EL | pass | `main.js:1957-1965` |
 | E6 | `webSecurity` never turned off (EL 6) | EL | pass | `main.js:345,475` |
-| E7 | Pages define a restrictive CSP (EL 7) | EL | pass for the app window (server CSP); local pages allow `'unsafe-inline'` | `desktop/src/pages/*.html` meta CSP |
+| E7 | Pages define a restrictive CSP (EL 7) | EL | fixed (1.20.2), with a note | every inline script moved to `pages/*-page.js` and `pages/paint.js`; `script-src file:` with no `unsafe-inline`; test "the Windows app's own pages run no inline script". Left: `file:` itself (a page loaded from disk has no narrower source than its scheme) and `style-src 'unsafe-inline'` |
 | E8 | No `allowRunningInsecureContent`, experimental features or `enableBlinkFeatures` (EL 8-10) | EL | pass | none in `desktop/src` |
 | E9 | No `<webview>` (EL 11-12) | EL | n/a | not used |
 | E10 | Navigation is limited (EL 13) | EL | pass | `main.js:354-365`; every other window prevents navigation (`main.js:442,538,1044`, `overlay.js:74`, `snip.js:172`, `chatoverlay.js:31`) |
@@ -190,7 +190,7 @@ Everything else checked passes; the details follow.
 | E14 | Every IPC call checks its sender's frame origin and window (EL 17) | EL | pass | `main.js:1498-1522`; local pages use `trustedLocal` with a trailing-separator `PAGES` prefix (`main.js:47,1508-1515`) |
 | E15 | IPC arguments are type-checked and bounded in the main process | EL 17, CWE-20 | pass | e.g. `main.js` `sentinel:set-token` (length and id pattern), `sentinel:scan-with` (known ids), host strings sliced |
 | E16 | The preload exposes named functions only, never `ipcRenderer` itself (EL 20) | EL | pass | `desktop/src/preload.js:16-120` |
-| E17 | Fuses: `RunAsNode` off, `NODE_OPTIONS` off, `--inspect` off, asar integrity on, load app only from asar (EL 19) | EL-FUSE | missing | no `electronFuses` in `desktop/package.json`; the e2e scripts depend on `--inspect` and `ELECTRON_RUN_AS_NODE` (`scripts/desktop-e2e-lib.ps1:187`, `.github/workflows/checkup-e2e.yml:59`) |
+| E17 | Fuses: `RunAsNode` off, `NODE_OPTIONS` off, `--inspect` off, asar integrity on, load app only from asar (EL 19) | EL-FUSE | fixed for releases (1.20.2) | `desktop/electron-builder.release.js` (used by `release.yml`): RunAsNode, NODE_OPTIONS and --inspect off, asar integrity and app-from-asar on; `scripts/desktop-fuses-e2e.ps1` proves it in release.yml and desktop-e2e `fuses`, after the same checks find each door open on Electron's own exe. The e2e builds (`npm run dist:win`) stay unfused: they attach with --inspect |
 | E18 | One running copy; a second start hands its arguments over and exits | EL | pass | `main.js:310-319` |
 | E19 | The session secret is in the OS keychain, or a file only this user can read | ASVS 6.4 | pass | `desktop/src/server.js:72-87` |
 | E20 | Parent-lock PIN is hashed (scrypt) with a try limit and timed waits | CS-AUTH | pass | `desktop/src/parentlock.js:21-22,38-40,84-103` |
@@ -218,8 +218,8 @@ Everything else checked passes; the details follow.
 | U2 | The downloaded installer is checked against the published SHA-512 just before it runs | EUP | pass | `desktop/src/updater.js:175-182` |
 | U3 | Prereleases are not installed | EUP | pass | `updater.js:108` |
 | U4 | No silent downgrade: an older version only by the person's choice, behind the parent lock | EUP | pass | `main.js` `sentinel:install-model` (lock), `models.js:50-60` |
-| U5 | The installer is code-signed and electron-updater verifies the publisher before running it | MS-SIGN, EUP | missing | `tests/download-page.test.js:72-77` asserts it is unsigned; the SHA-512 comes from the same release, so it proves integrity, not origin |
-| U6 | Release artifacts carry provenance (SLSA build level 2: signed provenance from a hosted build) | SLSA | missing | `.github/workflows/release.yml` publishes SHA256SUMS only |
+| U5 | The installer is code-signed and electron-updater verifies the publisher before running it | MS-SIGN, EUP | missing (owner action) | needs a code-signing certificate (or Azure Trusted Signing) held by the owner; then `win.publisherName`. Until then: hardware 2FA key on the GitHub account and tag protection on `v*` (owner actions) |
+| U6 | Release artifacts carry provenance (SLSA build level 2: signed provenance from a hosted build) | SLSA | fixed (1.20.2) | `release.yml` `actions/attest-build-provenance` over the installer and the companion zips; check with `gh attestation verify <file> --repo zzilinct/Sentinel`; test "release downloads carry signed provenance" |
 
 ## 8. Browser companion (Chrome, Edge, Brave, Firefox)
 
@@ -229,14 +229,14 @@ Everything else checked passes; the details follow.
 | X2 | An explicit extension-page CSP with `script-src 'self'` and `object-src 'none'` | CR-SEC | pass | `manifest.json:226-228` |
 | X3 | `externally_connectable` lists only Sentinel's origins, and the listener re-checks the origin | CR-SEC | pass | `manifest.json:219-224`, `extension/src/background.js` onMessageExternal (origin must equal `apiBase`) |
 | X4 | The internal message listener rejects other extensions | CR-SEC | pass | `background.js` `sender.id !== ext.runtime.id` |
-| X5 | Messages from content scripts are treated as untrusted: privileged handlers check where they come from | CR-SEC | buggy | settings, password and block-page handlers check (`fromOptions`, `fromPage`); `override`, `report`, `deep-scan`, `live-batch`, `state`, `connect`, `sign-out` do not |
+| X5 | Messages from content scripts are treated as untrusted: privileged handlers check where they come from | CR-SEC | fixed (1.20.2) | every handler checks its sender: `fromOptions` (state, connect, refresh, sign-out, deep-scan), `fromScript` against the manifest's matches (live-batch: serp.js, webchat.js; live-email: mail.js; override: serp.js), report from the block page, a search page or a page about itself; test `tests/companion-door.test.js` "the worker takes each question only from the pages that ask it" |
 | X6 | Tokens are accepted only from Sentinel's own connect pages | CR-SEC | pass | `background.js` `set-token` against `sentinelOrigins()`; `content/connect.js` checks source and origin |
 | X7 | Buttons a hostile page could click by script ignore untrusted events | CR-SEC | pass | `content/alarm.js:159-166`, `content/pwalarm.js:210-213` (`isTrusted`); closed shadow roots in hover, serp, webchat |
 | X8 | The block page believes nothing in its own address and refuses to render in a frame | CR-WAR | pass | `extension/src/block.js:1-12` |
-| X9 | `web_accessible_resources` is the minimum | CR-WAR | pass with note | `manifest.json:209-218` (block page and mask images); any page can detect the companion through them; `use_dynamic_url` would stop that |
+| X9 | `web_accessible_resources` is the minimum | CR-WAR | pass with note (left) | `use_dynamic_url` would stop pages detecting the companion, but the block page is reached by a browser redirect to its static path; changing it needs both browsers proven on CI first |
 | X10 | Host permissions are what the features use | CR-SEC, FF | pass with note | `<all_urls>` is needed for live masks on any page and is declared |
 | X11 | Password protection keeps only salted hashes, never the password | FF (data handling) | pass | `background.js` `pw-learn` |
-| X12 | Firefox build has a data collection disclosure | FF | not checked | the Firefox manifest is generated by `scripts/build-extension.js`; review before the AMO listing |
+| X12 | Firefox build has a data collection disclosure | FF | pass | `scripts/build-extension.js` writes `data_collection_permissions: { required: ['browsingActivity', 'websiteContent'] }` into the Firefox manifest |
 
 ## 9. CI and supply chain
 
@@ -244,7 +244,7 @@ Everything else checked passes; the details follow.
 | --- | --- | --- | --- | --- |
 | C1 | Every workflow sets `permissions:` to the least it needs | GHT | pass | each workflow, e.g. `test.yml:13-14`, `release.yml:19-20` |
 | C2 | Third-party actions in jobs with write tokens are pinned to a full commit SHA | GHA | fixed | `release.yml`, `pages.yml` |
-| C3 | First-party actions in read-only jobs pinned to SHAs | GHA | missing | `test.yml`, `desktop-e2e.yml`, `live-e2e.yml` and the rest use `@v4` tags; low risk (read-only token, GitHub-owned) |
+| C3 | First-party actions in read-only jobs pinned to SHAs | GHA | fixed (1.20.2) | every `uses:` in every workflow is a full commit with its tag in a comment; `.github/dependabot.yml` keeps them current; test "every action in every workflow is pinned" |
 | C4 | No `pull_request_target` or `workflow_run` with untrusted checkout | GHA | pass | none in `.github/workflows` |
 | C5 | No untrusted `${{ github.event.* }}` text interpolated into `run:` | GHA | pass | none found |
 | C6 | Secrets are only the automatic token; no personal tokens | GHA | pass | `release.yml` header, `update-e2e.yml:26` |
@@ -262,7 +262,7 @@ Everything else checked passes; the details follow.
 | P3 | A deleted account leaves only a short email fingerprint in the log | GDPR Art. 17 | pass | `account.routes.js:217-222` |
 | P4 | Breach password check sends only five hex characters of a SHA-1 | GDPR Art. 25 | pass | `security.js:175-178` |
 | P5 | Security of processing: encryption of secrets at rest, keychain for the session secret | GDPR Art. 32 | pass | A11, E19 |
-| P6 | A written breach notification procedure (72 hours to the authority) | GDPR Art. 33 | not checked | no document in the repo; the hosted service is not live yet |
+| P6 | A written breach notification procedure (72 hours to the authority) | GDPR Art. 33 | not checked (owner action) | a written procedure is a legal document for the owner, before the hosted service is live |
 
 ## 11. Desktop performance on modest computers
 

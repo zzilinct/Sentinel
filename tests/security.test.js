@@ -380,7 +380,7 @@ test('the release build is fused: no program can run code as Sentinel, and the r
   const path = require('path');
   const cfg = require('../desktop/electron-builder.release.js');
   const pkg = require('../desktop/package.json');
-  assert.deepEqual(cfg.electronFuses, { runAsNode: false, enableNodeOptionsEnvironmentVariable: false, enableNodeCliInspectArguments: false });
+  assert.deepEqual(cfg.electronFuses, { runAsNode: false, enableNodeOptionsEnvironmentVariable: false, enableNodeCliInspectArguments: false, enableEmbeddedAsarIntegrityValidation: true, onlyLoadAppFromAsar: true });
   assert.deepEqual({ ...cfg, electronFuses: undefined }, { ...pkg.build, electronFuses: undefined }, 'otherwise the same build');
   assert.match(pkg.scripts['dist:win:release'], /--config electron-builder\.release\.js$/);
   const release = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');

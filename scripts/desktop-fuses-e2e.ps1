@@ -22,10 +22,14 @@ $proc = [IO.Path]::GetFileNameWithoutExtension($App)
 function StopApp { Get-Process $proc -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; [void](Until 20 { -not (Get-Process $proc -ErrorAction SilentlyContinue) }) }
 
 # What the exe itself says.
-$read = (& npx --prefix desktop --no-install @electron/fuses read --app $App 2>&1 | Out-String)
+$env:FORCE_COLOR = '0'
+$read = (& node desktop/node_modules/@electron/fuses/dist/bin.js read --app $App 2>&1 | Out-String) -replace "$([char]27)\[[0-9;]*m", ''
 Set-Content "$Out\fuses.txt" $read
 foreach ($fuse in 'RunAsNode', 'EnableNodeOptionsEnvironmentVariable', 'EnableNodeCliInspectArguments') {
   Check "fuse-$fuse-off" ($read -match "$fuse is Disabled") (($read -split "`n" | Where-Object { $_ -match $fuse }) -join ' ').Trim()
+}
+foreach ($fuse in 'EnableEmbeddedAsarIntegrityValidation', 'OnlyLoadAppFromAsar') {
+  Check "fuse-$fuse-on" ($read -match "$fuse is Enabled") (($read -split "`n" | Where-Object { $_ -match $fuse }) -join ' ').Trim()
 }
 
 # A program that sets NODE_OPTIONS to load its own code, and asks for the inspector: Sentinel starts as itself,
