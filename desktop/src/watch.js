@@ -407,8 +407,8 @@ function Covered($el, $b) {
   } catch { return $false }
 }
 # A read found every link where the last one did: whatever the pixels saw was not the page moving. Say where the
-# links are, and the pixels' count starts again from there.
-function Settle { Write-Output ('{"shift":{"dx":' + $script:lastDx + ',"dy":' + $script:lastDy + ',"t":' + [Environment]::TickCount + '}}'); try { [Glide]::Total = $script:lastDy } catch { } }
+# links are (settle: the marks ease back in view, they do not step aside), and the pixels' count starts again from there.
+function Settle { Write-Output ('{"shift":{"dx":' + $script:lastDx + ',"dy":' + $script:lastDy + ',"t":' + [Environment]::TickCount + ',"settle":1}}'); try { [Glide]::Total = $script:lastDy } catch { } }
 function Off($why) { $script:anchor = $null; try { [Wheel]::Enabled = $false; [Glide]::Enabled = $false } catch { }; $script:hoverEl = $null; $script:hoverTried = ''; if ($script:lastWin -ne '') { $script:lastWin = ''; $script:last = ''; $script:lastLinks = ''; Write-Output ('{"win":null,"why":"' + $why + '"}') } }
 while ($true) {
   # Between full looks: follow the anchor about 60 times a second and report how far the page has moved, so the
@@ -428,9 +428,11 @@ while ($true) {
   $stillAt = 0; $loopStart = [Environment]::TickCount
   while ($anchor -and -not $gotCmd -and [Environment]::TickCount -lt $until) {
     # The page's pixels moved further than the browser has said its links did: its positions are behind, and a read
-    # now would put every mark where its result was. Wait for them (up to a second and a half after the last move).
+    # now would put every mark where its result was. Wait for them, up to 700 ms after the last move: in eleven
+    # live-e2e runs (tests/live-715d32b-frames.txt is one) the browser's positions caught up at most 516 ms after it.
+    # Longer only kept the marks where a repaint that looked like a scroll had sent them (1.5 s until 1.20.2).
     try {
-      if ([Glide]::Total -ne 0 -and [Math]::Abs($lastDy - [Glide]::Total) -gt 20 -and [Environment]::TickCount - [Glide]::LastMove -lt 1500) {
+      if ([Glide]::Total -ne 0 -and [Math]::Abs($lastDy - [Glide]::Total) -gt 20 -and [Environment]::TickCount - [Glide]::LastMove -lt 700) {
         $stillAt = [Environment]::TickCount + 120
         if ($until -lt $stillAt -and $stillAt - $loopStart -lt 5000) { $until = $stillAt }
       }
@@ -1055,7 +1057,7 @@ function onLine(line) {
   if (msg.glideError) { log(`page following by pixels could not start: ${String(msg.glideError).slice(0, 200)}`); return; }
   // The page's own pixels moved by dy since the last frame (Glide): the surest word on a scroll, a frame late.
   if (msg.px) { if (opts.onPixels && latestLinks) opts.onPixels({ epoch: latestLinks.epoch, dy: msg.px.dy, t: msg.px.t }); return; }
-  if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t }); return; }
+  if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t, settle: msg.shift.settle === 1 }); return; }
   if ('hover' in msg) return onHover(msg.hover);
   if (msg.links) return onLinks(msg);
   if (msg.mail) return onMail(msg);

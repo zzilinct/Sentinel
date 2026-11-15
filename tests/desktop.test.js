@@ -725,6 +725,47 @@ test('a movement only the pixels saw is undone: once the page is still, the mark
   assert.equal(tabSwitch('M 1 marks 3 ends 11\n# bing opens\nM 4 marks 0 fresh ends -\nR 5 9 -100.0\n').slid, 0);
 });
 
+test('the reader waits for the browser to confirm a scroll only as long as a browser takes (the 715d32b trace, replayed)', () => {
+  const hold = Number(/\[Environment\]::TickCount - \[Glide\]::LastMove -lt (\d+)\)/.exec(watch._test.SCRIPT)[1]);
+  // live-e2e on 715d32b (run 43544707405): the pixels the follower saw (P: tick, dy) and where the browser said the
+  // links went (S), counted as the reader counts them, from zero at each read (M). Each time the pixels ran ahead,
+  // how long after their last move the browser's positions caught up.
+  let total = 0, said = 0, lastMove = 0, ahead = false;
+  const lags = [];
+  for (const line of read('tests/live-715d32b-frames.txt').split(/\r?\n/)) {
+    const f = line.split(' ');
+    if (f[0] === 'M') { total = 0; said = 0; ahead = false; continue; }
+    if (f[0] === 'P') { total += Number(f[3]); lastMove = Number(f[2]); } else if (f[0] === 'S') said = Number(f[3]); else continue;
+    if (Math.abs(total - said) > 20) ahead = true;
+    else { if (ahead && f[0] === 'S') lags.push(Number(f[2]) - lastMove); ahead = false; }
+  }
+  assert.ok(lags.length >= 15, `only ${lags.length} scrolls replayed`);
+  // Waiting less than the slowest of them would read the page mid-scroll and send its marks back up.
+  assert.ok(Math.max(...lags) < hold, `the browser caught up ${Math.max(...lags)} ms after the pixels; the reader stops waiting at ${hold} ms`);
+  // A repaint that only looked like a scroll is read again, and its marks put back, this soon: it was 1.5 s.
+  assert.ok(hold <= 700, `the marks stay where a repaint sent them for ${hold} ms`);
+});
+
+test('a movement only the pixels saw is put back in view, never by stepping aside', () => {
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [] });
+  // A real scroll of 300 px, which the pixels follow and the browser confirms. Then a theme change repaints the rows:
+  // the pixels say 80 px more, the links never moved, and the reader says so (settle) once it has read them again.
+  let aside = false;
+  const ys = o.run(2000, (t) => {
+    if (t >= 10 && t < 26) o.send('overlay:px', { epoch: 1, dy: -300 });
+    if (t >= 100 && t < 116) o.send('overlay:shift', { epoch: 1, dx: 0, dy: -300, t });
+    if (t >= 600 && t < 616) o.send('overlay:px', { epoch: 1, dy: -80 });
+    if (t >= 1400 && t < 1416) o.send('overlay:shift', { epoch: 1, dx: 0, dy: -300, t, settle: true });
+    if (t >= 1400) aside = aside || o.stepAside();
+  });
+  assert.ok(Math.min(...ys) < -370, 'the marks followed the pixels first');
+  assert.ok(Math.abs(ys[ys.length - 1] + 300) < 1, `left at ${ys[ys.length - 1]}, not back on the links at -300`);
+  assert.equal(aside, false, 'a correction hid the marks (stepping aside is for real movement)');
+  const steps = ys.slice(1).map((y, i) => Math.abs(y - ys[i]));
+  assert.ok(Math.max(...steps.slice(Math.ceil(1400 / 16))) <= 25, 'eased back, not one jump');
+});
+
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
   const html = read('desktop/src/pages/overlay.html');
   assert.match(html, /#marks\.is-moving \{ opacity: 0;/);
@@ -1012,7 +1053,8 @@ function overlaySandbox() {
   const vm = require('vm');
   const html = read('desktop/src/pages/overlay.html');
   const code = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
-  const el = () => ({ style: { setProperty() {}, transform: '' }, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+  const classes = () => { const c = new Set(); return { add: (k) => c.add(k), remove: (k) => c.delete(k), toggle: (k, on) => (on ? c.add(k) : c.delete(k)), contains: (k) => c.has(k) }; };
+  const el = () => ({ style: { setProperty() {}, transform: '' }, classList: classes(),
     dataset: {}, appendChild() {}, remove() {}, querySelector: () => el(), querySelectorAll: () => [], getBoundingClientRect: () => ({ left: 0, top: 0 }), offsetWidth: 0, innerHTML: '' });
   const els = {};
   const handlers = {};
@@ -1034,6 +1076,7 @@ function overlaySandbox() {
   const shift = () => Number(/,(-?[\d.]+)px,0\)/.exec(els.marks.style.transform || 'translate3d(0px,0px,0)')[1]);
   return {
     send: (name, p) => handlers[name](p),
+    stepAside: () => els.marks.classList.contains('is-moving'),
     // Runs 16 ms frames up to `until`, calling at(t) before each for the events due then.
     run(until, at) {
       const seen = [];
