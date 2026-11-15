@@ -19,7 +19,9 @@ if ($Control) {
 }
 function Say($s) { $l = "$(Get-Date -Format HH:mm:ss) $s"; Add-Content "$Out\run.txt" $l; Write-Host $l }
 function Check($name, $ok, $detail) {
-  if ($Control -and $name -ne 'starts-and-answers') { $ok = -not $ok }
+  # Packaged, Electron already ignores --require in NODE_OPTIONS with the fuse on (run 43764868095's control): that
+  # door is shut either way, so the control expects it shut too, and the fuse reading above is what proves the fuse.
+  if ($Control -and $name -notin 'starts-and-answers', 'no-node-options') { $ok = -not $ok }
   if ($name -like 'fuse-*' -and -not $detail) { $ok = $false }   # nothing read is not a fuse in either state
   $line = "$(if ($ok) { 'PASS' } else { 'FAIL' }) ${name}: $detail"
   if (-not $ok) { $script:failed++ }
@@ -46,7 +48,8 @@ foreach ($fuse in 'EnableEmbeddedAsarIntegrityValidation', 'OnlyLoadAppFromAsar'
 $marker = Join-Path $Out 'ran.txt'
 $evil = Join-Path $Out 'evil.js'
 Set-Content $evil "require('fs').writeFileSync($(ConvertTo-Json $marker), 'ran')"
-$env:NODE_OPTIONS = "--require `"$evil`""
+# Forward slashes: inside NODE_OPTIONS' quotes a backslash escapes the next letter (run 43764868095's control: D:\a lost it).
+$env:NODE_OPTIONS = "--require `"$($evil -replace '\\', '/')`""
 Start-Process $App -ArgumentList '--inspect=9334'
 $env:NODE_OPTIONS = $null
 if ($Control) { [void](Until 30 { Test-Path $marker }) } else { Check 'starts-and-answers' (Until 120 { Up }) 'http://127.0.0.1:47821 answers' }
