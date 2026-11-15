@@ -97,6 +97,24 @@
    * polls. Signed out, or the account unreachable, the look stays on this device and says so.
    */
   var syncing = false, asked = 0;
+  KEY.sent = 'sentinel:look-sent';   // when each setting was chosen, as the account last said
+  KEY.note = 'sentinel:look-note';   // the line below, until Settings has shown it
+  // null before this device has ever heard back: nothing can be said to have been lost then.
+  function sentHere() { try { var s = localStorage.getItem(KEY.sent); return s ? { at: JSON.parse(s) } : null; } catch (e) { return null; } }
+  var NAME = { mode: 'theme', accent: 'colour', text: 'text size', density: 'spacing' };
+  function lostLine(keys) {
+    var w = keys.map(function (k) { return NAME[k]; });
+    var list = w.length > 1 ? w.slice(0, -1).join(', ') + ' and ' + w[w.length - 1] : w[0];
+    return 'Your ' + list + (w.length > 1 ? ' were' : ' was') + ' changed again on another device after you chose ' + (w.length > 1 ? 'them' : 'it') + ' here, so the newer choice is used.';
+  }
+  var pending = null;
+  /** The line, once: the first picker that shows it takes it. */
+  function note() {
+    var n = pending;
+    try { n = n || localStorage.getItem(KEY.note); localStorage.removeItem(KEY.note); } catch (e) { /* this page only */ }
+    pending = null;
+    return n;
+  }
   var state = 'local';   // local: this device only; synced: with the account; computer: the Windows app's own account; failed
   function sync(push) {
     syncing = true;
@@ -105,7 +123,16 @@
     return fetch('/api/v1/account/look', opts).then(function (res) {
       if (res.status === 401) { syncing = false; return { state: 'local' }; }
       if (!res.ok) throw new Error(String(res.status));
-      return res.json().then(function (d) { var m = take(d); if (!push && L.rev(m) > L.rev(d)) sync(true); return { state: d.computer ? 'computer' : 'synced' }; });
+      return res.json().then(function (d) {
+        // Last writer wins, as before; a choice made here that the account never heard of, replaced by another
+        // device's later one, is said once in Settings (note()).
+        var sent = sentHere(), lost = sent ? L.overruled(current, sent, d) : [];
+        var m = take(d);
+        try { localStorage.setItem(KEY.sent, JSON.stringify(L.record(d).at)); if (lost.length) localStorage.setItem(KEY.note, lostLine(lost)); } catch (e) { /* this page only */ }
+        if (lost.length) pending = lostLine(lost);
+        if (!push && L.rev(m) > L.rev(d)) sync(true);
+        return { state: d.computer ? 'computer' : 'synced' };
+      });
     }).catch(function () { return { state: 'failed' }; }).then(function (r) {
       state = r.state;
       listeners.slice().forEach(function (fn) { fn(current, current); });
@@ -163,8 +190,10 @@
     box.innerHTML = (only === 'accent' ? '' : '<fieldset class="look__group" ' + rowId('theme') + '>' + legend + 'Theme</legend><div class="look__modes">' + modes + '</div></fieldset>') +
       (only === 'mode' ? '' : '<fieldset class="look__group" ' + rowId('accent') + '>' + legend + 'Colour</legend><div class="look__coins">' + coins + '</div>' +
       '<p class="look__note">Red, orange, yellow and green are kept for warnings, so they are never a colour here.</p></fieldset>') +
-      '<p class="look__sync" role="status"' + (only === 'mode' ? ' hidden' : '') + '></p>';
+      '<p class="look__sync" role="status"' + (only === 'mode' ? ' hidden' : '') + '></p>' +
+      '<p class="look__sync" data-look-lost role="status" hidden></p>';
     var said = box.querySelector('.look__sync');
+    var lostSaid = box.querySelector('[data-look-lost]');
     var placed = false;
     var sync = function () {
       // A view drawn again leaves its old picker behind: it stops listening.
@@ -174,6 +203,7 @@
       for (var i = 0; i < inputs.length; i++) inputs[i].checked = inputs[i].value === (inputs[i].name.indexOf('mode') > 0 ? current.mode : current.accent);
       said.textContent = SAID[state];
       said.dataset.state = state;
+      if (placed && only !== 'mode' && lostSaid.hidden) { var n = note(); if (n) { lostSaid.textContent = n; lostSaid.hidden = false; } }
     };
     box.addEventListener('change', function (ev) {
       var t = ev.target, r = t.parentNode.getBoundingClientRect();
@@ -182,6 +212,7 @@
     });
     listeners.push(sync);
     sync();
+    setTimeout(sync, 0);   // once placed: a line waiting from an earlier sync is shown then
     return box;
   }
   picker.n = 0;
