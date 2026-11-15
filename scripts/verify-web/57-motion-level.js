@@ -44,6 +44,27 @@ async function checkMotionLevel() {
 
     const first = await state();
     result('motion-level: one #motion row; nothing chosen is Full, the scan effect on, and nothing stored', first.row && first.motion === 'full' && first.checked === 'full' && first.effect === 'on' && first.sw.on && !first.stored && !first.locked, first);
+
+    // What a screen reader hears: the group by the row's own name, each choice by its word.
+    const ax = await browser.send('Accessibility.getFullAXTree', {}, s);
+    const groupAx = ax.nodes.filter((n) => !n.ignored && n.role && n.role.value === 'radiogroup').map((n) => (n.name && n.name.value) || '');
+    const radioAx = ax.nodes.filter((n) => !n.ignored && n.role && n.role.value === 'radio').map((n) => (n.name && n.name.value) || '');
+    result('motion-level: a screen reader hears the choices as "Animation": Full, Calm, Off', groupAx.includes('Animation') && ['Full', 'Calm', 'Off'].every((w) => radioAx.includes(w)), { groups: groupAx, radios: radioAx });
+
+    // A choice springs to the next under Full: the gold of the pressed choice slides there, and under Calm it simply moves.
+    const GLIDE = "document.getAnimations().filter((a) => a.effect && a.effect.pseudoElement === '::before' && a.effect.target && a.effect.target.matches('.seg__btn.is-on')).length";
+    // Brought into view at once first (the page scrolls smoothly under Full), then pressed where it is.
+    const pressSeg = async (v) => {
+      await evalIn(browser, s, "document.querySelector('#text-size').scrollIntoView({ block: 'center', behavior: 'instant' })");
+      await sleep(250);
+      await clickSel(browser, s, `#text-size [data-seg="${v}"]`);
+      await sleep(60);
+      return evalIn(browser, s, GLIDE);
+    };
+    const springFull = await pressSeg('large');
+    await sleep(900);
+    await pressSeg('standard');
+    await sleep(900);
     const fullLoops = await evalIn(browser, s, LOOPS);
     const ambient = (list) => list.filter((n) => !WORKING.includes(n));
     result('motion-level: under Full something drifts by itself (so the Calm count below can see it)', ambient(fullLoops).length > 0, fullLoops);
@@ -60,6 +81,10 @@ async function checkMotionLevel() {
     result('motion-level: Calm is chosen by a press, applied at once and kept', calm.motion === 'calm' && calm.checked === 'calm' && calm.stored === 'calm' && /Nothing drifts/.test(calm.note), calm);
     result('motion-level: Calm leaves no loop that moves by itself running', ambient(calmLoops).length === 0, { full: fullLoops, calm: calmLoops });
     result('motion-level: Calm still digs, lighter', await evalIn(browser, s, DIG) === true);
+    const springCalm = await pressSeg('large');
+    await pressSeg('standard');
+    await sleep(300);
+    result('motion-level: under Full a choice springs to the next; under Calm it moves at once', springFull > 0 && springCalm === 0, { springFull, springCalm });
     await open();
     const again = await state();
     result('motion-level: Calm is still Calm after a reload, set before the page drew', again.motion === 'calm' && again.checked === 'calm', again);
@@ -124,6 +149,8 @@ async function checkMotionLevel() {
     await goto(browser, s, `${base}/`, 'window.SentinelMotion');
     await sleep(1500);
     const siteFull = await evalIn(browser, s, LOOPS);
+    const CHOREO = "({ scrubs: ScrollTrigger.getAll().filter((t) => t.vars.scrub).length, smooth: Boolean(window.SentinelScroll && window.SentinelScroll.lenis), lasers: document.querySelectorAll('.laser').length, heads: document.querySelectorAll('.section__head').length })";
+    const before = await evalIn(browser, s, CHOREO);
     await evalIn(browser, s, "window.SentinelMotionLevel.set('calm')");
     await sleep(400);
     const siteCalm = await evalIn(browser, s, LOOPS);
@@ -135,6 +162,13 @@ async function checkMotionLevel() {
     // arriving, makes a zero-length transition that moves nothing), with its own timing, so a failure says why.
     const siteOff = await evalIn(browser, s, "document.getAnimations().filter((a) => a.playState === 'running' && a.effect.getComputedTiming().endTime > 0.05).map((a) => { const t = a.effect.getComputedTiming(); const el = a.effect.target; return [a.animationName || a.transitionProperty || 'script', el && (el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className), Math.round(t.duration), Math.round(t.delay), Math.round(a.currentTime)].join(' '); })");
     result('motion-level: on the home page, Calm stills every loop that moves by itself at once, and Off everything, without a reload', ambient(siteFull).length > 0 && ambient(siteCalm).length === 0 && siteOff.length === 0, { full: siteFull, calm: siteCalm, off: siteOff });
+    // And back to Full: the scroll choreography (the smooth wheel, the scrubs, the chapters not yet reached) comes back
+    // without a reload, and what already played does not play again.
+    await evalIn(browser, s, "window.SentinelMotionLevel.set('full')");
+    await sleep(600);
+    const restored = await evalIn(browser, s, CHOREO);
+    result('motion-level: on the home page, Off then Full brings the scroll choreography back without a reload, nothing doubled',
+      before.scrubs > 0 && restored.scrubs === before.scrubs && restored.smooth === before.smooth && restored.lasers === restored.heads, { before, restored });
     await evalIn(browser, s, "localStorage.removeItem('sentinel:motion')");
     result('motion-level: no errors on the page', errors.length === 0, errors);
   } finally {

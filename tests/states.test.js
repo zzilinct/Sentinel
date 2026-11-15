@@ -44,10 +44,20 @@ test('simple view never hides what keeps a result honest', () => {
 });
 
 test('a wait is as tall as what replaces it: every place that waits keeps its height', () => {
-  const keys = [...app.matchAll(/skel\('([\w-]+)'\)/g)].map((m) => m[1]);
+  const keys = [...app.matchAll(/skel\('([\w-]+)'/g)].map((m) => m[1]);
   assert.ok(keys.length >= 7);
+  // Every wait is drawn the first time from what a new account sees there, never from a number.
+  assert.equal([...app.matchAll(/skel\('[\w-]+'\)/g)].length, 0, 'every wait has its first-time shape');
+  assert.doesNotMatch(css, /\.h-[a-z]+\s*[,{]/, 'no first-time height written down as a number');
+  assert.match(css, /\.skeleton__ghost \{ visibility: hidden;/);
   for (const k of new Set(keys)) {
-    assert.ok(app.includes(`, '${k}');`) && new RegExp(`keep\\(.*, '${k}'\\);`).test(app), `${k} keeps its height`);
-    assert.ok(new RegExp(`\\.h-${k}\\b[^{]*\\{[^}]*height`).test(css) || new RegExp(`\\.h-${k}, `).test(css), `${k} has a first-time height`);
+    assert.ok(new RegExp(`keep\\(.*, '${k}'\\);`).test(app), `${k} keeps its height`);
   }
+});
+
+test('a long wait offers Try again in its place, with no timer', () => {
+  assert.match(app, /const LATE = '<p class="skeleton__late">This is taking longer than usual\. <button[^>]*data-skel-again>Try again<\/button><\/p>';/);
+  assert.match(app, /closest\('\[data-skel-again\]'\)\) return;\s*render\(\);/);
+  assert.match(css, /\.skeleton__late \{[^}]*visibility: hidden; animation: skeleton-late 0s 8s forwards;/);
+  assert.doesNotMatch(css, /\.skeleton[^{]*::after/, 'the old note in ::after is gone');
 });
