@@ -26,8 +26,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -44,7 +44,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-desktop/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-desktop/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: desktop-e2e
@@ -58,8 +58,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -75,7 +75,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-reader-cost/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-reader-cost/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: reader-cost
@@ -89,8 +89,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -106,7 +106,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-desktop-qa/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-desktop-qa/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: desktop-qa
@@ -125,8 +125,8 @@ jobs:
       matrix:
         part: ${{ fromJSON(inputs.only && !contains(inputs.only, 'core-install') && '["use"]' || inputs.only && !contains(inputs.only, 'core-use') && '["install"]' || '["install","use"]') }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -142,7 +142,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-core-${{ matrix.part }}/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-core-${{ matrix.part }}/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: core-${{ matrix.part }}
@@ -155,8 +155,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 50
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -177,7 +177,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-core-update/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-core-update/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: core-update
@@ -192,8 +192,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -209,7 +209,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-startup/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-startup/logs -ErrorAction SilentlyContinue; Copy-Item "$env:APPDATA\Sentinel\defense*.json" e2e-startup/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: startup

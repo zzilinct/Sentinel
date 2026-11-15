@@ -29,8 +29,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
       - run: npm run build:static
@@ -39,7 +39,7 @@ jobs:
           python -m pip install --quiet qrcode pillow
           python scripts/verify-web-qr.py qr-samples
       - run: node scripts/verify-web.js --skip share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level --out verify-web
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: verify-web
@@ -55,8 +55,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
       - run: npm run build:static
@@ -68,7 +68,7 @@ jobs:
         env:
           CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level' }}
           CHECK_MINUTES: '25'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: verify-web-features
@@ -81,15 +81,15 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
       - run: node scripts/verify-web.js --only companion-soak --out verify-web-soak
         env:
           SOAK_MINUTES: '60'
           CHECK_MINUTES: '80'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: verify-web-soak
@@ -103,8 +103,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
       - name: Lighthouse and axe-core, for this job only
@@ -116,7 +116,7 @@ jobs:
         env:
           PERF_PAGES: ${{ inputs.perf_pages }}
           PERF_ROUNDS: ${{ inputs.perf_rounds }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: perf-a11y

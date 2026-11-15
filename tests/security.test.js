@@ -338,3 +338,24 @@ test('passwords follow NIST SP 800-63B rev. 4: 15 characters, no rules about kin
   assert.equal(passwordProblem('aaaaaaaaaaaaaaaaaaaa'), 'Password is too predictable');
   assert.match(passwordProblem('robinsentinel-orchard', { firstName: 'Robin' }), /your name/);
 });
+
+test('every action in every workflow is pinned to a full commit, and Dependabot keeps the pins current', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(__dirname, '..', '.github', 'workflows');
+  const loose = [];
+  for (const f of fs.readdirSync(dir).filter((x) => /\.ya?ml$/.test(x))) {
+    for (const [, ref] of fs.readFileSync(path.join(dir, f), 'utf8').matchAll(/^\s*-?\s*uses:\s*(\S+)/gm)) {
+      if (!ref.startsWith('./') && !/@[0-9a-f]{40}$/.test(ref)) loose.push(`${f}: ${ref}`);
+    }
+  }
+  assert.deepEqual(loose, []);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', '.github', 'dependabot.yml'), 'utf8'), /package-ecosystem: github-actions/);
+});
+
+test('release downloads carry signed provenance from the workflow that built them', () => {
+  const yml = require('fs').readFileSync(require('path').join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(yml, /id-token: write\r?\n\s+attestations: write/);
+  assert.match(yml, /uses: actions\/attest-build-provenance@[0-9a-f]{40}[^\n]*\r?\n\s+with:\r?\n\s+subject-path: \|\r?\n\s+release\/\*\.exe\r?\n\s+release\/\*\.zip/);
+  assert.ok(yml.indexOf('attest-build-provenance') < yml.indexOf('action-gh-release'), 'attested before it is published');
+});
