@@ -19,7 +19,12 @@
   --red: #ff7a7e;
   --green: #4cb782;
   --spring: linear(0, .063, .207, .382, .555, .706, .828, .918, .98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1);
+  /* Spacing, as the app has it (sentinel.css --ds): Compact takes in the rows and the buttons, never one under 36px.
+     Text size is fonts.css's --ts. Both come with the look (look.js type, <html data-text> and data-density). */
+  --ds: 1;
 }
+:root[data-density="compact"] { --ds: .86; }
+:root[data-density="compact"] .btn:not(.quiet) { min-height: 36px; }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f6f4ef; --panel-2: #ebe7de; --line: rgba(20, 22, 26, .12);
@@ -45,12 +50,12 @@ body {
   font: var(--t-note)/var(--lh-lead) var(--sans);
 }
 
-.top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; }
+.top { display: flex; align-items: center; justify-content: space-between; padding: calc(14px * var(--ds)) 16px; }
 .brand { display: flex; align-items: center; gap: 9px; font: 400 var(--t-title-s)/1 var(--display); --track: var(--tr-display); }
 .brand img { border-radius: 4px; }
 .plan { font-size: var(--t-label); font-weight: 500; color: var(--gold); }
 
-.view { padding: 4px 16px 14px; min-height: 180px; }
+.view { padding: 4px 16px calc(14px * var(--ds)); min-height: 180px; }
 .loading { display: grid; place-items: center; height: 160px; }
 .spin { display: inline-block; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--gold); animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -65,14 +70,14 @@ body {
 .answer-line { margin: 0; color: var(--text); }
 .answer-reason { margin: 6px 0 0; color: var(--text-2); overflow-wrap: anywhere; }
 
-.do { display: grid; gap: 8px; margin-top: 14px; }
+.do { display: grid; gap: 8px; margin-top: calc(14px * var(--ds)); }
 .do:empty { display: none; }
 .do-row { display: flex; gap: 8px; }
 .do-row .btn { flex: 1; }
 .note { margin: 10px 0 0; }
 .note:empty { display: none; }
 
-.status { display: flex; justify-content: space-between; gap: 10px; margin: 14px 0 0; padding-top: 11px; border-top: 1px solid var(--line); }
+.status { display: flex; justify-content: space-between; gap: 10px; margin: calc(14px * var(--ds)) 0 0; padding-top: calc(11px * var(--ds)); border-top: 1px solid var(--line); }
 .status b { font-weight: 500; color: var(--text-2); }
 .status b[data-tone="on"] { color: var(--green); }
 .status b[data-tone="paused"] { color: var(--orange); }
@@ -83,7 +88,7 @@ body {
 .reasons li::before { content: ""; flex: none; width: 5px; height: 5px; margin-top: 7px; border-radius: 50%; background: var(--gold); }
 .small { color: var(--muted); font-size: var(--t-label); }
 
-.btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-align: center; font-weight: 600; font-size: var(--t-note); padding: 10px 14px; border-radius: 11px; background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); transition: transform .32s var(--spring), box-shadow .2s ease; }
+.btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-align: center; font-weight: 600; font-size: var(--t-note); padding: calc(10px * var(--ds)) 14px; border-radius: 11px; background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); transition: transform .32s var(--spring), box-shadow .2s ease; }
 .btn:hover { box-shadow: inset 0 0 0 1px var(--muted); }
 .btn:active { transform: scale(.97); }
 /* Gold is metal: the light travels across it on hover, nothing fades. */
@@ -96,7 +101,7 @@ body {
 .actions { display: flex; gap: 8px; margin-top: 12px; }
 
 .pw-line { margin: 0; padding: 0 16px 11px; }
-.foot { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); }
+.foot { display: flex; justify-content: space-between; align-items: center; padding: calc(11px * var(--ds)) 16px; border-top: 1px solid var(--line); }
 .foot a, .link { all: unset; cursor: pointer; color: var(--gold); font-weight: 600; font-size: var(--t-label); }
 .foot a:hover, .link:hover { color: var(--gold-hi); }
 

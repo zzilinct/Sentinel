@@ -23,7 +23,8 @@ async function checkCompanionLook() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-clook-'));
   const lookFile = path.join(dir, 'look.json');
   // As main.js writes it: each setting with when it was chosen in the app.
-  const chosen = (mode, accent) => { const at = Date.now(); fs.writeFileSync(lookFile, JSON.stringify({ mode, accent, at: { mode: at, accent: at } })); };
+  // Text size and spacing travel in the same record (look.js type), set in the app's Settings.
+  const chosen = (mode, accent, type = {}) => { const at = Date.now(); fs.writeFileSync(lookFile, JSON.stringify({ mode, accent, ...type, at: { mode: at, accent: at, ...(type.text ? { text: at, density: at } : {}) } })); };
   chosen('light', 'sapphire');
   process.env.SENTINEL_LOOK_FILE = lookFile;
   const sentinel = await startSentinel('companion-look', 47821);
@@ -111,7 +112,8 @@ async function checkCompanionLook() {
       await browser.send('Page.navigate', { url: `${ext}/src/popup.html` }, sessionId);
       await until(browser, sessionId, "document.readyState === 'complete' && !document.querySelector('#view .loading')", 20000);
       await sleep(700);
-      const got = { first: await evalIn(browser, sessionId, 'window.__firstLook'), now: await evalIn(browser, sessionId, LOOK), wide: await wide(sessionId) };
+      const got = { first: await evalIn(browser, sessionId, 'window.__firstLook'), now: await evalIn(browser, sessionId, LOOK), wide: await wide(sessionId),
+        type: await evalIn(browser, sessionId, "(() => { const h = document.documentElement, b = document.querySelector('.btn'); return { text: h.dataset.text || 'standard', density: h.dataset.density || 'comfortable', ts: getComputedStyle(h).getPropertyValue('--ts').trim(), body: getComputedStyle(document.body).fontSize, btn: b ? Math.round(b.getBoundingClientRect().height) : null, tall: document.documentElement.scrollHeight }; })()") };
       await shot(browser, sessionId, name);
       await browser.send('Target.closeTarget', { targetId });
       return got;
@@ -133,6 +135,18 @@ async function checkCompanionLook() {
     await ev("window.scrollTo(0, 0), true");
     await shot(browser, s, 'companion-look-chrome-options-amethyst-dark');
 
+    /* ------------- 5b. text size and spacing chosen in the app: the popup follows */
+
+    await sleep(20);
+    chosen('dark', 'amethyst', { text: 'larger', density: 'compact' });
+    const big = await popup('companion-look-chrome-popup-larger-compact', 'dark');
+    await sleep(20);
+    chosen('dark', 'amethyst', { text: 'standard', density: 'comfortable' });
+    const back = await popup('companion-look-chrome-popup-standard', 'dark');
+    result('companion-look: Larger text and Compact spacing chosen in the app reach the popup (words 1.3x, buttons never under 36 px, still 360 px wide), and Standard comes back',
+      big.type.text === 'larger' && big.type.density === 'compact' && big.type.ts === '1.3' && big.type.body === '16.9px' && big.wide <= 0 && (big.type.btn === null || big.type.btn >= 36) &&
+      back.type.text === 'standard' && back.type.ts === '1' && back.type.body === '13px' && back.wide <= 0, { big, back });
+
     /* ------------------------------------------------- 6. the block page */
 
     for (const scheme of ['dark', 'light']) {
@@ -150,10 +164,25 @@ async function checkCompanionLook() {
 
     /* ------------------------------------- 7. a change that is not saved */
 
+    // Sync switched off (Firefox throws then): the switch is kept in local storage and read back from there (lib/store.js).
+    const local = await ev(`(async () => {
+      const box = document.getElementById('scanOverlay');
+      const was = box.checked;
+      chrome.storage.sync.set = () => Promise.reject(new Error('Please set webextensions.storage.sync.enabled to true'));
+      chrome.storage.sync.get = () => Promise.reject(new Error('sync off'));
+      box.click();
+      await new Promise((r) => setTimeout(r, 300));
+      const kept = (await chrome.storage.local.get('scanOverlay')).scanOverlay;
+      const read = (await SentinelStore.get({ scanOverlay: was })).scanOverlay;
+      return { was, now: box.checked, kept, read, said: document.getElementById('saved').textContent };
+    })()`);
+    result('companion-look: with sync storage refusing, a switch is saved in local storage and read back from there',
+      local.now === !local.was && local.kept === local.now && local.read === local.now && /Saved/.test(local.said), local);
+    // Neither storage takes it: the switch springs back and says so.
     const failed = await ev(`(async () => {
       const box = document.getElementById('scanOverlay');
       const was = box.checked;
-      chrome.storage.sync.set = () => Promise.reject(new Error('QUOTA_BYTES quota exceeded'));
+      chrome.storage.local.set = () => Promise.reject(new Error('QUOTA_BYTES quota exceeded'));
       box.click();
       await new Promise((r) => setTimeout(r, 300));
       return { was, now: box.checked, said: document.getElementById('saved').textContent };

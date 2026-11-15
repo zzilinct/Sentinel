@@ -60,7 +60,7 @@ function register(router) {
   });
 
   /*
-   * The look, so a person's devices agree: light, dark or Auto and the accent, each with when it was chosen. Each
+   * The look, so a person's devices agree: light, dark or Auto, the accent, text size and spacing, each with when it was chosen. Each
    * setting comes from whichever device chose it last; a time from the future (a clock set wrong) counts as now.
    * Appearance only, a few dozen bytes; anything else sent is dropped. The Windows app's own account says so
    * (`computer`): it never claims to reach other devices.
@@ -76,7 +76,7 @@ function register(router) {
     security.rateLimit(`look:${user.id}`, 60, 60 * 1000);
     const sent = Look.record(await readJson(req, 512));
     const now = Date.now();
-    for (const k of ['mode', 'accent']) sent.at[k] = Math.min(sent.at[k], now);
+    for (const k of Look.KEYS) sent.at[k] = Math.min(sent.at[k], now);
     const merged = Look.merge(lookOf(user), sent);
     q.setLook.run(JSON.stringify(merged), user.id);
     sendJson(res, 200, lookReply(user, merged));

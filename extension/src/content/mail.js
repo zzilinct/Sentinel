@@ -12,8 +12,9 @@
   // Motion, from the companion's settings (Full, Calm or Off); the system asking for less motion is Off.
   let motion = 'full';
   if (ext.storage) {
-    Promise.resolve(ext.storage.sync.get({ motion: 'full' })).then((s) => { motion = (s && s.motion) || 'full'; }, () => {});
-    ext.storage.onChanged.addListener((changes, area) => { if (area === 'sync' && changes.motion) motion = changes.motion.newValue; });
+    const want = { motion: 'full' };
+    SentinelStore.get(want).then((s) => { motion = (s && s.motion) || 'full'; }, () => {});
+    ext.storage.onChanged.addListener((changes, area) => { const got = SentinelStore.changed(changes, area, want); if (got) motion = got.motion; });
   }
   const motionOf = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : motion === 'calm' || motion === 'off' ? motion : 'full');
   if (window.__sentinelMail) return;

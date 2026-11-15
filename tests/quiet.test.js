@@ -34,7 +34,7 @@ test('the companion warns by the same rule, and its older settings move over wit
   // The companion's modules are plain .js with no package.json of their own, so they are imported from a copy marked as modules.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-quiet-'));
   fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"module"}');
-  for (const f of ['api.js', 'brand.js', 'look.js']) fs.copyFileSync(path.join(__dirname, '..', 'extension', 'src', 'lib', f), path.join(dir, f));
+  for (const f of ['api.js', 'brand.js', 'look.js', 'store.js']) fs.copyFileSync(path.join(__dirname, '..', 'extension', 'src', 'lib', f), path.join(dir, f));
   const api = await import(pathToFileURL(path.join(dir, 'api.js')).href);
   fs.rmSync(dir, { recursive: true, force: true });
   for (const level of ['all', 'danger', 'quiet', undefined]) for (const b of STATES) assert.equal(api.warns(level, b), M.warns(level, b), `${level} ${b}`);

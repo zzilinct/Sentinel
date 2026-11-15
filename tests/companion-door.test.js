@@ -52,7 +52,7 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null }
       throw new Error('offline');
     } };
   vm.createContext(ctx);
-  vm.runInContext(`${[read('lib/say.js'), flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n')}\n;this.handlers = handlers; this.syncDoor = syncDoor; this.recalled = recalled; this.localVerdict = localVerdict; this.doorOnAddress = doorOnAddress; this.cacheSet = cacheSet; this.inTabOrder = inTabOrder;`, ctx);
+  vm.runInContext(`${[read('lib/store.js'), read('lib/say.js'), flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n')}\n;this.handlers = handlers; this.syncDoor = syncDoor; this.recalled = recalled; this.localVerdict = localVerdict; this.doorOnAddress = doorOnAddress; this.cacheSet = cacheSet; this.inTabOrder = inTabOrder;`, ctx);
   const blockTab = { id: 'me', url: 'chrome-extension://me/src/block.html', tab: { id: 7, active: true } };
   const call = async (type, msg = {}, sender = blockTab) => { await ctx.recalled; return JSON.parse(JSON.stringify(await ctx.handlers[type]({ type, ...msg }, sender))); };
   const settled = async () => { await ctx.inTabOrder('door', () => {}); };

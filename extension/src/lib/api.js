@@ -2,6 +2,8 @@
 import { BRAND } from './brand.js';
 // The look's one table (globalThis.SentinelLook), the site's own file.
 import './look.js';
+// Where the settings live, sync or local (globalThis.SentinelStore), for every reader and writer.
+import './store.js';
 
 // Firefox answers through `browser` (promises); Chrome, Edge and Brave through
 // `chrome` (promises too, in Manifest V3). One name, promise style everywhere.
@@ -44,7 +46,7 @@ export function warns(level, badge) {
 }
 
 export async function getSettings() {
-  return { ...DEFAULTS, ...(await ext.storage.sync.get(DEFAULTS)) };
+  return { ...DEFAULTS, ...(await globalThis.SentinelStore.get(DEFAULTS)) };
 }
 
 async function getToken() {

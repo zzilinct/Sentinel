@@ -1,6 +1,6 @@
 /*
  * Motion in the companion's own pages (the popup, the settings, the blocked-page screen): the setting Full, Calm or
- * Off (storage.sync `motion`), set as <html data-motion> for their styles. The system asking for less motion is Off.
+ * Off (`motion`, lib/store.js), set as <html data-motion> for their styles. The system asking for less motion is Off.
  * A change made on the settings page reaches every open page at once.
  */
 (() => {
@@ -12,6 +12,7 @@
   const apply = () => { root.dataset.motion = sys.matches ? 'off' : chosen === 'calm' || chosen === 'off' ? chosen : 'full'; };
   apply();
   sys.addEventListener('change', apply);
-  Promise.resolve(ext.storage.sync.get({ motion: 'full' })).then((s) => { chosen = (s && s.motion) || 'full'; apply(); }, () => {});
-  ext.storage.onChanged.addListener((changes, area) => { if (area === 'sync' && changes.motion) { chosen = changes.motion.newValue; apply(); } });
+  const want = { motion: 'full' };
+  SentinelStore.get(want).then((s) => { chosen = (s && s.motion) || 'full'; apply(); }, () => {});
+  ext.storage.onChanged.addListener((changes, area) => { const got = SentinelStore.changed(changes, area, want); if (got) { chosen = got.motion; apply(); } });
 })();

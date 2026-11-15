@@ -9,7 +9,8 @@
  * Plans with delicate scanning (Pro and up) get a second, researched pass: masks
  * appear instantly from the checklist, then upgrade once research finishes.
  */
-import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError, keepLook, warns, levelsFrom, OLD_LEVEL_KEYS } from './lib/api.js';
+import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError, keepLook, warns, levelsFrom, OLD_LEVEL_KEYS, DEFAULTS } from './lib/api.js';
+const Store = globalThis.SentinelStore;
 // SentinelSay: the words of the warnings, shared with the block page, popup and settings.
 import './lib/say.js';
 import { PRESETS, MIN_LENGTH, KEEP, bankDomain, newSalt, hashPassword, sameHash, homeAccount, guardedHere, hashesOf } from './lib/pwalarm.js';
@@ -660,7 +661,7 @@ const handlers = {
     } catch { /* no app on this computer */ }
     if (change && typeof change === 'object') {
       const now = Date.now();
-      for (const k of ['mode', 'accent']) if (k in change) rec = L.merge(rec, { [k]: change[k], at: { [k]: now } });
+      for (const k of L.KEYS) if (k in change) rec = L.merge(rec, { [k]: change[k], at: { [k]: now } });
     }
     return { look: await keepLook(rec, kept && kept.rev) };
   },
@@ -675,7 +676,7 @@ const handlers = {
     // Follow whichever Sentinel paired us, so pairing from the desktop app
     // makes the companion talk to that app's own server.
     const { apiBase } = await getSettings();
-    if (apiBase !== from) await ext.storage.sync.set({ apiBase: from });
+    if (apiBase !== from) await Store.set({ apiBase: from });
     await setToken(token);
     cacheReset();
     await refreshAccount(true);
@@ -884,8 +885,8 @@ ext.runtime.onInstalled.addListener(async (details) => {
   ext.alarms.create('sentinel:account', { periodInMinutes: 15 });
   // The older mask and notification settings, once, in the words Settings uses now (lib/api.js levelsFrom).
   try {
-    const old = await ext.storage.sync.get(OLD_LEVEL_KEYS);
-    if (old && Object.keys(old).length) { await ext.storage.sync.set(levelsFrom(old)); await ext.storage.sync.remove(OLD_LEVEL_KEYS); }
+    const old = await Store.get(OLD_LEVEL_KEYS);
+    if (old && Object.keys(old).length) { await Store.set(levelsFrom(old)); await Store.remove(OLD_LEVEL_KEYS); }
   } catch { /* kept as it was; tried again at the next update */ }
   await restore();
   if (!account.signedIn) await connect();
@@ -928,8 +929,9 @@ async function syncClipGuard() {
   } catch { /* registered meanwhile by another start of this worker */ }
 }
 ext.storage.onChanged.addListener((changes, area) => {
-  if (area === 'sync' && changes.commandGuard) syncClipGuard();
-  if (area === 'sync' && (changes.enabled || changes.warnOnNavigate)) { syncDoor(); doorOffAddresses(); }
+  const set = Store.changed(changes, area, DEFAULTS) || {};
+  if ('commandGuard' in set) syncClipGuard();
+  if ('enabled' in set || 'warnOnNavigate' in set) { syncDoor(); doorOffAddresses(); }
   if (area === 'local' && changes.account) syncDoor();
 });
 syncClipGuard();

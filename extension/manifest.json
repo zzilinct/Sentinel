@@ -102,6 +102,7 @@
         "*://yandex.com/search*"
       ],
       "js": [
+        "src/lib/store.js",
         "src/content/masks.js",
         "src/content/serp.js"
       ],
@@ -118,6 +119,7 @@
         "https://outlook.office365.com/*"
       ],
       "js": [
+        "src/lib/store.js",
         "src/content/masks.js",
         "src/content/mail.js"
       ],
@@ -139,6 +141,7 @@
         "https://twitter.com/*"
       ],
       "js": [
+        "src/lib/store.js",
         "src/content/masks.js",
         "src/content/chat.js",
         "src/content/webchat.js"
@@ -154,6 +157,7 @@
         "https://*/*"
       ],
       "js": [
+        "src/lib/store.js",
         "src/content/masks.js",
         "src/content/alarm.js",
         "src/content/guard.js",
@@ -167,6 +171,7 @@
         "https://*/*"
       ],
       "js": [
+        "src/lib/store.js",
         "src/content/steps.js",
         "src/content/alarm.js",
         "src/content/pwalarm.js"

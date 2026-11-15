@@ -2962,14 +2962,14 @@
       words: ['simple', 'easy', 'less', 'basic', 'bigger', 'large', 'older', 'beginner', 'clutter', 'plain'],
       on: () => simpleView(), save: (input) => window.SentinelSimple.set(input.checked),
       said: (on) => (on ? 'Simple view is on. Pages you may not need are tucked away; search still finds every one.' : 'Simple view is off. Every page and detail is back.') },
-    { id: 'text-size', group: 'look', kind: 'custom', label: 'Text size', hint: 'Larger words in the app, on the website and in Sentinel\'s warnings, on this device. Headings stay as they are.',
+    { id: 'text-size', group: 'look', kind: 'custom', label: 'Text size', hint: 'Larger words in the app, on the website, in Sentinel\'s warnings and in the browser companion. Signed in, your other devices follow. Headings stay as they are.',
       words: ['font', 'bigger', 'larger', 'read', 'reading', 'eyes', 'zoom', 'small', 'accessibility'],
       control: () => seg('set-text-size-l', [['standard', 'Standard'], ['large', 'Large'], ['larger', 'Larger']], window.SentinelType ? window.SentinelType.get().text : 'standard'),
-      bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelType) window.SentinelType.set({ text: b.dataset.seg }); ctx.draw(); })) },
+      bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelLook && SentinelLook.set) SentinelLook.set({ text: b.dataset.seg }); ctx.draw(); })) },
     { id: 'density', group: 'look', kind: 'custom', label: 'Spacing', hint: 'Compact fits more on one screen. Buttons stay easy to press.',
       words: ['compact', 'dense', 'density', 'comfortable', 'padding', 'space', 'tight'],
       control: () => seg('set-density-l', [['comfortable', 'Comfortable'], ['compact', 'Compact']], window.SentinelType ? window.SentinelType.get().density : 'comfortable'),
-      bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelType) window.SentinelType.set({ density: b.dataset.seg }); ctx.draw(); })) },
+      bind: (row, info, ctx) => $$('[data-seg]', row).forEach((b) => b.addEventListener('click', () => { if (window.SentinelLook && SentinelLook.set) SentinelLook.set({ density: b.dataset.seg }); ctx.draw(); })) },
 
     // Motion (boot.js SentinelMotionLevel): its own control, Animation (Full, Calm, Off) and the Scan effect switch. The
     // row's heading names it, so the control's own name is kept for screen readers only.
