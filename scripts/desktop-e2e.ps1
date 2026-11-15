@@ -692,8 +692,9 @@ $ok = Until 15 { $script:sv = [string](Cdp 'warn.html' "[document.documentElemen
 Shot 'warning-simple'
 [void](Cdp '127.0.0.1:4782' "(window.SentinelSimple.set(false), 1)")
 Check 'warning-simple' $ok "Simple view on the warning card: $sv"
-# The same card in the dark look (the page's own query, as main.js loads it), photographed for review.
-[void](Cdp 'warn.html' "(() => { const q = new URLSearchParams(location.search); q.set('theme', 'dark'); location.search = q.toString(); return 1; })()")
+# The same card in the dark look, painted in place as card.js does on load (the card window refuses navigation, so
+# its query cannot be changed), photographed for review.
+[void](Cdp 'warn.html' "(() => { const L = SentinelLook, q = new URLSearchParams(location.search), r = document.documentElement; q.set('theme', 'dark'); const look = L.paint(r, L.fromQuery('?' + q)); r.dataset.theme = L.scheme(look.mode); r.style.setProperty('--c', L.STATUS[r.dataset.theme][q.get('badge') || 'orange']); return r.dataset.theme; })()")
 $dk = ''
 $ok = Until 15 { $script:dk = [string](Cdp 'warn.html' "document.documentElement.dataset.theme + '|' + (document.getElementById('why').textContent ? 'reason in the heading' : 'no reason')").value; $script:dk -eq 'dark|reason in the heading' }
 Start-Sleep 1; Shot 'warning-dark'
