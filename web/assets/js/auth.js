@@ -43,7 +43,8 @@
     for (const [field, message] of Object.entries(errors || {})) {
       const slot = $(`[data-error="${field}"]`, form);
       const input = form.elements[field];
-      if (slot) slot.textContent = message;
+      // An empty password on sign-up keeps only its hint (the length): the error line is for a password that was tried.
+      if (slot) slot.textContent = isSignup && field === 'password' && input && !input.value ? '' : message;
       if (input) { input.setAttribute('aria-invalid', 'true'); first = first || input; }
     }
     // The cursor goes to the first field with a problem as the form reads, top to bottom.

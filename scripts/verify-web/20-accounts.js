@@ -69,7 +69,7 @@ async function checkAccounts() {
       described: [...document.querySelectorAll('[aria-invalid=true]')].map((i) => [i.name, (i.getAttribute('aria-describedby') || '').split(' ').map((id) => (document.getElementById(id) || {}).textContent || '').join(' ').trim()]) })`);
     await shot(browser, s, 'accounts-signup-blank');
     result('accounts: Create account with nothing filled in says what each empty field needs, beside it, and puts the cursor in the first one',
-      Object.keys(blank.errors).length >= 3 && blank.focused === 'firstName', blank);
+      Object.keys(blank.errors).length >= 3 && blank.focused === 'firstName' && !blank.errors.password, blank);
     result('accounts: a screen reader hears each field\'s error with its field (aria-describedby)', blank.described.length > 0 && blank.described.every(([, t]) => t), blank.described);
 
     await fill('#firstName', 'Robin');

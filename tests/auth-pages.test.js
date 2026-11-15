@@ -89,3 +89,11 @@ test('an empty field\'s edge stands 3:1 against the page in both themes', () => 
   assert.match(app.slice(last, app.indexOf('}', last)), /inset 0 0 0 1px var\(--field-ring\)/);
   assert.ok(last > app.indexOf('.scanbox, .input, .textarea'), 'no later rule takes the edge off again');
 });
+
+test('a blank sign-up shows the password\'s hint, not an error; the error is for a password that was tried', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const web = (...p) => fs.readFileSync(path.join(__dirname, '..', 'web', ...p), 'utf8');
+  assert.match(web('signup.html'), /aria-describedby="password-hint"[^]*<span class="field__hint" id="password-hint" data-hint>At least 15 characters\. A few unrelated words make a strong one\.<\/span>/);
+  assert.match(web('assets', 'js', 'auth.js'), /slot\.textContent = isSignup && field === 'password' && input && !input\.value \? '' : message;/);
+});
