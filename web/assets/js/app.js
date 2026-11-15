@@ -690,10 +690,13 @@
     }).join('')}</ol>`;
   }
 
-  // The model running here, beneath the logo: a quiet reminder, and the way to the picker.
+  // The model running here, beneath the logo: a quiet reminder, and the way to the picker. A phone's bar hides it
+  // (app.css, 900px), so there it is asked for only once the window is wide enough to show it.
+  const wide = matchMedia('(min-width: 901px)');
   async function paintModelBadge() {
     const badge = $('[data-model-badge]');
     if (!badge) return;
+    if (!wide.matches) { wide.addEventListener('change', paintModelBadge, { once: true }); return; }
     try {
       const cat = (state.models && state.models.cat) || await api('/models');
       state.models = state.models || { cat, at: Date.now() };

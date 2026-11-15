@@ -65,8 +65,9 @@ function summarise(lhr) {
     kb: Math.round((num('total-byte-weight') || 0) / 1024), failing,
     // How often the page asked for the account: app.html preloads it, so twice means app.js did not take the preload.
     me: requests(a).filter((r) => /\/api\/v1\/auth\/me$/.test(r.url)).length,
-    // The 3D mask's script, models and pictures the page fetched: a phone hides the overview's mask, so none there.
-    masks: requests(a).filter((r) => /\/mask3d\.js$|\.glb$|\/img\/masks\//.test(r.url)).map((r) => r.url.replace(/^https?:\/\/[^/]+/, ''))
+    // What the page fetched for the 3D mask (its script, models and pictures) and the model badge: a phone hides both
+    // (the overview's mask, and the sidebar the badge sits in), so none of it there.
+    masks: requests(a).filter((r) => /\/api\/v1\/models$|\/mask3d\.js$|\.glb$|\/img\/masks\//.test(r.url)).map((r) => r.url.replace(/^https?:\/\/[^/]+/, ''))
   };
 }
 
@@ -279,7 +280,7 @@ async function checkPerfA11y() {
 
     const twice = Object.entries(rows).filter(([k, r]) => APP.includes(k.split(' ')[1]) && !r.error && r.me !== 1);
     const phoneMask = rows['mobile /app'] && !rows['mobile /app'].error ? rows['mobile /app'].masks : [];
-    result('perf-a11y: the overview on a phone fetches none of the 3D mask it hides', !phoneMask.length, phoneMask);
+    result('perf-a11y: the overview on a phone fetches none of the 3D mask or model badge it hides', !phoneMask.length, phoneMask);
     result('perf-a11y: every app page asks for the account once (app.js takes the preload app.html starts)', !twice.length, twice.map(([k, r]) => `${k}: ${r.me} requests`));
 
     const unbudgeted =Object.keys(rows).filter((k) => !budget[k]);
