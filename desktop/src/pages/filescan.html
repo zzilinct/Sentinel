@@ -46,8 +46,8 @@
     const badge = q.get('badge') || 'none';
     // Light or dark as the app's look draws it (card.js), so the colours below match the card.
     const light = SentinelLook.scheme(SentinelLook.fromQuery(location.search).mode) === 'light';
-    const color = Object.assign({ part: light ? '#7a5818' : '#c9a227' }, SentinelLook.STATUS[light ? 'light' : 'dark'])[badge];
-    document.documentElement.style.setProperty('--c', color || (light ? '#6b6558' : '#8d8a82'));
+    if (badge in SentinelLook.STATUS.dark) SentinelCard.status(document.documentElement, badge);
+    else document.documentElement.style.setProperty('--c', badge === 'part' ? (light ? '#7a5818' : '#c9a227') : (light ? '#6b6558' : '#8d8a82'));
     // A file found harmful is a warning: said as one to a screen reader.
     if (badge === 'red' || badge === 'orange') document.body.setAttribute('role', 'alertdialog');
     document.getElementById('label').textContent = q.get('label') || 'Not checked';

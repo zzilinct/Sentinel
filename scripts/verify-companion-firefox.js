@@ -87,8 +87,8 @@ function marionette(port) {
 
 const LOOK = process.argv.includes('--look');
 const OUT_DIR = path.resolve(ROOT, arg('--out', 'verify-web'));
-// The companion's own colours for danger, warning and safe in each scheme (extension/src/popup.css).
-const STATUS = { dark: '#ff7a7e #f08a24 #4cb782', light: '#b3261e #a84600 #1e7a3c' };
+// Danger, warning and safe in each scheme: look.js STATUS, the same bytes as everywhere else.
+const STATUS = { dark: '#e5484d #f08a24 #4cb782', light: '#b3261e #a14400 #1a6e35' };
 
 /**
  * The popup, the settings and the block page as Firefox draws them, in dark and in light: photographed, the look the

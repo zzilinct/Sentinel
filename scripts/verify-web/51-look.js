@@ -181,6 +181,23 @@ async function checkLook() {
     }
     result('look: the warning card opens in the app\'s light or dark and accent, its warning still orange', cardOk, cardSeen);
 
+    // A caution card: on light paper its title is ink and its mark sits on a yellow disc; on dark both are yellow.
+    const cautionSeen = {};
+    for (const scheme of ['light', 'dark']) {
+      await size('desktop', scheme);
+      await browser.send('Emulation.setDeviceMetricsOverride', { width: 520, height: 560, deviceScaleFactor: 1, mobile: false }, s);
+      const q = new URLSearchParams({ badge: 'yellow', label: 'Suspicious site', host: 'deals-today.example', reasons: 'The site is three days old', browser: 'Microsoft Edge', theme: scheme, accent: 'gold' });
+      await goto(browser, s, `${files.base}/d/pages/warn.html?${q}`, "document.getElementById('label').textContent");
+      await sleep(900);
+      await shot(browser, s, `look-card-caution-${scheme}`);
+      cautionSeen[scheme] = await ev("({ title: getComputedStyle(document.getElementById('label')).color, ink: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(), disc: getComputedStyle(document.querySelector('.mark')).backgroundColor, mark: getComputedStyle(document.querySelector('.mark')).color })");
+    }
+    const hexRgb = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
+    const lc = cautionSeen.light, dc = cautionSeen.dark;
+    result('look: a caution card on light paper says its title in ink beside a yellow disc; on dark, in yellow',
+      lc.title === hexRgb(lc.ink) && lc.mark === hexRgb(lc.ink) && lc.disc === hexRgb(L.STATUS.light.yellow)
+      && dc.title === hexRgb(L.STATUS.dark.yellow) && dc.disc === 'rgba(0, 0, 0, 0)', cautionSeen);
+
     /* ----------------------------------------------------- the companion */
 
     const id = await loadCompanion(browser);

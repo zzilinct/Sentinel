@@ -31,11 +31,12 @@
   for (var i = 0; i < ACCENTS.length; i++) BY_ID[ACCENTS[i].id] = ACCENTS[i];
 
   // Danger, warning, caution and safe, as sentinel.css has them for each scheme. Never derived from the accent.
-  // Light caution leans olive: a yellow dark enough to read at 4.5:1 on paper lands on gold's own hue (1.20.1's
-  // #8a6100 sat 2 degrees from it), so it turns toward green, halfway to safe (tests/look.test.js).
+  // Caution is one yellow in both schemes. No yellow dark enough to be read as words on light paper still looks like
+  // caution (1.20.1's #8a6100 was gold's own hue), so on light it is a fill: a mark's disc or a chip, with ink words
+  // on it or beside it (sentinel.css --yellow-ink, card.js status). tests/look.test.js holds both to it.
   var STATUS = {
     dark: { red: '#e5484d', orange: '#f08a24', yellow: '#f5c542', green: '#4cb782' },
-    light: { red: '#b3261e', orange: '#b04a00', yellow: '#646400', green: '#1a6e35' }
+    light: { red: '#b3261e', orange: '#a14400', yellow: '#f5c542', green: '#1a6e35' }
   };
 
   // Gold as it is drawn today. web: sentinel.css's ramp (the others are made from it); app: the surfaces without a
