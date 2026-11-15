@@ -165,11 +165,16 @@ const COMMON_PASSWORDS = new Set([
   'p@ssw0rd1', '1q2w3e4r5t', 'zaq12wsx', 'asdf1234', 'test1234', 'qwer1234', '1qaz2wsx', 'pa55word1'
 ]);
 
+// The shortest password Sentinel takes when one is set or changed (sign-up, reset, Change password). Signing in never
+// asks it: an account made under the old minimum of 10 signs in as before. The pages' minlength and hints say the same
+// number (web/signup.html, web/reset.html, app.js), and tests/security.test.js fails if they drift apart.
+const MIN_PASSWORD = 15;
+
 function passwordProblem(password, { email = '', firstName = '' } = {}) {
   const pw = String(password || '');
   // NIST SP 800-63B rev. 4: length, not a mix of kinds of character, makes a password hard to guess; the breach check
   // and the lists below stop the long ones everyone uses.
-  if (pw.length < 15) return 'Password must be at least 15 characters';
+  if (pw.length < MIN_PASSWORD) return `Password must be at least ${MIN_PASSWORD} characters`;
   if (pw.length > 200) return 'Password is too long';
   if (COMMON_PASSWORDS.has(pw.toLowerCase())) return 'That password is too common: choose something less predictable';
   const local = String(email).split('@')[0].toLowerCase();
@@ -262,6 +267,6 @@ function totpUri(secretB32, email) {
 
 module.exports = {
   baseHeaders, corsHeaders, assertSameOrigin, isExtensionOrigin, clientIp, rateLimit, audit,
-  passwordProblem, breachedPassword, BREACHED, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode,
+  MIN_PASSWORD, passwordProblem, breachedPassword, BREACHED, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode,
   _rate: { size: () => buckets.size, MAX_BUCKETS }
 };

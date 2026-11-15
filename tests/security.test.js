@@ -390,3 +390,35 @@ test('the release build is fused: no program can run code as Sentinel, and the r
   const e2e = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'desktop-e2e.yml'), 'utf8');
   assert.match(e2e, /desktop-fuses-e2e\.ps1 -App desktop\/node_modules\/electron\/dist\/electron\.exe -Out e2e-fuses\/control -Control/, 'a check that can fail');
 });
+
+test('an account made under the old 10-character minimum still signs in; the new minimum applies only when a password is set or changed', async () => {
+  const security = require('../server/lib/security');
+  const A = require('../server/lib/auth');
+  const c = await signedIn();
+  const old = 'Lamp-Moss-42';   // 12 characters: allowed before 1.20.2
+  assert.ok(old.length < security.MIN_PASSWORD);
+  A.db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(await A.hashPassword(old), c.email);
+  const fresh = client(app.base);
+  assert.equal((await fresh.post('/api/v1/auth/login', { email: c.email, password: old })).status, 200, 'signs in as before');
+  const same = await fresh.post('/api/v1/account/password', { currentPassword: old, newPassword: 'Lamp-Moss-43' });
+  assert.equal(same.status, 400, 'a new short one is refused');
+  assert.match(JSON.stringify(same.data), /at least 15 characters/);
+  assert.equal((await fresh.post('/api/v1/account/password', { currentPassword: old, newPassword: 'quiet orchard lamp river' })).status, 200, 'a long one is taken');
+});
+
+test('the password minimum is one number, and every page that states it says the same one', () => {
+  const { MIN_PASSWORD, passwordProblem } = require('../server/lib/security');
+  const fs = require('fs');
+  const path = require('path');
+  const web = (...p) => fs.readFileSync(path.join(__dirname, '..', 'web', ...p), 'utf8');
+  assert.equal(passwordProblem('x'.repeat(MIN_PASSWORD - 1) + 'y'), null);
+  assert.match(passwordProblem('ab'.repeat(MIN_PASSWORD).slice(0, MIN_PASSWORD - 1)), new RegExp(`at least ${MIN_PASSWORD} characters`));
+  for (const page of ['signup.html', 'reset.html']) {
+    assert.match(web(page), new RegExp(`minlength="${MIN_PASSWORD}"`), page);
+    assert.ok(web(page).includes(`At least ${MIN_PASSWORD} characters.`), page);
+  }
+  const app = web('assets', 'js', 'app.js');
+  assert.ok(app.includes(`name="newPassword" autocomplete="new-password" required minlength="${MIN_PASSWORD}"`));
+  assert.ok(app.includes(`At least ${MIN_PASSWORD} characters.`));
+  for (const f of ['auth.js', 'reset.js']) assert.ok(web('assets', 'js', f).includes(`v.length < ${MIN_PASSWORD} ? 1`), f);
+});
