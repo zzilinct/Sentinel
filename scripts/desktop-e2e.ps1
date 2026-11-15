@@ -671,11 +671,11 @@ if ($wb) {
   $b = $wb -split ',' | ForEach-Object { [int]$_ }
   $png = New-Object System.Drawing.Bitmap (Get-Item $script:lastShot).FullName
   $yy = $b[1] + [int]($b[3] / 2)
-  $in = $png.GetPixel($b[0] + 4, $yy); $out = $png.GetPixel([Math]::Max(0, $b[0] - 6), $yy)
+  $pin = $png.GetPixel($b[0] + 4, $yy); $pout = $png.GetPixel([Math]::Max(0, $b[0] - 6), $yy)
   $png.Dispose()
-  $clear = "margin $($in.R),$($in.G),$($in.B) page $($out.R),$($out.G),$($out.B)"
+  $clear = "margin $($pin.R),$($pin.G),$($pin.B) page $($pout.R),$($pout.G),$($pout.B)"
 }
-Check 'warning-no-square' ($wb -and [Math]::Abs($in.R - $out.R) + [Math]::Abs($in.G - $out.G) + [Math]::Abs($in.B - $out.B) -le 12) "the card window's margin against the page beside it: $clear"
+Check 'warning-no-square' ($wb -and [Math]::Abs($pin.R - $pout.R) + [Math]::Abs($pin.G - $pout.G) + [Math]::Abs($pin.B - $pout.B) -le 12) "the card window's margin against the page beside it: $clear"
 $isl = [string](Cdp 'main' "(() => { const m = process.mainModule; const e = m.require('electron'); const p = m.require('./watch').status().window; const w = e.BrowserWindow.getAllWindows().find((x) => x.isVisible() && x.webContents.getURL().includes('warn.html')); if (!p || !w) return 'no page or no warning'; const d = e.screen.screenToDipRect(null, { x: p.x, y: p.y, width: p.w, height: p.h }); const b = w.getBounds(); const a = e.screen.getDisplayMatching(b).workArea; return [Math.round(b.x + b.width - 14 - (d.x + d.width - 18)), Math.round(b.y + b.height - 14 - (d.y + d.height - 18)), b.y + b.height >= a.y + a.height - 1 ? 'at the bottom of the screen' : 'free'].join('|'); })()").value
 $d = $isl -split '\|'
 Check 'warning-on-island' ($d.Count -eq 3 -and [math]::Abs([int]$d[0]) -le 2 -and ([math]::Abs([int]$d[1]) -le 2 -or $d[2] -ne 'free')) "the card's corner from the island's (x|y px, kept on screen): $isl"

@@ -865,11 +865,19 @@
       setShift(goal.x, goal.y); raf = 0;
       // At rest: the end-to-end run (scripts/marks-at-rest.js) checks this place against the browser's last word.
       if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + goal.y.toFixed(1) + ' ' + goal.y.toFixed(1));
+      traceFlagged();
       return;
     }
     setShift(nx, ny);
     if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + ny.toFixed(1) + ' ' + goal.y.toFixed(1));
     raf = requestAnimationFrame(frame);
+  }
+  // Where the first flagged mark is on the screen, once placed and again whenever the marks come to rest, so the
+  // end-to-end run rests the pointer where it is now, not where a read in the middle of a scroll put it.
+  function traceFlagged() {
+    if (!tracing) return;
+    var fl = current.filter(function (m) { return m.badge && m._cx != null; })[0];
+    if (fl) console.log('K ' + Math.round(window.screenX + fl._cx + shiftX) + ' ' + Math.round(window.screenY + fl._cy + shiftY) + ' ' + fl.reason);
   }
   function stopFollowing() { if (raf) cancelAnimationFrame(raf); raf = 0; gesture = null; pxAt = -1e9; stuckDir = 0; goal = { x: 0, y: 0 }; report = { x: 0, y: 0, at: 0 }; }
   var clipEl = document.getElementById('clip');
@@ -907,7 +915,7 @@
     } else place((p && p.marks) || [], rebase);
     if (tracing) console.log('M ' + performance.now().toFixed(1) + ' marks ' + ((p && p.marks) || []).length + (fresh ? ' fresh' : '') + ' ends ' + (ends || '-'));
     // Where the first flagged mark is on the screen, so the end-to-end run can rest the pointer on it.
-    if (tracing) { var fl = ((p && p.marks) || []).filter(function (m) { return m.badge && m._cx != null; })[0]; if (fl) console.log('K ' + Math.round(window.screenX + fl._cx + shiftX) + ' ' + Math.round(window.screenY + fl._cy + shiftY) + ' ' + fl.reason); }
+    traceFlagged();
   });
   api.on('overlay:shift', function (p) {
     // Always eased, even when Windows' animation effects are off (common on gaming PCs): following the page is

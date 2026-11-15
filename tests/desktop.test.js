@@ -719,7 +719,7 @@ test('a movement only the pixels saw is undone: once the page is still, the mark
   assert.equal(atRest('M 1 marks 3 fresh ends 01\nR 2 1 1403.0\nF 3 1402.4 1403.0\nM 4 marks 3 fresh ends 01\n').off, 0, 'new positions start from zero');
   // A new tab over the page: the hidden page's links "moved" 80 px and the marks slid with them for 400 ms. Now the
   // marks go at once, before any of that movement is said.
-  assert.match(s, /if \(\(\$dx -ne \$lastDx -or \$dy -ne \$lastDy\) -and \$anchor\.Current\.IsOffscreen\) \{\n\s+[^\n]*\n\s+[^\n]*\n\s+\$anchor = \$null; \$lastLinks = ''; \$forceRead = \$true\n\s+Write-Output \(@\{ links = @\(\);/);
+  assert.match(s, /if \(\(\$dx -ne \$lastDx -or \$dy -ne \$lastDy\) -and \(\$anchor\.Current\.IsOffscreen -or \(\$doc -and \$r -and \[Math\]::Abs\(\$doc\.Current\.BoundingRectangle\.Y - \$r\.Y\) -gt 2\)\)\) \{\n(\s+#[^\n]*\n)+\s+\$anchor = \$null; \$lastLinks = ''; \$forceRead = \$true\n\s+Write-Output \(@\{ links = @\(\);/);
   const { tabSwitch } = require('../scripts/marks-at-rest.js');
   assert.equal(tabSwitch('M 1 marks 3 ends 11\n# bing opens\nS 9 9 -80\nR 2 9 -80.0\nF 3 -18.4 -80.0\nM 4 marks 0 fresh ends -\n').slid, 80);
   assert.equal(tabSwitch('M 1 marks 3 ends 11\n# bing opens\nM 4 marks 0 fresh ends -\nR 5 9 -100.0\n').slid, 0);
