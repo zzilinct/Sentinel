@@ -1679,7 +1679,7 @@ function registerBridge() {
   handle('sentinel:type', (t) => {
     const next = typeLevel(t);
     const was = typeLevel(store.get('type'));
-    if (was.text === next.text && was.density === next.density) return next;
+    if (was.text === next.text && was.density === next.density && was.simple === next.simple) return next;
     store.set('type', next);
     for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('sentinel:type-level', next);
     return next;
@@ -2119,9 +2119,9 @@ app.on('before-quit', () => { if (!primary) return; quitting = true; heartbeat(t
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => showWindow());
 
-/** Text size and spacing as the app last chose them (sentinel:type), never anything but the known steps. */
+/** Text size, spacing and Simple view as the app last chose them (sentinel:type), never anything but the known steps. */
 function typeLevel(t) {
-  return { text: ['large', 'larger'].includes(t && t.text) ? t.text : 'standard', density: t && t.density === 'compact' ? 'compact' : 'comfortable' };
+  return { text: ['large', 'larger'].includes(t && t.text) ? t.text : 'standard', density: t && t.density === 'compact' ? 'compact' : 'comfortable', simple: Boolean(t && t.simple === true) };
 }
 // Every window's page learns them as it loads (pages/type.js); the app's own pages read their own storage instead.
 app.on('web-contents-created', (_event, contents) => {

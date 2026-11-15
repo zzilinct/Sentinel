@@ -99,3 +99,43 @@ test('hover reasons: one plain sentence why a site is flagged, the same in the o
   assert.doesNotMatch(hover, /nowrap/, 'a reason wraps to a second line instead of being cut off');
   assert.match(hover, /reason: '', host \}/, 'a clear link gets no reason');
 });
+
+test('the overlay\'s digits tell a verdict only where its mark shows: Serious only never tints a safe link green', () => {
+  const html = read('desktop/src/pages/overlay.html');
+  const src = /function digLinks\(\) \{[\s\S]*?\r?\n {2}\}\r?\n/.exec(html)[0];
+  const current = [
+    { x: 0, y: 0, w: 10, h: 10, pending: false, badge: null },
+    { x: 0, y: 20, w: 10, h: 10, pending: false, badge: 'yellow' },
+    { x: 0, y: 40, w: 10, h: 10, pending: false, badge: 'red' },
+    { x: 0, y: 60, w: 10, h: 10, pending: true, badge: null }
+  ];
+  const colours = (level) => new Function('M', 'current', 'marksLevel', 'shiftX', 'shiftY', 'DIG_COLOR', `${src}; return digLinks();`)(
+    M, current, level, 0, 0, { yellow: 'yellow', orange: 'orange', red: 'red' }).map((l) => l.color);
+  assert.deepStrictEqual(colours('all'), ['green', 'yellow', 'red', null]);
+  assert.deepStrictEqual(colours('risky'), [null, 'yellow', 'red', null]);
+  assert.deepStrictEqual(colours('danger'), [null, null, 'red', null], 'Serious only: no green, no yellow');
+});
+
+test('a mark that is no longer wanted eases out, as the Motion setting allows, instead of vanishing', () => {
+  const html = read('desktop/src/pages/overlay.html').replace(/\r\n/g, '\n');
+  assert.match(html, /if \(!seen\[key\]\) \{ dropMark\(n\); nodes\.delete\(key\); \}/, 'scrolled away or left out by Marks beside links');
+  assert.match(html, /function dropMark\(n\) \{\n\s+if \(document\.documentElement\.dataset\.motion === 'off'\) \{ n\.remove\(\); return; \}/, 'Off: gone at once');
+  assert.match(html, /n\.style\.opacity = cs\.opacity;/, 'from where it is, not from the hidden base style');
+  assert.match(html, /\.mark\.is-out \{ animation: mark-out \.16s/, 'Full: a short shrink and fade');
+  assert.match(html, /:root\[data-motion="calm"\] \.mark\.is-out \{ animation-name: mark-fade; \}/, 'Calm: a fade only');
+  assert.ok(html.indexOf('.mark.is-out {') > html.indexOf('.mark.is-pending {') && html.indexOf('.mark.is-out {') > html.indexOf('.mark.is-in {'), 'leaving wins over arriving and waiting');
+});
+
+test('the overlay\'s tip never covers another mark: below, else above, else beside the mark', () => {
+  const html = read('desktop/src/pages/overlay.html').replace(/\r\n/g, '\n');
+  const tipSpot = new Function(`${/function tipSpot\([\s\S]*?\n {2}\}\n/.exec(html)[0]}; return tipSpot;`)();
+  // An inbox: a mark on every 40 px row, in one column (live-e2e: the tip below hid the next row's tick).
+  const column = [43, 83, 163, 203, 243].map((y) => [911, y]);
+  const inbox = tipSpot(911, 123, 300, 64, 1016, 636, column);
+  assert.deepStrictEqual(inbox, { left: 587, top: 91 }, 'to the left of the column');
+  assert.ok(!column.some(([x, y]) => x > inbox.left - 14 && x < inbox.left + 314 && y > inbox.top - 14 && y < inbox.top + 78));
+  assert.deepStrictEqual(tipSpot(400, 200, 300, 64, 1016, 636, [[400, 330]]), { left: 250, top: 220 }, 'nothing below: below, as before');
+  assert.deepStrictEqual(tipSpot(400, 200, 300, 64, 1016, 636, [[420, 250]]), { left: 250, top: 116 }, 'a mark just below: above');
+  assert.deepStrictEqual(tipSpot(400, 600, 300, 64, 1016, 636, []), { left: 250, top: 516 }, 'at the bottom of the page: above');
+  assert.match(html, /var at = tipSpot\(hit\._cx \+ shiftX, hit\._cy \+ shiftY, tip\.offsetWidth, tip\.offsetHeight/);
+});

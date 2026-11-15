@@ -47,6 +47,7 @@ function island() {
   const ctx = {
     performance: { now: () => clock },
     requestAnimationFrame: () => 1, cancelAnimationFrame() {},
+    getComputedStyle: () => ({ opacity: '1', scale: 'none' }),
     setTimeout: (f, ms) => { timers.set(nextTimer, { f, at: clock + (ms || 0) }); return nextTimer++; },
     clearTimeout: (t) => timers.delete(t),
     localStorage: { getItem: () => null, setItem() {} },

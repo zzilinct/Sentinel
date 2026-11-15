@@ -14,13 +14,21 @@
   .real { margin: 16px 0 0; }
   .real[hidden] { display: none; }
   .real button { width: 100%; height: auto; min-height: 38px; padding: 8px 16px; overflow-wrap: anywhere; }
+  /* The strongest reason is part of the heading: what Sentinel found, said with the verdict, not lines further down. */
+  .why { display: block; margin-top: 4px; font: 500 var(--t-ui)/var(--lh-lead) var(--sans); color: var(--ink); overflow-wrap: anywhere; }
+  .why:empty { display: none; }
+  /* Simple view (Settings): the answer and its reason in bigger type; the other reasons and the side note are one
+     press away, behind "Open in Sentinel". */
+  :root[data-simple] h1 { font-size: var(--t-title); }
+  :root[data-simple] :is(.why, #lead) { font-size: var(--t-lead); }
+  :root[data-simple] :is(#reasons, #browser) { display: none; }
 </style>
 </head>
 <body role="alertdialog" aria-labelledby="title" aria-describedby="host lead reasons">
   <div class="head">
     <div class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M32 11.6c-5.6 0-10.4 1.8-12.6 5C18.4 18.1 18 19.9 18 21.8v7.8c0 3.8 1.2 7 3.4 9.8L32 49.4l10.6-10c2.2-2.8 3.4-6 3.4-9.8v-7.8c0-1.9-.4-3.7-1.4-5.2-2.2-3.2-7-5-12.6-5ZM21 23.4l8 3-.5 3.6-7.5-1.8ZM43 23.4l-8 3 .5 3.6 7.5-1.8ZM24.6 32l4.6 1.1v8.4l-3-3.4ZM39.4 32l-4.6 1.1v8.4l3-3.4Z"/></svg></div>
     <div>
-      <h1 id="title">Sentinel warning</h1>
+      <h1 id="title"><span id="label">Sentinel warning</span><span class="why" id="why"></span></h1>
       <p class="host" id="host"></p>
     </div>
   </div>
@@ -39,13 +47,16 @@
     const q = new URLSearchParams(location.search);
     const badge = q.get('badge') || 'orange';
     document.documentElement.style.setProperty('--c', SentinelCard.tone(['red', 'orange', 'yellow'].includes(badge) ? badge : 'orange'));
-    document.getElementById('title').textContent = q.get('label') || 'Sentinel warning';
+    document.getElementById('label').textContent = q.get('label') || 'Sentinel warning';
     document.getElementById('host').textContent = q.get('host') || '';
     document.getElementById('lead').innerHTML = badge === 'red'
       ? '<b>Leave this page.</b> Sentinel has evidence this site is dangerous. Do not enter passwords, codes or card details on it.'
-      : '<b>Be careful on this page.</b> Sentinel found the warning signs below, but no proof. Do not enter any details on it.';
+      : '<b>Be careful on this page.</b> Sentinel found warning signs, but no proof. Do not enter any details on it.';
+    // The strongest reason (the scanner lists them strongest first) in the heading line, the others below.
+    const reasons = (q.get('reasons') || '').split('\n').filter(Boolean).slice(0, 4);
+    document.getElementById('why').textContent = reasons.shift() || '';
     const ul = document.getElementById('reasons');
-    for (const r of (q.get('reasons') || '').split('\n').filter(Boolean).slice(0, 4)) {
+    for (const r of reasons) {
       const li = document.createElement('li');
       li.textContent = r;
       if (ul.children.length) li.dataset.trim = '';
