@@ -16,6 +16,16 @@
     motion: 'full'
   };
   const saved = document.getElementById('saved');
+  // One line says what became of the last change. A save that answers late (both storages are asked) never covers
+  // what a newer change said, and a message only clears itself.
+  let told = 0;
+  const ticket = () => ++told;
+  function say(t, color, text, ms) {
+    if (t !== told) return;
+    saved.style.color = color;
+    saved.textContent = text;
+    if (ms) setTimeout(() => { if (t === told) saved.textContent = ''; }, ms);
+  }
 
   /*
    * Look: Theme and Colour as two groups of radio buttons, as in the app's own picker (the arrow keys move the choice
@@ -61,30 +71,26 @@
       else el.value = stored[key];
       el.addEventListener('change', () => {
         let value = el.type === 'checkbox' ? el.checked : el.value.trim();
+        const t = ticket();
         if (key === 'apiBase') {
           try {
             const u = new URL(value);
             if (u.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(u.hostname)) throw new Error('https required');
             value = u.origin;
           } catch {
-            saved.style.color = 'var(--red)';
-            saved.textContent = 'Server must be an https:// address';
+            say(t, 'var(--red)', 'Server must be an https:// address');
             el.value = stored.apiBase;
             return;
           }
         }
         SentinelStore.set({ [key]: value }).then(() => {
           stored[key] = value;
-          saved.style.color = 'var(--green)';
-          saved.textContent = 'Saved';
-          setTimeout(() => { saved.textContent = ''; }, 1400);
+          say(t, 'var(--green)', 'Saved', 1400);
           Promise.resolve(ext.runtime.sendMessage({ type: 'refresh' })).catch(() => {}).then(headline);
         }, () => {
           // Not kept (neither of the browser's settings storages took it): the control goes back to what is really saved.
           if (el.type === 'checkbox') el.checked = Boolean(stored[key]); else el.value = stored[key];
-          saved.style.color = 'var(--red)';
-          saved.textContent = 'That change could not be saved. Try again in a moment.';
-          setTimeout(() => { saved.textContent = ''; }, 4000);
+          say(t, 'var(--red)', 'That change could not be saved. Try again in a moment.', 4000);
         });
       });
     }
