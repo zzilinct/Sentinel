@@ -374,3 +374,19 @@ test('the Windows app\'s own pages run no inline script: every script is a file,
     for (const [, src] of html.matchAll(/<script src="([^"]+)"/g)) assert.ok(fs.existsSync(path.join(dir, src)) || /shared\//.test(src), `${f}: ${src}`);
   }
 });
+
+test('the release build is fused: no program can run code as Sentinel, and the release checks it before publishing', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const cfg = require('../desktop/electron-builder.release.js');
+  const pkg = require('../desktop/package.json');
+  assert.deepEqual(cfg.electronFuses, { runAsNode: false, enableNodeOptionsEnvironmentVariable: false, enableNodeCliInspectArguments: false });
+  assert.deepEqual({ ...cfg, electronFuses: undefined }, { ...pkg.build, electronFuses: undefined }, 'otherwise the same build');
+  assert.match(pkg.scripts['dist:win:release'], /--config electron-builder\.release\.js$/);
+  const release = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(release, /npm run dist:win:release/);
+  assert.doesNotMatch(release, /npm run dist:win\r?\n/);
+  assert.ok(release.indexOf('desktop-fuses-e2e.ps1') > release.indexOf('dist:win:release') && release.indexOf('desktop-fuses-e2e.ps1') < release.indexOf('action-gh-release'));
+  const e2e = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'desktop-e2e.yml'), 'utf8');
+  assert.match(e2e, /desktop-fuses-e2e\.ps1 -App desktop\/node_modules\/electron\/dist\/electron\.exe -Out e2e-fuses\/control -Control/, 'a check that can fail');
+});

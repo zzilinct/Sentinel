@@ -59,7 +59,12 @@ jobs:
         working-directory: desktop
         run: |
           npm ci
-          npm run dist:win
+          npm run dist:win:release
+
+      # The fuses are on the exe that ships, and it still starts: nothing is published otherwise.
+      - name: Check the release build's fuses
+        shell: powershell
+        run: ./scripts/desktop-fuses-e2e.ps1 -Out e2e-fuses
 
       - name: Name the stable download assets
         shell: pwsh
