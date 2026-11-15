@@ -50,6 +50,7 @@ async function checkStates() {
     const SLOTS = { recent: '[data-recent]', week: '[data-week]', stats: '[data-stats]', history: '[data-list]', allow: '[data-allow]', block: '[data-block]', devices: '[data-sessions]', assistants: '[data-pane]' };
     const PAGES = { '/app': ['recent'], '/app/week': ['week'], '/app/history': ['stats', 'history'], '/app/sites': ['allow', 'block'], '/app/settings': ['devices'], '/app/assistants': ['assistants'] };
     const jumps = [];
+    const ghosts = [];
     await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
     // A computer and a phone; then a width between the two and a computer with Larger text, the first time only: a
     // first-time height written down as a number fits only the widths and text size it was measured at.
@@ -63,6 +64,15 @@ async function checkStates() {
           mode = 'hold';
           await goto(browser, s, `${server.base}${page}`, keys.map((k) => `document.querySelector('[data-skel="${k}"]')`).join(' && '));
           const wait = await evalIn(browser, s, `(${JSON.stringify(keys)}).map((k) => document.querySelector('[data-skel="' + k + '"]').offsetHeight)`);
+          // The first-time stand-in copy (a device name, an address) is hidden from screen readers and Tab: every
+          // ghost is aria-hidden and inert, and nothing in it takes focus.
+          if (visit === 'first') {
+            ghosts.push({ at: `${name} ${page}`, ...(await evalIn(browser, s, `(() => { const g = [...document.querySelectorAll('.skeleton__ghost')];
+              const focusable = g.flatMap((e) => [...e.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')]);
+              focusable.forEach((f) => f.focus({ preventScroll: true }));
+              return { ghosts: g.length, hidden: g.every((e) => e.getAttribute('aria-hidden') === 'true' && e.inert), focusable: focusable.length,
+                focused: g.some((e) => e.contains(document.activeElement)) }; })()`)) });
+          }
           mode = 'pass';
           release();
           await until(browser, s, `!document.querySelector('[data-skel]')`, 15000);
@@ -76,6 +86,8 @@ async function checkStates() {
     console.log(`      heights: ${jumps.map((j) => `${j.at} ${j.wait}->${j.came}`).join('; ')}`);
     result('states: the first time, each wait is as tall as what a new account sees there', jumps.filter((j) => / first /.test(j.at)).every((j) => Math.abs(j.jump) <= 2), jumps.filter((j) => / first /.test(j.at)));
     result('states: after that, each wait is as tall as that place was last time, so nothing jumps', jumps.filter((j) => / next /.test(j.at)).every((j) => Math.abs(j.jump) <= 1), jumps.filter((j) => / next /.test(j.at)));
+    result('states: the first-time stand-in copy is hidden from screen readers and Tab never reaches it',
+      ghosts.some((g) => g.ghosts > 0) && ghosts.every((g) => g.hidden && !g.focused), ghosts);
 
     const seen = { empty: [], fault: [], down: [], slow: [] };
     for (const [name, [width, height, mobile]] of Object.entries(SIZES)) {

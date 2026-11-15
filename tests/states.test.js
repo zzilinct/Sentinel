@@ -50,6 +50,8 @@ test('a wait is as tall as what replaces it: every place that waits keeps its he
   assert.equal([...app.matchAll(/skel\('[\w-]+'\)/g)].length, 0, 'every wait has its first-time shape');
   assert.doesNotMatch(css, /\.h-[a-z]+\s*[,{]/, 'no first-time height written down as a number');
   assert.match(css, /\.skeleton__ghost \{ visibility: hidden;/);
+  // The stand-in copy (a device name, an address) never reaches a screen reader or the Tab key.
+  assert.match(app, /<div class="skeleton__ghost" aria-hidden="true" inert>/);
   for (const k of new Set(keys)) {
     assert.ok(new RegExp(`keep\\(.*, '${k}'\\);`).test(app), `${k} keeps its height`);
   }
