@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; img-src data:; script-src 'unsafe-inline' file:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; img-src data:; script-src file:">
 <title>Sentinel</title>
 <script src="motion.js"></script>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <script src="../../shared/look.js"></script>
-<script>SentinelLook.paint(document.documentElement, SentinelLook.fromQuery(location.search));</script>
+<script src="paint.js"></script>
 <style>
   html, body { height: 100%; margin: 0; background: #111215; color: #e9e6df; font: var(--t-text)/var(--lh-lead) var(--sans); }
   body { display: grid; place-items: center; }

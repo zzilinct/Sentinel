@@ -57,7 +57,7 @@ test('the pause speaks only after a sign in the last hour, the latest sign, once
 });
 
 test('the Windows app and the companion say the one thing, calmly, with one way to close it', () => {
-  const guard = read('desktop/src/pages/guard.html');
+  const guard = (read('desktop/src/pages/guard.html') + read('desktop/src/pages/guard-page.js'));
   const note = read('extension/src/content/guard.js');
   for (const s of [guard, note]) {
     assert.ok(s.includes(SAYS));

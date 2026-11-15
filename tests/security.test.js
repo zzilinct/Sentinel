@@ -359,3 +359,18 @@ test('release downloads carry signed provenance from the workflow that built the
   assert.match(yml, /uses: actions\/attest-build-provenance@[0-9a-f]{40}[^\n]*\r?\n\s+with:\r?\n\s+subject-path: \|\r?\n\s+release\/\*\.exe\r?\n\s+release\/\*\.zip/);
   assert.ok(yml.indexOf('attest-build-provenance') < yml.indexOf('action-gh-release'), 'attested before it is published');
 });
+
+test('the Windows app\'s own pages run no inline script: every script is a file, and their policy allows nothing else', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(__dirname, '..', 'desktop', 'src', 'pages');
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.html'))) {
+    const html = fs.readFileSync(path.join(dir, f), 'utf8');
+    const csp = (html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/) || [])[1] || '';
+    assert.match(csp, /default-src 'none'/, f);
+    assert.doesNotMatch((csp.match(/script-src[^;]*/) || [''])[0], /unsafe-inline|unsafe-eval|\*/, `${f}: ${csp}`);
+    assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/, `${f}: an inline script`);
+    assert.doesNotMatch(html, /\son[a-z]+="/, `${f}: an inline handler`);
+    for (const [, src] of html.matchAll(/<script src="([^"]+)"/g)) assert.ok(fs.existsSync(path.join(dir, src)) || /shared\//.test(src), `${f}: ${src}`);
+  }
+});

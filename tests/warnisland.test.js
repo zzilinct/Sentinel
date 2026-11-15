@@ -59,7 +59,7 @@ test('the live-scan warning springs from the corner island, fits its words, and 
   assert.match(show, /fitToWords\(warnWin\)[\s\S]*warnWin\.showInactive\(\)/);
   assert.doesNotMatch(show, /setSize\(|\.show\(\)|\.focus\(\)/, 'no fixed size, never shown with the keyboard');
   // The island is 18 px in from the bottom right of the page area (overlay.html), and the card's corner is there.
-  assert.match(read('desktop/src/pages/overlay.html'), /\.corner \{ position: absolute; right: 18px; bottom: 18px;/);
+  assert.match((read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js')), /\.corner \{ position: absolute; right: 18px; bottom: 18px;/);
   assert.match(main, /return \{ x: d\.x \+ d\.width - 18, y: d\.y \+ d\.height - 18 \};/);
   assert.match(main, /const x = corner \? corner\.x \+ CARD_PAD - width : b\.x;/);
   // Kept on its screen.
@@ -76,19 +76,19 @@ test('the full-screen and game rules are kept: on top only while a browser is in
 test('each warning page is drawn by the card, has no scrolling box of its own, and is a dialog to a screen reader', () => {
   for (const name of PAGES) {
     const html = read(`desktop/src/pages/${name}.html`);
-    assert.match(html, /script-src 'unsafe-inline' file:/, `${name}: may load card.js`);
+    assert.match(html, /script-src file:[;"]/, `${name}: may load card.js`);
     assert.ok(html.indexOf('<script src="card.js"></script>') > 0 && html.indexOf('<script src="card.js"></script>') < html.indexOf('<body'), `${name}: card.js in the head`);
     assert.doesNotMatch(html, /overflow(-y)?: (auto|scroll)/, `${name}: nothing scrolls inside`);
     assert.match(html, /<body role="(alert)?dialog" aria-labelledby="[a-z]+"/, `${name}: a labelled dialog`);
     assert.ok(!html.includes('\u2014'), `${name}: no em dash`);
   }
-  assert.match(read('desktop/src/pages/warn.html'), /<body role="alertdialog"/);
-  assert.match(read('desktop/src/pages/filescan.html'), /if \(badge === 'red' \|\| badge === 'orange'\) document\.body\.setAttribute\('role', 'alertdialog'\)/);
-  assert.match(read('desktop/src/pages/warn.html'), /id="close" data-escape>Got it/);
-  assert.match(read('desktop/src/pages/filescan.html'), /id="close" data-escape>Done/);
+  assert.match((read('desktop/src/pages/warn.html') + read('desktop/src/pages/warn-page.js')), /<body role="alertdialog"/);
+  assert.match((read('desktop/src/pages/filescan.html') + read('desktop/src/pages/filescan-page.js')), /if \(badge === 'red' \|\| badge === 'orange'\) document\.body\.setAttribute\('role', 'alertdialog'\)/);
+  assert.match((read('desktop/src/pages/warn.html') + read('desktop/src/pages/warn-page.js')), /id="close" data-escape>Got it/);
+  assert.match((read('desktop/src/pages/filescan.html') + read('desktop/src/pages/filescan-page.js')), /id="close" data-escape>Done/);
   // What may be left out on a very short screen: never the first reason, the verdict, the advice or a button.
-  for (const name of ['warn', 'filescan']) assert.match(read(`desktop/src/pages/${name}.html`), /if \(ul\.children\.length\) li\.dataset\.trim = '';/);
-  assert.match(read('desktop/src/pages/warn.html'), /<small id="browser" data-trim><\/small>/);
+  for (const name of ['warn', 'filescan']) assert.match(read(`desktop/src/pages/${name}-page.js`), /if \(ul\.children\.length\) li\.dataset\.trim = '';/);
+  assert.match((read('desktop/src/pages/warn.html') + read('desktop/src/pages/warn-page.js')), /<small id="browser" data-trim><\/small>/);
   assert.doesNotMatch(card, /overflow(-y)?: (auto|scroll)/);
   assert.match(card, /grid-template-columns: minmax\(0, 1fr\)/, 'a long unbroken button must not widen the column past the card');
   assert.ok(!card.includes('\u2014'));
@@ -96,9 +96,9 @@ test('each warning page is drawn by the card, has no scrolling box of its own, a
 
 test('the card springs with the island\'s curve, once, and only fades for reduced motion', () => {
   const spring = (s) => s.match(/--spring: (linear\([^)]*\))/)[1];
-  assert.equal(spring(card), spring(read('desktop/src/pages/overlay.html')), 'the island\'s own spring');
+  assert.equal(spring(card), spring((read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'))), 'the island\'s own spring');
   // Out of the island's mask at rest: the same size and roundness as the pill in overlay.html.
-  const pill = Number(read('desktop/src/pages/overlay.html').match(/var PILL = (\d+);/)[1]);
+  const pill = Number((read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js')).match(/var PILL = (\d+);/)[1]);
   assert.equal(pill, 34);
   assert.match(card, /@keyframes card-open \{ from \{ clip-path: inset\(calc\(100% - 34px\) 0 0 calc\(100% - 34px\) round 17px\); \}/, 'out of the 34 px mask in its corner');
   // Motion Off (the app's setting through pages/motion.js, or Windows asking for less motion): it only fades in.

@@ -83,7 +83,7 @@ test('the Windows app keeps only the known steps and tells its own windows', () 
   assert.match(main, /was\.simple === next\.simple\) return next;/, 'turning Simple view on or off is told to the windows');
   assert.match(main, /handle\('sentinel:type'/);
   for (const page of ['overlay', 'warn', 'guard', 'filescan']) assert.match(read(`desktop/src/pages/${page}.html`), /<script src="type\.js"><\/script>/, page);
-  assert.match(read('desktop/src/pages/overlay.html'), /:root\[data-text\] \.panel__why \{ -webkit-line-clamp: 3; \}/, 'a reason at larger text is not cut mid-sentence');
+  assert.match((read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js')), /:root\[data-text\] \.panel__why \{ -webkit-line-clamp: 3; \}/, 'a reason at larger text is not cut mid-sentence');
   assert.match(read('desktop/src/preload.js'), /setType:/);
   assert.match(read('desktop/src/overlay-preload.js'), /onType:/);
 });
@@ -102,7 +102,7 @@ test('Simple view reaches the Windows warning card: the answer and its main reas
   assert.equal(root.dataset.simple, '');
   told({ text: 'standard', density: 'comfortable', simple: false });
   assert.equal('simple' in root.dataset, false);
-  const warn = read('desktop/src/pages/warn.html');
+  const warn = (read('desktop/src/pages/warn.html') + read('desktop/src/pages/warn-page.js'));
   assert.match(warn, /:root\[data-simple\] h1 \{ font-size: var\(--t-title\); \}/, 'a bigger answer');
   assert.match(warn, /:root\[data-simple\] :is\(#reasons, #browser\) \{ display: none; \}/, 'fewer words');
   // The heading line says why: the strongest reason is in the h1, and not repeated below it.

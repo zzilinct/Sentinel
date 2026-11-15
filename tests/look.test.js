@@ -35,7 +35,7 @@ test('danger red, warning orange and caution yellow are the same bytes in every 
     assert.equal(JSON.stringify(L.STATUS), before);
   }
   // The island and the cards say a verdict in STATUS, never M.COLORS mixed with the accent and never a literal.
-  const overlay = read('desktop', 'src', 'pages', 'overlay.html');
+  const overlay = (read('desktop', 'src', 'pages', 'overlay.html') + read('desktop', 'src', 'pages', 'overlay-page.js'));
   assert.match(overlay, /function tone\(badge\) \{ return L\.STATUS\[L\.scheme\(look\.mode\)\]/);
   assert.match(read('desktop', 'src', 'pages', 'card.js'), /const tone = \(badge\) => window\.SentinelLook\.STATUS\[/);
   for (const page of ['warn.html', 'guard.html']) assert.doesNotMatch(read('desktop', 'src', 'pages', page), /#e5484d|#f08a24|#f5c542/, `${page} names a status colour itself`);

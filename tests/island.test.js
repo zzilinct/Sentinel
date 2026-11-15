@@ -11,7 +11,7 @@ const path = require('path');
 const vm = require('vm');
 
 const read = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
-const html = read('desktop/src/pages/overlay.html');
+const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
 const main = read('desktop/src/main.js');
 const overlay = read('desktop/src/overlay.js');
 const watchSrc = read('desktop/src/watch.js');
@@ -21,7 +21,7 @@ require('../web/assets/js/masks.js');
 const REAL = globalThis.SentinelMasks;
 
 function island() {
-  const code = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
+  const code = read('desktop/src/pages/overlay-page.js');
   const el = (id) => {
     const classes = new Set();
     const e = {
@@ -327,7 +327,8 @@ test('it is labelled, keeps out of the tab order closed, respects reduced motion
   assert.match(html, /\.isl__sheet \{[^}]*background: var\(--sheet\);/);
   assert.match(html, /:root \{ --sheet: #0c0d10;/);
   assert.doesNotMatch(html, /--sheet: #f6f1e7/, 'no light island');
-  assert.match(html, /SentinelLook\.paint\(document\.documentElement, SentinelLook\.dark\(/);
+  assert.match(html, /<script src="paint\.js" data-dark><\/script>/);
+  assert.match(read('desktop/src/pages/paint.js'), /'dark' in document\.currentScript\.dataset \? L\.dark\(q\) : q/);
   const islandCss = html.slice(html.indexOf('.corner {'), html.indexOf('.mark {'));
   assert.doesNotMatch(islandCss, /infinite|scale\((?!\.97)/);
   assert.ok(!html.includes('—'), 'no em dash');

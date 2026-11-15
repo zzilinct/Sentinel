@@ -1,0 +1,735 @@
+(function () {
+  'use strict';
+  var M = window.SentinelMasks;
+  var L = window.SentinelLook;
+  var look = L.dark(L.fromQuery(location.search));
+  M.setMetal(L.metal(look.accent));
+  // A verdict on the island is said in its scheme's status colour (dark: the marks' own). The marks keep their dark
+  // tile and M.COLORS in every look. Neither ever follows the accent.
+  function tone(badge) { return L.STATUS[L.scheme(look.mode)][badge === 'clear' ? 'green' : badge]; }
+  var tracing = /[?&]trace=1\b/.test(location.search);   // end-to-end runs only (see overlay.js)
+  var corner = document.getElementById('corner');
+  var cornerMask = document.getElementById('cornerMask');
+  var cornerLabel = document.getElementById('cornerLabel');
+  var marksEl = document.getElementById('marks');
+  var tip = document.getElementById('tip');
+  var pay = document.getElementById('pay');
+  document.getElementById('payMask').innerHTML = M.svg('scam');
+  // One element per result, kept by the result's key: when scrolling brings new results in and takes others out,
+  // the marks that stay are the same elements, untouched, and only newcomers pop in.
+  var nodes = new Map();
+  // Results whose mark has already popped in. Scrolling re-reads the page, and a mark that left the screen and came
+  // back, or whose quick verdict was replaced by the researched one, was popping in again after every scroll.
+  var shown = new Set();
+  var current = [];
+  var marksLevel = 'all';   // which results get a mark: every link, risky links, or warnings and danger (masks.js shows)
+  var labelTimer = null;
+  var sweepTimer = null;
+  var flagged = false;
+  var sticky = false;
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // The island's shape in px. The pointer tests below use the same numbers, so nothing is read from the page.
+  var PILL = 34;           // its height, and its width with the mask alone; pages/card.js opens from this
+  var PANEL_W = 320;
+  var EDGE = 18;           // in from the page's corner; main.js islandCorner() is the same number
+  var islandW = PILL;
+  var islandH = PILL;
+  function island(w, h, r) {
+    h = h || PILL;
+    corner.classList.toggle('is-folding', w * h < islandW * islandH);
+    islandW = w; islandH = h;
+    corner.style.setProperty('--w', String(w));
+    corner.style.setProperty('--h', String(h));
+    corner.style.setProperty('--r', String(r || PILL / 2));
+  }
+  function leave(s) {
+    s.classList.remove('is-in'); s.classList.add('is-out');
+    // Gone once its way out has played.
+    setTimeout(function () { s.remove(); }, 260);
+  }
+
+  var shownWords = null;
+  /** The pill's words: the old line leaves, the new one comes in, and the pill springs to its width. */
+  function words(html, color) {
+    if (html === shownWords) return;
+    shownWords = html;
+    cornerLabel.querySelectorAll(':scope > span:not(.is-out)').forEach(leave);
+    if (!html) { if (!panelOpen) island(PILL); return; }
+    var s = document.createElement('span');
+    if (color) s.style.setProperty('--c', color);
+    s.innerHTML = html;
+    // Already wide: the new words come in sooner, as the old ones leave (the pill only changes width).
+    if (islandW > PILL) s.classList.add('is-swap');
+    cornerLabel.appendChild(s);
+    // One layout read per message (its width), which also fixes the start state, so the class below transitions.
+    var w = Math.min(s.offsetWidth, 300) + PILL + 12;
+    if (!panelOpen) island(w);
+    s.classList.add('is-in');
+  }
+  /** Words of the moment. They leave by themselves unless `keep` (a warning stays while its page does). */
+  function say(html, color, keep) {
+    clearTimeout(labelTimer);
+    labelTimer = null;
+    words(html, color);
+    sticky = Boolean(keep);
+    if (!keep) labelTimer = setTimeout(hush, 4200);
+  }
+  /** Back to the resting words. */
+  function hush() {
+    clearTimeout(labelTimer);
+    labelTimer = null;
+    sticky = false;
+    var r = rest();
+    words(r.html, r.color);
+  }
+  // The desktop end-to-end run (scripts/desktop-e2e.ps1) replays the island through these to photograph it mid-spring.
+  window.sentinelIsland = { say: say, hush: hush, open: function () { openPanel(false); }, close: closePanel, takesPointer: function () { return interactive; } };
+
+  /*
+   * What the island knows about the page in front. All of it comes from the app as it happens (overlay:page,
+   * overlay:verdict, overlay:marks), and it starts empty on every page: what is not known is not shown.
+   */
+  var site = null;         // set on overlay:page: { host, private, search, paused, checking, label, badge, why, unchecked }
+  var keyHint = '';        // the keyboard shortcut, when Windows gave it to Sentinel
+  var lockedNote = false;  // the parent lock refused a pause
+  var seenLinks = new Map();   // this page's results and links, by their hashed key: what the last read said of each
+  function newSite(p) {
+    return { host: (p && p.host) || null, private: Boolean(p && p.private), search: Boolean(p && p.search), paused: Boolean(p && p.paused),
+      checking: Boolean(p && !p.search && !p.paused), label: '', badge: null, why: '', unchecked: false };
+  }
+  function linkCounts() {
+    var c = { red: 0, orange: 0, yellow: 0, clear: 0, pending: 0 };
+    seenLinks.forEach(function (tier) { c[tier]++; });
+    return c;
+  }
+  var WORST = ['red', 'orange', 'yellow'];
+  /** The pill's words at rest: the page's own verdict if it is bad, then the links on it, then what the scanner said. */
+  function rest() {
+    var c = linkCounts();
+    var flaggedLinks = c.red + c.orange + c.yellow;
+    if (site && site.badge) return { html: '<b>' + esc(site.label) + '</b>', color: tone(site.badge) };
+    if (site && site.paused) return { html: 'Paused here' };
+    if (flaggedLinks) {
+      var worst = WORST.filter(function (b) { return c[b]; })[0];
+      return { html: '<b>' + flaggedLinks + ' flagged</b>', color: tone(worst) };
+    }
+    // A results page has no verdict of its own: its links are its news. A hovered link does not unsay a page's verdict.
+    if (!site || !site.label || site.search) {
+      if (c.pending) return { html: 'Checking links' };
+      if (c.clear) return { html: c.clear + (c.clear === 1 ? ' link checked' : ' links checked') };
+    }
+    if (site && site.checking) return { html: 'Checking' };
+    if (site && site.unchecked) return { html: 'Not checked' };
+    if (site && site.label && !site.search) return { html: esc(site.label) };
+    return { html: 'Watching' };
+  }
+  /** The app has news: new resting words (unless a message is being said), and the panel if it is open. */
+  function refresh() {
+    if (!labelTimer && !sticky) { var r = rest(); words(r.html, r.color); }
+    if (panelOpen) { fillPanel(); island(PANEL_W, panel.offsetHeight, 18); }
+  }
+
+  var panel = document.getElementById('panel');
+  var panelPause = document.getElementById('panelPause');
+  var panelApp = document.getElementById('panelOpen');
+  var panelOpen = false;
+  var byKeyboard = false;
+  var LINK_ROWS = [['red', null], ['orange', null], ['yellow', null], ['clear', 'Nothing found'], ['pending', 'Being checked']];
+  function fillPanel() {
+    var s = site || newSite(null);
+    if (s.badge) panel.style.setProperty('--c', tone(s.badge)); else panel.style.removeProperty('--c');
+    document.getElementById('panelSite').textContent = s.host || (s.private ? 'Private window' : 'This browser');
+    document.getElementById('panelVerdict').textContent = s.badge ? (M.SEVERITY[s.badge] || 'Caution') + ': ' + s.label
+      : s.paused ? 'Paused here' : s.checking ? 'Checking this site' : s.unchecked ? 'Could not check this site' : s.label || 'Watching this browser';
+    var why = document.getElementById('panelWhy');
+    // A private window's reason can name the site: the panel stays with the verdict.
+    why.textContent = s.paused ? 'Pages and links here are not checked for up to an hour.'
+      : lockedNote ? 'Locked by a parent. Unlock it with the PIN in Sentinel.' : s.private ? '' : s.why;
+    why.hidden = !why.textContent;
+    var list = document.getElementById('panelLinks');
+    var c = linkCounts();
+    list.textContent = '';
+    LINK_ROWS.forEach(function (row) {
+      if (!c[row[0]]) return;
+      var li = document.createElement('li');
+      li.style.setProperty('--c', row[0] === 'pending' ? '#8d8a82' : tone(row[0]));
+      var b = document.createElement('b'); b.textContent = String(c[row[0]]);
+      li.appendChild(b);
+      li.appendChild(document.createTextNode(' ' + (row[1] || M.SEVERITY[row[0]])));
+      list.appendChild(li);
+    });
+    list.hidden = !(c.red + c.orange + c.yellow + c.clear + c.pending);
+    // Only a site checked and found clean can be paused: a flagged page never can, whoever is on the phone asking.
+    var pausable = Boolean(s.host && !s.private && !s.search && !s.badge && !s.checking && !s.unchecked && s.label);
+    panelPause.hidden = !(pausable || s.paused);
+    panelPause.textContent = s.paused ? 'Check this site again' : 'Pause here for an hour';
+    var hint = document.getElementById('panelKey');
+    hint.textContent = keyHint && !byKeyboard ? 'Keyboard: ' + keyHint : '';
+    hint.hidden = !hint.textContent;
+  }
+  function openPanel(keyboard) {
+    if (panelOpen || !corner.classList.contains('is-on')) return;
+    clearDwell();
+    byKeyboard = Boolean(keyboard);
+    panelOpen = true;
+    fillPanel();
+    corner.classList.remove('is-rested', 'is-shy');
+    corner.classList.add('is-open');
+    island(PANEL_W, panel.offsetHeight, 18);
+    if (byKeyboard) (panelPause.hidden ? panelApp : panelPause).focus();
+  }
+  function closePanel() {
+    clearTimeout(closeTimer);
+    closeTimer = null;
+    if (!panelOpen) return;
+    panelOpen = false;
+    lockedNote = false;
+    corner.classList.remove('is-open');
+    interact(false);
+    if (byKeyboard) { byKeyboard = false; api.act('released'); }
+    wake();
+    var w = shownWords ? Math.min(cornerLabel.lastChild.offsetWidth, 300) + PILL + 12 : PILL;
+    island(w);
+  }
+
+  // Every click goes through to the page until the panel is open and the pointer is on it: the window only takes the
+  // pointer for that long, and the whole page is under this window.
+  var interactive = false;
+  function interact(on) { if (on !== interactive) { interactive = on; api.interact(on); } }
+  var DWELL_MS = 400;      // a pointer passing over, or on its way to a page button under the island, opens nothing
+  var DWELL_PX = 12;
+  var CLOSE_MS = 600;
+  var dwell = null;
+  var closeTimer = null;
+  function clearDwell() { if (dwell) { clearTimeout(dwell.timer); dwell = null; } }
+  function pointer(ev) {
+    var x = ev.clientX, y = ev.clientY;
+    var left = window.innerWidth - EDGE - islandW, top = window.innerHeight - EDGE - islandH;
+    var over = x >= left && x <= left + islandW && y >= top && y <= top + islandH;
+    if (panelOpen) {
+      interact(over);
+      if (over) { clearTimeout(closeTimer); closeTimer = null; } else if (!byKeyboard && !closeTimer) closeTimer = setTimeout(closePanel, CLOSE_MS);
+      return;
+    }
+    corner.classList.toggle('is-shy', x > left - 60 && y > top - 60);
+    if (!over || !corner.classList.contains('is-on') || (corner.classList.contains('is-quiet') && !flagged)) { clearDwell(); return; }
+    if (dwell && Math.abs(x - dwell.x) <= DWELL_PX && Math.abs(y - dwell.y) <= DWELL_PX) return;
+    clearDwell();
+    dwell = { x: x, y: y, timer: setTimeout(function () { openPanel(false); }, DWELL_MS) };
+  }
+  // This window can never be activated by the pointer (so the browser keeps the keyboard), and Chromium eats the press
+  // on such a window: only the release arrives, so no click ever fires (desktop-e2e). The keyboard still gives a click.
+  function press(el, fn) {
+    var released = false;
+    el.onmouseup = function (ev) {
+      if (ev && ev.button) return;
+      released = true;
+      setTimeout(function () { released = false; }, 0);
+      fn();
+    };
+    el.onclick = function () { if (!released) fn(); };
+  }
+  press(panelPause, function () { api.act(site && site.paused ? 'resume' : 'pause'); });
+  press(panelApp, function () { closePanel(); api.act('open'); });
+  press(cornerMask, closePanel);
+  press(cornerLabel, closePanel);
+  window.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') { ev.preventDefault(); closePanel(); return; }
+    // Tab goes round the panel's buttons: out of the last one the window would lose the keyboard (desktop-e2e).
+    if (ev.key !== 'Tab' || !panelOpen) return;
+    ev.preventDefault();
+    var all = [panelPause, panelApp].filter(function (b) { return !b.hidden; });
+    all[(all.indexOf(document.activeElement) + (ev.shiftKey ? all.length - 1 : 1)) % all.length].focus();
+  });
+  window.addEventListener('blur', function () { if (byKeyboard) closePanel(); });
+
+  // No colour: the accent (var(--acc)).
+  function setCorner(kind, color) {
+    if (color) corner.style.setProperty('--c', color); else corner.style.removeProperty('--c');
+    cornerMask.innerHTML = M.svg(kind || 'scam');
+  }
+
+  function sweep() {
+    clearTimeout(sweepTimer);
+    document.body.classList.remove('sweeping');
+    void document.body.offsetWidth;   // restart the animation
+    document.body.classList.add('sweeping');
+    sweepTimer = setTimeout(function () { document.body.classList.remove('sweeping'); }, 2800);
+  }
+
+  // Delicate scanning digs in (binary.js): as the gold line finishes, faint digits settle over each result still being
+  // checked, in its mask's colour once its verdict is in. Once every result has its verdict they fade, at once, and
+  // never after more than five seconds. Verdicts that are all in before the line finishes never see it at all.
+  var digging = null;
+  var digTimer = null;
+  var DIG_COLOR = { yellow: 'yellow', orange: 'orange', red: 'red' };
+  function digLinks() {
+    return current.filter(function (m) { return !m.row; }).map(function (m) {
+      // A verdict whose mark is left out (Marks beside links, in Settings) is not told by the digits either: they stay gold.
+      var told = !m.pending && M.shows(marksLevel, m.badge);
+      return { x: m.x + shiftX, y: m.y + shiftY, w: m.w, h: m.h, color: !told ? null : m.badge ? DIG_COLOR[m.badge] : 'green' };
+    });
+  }
+  function allChecked() { return current.length && !current.some(function (m) { return m.pending; }); }
+  function startDig() {
+    if (!window.SentinelBinary || digging || allChecked()) return;
+    digging = window.SentinelBinary.dig(null, { links: digLinks });
+    clearTimeout(digTimer);
+    digTimer = setTimeout(endDig, 5000);
+  }
+  function endDig() {
+    clearTimeout(digTimer);
+    if (!digging) return;
+    var d = digging;
+    digging = null;
+    d.finish();
+  }
+  // Everything checked: no result still waiting for its verdict.
+  function digCheck() {
+    if (digging && allChecked()) endDig();
+  }
+
+  function clearMarks() {
+    nodes.forEach(function (n) { n.remove(); });
+    nodes.clear();
+    current = [];
+    tip.classList.remove('is-on');
+  }
+
+  // Where a mark goes for one result. A link covering several lines (Google now puts the site name and address
+  // above the title, inside the same link) gets its mark level with the last line, which is the title, not beside
+  // the small address line at the top.
+  function spot(m, size, W) {
+    var x = m.x + m.w + 8;
+    // One line: centred on the whole line, whatever its height (the link's box is the line's box).
+    var y = m.y + m.h / 2 - size / 2;
+    if (m.row) {
+      // Inbox rows span the page: the mark sits inside the row, near its right end, centred on it.
+      x = m.x + m.w - size - 64;
+      y = m.y + m.h / 2 - size / 2;
+    } else {
+      // Up to about three lines (Google: site name, address, title). A taller link is a whole card (a Bing ad with
+      // its sitelinks inside): its title is at the top.
+      if (m.h > 40 && m.h <= 90) y = m.y + m.h - 15 - size / 2;
+      else if (m.h > 90) y = m.y + 15 - size / 2;
+      if (x + size > W - 6) x = Math.max(4, m.x - size - 8);
+    }
+    return { x: Math.round(x), y: Math.round(y) };
+  }
+
+  // A mark that is no longer wanted (its result scrolled away, or Marks beside links now leaves it out) eases out from
+  // wherever it is: shrinking a little as it fades in Full motion, fading only in Calm, gone at once with motion Off.
+  function dropMark(n) {
+    if (document.documentElement.dataset.motion === 'off') { n.remove(); return; }
+    var cs = getComputedStyle(n);
+    n.style.opacity = cs.opacity;
+    n.style.scale = cs.scale === 'none' ? '1' : cs.scale;
+    n.classList.add('is-out');
+    setTimeout(function () { n.remove(); }, 200);
+  }
+
+  function moveTo(n, x, y) { n.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)'; n._x = x; n._y = y; }
+
+  // rebase: how far the whole layer had moved when these positions were read (a new read after a scroll). Marks that
+  // stay are first put where they are on screen right now, on the new footing, and then glide the last few pixels
+  // to where the fresh read says their result is. Without this they jumped back and forth after every scroll.
+  function place(list, rebase, instant) {
+    current = list;
+    setTimeout(digCheck, 0);
+    // The island counts every result this page has shown, by its hashed key, not only those on screen now.
+    list.forEach(function (m) {
+      if (!m.k) return;
+      if (!m.pending) seenLinks.set(m.k, m.badge || 'clear');
+      else if (!seenLinks.has(m.k)) seenLinks.set(m.k, 'pending');
+    });
+    if (list.length) refresh();
+    var seen = {};
+    var popped = 0;
+    var W = window.innerWidth;
+    var glide = [];
+    list.forEach(function (m, i) {
+      // Marks beside links (Settings): every result is still checked and counted above; only its mark is left out.
+      if (!M.shows(marksLevel, m.pending ? null : m.badge)) { m._cx = null; return; }
+      var key = m.k || ('#' + i);
+      seen[key] = true;
+      var state = m.pending ? 'pending' : (m.badge ? m.badge + ':' + m.kind : 'clear');
+      var size = m.pending ? 10 : m.badge ? 28 : 20;
+      var to = spot(m, size, W);
+      m._cx = to.x + size / 2; m._cy = to.y + size / 2;
+      var n = nodes.get(key);
+      if (!n) {
+        // A newcomer appears where it belongs, never flying in from the corner.
+        n = document.createElement('div'); n.className = 'mark is-still';
+        moveTo(n, to.x, to.y);
+        marksEl.appendChild(n); nodes.set(key, n);
+      } else if (instant) {
+        n.classList.add('is-still'); moveTo(n, to.x, to.y);
+      } else if (n._x !== to.x || n._y !== to.y) {
+        if (rebase && (rebase.dx || rebase.dy)) { n.classList.add('is-still'); moveTo(n, n._x + rebase.dx, n._y + rebase.dy); }
+        glide.push([n, to.x, to.y]);
+      }
+      if (n.dataset.state === state) return;
+      n.dataset.state = state;
+      n.className = 'mark is-still' + (m.pending ? ' is-pending' : m.badge ? ' is-' + m.badge : ' is-clear');
+      if (m.pending) { n.innerHTML = ''; n.removeAttribute('role'); n.removeAttribute('aria-label'); return; }
+      n.style.setProperty('--c', m.badge ? M.COLORS[m.badge] : M.COLORS.clear);
+      n.innerHTML = m.badge ? M.mark(m.kind, m.badge) : M.tick();
+      n.setAttribute('role', 'img');
+      n.setAttribute('aria-label', 'Sentinel: ' + (m.badge ? (M.SEVERITY[m.badge] || 'Caution') + ', ' + m.label : 'nothing found'));
+      if (shown.has(key)) { n.classList.add('is-on'); return; }
+      if (shown.size > 2000) shown.clear();
+      shown.add(key);
+      // A batch arriving together ripples in; a single newcomer during a scroll appears at once.
+      n.style.setProperty('--d', Math.min(popped++, 14) * 45 + 'ms');
+      void n.offsetWidth;
+      n.classList.add('is-in');
+    });
+    nodes.forEach(function (n, key) { if (!seen[key]) { dropMark(n); nodes.delete(key); } });
+    // One layout for all of them, then every mark that moved glides to its new place.
+    void marksEl.offsetWidth;
+    nodes.forEach(function (n) { n.classList.remove('is-still'); });
+    glide.forEach(function (g) { moveTo(g[0], g[1], g[2]); });
+  }
+
+  // Where the tip goes for the mark at (cx, cy): below it, else above, else to its left, the first that covers no
+  // other mark (below, it hid the next row's verdict in an inbox); below when none is clear. others: [x, y] centres.
+  function tipSpot(cx, cy, tw, th, W, H, others) {
+    function clear(l, t) {
+      if (l < 4 || t < 4 || l + tw > W - 4 || t + th > H - 4) return false;
+      return !others.some(function (o) { return o[0] > l - 14 && o[0] < l + tw + 14 && o[1] > t - 14 && o[1] < t + th + 14; });
+    }
+    var x = Math.min(W - tw - 12, Math.max(8, cx - tw / 2));
+    var spots = [[x, cy + 20], [x, cy - 20 - th], [cx - 24 - tw, cy - th / 2]];
+    for (var i = 0; i < spots.length; i++) if (clear(spots[i][0], spots[i][1])) return { left: Math.round(spots[i][0]), top: Math.round(spots[i][1]) };
+    return { left: Math.round(x), top: Math.round(cy + 20 + th > H - 4 ? cy - 20 - th : cy + 20) };
+  }
+
+  // A mark explains itself when the pointer is over it. Clicks still go to the browser.
+  window.addEventListener('mousemove', function (ev) {
+    // The island sits over the page's own corner (a chat button, "back to top", "Share feedback"): it steps aside
+    // while the pointer is near, so whatever is under it can be seen and clicked, and opens only for a resting pointer.
+    pointer(ev);
+    var pr = pay.getBoundingClientRect();
+    pay.classList.toggle('is-shy', ev.clientX > pr.left - 40 && ev.clientY < pr.bottom + 40);
+    var hit = null;
+    for (var i = 0; i < current.length; i++) {
+      var m = current[i];
+      if (m.pending || m._cx == null) continue;
+      if (Math.abs(ev.clientX - (m._cx + shiftX)) <= 15 && Math.abs(ev.clientY - (m._cy + shiftY)) <= 15) { hit = m; break; }
+    }
+    if (!hit) { tip.classList.remove('is-on'); return; }
+    var color = hit.badge ? M.COLORS[hit.badge] : M.COLORS.clear;
+    tip.style.setProperty('--c', color);
+    // The severity in words first, so the tip never relies on its colour either.
+    tip.querySelector('b').textContent = hit.badge ? (M.SEVERITY[hit.badge] || 'Caution') + ': ' + hit.label : 'Nothing found';
+    tip.querySelector('span').textContent = hit.badge ? (hit.reason || 'Open it with care.') : 'Sentinel checked this address and found no warning signs.';
+    var others = [];
+    current.forEach(function (o) { if (o !== hit && o._cx != null) others.push([o._cx + shiftX, o._cy + shiftY]); });
+    var at = tipSpot(hit._cx + shiftX, hit._cy + shiftY, tip.offsetWidth, tip.offsetHeight, window.innerWidth, window.innerHeight, others);
+    tip.style.left = at.left + 'px';
+    tip.style.top = at.top + 'px';
+    tip.classList.add('is-on');
+    if (tracing) console.log('T ' + tip.querySelector('b').textContent + ' | ' + tip.querySelector('span').textContent);
+  });
+  window.addEventListener('mouseleave', function () {
+    tip.classList.remove('is-on'); corner.classList.remove('is-shy'); pay.classList.remove('is-shy');
+    clearDwell();
+    if (panelOpen && !byKeyboard) { interact(false); closePanel(); }
+  });
+
+  var api = window.sentinelOverlay;
+  var restTimer = null;
+  function wake() {
+    clearTimeout(restTimer);
+    corner.classList.remove('is-rested');
+    restTimer = setTimeout(function () { corner.classList.add('is-rested'); }, 5000);
+  }
+  api.on('overlay:watching', function (s) {
+    corner.classList.add('is-on');
+    wake();
+    corner.classList.toggle('is-quiet', Boolean(s.fullscreen));
+    if (s.fullscreen && !flagged) closePanel();
+    keyHint = s.key || '';
+    if (!flagged) setCorner('scam');
+    if (s.private) say('<b>Private window.</b> Protected, and nothing is kept.');
+    else if (s.appeared) say('<b>Sentinel is scanning</b> this browser.');
+    else if (shownWords === null) hush();
+  });
+  // A new page (or none): everything known about the last one is gone.
+  api.on('overlay:page', function (p) {
+    site = p ? newSite(p) : null;
+    seenLinks.clear();
+    lockedNote = false;
+    closePanel();
+    refresh();
+  });
+  // The person paused this site or asked for it to be checked again, or the parent lock refused.
+  api.on('overlay:paused', function (p) {
+    lockedNote = Boolean(p && p.locked);
+    if (site && p && !p.locked) { site.paused = Boolean(p.paused); site.checking = !p.paused; site.label = ''; site.badge = null; site.why = ''; site.unchecked = false; }
+    refresh();
+  });
+  api.on('overlay:open', function () { openPanel(true); });
+  // The look changed in the app: drawn at once, and the marks on screen are cast again in the new metal.
+  api.on('overlay:look', function (l) {
+    look = L.paint(document.documentElement, L.dark(l));
+    M.setMetal(L.metal(look.accent));
+    nodes.forEach(function (n) { var st = (n.dataset.state || '').split(':'); if (st.length === 2) n.innerHTML = M.mark(st[1], st[0]); });
+    refresh();
+  });
+  api.on('overlay:close', closePanel);
+  api.on('overlay:sweep', function (p) {
+    sweep(); wake();
+    // The gold line takes 1.35 s to cross: the digging starts as it finishes.
+    if (p && p.binary) setTimeout(startDig, 1100);
+  });
+  api.on('overlay:verdict', function (v) {
+    flagged = Boolean(v && (v.badge === 'red' || v.badge === 'orange' || v.badge === 'yellow'));
+    corner.classList.toggle('is-flagged', flagged);
+    // What the scanner said about the page in front. No label means there is no verdict (a new page has begun).
+    if (site && v && (v.label || v.unchecked)) {
+      site.checking = false;
+      site.unchecked = Boolean(v.unchecked);
+      site.label = String(v.label || '');
+      site.badge = flagged ? v.badge : null;
+      site.why = String(v.why || '');
+    }
+    if (flagged) {
+      var color = tone(v.badge);
+      setCorner(v.kind, color);
+      say('<b>' + esc(v.label) + '.</b> ' + (v.badge === 'yellow' ? 'Take care on this page.' : 'Do not enter anything here.'), color, v.badge !== 'yellow');
+      if (panelOpen) refresh();
+    } else {
+      setCorner('scam');
+      // A warning about the last page must not hang over this one.
+      if (sticky) hush(); else refresh();
+    }
+  });
+  // The page moved since these marks were placed: move the whole layer with it, in this frame. A new set of
+  // positions (a new epoch) starts from zero again.
+  var epoch = 0;
+  var shiftX = 0;
+  var shiftY = 0;
+  function setShift(dx, dy) { shiftX = dx; shiftY = dy; marksEl.style.transform = 'translate3d(' + dx + 'px,' + dy + 'px,0)'; }
+
+  /*
+   * Moving with the page. Three things say where the page is, from fastest to surest:
+   *   the wheel    (overlay:wheel) the moment a notch turns. The marks start moving at once, along the same kind of
+   *                curve as the browser's own smooth scroll, by what one notch moves this browser (learned as it
+   *                goes). Waiting for the browser's word is what looked choppy: see below.
+   *   reports      (overlay:shift) where the browser says its links went. Measured on a real desktop
+   *                (scripts/live-e2e.ps1, frames.txt), a browser says so only every 150-300 ms while it scrolls,
+   *                in steps of hundreds of pixels. They confirm the wheel afterwards, and teach it the notch size.
+   *   a full read  (overlay:marks) once the page has stopped: every mark exactly on its result.
+   * Movement nothing predicted (the keyboard, the scrollbar, a page moving by itself) has only the reports: the marks
+   * step aside until the page stops, rather than lurching from report to report.
+   */
+  var MOVING_PX = 24;      // unpredicted movement further than this: the marks step aside
+  var BACK_MS = 700;       // back again this long after the last report even if no new positions come
+  var SCROLL_MS = 140;     // one notch's smooth scroll in a Chromium browser: at 190 ms the marks trailed their results mid-scroll (live-e2e screenshots)
+  var SETTLE_MS = 450;     // after the last notch, the scroll has run its course and the reports have caught up
+  var EASE_MS = 60;        // a correction onto the reported position eases in over about this long
+  var RELEASE_MS = 260;    // the wheel's lead held back until the browser confirmed the scroll catches up over this long
+  var moving = false;
+  var backTimer = null;
+  function setMoving(on) {
+    clearTimeout(backTimer);
+    if (on) backTimer = setTimeout(function () { setMoving(false); }, BACK_MS);
+    if (on === moving) return;
+    moving = on;
+    marksEl.classList.toggle('is-moving', on);
+    if (on) tip.classList.remove('is-on');
+  }
+  var perNotch = 100;      // overlay pixels one wheel notch moves the page in this browser (learned in settleGesture)
+  try { var saved = Number(localStorage.getItem('sentinel.perNotch')); if (saved >= 30 && saved <= 400) perNotch = saved; } catch (e) { /* not stored */ }
+  var gesture = null;      // a run of wheel notches: { base, steps: [{ at, px }], start, notches, lastWheel, moved, dir, held, freedAt }
+  var report = { x: 0, y: 0, at: 0 };   // the browser's latest word (time on this page's clock)
+  var goal = { x: 0, y: 0 };
+  var frameAt = 0;
+  var raf = 0;
+  // The page did not move for the wheel last time in this direction (its end, or the pointer over something that
+  // does not scroll): until the browser says otherwise, notches that way are not predicted at all.
+  var stuckDir = 0;
+  var ends = '';           // from the last read: can the page scroll up, and down ('1'/'0' each; '' unknown)
+  function ease(u) { u = Math.min(1, Math.max(0, u)); return 1 - Math.pow(1 - u, 3); }
+  // The page said at its last read whether it can scroll this gesture's way ('1'), or not ('0'), or nothing ('').
+  function roomFor(g) { return ends.charAt(g.dir < 0 ? 1 : 0); }
+  function gestureY(now) {
+    var y = 0;
+    for (var i = 0; i < gesture.steps.length; i++) y += gesture.steps[i].px * ease((now - gesture.steps[i].at) / SCROLL_MS);
+    var room = roomFor(gesture);
+    if (!gesture.moved && (room !== '1' || gesture.dir === stuckDir)) {
+      // Until the browser confirms the page is moving, the marks run at most about two notches ahead of it, leveling
+      // off gently (a flat stop and a lurch on confirmation is what looked choppy). Without this, a wheel turned at
+      // the end of a page carried them hundreds of pixels away and back.
+      var cap = room === '0' || gesture.dir === stuckDir ? 0 : 2 * perNotch;
+      var held = cap ? cap * Math.tanh(y / cap) : 0;
+      gesture.held = y - held;
+      return gesture.base + held;
+    }
+    // Confirmed (or the page says there is room): what was held back is let out smoothly, never in one jump.
+    if (!gesture.freedAt) gesture.freedAt = now;
+    var u = Math.min(1, (now - gesture.freedAt) / RELEASE_MS);
+    return gesture.base + y - gesture.held * (1 - u * u * (3 - 2 * u));
+  }
+  function kick() { if (!raf) { frameAt = performance.now(); raf = requestAnimationFrame(frame); } }
+  // The page's own pixels (overlay:px), a frame after each movement, from whatever moved it. While they come they are
+  // the truth: no prediction, no stepping aside, and the browser's slower word only confirms them afterwards.
+  var PX_MS = 300;         // pixels this recent mean the follower is watching this scroll
+  var PX_EASE_MS = 10;     // the marks close on the measured place within a frame
+  var pxAt = -1e9;        // never
+  var pxY = 0;
+  function pxActive(now) { return now - pxAt < PX_MS; }
+  function onPixels(p) {
+    var now = performance.now();
+    // A new run starts from where the page rested: before the wheel's lead, if a gesture had begun.
+    if (!pxActive(now)) pxY = gesture ? gesture.base : goal.y;
+    pxAt = now;
+    pxY += p.dy;
+    gesture = null;
+    goal = { x: goal.x, y: pxY };
+    setMoving(false);
+    if (tracing) console.log('P ' + now.toFixed(1) + ' ' + p.dy + ' ' + pxY.toFixed(1));
+    kick();
+  }
+  function onWheel(p) {
+    var now = performance.now();
+    if (pxActive(now)) return;   // the pixels are already following this scroll
+
+    var notches = p.delta / 120;
+    if (!gesture) gesture = { base: shiftY, steps: [], start: report.y, notches: 0, lastWheel: now, moved: false, dir: Math.sign(notches), held: 0, freedAt: 0 };
+    gesture.steps.push({ at: now, px: notches * perNotch });
+    gesture.notches += notches;
+    gesture.lastWheel = now;
+    setMoving(false);   // moving with the page, in view
+    if (tracing) console.log('W ' + now.toFixed(1) + ' ' + p.delta + ' ' + perNotch.toFixed(0));
+    kick();
+  }
+  function follow(p) {
+    var now = performance.now();
+    if (Math.abs(p.dy - report.y) > 2) stuckDir = 0;
+    report = { x: p.dx, y: p.dy, at: now };
+    if (gesture) { if (!gesture.moved && Math.abs(p.dy - gesture.start) > 2) gesture.moved = true; }
+    else if (pxActive(now)) {
+      // The pixels are ahead of this word: it only confirms them, later.
+    } else {
+      // After a scroll the pixels followed, the browser's word agreeing with where the marks are is no surprise: they
+      // settle onto it in view. Only movement nothing followed makes them step aside.
+      var followed = now - pxAt < 1500 && Math.abs(p.dy - shiftY) < 40;
+      goal = { x: p.dx, y: p.dy };
+      if (!followed && (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX)) setMoving(true);
+    }
+    if (tracing) console.log('R ' + now.toFixed(1) + ' ' + p.t + ' ' + p.dy.toFixed(1));
+    kick();
+  }
+  // The scroll has run its course: the browser's own account decides. It also says how far a notch really moved.
+  function settleGesture() {
+    var g = gesture;
+    gesture = null;
+    var fresh = report.at > g.lastWheel + SCROLL_MS;   // a report from after the scroll, not one still catching up
+    var actual = report.y - g.start;
+    if (fresh && g.moved && Math.abs(g.notches) >= 1 && actual * g.notches > 0 && Math.abs(actual) > 20) {
+      var measured = Math.abs(actual / g.notches);
+      if (measured >= 30 && measured <= 400) {
+        perNotch = perNotch * 0.5 + measured * 0.5;
+        try { localStorage.setItem('sentinel.perNotch', String(Math.round(perNotch))); } catch (e) { /* not stored */ }
+      }
+    }
+    // Onto where the browser says the page is; or, with no fresh word yet, stay put until the full read places them.
+    goal = fresh ? { x: report.x, y: report.y } : { x: shiftX, y: shiftY };
+  }
+  function frame(ts) {
+    var now = performance.now();
+    var step = Math.min(Math.max(ts - frameAt, 0), 50); frameAt = ts;
+    if (gesture) {
+      if (!gesture.moved && now - gesture.steps[0].at > SETTLE_MS && roomFor(gesture) !== '1') {
+        // The page did not move at all (its end, or the wheel was over something else): let go at once. Not when the
+        // page said it has room: then silence only means the browser is slow to say where its links went (seen for
+        // almost 3 s on a runner), and the wheel is trusted until the scroll is over.
+        stuckDir = gesture.dir;
+        gesture = null; goal = { x: report.x, y: report.y };
+      } else if (now - gesture.lastWheel > SETTLE_MS) {
+        settleGesture();
+      } else {
+        setShift(shiftX, gestureY(now));
+        if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + shiftY.toFixed(1) + ' wheel');
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+    }
+    var k = 1 - Math.exp(-step / (pxActive(now) ? PX_EASE_MS : EASE_MS));
+    var nx = shiftX + (goal.x - shiftX) * k;
+    var ny = shiftY + (goal.y - shiftY) * k;
+    if (Math.abs(goal.x - nx) < 0.4 && Math.abs(goal.y - ny) < 0.4) {
+      setShift(goal.x, goal.y); raf = 0;
+      // At rest: the end-to-end run (scripts/marks-at-rest.js) checks this place against the browser's last word.
+      if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + goal.y.toFixed(1) + ' ' + goal.y.toFixed(1));
+      traceFlagged();
+      return;
+    }
+    setShift(nx, ny);
+    if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + ny.toFixed(1) + ' ' + goal.y.toFixed(1));
+    raf = requestAnimationFrame(frame);
+  }
+  // Where the first flagged mark is on the screen, once placed and again whenever the marks come to rest, so the
+  // end-to-end run rests the pointer where it is now, not where a read in the middle of a scroll put it.
+  function traceFlagged() {
+    if (!tracing) return;
+    var fl = current.filter(function (m) { return m.badge && m._cx != null; })[0];
+    if (fl) console.log('K ' + Math.round(window.screenX + fl._cx + shiftX) + ' ' + Math.round(window.screenY + fl._cy + shiftY) + ' ' + fl.reason);
+  }
+  function stopFollowing() { if (raf) cancelAnimationFrame(raf); raf = 0; gesture = null; pxAt = -1e9; stuckDir = 0; goal = { x: 0, y: 0 }; report = { x: 0, y: 0, at: 0 }; }
+  var clipEl = document.getElementById('clip');
+  function setClip(c) {
+    // A little room above and below, so a mark on the first or last row is not cut in half.
+    clipEl.style.clipPath = c ? 'inset(' + Math.max(0, Math.round(c.top - 6)) + 'px 0 ' + Math.max(0, Math.round(window.innerHeight - c.bottom - 6)) + 'px 0)' : '';
+  }
+  // Marks beside links changed in Settings: the marks on screen now follow it at once, without waiting for a read.
+  api.on('overlay:level', function (p) { marksLevel = (p && p.marks) || 'all'; place(current, null, true); });
+  api.on('overlay:marks', function (p) {
+    if (p && p.level) marksLevel = p.level;
+    setClip(p && p.clip);
+    ends = (p && p.ends) || '';
+    var rebase = null;
+    var fresh = !p || p.epoch !== epoch;
+    if (fresh && p && p.epoch && (gesture || raf)) {
+      // New positions in the middle of a scroll. They were read from the browser, so they already include the
+      // movement it had reported (report); what the marks had moved beyond that (the wheel running ahead of the
+      // browser's word) carries over, and the scroll in progress goes on from there instead of starting again.
+      // Starting again is what threw marks off the page mid-scroll: the next report was applied a second time.
+      var carryX = shiftX - report.x, carryY = shiftY - report.y;
+      rebase = { dx: report.x, dy: report.y };
+      if (gesture) { gesture.base -= report.y; gesture.start -= report.y; }
+      goal = { x: goal.x - report.x, y: goal.y - report.y };
+      pxY -= report.y;
+      report = { x: 0, y: 0, at: report.at };
+      epoch = p.epoch;
+      setShift(carryX, carryY);
+      kick();
+    } else if (fresh) { rebase = { dx: shiftX, dy: shiftY }; epoch = p ? p.epoch : 0; stopFollowing(); setShift(0, 0); }
+    if (fresh && moving) {
+      // Out of sight while the page moved: straight to their new places, then back in view.
+      place((p && p.marks) || [], null, true);
+      setMoving(false);
+    } else place((p && p.marks) || [], rebase);
+    if (tracing) console.log('M ' + performance.now().toFixed(1) + ' marks ' + ((p && p.marks) || []).length + (fresh ? ' fresh' : '') + ' ends ' + (ends || '-'));
+    // Where the first flagged mark is on the screen, so the end-to-end run can rest the pointer on it.
+    traceFlagged();
+  });
+  api.on('overlay:shift', function (p) {
+    // Always eased, even when Windows' animation effects are off (common on gaming PCs): following the page is
+    // keeping marks on their results, not a decorative animation, and jumping is what looks broken.
+    if (!p || p.epoch !== epoch) return;
+    follow(p);
+  });
+  api.on('overlay:wheel', function (p) { if (p && p.epoch === epoch) onWheel(p); });
+  api.on('overlay:px', function (p) { if (p && p.epoch === epoch) onPixels(p); });
+  // Before you pay: the words come from the scanner (plain text), or null when the page in front is not such a checkout.
+  api.on('overlay:pay', function (p) {
+    document.getElementById('payText').textContent = p && p.text ? String(p.text) : '';
+    pay.classList.toggle('is-on', Boolean(p && p.text));
+  });
+  api.on('overlay:clear', function () { pay.classList.remove('is-on'); endDig(); stopFollowing(); setShift(0, 0); setMoving(false); clearMarks(); closePanel(); corner.classList.remove('is-on'); site = null; seenLinks.clear(); hush(); flagged = false; });
+})();

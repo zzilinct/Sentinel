@@ -53,7 +53,7 @@ test('the reader asks only what kind of box is on the flagged page, never what i
 });
 
 test('the shield\'s window asks the question in the house style', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src', 'pages', 'guard.html'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src', 'pages', 'guard-page.js'), 'utf8');
   const typed = html.slice(html.indexOf('function typed()'), html.indexOf("if (mode === 'escape')"));
   assert.match(typed, /Did you type \$\{what\} on that page\?/);
   assert.match(typed, /'a password or card number'/);

@@ -40,7 +40,7 @@ test('a safe link gets a small tick, never a mask', () => {
 
 test('the overlay and the companion draw the marks from masks.js, and the companion\'s copy is the same file', () => {
   assert.equal(read('extension/src/content/masks.js'), read('web/assets/js/masks.js'));
-  const overlay = read('desktop/src/pages/overlay.html');
+  const overlay = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
   assert.match(overlay, /n\.innerHTML = m\.badge \? M\.mark\(m\.kind, m\.badge\) : M\.tick\(\);/);
   assert.doesNotMatch(overlay, /M\.svg\(m\.badge \? m\.kind : 'scam'\)/, 'no mask on a clear result');
   assert.match(overlay, /n\.setAttribute\('aria-label', 'Sentinel: '/);
@@ -101,7 +101,7 @@ test('hover reasons: one plain sentence why a site is flagged, the same in the o
 });
 
 test('the overlay\'s digits tell a verdict only where its mark shows: Serious only never tints a safe link green', () => {
-  const html = read('desktop/src/pages/overlay.html');
+  const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
   const src = /function digLinks\(\) \{[\s\S]*?\r?\n {2}\}\r?\n/.exec(html)[0];
   const current = [
     { x: 0, y: 0, w: 10, h: 10, pending: false, badge: null },
@@ -117,7 +117,7 @@ test('the overlay\'s digits tell a verdict only where its mark shows: Serious on
 });
 
 test('a mark that is no longer wanted eases out, as the Motion setting allows, instead of vanishing', () => {
-  const html = read('desktop/src/pages/overlay.html').replace(/\r\n/g, '\n');
+  const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js')).replace(/\r\n/g, '\n');
   assert.match(html, /if \(!seen\[key\]\) \{ dropMark\(n\); nodes\.delete\(key\); \}/, 'scrolled away or left out by Marks beside links');
   assert.match(html, /function dropMark\(n\) \{\n\s+if \(document\.documentElement\.dataset\.motion === 'off'\) \{ n\.remove\(\); return; \}/, 'Off: gone at once');
   assert.match(html, /n\.style\.opacity = cs\.opacity;/, 'from where it is, not from the hidden base style');
@@ -127,7 +127,7 @@ test('a mark that is no longer wanted eases out, as the Motion setting allows, i
 });
 
 test('the overlay\'s tip never covers another mark: below, else above, else beside the mark', () => {
-  const html = read('desktop/src/pages/overlay.html').replace(/\r\n/g, '\n');
+  const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js')).replace(/\r\n/g, '\n');
   const tipSpot = new Function(`${/function tipSpot\([\s\S]*?\n {2}\}\n/.exec(html)[0]}; return tipSpot;`)();
   // An inbox: a mark on every 40 px row, in one column (live-e2e: the tip below hid the next row's tick).
   const column = [43, 83, 163, 203, 243].map((y) => [911, y]);

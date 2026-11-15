@@ -575,7 +575,7 @@ test('results covered by something the page drew over them (Google\'s apps grid,
 });
 
 test('marks ease along with the page every frame instead of jumping at each report', () => {
-  const html = read('desktop/src/pages/overlay.html');
+  const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
   assert.match(html, /raf = requestAnimationFrame\(frame\)/);
   const handler = /api\.on\('overlay:shift', function \(p\) \{([\s\S]*?)\n\s*\}\);/.exec(html)[1];
   assert.match(handler, /follow\(p\)/);
@@ -694,8 +694,8 @@ test('marks move with the wheel the moment it turns, and only while there are ma
   // A full read waits for the browser's positions to catch up with the movement the pixels saw.
   assert.ok(s.includes('if ([Glide]::Total -ne 0 -and [Math]::Abs($lastDy - [Glide]::Total) -gt 20'));
   assert.ok(s.includes('p[i] = s;'), 'each row of the band is reduced to one brightness number');
-  assert.match(read('desktop/src/pages/overlay.html'), /api\.on\('overlay:px', function \(p\) \{ if \(p && p\.epoch === epoch\) onPixels\(p\); \}\);/);
-  const html = read('desktop/src/pages/overlay.html');
+  assert.match((read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js')), /api\.on\('overlay:px', function \(p\) \{ if \(p && p\.epoch === epoch\) onPixels\(p\); \}\);/);
+  const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
   assert.match(html, /api\.on\('overlay:wheel', function \(p\) \{ if \(p && p\.epoch === epoch\) onWheel\(p\); \}\);/);
   assert.match(html, /perNotch = perNotch \* 0\.5 \+ measured \* 0\.5/, 'how far a notch moves this browser is learned from its reports');
   assert.match(html, /if \(!gesture\.moved && now - gesture\.steps\[0\]\.at > SETTLE_MS && roomFor\(gesture\) !== '1'\)/, 'a page that did not move lets go at once, unless it said it has room');
@@ -711,7 +711,7 @@ test('a movement only the pixels saw is undone: once the page is still, the mark
   assert.equal((s.match(/\} elseif \(\$glideOff\) \{ Settle \}/g) || []).length, 2, 'results pages and inboxes both say where the links really are');
   assert.match(s, /function Settle \{ Write-Output \('\{"shift":\{"dx":' \+ \$script:lastDx/);
   assert.match(s, /\[Glide\]::Total = 0 \} catch \{ \}\s+if \(\$list\.Count\) \{ try \{ \[Glide\]::Region\(\[int\]\$list\[0\]\.x/, 'an inbox is followed by its own message list, counted from its own read');
-  assert.ok(read('desktop/src/pages/overlay.html').includes("if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + goal.y.toFixed(1) + ' ' + goal.y.toFixed(1));"), 'the trace records where the marks came to rest');
+  assert.ok((read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js')).includes("if (tracing) console.log('F ' + ts.toFixed(1) + ' ' + goal.y.toFixed(1) + ' ' + goal.y.toFixed(1));"), 'the trace records where the marks came to rest');
   // live-e2e 43527738258, first attempt: a theme change was read as an 80 px scroll the browser never confirmed.
   const { atRest } = require('../scripts/marks-at-rest.js');
   assert.equal(atRest('M 1 marks 14 fresh ends -\nR 2 1 0.0\nF 3 40.0 80.0\nF 4 79.6 80.0\n').off, 80);
@@ -726,7 +726,7 @@ test('a movement only the pixels saw is undone: once the page is still, the mark
 });
 
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
-  const html = read('desktop/src/pages/overlay.html');
+  const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
   assert.match(html, /#marks\.is-moving \{ opacity: 0;/);
   assert.ok(html.includes('if (!followed && (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX)) setMoving(true)'));
   assert.match(html, /backTimer = setTimeout\(function \(\) \{ setMoving\(false\); \}, BACK_MS\)/, 'back even if no new positions ever come');
@@ -818,7 +818,7 @@ test('the reader\'s compiled helper is named after its source, so a new version 
 });
 
 test('scrolling keeps each mark on its own element: marks are keyed by result, never by position', () => {
-  const html = read('desktop/src/pages/overlay.html');
+  const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
   assert.match(html, /var nodes = new Map\(\)/);
   assert.match(html, /nodes\.get\(key\)/);
   const w = read('desktop/src/watch.js');
@@ -1010,8 +1010,8 @@ test('two separate results from one site each keep their mark; only a result\'s 
  */
 function overlaySandbox() {
   const vm = require('vm');
-  const html = read('desktop/src/pages/overlay.html');
-  const code = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
+  const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
+  const code = read('desktop/src/pages/overlay-page.js');
   const el = () => ({ style: { setProperty() {}, transform: '' }, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
     dataset: {}, appendChild() {}, remove() {}, querySelector: () => el(), querySelectorAll: () => [], getBoundingClientRect: () => ({ left: 0, top: 0 }), offsetWidth: 0, innerHTML: '' });
   const els = {};
@@ -1153,7 +1153,7 @@ test('a wheel turned over something that does not scroll: the reader\'s confirma
 });
 
 test('live scanning looks settled: the corner island quietens after a moment, and a result\'s mark sits by its title', () => {
-  const html = read('desktop/src/pages/overlay.html');
+  const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
   assert.match(html, /\.corner\.is-on\.is-rested:not\(\.is-flagged\) \{ opacity: \.86;/, 'quieter, and still saying what it knows');
   assert.match(html, /restTimer = setTimeout\(function \(\) \{ corner\.classList\.add\('is-rested'\); \}, 5000\);/);
   // A Bing result: the site-name block, then the title, then a description that is also a link and wider.
@@ -1201,10 +1201,10 @@ test('a start that breaks inside a require still leaves its reason in app.log an
 });
 
 test('the corner island, chat cards and shield window lay nothing out as they move, once, never in a loop', () => {
-  const overlay = read('desktop/src/pages/overlay.html');
-  const chat = read('desktop/src/pages/chat.html');
+  const overlay = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
+  const chat = (read('desktop/src/pages/chat.html') + read('desktop/src/pages/chat-page.js'));
   // The shield's window (and every other warning card) is drawn and moved by the shared card (pages/card.js).
-  const guard = read('desktop/src/pages/guard.html') + read('desktop/src/pages/card.js');
+  const guard = (read('desktop/src/pages/guard.html') + read('desktop/src/pages/guard-page.js')) + read('desktop/src/pages/card.js');
   // Over games and browsers: nothing in these windows animates forever (pending marks wait for their verdict only).
   assert.deepEqual(overlay.match(/infinite/g), ['infinite'], 'only the pending mark loops, until its verdict');
   assert.match(overlay, /\.mark\.is-pending \{[^}]*infinite/);
