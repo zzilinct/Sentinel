@@ -85,6 +85,27 @@ test('every other accent reads at 4.5:1 where its words sit, and stays clear of 
   }
 });
 
+test('light pages: gold\'s words read at 4.5:1 too, and the colours are told apart by more than their hue', () => {
+  const grounds = ['#efece6', '#efe8da', '#e4dbca', '#f6f1e7'];
+  for (const k of [200, 300, 400]) for (const g of grounds) {
+    const c = L.GOLD.light.web[k];
+    assert.ok(L.contrast(c, g) >= 4.5, `light gold --gold-${k} ${c} on ${g}: ${L.contrast(c, g).toFixed(2)}`);
+  }
+  for (const k of ['acc', 'hi']) for (const g of grounds) assert.ok(L.contrast(L.GOLD.light.app[k], g) >= 4.5, `light gold app ${k} on ${g}`);
+  // Still gold: its hue and depth as the dark scheme's gold, not a brown.
+  const [, c, h] = L.toOklch(L.GOLD.light.web[400]);
+  assert.ok(h > 75 && h < 88 && c >= 0.09, `light gold ${L.GOLD.light.web[400]}: hue ${h.toFixed(1)}, depth ${c.toFixed(3)}`);
+  // Each light accent's word tone: no two closer than 0.1 in OKLab, and their lightness spread across 0.08.
+  const tone = L.ACCENTS.map((a) => [a.id, L.ramp(a.id, 'light')['--gold-400'] || L.GOLD.light.web[400]]);
+  const lab = (hex) => { const [l, ch, hu] = L.toOklch(hex); return [l, ch * Math.cos(hu * Math.PI / 180), ch * Math.sin(hu * Math.PI / 180)]; };
+  for (let i = 0; i < tone.length; i++) for (let j = i + 1; j < tone.length; j++) {
+    const d = Math.hypot(...lab(tone[i][1]).map((v, n) => v - lab(tone[j][1])[n]));
+    assert.ok(d >= 0.1, `${tone[i][0]} ${tone[i][1]} and ${tone[j][0]} ${tone[j][1]} are ${d.toFixed(3)} apart`);
+  }
+  const ls = tone.map(([, hex]) => L.toOklch(hex)[0]);
+  assert.ok(Math.max(...ls) - Math.min(...ls) >= 0.08, `lightness spread ${(Math.max(...ls) - Math.min(...ls)).toFixed(3)}`);
+});
+
 test('the live surfaces have no gold of their own left: they draw the look', () => {
   const gold = /#d6b25a|#e2c47f|#fff4d2|214, ?178, ?90|212, ?174, ?99|\bGOLD\b/;
   for (const page of ['overlay.html', 'card.js', 'warn.html', 'guard.html', 'filescan.html', 'error.html', 'loading.html', 'snip.html', 'chat.html']) {

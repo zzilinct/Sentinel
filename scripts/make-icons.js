@@ -38,7 +38,7 @@ const RIVET = pathOf('RIVET');
 // The shield's outer edge alone: its first subpath (the second is the hole that makes it a ring).
 const SHIELD_SOLID = SHIELD.slice(0, SHIELD.slice(1).search(/[Mm]/) + 1);
 
-/** Flattens an SVG path into closed polygons of [x, y] points. Handles the commands the mark uses: M L H V C A Z. */
+/** Flattens an SVG path into closed polygons of [x, y] points. Handles the commands the mark and the wordmark use: M L H V C Q A Z. */
 function flatten(d) {
   const tokens = d.match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?/g);
   const polys = [];
@@ -66,6 +66,15 @@ function flatten(d) {
           const t = k / 16, u = 1 - t;
           to(u * u * u * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3,
             u * u * u * y0 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3);
+        }
+        break;
+      }
+      case 'Q': {
+        const x1 = ox + num(), y1 = oy + num(), x2 = ox + num(), y2 = oy + num();
+        const x0 = x, y0 = y;
+        for (let k = 1; k <= 8; k++) {
+          const t = k / 8, u = 1 - t;
+          to(u * u * x0 + 2 * u * t * x1 + t * t * x2, u * u * y0 + 2 * u * t * y1 + t * t * y2);
         }
         break;
       }
@@ -111,6 +120,36 @@ const FULL = [shape(SHIELD), shape(HELMET + EYES + CHEEKS, 0.7, 32, 30.5), shape
 const SMALL = { inset: 0.86, helmet: 0.8, cy: 31 };
 const SMALL_GOLD = [shape(SHIELD_SOLID)];
 const SMALL_CUT = shape(HELMET + EYES, SMALL.helmet, 32, SMALL.cy);
+
+/*
+ * The wordmark: SENTINEL in Newsreader, the site's display face (web/assets/fonts/newsreader-opsz-16-72.woff2, OFL), at
+ * its display optical size (opsz 72), as the hero draws it. Outlines read once from that file with fontTools; units
+ * of 2000 to the em, y up. Each entry: advance width, path. A font's outlines overlap, so each subpath is filled on
+ * its own and the results are joined (none of these letters has a hole).
+ */
+const NEWSREADER = { em: 2000, cap: 1340 };
+const GLYPHS = {
+  S: [1091, 'M870 1371 785 1388 869 1482H881L945 1026L923 1022L764 1346L827 1265Q755 1337 676 1373Q597 1409 509 1409Q374 1409 306 1342Q238 1275 238 1165Q238 1099 263.5 1051Q289 1003 337 967.5Q385 932 453 902Q521 872 607 841Q693 811 764 774.5Q835 738 886 688.5Q937 639 965 571.5Q993 504 993 410Q993 283 927 185.5Q861 88 748.5 33.5Q636 -21 497 -21Q399 -21 321.5 -6.5Q244 8 164 41L82 407H107L323 16L199 108Q272 63 342 39Q412 15 492 15Q609 15 696.5 53.5Q784 92 832.5 164.5Q881 237 881 341Q881 419 852 474.5Q823 530 770.5 570Q718 610 646 643Q574 676 489 708Q403 740 337.5 775Q272 810 226.5 854.5Q181 899 157.5 956Q134 1013 134 1089Q134 1199 186 1280Q238 1361 332.5 1406Q427 1451 557 1451Q645 1451 718.5 1432Q792 1413 870 1371Z'],
+  E: [1306, 'M907 1038 873 747 907 458H890L790 717L310 735V759L790 781L890 1038ZM1198 1052 1177 1044 997 1402 1113 1381H284V1430H1014L1119 1479H1126ZM1024 28 1238 391 1258 386 1153 -52H1145L1039 0H284V49H1136ZM65 0V23L246 59V1372L65 1407V1430H404V0Z'],
+  N: [1550, 'M251 59V1361L52 1407V1430H411L1300 212L1261 60V1371L1069 1407V1430H1494V1407L1314 1371V-20H1284L281 1348L303 1370V59L496 23V0H70V23Z'],
+  T: [1395, 'M618 1406H777V59L958 23V0H438V23L618 59ZM1250 1381H145L232 1400L66 1011L42 1016L100 1501H113L233 1417L170 1430H1225L1162 1417L1282 1501H1295L1353 1016L1329 1011L1163 1400Z'],
+  I: [650, 'M586 23V0H65V23L246 59V1372L66 1407V1430H586V1407L404 1372V59Z'],
+  L: [1208, 'M1080 -52H1072L967 0H284V49H1064L951 28L1165 392L1185 386ZM404 1372V0H65V23L246 59V1372L65 1407V1430H586V1407Z']
+};
+
+/** `word` set `width` pixels wide (tracking `track` em between letters), centred on cx with its baseline at y: shapes in pixels. */
+function wordShapes(word, width, cx, baseline, track) {
+  const units = [...word].reduce((n, ch, k) => n + GLYPHS[ch][0] + (k ? track * NEWSREADER.em : 0), 0);
+  const s = width / units;
+  let pen = cx - width / 2;
+  const shapes = [];
+  [...word].forEach((ch, k) => {
+    if (k) pen += track * NEWSREADER.em * s;
+    for (const poly of flatten(GLYPHS[ch][1])) shapes.push([poly.map(([u, v]) => [pen + u * s, baseline - v * s])]);
+    pen += GLYPHS[ch][0] * s;
+  });
+  return { shapes, cap: NEWSREADER.cap * s };
+}
 
 /* ------------------------------------------------------------ the fill */
 
@@ -235,19 +274,26 @@ function icon(size, { small = size <= 32, inset = small ? SMALL.inset : 0.78, ra
   return { width: size, height: size, px };
 }
 
-/** A banner (link preview, installer side panel): the full mark on the plate colour, with a soft gold glow behind. */
-function banner(width, height, markSize, markY = height / 2) {
+/**
+ * A banner (link preview, installer side panel): the full mark on the plate colour, with a soft gold glow behind.
+ * `word` ({ width, baseline }) sets SENTINEL under it, in the same gold, light at the top of the letters.
+ */
+function banner(width, height, markSize, markY = height / 2, word = null) {
   const s = markSize / 64;
   const map = ([x, y]) => [width / 2 + (x - 32) * s, markY + (y - 32) * s];
   const gold = coverage(width, height, FULL, map);
+  const text = word && wordShapes('SENTINEL', word.width, width / 2, word.baseline, 0.14);
+  const ink = text && coverage(width, height, text.shapes, (p) => p);
   const glow = [40, 36, 26];
   const px = Buffer.alloc(width * height * 4);
   for (let y = 0; y < height; y++) {
     const tone = mix(GOLD_LIGHT, GOLD_DEEP, Math.min(1, Math.max(0, ((y - (markY - markSize / 2)) / markSize - 0.2) / 0.6)));
+    const wordTone = text && mix(GOLD_LIGHT, GOLD_DEEP, Math.min(1, Math.max(0, (y - (word.baseline - text.cap)) / text.cap)));
     for (let x = 0; x < width; x++) {
       const k = y * width + x;
       const d = Math.hypot(x - width / 2, y - markY) / (markSize * 0.9);
-      const c = mix(mix(PLATE, glow, Math.max(0, 1 - d) ** 2), tone, gold[k]);
+      let c = mix(mix(PLATE, glow, Math.max(0, 1 - d) ** 2), tone, gold[k]);
+      if (ink) c = mix(c, wordTone, ink[k]);
       px[k * 4] = Math.round(c[0]); px[k * 4 + 1] = Math.round(c[1]); px[k * 4 + 2] = Math.round(c[2]); px[k * 4 + 3] = 255;
     }
   }
@@ -325,18 +371,6 @@ function bmp({ width, height, px }) {
   return out;
 }
 
-/** The tab icon: the 16 px drawing as squares on a 16-unit grid, so a tab shows it pixel for pixel. */
-function faviconSvg() {
-  const runs = [];
-  PIXEL16.forEach((row, y) => row.replace(/G+/g, (m, x) => { runs.push(`M${x} ${y}h${m.length}v1h-${m.length}Z`); return m; }));
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
-  <!-- Generated by scripts/make-icons.js (PIXEL16), from the logo in web/assets/js/masks.js. Do not edit. -->
-  <rect width="16" height="16" rx="3.75" fill="${BRAND.plate}" shape-rendering="geometricPrecision"/>
-  <path fill="${BRAND.gold}" d="${runs.join('')}"/>
-</svg>
-`;
-}
-
 /* ------------------------------------------------------------- outputs */
 
 const files = {};
@@ -345,11 +379,13 @@ files['web/assets/img/icon-192.png'] = () => png(icon(192));
 files['web/assets/img/icon-512.png'] = () => png(icon(512));
 // Android cuts its own shape out of a maskable icon: a full-bleed plate, the mark inside the middle 60%.
 files['web/assets/img/icon-maskable-512.png'] = () => png(icon(512, { inset: 0.6, radius: 0 }));
-files['web/assets/img/favicon.svg'] = () => Buffer.from(faviconSvg());
+// The tab icon: the hand-drawn 16 px mark, and the 32 px drawing for a screen at 200%, which picks it from the file.
+files['web/assets/img/favicon.ico'] = () => ico([16, 32]);
 files['web/assets/img/og.png'] = () => png(banner(1200, 630, 390));
 files['desktop/build/icon.ico'] = () => ico([16, 24, 32, 48, 64, 128, 256]);
-// The installer's side panel: the mark at the panel's middle, where the eye lands beside the welcome text.
-files['desktop/build/installerSidebar.bmp'] = () => bmp(banner(164, 314, 120, 157));
+// The installer's side panel: the mark and the name under it, the pair centred where the eye lands beside the
+// welcome text.
+files['desktop/build/installerSidebar.bmp'] = () => bmp(banner(164, 314, 108, 136, { width: 132, baseline: 226 }));
 
 const check = process.argv.includes('--check');
 const stale = [];
@@ -357,10 +393,8 @@ for (const [rel, make] of Object.entries(files)) {
   const file = path.join(ROOT, rel);
   const want = make();
   if (check) {
-    // A Windows checkout may turn the SVG's line ends into CRLF; only the drawing counts.
     const have = fs.existsSync(file) && fs.readFileSync(file);
-    const same = have && (rel.endsWith('.svg') ? have.toString().replace(/\r/g, '') === want.toString() : have.equals(want));
-    if (!same) stale.push(rel);
+    if (!have || !have.equals(want)) stale.push(rel);
     continue;
   }
   fs.mkdirSync(path.dirname(file), { recursive: true });
