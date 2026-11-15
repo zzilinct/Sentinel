@@ -1,5 +1,5 @@
 {
-  "_note": "The lowest score each page may have: under it, the check fails. These are the numbers the check holds, with no hidden allowance: until 1.20.2 each floor here stood some points above what was held (8 for performance, 5 best practices, 2 for the others), so mobile /app passed at 87 against a floor written as 95; 1.20.2 wrote the held numbers here instead. A page is measured up to three times and each score keeps its best go (30-perf-a11y.js), because a shared runner sometimes stalls. Floors come from CI runs 40217854217 and 40219707433, the mask pages' performance from runs 40247210270 and 40251383861 (1.18.1), and mobile /app from the 1.20.2 comparison. The home, pricing, download and /app pages score lower on performance because their 3D masks build and draw three.js scenes; the CI runner has no graphics card, so it does that work on the processor. SEO is low on the sign-in and app pages because they are noindex on purpose.",
+  "_note": "The lowest score each page may have: under it, the check fails. These are the numbers the check holds, with no hidden allowance: until 1.20.2 each floor here stood some points above what was held (8 for performance, 5 best practices, 2 for the others), so mobile /app passed at 87 against a floor written as 95; 1.20.2 wrote the held numbers here instead. A page is measured up to three times and each score keeps its best go (30-perf-a11y.js), because a shared runner sometimes stalls. Floors come from CI runs 40217854217 and 40219707433, the mask pages' performance from runs 40247210270 and 40251383861 (1.18.1), and mobile /app performance (88) is the lowest single measuring of 1.20.2 in runs 43756337380, 43757937533 and 43758729988, 15 in all. The home, pricing, download and /app pages score lower on performance because their 3D masks build and draw three.js scenes; the CI runner has no graphics card, so it does that work on the processor. SEO is low on the sign-in and app pages because they are noindex on purpose.",
   "mobile /": {"performance": 49, "accessibility": 98, "best-practices": 91, "seo": 98},
   "mobile /pricing": {"performance": 55, "accessibility": 98, "best-practices": 91, "seo": 98},
   "mobile /download": {"performance": 54, "accessibility": 98, "best-practices": 91, "seo": 98},
@@ -15,7 +15,7 @@
   "mobile /connect": {"performance": 88, "accessibility": 98, "best-practices": 91, "seo": 61},
   "mobile /reset": {"performance": 87, "accessibility": 98, "best-practices": 95, "seo": 52},
   "mobile /verify": {"performance": 90, "accessibility": 98, "best-practices": 95, "seo": 52},
-  "mobile /app": {"performance": 87, "accessibility": 98, "best-practices": 95, "seo": 52},
+  "mobile /app": {"performance": 88, "accessibility": 98, "best-practices": 95, "seo": 52},
   "mobile /app/week": {"performance": 84, "accessibility": 98, "best-practices": 95, "seo": 52},
   "mobile /app/check": {"performance": 81, "accessibility": 98, "best-practices": 95, "seo": 52},
   "mobile /call": {"performance": 87, "accessibility": 98, "best-practices": 95, "seo": 98},
