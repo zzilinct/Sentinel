@@ -235,7 +235,8 @@ function readPng(buf) {
  * development prints the emails it would send) in <name>-server.log. PUBLIC_ORIGIN is this address, so the links in
  * those emails open here.
  */
-async function startServer(name, env = {}) {
+// root: another checkout's server (perf-a11y measures main beside the branch with it).
+async function startServer(name, env = {}, root = ROOT) {
   const net = require('net');
   const port = await new Promise((resolve) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
   const data = fs.mkdtempSync(path.join(os.tmpdir(), `sentinel-${name}-db-`));
@@ -243,8 +244,8 @@ async function startServer(name, env = {}) {
   const log = fs.openSync(logPath, 'w');
   const base = `http://127.0.0.1:${port}`;
   const dbPath = path.join(data, 'sentinel.db');
-  const child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
-    cwd: ROOT,
+  const child = spawn(process.execPath, [path.join(root, 'server', 'index.js')], {
+    cwd: root,
     stdio: ['ignore', log, log],
     env: { ...process.env, NODE_ENV: 'development', PORT: String(port), HOST: '127.0.0.1', DB_PATH: dbPath, FEED_REFRESH_HOURS: '0', RESEARCH_ENABLED: '0', BILLING_MODE: 'demo', PUBLIC_ORIGIN: base, ...env }
   });

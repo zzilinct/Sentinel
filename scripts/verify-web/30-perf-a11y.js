@@ -24,9 +24,6 @@ const APP = ['/app', '/app/week', '/app/check', '/app/history', '/app/sites', '/
 const ONE_PROCESS = '--disable-site-isolation-trials --disable-features=IsolateOrigins,site-per-process';
 const CATS = ['performance', 'accessibility', 'best-practices', 'seo'];
 const BUDGET = path.join(__dirname, 'perf-budget.json');
-// How far under its floor a score may fall before the check fails: performance moves a few points run to run on a
-// shared runner, the others hardly at all.
-const SLACK = { performance: 8, accessibility: 2, 'best-practices': 5, seo: 2 };
 
 function lighthouse(cli, url, form, headersFile, jsonOut, extraFlags = '') {
   // A page that never lets the main thread rest runs Lighthouse to this limit; at 45 s the trace grew too long to read
@@ -48,6 +45,8 @@ function lighthouse(cli, url, form, headersFile, jsonOut, extraFlags = '') {
   });
 }
 
+const requests = (a) => (a['network-requests'] && a['network-requests'].details && a['network-requests'].details.items) || [];
+
 /** What one Lighthouse report says, kept short: scores out of 100, the four numbers, and every audit that did not pass. */
 function summarise(lhr) {
   if (lhr.error || !lhr.categories) return { error: lhr.error || (lhr.runtimeError && lhr.runtimeError.message) || 'no categories' };
@@ -62,9 +61,53 @@ function summarise(lhr) {
     lcpEl: lcpNode ? `${lcpNode.selector} "${String(lcpNode.nodeLabel || '').slice(0, 50)}"` : '',
     bench: Math.round((lhr.environment && lhr.environment.benchmarkIndex) || 0),
     scores: Object.fromEntries(CATS.map((c) => [c, lhr.categories[c] && lhr.categories[c].score !== null ? Math.round(lhr.categories[c].score * 100) : null])),
-    lcp: Math.round(num('largest-contentful-paint') || 0), cls: Number((num('cumulative-layout-shift') || 0).toFixed(3)), tbt: Math.round(num('total-blocking-time') || 0),
-    kb: Math.round((num('total-byte-weight') || 0) / 1024), failing
+    fcp: Math.round(num('first-contentful-paint') || 0), lcp: Math.round(num('largest-contentful-paint') || 0), cls: Number((num('cumulative-layout-shift') || 0).toFixed(3)), tbt: Math.round(num('total-blocking-time') || 0),
+    kb: Math.round((num('total-byte-weight') || 0) / 1024), failing,
+    // How often the page asked for the account: app.html preloads it, so twice means app.js did not take the preload.
+    me: requests(a).filter((r) => /\/api\/v1\/auth\/me$/.test(r.url)).length,
+    // The 3D mask's script, models and pictures the page fetched: a phone hides the overview's mask, so none there.
+    masks: requests(a).filter((r) => /\/mask3d\.js$|\.glb$|\/img\/masks\//.test(r.url)).map((r) => r.url.replace(/^https?:\/\/[^/]+/, ''))
   };
+}
+
+const median = (xs) => { const v = xs.filter((x) => typeof x === 'number').sort((x, y) => x - y); return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null; };
+
+/**
+ * PERF_BASE_ROOT (verify-web.yml's perf_base): the pages in PERF_PAGES measured on another checkout (main, say) and on
+ * this one, back to back on this runner, PERF_ROUNDS times each, the order swapped every round so neither side always
+ * goes first. One go per measuring, no retries, so the medians are of what each side scored.
+ */
+async function compare(cli, baseRoot, dir, signIn) {
+  const only = (process.env.PERF_PAGES || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const rounds = Math.max(1, Math.min(20, Number(process.env.PERF_ROUNDS) || 5));
+  const runs = { base: {}, branch: {} };
+  for (let r = 1; r <= rounds; r++) {
+    const sides = [['base', baseRoot], ['branch', path.join(__dirname, '..', '..')]];
+    for (const [who, root] of r % 2 ? sides : sides.reverse()) {
+      const server = await startServer(`perf-${who}`, {}, root);
+      try {
+        const headersFile = await signIn(server.base, `${who}-headers.json`);
+        for (const key of only) {
+          const [form, p] = key.split(' ');
+          const t = summarise(await lighthouse(cli, server.base + p, form, APP.includes(p) ? headersFile : null, path.join(dir, `${who}-${form}${p.replace(/\//g, '_')}-round${r}.json`), ONE_PROCESS));
+          (runs[who][key] = runs[who][key] || []).push(t);
+          console.log(`      ${who} ${key} round ${r}: ${t.error ? `ERROR ${t.error.slice(0, 120)}` : `${t.scores.performance}  FCP ${t.fcp} ms  LCP ${t.lcp} ms  TBT ${t.tbt} ms  ${t.kb} KB  benchmark ${t.bench}`}`);
+        }
+      } finally { await server.stop(); }
+    }
+  }
+  const out = {};
+  for (const key of only) {
+    out[key] = {};
+    for (const who of ['base', 'branch']) {
+      const ok = runs[who][key].filter((t) => !t.error && t.scores.performance != null);
+      out[key][who] = { performance: ok.map((t) => t.scores.performance), lcp: ok.map((t) => t.lcp), fcp: ok.map((t) => t.fcp), kb: ok.map((t) => t.kb),
+        median: { performance: median(ok.map((t) => t.scores.performance)), lcp: median(ok.map((t) => t.lcp)), fcp: median(ok.map((t) => t.fcp)), tbt: median(ok.map((t) => t.tbt)) } };
+    }
+  }
+  fs.writeFileSync(path.join(OUT, 'perf-compare.json'), JSON.stringify(out, null, 2));
+  result('perf-a11y: the base ref and this branch measured back to back on one runner (medians)', true,
+    only.map((k) => `${k}: base ${JSON.stringify(out[k].base.median)} [${out[k].base.performance}], branch ${JSON.stringify(out[k].branch.median)} [${out[k].branch.performance}]`));
 }
 
 // Recorded from the first paint in every page the browser opens: the largest paint, the layout shift and long tasks.
@@ -150,22 +193,27 @@ async function checkPerfA11y() {
   }
   const cli = path.join(tools, 'node_modules', 'lighthouse', 'cli', 'index.js');
   const axeSource = fs.readFileSync(path.join(tools, 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
-  const server = await startServer('perfa11y');
-  const { base } = server;
   const dir = path.join(OUT, 'lighthouse');
   fs.mkdirSync(dir, { recursive: true });
-  try {
-    // One account, signed in through the API: the cookie goes to Lighthouse as a header, and the browser for axe
-    // signs in the same way.
-    const email = `perf-${Date.now()}@example.com`;
-    const password = 'Perf-Check-Lamp-2026';
+  // One account, signed in through the API: the cookie goes to Lighthouse as a header, and the browser for axe
+  // signs in the same way.
+  const email = `perf-${Date.now()}@example.com`;
+  const password = 'Perf-Check-Lamp-2026';
+  const signIn = async (base, name) => {
     const post = (p, body, cookie) => fetch(`${base}/api/v1${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) });
     const up = await post('/auth/signup', { email, password, firstName: 'Sam', ageConfirmed: true, termsAccepted: true });
     const login = await post('/auth/login', { email, password, staySignedIn: true });
     const cookie = (login.headers.getSetCookie ? login.headers.getSetCookie() : [login.headers.get('set-cookie')]).filter(Boolean).map((c) => c.split(';')[0]).join('; ');
     if (up.status !== 201 || login.status !== 200 || !cookie) throw new Error(`the test account could not sign in: ${up.status} ${login.status}`);
-    const headersFile = path.join(dir, 'headers.json');
+    const headersFile = path.join(dir, name);
     fs.writeFileSync(headersFile, JSON.stringify({ Cookie: cookie }));
+    return headersFile;
+  };
+  if (process.env.PERF_BASE_ROOT) { await compare(cli, process.env.PERF_BASE_ROOT, dir, signIn); return; }
+  const server = await startServer('perfa11y');
+  const { base } = server;
+  try {
+    const headersFile = await signIn(base, 'headers.json');
 
     /* ------------------------------------------- Chrome's own measures, and axe */
 
@@ -200,7 +248,7 @@ async function checkPerfA11y() {
         // that is under a floor every time still fails.
         const floors = budget[`${form} ${p}`] || {};
         const short = (t) => (t.error || t.scores.performance == null ? Infinity
-          : CATS.reduce((n, c) => n + Math.max(0, (floors[c] == null ? 0 : floors[c] - SLACK[c]) - (t.scores[c] == null ? 100 : t.scores[c])), 0));
+          : CATS.reduce((n, c) => n + Math.max(0, (floors[c] == null ? 0 : floors[c]) - (t.scores[c] == null ? 100 : t.scores[c])), 0));
         // Every go keeps Chrome in one process. The third go used to drop that, and every such go whose report was kept
         // had lost its trace (NO_NAVSTART: runs 41159041836, 41332268098, 42093160806, 42099995787, 42106327009), so a
         // page got two real goes, not three. Each go's report is its own file, and the one kept is the best go's: the
@@ -222,14 +270,19 @@ async function checkPerfA11y() {
         rows[`${form} ${p}`] = s;
         console.log(`      ${form} ${p}: ${s.error ? `ERROR ${s.error}` : `${CATS.map((c) => s.scores[c]).join('/')}  LCP ${s.lcp} ms  CLS ${s.cls}  TBT ${s.tbt} ms  ${s.kb} KB, ${tries} go(es)`}${rounds > 1 ? ` (round ${round})` : ''}`);
         const floor = budget[`${form} ${p}`];
-        if (!s.error && floor) for (const c of CATS) if (floor[c] != null && s.scores[c] != null && s.scores[c] < floor[c] - SLACK[c]) under.push(`${form} ${p} ${c} ${s.scores[c]}, floor ${floor[c]}${rounds > 1 ? ` (round ${round})` : ''}`);
+        if (!s.error && floor) for (const c of CATS) if (floor[c] != null && s.scores[c] != null && s.scores[c] < floor[c]) under.push(`${form} ${p} ${c} ${s.scores[c]}, floor ${floor[c]}${rounds > 1 ? ` (round ${round})` : ''}`);
       }
     }
     fs.writeFileSync(path.join(OUT, 'perf-a11y-lighthouse.json'), JSON.stringify(rows, null, 2));
     const errored = Object.entries(rows).filter(([, r]) => r.error || r.scores.performance == null);
     result('perf-a11y: Lighthouse measured every page at phone and desktop size', !errored.length, errored.map(([k, r]) => `${k}: ${r.error || 'no performance score (NO_NAVSTART)'}`));
 
-    const unbudgeted = Object.keys(rows).filter((k) => !budget[k]);
+    const twice = Object.entries(rows).filter(([k, r]) => APP.includes(k.split(' ')[1]) && !r.error && r.me !== 1);
+    const phoneMask = rows['mobile /app'] && !rows['mobile /app'].error ? rows['mobile /app'].masks : [];
+    result('perf-a11y: the overview on a phone fetches none of the 3D mask it hides', !phoneMask.length, phoneMask);
+    result('perf-a11y: every app page asks for the account once (app.js takes the preload app.html starts)', !twice.length, twice.map(([k, r]) => `${k}: ${r.me} requests`));
+
+    const unbudgeted =Object.keys(rows).filter((k) => !budget[k]);
     result('perf-a11y: no page scores much under its floor in perf-budget.json', !under.length && !unbudgeted.length,
       [...under, ...(unbudgeted.length ? [`no floor yet for: ${unbudgeted.join(', ')}`] : [])]);
   } finally { await server.stop(); }
