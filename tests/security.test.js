@@ -318,3 +318,23 @@ test('an email is not taken for a brand by a word that contains its name', () =>
   const e03 = analyzeEmail({ from: 'NYT <news@email.nytimes.com>', replyTo: 'help@nytimes.com', subject: 'Today', body: 'x' }).checks.find((c) => c.id === 'E03');
   assert.equal(e03.status, 'pass', 'the same company writing from its own subdomain');
 });
+
+test('the rate-limit table stays bounded, and a key that has counted twice is never dropped to make room', () => {
+  const security = require('../server/lib/security');
+  const { MAX_BUCKETS, size } = security._rate;
+  const long = `login:email:${'x'.repeat(240)}@example.com`;
+  security.rateLimit(long, 2, 60 * 60 * 1000);
+  security.rateLimit(long, 2, 60 * 60 * 1000);
+  for (let i = 0; size() < MAX_BUCKETS; i++) security.rateLimit(`forgot:email:flood${i}@example.com`, 3, 60 * 60 * 1000);
+  security.rateLimit('forgot:email:one-more@example.com', 3, 60 * 60 * 1000);
+  assert.ok(size() <= MAX_BUCKETS * 0.9 + 1, `table held to its size: ${size()}`);
+  assert.throws(() => security.rateLimit(long, 2, 60 * 60 * 1000), { status: 429 }, 'someone trying is still limited after the flood');
+});
+
+test('passwords follow NIST SP 800-63B rev. 4: 15 characters, no rules about kinds of character', () => {
+  const { passwordProblem } = require('../server/lib/security');
+  assert.match(passwordProblem('Harbour-Moss-7'), /at least 15 characters/, '14 characters, with every kind, is too short');
+  assert.equal(passwordProblem('quiet orchard lamp'), null, 'words alone, long enough, are fine');
+  assert.equal(passwordProblem('aaaaaaaaaaaaaaaaaaaa'), 'Password is too predictable');
+  assert.match(passwordProblem('robinsentinel-orchard', { firstName: 'Robin' }), /your name/);
+});

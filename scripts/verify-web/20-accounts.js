@@ -80,7 +80,7 @@ async function checkAccounts() {
     await clickSel(browser, s, '[data-form] button[type=submit]');
     await sleep(1200);
     const weak = await evalIn(browser, s, "({ error: document.querySelector('[data-error=password]').textContent.trim(), focused: document.activeElement && document.activeElement.name, at: location.pathname })");
-    result('accounts: a password that is too short is refused, said beside the password, which gets the cursor', weak.at === '/signup' && /10 characters/.test(weak.error) && weak.focused === 'password', weak);
+    result('accounts: a password that is too short is refused, said beside the password, which gets the cursor', weak.at === '/signup' && /15 characters/.test(weak.error) && weak.focused === 'password', weak);
 
     await fill('#password', PASSWORD);
     const t0 = Date.now();

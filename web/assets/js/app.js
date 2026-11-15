@@ -3239,7 +3239,7 @@
     body.innerHTML = `<form data-pw-form>
         <div class="row2">
           <div class="field"><label for="pw-cur">Current password</label><input class="input" id="pw-cur" type="password" name="currentPassword" autocomplete="current-password" required></div>
-          <div class="field"><label for="pw-new">New password</label><input class="input" id="pw-new" type="password" name="newPassword" autocomplete="new-password" required minlength="10"><span class="field__hint">10+ characters with a letter and a number.</span></div>
+          <div class="field"><label for="pw-new">New password</label><input class="input" id="pw-new" type="password" name="newPassword" autocomplete="new-password" required minlength="15"><span class="field__hint">At least 15 characters.</span></div>
         </div>
         <button class="btn u-mt" type="submit">Update password</button>
       </form>`;

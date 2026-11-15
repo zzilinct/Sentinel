@@ -110,12 +110,26 @@ function clientIp(req) {
 /* ------------------------------------------------------------ rate limits */
 
 const buckets = new Map();
+// Unique keys come from what people send (one per email address tried), so the table is held to a size. Only a key
+// counted once is ever dropped to make room, oldest first: it has limited nothing, and a key that has counted twice
+// or more (someone actually trying) is never forgotten before its window ends, so no limit gets looser.
+const MAX_BUCKETS = 100000;
+function makeRoom(t) {
+  for (const [k, b] of buckets) if (t > b.reset) buckets.delete(k);
+  for (const [k, b] of buckets) {
+    if (buckets.size < MAX_BUCKETS * 0.9) break;
+    if (b.n === 1) buckets.delete(k);
+  }
+}
 
 /** Fixed-window counter. Throws 429 with Retry-After information. */
 function rateLimit(key, max, windowMs, message = 'Too many requests. Please slow down and try again shortly.') {
   const t = now();
+  // A long key (most often an address someone typed) is kept as its hash, so no key costs more than a short one.
+  if (key.length > 64) key = `h:${crypto.createHash('sha256').update(key).digest('base64url').slice(0, 22)}`;
   let b = buckets.get(key);
   if (!b || t > b.reset) {
+    if (!b && buckets.size >= MAX_BUCKETS) makeRoom(t);
     b = { n: 0, reset: t + windowMs };
     buckets.set(key, b);
   }
@@ -153,9 +167,10 @@ const COMMON_PASSWORDS = new Set([
 
 function passwordProblem(password, { email = '', firstName = '' } = {}) {
   const pw = String(password || '');
-  if (pw.length < 10) return 'Password must be at least 10 characters';
+  // NIST SP 800-63B rev. 4: length, not a mix of kinds of character, makes a password hard to guess; the breach check
+  // and the lists below stop the long ones everyone uses.
+  if (pw.length < 15) return 'Password must be at least 15 characters';
   if (pw.length > 200) return 'Password is too long';
-  if (!/[a-zA-Z]/.test(pw) || !/[0-9]/.test(pw)) return 'Include at least one letter and one number';
   if (COMMON_PASSWORDS.has(pw.toLowerCase())) return 'That password is too common: choose something less predictable';
   const local = String(email).split('@')[0].toLowerCase();
   if (local.length >= 4 && pw.toLowerCase().includes(local)) return 'Password should not contain your email address';
@@ -247,5 +262,6 @@ function totpUri(secretB32, email) {
 
 module.exports = {
   baseHeaders, corsHeaders, assertSameOrigin, isExtensionOrigin, clientIp, rateLimit, audit,
-  passwordProblem, breachedPassword, BREACHED, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode
+  passwordProblem, breachedPassword, BREACHED, newTotpSecret, verifyTotp, totpUri, hotp, base32Decode,
+  _rate: { size: () => buckets.size, MAX_BUCKETS }
 };
