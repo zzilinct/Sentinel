@@ -13,7 +13,8 @@ const L = require('../web/assets/js/look.js');
 
 const SRC = path.join(__dirname, '..', 'extension', 'src');
 const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
-const STATUS = { dark: { '--red': '#ff7a7e', '--orange': '#f08a24', '--green': '#4cb782' }, light: { '--red': '#b3261e', '--orange': '#a84600', '--green': '#1e7a3c' } };
+// Caution is look.js's own (it reads at 4.5:1 on the popup's grounds as it is); the others are lifted for them.
+const STATUS = { dark: { '--red': '#ff7a7e', '--orange': '#f08a24', '--yellow': L.STATUS.dark.yellow, '--green': '#4cb782' }, light: { '--red': '#b3261e', '--orange': '#a84600', '--yellow': L.STATUS.light.yellow, '--green': '#1e7a3c' } };
 
 /** The custom properties a CSS block sets. */
 function props(block) {
@@ -22,7 +23,7 @@ function props(block) {
   return out;
 }
 
-test('danger, warning and safe: the same bytes in every block of popup.css that sets them, and never the accent\'s', () => {
+test('danger, warning, caution and safe: the same bytes in every block of popup.css that sets them, and never the accent\'s', () => {
   const css = read('popup.css');
   const dark = props(css.match(/^:root \{([^}]+)\}/m)[1]);
   const lightSystem = props(css.match(/:root:not\(\[data-theme="dark"\]\) \{([^}]+)\}/)[1]);

@@ -193,12 +193,10 @@ async function checkColour() {
       await done();
     }
 
-    // The swatch sheet: each colour's words, button and chip on the light pages' grounds, as 1.20.0 drew them (every
-    // hue deepened to one shade, gold at 4.39:1) beside how they are drawn now, with each one's worst contrast.
+    // The swatch sheet: each accent's words, button and chip on the light pages' grounds, with each one's worst
+    // contrast; then caution as 1.20.1 drew it (on gold's own hue) and as it is now, beside gold and the other statuses.
     {
       const { s, done } = await open(1366, 900, false, 'light', 'no-preference');
-      // 1.20.0's light word tones, as its look.js drew them.
-      const BEFORE = { gold: '#8a6420', rose: '#8b4c67', amethyst: '#72538d', sapphire: '#405f99', teal: '#006b70', platinum: '#5c6167' };
       const GROUNDS = ['#efe8da', '#e4dbca', '#f6f1e7'];
       const tone = (r) => r['--gold-400'] || L.GOLD.light.web[400];
       const cells = (r) => { const c = tone(r); const worst = Math.min(...GROUNDS.map((g) => L.contrast(c, g)));
@@ -206,7 +204,12 @@ async function checkColour() {
           + `<div style="display:grid;place-items:center;border-radius:12px;background:${r['--acc-grad'] || ''};background-color:${c};color:#fff;font:600 15px var(--sans)">Button</div><div style="font:500 13px var(--mono);align-self:center;color:${worst >= 4.5 ? '#1a6e35' : '#b3261e'}">worst ${worst.toFixed(2)}</div>`; };
       const row = (label, r) => `<div style="display:grid;grid-template-columns:150px repeat(3,1fr) 110px 100px;gap:10px;align-items:stretch"><div style="font:500 15px var(--sans);align-self:center">${label}</div>${cells(r)}</div>`;
       const html = [];
-      for (const a of L.ACCENTS) html.push(row(`${a.name}, 1.20.0`, { '--gold-400': BEFORE[a.id] }), row(`${a.name}, now`, L.ramp(a.id, 'light')));
+      for (const a of L.ACCENTS) html.push(row(a.name, L.ramp(a.id, 'light')));
+      const lab = (hex) => { const [l, c, h] = L.toOklch(hex); return [l, c * Math.cos(h * Math.PI / 180), c * Math.sin(h * Math.PI / 180)]; };
+      const fromGold = (hex) => Math.hypot(...lab(hex).map((v, n) => v - lab(L.GOLD.light.web[400])[n])).toFixed(3);
+      const status = (label, hex) => row(`${label}<br><small>${fromGold(hex)} from gold</small>`, { '--gold-400': hex });
+      html.push(status('Caution, 1.20.1', '#8a6100'), status('Caution, now', L.STATUS.light.yellow),
+        status('Warning', L.STATUS.light.orange), status('Safe', L.STATUS.light.green), status('Danger', L.STATUS.light.red));
       await evalIn(browser, s, `(() => { document.body.innerHTML = ${JSON.stringify(`<div style="display:grid;gap:6px;padding:16px 24px;background:#efe8da;color:#1d1811">${html.join('')}</div>`)}; document.body.style.margin = '0'; scrollTo(0, 0); return true; })()`);
       await sleep(400);
       await shot(browser, s, 'colour-swatches-light');

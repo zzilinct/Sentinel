@@ -8,7 +8,8 @@
  *   node scripts/make-icons.js --check   write nothing; fail if a committed file differs (npm test runs this)
  *
  * At 16 to 32 pixels the full mark (a thin shield ring around a small helmet) turns to mud, so those sizes use the
- * small mark: a solid gold shield with the helmet cut out of it, eyes in gold. 16 px (tray, tab) is drawn by hand.
+ * small mark: a solid gold shield with the helmet cut out of it, eyes in gold. 16 and 32 px (tray, tab) are drawn by
+ * hand on the pixel grid.
  */
 const fs = require('fs');
 const path = require('path');
@@ -242,18 +243,61 @@ const PIXEL16 = [
   '................'
 ];
 
-function icon16() {
-  const plate = plateCoverage(16, 3.75);
-  const px = Buffer.alloc(16 * 16 * 4);
-  for (let k = 0; k < 256; k++) {
-    const c = PIXEL16[k >> 4][k & 15] === 'G' ? GOLD : PLATE;
-    px[k * 4] = c[0]; px[k * 4 + 1] = c[1]; px[k * 4 + 2] = c[2]; px[k * 4 + 3] = Math.round(plate[k] * 255);
+/**
+ * 32 px, drawn by hand for a screen at 200% (the tab icon's second frame, and the 32 px icon of the app and the
+ * companion): the 16 px drawing's shape, brow, helmet and slanted eyes, with its steps softened by half pixels (h).
+ */
+const PIXEL32 = [
+  '................................',
+  '................................',
+  '.......hGGGGGGGGGGGGGGGGh.......',
+  '.....hGGGGGGGGGGGGGGGGGGGGh.....',
+  '....GGGGGGGGGGGGGGGGGGGGGGGG....',
+  '....GGGGGGGGGGGGGGGGGGGGGGGG....',
+  '....GGGGGGGGh......hGGGGGGGG....',
+  '....GGGGGGh..........hGGGGGG....',
+  '....GGGGGh............hGGGGG....',
+  '....GGGGh..............hGGGG....',
+  '....GGGG................GGGG....',
+  '....GGGG................GGGG....',
+  '....GGGG..GGG......GGG..GGGG....',
+  '....GGGG..GGGG....GGGG..GGGG....',
+  '....GGGG....GG....GG....GGGG....',
+  '....GGGG.....h....h.....GGGG....',
+  '....GGGG................GGGG....',
+  '....GGGG................GGGG....',
+  '....GGGGGh............hGGGGG....',
+  '....hGGGGGh..........hGGGGGh....',
+  '.....GGGGGGh........hGGGGGG.....',
+  '.....hGGGGGGh......hGGGGGGh.....',
+  '......GGGGGGGh....hGGGGGGG......',
+  '......hGGGGGGGh..hGGGGGGGh......',
+  '.......GGGGGGGGGGGGGGGGGG.......',
+  '........GGGGGGGGGGGGGGGG........',
+  '.........hGGGGGGGGGGGGh.........',
+  '..........hGGGGGGGGGGh..........',
+  '............GGGGGGGG............',
+  '.............hGGGGh.............',
+  '................................',
+  '................................'
+];
+
+/** A hand-drawn grid: G gold, h half gold, anything else the plate, on the rounded plate. */
+function pixelIcon(grid) {
+  const size = grid.length;
+  const plate = plateCoverage(size, size * 15 / 64);
+  const px = Buffer.alloc(size * size * 4);
+  for (let k = 0; k < size * size; k++) {
+    const ch = grid[Math.floor(k / size)][k % size];
+    const c = mix(PLATE, GOLD, ch === 'G' ? 1 : ch === 'h' ? 0.5 : 0);
+    px[k * 4] = Math.round(c[0]); px[k * 4 + 1] = Math.round(c[1]); px[k * 4 + 2] = Math.round(c[2]); px[k * 4 + 3] = Math.round(plate[k] * 255);
   }
-  return { width: 16, height: 16, px };
+  return { width: size, height: size, px };
 }
 
 function icon(size, { small = size <= 32, inset = small ? SMALL.inset : 0.78, radius = 15 / 64 } = {}) {
-  if (size === 16 && small) return icon16();
+  if (small && size === 16) return pixelIcon(PIXEL16);
+  if (small && size === 32) return pixelIcon(PIXEL32);
   const s = (size / 64) * inset;
   const map = ([x, y]) => [size / 2 + (x - 32) * s, size / 2 + (y - 32) * s];
   const plate = plateCoverage(size, radius * size);

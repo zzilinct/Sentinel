@@ -38,7 +38,7 @@ test('danger red, warning orange and caution yellow are the same bytes in every 
   const overlay = read('desktop', 'src', 'pages', 'overlay.html');
   assert.match(overlay, /function tone\(badge\) \{ return L\.STATUS\[L\.scheme\(look\.mode\)\]/);
   assert.match(read('desktop', 'src', 'pages', 'card.js'), /const tone = \(badge\) => window\.SentinelLook\.STATUS\[/);
-  for (const page of ['warn.html', 'guard.html']) assert.doesNotMatch(read('desktop', 'src', 'pages', page), /#e5484d|#f08a24|#f5c542/, `${page} names a status colour itself`);
+  for (const page of ['warn.html', 'guard.html', 'filescan.html']) assert.doesNotMatch(read('desktop', 'src', 'pages', page), /#e5484d|#f08a24|#f5c542/, `${page} names a status colour itself`);
 });
 
 test('gold is the default and keeps its hand-tuned values', () => {
@@ -104,6 +104,25 @@ test('light pages: gold\'s words read at 4.5:1 too, and the colours are told apa
   }
   const ls = tone.map(([, hex]) => L.toOklch(hex)[0]);
   assert.ok(Math.max(...ls) - Math.min(...ls) >= 0.08, `lightness spread ${(Math.max(...ls) - Math.min(...ls)).toFixed(3)}`);
+});
+
+test('light pages: caution is told apart from gold, still reads at 4.5:1, and is not taken for safe green', () => {
+  const lab = (hex) => { const [l, ch, hu] = L.toOklch(hex); return [l, ch * Math.cos(hu * Math.PI / 180), ch * Math.sin(hu * Math.PI / 180)]; };
+  const apart = (a, b) => Math.hypot(...lab(a).map((v, n) => v - lab(b)[n]));
+  const caution = L.STATUS.light.yellow;
+  // Every gold (and every accent) a light page draws words or a fill in. 1.20.1's #8a6100 was 0.015 from the nearest:
+  // the same colour to the eye. 0.045 is three times that, about two steps anyone sees.
+  const w = L.GOLD.light.web;
+  const golds = [50, 200, 300, 400, 500, 600].map((k) => w[k]).concat(w.grad, w.hover, L.GOLD.light.app.acc,
+    L.ACCENTS.map((a) => L.ramp(a.id, 'light')['--gold-400']).filter(Boolean));
+  for (const g of golds) assert.ok(apart(caution, g) >= 0.045, `caution ${caution} is ${apart(caution, g).toFixed(3)} from ${g}`);
+  // The site's, the cards' and the companion's light grounds.
+  for (const g of ['#efece6', '#f5f2ec', '#f2efe9', '#e6e2da', '#efe8da', '#e4dbca', '#f6f1e7', '#f6f4ef', '#ebe7de']) {
+    assert.ok(L.contrast(caution, g) >= 4.5, `caution ${caution} on ${g}: ${L.contrast(caution, g).toFixed(2)}`);
+  }
+  const h = L.toOklch(caution)[2];
+  assert.ok(h > L.toOklch(w[400])[2] + 20 && h < L.toOklch(L.STATUS.light.green)[2] - 30, `caution's hue ${h.toFixed(1)}: past gold, short of green`);
+  assert.ok(apart(caution, L.STATUS.light.green) > apart(caution, w[400]), 'caution is not nearer safe green than gold');
 });
 
 test('the live surfaces have no gold of their own left: they draw the look', () => {
