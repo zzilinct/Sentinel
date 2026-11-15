@@ -6,6 +6,14 @@ const os = require('os');
 const path = require('path');
 
 require('../desktop/scripts/sync-shared.js');
+// Roblox's log is read from %LOCALAPPDATA%: an empty folder of the test's own, so a Roblox running (or played earlier)
+// on the machine running the tests cannot put the reader in a game, nor make it look the game up online.
+const HOST_LOCALAPPDATA = process.env.LOCALAPPDATA;
+process.env.LOCALAPPDATA = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-chatwatch-'));
+test.after(() => {
+  fs.rmSync(process.env.LOCALAPPDATA, { recursive: true, force: true });
+  if (HOST_LOCALAPPDATA === undefined) delete process.env.LOCALAPPDATA; else process.env.LOCALAPPDATA = HOST_LOCALAPPDATA;
+});
 const chatwatch = require('../desktop/src/chatwatch.js');
 const { onMessage, robloxMessages, readLog, discordContext, judge, SCRIPT, LAUNCH, phonelinkMessages, judgeTexts, textOf, setOpts } = chatwatch._test;
 

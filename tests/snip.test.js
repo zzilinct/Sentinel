@@ -83,10 +83,10 @@ test('links that could not be checked say why', () => {
   assert.equal(r.pending, false);
 });
 
-test('pixels for the QR reader are RGBA', () => {
+test('pixels for the QR reader are RGBA, whatever machine runs the test', () => {
   const image = { getSize: () => ({ width: 1, height: 1 }), toBitmap: () => Buffer.from([1, 2, 3, 255]) };
-  const px = snip._test.rgba(image);
-  assert.deepEqual([...px.data], process.platform === 'win32' ? [3, 2, 1, 255] : [1, 2, 3, 255]);
+  assert.deepEqual([...snip._test.rgba(image, 'win32').data], [3, 2, 1, 255], 'Windows gives BGRA: swapped');
+  assert.deepEqual([...snip._test.rgba(image, 'linux').data], [1, 2, 3, 255], 'elsewhere already RGBA');
 });
 
 test('the shortcut is not Ctrl+Shift+S by default, and every choice has words', () => {

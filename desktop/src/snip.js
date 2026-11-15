@@ -123,10 +123,10 @@ function judge(text, codes = [], verdicts = {}, why = null) {
 }
 
 /** The picture as RGBA pixels for the QR reader (Electron gives BGRA on Windows). */
-function rgba(image) {
+function rgba(image, platform = process.platform) {
   const { width, height } = image.getSize();
   const data = Buffer.from(image.toBitmap());
-  if (process.platform === 'win32') for (let i = 0; i < data.length; i += 4) { const b = data[i]; data[i] = data[i + 2]; data[i + 2] = b; }
+  if (platform === 'win32') for (let i = 0; i < data.length; i += 4) { const b = data[i]; data[i] = data[i + 2]; data[i + 2] = b; }
   return { data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.length), width, height };
 }
 
