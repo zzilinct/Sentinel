@@ -116,7 +116,7 @@ test('a red answer closes one address, never the site, and a private window leav
   assert.equal(w.session[0].condition.urlFilter, '|https://docs.example/forms/bad|');
   assert.equal(w.session[0].condition.requestDomains, undefined);
   assert.equal(w.session[0].action.redirect.url, 'chrome-extension://me/src/block.html#https://docs.example/forms/bad');
-  w.ctx.handlers.refresh();   // what report and "this is fine" do too: nothing the scanner said before still stands
+  w.ctx.handlers.refresh({}, w.blockTab);   // what report and "this is fine" do too: nothing the scanner said before still stands
   await new Promise((r) => setTimeout(r, 20));
   await w.settled();
   assert.equal(w.session.length, 0, 'a site reported as fine opens again');
@@ -268,4 +268,33 @@ test('both browsers: Chrome shows the block page in a private window, Firefox ha
   assert.match(build, /delete ff\.incognito/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'desktop', 'scripts', 'sync-shared.js'), 'utf8'), /delete manifest\.incognito/);
   assert.match(read('block.js'), /window\.top !== window/, 'never inside a frame');
+});
+
+test('the worker takes each question only from the pages that ask it: settings from its own pages, page questions from the script that asks them', async () => {
+  const w = worker();
+  w.ctx.chrome.runtime.getManifest = () => JSON.parse(read('../manifest.json'));
+  await w.ctx.recalled;
+  const page = (url) => ({ id: 'me', url, tab: { id: 3 }, frameId: 0 });
+  const popup = { id: 'me', url: 'chrome-extension://me/src/popup.html' };
+  const refused = (type, msg, sender) => assert.rejects(Promise.resolve().then(() => w.ctx.handlers[type]({ type, ...msg }, sender)), /Not allowed/, `${type} from ${sender.url}`);
+  const taken = async (type, msg, sender) => {
+    try { await w.ctx.handlers[type]({ type, ...msg }, sender); } catch (err) { assert.doesNotMatch(String(err.message), /Not allowed/, `${type} from ${sender.url}`); }
+  };
+  for (const type of ['state', 'connect', 'refresh', 'sign-out', 'deep-scan']) {
+    await refused(type, { url: 'https://a.test/' }, page('https://evil.test/'));
+    await taken(type, { url: 'https://a.test/' }, popup);
+  }
+  await refused('live-batch', { urls: ['https://a.test/'] }, page('https://evil.test/search?q=x'));
+  await refused('live-batch', { urls: ['https://a.test/'] }, popup);
+  await taken('live-batch', { urls: ['https://a.test/'] }, page('https://www.google.com/search?q=x'));
+  await taken('live-batch', { urls: ['https://a.test/'] }, page('https://discord.com/channels/1'));
+  await refused('live-email', { emails: [] }, page('https://evil.test/'));
+  await taken('live-email', { emails: [] }, page('https://mail.google.com/mail/u/0/'));
+  await refused('override', { url: 'https://bad.test/', action: 'allow' }, page('https://evil.test/'));
+  await refused('override', { url: 'https://bad.test/', action: 'allow' }, page('https://www.google.com.evil.test/search?q=x'));
+  await taken('override', { url: 'https://bad.test/', action: 'allow' }, page('https://www.google.com/search?q=x'));
+  await refused('report', { url: 'https://someone-else.test/', category: 'phishing' }, page('https://evil.test/'));
+  await taken('report', { url: 'https://evil.test/login', category: 'phishing' }, page('https://evil.test/'));
+  await taken('report', { url: 'https://bad.test/', category: 'phishing' }, w.blockTab);
+  await taken('report', { url: 'https://bad.test/', category: 'phishing' }, page('https://www.bing.com/search?q=x'));
 });
