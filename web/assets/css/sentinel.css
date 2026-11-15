@@ -52,8 +52,9 @@
   --green: #4cb782;
   --on-status: #15130d;  /* text on a filled status colour */
   /* Caution is the same yellow in both schemes. On dark it is also its own words; on light paper no yellow can be
-     read as words, so there it is a fill: words and marks in ink beside or on it (--yellow-ink), a mark's tile in
-     the yellow itself (--yellow-wash), and words on the yellow in --on-yellow. */
+     read as words, so there its words and marks are ink (--yellow-ink) on a pale yellow tile, the same share
+     warning and danger take (--yellow-wash), so caution is never the loudest; solid yellow only fills a marker or a
+     pressed button, with --on-yellow on it. */
   --on-yellow: #15130d;
   --yellow-ink: #f5c542;
   --yellow-wash: rgb(245 197 66 / .14);
@@ -96,7 +97,7 @@
     --raise: -10px -10px 24px var(--neu-hi), 12px 14px 30px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --raise-sm: -4px -4px 10px var(--neu-hi), 5px 6px 14px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --press: inset 4px 5px 10px var(--neu-lo), inset -4px -4px 10px var(--neu-hi); --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
-    --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: #f5c542; --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
+    --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: rgb(245 197 66 / .14); --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
     --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
     color-scheme: light;
   }
@@ -113,7 +114,7 @@
     --raise: -10px -10px 24px var(--neu-hi), 12px 14px 30px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --raise-sm: -4px -4px 10px var(--neu-hi), 5px 6px 14px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --press: inset 4px 5px 10px var(--neu-lo), inset -4px -4px 10px var(--neu-hi); --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
-  --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: #f5c542; --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
+  --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: rgb(245 197 66 / .14); --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
   --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
   color-scheme: light;
 }

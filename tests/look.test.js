@@ -106,7 +106,7 @@ test('light pages: gold\'s words read at 4.5:1 too, and the colours are told apa
   assert.ok(Math.max(...ls) - Math.min(...ls) >= 0.08, `lightness spread ${(Math.max(...ls) - Math.min(...ls)).toFixed(3)}`);
 });
 
-test('caution is one real yellow, said as a fill on light paper, and never mistaken for gold, safe or warning', () => {
+test('caution is one real yellow, in ink on a pale yellow on light paper, never louder than danger, never mistaken for gold, safe or warning', () => {
   const lab = (hex) => { const [l, ch, hu] = L.toOklch(hex); return [l, ch * Math.cos(hu * Math.PI / 180), ch * Math.sin(hu * Math.PI / 180)]; };
   const apart = (a, b) => Math.hypot(...lab(a).map((v, n) => v - lab(b)[n]));
   const y = L.STATUS.light.yellow;
@@ -128,11 +128,14 @@ test('caution is one real yellow, said as a fill on light paper, and never mista
     const d = apart(sim(y, m), sim(L.STATUS[s][other], m));
     assert.ok(d >= 0.1, `${kind} ${s}: caution is ${d.toFixed(3)} from ${other}`);
   }
-  // On light paper the yellow is a fill: words on it, and caution's words beside it, are ink at 4.5:1 or more.
+  // On light paper caution's words and marks are ink, at 4.5:1 or more, on the page, on its tile and on the yellow.
+  // Its tile is the same pale share of yellow as on dark, as warning's and danger's tiles take of theirs (13 to 15%),
+  // so caution is never louder than danger.
   const css = read('web', 'assets', 'css', 'sentinel.css');
   const light = css.slice(css.indexOf(':root[data-theme="light"] {'));
   const token = (block, name) => block.match(new RegExp(`--${name}: ([^;]+);`))[1];
-  assert.equal(token(light, 'yellow-wash'), y);
+  assert.equal(token(light, 'yellow-wash'), token(css, 'yellow-wash'), 'the same caution tile in both schemes');
+  assert.match(token(light, 'yellow-wash'), /^rgb\(245 197 66 \/ \.1[3-5]\)$/, 'a pale wash, never a solid tile');
   for (const g of ['#efece6', '#f5f2ec', '#f2efe9', '#e6e2da', '#efe8da', '#e4dbca', '#f6f1e7', '#f6f4ef', '#ebe7de', y]) {
     assert.ok(L.contrast(token(light, 'yellow-ink'), g) >= 4.5, `caution's words on ${g}`);
     for (const k of ['red', 'orange', 'green']) assert.ok(L.contrast(L.STATUS.light[k], g) >= 4.5 || g === y, `light ${k} ${L.STATUS.light[k]} on ${g}: ${L.contrast(L.STATUS.light[k], g).toFixed(2)}`);
