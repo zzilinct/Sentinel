@@ -388,7 +388,7 @@ test('the release build is fused: no program can run code as Sentinel, and the r
   assert.doesNotMatch(release, /npm run dist:win\r?\n/);
   assert.ok(release.indexOf('desktop-fuses-e2e.ps1') > release.indexOf('dist:win:release') && release.indexOf('desktop-fuses-e2e.ps1') < release.indexOf('action-gh-release'));
   const e2e = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'desktop-e2e.yml'), 'utf8');
-  assert.match(e2e, /desktop-fuses-e2e\.ps1 -App desktop\/node_modules\/electron\/dist\/electron\.exe -Out e2e-fuses\/control -Control/, 'a check that can fail');
+  assert.match(e2e, /desktop-fuses-e2e\.ps1 -Out e2e-fuses\/control -Control/, 'a check that can fail');
 });
 
 test('an account made under the old 10-character minimum still signs in; the new minimum applies only when a password is set or changed', async () => {

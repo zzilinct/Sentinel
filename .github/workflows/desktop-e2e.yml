@@ -218,7 +218,7 @@ jobs:
 
   # The release build's fuses (desktop/electron-builder.release.js, scripts/desktop-fuses-e2e.ps1): no program can run
   # code as Sentinel through ELECTRON_RUN_AS_NODE, NODE_OPTIONS or --inspect, and the app still starts. The same checks
-  # on Electron's own exe first must each find the door open, so none of them passes by not looking.
+  # on a copy with its fuses put back must each find the door open, so none of them passes by not looking.
   fuses:
     if: ${{ !inputs.only || contains(inputs.only, 'fuses') }}
     runs-on: windows-latest
@@ -235,9 +235,9 @@ jobs:
         run: |
           npm ci
           npm run dist:win:release
-      - name: The checks find the door open on Electron's own exe
+      - name: The checks find the door open on the same build with its fuses put back
         shell: powershell
-        run: ./scripts/desktop-fuses-e2e.ps1 -App desktop/node_modules/electron/dist/electron.exe -Out e2e-fuses/control -Control
+        run: ./scripts/desktop-fuses-e2e.ps1 -Out e2e-fuses/control -Control
       - name: The release build keeps it shut
         shell: powershell
         run: ./scripts/desktop-fuses-e2e.ps1 -Out e2e-fuses/release

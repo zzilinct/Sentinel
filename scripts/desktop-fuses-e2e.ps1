@@ -1,17 +1,26 @@
 # The release build's Electron fuses, on a GitHub-hosted Windows runner (desktop-e2e.yml "fuses", and release.yml
 # before anything is published): no other program can run code as Sentinel through ELECTRON_RUN_AS_NODE, NODE_OPTIONS
 # or --inspect, and the app still starts and answers. Never runs on a person's computer.
-# -Control runs the same checks on Electron's own unfused exe, where each must find the door open: a check that cannot
-# fail proves nothing.
+# -Control runs the same checks on a copy of the same build with every fuse put back as Electron ships it, where each
+# must find the door open: a check that cannot fail proves nothing.
 param([string]$App = 'desktop/dist/win-unpacked/Sentinel.exe', [string]$Out = 'e2e-fuses', [switch]$Control)
 $ErrorActionPreference = 'Continue'
 New-Item -ItemType Directory -Force $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
+if (-not (Test-Path $App)) { Write-Host "FAIL no app at $App"; exit 1 }
 $App = (Resolve-Path $App).Path
 $failed = 0
+$fusesCli = 'desktop/node_modules/@electron/fuses/dist/bin.js'
+if ($Control) {
+  $copy = Join-Path $Out 'unfused'
+  Copy-Item (Split-Path $App) $copy -Recurse -Force
+  $App = Join-Path $copy (Split-Path $App -Leaf)
+  & node $fusesCli write --app $App RunAsNode=on EnableNodeOptionsEnvironmentVariable=on EnableNodeCliInspectArguments=on EnableEmbeddedAsarIntegrityValidation=off OnlyLoadAppFromAsar=off | Out-Null
+}
 function Say($s) { $l = "$(Get-Date -Format HH:mm:ss) $s"; Add-Content "$Out\run.txt" $l; Write-Host $l }
 function Check($name, $ok, $detail) {
   if ($Control -and $name -ne 'starts-and-answers') { $ok = -not $ok }
+  if ($name -like 'fuse-*' -and -not $detail) { $ok = $false }   # nothing read is not a fuse in either state
   $line = "$(if ($ok) { 'PASS' } else { 'FAIL' }) ${name}: $detail"
   if (-not $ok) { $script:failed++ }
   Say $line; Add-Content "$Out\results.txt" $line
@@ -23,7 +32,7 @@ function StopApp { Get-Process $proc -ErrorAction SilentlyContinue | Stop-Proces
 
 # What the exe itself says.
 $env:FORCE_COLOR = '0'
-$read = (& node desktop/node_modules/@electron/fuses/dist/bin.js read --app $App 2>&1 | Out-String) -replace "$([char]27)\[[0-9;]*m", ''
+$read = (& node $fusesCli read --app $App 2>&1 | Out-String) -replace "$([char]27)\[[0-9;]*m", ''
 Set-Content "$Out\fuses.txt" $read
 foreach ($fuse in 'RunAsNode', 'EnableNodeOptionsEnvironmentVariable', 'EnableNodeCliInspectArguments') {
   Check "fuse-$fuse-off" ($read -match "$fuse is Disabled") (($read -split "`n" | Where-Object { $_ -match $fuse }) -join ' ').Trim()

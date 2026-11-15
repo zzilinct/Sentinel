@@ -483,7 +483,8 @@ if (Test-Path $anydesk) {
   $ok = Until 60 { (AppLog) -match 'tech-support scam shield: AnyDesk started' }
   Start-Sleep 3; Shot 'anydesk'
   Check 'remote-noticed' $ok "app.log: $(([regex]::Match((AppLog), 'tech-support scam shield: AnyDesk started[^\r\n]*')).Value)"
-  $g = (Cdp 'guard.html' 'location.search + document.body.innerText.slice(0, 160)').value
+  # The window opens a moment after the log line: asked until it is there (run 43758331695 asked a second early).
+  $g = $null; [void](Until 20 { $script:g = (Cdp 'guard.html' 'location.search + document.body.innerText.slice(0, 160)').value; $script:g -match 'mode=remote' })
   Check 'remote-question' ($g -match 'mode=remote') "the shield's window: $g"
   # The neutral way out comes before "End the connection"; trusting is a quiet link, and only a second step.
   $b = (Cdp 'guard.html' "[...document.querySelectorAll('#row button')].map((x) => x.textContent).join('|')").value
