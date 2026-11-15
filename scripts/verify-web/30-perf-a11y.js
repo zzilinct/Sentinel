@@ -284,7 +284,7 @@ async function checkPerfA11y() {
     result('perf-a11y: every app page asks for the account once (app.js takes the preload app.html starts)', !twice.length, twice.map(([k, r]) => `${k}: ${r.me} requests`));
 
     const unbudgeted =Object.keys(rows).filter((k) => !budget[k]);
-    result('perf-a11y: no page scores much under its floor in perf-budget.json', !under.length && !unbudgeted.length,
+    result('perf-a11y: no page scores under its floor in perf-budget.json', !under.length && !unbudgeted.length,
       [...under, ...(unbudgeted.length ? [`no floor yet for: ${unbudgeted.join(', ')}`] : [])]);
   } finally { await server.stop(); }
 }
