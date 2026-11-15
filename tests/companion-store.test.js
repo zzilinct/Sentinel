@@ -12,15 +12,23 @@ const L = require('../web/assets/js/look.js');
 const SRC = path.join(__dirname, '..', 'extension', 'src');
 const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 
+// As the browsers answer: a name or a list leaves out what is not stored; an object fills it in with its defaults.
+const area = (box, name, changes) => ({
+  get: async (d) => {
+    const out = {};
+    for (const k of typeof d === 'string' ? [d] : Array.isArray(d) ? d : Object.keys(d)) {
+      if (k in box) out[k] = JSON.parse(JSON.stringify(box[k])); else if (d && typeof d === 'object' && !Array.isArray(d)) out[k] = d[k];
+    }
+    return out;
+  },
+  set: async (o) => { Object.assign(box, JSON.parse(JSON.stringify(o))); changes.push(name); },
+  remove: async (k) => { for (const x of [].concat(k)) delete box[x]; }
+});
+
 function store(sync) {
   const local = {};
   const changes = [];
-  const area = (box, name) => ({
-    get: async (d) => { const out = {}; for (const k of Array.isArray(d) ? d : Object.keys(d)) out[k] = k in box ? box[k] : (Array.isArray(d) ? undefined : d[k]); return out; },
-    set: async (o) => { Object.assign(box, o); changes.push(name); },
-    remove: async (k) => { for (const x of [].concat(k)) delete box[x]; }
-  });
-  const ctx = { chrome: { runtime: {}, storage: { local: area(local, 'local'), ...(sync ? { sync } : {}) } } };
+  const ctx = { chrome: { runtime: {}, storage: { local: area(local, 'local', changes),...(sync ? { sync } : {}) } } };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(read('lib/store.js'), ctx);
@@ -46,7 +54,7 @@ test('companion settings: when storage.sync throws, they are read from and saved
   }
   // Sync working: sync is used, local is left alone.
   const kept = {};
-  const { S, local } = store({ get: async (d) => ({ ...d, ...kept }), set: async (o) => { Object.assign(kept, o); }, remove: async () => {} });
+  const { S, local } = store(area(kept, 'sync', []));
   await S.set({ motion: 'off' });
   assert.deepEqual([kept.motion, local.motion], ['off', undefined]);
   // A change heard from either place, settings keys only (local also holds the look, the account and the token).
@@ -55,6 +63,32 @@ test('companion settings: when storage.sync throws, they are read from and saved
   assert.deepEqual({ ...S.changed({ enabled: { newValue: false } }, 'sync', D) }, { enabled: false });
   assert.equal(S.changed({ account: { newValue: {} } }, 'local', D), null);
   assert.equal(S.changed({ motion: { newValue: 'off' } }, 'session', D), null);
+});
+
+test('companion settings: when sync answers again, each setting comes from whichever place saved it last', async () => {
+  // Sync holds Full and the companion on, saved earlier. Sync goes away; Calm is chosen and kept in local.
+  const syncBox = { motion: 'full', enabled: true, settingsAt: { motion: 1000, enabled: 1000 } };
+  let away = true;
+  const real = area(syncBox, 'sync', []);
+  const gate = (fn) => (...a) => (away ? Promise.reject(new Error('sync off')) : fn(...a));
+  const { S, local } = store({ get: gate(real.get), set: gate(real.set), remove: gate(real.remove) });
+  await S.set({ motion: 'calm' });
+  assert.equal(local.motion, 'calm');
+  assert.ok(local.settingsAt.motion > 1000, 'local keeps when Calm was chosen');
+  // Sync is back with its older Full: Calm stays. The companion switch, never touched in local, still comes from sync.
+  away = false;
+  assert.deepEqual({ ...(await S.get({ motion: 'full', enabled: false })) }, { motion: 'calm', enabled: true });
+  // A newer choice saved in sync wins over the local one.
+  await new Promise((r) => setTimeout(r, 5));
+  await S.set({ motion: 'off' });
+  assert.equal(syncBox.motion, 'off');
+  assert.equal((await S.get({ motion: 'full' })).motion, 'off');
+  // Settings from before these times were kept (no settingsAt): sync's copy, as before.
+  const old = store(area({ motion: 'calm' }, 'sync', []));
+  old.local.motion = 'off';
+  assert.equal((await old.S.get({ motion: 'full' })).motion, 'calm', 'a tie goes to sync');
+  // A list of names (the old settings moved over once) leaves out what neither place has.
+  assert.deepEqual({ ...(await old.S.get(['motion', 'minimumBadge'])) }, { motion: 'calm' });
 });
 
 test('companion settings: every reader and writer goes through lib/store.js, which is loaded before it', () => {
