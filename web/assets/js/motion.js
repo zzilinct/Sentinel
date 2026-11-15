@@ -91,11 +91,12 @@
       if (!lenis.animate.isRunning) { G.ticker.remove(tick); ticking = false; prev = 0; }
     };
     const wake = () => { if (!ticking && lenis.animate.isRunning) { ticking = true; G.ticker.add(tick); } };
-    // After Lenis's own wheel listener (added first), which starts the glide.
-    addEventListener('wheel', wake, { passive: true });
     smooth = () => {
       lenis = new window.Lenis({ lerp: 0.1, smoothWheel: true, syncTouch: false, anchors: false });
       lenis.on('scroll', ST.update);
+      // After each Lenis's own wheel listener (added just above), which starts the glide: added again behind a new one.
+      removeEventListener('wheel', wake);
+      addEventListener('wheel', wake, { passive: true });
       window.SentinelScroll = {
         lenis,
         // Where the page jumps (a tab's chapter, under its wipe), it lands exactly, at once; a smooth one glides there.
