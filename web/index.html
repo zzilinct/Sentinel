@@ -132,7 +132,7 @@
 
         <div class="float float--verdict" data-float="verdict" aria-live="polite">
           <div class="verdict__head">
-            <div class="verdict__icon" data-glyph="scam" data-v-icon></div>
+            <div class="verdict__icon" data-status="red" data-glyph="scam" data-v-icon></div>
             <div style="min-width:0">
               <div class="verdict__title" data-v-title>Confirmed scam</div>
               <div class="verdict__host" data-v-host>paypa1-secure-login.com</div>
@@ -140,9 +140,9 @@
             </div>
           </div>
           <div class="verdict__bars">
-            <div class="bar" style="--c:var(--red)" data-v-bar="scam"><span>Scam</span><div class="bar__track"><div class="bar__fill" data-w="100"></div></div><b>100</b></div>
-            <div class="bar" style="--c:var(--green)" data-v-bar="virus"><span>Virus</span><div class="bar__track"><div class="bar__fill" data-w="0"></div></div><b>0</b></div>
-            <div class="bar" style="--c:var(--green)" data-v-bar="malware"><span>Malware</span><div class="bar__track"><div class="bar__fill" data-w="0"></div></div><b>0</b></div>
+            <div class="bar" data-status="red" data-v-bar="scam"><span>Scam</span><div class="bar__track"><div class="bar__fill" data-w="100"></div></div><b>100</b></div>
+            <div class="bar" data-status="green" data-v-bar="virus"><span>Virus</span><div class="bar__track"><div class="bar__fill" data-w="0"></div></div><b>0</b></div>
+            <div class="bar" data-status="green" data-v-bar="malware"><span>Malware</span><div class="bar__track"><div class="bar__fill" data-w="0"></div></div><b>0</b></div>
           </div>
           <ul class="verdict__why" data-v-why></ul>
           <div class="verdict__foot"><span data-v-checks>109 checks</span><span data-v-source>Known threat</span></div>
@@ -248,7 +248,7 @@
       </div>
 
       <div class="trio">
-        <article class="mask-card plate" style="--c:var(--red)" data-trio data-threat="scam">
+        <article class="mask-card plate" data-status="red" data-trio data-threat="scam">
           <div class="plate__art" data-reveal="zoom" data-mask3d="scam" data-tint="red" aria-hidden="true"><i class="plate__glow"></i><svg class="cartouche" viewBox="0 0 600 600"><ellipse class="g" cx="300" cy="300" rx="232" ry="280"/><ellipse cx="300" cy="300" rx="244" ry="292"/><circle class="dash" cx="300" cy="300" r="290"/><path d="M300 0v600M0 300h600"/><path class="g" d="M300 8l8 10-8 10-8-10z"/><path class="g" d="M300 572l8 10-8 10-8-10z"/><path class="g" d="M8 300l10-8 10 8-10 8z"/><path class="g" d="M572 300l10-8 10 8-10 8z"/><text x="420" y="70">fig. III: scam</text><path d="M436 76l-60 50"/></svg><img data-tint="yellow" src="/assets/img/masks/scam-yellow.webp" width="700" height="1000" alt="" loading="lazy"><img data-tint="orange" src="/assets/img/masks/scam-orange.webp" width="700" height="1000" alt="" loading="lazy"><img data-tint="red" src="/assets/img/masks/scam-red.webp" width="700" height="1000" alt="" loading="lazy" class="is-on"></div>
           <div class="plate__info" data-reveal="right">
             <div class="plate__num"><span>III</span><i></i><span class="plate__seal" data-glyph="scam"></span></div>
@@ -267,7 +267,7 @@
             </div>
           </div>
         </article>
-        <article class="mask-card plate plate--flip" style="--c:var(--orange);--d:.08s" data-trio data-threat="virus">
+        <article class="mask-card plate plate--flip" data-status="orange" style="--d:.08s" data-trio data-threat="virus">
           <div class="plate__art" data-reveal="zoom" data-mask3d="virus" data-tint="orange" aria-hidden="true"><i class="plate__glow"></i><svg class="cartouche" viewBox="0 0 600 600"><ellipse class="g" cx="300" cy="300" rx="232" ry="280"/><ellipse cx="300" cy="300" rx="244" ry="292"/><circle class="dash" cx="300" cy="300" r="290"/><path d="M300 0v600M0 300h600"/><path class="g" d="M300 8l8 10-8 10-8-10z"/><path class="g" d="M300 572l8 10-8 10-8-10z"/><path class="g" d="M8 300l10-8 10 8-10 8z"/><path class="g" d="M572 300l10-8 10 8-10 8z"/><text x="40" y="70">fig. IV: virus</text><path d="M160 76l60 50"/></svg><img data-tint="yellow" src="/assets/img/masks/virus-yellow.webp" width="700" height="1000" alt="" loading="lazy"><img data-tint="orange" src="/assets/img/masks/virus-orange.webp" width="700" height="1000" alt="" loading="lazy" class="is-on"><img data-tint="red" src="/assets/img/masks/virus-red.webp" width="700" height="1000" alt="" loading="lazy"></div>
           <div class="plate__info" data-reveal="left">
             <div class="plate__num"><span>IV</span><i></i><span class="plate__seal" data-glyph="virus"></span></div>
@@ -286,7 +286,7 @@
             </div>
           </div>
         </article>
-        <article class="mask-card plate" style="--c:var(--yellow)" data-trio data-threat="malware">
+        <article class="mask-card plate" data-status="yellow" data-trio data-threat="malware">
           <div class="plate__art" data-reveal="zoom" data-mask3d="malware" data-tint="yellow" aria-hidden="true"><i class="plate__glow"></i><svg class="cartouche" viewBox="0 0 600 600"><ellipse class="g" cx="300" cy="300" rx="232" ry="280"/><ellipse cx="300" cy="300" rx="244" ry="292"/><circle class="dash" cx="300" cy="300" r="290"/><path d="M300 0v600M0 300h600"/><path class="g" d="M300 8l8 10-8 10-8-10z"/><path class="g" d="M300 572l8 10-8 10-8-10z"/><path class="g" d="M8 300l10-8 10 8-10 8z"/><path class="g" d="M572 300l10-8 10 8-10 8z"/><text x="420" y="70">fig. V: malware</text><path d="M436 76l-60 50"/></svg><img data-tint="yellow" src="/assets/img/masks/malware-yellow.webp" width="700" height="1000" alt="" loading="lazy" class="is-on"><img data-tint="orange" src="/assets/img/masks/malware-orange.webp" width="700" height="1000" alt="" loading="lazy"><img data-tint="red" src="/assets/img/masks/malware-red.webp" width="700" height="1000" alt="" loading="lazy"></div>
           <div class="plate__info" data-reveal="right">
             <div class="plate__num"><span>V</span><i></i><span class="plate__seal" data-glyph="malware"></span></div>
@@ -496,9 +496,9 @@
   <section class="manifesto" data-manifesto aria-label="What the colours mean">
     <div class="manifesto__stick">
       <div class="manifesto__mask" data-mask3d="scam" data-tint="yellow" data-look="480" aria-hidden="true"><img src="/assets/img/masks/scam-yellow.webp" width="700" height="1000" alt="" loading="lazy"><img src="/assets/img/masks/scam-orange.webp" width="700" height="1000" alt="" loading="lazy"><img src="/assets/img/masks/scam-red.webp" width="700" height="1000" alt="" loading="lazy"></div>
-      <p class="manifesto__line" style="--c:var(--yellow)"><span>Yellow</span>Look closer.</p>
-      <p class="manifesto__line" style="--c:var(--orange)"><span>Orange</span>Probably dangerous.</p>
-      <p class="manifesto__line" style="--c:var(--red)"><span>Red</span>Proven threat.</p>
+      <p class="manifesto__line" data-status="yellow"><span>Yellow</span>Look closer.</p>
+      <p class="manifesto__line" data-status="orange"><span>Orange</span>Probably dangerous.</p>
+      <p class="manifesto__line" data-status="red"><span>Red</span>Proven threat.</p>
     </div>
   </section>
 
@@ -599,7 +599,7 @@
           </div>
           <div class="try__out" data-try-out aria-live="polite">
             <div class="try__empty">
-              <div class="try__masks"><span data-glyph="scam" style="color:var(--red)"></span><span data-glyph="virus" style="color:var(--orange)"></span><span data-glyph="malware" style="--c:var(--yellow);color:var(--c-ink)"></span></div>
+              <div class="try__masks"><span data-glyph="scam" style="color:var(--red)"></span><span data-glyph="virus" style="color:var(--orange)"></span><span data-glyph="malware" data-status="yellow" style="color:var(--c-ink)"></span></div>
               <p>Your result will appear here, with every reason Sentinel found.</p>
             </div>
           </div>

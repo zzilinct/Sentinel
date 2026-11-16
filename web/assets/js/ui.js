@@ -188,8 +188,9 @@ window.UI = (() => {
 
   /* -------------------------------------------------------- verdicts */
 
-  // The theme's own status colours, so a mask is as readable on light paper as on dark.
-  const color = (badge) => `var(--${badge || 'green'})`;
+  // A status named on its element, never painted inline: sentinel.css [data-status] gives it the theme's own colour,
+  // and caution its ink, wash and edged mask, so a mark is as readable on light paper as on dark.
+  const status = (badge) => `data-status="${esc(badge || 'green')}"`;
 
   function worst(threats) {
     return THREATS.filter((t) => threats[t]).sort((a, b) => SEV[threats[b].level] - SEV[threats[a].level])[0];
@@ -260,7 +261,7 @@ window.UI = (() => {
       // No badge, but also no all-clear: nothing conclusive, or a scan that did not finish, stays out of the green.
       const unsure = !th.badge && (th.level === 'caution' || partly(v));
       const level = th.badge || th.level === 'caution' ? th.label : unsure ? 'Nothing found so far' : 'Clear';
-      return `<div class="threat" style="--c:${unsure ? 'var(--muted)' : color(th.badge)}">
+      return `<div class="threat" ${status(unsure ? 'unsure' : th.badge)}>
         <div class="threat__glyph">${Masks.svg(t)}</div>
         <div>
           <div class="threat__name">${Masks.NAMES[t]}</div>
@@ -506,7 +507,7 @@ window.UI = (() => {
    * there is a threat to show. A clean result keeps its small flat mark: it needs no ceremony.
    */
   function resultGlyph(threat, tone) {
-    if (tone === 'clear' || tone === 'partial') return `<div class="result__glyph" style="--c:${tone === 'partial' ? 'var(--muted)' : color(null)}">${Masks.svg(threat)}</div>`;
+    if (tone === 'clear' || tone === 'partial') return `<div class="result__glyph" ${status(tone === 'partial' ? 'unsure' : null)}>${Masks.svg(threat)}</div>`;
     return `<div class="result__glyph result__glyph--mask" aria-hidden="true"><span class="m3" data-verdict-mask="${esc(threat)}" data-tint="${esc(tone)}"><img src="/assets/img/masks/${esc(threat)}-${esc(tone)}.webp" width="788" height="896" alt=""></span></div>`;
   }
 
@@ -563,7 +564,7 @@ window.UI = (() => {
       ${realSite(v)}
       ${nextSteps(head, v)}
       <button type="button" class="result__details" data-details aria-expanded="false"><span>Show details</span><i aria-hidden="true"></i></button>
-      ${clues.length ? `<div class="reasons"><h3>${cluesTitle}</h3><ul>${clues.map((c) => `<li data-clue="${esc(c.clue)}"><span class="dot" style="--c:${v.threats[c.threat] && v.threats[c.threat].badge ? color(v.threats[c.threat].badge) : 'var(--muted)'}"></span>${esc(c.text)}</li>`).join('')}</ul></div>` : ''}
+      ${clues.length ? `<div class="reasons"><h3>${cluesTitle}</h3><ul>${clues.map((c) => `<li data-clue="${esc(c.clue)}"><span class="dot" ${status(v.threats[c.threat] && v.threats[c.threat].badge || 'unsure')}></span>${esc(c.text)}</li>`).join('')}</ul></div>` : ''}
       <details class="result__more" data-more>
         <summary><span>See everything Sentinel checked</span><i></i></summary>
         ${threatTiles(v, { lockedLabel })}
@@ -599,5 +600,5 @@ window.UI = (() => {
     if (held) form.requestSubmit();
   }
 
-  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, stateBlock, busy, formReady, verdict, resultGlyph, wireVerdict, wireCopy, reportText, headline, threatTiles, color, emailSteps, THREATS, SEV };
+  return { api, ApiError, esc, $, $$, h, ago, until, bytes, toast, stateBlock, busy, formReady, verdict, resultGlyph, wireVerdict, wireCopy, reportText, headline, threatTiles, status, emailSteps, THREATS, SEV };
 })();

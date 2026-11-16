@@ -10,8 +10,9 @@
 
   const ORDER = ['scam', 'virus', 'malware'];
   const NAMES = { scam: 'Scam', virus: 'Virus', malware: 'Malware' };
-  const COLOR = { yellow: 'var(--yellow)', orange: 'var(--orange)', red: 'var(--red)' };
-  const colorOf = (badge) => COLOR[badge] || 'var(--green)';
+  // A status is named on its element (data-status); sentinel.css gives it the colour, and caution its ink and edged mask.
+  const statusOf = (badge) => badge || 'green';
+  const status = (badge) => `data-status="${esc(statusOf(badge))}"`;
   const RANK = { null: 0, yellow: 1, orange: 2, red: 3 };
   const rank = (badge) => RANK[badge || null];
 
@@ -60,9 +61,7 @@
       const worst = flagged(result)[0];
       const badge = worst ? result.threats[worst].badge : null;
       v.icon.innerHTML = Masks.svg(worst || 'scam');
-      v.icon.classList.toggle('is-clear', !badge);
-      v.icon.classList.toggle('is-yellow', badge === 'yellow');
-      v.icon.classList.toggle('is-orange', badge === 'orange');
+      v.icon.dataset.status = statusOf(badge);
       v.title.textContent = badge ? result.overall.label : 'No threats found';
       v.host.textContent = result.host;
       const kind = worst && result.threats[worst].kind;
@@ -70,12 +69,12 @@
       if (kindEl) {
         kindEl.hidden = !kind;
         kindEl.innerHTML = kind ? `${Masks.kindIcon(kind)}<span>${esc(result.threats[worst].kindLabel)}</span>` : '';
-        kindEl.style.setProperty('--c', colorOf(badge));
+        kindEl.dataset.status = statusOf(badge);
       }
       for (const t of ORDER) {
         const bar = $(`[data-v-bar="${t}"]`, stage);
         const threat = result.threats[t];
-        bar.style.setProperty('--c', colorOf(threat.badge));
+        bar.dataset.status = statusOf(threat.badge);
         $('.bar__fill', bar).style.setProperty('--w', Math.max(threat.score, 2));
         $('b', bar).textContent = threat.score;
         bar.title = threat.label;
@@ -276,7 +275,7 @@
       });
       if (focus) b.focus();
       const sev = b.dataset.sev;
-      card.style.setProperty('--c', COLOR[sev]);
+      card.dataset.status = sev;
       // The mask itself takes the colour: each card carries a render in every severity colour, and in 3D the model
       // changes. A choice the reader makes, and the stages wrapping round from confirmed back to suspicious, open a
       // black hole that takes the old mask and gives back the new one (cosmos.js); the steps up glow and shift.
@@ -409,7 +408,7 @@
           <div class="game__link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span>${esc(v.url)}</span></div>
           <div class="game__q">How dangerous is this link? <span class="muted">(keys 1&ndash;4)</span></div>
           <div class="game__answers" role="group" aria-label="Your answer">
-            ${ANSWERS.map((a, i) => `<button type="button" class="answer" style="--c:${colorOf(a.badge)}" data-answer="${i}">
+            ${ANSWERS.map((a, i) => `<button type="button" class="answer" ${status(a.badge)} data-answer="${i}">
               <kbd>${i + 1}</kbd>${Masks.svg('scam')}<span>${a.name}</span><small>${a.hint}</small></button>`).join('')}
           </div>
           <div data-game-reveal></div>
@@ -437,7 +436,7 @@
 
       const tk = truth.badge ? v.threats[truth.threat] : null;
       const heading = tk
-        ? `${tk.kind ? `<span class="kind-icon" style="--c:${colorOf(truth.badge)}">${Masks.kindIcon(tk.kind)}</span> ${esc(tk.kindLabel)}: ` : ''}${esc(tk.label)} <span class="muted" style="font-size:14px">&middot; ${tk.score}/100</span>`
+        ? `${tk.kind ? `<span class="kind-icon" ${status(truth.badge)}>${Masks.kindIcon(tk.kind)}</span> ${esc(tk.kindLabel)}: ` : ''}${esc(tk.label)} <span class="muted" style="font-size:14px">&middot; ${tk.score}/100</span>`
         : 'Sentinel found nothing wrong';
       const reasons = v.reasons.slice(0, 3);
       const last = round === ROUNDS - 1;
@@ -590,7 +589,7 @@
       // What was left out is not counted as checked.
       const ran = v.checks.total - (v.checks.skipped || 0);
       out.innerHTML = `
-        <div class="try__result" style="--c:${unlisted ? 'var(--muted)' : colorOf(badge)}">
+        <div class="try__result" ${status(unlisted ? 'unsure' : badge)}>
           <div class="try__head">
             <div class="try__icon">${Masks.svg(worst || 'scam')}</div>
             <div style="min-width:0"><h3>${title}</h3><p>${esc(v.host)}</p></div>
@@ -598,7 +597,7 @@
           ${unlisted ? '<p class="try__caveat">Threat lists were not checked here. The Sentinel app checks them.</p>' : ''}
           ${v.partial ? '<p class="try__caveat">Some checks did not run: the word list could not load. Check again in a moment for the full result.</p>' : ''}
           <div class="try__threats">
-            ${ORDER.map((t) => `<div class="try__threat" style="--c:${unlisted ? 'var(--muted)' : colorOf(v.threats[t].badge)}">${Masks.svg(t)}<b>${esc(v.threats[t].label)}</b><span>${NAMES[t]} &middot; ${v.threats[t].score}/100</span></div>`).join('')}
+            ${ORDER.map((t) => `<div class="try__threat" ${status(unlisted ? 'unsure' : v.threats[t].badge)}>${Masks.svg(t)}<b>${esc(v.threats[t].label)}</b><span>${NAMES[t]} &middot; ${v.threats[t].score}/100</span></div>`).join('')}
           </div>
           <ul class="try__why">${v.reasons.length ? v.reasons.map((r) => `<li>${esc(r.text)}</li>`).join('') : `<li>${v.discounted ? 'No record in any threat feed and nothing in the checklist raised a concern' : 'Nothing in the checklist raised a concern'}</li>`}</ul>
           <div class="try__foot">

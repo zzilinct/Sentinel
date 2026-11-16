@@ -30,9 +30,6 @@
 @keyframes rise-in { from { transform: translateY(6px); } }
 
 .verdict__icon { transition: color .3s, background .3s, box-shadow .3s; }
-.verdict__icon.is-clear { color: var(--green); background: rgba(76, 183, 130, .12); box-shadow: inset 0 0 0 1px rgba(76, 183, 130, .4); }
-.verdict__icon.is-orange { color: var(--orange); background: rgba(240, 138, 36, .13); box-shadow: inset 0 0 0 1px rgba(240, 138, 36, .45); }
-.verdict__icon.is-yellow { color: var(--yellow-ink); background: var(--yellow-wash); box-shadow: inset 0 0 0 1px rgba(245, 197, 66, .45); }
 .verdict__host { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .verdict__why { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; }
 .verdict__why li { position: relative; padding-left: 12px; font-size: var(--t-label); line-height: 1.45; color: var(--text-2); }

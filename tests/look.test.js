@@ -145,8 +145,22 @@ test('caution is one real yellow, in ink on a pale yellow on light paper, never 
   for (const f of fs.readdirSync(path.join(ROOT, 'web', 'assets', 'css'))) {
     assert.doesNotMatch(read('web', 'assets', 'css', f), /(^|[^-])color: var\(--(yellow|c)\)/m, `${f} colours words in the yellow itself`);
   }
-  assert.match(css, /\[style\*="--c:var\(--yellow\)"\], \[style\*="--c: var\(--yellow\)"\]/, 'every inline caution takes the ink');
-  assert.match(read('desktop', 'src', 'pages', 'card.js'), /--c-ink', 'var\(--ink\)'/, 'a light caution card says its title in ink');
+  // A status is named (data-status), never painted inline: no rule reads the style attribute, and no page or script
+  // sets --c to a status, so caution's ink can never depend on how a browser writes that attribute out.
+  for (const f of fs.readdirSync(path.join(ROOT, 'web', 'assets', 'css'))) assert.doesNotMatch(read('web', 'assets', 'css', f), /\[style[*^$~|]?=/, `${f} reads the style attribute`);
+  const pages = fs.readdirSync(path.join(ROOT, 'web')).filter((f) => f.endsWith('.html')).map((f) => ['web', f])
+    .concat(fs.readdirSync(path.join(ROOT, 'web', 'assets', 'js')).filter((f) => f.endsWith('.js')).map((f) => ['web', 'assets', 'js', f]));
+  for (const p of pages) assert.doesNotMatch(read(...p), /--c:\s*\$\{|--c:\s*var\(--(red|orange|yellow|green|muted)\)|setProperty\('--c',/, `${p.join('/')} paints a status inline`);
+  assert.match(css, /\[data-status="yellow"\], \.m--yellow/, 'a named caution takes the ink');
+  // Glyph weight, danger > warning > caution: on light paper a caution mask is yellow edged in ink, never a solid ink
+  // mask (the heaviest thing on the page) nor a solid yellow disc.
+  assert.equal(token(light, 'yellow-glyph'), 'var(--yellow)');
+  assert.equal(token(light, 'yellow-edge'), 'var(--yellow-ink)');
+  assert.equal(token(css, 'yellow-glyph'), 'currentColor', 'on dark the mask is the yellow itself');
+  const card = read('desktop', 'src', 'pages', 'card.js');
+  assert.match(card, /--c-ink', 'var\(--ink\)'/, 'a light caution card says its title in ink');
+  assert.match(card, /--c-glyph', tone\(badge\)\); el\.style\.setProperty\('--c-edge', 'var\(--ink\)'\)/, 'and its mask is yellow edged in ink');
+  assert.doesNotMatch(card, /--c-wash/, 'no solid yellow disc behind the mask');
 });
 
 test('the live surfaces have no gold of their own left: they draw the look', () => {

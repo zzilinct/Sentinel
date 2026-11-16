@@ -52,12 +52,15 @@
   --green: #4cb782;
   --on-status: #15130d;  /* text on a filled status colour */
   /* Caution is the same yellow in both schemes. On dark it is also its own words; on light paper no yellow can be
-     read as words, so there its words and marks are ink (--yellow-ink) on a pale yellow tile, the same share
+     read as words, so there its words are ink (--yellow-ink) on a pale yellow tile, the same share
      warning and danger take (--yellow-wash), so caution is never the loudest; solid yellow only fills a marker or a
-     pressed button, with --on-yellow on it. */
+     pressed button, with --on-yellow on it. A caution mask on light paper is yellow edged in ink (--yellow-glyph,
+     --yellow-edge), lighter than danger's solid mask; on dark it is the yellow itself. */
   --on-yellow: #15130d;
   --yellow-ink: #f5c542;
   --yellow-wash: rgb(245 197 66 / .14);
+  --yellow-glyph: currentColor;
+  --yellow-edge: none;
   --link: #a9c1ff;       /* result titles, as a search page shows them */
   --error-text: #ff8d90;
 
@@ -97,7 +100,7 @@
     --raise: -10px -10px 24px var(--neu-hi), 12px 14px 30px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --raise-sm: -4px -4px 10px var(--neu-hi), 5px 6px 14px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --press: inset 4px 5px 10px var(--neu-lo), inset -4px -4px 10px var(--neu-hi); --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
-    --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: rgb(245 197 66 / .14); --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
+    --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: rgb(245 197 66 / .14); --yellow-glyph: var(--yellow); --yellow-edge: var(--yellow-ink); --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
     --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
     color-scheme: light;
   }
@@ -114,7 +117,7 @@
     --raise: -10px -10px 24px var(--neu-hi), 12px 14px 30px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --raise-sm: -4px -4px 10px var(--neu-hi), 5px 6px 14px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --press: inset 4px 5px 10px var(--neu-lo), inset -4px -4px 10px var(--neu-hi); --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
-  --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: rgb(245 197 66 / .14); --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
+  --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: rgb(245 197 66 / .14); --yellow-glyph: var(--yellow); --yellow-edge: var(--yellow-ink); --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
   --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
   color-scheme: light;
 }
@@ -382,11 +385,20 @@ p.hero__fine span { white-space: nowrap; }
 .m svg { width: 17px; height: 17px; }
 .m.is-on { transform: scale(1); opacity: 1; }
 .m--yellow { --c: var(--yellow); } .m--orange { --c: var(--orange); } .m--red { --c: var(--red); }
-/* Wherever --c is set, its words take --c-ink; set to caution, they take the ink and the tile the wash (above). Every
-   setter writes --c as var(--yellow) (ui.js color, home.js COLOR), so one rule covers them. */
-[style*="--c:"], .m, .slow, .next-steps, .kind { --c-ink: var(--c); --c-wash: initial; --c-on: initial; }
-[style*="--c:var(--yellow)"], [style*="--c: var(--yellow)"], .m--yellow, .slow--yellow, .next-steps--yellow, .kind[data-threat="malware"] {
-  --c-ink: var(--yellow-ink); --c-wash: var(--yellow-wash); --c-on: var(--on-yellow);
+/* A status is named, never painted inline: scripts and pages write data-status (red, orange, yellow, green, or unsure
+   for nothing conclusive) and these rules give it --c. Its words take --c-ink; caution's take the ink, its tile the
+   wash, and its masks the yellow-glyph and yellow-edge (above). */
+[data-status="red"] { --c: var(--red); } [data-status="orange"] { --c: var(--orange); } [data-status="yellow"] { --c: var(--yellow); }
+[data-status="green"] { --c: var(--green); } [data-status="unsure"] { --c: var(--muted); }
+[data-status], .m, .slow, .next-steps, .kind { --c-ink: var(--c); --c-wash: initial; --c-on: initial; --c-glyph: initial; --c-edge: initial; }
+[data-status="yellow"], .m--yellow, .slow--yellow, .next-steps--yellow, .kind[data-threat="malware"] {
+  --c-ink: var(--yellow-ink); --c-wash: var(--yellow-wash); --c-on: var(--on-yellow); --c-glyph: var(--yellow-glyph); --c-edge: var(--yellow-edge);
+}
+/* A mask (masks.js: one even-odd path in currentColor) under caution on light paper: yellow, drawn round with a hairline
+   of ink, as a road sign is. Lighter than danger's and warning's solid masks, still yellow, still a clear shape. */
+path[fill="currentColor"][fill-rule="evenodd"] {
+  fill: var(--c-glyph, currentColor); stroke: var(--c-edge, none); stroke-width: 2px; stroke-linejoin: round;
+  paint-order: stroke; vector-effect: non-scaling-stroke;
 }
 /* Nothing found: a small tick, quieter than a mask, as in the app. */
 .m--clear { --c: var(--green); width: 22px; height: 22px; background: transparent; }
@@ -419,7 +431,7 @@ p.hero__fine span { white-space: nowrap; }
 @media (max-width: 760px) { .float { display: none; } }
 
 .verdict__head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.verdict__icon { width: 40px; height: 40px; border-radius: var(--r); display: grid; place-items: center; color: var(--red); background: rgba(229, 72, 77, .14); box-shadow: inset 0 0 0 1px rgba(229, 72, 77, .4); }
+.verdict__icon { width: 40px; height: 40px; border-radius: var(--r); display: grid; place-items: center; color: var(--c-ink, var(--c)); background: var(--c-wash, color-mix(in srgb, var(--c) 14%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 42%, transparent); }
 .verdict__icon svg { width: 24px; height: 24px; }
 .verdict__title { font-weight: 600; font-size: var(--t-text); }
 .verdict__host { font: var(--t-label) var(--mono); color: var(--muted); }
