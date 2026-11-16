@@ -272,7 +272,7 @@ test('one look across devices: each setting from whichever chose it last, kept b
   assert.match(api, /if \(data && typeof data\.lookRev === 'number'\) followLook\(data\.lookRev\);/);
   assert.match(api, /if \(look && look\.rev === revision\) return;/, 'the companion asks only when the account\'s look moved');
   assert.match(read('scripts', 'build-extension.js'), /strip\('lib\/look\.js'\)/, 'Firefox gets the table too');
-  assert.match(read('web', 'assets', 'js', 'app.js'), /SentinelLook\.sync\(\)/);
+  assert.match(require('./fixtures').appScript(), /SentinelLook\.sync\(\)/);
   // The Settings home's first-run step finds the picker's rows by these ids.
   assert.match(read('web', 'assets', 'js', 'look-app.js'), /rowId\('theme'\)[^]*rowId\('accent'\)/);
   // The Windows app on this computer wins a tie over what the popup kept (which may be only the default).

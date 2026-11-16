@@ -117,7 +117,7 @@ test('sentences left in other files agree with every plan, or do not exist', () 
   // that plan's, so a change to any plan's fast allowance fails here until the sentence follows.
   const list = plans.publicPlans();
   const say = (m) => (m === null ? 'no limit' : span(m));
-  const files = fs.readdirSync(path.join(ROOT, 'web')).filter((f) => f.endsWith('.html')).map((f) => `web/${f}`).concat('extension/src/popup.js', 'web/assets/js/app.js', 'web/llms.txt');
+  const files = fs.readdirSync(path.join(ROOT, 'web')).filter((f) => f.endsWith('.html')).map((f) => `web/${f}`).concat('extension/src/popup.js', ...require('./fixtures').APP_FILES, 'web/llms.txt');
   for (const f of files) {
     const body = fs.readFileSync(path.join(ROOT, f), 'utf8');
     for (const p of list) {

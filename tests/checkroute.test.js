@@ -61,7 +61,7 @@ test('one press changes the guess, but only to a kind that fits what is in the b
 
 test('the app has one Check page: the five scan pages, their sidebar entries and their mode switches are gone', () => {
   const ROOT = path.join(__dirname, '..');
-  const app = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'app.js'), 'utf8');
+  const app = require('./fixtures').appScript();
   const html = fs.readFileSync(path.join(ROOT, 'web', 'app.html'), 'utf8');
   assert.ok(app.includes('= window.SentinelRoute;') && app.includes('Route.pick({ text: box.value, file }'), 'the Check page asks route.js, not its own guess');
   for (const gone of ['function scanView', 'function threatsView', 'function emailView', 'function textView', 'data-scan-mode', 'data-emode', 'data-tmode']) assert.ok(!app.includes(gone), `${gone} is still in app.js`);
@@ -75,7 +75,7 @@ test('the app has one Check page: the five scan pages, their sidebar entries and
 // What main fixed inside the old scan pages, carried into Check (each named by its commit).
 test('Check keeps what main fixed in the old scan pages', () => {
   const ROOT = path.join(__dirname, '..');
-  const app = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'js', 'app.js'), 'utf8');
+  const app = require('./fixtures').appScript();
   const css = fs.readFileSync(path.join(ROOT, 'web', 'assets', 'css', 'app.css'), 'utf8');
   const check = app.slice(app.indexOf('function checkView('), app.indexOf('/* ------------------------------------------------------------ QR codes */'));
   assert.ok(check.length > 1000, 'checkView found');

@@ -3,8 +3,6 @@
 
 :root { --set-spring: linear(0, .063, .207, .382, .555, .706, .828, .918, .98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
 
-.side__settings { margin-top: 18px; }
-
 .set { display: grid; grid-template-columns: 188px minmax(0, 1fr); gap: 0 52px; align-items: start; }
 @media (max-width: 1100px) { .set { grid-template-columns: 160px minmax(0, 1fr); gap: 0 36px; } }
 
