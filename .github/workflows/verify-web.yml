@@ -21,6 +21,10 @@ on:
         description: 'With perf_pages: also measure this ref (main) on the same runner, back to back with the branch, and report medians'
         required: false
         default: ''
+      repeat:
+        description: 'With checks: run them this many times in a row, to show a check holds'
+        required: false
+        default: '1'
   push:
     branches: ['work/e2e**']
 
@@ -72,6 +76,7 @@ jobs:
         env:
           CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level' }}
           CHECK_MINUTES: '25'
+          REPEAT: ${{ inputs.repeat || '1' }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

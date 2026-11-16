@@ -23,7 +23,8 @@ const DIR = path.join(__dirname, 'verify-web');
 const checks = Object.fromEntries(fs.readdirSync(DIR).filter((f) => /^\d+-[\w-]+\.js$/.test(f)).sort()
   .map((f) => [f.replace(/^\d+-|\.js$/g, ''), require(path.join(DIR, f))]));
 const SKIP = arg('--skip', '').split(',');
-const ONLY = arg('--only', Object.keys(checks).join(',')).split(',').filter((n) => !SKIP.includes(n));
+// REPEAT (verify-web.yml's repeat input) runs the chosen checks that many times in a row, to show a check holds.
+const ONLY = Array(Math.max(1, Number(process.env.REPEAT) || 1)).fill(arg('--only', Object.keys(checks).join(',')).split(',').filter((n) => !SKIP.includes(n))).flat();
 const LIMIT_MS = Number(process.env.CHECK_MINUTES || 40) * 60000;
 
 /* --------------------------------------------------------------------- run */
