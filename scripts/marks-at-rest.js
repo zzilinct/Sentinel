@@ -34,7 +34,32 @@ function tabSwitch(text) {
   return { slid: Math.round(slid) };
 }
 
-if (require.main === module && process.argv[3] === '--tab') {
+// A repaint that only looked like a scroll (from the last "# ... repaint" line, made on purpose by the test inbox's
+// R key): how far the pixels said the page moved (P), whether the reader then said the links never did (an S marked
+// settle) and how long after the pixels last moved, and whether anything said the page really moved before that.
+function repaint(text) {
+  const lines = text.split(/\r?\n/);
+  let from = -1;
+  lines.forEach((l, i) => { if (/^# .* repaint/.test(l)) from = i; });
+  let px = 0, lastPx = 0, settleAt = 0, moved = false;
+  for (let i = from + 1; from >= 0 && i < lines.length && !settleAt; i++) {
+    const f = lines[i].split(' ');
+    if (f[0] === 'P') { px += Number(f[3]); lastPx = Number(f[1]); }
+    else if (f[0] === 'S') { if (f[4] === 'settle') settleAt = Number(f[1]); else moved = true; }
+  }
+  return { px: Math.round(px), ms: settleAt && lastPx ? settleAt - lastPx : null, moved, ...atRest(text) };
+}
+// The reader waits 700 ms after the pixels last moved before it reads again (watch.js); a read takes a moment more.
+const SETTLE_MS = 1000;
+
+if (require.main === module && process.argv[3] === '--repaint') {
+  const r = repaint(fs.readFileSync(process.argv[2], 'utf8'));
+  const label = process.argv[4] || 'a repaint';
+  if (Math.abs(r.px) < 20) { console.log(`marks on ${label}: the pixels never saw it move (${r.px} px), so nothing was shown`); process.exitCode = 1; }
+  else if (r.ms === null || r.moved) { console.log(`marks on ${label}: the pixels saw ${r.px} px, and ${r.moved ? 'the reader took it for a real scroll' : 'no correction came'}`); process.exitCode = 1; }
+  else if (r.ms > SETTLE_MS || r.off > 4) { console.log(`marks on ${label}: put right ${r.ms} ms after the pixels moved ${r.px} px, and at rest ${r.off} px off their results`); process.exitCode = 1; }
+  else console.log(`marks on ${label}: the pixels saw ${r.px} px the rows never moved; put right ${r.ms} ms later, at rest on their results`);
+} else if (require.main === module && process.argv[3] === '--tab') {
   const r = tabSwitch(fs.readFileSync(process.argv[2], 'utf8'));
   const label = process.argv[4] || 'a new tab';
   if (r.slid <= 2) console.log(`marks on ${label}: the old page's marks went at once`);
@@ -46,4 +71,4 @@ if (require.main === module && process.argv[3] === '--tab') {
   else { console.log(`marks at rest ${label}: ${r.off} px off their results (moved ${r.shift.toFixed(0)} px, browser says ${r.browser})`); process.exitCode = 1; }
 }
 
-module.exports = { atRest, tabSwitch };
+module.exports = { atRest, tabSwitch, repaint, SETTLE_MS };

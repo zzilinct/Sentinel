@@ -766,6 +766,29 @@ test('a movement only the pixels saw is put back in view, never by stepping asid
   assert.ok(Math.max(...steps.slice(Math.ceil(1400 / 16))) <= 25, 'eased back, not one jump');
 });
 
+test('live-e2e makes a repaint that only looks like a scroll, and fails unless the reader puts the marks right in time', () => {
+  const { repaint, SETTLE_MS } = require('../scripts/marks-at-rest.js');
+  // The test inbox draws every row one row higher (the R key) without moving a row, and the run reads its trace after.
+  const inbox = read('scripts/e2e-inbox/mail/index.html');
+  assert.match(inbox, /body\.repainted td \{ transform: translateY\(calc\(-1 \* var\(--pitch\)\)\); \}/);
+  assert.match(inbox, /ev\.key !== 'r'/);
+  const run = read('scripts/live-e2e.ps1');
+  assert.match(run, /\[K\]::Tap\(0x52\)[^\n]*\n[^\n]*marks-at-rest\.js'\) "\$Out\\frames\.txt" --repaint/);
+  assert.match(read('desktop/src/overlay.js'), /`S \$\{Date\.now\(\)\} \$\{t\} \$\{dy\}\$\{settle \? ' settle' : ''\}\\n`/);
+  const head = 'M 1 marks 4 fresh ends -\nR 2 9 0.0\nF 3 0.0 0.0\n# inbox repaint one row up\n';
+  // Put right: the pixels saw 41 px, the reader said 0 in 760 ms, the marks eased back onto the rows.
+  const ok = repaint(`${head}P 1000 50 -41\nF 4 -41.0 0.0\nS 1760 810 0 settle\nR 5 810 0.0\nF 6 -12.0 0.0\nF 7 0.0 0.0\n`);
+  assert.deepEqual([ok.px, ok.ms, ok.moved, ok.off], [-41, 760, false, 0]);
+  assert.ok(ok.ms <= SETTLE_MS);
+  // Left where the pixels sent them: no settle at all, or one too late, or the marks still a row off.
+  assert.equal(repaint(`${head}P 1000 50 -41\nF 4 -41.0 0.0\n`).ms, null);
+  assert.ok(repaint(`${head}P 1000 50 -41\nS 2600 1650 0 settle\n`).ms > SETTLE_MS);
+  assert.equal(repaint(`${head}P 1000 50 -41\nS 1760 810 0 settle\nF 6 -41.0 0.0\n`).off, 41);
+  // Taken for a real scroll (the browser said the rows moved), or never seen by the pixels: nothing proven.
+  assert.equal(repaint(`${head}P 1000 50 -41\nS 1200 250 -41\nS 1760 810 0 settle\n`).moved, true);
+  assert.equal(repaint(`${head}S 1760 810 0 settle\n`).px, 0);
+});
+
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
   const html = (read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js'));
   assert.match(html, /#marks\.is-moving \{ opacity: 0;/);

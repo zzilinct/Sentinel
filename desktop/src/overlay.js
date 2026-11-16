@@ -229,7 +229,7 @@ function setMarksLevel(level) {
 /** The page moved by (dx, dy) screen pixels since the marks of `epoch` were placed. Sent straight through, every frame. */
 function shift({ epoch, dx, dy, t, settle }) {
   if (!area || dryRun) return;
-  if (process.env.SENTINEL_OVERLAY_TRACE) { try { require('fs').appendFileSync(process.env.SENTINEL_OVERLAY_TRACE, `S ${Date.now()} ${t} ${dy}\n`); } catch { /* best effort */ } }
+  if (process.env.SENTINEL_OVERLAY_TRACE) { try { require('fs').appendFileSync(process.env.SENTINEL_OVERLAY_TRACE, `S ${Date.now()} ${t} ${dy}${settle ? ' settle' : ''}\n`); } catch { /* best effort */ } }
   if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:shift',{ epoch, dx: dx / scale, dy: dy / scale, t: typeof t === 'number' ? t : null, settle: Boolean(settle) });
 }
 

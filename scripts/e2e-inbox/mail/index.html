@@ -22,6 +22,9 @@
   nav { position: fixed; top: 64px; left: 0; width: 180px; padding: 8px 0; }
   nav a { display: block; padding: 6px 24px; color: #202124; text-decoration: none; border-radius: 0 16px 16px 0; }
   nav a.on { background: #d3e3fd; font-weight: 600; }
+  /* The R key (scripts/live-e2e.ps1): every row's cells are drawn one row higher while the rows stay where they are. A
+     repaint that looks exactly like a scroll the page never made, as a theme change or rows that look alike can. */
+  body.repainted td { transform: translateY(calc(-1 * var(--pitch))); }
 </style>
 </head>
 <body>
@@ -69,6 +72,12 @@
     tr.querySelector('.preview').textContent = '- ' + m[3];
     tr.children[2].textContent = m[2];
     tbody.appendChild(tr);
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'r' && ev.key !== 'R') return;
+    var rows = tbody.children;
+    document.body.style.setProperty('--pitch', (rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top) + 'px');
+    document.body.classList.toggle('repainted');
   });
 </script>
 </body>
