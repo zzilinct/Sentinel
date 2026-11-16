@@ -118,7 +118,7 @@ test('nothing waits for the animation: the result is drawn first, and no scan ha
   assert.doesNotMatch(app_, /await\s+\w*\.finish\(/);
   assert.doesNotMatch(app_, /setInterval\(step/, 'no stage is advanced by a timer');
   assert.doesNotMatch(read('web/assets/js/home.js'), /await\s+dig\.finish\(/);
-  assert.doesNotMatch(read('desktop/src/pages/overlay.html'), /DIG_MIN_MS/);
+  assert.doesNotMatch((read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js')), /DIG_MIN_MS/);
 });
 
 test('the dig draws nothing by chance: its frames have no random numbers, and no colour cycling', () => {

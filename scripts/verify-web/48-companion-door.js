@@ -84,11 +84,14 @@ async function checkCompanionDoor() {
   await new Promise((resolve) => stand.listen(standPort, '127.0.0.1', resolve));
   const files = await serveFiles({}, {
     '/start.html': `<!doctype html><html><head><meta charset="utf-8"><title>Start</title></head><body><h1>A page before</h1><a id="out" target="_blank" href="http://${LISTED}/new-tab">Open it in a new tab</a>
-      <iframe id="f" title="frame" style="width:600px;height:300px"></iframe></body></html>`
+      <iframe id="f" title="frame" style="width:600px;height:300px"></iframe></body></html>`,
+    // A search page as Google writes it (the classes serp.js reads), with one result: the companion asks about it.
+    '/search': `<!doctype html><html><head><meta charset="utf-8"><title>result page - Google Search</title></head><body><div id="search"><div id="rso">
+      <div class="g" data-hveid="CA1"><div><a href="http://moved.test/result-page" data-ved="2ah"><br><h3 class="LC20lb">Result page</h3><div><cite>moved.test</cite></div></a></div></div></div></div></body></html>`
   });
   const filesPort = new URL(files.base).port;
   const hosts = [LISTED, ...SLOW_CANDIDATES, ...Object.keys(LATE), 'plain.test', 'moved.test'];
-  const { browser, close } = await launch([`--host-resolver-rules=${[HTTP_ONLY, HTTPS_ONLY].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort}`]);
+  const { browser, close } = await launch([`--host-resolver-rules=${[HTTP_ONLY, HTTPS_ONLY].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort},MAP www.google.com 127.0.0.1:${filesPort}`]);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api}`);
     const via = `http://127.0.0.1:${proxyPort}`;
@@ -299,8 +302,11 @@ async function checkCompanionDoor() {
 
     /* 3. A red answer closes the door on that address only. The proxy says red: whether the scanner would is not the question here. */
     red = 'http://moved.test/result-page';
-    await evalIn(browser, opt.sessionId, `chrome.runtime.sendMessage({ type: 'live-batch', urls: [${JSON.stringify(red)}], phase: 'quick' }).then(() => 1)`);
-    await sleep(600);
+    // Asked by the search page itself (serp.js): the worker takes this question from no other page.
+    const serp = await openPage(browser);
+    await goto(browser, serp.sessionId, 'http://www.google.com/search?q=result+page');
+    await until(browser, opt.sessionId, `chrome.declarativeNetRequest.getSessionRules().then((r) => r.some((x) => (x.condition.urlFilter || '').includes('moved.test/result-page')))`, 15000);
+    await browser.send('Target.closeTarget', { targetId: serp.targetId }).catch(() => {});
     const was = hits['moved.test'] || 0;
     const r = await openPage(browser);
     await goto(browser, r.sessionId, red, SHOWN);

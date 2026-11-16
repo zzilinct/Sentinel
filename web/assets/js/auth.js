@@ -43,7 +43,8 @@
     for (const [field, message] of Object.entries(errors || {})) {
       const slot = $(`[data-error="${field}"]`, form);
       const input = form.elements[field];
-      if (slot) slot.textContent = message;
+      // An empty password on sign-up keeps only its hint (the length): the error line is for a password that was tried.
+      if (slot) slot.textContent = isSignup && field === 'password' && input && !input.value ? '' : message;
       if (input) { input.setAttribute('aria-invalid', 'true'); first = first || input; }
     }
     // The cursor goes to the first field with a problem as the form reads, top to bottom.
@@ -97,12 +98,8 @@
     const meter = $('[data-strength]');
     pw.addEventListener('input', () => {
       const v = pw.value;
-      let score = 0;
-      if (v.length >= 10) score++;
-      if (/[a-z]/i.test(v) && /\d/.test(v)) score++;
-      if (/[^a-z0-9]/i.test(v) || /[A-Z]/.test(v) && /[a-z]/.test(v)) score++;
-      if (v.length >= 14) score++;
-      meter.dataset.score = v ? Math.max(1, score) : 0;
+      // Length is what makes a password hard to guess (the server asks for 15 characters, nothing else).
+      meter.dataset.score = !v ? 0 : v.length < 15 ? 1 : v.length < 20 ? 2 : v.length < 25 ? 3 : 4;
     });
   }
 

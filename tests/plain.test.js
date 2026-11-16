@@ -256,3 +256,11 @@ test('hierarchy: verdict, then the reason that matters most, then details on dem
   assert.match(html, /<details class="result__more"[^>]*>\s*<summary>/, 'a native control, so the keyboard reaches it');
   assert.doesNotMatch(html, /<details class="result__more"[^>]*\bopen\b/, 'closed until asked for');
 });
+
+test('values from a result never reach the markup raw, even ones Sentinel\'s own engine always sets', () => {
+  const UI = win.SentinelUI || win.UI || Object.values(win).find((v) => v && v.resultGlyph);
+  const glyph = UI.resultGlyph('scam"><b>x</b>', 'red"><b>y</b>');
+  assert.doesNotMatch(glyph, /<b>/);
+  const html = UI.verdict(result({ items: [{ ...pass('U01', 'Address'), status: 'pass"><b>z</b>', threat: 'scam"><b>t</b>' }] }));
+  assert.doesNotMatch(html, /<b>[zt]<\/b>/);
+});

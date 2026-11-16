@@ -12,6 +12,7 @@
     "start": "node scripts/sync-shared.js && electron .",
     "dev": "node scripts/sync-shared.js && electron . --dev",
     "dist:win": "node scripts/sync-shared.js && electron-builder --win nsis --publish never",
+    "dist:win:release": "node scripts/sync-shared.js && electron-builder --win nsis --publish never --config electron-builder.release.js",
     "dist:mac": "node scripts/sync-shared.js && electron-builder --mac dmg --publish never",
     "dist:linux": "node scripts/sync-shared.js && electron-builder --linux AppImage --publish never"
   },

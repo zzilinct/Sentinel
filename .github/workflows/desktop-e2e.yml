@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: 'Run only these jobs (comma separated: e2e, reader-cost, qa, core-install, core-use, core-update, startup); empty runs all'
+        description: 'Run only these jobs (comma separated: e2e, reader-cost, qa, core-install, core-use, core-update, startup, fuses); empty runs all'
         required: false
         default: ''
       repeat:
@@ -26,8 +26,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -44,7 +44,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-desktop/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-desktop/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: desktop-e2e
@@ -58,8 +58,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -75,7 +75,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-reader-cost/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-reader-cost/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: reader-cost
@@ -89,8 +89,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -106,7 +106,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-desktop-qa/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-desktop-qa/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: desktop-qa
@@ -125,8 +125,8 @@ jobs:
       matrix:
         part: ${{ fromJSON(inputs.only && !contains(inputs.only, 'core-install') && '["use"]' || inputs.only && !contains(inputs.only, 'core-use') && '["install"]' || '["install","use"]') }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -142,7 +142,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-core-${{ matrix.part }}/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-core-${{ matrix.part }}/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: core-${{ matrix.part }}
@@ -155,8 +155,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 50
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -177,7 +177,7 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-core-update/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-core-update/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: core-update
@@ -192,8 +192,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -209,9 +209,41 @@ jobs:
         if: always()
         shell: powershell
         run: New-Item -ItemType Directory -Force e2e-startup/logs | Out-Null; Copy-Item "$env:APPDATA\Sentinel\logs\*" e2e-startup/logs -ErrorAction SilentlyContinue; Copy-Item "$env:APPDATA\Sentinel\defense*.json" e2e-startup/logs -ErrorAction SilentlyContinue
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: startup
           path: e2e-startup/
+          retention-days: 7
+
+  # The release build's fuses (desktop/electron-builder.release.js, scripts/desktop-fuses-e2e.ps1): no program can run
+  # code as Sentinel through ELECTRON_RUN_AS_NODE, NODE_OPTIONS or --inspect, and the app still starts. The same checks
+  # on a copy with its fuses put back must each find the door open, so none of them passes by not looking.
+  fuses:
+    if: ${{ !inputs.only || contains(inputs.only, 'fuses') }}
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Build the Windows installer as a release is built
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run dist:win:release
+      - name: The checks find the door open on the same build with its fuses put back
+        shell: powershell
+        run: ./scripts/desktop-fuses-e2e.ps1 -Out e2e-fuses/control -Control
+      - name: The release build keeps it shut
+        shell: powershell
+        run: ./scripts/desktop-fuses-e2e.ps1 -Out e2e-fuses/release
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: fuses
+          path: e2e-fuses/
           retention-days: 7

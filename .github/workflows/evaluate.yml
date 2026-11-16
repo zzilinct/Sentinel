@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts || npm install --ignore-scripts
@@ -31,7 +31,7 @@ jobs:
           git worktree add ../before FETCH_HEAD
           cp scripts/evaluate-modes.js ../before/scripts/
           node ../before/scripts/evaluate-modes.js --fast-only --phish phish.txt --misses misses-before.txt | tee before.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: evaluation
@@ -48,12 +48,12 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
       - run: node scripts/evaluate-files.js --max 6000 "$env:SystemRoot\System32" "$env:ProgramFiles" "${env:ProgramFiles(x86)}" "$env:LOCALAPPDATA\Programs" | Tee-Object files.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: files-evaluation

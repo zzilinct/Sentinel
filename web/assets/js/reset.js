@@ -64,12 +64,8 @@
   const meter = $('[data-strength]');
   form.password.addEventListener('input', () => {
     const v = form.password.value;
-    let s = 0;
-    if (v.length >= 10) s++;
-    if (/[a-z]/i.test(v) && /\d/.test(v)) s++;
-    if (/[^a-z0-9]/i.test(v) || (/[A-Z]/.test(v) && /[a-z]/.test(v))) s++;
-    if (v.length >= 14) s++;
-    meter.dataset.score = v ? Math.max(1, s) : 0;
+    // Length is what makes a password hard to guess (the server asks for 15 characters, nothing else).
+    meter.dataset.score = !v ? 0 : v.length < 15 ? 1 : v.length < 20 ? 2 : v.length < 25 ? 3 : 4;
   });
 
   form.addEventListener('submit', async (ev) => {

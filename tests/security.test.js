@@ -318,3 +318,107 @@ test('an email is not taken for a brand by a word that contains its name', () =>
   const e03 = analyzeEmail({ from: 'NYT <news@email.nytimes.com>', replyTo: 'help@nytimes.com', subject: 'Today', body: 'x' }).checks.find((c) => c.id === 'E03');
   assert.equal(e03.status, 'pass', 'the same company writing from its own subdomain');
 });
+
+test('the rate-limit table stays bounded, and a key that has counted twice is never dropped to make room', () => {
+  const security = require('../server/lib/security');
+  const { MAX_BUCKETS, size } = security._rate;
+  const long = `login:email:${'x'.repeat(240)}@example.com`;
+  security.rateLimit(long, 2, 60 * 60 * 1000);
+  security.rateLimit(long, 2, 60 * 60 * 1000);
+  for (let i = 0; size() < MAX_BUCKETS; i++) security.rateLimit(`forgot:email:flood${i}@example.com`, 3, 60 * 60 * 1000);
+  security.rateLimit('forgot:email:one-more@example.com', 3, 60 * 60 * 1000);
+  assert.ok(size() <= MAX_BUCKETS * 0.9 + 1, `table held to its size: ${size()}`);
+  assert.throws(() => security.rateLimit(long, 2, 60 * 60 * 1000), { status: 429 }, 'someone trying is still limited after the flood');
+});
+
+test('passwords follow NIST SP 800-63B rev. 4: 15 characters, no rules about kinds of character', () => {
+  const { passwordProblem } = require('../server/lib/security');
+  assert.match(passwordProblem('Harbour-Moss-7'), /at least 15 characters/, '14 characters, with every kind, is too short');
+  assert.equal(passwordProblem('quiet orchard lamp'), null, 'words alone, long enough, are fine');
+  assert.equal(passwordProblem('aaaaaaaaaaaaaaaaaaaa'), 'Password is too predictable');
+  assert.match(passwordProblem('robinsentinel-orchard', { firstName: 'Robin' }), /your name/);
+});
+
+test('every action in every workflow is pinned to a full commit, and Dependabot keeps the pins current', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(__dirname, '..', '.github', 'workflows');
+  const loose = [];
+  for (const f of fs.readdirSync(dir).filter((x) => /\.ya?ml$/.test(x))) {
+    for (const [, ref] of fs.readFileSync(path.join(dir, f), 'utf8').matchAll(/^\s*-?\s*uses:\s*(\S+)/gm)) {
+      if (!ref.startsWith('./') && !/@[0-9a-f]{40}$/.test(ref)) loose.push(`${f}: ${ref}`);
+    }
+  }
+  assert.deepEqual(loose, []);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', '.github', 'dependabot.yml'), 'utf8'), /package-ecosystem: github-actions/);
+});
+
+test('release downloads carry signed provenance from the workflow that built them', () => {
+  const yml = require('fs').readFileSync(require('path').join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(yml, /id-token: write\r?\n\s+attestations: write/);
+  assert.match(yml, /uses: actions\/attest-build-provenance@[0-9a-f]{40}[^\n]*\r?\n\s+with:\r?\n\s+subject-path: \|\r?\n\s+release\/\*\.exe\r?\n\s+release\/\*\.zip/);
+  assert.ok(yml.indexOf('attest-build-provenance') < yml.indexOf('action-gh-release'), 'attested before it is published');
+});
+
+test('the Windows app\'s own pages run no inline script: every script is a file, and their policy allows nothing else', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(__dirname, '..', 'desktop', 'src', 'pages');
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.html'))) {
+    const html = fs.readFileSync(path.join(dir, f), 'utf8');
+    const csp = (html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/) || [])[1] || '';
+    assert.match(csp, /default-src 'none'/, f);
+    assert.doesNotMatch((csp.match(/script-src[^;]*/) || [''])[0], /unsafe-inline|unsafe-eval|\*/, `${f}: ${csp}`);
+    assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/, `${f}: an inline script`);
+    assert.doesNotMatch(html, /\son[a-z]+="/, `${f}: an inline handler`);
+    for (const [, src] of html.matchAll(/<script src="([^"]+)"/g)) assert.ok(fs.existsSync(path.join(dir, src)) || /shared\//.test(src), `${f}: ${src}`);
+  }
+});
+
+test('the release build is fused: no program can run code as Sentinel, and the release checks it before publishing', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const cfg = require('../desktop/electron-builder.release.js');
+  const pkg = require('../desktop/package.json');
+  assert.deepEqual(cfg.electronFuses, { runAsNode: false, enableNodeOptionsEnvironmentVariable: false, enableNodeCliInspectArguments: false, enableEmbeddedAsarIntegrityValidation: true, onlyLoadAppFromAsar: true });
+  assert.deepEqual({ ...cfg, electronFuses: undefined }, { ...pkg.build, electronFuses: undefined }, 'otherwise the same build');
+  assert.match(pkg.scripts['dist:win:release'], /--config electron-builder\.release\.js$/);
+  const release = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(release, /npm run dist:win:release/);
+  assert.doesNotMatch(release, /npm run dist:win\r?\n/);
+  assert.ok(release.indexOf('desktop-fuses-e2e.ps1') > release.indexOf('dist:win:release') && release.indexOf('desktop-fuses-e2e.ps1') < release.indexOf('action-gh-release'));
+  const e2e = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'desktop-e2e.yml'), 'utf8');
+  assert.match(e2e, /desktop-fuses-e2e\.ps1 -Out e2e-fuses\/control -Control/, 'a check that can fail');
+});
+
+test('an account made under the old 10-character minimum still signs in; the new minimum applies only when a password is set or changed', async () => {
+  const security = require('../server/lib/security');
+  const A = require('../server/lib/auth');
+  const c = await signedIn();
+  const old = 'Lamp-Moss-42';   // 12 characters: allowed before 1.20.2
+  assert.ok(old.length < security.MIN_PASSWORD);
+  A.db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(await A.hashPassword(old), c.email);
+  const fresh = client(app.base);
+  assert.equal((await fresh.post('/api/v1/auth/login', { email: c.email, password: old })).status, 200, 'signs in as before');
+  const same = await fresh.post('/api/v1/account/password', { currentPassword: old, newPassword: 'Lamp-Moss-43' });
+  assert.equal(same.status, 400, 'a new short one is refused');
+  assert.match(JSON.stringify(same.data), /at least 15 characters/);
+  assert.equal((await fresh.post('/api/v1/account/password', { currentPassword: old, newPassword: 'quiet orchard lamp river' })).status, 200, 'a long one is taken');
+});
+
+test('the password minimum is one number, and every page that states it says the same one', () => {
+  const { MIN_PASSWORD, passwordProblem } = require('../server/lib/security');
+  const fs = require('fs');
+  const path = require('path');
+  const web = (...p) => fs.readFileSync(path.join(__dirname, '..', 'web', ...p), 'utf8');
+  assert.equal(passwordProblem('x'.repeat(MIN_PASSWORD - 1) + 'y'), null);
+  assert.match(passwordProblem('ab'.repeat(MIN_PASSWORD).slice(0, MIN_PASSWORD - 1)), new RegExp(`at least ${MIN_PASSWORD} characters`));
+  for (const page of ['signup.html', 'reset.html']) {
+    assert.match(web(page), new RegExp(`minlength="${MIN_PASSWORD}"`), page);
+    assert.ok(web(page).includes(`At least ${MIN_PASSWORD} characters.`), page);
+  }
+  const app = web('assets', 'js', 'app.js');
+  assert.ok(app.includes(`name="newPassword" autocomplete="new-password" required minlength="${MIN_PASSWORD}"`));
+  assert.ok(app.includes(`At least ${MIN_PASSWORD} characters.`));
+  for (const f of ['auth.js', 'reset.js']) assert.ok(web('assets', 'js', f).includes(`v.length < ${MIN_PASSWORD} ? 1`), f);
+});

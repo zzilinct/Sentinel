@@ -18,6 +18,9 @@ on:
 
 permissions:
   contents: write
+  # Signed provenance for the downloads (the attest step below): a short-lived identity token, and the attestation.
+  id-token: write
+  attestations: write
 
 jobs:
   windows:
@@ -56,7 +59,12 @@ jobs:
         working-directory: desktop
         run: |
           npm ci
-          npm run dist:win
+          npm run dist:win:release
+
+      # The fuses are on the exe that ships, and it still starts: nothing is published otherwise.
+      - name: Check the release build's fuses
+        shell: powershell
+        run: ./scripts/desktop-fuses-e2e.ps1 -Out e2e-fuses
 
       - name: Name the stable download assets
         shell: pwsh
@@ -73,6 +81,14 @@ jobs:
           Get-FileHash release/*.exe, release/*.zip -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content release/SHA256SUMS.txt
           Get-Content release/SHA256SUMS.txt
 
+      # Signed provenance (SLSA build level 2): anyone can check that a download was built by this workflow, from this
+      # tag's commit, with `gh attestation verify <file> --repo zzilinct/Sentinel`.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/*.exe
+            release/*.zip
+
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: release/*
@@ -80,7 +96,7 @@ jobs:
           body: |
             **Sentinel for Windows.** Runs the whole product on your own computer: accounts, scanning and threat feeds, with nothing hosted anywhere.
 
-            The installer is not code-signed yet, so Windows SmartScreen will warn on first run. Choose *More info* then *Run anyway*, or verify the file against `SHA256SUMS.txt` first.
+            The installer is not code-signed yet, so Windows SmartScreen will warn on first run. Choose *More info* then *Run anyway*, or verify the file against `SHA256SUMS.txt` first, or check where it was built with `gh attestation verify Sentinel-Setup.exe --repo zzilinct/Sentinel`.
 
             Installed copies update themselves from this page, so nobody downloads Sentinel twice.
 

@@ -495,6 +495,25 @@ function fromOptions(sender) {
 function fromPage(sender) {
   if (!sender.tab || !/^https?:/i.test(sender.url || '')) throw new ApiError('Not allowed', 403, 'forbidden');
 }
+/** A manifest match pattern ("*://*.google.com/search*") against an address. */
+function urlMatches(pattern, url) {
+  const m = /^(\*|https?):\/\/(\*|\*\.[^/]+|[^/*]+)(\/.*)$/.exec(pattern);
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  if (!m) return false;
+  const scheme = u.protocol.slice(0, -1);
+  if (m[1] === '*' ? !/^https?$/.test(scheme) : scheme !== m[1]) return false;
+  const host = m[2].includes(':') ? u.host : u.hostname;
+  if (m[2] !== '*' && (m[2].startsWith('*.') ? host !== m[2].slice(2) && !host.endsWith(m[2].slice(1)) : host !== m[2])) return false;
+  return new RegExp(`^${m[3].split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`).test(u.pathname + u.search);
+}
+/** Messages only a given content script sends: from a web page that script runs on, as the manifest says. */
+function fromScript(sender, ...files) {
+  fromPage(sender);
+  const ok = (ext.runtime.getManifest().content_scripts || []).some((c) => (c.js || []).some((f) => files.some((x) => f.endsWith(`/${x}`))) &&
+    (c.matches || []).some((p) => urlMatches(p, sender.url)));
+  if (!ok) throw new ApiError('Not allowed', 403, 'forbidden');
+}
 
 /** What the options page shows: never the hashes. */
 function pwList(state) {
@@ -637,8 +656,15 @@ async function siteAccess() {
   try { return await ext.permissions.contains({ origins: ['<all_urls>'] }); } catch { return true; }
 }
 
+/** A full scan of one link: the popup's button, and the right-click menu (which no web page can reach). */
+async function deepScan(url) {
+  const data = await apiFetch('/api/v1/scan/link', { method: 'POST', body: { url }, timeout: 90000 });
+  account.usage = data.usage;
+  return data;
+}
 const handlers = {
-  async state() {
+  async state(msg, sender) {
+    fromOptions(sender);
     const settings = await getSettings();
     await refreshAccount();
     return { settings, account, live, locked: liveBlockReason(), site: settings.apiBase, siteAccess: await siteAccess(), browser: globalThis.browser ? 'firefox' : 'chromium' };
@@ -665,7 +691,7 @@ const handlers = {
     }
     return { look: await keepLook(rec, kept && kept.rev) };
   },
-  async connect() { return { account: await connect() }; },
+  async connect(msg, sender) { fromOptions(sender); return { account: await connect() }; },
   async 'set-token'({ token }, sender) {
     // Only accept tokens relayed from a Sentinel this build trusts: the hosted
     // site, the desktop app's embedded server, or (dev builds only) the dev server.
@@ -684,6 +710,7 @@ const handlers = {
     return { account };
   },
   async 'live-batch'({ urls, phase = 'quick' }, sender) {
+    fromScript(sender, 'serp.js', 'webchat.js');
     const settings = await getSettings();
     if (!settings.enabled) return { locked: 'disabled' };
     // A private window is protected like any other; the server keeps nothing about it.
@@ -700,7 +727,8 @@ const handlers = {
     const { verdicts, locked } = await liveBatch([url], 'quick', Boolean(sender.tab && sender.tab.incognito));
     return { verdict: (verdicts && verdicts[url]) || null, locked: locked || null };
   },
-  async 'live-email'({ emails }) {
+  async 'live-email'({ emails }, sender) {
+    fromScript(sender, 'mail.js');
     const settings = await getSettings();
     if (!settings.enabled || !settings.emailProtection) return { locked: 'disabled' };
     const blocked = liveBlockReason();
@@ -721,17 +749,24 @@ const handlers = {
     if (typeof url !== 'string' || !/^https?:/i.test(url)) return { verdict: null };
     return { verdict: localVerdict(url) || cacheGet('research', url) || cacheGet('quick', url) || null };
   },
-  async 'deep-scan'({ url }) {
-    const data = await apiFetch('/api/v1/scan/link', { method: 'POST', body: { url }, timeout: 90000 });
-    account.usage = data.usage;
-    return data;
+  async 'deep-scan'({ url }, sender) {
+    fromOptions(sender);
+    return deepScan(url);
   },
-  async report({ url, category }) {
+  async report({ url, category }, sender) {
+    // The block page; a search page (serp.js, about a result); or any page about itself (pwalarm.js).
+    if (!String(sender.url || '').startsWith(ext.runtime.getURL(''))) {
+      fromPage(sender);
+      let own = false;
+      try { own = new URL(url).hostname === new URL(sender.url).hostname; } catch { /* not an address */ }
+      if (!own) fromScript(sender, 'serp.js');
+    }
     const data = await apiFetch('/api/v1/report', { method: 'POST', body: { url, category } });
     cacheReset();
     return data;
   },
-  async override({ url, action }) {
+  async override({ url, action }, sender) {
+    fromScript(sender, 'serp.js');
     const data = await apiFetch('/api/v1/sites/override', { method: 'POST', body: { url, action } });
     cacheReset();
     return data;
@@ -830,14 +865,16 @@ const handlers = {
     await sessionSet(`typedShown:${sender.tab.id}`, null);
     return { ok: true };
   },
-  async 'sign-out'() {
+  async 'sign-out'(msg, sender) {
+    fromOptions(sender);
     try { await apiFetch('/api/v1/auth/logout', { method: 'POST', body: {} }); } catch { /* already signed out */ }
     await setToken(null);
     account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() };
     await ext.storage.local.set({ account });
     return { ok: true };
   },
-  async refresh() {
+  async refresh(msg, sender) {
+    fromOptions(sender);
     cacheReset();
     await refreshAccount(true);
     await syncIntel();
@@ -951,7 +988,7 @@ ext.contextMenus.onClicked.addListener(async (info, tab) => {
   let title;
   let message;
   try {
-    const { verdict, usage } = await handlers['deep-scan']({ url: info.linkUrl });
+    const { verdict, usage } = await deepScan(info.linkUrl);
     title = `Sentinel: ${verdict.overall.label}`;
     message = `${verdict.host}\n${verdict.reasons.slice(0, 2).map((r) => r.text).join('\n') || 'Nothing suspicious found.'}\n${usage.linkScans.limit - usage.linkScans.used} scans left this week`;
     if (tab) paint(tab.id, verdict);

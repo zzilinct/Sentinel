@@ -69,7 +69,7 @@ async function checkAccounts() {
       described: [...document.querySelectorAll('[aria-invalid=true]')].map((i) => [i.name, (i.getAttribute('aria-describedby') || '').split(' ').map((id) => (document.getElementById(id) || {}).textContent || '').join(' ').trim()]) })`);
     await shot(browser, s, 'accounts-signup-blank');
     result('accounts: Create account with nothing filled in says what each empty field needs, beside it, and puts the cursor in the first one',
-      Object.keys(blank.errors).length >= 3 && blank.focused === 'firstName', blank);
+      Object.keys(blank.errors).length >= 3 && blank.focused === 'firstName' && !blank.errors.password, blank);
     result('accounts: a screen reader hears each field\'s error with its field (aria-describedby)', blank.described.length > 0 && blank.described.every(([, t]) => t), blank.described);
 
     await fill('#firstName', 'Robin');
@@ -80,7 +80,7 @@ async function checkAccounts() {
     await clickSel(browser, s, '[data-form] button[type=submit]');
     await sleep(1200);
     const weak = await evalIn(browser, s, "({ error: document.querySelector('[data-error=password]').textContent.trim(), focused: document.activeElement && document.activeElement.name, at: location.pathname })");
-    result('accounts: a password that is too short is refused, said beside the password, which gets the cursor', weak.at === '/signup' && /10 characters/.test(weak.error) && weak.focused === 'password', weak);
+    result('accounts: a password that is too short is refused, said beside the password, which gets the cursor', weak.at === '/signup' && /15 characters/.test(weak.error) && weak.focused === 'password', weak);
 
     await fill('#password', PASSWORD);
     const t0 = Date.now();

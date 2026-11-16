@@ -92,7 +92,7 @@ test('the shield closes a window only by asking it to close, and only when the p
 });
 
 test('the shield\'s words are plain, with no em dashes', () => {
-  const html = read('desktop/src/pages/guard.html');
+  const html = (read('desktop/src/pages/guard.html') + read('desktop/src/pages/guard-page.js'));
   assert.ok(!html.includes('—'), 'no em dash');
   assert.match(html, /Get me out of this page/);
   assert.match(html, /Did someone on the phone ask you to install this\?/);
@@ -119,7 +119,7 @@ test('what tasklist lists is read back into tool ids, so "End the connection" is
 });
 
 test('the shield\'s window: a neutral way out first, trusting behind a second step, Escape changes nothing', () => {
-  const html = read('desktop/src/pages/guard.html');
+  const html = (read('desktop/src/pages/guard.html') + read('desktop/src/pages/guard-page.js'));
   assert.match(html, /<body role="alertdialog" aria-labelledby="title" aria-describedby="[^"]*lead[^"]*">/);
   assert.match(html, /buttons: \[trust\(remote\), \{ label: 'Not now', cancel: true, run: \(\) => act\('dismiss'\) \}, end\]/);
   assert.match(html, /Only if nobody asked you to install it\.<\/b> Sentinel will stop asking about it\./);
@@ -129,7 +129,7 @@ test('the shield\'s window: a neutral way out first, trusting behind a second st
   assert.match(html, /Turn off Wi-Fi or unplug the network cable now\./);
   assert.match(html, /act\('end-tool-admin', tool\)/);
   assert.match(html, /act\('recover', 'remote'\)/, 'the done screen links to the recovery guide');
-  assert.match(read('desktop/src/pages/warn.html'), /warnAction\('recover', 'password'\)/);
+  assert.match((read('desktop/src/pages/warn.html') + read('desktop/src/pages/warn-page.js')), /warnAction\('recover', 'password'\)/);
 });
 
 test('main: trusting a program needs the PIN under a parent lock, and the way out takes the keyboard', () => {
@@ -169,5 +169,5 @@ test('a new connection in a program that was already running gets a question too
   const main = read('desktop/src/main.js');
   assert.match(main, /traces: remoteTraces\(\)/);
   assert.match(main, /statSync\(path\.join\(dir, t\.trace\)\)\.mtimeMs/, 'only the log\'s time is read, never what it says');
-  assert.match(read('desktop/src/pages/guard.html'), /Someone connected to this computer through \$\{toolName\}/);
+  assert.match((read('desktop/src/pages/guard.html') + read('desktop/src/pages/guard-page.js')), /Someone connected to this computer through \$\{toolName\}/);
 });

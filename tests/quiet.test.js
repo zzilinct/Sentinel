@@ -54,7 +54,7 @@ test('every surface reads the setting, and the old controls are gone', () => {
   // The notification and the card for a flagged page go out only when Pop-up warnings asks for them.
   assert.match(main, /if \(Masks\.warns\(warningsLevel\(\), item\.verdict\.overall\.badge\)\) \{\s*notify\(`Sentinel: \$\{item\.verdict\.overall\.label\}`[^\n]*\n\s*showWarning\(item\);\s*\}/);
   assert.match(main, /lock\.guard\('pop-up warnings quieter'/, 'quieter needs the parent lock open');
-  assert.match(read('desktop/src/pages/overlay.html'), /if \(!M\.shows\(marksLevel, m\.pending \? null : m\.badge\)\) \{ m\._cx = null; return; \}/);
+  assert.match((read('desktop/src/pages/overlay.html') + read('desktop/src/pages/overlay-page.js')), /if \(!M\.shows\(marksLevel, m\.pending \? null : m\.badge\)\) \{ m\._cx = null; return; \}/);
   assert.match(read('desktop/src/overlay-preload.js'), /'overlay:level'/);
   for (const f of ['content/serp.js', 'content/hover.js']) assert.match(read(`extension/src/${f}`), /Masks\.shows\(settings\.marksLevel, null\)/, `${f}: a tick only on every-link`);
   assert.match(read('extension/src/content/webchat.js'), /Masks\.shows\(settings\.marksLevel, verdict\.threats\[t\]\.badge\)/);

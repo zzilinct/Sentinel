@@ -300,7 +300,7 @@ window.UI = (() => {
       return `<details class="group${rest ? ' group--focus' : ''}"${open}>
         <summary><span>${esc(group)}</span><span class="group__count ${bad ? 'is-bad' : ''}">${label}</span><i></i></summary>
         <ul class="checks">${list.map((c) => `
-          <li class="check check--${c.status}" data-status="${c.status}" data-threat="${c.threat}">
+          <li class="check check--${esc(c.status)}" data-status="${esc(c.status)}" data-threat="${esc(c.threat)}">
             <span class="check__icon">${STATUS_ICON[c.status]}</span>
             <span class="check__body">${body(c)}</span>
             <span class="check__tag">${esc(Masks.NAMES[c.threat])}</span>
@@ -507,7 +507,7 @@ window.UI = (() => {
    */
   function resultGlyph(threat, tone) {
     if (tone === 'clear' || tone === 'partial') return `<div class="result__glyph" style="--c:${tone === 'partial' ? 'var(--muted)' : color(null)}">${Masks.svg(threat)}</div>`;
-    return `<div class="result__glyph result__glyph--mask" aria-hidden="true"><span class="m3" data-verdict-mask="${threat}" data-tint="${tone}"><img src="/assets/img/masks/${threat}-${tone}.webp" width="788" height="896" alt=""></span></div>`;
+    return `<div class="result__glyph result__glyph--mask" aria-hidden="true"><span class="m3" data-verdict-mask="${esc(threat)}" data-tint="${esc(tone)}"><img src="/assets/img/masks/${esc(threat)}-${esc(tone)}.webp" width="788" height="896" alt=""></span></div>`;
   }
 
   function verdict(v, { lockedLabel } = {}) {

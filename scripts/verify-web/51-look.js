@@ -140,6 +140,21 @@ async function checkLook() {
     await shot(browser, s2, 'look-sync-second-device-phone');
     result('look: the same account on another device takes the look chosen on the first, with no setting made there', Boolean(arrived),
       { accent: await evalIn(browser, s2, 'document.documentElement.dataset.accent'), theme: await evalIn(browser, s2, 'document.documentElement.dataset.theme') });
+
+    // Both devices change the colour, the first while it cannot reach the account: the later choice (the second
+    // device's) wins, and the first device says so once in Settings, then not again.
+    await ev("window.fetch = () => Promise.reject(new TypeError('offline')), SentinelLook.set({ accent: 'teal' }), true");
+    await sleep(300);
+    await evalIn(browser, s2, "SentinelLook.set({ accent: 'rose' }), true");
+    const pushed = await until(browser, s2, "fetch('/api/v1/account/look', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => d.accent === 'rose')", 10000);
+    await open();
+    const LOST = "(() => { const p = document.querySelector('#accent [data-look-lost]'); return p && !p.hidden ? p.textContent : ''; })()";
+    const lost = await until(browser, s, `${LOST} && document.documentElement.dataset.accent === 'rose'`, 10000) && await ev(LOST);
+    await lookPhoto('look-sync-replaced-light');
+    await open();
+    const again = await ev(LOST);
+    result('look: a colour chosen offline and then replaced by the other device\'s later choice is said once in Settings, calmly',
+      Boolean(pushed) && lost === 'Your colour was changed again on another device after you chose it here, so the newer choice is used.' && again === '', { pushed, lost, again });
     await browser.send('Target.disposeBrowserContext', { browserContextId }).catch(() => {});
 
     /* ------------------------------------- the Windows app's own pages */

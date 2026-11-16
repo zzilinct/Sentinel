@@ -35,7 +35,7 @@ test('danger red, warning orange and caution yellow are the same bytes in every 
     assert.equal(JSON.stringify(L.STATUS), before);
   }
   // The island and the cards say a verdict in STATUS, never M.COLORS mixed with the accent and never a literal.
-  const overlay = read('desktop', 'src', 'pages', 'overlay.html');
+  const overlay = (read('desktop', 'src', 'pages', 'overlay.html') + read('desktop', 'src', 'pages', 'overlay-page.js'));
   assert.match(overlay, /function tone\(badge\) \{ return L\.STATUS\[L\.scheme\(look\.mode\)\]/);
   assert.match(read('desktop', 'src', 'pages', 'card.js'), /const tone = \(badge\) => window\.SentinelLook\.STATUS\[/);
   for (const page of ['warn.html', 'guard.html']) assert.doesNotMatch(read('desktop', 'src', 'pages', page), /#e5484d|#f08a24|#f5c542/, `${page} names a status colour itself`);
@@ -234,4 +234,20 @@ test('one look across devices: each setting from whichever chose it last, kept b
   assert.match(read('web', 'assets', 'js', 'look-app.js'), /rowId\('theme'\)[^]*rowId\('accent'\)/);
   // The Windows app on this computer wins a tie over what the popup kept (which may be only the default).
   assert.match(read('extension', 'src', 'background.js'), /rec = L\.merge\(await res\.json\(\), rec\)/);
+});
+
+test('two devices offline: the later choice wins, and the device whose choice was replaced is told, once', () => {
+  const sent = { accent: 'amethyst', at: { accent: 100 } };          // what the account last said to this device
+  const here = { accent: 'teal', at: { accent: 200 } };              // chosen here while offline
+  const other = { accent: 'rose', at: { accent: 300 } };             // chosen later on the other device
+  assert.equal(L.merge(here, other).accent, 'rose', 'last writer wins, as before');
+  assert.deepEqual(L.overruled(here, sent, other), ['accent']);
+  assert.deepEqual(L.overruled(other, sent, L.merge(here, other)), [], 'the device whose choice won is not told');
+  assert.deepEqual(L.overruled(here, sent, { accent: 'amethyst', at: { accent: 100 } }), [], 'an account that has not heard yet: this choice is sent, not lost');
+  assert.deepEqual(L.overruled({ accent: 'rose', at: { accent: 100 } }, sent, other), [], 'nothing chosen here since: an ordinary change from elsewhere');
+  assert.deepEqual(L.overruled(here, sent, { accent: 'teal', at: { accent: 300 } }), [], 'the same choice made on both');
+  const app = read('web', 'assets', 'js', 'look-app.js');
+  assert.match(app, /lost = sent \? L\.overruled\(current, sent, d\) : \[\];\s+var m = take\(d\);/, 'checked before the account\'s record is taken');
+  assert.match(app, /localStorage\.setItem\(KEY\.sent, JSON\.stringify\(L\.record\(d\)\.at\)\)/, 'and what the account said is kept for next time');
+  assert.match(app, /pending = null;\s+return n;/, 'shown by one picker, then gone');
 });
