@@ -22,7 +22,10 @@
       mask is yellow edged in ink, lighter than danger's solid mask (sentinel.css --yellow-glyph, --yellow-edge). */
   const status = (el, badge) => {
     el.style.setProperty('--c', tone(badge));
-    if (badge === 'yellow' && window.SentinelLook.scheme(look && look.mode) === 'light') { el.style.setProperty('--c-ink', 'var(--ink)'); el.style.setProperty('--c-glyph', tone(badge)); el.style.setProperty('--c-edge', 'var(--ink)'); }
+    const ink = badge === 'yellow' && document.documentElement.dataset.theme === 'light';
+    for (const [k, v] of [['--c-ink', 'var(--ink)'], ['--c-glyph', tone(badge)], ['--c-edge', 'var(--ink)']]) {
+      if (ink) el.style.setProperty(k, v); else el.style.removeProperty(k);
+    }
   };
   const style = document.createElement('style');
   style.textContent = `

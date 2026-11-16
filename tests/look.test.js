@@ -158,8 +158,7 @@ test('caution is one real yellow, in ink on a pale yellow on light paper, never 
   assert.equal(token(light, 'yellow-edge'), 'var(--yellow-ink)');
   assert.equal(token(css, 'yellow-glyph'), 'currentColor', 'on dark the mask is the yellow itself');
   const card = read('desktop', 'src', 'pages', 'card.js');
-  assert.match(card, /--c-ink', 'var\(--ink\)'/, 'a light caution card says its title in ink');
-  assert.match(card, /--c-glyph', tone\(badge\)\); el\.style\.setProperty\('--c-edge', 'var\(--ink\)'\)/, 'and its mask is yellow edged in ink');
+  assert.match(card, /\['--c-ink', 'var\(--ink\)'\], \['--c-glyph', tone\(badge\)\], \['--c-edge', 'var\(--ink\)'\]/, 'a light caution card says its title in ink and edges its yellow mask in ink');
   assert.doesNotMatch(card, /--c-wash/, 'no solid yellow disc behind the mask');
 });
 
