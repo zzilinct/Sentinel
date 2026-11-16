@@ -38,7 +38,7 @@ test('danger red, warning orange and caution yellow are the same bytes in every 
   const overlay = (read('desktop', 'src', 'pages', 'overlay.html') + read('desktop', 'src', 'pages', 'overlay-page.js'));
   assert.match(overlay, /function tone\(badge\) \{ return L\.STATUS\[L\.scheme\(look\.mode\)\]/);
   assert.match(read('desktop', 'src', 'pages', 'card.js'), /const tone = \(badge\) => window\.SentinelLook\.STATUS\[/);
-  for (const page of ['warn.html', 'guard.html']) assert.doesNotMatch(read('desktop', 'src', 'pages', page), /#e5484d|#f08a24|#f5c542/, `${page} names a status colour itself`);
+  for (const page of ['warn.html', 'guard.html', 'filescan.html']) assert.doesNotMatch(read('desktop', 'src', 'pages', page), /#e5484d|#f08a24|#f5c542/, `${page} names a status colour itself`);
 });
 
 test('gold is the default and keeps its hand-tuned values', () => {
@@ -104,6 +104,49 @@ test('light pages: gold\'s words read at 4.5:1 too, and the colours are told apa
   }
   const ls = tone.map(([, hex]) => L.toOklch(hex)[0]);
   assert.ok(Math.max(...ls) - Math.min(...ls) >= 0.08, `lightness spread ${(Math.max(...ls) - Math.min(...ls)).toFixed(3)}`);
+});
+
+test('caution is one real yellow, in ink on a pale yellow on light paper, never louder than danger, never mistaken for gold, safe or warning', () => {
+  const lab = (hex) => { const [l, ch, hu] = L.toOklch(hex); return [l, ch * Math.cos(hu * Math.PI / 180), ch * Math.sin(hu * Math.PI / 180)]; };
+  const apart = (a, b) => Math.hypot(...lab(a).map((v, n) => v - lab(b)[n]));
+  const y = L.STATUS.light.yellow;
+  assert.equal(y, L.STATUS.dark.yellow, 'one caution yellow in both schemes');
+  // Every gold (and every accent) a light page draws: 1.20.1's #8a6100 was 0.015 from the nearest, the same colour.
+  const w = L.GOLD.light.web;
+  const golds = [50, 200, 300, 400, 500, 600].map((k) => w[k]).concat(w.grad, w.hover, L.GOLD.light.app.acc,
+    L.ACCENTS.map((a) => L.ramp(a.id, 'light')['--gold-400']).filter(Boolean));
+  for (const g of golds) assert.ok(apart(y, g) >= 0.15, `caution ${y} is ${apart(y, g).toFixed(3)} from ${g}`);
+  // As seen without red or without green cones (Machado 2009, full strength): still far from safe green and warning
+  // orange (the nearest is 0.111, dark orange to the deutan eye). 1.20.2's first try, olive #646400, was 0.047 and
+  // 0.024 from them.
+  const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const gam = (v) => { v = Math.max(0, Math.min(1, v)); return 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055); };
+  const sim = (hex, m) => { const c = [1, 3, 5].map((i) => lin(parseInt(hex.slice(i, i + 2), 16))); return '#' + m.map((r) => (256 | Math.round(gam(r[0] * c[0] + r[1] * c[1] + r[2] * c[2]))).toString(16).slice(1)).join(''); };
+  const CVD = { deutan: [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]],
+    protan: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]] };
+  for (const [kind, m] of Object.entries(CVD)) for (const s of SCHEMES) for (const other of ['green', 'orange']) {
+    const d = apart(sim(y, m), sim(L.STATUS[s][other], m));
+    assert.ok(d >= 0.1, `${kind} ${s}: caution is ${d.toFixed(3)} from ${other}`);
+  }
+  // On light paper caution's words and marks are ink, at 4.5:1 or more, on the page, on its tile and on the yellow.
+  // Its tile is the same pale share of yellow as on dark, as warning's and danger's tiles take of theirs (13 to 15%),
+  // so caution is never louder than danger.
+  const css = read('web', 'assets', 'css', 'sentinel.css');
+  const light = css.slice(css.indexOf(':root[data-theme="light"] {'));
+  const token = (block, name) => block.match(new RegExp(`--${name}: ([^;]+);`))[1];
+  assert.equal(token(light, 'yellow-wash'), token(css, 'yellow-wash'), 'the same caution tile in both schemes');
+  assert.match(token(light, 'yellow-wash'), /^rgb\(245 197 66 \/ \.1[3-5]\)$/, 'a pale wash, never a solid tile');
+  for (const g of ['#efece6', '#f5f2ec', '#f2efe9', '#e6e2da', '#efe8da', '#e4dbca', '#f6f1e7', '#f6f4ef', '#ebe7de', y]) {
+    assert.ok(L.contrast(token(light, 'yellow-ink'), g) >= 4.5, `caution's words on ${g}`);
+    for (const k of ['red', 'orange', 'green']) assert.ok(L.contrast(L.STATUS.light[k], g) >= 4.5 || g === y, `light ${k} ${L.STATUS.light[k]} on ${g}: ${L.contrast(L.STATUS.light[k], g).toFixed(2)}`);
+  }
+  assert.ok(L.contrast(token(css, 'on-yellow'), y) >= 4.5, 'words on the yellow');
+  // No page says caution in yellow words: each goes through --yellow-ink, --c-ink or --on-yellow.
+  for (const f of fs.readdirSync(path.join(ROOT, 'web', 'assets', 'css'))) {
+    assert.doesNotMatch(read('web', 'assets', 'css', f), /(^|[^-])color: var\(--(yellow|c)\)/m, `${f} colours words in the yellow itself`);
+  }
+  assert.match(css, /\[style\*="--c:var\(--yellow\)"\], \[style\*="--c: var\(--yellow\)"\]/, 'every inline caution takes the ink');
+  assert.match(read('desktop', 'src', 'pages', 'card.js'), /--c-ink', 'var\(--ink\)'/, 'a light caution card says its title in ink');
 });
 
 test('the live surfaces have no gold of their own left: they draw the look', () => {

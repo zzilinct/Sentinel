@@ -16,7 +16,7 @@ const { ROOT, OUT, sleep, result, launch, evalIn, openPage, goto, shot, clickSel
 const { startSentinel, loadCompanion, pairedOptions } = require('./_companion');
 const L = require(path.join(ROOT, 'web', 'assets', 'js', 'look.js'));
 
-const STATUS = { dark: '#ff7a7e #f08a24 #4cb782', light: '#b3261e #a84600 #1e7a3c' };
+const STATUS = { dark: '#e5484d #f08a24 #4cb782', light: '#b3261e #a14400 #1a6e35' };
 const LOOK = "(() => { const h = document.documentElement; return (h.dataset.theme || 'auto') + ' ' + h.dataset.accent; })()";
 
 async function checkCompanionLook() {

@@ -2031,7 +2031,7 @@
 
   // The three counts above History, and the list's frame: drawn for real and, empty, as the first wait (skel).
   const statsHTML = (s) => [['scam', s.scams, 'Scams caught', 'var(--red)'], ['virus', s.viruses, 'Viruses caught', 'var(--orange)'], ['malware', s.malware, 'Malware caught', 'var(--yellow)']]
-    .map(([glyph, n, label, color]) => `<button type="button" class="usage-row" data-stat="${glyph}" aria-pressed="false"><span class="usage-row__icon" style="color:${color}">${Masks.svg(glyph)}</span><span class="usage-row__l">${label}</span><b class="usage-row__n tabular">${n}</b></button>`).join('');
+    .map(([glyph, n, label, color]) => `<button type="button" class="usage-row" data-stat="${glyph}" aria-pressed="false"><span class="usage-row__icon" style="--c:${color}">${Masks.svg(glyph)}</span><span class="usage-row__l">${label}</span><b class="usage-row__n tabular">${n}</b></button>`).join('');
   const HISTORY_FILTERS = [['all', 'All'], ['flagged', 'Flagged'], ['clear', 'Clear'], ['scam', 'Scam'], ['virus', 'Virus'], ['malware', 'Malware'], ['live', 'Live'], ['manual', 'Manual']];
   const NO_SCANS = () => stateBlock('waiting', 'No scans yet. What you check shows here for 30 days, so you can look again.', { action: '<a class="btn btn--sm btn--gold" href="/app/check">Check something</a>' });
   const historyFrame = (s, any, filter, rows = '') => `<div class="panel__head"><div><h2 data-total>${s.total} scan${s.total === 1 ? '' : 's'}</h2><p>${s.flagged} flagged</p></div>
@@ -2275,7 +2275,7 @@
     const siteBadge = (s) => (s && s.verdict ? s.verdict.badge : null);
     const copy = (addr) => `<button class="btn btn--sm" type="button" data-copy-text="${esc(addr)}">Copy ${esc(addr)}</button>`;
     const row = (icon, badge, name, detail, help = '') => `<li>
-      <span class="list__icon" style="${badge ? `color:${esc(color(badge))}` : ''}">${icon}</span>
+      <span class="list__icon" style="${badge ? `--c:${esc(color(badge))}` : ''}">${icon}</span>
       <span class="list__main"><b>${esc(name)}</b><span>${esc(detail)}</span>${help ? `<span class="muted">${help}</span>` : ''}</span>
     </li>`;
     const siteRow = (where, s, plain) => row(siteBadge(s) ? Masks.svg('scam') : ICON.globe, siteBadge(s), where,
@@ -2608,7 +2608,7 @@
     const day = new Date(e.visitedAt).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
     const malware = e.kind === 'malware';
     return `<li class="exposure">
-      <span class="list__icon" style="color:${esc(color(malware ? 'red' : 'orange'))}">${Masks.svg(malware ? 'malware' : 'scam')}</span>
+      <span class="list__icon" style="--c:${esc(color(malware ? 'red' : 'orange'))}">${Masks.svg(malware ? 'malware' : 'scam')}</span>
       <span class="list__main"><b>${esc(e.host)}</b><span>${esc(EXPOSURE_WHAT[e.kind] || 'Listed')} &middot; you visited it on ${esc(day)}, and ${e.page ? 'a page on this site was listed' : 'a threat list named it'} ${esc(ago(e.listedAt))}.</span>
         <span>${exposureSteps(e)}</span>
         <span>Already paid or let someone in? <a href="/app/recover?happened=${EXPOSURE_HAPPENED[e.kind] || 'card'}">Open the recovery guide</a></span>
@@ -2841,7 +2841,7 @@
       slot._off.push(desktop.onPageChecked((item) => {
         if (!feed.isConnected) return;
         feed.querySelector('.feed__empty')?.remove();
-        const li = h(`<li class="feed__item is-new"><span class="list__icon" style="color:${esc(color(item.badge))}">${item.badge ? Masks.svg('scam') : ICON.check}</span><span class="list__main"><b>${esc(item.host)}</b><span>${esc(item.label)} &middot; ${esc(item.browser)}</span></span></li>`);
+        const li = h(`<li class="feed__item is-new"><span class="list__icon" style="--c:${esc(color(item.badge))}">${item.badge ? Masks.svg('scam') : ICON.check}</span><span class="list__main"><b>${esc(item.host)}</b><span>${esc(item.label)} &middot; ${esc(item.browser)}</span></span></li>`);
         feed.prepend(li);
         requestAnimationFrame(() => li.classList.remove('is-new'));
         while (feed.children.length > 8) feed.lastElementChild.remove();

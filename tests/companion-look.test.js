@@ -13,7 +13,9 @@ const L = require('../web/assets/js/look.js');
 
 const SRC = path.join(__dirname, '..', 'extension', 'src');
 const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
-const STATUS = { dark: { '--red': '#ff7a7e', '--orange': '#f08a24', '--green': '#4cb782' }, light: { '--red': '#b3261e', '--orange': '#a84600', '--green': '#1e7a3c' } };
+// The status colours are look.js STATUS, byte for byte, as on the site, in the app and on the cards.
+const STATUS = {};
+for (const sc of ['dark', 'light']) STATUS[sc] = Object.fromEntries(Object.entries(L.STATUS[sc]).map(([k, v]) => [`--${k}`, v]));
 
 /** The custom properties a CSS block sets. */
 function props(block) {
@@ -22,13 +24,20 @@ function props(block) {
   return out;
 }
 
-test('danger, warning and safe: the same bytes in every block of popup.css that sets them, and never the accent\'s', () => {
+test('danger, warning, caution and safe: look.js STATUS in every block of popup.css, readable on its grounds, never the accent\'s', () => {
   const css = read('popup.css');
   const dark = props(css.match(/^:root \{([^}]+)\}/m)[1]);
   const lightSystem = props(css.match(/:root:not\(\[data-theme="dark"\]\) \{([^}]+)\}/)[1]);
   const lightChosen = props(css.match(/:root\[data-theme="light"\] \{([^}]+)\}/)[1]);
   for (const [k, v] of Object.entries(STATUS.dark)) assert.equal(dark[k], v, `dark ${k}`);
   for (const block of [lightSystem, lightChosen]) for (const [k, v] of Object.entries(STATUS.light)) assert.equal(block[k], v, `light ${k}`);
+  // Words in red, orange and green read at 4.5:1 on the popup's page and panel; caution's words are --yellow-ink.
+  for (const [sc, b] of [['dark', dark], ['light', lightSystem], ['light', lightChosen]]) {
+    const ground = { ...dark, ...b };
+    for (const k of ['--red', '--orange', '--green', '--yellow-ink']) for (const g of ['--bg', '--panel-2']) {
+      assert.ok(L.contrast(ground[k], ground[g]) >= 4.5, `${sc} ${k} ${ground[k]} on ${g} ${ground[g]}: ${L.contrast(ground[k], ground[g]).toFixed(2)}`);
+    }
+  }
   for (const a of L.ACCENTS) for (const scheme of ['dark', 'light']) {
     const vars = L.ramp(a.id, scheme);
     for (const k of ['--red', '--orange', '--yellow', '--green']) assert.ok(!(k in vars), `${a.id} ${scheme} must not set ${k}`);

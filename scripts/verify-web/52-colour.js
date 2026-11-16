@@ -193,12 +193,9 @@ async function checkColour() {
       await done();
     }
 
-    // The swatch sheet: each colour's words, button and chip on the light pages' grounds, as 1.20.0 drew them (every
-    // hue deepened to one shade, gold at 4.39:1) beside how they are drawn now, with each one's worst contrast.
+    // The swatch sheet: each accent's words, button and chip on the light pages' grounds, with each one's worst contrast.
     {
       const { s, done } = await open(1366, 900, false, 'light', 'no-preference');
-      // 1.20.0's light word tones, as its look.js drew them.
-      const BEFORE = { gold: '#8a6420', rose: '#8b4c67', amethyst: '#72538d', sapphire: '#405f99', teal: '#006b70', platinum: '#5c6167' };
       const GROUNDS = ['#efe8da', '#e4dbca', '#f6f1e7'];
       const tone = (r) => r['--gold-400'] || L.GOLD.light.web[400];
       const cells = (r) => { const c = tone(r); const worst = Math.min(...GROUNDS.map((g) => L.contrast(c, g)));
@@ -206,12 +203,101 @@ async function checkColour() {
           + `<div style="display:grid;place-items:center;border-radius:12px;background:${r['--acc-grad'] || ''};background-color:${c};color:#fff;font:600 15px var(--sans)">Button</div><div style="font:500 13px var(--mono);align-self:center;color:${worst >= 4.5 ? '#1a6e35' : '#b3261e'}">worst ${worst.toFixed(2)}</div>`; };
       const row = (label, r) => `<div style="display:grid;grid-template-columns:150px repeat(3,1fr) 110px 100px;gap:10px;align-items:stretch"><div style="font:500 15px var(--sans);align-self:center">${label}</div>${cells(r)}</div>`;
       const html = [];
-      for (const a of L.ACCENTS) html.push(row(`${a.name}, 1.20.0`, { '--gold-400': BEFORE[a.id] }), row(`${a.name}, now`, L.ramp(a.id, 'light')));
+      for (const a of L.ACCENTS) html.push(row(a.name, L.ramp(a.id, 'light')));
       await evalIn(browser, s, `(() => { document.body.innerHTML = ${JSON.stringify(`<div style="display:grid;gap:6px;padding:16px 24px;background:#efe8da;color:#1d1811">${html.join('')}</div>`)}; document.body.style.margin = '0'; scrollTo(0, 0); return true; })()`);
       await sleep(400);
       await shot(browser, s, 'colour-swatches-light');
       await done();
     }
+
+    // Caution on light paper, two ways, beside gold, safe and warning: as olive words (1.20.2's first try) and as a
+    // yellow fill with ink (what ships). Each: a heading, a chip, a mark's tile, a dot, and how caution and safe green
+    // look to someone without green cones (Machado 2009). Then warning orange before and after, on the cards' ground.
+    {
+      const { s, done } = await open(1366, 760, false, 'light', 'no-preference');
+      const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+      const gam = (v) => { v = Math.max(0, Math.min(1, v)); return 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055); };
+      const DEUTAN = [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]];
+      const deutan = (hex) => { const c = [1, 3, 5].map((i) => lin(parseInt(hex.slice(i, i + 2), 16))); return '#' + DEUTAN.map((r) => (256 | Math.round(gam(r[0] * c[0] + r[1] * c[1] + r[2] * c[2]))).toString(16).slice(1)).join(''); };
+      const INK = '#15130d', Y = L.STATUS.light.yellow, GOLD = L.GOLD.light.web[400], GREEN = L.STATUS.light.green;
+      const seal = (fill, glyph) => `<svg viewBox="0 0 24 24" width="30" height="30"><circle cx="12" cy="12" r="10.5" fill="${fill}" stroke="${INK}" stroke-opacity=".55" stroke-width="1.2"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="${glyph}"/><circle cx="12" cy="16.6" r="1.25" fill="${glyph}"/></svg>`;
+      const cell = (inner, bg = '#f6f1e7') => `<div style="background:${bg};padding:12px 14px;border-radius:10px;display:flex;gap:10px;align-items:center;min-height:62px">${inner}</div>`;
+      const sw = (c, label) => `<span style="display:grid;gap:3px;justify-items:center;font:400 11px var(--mono)"><i style="display:block;width:34px;height:22px;border-radius:6px;background:${c}"></i>${label}</span>`;
+      const way = (label, words, chip, tile, dot, caution) => `<div style="display:grid;grid-template-columns:170px 1.5fr 1fr 70px 70px 1.2fr;gap:10px;align-items:stretch"><div style="font:500 15px var(--sans);align-self:center">${label}</div>`
+        + cell(words) + cell(chip) + cell(tile) + cell(dot)
+        + cell(`${sw(deutan(caution), 'caution')}${sw(deutan(GREEN), 'safe')}${sw(deutan(GOLD), 'gold')}<span style="font:400 12px var(--sans);color:#57554f">without green cones</span>`) + '</div>';
+      const OLIVE = '#646400';
+      const html = [
+        way('Olive words<br><small>first try, #646400</small>',
+          `<b style="color:${OLIVE};font:600 17px var(--sans)">Take care on this page</b>`,
+          `<span style="padding:5px 12px;border-radius:999px;color:${OLIVE};background:color-mix(in srgb, ${OLIVE} 13%, transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb, ${OLIVE} 40%, transparent);font:600 14px var(--sans)">Caution</span>`,
+          seal(`color-mix(in srgb, ${OLIVE} 13%, #f6f1e7)`, OLIVE), `<i style="width:12px;height:12px;border-radius:50%;background:${OLIVE}"></i>`, OLIVE),
+        way(`Yellow fill<br><small>shipped, ${Y}</small>`,
+          `<i style="flex:none;width:.62em;height:.62em;border-radius:50%;background:${Y};box-shadow:inset 0 0 0 1.5px rgb(21 19 13 / .55);font-size:17px"></i><b style="color:${INK};font:600 17px var(--sans)">Take care on this page</b>`,
+          `<span style="padding:5px 12px;border-radius:999px;color:${INK};background:${Y};font:600 14px var(--sans)">Caution</span>`,
+          seal(Y, INK), `<i style="width:12px;height:12px;border-radius:50%;background:${Y};box-shadow:0 0 0 1px rgb(21 19 13 / .45)"></i>`, Y),
+        way('Gold, for scale<br><small>the accent</small>', `<b style="color:${GOLD};font:600 17px var(--sans)">Check a link</b>`,
+          `<span style="padding:5px 12px;border-radius:999px;color:#fff;background:${GOLD};font:600 14px var(--sans)">Button</span>`, '', '', GOLD)
+      ];
+      const orange = (label, c) => `<div style="display:grid;grid-template-columns:170px 1fr;gap:10px"><div style="font:500 15px var(--sans);align-self:center">${label}</div>`
+        + cell(`<b style="color:${c};font:600 17px var(--sans)">Warning: likely scam</b><span style="font:400 13px var(--mono);color:${c}">${c} ${L.contrast(c, '#e4dbca').toFixed(2)}:1 on the cards' #e4dbca</span>`, '#e4dbca') + '</div>';
+      html.push(orange('Warning, 1.20.1', '#b04a00'), orange('Warning, now', L.STATUS.light.orange));
+      await evalIn(browser, s, `(() => { document.body.innerHTML = ${JSON.stringify(`<div style="display:grid;gap:8px;padding:16px 24px;background:#efece6;color:#1d1811">${html.join('')}</div>`)}; document.body.style.margin = '0'; scrollTo(0, 0); return true; })()`);
+      await sleep(400);
+      await shot(browser, s, 'colour-caution-olive-vs-fill');
+      await done();
+    }
+
+    // The marks sheet: the real pieces that say danger, warning, caution and safe, drawn by the site's and the app's own
+    // stylesheets, light beside dark in one picture. Caution is never louder than danger: on light paper its tile is a
+    // pale yellow wash with an ink mark, its words ink beside a small yellow dot; on dark, the yellow words it always was.
+    const seen = {};
+    for (const [label, width, height, mobile] of [['desktop', 1366, 820, false], ['phone', 390, 1700, true]]) {
+      const { s, done } = await open(width, height, mobile, 'light', 'reduce');
+      const got = await evalIn(browser, s, `(async () => {
+        const g = (t) => window.SentinelMasks ? SentinelMasks.svg(t) : '';
+        const S = [['red', 'scam', 'Confirmed scam', 'Danger'], ['orange', 'virus', 'Likely virus', 'Warning'], ['yellow', 'malware', 'Possible malware', 'Caution'], ['green', 'scam', 'No scam signs', 'Safe']];
+        const body = '<main style="display:grid;gap:16px;padding:18px;background:var(--bg);color:var(--text);min-height:100vh;box-sizing:border-box">'
+          + '<b style="font:600 15px var(--sans)">' + '%SCHEME%' + '</b>'
+          + '<div class="masks">' + S.slice(0, 3).map(([c, t]) => '<span class="m m--' + c + ' is-on">' + g(t) + '</span>').join('') + '</div>'
+          + '<div style="display:flex;gap:10px;flex-wrap:wrap">' + S.map(([c, t]) => '<div class="result__glyph" data-s="' + c + '" style="--c:var(--' + c + ');animation:none">' + g(t) + '</div>').join('') + '</div>'
+          + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">' + S.map(([c, t, w]) => '<div class="try__threat" data-s="' + c + '" style="--c:var(--' + c + ')">' + g(t) + '<b>' + w + '</b></div>').join('') + '</div>'
+          + '<div class="severity">' + S.slice(0, 3).reverse().map(([c, , , w]) => '<button type="button" data-sev="' + c + '" style="--sc:var(--' + c + ')" aria-pressed="' + (c === 'yellow') + '">' + w + '</button>').join(' ') + '</div>'
+          + ['red', 'orange', 'yellow', 'green'].map((c) => '<div class="next-steps next-steps--' + (c === 'green' ? 'clear' : c) + '" data-s="' + c + '"><h3>' + { red: 'What to do now', orange: 'What to do now', yellow: 'If you are not sure', green: 'Before you use it' }[c] + '</h3></div>').join('')
+          + '</main>';
+        const css = ['sentinel', 'interactive', 'app'].map((f) => '<link rel="stylesheet" href="/assets/css/' + f + '.css">').join('');
+        const frame = (scheme) => new Promise((r) => { const f = document.createElement('iframe'); f.dataset.scheme = scheme; f.onload = () => r(f);
+          f.style.cssText = 'border:0;width:100%;height:100%;display:block';
+          f.srcdoc = '<!doctype html><html data-theme="' + scheme + '"><head><base href="' + location.origin + '/">' + css + '</head><body style="margin:0">' + body.replace('%SCHEME%', scheme === 'light' ? 'Light' : 'Dark') + '</body></html>';
+          document.getElementById('sheet').append(f); });
+        document.body.innerHTML = '<div id="sheet" style="display:grid;grid-template-' + (innerWidth < 700 ? 'rows' : 'columns') + ':1fr 1fr;width:100vw;height:100vh"></div>';
+        document.body.style.margin = '0'; scrollTo(0, 0);
+        const out = {};
+        for (const scheme of ['light', 'dark']) {
+          const f = await frame(scheme);
+          await new Promise((r) => setTimeout(r, 500));
+          const d = f.contentDocument, cs = (sel, p = 'color') => f.contentWindow.getComputedStyle(d.querySelector(sel))[p];
+          const o = {};
+          for (const c of ['red', 'orange', 'yellow', 'green']) o[c] = { tile: cs('.try__threat[data-s="' + c + '"]'), tileBg: cs('.try__threat[data-s="' + c + '"]', 'backgroundColor'), glyphBg: cs('.result__glyph[data-s="' + c + '"]', 'backgroundColor'), h3: cs('.next-steps[data-s="' + c + '"] h3') };
+          o.markBg = cs('.m--yellow', 'backgroundColor'); o.pressed = cs('.severity [data-sev="yellow"]');
+          out[scheme] = o;
+        }
+        out.wide = document.documentElement.scrollWidth > innerWidth + 1;
+        return out;
+      })()`);
+      await shot(browser, s, `colour-marks-sheet-${label}`);
+      seen[label] = got;
+      await done();
+    }
+    // Caution's tile is the same pale share of yellow in both schemes, as danger's and warning's are of theirs: never louder.
+    const INK = 'rgb(21, 19, 13)', YEL = 'rgb(245, 197, 66)';
+    const hex2rgb = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
+    result('colour: danger, warning, caution and safe side by side; caution on light paper is ink on a pale yellow, never louder than danger or warning; on dark, yellow words',
+      Object.values(seen).every((v) => !v.wide && ['light', 'dark'].every((sc) => {
+        const o = v[sc], light = sc === 'light';
+        return o.yellow.h3 === (light ? INK : YEL) && o.yellow.tile === (light ? INK : YEL) && o.red.tile === hex2rgb(L.STATUS[sc].red) && o.red.h3 === hex2rgb(L.STATUS[sc].red)
+          && o.pressed === INK && o.yellow.glyphBg === 'rgba(245, 197, 66, 0.14)' && o.yellow.tileBg !== YEL;
+      })), seen);
   } finally { await close(); files.server.close(); }
 }
 

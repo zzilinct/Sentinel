@@ -1,6 +1,6 @@
     const q = new URLSearchParams(location.search);
     const badge = q.get('badge') || 'orange';
-    document.documentElement.style.setProperty('--c', SentinelCard.tone(['red', 'orange', 'yellow'].includes(badge) ? badge : 'orange'));
+    SentinelCard.status(document.documentElement, ['red', 'orange', 'yellow'].includes(badge) ? badge : 'orange');
     document.getElementById('label').textContent = q.get('label') || 'Sentinel warning';
     document.getElementById('host').textContent = q.get('host') || '';
     document.getElementById('lead').innerHTML = badge === 'red'

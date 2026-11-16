@@ -32,7 +32,7 @@
 .verdict__icon { transition: color .3s, background .3s, box-shadow .3s; }
 .verdict__icon.is-clear { color: var(--green); background: rgba(76, 183, 130, .12); box-shadow: inset 0 0 0 1px rgba(76, 183, 130, .4); }
 .verdict__icon.is-orange { color: var(--orange); background: rgba(240, 138, 36, .13); box-shadow: inset 0 0 0 1px rgba(240, 138, 36, .45); }
-.verdict__icon.is-yellow { color: var(--yellow); background: rgba(245, 197, 66, .12); box-shadow: inset 0 0 0 1px rgba(245, 197, 66, .45); }
+.verdict__icon.is-yellow { color: var(--yellow-ink); background: var(--yellow-wash); box-shadow: inset 0 0 0 1px rgba(245, 197, 66, .45); }
 .verdict__host { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .verdict__why { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; }
 .verdict__why li { position: relative; padding-left: 12px; font-size: var(--t-label); line-height: 1.45; color: var(--text-2); }
@@ -57,7 +57,7 @@
 .mask-card .example__why { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
 .mask-card .example__why li { display: block; position: relative; padding-left: 13px; font-size: var(--t-note); color: var(--text-2); line-height: 1.45; }
 .mask-card .example__why li::before { content: ""; position: absolute; margin: 0; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--c); }
-.example__tag { display: inline-flex; margin-top: 12px; font: 500 var(--t-label) var(--sans); color: var(--c); }
+.example__tag { display: inline-flex; margin-top: 12px; font: 500 var(--t-label) var(--sans); color: var(--c-ink, var(--c)); }
 .severity button:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; }
 
 /* -------------------------------------------------------------------- game */
@@ -86,19 +86,19 @@
   font: 500 var(--t-ui) var(--sans); transition: transform .15s var(--ease), background .2s, box-shadow .2s, opacity .3s;
 }
 .answer:hover { transform: translateY(-2px); background: rgb(var(--ink) / .05); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 60%, transparent); }
-.answer svg { width: 30px; height: 30px; color: var(--c); }
+.answer svg { width: 30px; height: 30px; color: var(--c-ink, var(--c)); }
 .answer small { font-size: var(--t-label); color: var(--muted); font-weight: 400; }
 .answer kbd { position: absolute; top: 8px; right: 9px; font: var(--t-micro) var(--mono); color: var(--faint); }
 .answer[disabled] { cursor: default; transform: none; opacity: .45; }
 .answer.is-picked { opacity: 1; box-shadow: inset 0 0 0 2px var(--c); }
 .answer.is-truth { opacity: 1; box-shadow: inset 0 0 0 2px var(--c), 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
-.answer.is-truth::after { content: "Sentinel"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font: 600 var(--t-micro) var(--sans); padding: 2px 7px; border-radius: var(--r-sm); color: var(--on-status); background: var(--c); }
+.answer.is-truth::after { content: "Sentinel"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font: 600 var(--t-micro) var(--sans); padding: 2px 7px; border-radius: var(--r-sm); color: var(--c-on, var(--on-status)); background: var(--c); }
 .game__reveal { margin-top: 22px; padding: 18px; border-radius: var(--r); background: rgb(var(--ink) / .025); box-shadow: inset 0 0 0 1px var(--line); animation: rise-in .45s var(--ease-out) both; }
 .game__verdict { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .game__verdict h4 { font-size: var(--t-lead); font-weight: 500; }
 .game__result { font: 600 var(--t-label) var(--sans); padding: 4px 9px; border-radius: var(--r-sm); }
 .game__result.is-right { color: var(--on-status); background: var(--green); }
-.game__result.is-close { color: var(--on-status); background: var(--yellow); }
+.game__result.is-close { color: var(--on-yellow); background: var(--yellow); }
 .game__result.is-wrong { color: var(--on-status); background: var(--red); }
 .game__why { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 7px; }
 .game__why li { position: relative; padding-left: 14px; font-size: var(--t-ui); color: var(--text-2); }
@@ -128,12 +128,12 @@
 .try__masks span svg { width: 100%; height: 100%; }
 .try__result { padding: 20px; border-radius: var(--r-lg); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); animation: rise-in .45s var(--ease-out) both; }
 .try__head { display: flex; align-items: center; gap: 14px; }
-.try__icon { width: 46px; height: 46px; flex: none; border-radius: var(--r); display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 40%, transparent); }
+.try__icon { width: 46px; height: 46px; flex: none; border-radius: var(--r); display: grid; place-items: center; color: var(--c-ink, var(--c)); background: var(--c-wash, color-mix(in srgb, var(--c) 13%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 40%, transparent); }
 .try__icon svg { width: 28px; height: 28px; }
 .try__head h3 { font-size: var(--t-title); }
 .try__head p { font: var(--t-note) var(--mono); color: var(--muted); word-break: break-all; }
 .try__threats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
-.try__threat { padding: 12px; border-radius: var(--r); background: rgb(var(--ink) / .025); box-shadow: inset 0 0 0 1px var(--line); color: var(--c); }
+.try__threat { padding: 12px; border-radius: var(--r); background: color-mix(in srgb, var(--c) 9%, rgb(var(--ink) / .025)); box-shadow: inset 0 0 0 1px var(--line); color: var(--c-ink, var(--c)); }
 .try__threat svg { width: 22px; height: 22px; }
 .try__threat b { display: block; margin-top: 8px; font-size: var(--t-note); font-weight: 500; color: var(--text); }
 .try__threat span { font: var(--t-label) var(--mono); color: var(--muted); }
@@ -198,15 +198,15 @@ html:not(.js) .finder { display: none; }
   transition: color .2s, box-shadow .2s;
 }
 .severity-cycle:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
-.mask-card[data-cycling="true"] .severity-cycle { color: var(--c); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
+.mask-card[data-cycling="true"] .severity-cycle { color: var(--c-ink, var(--c)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
 :root[data-motion="off"] { .severity-cycle { display: none; } }
 
 /* --------------------------------------------------------- threat kinds */
 
 .verdict__kind { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: var(--t-label); font-weight: 500; color: var(--text); }
-.verdict__kind svg { width: 14px; height: 14px; color: var(--c); }
+.verdict__kind svg { width: 14px; height: 14px; color: var(--c-ink, var(--c)); }
 .example__tag svg { width: 12px; height: 12px; vertical-align: -2px; margin-right: 2px; }
-.kind-icon { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-sm); vertical-align: middle; color: var(--c, var(--gold-300)); background: color-mix(in srgb, var(--c, var(--gold-300)) 12%, transparent); }
+.kind-icon { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-sm); vertical-align: middle; color: var(--c-ink, var(--c, var(--gold-300))); background: var(--c-wash, color-mix(in srgb, var(--c, var(--gold-300)) 12%, transparent)); }
 .kind-icon svg { width: 14px; height: 14px; }
 
 .kinds { margin-top: 56px; }
@@ -221,7 +221,7 @@ html:not(.js) .finder { display: none; }
 .kind[data-threat="scam"] { --c: var(--red); }
 .kind[data-threat="virus"] { --c: var(--orange); }
 .kind[data-threat="malware"] { --c: var(--yellow); }
-.kind__icon { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r); color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent); }
+.kind__icon { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r); color: var(--c-ink, var(--c)); background: var(--c-wash, color-mix(in srgb, var(--c) 12%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent); }
 .kind__icon svg { width: 18px; height: 18px; }
 .kind b { display: block; font-size: var(--t-ui); font-weight: 500; color: var(--text); }
 .kind p { margin-top: 3px; font-size: var(--t-note); line-height: 1.45; color: var(--muted); }
@@ -239,7 +239,7 @@ html:not(.js) .finder { display: none; }
 .answer.is-truth { box-shadow: var(--raise-sm), inset 0 0 0 2px var(--c), 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
 .game__link, .try__form, .try__empty, .example, .game__reveal, .try__result { background: var(--bg-2); box-shadow: var(--press); }
 .try__form:focus-within { box-shadow: var(--press), 0 0 0 1px rgb(var(--gold-rgb) / .55), 0 0 0 5px rgb(var(--gold-rgb) / .08); }
-.try__threat { background: var(--relief), var(--surface); box-shadow: var(--raise-sm); }
+.try__threat { background: var(--relief), color-mix(in srgb, var(--c) 9%, var(--surface)); box-shadow: var(--raise-sm); }
 .range { box-shadow: inset 1px 1px 3px var(--neu-lo); }
 
 /* Recovery guide: tick what happened, then one ordered list of steps. On the site (recover.html) and in the app (/app/recover). */

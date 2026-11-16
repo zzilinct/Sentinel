@@ -18,6 +18,12 @@
   if (look) document.documentElement.dataset.theme = window.SentinelLook.scheme(look.mode);
   /** A status colour (red, orange, yellow, green) as this card's scheme draws it: never the accent. */
   const tone = (badge) => window.SentinelLook.STATUS[window.SentinelLook.scheme(look && look.mode)][badge];
+  /** Paint a status on an element. Caution on light paper cannot be read as yellow words: its title is in ink, and the
+      mark wears the yellow as a disc (sentinel.css --yellow-ink, --yellow-wash). */
+  const status = (el, badge) => {
+    el.style.setProperty('--c', tone(badge));
+    if (badge === 'yellow' && window.SentinelLook.scheme(look && look.mode) === 'light') { el.style.setProperty('--c-ink', 'var(--ink)'); el.style.setProperty('--c-wash', tone(badge)); }
+  };
   const style = document.createElement('style');
   style.textContent = `
   :root { color-scheme: dark; --sheet: #0c0d10; --ink: #e9e6df; --ink-2: #c9c5bb; --ink-3: #b9b5ab; --ink-4: #8d8a82; --btn: #1a1c21; --btn-hi: #22252b; --hair: rgba(255, 255, 255, .06);
@@ -38,11 +44,11 @@
   /* The card is moved by its head, as a title bar would; its buttons stay buttons. */
   .head { display: flex; align-items: center; gap: 14px; -webkit-app-region: drag; }
   button, a { -webkit-app-region: no-drag; }
-  .mark { width: 46px; height: 46px; flex: none; color: var(--c, var(--acc)); }
+  .mark { width: 46px; height: 46px; flex: none; color: var(--c-ink, var(--c, var(--acc))); background: var(--c-wash, none); border-radius: 50%; }
   .mark svg { display: block; width: 100%; height: 100%; }
   /* The title and address may wrap anywhere: a long address must not push the card wider than its window. */
   .head > div { min-width: 0; }
-  h1 { margin: 0; font: 400 var(--t-title-s)/var(--lh-display) var(--display); color: var(--c, var(--acc)); }
+  h1 { margin: 0; font: 400 var(--t-title-s)/var(--lh-display) var(--display); color: var(--c-ink, var(--c, var(--acc))); }
   .host, .sub, .name { --track: 0px; margin: 2px 0 0; font: var(--t-note) var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
   .body { margin-top: 16px; min-height: 0; }
   .body p { margin: 0 0 10px; color: var(--ink-3); }
@@ -148,5 +154,5 @@
     fit.observe(document.documentElement, { attributes: true, attributeFilter: ['data-simple', 'data-text', 'data-density'] });
   });
 
-  window.SentinelCard = { PAD, WIDTHS, measure, clipped, tone };
+  window.SentinelCard = { PAD, WIDTHS, measure, clipped, tone, status };
 })();

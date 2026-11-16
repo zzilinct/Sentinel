@@ -51,6 +51,13 @@
   --red: #e5484d;
   --green: #4cb782;
   --on-status: #15130d;  /* text on a filled status colour */
+  /* Caution is the same yellow in both schemes. On dark it is also its own words; on light paper no yellow can be
+     read as words, so there its words and marks are ink (--yellow-ink) on a pale yellow tile, the same share
+     warning and danger take (--yellow-wash), so caution is never the loudest; solid yellow only fills a marker or a
+     pressed button, with --on-yellow on it. */
+  --on-yellow: #15130d;
+  --yellow-ink: #f5c542;
+  --yellow-wash: rgb(245 197 66 / .14);
   --link: #a9c1ff;       /* result titles, as a search page shows them */
   --error-text: #ff8d90;
 
@@ -90,7 +97,7 @@
     --raise: -10px -10px 24px var(--neu-hi), 12px 14px 30px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --raise-sm: -4px -4px 10px var(--neu-hi), 5px 6px 14px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --press: inset 4px 5px 10px var(--neu-lo), inset -4px -4px 10px var(--neu-hi); --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
-    --yellow: #8a6100; --orange: #b04a00; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
+    --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: rgb(245 197 66 / .14); --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
     --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
     color-scheme: light;
   }
@@ -107,7 +114,7 @@
     --raise: -10px -10px 24px var(--neu-hi), 12px 14px 30px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --raise-sm: -4px -4px 10px var(--neu-hi), 5px 6px 14px var(--neu-lo), inset 0 1px 0 rgb(255 255 255 / .7);
     --press: inset 4px 5px 10px var(--neu-lo), inset -4px -4px 10px var(--neu-hi); --ink: 20 22 26; --gold-rgb: 138 100 32; --on-gold: #ffffff; --panel: rgba(255, 255, 255, .98);
-  --yellow: #8a6100; --orange: #b04a00; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
+  --yellow: #f5c542; --yellow-ink: #15130d; --yellow-wash: rgb(245 197 66 / .14); --orange: #a14400; --green: #1a6e35; --red: #b3261e; --on-status: #ffffff; --link: #2b4fb3; --error-text: #b3261e;
   --shadow-lg: 0 30px 80px -24px rgba(40, 32, 16, .25), 0 0 0 1px var(--line);
   color-scheme: light;
 }
@@ -365,8 +372,8 @@ p.hero__fine span { white-space: nowrap; }
 .m {
   width: 26px; height: 26px; border-radius: var(--r-sm);
   display: grid; place-items: center;
-  color: var(--c);
-  background: color-mix(in srgb, var(--c) 15%, transparent);
+  color: var(--c-ink, var(--c));
+  background: var(--c-wash, color-mix(in srgb, var(--c) 15%, transparent));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent);
   transform: scale(.4);
   opacity: 0;
@@ -375,6 +382,12 @@ p.hero__fine span { white-space: nowrap; }
 .m svg { width: 17px; height: 17px; }
 .m.is-on { transform: scale(1); opacity: 1; }
 .m--yellow { --c: var(--yellow); } .m--orange { --c: var(--orange); } .m--red { --c: var(--red); }
+/* Wherever --c is set, its words take --c-ink; set to caution, they take the ink and the tile the wash (above). Every
+   setter writes --c as var(--yellow) (ui.js color, home.js COLOR), so one rule covers them. */
+[style*="--c:"], .m, .slow, .next-steps, .kind { --c-ink: var(--c); --c-wash: initial; --c-on: initial; }
+[style*="--c:var(--yellow)"], [style*="--c: var(--yellow)"], .m--yellow, .slow--yellow, .next-steps--yellow, .kind[data-threat="malware"] {
+  --c-ink: var(--yellow-ink); --c-wash: var(--yellow-wash); --c-on: var(--on-yellow);
+}
 /* Nothing found: a small tick, quieter than a mask, as in the app. */
 .m--clear { --c: var(--green); width: 22px; height: 22px; background: transparent; }
 .m--clear svg { width: 15px; height: 15px; }
@@ -467,6 +480,7 @@ p.hero__fine span { white-space: nowrap; }
 .severity button[aria-pressed="true"] { color: var(--on-status); background: var(--sc); box-shadow: none; }
 .severity button:hover { color: var(--text); }
 .severity button[aria-pressed="true"]:hover { color: var(--on-status); }
+.severity button[data-sev="yellow"][aria-pressed="true"], .severity button[data-sev="yellow"][aria-pressed="true"]:hover { color: var(--on-yellow); }
 
 /* -------------------------------------------------------------- pipeline */
 
@@ -813,7 +827,7 @@ p.hero__fine span { white-space: nowrap; }
 
 /* Three screens tall; the words stay pinned while the mask turns under each colour's light (home.js picks the line). */
 .manifesto { position: relative; }
-.manifesto__line { margin: 0; padding: 12vh 24px; text-align: center; font: 400 var(--t-d0)/var(--lh-display) var(--display); --track: var(--tr-display); color: var(--c); text-shadow: 0 0 80px color-mix(in srgb, var(--c) 35%, transparent); }
+.manifesto__line { margin: 0; padding: 12vh 24px; text-align: center; font: 400 var(--t-d0)/var(--lh-display) var(--display); --track: var(--tr-display); color: var(--c-ink, var(--c)); text-shadow: 0 0 80px color-mix(in srgb, var(--c) 35%, transparent); }
 .manifesto__line span { display: block; margin-bottom: 18px; --track: var(--tr-text); font: 500 var(--t-ui)/1 var(--sans); color: var(--text-2); text-shadow: none; }
 .js:not(.no-io) .manifesto { height: 300vh; }
 .js:not(.no-io) .manifesto__stick { position: sticky; top: 0; height: 100vh; display: grid; align-items: end; overflow: hidden; }

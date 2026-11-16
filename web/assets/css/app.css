@@ -225,7 +225,7 @@ body.app::before { opacity: .6; }
 .result__head { position: relative; display: flex; gap: 20px; align-items: center; padding: 30px 30px 24px; }
 .result__head::before { content: none; }
 .result--red { --rc: var(--red); } .result--orange { --rc: var(--orange); } .result--yellow { --rc: var(--yellow); } .result--clear { --rc: var(--green); } .result--partial { --rc: var(--muted); }
-.result__glyph { width: 68px; height: 68px; flex: none; border-radius: var(--r-lg); display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 40%, transparent); animation: verdict-rise .46s var(--ease-out) both; }
+.result__glyph { width: 68px; height: 68px; flex: none; border-radius: var(--r-lg); display: grid; place-items: center; color: var(--c-ink, var(--c)); background: var(--c-wash, color-mix(in srgb, var(--c) 13%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 40%, transparent); animation: verdict-rise .46s var(--ease-out) both; }
 .result__glyph svg { width: 40px; height: 40px; }
 @keyframes verdict-rise { from { opacity: 0; transform: translateY(10px); } }
 /* A threat's mask, the real one: a still picture until its 3D model is drawn over it (ui.js resultGlyph). */
@@ -267,7 +267,7 @@ html[data-simple] .next-steps li { font-size: var(--t-lead); }
 
 /* The three threats as a stacked list, a row each: the mask, what was found, how strongly, and the score. */
 .threat-list { display: grid; gap: 1px; background: var(--line); border-block: 1px solid var(--line); }
-.threat { display: grid; grid-template-columns: 30px minmax(0, 1fr) minmax(80px, 200px) 64px; gap: 0 18px; align-items: center; padding: 14px 30px; background: var(--bg-2); color: var(--c, var(--text)); }
+.threat { display: grid; grid-template-columns: 30px minmax(0, 1fr) minmax(80px, 200px) 64px; gap: 0 18px; align-items: center; padding: 14px 30px; background: var(--bg-2); color: var(--c-ink, var(--c, var(--text))); }
 @media (max-width: 560px) { .threat { grid-template-columns: 30px minmax(0, 1fr) auto; padding: 14px 20px; } .threat__meter { grid-column: 2 / -1; grid-row: 2; margin-top: 10px; } }
 .threat__glyph { width: 30px; height: 30px; }
 .threat__glyph svg { width: 100%; height: 100%; }
@@ -381,7 +381,7 @@ html[data-simple] .next-steps li { font-size: var(--t-lead); }
 .check__icon { width: 22px; height: 22px; border-radius: var(--r-sm); display: grid; place-items: center; }
 .check__icon svg { width: 13px; height: 13px; }
 .check--fail .check__icon { color: var(--red); background: rgba(229, 72, 77, .12); }
-.check--warn .check__icon { color: var(--yellow); background: rgba(245, 197, 66, .12); }
+.check--warn .check__icon { color: var(--yellow-ink); background: var(--yellow-wash); }
 .check--pass .check__icon { color: var(--green); background: rgba(76, 183, 130, .1); }
 .check__body b { display: block; font-weight: 450; font-size: var(--t-ui); }
 .check__body span { display: block; font-size: var(--t-note); color: var(--muted); margin-top: 2px; }
@@ -426,7 +426,7 @@ html[data-simple] .next-steps li { font-size: var(--t-lead); }
 .usage-list > * + * { border-top: 1px solid var(--line); }
 .usage-link { display: block; color: inherit; }
 .usage-row .meter { grid-column: 2 / -1; }
-.usage-row__icon { width: 34px; height: 34px; border-radius: var(--r); display: grid; place-items: center; color: var(--gold-300); background: rgb(var(--gold-rgb) / .08); box-shadow: inset 0 0 0 1px var(--line-gold); }
+.usage-row__icon { width: 34px; height: 34px; border-radius: var(--r); display: grid; place-items: center; color: var(--c-ink, var(--gold-300)); background: var(--c-wash, rgb(var(--gold-rgb) / .08)); box-shadow: inset 0 0 0 1px var(--line-gold); }
 .usage-row__icon svg { width: 17px; height: 17px; }
 .usage-row__l { font-size: var(--t-ui); color: var(--text); }
 .usage-row__l small { display: block; margin-top: 2px; font: var(--t-label) var(--mono); color: var(--muted); }
@@ -455,7 +455,7 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 .list { list-style: none; margin: 0; padding: 0; }
 .list li { display: flex; align-items: center; gap: 14px; padding: calc(13px * var(--ds)) 0; border-top: 1px solid var(--line); }
 .list li:first-child { border-top: 0; }
-.list__icon { width: 34px; height: 34px; border-radius: var(--r); flex: none; display: grid; place-items: center; background: rgb(var(--ink) / .04); color: var(--muted); }
+.list__icon { width: 34px; height: 34px; border-radius: var(--r); flex: none; display: grid; place-items: center; background: var(--c-wash, rgb(var(--ink) / .04)); color: var(--c-ink, var(--muted)); }
 .list__icon svg { width: 17px; height: 17px; }
 .list__main { flex: 1; min-width: 0; }
 .list__main b { display: block; font-weight: 450; font-size: var(--t-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -705,7 +705,7 @@ kbd { font: var(--t-micro) var(--mono); color: var(--muted); padding: 2px 6px; b
 .fchip svg { width: 13px; height: 13px; }
 .fchip--scam[aria-pressed="true"] svg { color: var(--red); }
 .fchip--virus[aria-pressed="true"] svg { color: var(--orange); }
-.fchip--malware[aria-pressed="true"] svg { color: var(--yellow); }
+.fchip--malware[aria-pressed="true"] svg { color: var(--yellow-ink); background: var(--yellow-wash); border-radius: 50%; box-shadow: 0 0 0 2px var(--yellow-wash); }
 .tools__search { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: var(--r); background: rgb(var(--ink) / .03); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
 .tools__search:focus-within { box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .5); }
 .tools__search svg { width: 14px; height: 14px; flex: none; }
@@ -798,10 +798,10 @@ select.input option { background: var(--surface-3); color: var(--text); }
 /* ------------------------------------------------------- threat kinds */
 
 .result__kind { display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; padding: 5px 10px 5px 8px; border-radius: var(--r-sm); font-size: var(--t-note); font-weight: 500; color: var(--text); background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent); }
-.result__kind svg { width: 16px; height: 16px; color: var(--c); }
+.result__kind svg { width: 16px; height: 16px; color: var(--c-ink, var(--c)); }
 .threat__kind { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--t-note); color: var(--text-2); }
-.threat__kind svg { width: 14px; height: 14px; flex: none; color: var(--c); }
-.kind-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-sm); color: var(--c, var(--gold-300)); background: color-mix(in srgb, var(--c, var(--gold-300)) 12%, transparent); }
+.threat__kind svg { width: 14px; height: 14px; flex: none; color: var(--c-ink, var(--c)); }
+.kind-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-sm); color: var(--c-ink, var(--c, var(--gold-300))); background: var(--c-wash, color-mix(in srgb, var(--c, var(--gold-300)) 12%, transparent)); }
 .kind-icon svg { width: 13px; height: 13px; }
 
 /* ------------------------------------------------------- live feed */
@@ -838,13 +838,15 @@ select.input option { background: var(--surface-3); color: var(--text); }
 /* What to do now: the first thing someone looks for on a dangerous result. */
 .next-steps { margin: 0; padding: 18px 26px 20px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--c, var(--red)) 7%, transparent); }
 .next-steps--red { --c: var(--red); } .next-steps--orange { --c: var(--orange); } .next-steps--yellow { --c: var(--yellow); } .next-steps--clear { --c: var(--green); }
-.next-steps h3 { margin: 0 0 10px; font: 600 var(--t-text)/var(--lh-ui) var(--sans); color: var(--c); }
+.next-steps h3 { margin: 0 0 10px; font: 600 var(--t-text)/var(--lh-ui) var(--sans); color: var(--c-ink, var(--c)); }
+/* Caution's heading in ink on light paper: its yellow circle (the caution seal's shape) beside it says caution. */
+.next-steps--yellow h3::before { content: ""; display: inline-block; width: .62em; height: .62em; margin-right: .5em; border-radius: 50%; background: var(--yellow); box-shadow: inset 0 0 0 1.5px rgb(21 19 13 / .55); vertical-align: .02em; }
 .next-steps ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 /* One step is a sentence, not a list of one. */
 .next-steps ol:has(> li:only-child) { padding-left: 0; list-style: none; }
 .next-steps li { line-height: 1.5; }
 .next-steps__more { margin: 12px 0 0; font-size: var(--t-ui); color: var(--text-2); }
-.next-steps__more a { color: var(--c); text-decoration: underline; text-underline-offset: 3px; }
+.next-steps__more a { color: var(--c-ink, var(--c)); text-decoration: underline; text-underline-offset: 3px; }
 .live__facts { margin: 20px 0 0; padding: 16px 0 0; list-style: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 28px;
   border-top: 1px solid var(--line); color: var(--muted); font-size: var(--t-note); line-height: 1.5; }
 .live__facts li { padding-left: 14px; position: relative; }
