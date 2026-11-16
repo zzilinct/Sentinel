@@ -192,3 +192,28 @@ test('type: no serif italic accents, no gradient-filled headings, no eyebrow lab
   }
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'web/assets/fonts/fonts.css'), 'utf8'), /font-style:\s*italic/);
 });
+
+test('the app page paints its side bar from styles inside it; its stylesheets no longer hold up the first paint', () => {
+  const { serveStatic } = require('../server/lib/http');
+  const critical = require('../server/lib/critical');
+  const res = { headers: {}, writeHead(s, h) { this.status = s; this.headers = h; }, end(b) { this.body = b; } };
+  serveStatic(path.join(ROOT, 'web'), '/app.html', { headers: {}, method: 'GET' }, res);
+  const html = res.body.toString('utf8');
+  const css = /<style>\n([\s\S]*?)\n<\/style>/.exec(html)[1];
+  // Nothing in the page's <head> waits for a stylesheet; each is preloaded, in its order, and app.js puts it in.
+  assert.ok(!/<link rel="stylesheet"/.test(html), 'a stylesheet still holds up the first paint');
+  // The rules come before every stylesheet, so each sheet put in later overrides them in the page's own order.
+  assert.ok(html.indexOf('<style>') < html.indexOf('data-late>') && !html.includes(critical.MARK));
+  const late = [...html.matchAll(/<link rel="preload" href="([^"]+\.css)" as="style" data-late>/g)].map((m) => m[1]);
+  assert.deepEqual(late, ['/assets/fonts/fonts.css', '/assets/css/sentinel.css', '/assets/css/interactive.css', '/assets/css/hover.css', '/assets/css/app.css', '/assets/css/app-lux.css']);
+  assert.match(fs.readFileSync(path.join(ROOT, 'web/assets/js/app.js'), 'utf8'), /const styled = Promise\.all\(\$\$\('link\[data-late\]'\)[\s\S]*?await styled;\n    try \{/);
+  // What the side bar, the phone's top bar and the faces need is in it; what only a page or the website uses is not.
+  for (const rule of ['@font-face', ':root', '.side__link{', '.side__nav{', '.topbar-mobile', '.logo', '.btn{', '.theme-toggle', '.skeleton']) assert.ok(css.includes(rule), `the first view's styles lack ${rule}`);
+  for (const rule of ['.hero{', '.set-row', '.result{', '.pricing']) assert.ok(!css.includes(rule), `${rule} is not the first view's`);
+  assert.ok(css.length < 40 * 1024, `the first view's styles weigh ${css.length} bytes`);
+  // The reading of selectors: a rule is left out only when a name it needs is missing from the page.
+  const names = { classes: new Set(['side', 'btn']), ids: new Set(['view']), tags: new Set(['html', 'body', 'a', 'div']) };
+  for (const [sel, kept] of [['.side a', true], ['.side .hero', false], ['.btn:not(.is-soon):hover', true], ['#view:has(.ask) .btn', false], ['div:is(.x, .y) > a', true], ['[data-theme="light"] .btn::before', true], ['main .btn', false]]) {
+    assert.equal(critical.canMatch(sel, names), kept, sel);
+  }
+});

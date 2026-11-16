@@ -5,6 +5,15 @@
   const { api, esc, $, $$, h, ago, until, bytes, toast, stateBlock, busy, verdict, resultGlyph, wireVerdict, color } = window.UI;
   const Masks = window.SentinelMasks;
   const view = $('#view');
+  // The stylesheets, preloaded while the side bar painted from the first view's own styles (server/lib/critical.js):
+  // put in, in the page's order, before anything is drawn into the page.
+  const styled = Promise.all($$('link[data-late]').map((pre) => new Promise((done) => {
+    const sheet = document.createElement('link');
+    sheet.rel = 'stylesheet';
+    sheet.href = pre.getAttribute('href');
+    sheet.onload = sheet.onerror = done;
+    pre.after(sheet);
+  })));
   const desktop = window.sentinelDesktop || null;
   // Motion Off (boot.js data-motion): nothing glides or rises. Asked each time: it can change while the app is open.
   const still = () => document.documentElement.dataset.motion === 'off';
@@ -56,6 +65,7 @@
     // (the first-run choices, the Windows app's offers).
     const first = fileFor(location.pathname) || ((desktop || !firstDone()) && 'settings');
     if (first) pageFile(first).catch(() => { /* the page says so when it opens */ });
+    await styled;
     try {
       const [me, config] = await Promise.all([api('/auth/me'), api('/auth/config')]);
       state.me = me;

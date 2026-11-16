@@ -9,6 +9,7 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 const { URL } = require('url');
 const config = require('../config');
+const critical = require('./critical');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -192,10 +193,13 @@ function renderHtml(base, file) {
     stamps.push(fs.statSync(partial).mtimeMs);
     return fs.readFileSync(partial, 'utf8');
   });
+  // The first view's styles are read from the stylesheets themselves (critical.js): an edit to one is a new page.
+  const firstView = html.includes(critical.MARK);
+  if (firstView) for (const f of critical.inputs(base, html)) stamps.push(fs.existsSync(f) ? fs.statSync(f).mtimeMs : 0);
   const version = crypto.createHash('sha1').update(`${file}|${stamps.join('|')}`).digest('hex').slice(0, 16);
   const cached = htmlCache.get(file);
   if (cached && cached.version === version) return cached;
-  const entry = { version, buffer: Buffer.from(html, 'utf8') };
+  const entry = { version, buffer: Buffer.from(firstView ? critical.inline(base, html) : html, 'utf8') };
   if (htmlCache.size > 200) htmlCache.clear();
   htmlCache.set(file, entry);
   return entry;
