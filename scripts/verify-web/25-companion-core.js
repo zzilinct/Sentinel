@@ -118,7 +118,7 @@ async function checkCompanionCore() {
       const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true });
       await browser.send('Emulation.setDeviceMetricsOverride', { width, height: 600, deviceScaleFactor: 1, mobile: false }, sessionId).catch(() => {});
       const errors = await watchErrors(browser, sessionId);
-      const ready = await until(browser, sessionId, "document.readyState === 'complete' && !document.querySelector('#view .loading') && !document.querySelector('#view .spin')", 30000);
+      const ready = await until(browser, sessionId, "document.readyState === 'complete' && document.querySelector('#view') && !document.querySelector('#view .loading') && !document.querySelector('#view .spin')", 30000);
       const ms = Date.now() - t0;
       await sleep(600);
       const info = await evalIn(browser, sessionId, `(() => {

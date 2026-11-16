@@ -5,7 +5,7 @@
 # lock guards switching protection off. Everything that looks dangerous here is a harmless stand-in.
 # Sentinel is started with a debugging port so this script can ask its own windows what they show (scripts/e2e-cdp.js).
 # Results go to $Out\results.txt; the script exits 1 when a check failed.
-param([string]$Installer = '', [string]$Out = 'e2e-desktop')
+param([string]$Installer = '', [string]$Out = 'e2e-desktop', [int]$Repeat = 1)
 $ErrorActionPreference = 'Continue'
 New-Item -ItemType Directory -Force $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
@@ -264,17 +264,23 @@ Start-Sleep 8
 $hearing = (ClipStatus).hearing
 Check 'wallet-hearing' ($hearing -eq $true) "clipboard changes heard as they happen (not only read on a timer): $hearing"
 $catches = { ([regex]::Matches((AppLog), 'wallet address swap caught')).Count }
-Set-Clipboard -Value 'a shopping list'
-Start-Sleep 2
-$sw = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $swapper -WindowStyle Hidden -PassThru
-$ok = Until 20 { (& $catches) -ge 1 }
-Start-Sleep 1
-$clip = (Get-Clipboard -Raw) + ''
-Shot 'wallet-swap'
-Say "  the swap came $((Get-Content $gapFile -ErrorAction SilentlyContinue) -join '') ms after the copy"
-Check 'wallet-swap-restored' ($ok -and $clip.Trim() -eq $btcA) "caught ($ok); clipboard after the swap is the copied address: $($clip.Trim() -eq $btcA)"
-Check 'wallet-swap-log' $ok "app.log: $(([regex]::Match((AppLog), 'wallet address swap caught[^\r\n]*')).Value)"
-[void]$sw.WaitForExit(15000)
+# -Repeat (desktop-e2e.yml's dispatch input) swaps more than once, each a fresh copy after the last one's window closed.
+$missed = @()
+for ($round = 1; $round -le $Repeat; $round++) {
+  if ($round -gt 1) { Start-Sleep 11 }
+  Set-Clipboard -Value 'a shopping list'
+  Start-Sleep 2
+  $sw = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $swapper -WindowStyle Hidden -PassThru
+  $ok = Until 20 { (& $catches) -ge $round }
+  Start-Sleep 1
+  $clip = (Get-Clipboard -Raw) + ''
+  if ($round -eq 1) { Shot 'wallet-swap' }
+  Say "  round $round`: the swap came $((Get-Content $gapFile -ErrorAction SilentlyContinue) -join '') ms after the copy; caught $ok, put back $($clip.Trim() -eq $btcA)"
+  if (-not ($ok -and $clip.Trim() -eq $btcA)) { $missed += $round }
+  [void]$sw.WaitForExit(15000)
+}
+Check 'wallet-swap-restored' ($missed.Count -eq 0) "$Repeat swap(s); caught and the copied address put back in all but rounds: $($missed -join ',')"
+Check 'wallet-swap-log' ((& $catches) -eq $Repeat) "app.log: $(([regex]::Match((AppLog), 'wallet address swap caught[^\r\n]*')).Value) ($(& $catches) of $Repeat)"
 # Two different addresses the person copies, less than a second apart, with Ctrl+C pressed between them: left alone.
 Start-Sleep 11
 Start-Process notepad
@@ -286,7 +292,7 @@ Start-Sleep -Milliseconds 800
 Set-Clipboard -Value $btcA
 Start-Sleep 5
 $clip = (Get-Clipboard -Raw) + ''
-Check 'wallet-own-copy' ($clip.Trim() -eq $btcA -and (& $catches) -eq 1) "after copying two addresses with Ctrl+C between: clipboard is the second ($($clip.Trim() -eq $btcA)), swaps caught still 1 ($(& $catches))"
+Check 'wallet-own-copy' ($clip.Trim() -eq $btcA -and (& $catches) -eq $Repeat) "after copying two addresses with Ctrl+C between: clipboard is the second ($($clip.Trim() -eq $btcA)), swaps caught still $Repeat ($(& $catches))"
 Check 'wallet-log-private' (-not ((AppLog) -match '1A1zP1|1BvBMS')) 'app.log holds no wallet address'
 Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
@@ -367,8 +373,12 @@ Start-Sleep 1
 $hiddenThere = (Cdp 'overlay.html' "document.getElementById('panelPause').hidden").value
 Check 'island-no-pause-when-flagged' ($hiddenThere -eq $true) "pause on the flagged test page hidden: $hiddenThere"
 [void](Cdp 'overlay.html' "window.sentinelIsland.close(); 1")
-# Pause for this site, and back: through the app, on the panel's own button, on a real site found clean.
-Start-Process msedge -ArgumentList '--no-first-run', 'https://www.wikipedia.org/'
+# Pause for this site, and back: through the app, on the panel's own button, on a site the scanner finds clean.
+# A local page behind a hosts mapping, not a site on the internet: run 43543354092 opened www.wikipedia.org, the
+# runner's connection never answered in 48 s, the tab stayed on its blank first page (watch.log: "no page address"),
+# and no pause could be offered.
+Add-Content "$env:WINDIR\System32\drivers\etc\hosts" "`r`n127.0.0.1 harbourcu.test"
+Start-Process msedge -ArgumentList '--no-first-run', 'http://harbourcu.test:47910/plain.html'
 Start-Sleep 8
 Say "Edge in front: $(Front 'msedge')"
 [void](Until 30 { (Cdp 'overlay.html' $ovState).value -notmatch '\|(Checking|Watching)' })
@@ -389,6 +399,8 @@ if ($canPause -eq $true) {
   $resumed = Until 8 { (Cdp 'overlay.html' "document.getElementById('panelVerdict').textContent").value -notmatch 'Paused|Checking' }
   Check 'island-pause' ($paused -and $resumed) "paused ($paused), checked again ($resumed): $((Cdp 'overlay.html' "document.getElementById('panelVerdict').textContent").value)"
 } else {
+  Shot 'island-no-pause'
+  Get-Content "$data\logs\watch.log" -Tail 6 -ErrorAction SilentlyContinue | ForEach-Object { Say "  diag watch.log: $_" }
   Check 'island-pause' $false "no pause on offer on this page: $((Cdp 'overlay.html' "document.getElementById('panel').innerText").value -replace '\s+', ' ')"
 }
 [void](Cdp 'overlay.html' "window.sentinelIsland.close(); 1")

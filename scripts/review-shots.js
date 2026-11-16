@@ -103,6 +103,10 @@ async function signUp() {
   return email;
 }
 
+/** The Monday 00:00 UTC that starts the week holding `t`, as server/lib/plans.js weekStart counts it. */
+const weekStart = (t = Date.now()) => { const d = new Date(t); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); };
+let seeded = null;
+
 /**
  * Your week (server/lib/week.js) with something in it. This week's counts come through the real endpoints: live
  * scanning checks a few results and a page, and the Windows app's numbers arrive the way the app hands them over.
@@ -119,9 +123,12 @@ async function seedWeek(post, cookie, email) {
   try {
     db.exec('PRAGMA busy_timeout = 5000');
     const { id } = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    const d = new Date();
-    const thisWeek = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-    const put = db.prepare('INSERT INTO usage_counters (user_id, week, metric, used) VALUES (?, ?, ?, ?)');
+    const thisWeek = weekStart();
+    // Kept so weekCheck can fill the week in again if a Monday 00:00 UTC passed in between (run 42536746858 began on a
+    // Sunday night and checked Monday: this week was empty and the quarantined file had become last week's news).
+    seeded = { week: thisWeek, again: () => seedWeek(post, cookie, email) };
+    // OR REPLACE: filled in again a week later, the "weeks before" overlap the ones written the first time.
+    const put = db.prepare('INSERT OR REPLACE INTO usage_counters (user_id, week, metric, used) VALUES (?, ?, ?, ?)');
     const past = [
       { live_links: 412, live_flagged: 1, files_checked: 25, chat_checked: 160 },
       { live_links: 288, files_checked: 12, chat_checked: 95, commands_stopped: 1 },
@@ -894,6 +901,7 @@ async function liveMarks(send) {
  */
 async function weekCheck(send) {
   const check = (ok, what, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  your week: ${what}${ok ? '' : `  got ${JSON.stringify(got)}`}`); if (!ok) throw new Error(`your week: ${what}`); };
+  if (seeded.week !== weekStart()) { console.log('your week: a new week began since it was filled in; filled in again'); await seeded.again(); }
   const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
   await send('Page.enable', {}, sessionId);

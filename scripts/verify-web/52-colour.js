@@ -81,12 +81,17 @@ async function checkColour() {
         const seen = [];
         for (const id of IDS.filter((x) => x !== 'gold')) {
           await click(s, gem(id));
-          await sleep(1000);
+          // The circle runs 0.72 s once the browser has its pictures of the page; the first change of a page can wait
+          // longer for them on a busy runner (run 43550196853: rose, the first, still had vt-pick at 1 s). So the
+          // change is waited for, and one still running after 4 s fails.
+          const t0 = Date.now();
+          await until(browser, s, "![...document.documentElement.classList].some((c) => c.startsWith('vt-'))", 4000);
+          const ms = Date.now() - t0;
           const m = await evalIn(browser, s, READ);
           seen.push(m.gold400);
           const ok = m.accent === id && m.checked.join() === id && m.gold400 !== gold.gold400 && m.btn !== gold.btn && m.contrast >= 4.5 && m.vt === ''
             && ['red', 'orange', 'yellow', 'green', 'bg'].every((k) => m[k] === gold[k]);
-          result(`${tag}: ${id} takes the whole page, keeps 4.5:1 (${m.contrast.toFixed(2)}) and leaves the warnings alone`, ok, ok ? undefined : { m, gold });
+          result(`${tag}: ${id} takes the whole page, keeps 4.5:1 (${m.contrast.toFixed(2)}) and leaves the warnings alone (${ms} ms)`, ok, ok ? undefined : { m, gold });
           if (!mobile) await shot(browser, s, `colour-${label}-${scheme}-${id}`);
         }
         result(`${tag}: every colour is its own`, new Set(seen).size === seen.length, seen);

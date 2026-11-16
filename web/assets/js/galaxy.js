@@ -659,7 +659,7 @@
       return {
         running: Boolean(raf) || running(), seen: seen, reduced: reduced, frames: frames, drawn: drawn, mobile: pr.mobile, arms: pr.arms, n: pr.n,
         active: reduced ? pr.n : gov.n, loaded: items.filter(function (i) { return i.ready; }).length, stage: { left: r.left, top: r.top, width: W, height: H },
-        held: held ? held.k : null, boosted: boosted ? boosted.k : null, tag: tagEl.classList.contains('is-on') ? tagEl.textContent : '',
+        pointer: pointer, touchHold: touchHold, held: held ? held.k : null, boosted: boosted ? boosted.k : null, tag: tagEl.classList.contains('is-on') ? tagEl.textContent : '',
         caption: capEl.classList.contains('is-on') ? capEl.textContent : '',
         cards: cards.map(function (c) { return { k: c.k, scene: c.item.i, x: c.rect ? c.rect.cx : c.x, y: c.rect ? c.rect.cy : c.y, w: c.rect ? c.rect.w : 0, h: c.rect ? c.rect.h : 0, alpha: c.alpha, r: c.r, angle: Math.atan2(c.y - H / 2, c.x - W / 2), tag: c.item.tag,
           armDist: c.rect && c.alpha > 0.5 ? Math.round(armDist(c.rect.cx, c.rect.cy) * 10) / 10 : null }; })

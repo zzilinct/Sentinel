@@ -162,14 +162,18 @@ public static class Clip {
   static void Changed() {
     int tick = Environment.TickCount; uint seq = GetClipboardSequenceNumber();
     int[] li = new int[] { 8, 0 }; GetLastInputInfo(li);
-    string owner = ""; IntPtr o = GetClipboardOwner();
-    if (o != IntPtr.Zero) { int pid; GetWindowThreadProcessId(o, out pid); try { owner = Process.GetProcessById(pid).ProcessName.ToLower(); } catch {} }
+    IntPtr o = GetClipboardOwner();
     // A program copying through OLE (WPF, Windows Forms, Office) is still finishing its copy when the change is heard:
     // reading straight away would make it wait, or fail. Its copy is given a moment first.
     StringBuilder cls = new StringBuilder(64);
     if (o != IntPtr.Zero && GetClassNameW(o, cls, 64) > 0 && cls.ToString() == "CLIPBRDWNDCLASS") Thread.Sleep(20);
+    // Read before the owner's name is looked up: that lookup walks every process (tens of ms on a busy machine), and a
+    // hijacker swaps within milliseconds. Read after it, both changes were read as the swapped address and nothing was
+    // caught (desktop-e2e wallet-swap-restored, runs 42533665233 and 42534207196).
     string t = (Read() ?? "").Trim();
     if (t.Length > 120 || !Shape.IsMatch(t)) t = "";
+    string owner = "";
+    if (o != IntPtr.Zero) { int pid; GetWindowThreadProcessId(o, out pid); try { owner = Process.GetProcessById(pid).ProcessName.ToLower(); } catch {} }
     Say("clipboard:" + seq + "|" + (uint)tick + "|" + unchecked((uint)(tick - li[1])) + "|" + owner + "|" + t);
   }
   static string Read() {

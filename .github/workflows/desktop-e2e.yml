@@ -11,7 +11,7 @@ on:
         required: false
         default: ''
       repeat:
-        description: 'core-use: rounds of the honest sites in Edge; qa: rounds of the signed-in right-click files'
+        description: 'core-use: rounds of the honest sites in Edge; qa: rounds of the signed-in right-click files; e2e: rounds of the wallet swap'
         required: false
         default: '1'
   push:
@@ -38,7 +38,7 @@ jobs:
           npm ci
           npm run dist:win
       - shell: powershell
-        run: ./scripts/desktop-e2e.ps1 -Installer (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-desktop
+        run: ./scripts/desktop-e2e.ps1 -Installer (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Out e2e-desktop -Repeat ${{ inputs.repeat || '1' }}
       # Sentinel's own logs, whatever happened: a start that failed still leaves app.log (and the screenshot above).
       - name: Sentinel's logs
         if: always()

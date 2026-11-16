@@ -120,7 +120,9 @@ async function checkCompanionDoor() {
       const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true });
       await browser.send('Page.enable', {}, sessionId);
       await size(sessionId, 360, 480);
-      await until(browser, sessionId, "document.readyState === 'complete' && !document.querySelector('#view .spin')", 20000);
+      // #view first: the new tab's blank first page is also complete with no spinner (run 43507280002 read the popup
+      // 0.5 s after that, while it still had its spinner, and got no words).
+      await until(browser, sessionId, "document.readyState === 'complete' && document.querySelector('#view') && !document.querySelector('#view .spin')", 20000);
       await sleep(500);
       const text = await evalIn(browser, sessionId, "document.getElementById('view').innerText.replace(/\\s+/g, ' ').trim()");
       await pictures(sessionId, `popup-${name}`);
