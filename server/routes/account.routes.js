@@ -55,7 +55,9 @@ function register(router) {
   // The model picker: every released version by category, marked for this account's plan (models.js).
   router.get('/api/v1/models', async (req, res) => {
     const user = A.requireUser(req);
-    await Promise.race([models.refresh(), new Promise((r) => setTimeout(r, 3000))]);
+    // GitHub is waited for only while no list is known (a fresh install). A known list is answered at once and brought
+    // up to date behind it: waiting on every six-hourly refresh held the first page after it for up to 3 s.
+    if (!models.known()) await Promise.race([models.refresh(), new Promise((r) => setTimeout(r, 3000))]);
     sendJson(res, 200, models.catalogue(plans.planFor(user).id));
   });
 

@@ -616,8 +616,9 @@
       // The pixels are ahead of this word: it only confirms them, later.
     } else {
       // After a scroll the pixels followed, the browser's word agreeing with where the marks are is no surprise: they
-      // settle onto it in view. Only movement nothing followed makes them step aside.
-      var followed = now - pxAt < 1500 && Math.abs(p.dy - shiftY) < 40;
+      // settle onto it in view. So does a correction (settle: the pixels saw a repaint, not a scroll, and the links
+      // never moved). Only movement nothing followed makes them step aside.
+      var followed = p.settle || (now - pxAt < 1500 && Math.abs(p.dy - shiftY) < 40);
       goal = { x: p.dx, y: p.dy };
       if (!followed && (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX)) setMoving(true);
     }

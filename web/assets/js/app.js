@@ -51,6 +51,9 @@
         if (!q.has('missed')) shared = { query: q };
       }
     }
+    // Whether a share waits (below) is asked beside the account, not after it: opening the share box can take a
+    // tenth of a second, and the first screen waited for it. Only a share older than FRESH_MS is ever emptied by it.
+    const waitingShare = location.pathname.replace(/\/$/, '') !== '/app/share' ? Share.waiting().catch(() => false) : Promise.resolve(false);
     try {
       const [me, config] = await Promise.all([api('/auth/me'), api('/auth/config')]);
       state.me = me;
@@ -60,7 +63,7 @@
       if (window.SentinelLook && SentinelLook.sync) SentinelLook.sync();
       // Signed in on any other page: a share made signed out moments ago (in another tab, or before signing in here)
       // opens its check here; anything older is emptied out. Signed out, it is left waiting for the sign-in.
-      if (location.pathname.replace(/\/$/, '') !== '/app/share' && await Share.waiting()) history.replaceState({}, '', '/app/share');
+      if (await waitingShare) history.replaceState({}, '', '/app/share');
     } catch (err) {
       if (err.status === 401) {
         location.replace(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
@@ -690,10 +693,13 @@
     }).join('')}</ol>`;
   }
 
-  // The model running here, beneath the logo: a quiet reminder, and the way to the picker.
+  // The model running here, beneath the logo: a quiet reminder, and the way to the picker. A phone's bar hides it
+  // (app.css, 900px), so there it is asked for only once the window is wide enough to show it.
+  const wide = matchMedia('(min-width: 901px)');
   async function paintModelBadge() {
     const badge = $('[data-model-badge]');
     if (!badge) return;
+    if (!wide.matches) { wide.addEventListener('change', paintModelBadge, { once: true }); return; }
     try {
       const cat = (state.models && state.models.cat) || await api('/models');
       state.models = state.models || { cat, at: Date.now() };

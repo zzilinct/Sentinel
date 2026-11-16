@@ -87,3 +87,17 @@ test('the picker lists models by category, and marks the newest three for the fr
   assert.equal(argus.versions[3].newest, false);
   assert.ok(argus.versions.find((v) => v.version === own).current);
 });
+
+test('a known list is answered at once while GitHub is asked again behind it', async () => {
+  published(own, '1.8.8');
+  const c = await signedIn('free');
+  const slow = models.refresh;
+  let asked = 0;
+  models.refresh = () => { asked++; return new Promise((r) => setTimeout(r, 2500)); };
+  try {
+    const t = Date.now();
+    assert.equal((await c.get('/api/v1/models')).status, 200);
+    assert.ok(Date.now() - t < 1000, `the picker waited ${Date.now() - t} ms on a refresh`);
+  } finally { models.refresh = slow; }
+  assert.equal(asked, 0, 'only an empty list waits on GitHub');
+});

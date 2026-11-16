@@ -17,6 +17,10 @@ on:
         description: 'With perf_pages: how many times each page is measured'
         required: false
         default: '1'
+      perf_base:
+        description: 'With perf_pages: also measure this ref (main) on the same runner, back to back with the branch, and report medians'
+        required: false
+        default: ''
   push:
     branches: ['work/e2e**']
 
@@ -110,12 +114,19 @@ jobs:
       - name: Lighthouse and axe-core, for this job only
         shell: bash
         run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/ci-tools" lighthouse@13.5.0 axe-core@4.10.3
+      - name: The ref to compare with, beside this checkout
+        if: ${{ inputs.perf_base }}
+        shell: bash
+        run: git fetch --no-tags --depth=1 origin "$PERF_BASE" && git worktree add --detach "$RUNNER_TEMP/perf-base" FETCH_HEAD
+        env:
+          PERF_BASE: ${{ inputs.perf_base }}
       - name: Speed and accessibility of every page
         shell: bash
-        run: CI_TOOLS="$RUNNER_TEMP/ci-tools" node scripts/verify-web.js --only perf-a11y --out perf-a11y
+        run: CI_TOOLS="$RUNNER_TEMP/ci-tools" PERF_BASE_ROOT="${PERF_BASE:+$RUNNER_TEMP/perf-base}" node scripts/verify-web.js --only perf-a11y --out perf-a11y
         env:
           PERF_PAGES: ${{ inputs.perf_pages }}
           PERF_ROUNDS: ${{ inputs.perf_rounds }}
+          PERF_BASE: ${{ inputs.perf_base }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

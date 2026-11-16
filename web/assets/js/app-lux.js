@@ -236,12 +236,19 @@
 
   /* --------------------------------------------- the overview's mask */
 
+  // A phone hides the mask (app-lux.css, max-width 720px), so there it is never added: its picture, three.js and the
+  // model are about 540 KB the phone would fetch and build for nothing. A window widened past it gains the mask then.
+  const narrow = matchMedia('(max-width: 720px)');
+  narrow.addEventListener('change', () => { if (!narrow.matches && tab === 'home') addMask(); });
+
   function addMask() {
     const head = view.querySelector('.page-title');
-    if (!head || head.querySelector('.lux-mask')) return;
-    // In 3D when it can be (cosmos.js fetches the models): it turns to watch the pointer as it comes near.
+    if (narrow.matches || !head || head.querySelector('.lux-mask')) return;
+    // In 3D when it can be (cosmos.js fetches the models): it turns to watch the pointer as it comes near. The models
+    // wait until the browser is idle, as cosmos.js waits for a page's own masks, so the page is drawn first.
     head.insertAdjacentHTML('beforeend', '<div class="lux-mask" aria-hidden="true"><span class="m3" data-mask3d="onyx" data-pose="lay" data-look="380"><img src="/assets/img/masks/onyx.webp" width="788" height="896" alt=""></span></div>');
-    if (window.SentinelLoadMask3D) window.SentinelLoadMask3D();
+    const load = () => window.SentinelLoadMask3D && window.SentinelLoadMask3D();
+    if (window.requestIdleCallback) requestIdleCallback(load, { timeout: 1500 }); else setTimeout(load, 200);
   }
 
   /* ---------------------------------------------- numbers that count */
