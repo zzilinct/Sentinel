@@ -768,10 +768,12 @@ test('a movement only the pixels saw is put back in view, never by stepping asid
 
 test('live-e2e makes a repaint that only looks like a scroll, and fails unless the reader puts the marks right in time', () => {
   const { repaint, SETTLE_MS } = require('../scripts/marks-at-rest.js');
-  // The test inbox draws every row one row higher (the R key) without moving a row, and the run reads its trace after.
+  // The test inbox's rows draw the next message's words (the R key) under their own names, sizes and places, and the
+  // run reads its trace after. A transform is not used: live-e2e run 43790829184 showed the browser moves the rows too.
   const inbox = read('scripts/e2e-inbox/mail/index.html');
-  assert.match(inbox, /body\.repainted td \{ transform: translateY\(calc\(-1 \* var\(--pitch\)\)\); \}/);
-  assert.match(inbox, /ev\.key !== 'r'/);
+  assert.match(inbox, /var m = mail\[\(i \+ by\) % mail\.length\];/);
+  assert.match(inbox, /shown = 1 - shown;\s+draw\(shown\);/);
+  assert.doesNotMatch(inbox, /transform:/);
   const run = read('scripts/live-e2e.ps1');
   assert.match(run, /\[K\]::Tap\(0x52\)[^\n]*\n[^\n]*marks-at-rest\.js'\) "\$Out\\frames\.txt" --repaint/);
   assert.match(read('desktop/src/overlay.js'), /`S \$\{Date\.now\(\)\} \$\{t\} \$\{dy\}\$\{settle \? ' settle' : ''\}\\n`/);

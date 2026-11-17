@@ -147,8 +147,8 @@ Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871,
 # 4. An inbox (a Pro feature, given above). Everyday mail and scams side by side: the scams should get a mask, the
 # rest a tick, and marks must stay inside the message list while it scrolls.
 Search 'http://127.0.0.1:47900/mail/' 'inbox'
-# A repaint that only looks like a scroll, made on purpose: the R key draws every row of the inbox one row higher and
-# back, while the rows stay where they are. The pixels see a scroll the page never made; within a second the reader
+# A repaint that only looks like a scroll, made on purpose: the R key has every row of the inbox draw the next
+# message's words, and back, while the rows keep their names and places. The pixels see a scroll the page never made; within a second the reader
 # must say the rows never moved, and the marks must end on their messages (scripts/marks-at-rest.js --repaint).
 function Repaint($label) {
   Add-Content "$Out\frames.txt" "# inbox repaint $label"

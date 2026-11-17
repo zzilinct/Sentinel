@@ -15,7 +15,7 @@ const path = require('path');
 /** The web app's scripts: app.js and the page files it fetches (web/assets/js/app/), as paths from the repo root. */
 const APP_FILES = ['web/assets/js/app.js', ...fs.readdirSync(path.join(__dirname, '..', 'web', 'assets', 'js', 'app')).sort().map((f) => `web/assets/js/app/${f}`)];
 /** ...and as one text, for the checks that read the app's code. */
-const appScript = () => APP_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
+const appScript = () => APP_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n')).join('\n');
 
 const DAY = 86400000;
 // Joins sample wording in memory, so it never sits whole in this file (see the fake-CAPTCHA and miner pages below).

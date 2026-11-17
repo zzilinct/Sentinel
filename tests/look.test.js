@@ -164,7 +164,7 @@ test('the live surfaces have no gold of their own left: they draw the look', () 
   // The marketing pages carry no table and no colour maths: the theme button and the kept colours only. The app
   // carries the table and the choice (look.js, then look-app.js, before app.js); the home page the table, for its preview.
   assert.doesNotMatch(read('web', 'assets', 'js', 'look-site.js'), /oklch|ramp\(|Math\.cbrt|ACCENTS/);
-  assert.match(read('web', 'app.html'), /<script src="\/assets\/js\/look\.js"><\/script>\r?\n<script src="\/assets\/js\/look-app\.js"><\/script>\r?\n<script src="\/assets\/js\/app\.js">/);
+  assert.match(read('web', 'app.html'), /<script src="\/assets\/js\/look\.js" defer><\/script>\r?\n<script src="\/assets\/js\/look-app\.js" defer><\/script>\r?\n<script src="\/assets\/js\/app\.js" defer>/);
   assert.match(read('web', 'index.html'), /<script src="\/assets\/js\/look\.js" defer><\/script>\r?\n<script src="\/assets\/js\/accent\.js" defer>/);
   for (const page of ['pricing.html', 'download.html', 'privacy.html', 'login.html']) assert.doesNotMatch(read('web', page), /look\.js|look-app\.js/, `${page} loads only look-site.js`);
   assert.doesNotMatch(read('web', 'assets', 'js', 'look.js'), /localStorage\.setItem|fetch\(|picker/, 'the table keeps no choice and asks nothing');

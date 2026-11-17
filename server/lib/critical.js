@@ -107,9 +107,12 @@ function keep(items, names, out) {
 function inline(base, html) {
   const names = namesOf(base, html);
   const out = [];
-  for (const { file } of sheets(base, html)) {
+  for (const { href, file } of sheets(base, html)) {
     if (!fs.existsSync(file)) continue;
-    keep(parse(fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n')), names, out);
+    // A sheet's relative addresses (its faces, its pictures) are read from the sheet's folder, not the page's.
+    const css = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n')
+      .replace(/url\((['"]?)(?![a-z]+:|\/|#|%23)([^'")]+)\1\)/gi, (_, q, rel) => `url(${q}${path.posix.join(path.posix.dirname(href), rel)}${q})`);
+    keep(parse(css), names, out);
   }
   const rules = out.filter((x) => typeof x === 'string');
   const used = new Set();

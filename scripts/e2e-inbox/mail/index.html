@@ -22,9 +22,6 @@
   nav { position: fixed; top: 64px; left: 0; width: 180px; padding: 8px 0; }
   nav a { display: block; padding: 6px 24px; color: #202124; text-decoration: none; border-radius: 0 16px 16px 0; }
   nav a.on { background: #d3e3fd; font-weight: 600; }
-  /* The R key (scripts/live-e2e.ps1): every row's cells are drawn one row higher while the rows stay where they are. A
-     repaint that looks exactly like a scroll the page never made, as a theme change or rows that look alike can. */
-  body.repainted td { transform: translateY(calc(-1 * var(--pitch))); }
 </style>
 </head>
 <body>
@@ -62,22 +59,32 @@
     ['LinkedIn', 'You appeared in 12 searches this week', 'Sep 19', 'See who is looking at your profile.']
   ];
   var tbody = document.getElementById('rows');
+  // Row i shows message i + by (0, or 1 after the R key); its name, size and place stay message i's.
+  function draw(by) {
+    [].forEach.call(tbody.children, function (tr, i) {
+      var m = mail[(i + by) % mail.length];
+      tr.children[0].textContent = m[0];
+      tr.querySelector('.subject').textContent = m[1];
+      tr.querySelector('.preview').textContent = '- ' + m[3];
+      tr.children[2].textContent = m[2];
+    });
+  }
   mail.forEach(function (m, i) {
     var tr = document.createElement('tr');
     tr.setAttribute('role', 'row');
     tr.setAttribute('aria-label', (i < 5 ? 'unread, ' : '') + m[0] + ', ' + m[1] + ', ' + m[2] + ', ' + m[3]);
     tr.innerHTML = '<td class="from"></td><td><span class="subject"></span> <span class="preview"></span></td><td class="when"></td>';
-    tr.children[0].textContent = m[0];
-    tr.querySelector('.subject').textContent = m[1];
-    tr.querySelector('.preview').textContent = '- ' + m[3];
-    tr.children[2].textContent = m[2];
     tbody.appendChild(tr);
   });
+  draw(0);
+  // The R key (scripts/live-e2e.ps1): every row draws the next message's words, and back. The rows never move, but
+  // their pixels look exactly like the list scrolled one row: a repaint that only looks like a scroll, on purpose.
+  // (Drawing the cells a row higher with a transform is not one: the browser reports the rows moved with them.)
+  var shown = 0;
   document.addEventListener('keydown', function (ev) {
     if (ev.key !== 'r' && ev.key !== 'R') return;
-    var rows = tbody.children;
-    document.body.style.setProperty('--pitch', (rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top) + 'px');
-    document.body.classList.toggle('repainted');
+    shown = 1 - shown;
+    draw(shown);
   });
 </script>
 </body>
