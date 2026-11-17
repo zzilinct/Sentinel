@@ -1,53 +1,43 @@
 {
-  "version": "1.20.1",
+  "version": "1.20.2",
   "model": "Argus",
-  "summary": "Steadier live marks, clearer warnings, and a companion that keeps your choices",
+  "summary": "A true caution yellow, a lighter web app on phones, and stronger security",
   "groups": [
-    {
-      "title": "Live scanning",
-      "items": [
-        "Marks stay on their rows when a theme change or a new tab only looks like a scroll.",
-        "Opening a new tab clears the last page's marks at once.",
-        "Marks that go now fade out gently.",
-        "In Serious only, the scan effect no longer tints safe links.",
-        "The hover tip no longer covers other marks."
-      ]
-    },
-    {
-      "title": "Warnings",
-      "items": [
-        "Warnings put their main reason in the heading.",
-        "Warnings follow Simple view: fewer words, a bigger answer.",
-        "Warning cards no longer sit on a pale square."
-      ]
-    },
-    {
-      "title": "The app",
-      "items": [
-        "On Settings, the / key jumps to the settings search.",
-        "A long wait offers Try again after 8 seconds.",
-        "Pages hold their shape while they load, at any width or text size, so nothing jumps.",
-        "Switching Animation from Off back to Full brings back the page's scroll motion without a reload.",
-        "Under Full animation, choices slide from one option to the next.",
-        "Screen readers now hear the Animation choice's name."
-      ]
-    },
     {
       "title": "Colour and brand",
       "items": [
-        "Gold text on light pages is easier to read and still gold.",
-        "In light mode, each colour choice looks clearly different from the others.",
-        "The colour preview shows real gold for Gold, whatever colour you picked.",
-        "The phone preview shows the green safe example again.",
-        "The installer shows the Sentinel name under the mark.",
-        "A sharper tab icon on high-resolution screens."
+        "Caution is now a true yellow everywhere. On light pages it is a yellow mark beside dark words, never mistaken for gold or green.",
+        "Caution never looks louder than danger.",
+        "Warning orange and the companion's colours read clearly on every background.",
+        "The tab icon on high-resolution screens is drawn pixel by pixel, so the mask's eyes show."
       ]
     },
     {
-      "title": "Browser companion",
+      "title": "Speed",
       "items": [
-        "If browser sync fails, your settings are kept on this computer instead, and the newest choice always wins.",
-        "The companion popup follows your text size and spacing."
+        "Phones opening the web app no longer download the 3D mask and model list they never show, about 540 KB less per visit.",
+        "The computer app shows its main content sooner."
+      ]
+    },
+    {
+      "title": "Live scanning",
+      "items": [
+        "Marks fooled by a repaint slide back in under a second and stay visible."
+      ]
+    },
+    {
+      "title": "Security",
+      "items": [
+        "Passwords set from now on need 15 characters. A few unrelated words work well. Existing passwords keep working.",
+        "The Windows app release build shuts more ways other programs could misuse it.",
+        "Releases carry signed build provenance.",
+        "The browser companion checks who sends every message."
+      ]
+    },
+    {
+      "title": "Settings",
+      "items": [
+        "Settings tells you once when another device's newer choice replaced yours."
       ]
     }
   ]
