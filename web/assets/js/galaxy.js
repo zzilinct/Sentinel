@@ -528,12 +528,16 @@
 
   /* ---------------------------------------------------------- interaction */
 
+  // The held card keeps easing its size to its neighbours' room and leaning to the pointer, so its edge creeps a few
+  // pixels: a pointer resting just inside it ended outside, and the card let go by itself and drifted off before the
+  // click (the website check's "a click enlarges" failed this way). It is let go only past this margin.
+  var HOLD_MARGIN = 12;
   function at(x, y) {
     var order = cards.filter(function (c) { return c.rect && !c.skip && c.alpha > 0.3; })
       .sort(function (a, b) { return (b === boosted) - (a === boosted) || (b === held) - (a === held) || b.s * b.boost - a.s * a.boost; });
     for (var i = 0; i < order.length; i++) {
-      var r = order[i].rect;
-      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return order[i];
+      var r = order[i].rect, m = order[i] === held ? HOLD_MARGIN : 0;
+      if (x >= r.x - m && x <= r.x + r.w + m && y >= r.y - m && y <= r.y + r.h + m) return order[i];
     }
     return null;
   }
@@ -659,7 +663,7 @@
       return {
         running: Boolean(raf) || running(), seen: seen, reduced: reduced, frames: frames, drawn: drawn, mobile: pr.mobile, arms: pr.arms, n: pr.n,
         active: reduced ? pr.n : gov.n, loaded: items.filter(function (i) { return i.ready; }).length, stage: { left: r.left, top: r.top, width: W, height: H },
-        pointer: pointer, touchHold: touchHold, held: held ? held.k : null, boosted: boosted ? boosted.k : null, tag: tagEl.classList.contains('is-on') ? tagEl.textContent : '',
+        pointer: pointer, held: held ? held.k : null, boosted: boosted ? boosted.k : null, tag: tagEl.classList.contains('is-on') ? tagEl.textContent : '',
         caption: capEl.classList.contains('is-on') ? capEl.textContent : '',
         cards: cards.map(function (c) { return { k: c.k, scene: c.item.i, x: c.rect ? c.rect.cx : c.x, y: c.rect ? c.rect.cy : c.y, w: c.rect ? c.rect.w : 0, h: c.rect ? c.rect.h : 0, alpha: c.alpha, r: c.r, angle: Math.atan2(c.y - H / 2, c.x - W / 2), tag: c.item.tag,
           armDist: c.rect && c.alpha > 0.5 ? Math.round(armDist(c.rect.cx, c.rect.cy) * 10) / 10 : null }; })

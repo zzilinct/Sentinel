@@ -279,7 +279,7 @@ for ($round = 1; $round -le $Repeat; $round++) {
   if (-not ($ok -and $clip.Trim() -eq $btcA)) { $missed += $round }
   [void]$sw.WaitForExit(15000)
 }
-Check 'wallet-swap-restored' ($missed.Count -eq 0) "$Repeat swap(s); caught and the copied address put back in all but rounds: $($missed -join ',')"
+Check 'wallet-swap-restored' ($missed.Count -eq 0) "$Repeat swap(s), each caught and the copied address put back; rounds missed: $(if ($missed.Count) { $missed -join ',' } else { 'none' })"
 Check 'wallet-swap-log' ((& $catches) -eq $Repeat) "app.log: $(([regex]::Match((AppLog), 'wallet address swap caught[^\r\n]*')).Value) ($(& $catches) of $Repeat)"
 # Two different addresses the person copies, less than a second apart, with Ctrl+C pressed between them: left alone.
 Start-Sleep 11

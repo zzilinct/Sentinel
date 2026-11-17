@@ -166,12 +166,18 @@ async function checkGalaxy() {
           result(`galaxy (${at}): the card under the pointer stops and shows Sentinel's verdict`,
             h2.held !== null && h1.held === h2.held && moved >= 0 && moved < 3 && h2.tag && h2.tag === (k2 && k2.tag),
             { aimedAt: c.k, under: await p.ev(`(() => { const e = document.elementFromPoint(${x}, ${y}); return e ? e.tagName + '.' + e.className : ''; })()`), held: h2.held, movedPx: +moved.toFixed(2), tag: h2.tag, want: k2 && k2.tag, aims });
-          await p.ev(`window.__gx = []; const log = (e) => window.__gx.push(e.type + '@' + Math.round(performance.now()) + (e.type === 'scroll' ? ':' + Math.round(scrollY) : e.clientX !== undefined ? ':' + e.clientX + ',' + e.clientY : ''));
-            ['pointermove', 'pointerdown', 'pointerup', 'pointerleave', 'click', 'scroll', 'visibilitychange', 'blur', 'focus', 'resize'].forEach((t) => addEventListener(t, log, true)); true`);
+          // A pointer resting just past the held card's edge keeps it: the card creeps a few pixels as it settles, and
+          // must not let go of a pointer that did not move (runs 43520606433 and 44172326361 clicked a card let go).
+          if (k2) {
+            await mouse(p.s, 'mouseMoved', h2.stage.left + k2.x, h2.stage.top + k2.y + k2.h / 2 + 10);
+            await sleep(600);
+            const edge = await p.st();
+            result(`galaxy (${at}): a pointer resting just past the held card's edge keeps it held`, edge.held === h2.held, { held: h2.held, now: edge.held, pointer: edge.pointer, card: [k2.x, k2.y, k2.w, k2.h] });
+            await mouse(p.s, 'mouseMoved', x, y);
+            await sleep(300);
+          }
           await mouse(p.s, 'mousePressed', x, y);
           await mouse(p.s, 'mouseReleased', x, y);
-          await sleep(60);
-          var justAfter = await p.st();
         } else {
           await browser.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] }, p.s);
           await browser.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }, p.s);
@@ -182,9 +188,7 @@ async function checkGalaxy() {
         await shot(browser, p.s, `${name}-click`);
         result(`galaxy (${at}): ${phone ? 'a tap' : 'a click'} enlarges the card with its caption${phone ? ' and verdict' : ''}`,
           e.boosted !== null && big && big.w >= Math.max(c.w * 1.8, e.stage.width * 0.3) && e.caption.length > 20 && (!phone || e.tag),
-          { boosted: e.boosted, was: Math.round(c.w), now: big && Math.round(big.w), caption: e.caption, tag: e.tag, at: [Math.round(x), Math.round(y)], pointer: e.pointer, touchHold: e.touchHold, held: e.held,
-            justAfter: phone ? null : { boosted: justAfter.boosted, held: justAfter.held, pointer: justAfter.pointer, stageTop: justAfter.stage.top }, stageTop: e.stage.top,
-            events: phone ? null : await p.ev('window.__gx.join(" ")') });
+          { boosted: e.boosted, was: Math.round(c.w), now: big && Math.round(big.w), caption: e.caption, tag: e.tag, at: [Math.round(x), Math.round(y)], pointer: e.pointer, held: e.held });
         if (!phone) { await mouse(p.s, 'mouseMoved', 5, 5); await sleep(600); }
 
         /* The keyboard: the list's buttons are the cards. */
