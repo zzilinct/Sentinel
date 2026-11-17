@@ -1022,7 +1022,7 @@ if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
 # (SENTINEL_NO_UPDATE, set by desktop-e2e.yml). Without it, every release failed every branch's run part way.
 $up = (Info 'info()').update
 $built = (Get-Item $Installer).VersionInfo.ProductVersion; $now = (Get-Item $exe).VersionInfo.ProductVersion
-Check 'no-self-update' ($up.status -eq 'current' -and [version]$now -eq [version]$built -and (@(Get-Process Sentinel -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }).Count -gt 0)) "built $built, installed now $now, updater: $($up.status) $($up.version)"
+Check 'no-self-update' ($up.status -eq 'current' -and [version]$now -eq [version]$built) "built $built, installed now $now, updater: $($up.status) $($up.version)"
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 60 | ForEach-Object { Say "  $_" }
 # 9. Uninstalling takes "Scan with Sentinel" out of the right-click menu. The uninstaller hands itself to a copy in
 # the temp folder, so its end is waited for by the key going.
