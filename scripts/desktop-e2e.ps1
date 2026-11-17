@@ -1019,6 +1019,11 @@ Check 'menu-offline-log-private' ($log -match 'right-click menu: a file was chec
 Check 'menu-offline-done' (Until 10 { [bool](Cdp 'filescan.html' '1').error }) 'Done closes the result window'
 
 if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
+# The app under test is still this commit's build: a release published during the run is not installed over it
+# (SENTINEL_NO_UPDATE, set by desktop-e2e.yml). Without it, every release failed every branch's run part way.
+$up = (Info 'info()').update
+$built = (Get-Item $Installer).VersionInfo.ProductVersion; $now = (Get-Item $exe).VersionInfo.ProductVersion
+Check 'no-self-update' ($up.status -eq 'current' -and $now -eq $built -and (@(Get-Process Sentinel -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }).Count -gt 0)) "built $built, installed now $now, updater: $($up.status) $($up.version)"
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 60 | ForEach-Object { Say "  $_" }
 # 9. Uninstalling takes "Scan with Sentinel" out of the right-click menu. The uninstaller hands itself to a copy in
 # the temp folder, so its end is waited for by the key going.

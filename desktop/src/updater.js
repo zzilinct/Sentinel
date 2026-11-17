@@ -94,6 +94,10 @@ function reviewLastAttempt() {
 function init(options) {
   hooks = options || {};
   if (!app.isPackaged) { set({ supported: false, status: 'dev' }); return; }
+  // CI only (desktop-e2e.yml, live-e2e.yml): the build under test stays the build under test. Without this, every
+  // release published while a branch's run was going updated that run's app to the release in the middle of it.
+  // Nothing is asked of the feed; core-update and update-e2e.yml leave it unset and test real updating.
+  if (process.env.SENTINEL_NO_UPDATE === '1') { set({ supported: true, status: 'current', checkedAt: Date.now() }); return; }
   try {
     ({ autoUpdater } = require('electron-updater'));
   } catch {

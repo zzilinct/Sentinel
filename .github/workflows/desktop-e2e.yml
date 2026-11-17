@@ -20,6 +20,11 @@ on:
 permissions:
   contents: read
 
+# The app under test never updates itself to a release published meanwhile (desktop/src/updater.js); core-update below
+# and update-e2e.yml test real updating without it.
+env:
+  SENTINEL_NO_UPDATE: '1'
+
 jobs:
   e2e:
     if: ${{ !inputs.only || contains(inputs.only, 'e2e') }}
@@ -153,6 +158,8 @@ jobs:
   core-update:
     if: ${{ !inputs.only || contains(inputs.only, 'core-update') }}
     runs-on: windows-latest
+    env:
+      SENTINEL_NO_UPDATE: ''
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
