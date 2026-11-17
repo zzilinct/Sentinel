@@ -789,6 +789,13 @@ test('live-e2e makes a repaint that only looks like a scroll, and fails unless t
   // Taken for a real scroll (the browser said the rows moved), or never seen by the pixels: nothing proven.
   assert.equal(repaint(`${head}P 1000 50 -41\nS 1200 250 -41\nS 1760 810 0 settle\n`).moved, true);
   assert.equal(repaint(`${head}S 1760 810 0 settle\n`).px, 0);
+  // Put right by a fresh read, as live-e2e run 44184416538 did it (its trace, cut short): 847 ms after the overlay's
+  // first frame following the pixels, the flagged mark back on its row at 203.
+  const traced = 'K 911 203 x\n# inbox repaint one row up\nP 1794952761918 698593 -40\nF 171964.6 0.0 -40.0\nF 172011.5 -40.0 -40.0\nK 911 163 x\nM 172811.9 marks 14 fresh ends -\nK 911 203 x\n';
+  const fresh = repaint(traced);
+  assert.deepEqual([fresh.via, fresh.ms, fresh.yBefore, fresh.yAfter], ['fresh read', 847, 203, 203]);
+  // The cells drawn a row higher with a transform (run 43790829184): the fresh read followed the moved rows, to 165.
+  assert.equal(repaint(traced.replace(/K 911 203 x\n$/, 'K 911 165 x\n')).yAfter, 165);
 });
 
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {
