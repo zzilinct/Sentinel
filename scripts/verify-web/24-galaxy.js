@@ -173,6 +173,10 @@ async function checkGalaxy() {
             await sleep(600);
             const edge = await p.st();
             result(`galaxy (${at}): a pointer resting just past the held card's edge keeps it held`, edge.held === h2.held, { held: h2.held, now: edge.held, pointer: edge.pointer, card: [k2.x, k2.y, k2.w, k2.h] });
+            // Then a click on the card where it is drawn now, as a person clicks what they see: the card leans to the
+            // pointer, so jumping back to the old aim point can land past its edge.
+            const kc = edge.cards.find((k) => k.k === edge.held);
+            if (kc) { x = edge.stage.left + kc.x; y = edge.stage.top + kc.y; }
             await mouse(p.s, 'mouseMoved', x, y);
             await sleep(300);
           }
