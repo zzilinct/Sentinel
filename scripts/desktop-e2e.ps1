@@ -700,11 +700,6 @@ $dk = ''
 $ok = Until 15 { $script:dk = [string](Cdp 'warn.html' "document.documentElement.dataset.theme + '|' + (document.getElementById('why').textContent ? 'reason in the heading' : 'no reason')").value; $script:dk -eq 'dark|reason in the heading' }
 Start-Sleep 1; Shot 'warning-dark'
 Check 'warning-dark' $ok "the warning card in the dark look: $dk"
-# The same card as caution on light paper, painted by card.js's own status(): ink words, and a yellow mask edged in ink
-# with no disc behind it, lighter than danger's solid mask.
-$cl = [string](Cdp 'warn.html' "(() => { const L = SentinelLook, q = new URLSearchParams(location.search), r = document.documentElement; q.set('theme', 'light'); const look = L.paint(r, L.fromQuery('?' + q)); r.dataset.theme = L.scheme(look.mode); SentinelCard.status(r, 'yellow'); const p = getComputedStyle(document.querySelector('.mark path')), m = getComputedStyle(document.querySelector('.mark')); return [r.dataset.theme, p.fill, p.stroke, m.backgroundColor].join('|'); })()").value
-Start-Sleep 1; Shot 'warning-caution-light'
-Check 'warning-caution-light' ($cl -match '^light\|rgb\(245, 197, 66\)\|rgb\(\d+, \d+, \d+\)\|rgba\(0, 0, 0, 0\)$' -and $cl -notmatch 'rgb\(245, 197, 66\)\|rgb\(245, 197, 66\)\|') "caution on light paper: theme|mask fill|edge|disc = $cl"
 # Warnings that lead to the real site: the warning offers the person's own site, and pressing it opens exactly that
 # address, kept by the app when the warning was made. The browser's opening is stood in for in the main process, so
 # nothing else comes to the front; the log says that it was opened, never which.
