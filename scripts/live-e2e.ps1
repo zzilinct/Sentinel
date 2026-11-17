@@ -46,7 +46,8 @@ else {
 }
 Start-Process $setup -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"
-Say "installed $tag -> $((Get-Item $exe).VersionInfo.ProductVersion)"
+$built = (Get-Item $exe).VersionInfo.ProductVersion
+Say "installed $tag -> $built"
 
 # 2. Live scanning on, auto scanning on, before the first start.
 $data = "$env:APPDATA\Sentinel"; New-Item -ItemType Directory -Force $data | Out-Null
@@ -288,6 +289,11 @@ Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue
 Say '--- watch.log'; Get-Content "$data\logs\watch.log" -ErrorAction SilentlyContinue | Select-Object -Last 40 | ForEach-Object { Say "  $_" }
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 30 | ForEach-Object { Say "  $_" }
 
+# The build installed above is still the one running: a release published meanwhile is not installed over it
+# (SENTINEL_NO_UPDATE, set by live-e2e.yml; run 44172547176 updated itself to 1.20.2 part way through).
+$now = (Get-Item $exe).VersionInfo.ProductVersion
+Say "still $built at the end: $now"
+if ([version]$now -ne [version]$built) { Say "FAILED: updated itself from $built to $now during the run"; exit 1 }
 if ($regFailed) { Say 'FAILED: Run keys are still polled, or a new entry was not heard'; exit 1 }
 if ($marksOff.Count) { Say "FAILED: marks off their results at rest: $($marksOff -join ', ')"; exit 1 }
 if ($hoverFailed) { Say 'FAILED: resting on a flagged mark did not show its reasonLine() in the tip'; exit 1 }

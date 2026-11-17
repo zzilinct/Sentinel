@@ -271,9 +271,10 @@ function FakeDiag($name, $fp, $page) {
   Get-Process | Sort-Object CPU -Descending | Select-Object -First 8 | ForEach-Object { Say "  diag: top $($_.ProcessName) $($_.Id) cpu $([int]$_.CPU)" }
   Shot "diag-$name"
 }
-# The update feed the installed app is pointed at: this runner, never GitHub. A release published while a run goes on
-# (another contributor tags them) would otherwise replace the build under test in the middle of it: Feed offers the
-# installed version itself, unless a run hands it a newer build. Call PointUpdater after installing ($exe set).
+# The update feed for desktop-core-qa.ps1, which tests the updater itself: this runner, never GitHub. Feed offers the
+# installed version itself, unless a run hands it a newer build. Call PointUpdater after installing ($exe set). Every
+# other run keeps its build with SENTINEL_NO_UPDATE (desktop-e2e.yml, live-e2e.yml), which also covers a build run
+# straight from its folder (fuses) and live-e2e.
 $feed = Join-Path $env:RUNNER_TEMP 'feed'
 $feedServer = $null
 function Feed($setup) {

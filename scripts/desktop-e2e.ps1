@@ -16,7 +16,6 @@ Say "screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
 Start-Process $Installer -ArgumentList '/S' -Wait
 $exe = "$env:LOCALAPPDATA\Programs\Sentinel\Sentinel.exe"
 Say "installed -> $((Get-Item $exe).VersionInfo.ProductVersion)"
-Feed $Installer; PointUpdater
 # 1a. A start that breaks inside a require (boot.js): a copy of the installed app whose code is this commit's, as a
 # folder instead of app.asar, with one module broken on purpose and its own name, so it never touches the real app's
 # data. It must log why and show a message, not vanish.
@@ -1023,7 +1022,7 @@ if ($pages) { Stop-Process -Id $pages.Id -Force -ErrorAction SilentlyContinue }
 # (SENTINEL_NO_UPDATE, set by desktop-e2e.yml). Without it, every release failed every branch's run part way.
 $up = (Info 'info()').update
 $built = (Get-Item $Installer).VersionInfo.ProductVersion; $now = (Get-Item $exe).VersionInfo.ProductVersion
-Check 'no-self-update' ($up.status -eq 'current' -and $now -eq $built -and (@(Get-Process Sentinel -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }).Count -gt 0)) "built $built, installed now $now, updater: $($up.status) $($up.version)"
+Check 'no-self-update' ($up.status -eq 'current' -and [version]$now -eq [version]$built -and (@(Get-Process Sentinel -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }).Count -gt 0)) "built $built, installed now $now, updater: $($up.status) $($up.version)"
 Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 60 | ForEach-Object { Say "  $_" }
 # 9. Uninstalling takes "Scan with Sentinel" out of the right-click menu. The uninstaller hands itself to a copy in
 # the temp folder, so its end is waited for by the key going.
