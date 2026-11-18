@@ -65,6 +65,9 @@ if (require.main === module && process.argv[3] === '--repaint') {
   const label = process.argv[4] || 'a repaint';
   if (Math.abs(r.px) < 20) { console.log(`marks on ${label}: the pixels never saw it move (${r.px} px), so nothing was shown`); process.exitCode = 1; }
   else if (r.ms === null || r.moved) { console.log(`marks on ${label}: the pixels saw ${r.px} px, and ${r.moved ? 'the reader took it for a real scroll' : 'no correction came'}`); process.exitCode = 1; }
+  // A repaint whose rows all keep their words must be put right by the reader's settle (a read that found nothing
+  // changed), not by a new read's placing.
+  else if (process.argv[5] === 'settle' && r.via !== 'settle') { console.log(`marks on ${label}: put right by a ${r.via}, not a settle, ${r.ms} ms after the pixels moved ${r.px} px`); process.exitCode = 1; }
   else if (r.ms > SETTLE_MS || r.off > 4 || (r.yBefore !== null && (r.yAfter === null || Math.abs(r.yAfter - r.yBefore) > 4))) {
     console.log(`marks on ${label}: put right by a ${r.via} ${r.ms} ms after the pixels moved ${r.px} px; flagged mark at ${r.yAfter}, its row at ${r.yBefore}; at rest ${r.off} px off`); process.exitCode = 1;
   } else console.log(`marks on ${label}: the pixels saw ${r.px} px the rows never moved; put right by a ${r.via} ${r.ms} ms later, the flagged mark back on its row (${r.yBefore})`);
