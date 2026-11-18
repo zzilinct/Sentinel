@@ -47,7 +47,7 @@ jobs:
           python -m pip install --quiet qrcode pillow
           python scripts/verify-web-qr.py qr-samples
       - run: node scripts/verify-web.js --skip share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level --out verify-web
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: verify-web
@@ -77,7 +77,7 @@ jobs:
           CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level' }}
           CHECK_MINUTES: '25'
           REPEAT: ${{ inputs.repeat || '1' }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: verify-web-features
@@ -98,7 +98,7 @@ jobs:
         env:
           SOAK_MINUTES: '60'
           CHECK_MINUTES: '80'
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: verify-web-soak
@@ -132,7 +132,7 @@ jobs:
           PERF_PAGES: ${{ inputs.perf_pages }}
           PERF_ROUNDS: ${{ inputs.perf_rounds }}
           PERF_BASE: ${{ inputs.perf_base }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: perf-a11y
