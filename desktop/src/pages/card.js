@@ -19,10 +19,13 @@
   /** A status colour (red, orange, yellow, green) as this card's scheme draws it: never the accent. */
   const tone = (badge) => window.SentinelLook.STATUS[window.SentinelLook.scheme(look && look.mode)][badge];
   /** Paint a status on an element. Caution on light paper cannot be read as yellow words: its title is in ink, and the
-      mark wears the yellow as a disc (sentinel.css --yellow-ink, --yellow-wash). */
+      mask is yellow edged in ink, lighter than danger's solid mask (sentinel.css --yellow-glyph, --yellow-edge). */
   const status = (el, badge) => {
     el.style.setProperty('--c', tone(badge));
-    if (badge === 'yellow' && window.SentinelLook.scheme(look && look.mode) === 'light') { el.style.setProperty('--c-ink', 'var(--ink)'); el.style.setProperty('--c-wash', tone(badge)); }
+    const ink = badge === 'yellow' && document.documentElement.dataset.theme === 'light';
+    for (const [k, v] of [['--c-ink', 'var(--ink)'], ['--c-glyph', tone(badge)], ['--c-edge', 'var(--ink)']]) {
+      if (ink) el.style.setProperty(k, v); else el.style.removeProperty(k);
+    }
   };
   const style = document.createElement('style');
   style.textContent = `
@@ -44,8 +47,9 @@
   /* The card is moved by its head, as a title bar would; its buttons stay buttons. */
   .head { display: flex; align-items: center; gap: 14px; -webkit-app-region: drag; }
   button, a { -webkit-app-region: no-drag; }
-  .mark { width: 46px; height: 46px; flex: none; color: var(--c-ink, var(--c, var(--acc))); background: var(--c-wash, none); border-radius: 50%; }
+  .mark { width: 46px; height: 46px; flex: none; color: var(--c-ink, var(--c, var(--acc))); }
   .mark svg { display: block; width: 100%; height: 100%; }
+  .mark path { fill: var(--c-glyph, currentColor); stroke: var(--c-edge, none); stroke-width: 2.4px; stroke-linejoin: round; paint-order: stroke; vector-effect: non-scaling-stroke; }
   /* The title and address may wrap anywhere: a long address must not push the card wider than its window. */
   .head > div { min-width: 0; }
   h1 { margin: 0; font: 400 var(--t-title-s)/var(--lh-display) var(--display); color: var(--c-ink, var(--c, var(--acc))); }

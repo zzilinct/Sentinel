@@ -265,8 +265,9 @@ async function checkColour() {
         const body = '<main style="display:grid;gap:16px;padding:18px;background:var(--bg);color:var(--text);min-height:100vh;box-sizing:border-box">'
           + '<b style="font:600 15px var(--sans)">' + '%SCHEME%' + '</b>'
           + '<div class="masks">' + S.slice(0, 3).map(([c, t]) => '<span class="m m--' + c + ' is-on">' + g(t) + '</span>').join('') + '</div>'
-          + '<div style="display:flex;gap:10px;flex-wrap:wrap">' + S.map(([c, t]) => '<div class="result__glyph" data-s="' + c + '" style="--c:var(--' + c + ');animation:none">' + g(t) + '</div>').join('') + '</div>'
-          + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">' + S.map(([c, t, w]) => '<div class="try__threat" data-s="' + c + '" style="--c:var(--' + c + ')">' + g(t) + '<b>' + w + '</b></div>').join('') + '</div>'
+          + '<div style="display:flex;gap:10px;flex-wrap:wrap">' + S.map(([c, t]) => '<div class="result__glyph" data-s="' + c + '" data-status="' + c + '" style="animation:none">' + g(t) + '</div>').join('') + '</div>'
+          + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">' + S.map(([c, t, w]) => '<div class="try__threat" data-s="' + c + '" data-status="' + c + '">' + g(t) + '<b>' + w + '</b></div>').join('') + '</div>'
+          + '<div style="display:flex;gap:10px;align-items:center">' + S.map(([c, t]) => '<div class="verdict__icon" data-status="' + c + '">' + g(t) + '</div><span class="list__icon" data-status="' + c + '">' + g(t) + '</span>').join('') + '</div>'
           + '<div class="severity">' + S.slice(0, 3).reverse().map(([c, , , w]) => '<button type="button" data-sev="' + c + '" style="--sc:var(--' + c + ')" aria-pressed="' + (c === 'yellow') + '">' + w + '</button>').join(' ') + '</div>'
           + ['red', 'orange', 'yellow', 'green'].map((c) => '<div class="next-steps next-steps--' + (c === 'green' ? 'clear' : c) + '" data-s="' + c + '"><h3>' + { red: 'What to do now', orange: 'What to do now', yellow: 'If you are not sure', green: 'Before you use it' }[c] + '</h3></div>').join('')
           + '</main>';
@@ -284,6 +285,9 @@ async function checkColour() {
           const d = f.contentDocument, cs = (sel, p = 'color') => f.contentWindow.getComputedStyle(d.querySelector(sel))[p];
           const o = {};
           for (const c of ['red', 'orange', 'yellow', 'green']) o[c] = { tile: cs('.try__threat[data-s="' + c + '"]'), tileBg: cs('.try__threat[data-s="' + c + '"]', 'backgroundColor'), glyphBg: cs('.result__glyph[data-s="' + c + '"]', 'backgroundColor'), h3: cs('.next-steps[data-s="' + c + '"] h3') };
+          const path = (sel) => { const p = f.contentWindow.getComputedStyle(d.querySelector(sel + ' path')); return { fill: p.fill, stroke: p.stroke }; };
+          for (const c of ['red', 'orange', 'yellow', 'green']) Object.assign(o[c], { glyph: path('.result__glyph[data-s="' + c + '"]'), icon: path('.verdict__icon[data-status="' + c + '"]') });
+          o.mark = path('.m--yellow');
           o.markBg = cs('.m--yellow', 'backgroundColor'); o.pressed = cs('.severity [data-sev="yellow"]');
           out[scheme] = o;
         }
@@ -297,11 +301,16 @@ async function checkColour() {
     // Caution's tile is the same pale share of yellow in both schemes, as danger's and warning's are of theirs: never louder.
     const INK = 'rgb(21, 19, 13)', YEL = 'rgb(245, 197, 66)';
     const hex2rgb = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
-    result('colour: danger, warning, caution and safe side by side; caution on light paper is ink on a pale yellow, never louder than danger or warning; on dark, yellow words',
+    // Glyph weight, danger > warning > caution: danger's, warning's and safe's masks are solid in their colour; caution's
+    // is yellow, edged on light paper by a hairline of ink (never the solid ink mask that outweighed danger), plain on dark.
+    const solid = (o, sc, c) => o[c].glyph.fill === hex2rgb(L.STATUS[sc][c]) && o[c].glyph.stroke === 'none' && o[c].icon.fill === hex2rgb(L.STATUS[sc][c]);
+    result('colour: danger, warning, caution and safe side by side, named by data-status; caution on light paper is ink words on a pale yellow and a yellow mask edged in ink, lighter than danger and warning; on dark, yellow',
       Object.values(seen).every((v) => !v.wide && ['light', 'dark'].every((sc) => {
-        const o = v[sc], light = sc === 'light';
+        const o = v[sc], light = sc === 'light', edge = light ? INK : 'none';
         return o.yellow.h3 === (light ? INK : YEL) && o.yellow.tile === (light ? INK : YEL) && o.red.tile === hex2rgb(L.STATUS[sc].red) && o.red.h3 === hex2rgb(L.STATUS[sc].red)
-          && o.pressed === INK && o.yellow.glyphBg === 'rgba(245, 197, 66, 0.14)' && o.yellow.tileBg !== YEL;
+          && o.pressed === INK && o.yellow.glyphBg === 'rgba(245, 197, 66, 0.14)' && o.yellow.tileBg !== YEL
+          && ['red', 'orange', 'green'].every((c) => solid(o, sc, c))
+          && [o.yellow.glyph, o.yellow.icon, o.mark].every((p) => p.fill === YEL && p.stroke === edge);
       })), seen);
   } finally { await close(); files.server.close(); }
 }
