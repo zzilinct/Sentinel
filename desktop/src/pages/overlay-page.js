@@ -611,14 +611,17 @@
     var now = performance.now();
     if (Math.abs(p.dy - report.y) > 2) stuckDir = 0;
     report = { x: p.dx, y: p.dy, at: now };
-    if (gesture) { if (!gesture.moved && Math.abs(p.dy - gesture.start) > 2) gesture.moved = true; }
+    if (p.settle) {
+      // A read made after the pixels moved found every link where it was: they saw a repaint, not a scroll. That
+      // outranks the pixels, however recent (run 44409921454: one 45 ms after them left the marks a row low).
+      pxAt = -1e9; gesture = null; pxY = p.dy; goal = { x: p.dx, y: p.dy };
+    } else if (gesture) { if (!gesture.moved && Math.abs(p.dy - gesture.start) > 2) gesture.moved = true; }
     else if (pxActive(now)) {
       // The pixels are ahead of this word: it only confirms them, later.
     } else {
       // After a scroll the pixels followed, the browser's word agreeing with where the marks are is no surprise: they
-      // settle onto it in view. So does a correction (settle: the pixels saw a repaint, not a scroll, and the links
-      // never moved). Only movement nothing followed makes them step aside.
-      var followed = p.settle || (now - pxAt < 1500 && Math.abs(p.dy - shiftY) < 40);
+      // settle onto it in view. Only movement nothing followed makes them step aside.
+      var followed = now - pxAt < 1500 && Math.abs(p.dy - shiftY) < 40;
       goal = { x: p.dx, y: p.dy };
       if (!followed && (moving || Math.abs(p.dx) + Math.abs(p.dy) > MOVING_PX)) setMoving(true);
     }

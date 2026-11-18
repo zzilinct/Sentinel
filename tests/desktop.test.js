@@ -766,6 +766,19 @@ test('a movement only the pixels saw is put back in view, never by stepping asid
   assert.ok(Math.max(...steps.slice(Math.ceil(1400 / 16))) <= 25, 'eased back, not one jump');
 });
 
+test('a settle that comes while the pixels are still being followed puts the marks back all the same', () => {
+  // Run 44409921454: the reader's read happened to fall 45 ms after a paint-only repaint, found every row in place and
+  // said so. The overlay took the pixels as the truth for 300 ms more and kept the marks a row low for good.
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [] });
+  const ys = o.run(1500, (t) => {
+    if (t >= 100 && t < 116) o.send('overlay:px', { epoch: 1, dy: -40 });
+    if (t >= 148 && t < 164) o.send('overlay:shift', { epoch: 1, dx: 0, dy: 0, t, settle: true });
+  });
+  assert.ok(Math.min(...ys) < -20, 'the marks followed the pixels first');
+  assert.ok(Math.abs(ys[ys.length - 1]) < 1, `left at ${ys[ys.length - 1]}, not back on the rows at 0`);
+});
+
 test('live-e2e makes a repaint that only looks like a scroll, and fails unless the reader puts the marks right in time', () => {
   const { repaint, SETTLE_MS } = require('../scripts/marks-at-rest.js');
   // The test inbox's rows draw the next message's words (the R key) under their own names, sizes and places, and the
@@ -775,7 +788,12 @@ test('live-e2e makes a repaint that only looks like a scroll, and fails unless t
   assert.match(inbox, /shown = 1 - shown;\s+draw\(shown\);/);
   assert.doesNotMatch(inbox, /transform:/);
   const run = read('scripts/live-e2e.ps1');
-  assert.match(run, /\[K\]::Tap\(0x52\)[^\n]*\n[^\n]*marks-at-rest\.js'\) "\$Out\\frames\.txt" --repaint/);
+  assert.match(run, /function Repaint\(\$label, \$key = 0x52, \$need = ''\)[\s\S]*?\[K\]::Tap\(\$key\)[^\n]*\n[^\n]*marks-at-rest\.js'\) "\$Out\\frames\.txt" --repaint "the inbox repainted \$label" \$need/);
+  // The P key paints the next words over the list (aria-hidden) while every message keeps its own: only a settle can
+  // put that right, and the run requires one (run 44401842122: the R key's repaint never reached the settle path).
+  assert.match(inbox, /<div id="paint" aria-hidden="true" hidden>/);
+  assert.match(inbox, /if \(ev\.key === 'p' \|\| ev\.key === 'P'\) \{ paint\.hidden = !paint\.hidden; return; \}/);
+  assert.match(run, /Repaint 'painted over' 0x50 'settle'\r?\nRepaint 'paint gone' 0x50 'settle'/);
   assert.match(read('desktop/src/overlay.js'), /`S \$\{Date\.now\(\)\} \$\{t\} \$\{dy\}\$\{settle \? ' settle' : ''\}\\n`/);
   const head = 'M 1 marks 4 fresh ends -\nR 2 9 0.0\nF 3 0.0 0.0\n# inbox repaint one row up\n';
   // Put right: the pixels saw 41 px, the reader said 0 in 760 ms, the marks eased back onto the rows.
