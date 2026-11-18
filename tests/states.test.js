@@ -8,7 +8,7 @@ const path = require('path');
 
 const js = (f) => fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'js', f), 'utf8').replace(/\r\n/g, '\n');
 const css = fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'css', 'app.css'), 'utf8');
-const app = js('app.js');
+const app = require('./fixtures').appScript();
 const ui = js('ui.js');
 
 test('states: the app has no red banner and no hand-made empty box left', () => {

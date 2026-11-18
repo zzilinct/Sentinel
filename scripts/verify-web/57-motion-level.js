@@ -16,9 +16,11 @@ const STATE = `(() => { const r = document.documentElement.dataset; const c = do
     row: document.querySelectorAll('#motion').length === 1 && Boolean(document.querySelector('#motion [role=radiogroup] input[value=calm]')),
     note: (document.querySelector('[data-motion-note]') || {}).textContent, stored: localStorage.getItem('sentinel:motion'),
     sw: (() => { const s = document.querySelector('[data-scan-effect-switch]'); return s && { on: s.checked, disabled: s.disabled }; })() }; })()`;
-// A delicate scan's dig, started by hand over a panel: whether it put a canvas down at all.
-const DIG = `new Promise((done) => { const host = document.querySelector('#motion'); const d = window.SentinelBinary.dig(host, { grace: 0 });
-  setTimeout(() => { const drawn = Boolean(host.querySelector('.binary-veil')); d.stop(); done(drawn); }, 500); })`;
+// A delicate scan's dig, started by hand over a panel: whether it put a canvas down at all. binary.js comes with the
+// Check page (app.js FILES), so it is fetched here the way that page fetches it.
+const DIG = `(window.SentinelBinary ? Promise.resolve() : new Promise((loaded) => { const t = document.createElement('script'); t.src = '/assets/js/binary.js'; t.onload = loaded; document.head.append(t); }))
+  .then(() => new Promise((done) => { const host = document.querySelector('#motion'); const d = window.SentinelBinary.dig(host, { grace: 0 });
+  setTimeout(() => { const drawn = Boolean(host.querySelector('.binary-veil')); d.stop(); done(drawn); }, 500); }))`;
 
 async function checkMotionLevel() {
   const server = await startServer('motionlevel', {});

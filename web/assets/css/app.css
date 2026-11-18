@@ -32,6 +32,7 @@ body.app::before { opacity: .6; }
 .side__link:hover { background: rgb(var(--ink) / .04); color: var(--text); }
 .side__link[aria-current="page"] { background: rgb(var(--gold-rgb) / .08); color: var(--gold-50); box-shadow: inset 0 0 0 1px rgb(var(--gold-rgb) / .16); }
 .side__link[aria-current="page"] svg { color: var(--gold-300); opacity: 1; }
+.side__settings { margin-top: 18px; }
 .side__foot { margin-top: auto; display: grid; gap: 10px; }
 .side__foot .theme-toggle { margin-left: 0; justify-self: start; }
 .side__foot .legal-links { justify-content: flex-start; gap: 4px 12px; padding: 0 8px; font-size: var(--t-label); }

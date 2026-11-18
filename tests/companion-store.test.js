@@ -136,7 +136,7 @@ test('the look carries text size and spacing, so the companion follows the app\'
   assert.match(read('popup.css'), /:root\[data-density="compact"\] \{ --ds: \.86; \}/);
   assert.match(read('popup.css'), /\.btn \{[^}]*padding: calc\(10px \* var\(--ds\)\) 14px/);
   // The app's Settings choose through the look, which keeps when, so it travels; boot.js still draws it first.
-  const app = fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'js', 'app.js'), 'utf8');
+  const app = require('./fixtures').appScript();
   assert.match(app, /SentinelLook\.set\(\{ text: b\.dataset\.seg \}\)/);
   assert.match(app, /SentinelLook\.set\(\{ density: b\.dataset\.seg \}\)/);
   const lookApp = fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'js', 'look-app.js'), 'utf8');

@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const web = path.join(__dirname, '..', 'web');
-const app = fs.readFileSync(path.join(web, 'assets', 'js', 'app.js'), 'utf8').replace(/\r\n/g, '\n');
+const app = require('./fixtures').appScript().replace(/\r\n/g, '\n');
 const html = fs.readFileSync(path.join(web, 'app.html'), 'utf8');
 
 const between = (start, end) => {
@@ -70,7 +70,7 @@ test('settings: old addresses open Settings at their row', () => {
   for (const id of moved) assert.ok(ids.includes(id), `#${id} is a row`);
   assert.ok(groups.includes('account'), '/app/security opens the account group');
   assert.ok(/path === '\/app\/security'/.test(fn('render')), 'render sends /app/security to Settings');
-  assert.ok(/'\/app\/settings': \['settings', settingsView\]/.test(app));
+  assert.ok(/'\/app\/settings': \['settings', page\('settings', 'settingsView'\)\]/.test(app));
   assert.ok(!/'\/app\/security':/.test(app), 'no Security page of its own');
 });
 
@@ -79,7 +79,8 @@ test('settings: the side bar has one Settings link in place of the Account group
   for (const old of ['data-route="plan"', 'data-route="security"', 'data-route="assistants"', 'href="/app/security"', '>Account</div>']) {
     assert.ok(!html.includes(old), `side bar has no ${old}`);
   }
-  assert.ok(/href="\/assets\/css\/settings\.css"/.test(html));
+  // Its styles come with its own file (app.js FILES), not with every page of the app.
+  assert.ok(!/settings\.css/.test(html) && /settings: \['\/assets\/css\/settings\.css'\]/.test(app), 'settings.css comes with Settings');
   assert.ok(/\['Settings', '\/app\/settings', 'settings'\]/.test(app), 'the palette lists Settings');
   assert.ok(/for \(const r of SETTINGS\) if \(settingMatches\(r, q\)\)/.test(fn('openPalette')), 'the palette finds single settings');
 });

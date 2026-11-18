@@ -32,7 +32,7 @@ test('the companion carries the same copy, and the Windows app gets one', () => 
 
 test('every place that gives the advice picks it from the shared steps', () => {
   assert.match(read('web/assets/js/ui.js'), /window\.SentinelSteps/);
-  assert.match(read('web/assets/js/app.js'), /window\.SentinelSteps\.text/);
+  assert.match(require('./fixtures').appScript(), /window\.SentinelSteps\.text/);
   assert.match(read('extension/src/content/pwalarm.js'), /globalThis\.SentinelSteps\.text\.password/);
   const guard = (read('desktop/src/pages/guard.html') + read('desktop/src/pages/guard-page.js'));
   assert.match(guard, /<script src="\.\.\/\.\.\/shared\/steps\.js"><\/script>/);

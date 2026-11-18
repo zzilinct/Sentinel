@@ -417,7 +417,7 @@ test('the password minimum is one number, and every page that states it says the
     assert.match(web(page), new RegExp(`minlength="${MIN_PASSWORD}"`), page);
     assert.ok(web(page).includes(`At least ${MIN_PASSWORD} characters.`), page);
   }
-  const app = web('assets', 'js', 'app.js');
+  const app = require('./fixtures').appScript();
   assert.ok(app.includes(`name="newPassword" autocomplete="new-password" required minlength="${MIN_PASSWORD}"`));
   assert.ok(app.includes(`At least ${MIN_PASSWORD} characters.`));
   for (const f of ['auth.js', 'reset.js']) assert.ok(web('assets', 'js', f).includes(`v.length < ${MIN_PASSWORD} ? 1`), f);

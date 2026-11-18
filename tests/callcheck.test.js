@@ -19,7 +19,7 @@ test('call check: open to anyone: a public page, no account, in the static site,
   assert.match(read('scripts/build-static.js'), /'\/call': 'call\.html'/);
   assert.match(read('web/partials/nav.html'), /href="\/call"/);
   assert.doesNotMatch(read('web/app.html'), /callcheck\.js/);
-  assert.doesNotMatch(read('web/assets/js/app.js'), /callView/);
+  assert.doesNotMatch(require('./fixtures').appScript(), /callView/);
   assert.match(read('server/index.js'), /Location: '\/call'/);
 });
 

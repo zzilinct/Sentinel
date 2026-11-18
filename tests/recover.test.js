@@ -65,7 +65,7 @@ test('recovery guide: a link from a warning ticks what it was about, and nothing
   // Every place that links here asks only for situations the guide has.
   const ids = new Set(SITUATIONS.map((s) => s.id));
   const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-  for (const file of ['web/assets/js/ui.js', 'web/assets/js/app.js']) {
+  for (const file of ['web/assets/js/ui.js', 'web/assets/js/app/settings.js']) {
     const map = /HAPPENED = \{([^}]*)\}/.exec(read(file));
     assert.ok(map, `${file} has its HAPPENED map`);
     for (const m of map[1].matchAll(/: '([a-z]+)'/g)) assert.ok(ids.has(m[1]), `${file}: ${m[1]}`);

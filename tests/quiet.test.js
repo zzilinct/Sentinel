@@ -65,7 +65,7 @@ test('every surface reads the setting, and the old controls are gone', () => {
   assert.match(options, /id="marksLevel"/);
   assert.match(options, /id="warningsLevel"/);
   assert.doesNotMatch(`${options}${bg}${read('extension/src/options.js')}`, /minimumBadge|markSafe|settings\.notifications|id="notifications"/);
-  const app = read('web/assets/js/app.js');
+  const app = require('./fixtures').appScript();
   assert.match(app, /levelRow\(\{ id: 'marks-beside-links'/);
   assert.match(app, /levelRow\(\{ id: 'warn-level'/);
 });

@@ -177,7 +177,7 @@ test('the live surfaces have no gold of their own left: they draw the look', () 
   // The marketing pages carry no table and no colour maths: the theme button and the kept colours only. The app
   // carries the table and the choice (look.js, then look-app.js, before app.js); the home page the table, for its preview.
   assert.doesNotMatch(read('web', 'assets', 'js', 'look-site.js'), /oklch|ramp\(|Math\.cbrt|ACCENTS/);
-  assert.match(read('web', 'app.html'), /<script src="\/assets\/js\/look\.js"><\/script>\r?\n<script src="\/assets\/js\/look-app\.js"><\/script>\r?\n<script src="\/assets\/js\/app\.js">/);
+  assert.match(read('web', 'app.html'), /<script src="\/assets\/js\/look\.js" defer><\/script>\r?\n<script src="\/assets\/js\/look-app\.js" defer><\/script>\r?\n<script src="\/assets\/js\/app\.js" defer>/);
   assert.match(read('web', 'index.html'), /<script src="\/assets\/js\/look\.js" defer><\/script>\r?\n<script src="\/assets\/js\/accent\.js" defer>/);
   for (const page of ['pricing.html', 'download.html', 'privacy.html', 'login.html']) assert.doesNotMatch(read('web', page), /look\.js|look-app\.js/, `${page} loads only look-site.js`);
   assert.doesNotMatch(read('web', 'assets', 'js', 'look.js'), /localStorage\.setItem|fetch\(|picker/, 'the table keeps no choice and asks nothing');
@@ -285,7 +285,7 @@ test('one look across devices: each setting from whichever chose it last, kept b
   assert.match(api, /if \(data && typeof data\.lookRev === 'number'\) followLook\(data\.lookRev\);/);
   assert.match(api, /if \(look && look\.rev === revision\) return;/, 'the companion asks only when the account\'s look moved');
   assert.match(read('scripts', 'build-extension.js'), /strip\('lib\/look\.js'\)/, 'Firefox gets the table too');
-  assert.match(read('web', 'assets', 'js', 'app.js'), /SentinelLook\.sync\(\)/);
+  assert.match(require('./fixtures').appScript(), /SentinelLook\.sync\(\)/);
   // The Settings home's first-run step finds the picker's rows by these ids.
   assert.match(read('web', 'assets', 'js', 'look-app.js'), /rowId\('theme'\)[^]*rowId\('accent'\)/);
   // The Windows app on this computer wins a tie over what the popup kept (which may be only the default).

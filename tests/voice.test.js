@@ -10,7 +10,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const files = [
   ...fs.readdirSync(path.join(ROOT, 'web')).filter((f) => f.endsWith('.html')).map((f) => `web/${f}`),
-  'web/assets/js/app.js', 'web/assets/js/ui.js', 'desktop/src/main.js', 'desktop/src/parentlock.js',
+  ...require('./fixtures').APP_FILES, 'web/assets/js/ui.js', 'desktop/src/main.js', 'desktop/src/parentlock.js',
   ...fs.readdirSync(path.join(ROOT, 'desktop/src/pages')).filter((f) => /\.(html|js)$/.test(f)).map((f) => `desktop/src/pages/${f}`),
   ...fs.readdirSync(path.join(ROOT, 'extension/src')).filter((f) => /\.(html|js)$/.test(f) && !f.includes('firefox')).map((f) => `extension/src/${f}`),
   'extension/src/lib/say.js'

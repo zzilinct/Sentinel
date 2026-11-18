@@ -148,6 +148,19 @@ Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871,
 # 4. An inbox (a Pro feature, given above). Everyday mail and scams side by side: the scams should get a mask, the
 # rest a tick, and marks must stay inside the message list while it scrolls.
 Search 'http://127.0.0.1:47900/mail/' 'inbox'
+# A repaint that only looks like a scroll, made on purpose: the R key has every row of the inbox draw the next
+# message's words, and back, while the rows keep their names and places. The pixels see a scroll the page never made; within a second the reader
+# must say the rows never moved, and the marks must end on their messages (scripts/marks-at-rest.js --repaint).
+function Repaint($label) {
+  Add-Content "$Out\frames.txt" "# inbox repaint $label"
+  [K]::Tap(0x52); Start-Sleep 3; Shot "inbox-repaint-$label"
+  $m = node (Join-Path $PSScriptRoot 'marks-at-rest.js') "$Out\frames.txt" --repaint "the inbox repainted $label"
+  if ($LASTEXITCODE) { $script:marksOff += "the inbox repainted $label" }
+  Say $m | Out-Null
+}
+[K]::Tap(0x24); Start-Sleep 3
+Repaint 'one row up'
+Repaint 'back'
 # 4a. Hover reasons: the pointer rests on a flagged mark and the overlay's tip says why, in the words masks.js
 # reasonLine() gives for that message's scan (links.jsonl), in Windows' dark theme and then its light one.
 function SetTheme($light) {

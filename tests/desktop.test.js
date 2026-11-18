@@ -527,7 +527,7 @@ test('a window whose page process ends comes back; a run that did not quit is lo
   assert.match(main, /app\.on\('before-quit'[^\n]*unlinkSync\(runningFile\(\)\)/);
   assert.equal((main.match(/push\('sentinel:settings'/g) || []).length, 2, 'Start with my computer and Auto scanning');
   assert.match(read('desktop/src/preload.js'), /onSettings: \(callback\) => on\('sentinel:settings', callback\)/);
-  assert.match(read('web/assets/js/app.js'), /'onDownloadThreat', 'onSettings'\]/);
+  assert.match(require('./fixtures').appScript(), /'onDownloadThreat', 'onSettings'\]/);
   const host = read('desktop/src/server-host.js');
   assert.match(host, /Another program is using the connections/);
   assert.doesNotMatch(host, /No free port/);
@@ -764,6 +764,38 @@ test('a movement only the pixels saw is put back in view, never by stepping asid
   assert.equal(aside, false, 'a correction hid the marks (stepping aside is for real movement)');
   const steps = ys.slice(1).map((y, i) => Math.abs(y - ys[i]));
   assert.ok(Math.max(...steps.slice(Math.ceil(1400 / 16))) <= 25, 'eased back, not one jump');
+});
+
+test('live-e2e makes a repaint that only looks like a scroll, and fails unless the reader puts the marks right in time', () => {
+  const { repaint, SETTLE_MS } = require('../scripts/marks-at-rest.js');
+  // The test inbox's rows draw the next message's words (the R key) under their own names, sizes and places, and the
+  // run reads its trace after. A transform is not used: live-e2e run 43790829184 showed the browser moves the rows too.
+  const inbox = read('scripts/e2e-inbox/mail/index.html');
+  assert.match(inbox, /var m = mail\[\(i \+ by\) % mail\.length\];/);
+  assert.match(inbox, /shown = 1 - shown;\s+draw\(shown\);/);
+  assert.doesNotMatch(inbox, /transform:/);
+  const run = read('scripts/live-e2e.ps1');
+  assert.match(run, /\[K\]::Tap\(0x52\)[^\n]*\n[^\n]*marks-at-rest\.js'\) "\$Out\\frames\.txt" --repaint/);
+  assert.match(read('desktop/src/overlay.js'), /`S \$\{Date\.now\(\)\} \$\{t\} \$\{dy\}\$\{settle \? ' settle' : ''\}\\n`/);
+  const head = 'M 1 marks 4 fresh ends -\nR 2 9 0.0\nF 3 0.0 0.0\n# inbox repaint one row up\n';
+  // Put right: the pixels saw 41 px, the reader said 0 in 760 ms, the marks eased back onto the rows.
+  const ok = repaint(`${head}P 1000 50 -41\nF 4 -41.0 0.0\nS 1760 810 0 settle\nR 5 810 0.0\nF 6 -12.0 0.0\nF 7 0.0 0.0\n`);
+  assert.deepEqual([ok.px, ok.ms, ok.moved, ok.off], [-41, 760, false, 0]);
+  assert.ok(ok.ms <= SETTLE_MS);
+  // Left where the pixels sent them: no settle at all, or one too late, or the marks still a row off.
+  assert.equal(repaint(`${head}P 1000 50 -41\nF 4 -41.0 0.0\n`).ms, null);
+  assert.ok(repaint(`${head}P 1000 50 -41\nS 2600 1650 0 settle\n`).ms > SETTLE_MS);
+  assert.equal(repaint(`${head}P 1000 50 -41\nS 1760 810 0 settle\nF 6 -41.0 0.0\n`).off, 41);
+  // Taken for a real scroll (the browser said the rows moved), or never seen by the pixels: nothing proven.
+  assert.equal(repaint(`${head}P 1000 50 -41\nS 1200 250 -41\nS 1760 810 0 settle\n`).moved, true);
+  assert.equal(repaint(`${head}S 1760 810 0 settle\n`).px, 0);
+  // Put right by a fresh read, as live-e2e run 44184416538 did it (its trace, cut short): 847 ms after the overlay's
+  // first frame following the pixels, the flagged mark back on its row at 203.
+  const traced = 'K 911 203 x\n# inbox repaint one row up\nP 1794952761918 698593 -40\nF 171964.6 0.0 -40.0\nF 172011.5 -40.0 -40.0\nK 911 163 x\nM 172811.9 marks 14 fresh ends -\nK 911 203 x\n';
+  const fresh = repaint(traced);
+  assert.deepEqual([fresh.via, fresh.ms, fresh.yBefore, fresh.yAfter], ['fresh read', 847, 203, 203]);
+  // The cells drawn a row higher with a transform (run 43790829184): the fresh read followed the moved rows, to 165.
+  assert.equal(repaint(traced.replace(/K 911 203 x\n$/, 'K 911 165 x\n')).yAfter, 165);
 });
 
 test('while the page really moves the marks step aside, and come back in place when it stops (never stuck hidden)', () => {

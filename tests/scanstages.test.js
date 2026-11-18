@@ -114,7 +114,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 test('nothing waits for the animation: the result is drawn first, and no scan has a minimum length', () => {
-  const app_ = read('web/assets/js/app.js');
+  const app_ = require('./fixtures').appScript();
   assert.doesNotMatch(app_, /await\s+\w*\.finish\(/);
   assert.doesNotMatch(app_, /setInterval\(step/, 'no stage is advanced by a timer');
   assert.doesNotMatch(read('web/assets/js/home.js'), /await\s+dig\.finish\(/);

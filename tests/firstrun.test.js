@@ -115,7 +115,7 @@ test('Simple view reaches the Windows warning card: the answer and its main reas
 });
 
 test('first run: one step drawn from Settings rows, and the tray notification it replaced is gone', () => {
-  const app = read('web/assets/js/app.js');
+  const app = require('./fixtures').appScript();
   const slots = JSON.parse(/const FIRST_CHOICES = (\[[^;]+\]);/.exec(app)[1].replace(/'/g, '"'));
   const ids = new Set([...app.matchAll(/\{ id: '([\w-]+)', group: /g)].map((m) => m[1]));
   // Each slot has at least one row on this branch, or names its hook in the comment above it.
