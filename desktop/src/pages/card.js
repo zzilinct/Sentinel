@@ -18,12 +18,14 @@
   if (look) document.documentElement.dataset.theme = window.SentinelLook.scheme(look.mode);
   /** A status colour (red, orange, yellow, green) as this card's scheme draws it: never the accent. */
   const tone = (badge) => window.SentinelLook.STATUS[window.SentinelLook.scheme(look && look.mode)][badge];
-  /** Paint a status on an element. Caution on light paper cannot be read as yellow words: its title is in ink, and the
-      mask is yellow edged in ink, lighter than danger's solid mask (sentinel.css --yellow-glyph, --yellow-edge). */
+  /** Paint a status on an element. Caution on light paper cannot be read as yellow words: its title is in caution's
+      ink (look.js CAUTION_INK, no heavier than danger's red), and the mask is yellow edged in that ink, lighter than
+      danger's solid mask (sentinel.css --yellow-glyph, --yellow-edge). */
   const status = (el, badge) => {
     el.style.setProperty('--c', tone(badge));
     const ink = badge === 'yellow' && document.documentElement.dataset.theme === 'light';
-    for (const [k, v] of [['--c-ink', 'var(--ink)'], ['--c-glyph', tone(badge)], ['--c-edge', 'var(--ink)']]) {
+    const CI = window.SentinelLook.CAUTION_INK;
+    for (const [k, v] of [['--c-ink', CI], ['--c-glyph', tone(badge)], ['--c-edge', CI]]) {
       if (ink) el.style.setProperty(k, v); else el.style.removeProperty(k);
     }
   };
@@ -47,7 +49,9 @@
   /* The card is moved by its head, as a title bar would; its buttons stay buttons. */
   .head { display: flex; align-items: center; gap: 14px; -webkit-app-region: drag; }
   button, a { -webkit-app-region: no-drag; }
-  .mark { width: 46px; height: 46px; flex: none; color: var(--c-ink, var(--c, var(--acc))); }
+  /* The mask as tall as the heading beside it (title and reason): the pages draw it cropped to its own edges
+     (viewBox 16 10 32 41), so with no disc behind it, it is not a small glyph in an empty square. */
+  .mark { width: 36px; height: 46px; flex: none; color: var(--c-ink, var(--c, var(--acc))); }
   .mark svg { display: block; width: 100%; height: 100%; }
   .mark path { fill: var(--c-glyph, currentColor); stroke: var(--c-edge, none); stroke-width: 2.4px; stroke-linejoin: round; paint-order: stroke; vector-effect: non-scaling-stroke; }
   /* The title and address may wrap anywhere: a long address must not push the card wider than its window. */

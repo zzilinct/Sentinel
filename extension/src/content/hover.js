@@ -64,7 +64,9 @@
       .tip span{color:#9aa0a8;font-size:11.5px;overflow-wrap:anywhere}
       @media (prefers-color-scheme: light){
         .tip{background:#fbf8f1;color:#1d1c19;box-shadow:0 10px 30px rgba(40,30,10,.16), inset 0 0 0 1px color-mix(in srgb, var(--c) 70%, #0000)}
-        .tip b{color:color-mix(in srgb, var(--c) 45%, #1d1c19)}.tip p{color:#36332d}.tip span{color:#6b665c}}
+        .tip b{color:color-mix(in srgb, var(--c) 45%, #1d1c19)}.tip p{color:#36332d}.tip span{color:#6b665c}
+        .tip[data-status=yellow] b{color:#645e53}
+        .tip[data-status=yellow] path{stroke:#645e53;stroke-width:2px;stroke-linejoin:round;paint-order:stroke;vector-effect:non-scaling-stroke}}
       :host([data-motion=off]) .tip{transition:none;transform:none}
     </style><div class="tip" role="status" aria-live="polite"></div>`;
     document.documentElement.appendChild(host);
@@ -98,7 +100,7 @@
     if (!t || !t.badge) {
       return { key: 'clear', color: Masks.COLORS.clear, icon: CHECK, head: verdict.knowledge && verdict.knowledge.trusted ? 'A verified site' : 'No warning signs found', reason: '', host };
     }
-    return { key: `${threat}:${t.badge}`, color: Masks.COLORS[t.badge], icon: Masks.svg(threat), head: `${Masks.SEVERITY[t.badge] || 'Caution'}: ${t.label}`, reason: Masks.reasonLine(verdict.reasons, threat), host };
+    return { key: `${threat}:${t.badge}`, status: t.badge, color: Masks.COLORS[t.badge], icon: Masks.svg(threat), head: `${Masks.SEVERITY[t.badge] || 'Caution'}: ${t.label}`, reason: Masks.reasonLine(verdict.reasons, threat), host };
   }
 
   // Text goes in with textContent: a host name and a reason can carry a page's own words.
@@ -109,6 +111,9 @@
     el.setAttribute('aria-live', quiet ? 'off' : 'polite');
     el.style.setProperty('--c', line.color);
     el.dataset.verdict = line.key;
+    // Named, as the app names it (sentinel.css data-status): on light pages caution's words are its ink, not yellow,
+    // and its mask is the yellow edged in that ink (look.js CAUTION_INK).
+    if (line.status) el.dataset.status = line.status; else delete el.dataset.status;
     el.innerHTML = `${line.icon}<div><b></b>${line.reason ? '<p></p>' : ''}<span></span></div>`;
     el.querySelector('b').textContent = line.head;
     if (line.reason) el.querySelector('p').textContent = line.reason;
