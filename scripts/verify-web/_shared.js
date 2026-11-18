@@ -333,5 +333,5 @@ function markLists(dbPath, missing) {
   return ids.length;
 }
 
-module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton, passBlock, NO_UPGRADE,
+module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton, passBlock, throughChromeWarning, NO_UPGRADE,
   readPng, startServer, watchErrors, clickSel, pressKey, until, markLists };
