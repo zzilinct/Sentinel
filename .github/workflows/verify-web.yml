@@ -25,6 +25,10 @@ on:
         description: 'With checks: run them this many times in a row, to show a check holds'
         required: false
         default: '1'
+      chrome_version:
+        description: 'With checks: run them on this Chrome (a Chrome for Testing version, as "157.0.8103.78") instead of the runner image''s own'
+        required: false
+        default: ''
   push:
     branches: ['work/e2e**']
 
@@ -72,8 +76,16 @@ jobs:
         run: |
           python -m pip install --quiet qrcode pillow
           python scripts/verify-web-qr.py qr-samples
+      # A chosen Chrome, for a check that broke on a newer image's Chrome: the runners move to a new image over days, so
+      # a version is tried on purpose instead of waiting to land on it. Unset, the image's own Chrome, as always.
+      - uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        if: ${{ inputs.chrome_version }}
+        id: chrome
+        with:
+          chrome-version: ${{ inputs.chrome_version }}
       - run: node scripts/verify-web.js --only $env:CHECKS --out verify-web-features
         env:
+          SENTINEL_CHROME: ${{ steps.chrome.outputs.chrome-path }}
           CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level' }}
           CHECK_MINUTES: '25'
           REPEAT: ${{ inputs.repeat || '1' }}

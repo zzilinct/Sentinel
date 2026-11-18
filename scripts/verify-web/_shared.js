@@ -56,7 +56,8 @@ function serveFiles(mounts, extra = {}) {
 /* ------------------------------------------------------------------ browser */
 
 async function launch(extraArgs = []) {
-  const exe = CANDIDATES.chrome.map(expand).find((p) => fs.existsSync(p));
+  // SENTINEL_CHROME: a Chrome chosen for the run (verify-web.yml chrome_version); else the computer's own.
+  const exe = [process.env.SENTINEL_CHROME, ...CANDIDATES.chrome.map(expand)].find((p) => p && fs.existsSync(p));
   if (!exe) throw new Error('Chrome is not installed here');
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-verify-web-'));
   const child = spawn(exe, [
