@@ -133,8 +133,8 @@ async function checkCompanionDoor() {
     }
     await sleep(1500);
     const signedOut = await popup('signed-out');
-    const bare = await pageTextOf(`http://${LISTED}/signed-out`);
     let bareEntry = null;
+    const bare = await pageTextOf(`http://${LISTED}/signed-out`);
     async function pageTextOf(url) { const t = await openPage(browser); await goto(browser, t.sessionId, url); await sleep(600); const x = await pageText(browser, t.sessionId); bareEntry = await entry(t.sessionId); await browser.send('Target.closeTarget', { targetId: t.targetId }).catch(() => {}); return x; }
     result('companion-door: signed out, the popup asks to sign in, and it claims no protection, and the door is not closed on anybody', /Sign in to Sentinel/.test(signedOut) && !/No warning signs/.test(signedOut) && /Sign in to your account/.test(bare), { signedOut, bare: bare.slice(0, 80), bareEntry, version });
     delete hits[LISTED];
