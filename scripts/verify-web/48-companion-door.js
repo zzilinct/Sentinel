@@ -91,7 +91,7 @@ async function checkCompanionDoor() {
   });
   const filesPort = new URL(files.base).port;
   const hosts = [LISTED, ...SLOW_CANDIDATES, ...Object.keys(LATE), 'plain.test', 'moved.test'];
-  const { browser, close } = await launch([`--host-resolver-rules=${[HTTP_ONLY, HTTPS_ONLY].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort},MAP www.google.com 127.0.0.1:${filesPort}`]);
+  const { browser, close, version } = await launch([`--host-resolver-rules=${[HTTP_ONLY, HTTPS_ONLY].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort},MAP www.google.com 127.0.0.1:${filesPort}`]);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api}`);
     const via = `http://127.0.0.1:${proxyPort}`;
@@ -111,6 +111,8 @@ async function checkCompanionDoor() {
       await browser.send('Emulation.setEmulatedMedia', { features: [] }, s);
     };
     const size = (s, width, height) => browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: width < 500 ? 2 : 1, mobile: false }, s);
+    // Where a tab really is: its history entry (Chrome's own error and warning pages show chrome-error:// as location).
+    const entry = async (sid) => { const h = await browser.send('Page.getNavigationHistory', {}, sid).catch(() => null); const e = h && h.entries[h.currentIndex]; return e ? { url: e.url, title: e.title } : null; };
     const web = await openPage(browser);
     await goto(browser, web.sessionId, `http://start.test/start.html`);
     // The popup, as a tab behind the page it is about.
@@ -132,8 +134,9 @@ async function checkCompanionDoor() {
     await sleep(1500);
     const signedOut = await popup('signed-out');
     const bare = await pageTextOf(`http://${LISTED}/signed-out`);
-    async function pageTextOf(url) { const t = await openPage(browser); await goto(browser, t.sessionId, url); await sleep(600); const x = await pageText(browser, t.sessionId); await browser.send('Target.closeTarget', { targetId: t.targetId }).catch(() => {}); return x; }
-    result('companion-door: signed out, the popup asks to sign in, and it claims no protection, and the door is not closed on anybody', /Sign in to Sentinel/.test(signedOut) && !/No warning signs/.test(signedOut) && /Sign in to your account/.test(bare), { signedOut, bare: bare.slice(0, 80) });
+    let bareEntry = null;
+    async function pageTextOf(url) { const t = await openPage(browser); await goto(browser, t.sessionId, url); await sleep(600); const x = await pageText(browser, t.sessionId); bareEntry = await entry(t.sessionId); await browser.send('Target.closeTarget', { targetId: t.targetId }).catch(() => {}); return x; }
+    result('companion-door: signed out, the popup asks to sign in, and it claims no protection, and the door is not closed on anybody', /Sign in to Sentinel/.test(signedOut) && !/No warning signs/.test(signedOut) && /Sign in to your account/.test(bare), { signedOut, bare: bare.slice(0, 80), bareEntry, version });
     delete hits[LISTED];
 
     const paired = await evalIn(browser, opt.sessionId, `(async () => {
@@ -181,7 +184,7 @@ async function checkCompanionDoor() {
     await goto(browser, other.sessionId, `http://${LISTED}/signin.html`, SHOWN);
     const otherStopped = /block\.html/.test(await evalIn(browser, other.sessionId, 'location.href'));
     await browser.send('Target.closeTarget', { targetId: other.targetId }).catch(() => {});
-    result('companion-door: Continue anyway, pressed twice, opens the site in that tab, a reload stays open, and another tab is still stopped', Boolean(opened) && stays && otherStopped, { opened, stays, otherStopped });
+    result('companion-door: Continue anyway, pressed twice, opens the site in that tab, a reload stays open, and another tab is still stopped', Boolean(opened) && stays && otherStopped, { opened, stays, otherStopped, at: await entry(tab.sessionId) });
     await browser.send('Target.closeTarget', { targetId: tab.targetId }).catch(() => {});
 
     // A site on plain http with nothing on 443. Chrome switches the address to https before the door sees it, so the
@@ -190,7 +193,8 @@ async function checkCompanionDoor() {
     await goto(browser, httpOnly.sessionId, `http://${HTTP_ONLY}/signin.html`, SHOWN);
     const httpOpened = await passBlock(browser, httpOnly.sessionId, 'window.ran === true').then(() => true, (err) => err.message);
     const httpHref = await evalIn(browser, httpOnly.sessionId, 'location.href').catch(() => '');
-    result('companion-door: Continue anyway opens a plain http site with nothing on its https port', httpOpened === true && httpHref.startsWith(`http://${HTTP_ONLY}/`), { httpOpened, httpHref });
+    const httpEntry = await entry(httpOnly.sessionId);
+    result('companion-door: Continue anyway opens a plain http site with nothing on its https port', httpOpened === true && httpHref.startsWith(`http://${HTTP_ONLY}/`), { httpOpened, httpHref, httpEntry });
     await browser.send('Target.closeTarget', { targetId: httpOnly.targetId }).catch(() => {});
 
     // An address asked for on https whose https fails is never sent to plain http, even when http would answer: someone
