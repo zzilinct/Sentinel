@@ -17,7 +17,7 @@ const path = require('path');
 const http = require('http');
 const net = require('net');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock, until, clickButton } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, TYPED_PW, passBlock, throughChromeWarning, until, clickButton } = require('./_shared');
 const { stopWorker, workerTarget } = require('./_companion');
 
 const LISTED = TYPED_PW;
@@ -91,7 +91,7 @@ async function checkCompanionDoor() {
   });
   const filesPort = new URL(files.base).port;
   const hosts = [LISTED, ...SLOW_CANDIDATES, ...Object.keys(LATE), 'plain.test', 'moved.test'];
-  const { browser, close, version } = await launch([`--host-resolver-rules=${[HTTP_ONLY, HTTPS_ONLY].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h} 127.0.0.1:${standPort}`).join(',')},MAP start.test 127.0.0.1:${filesPort},MAP www.google.com 127.0.0.1:${filesPort}`]);
+  const { browser, close, version } = await launch([`--host-resolver-rules=${[HTTP_ONLY, HTTPS_ONLY].map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},${hosts.map((h) => `MAP ${h}:80 127.0.0.1:${standPort},MAP ${h}:443 127.0.0.1:9`).join(',')},MAP start.test 127.0.0.1:${filesPort},MAP www.google.com 127.0.0.1:${filesPort}`]);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api}`);
     const via = `http://127.0.0.1:${proxyPort}`;
@@ -135,7 +135,7 @@ async function checkCompanionDoor() {
     const signedOut = await popup('signed-out');
     let bareEntry = null;
     const bare = await pageTextOf(`http://${LISTED}/signed-out`);
-    async function pageTextOf(url) { const t = await openPage(browser); await goto(browser, t.sessionId, url); await sleep(600); const x = await pageText(browser, t.sessionId); bareEntry = await entry(t.sessionId); await browser.send('Target.closeTarget', { targetId: t.targetId }).catch(() => {}); return x; }
+    async function pageTextOf(url) { const t = await openPage(browser); await goto(browser, t.sessionId, url); await sleep(600); if (await throughChromeWarning(browser, t.sessionId)) await sleep(1500); const x = await pageText(browser, t.sessionId); bareEntry = await entry(t.sessionId); await browser.send('Target.closeTarget', { targetId: t.targetId }).catch(() => {}); return x; }
     result('companion-door: signed out, the popup asks to sign in, and it claims no protection, and the door is not closed on anybody', /Sign in to Sentinel/.test(signedOut) && !/No warning signs/.test(signedOut) && /Sign in to your account/.test(bare), { signedOut, bare: bare.slice(0, 80), bareEntry, version });
     delete hits[LISTED];
 
@@ -159,7 +159,7 @@ async function checkCompanionDoor() {
     const shownIn = Date.now() - t0;
     const stopped = { hits: hits[LISTED] || 0, href: await evalIn(browser, tab.sessionId, 'location.href'), text: await pageText(browser, tab.sessionId) };
     result(`companion-door: ${LISTED} never loads: its server got no request, and the block page says so (${shownIn} ms)`,
-      stopped.hits === 0 && stopped.href.startsWith(`${ext}/src/block.html#http://${LISTED}/signin.html`) && /confirmed scam site/.test(stopped.text) && /stopped it before it opened/.test(stopped.text) && /Take me back to safety|Go to the real/.test(stopped.text) && !/Continue anyway/.test(await evalIn(browser, tab.sessionId, 'document.body.innerText')), { ...stopped, shownIn });
+      stopped.hits === 0 && stopped.href.replace('#https:', '#http:').startsWith(`${ext}/src/block.html#http://${LISTED}/signin.html`) && /confirmed scam site/.test(stopped.text) && /stopped it before it opened/.test(stopped.text) && /Take me back to safety|Go to the real/.test(stopped.text) && !/Continue anyway/.test(await evalIn(browser, tab.sessionId, 'document.body.innerText')), { ...stopped, shownIn });
 
     await stopWorker(browser, loaded.id);
     const workerGone = !(await workerTarget(browser, loaded.id));
@@ -175,7 +175,13 @@ async function checkCompanionDoor() {
 
     await goto(browser, tab.sessionId, `http://${LISTED}/signin.html`, SHOWN);
     await evalIn(browser, tab.sessionId, "(() => { document.getElementById('more').open = true; const b = document.getElementById('pass'); b.click(); b.click(); })()");
-    const opened = await until(browser, tab.sessionId, "location.hostname !== '' && /^http/.test(location.href) && window.ran === true", 8000);
+    // Where Chrome warns of its own before a plain http site, the person presses its button, as on any such site.
+    let opened = false, chromeWarned = null;
+    for (let i = 0; i < 32 && !opened; i++) {
+      await sleep(250);
+      opened = await evalIn(browser, tab.sessionId, "location.hostname !== '' && /^http/.test(location.href) && window.ran === true").catch(() => false);
+      if (!opened && !chromeWarned) chromeWarned = await throughChromeWarning(browser, tab.sessionId);
+    }
     await sleep(2000);
     await browser.send('Page.reload', {}, tab.sessionId);
     await sleep(1800);
@@ -184,17 +190,20 @@ async function checkCompanionDoor() {
     await goto(browser, other.sessionId, `http://${LISTED}/signin.html`, SHOWN);
     const otherStopped = /block\.html/.test(await evalIn(browser, other.sessionId, 'location.href'));
     await browser.send('Target.closeTarget', { targetId: other.targetId }).catch(() => {});
-    result('companion-door: Continue anyway, pressed twice, opens the site in that tab, a reload stays open, and another tab is still stopped', Boolean(opened) && stays && otherStopped, { opened, stays, otherStopped, at: await entry(tab.sessionId) });
+    result('companion-door: Continue anyway, pressed twice, opens the site in that tab, a reload stays open, and another tab is still stopped', Boolean(opened) && stays && otherStopped, { opened, stays, otherStopped, chromeWarned, at: await entry(tab.sessionId) });
     await browser.send('Target.closeTarget', { targetId: tab.targetId }).catch(() => {});
 
     // A site on plain http with nothing on 443. Chrome switches the address to https before the door sees it, so the
-    // block page holds https; Continue anyway must still reach the site, as Chrome itself falls back to http.
+    // block page holds https; Continue anyway goes to the http address the person asked for, and the site opens, after
+    // Chrome's own "not secure" warning where Chrome shows one (157 does). The block page says so before.
     const httpOnly = await openPage(browser);
     await goto(browser, httpOnly.sessionId, `http://${HTTP_ONLY}/signin.html`, SHOWN);
-    const httpOpened = await passBlock(browser, httpOnly.sessionId, 'window.ran === true').then(() => true, (err) => err.message);
+    const httpBlock = await evalIn(browser, httpOnly.sessionId, "({ href: location.href, plain: !document.getElementById('plain').hidden })");
+    const httpOpened = await passBlock(browser, httpOnly.sessionId, 'window.ran === true').then((w) => w, (err) => err.message);
     const httpHref = await evalIn(browser, httpOnly.sessionId, 'location.href').catch(() => '');
     const httpEntry = await entry(httpOnly.sessionId);
-    result('companion-door: Continue anyway opens a plain http site with nothing on its https port', httpOpened === true && httpHref.startsWith(`http://${HTTP_ONLY}/`), { httpOpened, httpHref, httpEntry });
+    result('companion-door: Continue anyway opens a plain http site with nothing on its https port', (httpOpened === true || Boolean(httpOpened && httpOpened.url)) && httpHref.startsWith(`http://${HTTP_ONLY}/`)
+      && httpBlock.plain === httpBlock.href.includes('#https:'), { httpBlock, httpOpened, httpHref, httpEntry });
     await browser.send('Target.closeTarget', { targetId: httpOnly.targetId }).catch(() => {});
 
     // An address asked for on https whose https fails is never sent to plain http, even when http would answer: someone

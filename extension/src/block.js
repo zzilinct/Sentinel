@@ -83,7 +83,7 @@
       const b = ev.currentTarget;
       b.disabled = true;
       const res = await send({ type: 'block-pass', url });
-      if (res.pass) location.replace(url); else b.disabled = false;
+      if (res.pass) location.replace(res.to || url); else b.disabled = false;
     };
   }
 
@@ -91,7 +91,9 @@
     if (!web) { $('title').textContent = 'There is nothing to show here'; return; }
     $('host').textContent = hostOf(url);
     const res = await send({ type: 'block-info', url, seen });
-    if (res.pass) { location.replace(url); return; }
+    if (res.pass) { location.replace(res.to || url); return; }
+    // Asked for on plain http: the browser may warn once more on its own before the site opens, and says so here first.
+    $('plain').hidden = !res.plain;
     // The worker could not be reached: the page stays stopped, and says what it knows, which is that it was sent here.
     verdict = res.verdict || { url, threats: {}, reasons: [], overall: { badge: 'red', level: 'earlier' } };
     draw();

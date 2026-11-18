@@ -261,3 +261,16 @@ test('an inbox first opened in a background tab is checked once the person looks
   const serp = strip(fs.readFileSync(path.join(SRC, 'content', 'serp.js'), 'utf8'));
   assert.match(serp, /quick\.locked === 'inactive'\) \{ queue = urls\.concat\(queue\); waiting = true; return; \}/);
 });
+
+test('Continue anyway goes to the address the person asked for: http stays http when the browser switched it first', () => {
+  const bg = fs.readFileSync(path.join(SRC, 'background.js'), 'utf8');
+  const block = fs.readFileSync(path.join(SRC, 'block.js'), 'utf8');
+  const fn = /async function askedAddress\(tabId, url\) \{[\s\S]*?\n\}/.exec(bg)[0];
+  // Only an https address the browser switched (the note askedFor left for this tab) goes back to http.
+  assert.match(fn, /return \(await askedHttp\(tabId, plain\)\) \? plain : url;/);
+  assert.match(bg, /return \{ pass: true, to: \(await inDoorOrder\(\(\) => askedAddress\(sender\.tab\.id, url\)\)\) \|\| url \};/);
+  assert.match(bg, /plain: to !== url/);
+  assert.match(block, /location\.replace\(res\.to \|\| url\); else b\.disabled = false;/);
+  assert.match(block, /\$\('plain'\)\.hidden = !res\.plain;/);
+  assert.match(fs.readFileSync(path.join(SRC, 'block.html'), 'utf8'), /<p class="more-row plain" id="plain" hidden>This address is not a secure one \(http\)\. Your browser may warn you once more before it opens\.<\/p>/);
+});
