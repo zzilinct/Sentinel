@@ -144,7 +144,8 @@ function init(options) {
 }
 
 async function check() {
-  if (!autoUpdater) return status();
+  // SENTINEL_NO_UPDATE: a check asked for still answers (and the tray is told), as a real one would.
+  if (!autoUpdater) { if (state.supported) set({ status: 'current', checkedAt: Date.now() }); return status(); }
   if (state.status === 'ready') return status();   // already downloaded: nothing more to fetch
   try { await autoUpdater.checkForUpdates(); } catch (err) { set({ status: 'error', error: String(err && err.message || err).slice(0, 200) }); }
   return status();
