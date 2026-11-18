@@ -157,34 +157,25 @@ test('a flagged page that opened is replaced, not covered; a tab that moved on i
   assert.equal(allowed.scripts.length, 0);
 });
 
-test('a site asked for on http whose https fails gets its http address once; one asked for on https is never moved to http', async () => {
+test('Continue anyway goes to the address the person asked for: http when the browser switched it to https first; https stays https', async () => {
   const w = worker({ list: ['bad.test'] });
   await w.ctx.recalled;
-  // The person asked for http; the browser switched it to https before the door saw it.
+  // The person asked for http; the browser switched it to https before the door saw it (Chrome 157, every public site).
   await w.on.before({ frameId: 0, tabId: 7, url: 'http://bad.test/x' });
-  await w.call('block-pass', { url: 'https://bad.test/x' });
-  await w.settled();
-  const fail = (o) => w.on.error({ frameId: 0, tabId: 7, url: 'https://bad.test/x', error: 'net::ERR_CONNECTION_REFUSED', ...o });
-  await fail({ error: 'net::ERR_ABORTED' });
-  await fail({ frameId: 3 });
-  await fail({ tabId: 8 });
-  assert.deepEqual(w.updates, [], 'aborted, a frame, a tab not let through: left alone');
-  await fail();
-  await fail();
-  assert.deepEqual(w.updates, [{ url: 'http://bad.test/x' }], 'once');
-  await w.on.error({ frameId: 0, tabId: 7, url: 'http://bad.test/x', error: 'net::ERR_CONNECTION_REFUSED' });
-  assert.equal(w.updates.length, 1, 'an http failure is the end of it');
-
-  // Asked for on https: it fails as it would without Sentinel.
+  const passed = await w.call('block-pass', { url: 'https://bad.test/x' });
+  assert.equal(passed.to, 'http://bad.test/x', 'to the http address asked for, which the browser then treats as any http address');
+  const info = await w.call('block-info', { url: 'https://bad.test/x' });
+  assert.equal(info.plain, true, 'the block page says the browser may warn once more');
+  // Asked for on https: it stays https, and nothing says http.
   const sure = worker({ list: ['bad.test'] });
-  await sure.call('block-pass', { url: 'https://bad.test/y' });
-  await sure.settled();
-  await sure.on.error({ frameId: 0, tabId: 7, url: 'https://bad.test/y', error: 'net::ERR_CONNECTION_REFUSED' });
-  assert.deepEqual(sure.updates, [], 'never downgraded');
+  await sure.ctx.recalled;
+  assert.equal((await sure.call('block-pass', { url: 'https://bad.test/y' })).to, 'https://bad.test/y', 'never downgraded');
   // An http address asked for elsewhere on the site does not count for this one.
   await sure.on.before({ frameId: 0, tabId: 7, url: 'http://bad.test/other' });
-  await sure.on.error({ frameId: 0, tabId: 7, url: 'https://bad.test/y', error: 'net::ERR_CONNECTION_REFUSED' });
-  assert.deepEqual(sure.updates, []);
+  assert.equal((await sure.call('block-pass', { url: 'https://bad.test/y' })).to, 'https://bad.test/y');
+  assert.equal((await sure.call('block-info', { url: 'https://bad.test/y' })).plain, false);
+  // Nothing is left listening for navigation errors: the browser falls back from its own switch by itself.
+  assert.equal(w.on.error, undefined);
 });
 
 test('red after the page opened replaces it; orange warns over it and leaves it, with what was typed', async () => {

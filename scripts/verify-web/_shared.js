@@ -169,34 +169,17 @@ async function clickButton(browser, sessionId, text) {
 // error page instead of falling back. companion-door proves the real shape, a site with nothing on 443.
 const NO_UPGRADE = '--disable-features=HttpsUpgrades,HttpsFirstBalancedModeAutoEnable';
 
-/**
- * Chrome's own "not secure" warning before a plain http address (Chrome 157 shows it for any public http site whose
- * https fails): pressed through as a person would, with its own button, and only for an http address. Returns what
- * the warning said, or null when the tab is not on one. A certificate error or an https address is never pressed.
- */
-async function throughChromeWarning(browser, sessionId) {
-  const h = await browser.send('Page.getNavigationHistory', {}, sessionId).catch(() => null);
-  const entry = h && h.entries[h.currentIndex];
-  if (!entry || !/^http:/.test(entry.url)) return null;
-  const seen = await evalIn(browser, sessionId, "location.protocol === 'chrome-error:' && document.getElementById('proceed-button') ? document.body.innerText.replace(/\\s+/g, ' ').slice(0, 200) : ''").catch(() => '');
-  if (!seen) return null;
-  await evalIn(browser, sessionId, "document.getElementById('proceed-button').click(), true", { userGesture: true }).catch(() => {});
-  return { url: entry.url, said: seen };
-}
-
 /** "Continue anyway" on the block page, as a person does it; `ready` is what the opened page must then show. */
 async function passBlock(browser, sessionId, ready = 'true') {
   const pressed = `(() => { const b = document.getElementById('pass'); if (!b || !b.onclick) return false; document.getElementById('more').open = true; b.click(); return true; })()`;
   let done = false;
   for (let i = 0; i < 80 && !done; i++) { await sleep(250); done = await evalIn(browser, sessionId, pressed).catch(() => false); }
   if (!done) throw new Error('the block page never offered Continue anyway');
-  let warned = null;
   for (let i = 0; i < 80; i++) {
     await sleep(250);
-    if (await evalIn(browser, sessionId, `/^http/.test(location.href) && document.readyState === 'complete' && Boolean(${ready})`).catch(() => false)) return warned || true;
-    if (!warned) warned = await throughChromeWarning(browser, sessionId);
+    if (await evalIn(browser, sessionId, `/^http/.test(location.href) && document.readyState === 'complete' && Boolean(${ready})`).catch(() => false)) return;
   }
-  const where = await evalIn(browser, sessionId, `(async () => ({ warned: ${JSON.stringify(warned)}, href: location.href, text: document.body.innerText.slice(0, 160), rules: typeof chrome !== 'undefined' && chrome.declarativeNetRequest ? await chrome.declarativeNetRequest.getSessionRules() : null, tab: typeof chrome !== 'undefined' && chrome.tabs ? (await chrome.tabs.getCurrent()).id : null }))()`).catch((err) => err.message);
+  const where = await evalIn(browser, sessionId, `(async () => ({ href: location.href, text: document.body.innerText.slice(0, 160), rules: typeof chrome !== 'undefined' && chrome.declarativeNetRequest ? await chrome.declarativeNetRequest.getSessionRules() : null, tab: typeof chrome !== 'undefined' && chrome.tabs ? (await chrome.tabs.getCurrent()).id : null }))()`).catch((err) => err.message);
   throw new Error(`Continue anyway did not open the page: ${JSON.stringify(where)}`);
 }
 
@@ -334,5 +317,5 @@ function markLists(dbPath, missing) {
   return ids.length;
 }
 
-module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton, passBlock, throughChromeWarning, NO_UPGRADE,
+module.exports = { arg, ROOT, STATIC, QR, OUT, sleep, report, result, TYPES, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, pressEnter, TYPED_PW, clickButton, passBlock, NO_UPGRADE,
   readPng, startServer, watchErrors, clickSel, pressKey, until, markLists };

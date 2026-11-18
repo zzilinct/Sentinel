@@ -1030,14 +1030,7 @@ function warnInPlace(tabId, verdict, settings) {
   return Promise.resolve(ext.tabs.sendMessage(tabId, message, { frameId: 0 })).catch(() => null);
 }
 
-/**
- * Continue anyway on a site with nothing on https. The browser tries https first for an http address and goes back to
- * http when that fails; but the door saw the address after the switch, so the block page holds the https one, and a
- * fresh https navigation gets no way back. Measured in Chrome: an http-only site stopped at the door opened on an error
- * page. So a tab the person let through to a site, whose https page fails to load, gets the http address once, as the
- * browser itself would have done. Nothing runs for any other navigation error.
- */
-// Only when the person asked for http. An address asked for on https whose https fails stays failed, as in Chrome: someone
+// What the person asked for, for Continue anyway (askedAddress below). An address asked for on https stays https: someone
 // who can break a site's https must not get the person onto plain http by Sentinel's hand. What was asked for is noted
 // only for a site the door would stop, before the browser's switch (onBeforeNavigate, http addresses only), as a rule in
 // the browser's session rules that matches nothing (a ping from that tab to that exact address): no storage holds it, a
@@ -1066,18 +1059,7 @@ async function askedAddress(tabId, url) {
   const plain = url.replace(/^https:/i, 'http:');
   return (await askedHttp(tabId, plain)) ? plain : url;
 }
-const fellBack = new Set();
-async function httpsFailed(d) {
-  if (d.frameId !== 0 || !/^https:/i.test(d.url) || /ABORTED|BLOCKED/i.test(d.error || '')) return;
-  const plain = d.url.replace(/^https:/i, 'http:');
-  const key = `${d.tabId}|${plain}`;
-  if (fellBack.has(key) || !(await askedHttp(d.tabId, plain))) return;
-  if (!(await isLetThroughHere(d.tabId, d.url))) return;
-  fellBack.add(key);
-  await Promise.resolve(ext.tabs.update(d.tabId, { url: plain })).catch(() => {});
-}
 if (ext.webNavigation.onBeforeNavigate) ext.webNavigation.onBeforeNavigate.addListener(askedFor, { url: [{ schemes: ['http'] }] });
-if (ext.webNavigation.onErrorOccurred) ext.webNavigation.onErrorOccurred.addListener(httpsFailed);
 
 ext.webNavigation.onCommitted.addListener(onNavigate);
 ext.webNavigation.onHistoryStateUpdated.addListener(onSameDocument);
