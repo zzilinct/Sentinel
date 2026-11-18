@@ -61,9 +61,9 @@
     // Whether a share waits (below) is asked beside the account, not after it: opening the share box can take a
     // tenth of a second, and the first screen waited for it. Only a share older than FRESH_MS is ever emptied by it.
     const waitingShare = location.pathname.replace(/\/$/, '') !== '/app/share' ? Share.waiting().catch(() => false) : Promise.resolve(false);
-    // The open page's file comes beside the account too; on the Overview, Settings' file when its rows are drawn there
-    // (the first-run choices, the Windows app's offers).
-    const first = fileFor(location.pathname) || ((desktop || !firstDone()) && 'settings');
+    // The open page's file comes beside the account too; on the Overview, the first-run choices' small file the first
+    // time, and in the Windows app Settings' file for its offers (which brings the first-run file before it).
+    const first = fileFor(location.pathname) || (desktop ? 'settings' : !firstDone() && 'first');
     if (first) pageFile(first).catch(() => { /* the page says so when it opens */ });
     await styled;
     try {
@@ -219,12 +219,14 @@
    * Every page but the Overview and Your week is a file of its own (assets/js/app/), fetched the first time it opens,
    * with the scripts and styles only it uses, so the first screen waits for none of them. The open page's file is
    * asked for at once, beside the account; a link pointed at or focused starts its page's file, so it is usually here
-   * before the press.
+   * before the press. 'first' is the first-run choices and the row frame (a few KB): all a first visit's Overview
+   * waits for. Settings draws its rows with them, so its file comes after them.
    */
   const FILES = {
     check: ['/assets/js/binary.js', '/assets/js/textshot.js', '/assets/js/warncard.js'],
     history: [], sites: [], checkup: ['/assets/js/recover.js'], plan: [], assistants: [],
-    settings: ['/assets/css/settings.css']
+    first: ['/assets/css/settings.css'],
+    settings: ['/assets/js/app/first.js', '/assets/css/settings.css']
   };
   const fetched = {};
   function fetchOnce(src) {
@@ -232,7 +234,8 @@
       fetched[src] = new Promise((resolve, reject) => {
         const css = src.endsWith('.css');
         const tag = document.createElement(css ? 'link' : 'script');
-        if (css) { tag.rel = 'stylesheet'; tag.href = src; } else tag.src = src;
+        // Scripts run in the order they are asked for (async off), however they arrive: a page's file after its own.
+        if (css) { tag.rel = 'stylesheet'; tag.href = src; } else { tag.async = false; tag.src = src; }
         tag.onload = resolve;
         // Asked for again next time, not remembered as failed. Whether the connection is down, fetch itself says.
         tag.onerror = () => {
@@ -247,7 +250,7 @@
     return fetched[src];
   }
   const loaded = {};
-  const pageFile = (file) => Promise.all([`/assets/js/app/${file}.js`, ...FILES[file]].map(fetchOnce)).then(() => { loaded[file] = true; return App.pages; });
+  const pageFile = (file) => Promise.all([...FILES[file], `/assets/js/app/${file}.js`].map(fetchOnce)).then(() => { loaded[file] = true; return App.pages; });
   // A page in a file of its own: drawn at once when its file is here, else as soon as it arrives.
   const page = (file, fn) => Object.assign((el, params) => {
     if (loaded[file]) { App.pages[fn](el, params); return; }
@@ -883,10 +886,11 @@
   /* ================================================================ home */
 
   async function home(el) {
-    // The first-run choices are Settings' own rows: that one first time, the page waits for their file (asked for
-    // beside the account), so they are there from the first frame and nothing below them moves.
-    if (!firstDone() && !loaded.settings) {
-      try { await pageFile('settings'); } catch { /* the choices wait for the next visit */ }
+    // The first-run choices are Settings' own rows, in a small file of their own (app/first.js): that one first time,
+    // the page waits for it (asked for beside the account), so they are there from the first frame and nothing below
+    // them moves. Never for all of Settings.
+    if (!firstDone() && !App.pages.firstChoices) {
+      try { await pageFile('first'); } catch { /* the choices wait for the next visit */ }
       if (!el.isConnected) return;
     }
     const u = state.me.user;
@@ -924,14 +928,16 @@
     weekCard($('[data-week-card]', el));
     // One offer at a time: the first-run choices, then chat safety, then exposure alerts, each on a later visit.
     const chatAsk = $('[data-chat-ask]', el);
-    // Both are drawn by Settings' file: in a browser, once the choices are made, the Overview never needs it.
-    const extras = ({ firstChoices, askChatSafety, askExposureAlerts }) => {
+    // The offers are drawn by Settings' file: in a browser, once the choices are made, the Overview never needs it.
+    const extras = ({ askChatSafety, askExposureAlerts }) => {
       // A failure says so quietly in the offer's place (askChatSafety), with Try again running both offers again.
       const offers = () => { chatAsk.innerHTML = ''; return askChatSafety(chatAsk, offers).then(() => { if (!chatAsk.innerHTML) askExposureAlerts($('[data-exposure-ask]', el)); }); };
-      if (!firstChoices($('[data-first]', el))) offers();
+      offers();
     };
-    if (loaded.settings) extras(App.pages);
-    else if (desktop) pageFile('settings').then((pages) => { if (el.isConnected) extras(pages); }, () => { /* offered on a later visit */ });
+    // One prompt at a time: while the first-run step shows, the offers wait for a later visit.
+    const firstShown = Boolean(App.pages.firstChoices && App.pages.firstChoices($('[data-first]', el)));
+    if (!firstShown && loaded.settings) extras(App.pages);
+    else if (!firstShown && desktop) pageFile('settings').then((pages) => { if (el.isConnected) extras(pages); }, () => { /* offered on a later visit */ });
     $('[data-quick]', el).addEventListener('submit', (ev) => {
       ev.preventDefault();
       const url = ev.target.url.value.trim();

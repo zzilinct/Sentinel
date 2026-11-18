@@ -134,6 +134,16 @@ test('first run: one step drawn from Settings rows, and the tray notification it
   assert.match(body, /try \{ if \(localStorage\.getItem\(FIRST_KEY\)\) return false; \} catch \{ return false; \}/);
   assert.match(body, /ev\.key === 'Escape'/);
   // One prompt at a time: the feature offers wait while the step shows.
-  assert.match(app, /if \(!firstChoices\(\$\('\[data-first\]', el\)\)\) offers\(\);/,'the first-run step comes before the other offers');
+  assert.match(app, /const firstShown = Boolean\(App\.pages\.firstChoices && App\.pages\.firstChoices\(\$\('\[data-first\]', el\)\)\);\n\s+if \(!firstShown && loaded\.settings\) extras\(App\.pages\);\n\s+else if \(!firstShown && desktop\)/, 'the first-run step comes before the other offers');
+  // Speed: a first visit's Overview waits for the first-run rows' own small file, never for all of Settings
+  // (101 KB, 29 KB on the wire, held up the phone's first paint). Settings loads it before itself and draws the same rows.
+  const first = read('web/assets/js/app/first.js');
+  assert.ok(Buffer.byteLength(first) < 16 * 1024, `app/first.js is ${Buffer.byteLength(first)} bytes`);
+  assert.match(app, /if \(!firstDone\(\) && !App\.pages\.firstChoices\) \{\n\s+try \{ await pageFile\('first'\); \}/);
+  assert.match(app, /\|\| \(desktop \? 'settings' : !firstDone\(\) && 'first'\);/, 'asked for beside the account');
+  assert.doesNotMatch(/async function home\(el\) \{[\s\S]*?\n  \}\n/.exec(app)[0], /await pageFile\('settings'\)/);
+  assert.match(app, /settings: \['\/assets\/js\/app\/first\.js', /);
+  assert.match(app, /tag\.async = false;/, 'a page\'s own file runs after the files it needs');
+  assert.doesNotMatch(read('web/assets/js/app/settings.js'), /function (firstChoices|rowHTML|paintRow)\(/, 'one copy of the rows\' frame');
   assert.doesNotMatch(read('desktop/src/main.js'), /trayHintShown/);
 });

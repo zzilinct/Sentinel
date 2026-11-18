@@ -17,7 +17,10 @@ const between = (start, end) => {
   assert.ok(b > a, `app.js has ${end} after ${start}`);
   return app.slice(a, b);
 };
-const rows = between('const SETTINGS = [', '\n  ];');
+// Settings' rows, the first-run ones (app/first.js ROW) among them, each in its place in SETTINGS.
+const firstRows = between('const ROW = Object.fromEntries([', '\n  ].map(');
+const rows = between('const SETTINGS = [', '\n  ];') + firstRows;
+for (const [, id] of firstRows.matchAll(/\{ id: '([\w-]+)'/g)) assert.match(rows, new RegExp(`ROW(\\.${id}|\\['${id}'\\]),`), `${id} is in SETTINGS`);
 const ids = [...rows.matchAll(/\{ id: '([\w-]+)'|appSwitch\(\{ id: '([\w-]+)'/g)].map((m) => m[1] || m[2]);
 const groups = [...between('const SETTING_GROUPS = [', '];').matchAll(/\['([\w-]+)', '[^']+'\]/g)].map((m) => m[1]);
 const fn = (name) => between(`function ${name}(`, '\n  }\n');
@@ -44,7 +47,7 @@ test('settings: every switch of the Windows app is a row, exactly once', () => {
     const named = rows.split(`method: '${setter}'`).length - 1;
     assert.ok(named <= 1, `${setter} is the method of one row only (${named})`);
     // Outside the rows, only the card that asks once may call it.
-    const outside = app.replace(rows, '');
+    const outside = app.replace(rows.slice(0, rows.length - firstRows.length), '').replace(firstRows, '');
     const calls = outside.split(`desktop.${setter}(`).length - 1;
     const allowed = ASKED[setter] ? fn(ASKED[setter]).split(`desktop.${setter}(`).length - 1 : 0;
     assert.strictEqual(calls, allowed, `${setter} is not switched anywhere else in the app`);
@@ -80,7 +83,7 @@ test('settings: the side bar has one Settings link in place of the Account group
     assert.ok(!html.includes(old), `side bar has no ${old}`);
   }
   // Its styles come with its own file (app.js FILES), not with every page of the app.
-  assert.ok(!/settings\.css/.test(html) && /settings: \['\/assets\/css\/settings\.css'\]/.test(app), 'settings.css comes with Settings');
+  assert.ok(!/settings\.css/.test(html) && /settings: \['\/assets\/js\/app\/first\.js', '\/assets\/css\/settings\.css'\]/.test(app), 'settings.css comes with Settings');
   assert.ok(/\['Settings', '\/app\/settings', 'settings'\]/.test(app), 'the palette lists Settings');
   assert.ok(/for \(const r of SETTINGS\) if \(settingMatches\(r, q\)\)/.test(fn('openPalette')), 'the palette finds single settings');
 });
