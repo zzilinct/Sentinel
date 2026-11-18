@@ -7,5 +7,5 @@ Done:
 - Caution ink #645e53 everywhere (look.js CAUTION_INK), card mask cropped to full height, companion tip data-status (2c4e271).
 
 Next:
-- Speed: first-visit Overview no longer waits on settings.js; first-run rows in their own chunk. Measure perf_base 5 rounds.
+- Speed: app/first.js split (3853e78). Measuring perf_base 5 rounds vs work/e2e-r1203-merge.
 - CI: targeted verify-web (look, colour, serp-engines), test.yml (masks), then one full run on the final commit.
