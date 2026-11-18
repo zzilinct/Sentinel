@@ -43,7 +43,7 @@ jobs:
       # --origin makes social previews and any live links point at where this
       # actually lands, which is the Pages URL until the domain is pointed.
       - run: node scripts/build-static.js --out dist-static --origin "${{ steps.pages.outputs.base_url }}"
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist-static
 
