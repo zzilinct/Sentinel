@@ -1,47 +1,47 @@
-<!-- Generated from changelog/1.20.2.md by scripts/release-note.js: npm run build:note. Do not edit. -->
-<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.20.2">
+<!-- Generated from changelog/1.20.3.md by scripts/release-note.js: npm run build:note. Do not edit. -->
+<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.20.3">
   <div class="wrap">
-    <h2 id="relnote-title">New in Sentinel 1.20.2 Argus</h2>
-    <p class="relnote__lead">A true caution yellow, a lighter web app on phones, and stronger security.</p>
+    <h2 id="relnote-title">New in Sentinel 1.20.3 Argus</h2>
+    <p class="relnote__lead">A faster web app, a lighter caution mark, and steadier tests.</p>
     <p class="relnote__newer" data-release-newer hidden></p>
     <details class="relnote__all">
       <summary>Every change in this version</summary>
       <div class="relnote__groups">
         <section>
-          <h3>Colour and brand</h3>
+          <h3>Speed</h3>
           <ul>
-            <li>Caution is now a true yellow everywhere. On light pages it is a yellow mark beside dark words, never mistaken for gold or green.</li>
-            <li>Caution never looks louder than danger.</li>
-            <li>Warning orange and the companion's colours read clearly on every background.</li>
-            <li>The tab icon on high-resolution screens is drawn pixel by pixel, so the mask's eyes show.</li>
+            <li>The web app opens faster: each page loads its own code when you open it, the fonts carry only the letters Sentinel shows, and the first view draws sooner.</li>
           </ul>
         </section>
         <section>
-          <h3>Speed</h3>
+          <h3>Colour</h3>
           <ul>
-            <li>Phones opening the web app no longer download the 3D mask and model list they never show, about 540 KB less per visit.</li>
-            <li>The computer app shows its main content sooner.</li>
+            <li>On light pages the caution mask is yellow with a thin dark outline, lighter than warning and danger.</li>
+            <li>The caution warning card loses its solid yellow circle.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Galaxy</h3>
+          <ul>
+            <li>The galaxy keeps a card held under a resting mouse.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Wallet guard</h3>
+          <ul>
+            <li>Wallet guard reads the clipboard sooner, so a very fast swap is less likely to slip past.</li>
           </ul>
         </section>
         <section>
           <h3>Live scanning</h3>
           <ul>
-            <li>Marks fooled by a repaint slide back in under a second and stay visible.</li>
+            <li>Live scanning marks fooled by a repaint are now checked in a real end-to-end run.</li>
           </ul>
         </section>
         <section>
-          <h3>Security</h3>
+          <h3>Behind the scenes</h3>
           <ul>
-            <li>Passwords set from now on need 15 characters. A few unrelated words work well. Existing passwords keep working.</li>
-            <li>The Windows app release build shuts more ways other programs could misuse it.</li>
-            <li>Releases carry signed build provenance.</li>
-            <li>The browser companion checks who sends every message.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Settings</h3>
-          <ul>
-            <li>Settings tells you once when another device's newer choice replaced yours.</li>
+            <li>Tests no longer fail at random, and test machines keep the build they test.</li>
           </ul>
         </section>
       </div>
