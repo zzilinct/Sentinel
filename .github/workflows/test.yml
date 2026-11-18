@@ -44,7 +44,7 @@ jobs:
       - name: These rules, against main's and the baseline
         run: |
           if [ -f main-flags.json ]; then node scripts/fpgate/gate.js --against main-flags.json --save flags.json; else node scripts/fpgate/gate.js --save flags.json; fi
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: false-alarms
@@ -62,7 +62,7 @@ jobs:
         with:
           node-version: '22'
       - run: node scripts/mask3d/build.js
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mask3d
           path: web/assets/js/mask3d.js
@@ -88,7 +88,7 @@ jobs:
         run: |
           "$BLENDER" --background --factory-startup --python scripts/blender/mask_qa.py -- masks-qa \
             web/assets/models/scam.glb web/assets/models/virus.glb web/assets/models/malware.glb
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: masks-qa
