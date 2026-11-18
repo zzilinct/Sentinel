@@ -15,3 +15,8 @@ Not this branch (proved):
 - Rerun of those three checks, twice, on this branch (44406557687, runner image 20261103.298.1): all pass.
 - Same checks, twice, on base dd659af without these changes (44406768519, image 20261116.315.1): companion-door fails both times the same way (block page at #https://, Continue anyway to chrome-error), motion-level fails once with the same signature (mask3d canvas opacity 900 ms still running at Off).
 - The failed run was on image 20261116.315.1. hero-phone failed once only (unmask clip at 84.9999%, the animation not yet ended) and passed 4 of 4 since.
+
+Follow-ups (coordinator):
+- motion-level: Off finishes transitions under way (boot.js). Proof: old boot.js fails the new 3 s fade check (44411160638); passes 3/3 on image 20261116 Chrome 157 (44415377840) and 3/3 on Chrome 156 (44419509083).
+- companion-door on Chrome 157: Continue anyway goes to the http address asked for (askedAddress), httpsFailed deleted, block page note. Chrome 157 headless draws its own http warning as a blank page, Sentinel or not (44418067771). Sections 1-6 run NO_UPGRADE; section 7 runs Chrome defaults. Green 3/3 on Chrome for Testing 157.0.8103.78 (44419504508) and on Chrome 156 (44419509083).
+- verify-web.yml: optional chrome_version input (browser-actions/setup-chrome pinned).
