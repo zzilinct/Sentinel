@@ -202,6 +202,12 @@ async function checkCompanionDoor() {
     const httpOpened = await passBlock(browser, httpOnly.sessionId, 'window.ran === true').then((w) => w, (err) => err.message);
     const httpHref = await evalIn(browser, httpOnly.sessionId, 'location.href').catch(() => '');
     const httpEntry = await entry(httpOnly.sessionId);
+    // What Chrome itself shows there, in picture and markup (its own pages hide their words from page scripts).
+    await shot(browser, httpOnly.sessionId, 'companion-door-http-only-end');
+    if (/^chrome-error:/.test(httpHref)) {
+      const { root } = await browser.send('DOM.getDocument', { depth: -1, pierce: true }, httpOnly.sessionId).catch(() => ({}));
+      httpEntry.html = root ? (await browser.send('DOM.getOuterHTML', { nodeId: root.nodeId }, httpOnly.sessionId).catch(() => ({ outerHTML: '' }))).outerHTML.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/g, '').replace(/\s+/g, ' ').slice(0, 1500) : '';
+    }
     result('companion-door: Continue anyway opens a plain http site with nothing on its https port', (httpOpened === true || Boolean(httpOpened && httpOpened.url)) && httpHref.startsWith(`http://${HTTP_ONLY}/`)
       && httpBlock.plain === httpBlock.href.includes('#https:'), { httpBlock, httpOpened, httpHref, httpEntry });
     await browser.send('Target.closeTarget', { targetId: httpOnly.targetId }).catch(() => {});
