@@ -993,7 +993,7 @@ test('a page left still with nobody at the mouse or keyboard is looked at far le
 
 test('the reader reads links only when something can have changed, and reuses the page between passes', () => {
   const { SCRIPT } = watch._test;
-  assert.match(SCRIPT, /\$needRead = \$forceRead -or \$moved -or \$glideOff -or -not \$anchor -or \$lastCount -eq 0 -or \(\$tick - \$readAt\) -gt \$\(if \(\$quiet\) \{ 10000 \} else \{ 2500 \}\)/);
+  assert.match(SCRIPT, /\$needRead = \$forceRead -or \$moved -or \$glideOff -or -not \$anchor -or \$lastCount -eq 0 -or \(\$tick - \$readAt\) -gt \$\(if \(\$quiet\) \{ 30000 \} else \{ 2500 \}\)/);
   assert.match(SCRIPT, /if \(\$needRead -and \$url -match \$search\)/);
   assert.match(SCRIPT, /\$reuse = \$cachedDoc -and \$h -eq \$cachedFor -and \$title -eq \$cachedTitle/);
   // A lost anchor is let go, never followed to an empty rectangle.

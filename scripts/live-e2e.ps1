@@ -173,7 +173,7 @@ Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871,
 $s0 = RoleCpu; Start-Sleep 60; $s1 = RoleCpu
 $still = CpuLine $s0 $s1 60
 $scan = [math]::Round($still.total - ([double]$s1['server'] - [double]$s0['server']) / 60 * 100, 2)
-Say "still page: $($still.text); live scanning (all but the server) $scan%"
+Say "still page: $($still.text); live scanning (all but the server) $scan%; the reader went quiet $(@(Select-String -Path "$data\logs\watch.log" -Pattern 'looking less often' -SimpleMatch -ErrorAction SilentlyContinue).Count) time(s) so far"
 $stillFailed = $scan -gt 1.5
 Shot 'google-still'
 

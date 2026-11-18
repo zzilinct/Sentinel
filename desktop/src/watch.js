@@ -360,7 +360,7 @@ $lastFocus = ''; $recheckAt = 0; $lastMoveAt = 0
 # nothing a person does can be missed, and the page is looked at far less often. Any input ends it at once.
 # On one runner (run 44394136089), a still DuckDuckGo results page cost this reader 4.6-6.1% of one core and Edge
 # 11.5-15.2% before; 1.0-1.2% and 2.7-3.2% after.
-$quiet = $false; $changedAt = 0; $anchorAt = 0
+$quiet = $false; $wasQuiet = $false; $changedAt = 0; $anchorAt = 0
 # "Did you type anything?" (typedcheck.js): the window and site of a page the app flagged, and whether it has a password
 # box or a box labelled for a card number. Only the kind of box and its label are asked for, never what is in it.
 $flagH = [IntPtr]::Zero; $flagHost = ''; $flagPw = $false; $flagCard = $false; $flagAt = 0; $flagLook = 0; $pageUrl = ''
@@ -429,6 +429,8 @@ while ($true) {
   $now = [Environment]::TickCount
   $quiet = $lastWin -ne '' -and [SW]::IdleMs() -gt 10000 -and ($now - $lastMoveAt) -gt 10000 -and ($now - $changedAt) -gt 10000
   try { [Glide]::Quiet = $quiet } catch { }
+  if ($quiet -and -not $wasQuiet) { Write-Output '{"quiet":true}' }
+  $wasQuiet = $quiet
   if ($quiet -and $pause -ge 180 -and $pause -lt 1000) { $pause = 1000 }
   $gotCmd = $false
   $until = $now + $pause
@@ -656,7 +658,8 @@ while ($true) {
   # Reading every link on a page is the expensive part (hundreds of milliseconds on a slow machine). Read again only
   # when something can have changed: a new page or window position, the page moved, the last read found nothing
   # (still loading), nothing to follow the page by, or a few seconds passed (results that load in as you scroll;
-  # on a quiet page, nothing scrolls, so every 10 s is enough to catch a panel the page opens by itself).
+  # on a quiet page, nothing scrolls, so every 30 s is enough to catch a panel the page opens by itself: each read with its hit tests is the costliest
+  # thing the reader does, and run 44413525750 still measured the reader at 1.9% of one core on a still Google page).
   # Keyboard focus moving (a menu or panel opening in the page, or closing) can cover or uncover results: look again
   # at once, and once more when its opening animation has finished.
   $focusKey = ''
@@ -668,7 +671,7 @@ while ($true) {
   # pixels sent them (seen in live-e2e: two rows below their messages after a theme change).
   $glideOff = $false
   try { $glideOff = [bool]$anchor -and [Math]::Abs([Glide]::Total - $lastDy) -gt 20 } catch { }
-  $needRead = $forceRead -or $moved -or $glideOff -or -not $anchor -or $lastCount -eq 0 -or ($tick - $readAt) -gt $(if ($quiet) { 10000 } else { 2500 })
+  $needRead = $forceRead -or $moved -or $glideOff -or -not $anchor -or $lastCount -eq 0 -or ($tick - $readAt) -gt $(if ($quiet) { 30000 } else { 2500 })
   if ($needRead -and ($url -match $search -or $url -match $mail)) { $forceRead = $false; $readAt = $tick }
 
   # Hover a link, on any other page (results and inboxes have their marks already). Where the pointer is costs
@@ -1074,6 +1077,7 @@ function onLine(line) {
   if (msg.nodoc) { log(`${msg.browser} is in front, but Windows gave no page address (a start page, a dialog over the page, or the browser's accessibility is off)`); return; }
   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
   if (msg.awake) { log('in use again'); return; }
+  if (msg.quiet) { log('page still and nobody at the mouse or keyboard: looking less often'); return; }
   if ('win' in msg) {
     if (!msg.win) { clearTimeout(settleTimer); state.current = null; latestLinks = null; }
     setWindow(msg.win || null);
