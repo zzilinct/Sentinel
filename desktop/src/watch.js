@@ -358,7 +358,9 @@ $overlayH = [IntPtr]::Zero; $browserH = [IntPtr]::Zero; $browserPid = 0
 $lastFocus = ''; $recheckAt = 0; $lastMoveAt = 0
 # Quiet: nobody has touched the mouse or keyboard for 10 s, and the page has not moved or changed in that time. Then
 # nothing a person does can be missed, and the page is looked at far less often. Any input ends it at once.
-$quiet = $false; $changedAt = 0
+# On one runner (run 44394136089), a still DuckDuckGo results page cost this reader 4.6-6.1% of one core and Edge
+# 11.5-15.2% before; 1.0-1.2% and 2.7-3.2% after.
+$quiet = $false; $changedAt = 0; $anchorAt = 0
 # "Did you type anything?" (typedcheck.js): the window and site of a page the app flagged, and whether it has a password
 # box or a box labelled for a card number. Only the kind of box and its label are asked for, never what is in it.
 $flagH = [IntPtr]::Zero; $flagHost = ''; $flagPw = $false; $flagCard = $false; $flagAt = 0; $flagLook = 0; $pageUrl = ''
@@ -463,6 +465,9 @@ while ($true) {
     if ($pendingLine.Wait($wait)) { $gotCmd = $true; break }
     # A touch of the mouse or keyboard ends the quiet at once: the next look is now, at the usual pace.
     if ($quiet -and [SW]::IdleMs() -lt 10000) { $quiet = $false; try { [Glide]::Quiet = $false } catch { }; break }
+    # Quiet, the anchor is asked where it is once a second: each ask costs the browser too, and nothing can scroll.
+    if ($quiet -and [Environment]::TickCount - $anchorAt -lt 1000) { continue }
+    $anchorAt = [Environment]::TickCount
     if ($anchor) {
       try {
         $ar = $anchor.Current.BoundingRectangle

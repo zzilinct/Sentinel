@@ -966,6 +966,7 @@ test('a page left still with nobody at the mouse or keyboard is looked at far le
   assert.match(SCRIPT, /if \(\$quiet -and \[SW\]::IdleMs\(\) -lt 10000\) \{ \$quiet = \$false;[^\n]*break \}/);
   assert.equal((SCRIPT.match(/\$changedAt = \$tick/g) || []).length, 4, 'a new page, a moved window and new links (results and inbox) each restart the quiet clock');
   // The pixel follower: once a second while quiet, woken at once by the wheel, and asleep while there is nothing to follow.
+  assert.match(SCRIPT, /if \(\$quiet -and \[Environment\]::TickCount - \$anchorAt -lt 1000\) \{ continue \}/, 'the anchor is asked once a second while quiet');
   assert.ok(SCRIPT.includes('int rest = (woken ? 16 : Quiet ? 1000 : 120)'));
   assert.ok(SCRIPT.includes('public static void Poke(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; wake.Set(); }'));
   assert.ok(SCRIPT.includes('wake.WaitOne(enabled ? 40 : System.Threading.Timeout.Infinite);'));

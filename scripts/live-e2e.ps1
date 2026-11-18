@@ -310,8 +310,8 @@ Say ("idle minute: Sentinel used {0:N1} s of processor time in 60 s ({1:N1}% of 
 Say "idle minute: $((CpuLine $i0 $i1 60).text)"
 Footprint 'after an idle minute'
 # Then a minute's CPU profile of the main process and the server (main.js, server-host.js), for review. Not inside the
-# measured minute: the profilers themselves cost a few percent of a core, and until 1.20.4 they were counted as
-# Sentinel's idle cost.
+# measured minute: until 1.20.4 they were, and the minute read 8.4% of one core (run 44390657427), where the same
+# minute without them is 0.2-0.5% (run 44394136089).
 Set-Content -Path "$Out\profile\idle" -Value 'now'
 $p0 = RoleCpu; Start-Sleep 65; $p1 = RoleCpu
 Say "profiled minute: $((CpuLine $p0 $p1 65).text)"
