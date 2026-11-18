@@ -1,6 +1,6 @@
 {
   "name": "sentinel",
-  "version": "1.20.2",
+  "version": "1.20.3",
   "private": true,
   "description": "Sentinel - real-time scam, virus and malware protection",
   "type": "commonjs",

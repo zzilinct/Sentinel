@@ -1,43 +1,43 @@
 {
-  "version": "1.20.2",
+  "version": "1.20.3",
   "model": "Argus",
-  "summary": "A true caution yellow, a lighter web app on phones, and stronger security",
+  "summary": "A faster web app, a lighter caution mark, and steadier tests",
   "groups": [
-    {
-      "title": "Colour and brand",
-      "items": [
-        "Caution is now a true yellow everywhere. On light pages it is a yellow mark beside dark words, never mistaken for gold or green.",
-        "Caution never looks louder than danger.",
-        "Warning orange and the companion's colours read clearly on every background.",
-        "The tab icon on high-resolution screens is drawn pixel by pixel, so the mask's eyes show."
-      ]
-    },
     {
       "title": "Speed",
       "items": [
-        "Phones opening the web app no longer download the 3D mask and model list they never show, about 540 KB less per visit.",
-        "The computer app shows its main content sooner."
+        "The web app opens faster: each page loads its own code when you open it, the fonts carry only the letters Sentinel shows, and the first view draws sooner."
+      ]
+    },
+    {
+      "title": "Colour",
+      "items": [
+        "On light pages the caution mask is yellow with a thin dark outline, lighter than warning and danger.",
+        "The caution warning card loses its solid yellow circle."
+      ]
+    },
+    {
+      "title": "Galaxy",
+      "items": [
+        "The galaxy keeps a card held under a resting mouse."
+      ]
+    },
+    {
+      "title": "Wallet guard",
+      "items": [
+        "Wallet guard reads the clipboard sooner, so a very fast swap is less likely to slip past."
       ]
     },
     {
       "title": "Live scanning",
       "items": [
-        "Marks fooled by a repaint slide back in under a second and stay visible."
+        "Live scanning marks fooled by a repaint are now checked in a real end-to-end run."
       ]
     },
     {
-      "title": "Security",
+      "title": "Behind the scenes",
       "items": [
-        "Passwords set from now on need 15 characters. A few unrelated words work well. Existing passwords keep working.",
-        "The Windows app release build shuts more ways other programs could misuse it.",
-        "Releases carry signed build provenance.",
-        "The browser companion checks who sends every message."
-      ]
-    },
-    {
-      "title": "Settings",
-      "items": [
-        "Settings tells you once when another device's newer choice replaced yours."
+        "Tests no longer fail at random, and test machines keep the build they test."
       ]
     }
   ]
