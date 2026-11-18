@@ -99,6 +99,25 @@ function Footprint($when) {
   }
 }
 Footprint 'after start'
+# Processor time so far by role (main, server, renderer, gpu, reader...), Sentinel's total, and Edge's (every call the
+# reader makes costs the browser too).
+function RoleCpu {
+  $cmd = @{}
+  Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(Sentinel|powershell)\.exe$' } | ForEach-Object { $cmd[[int]$_.ProcessId] = [string]$_.CommandLine }
+  $r = @{ total = 0.0; edge = [double](@(Get-Process msedge -ErrorAction SilentlyContinue) | Measure-Object CPU -Sum).Sum }
+  foreach ($p in SentinelProcesses) {
+    $c = $cmd[[int]$p.Id]
+    $role = if ($p.ProcessName -eq 'powershell') { 'reader' } elseif ($c -match '--utility-sub-type=node') { 'server' } elseif ($c -match '--type=([a-z-]+)') { $Matches[1] } else { 'main' }
+    $r[$role] = [double]$r[$role] + $p.CPU; $r.total += $p.CPU
+  }
+  return $r
+}
+# Percent of one core each role used over a window, from two RoleCpu readings.
+function CpuLine($a, $b, $secs) {
+  $pct = { param($k) [math]::Round(([double]$b[$k] - [double]$a[$k]) / $secs * 100, 2) }
+  $roles = @($b.Keys | Where-Object { $_ -notin 'total', 'edge' } | Sort-Object | ForEach-Object { "$_ $(& $pct $_)%" }) -join ', '
+  return @{ total = (& $pct 'total'); edge = (& $pct 'edge'); text = "Sentinel $(& $pct 'total')% of one core ($roles); Edge $(& $pct 'edge')%" }
+}
 
 # Once the page is still, every mark sits where the browser last said its result is (scripts/marks-at-rest.js).
 $marksOff = @()
@@ -144,6 +163,15 @@ function Search($url, $name, $menuAt) {
 Search 'https://duckduckgo.com/?q=paypal+login+help' 'ddg' @(978, 119)
 Search 'https://www.bing.com/search?q=cheap+airpods+pro+outlet' 'bing'
 Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871, 131)
+
+# 3a. The results page left open while someone reads it: marks on screen, nobody touching anything for a minute after
+# fifteen seconds of rest. What live scanning costs while nothing moves is held to the idle limit (1.5% of one core).
+[K]::Tap(0x24); [K]::SetCursorPos(500, 420) | Out-Null; Start-Sleep 15
+$s0 = RoleCpu; Start-Sleep 60; $s1 = RoleCpu
+$still = CpuLine $s0 $s1 60
+Say "still page: $($still.text)"
+$stillFailed = $still.total -gt 1.5
+Shot 'google-still'
 
 # 4. An inbox (a Pro feature, given above). Everyday mail and scams side by side: the scams should get a mask, the
 # rest a tick, and marks must stay inside the message list while it scrolls.
@@ -263,13 +291,14 @@ for ($i = 0; $i -lt 18; $i++) {
   Say ("settling: {0:N1} s of processor time in 20 s" -f ($b - $a))
   if (($b - $a) -lt 0.6) { break }
 }
-Set-Content -Path "$Out\profile\idle" -Value 'now'
 # Every reg.exe started during the idle minute (defense used to start two a minute to read the Run keys).
 $regWatch = $false
 try { Register-CimIndicationEvent -Query "SELECT * FROM Win32_ProcessStartTrace WHERE ProcessName='reg.exe'" -SourceIdentifier RegStarts -ErrorAction Stop; $regWatch = $true } catch { Say "could not count reg.exe starts: $($_.Exception.Message)" }
-$before = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
+$i0 = RoleCpu
+$before = $i0.total
 Start-Sleep 60
-$after = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
+$i1 = RoleCpu
+$after = $i1.total
 $regFailed = $false
 if ($regWatch) {
   $regStarts = @(Get-Event -SourceIdentifier RegStarts -ErrorAction SilentlyContinue).Count
@@ -278,8 +307,14 @@ if ($regWatch) {
   if ($regStarts -gt 0) { $regFailed = $true }
 }
 Say ("idle minute: Sentinel used {0:N1} s of processor time in 60 s ({1:N1}% of one core)" -f ($after - $before), (($after - $before) / 60 * 100))
+Say "idle minute: $((CpuLine $i0 $i1 60).text)"
 Footprint 'after an idle minute'
-Start-Sleep 5
+# Then a minute's CPU profile of the main process and the server (main.js, server-host.js), for review. Not inside the
+# measured minute: the profilers themselves cost a few percent of a core, and until 1.20.4 they were counted as
+# Sentinel's idle cost.
+Set-Content -Path "$Out\profile\idle" -Value 'now'
+$p0 = RoleCpu; Start-Sleep 65; $p1 = RoleCpu
+Say "profiled minute: $((CpuLine $p0 $p1 65).text)"
 Say "cpu profile written: $(Test-Path "$Out\profile\idle.cpuprofile")"
 
 # A new startup entry is looked at as soon as it is made, not up to a minute later. A harmless script of this test's
@@ -310,3 +345,4 @@ if ([version]$now -ne [version]$built) { Say "FAILED: updated itself from $built
 if ($regFailed) { Say 'FAILED: Run keys are still polled, or a new entry was not heard'; exit 1 }
 if ($marksOff.Count) { Say "FAILED: marks off their results at rest: $($marksOff -join ', ')"; exit 1 }
 if ($hoverFailed) { Say 'FAILED: resting on a flagged mark did not show its reasonLine() in the tip'; exit 1 }
+if ($stillFailed) { Say "FAILED: a results page left still costs more than the idle limit: $($still.text)"; exit 1 }

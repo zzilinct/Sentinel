@@ -197,7 +197,9 @@ public class Wheel : System.Windows.Forms.NativeWindow {
 public class Glide {
   [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint ms);
   [DllImport("winmm.dll")] static extern uint timeEndPeriod(uint ms);
-  public static volatile bool Enabled;
+  // Off (no results page in front), the thread waits without waking; switched on, it starts looking at once.
+  static volatile bool enabled;
+  public static bool Enabled { get { return enabled; } set { bool was = enabled; enabled = value; if (value && !was) wake.Set(); } }
   public static volatile int Until;
   static int rx, ry, rw, rh;
   static readonly object gate = new object();
@@ -208,7 +210,11 @@ public class Glide {
   // put every mark where its result had been).
   public static volatile int Total;
   public static volatile int LastMove;
-  public static void Poke(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; }
+  // Nobody has touched the mouse or keyboard for a while and the page has not moved (the reader decides): nothing can
+  // scroll it, so the band is looked at once a second. A wheel turning (Poke) wakes the look at once.
+  public static volatile bool Quiet;
+  static readonly System.Threading.AutoResetEvent wake = new System.Threading.AutoResetEvent(false);
+  public static void Poke(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; wake.Set(); }
   public static void Region(int x, int y, int w, int h) { lock (gate) { rx = x; ry = y; rw = Math.Max(0, w); rh = Math.Max(0, h); } }
   public static void Start() {
     if (started) return;
@@ -272,7 +278,7 @@ public class Glide {
         if (!Enabled || w < 16 || h < 120) {
           if (fast) { timeEndPeriod(1); fast = false; }
           prev = null;
-          System.Threading.Thread.Sleep(40);
+          wake.WaitOne(enabled ? 40 : System.Threading.Timeout.Infinite);
           continue;
         }
         // Between scrolls the band is looked at a few times a second, so the first frame of a scroll always has a
@@ -299,8 +305,8 @@ public class Glide {
           }
         }
         prev = cur;
-        int rest = (woken ? 16 : 120) - (int)(clock.ElapsedMilliseconds - t0);
-        System.Threading.Thread.Sleep(Math.Max(1, rest));
+        int rest = (woken ? 16 : Quiet ? 1000 : 120) - (int)(clock.ElapsedMilliseconds - t0);
+        wake.WaitOne(Math.Max(1, rest));
       } catch { prev = null; System.Threading.Thread.Sleep(50); }
     }
   }
@@ -350,6 +356,9 @@ $forceRead = $true; $readAt = 0; $lastCount = 0
 # The overlay's window (sent by the app once it exists) and the browser it belongs over.
 $overlayH = [IntPtr]::Zero; $browserH = [IntPtr]::Zero; $browserPid = 0
 $lastFocus = ''; $recheckAt = 0; $lastMoveAt = 0
+# Quiet: nobody has touched the mouse or keyboard for 10 s, and the page has not moved or changed in that time. Then
+# nothing a person does can be missed, and the page is looked at far less often. Any input ends it at once.
+$quiet = $false; $changedAt = 0
 # "Did you type anything?" (typedcheck.js): the window and site of a page the app flagged, and whether it has a password
 # box or a box labelled for a card number. Only the kind of box and its label are asked for, never what is in it.
 $flagH = [IntPtr]::Zero; $flagHost = ''; $flagPw = $false; $flagCard = $false; $flagAt = 0; $flagLook = 0; $pageUrl = ''
@@ -415,11 +424,21 @@ while ($true) {
   # marks move while the page scrolls instead of jumping after it. Wake at once for a command.
   # The wheel is reported only while there are marks to move (a results page in front): never in a game.
   try { [Wheel]::Enabled = [bool]$anchor; [Glide]::Enabled = [bool]$anchor } catch { }
+  $now = [Environment]::TickCount
+  $quiet = $lastWin -ne '' -and [SW]::IdleMs() -gt 10000 -and ($now - $lastMoveAt) -gt 10000 -and ($now - $changedAt) -gt 10000
+  try { [Glide]::Quiet = $quiet } catch { }
+  if ($quiet -and $pause -ge 180 -and $pause -lt 1000) { $pause = 1000 }
   $gotCmd = $false
-  $until = [Environment]::TickCount + $pause
+  $until = $now + $pause
   $moved = $false
   # Nothing to follow (no results page in front, or a game): one quiet wait, not a loop that wakes 60 times a second.
-  if (-not $anchor) { if ($pendingLine.Wait([Math]::Max(1, $until - [Environment]::TickCount))) { $gotCmd = $true } }
+  # A quiet page's longer wait is cut short by the first touch of the mouse or keyboard.
+  if (-not $anchor) {
+    do {
+      $left = $until - [Environment]::TickCount
+      if ($pendingLine.Wait([Math]::Max(1, $(if ($quiet) { [Math]::Min(250, $left) } else { $left })))) { $gotCmd = $true; break }
+    } while ($quiet -and [SW]::IdleMs() -gt 10000 -and [Environment]::TickCount -lt $until)
+  }
   # While the page moves it is followed every 8 ms (every 15 ms when it is still; faster only burns CPU, since a
   # browser updates link positions only every 150-300 ms while it scrolls). The full read waits until the page has
   # been still for 350 ms, so a pause between two of those updates is not taken for the end of a scroll. A full read
@@ -440,8 +459,10 @@ while ($true) {
     # A page someone is reading, not scrolling, is looked at less and less often: every call costs the browser too.
     # Marks step aside while a page moves anyway, so a scroll noticed a few dozen milliseconds later looks the same.
     $sinceMove = [Environment]::TickCount - $lastMoveAt
-    $wait = if ([Environment]::TickCount -lt $stillAt) { 8 } elseif ($sinceMove -lt 1500) { 15 } elseif ($sinceMove -lt 10000) { 40 } else { 90 }
+    $wait = if ([Environment]::TickCount -lt $stillAt) { 8 } elseif ($sinceMove -lt 1500) { 15 } elseif ($sinceMove -lt 10000) { 40 } elseif ($quiet) { 250 } else { 90 }
     if ($pendingLine.Wait($wait)) { $gotCmd = $true; break }
+    # A touch of the mouse or keyboard ends the quiet at once: the next look is now, at the usual pace.
+    if ($quiet -and [SW]::IdleMs() -lt 10000) { $quiet = $false; try { [Glide]::Quiet = $false } catch { }; break }
     if ($anchor) {
       try {
         $ar = $anchor.Current.BoundingRectangle
@@ -553,10 +574,10 @@ while ($true) {
   $url = $null; $r = $null; $doc = $null
   # Finding the page means walking the whole browser window, page included. The page in front only changes with
   # the tab or the title (or on navigation, when the old element stops answering), so the last one is reused for a
-  # few seconds when neither changed.
+  # few seconds when neither changed (15 s on a quiet page: nobody can have switched tabs or followed a link).
   $title = [SW]::Title($h)
   $tick = [Environment]::TickCount
-  $reuse = $cachedDoc -and $h -eq $cachedFor -and $title -eq $cachedTitle -and ($tick - $cachedAt) -lt 3000
+  $reuse = $cachedDoc -and $h -eq $cachedFor -and $title -eq $cachedTitle -and ($tick - $cachedAt) -lt $(if ($quiet) { 15000 } else { 3000 })
   if ($reuse) { try { if ($cachedDoc.Current.IsOffscreen) { $reuse = $false } } catch { $reuse = $false } }
   if ($reuse) { $doc = $cachedDoc }
   try {
@@ -613,7 +634,7 @@ while ($true) {
 
   $winKey = "$h|$([int]$r.X)|$([int]$r.Y)|$([int]$r.Width)|$([int]$r.Height)|$isPrivate"
   if ($winKey -ne $lastWin) {
-    $lastWin = $winKey; $forceRead = $true
+    $lastWin = $winKey; $forceRead = $true; $changedAt = $tick
     Write-Output (@{ win = @{ browser = $fname; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; private = [bool]$isPrivate } } | ConvertTo-Json -Compress)
   }
 
@@ -623,13 +644,14 @@ while ($true) {
   $payKind = if ($title -match $payCrypto) { 'crypto' } elseif ($title -match $payGift -and $title -notmatch $payNotGift) { 'gift' } else { '' }
   $key = $fname + '|' + $url + '|' + $pay + '|' + $payKind
   if ($key -ne $last) {
-    $last = $key; $lastLinks = ''; $anchor = $null; $forceRead = $true; $hoverEl = $null; $hoverTried = ''
+    $last = $key; $lastLinks = ''; $anchor = $null; $forceRead = $true; $changedAt = $tick; $hoverEl = $null; $hoverTried = ''
     Write-Output (@{ browser = $fname; url = $url; private = [bool]$isPrivate; search = [bool]($url -match $search); pay = $pay; paykind = $payKind } | ConvertTo-Json -Compress)
   }
 
   # Reading every link on a page is the expensive part (hundreds of milliseconds on a slow machine). Read again only
   # when something can have changed: a new page or window position, the page moved, the last read found nothing
-  # (still loading), nothing to follow the page by, or a few seconds passed (results that load in as you scroll).
+  # (still loading), nothing to follow the page by, or a few seconds passed (results that load in as you scroll;
+  # on a quiet page, nothing scrolls, so every 10 s is enough to catch a panel the page opens by itself).
   # Keyboard focus moving (a menu or panel opening in the page, or closing) can cover or uncover results: look again
   # at once, and once more when its opening animation has finished.
   $focusKey = ''
@@ -641,7 +663,7 @@ while ($true) {
   # pixels sent them (seen in live-e2e: two rows below their messages after a theme change).
   $glideOff = $false
   try { $glideOff = [bool]$anchor -and [Math]::Abs([Glide]::Total - $lastDy) -gt 20 } catch { }
-  $needRead = $forceRead -or $moved -or $glideOff -or -not $anchor -or $lastCount -eq 0 -or ($tick - $readAt) -gt 2500
+  $needRead = $forceRead -or $moved -or $glideOff -or -not $anchor -or $lastCount -eq 0 -or ($tick - $readAt) -gt $(if ($quiet) { 10000 } else { 2500 })
   if ($needRead -and ($url -match $search -or $url -match $mail)) { $forceRead = $false; $readAt = $tick }
 
   # Hover a link, on any other page (results and inboxes have their marks already). Where the pointer is costs
@@ -726,7 +748,7 @@ while ($true) {
     try { $sp = $doc.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).Current; if ($sp.VerticallyScrollable) { $ends = "$([int]($sp.VerticalScrollPercent -gt 0.5))$([int]($sp.VerticalScrollPercent -lt 99.5))" } } catch { $ends = '' }
     $sig = (($list | ForEach-Object { "$($_.u)|$($_.x)|$($_.y)|$($_.c)" }) -join ';') + "|$ends"
     if ($sig -ne $lastLinks) {
-      $lastLinks = $sig
+      $lastLinks = $sig; $changedAt = $tick
       Write-Output (@{ links = @($list); covered = $covered; for = $url; ends = $ends; ms = [int]$sw.ElapsedMilliseconds; wheel = "$([Wheel]::Registered)/$([Wheel]::Seen)/$([Wheel]::Enabled)/$([Wheel]::Msgs)" } | ConvertTo-Json -Compress -Depth 4)
       # New positions: the anchor starts again from here, and the marks from zero movement.
       $anchor = $firstEl; $anchorX = $fx; $anchorY = $fy; $lastDx = 0; $lastDy = 0
@@ -774,7 +796,7 @@ while ($true) {
     $lastCount = $list.Count
     $sig = ($list | ForEach-Object { "$($_.t.Length)|$($_.x)|$($_.y)" }) -join ';'
     if ($sig -ne $lastLinks) {
-      $lastLinks = $sig
+      $lastLinks = $sig; $changedAt = $tick
       # The part of the page where the message list shows: rows scrolled out of it are hidden by the inbox (and
       # reported off screen), so the visible rows span it. Marks outside it are clipped by the overlay.
       $clipTop = [int]::MaxValue; $clipBottom = 0
@@ -1557,6 +1579,11 @@ async function onMail(msg) {
   if (sitePaused()) return;
   const isPrivate = Boolean(state.window && state.window.private);
   const rows = distinctRows((Array.isArray(msg.mail) ? msg.mail : []).map((r) => ({ u: rowKey(r.t), x: r.x, y: r.y, w: r.w, h: r.h, text: r.t })));
+  // The end-to-end run's dump only: each read's rows as the reader compared them (name length and box), so a read that
+  // differed from the last can be told apart from one that did not.
+  if (process.env.SENTINEL_LINK_DUMP && !isPrivate) {
+    try { fs.appendFileSync(process.env.SENTINEL_LINK_DUMP, JSON.stringify({ for: msg.for, mailRead: (msg.mail || []).map((r) => [String(r.t || '').length, r.x, r.y, r.w, r.h]) }) + '\n'); } catch { /* best effort */ }
+  }
   const fresh = !latestLinks || latestLinks.for !== msg.for;
   const clip = msg.clip && Number.isFinite(msg.clip.top) && Number.isFinite(msg.clip.bottom) ? { top: msg.clip.top, bottom: msg.clip.bottom } : null;
   latestLinks = { for: msg.for, links: rows, clip, epoch: ++linkEpoch };

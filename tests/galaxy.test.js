@@ -101,3 +101,14 @@ test('the card held or enlarged is never shed when the page is slow', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'js', 'galaxy.js'), 'utf8');
   assert.match(src, /c\.gone \+= \(\(c\.rank < n \|\| isHeld \|\| c === boosted \? 0 : 1\) - c\.gone\)/);
 });
+
+test('the held card keeps the pointer by a margin that follows its size, not a fixed one', () => {
+  const small = G.holdMargin(26, 20), mid = G.holdMargin(80, 60), big = G.holdMargin(160, 120);
+  assert.ok(small < mid && mid < big, `${small} ${mid} ${big}`);
+  assert.ok(small < 20 / 2, 'a small card is not held from half its own height away');
+  assert.ok(small >= G.P.wobble, 'never less than the wobble it eases out of');
+  assert.ok(big > 12, 'a large card gets more room than the old fixed 12 px');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'js', 'galaxy.js'), 'utf8');
+  assert.match(src, /m = order\[i\] === held \? holdMargin\(r\.w, r\.h\) : 0/);
+  assert.doesNotMatch(src, /HOLD_MARGIN/);
+});
