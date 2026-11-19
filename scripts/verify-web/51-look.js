@@ -196,8 +196,9 @@ async function checkLook() {
     }
     result('look: the warning card opens in the app\'s light or dark and accent, its warning still orange', cardOk, cardSeen);
 
-    // A caution card: on light paper its title is ink and its mask yellow edged in ink, with no disc behind it (lighter
-    // than danger's solid mask); on dark both are yellow.
+    // A caution card: on light paper its title is caution's ink (look.js CAUTION_INK, no heavier than danger's red) and
+    // its mask yellow edged in that ink, with no disc behind it (lighter than danger's solid mask); on dark both are
+    // yellow. With no disc, the mask itself is as tall as the heading beside it, not a small glyph in an empty square.
     const cautionSeen = {};
     for (const scheme of ['light', 'dark']) {
       await size('desktop', scheme);
@@ -206,13 +207,15 @@ async function checkLook() {
       await goto(browser, s, `${files.base}/d/pages/warn.html?${q}`, "document.getElementById('label').textContent");
       await sleep(900);
       await shot(browser, s, `look-card-caution-${scheme}`);
-      cautionSeen[scheme] = await ev("({ title: getComputedStyle(document.getElementById('label')).color, ink: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(), disc: getComputedStyle(document.querySelector('.mark')).backgroundColor, mark: getComputedStyle(document.querySelector('.mark')).color, fill: getComputedStyle(document.querySelector('.mark path')).fill, edge: getComputedStyle(document.querySelector('.mark path')).stroke })");
+      cautionSeen[scheme] = await ev("({ title: getComputedStyle(document.getElementById('label')).color, ink: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(), disc: getComputedStyle(document.querySelector('.mark')).backgroundColor, mark: getComputedStyle(document.querySelector('.mark')).color, fill: getComputedStyle(document.querySelector('.mark path')).fill, edge: getComputedStyle(document.querySelector('.mark path')).stroke, maskH: Math.round(document.querySelector('.mark path').getBoundingClientRect().height), headH: Math.round(document.querySelector('.head > div').getBoundingClientRect().height) })");
     }
     const hexRgb = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
     const lc = cautionSeen.light, dc = cautionSeen.dark;
     const Y = (sc) => hexRgb(L.STATUS[sc].yellow);
-    result('look: a caution card on light paper says its title in ink and draws its mask yellow edged in ink, no disc; on dark, in yellow',
-      lc.title === hexRgb(lc.ink) && lc.fill === Y('light') && lc.edge === hexRgb(lc.ink) && lc.disc === 'rgba(0, 0, 0, 0)'
+    const CI = hexRgb(L.CAUTION_INK);
+    result('look: a caution card on light paper says its title in caution\'s ink and draws its mask yellow edged in it, no disc, as tall as the heading; on dark, in yellow',
+      lc.title === CI && lc.fill === Y('light') && lc.edge === CI && lc.disc === 'rgba(0, 0, 0, 0)'
+      && [lc, dc].every((c) => c.maskH >= 40 && c.maskH >= c.headH * 0.6)
       && dc.title === Y('dark') && dc.fill === Y('dark') && dc.edge === 'none' && dc.disc === 'rgba(0, 0, 0, 0)', cautionSeen);
 
     /* ----------------------------------------------------- the companion */

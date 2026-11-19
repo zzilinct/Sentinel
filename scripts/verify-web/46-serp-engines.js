@@ -106,6 +106,38 @@ async function checkTips(browser, s) {
   result('hover reasons: a clear mark says only that nothing was found, with no reason and no "safe"',
     /^(No warning signs found|A verified site)/.test(clear.tip) && !/safe|danger|scam/i.test(clear.tip), clear);
   await away();
+
+  // Caution in the tip, drawn by the tip's own paint() in the companion's world (no listed site is only a caution):
+  // on a light page its words are caution's ink and its mask yellow edged in that ink, as the app draws them; on dark,
+  // the yellow itself. Read through the closed shadow root with chrome.dom, from the same world.
+  const worlds = [];
+  const onCtx = (p, sid) => { if (sid === s && p.context.auxData && p.context.auxData.type === 'isolated') worlds.push(p.context.id); };
+  browser.on('Runtime.executionContextCreated', onCtx);
+  await browser.send('Runtime.disable', {}, s);
+  await browser.send('Runtime.enable', {}, s);
+  let world = null;
+  for (const id of worlds) if (await evalIn(browser, s, 'typeof window.__sentinelTip === "object"', { contextId: id }).catch(() => false)) world = id;
+  const caution = {};
+  for (const sc of ['light', 'dark']) {
+    await scheme(sc);
+    caution[sc] = world == null ? { world: 'not found' } : await evalIn(browser, s, `(async () => {
+      const t = window.__sentinelTip;
+      t.paint(document.querySelector('.sentinel-mask--red'), t.lineFor({ host: 'deals-today.example', reasons: [{ threat: 'malware', plain: 'The site is three days old.' }],
+        threats: { malware: { badge: 'yellow', label: 'Possible malware' } } }, 'malware'), true);
+      await new Promise((r) => setTimeout(r, 450));
+      const root = chrome.dom.openOrClosedShadowRoot(document.querySelector('[data-sentinel-hover]'));
+      const tip = root.querySelector('.tip'), b = getComputedStyle(root.querySelector('.tip b')), p = getComputedStyle(root.querySelector('.tip svg path'));
+      return { status: tip.dataset.status, head: b.color, fill: p.fill, edge: p.stroke };
+    })()`, { contextId: world });
+    await shot(browser, s, `hover-reason-caution-${sc}`);
+    if (world != null) await evalIn(browser, s, 'window.__sentinelTip.hide(), true', { contextId: world });
+  }
+  const rgb = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
+  const { CAUTION_INK, STATUS } = require('../../web/assets/js/look.js');
+  result('hover reasons: a caution tip on a light page says its words in caution\'s ink and edges its yellow mask in it, as the app does; on dark, yellow',
+    caution.light.status === 'yellow' && caution.light.head === rgb(CAUTION_INK) && caution.light.fill === rgb(STATUS.light.yellow) && caution.light.edge === rgb(CAUTION_INK)
+      && caution.dark.head === rgb(STATUS.dark.yellow) && caution.dark.edge === 'none', caution);
+  await away();
   await scheme('dark');
   await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, s);
   await evalIn(browser, s, "document.querySelector('.sentinel-mask--red').focus(), true");

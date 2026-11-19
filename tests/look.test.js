@@ -137,7 +137,8 @@ test('caution is one real yellow, in ink on a pale yellow on light paper, never 
   assert.equal(token(light, 'yellow-wash'), token(css, 'yellow-wash'), 'the same caution tile in both schemes');
   assert.match(token(light, 'yellow-wash'), /^rgb\(245 197 66 \/ \.1[3-5]\)$/, 'a pale wash, never a solid tile');
   for (const g of ['#efece6', '#f5f2ec', '#f2efe9', '#e6e2da', '#efe8da', '#e4dbca', '#f6f1e7', '#f6f4ef', '#ebe7de', y]) {
-    assert.ok(L.contrast(token(light, 'yellow-ink'), g) >= 4.5, `caution's words on ${g}`);
+    // On the yellow itself the ink is only the hairline round a mask (words there are --on-yellow): 3:1, as a graphic.
+    assert.ok(L.contrast(token(light, 'yellow-ink'), g) >= (g === y ? 3 : 4.5), `caution's ink on ${g}`);
     for (const k of ['red', 'orange', 'green']) assert.ok(L.contrast(L.STATUS.light[k], g) >= 4.5 || g === y, `light ${k} ${L.STATUS.light[k]} on ${g}: ${L.contrast(L.STATUS.light[k], g).toFixed(2)}`);
   }
   assert.ok(L.contrast(token(css, 'on-yellow'), y) >= 4.5, 'words on the yellow');
@@ -158,8 +159,24 @@ test('caution is one real yellow, in ink on a pale yellow on light paper, never 
   assert.equal(token(light, 'yellow-edge'), 'var(--yellow-ink)');
   assert.equal(token(css, 'yellow-glyph'), 'currentColor', 'on dark the mask is the yellow itself');
   const card = read('desktop', 'src', 'pages', 'card.js');
-  assert.match(card, /\['--c-ink', 'var\(--ink\)'\], \['--c-glyph', tone\(badge\)\], \['--c-edge', 'var\(--ink\)'\]/, 'a light caution card says its title in ink and edges its yellow mask in ink');
+  assert.match(card, /\['--c-ink', CI\], \['--c-glyph', tone\(badge\)\], \['--c-edge', CI\]/, 'a light caution card says its title in caution\'s ink and edges its yellow mask in it');
+  assert.match(card, /const CI = window\.SentinelLook\.CAUTION_INK;/);
   assert.doesNotMatch(card, /--c-wash/, 'no solid yellow disc behind the mask');
+  // Heading weight, danger > warning > caution in words too: caution's ink is one warm graphite, no darker than
+  // danger's red (near-black #15130d and the card's #2b2720 outweighed it), the same bytes on every light surface.
+  const lum = (hex) => { const c = [1, 3, 5].map((i) => { const v = parseInt(hex.slice(i, i + 2), 16) / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const CI = L.CAUTION_INK;
+  assert.ok(lum(CI) >= lum(L.STATUS.light.red), `caution's ink ${CI} is no heavier than danger's ${L.STATUS.light.red}`);
+  assert.equal(token(light, 'yellow-ink'), CI, 'sentinel.css light --yellow-ink');
+  const popup = read('extension', 'src', 'popup.css');
+  assert.deepEqual([...popup.matchAll(/--yellow-ink: (#[0-9a-f]{6})/g)].map((m) => m[1]).slice(1), [CI, CI], 'popup.css light --yellow-ink');
+  // The companion's hover tip on a light page names its status as the app does: caution's words in the ink, its mask
+  // yellow edged in the ink, never plain yellow.
+  const hover = read('extension', 'src', 'content', 'hover.js');
+  const lightTip = hover.slice(hover.indexOf('@media (prefers-color-scheme: light)'));
+  assert.ok(lightTip.includes(`.tip[data-status=yellow] b{color:${CI}}`), 'the tip\'s caution heading is in the ink');
+  assert.ok(lightTip.includes(`.tip[data-status=yellow] path{stroke:${CI};`), 'the tip\'s caution mask is edged in the ink');
+  assert.match(hover, /el\.dataset\.status = line\.status/);
 });
 
 test('the live surfaces have no gold of their own left: they draw the look', () => {

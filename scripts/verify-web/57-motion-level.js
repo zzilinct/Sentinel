@@ -156,6 +156,10 @@ async function checkMotionLevel() {
     await evalIn(browser, s, "window.SentinelMotionLevel.set('calm')");
     await sleep(400);
     const siteCalm = await evalIn(browser, s, LOOPS);
+    // A fade already under way when Off is chosen (as a 3D mask's 900 ms fade in can be, run 44395138573): on purpose,
+    // a 3 s one, so the check does not depend on when the model arrives.
+    await evalIn(browser, s, "(() => { const d = document.createElement('div'); d.id = 'under-way'; d.style.cssText = 'position:fixed;left:0;top:0;width:40px;height:40px;background:#888;opacity:0;transition:opacity 3s linear'; document.body.append(d); d.getBoundingClientRect(); d.style.opacity = '1'; return true; })()");
+    await sleep(200);
     await evalIn(browser, s, "window.SentinelMotionLevel.set('off')");
     await sleep(400);
     // Measured after the page has drawn two frames: on this runner a frame can wait a second or two for the 3D masks.

@@ -78,11 +78,24 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # download.blender.org answers runners with 403 now and then, so the archive is kept in the Actions cache and,
+      # when the cache is cold, fetched from Blender's own mirrors in turn, then held to its published SHA-256.
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/blender-cache
+          key: blender-5.0.1-linux-x64
       - name: Blender 5.0.1
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libxkbcommon0 libsm6 > /dev/null
-          curl -sSfL https://download.blender.org/release/Blender5.0/blender-5.0.1-linux-x64.tar.xz | tar -xJ -C "$RUNNER_TEMP"
+          f=~/blender-cache/blender-5.0.1-linux-x64.tar.xz
+          mkdir -p ~/blender-cache
+          for m in https://mirror.clarkson.edu/blender https://ftp.nluug.nl/pub/graphics/blender https://download.blender.org; do
+            [ -s "$f" ] && break
+            curl -sSfL --retry 3 -o "$f" "$m/release/Blender5.0/blender-5.0.1-linux-x64.tar.xz" || rm -f "$f"
+          done
+          echo "8019580ee1b7262e505f4196a00237ccf743c88d205b38d34201510676e60b09  $f" | sha256sum -c -
+          tar -xJf "$f" -C "$RUNNER_TEMP"
           echo "BLENDER=$RUNNER_TEMP/blender-5.0.1-linux-x64/blender" >> "$GITHUB_ENV"
       - name: Check and photograph the masks
         run: |

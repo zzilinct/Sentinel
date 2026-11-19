@@ -56,11 +56,12 @@ document.documentElement.classList.add('js');
       root.dataset.motion = level;
       root.dataset.scanEffect = effect;
       if (!first) document.dispatchEvent(new CustomEvent('sentinel:motion', { detail: level }));
-      // Turned Off while the page is open: what scripts set moving (anime.js, a panel's spring) lands where it ends, at
-      // once; the stylesheets already stop their own.
+      // Turned Off while the page is open: everything already moving lands where it ends, at once: what scripts set
+      // moving (anime.js, a panel's spring) and a transition under way (a 3D mask's 900 ms fade in), which keeps its
+      // own timing whatever the stylesheet says next. The stylesheet's Off rules end the CSS animations themselves.
       if (!first && level === 'off' && document.getAnimations) {
         document.getAnimations().forEach(function (a) {
-          if (window.CSSAnimation && (a instanceof CSSAnimation || a instanceof CSSTransition)) return;
+          if (window.CSSAnimation && a instanceof CSSAnimation) return;
           try { a.finish(); } catch (e) { a.cancel(); }
         });
       }

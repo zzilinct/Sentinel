@@ -782,7 +782,8 @@ const handlers = {
     let verdict = localVerdict(url) || cacheGet('research', url) || cacheGet('quick', url) || await realSiteFor({ url, tabId });
     // The scanner cannot be asked again, and the worker has forgotten what it said: the door was closed for a reason.
     if (!verdict && (seen === true || await doorOnFor(url))) verdict = { url, host: hostOf(url), threats: {}, reasons: [], overall: { badge: 'red', level: 'earlier', label: 'Flagged earlier' } };
-    if (!isFlagged(verdict)) { await letThrough(tabId, url); return { verdict: null, pass: true }; }
+    const to = (await inDoorOrder(() => askedAddress(tabId, url))) || url;   // after the note of what was asked for lands
+    if (!isFlagged(verdict)) { await letThrough(tabId, url); return { verdict: null, pass: true, to }; }
     paint(tabId, verdict);
     await sessionSet('paySign', Date.now());
     const settings = await getSettings();
@@ -795,7 +796,7 @@ const handlers = {
         priority: 2
       })).catch(() => {});
     }
-    return { verdict, recover: siteUrl(settings.apiBase, '/recover') };
+    return { verdict, recover: siteUrl(settings.apiBase, '/recover'), plain: to !== url };
   },
   /** The cached list names no brand. The scanner may: the block page then offers the real site. */
   async 'block-real'({ url }, sender) {
@@ -812,7 +813,7 @@ const handlers = {
   async 'block-pass'({ url }, sender) {
     fromOptions(sender);
     await letThrough(sender.tab.id, url);
-    return { pass: true };
+    return { pass: true, to: (await inDoorOrder(() => askedAddress(sender.tab.id, url))) || url };
   },
   ...pwHandlers,
   /** content/typed.js found a password or card box on the flagged page in this tab, in the page or one of its frames. */
@@ -1029,14 +1030,7 @@ function warnInPlace(tabId, verdict, settings) {
   return Promise.resolve(ext.tabs.sendMessage(tabId, message, { frameId: 0 })).catch(() => null);
 }
 
-/**
- * Continue anyway on a site with nothing on https. The browser tries https first for an http address and goes back to
- * http when that fails; but the door saw the address after the switch, so the block page holds the https one, and a
- * fresh https navigation gets no way back. Measured in Chrome: an http-only site stopped at the door opened on an error
- * page. So a tab the person let through to a site, whose https page fails to load, gets the http address once, as the
- * browser itself would have done. Nothing runs for any other navigation error.
- */
-// Only when the person asked for http. An address asked for on https whose https fails stays failed, as in Chrome: someone
+// What the person asked for, for Continue anyway (askedAddress below). An address asked for on https stays https: someone
 // who can break a site's https must not get the person onto plain http by Sentinel's hand. What was asked for is noted
 // only for a site the door would stop, before the browser's switch (onBeforeNavigate, http addresses only), as a rule in
 // the browser's session rules that matches nothing (a ping from that tab to that exact address): no storage holds it, a
@@ -1053,18 +1047,19 @@ function askedFor(d) {
   });
 }
 const askedHttp = async (tabId, url) => Boolean(dnr()) && (await dnr().getSessionRules()).some((r) => askedRule(r, tabId) && r.condition.urlFilter === addressFilter(url));
-const fellBack = new Set();
-async function httpsFailed(d) {
-  if (d.frameId !== 0 || !/^https:/i.test(d.url) || /ABORTED|BLOCKED/i.test(d.error || '')) return;
-  const plain = d.url.replace(/^https:/i, 'http:');
-  const key = `${d.tabId}|${plain}`;
-  if (fellBack.has(key) || !(await askedHttp(d.tabId, plain))) return;
-  if (!(await isLetThroughHere(d.tabId, d.url))) return;
-  fellBack.add(key);
-  await Promise.resolve(ext.tabs.update(d.tabId, { url: plain })).catch(() => {});
+/**
+ * The address the person asked for, for Continue anyway: the block page holds the https one when the browser switched
+ * an http address before the door saw it (Chrome 157 does for every public site). Going there afresh has no way back
+ * to http, so Continue anyway goes to the http address the person asked for, and the browser does with it what it does
+ * with any http address: tries https, falls back, or shows its own "not secure" warning with its own way on. An address
+ * asked for on https stays https.
+ */
+async function askedAddress(tabId, url) {
+  if (!/^https:/i.test(url)) return url;
+  const plain = url.replace(/^https:/i, 'http:');
+  return (await askedHttp(tabId, plain)) ? plain : url;
 }
 if (ext.webNavigation.onBeforeNavigate) ext.webNavigation.onBeforeNavigate.addListener(askedFor, { url: [{ schemes: ['http'] }] });
-if (ext.webNavigation.onErrorOccurred) ext.webNavigation.onErrorOccurred.addListener(httpsFailed);
 
 ext.webNavigation.onCommitted.addListener(onNavigate);
 ext.webNavigation.onHistoryStateUpdated.addListener(onSameDocument);

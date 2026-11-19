@@ -299,8 +299,9 @@ async function checkColour() {
       await done();
     }
     // Caution's tile is the same pale share of yellow in both schemes, as danger's and warning's are of theirs: never louder.
-    const INK = 'rgb(21, 19, 13)', YEL = 'rgb(245, 197, 66)';
     const hex2rgb = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
+    // Caution's words and its mask's hairline take caution's ink (look.js); words on the yellow itself, --on-yellow.
+    const INK = hex2rgb(L.CAUTION_INK), ON_YELLOW = 'rgb(21, 19, 13)', YEL = 'rgb(245, 197, 66)';
     // Glyph weight, danger > warning > caution: danger's, warning's and safe's masks are solid in their colour; caution's
     // is yellow, edged on light paper by a hairline of ink (never the solid ink mask that outweighed danger), plain on dark.
     const solid = (o, sc, c) => o[c].glyph.fill === hex2rgb(L.STATUS[sc][c]) && o[c].glyph.stroke === 'none' && o[c].icon.fill === hex2rgb(L.STATUS[sc][c]);
@@ -308,7 +309,7 @@ async function checkColour() {
       Object.values(seen).every((v) => !v.wide && ['light', 'dark'].every((sc) => {
         const o = v[sc], light = sc === 'light', edge = light ? INK : 'none';
         return o.yellow.h3 === (light ? INK : YEL) && o.yellow.tile === (light ? INK : YEL) && o.red.tile === hex2rgb(L.STATUS[sc].red) && o.red.h3 === hex2rgb(L.STATUS[sc].red)
-          && o.pressed === INK && o.yellow.glyphBg === 'rgba(245, 197, 66, 0.14)' && o.yellow.tileBg !== YEL
+          && o.pressed === ON_YELLOW && o.yellow.glyphBg === 'rgba(245, 197, 66, 0.14)' && o.yellow.tileBg !== YEL
           && ['red', 'orange', 'green'].every((c) => solid(o, sc, c))
           && [o.yellow.glyph, o.yellow.icon, o.mark].every((p) => p.fill === YEL && p.stroke === edge);
       })), seen);

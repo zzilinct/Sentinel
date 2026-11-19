@@ -261,3 +261,10 @@ test('an inbox first opened in a background tab is checked once the person looks
   const serp = strip(fs.readFileSync(path.join(SRC, 'content', 'serp.js'), 'utf8'));
   assert.match(serp, /quick\.locked === 'inactive'\) \{ queue = urls\.concat\(queue\); waiting = true; return; \}/);
 });
+
+test('the block page goes where the worker says (companion-door.test.js) and says when the browser may warn once more', () => {
+  const block = fs.readFileSync(path.join(SRC, 'block.js'), 'utf8');
+  assert.match(block, /location\.replace\(res\.to \|\| url\); else b\.disabled = false;/);
+  assert.match(block, /\$\('plain'\)\.hidden = !res\.plain;/);
+  assert.match(fs.readFileSync(path.join(SRC, 'block.html'), 'utf8'), /<p class="more-row plain" id="plain" hidden>This address is not a secure one \(http\)\. Your browser may warn you once more before it opens\.<\/p>/);
+});

@@ -74,3 +74,13 @@ test('mask3d.src.js puts the baked maps under the site\'s own finish', () => {
   assert.match(src, /material\.clearcoatNormalMap = baked\.normalMap/);
   assert.match(src, /material\.aoMap = baked\.aoMap/);
 });
+
+test('the masks job never hangs on one Blender download: cached, mirrored, and held to its checksum', () => {
+  const yml = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'test.yml'), 'utf8');
+  const job = yml.slice(yml.indexOf('\n  masks:'), yml.indexOf('Check and photograph the masks'));
+  assert.match(job, /uses: actions\/cache@[0-9a-f]{40}/, 'the archive is kept in the Actions cache');
+  assert.match(job, /key: blender-5\.0\.1-linux-x64/);
+  assert.ok((job.match(/https:\/\/\S+blender/g) || []).length >= 3, 'more than one place to fetch it from');
+  assert.match(job, /sha256sum -c/, 'whatever mirror answered, the archive is the published one');
+  assert.doesNotMatch(job, /curl[^\n]*\| *tar/, 'no download piped straight into tar');
+});

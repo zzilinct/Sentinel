@@ -38,6 +38,10 @@
     dark: { red: '#e5484d', orange: '#f08a24', yellow: '#f5c542', green: '#4cb782' },
     light: { red: '#b3261e', orange: '#a14400', yellow: '#f5c542', green: '#1a6e35' }
   };
+  // Caution's words on light paper, and the hairline round its yellow mask: a warm graphite no darker than danger's
+  // red, so a caution heading never outweighs a danger one (near-black did), and still 4.5:1 on the paper and on the
+  // yellow. The same bytes in sentinel.css and popup.css (--yellow-ink), card.js and the companion's tip (hover.js).
+  var CAUTION_INK = '#645e53';
 
   // Gold as it is drawn today. web: sentinel.css's ramp (the others are made from it); app: the surfaces without a
   // stylesheet (the live-scanning island, the warning cards, the companion); metal: the three casts of a mark
@@ -283,7 +287,7 @@
     return normal({ mode: q.get('theme'), accent: q.get('accent') });
   }
 
-  var api = { ACCENTS: ACCENTS, STATUS: STATUS, GOLD: GOLD, SHEET: SHEET, LUX: LUX, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, overruled: overruled, rev: rev, KEYS: KEYS, TEXT: TEXT, DENSITY: DENSITY, type: type, scheme: scheme, paint: paint, dark: dark, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
+  var api = { ACCENTS: ACCENTS, STATUS: STATUS, CAUTION_INK: CAUTION_INK, GOLD: GOLD, SHEET: SHEET, LUX: LUX, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, overruled: overruled, rev: rev, KEYS: KEYS, TEXT: TEXT, DENSITY: DENSITY, type: type, scheme: scheme, paint: paint, dark: dark, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
   root.SentinelLook = api;
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
   // The companion's own pages (popup, block page, settings): the look the Windows app gave it (popup.js asks the app
