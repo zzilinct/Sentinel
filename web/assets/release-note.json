@@ -1,43 +1,45 @@
 {
-  "version": "1.20.3",
+  "version": "1.20.4",
   "model": "Argus",
-  "summary": "A faster web app, a lighter caution mark, and steadier tests",
+  "summary": "A lighter live scan, steadier marks, and a clearer caution",
   "groups": [
     {
-      "title": "Speed",
+      "title": "Live scanning",
       "items": [
-        "The web app opens faster: each page loads its own code when you open it, the fonts carry only the letters Sentinel shows, and the first view draws sooner."
+        "Live scanning rests while you read a still page: it uses about a fifth of the processor it did and costs your browser far less. Any key or mouse move wakes it at once.",
+        "Marks on an inbox that repaints without moving now always settle back onto their messages."
       ]
     },
     {
       "title": "Colour",
       "items": [
-        "On light pages the caution mask is yellow with a thin dark outline, lighter than warning and danger.",
-        "The caution warning card loses its solid yellow circle."
+        "Caution on light pages is a soft graphite that never outweighs danger.",
+        "Warning cards show a full-height mask.",
+        "The companion's hover tip shows caution the same way."
+      ]
+    },
+    {
+      "title": "Speed",
+      "items": [
+        "The Overview opens faster on a first visit, and the web app shows its main content sooner on phones."
+      ]
+    },
+    {
+      "title": "Motion",
+      "items": [
+        "Animation Off now also stops motion already under way."
+      ]
+    },
+    {
+      "title": "Blocked pages",
+      "items": [
+        "Continue anyway on a blocked page goes to the address you asked for, and says when your browser may warn once more."
       ]
     },
     {
       "title": "Galaxy",
       "items": [
-        "The galaxy keeps a card held under a resting mouse."
-      ]
-    },
-    {
-      "title": "Wallet guard",
-      "items": [
-        "Wallet guard reads the clipboard sooner, so a very fast swap is less likely to slip past."
-      ]
-    },
-    {
-      "title": "Live scanning",
-      "items": [
-        "Live scanning marks fooled by a repaint are now checked in a real end-to-end run."
-      ]
-    },
-    {
-      "title": "Behind the scenes",
-      "items": [
-        "Tests no longer fail at random, and test machines keep the build they test."
+        "The galaxy's hold under a resting mouse now scales with the card's size."
       ]
     }
   ]

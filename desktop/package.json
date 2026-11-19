@@ -1,7 +1,7 @@
 {
   "name": "sentinel-desktop",
   "productName": "Sentinel",
-  "version": "1.20.3",
+  "version": "1.20.4",
   "description": "Sentinel - scam, virus and malware protection that runs on your own computer",
   "main": "src/boot.js",
   "author": "Sentinel",

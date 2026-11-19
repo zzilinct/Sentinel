@@ -1,47 +1,49 @@
-<!-- Generated from changelog/1.20.3.md by scripts/release-note.js: npm run build:note. Do not edit. -->
-<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.20.3">
+<!-- Generated from changelog/1.20.4.md by scripts/release-note.js: npm run build:note. Do not edit. -->
+<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.20.4">
   <div class="wrap">
-    <h2 id="relnote-title">New in Sentinel 1.20.3 Argus</h2>
-    <p class="relnote__lead">A faster web app, a lighter caution mark, and steadier tests.</p>
+    <h2 id="relnote-title">New in Sentinel 1.20.4 Argus</h2>
+    <p class="relnote__lead">A lighter live scan, steadier marks, and a clearer caution.</p>
     <p class="relnote__newer" data-release-newer hidden></p>
     <details class="relnote__all">
       <summary>Every change in this version</summary>
       <div class="relnote__groups">
         <section>
-          <h3>Speed</h3>
+          <h3>Live scanning</h3>
           <ul>
-            <li>The web app opens faster: each page loads its own code when you open it, the fonts carry only the letters Sentinel shows, and the first view draws sooner.</li>
+            <li>Live scanning rests while you read a still page: it uses about a fifth of the processor it did and costs your browser far less. Any key or mouse move wakes it at once.</li>
+            <li>Marks on an inbox that repaints without moving now always settle back onto their messages.</li>
           </ul>
         </section>
         <section>
           <h3>Colour</h3>
           <ul>
-            <li>On light pages the caution mask is yellow with a thin dark outline, lighter than warning and danger.</li>
-            <li>The caution warning card loses its solid yellow circle.</li>
+            <li>Caution on light pages is a soft graphite that never outweighs danger.</li>
+            <li>Warning cards show a full-height mask.</li>
+            <li>The companion's hover tip shows caution the same way.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Speed</h3>
+          <ul>
+            <li>The Overview opens faster on a first visit, and the web app shows its main content sooner on phones.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Motion</h3>
+          <ul>
+            <li>Animation Off now also stops motion already under way.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Blocked pages</h3>
+          <ul>
+            <li>Continue anyway on a blocked page goes to the address you asked for, and says when your browser may warn once more.</li>
           </ul>
         </section>
         <section>
           <h3>Galaxy</h3>
           <ul>
-            <li>The galaxy keeps a card held under a resting mouse.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Wallet guard</h3>
-          <ul>
-            <li>Wallet guard reads the clipboard sooner, so a very fast swap is less likely to slip past.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Live scanning</h3>
-          <ul>
-            <li>Live scanning marks fooled by a repaint are now checked in a real end-to-end run.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Behind the scenes</h3>
-          <ul>
-            <li>Tests no longer fail at random, and test machines keep the build they test.</li>
+            <li>The galaxy's hold under a resting mouse now scales with the card's size.</li>
           </ul>
         </section>
       </div>
