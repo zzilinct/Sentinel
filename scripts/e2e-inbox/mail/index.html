@@ -19,6 +19,7 @@
   td.from { width: 190px; font-weight: 600; }
   td.when { width: 80px; text-align: right; color: #5f6368; font-size: 12px; }
   .preview { color: #5f6368; }
+  #paint { position: absolute; top: 0; left: 0; right: 0; background: #fff; }
   nav { position: fixed; top: 64px; left: 0; width: 180px; padding: 8px 0; }
   nav a { display: block; padding: 6px 24px; color: #202124; text-decoration: none; border-radius: 0 16px 16px 0; }
   nav a.on { background: #d3e3fd; font-weight: 600; }
@@ -29,6 +30,8 @@
 <nav><a class="on" href="#">Inbox</a><a href="#">Starred</a><a href="#">Sent</a><a href="#">Drafts</a></nav>
 <main>
   <table role="grid" aria-label="Messages"><tbody id="rows"></tbody></table>
+  <!-- The P key's paint: a picture of the list one message on, over it, hidden from screen readers and UI Automation. -->
+  <div id="paint" aria-hidden="true" hidden><table><tbody id="paint-rows"></tbody></table></div>
 </main>
 <script>
   // [sender, subject, time, first line]
@@ -58,10 +61,10 @@
     ['Dentist Office', 'Appointment reminder', 'Sep 20', 'This is a reminder of your cleaning on Oct 3 at 10:00 AM.'],
     ['LinkedIn', 'You appeared in 12 searches this week', 'Sep 19', 'See who is looking at your profile.']
   ];
-  var tbody = document.getElementById('rows');
+  var tbody = document.getElementById('rows'), paint = document.getElementById('paint'), paintRows = document.getElementById('paint-rows');
   // Row i shows message i + by (0, or 1 after the R key); its name, size and place stay message i's.
-  function draw(by) {
-    [].forEach.call(tbody.children, function (tr, i) {
+  function draw(by, into) {
+    [].forEach.call((into || tbody).children, function (tr, i) {
       var m = mail[(i + by) % mail.length];
       tr.children[0].textContent = m[0];
       tr.querySelector('.subject').textContent = m[1];
@@ -75,13 +78,20 @@
     tr.setAttribute('aria-label', (i < 5 ? 'unread, ' : '') + m[0] + ', ' + m[1] + ', ' + m[2] + ', ' + m[3]);
     tr.innerHTML = '<td class="from"></td><td><span class="subject"></span> <span class="preview"></span></td><td class="when"></td>';
     tbody.appendChild(tr);
+    var copy = tr.cloneNode(true);
+    copy.removeAttribute('role'); copy.removeAttribute('aria-label');
+    paintRows.appendChild(copy);
   });
   draw(0);
+  draw(1, paintRows);
   // The R key (scripts/live-e2e.ps1): every row draws the next message's words, and back. The rows never move, but
   // their pixels look exactly like the list scrolled one row: a repaint that only looks like a scroll, on purpose.
   // (Drawing the cells a row higher with a transform is not one: the browser reports the rows moved with them.)
   var shown = 0;
+  // The P key: the same picture, painted over the list while every message keeps its words for UI Automation, as a
+  // theme change or rows that look alike do. The reader then finds nothing changed and says so (watch.js Settle).
   document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'p' || ev.key === 'P') { paint.hidden = !paint.hidden; return; }
     if (ev.key !== 'r' && ev.key !== 'R') return;
     shown = 1 - shown;
     draw(shown);

@@ -780,15 +780,27 @@ if ($Part -eq 'use') {
     Shot "scale-$tag-protection"
     Check "scale-$tag-protection" ($f.onScreen -and -not $wide) "Live protection: window $($f.bounds) in $($f.work), wider than the window: '$wide'"
     HideApp
+    # The page loading and the marks arriving are timed apart. Run 44381645120 (bd359d7) failed here at 125%: its
+    # watch.log shows DuckDuckGo's results first read 35 s after Edge started, the screenshot a page still loading,
+    # and the marks 1 s after the old 30 s wait had ended. A page that has not loaded after 45 s is reloaded once,
+    # as a person would; the marks must then come within 15 s of the results being read.
+    $w0 = ([regex]::Matches((WatchLog), 'results page: [1-9]\d* results')).Count
+    $t0 = Get-Date
     Say "Edge in front: $(FreshEdge 'https://duckduckgo.com/?q=paypal+login+help')"
+    $read = { [K]::Tap(0x11); ([regex]::Matches((WatchLog), 'results page: [1-9]\d* results')).Count -gt $w0 }
+    $loaded = Until 45 $read; $reloaded = $false
+    if (-not $loaded) { Shot "scale-$tag-not-loaded"; [K]::Tap(0x74); $reloaded = $true; $loaded = Until 45 $read }
+    $tl = Get-Date
+    Say ("  results {0} {1:N0} s after Edge started{2}" -f $(if ($loaded) { 'read' } else { 'still not read' }), ($tl - $t0).TotalSeconds, $(if ($reloaded) { ', after one reload' } else { '' }))
     $marks = ''
-    $ok = Until 30 { [K]::Tap(0x11); $script:marks = [string](Cdp 'overlay.html' "[...document.querySelectorAll('#marks .mark')].map((n) => n.dataset.state || 'pending').join(',')").value; $script:marks -match 'clear|scam|warn' }
+    $ok = $loaded -and (Until 15 { [K]::Tap(0x11); $script:marks = [string](Cdp 'overlay.html' "[...document.querySelectorAll('#marks .mark')].map((n) => n.dataset.state || 'pending').join(',')").value; $script:marks -match 'clear|scam|warn' })
+    Say ("  marks {0:N0} s after the results were read" -f ((Get-Date) - $tl).TotalSeconds)
     Start-Sleep 3
     # Where each mark is against the result it belongs to: the overlay's window and the link, both in screen pixels.
     $place = [string](Cdp 'main' "(() => { const e = process.mainModule.require('electron'); const w = e.BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('overlay.html')); return JSON.stringify({ b: w.getBounds(), s: e.screen.getDisplayMatching(w.getBounds()).scaleFactor }); })()").value
     Say "  overlay window: $place; marks: $marks"
     Shot "scale-$tag-search"
-    Check "scale-$tag-marks" $ok "marks beside the results at ${tag}%: $marks"
+    Check "scale-$tag-marks" $ok "marks beside the results at ${tag}%: $(if ($loaded) { $marks } else { 'DuckDuckGo never showed its results (the page, not Sentinel)' })"
     $w = Warned 'http://paypal-account-verify-login.test:47910/signin.html?scale'
     $f = Fit 'warn.html' "warning-$tag"
     Shot "scale-$tag-warning"

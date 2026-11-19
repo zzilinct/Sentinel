@@ -99,6 +99,25 @@ function Footprint($when) {
   }
 }
 Footprint 'after start'
+# Processor time so far by role (main, server, renderer, gpu, reader...), Sentinel's total, and Edge's (every call the
+# reader makes costs the browser too).
+function RoleCpu {
+  $cmd = @{}
+  Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(Sentinel|powershell)\.exe$' } | ForEach-Object { $cmd[[int]$_.ProcessId] = [string]$_.CommandLine }
+  $r = @{ total = 0.0; edge = [double](@(Get-Process msedge -ErrorAction SilentlyContinue) | Measure-Object CPU -Sum).Sum }
+  foreach ($p in SentinelProcesses) {
+    $c = $cmd[[int]$p.Id]
+    $role = if ($p.ProcessName -eq 'powershell') { 'reader' } elseif ($c -match '--utility-sub-type=node') { 'server' } elseif ($c -match '--type=([a-z-]+)') { $Matches[1] } else { 'main' }
+    $r[$role] = [double]$r[$role] + $p.CPU; $r.total += $p.CPU
+  }
+  return $r
+}
+# Percent of one core each role used over a window, from two RoleCpu readings.
+function CpuLine($a, $b, $secs) {
+  $pct = { param($k) [math]::Round(([double]$b[$k] - [double]$a[$k]) / $secs * 100, 2) }
+  $roles = @($b.Keys | Where-Object { $_ -notin 'total', 'edge' } | Sort-Object | ForEach-Object { "$_ $(& $pct $_)%" }) -join ', '
+  return @{ total = (& $pct 'total'); edge = (& $pct 'edge'); text = "Sentinel $(& $pct 'total')% of one core ($roles); Edge $(& $pct 'edge')%" }
+}
 
 # Once the page is still, every mark sits where the browser last said its result is (scripts/marks-at-rest.js).
 $marksOff = @()
@@ -145,22 +164,40 @@ Search 'https://duckduckgo.com/?q=paypal+login+help' 'ddg' @(978, 119)
 Search 'https://www.bing.com/search?q=cheap+airpods+pro+outlet' 'bing'
 Search 'https://www.google.com/search?q=paypal+login+help&hl=en' 'google' @(871, 131)
 
+# 3a. The results page left open while someone reads it: marks on screen, nobody touching anything for a minute after
+# fifteen seconds of rest. What live scanning costs while nothing moves is held to the idle limit (1.5% of one core).
+# The server is left out of the limit here: a still page asks nothing of it, and in this run it is still importing
+# the threat lists of a fresh install (2.5% of one core during this minute in run 44401842122, its reader 1.1%).
+# Its cost at rest is the idle minute's.
+[K]::Tap(0x24); [K]::SetCursorPos(500, 420) | Out-Null; Start-Sleep 15
+$s0 = RoleCpu; Start-Sleep 60; $s1 = RoleCpu
+$still = CpuLine $s0 $s1 60
+$scan = [math]::Round($still.total - ([double]$s1['server'] - [double]$s0['server']) / 60 * 100, 2)
+Say "still page: $($still.text); live scanning (all but the server) $scan%; the reader went quiet $(@(Select-String -Path "$data\logs\watch.log" -Pattern 'looking less often' -SimpleMatch -ErrorAction SilentlyContinue).Count) time(s) so far"
+$stillFailed = $scan -gt 1.5
+Shot 'google-still'
+
 # 4. An inbox (a Pro feature, given above). Everyday mail and scams side by side: the scams should get a mask, the
 # rest a tick, and marks must stay inside the message list while it scrolls.
 Search 'http://127.0.0.1:47900/mail/' 'inbox'
 # A repaint that only looks like a scroll, made on purpose: the R key has every row of the inbox draw the next
 # message's words, and back, while the rows keep their names and places. The pixels see a scroll the page never made; within a second the reader
 # must say the rows never moved, and the marks must end on their messages (scripts/marks-at-rest.js --repaint).
-function Repaint($label) {
+# The R key's repaint changes the words the cells give UI Automation (each message is exposed as its row and as its
+# cells), so it is put right by a new read. The P key paints the same picture over the list while every message keeps
+# its words, as a theme change does: that must be put right by the reader's settle, the path a new read cannot reach.
+function Repaint($label, $key = 0x52, $need = '') {
   Add-Content "$Out\frames.txt" "# inbox repaint $label"
-  [K]::Tap(0x52); Start-Sleep 3; Shot "inbox-repaint-$label"
-  $m = node (Join-Path $PSScriptRoot 'marks-at-rest.js') "$Out\frames.txt" --repaint "the inbox repainted $label"
+  [K]::Tap($key); Start-Sleep 3; Shot "inbox-repaint-$label"
+  $m = node (Join-Path $PSScriptRoot 'marks-at-rest.js') "$Out\frames.txt" --repaint "the inbox repainted $label" $need
   if ($LASTEXITCODE) { $script:marksOff += "the inbox repainted $label" }
   Say $m | Out-Null
 }
 [K]::Tap(0x24); Start-Sleep 3
 Repaint 'one row up'
 Repaint 'back'
+Repaint 'painted over' 0x50 'settle'
+Repaint 'paint gone' 0x50 'settle'
 # 4a. Hover reasons: the pointer rests on a flagged mark and the overlay's tip says why, in the words masks.js
 # reasonLine() gives for that message's scan (links.jsonl), in Windows' dark theme and then its light one.
 function SetTheme($light) {
@@ -263,13 +300,14 @@ for ($i = 0; $i -lt 18; $i++) {
   Say ("settling: {0:N1} s of processor time in 20 s" -f ($b - $a))
   if (($b - $a) -lt 0.6) { break }
 }
-Set-Content -Path "$Out\profile\idle" -Value 'now'
 # Every reg.exe started during the idle minute (defense used to start two a minute to read the Run keys).
 $regWatch = $false
 try { Register-CimIndicationEvent -Query "SELECT * FROM Win32_ProcessStartTrace WHERE ProcessName='reg.exe'" -SourceIdentifier RegStarts -ErrorAction Stop; $regWatch = $true } catch { Say "could not count reg.exe starts: $($_.Exception.Message)" }
-$before = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
+$i0 = RoleCpu
+$before = $i0.total
 Start-Sleep 60
-$after = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
+$i1 = RoleCpu
+$after = $i1.total
 $regFailed = $false
 if ($regWatch) {
   $regStarts = @(Get-Event -SourceIdentifier RegStarts -ErrorAction SilentlyContinue).Count
@@ -278,8 +316,14 @@ if ($regWatch) {
   if ($regStarts -gt 0) { $regFailed = $true }
 }
 Say ("idle minute: Sentinel used {0:N1} s of processor time in 60 s ({1:N1}% of one core)" -f ($after - $before), (($after - $before) / 60 * 100))
+Say "idle minute: $((CpuLine $i0 $i1 60).text)"
 Footprint 'after an idle minute'
-Start-Sleep 5
+# Then a minute's CPU profile of the main process and the server (main.js, server-host.js), for review. Not inside the
+# measured minute: until 1.20.4 they were, and the minute read 8.4% of one core (run 44390657427), where the same
+# minute without them is 0.2-0.5% (run 44394136089).
+Set-Content -Path "$Out\profile\idle" -Value 'now'
+$p0 = RoleCpu; Start-Sleep 65; $p1 = RoleCpu
+Say "profiled minute: $((CpuLine $p0 $p1 65).text)"
 Say "cpu profile written: $(Test-Path "$Out\profile\idle.cpuprofile")"
 
 # A new startup entry is looked at as soon as it is made, not up to a minute later. A harmless script of this test's
@@ -310,3 +354,4 @@ if ([version]$now -ne [version]$built) { Say "FAILED: updated itself from $built
 if ($regFailed) { Say 'FAILED: Run keys are still polled, or a new entry was not heard'; exit 1 }
 if ($marksOff.Count) { Say "FAILED: marks off their results at rest: $($marksOff -join ', ')"; exit 1 }
 if ($hoverFailed) { Say 'FAILED: resting on a flagged mark did not show its reasonLine() in the tip'; exit 1 }
+if ($stillFailed) { Say "FAILED: live scanning on a results page left still costs more than the idle limit: $scan% ($($still.text))"; exit 1 }

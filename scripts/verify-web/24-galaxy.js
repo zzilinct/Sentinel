@@ -168,11 +168,13 @@ async function checkGalaxy() {
             { aimedAt: c.k, under: await p.ev(`(() => { const e = document.elementFromPoint(${x}, ${y}); return e ? e.tagName + '.' + e.className : ''; })()`), held: h2.held, movedPx: +moved.toFixed(2), tag: h2.tag, want: k2 && k2.tag, aims });
           // A pointer resting just past the held card's edge keeps it: the card creeps a few pixels as it settles, and
           // must not let go of a pointer that did not move (runs 43520606433 and 44172326361 clicked a card let go).
+          // How far past is the card's own margin (galaxy.js holdMargin, from its size), less 2 px.
           if (k2) {
-            await mouse(p.s, 'mouseMoved', h2.stage.left + k2.x, h2.stage.top + k2.y + k2.h / 2 + 10);
+            const past = (h2.holdMargin || 0) - 2;
+            await mouse(p.s, 'mouseMoved', h2.stage.left + k2.x, h2.stage.top + k2.y + k2.h / 2 + past);
             await sleep(600);
             const edge = await p.st();
-            result(`galaxy (${at}): a pointer resting just past the held card's edge keeps it held`, edge.held === h2.held, { held: h2.held, now: edge.held, pointer: edge.pointer, card: [k2.x, k2.y, k2.w, k2.h] });
+            result(`galaxy (${at}): a pointer resting just past the held card's edge keeps it held`, edge.held === h2.held && past > 0, { held: h2.held, now: edge.held, pointer: edge.pointer, card: [k2.x, k2.y, k2.w, k2.h], margin: h2.holdMargin, past });
             // Then a click on the card where it is drawn now, as a person clicks what they see: the card leans to the
             // pointer, so jumping back to the old aim point can land past its edge.
             const kc = edge.cards.find((k) => k.k === edge.held);

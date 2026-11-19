@@ -491,7 +491,7 @@ test('the reader follows the tab in front and moves marks with the page between 
   assert.ok(s.includes('$docs = $root.FindAll('), 'every document is considered, not just the first');
   assert.ok(s.includes('if ($d.GetCachedPropertyValue($A::IsOffscreenProperty)) { continue }'), 'background tabs are skipped');
   assert.ok(s.includes("Write-Output ('{\"shift\":{\"dx\":'"), 'page movement is reported between full reads');
-  assert.ok(s.includes('$wait = if ([Environment]::TickCount -lt $stillAt) { 8 } elseif ($sinceMove -lt 1500) { 15 } elseif ($sinceMove -lt 10000) { 40 } else { 90 }'), 'every 8 ms while it moves, then less and less often while the page is being read');
+  assert.ok(s.includes('$wait = if ([Environment]::TickCount -lt $stillAt) { 8 } elseif ($sinceMove -lt 1500) { 15 } elseif ($sinceMove -lt 10000) { 40 } elseif ($quiet) { 250 } else { 90 }'), 'every 8 ms while it moves, then less and less often while the page is being read');
   assert.ok(s.includes('$stillAt = [Environment]::TickCount + 350'), 'the full read waits until the page has been still for 350 ms');
   assert.ok(s.includes('if ($h -ne $appCheckFor -or ($isApp -and ([Environment]::TickCount - $appCheckAt) -gt 5000))'), 'a browser window taken for an app (no address bar found yet) is looked at again, not left unwatched');
 });
@@ -690,7 +690,7 @@ test('marks move with the wheel the moment it turns, and only while there are ma
   // The page follower: only a band of the page, only while something scrolls, and nothing kept.
   assert.ok(s.includes('d[1].UsagePage = 0x0D; d[1].Usage = 0x05;'), 'a touchpad only says fingers are on it');
   assert.ok(s.includes('if (!Enabled || w < 16 || h < 120)'), 'the follower copies nothing unless a results page with marks is in front');
-  assert.ok(s.includes('int rest = (woken ? 16 : 120)'), 'a few times a second between scrolls, every frame only while something scrolls');
+  assert.ok(s.includes('int rest = (woken ? 16 : Quiet ? 1000 : 120)'), 'a few times a second between scrolls (once a second on a quiet page), every frame only while something scrolls');
   // A full read waits for the browser's positions to catch up with the movement the pixels saw.
   assert.ok(s.includes('if ([Glide]::Total -ne 0 -and [Math]::Abs($lastDy - [Glide]::Total) -gt 20'));
   assert.ok(s.includes('p[i] = s;'), 'each row of the band is reduced to one brightness number');
@@ -766,6 +766,19 @@ test('a movement only the pixels saw is put back in view, never by stepping asid
   assert.ok(Math.max(...steps.slice(Math.ceil(1400 / 16))) <= 25, 'eased back, not one jump');
 });
 
+test('a settle that comes while the pixels are still being followed puts the marks back all the same', () => {
+  // Run 44409921454: the reader's read happened to fall 45 ms after a paint-only repaint, found every row in place and
+  // said so. The overlay took the pixels as the truth for 300 ms more and kept the marks a row low for good.
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [] });
+  const ys = o.run(1500, (t) => {
+    if (t >= 100 && t < 116) o.send('overlay:px', { epoch: 1, dy: -40 });
+    if (t >= 148 && t < 164) o.send('overlay:shift', { epoch: 1, dx: 0, dy: 0, t, settle: true });
+  });
+  assert.ok(Math.min(...ys) < -20, 'the marks followed the pixels first');
+  assert.ok(Math.abs(ys[ys.length - 1]) < 1, `left at ${ys[ys.length - 1]}, not back on the rows at 0`);
+});
+
 test('live-e2e makes a repaint that only looks like a scroll, and fails unless the reader puts the marks right in time', () => {
   const { repaint, SETTLE_MS } = require('../scripts/marks-at-rest.js');
   // The test inbox's rows draw the next message's words (the R key) under their own names, sizes and places, and the
@@ -775,7 +788,12 @@ test('live-e2e makes a repaint that only looks like a scroll, and fails unless t
   assert.match(inbox, /shown = 1 - shown;\s+draw\(shown\);/);
   assert.doesNotMatch(inbox, /transform:/);
   const run = read('scripts/live-e2e.ps1');
-  assert.match(run, /\[K\]::Tap\(0x52\)[^\n]*\n[^\n]*marks-at-rest\.js'\) "\$Out\\frames\.txt" --repaint/);
+  assert.match(run, /function Repaint\(\$label, \$key = 0x52, \$need = ''\)[\s\S]*?\[K\]::Tap\(\$key\)[^\n]*\n[^\n]*marks-at-rest\.js'\) "\$Out\\frames\.txt" --repaint "the inbox repainted \$label" \$need/);
+  // The P key paints the next words over the list (aria-hidden) while every message keeps its own: only a settle can
+  // put that right, and the run requires one (run 44401842122: the R key's repaint never reached the settle path).
+  assert.match(inbox, /<div id="paint" aria-hidden="true" hidden>/);
+  assert.match(inbox, /if \(ev\.key === 'p' \|\| ev\.key === 'P'\) \{ paint\.hidden = !paint\.hidden; return; \}/);
+  assert.match(run, /Repaint 'painted over' 0x50 'settle'\r?\nRepaint 'paint gone' 0x50 'settle'/);
   assert.match(read('desktop/src/overlay.js'), /`S \$\{Date\.now\(\)\} \$\{t\} \$\{dy\}\$\{settle \? ' settle' : ''\}\\n`/);
   const head = 'M 1 marks 4 fresh ends -\nR 2 9 0.0\nF 3 0.0 0.0\n# inbox repaint one row up\n';
   // Put right: the pixels saw 41 px, the reader said 0 in 760 ms, the marks eased back onto the rows.
@@ -957,9 +975,25 @@ test('hover a link: the link under the resting pointer gets one mark, through re
   assert.match(SCRIPT, /GetPhysicalCursorPos/);
 });
 
+test('a page left still with nobody at the mouse or keyboard is looked at far less, and any touch ends that at once', () => {
+  const { SCRIPT } = watch._test;
+  // Quiet only while a page is watched: with no browser in front the reader keeps its single long wait.
+  assert.match(SCRIPT, /\$quiet = \$lastWin -ne '' -and \[SW\]::IdleMs\(\) -gt 10000 -and \(\$now - \$lastMoveAt\) -gt 10000 -and \(\$now - \$changedAt\) -gt 10000/);
+  assert.match(SCRIPT, /if \(\$quiet -and \$pause -ge 180 -and \$pause -lt 1000\) \{ \$pause = 1000 \}/);
+  assert.match(SCRIPT, /\} while \(\$quiet -and \[SW\]::IdleMs\(\) -gt 10000 -and \[Environment\]::TickCount -lt \$until\)/);
+  assert.match(SCRIPT, /if \(\$quiet -and \[SW\]::IdleMs\(\) -lt 10000\) \{ \$quiet = \$false;[^\n]*break \}/);
+  assert.equal((SCRIPT.match(/\$changedAt = \$tick/g) || []).length, 4, 'a new page, a moved window and new links (results and inbox) each restart the quiet clock');
+  // The pixel follower: once a second while quiet, woken at once by the wheel, and asleep while there is nothing to follow.
+  assert.match(SCRIPT, /if \(\$quiet -and \[Environment\]::TickCount - \$anchorAt -lt 1000\) \{ continue \}/, 'the anchor is asked once a second while quiet');
+  assert.ok(SCRIPT.includes('int rest = (woken ? 16 : Quiet ? 1000 : 120)'));
+  assert.ok(SCRIPT.includes('public static void Poke(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; wake.Set(); }'));
+  assert.ok(SCRIPT.includes('wake.WaitOne(enabled ? 40 : System.Threading.Timeout.Infinite);'));
+  assert.doesNotMatch(SCRIPT, /Thread\.Sleep\(40\)/);
+});
+
 test('the reader reads links only when something can have changed, and reuses the page between passes', () => {
   const { SCRIPT } = watch._test;
-  assert.match(SCRIPT, /\$needRead = \$forceRead -or \$moved -or \$glideOff -or -not \$anchor -or \$lastCount -eq 0 -or \(\$tick - \$readAt\) -gt 2500/);
+  assert.match(SCRIPT, /\$needRead = \$forceRead -or \$moved -or \$glideOff -or -not \$anchor -or \$lastCount -eq 0 -or \(\$tick - \$readAt\) -gt \$\(if \(\$quiet\) \{ 30000 \} else \{ 2500 \}\)/);
   assert.match(SCRIPT, /if \(\$needRead -and \$url -match \$search\)/);
   assert.match(SCRIPT, /\$reuse = \$cachedDoc -and \$h -eq \$cachedFor -and \$title -eq \$cachedTitle/);
   // A lost anchor is let go, never followed to an empty rectangle.
@@ -980,7 +1014,7 @@ test('Sentinel stays out of the way: below-normal priority, no Temp folder scann
   assert.doesNotMatch(folders, /tmpdir|'Temp'/);
   // The reader waits quietly when nothing is followed, and looks only once a second when no browser is in front.
   const { SCRIPT } = watch._test;
-  assert.match(SCRIPT, /if \(-not \$anchor\) \{ if \(\$pendingLine\.Wait/);
+  assert.match(SCRIPT, /if \(-not \$anchor\) \{\s+do \{[^}]*if \(\$pendingLine\.Wait\(\[Math\]::Max\(1, \$\(if \(\$quiet\) \{ \[Math\]::Min\(250, \$left\) \} else \{ \$left \}\)\)\)\)/);
   assert.match(SCRIPT, /Off 'not in front'; \$pause = \$\(if \(\$testName\) \{ 1000 \} else \{ 5000 \}\); continue/);
 });
 
