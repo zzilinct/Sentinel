@@ -190,9 +190,9 @@ async function checkCompanionCore() {
     const fresh = await mailBox();
     await click(opt.sessionId, '#emailProtection');
     const chosen = await mailBox();
-    const kept = await evalIn(browser, opt.sessionId, 'chrome.storage.sync.get("emailProtection").then((s) => s.emailProtection)');
+    const mailKept = await evalIn(browser, opt.sessionId, 'chrome.storage.sync.get("emailProtection").then((s) => s.emailProtection)');
     result('companion-core: a new install has email protection off and checks links Fast, and a click in the options page turns email protection on',
-      fresh.email === false && fresh.mode === 'fast' && chosen.email === true && kept === true, { fresh, chosen, kept });
+      fresh.email === false && fresh.mode === 'fast' && chosen.email === true && mailKept === true, { fresh, chosen, kept: mailKept });
 
     // A confirmed site: stopped at the door, the icon says "!", and the popup over the block page says the same.
     await goto(browser, web.sessionId, `http://${TYPED_PW}/account.html`, "document.getElementById('pass') && document.getElementById('pass').onclick");
