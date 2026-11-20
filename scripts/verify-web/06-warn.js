@@ -101,6 +101,24 @@ async function checkWarn() {
         !WarnCard.linkable(words) && words.includes(`${c.host}[.]`) && !/alex@example|email=/.test(words), card.label);
       result(`warn: making the ${c.name} card sends nothing`, !sent.length, sent.length ? sent : 'no requests');
     }
+    // A name in Cyrillic letters drawn as PayPal (made here from its letters, never written out encoded): the result
+    // names the brand it copies and the alphabet, on a computer and a phone, light and dark.
+    const idn = require('url').domainToASCII(`${String.fromCodePoint(0x440, 0x430, 0x443, 0x440, 0x430, 0x4cf)}.com`);
+    await goto(browser, s, `${base}/app/check?url=${encodeURIComponent(`https://${idn}/`)}`, "document.querySelector('#view [data-form]')");
+    let named = false;
+    for (let i = 0; i < 120 && !named; i++) { await sleep(250); named = await evalIn(browser, s, "Boolean(document.querySelector('[data-warn]'))"); }
+    for (const [view, size] of [['desktop', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }], ['phone', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }]]) {
+      for (const scheme of ['light', 'dark']) {
+        await browser.send('Emulation.setDeviceMetricsOverride', size, s);
+        await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, s);
+        await sleep(700);
+        await shot(browser, s, `warn-idn-${view}-${scheme}`);
+      }
+    }
+    const said = await evalIn(browser, s, "(document.querySelector('#view') || document.body).innerText");
+    result('warn: a name in Cyrillic letters drawn as PayPal is named as PayPal, in plain words',
+      named && /Cyrillic letters/.test(said) && /paypal\.com/i.test(said) && !/—/.test(said), String(said).slice(0, 600));
+    await browser.send('Emulation.clearDeviceMetricsOverride', {}, s);
     result('warn: no script errors in the app', !errors.length, errors);
   } finally {
     await close();

@@ -114,10 +114,10 @@ const GOV_WORDS = ['irs', 'hmrc', 'taxrefund', 'gov', 'medicare', 'socialsecurit
 const NOT_LOOKALIKES = new Set([
   'cloud', 'clouds', 'mobile', 'mobiles', 'email', 'emails', 'mail', 'mails', 'trust', 'trusts', 'trusty',
   'telegraf', 'interact', 'interacts', 'revolt', 'revolts', 'revolute', 'codebase', 'discard', 'discards', 'team', 'teams',
-  'stream', 'streams', 'steal', 'steel', 'steak', 'steep', 'steer', 'stem', 'seam', 'stead', 'belle', 'welle',
-  'celle', 'paypay', 'goggle', 'goggles', 'googly', 'strike', 'strip', 'stripes', 'striped', 'phase', 'phases',
-  'chaste', 'chasse', 'chaser', 'chose', 'case', 'chased', 'chases', 'apply', 'ample', 'appel', 'apples', 'adore',
-  'amazons', 'lloyd', 'floyds', 'token', 'tokens', 'leger', 'ledgers', 'phantoms', 'upholds', 'workdays',
+  'stream', 'streams', 'steal', 'steel', 'steak', 'steep', 'steer', 'stem', 'seam', 'stead', 'belle',
+  'paypay', 'goggle', 'goggles', 'googly', 'strike', 'strip', 'stripes', 'striped', 'phase', 'phases',
+  'chaste', 'chaser', 'chose', 'case', 'chased', 'chases', 'apply', 'ample', 'apples', 'adore',
+  'amazons', 'lloyd', 'floyds', 'token', 'tokens', 'ledgers', 'phantoms', 'upholds', 'workdays',
   'outlooks', 'shoppe', 'discords', 'amazin', 'infinity', 'horizon', 'venom', 'adobo'
 ]);
 

@@ -23,13 +23,29 @@ function fold(word) {
   return /^[a-z]+$/.test(s) ? s : null;
 }
 
-/** The words of one list (lines of "word count") that sit within two letters of a brand of five letters or more. */
+// Two letters side by side swapped ("medicrae").
+const swapped = (a, b) => {
+  if (a.length !== b.length) return false;
+  const d = [...a].map((c, i) => (c === b[i] ? -1 : i)).filter((i) => i >= 0);
+  return d.length === 2 && d[1] === d[0] + 1 && a[d[0]] === b[d[1]] && a[d[1]] === b[d[0]];
+};
+
+/**
+ * The words of one list (lines of "word count") that brandInfo's spelling test would take for a brand: one letter
+ * off a brand of five to eight letters, two off one of nine or more, two letters swapped, or a brand of seven or
+ * more one letter off at the front of a longer word. The same test as url.js, so no word is kept that never mattered.
+ */
 function near(text, tokens) {
   const kept = new Set();
   for (const line of String(text).split(/\r?\n/)) {
     const w = fold(line.split(' ')[0]);
-    if (!w || w.length < 5 || tokens.includes(w) || isRealWords(w)) continue;   // English words are known already
-    if (tokens.some((t) => Math.abs(t.length - w.length) <= 2 && levenshtein(w, t) <= 2)) kept.add(w);
+    if (!w || w.length < 5 || tokens.includes(w) || isRealWords(w) || L.NOT_LOOKALIKES.has(w)) continue;   // known already
+    const hit = tokens.some((t) => {
+      const d = levenshtein(w, t);
+      if ((d > 0 && d <= (t.length >= 9 ? 2 : 1)) || swapped(w, t)) return true;
+      return t.length >= 7 && w.length > t.length && [t.length - 1, t.length, t.length + 1].some((n) => { const p = levenshtein(w.slice(0, n), t); return p > 0 && p <= 1; });
+    });
+    if (hit) kept.add(w);
   }
   return kept;
 }
