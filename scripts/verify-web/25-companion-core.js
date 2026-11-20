@@ -184,6 +184,15 @@ async function checkCompanionCore() {
     const green = (c) => { const m = /rgb\((\d+), (\d+), (\d+)/.exec(c || ''); return Boolean(m && +m[2] > 120 && +m[2] > +m[1] * 1.3 && +m[2] > +m[3] * 1.2); };
     result('companion-core: switching Live scanning off in the options page shows Off in the popup, not in the green that means protected, and on again',
       offStore.enabled === false && onStore.enabled === true && off.info.live === 'Off' && !green(off.info.liveColor), { offStore, onStore, live: off.info.live, color: off.info.liveColor, onColor: paired.info.liveColor });
+    // Email protection sends what an email says to the scanner, so a new install starts with it off; the person turns
+    // it on (the webmail checks below need it). Live checks start Fast: delicate is a choice too.
+    const mailBox = () => evalIn(browser, opt.sessionId, "({ email: document.getElementById('emailProtection').checked, mode: document.getElementById('liveMode').value })");
+    const fresh = await mailBox();
+    await click(opt.sessionId, '#emailProtection');
+    const chosen = await mailBox();
+    const kept = await evalIn(browser, opt.sessionId, 'chrome.storage.sync.get("emailProtection").then((s) => s.emailProtection)');
+    result('companion-core: a new install has email protection off and checks links Fast, and a click in the options page turns email protection on',
+      fresh.email === false && fresh.mode === 'fast' && chosen.email === true && kept === true, { fresh, chosen, kept });
 
     // A confirmed site: stopped at the door, the icon says "!", and the popup over the block page says the same.
     await goto(browser, web.sessionId, `http://${TYPED_PW}/account.html`, "document.getElementById('pass') && document.getElementById('pass').onclick");
