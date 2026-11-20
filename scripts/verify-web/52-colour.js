@@ -172,7 +172,7 @@ async function checkColour() {
     // chosen, the Gold gem draws the stylesheets' real gold over it, and moving on gives sapphire back.
     for (const scheme of ['dark', 'light']) {
       const { s, done } = await open(1366, 900, false, scheme, 'no-preference');
-      await evalIn(browser, s, `(() => { const pick = (sc) => Object.fromEntries(Object.entries(SentinelLook.ramp('sapphire', sc)).filter(([k]) => /^--(gold|metal|line-gold|sketch-gold|btn-grad|gilt)/.test(k)));
+      await evalIn(browser, s, `(() => { const pick = (sc) => Object.fromEntries(Object.entries(SentinelLook.ramp('sapphire', sc)).filter(([k]) => /^--(gold|metal|line|sketch|btn-grad|gilt|text|muted|faint|bg|surface|field-bg|sheet|panel|glass|haze|glow|star|live|words)/.test(k)));
         localStorage.setItem('sentinel:accent', 'sapphire'); localStorage.setItem('sentinel:look-vars', JSON.stringify({ accent: 'sapphire', dark: pick('dark'), light: pick('light') })); return true; })()`);
       await goto(browser, s, `${files.base}/index.html`, "document.querySelectorAll('.colour__pick .swatch').length === 6");
       await sleep(1500);

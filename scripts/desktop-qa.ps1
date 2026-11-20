@@ -210,6 +210,26 @@ foreach ($s in @(@{ pct = 125; w = 1366; h = 768 }, @{ pct = 150; w = 1920; h = 
 [void][Qa]::SetScale(100)
 Say "scaling back: $([Qa]::Scale())"
 
+# 4b. The app window's own title bar: no white Windows bar in dark, the look's ground behind the real mark, Windows'
+# buttons over it, in every look; the bar's own pixels are read off the screen.
+StopSentinel
+[void](StartSentinel); Start-Sleep 10
+[void](Cdp 'main' "(process.mainModule.require('electron').BrowserWindow.getAllWindows().filter((w) => w.webContents.getURL().includes('127.0.0.1:4782')).forEach((w) => { w.show(); w.focus(); }), 1)")
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
+Start-Sleep 4
+function PixelAt($x, $y) { $bmp = New-Object System.Drawing.Bitmap 1, 1; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$x, [int]$y, 0, 0, (New-Object System.Drawing.Size 1, 1)); $c = $bmp.GetPixel(0, 0); $g.Dispose(); $bmp.Dispose(); return $c }
+foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; accent = 'rose' }, @{ mode = 'dark'; accent = 'gold' }, @{ mode = 'light'; accent = 'gold' })) {
+  $name = "frame-$($t.accent)-$($t.mode)"
+  $r = [string](Cdp '127.0.0.1:4782' "(async () => { await window.SentinelLook.set({ mode: '$($t.mode)', accent: '$($t.accent)' }); await new Promise((r) => setTimeout(r, 1800)); const f = document.querySelector('.frame'), cs = f && getComputedStyle(f); return [document.documentElement.classList.contains('framed'), Boolean(f && f.querySelector('.frame__mark svg')), cs && cs.backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), Boolean(navigator.windowControlsOverlay && navigator.windowControlsOverlay.visible), f && Math.round(f.getBoundingClientRect().height), f && f.textContent].join('|'); })()").value
+  $b = (Cdp 'main' "JSON.stringify(process.mainModule.require('electron').BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('127.0.0.1:4782')).getBounds())").value | ConvertFrom-Json
+  $px = PixelAt ($b.x + $b.width / 2) ($b.y + 10)
+  $sum = [int]$px.R + [int]$px.G + [int]$px.B
+  Shot $name
+  $f = $r -split '\|'
+  $tone = $(if ($t.mode -eq 'dark') { $sum -lt 150 } else { $sum -gt 600 })
+  Check $name ($f[0] -eq 'true' -and $f[1] -eq 'true' -and $f[2] -notmatch 'rgba\(0, 0, 0, 0\)' -and $f[4] -eq 'true' -and [int]$f[5] -ge 28 -and $tone) "framed|mark|bar|page|buttons over it|height|words: $r; the bar's pixel on screen rgb($($px.R),$($px.G),$($px.B))"
+}
+
 # 5. Signed in (with "Stay signed in", ticked by default on the sign-in page): the right-click hands the file to the app's own scan, with the window brought forward from the tray.
 StopSentinel
 [void](StartSentinel); Start-Sleep 10

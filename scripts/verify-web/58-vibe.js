@@ -8,8 +8,9 @@
  *   The app     the app's overview in every colour, dark and light (vibe-app-<colour>-<scheme>.png).
  *   The press   the coins in Settings, pressed for real with the mouse resting on them: how long from the press until
  *               the new colour is on screen (the reveal's first frame) and until it covers most of the window, and
- *               whether the coin under the pointer keeps its hover through the change. The numbers are printed, so
- *               the same check run on an older build gives the before.
+ *               how the pressed coin moves under the resting pointer: where it is drawn, every frame for a second and
+ *               a half; it should rise or settle once, never dip and come back, turn, or move after the change has
+ *               ended. The numbers are printed, so the same check run on an older build gives the before.
  */
 const fs = require('fs');
 const path = require('path');
@@ -41,26 +42,29 @@ const PAINT = `Promise.all([...document.querySelectorAll('iframe')].map((f) => n
       const cs = w.getComputedStyle(d.documentElement), v = (k) => cs.getPropertyValue(k).trim();
       const h1 = d.querySelector('.hero h1');
       done({ accent: f.dataset.accent, scheme: f.dataset.scheme, text: v('--text'), star: v('--star-1'), red: v('--red'), green: v('--green'),
-        body: w.getComputedStyle(d.body).color, h1: h1 ? w.getComputedStyle(h1).color : '', sky: Boolean(d.querySelector('canvas.cosmos')) });
-    }, 400);
+        body: w.getComputedStyle(d.body).color, bodyText: w.getComputedStyle(d.body).getPropertyValue('--text').trim(), h1: h1 ? w.getComputedStyle(h1).color : '',
+        h1Text: h1 ? w.getComputedStyle(h1).getPropertyValue('--text').trim() : '', sky: Boolean(d.querySelector('canvas.cosmos')) });
+    }, 1500);
   };
   if (f.contentDocument && f.contentDocument.readyState === 'complete') go(); else f.addEventListener('load', go, { once: true });
 })))`;
 
 // Every press timed from the pointer going down: the view transition's first frame (ready), the reveal reaching 200 px
-// across (the colour plainly on screen) and reaching half the window's diagonal (most of it), and the frames in which
-// the coin under the pointer had lost its hover.
+// across (the colour plainly on screen) and reaching half the window's diagonal (most of it); and the pressed coin's
+// disc, every frame: its top edge and its turn (a hover that is lost in the change and comes back shows as a dip).
 const TIMER = `(() => {
   window.__press = [];
   let cur = null;
-  addEventListener('pointerdown', (e) => { if (!e.target.closest || !e.target.closest('.look__coin')) return; cur = { t0: performance.now(), lostHover: 0, frames: 0 }; window.__press.push(cur); }, true);
+  addEventListener('pointerdown', (e) => { if (!e.target.closest || !e.target.closest('.look__coin')) return; cur = { t0: performance.now(), frames: 0, path: [] }; window.__press.push(cur);
+    const rec = cur, disc = e.target.closest('.look__coin').querySelector('i');
+    const track = () => { const m = new DOMMatrix(getComputedStyle(disc).transform); rec.path.push([Math.round((performance.now() - rec.t0)), Math.round(disc.getBoundingClientRect().top * 100) / 100, Math.round(Math.atan2(m.b, m.a) * 1800 / Math.PI) / 10]); if (performance.now() - rec.t0 < 1500) requestAnimationFrame(track); };
+    requestAnimationFrame(track); }, true);
   if (!document.startViewTransition) return;
   const st = document.startViewTransition.bind(document);
   document.startViewTransition = (fn) => {
     const rec = cur, vt = st(fn);
     if (!rec) return vt;
     rec.start = performance.now() - rec.t0;
-    const coin = document.querySelector('.look__coin:hover');
     vt.ready.then(() => {
       rec.ready = performance.now() - rec.t0;
       const half = Math.hypot(innerWidth, innerHeight) / 2;
@@ -71,7 +75,6 @@ const TIMER = `(() => {
         if (rec.seen == null && r >= 200) rec.seen = now;
         if (rec.most == null && r >= half) rec.most = now;
         rec.frames++;
-        if (coin && document.querySelector('.look__coin:hover') !== coin) rec.lostHover++;
         if (rec.most == null && now < 3000) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
@@ -145,11 +148,25 @@ async function checkVibe() {
     }
     const press = await ev('window.__press');
     const m = { ready: median(press.map((p) => p.ready)), seen: median(press.map((p) => p.seen)), most: median(press.map((p) => p.most)), done: median(press.map((p) => p.done)) };
-    const lost = press.reduce((n, p) => n + p.lostHover, 0);
-    console.log(`      press to repaint, median of ${press.length} (ms): first frame ${m.ready.toFixed(0)}, plainly on screen ${m.seen.toFixed(0)}, most of the window ${m.most.toFixed(0)}, settled ${m.done.toFixed(0)}; frames with the hover lost: ${lost}`);
-    fs.writeFileSync(path.join(require('./_shared').OUT, 'vibe-press.json'), JSON.stringify({ median: m, lost, press }, null, 2));
+    // How the disc moved: a dip is the top edge going one way by more than half a pixel and then back by as much (the
+    // spring's own small overshoot is under that); a turn is any rotation; anything still moving after the change is
+    // over (850 ms) is a late jump.
+    const wobble = (p) => {
+      let dips = 0, dir = 0, from = p.path.length ? p.path[0][1] : 0, late = 0, turn = 0;
+      for (const [t, top, deg] of p.path) {
+        turn = Math.max(turn, Math.abs(deg));
+        const d = top - from;
+        if (Math.abs(d) >= 0.5) { const nd = Math.sign(d); if (dir && nd !== dir) dips++; dir = nd; from = top; }
+        if (t > 850 && Math.abs(top - p.path[p.path.length - 1][1]) >= 0.5) late++;
+      }
+      return { dips, late, turn };
+    };
+    const moves = press.map(wobble);
+    const unsteady = moves.reduce((n, w) => n + w.dips + w.late + (w.turn >= 1 ? 1 : 0), 0);
+    console.log(`      press to repaint, median of ${press.length} (ms): first frame ${m.ready.toFixed(0)}, plainly on screen ${m.seen.toFixed(0)}, most of the window ${m.most.toFixed(0)}, settled ${m.done.toFixed(0)}; the pressed coin: ${moves.map((w) => `${w.dips} dips, ${w.late} late, turned ${w.turn} deg`).join('; ')}`);
+    fs.writeFileSync(path.join(require('./_shared').OUT, 'vibe-press.json'), JSON.stringify({ median: m, moves, press }, null, 2));
     result('vibe: a coin pressed puts the new colour plainly on screen within 250 ms and over most of the window within 450 ms (median)', press.length === order.length && m.seen <= 250 && m.most <= 450, m);
-    result('vibe: the coin under the pointer keeps its hover through the change', press.length === order.length && lost === 0, { lost, frames: press.map((p) => p.frames) });
+    result('vibe: the pressed coin under a resting pointer moves once and stays: no dip and return, no turn, nothing after the change', press.length === order.length && unsteady === 0, moves);
   } finally { await close(); files.server.close(); await sentinel.stop(); }
 }
 

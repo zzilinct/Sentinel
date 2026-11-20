@@ -253,11 +253,11 @@ html.framed :is(.nav, .lux-island) { margin-top: var(--frame-h); }
   background: radial-gradient(circle at 34% 26%, rgb(255 255 255 / .55), transparent 24%), radial-gradient(circle at 50% 38%, var(--c1), var(--c2) 54%, var(--c3) 100%);
   box-shadow: inset 0 1px 1px rgb(255 255 255 / .55), inset 0 -4px 7px rgb(0 0 0 / .32), 0 7px 14px -7px rgb(0 0 0 / .65);
   transition: translate .45s var(--spring), scale .45s var(--spring), box-shadow .3s; }
-/* Lift on hover, grow when chosen, sink a touch under the finger: three separate properties, so a chosen coin under the
-   pointer is lifted and grown at once and nothing swaps one motion for another when it is pressed. */
+/* A coin lifts under the pointer and the chosen one grows, as two separate properties, and the chosen one never lifts:
+   pressed, a coin moves once, from lifted to grown, and stays, whether or not the page keeps its hover through the
+   change (a view transition does not). It was one transform, a turn swapped for a scale, that swung back and forth. */
 .look__coin:hover i { translate: 0 -2px; }
-.look__coin:active i { scale: .94; transition-duration: .12s; }
-.look__coin input:checked + i { scale: 1.1; box-shadow: inset 0 1px 1px rgb(255 255 255 / .55), inset 0 -4px 7px rgb(0 0 0 / .32), 0 0 0 3px var(--bg), 0 0 0 5px var(--c2), 0 10px 22px -8px var(--c2); }
+.look__coin input:checked + i { translate: none; scale: 1.1; box-shadow: inset 0 1px 1px rgb(255 255 255 / .55), inset 0 -4px 7px rgb(0 0 0 / .32), 0 0 0 3px var(--bg), 0 0 0 5px var(--c2), 0 10px 22px -8px var(--c2); }
 .look__coin span { font: 500 var(--t-note)/1.2 var(--sans); color: var(--muted); }
 .look__coin input:checked ~ span { color: var(--text); }
 .look__mode input:focus-visible + span, .look__coin input:focus-visible + i { outline: 2px solid var(--gold-300); outline-offset: 3px; }

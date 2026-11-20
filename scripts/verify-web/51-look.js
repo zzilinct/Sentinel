@@ -14,6 +14,8 @@ const { startSentinel, loadCompanion } = require('./_companion');
 const L = require(path.join(ROOT, 'web', 'assets', 'js', 'look.js'));
 
 const STATUS = "(() => { const c = getComputedStyle(document.documentElement); return ['--red', '--orange', '--yellow', '--green'].map((k) => c.getPropertyValue(k).trim()).join(' '); })()";
+// The island's own dark fill: gold's #0c0d10, or the colour's own dark ground (look.js vibe()), in light and dark alike.
+const rgbOf = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
 const VAR = (k) => `getComputedStyle(document.documentElement).getPropertyValue('${k}').trim()`;
 const SIZES = { desktop: { width: 1366, height: 900, mobile: false }, phone: { width: 390, height: 844, mobile: true } };
 
@@ -177,7 +179,7 @@ async function checkLook() {
       const got = await ev(`(() => { const c = document.getElementById('corner'); const seal = document.querySelector('.mark.is-red svg g[fill]'); return { corner: c.style.getPropertyValue('--c'), seal: seal && seal.getAttribute('fill'), sheet: getComputedStyle(document.querySelector('.isl__sheet')).backgroundColor, acc: ${VAR('--acc')} }; })()`);
       islandSeen[`${accent} ${scheme}`] = got;
       // The island stays dark in every theme (the owner's call): the dark red, the accent's dark-scheme shade, a dark fill.
-      if (got.corner !== L.STATUS.dark.red || got.seal !== L.STATUS.dark.red || got.acc !== L.ramp(accent, 'dark')['--acc'] || got.sheet !== 'rgb(12, 13, 16)') islandOk = false;
+      if (got.corner !== L.STATUS.dark.red || got.seal !== L.STATUS.dark.red || got.acc !== L.ramp(accent, 'dark')['--acc'] || got.sheet !== rgbOf(L.ramp(accent, 'dark')['--sheet'] || '#0c0d10')) islandOk = false;
     }
     result('look: the island draws the app\'s accent on its own dark fill in light and dark; a danger page is still red', islandOk, islandSeen);
 
