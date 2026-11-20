@@ -291,7 +291,16 @@ async function checkCompanionCore() {
           for (const m of g.querySelectorAll('.sentinel-mask')) for (const k of Object.keys(kinds)) if (m.classList.contains('sentinel-mask--' + k)) kinds[k]++;
           if (!g.classList.contains('sentinel-masks--clear')) { const a = g.closest('a') || (g.parentElement && g.parentElement.querySelector('a')); flagged.push(((a && a.href) || '').slice(0, 90) + ' ' + g.querySelector('.sentinel-mask').className.replace(/sentinel-mask ?/g, '')); }
         }
-        const wrapped = [...document.querySelectorAll('.sentinel-masks')].filter((g) => { const h = g.parentElement; const lh = parseFloat(getComputedStyle(h).lineHeight) || 24; return h.getBoundingClientRect().height > lh * 1.6; }).length;
+        // A title the marks made taller (the same title with its marks taken out is shorter), named, with both heights.
+        // Until 1.21.0 this counted any title over 1.6 lines, so one that wraps by itself failed too, and none was named.
+        const wrapped = [...document.querySelectorAll('.sentinel-masks')].map((g) => {
+          const h = g.parentElement;
+          const was = h.getBoundingClientRect().height;
+          g.style.setProperty('display', 'none', 'important');
+          const bare = h.getBoundingClientRect().height;
+          g.style.removeProperty('display');
+          return was > bare + 1 ? h.textContent.trim().slice(0, 80) + ' (' + Math.round(bare) + ' px without marks, ' + Math.round(was) + ' px with)' : null;
+        }).filter(Boolean);
         return { title: document.title.slice(0, 80), results: heads.length, marked: marked.length, kinds, flagged, wrapped, cls: Math.round(window.__cls * 10000) / 10000,
           bot: ${botRe}.test(document.title + ' ' + (document.body ? document.body.innerText.slice(0, 3000) : '')), focused: document.hasFocus() };
       })()`).catch((err) => ({ error: err.message }));
@@ -333,7 +342,7 @@ async function checkCompanionCore() {
       result(`companion-core: real search pages: every result on screen is marked, none red, on ${reached.map((x) => x.engine).join(', ')} (${engines.filter((x) => !reached.includes(x)).map((x) => x.engine).join(', ') || 'no engine'} showed the runner a bot check or a consent page)`,
         reached.every((x) => x.companion.marked >= x.companion.results && !x.companion.kinds.red), engineDetail);
       result('companion-core: real search pages: the marks do not shift the page (layout shift with the companion within 0.02 of without) and do not wrap titles',
-        reached.every((x) => x.companion.cls - x.plain.cls <= 0.02 && !x.companion.wrapped),
+        reached.every((x) => x.companion.cls - x.plain.cls <= 0.02 && !(x.companion.wrapped || []).length),
         engines.map((x) => ({ engine: x.engine, clsWith: x.companion.cls, clsWithout: x.plain.cls, wrappedTitles: x.companion.wrapped, loadWith: x.companion.loadedAt, loadWithout: x.plain.loadedAt })));
 
       // A results page opened in a tab the person looks at only later (a middle click, or the window behind another).

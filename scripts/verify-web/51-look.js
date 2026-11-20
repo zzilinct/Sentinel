@@ -207,7 +207,7 @@ async function checkLook() {
       await goto(browser, s, `${files.base}/d/pages/warn.html?${q}`, "document.getElementById('label').textContent");
       await sleep(900);
       await shot(browser, s, `look-card-caution-${scheme}`);
-      cautionSeen[scheme] = await ev("({ title: getComputedStyle(document.getElementById('label')).color, ink: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(), disc: getComputedStyle(document.querySelector('.mark')).backgroundColor, mark: getComputedStyle(document.querySelector('.mark')).color, fill: getComputedStyle(document.querySelector('.mark path')).fill, edge: getComputedStyle(document.querySelector('.mark path')).stroke, maskH: Math.round(document.querySelector('.mark path').getBoundingClientRect().height), headH: Math.round(document.querySelector('.head > div').getBoundingClientRect().height) })");
+      cautionSeen[scheme] = await ev("({ title: getComputedStyle(document.getElementById('label')).color, stroke: getComputedStyle(document.getElementById('label')).webkitTextStrokeWidth, ink: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(), disc: getComputedStyle(document.querySelector('.mark')).backgroundColor, mark: getComputedStyle(document.querySelector('.mark')).color, fill: getComputedStyle(document.querySelector('.mark path')).fill, edge: getComputedStyle(document.querySelector('.mark path')).stroke, maskH: Math.round(document.querySelector('.mark path').getBoundingClientRect().height), headH: Math.round(document.querySelector('.head > div').getBoundingClientRect().height) })");
     }
     const hexRgb = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
     const lc = cautionSeen.light, dc = cautionSeen.dark;
@@ -216,7 +216,9 @@ async function checkLook() {
     result('look: a caution card on light paper says its title in caution\'s ink and draws its mask yellow edged in it, no disc, as tall as the heading; on dark, in yellow',
       lc.title === CI && lc.fill === Y('light') && lc.edge === CI && lc.disc === 'rgba(0, 0, 0, 0)'
       && [lc, dc].every((c) => c.maskH >= 40 && c.maskH >= c.headH * 0.6)
-      && dc.title === Y('dark') && dc.fill === Y('dark') && dc.edge === 'none' && dc.disc === 'rgba(0, 0, 0, 0)', cautionSeen);
+      && dc.title === Y('dark') && dc.fill === Y('dark') && dc.edge === 'none' && dc.disc === 'rgba(0, 0, 0, 0)'
+      // The graphite title's strokes drawn fuller on light (card.js --c-stroke), where it read faint; never on dark.
+      && parseFloat(lc.stroke) >= 0.4 && parseFloat(dc.stroke) === 0, cautionSeen);
 
     /* ----------------------------------------------------- the companion */
 

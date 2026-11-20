@@ -55,6 +55,11 @@ const PAGES = {
 PAGES['search.yahoo.com/search'] = PAGES['uk.search.yahoo.com/search'] = page('paypal login - Yahoo Search Results', `<div id="web"><ol>${results(
   (u) => `https://r.search.yahoo.com/_ylt=AwrFq1/RV=2/RE=1790000000/RO=10/RU=${enc(u).toLowerCase()}/RK=2/RS=Xy7-`,
   (href, title) => `<li><div class="algo"><div class="compTitle"><h3 class="title"><a class="ac-algo" href="${href}">${title}</a></h3></div></div></li>`)}</ol></div>`);
+// A Bing title one letter short of its line, in monospace so it is the same on every runner (live Bing, run
+// 44430566186: one title wrapped once its mark was in). The mark must not push it onto a second line.
+const LONG = 'Wikipedia, the free encyclopedia that anyone can edit';
+PAGES['www.bing.com/search/long'] = page('long title - Search', `<style>#b_results h2 { font: 18px/24px monospace; width: ${LONG.length + 1}ch; }</style><ol id="b_results">
+  <li class="b_algo"><h2><a target="_blank" href="https://www.bing.com/ck/a?!&amp;&amp;p=436ed1a9a09f655b&amp;ptn=3&amp;ver=2&amp;hsh=4&amp;u=a1${Buffer.from(HONEST[0]).toString('base64url')}&amp;ntb=1">${LONG}</a></h2></li></ol>`);
 const ENGINES = [
   ['Google', 'www.google.com/search?q=paypal+login'],
   ['Google in South Africa (google.co.za)', 'www.google.co.za/search?q=paypal+login'],
@@ -190,6 +195,23 @@ async function checkSerpEngines() {
         got.marked === 3 && got.red.length === 1 && /PayPal/.test(got.red[0]), got);
       if (name === 'Google') await checkTips(browser, s);
     }
+
+    await goto(browser, s, 'https://www.bing.com/search/long?q=wikipedia');
+    let long = null;
+    for (let i = 0; i < 60 && !(long && long.marked); i++) {
+      await sleep(250);
+      long = await evalIn(browser, s, `(() => {
+        const h = document.querySelector('#b_results h2'), g = h.querySelector('.sentinel-masks');
+        if (!g) return { marked: 0 };
+        const box = h.getBoundingClientRect(), m = g.getBoundingClientRect();
+        return { marked: 1, height: Math.round(box.height), line: parseFloat(getComputedStyle(h).lineHeight), inside: m.right <= box.right + 0.5 && m.width > 0 && m.top >= box.top - 0.5 && m.bottom <= box.bottom + 0.5,
+          cut: h.scrollWidth > h.clientWidth || getComputedStyle(h).textOverflow === 'ellipsis' };
+      })()`);
+    }
+    await sleep(500);
+    await shot(browser, s, 'serp-engines-bing-long-title');
+    result('serp-engines: a Bing title one letter short of its line keeps to one line once its mark is in (it ends in an ellipsis), and the mark stays on that line',
+      Boolean(long && long.marked && long.height <= long.line * 1.2 && long.inside), long);
 
     const opened = seen.filter((u) => LINK_HOSTS.some((h) => u.startsWith(`${h}/`)) || u.startsWith('www.bing.com/ck/') || u.startsWith('duckduckgo.com/l/'));
     result('serp-engines: no result was opened or fetched by the browser', !opened.length, { opened, pages: seen.length });
