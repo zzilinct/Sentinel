@@ -382,6 +382,7 @@
         const heading = headingOf(a);
         const group = heading.querySelector(':scope > .sentinel-masks');
         if (group) group.remove();
+        heading.classList.remove('sentinel-fit');
       }
       hide();
     };
@@ -402,6 +403,7 @@
         anchors.add(h.tagName === 'A' ? h : h.closest('a[href]'));
       }
     }
+    const again = [];
     for (const a of anchors) {
       if (!a || seen.has(a)) continue;
       seen.add(a);
@@ -412,9 +414,10 @@
       anchorUrl.set(a, url);
       // A result drawn again after its verdict came (Bing redraws its results a moment after loading): the same
       // address is not asked about twice, so the new link gets the verdict it already has.
-      if (known.has(url)) attach(a, known.get(url));
+      if (known.has(url)) again.push([a, known.get(url)]);
       else nearView.observe(a);
     }
+    if (again.length) place(again);
   }
 
   // Only check results that are on screen or about to be: long result pages and
@@ -456,12 +459,28 @@
       for (const a of byUrl.get(url) || []) if (a.isConnected) todo.push([a, verdict]);
     }
     todo.sort((x, y) => x[0].getBoundingClientRect().top - y[0].getBoundingClientRect().top);
-    todo.forEach(([a, verdict], i) => {
-      attach(a, verdict);
-      const heading = headingOf(a);
-      const group = heading.querySelector(':scope > .sentinel-masks');
+    place(todo);
+    todo.forEach(([a], i) => {
+      const group = headingOf(a).querySelector(':scope > .sentinel-masks');
       if (group) group.style.setProperty('--sentinel-delay', `${Math.min(i, 14) * 55}ms`);
     });
+  }
+
+  // Marks never wrap a title. One that would push a one-line title onto a second line (live Bing, run 44430566186)
+  // makes the title give its last letters to an ellipsis instead (sentinel.css .sentinel-fit). Measured in one read
+  // before the marks go in and one after, not once per mark.
+  function place(pairs) {
+    const before = pairs.map(([a]) => {
+      const h = headingOf(a);
+      const cs = getComputedStyle(h);
+      return [h, h.getBoundingClientRect().height, parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2];
+    });
+    for (const [a, verdict] of pairs) attach(a, verdict);
+    // A title already fitted keeps its fit, with room for the marks it has now. offsetWidth: the width before the
+    // marks' entrance scales them.
+    const grown = before.filter(([h, was, line]) => h.classList.contains('sentinel-fit') || (was < line * 1.6 && h.getBoundingClientRect().height > was + 1))
+      .map(([h]) => { const g = h.querySelector(':scope > .sentinel-masks'); return [h, g ? g.offsetWidth + 8 : 0]; });
+    for (const [h, room] of grown) { h.style.setProperty('--sentinel-fit', `${Math.ceil(room)}px`); h.classList.add('sentinel-fit'); }
   }
 
   let queue = [];

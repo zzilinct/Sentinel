@@ -20,12 +20,13 @@
   const tone = (badge) => window.SentinelLook.STATUS[window.SentinelLook.scheme(look && look.mode)][badge];
   /** Paint a status on an element. Caution on light paper cannot be read as yellow words: its title is in caution's
       ink (look.js CAUTION_INK, no heavier than danger's red), and the mask is yellow edged in that ink, lighter than
-      danger's solid mask (sentinel.css --yellow-glyph, --yellow-edge). */
+      danger's solid mask (sentinel.css --yellow-glyph, --yellow-edge). The graphite has no hue to carry it, and in the
+      display serif's hairlines it read fainter than the sans line under it: its strokes are drawn a little fuller. */
   const status = (el, badge) => {
     el.style.setProperty('--c', tone(badge));
     const ink = badge === 'yellow' && document.documentElement.dataset.theme === 'light';
     const CI = window.SentinelLook.CAUTION_INK;
-    for (const [k, v] of [['--c-ink', CI], ['--c-glyph', tone(badge)], ['--c-edge', CI]]) {
+    for (const [k, v] of [['--c-ink', CI], ['--c-glyph', tone(badge)], ['--c-edge', CI], ['--c-stroke', '.025em']]) {
       if (ink) el.style.setProperty(k, v); else el.style.removeProperty(k);
     }
   };
@@ -56,7 +57,7 @@
   .mark path { fill: var(--c-glyph, currentColor); stroke: var(--c-edge, none); stroke-width: 2.4px; stroke-linejoin: round; paint-order: stroke; vector-effect: non-scaling-stroke; }
   /* The title and address may wrap anywhere: a long address must not push the card wider than its window. */
   .head > div { min-width: 0; }
-  h1 { margin: 0; font: 400 var(--t-title-s)/var(--lh-display) var(--display); color: var(--c-ink, var(--c, var(--acc))); }
+  h1 { margin: 0; font: 400 var(--t-title-s)/var(--lh-display) var(--display); color: var(--c-ink, var(--c, var(--acc))); -webkit-text-stroke: var(--c-stroke, 0px) currentColor; }
   .host, .sub, .name { --track: 0px; margin: 2px 0 0; font: var(--t-note) var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
   .body { margin-top: 16px; min-height: 0; }
   .body p { margin: 0 0 10px; color: var(--ink-3); }

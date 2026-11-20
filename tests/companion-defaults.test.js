@@ -54,6 +54,7 @@ test('companion: the install tab opens only for a new install that is not signed
 // mark vanishes (verify-web run 40787005308: every result marked 1.2 s after loading, none 1.5 s later).
 test('companion: a search result drawn again keeps its marks', () => {
   const serp = read('content/serp.js');
-  assert.match(serp, /if \(known\.has\(url\)\) attach\(a, known\.get\(url\)\);/);
+  assert.match(serp, /if \(known\.has\(url\)\) again\.push\(\[a, known\.get\(url\)\]\);/);
+  assert.match(serp, /if \(again\.length\) place\(again\);/);
   assert.match(serp, /known\.set\(url, verdict\)/);
 });
