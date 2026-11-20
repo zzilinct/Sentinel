@@ -484,25 +484,41 @@ function shownVersusReal(text, href, wellKnown = null) {
   const tld = written && written[2].split('.').pop();
   const plain = written && !written[1] && !written[3];
   const shown = written && /^[a-z]{2,24}$/i.test(tld) && !(plain && (written[2] !== written[2].toLowerCase() || (!written[6] && FILE_ENDING.test(tld)))) && analyze(written[0]);
+  const known = wellKnown === null ? isWellKnown(real) : wellKnown;
   if (shown) {
     if (shown.registrable === real.registrable) return null;
     const owns = (b, q) => Boolean(b && b.domains.some((d) => q.registrable === d || q.host === d || q.host.endsWith(`.${d}`)));
     if (owns(brandInfo(shown).owner, real) || owns(brandInfo(real).owner, shown)) return null;
-    const known = wellKnown === null ? isWellKnown(real) : wellKnown;
-    if (known && decodeSafe(real.path + real.query).toLowerCase().split(/[/?&=#]/).includes(shown.registrable)) return null;
+    // A well-known site under the same name on another ending (statista.de words over de.statista.com), or its page
+    // about the shown site.
+    if (known && (shown.sld === real.sld || decodeSafe(real.path + real.query).toLowerCase().split(/[/?&=#]/).includes(shown.registrable))) return null;
     return { shown: shown.host.replace(/^www\./, ''), real: real.host, brand: null };
   }
 
-  // Words that name a brand ("PayPal", "Bank of America"), over an address made to look like that brand's.
+  // Words that are a brand's name and little else ("PayPal", "Log in to PayPal", "Bank of America"), over an address
+  // made to look like that brand's and not well known. A headline or a citation that mentions the brand ("PayPal to
+  // acquire Curv", over the company's own newsroom) says nothing about the address.
+  if (known) return null;
   const info = brandInfo(real);
   if (info.owner) return null;
   const resembled = [info.lookalike, info.inDomain, info.inSubdomain, info.wordLike && info.wordLike.brand].filter(Boolean);
   if (!resembled.length) return null;
   const single = words.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  const runs = single.flatMap((_, i) => [1, 2, 3].map((n) => single.slice(i, i + n).join('')));
-  const brand = resembled.find((b) => runs.includes(b.token));
-  return brand ? { shown: brand.domains[0], real: real.host, brand } : null;
+  for (const b of resembled) {
+    for (let i = 0; i < single.length; i++) {
+      for (let n = 1; n <= 3 && i + n <= single.length; n++) {
+        if (single.slice(i, i + n).join('') !== b.token) continue;
+        const rest = [...single.slice(0, i), ...single.slice(i + n)];
+        if (rest.every((w) => CLAIM_WORDS.has(w))) return { shown: b.domains[0], real: real.host, brand: b };
+      }
+    }
+  }
+  return null;
 }
+// What may stand beside a brand's name in a link that claims to be it: "Log in to PayPal", "PayPal account".
+const CLAIM_WORDS = new Set(['log', 'in', 'login', 'logon', 'sign', 'signin', 'on', 'to', 'your', 'my', 'the', 'account', 'accounts',
+  'official', 'site', 'website', 'page', 'secure', 'security', 'verify', 'here', 'go', 'visit', 'open', 'home', 'support', 'help',
+  'center', 'centre', 'customer', 'service', 'online', 'now', 'continue', 'with', 'www', 'com']);
 
 module.exports = {
   analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent, isRealWords, isWellKnown,

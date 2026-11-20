@@ -48,12 +48,23 @@ test('negatives: one owner, an opaque wrapper, a name that is not an address, pl
     ['paypal.com', 'https://www.paypal.com/signin'],
     ['PayPal', 'https://www.paypal.com/'],
     ['Pay with PayPal', 'https://shop.example/checkout'],
+    // Found by the real-anchor replay (verify-web anchor-replay): headlines and citations that mention a brand, over
+    // the company's own sites the brand list does not name.
+    ['About PayPal – PayPal', 'https://www.paypal-media.com/about'],
+    ['"PayPal to Acquire Curv"', 'https://newsroom.paypal-corp.com/2021-03-08-PayPal-to-Acquire-Curv'],
+    ['Shopify.dev Dev docs, CLI, and more', 'https://shopify.dev/'],
+    ['"Ebay.in help file on Paisapay"', 'http://pages.ebay.in/ebayexplained/paisapay.html'],
     ['', ELSEWHERE]
   ];
   for (const [text, href] of silent) assert.equal(shownVersusReal(text, href), null, `${text} over ${href}`);
   // A well-known site's page about the shown one (Hacker News' "from?site=", Reddit's /domain/): silent there only.
   assert.equal(shownVersusReal('github.com', 'https://news.ycombinator.com/from?site=github.com', true), null);
   assert.equal(shownVersusReal('github.com', 'https://quiet-harbor.example/from?site=github.com', false).shown, 'github.com');
+  // A well-known site under its own name on another ending: one owner.
+  assert.equal(shownVersusReal('www.statista.de', 'https://de.statista.com/', true), null);
+  assert.equal(shownVersusReal('www.statista.de', 'https://statista.quiet-harbor.example/', false).shown, 'statista.de');
+  // A brand's name over a look-alike of it, on a well-known site: not a disguise.
+  assert.equal(shownVersusReal('PayPal', ONE_OFF, true), null);
   assert.equal(unwrapLink(`https://www.facebook.com/l.php?u=${enc(ELSEWHERE)}`), ELSEWHERE);
 });
 

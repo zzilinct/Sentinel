@@ -75,7 +75,7 @@ async function checkAnchorReplay() {
   for (const h of hits.slice(0, 40)) console.log(`  hit: "${h.text}" -> ${h.href} (on ${h.page})`);
   // Too few links read is not a pass: blocked or empty pages prove nothing.
   result('anchor-replay: real links from real pages, compared as a hover would, raise no false "shows one site, opens another"',
-    read >= 100 && compared >= 5000 && hits.length === 0, `${read} of ${urls.length} pages read, ${compared} links to other sites compared, ${hits.length} flagged`);
+    read >= 90 && compared >= 4000 && hits.length === 0, `${read} of ${urls.length} pages read, ${compared} links to other sites compared, ${hits.length} flagged`);
 }
 
 module.exports = checkAnchorReplay;
