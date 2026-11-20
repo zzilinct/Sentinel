@@ -23,7 +23,7 @@ Two set-ups matter:
 | A site's name (for example `example.com`), never the full link; your IP address | The domain registry IANA lists for that ending (via `data.iana.org`, once a day), or `rdap.org` | How old the site is | Delicate live scanning only, never for a private window. Delicate is off until chosen | Choose Fast (the default) |
 | A site's name | Your own DNS resolver | Does the site exist, does it have mail servers | Delicate live scanning only | Choose Fast |
 | A game's place number only | `apis.roblox.com`, `games.roblox.com` (public game pages) | Know which game is being played, so ordinary game talk is not mistaken for danger | Chat safety on and a Roblox game in front. Chat safety is off until turned on | Turn chat safety off |
-| The first 5 characters of a password's SHA-1 hash | `api.pwnedpasswords.com` (Have I Been Pwned) | Warn when a new password is in a known breach | When a password is set or changed | No switch |
+| The first 5 of the 40 characters of a password's SHA-1 hash, never the rest (k-anonymity; the answer is padded) | `api.pwnedpasswords.com` (Have I Been Pwned) | Warn when a new password is in a known breach | At sign-up, a password reset and a password change | No switch |
 | The messages you type to an assistant, with your own key | OpenAI, Anthropic, Google or DeepSeek | The optional AI assistants | Only when you connect a key and send a message | Do not connect one, or disconnect it |
 | Everything the app's own server would see | A Sentinel server you name in the app | Use a hosted Sentinel instead of the one on your computer | Only if you set a server address | Leave it unset |
 
@@ -85,7 +85,7 @@ On the hosted service (when live), tied to an account:
 | What | Why | How long |
 |---|---|---|
 | Email, name, password hash, theme and accent | The account | Until deleted |
-| Scan history (what was checked, when, the result; flagged live results only) | History page | 90 days |
+| Scan history (what was checked, when, the result; flagged live results only) | History page | 30 days |
 | Which minutes live scanning ran (no addresses) | Weekly allowance | 8 days |
 | Weekly usage counters, Your week counters | Allowances, Your week | 35 days |
 | Sessions (browser name, IP, last use) | Signed-in devices | Until ended, 12 hours to 90 days idle |
@@ -110,39 +110,56 @@ only; it is off by default.
 - Companion: the part of an address after `#` is never sent.
 - Server: a client that names no mode gets Fast (before: Delicate for Pro and up).
 - Server: which minutes live scanning ran is kept 8 days (before: 21).
-- Hosted: no access log (before: every request's address, IP and browser, kept without limit); logs capped at 15 MB.
+- Hosted: no access log (before: every request's address, IP and browser, kept without limit); logs capped at 15 MB per service.
+- Scan history is kept 30 days (before: 90), on the hosted service and on the computer.
+- Companion: once, after this update, the popup tells someone who never chose that email checking is now off, with a button to turn it back on.
 - Windows app: `watch.log` no longer keeps the part of an address after `?` or `#`.
 - The server's "email not configured" log line no longer names the recipient; a failed scan's log line no longer
   carries the query.
 
 ## 7. Call sites
 
-Every outbound request in the code, by file and count. A new `fetch`, `http(s).get/request`, `dns` lookup,
-`WebSocket`, `sendBeacon`, `XMLHttpRequest` or update check changes a count here, and the test fails until this
+Every outbound request in the code, as a fingerprint: the file, the function it sits in, the call, and its target
+(the URL constant up to its first variable part, or the expression the address comes from). `tests/lib/request-sites.js`
+finds them: `fetch`, `http(s).get`, `.request`, `dns` lookups, `WebSocket`, `sendBeacon`, `XMLHttpRequest` and the
+update check. A new request, or one swapped, moved or pointed elsewhere, fails `tests/privacy-map.test.js` until this
 table and the tables above say where it goes.
 
-| File | Calls | Goes to |
+| File | Function | Call | Target | Goes to |
+|---|---|---|---|---|
+| `desktop/src/chatwatch.js` | `getJson` | `https.get` | `url` | Roblox public game pages, by place number (chat safety on) |
+| `desktop/src/main.js` | `apiOnce` | `fetch` | `${ORIGIN}${pathname}` | The app's own server on 127.0.0.1, or a server address you set |
+| `desktop/src/main.js` | `requestDeviceToken` | `fetch` | `${ORIGIN}/api/v1/auth/device` | The app's own server on 127.0.0.1 (this computer's account) |
+| `desktop/src/models.js` | `getJson` | `fetch` | `url` | GitHub API: the releases list (a model you choose) |
+| `desktop/src/models.js` | `install` | `fetch` | `exe.browser_download_url` | GitHub Releases: a model's manifest and installer (a model you choose) |
+| `desktop/src/models.js` | `install` | `fetch` | `manifest.browser_download_url` | GitHub Releases: a model's manifest and installer (a model you choose) |
+| `desktop/src/updater.js` | `check` | `autoUpdater.checkForUpdates` | `(none)` | GitHub Releases: update checks, every 2 hours |
+| `extension/src/background.js` | `look` | `fetch` | `http://127.0.0.1:47821/api/v1/look` | 127.0.0.1:47821, the Windows app (the look) |
+| `extension/src/lib/api.js` | `apiFetch` | `fetch` | `${apiBase}${path}` | The companion's scanner: 127.0.0.1 paired, or Sentinel's servers |
+| `server/lib/auth.js` | `googleExchange` | `fetch` | `https://oauth2.googleapis.com/token` | Google (only "Continue with Google") |
+| `server/lib/mailer.js` | `send` | `fetch` | `https://api.resend.com/emails` | Resend (hosted account emails) |
+| `server/lib/models.js` | `refresh` | `fetch` | `https://api.github.com/repos/` | GitHub API: releases list, at most every 6 hours |
+| `server/lib/scan/feeds.js` | `refreshFeed` | `fetch` | `feed.url` | Public threat lists |
+| `server/lib/scan/netguard.js` | `guardedLookup` | `dns.lookup` | `hostname` | DNS, for the page being researched (hosted only) |
+| `server/lib/scan/netguard.js` | `requestOnce` | `lib.request` | `target` | The page being researched (hosted only; off in the Windows app) |
+| `server/lib/scan/research.js` | `dnsRecord` | `dns[method]` | `host` | DNS: the site name (delicate only) |
+| `server/lib/scan/research.js` | `fetchRdap` | `fetch` | `${await rdapBase(registrable)}domain/${e` | The domain registry for the site name (delicate only) |
+| `server/lib/scan/research.js` | `rdapBase` | `fetch` | `https://data.iana.org/rdap/dns.json` | IANA: which registry answers for each ending (once a day) |
+| `server/lib/scan/safebrowsing.js` | `lookup` | `fetch` | `https://safebrowsing.googleapis.com/v4/threatMatches:find` | Google Safe Browsing (hosted, only with a key) |
+| `server/lib/security.js` | `breachedPassword` | `fetch` | `https://api.pwnedpasswords.com/range/` | Have I Been Pwned: 5 of the 40 characters of a SHA-1 hash |
+| `server/routes/ai.routes.js` | `callUpstream` | `fetch` | `url` | The AI provider you connected |
+| `web/assets/js/app.js` | `fetchOnce` | `fetch` | `src` | The site's own scripts (is it offline?) |
+| `web/assets/js/app/settings.js` | `whatsNewBlock` | `fetch` | `/assets/release-note.json` | The site's own release note |
+| `web/assets/js/download.js` | `(top level)` | `fetch` | `https://api.github.com/repos/` | api.github.com (newest version number) |
+| `web/assets/js/home.js` | `(top level)` | `fetch` | `/api/v1/demo/examples` | The site's own /api/v1/demo |
+| `web/assets/js/home.js` | `(top level)` | `fetch` | `/api/v1/demo/scan` | The site's own /api/v1/demo |
+| `web/assets/js/look-app.js` | `sync` | `fetch` | `/api/v1/account/look` | The site's own /api/v1/account/look |
+| `web/assets/js/site.js` | `(top level)` | `fetch` | `/api/v1/auth/me` | The site's own /api/v1 |
+| `web/assets/js/site.js` | `(top level)` | `fetch` | `/api/v1/threat-stats` | The site's own /api/v1 |
+| `web/assets/js/ui.js` | `api` | `fetch` | `/api/v1` | The site's own /api/v1 |
+
+Bundles, held by their count of calls (their minified names change with each build):
+
+| Bundle | Calls | Goes to |
 |---|---|---|
-| `desktop/src/main.js` | 2 | The app's own server on `127.0.0.1` (or a server address you set) |
-| `desktop/src/updater.js` | 1 | GitHub Releases (updates) |
-| `desktop/src/models.js` | 3 | GitHub API and Releases (a model you choose) |
-| `desktop/src/chatwatch.js` | 1 | Roblox public game pages, by place number |
-| `extension/src/lib/api.js` | 1 | The companion's scanner (`127.0.0.1` paired, or Sentinel's servers) |
-| `extension/src/background.js` | 1 | `127.0.0.1:47821` (the look) |
-| `server/lib/models.js` | 1 | GitHub API (releases list) |
-| `server/lib/scan/feeds.js` | 1 | Public threat lists |
-| `server/lib/scan/research.js` | 3 | IANA, domain registries, DNS (delicate only) |
-| `server/lib/scan/netguard.js` | 2 | DNS and the page being checked (hosted research only; off in the Windows app) |
-| `server/lib/scan/safebrowsing.js` | 1 | Google Safe Browsing (hosted, only with a key) |
-| `server/lib/security.js` | 1 | Have I Been Pwned (5 hash characters) |
-| `server/lib/mailer.js` | 1 | Resend (hosted account emails) |
-| `server/lib/auth.js` | 1 | Google (only "Continue with Google") |
-| `server/routes/ai.routes.js` | 1 | The AI provider you connected |
-| `web/assets/js/download.js` | 1 | `api.github.com` (newest version number) |
-| `web/assets/js/ui.js` | 1 | The site's own `/api/v1` |
-| `web/assets/js/site.js` | 2 | The site's own `/api/v1` |
-| `web/assets/js/home.js` | 2 | The site's own `/api/v1/demo` |
-| `web/assets/js/look-app.js` | 1 | The site's own `/api/v1/account/look` |
-| `web/assets/js/app.js` | 1 | The site's own scripts (is it offline?) |
-| `web/assets/js/app/settings.js` | 1 | The site's own release note |
 | `web/assets/js/mask3d.js` | 3 | The site's own 3D models (three.js loaders) |

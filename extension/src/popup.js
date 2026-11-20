@@ -28,6 +28,22 @@
   }
   pwLine();
 
+  /** Once after the update that made email protection a choice: say so, and offer it back in one press. */
+  async function emailNote() {
+    const el = document.getElementById('emailNote');
+    try { if (!(await ext.storage.local.get('emailNoteDue')).emailNoteDue) return; } catch { return; }
+    el.innerHTML = 'Email checking is now off until you turn it on. <button class="link" type="button" id="emailOn">Turn it back on</button> <button class="link" type="button" id="emailOff">Keep it off</button>';
+    el.hidden = false;
+    const answer = (on) => async () => {
+      // Either answer is a choice, saved as one, so the note never comes back.
+      try { await SentinelStore.set({ emailProtection: on }); await ext.storage.local.remove('emailNoteDue'); } catch { return; }
+      el.textContent = on ? 'Email checking is on.' : 'Email checking stays off. You can turn it on in Settings.';
+    };
+    document.getElementById('emailOn').onclick = answer(true);
+    document.getElementById('emailOff').onclick = answer(false);
+  }
+  emailNote();
+
   let state;
   let tab;
   let url;      // the address this popup is about; on the block page, the address it stopped

@@ -540,7 +540,7 @@ function sweep() {
   db.prepare('DELETE FROM live_minutes WHERE minute < ?').run(Math.floor((t - 8 * day) / 60000));
   db.prepare('DELETE FROM fast_minutes WHERE minute < ?').run(Math.floor((t - 8 * day) / 60000));
   db.prepare('DELETE FROM usage_counters WHERE week < ?').run(t - 35 * day);
-  db.prepare('DELETE FROM scan_history WHERE created_at < ?').run(t - 90 * day);
+  db.prepare('DELETE FROM scan_history WHERE created_at < ?').run(t - 30 * day);
   db.prepare('DELETE FROM audit_log WHERE created_at < ?').run(t - 180 * day);
   // Exposure alerts: a visit is remembered 14 days, a site found on a list afterwards 30.
   db.prepare('DELETE FROM visit_marks WHERE day < ?').run(t - 14 * day);

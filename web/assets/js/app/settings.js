@@ -550,7 +550,7 @@
       words: ['startup', 'quarantine', 'malware', 'program', 'virus', 'stop'], method: 'setDefense', hook: 'defense', on: (i) => i.defense && i.defense.active, off: (i) => onWindows(i.defense && i.defense.supported),
       state: (i) => (i.defense.active ? `Watching ${(i.defense.watched || []).join(', ')} and startup entries.` : i.defense.reason || ''),
       said: (on, r) => (on ? 'Defense is on.' : (r && r.reason) || 'Defense is off.') }),
-    appSwitch({ id: 'my-sites', group: 'protection', label: 'Your sites', hint: 'Sentinel knows the big brands. Here it learns yours: your bank or credit union, your school portal, your work sign-in. A link or page made to look like one of them gets a warning.',
+    appSwitch({ id: 'my-sites', group: 'protection', label: 'Your sites', hint: 'Sentinel knows the big brands. Here it learns yours: your bank or credit union, your school portal, your work sign-in. A link or page made to look like one of them gets a warning. Your sites are learned and kept on this computer only, and never sent anywhere.',
       words: ['bank', 'look-alike', 'lookalike', 'credit union', 'school', 'fake', 'sites', 'impersonation'], method: 'setMySites', hook: 'my-sites', on: (i) => i.mySites !== false,
       off: (i) => (i.embeddedServer ? '' : 'Available when the app uses its own scanner on this computer.'),
       said: (on, r) => (on ? 'Your sites: on. Sentinel will learn the sites you use.' : r && r.erased === false ? 'Your sites: off. The sites could not be erased just now, so Sentinel will try again each time it starts.' : 'Your sites: off. Every site is forgotten.'),
@@ -687,7 +687,7 @@
     // Your data: what the Privacy Policy says an account holds, how to take it and how to remove it.
     { id: 'download-data', group: 'data', kind: 'block', label: 'Download my data', hint: 'One file with everything your account holds, item by item as the Privacy Policy lists it. Your password, sign-in links, two-factor secret and AI keys are never in it.',
       words: ['export', 'copy', 'gdpr', 'ccpa', 'privacy', 'download', 'json'], mount: downloadBlock },
-    { id: 'history-data', group: 'data', kind: 'custom', label: 'Scan history', hint: 'Kept for 90 days. Delete one entry or all of it on the History page.', words: ['history', 'erase', 'clear', 'scans'],
+    { id: 'history-data', group: 'data', kind: 'custom', label: 'Scan history', hint: 'Kept for 30 days. Delete one entry or all of it on the History page.', words: ['history', 'erase', 'clear', 'scans'],
       control: () => linkControl('/app/history') },
     { id: 'live-memory', group: 'data', kind: 'block', label: 'What live scanning remembers', hint: 'Exposure alerts keep a scrambled code for each safe site you visited, for 14 days. Your sites keeps the sites you added and the ones it learned. Either can be erased here at once.',
       words: ['exposure', 'my sites', 'your sites', 'forget', 'erase', 'remembered'], mount: forgetBlock },

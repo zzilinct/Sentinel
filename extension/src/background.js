@@ -932,6 +932,15 @@ ext.runtime.onInstalled.addListener(async (details) => {
     const old = await Store.get(OLD_LEVEL_KEYS);
     if (old && Object.keys(old).length) { await Store.set(levelsFrom(old)); await Store.remove(OLD_LEVEL_KEYS); }
   } catch { /* kept as it was; tried again at the next update */ }
+  // Email protection used to be on unless switched off; now it is off until switched on. Once, on the first update
+  // since, someone who never chose either way is told in the popup (popup.js emailNote). A new install never is.
+  try {
+    const { emailDefaultOff } = await ext.storage.local.get('emailDefaultOff');
+    if (!emailDefaultOff) {
+      const chose = await Store.get(['emailProtection']);
+      await ext.storage.local.set({ emailDefaultOff: true, ...(details.reason === 'update' && !('emailProtection' in chose) ? { emailNoteDue: true } : {}) });
+    }
+  } catch { /* asked again at the next update */ }
   await restore();
   if (!account.signedIn) await connect();
   if (await wantsConnectTab(details.reason, account.signedIn)) {
