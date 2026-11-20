@@ -12,7 +12,7 @@
  */
 const L = require('./lists');
 const config = require('../../config');
-const { analyze, entropy, hostWords, levenshtein, isRealWords, isUserContent } = require('./url');
+const { analyze, entropy, hostWords, levenshtein, isRealWords, isUserContent, decodeLabel, scriptsOf } = require('./url');
 // Words that make an address look trustworthy, long enough that one letter off is never an ordinary word (U54).
 const TRUST_WORDS = ['support', 'account', 'security', 'service', 'billing', 'customer', 'recovery', 'password', 'verification', 'helpdesk'];
 
@@ -28,7 +28,7 @@ function mash(seg) {
 
 // The name as people see it: an international name (xn--mnchen-3ya is münchen) is judged by its letters, not by the
 // hyphens and digits of its encoding. U02 already weighs the encoding itself.
-const shownName = (p) => (p.sld.startsWith('xn--') ? require('url').domainToUnicode(p.sld) || p.sld : p.sld);
+const shownName = (p) => decodeLabel(p.sld) || p.sld;
 
 const fail = (points, detail, extra) => ({ status: 'fail', points, detail, extra });
 const warn = (points, detail, extra) => ({ status: 'warn', points, detail, extra });
@@ -122,7 +122,21 @@ const URL_CHECKS = [
     } },
 
   { id: 'U02', group: 'Address', threat: 'scam', title: 'No look-alike international characters (punycode)',
-    run: ({ p }) => (/(^|\.)xn--/.test(p.host) ? fail(30, 'Punycode domain: characters may imitate a different alphabet') : pass('Plain characters only')) },
+    run: ({ p, brand }) => {
+      const labels = p.host.split('.').filter((l) => l.startsWith('xn--'));
+      if (!labels.length) return pass('Plain characters only');
+      const names = labels.map(decodeLabel);
+      // A label that does not decode to a name is a disguise of its own: its letters cannot be shown or judged.
+      if (names.some((n) => !n)) return fail(30, 'Punycode domain: characters may imitate a different alphabet');
+      // Latin letters with Cyrillic, Greek or another alphabet inside one name (Unicode's highly restrictive
+      // profile, UTS 39): honest names keep to one, or to Latin beside Chinese, Japanese or Korean.
+      const mixed = names.map(scriptsOf).find((s) => s.mixed);
+      if (mixed) return fail(30, `Mixes ${mixed.list.join(' and ')} letters in one name`);
+      const written = [...new Set(names.flatMap((n) => scriptsOf(n).list))].join(' and ');
+      // Drawn to read as a brand: U24 names the brand, and the points are its own.
+      if (brand.idn) return pass(`Written in ${written} letters; the look-alike check names the brand they copy`);
+      return pass(`An international name, written in ${written} letters`);
+    } },
 
   { id: 'U03', group: 'Address', threat: 'scam', title: 'Destination is not hidden behind an "@"',
     run: ({ p }) => {
@@ -346,6 +360,7 @@ const URL_CHECKS = [
         return warn(12, `"${brand.wordLike.word}" is spelled like ${brand.wordLike.brand.domains[0]}, but is an ordinary word`);
       }
       if (!brand.lookalike) return pass('No typosquatting');
+      if (brand.idn) return fail(70, `Written in ${brand.idn.scripts.join(' and ')} letters to look like ${brand.lookalike.domains[0]}`);
       // Nobody accidentally registers a one-letter-off "steamcommunity"; a word
       // one letter off "apple" is far more often innocent.
       const t = brand.lookalike.token;

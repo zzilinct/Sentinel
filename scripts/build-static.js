@@ -180,9 +180,7 @@ const builtins = {
   fs: { readFileSync: () => null },
   path: { join: () => '' },
   // url.js unpacks its word list with these; the list is fetched and unpacked before the first check.
-  zlib: { gunzipSync: () => ({ toString: () => words }) },
-  // ponytail: an international name is shown in its xn-- form here; a punycode decoder if anyone asks.
-  url: { domainToUnicode: () => '' }
+  zlib: { gunzipSync: () => ({ toString: () => words }) }
 };
 const sources = {
 ${modules}
