@@ -128,6 +128,35 @@ async function main() {
   const answered = delP.verdicts.filter((v) => v && v.research && v.research.domainAgeDays !== null && v.research.domainAgeDays !== undefined).length;
   console.log(`  the registry answered in time for ${answered}/${sampleP.length} of the phishing sample`);
 
+  // Word-alike names and registration age: the two lines U24 draws (checklist.js WORDLIKE_SETTLED_DAYS lifts the
+  // word-alike note, WORDLIKE_NEW_DAYS with a password field raises it). Both sides of each line, from the registry.
+  const delAlike = await run('delicate', alike, { research: true, budgetMs: 4500 }, 8);
+  const ages = (vs) => vs.map((v) => v && v.research && v.research.domainAgeDays).filter((d) => typeof d === 'number');
+  const phishAges = ages(delP.verdicts);
+  const alikeAges = ages(delAlike.verdicts);
+  console.log(`\nWORD-ALIKE NAMES AND REGISTRATION AGE (${phishAges.length} phishing domains and ${alikeAges.length} real look-alike-named sites answered)`);
+  for (const days of [180, 365, 730, 1825]) {
+    console.log(`  ${String(days).padStart(5)} days or older: phishing ${phishAges.filter((d) => d >= days).length}/${phishAges.length} = ${pct(phishAges.filter((d) => d >= days).length, phishAges.length)}, real ${alikeAges.filter((d) => d >= days).length}/${alikeAges.length} = ${pct(alikeAges.filter((d) => d >= days).length, alikeAges.length)}`);
+  }
+  const u24 = (v) => v && v.checklist.items.find((c) => c.id === 'U24');
+  // Every phishing address on a word-alike name, in the whole held-out list: what its note did, and how old it is.
+  const url = require('../server/lib/scan/url');
+  const wordAlike = (u) => { const p = url.analyze(u); return Boolean(p && url.brandInfo(p).wordLike); };
+  const wlPhish = phish.filter(wordAlike);
+  const wlRun = await run('delicate', wlPhish, { research: true, budgetMs: 4500 }, 8);
+  console.log(`  phishing addresses on a word-alike name: ${wlPhish.length}/${phish.length}`);
+  for (const i of wlPhish.keys()) {
+    const v = wlRun.verdicts[i];
+    const c = u24(v);
+    // No address printed: this log is read on people's computers, and a phishing address there is a hazard.
+    console.log(`    #${i + 1}  U24 ${c ? `${c.status} ${c.points}` : 'pass'}, ${v && v.research ? v.research.domainAgeDays ?? '?' : '?'} days, badge ${v ? v.overall.badge : '?'}`);
+  }
+  for (const [i, u] of alike.entries()) {
+    const v = delAlike.verdicts[i];
+    const c = u24(v);
+    if (c && c.status !== 'pass') console.log(`    still noted: ${u} ${c.status} ${c.points} ${v.research ? v.research.domainAgeDays ?? '?' : '?'}d`);
+  }
+
   const fastSame = await run('fast', sampleP, { research: false }, 16);
   const c = fastSame.verdicts.filter((v) => v && v.overall.badge).length;
   console.log(`  the same phishing sample in fast mode: ${c}/${sampleP.length} = ${pct(c, sampleP.length)}`);

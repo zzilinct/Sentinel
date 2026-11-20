@@ -7,6 +7,8 @@
 const { analyze } = require('./url');
 
 const MAX_SCAN = 600 * 1024;
+const CLAIM_MAX = 120;
+const OTHERS_BUTTON = /\b(sign in|sign up|log in|login|continue|pay|check ?out|buy|donate)\s+(with|using|via|through)\s+[^\s,.!|]+/g;
 
 function attrs(tag) {
   const out = {};
@@ -132,6 +134,17 @@ function parse(html, pageUrl) {
   const metaRefresh = (metas.find((a) => (a['http-equiv'] || '').toLowerCase() === 'refresh' && a.content) || {}).content || '';
   const robots = (metas.find((a) => (a.name || '').toLowerCase() === 'robots' && a.content) || {}).content || '';
 
+  // What the page says it is: its title, site name, first main heading and logo. "Sign in with Google" or "Pay with
+  // PayPal" names another company's button, not the page, and is cut out. Each at most CLAIM_MAX characters.
+  const heading = named('h1', 'h2')[0];
+  const logo = named('img').map(fields).find((a) => a.alt && /logo/i.test(`${a.alt} ${a.class || ''} ${a.id || ''} ${a.src || ''}`));
+  const claims = [
+    title,
+    (metas.find((a) => (a.property || '').toLowerCase() === 'og:site_name' && a.content) || {}).content || '',
+    heading ? decodeEntities(source.slice(heading.end, closeOf(lower, heading)).slice(0, 2000).replace(/<[^<>]*>/g, ' ')) : '',
+    logo ? decodeEntities(logo.alt) : ''
+  ].map((c) => c.toLowerCase().replace(OTHERS_BUTTON, ' ').replace(/\s+/g, ' ').trim().slice(0, CLAIM_MAX)).filter(Boolean);
+
   return {
     title,
     titleLower: title.toLowerCase(),
@@ -148,6 +161,7 @@ function parse(html, pageUrl) {
     resourceHosts: resources,
     metaRefresh,
     robots: robots.toLowerCase(),
+    claims,
     pageRegistrable: pageReg
   };
 }

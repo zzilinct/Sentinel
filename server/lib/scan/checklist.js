@@ -109,6 +109,12 @@ const VPS_NAME = /^(vmi\d+\.contaboserver\.net|ec2-\d+-\d+-\d+-\d+\.([a-z0-9-]+\
 const page = (ctx) => ctx.research && ctx.research.http && ctx.research.http.page;
 const needsResearch = (ctx) => (ctx.research ? null : skip(ctx.researchSkipReason || 'Research is not part of this scan'));
 
+// U24's word-alike note, settled by registration age (lite research, which the desktop app runs). A name held this
+// long is its own site's; one this new that asks for a password is read as a look-alike. Measured by
+// scripts/evaluate-modes.js ("word-alike names and registration age"), which prints both sides of each line.
+const WORDLIKE_SETTLED_DAYS = 2 * 365;
+const WORDLIKE_NEW_DAYS = 180;
+
 /* ======================================================================
    URL checks - run on every scan, every plan
    ====================================================================== */
@@ -333,17 +339,29 @@ const URL_CHECKS = [
     } },
 
   { id: 'U24', group: 'Impersonation', threat: 'scam', title: 'Not a misspelling of a well-known brand',
-    run: ({ brand, p, hint }) => {
+    run: (ctx) => {
+      const { brand, p, hint, knowledge } = ctx;
       // Close in spelling but ordinary words ("overdrive" and "onedrive"): a different name, the way a person reads
       // it. A small note, which only matters next to other warning signs; none at all when the search result shows
       // the site under its own name (and not the brand's), or the person searched for it by name.
       if (!brand.lookalike && brand.wordLike) {
+        const home = brand.wordLike.brand.domains[0];
         if (hint) {
           const own = p.sld.toLowerCase().replace(/[-_]/g, '');
           const tw = hintWords(hint.title);
-          if ((tw.has(own) || hintWords(hint.query).has(own)) && !tw.has(brand.wordLike.brand.token)) return pass(`Shown as "${p.sld}", its own name, not as ${brand.wordLike.brand.domains[0]}`);
+          if ((tw.has(own) || hintWords(hint.query).has(own)) && !tw.has(brand.wordLike.brand.token)) return pass(`Shown as "${p.sld}", its own name, not as ${home}`);
         }
-        return warn(12, `"${brand.wordLike.word}" is spelled like ${brand.wordLike.brand.domains[0]}, but is an ordinary word`);
+        // Evidence settles the note. One of the most linked-to sites on the web, or a name held for years, is that
+        // name's own site. Age only ever lifts this note: an old domain can still be hijacked, so no other check
+        // reads it this way. Unknown age keeps the note; a page that was not fetched never lifts it.
+        if (knowledge.wellKnown || brand.wordLike.why === 'popular') return pass(`A well-known site under its own name, not ${home}`);
+        const reg = ctx.research && ctx.research.registration;
+        const days = reg && reg.registered && reg.createdAt ? Math.floor((Date.now() - reg.createdAt) / DAY) : null;
+        if (days !== null && days >= WORDLIKE_SETTLED_DAYS) return pass(`Registered ${Math.floor(days / 365)} years ago under its own name, not ${home}`);
+        // New, and asking for a password or a sign-in code: then the near-spelling is doing work, read like a look-alike.
+        const pg = page(ctx);
+        if (days !== null && days < WORDLIKE_NEW_DAYS && pg && asksSecret(pg)) return fail(36, `Registered ${days} days ago, asks for a password or code, and has a similar spelling to ${home}`);
+        return warn(12, `"${brand.wordLike.word}" is spelled like ${home}, but is an ordinary word`);
       }
       if (!brand.lookalike) return pass('No typosquatting');
       // Nobody accidentally registers a one-letter-off "steamcommunity"; a word
@@ -1066,6 +1084,21 @@ function brandInTitle(ctx) {
 }
 
 const hasPassword = (pg) => pg.inputs.some((i) => i.type === 'password');
+const SIGN_IN_CODE = /otp|one.?time|passcode|verif\w*.?code|2fa|mfa|sms.?code/;
+const asksSecret = (pg) => hasPassword(pg) || pg.inputs.some((i) => i.autocomplete === 'one-time-code' || SIGN_IN_CODE.test(`${i.name} ${i.placeholder}`));
+
+/**
+ * A word-alike name ("overdrive" near "onedrive") whose page calls itself that brand, in its title, site name, first
+ * heading or logo, and asks for a password or code. Either alone is ordinary; together it is the brand's sign-in
+ * copied onto a lookalike word. Only where pages are fetched (the hosted service); the desktop never opens pages.
+ */
+function claimedWordLike(ctx) {
+  const wl = !ctx.brand.lookalike && ctx.brand.wordLike;
+  const pg = page(ctx);
+  if (!wl || !pg || !asksSecret(pg)) return null;
+  const t = wl.brand.token;
+  return (pg.claims || []).some((c) => c.split(/[^a-z0-9]+/).includes(t) || (t.length >= 5 && c.replace(/[^a-z0-9]/g, '').includes(t))) ? wl.brand : null;
+}
 
 const CONTENT_CHECKS = [
   { id: 'P01', group: 'Page content', threat: 'scam', title: 'Page does not claim to be a brand it is not', research: true,
@@ -1073,7 +1106,9 @@ const CONTENT_CHECKS = [
       const r = needsResearch(ctx); if (r) return r;
       if (!page(ctx)) return skip('No page content');
       const b = brandInTitle(ctx);
-      return b ? fail(hasPassword(page(ctx)) ? 40 : 22, `Page title presents itself as ${b.token} on ${ctx.p.registrable}`) : pass('Title matches the site');
+      if (b) return fail(hasPassword(page(ctx)) ? 40 : 22, `Page title presents itself as ${b.token} on ${ctx.p.registrable}`);
+      const w = claimedWordLike(ctx);
+      return w ? fail(40, `Page presents itself as ${w.token} on ${ctx.p.registrable}`) : pass('Title matches the site');
     } },
 
   { id: 'P02', group: 'Page content', threat: 'scam', title: 'Does not ask for a password on an unofficial site', research: true,
@@ -1082,7 +1117,7 @@ const CONTENT_CHECKS = [
       const pg = page(ctx);
       if (!pg) return skip('No page content');
       if (!hasPassword(pg)) return pass('No password field');
-      return ctx.brand.inDomain || ctx.brand.inSubdomain || ctx.brand.lookalike || brandInTitle(ctx)
+      return ctx.brand.inDomain || ctx.brand.inSubdomain || ctx.brand.lookalike || brandInTitle(ctx) || claimedWordLike(ctx)
         ? fail(30, 'Asks for a password while impersonating a brand')
         : pass('Login form on its own site');
     } },
