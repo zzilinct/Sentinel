@@ -58,7 +58,7 @@ PAGES['search.yahoo.com/search'] = PAGES['uk.search.yahoo.com/search'] = page('p
 // A Bing title one letter short of its line, in monospace so it is the same on every runner (live Bing, run
 // 44430566186: one title wrapped once its mark was in). The mark must not push it onto a second line.
 const LONG = 'Wikipedia, the free encyclopedia that anyone can edit';
-PAGES['www.bing.com/search/long'] = page('long title - Search', `<style>#b_results h2 { font: 18px/24px monospace; width: ${LONG.length + 1}ch; }</style><ol id="b_results">
+PAGES['www.bing.com/search/long'] = page('long title - Search', `<style>#b_results { font: 18px/24px monospace; width: ${LONG.length + 1}ch; padding: 0; list-style: none; } #b_results h2 { font: inherit; }</style><ol id="b_results">
   <li class="b_algo"><h2><a target="_blank" href="https://www.bing.com/ck/a?!&amp;&amp;p=436ed1a9a09f655b&amp;ptn=3&amp;ver=2&amp;hsh=4&amp;u=a1${Buffer.from(HONEST[0]).toString('base64url')}&amp;ntb=1">${LONG}</a></h2></li></ol>`);
 const ENGINES = [
   ['Google', 'www.google.com/search?q=paypal+login'],
