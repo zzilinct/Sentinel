@@ -33,7 +33,8 @@ const SHEET = `<!doctype html><meta charset="utf-8"><title>Every colour</title>
 <script src="/assets/js/look.js"></script>
 <div class="grid">${['dark', 'light'].map((s) => IDS.map((id) => `<figure><figcaption>${id} ${s}</figcaption><div class="cut"><iframe data-accent="${id}" data-scheme="${s}" src="/index.html"></iframe></div></figure>`).join('')).join('')}</div>`;
 
-// Each frame painted in its look, then read back: its words, its stars' tint, its hero line, its status colours.
+// Each frame painted in its look, then read back: its words, its stars' tint, its hero line (the second weight of words),
+// its status colours. Read after the frame has settled: read at once, a frame still loading gave its first colours.
 const PAINT = `Promise.all([...document.querySelectorAll('iframe')].map((f) => new Promise((done) => {
   const go = () => {
     const d = f.contentDocument, w = f.contentWindow;
@@ -42,8 +43,7 @@ const PAINT = `Promise.all([...document.querySelectorAll('iframe')].map((f) => n
       const cs = w.getComputedStyle(d.documentElement), v = (k) => cs.getPropertyValue(k).trim();
       const h1 = d.querySelector('.hero h1');
       done({ accent: f.dataset.accent, scheme: f.dataset.scheme, text: v('--text'), star: v('--star-1'), red: v('--red'), green: v('--green'),
-        body: w.getComputedStyle(d.body).color, bodyText: w.getComputedStyle(d.body).getPropertyValue('--text').trim(), h1: h1 ? w.getComputedStyle(h1).color : '',
-        h1Text: h1 ? w.getComputedStyle(h1).getPropertyValue('--text').trim() : '', sky: Boolean(d.querySelector('canvas.cosmos')) });
+        body: w.getComputedStyle(d.body).color, h1: h1 ? w.getComputedStyle(h1).color : '', sky: Boolean(d.querySelector('canvas.cosmos')) });
     }, 1500);
   };
   if (f.contentDocument && f.contentDocument.readyState === 'complete') go(); else f.addEventListener('load', go, { once: true });
@@ -106,7 +106,7 @@ async function checkVibe() {
         const words = r['--text'];
         const status = f.red === L.STATUS[f.scheme].red && f.green === L.STATUS[f.scheme].green;
         if (f.accent === 'gold') return !status || f.text === '' || f.star.toLowerCase() !== '#ffe2b0';
-        return !status || f.text !== words || f.body !== rgb(words) || f.h1 !== rgb(words) || f.star !== r['--star-1'] || (f.scheme === 'dark' && !f.sky);
+        return !status || f.text !== words || f.body !== rgb(words) || f.h1 !== rgb(r['--text-2']) || f.star !== r['--star-1'] || (f.scheme === 'dark' && !f.sky);
       });
       result('vibe: every colour draws the whole home page in its own words, grounds and stars, dark and light, and the warning colours never move', got.length === IDS.length * 2 && !bad.length, { bad, got: got.map((f) => `${f.accent} ${f.scheme}: ${f.text} ${f.star}`) });
     }
