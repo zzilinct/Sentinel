@@ -76,7 +76,7 @@ html.lux-app[data-theme="light"] {
   background:
     radial-gradient(38vmax 30vmax at 18% 4%, rgb(var(--gold-rgb) / .1), transparent 70%),
     radial-gradient(30vmax 30vmax at 96% 42%, rgb(var(--ink) / .035), transparent 70%),
-    radial-gradient(44vmax 28vmax at 55% 106%, rgb(160 110 50 / .1), transparent 70%);
+    radial-gradient(44vmax 28vmax at 55% 106%, rgb(var(--glow-rgb) / .1), transparent 70%);
   animation: lux-mist 46s ease-in-out infinite alternate;
 }
 @keyframes lux-mist { to { transform: translate3d(-3%, 2%, 0) scale(1.06); } }
@@ -282,7 +282,7 @@ html.lux-app[data-theme="light"] {
   display: flex; align-items: flex-start; gap: 10px; padding: 10px 18px; font-size: var(--t-ui); line-height: 1.4;
   animation: lux-msg-in .32s var(--lux-out) .12s backwards;
 }
-.lux-island__msg i { flex: none; width: 7px; height: 7px; margin-top: 6.5px; border-radius: 50%; background: #e2c27f; box-shadow: 0 0 10px rgb(226 194 127 / .8); }
+.lux-island__msg i { flex: none; width: 7px; height: 7px; margin-top: 6.5px; border-radius: 50%; background: var(--gold-300); box-shadow: 0 0 10px rgb(var(--gold-rgb) / .8); }
 .lux-island__msg.is-success i { background: #4cb782; box-shadow: 0 0 10px rgb(76 183 130 / .8); }
 .lux-island__msg.is-error i { background: #e5484d; box-shadow: 0 0 10px rgb(229 72 77 / .8); }
 .lux-island__msg.is-out { animation: lux-msg-out .2s ease-in forwards; }

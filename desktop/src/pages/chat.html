@@ -7,9 +7,9 @@
 <script src="motion.js"></script>
 <link rel="stylesheet" href="../../shared/fonts/fonts.css">
 <script src="../../shared/look.js"></script>
-<script src="paint.js"></script>
+<script src="paint.js" data-dark></script>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: #ece8df; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: var(--text, #ece8df); }
   * { box-sizing: border-box; }
   /* Island motion, as the live-scanning corner (overlay.html): a mask tile springs open into a pill or a card, and
      the words arrive once it is open. Transforms and opacity only, every animation runs once, nothing loops. */
@@ -39,7 +39,7 @@
   .card svg { width: 20px; height: 20px; display: block; color: var(--c); }
   .card__body { position: relative; animation: words .3s ease .12s both; }
   .card b { display: block; color: var(--c); font-size: var(--t-note); margin-bottom: 2px; }
-  .card .what { color: #ece8df; font-size: var(--t-note); }
+  .card .what { color: var(--text, #ece8df); font-size: var(--t-note); }
   .card .do { color: #b9b4a9; font-size: var(--t-label); margin-top: 5px; }
   /* In a game: smaller, and only what matters, so the game stays the game. */
   body.roblox.in-game .card { width: 250px; padding: 8px 10px 9px 36px; }

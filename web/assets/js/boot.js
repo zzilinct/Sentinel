@@ -20,6 +20,32 @@ document.documentElement.classList.add('js');
 })();
 
 /*
+ * The Windows app's title bar (main.js turns Windows' white one off for its window): a strip in the page's own ground
+ * with the Sentinel mark and the page's name, which the window is dragged by; Windows' three buttons sit over its right
+ * end (sentinel.css .frame). The name follows the page's title; nothing runs otherwise.
+ */
+(function () {
+  var d = window.sentinelDesktop;
+  if (!d || !d.framed) return;
+  var r = document.documentElement;
+  r.classList.add('framed');
+  document.addEventListener('DOMContentLoaded', function () {
+    var bar = document.createElement('div');
+    bar.className = 'frame';
+    bar.setAttribute('aria-hidden', 'true');
+    // The mark as the site draws it (masks.js), or as the page's own logo has it on the few pages without masks.js.
+    var M = window.SentinelMasks, logo = document.querySelector('.logo__mark svg');
+    bar.innerHTML = '<span class="frame__mark">' + (M && M.svg ? M.svg('logo') : logo ? logo.outerHTML : '') + '</span><b>Sentinel</b><span class="frame__page"></span>';
+    var page = bar.lastChild;
+    var name = function () { var t = document.title.replace(/\s*[-|]\s*Sentinel\s*$/, '').trim(); page.textContent = t && t !== 'Sentinel' ? t : ''; };
+    name();
+    document.body.prepend(bar);
+    var title = document.querySelector('title');
+    if (title) new MutationObserver(name).observe(title, { childList: true, characterData: true, subtree: true });
+  });
+})();
+
+/*
  * Motion: Full, Calm or Off, chosen once for this device, and the scan effect (the gold digits of delicate scanning),
  * on or off. Set here before the first paint as <html data-motion> and <html data-scan-effect>, which every stylesheet
  * and script reads: nothing asks the system on its own. When the computer asks for less motion it is Off, whatever was

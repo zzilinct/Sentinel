@@ -31,11 +31,11 @@
   };
   const style = document.createElement('style');
   style.textContent = `
-  :root { color-scheme: dark; --sheet: #0c0d10; --ink: #e9e6df; --ink-2: #c9c5bb; --ink-3: #b9b5ab; --ink-4: #8d8a82; --btn: #1a1c21; --btn-hi: #22252b; --hair: rgba(255, 255, 255, .06);
+  :root { color-scheme: dark; --sheet: #0c0d10; --ink: var(--text, #e9e6df); --ink-2: var(--text-2, #c9c5bb); --ink-3: var(--muted, #b9b5ab); --ink-4: var(--faint, #8d8a82); --btn: #1a1c21; --btn-hi: #22252b; --hair: rgba(255, 255, 255, .06);
     --lift: inset 0 1px 0 rgba(255, 255, 255, .05), 0 6px 12px rgba(0, 0, 0, .45); }
-  :root[data-theme="light"] { --sheet: #f6f1e7; --ink: #2b2720; --ink-2: #4a453a; --ink-3: #4a453a; --ink-4: #6b6558; --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .12);
+  :root[data-theme="light"] { --sheet: #f6f1e7; --ink: var(--text, #2b2720); --ink-2: var(--text-2, #4a453a); --ink-3: var(--text-2, #4a453a); --ink-4: var(--faint, #6b6558); --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .12);
     --lift: inset 0 1px 0 rgba(255, 255, 255, .7), 0 6px 12px rgba(60, 45, 20, .22); color-scheme: light; }
-  @media (prefers-color-scheme: light) { :root:not([data-theme]) { --sheet: #f6f1e7; --ink: #2b2720; --ink-2: #4a453a; --ink-3: #4a453a; --ink-4: #6b6558; --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .12);
+  @media (prefers-color-scheme: light) { :root:not([data-theme]) { --sheet: #f6f1e7; --ink: var(--text, #2b2720); --ink-2: var(--text-2, #4a453a); --ink-3: var(--text-2, #4a453a); --ink-4: var(--faint, #6b6558); --btn: #ebe4d5; --btn-hi: #e2dac8; --hair: rgba(60, 45, 20, .12);
     --lift: inset 0 1px 0 rgba(255, 255, 255, .7), 0 6px 12px rgba(60, 45, 20, .22); color-scheme: light; } }
   :root { --spring: linear(0, 0.063, 0.207, 0.382, 0.555, 0.706, 0.828, 0.918, 0.98, 1.018, 1.038, 1.046, 1.045, 1.039, 1.031, 1.023, 1.016, 1.009, 1); }
   /* A clear image, not just no colour: with none, CSS hands the body's sheet to the whole window, and a pale square

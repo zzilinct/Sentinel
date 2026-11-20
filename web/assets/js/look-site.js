@@ -11,7 +11,7 @@
   var KEY = { mode: 'sentinel:theme', accent: 'sentinel:accent', at: 'sentinel:look-at', vars: 'sentinel:look-vars' };
   var WORD = { auto: 'Auto', light: 'Light', dark: 'Dark' };
   // The names look-app.js keeps for the pages (its webVars): only these are ever taken off <html> again.
-  var OURS = /^--(gold|metal|line-gold|sketch-gold|btn-grad|gilt)/;
+  var OURS = /^--(gold|metal|line|sketch|btn-grad|gilt|text|muted|faint|bg|surface|field-bg|sheet|panel|glass|haze|glow|star|live|words)/;
   var mq = window.matchMedia && matchMedia('(prefers-color-scheme: light)');
   var app = function () { return Boolean(window.SentinelLook && window.SentinelLook.set); };
   var read = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };

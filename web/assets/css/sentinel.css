@@ -26,6 +26,11 @@
   --gold-rgb: 212 174 99;
   --on-gold: #16130b;
   --panel: rgba(12, 13, 16, .97);
+  /* Gold's sky and haze: warm, cream and blue stars (cosmos.js), a cream haze and a deep amber bloom (lux.css). Another
+     colour draws its own (look.js vibe()). */
+  --star-1: #ffe2b0; --star-2: #f4efe6; --star-3: #cfdcff;
+  --haze-rgb: 239 230 212;
+  --glow-rgb: 160 110 50;
 
   --gold-50: #f7eed6;
   --gold-200: #ecd499;
@@ -204,6 +209,28 @@ h1 em, h2 em { font-style: normal; color: var(--text); }
 }
 .logo__mark svg { width: 18px; height: 18px; }
 
+/* The Windows app's title bar (boot.js): the page's own ground, the mark in the colour, the name and the page, and room
+   on the right for Windows' buttons (main.js frameButtons()), which sit over it in the same ink. The window is dragged
+   by it. Everything the page pins to the top moves down by its height. Nowhere but the app's window. */
+.frame { display: none; }
+html.framed { --frame-h: env(titlebar-area-height, 36px); }
+html.framed .frame {
+  position: fixed; inset: 0 0 auto; z-index: 2147483000; height: var(--frame-h);
+  display: flex; align-items: center; gap: 9px; padding: 0 calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 16px) 0 14px;
+  background: var(--bg); color: var(--muted); font: 500 var(--t-note)/1 var(--sans); white-space: nowrap; overflow: hidden;
+  -webkit-app-region: drag; user-select: none;
+}
+.frame__mark { display: grid; place-items: center; width: 18px; height: 18px; color: var(--gold-300); filter: drop-shadow(0 0 6px rgb(var(--gold-rgb) / .45)); }
+.frame__mark svg { width: 16px; height: 16px; }
+.frame b { font-weight: 600; color: var(--text); letter-spacing: .01em; }
+.frame__page { overflow: hidden; text-overflow: ellipsis; }
+.frame__page:not(:empty)::before { content: '/'; margin-right: 9px; color: var(--faint); }
+html.framed body { padding-top: var(--frame-h); }
+html.framed .shell, html.framed .auth { min-height: calc(100dvh - var(--frame-h)); }
+html.framed :is(.side, .auth__art) { top: var(--frame-h); height: calc(100dvh - var(--frame-h)); }
+html.framed :is(.nav, .lux-island) { margin-top: var(--frame-h); }
+@media (max-width: 900px) { html.framed :is(.side, .auth__art) { top: auto; height: auto; } }
+
 .nav__links { display: flex; gap: 4px; margin-left: 8px; }
 .nav__links a { color: var(--text-2); font-size: var(--t-ui); padding: 8px 12px; border-radius: var(--r-sm); transition: color .2s, background .2s; }
 .nav__links a:hover { color: var(--text); background: rgb(var(--ink) / .04); }
@@ -225,20 +252,26 @@ h1 em, h2 em { font-style: normal; color: var(--text); }
 .look__coin i { width: 42px; height: 42px; border-radius: 50%;
   background: radial-gradient(circle at 34% 26%, rgb(255 255 255 / .55), transparent 24%), radial-gradient(circle at 50% 38%, var(--c1), var(--c2) 54%, var(--c3) 100%);
   box-shadow: inset 0 1px 1px rgb(255 255 255 / .55), inset 0 -4px 7px rgb(0 0 0 / .32), 0 7px 14px -7px rgb(0 0 0 / .65);
-  transition: transform .5s var(--spring), box-shadow .3s; }
-.look__coin:hover i { transform: translateY(-2px) rotate(-8deg); }
-.look__coin input:checked + i { transform: scale(1.1); box-shadow: inset 0 1px 1px rgb(255 255 255 / .55), inset 0 -4px 7px rgb(0 0 0 / .32), 0 0 0 3px var(--bg), 0 0 0 5px var(--c2), 0 10px 22px -8px var(--c2); }
+  transition: translate .45s var(--spring), scale .45s var(--spring), box-shadow .3s; }
+/* Lift on hover, grow when chosen, sink a touch under the finger: three separate properties, so a chosen coin under the
+   pointer is lifted and grown at once and nothing swaps one motion for another when it is pressed. */
+.look__coin:hover i { translate: 0 -2px; }
+.look__coin:active i { scale: .94; transition-duration: .12s; }
+.look__coin input:checked + i { scale: 1.1; box-shadow: inset 0 1px 1px rgb(255 255 255 / .55), inset 0 -4px 7px rgb(0 0 0 / .32), 0 0 0 3px var(--bg), 0 0 0 5px var(--c2), 0 10px 22px -8px var(--c2); }
 .look__coin span { font: 500 var(--t-note)/1.2 var(--sans); color: var(--muted); }
 .look__coin input:checked ~ span { color: var(--text); }
 .look__mode input:focus-visible + span, .look__coin input:focus-visible + i { outline: 2px solid var(--gold-300); outline-offset: 3px; }
 .look__note { margin: 10px 0 0; font-size: var(--t-note); color: var(--muted); max-width: 46ch; }
 .look__sync { margin: 0; font-size: var(--t-note); color: var(--muted); }
 .look__sync[data-state="failed"] { color: var(--text-2); }
-:root[data-motion="off"] .look__coin i { transform: none; }
+:root[data-motion="off"] .look__coin i { translate: none; transition: none; }
 /* A new look opens out of the coin (or theme button) that was pressed, over the old one: one paint, on the
    compositor. Only for a press; a page that loads draws its stored look straight away. */
 html.look-vt::view-transition-old(root) { animation: none; }
-html.look-vt::view-transition-new(root) { animation: look-in .72s cubic-bezier(.65, 0, .25, 1) both; }
+/* Out fast and settling (it was an ease-in-out, which showed nothing for the first tenth of a second and read as a lag),
+   and the pictures never take the pointer, so the coin under it keeps its hover through the change. */
+html.look-vt::view-transition { pointer-events: none; }
+html.look-vt::view-transition-new(root) { animation: look-in .6s cubic-bezier(.22, 1, .36, 1) both; }
 @keyframes look-in { from { clip-path: circle(0 at var(--look-x, 50%) var(--look-y, 50%)); } to { clip-path: circle(150vmax at var(--look-x, 50%) var(--look-y, 50%)); } }
 
 /* Light, dark or automatic (see look.js). */

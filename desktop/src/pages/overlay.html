@@ -13,7 +13,7 @@
   /* The app's accent (look.js, from main.js), drawn on the island's own dark fill in every theme: the island is a
      dynamic island, dark like the marks' tiles, so it reads the same over any page. --live-* is the accent as light,
      for the line, the tint and the marks. */
-  :root { --sheet: #0c0d10; --ink: #e9e6df; --ink-2: #cfcbc1; --ink-3: #b9b5ab; --ink-4: #a09c93; --edge: #3a3b40;
+  :root { --sheet: #0c0d10; --ink: var(--text, #e9e6df); --ink-2: var(--text-2, #cfcbc1); --ink-3: var(--muted, #b9b5ab); --ink-4: var(--faint, #a09c93); --edge: #3a3b40;
     --btn: #1a1c21; --btn-hi: #24272d; --hair: rgba(255, 255, 255, .1); --hair-2: rgba(255, 255, 255, .08); }
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font: var(--t-note)/1.4 var(--sans); color: var(--ink); }
   * { box-sizing: border-box; }

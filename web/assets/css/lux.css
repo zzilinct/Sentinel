@@ -60,8 +60,8 @@
 body::before {
   background:
     radial-gradient(40vmax 32vmax at 12% 6%, rgb(var(--gold-rgb) / .16), transparent 70%),
-    radial-gradient(34vmax 34vmax at 92% 40%, rgb(239 230 212 / .06), transparent 70%),
-    radial-gradient(48vmax 30vmax at 50% 104%, rgb(160 110 50 / .14), transparent 70%);
+    radial-gradient(34vmax 34vmax at 92% 40%, rgb(var(--haze-rgb) / .06), transparent 70%),
+    radial-gradient(48vmax 30vmax at 50% 104%, rgb(var(--glow-rgb) / .14), transparent 70%);
   animation-duration: 46s;
 }
 /* Film grain over the whole page. */

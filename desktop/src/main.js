@@ -353,11 +353,15 @@ function createWindow() {
     // The look's own ground (applyLook has set Windows' light or dark by now), so a light look never opens on black.
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0c0d10' : '#f6f4ef',
     title: 'Sentinel',
-    icon: ICON,
+    icon: windowIcon(look().accent),
     autoHideMenuBar: true,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // Windows: no white system bar. The page draws its own in the look (sentinel.css .frame, boot.js) and Windows'
+    // three buttons sit over it in the look's ink (frameButtons()).
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : process.platform === 'win32' ? 'hidden' : 'default',
+    ...(process.platform === 'win32' ? { titleBarOverlay: frameButtons(look()) } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      additionalArguments: process.platform === 'win32' ? ['--sentinel-framed'] : [],
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -809,10 +813,36 @@ function trayImage(accent) {
  * prefers-color-scheme), the island and its marks, the tray icon, and the file the companion's popup asks the app's
  * server for (GET /api/v1/look). The taskbar and installer icons are files in the installer and stay gold.
  */
+const windowIcons = new Map();
+/** The window's and taskbar's mark, cast in the accent like the tray's. Gold is the installer's own file. */
+function windowIcon(accent) {
+  if (accent === 'gold' || process.platform === 'darwin') return ICON;
+  if (!windowIcons.has(accent)) {
+    const image = nativeImage.createEmpty();
+    for (const [name, scaleFactor] of [['icon32.png', 1], ['icon48.png', 1.5], ['icon128.png', 4]]) {
+      const base = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', name));
+      if (base.isEmpty()) continue;
+      const size = base.getSize();
+      image.addRepresentation({ scaleFactor, width: size.width, height: size.height, dataURL: nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), size).toDataURL() });
+    }
+    windowIcons.set(accent, image.isEmpty() ? ICON : image);
+  }
+  return windowIcons.get(accent);
+}
+/** Windows' minimise, maximise and close over the page's own title bar: on nothing (the page's ground shows through), in its ink. */
+const FRAME_H = 36;
+function frameButtons(l) {
+  const scheme = l.mode === 'auto' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : l.mode;
+  return { color: '#00000000', symbolColor: Look.ramp(l.accent, scheme)['--text'] || Look.PAGE[scheme].text, height: FRAME_H };
+}
 function applyLook(l) {
   nativeTheme.themeSource = l.mode === 'auto' ? 'system' : l.mode;
   overlay.setLook(l);
   if (tray) tray.setImage(trayImage(l.accent));
+  if (win && !win.isDestroyed()) {
+    win.setIcon(windowIcon(l.accent));
+    if (process.platform === 'win32') win.setTitleBarOverlay(frameButtons(l));
+  }
   try { require('fs').writeFileSync(path.join(app.getPath('userData'), 'look.json'), JSON.stringify(l)); } catch { /* the companion keeps the look it has */ }
 }
 
@@ -2064,6 +2094,8 @@ app.whenReady().then(() => {
   store.init(app.getPath('userData'), safeStorage);
   // Before any window: the first one is drawn in the chosen look.
   step('look', () => applyLook(look()));
+  // Auto: Windows turning light or dark repaints the pages by themselves; the title bar's buttons follow here.
+  nativeTheme.on('updated', () => { if (win && !win.isDestroyed() && process.platform === 'win32' && look().mode === 'auto') win.setTitleBarOverlay(frameButtons(look())); });
   lock = parentlock.create(store);
   // A run that ended without quitting (Windows shutting down, Task Manager, or a crash) left nothing in the log at all.
   step('last run', () => {
