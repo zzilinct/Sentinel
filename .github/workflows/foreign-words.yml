@@ -1,12 +1,12 @@
 # Makes the FOREIGN_WORDS list in server/lib/scan/lists.js (scripts/foreign-words.js) from hermitdave/FrequencyWords
 # (content CC BY-SA 4.0): real words in six languages spelled close to a protected brand. Runs only when the script
-# changes. The words are printed in the log and kept as an artifact, then committed by hand. Nothing else is fetched.
+# changes, on a words/ branch of its own (no other workflow runs there). The words are printed in the log and kept as an artifact, then committed by hand. Nothing else is fetched.
 name: Foreign words
 
 on:
   workflow_dispatch:
   push:
-    branches: ['work/**']
+    branches: ['words/**']
     paths: ['scripts/foreign-words.js', '.github/workflows/foreign-words.yml']
 
 permissions:
