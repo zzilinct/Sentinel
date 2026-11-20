@@ -40,6 +40,9 @@ function near(text, tokens) {
   for (const line of String(text).split(/\r?\n/)) {
     const w = fold(line.split(' ')[0]);
     if (!w || w.length < 5 || tokens.includes(w) || isRealWords(w) || L.NOT_LOOKALIKES.has(w)) continue;   // known already
+    // A word that reads as the brand at a glance (i for l, a doubled letter) stays a look-alike, word or not.
+    const il = (s) => s.replace(/i/g, 'l').replace(/(.)\1+/g, '$1');
+    if (tokens.some((t) => il(w) === il(t))) continue;
     const hit = tokens.some((t) => {
       const d = levenshtein(w, t);
       if ((d > 0 && d <= (t.length >= 9 ? 2 : 1)) || swapped(w, t)) return true;

@@ -121,8 +121,45 @@ const NOT_LOOKALIKES = new Set([
   'outlooks', 'shoppe', 'discords', 'amazin', 'infinity', 'horizon', 'venom', 'adobo'
 ]);
 
-// Filled from scripts/foreign-words.js.
-const FOREIGN_WORDS = new Set([]);
+/**
+ * Real words in Spanish, German, French, Portuguese, Italian and Dutch that the look-alike test would take for a
+ * misspelled brand ("welle" is German for wave, not wells; "correo" is Spanish for mail). Read like English words
+ * (url.js, brandInfo): a small note, not a disguise. Never part of the English word list, which also decides U22's
+ * brand-plus-word rule and what counts as a typed mash.
+ *
+ * Made by scripts/foreign-words.js on GitHub's machines from hermitdave/FrequencyWords, 2018 (the 50,000 most frequent
+ * words of OpenSubtitles2018 per language; https://github.com/hermitdave/FrequencyWords, content CC BY-SA 4.0), then
+ * read through by hand: first names and words built on a brand ("googlen", "amazone", "tresor") taken out. This
+ * list is an adaptation of that content and is shared under the same licence, CC BY-SA 4.0.
+ */
+const FOREIGN_WORDS = new Set([
+  'aanrander', 'akuten', 'amaron', 'aposte', 'apostelen', 'apostemos', 'appele', 'appli', 'arame', 'arames', 'armazon', 'auskosten',
+  'auslost', 'ausloste', 'auspusten', 'battent', 'baver', 'bercario', 'braken', 'bruist', 'calmarte', 'calmarti', 'capitaine', 'capitale',
+  'celle', 'chale', 'chame', 'chave', 'chopee', 'clase', 'correas', 'correios', 'corremos', 'correo', 'correrse', 'corres',
+  'corresponda', 'correspondaient', 'correspondait', 'correspondance', 'correspondances', 'correspondant', 'corresponde', 'correspondem', 'corresponden', 'correspondencia', 'correspondencias', 'correspondente',
+  'correspondentes', 'correspondentie', 'corresponder', 'correspondeu', 'correspondia', 'correspondido', 'correspondiente', 'correspondientes', 'correspondrait', 'correspondre', 'corresponsal', 'corresponsales',
+  'corresse', 'correste', 'corretos', 'corrosao', 'corrosif', 'corrosivo', 'cosaco', 'costo', 'dedicare', 'delle', 'discorda', 'discordam',
+  'discordamos', 'discordar', 'discorde', 'discordia', 'discorsetto', 'discorsi', 'discorso', 'disordinata', 'disordinato', 'disordine', 'disordini', 'draken',
+  'druist', 'estrade', 'etripe', 'evolutie', 'evolutionaire', 'evolutiva', 'evolutivo', 'extrade', 'feder', 'fedes', 'felle', 'financee',
+  'financeira', 'financeiramente', 'financeiras', 'financeiro', 'financeiros', 'financement', 'financements', 'financent', 'financer', 'gaver', 'helle', 'induit',
+  'instalaram', 'integracao', 'integracion', 'intendo', 'intendono', 'intera', 'interacao', 'interaccao', 'interaccion', 'interacciones', 'interaccoes', 'interactie',
+  'interactief', 'interacties', 'interactieve', 'interactivo', 'interactuar', 'interagieren', 'interagir', 'interagire', 'interaktion', 'interamente', 'interazione', 'interazioni',
+  'intercambiado', 'intercambiamos', 'intercambian', 'intercambiando', 'intercambiar', 'intercambiaron', 'intercepcao', 'intercepcion', 'interceptacao', 'interceptada', 'interceptado', 'interceptamos',
+  'interceptar', 'interceptarlo', 'intercepte', 'interceptes', 'intercepto', 'interceptou', 'intercetta', 'intercettando', 'intercettare', 'intercettarlo', 'intercettata', 'intercettati',
+  'intercettato', 'intercettazione', 'intercettazioni', 'intercomunicador', 'interfaccia', 'internacionais', 'internacional', 'internacionales', 'internacionalmente', 'intracraneal', 'intracraniana', 'intracranica',
+  'intracranienne', 'intuito', 'inuit', 'kaken', 'kelle', 'kragen', 'krahen', 'krake', 'kraker', 'kralen', 'kramen', 'kranen',
+  'kranken', 'kruist', 'kwaken', 'leder', 'manzo', 'mediare', 'medicale', 'medicalement', 'medicamente', 'medicamento', 'medicamentos', 'meditare',
+  'mendicare', 'mercadillo', 'mercati', 'mercatini', 'mercatino', 'mercearia', 'mercearias', 'mercerie', 'mercurio', 'mercurius', 'mobiletto', 'monto',
+  'monzon', 'mozzo', 'nacer', 'nader', 'nager', 'naher', 'navet', 'navre', 'nelle', 'openstaan', 'openstaande', 'openstaat',
+  'operai', 'pantomima', 'pelle', 'phanomen', 'phanomenal', 'phanomene', 'phantombild', 'phantome', 'porton', 'raken', 'raketenwerfer', 'resolutie',
+  'revoloteando', 'revoltada', 'revoltado', 'revoltant', 'revoltar', 'revoltas', 'revoltes', 'revolu', 'revolucao', 'revolucion', 'revolucionar', 'revolucionaria',
+  'revolucionarias', 'revolucionario', 'revolucionarios', 'revoluciones', 'revolucoes', 'revolue', 'revolutie', 'revoluties', 'revolutionaire', 'revolutionairen', 'revolutionar', 'revolutionare',
+  'revolutionaren', 'revolutionen', 'revolutionieren', 'revolutionnaire', 'revolutionnaires', 'revolutionne', 'revolutionner', 'rhein', 'schein', 'schwan', 'stirpe', 'strade',
+  'stram', 'surpasse', 'surpassee', 'surpassent', 'surpasser', 'tecla', 'telegraaf', 'telegrafieren', 'telegrafiert', 'telegrafo', 'telegrafos',
+  'telegramma', 'telegrammi', 'telegraphe', 'telegraphie', 'telle', 'trist', 'trugst', 'unhold', 'unpassend', 'unpasslich', 'venco',
+  'vendo', 'vengo', 'venho', 'vento', 'verzon', 'verzonden', 'verzonken', 'verzonnen', 'welle', 'zellen', 'zelte',
+  'zelve', 'zonzo'
+]);
 
 const URL_SHORTENERS = new Set([
   'bit.ly', 'tinyurl.com', 'goo.gl', 't.co', 'ow.ly', 'is.gd', 'buff.ly', 'cutt.ly',
