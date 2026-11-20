@@ -13,8 +13,8 @@
  * referring subnets, published under Creative Commons Attribution 3.0. Only the names of the top TOP are kept.
  * Nothing is opened, resolved or looked up.
  *
- * Not the false-alarm gate's sample (scripts/fpgate/domains.txt): the gate judges the address rules alone
- * (server/lib/scan/offline.js), which never read this list.
+ * Not the false-alarm gate's sample (scripts/fpgate/domains.txt). The address rules read this list in one place: a
+ * name on it spelled near a brand is a name of its own, and a one-letter-off copy of one is noticed (url.brandInfo).
  */
 const fs = require('fs');
 const path = require('path');
