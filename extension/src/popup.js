@@ -48,11 +48,12 @@
       return `<p class="status small" data-live="Off">Live scanning is not in this plan. <a class="link" href="${esc(site)}/pricing" target="_blank" rel="noopener">See plans</a></p>`;
     }
     const said = Say.protection(state);
-    // Plans with delicate scanning show its allowance; Free shows its fast minutes.
+    // Delicate scanning, when it is chosen in Settings, shows its allowance; otherwise the fast minutes.
+    const delicate = f.liveScanning && state.settings && state.settings.liveMode === 'delicate';
     const limits = state.account.plan.limits;
-    const used = (f.liveScanning ? state.live.usedMinutes : state.live.fastUsedMinutes) || 0;
-    const known = f.liveScanning ? state.live.limitMinutes : state.live.fastLimitMinutes;
-    const limit = known !== undefined && known !== 0 ? known : (f.liveScanning ? limits.liveMinutes : limits.fastMinutes);
+    const used = (delicate ? state.live.usedMinutes : state.live.fastUsedMinutes) || 0;
+    const known = delicate ? state.live.limitMinutes : state.live.fastLimitMinutes;
+    const limit = known !== undefined && known !== 0 ? known : (delicate ? limits.liveMinutes : limits.fastMinutes);
     const time = said.word === 'On' ? `<span>${timeLeftText(used, limit)}</span>` : '';
     return `<p class="status small" data-live="${said.word}"><b data-tone="${said.tone}">Live scanning ${said.word.toLowerCase()}</b>${time}</p>${said.word === 'On' ? '' : `<p class="status-why small">${esc(said.line)}</p>`}`;
   }

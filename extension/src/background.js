@@ -55,6 +55,11 @@ const isFlagged = (v) => Boolean(v && v.overall && (v.overall.badge === 'red' ||
 const features = () => (account.plan && account.plan.features) || {};
 /** Fast live scanning is on every plan; delicate (liveScanning) from Pro up. */
 const hasLive = () => Boolean(features().liveScanning || features().liveFast);
+/** Delicate scanning only when it is chosen in Settings (and in the plan): it looks each site up with its registry. */
+const delicateOn = (settings) => Boolean(features().liveScanning && features().liveResearch && settings.liveMode === 'delicate');
+const liveMode = (settings) => (delicateOn(settings) ? 'delicate' : 'fast');
+/** A page's address without its fragment, which only the page itself reads (a sign-in token can sit there). */
+const sendable = (url, isPrivate) => String(url).replace(isPrivate ? /[?#].*$/ : /#.*$/, '');
 
 function liveBlockReason() {
   if (!account.signedIn) return 'signed_out';
@@ -245,7 +250,8 @@ async function closeFlagged({ tabId, url }) {
 async function liveBatch(urls, phase, isPrivate = false) {
   const blocked = liveBlockReason();
   if (blocked) return { locked: blocked };
-  if (phase === 'research' && !features().liveResearch) return { locked: 'plan', verdicts: {} };
+  const settings = await getSettings();
+  if (phase === 'research' && !delicateOn(settings)) return { locked: 'fast', verdicts: {} };
 
   const out = {};
   const pending = [];
@@ -258,7 +264,7 @@ async function liveBatch(urls, phase, isPrivate = false) {
     try {
       // Plans without delicate ask for fast outright: once Free's fast minutes are used up, a
       // delicate request would come back as plan_required instead of live_hours_exhausted.
-      const mode = features().liveScanning ? 'delicate' : 'fast';
+      const mode = liveMode(settings);
       const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate }, timeout: phase === 'research' ? 90000 : 20000 });
       noteLive(data.live);
       for (const [url, verdict] of Object.entries(data.byUrl)) {
@@ -305,16 +311,15 @@ async function onNavigate(details) {
   let verdict = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url);
   if (!verdict) {
     try {
-      // From a private window only the page's address without its query goes out, and nothing about it is kept.
+      // Never the part after # (the page's own); from a private window not the query either, and nothing about it is kept.
       const tab = await ext.tabs.get(details.tabId).catch(() => null);
       const isPrivate = Boolean(tab && tab.incognito);
-      const url = isPrivate ? details.url.replace(/[?#].*$/, '') : details.url;
-      const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url, private: isPrivate }, timeout: 30000 });
+      const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: sendable(details.url, isPrivate), mode: liveMode(settings), private: isPrivate }, timeout: 30000 });
       noteLive(data.live);
       // Before you pay (server/lib/scan/paycheck.js): kept with the verdict, so a checkout opened again says it again.
       verdict = data.pay ? { ...data.verdict, pay: data.pay } : data.verdict;
       if (data.paypage) verdict = { ...verdict, paypage: data.paypage };
-      cacheSet(features().liveResearch ? 'research' : 'quick', details.url, verdict, isPrivate);
+      cacheSet(delicateOn(settings) ? 'research' : 'quick', details.url, verdict, isPrivate);
     } catch (err) {
       handleApiError(err);
       return;
@@ -388,9 +393,10 @@ async function realSiteFor(details) {
   try {
     const tab = await ext.tabs.get(details.tabId).catch(() => null);
     const isPrivate = Boolean(tab && tab.incognito);
-    const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: isPrivate ? details.url.replace(/[?#].*$/, '') : details.url, private: isPrivate }, timeout: 8000 });
+    const settings = await getSettings();
+    const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: sendable(details.url, isPrivate), mode: liveMode(settings), private: isPrivate }, timeout: 8000 });
     noteLive(data.live);
-    cacheSet(features().liveResearch ? 'research' : 'quick', details.url, data.verdict, isPrivate);
+    cacheSet(delicateOn(settings) ? 'research' : 'quick', details.url, data.verdict, isPrivate);
     return data.verdict;
   } catch (err) {
     if (err.code === 'offline') scannerAway = Date.now();

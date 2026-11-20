@@ -2005,9 +2005,10 @@ async function boot() {
     onPixels: (p) => overlay.pixels(p),
     onLog: (text) => appendLog('watch.log', `${new Date().toISOString()} # ${text}`),
     // A short on-disk trail of what live scanning checked, for the person to read. Private windows never reach here.
+    // The address without what follows ? or #: a search, a sign-in link's token or an email address can sit there.
     onChecked: (item) => {
       push('sentinel:page-checked', { ...item, browser: browserName(item.browser) });
-      appendLog('watch.log', `${new Date(item.at).toISOString()} ${item.browser} ${item.badge || 'clean'} ${item.label} ${item.url}`, 512 * 1024);
+      appendLog('watch.log', `${new Date(item.at).toISOString()} ${item.browser} ${item.badge || 'clean'} ${item.label} ${String(item.url).replace(/[?#].*$/, '')}`, 512 * 1024);
     },
     onThreat: (item) => {
       const first = item.verdict.reasons && item.verdict.reasons[0];

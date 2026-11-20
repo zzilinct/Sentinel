@@ -133,9 +133,11 @@ function register(router) {
       }],
       ['Plan and weekly usage counters', {
         plan: plans.planFor(user).id,
-        counters: counters.filter((c) => !weekly.has(c.metric)),
-        liveMinutes: all('SELECT COUNT(*) AS n FROM live_minutes WHERE user_id = ?')[0].n,
-        fastMinutes: all('SELECT COUNT(*) AS n FROM fast_minutes WHERE user_id = ?')[0].n
+        counters: counters.filter((c) => !weekly.has(c.metric))
+      }],
+      ['Which minutes live scanning was on: times only, never an address', {
+        delicate: all('SELECT minute FROM live_minutes WHERE user_id = ? ORDER BY minute').map((r) => at(r.minute * 60000)),
+        fast: all('SELECT minute FROM fast_minutes WHERE user_id = ? ORDER BY minute').map((r) => at(r.minute * 60000))
       }],
       ["Weekly counts for Your week: numbers only, such as links checked or files quarantined", counters.filter((c) => weekly.has(c.metric))],
       ['Scan history: what was checked, when, and the result', all('SELECT kind, target, mode, scam, virus, malware, kinds, created_at FROM scan_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 20000')

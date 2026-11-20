@@ -6,7 +6,8 @@
   const DEFAULTS = {
     apiBase: 'https://www.usesentinel.technology',
     enabled: true,
-    emailProtection: true,
+    liveMode: 'fast',
+    emailProtection: false,
     warnOnNavigate: true,
     marksLevel: 'all',
     warningsLevel: 'all',

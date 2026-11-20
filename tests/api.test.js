@@ -273,7 +273,11 @@ test('max plan: 100/week, 24 h delicate, unlimited fast, manual email scans', as
   assert.equal(me.data.usage.liveMinutes.limit, 24 * 60);
   assert.equal(me.data.usage.fastMinutes.limit, null, 'fast is uncapped');
 
-  const live = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'], research: true });
+  // Delicate looks each site up with its registry, so it is only ever asked for: no mode named is fast.
+  const unnamed = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'] });
+  assert.equal(unnamed.data.mode, 'fast');
+  assert.equal(unnamed.data.researched, false);
+  const live = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'], mode: 'delicate' });
   assert.equal(live.data.researched, true);
   assert.equal(live.data.byUrl['https://wallet-connect-restore.xyz/'].threats.scam.level, 'confirmed');
 
