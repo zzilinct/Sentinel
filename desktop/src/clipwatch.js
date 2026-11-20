@@ -18,7 +18,13 @@
  * "Wallet guard" shares it too: clipboard hijackers wait for a copied crypto address (or an IBAN) and put their own
  * in its place. When a copied address turns into a different one of the same kind within a few seconds, and no key
  * or mouse button was touched since (so the person did not copy again), Sentinel puts theirs back and tells them.
- * Addresses are compared in memory only: never sent, logged or kept beyond the last one copied.
+ * Addresses are never sent or logged.
+ *
+ * It also catches address poisoning, which needs no program on the computer: a scammer sends a tiny payment from an
+ * address whose first and last characters match one the person really pays, and waits for them to copy it from their
+ * history. For that, each crypto address copied is remembered for 30 days, in the app's own settings file: its kind,
+ * its first 4 and last 4 characters and a scrambled code (salted HMAC) of the whole, never the address. A new address
+ * of the same kind with the same ends but a different code gets one quiet note, once per pair. IBANs are not kept.
  */
 // Loaded when the check starts, so the link rules can be tested without Electron. Electron's clipboard answers with a
 // promise (it did not always): every read and write is awaited.
@@ -119,6 +125,60 @@ function walletIn(text) {
   return null;
 }
 
+// Address poisoning: how long a copied address is remembered, how many at most, and how many characters of each end.
+const SEEN_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_SEEN = 300;
+const ENDS = 4;
+
+/**
+ * The part of an address its wallet chose, without the start every address of that kind shares: 0x; bc1q, bc1p, ltc1q
+ * (the name, the 1 and the version letter); the first character of a base58 one (1 or 3, L or M, T for Tron, 4 or 8
+ * for Monero). Solana has no fixed start. Hex and bech32 ignore case, so they are lowered; base58 keeps it.
+ */
+function core(kind, text) {
+  const t = text.trim();
+  if (kind === 'evm') return t.slice(2).toLowerCase();
+  if (/^(bc|ltc)1/i.test(t)) return t.toLowerCase().replace(/^(bc|ltc)1./, '');
+  return kind === 'sol' ? t : t.slice(1);
+}
+
+const code = (salt, s) => crypto.createHmac('sha256', salt).update(s).digest('hex').slice(0, 32);
+
+/**
+ * A crypto address the person copied: remembered (its ends and code only), and compared with the ones copied in the
+ * last 30 days. True when it shares both ends with a different one of the same kind, the first time for that pair.
+ */
+function recall(now) {
+  if (!opts.memory || !now.kind || now.kind === 'iban') return false;
+  const t = Date.now();
+  const kept = opts.memory.read() || {};
+  const m = {
+    salt: kept.salt || crypto.randomBytes(16).toString('hex'),
+    seen: (kept.seen || []).filter((e) => t - e.at < SEEN_MS),
+    warned: (kept.warned || []).filter((e) => t - e.at < SEEN_MS)
+  };
+  const c = core(now.kind, now.text);
+  const id = code(m.salt, `${now.kind}:${c}`);
+  const mine = { k: now.kind, h: c.slice(0, ENDS), t: c.slice(-ENDS), id, at: t };
+  const same = m.seen.find((e) => e.id === id);
+  let warn = false;
+  if (same) same.at = t;
+  else {
+    for (const e of m.seen) {
+      if (e.k !== mine.k || e.h !== mine.h || e.t !== mine.t) continue;
+      const pair = code(m.salt, [e.id, id].sort().join(':'));
+      if (m.warned.some((w) => w.id === pair)) continue;
+      m.warned.push({ id: pair, at: t });
+      warn = true;
+    }
+    m.seen.push(mine);
+  }
+  m.seen = m.seen.slice(-MAX_SEEN);
+  m.warned = m.warned.slice(-MAX_SEEN);
+  opts.memory.write(m);
+  return warn;
+}
+
 /**
  * A swap: `now` (an address of some kind at time `at`, with a key or the mouse last used at `inputAt`, written by
  * `owner`) replaced `before`, of the same kind, within `windowMs`, with nothing touched since `before` was seen.
@@ -137,7 +197,14 @@ async function judge(now, windowMs) {
   // The same address again (or Sentinel's own write putting it back): still the one to guard, from now.
   if (before && now.text === before.text) { wallet = { ...before, at: now.at }; return false; }
   wallet = now.kind ? { kind: now.kind, text: now.text, at: now.at, restores: 0 } : null;
-  if (!isSwap(before, now, windowMs)) return false;
+  if (!isSwap(before, now, windowMs)) {
+    // Copied, not swapped in: remembered, and compared with the ones copied before. The clipboard is left alone.
+    if (recall(now)) {
+      if (opts.log) opts.log(`wallet address look-alike copied (${now.kind})`);
+      if (opts.onWallet) opts.onWallet({ kind: now.kind, reason: 'lookalike' });
+    }
+    return false;
+  }
   // Set before writing: the echo of Sentinel's own write must not look like a swap.
   wallet = { ...before, at: now.at, restores: before.restores + 1 };
   last = before.text;
@@ -145,7 +212,7 @@ async function judge(now, windowMs) {
   try { await clipboard().writeText(before.text); } catch { putBack = false; }
   const program = now.owner && now.owner !== 'electron' && now.owner !== 'sentinel' ? now.owner : null;
   if (opts.log) opts.log(`wallet address swap caught (${now.kind})${program ? `, written by ${program}` : ''}${putBack ? '' : ', could not put it back'}`);
-  if (opts.onWallet && before.restores === 0) opts.onWallet({ kind: now.kind, program, putBack });
+  if (opts.onWallet && before.restores === 0) opts.onWallet({ kind: now.kind, reason: 'swap', program, putBack });
   return true;
 }
 
@@ -264,7 +331,8 @@ async function tick() {
  * Started (or restarted) whenever a switch changes. options: api, log, links(), commands() and wallets() (the three
  * switches), clipOwner() (who wrote the clipboard, and ms since the last key or mouse use: { owner, idle }), listen(handler)
  * and listening() (clipboard changes heard as they happen, from the running-browsers helper), browserOpen(), browserInFront() (the browser in front, null for another program, undefined when not known),
- * page() (the page in front: { host, badge }), onDanger (a dangerous link), onCommand (a command), onWallet (a swap).
+ * page() (the page in front: { host, badge }), memory ({ read(), write(m) }: what the look-alike check keeps between
+ * starts), onDanger (a dangerous link), onCommand (a command), onWallet (a swap, or reason 'lookalike').
  */
 function start(options) {
   opts = options;
@@ -293,4 +361,4 @@ function stop() {
 /** How often the clipboard is looked at now, and how many times it was read: for the end-to-end check. */
 const status = () => ({ every, reads, running: Boolean(timer), hearing: Boolean(opts && opts.listening && opts.listening()) });
 
-module.exports = { start, stop, putBack, heldCommand, status, _test: { linkIn, stoppedLine, tick, walletIn, heard } };
+module.exports = { start, stop, putBack, heldCommand, status, _test: { linkIn, stoppedLine, tick, walletIn, heard, core } };

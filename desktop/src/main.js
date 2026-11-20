@@ -1184,8 +1184,16 @@ function syncClipboard() {
       else notify('Careful with the command you copied', `${from}${c.reason}. Only run it if you know exactly what it does and who it came from.`);
       push('sentinel:command', clipwatch.heldCommand());
     },
+    // The look-alike check's memory: ends and scrambled codes only, never an address (clipwatch.js recall).
+    memory: { read: () => store.get('walletSeen', null), write: (m) => store.set('walletSeen', m) },
     // Wallet guard: an address swapped on the clipboard. The addresses themselves never leave clipwatch.
     onWallet: (w) => {
+      // A vanity address of the person's own can share both ends with another of theirs: "compare", never "scam".
+      if (w.reason === 'lookalike') {
+        notify('Compare this wallet address before you send',
+          'This address looks like one you copied before, but it is a different address. Compare the middle before you send.', null, true);
+        return;
+      }
       tally('wallet_swaps');
       notify(
       w.putBack ? 'Sentinel put back the wallet address you copied' : 'The wallet address you copied was replaced',
@@ -1216,9 +1224,18 @@ function setClipboardCheck(enabled) {
   return { clipboardCheck: Boolean(enabled) };
 }
 
+/** The copied addresses wallet guard remembers (ends and codes only), erased. Answers { forgotten }. */
+function forgetWallets() {
+  const n = (store.get('walletSeen', null) || { seen: [] }).seen.length;
+  store.set('walletSeen', undefined);
+  return { forgotten: n };
+}
+
 /** Wallet guard: its switch. */
 function setWalletGuard(enabled) {
   store.set('walletGuard', Boolean(enabled));
+  // Off means forgotten: the look-alike check's memory goes with it.
+  if (!enabled) forgetWallets();
   syncClipboard();
   return { walletGuard: Boolean(enabled) };
 }
@@ -1529,9 +1546,9 @@ function notifyAboutFile(file, title, body, onClick) {
 // A notification nothing refers to can be garbage-collected while it is still on screen, and its click then does
 // nothing ("Put it back" among them). Each is kept until it is clicked or closed, ten minutes at most.
 const shownNotes = new Set();
-function notify(title, body, onClick) {
+function notify(title, body, onClick, silent = false) {
   if (!Notification.isSupported()) return;
-  const n = new Notification({ title, body, icon: ICON });
+  const n = new Notification({ title, body, icon: ICON, silent });
   shownNotes.add(n);
   const release = () => shownNotes.delete(n);
   setTimeout(release, 10 * 60 * 1000).unref();
@@ -1695,6 +1712,7 @@ function registerBridge() {
   handle('sentinel:defense', () => ({ ...defense.status(), enabled: store.get('defense', true), ledger: defense.ledger() }));
   handle('sentinel:set-clipboard-check', (enabled) => { lock.guard('checking copied links off', !enabled); return setClipboardCheck(Boolean(enabled)); });
   handle('sentinel:set-wallet-guard', (enabled) => { lock.guard('wallet guard off', !enabled); return setWalletGuard(Boolean(enabled)); });
+  handle('sentinel:wallet-forget', () => { lock.guard('the copied wallet addresses Sentinel remembers', true, ['erase', 'Erased']); return forgetWallets(); });
   // Not behind the parent lock: turning it off takes no protection away that was not asked for each time.
   handle('sentinel:set-snip', (enabled, key) => {
     store.set('snipCheck', Boolean(enabled));

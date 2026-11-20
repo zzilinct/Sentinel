@@ -103,8 +103,17 @@ public static class K {
   [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int index);
   public static string ExStyle(long h) { return GetWindowLong(new IntPtr(h), -20).ToString("x8"); }
   public static void Tap(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, UIntPtr w, string l, uint flags, uint ms, out UIntPtr r);
+  public static void ThemeChanged() { UIntPtr r; SendMessageTimeout((IntPtr)0xffff, 0x1A, UIntPtr.Zero, "ImmersiveColorSet", 2, 3000, out r); }
 }
 "@
+# Windows' light (1) or dark (0) theme, for photographs of notifications in both. The runner's, never a person's.
+function SetTheme($light) {
+  $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+  Set-ItemProperty $k AppsUseLightTheme $light -Type DWord -ErrorAction SilentlyContinue
+  Set-ItemProperty $k SystemUsesLightTheme $light -Type DWord -ErrorAction SilentlyContinue
+  [K]::ThemeChanged()
+}
 $shot = 0
 # The whole screen as it is now: Windows Forms keeps the size it saw first, and the screen changes size below.
 function Shot($name) {

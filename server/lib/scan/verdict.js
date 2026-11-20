@@ -39,7 +39,7 @@ function levelFor(score, evidence) {
 // rents it, nearly always a real company. Words or shape in that name and path are never enough to call it a scam:
 // without evidence it stays at most "Nothing conclusive", unless it really impersonates a brand (a brand it does not
 // own, next to sign-in or verify wording, or on a web page). Files it serves are still judged as downloads (virus).
-const IMPERSONATION_IDS = ['U22', 'U23', 'U24', 'U37', 'U40', 'X01', 'P01'];
+const IMPERSONATION_IDS = ['U22', 'U23', 'U24', 'U37', 'U40', 'X01', 'X02', 'P01'];
 const CREDENTIAL_IDS = ['U25', 'U37', 'U41', 'P02', 'P03', 'P05', 'P06'];
 const KIT_IDS = ['C03', 'C04', 'C05'];
 const STORAGE_CAP = 29;

@@ -59,7 +59,7 @@ test('an address swapped with no key or mouse touched goes back, once named and 
     assert.equal(cw.status().every, 500, 'an address raises the pace for a few seconds');
     fake.board = BTC_B; await cw._test.tick();
     assert.equal(fake.board, BTC_A, 'the copied address is back');
-    assert.deepEqual(swaps, [{ kind: 'btc', program: 'stealer', putBack: true }]);
+    assert.deepEqual(swaps, [{ kind: 'btc', reason: 'swap', program: 'stealer', putBack: true }]);
     assert.match(logs.join('\n'), /wallet address swap caught \(btc\), written by stealer/);
 
     // It swaps again each time: put back, but the person is told only once, and after three times Sentinel stops.
@@ -113,7 +113,7 @@ test('heard as it happens, a swap 5 ms after the copy is caught; the echo of Sen
     ear({ tick: 1005, idle: 45, owner: 'stealer', text: BTC_B });
     await flush();
     assert.equal(fake.board, BTC_A);
-    assert.deepEqual(swaps, [{ kind: 'btc', program: 'stealer', putBack: true }]);
+    assert.deepEqual(swaps, [{ kind: 'btc', reason: 'swap', program: 'stealer', putBack: true }]);
     ear({ tick: 1010, idle: 50, owner: 'sentinel', text: BTC_A });   // Sentinel's own write, heard back
     await flush();
     assert.equal(swaps.length, 1);
@@ -139,6 +139,90 @@ test('heard as it happens, a swap 5 ms after the copy is caught; the echo of Sen
     assert.equal(cw.status().hearing, true);
   } finally { restore(); }
   assert.equal(ear, null, 'stopped: no longer listening');
+});
+
+// Address poisoning. Every address here is made up: a fixed start and end with an invented middle, so none is anyone's.
+const evm = (head, mid, tail) => `0x${head}${mid.repeat(32).slice(0, 32)}${tail}`;
+const bech = (head, mid, tail) => `bc1q${head}${mid.repeat(30).slice(0, 30)}${tail}`;
+const REAL = evm('a1b2', '5e', 'c3d4');
+const PLANTED = evm('a1b2', '07', 'c3d4');
+
+test('a copied address that shares both ends with one copied before gets one quiet note, even after a restart', async () => {
+  let disk = null;   // the settings file, as text
+  const memory = { read: () => (disk ? JSON.parse(disk) : null), write: (m) => { disk = JSON.stringify(m); } };
+  const run = () => {
+    const l = load();
+    const notes = [];
+    const logs = [];
+    let ear = null;
+    l.cw.start({ links: () => false, commands: () => false, wallets: () => true, browserOpen: () => false, listen: (h) => { ear = h; }, listening: () => Boolean(ear), memory, log: (s) => logs.push(s), onWallet: (w) => notes.push(w) });
+    let tick = 1000;
+    // Each copy a minute apart, with Ctrl+C pressed just before: the person's own copies, never a swap.
+    const copy = async (text) => { tick += 60000; l.fake.board = text; ear({ tick, idle: 20, owner: 'notepad', text }); await new Promise((r) => setImmediate(r)); };
+    return { ...l, notes, logs, copy };
+  };
+
+  const first = run();
+  try {
+    await first.copy(REAL);
+    await first.copy(REAL);                                   // the same address again: silent
+    await first.copy(evm('a1b2', '5e', 'ffff'));              // same start, different end: silent
+    await first.copy(bech('w8k3', 'q', 'x7m2'));
+    await first.copy(bech('w8k3', 'z', 'x7m3'));              // two bc1q addresses with different ends: silent
+    assert.deepEqual(first.notes, []);
+  } finally { first.restore(); }
+
+  // A restart: the module and its memory are new, only the settings file is left.
+  const second = run();
+  try {
+    await second.copy(PLANTED);
+    assert.deepEqual(second.notes, [{ kind: 'evm', reason: 'lookalike' }], 'the planted look-alike fires');
+    assert.equal(second.fake.board, PLANTED, 'the clipboard is never changed');
+    await second.copy(REAL);
+    await second.copy(PLANTED);
+    assert.equal(second.notes.length, 1, 'each pair warns once');
+    // Upper and lower case of a hex address are one address.
+    await second.copy(`0x${REAL.slice(2).toUpperCase()}`);
+    assert.equal(second.notes.length, 1);
+    assert.deepEqual(second.logs, ['wallet address look-alike copied (evm)'], 'the log names the kind only');
+  } finally { second.restore(); }
+
+  // Never a whole address, nor any 9 characters of one, in the settings file: only the ends and codes.
+  for (const a of [REAL, PLANTED, bech('w8k3', 'q', 'x7m2')]) {
+    const c = a.toLowerCase().replace(/^0x|^bc1q/, '');
+    for (let i = 0; i + 9 <= c.length; i++) assert.ok(!disk.toLowerCase().includes(c.slice(i, i + 9)), `${c.slice(i, i + 9)} is not stored`);
+  }
+  const kept = JSON.parse(disk);
+  assert.deepEqual(Object.keys(kept.seen[0]).sort(), ['at', 'h', 'id', 'k', 't']);
+});
+
+test('a copied address is compared without the start every address of its kind shares, and an IBAN is never kept', async () => {
+  const { core } = require('../desktop/src/clipwatch.js')._test;
+  assert.equal(core('evm', '0xA1B2ffff'), 'a1b2ffff');
+  assert.equal(core('btc', 'bc1qW8K3'), 'w8k3');
+  assert.equal(core('btc', 'bc1pW8K3'), 'w8k3');
+  assert.equal(core('ltc', 'ltc1qW8K3'), 'w8k3');
+  assert.equal(core('trx', 'TAbCd'), 'AbCd', 'base58 keeps its case');
+  assert.equal(core('sol', 'AbCd'), 'AbCd');
+  const { cw, restore } = load();
+  let wrote = false;
+  let ear = null;
+  try {
+    cw.start({ links: () => false, commands: () => false, wallets: () => true, browserOpen: () => false, listen: (h) => { ear = h; }, listening: () => true, memory: { read: () => null, write: () => { wrote = true; } }, log: () => {} });
+    ear({ tick: 1000, idle: 20, owner: 'notepad', text: 'GB82WEST12345698765432' });
+    await new Promise((r) => setImmediate(r));
+    assert.equal(wrote, false);
+  } finally { restore(); }
+});
+
+test('the look-alike note says compare, never scam, makes no sound, and turning wallet guard off forgets', () => {
+  const main = read('desktop/src/main.js');
+  const note = main.split("w.reason === 'lookalike'")[1].split('return;')[0];
+  assert.match(note, /This address looks like one you copied before, but it is a different address\. Compare the middle before you send\./);
+  assert.match(note, /, null, true\)/, 'silent');
+  assert.doesNotMatch(note, /scam|—|\d+ in /i);
+  assert.match(main.split('function setWalletGuard(')[1].split('\n}')[0], /if \(!enabled\) forgetWallets\(\)/);
+  assert.match(read('web/privacy.html'), /first and last four characters/);
 });
 
 test('wallet guard is on by default on Windows, its off switch is behind the parent lock, and privacy says so', () => {

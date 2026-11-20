@@ -12,7 +12,7 @@
  */
 const L = require('./lists');
 const config = require('../../config');
-const { analyze, entropy, hostWords, levenshtein, isRealWords, isUserContent } = require('./url');
+const { analyze, entropy, hostWords, levenshtein, isRealWords, isUserContent, shownVersusReal } = require('./url');
 // Words that make an address look trustworthy, long enough that one letter off is never an ordinary word (U54).
 const TRUST_WORDS = ['support', 'account', 'security', 'service', 'billing', 'customer', 'recovery', 'password', 'verification', 'helpdesk'];
 
@@ -755,6 +755,17 @@ const KNOWLEDGE_CHECKS = [
       const resembled = [brand.lookalike, brand.inDomain, brand.inSubdomain, brand.wordLike && brand.wordLike.brand].filter(Boolean);
       const claimed = resembled.find((b) => tw.has(b.token));
       return claimed ? fail(40, `Its title says "${claimed.token}" and its address looks like ${claimed.domains[0]}, but it is not ${claimed.domains[0]}`) : pass('Its title fits its address');
+    } },
+
+  { id: 'X02', group: 'Impersonation', threat: 'scam', title: 'The link opens the site its words show',
+    run: ({ p, hint, knowledge }) => {
+      // The words of the link the person is about to follow (ctx.hint.text: the companion's and the app's hover, never
+      // from a private window). Written by whoever wrote the page or the message, so they can only add a warning.
+      // 38 marks it yellow on its own (after the unknown-site discount); it takes another sign to reach orange.
+      if (!hint || !hint.text) return skip('No link words to compare');
+      const m = shownVersusReal(hint.text, p.url, Boolean(knowledge && knowledge.wellKnown));
+      if (!m) return pass('The words fit where it goes');
+      return fail(38, m.brand ? `This link says it is ${m.shown} but opens ${m.real}` : `This link shows ${m.shown} but opens ${m.real}`);
     } },
 
   { id: 'U54', group: 'Wording', threat: 'scam', title: 'Trust words in the name are spelled right',

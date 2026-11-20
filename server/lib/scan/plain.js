@@ -76,6 +76,8 @@ const SENTENCES = {
   U49: ['brand', 'A brand name is glued to another word, and this is not the real site.', /^"([^"]+)" glued.*real site is (\S+)$/, '"$1" is glued to another word, but the real site is $2.'],
   U58: ['brand', 'A folder named after a company sits beside a sign-in page, on a site that is not that company.'],
   X01: ['brand', 'The search result claims to be a well-known brand, but the address is not theirs.', /but it is not (\S+)$/, 'The search result claims to be $1, but the address is not theirs.'],
+  X02: ['shown', 'The words of this link show one site, but it opens another.',
+    /shows (\S+) but opens (\S+)$/, 'This link shows $1 but opens $2.', /says it is (\S+) but opens (\S+)$/, 'This link says it is $1 but opens $2.'],
   Y01: ['brand', null],
   U44: ['disguise', 'The name is made to read like a different site.', READ_AS, 'The name is made to read like $1, but the real site is $2.'],
   U47: ['disguise', 'The name is made to read like a different site.', READ_AS, 'The name is made to read like $1, but the real site is $2.'],

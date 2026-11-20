@@ -606,7 +606,7 @@
           try { const r = await desktop.commandPutBack(); toast(r.ok ? `The command is back on your clipboard. ${r.message}` : r.message, r.ok ? 'success' : 'info'); } catch (err) { toast(desktopError(err), 'error'); }
         });
       } }),
-    appSwitch({ id: 'wallet-guard', group: 'guards', label: 'Wallet guard', hint: 'Some malware waits for you to copy a crypto wallet address or an IBAN and swaps in its own. If the address you copied changes by itself a moment later, Sentinel puts yours back and tells you. Compared in memory, never sent, saved or logged.',
+    appSwitch({ id: 'wallet-guard', group: 'guards', label: 'Wallet guard', hint: 'Some malware waits for you to copy a crypto wallet address or an IBAN and swaps in its own. If the address you copied changes by itself a moment later, Sentinel puts yours back and tells you. Scammers also plant an address that starts and ends like one you use: Sentinel remembers the first and last four characters of each crypto address you copy, and a scrambled code, on this computer for 30 days, and tells you when a new one only looks the same. Never sent or logged.',
       words: ['crypto', 'bitcoin', 'iban', 'bank', 'address', 'clipboard', 'swap'], method: 'setWalletGuard', hook: 'wallet-guard', on: (i) => i.walletGuard, off: (i) => onWindows(i.platform === 'win32'),
       said: (on) => (on ? 'Wallet guard is on.' : 'Wallet guard is off.') }),
     appSwitch({ id: 'remote-guard', group: 'guards', label: 'Tech-support scam shield', hint: 'When a page flagged as a scam takes the whole screen, Sentinel offers to close it. When a remote-control program such as AnyDesk or TeamViewer starts soon after a flagged page, or soon after it was downloaded, Sentinel asks whether someone on the phone told you to install it. Nothing is stopped unless you say so.',
@@ -689,7 +689,7 @@
       words: ['export', 'copy', 'gdpr', 'ccpa', 'privacy', 'download', 'json'], mount: downloadBlock },
     { id: 'history-data', group: 'data', kind: 'custom', label: 'Scan history', hint: 'Kept for 90 days. Delete one entry or all of it on the History page.', words: ['history', 'erase', 'clear', 'scans'],
       control: () => linkControl('/app/history') },
-    { id: 'live-memory', group: 'data', kind: 'block', label: 'What live scanning remembers', hint: 'Exposure alerts keep a scrambled code for each safe site you visited, for 14 days. Your sites keeps the sites you added and the ones it learned. Either can be erased here at once.',
+    { id: 'live-memory', group: 'data', kind: 'block', label: 'What live scanning remembers', hint: 'Exposure alerts keep a scrambled code for each safe site you visited, for 14 days. Your sites keeps the sites you added and the ones it learned. In the app, wallet guard keeps the ends of the crypto addresses you copied, for 30 days. Each can be erased here at once.',
       words: ['exposure', 'my sites', 'your sites', 'forget', 'erase', 'remembered'], mount: forgetBlock },
     { id: 'delete-account', group: 'data', kind: 'block', label: 'Delete account', hint: 'Permanently removes your account, history, reports and trusted sites.', words: ['remove', 'erase', 'close account', 'data'], mount: deleteBlock },
 
@@ -803,6 +803,8 @@
       exposures: ['Forget visited sites', '/live/exposures/forget', (n) => (n ? `Forgot ${n} visited site${n === 1 ? '' : 's'}, and every alert found for them.` : 'Nothing was remembered. Every alert is cleared.')],
       'my-sites': ['Forget Your sites', '/my-sites/forget', (n) => (n ? `Forgot ${n} of Your sites.` : 'Your sites held nothing to forget.')]
     };
+    // Kept by the app on this computer, not by the server: erased there.
+    if (desktop && desktop.forgetWallets) WHAT.wallets = ['Forget copied addresses', () => desktop.forgetWallets(), (n) => (n ? `Forgot ${n} copied wallet address${n === 1 ? '' : 'es'}.` : 'Wallet guard held no copied address.')];
     body.innerHTML = `<div class="set-sub set-sub--start">${Object.entries(WHAT).map(([k, [label]]) => `<button class="btn btn--sm" type="button" data-forget="${k}">${label}</button>`).join('')}</div>`;
     $$('[data-forget]', body).forEach((b) => {
       const [label, path, said] = WHAT[b.dataset.forget];
@@ -817,7 +819,7 @@
         armed = 0;
         busy(b, 'Erasing', async () => {
           try {
-            const r = await api(path, { method: 'POST', body: {} });
+            const r = await (typeof path === 'function' ? path() : api(path, { method: 'POST', body: {} }));
             toast(said(r.forgotten), 'success');
             ctx.refresh();
           } catch (err) { toast(err.message, 'error'); }

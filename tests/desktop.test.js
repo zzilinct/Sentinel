@@ -973,6 +973,16 @@ test('hover a link: the link under the resting pointer gets one mark, through re
   assert.match(SCRIPT, /-not \$hoverEl -and \$cur -eq \$lastCur -and \$cur -ne \$hoverTried/);
   assert.equal((SCRIPT.match(/FromPoint\(/g) || []).length, 2, 'one hit test for covered results, one for hover');
   assert.match(SCRIPT, /GetPhysicalCursorPos/);
+
+  // Its words (the link's name) go along, capped at 120, for a link that shows one site and opens another (X02);
+  // the reader never reads them in a private window, and the app drops them there too.
+  assert.equal(hoverLink({ u: scam, ...box, n: '  www.paypal.com \n' }, page).words, 'www.paypal.com');
+  assert.equal(hoverLink({ u: scam, ...box, n: 'x'.repeat(300) }, page).words.length, 120);
+  assert.equal('words' in hoverLink({ u: scam, ...box }, page), false);
+  assert.match(SCRIPT, /if \(\$hn -and -not \$isPrivate\) \{ \$hv\.n = \$hn\.Substring\(0, \[Math\]::Min\(120, \$hn\.Length\)\) \}/);
+  assert.match(read('desktop/src/watch.js'), /if \(page\.private\) delete link\.words;/);
+  const hints = watch._test.hintsFor([{ u: scam, words: 'www.paypal.com' }], [scam], `hover:abc`);
+  assert.deepEqual(hints, { [scam]: { title: '', query: '', text: 'www.paypal.com' } });
 });
 
 test('a page left still with nobody at the mouse or keyboard is looked at far less, and any touch ends that at once', () => {

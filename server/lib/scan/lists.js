@@ -127,6 +127,15 @@ const URL_SHORTENERS = new Set([
   'v.gd', 'qrco.de', 'shorturl.gg', 'bitly.ws', 'bitly.com', 'u.to', 'clck.ru', 'x.gd', 'bit.do', 'surl.li', 'urlz.fr'
 ]);
 
+// Email services' and mail filters' click counters: the address the reader will reach is not in the link, so the
+// link's words cannot be held against it (url.js shownVersusReal). Shorteners hide it the same way.
+const CLICK_TRACKERS = [
+  'list-manage.com', 'mailchi.mp', 'rs6.net', 'sendgrid.net', 'awstrack.me', 'mandrillapp.com', 'hubspotlinks.com',
+  'klclick.com', 'klclick1.com', 'klclick2.com', 'klclick3.com', 'sparkpostmail.com', 'exct.net', 'mlsend.com',
+  'createsend1.com', 'cmail19.com', 'cmail20.com', 'mailgun.org', 'convertkit-mail.com', 'convertkit-mail2.com',
+  'urldefense.com', 'urldefense.proofpoint.com', 'mimecast.com', 'substack.com', 'beehiiv.com', 'app.link'
+];
+
 // Free site builders and hosting subdomains: legitimate, but a favourite home for phishing kits.
 const FREE_HOSTING = [
   '000webhostapp.com', 'weebly.com', 'wixsite.com', 'firebaseapp.com', 'web.app', 'github.io',
@@ -281,7 +290,7 @@ const SCAM_KITS = [
 
 module.exports = {
   MULTI_SUFFIXES, RISKY_TLDS, KIT_FILES, ARCHIVES, PROTECTED_BRANDS, HOST_KEYWORDS, PATH_KEYWORDS, NOT_LOOKALIKES,
-  TECH_SUPPORT_WORDS, DELIVERY_WORDS, GOV_WORDS, URL_SHORTENERS, FREE_HOSTING, DYNAMIC_DNS, OBJECT_STORAGE,
+  TECH_SUPPORT_WORDS, DELIVERY_WORDS, GOV_WORDS, URL_SHORTENERS, CLICK_TRACKERS, FREE_HOSTING, DYNAMIC_DNS, OBJECT_STORAGE,
   CRYPTOMINER_HOSTS, EXECUTABLE_EXT, MACRO_DOC_EXT, ARCHIVE_EXT, DOC_EXT, FREE_MAIL_PROVIDERS,
   DEFAULT_ALLOWLIST, SEED_BLOCKLIST, SCAM_KITS, PATH_HOSTING, TENANT_PLATFORMS
 };

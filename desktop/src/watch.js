@@ -705,7 +705,11 @@ while ($true) {
             $hb = $hl.Current.BoundingRectangle
             if ($hu -is [string] -and $hu -match '^https?://' -and -not [double]::IsInfinity($hb.Width) -and $hb.Width -ge 1) {
               $hoverEl = $hl; $hoverB = $hb
-              Write-Output (@{ hover = @{ u = $hu; x = [int]$hb.X; y = [int]$hb.Y; w = [int]$hb.Width; h = [int]$hb.Height } } | ConvertTo-Json -Compress)
+              $hv = @{ u = $hu; x = [int]$hb.X; y = [int]$hb.Y; w = [int]$hb.Width; h = [int]$hb.Height }
+              # The link's words (its name), for a link that shows one site and opens another. Never in a private window.
+              $hn = [string]$hl.Current.Name
+              if ($hn -and -not $isPrivate) { $hv.n = $hn.Substring(0, [Math]::Min(120, $hn.Length)) }
+              Write-Output (@{ hover = $hv } | ConvertTo-Json -Compress)
             }
           }
         } catch { }
@@ -1404,10 +1408,10 @@ function publishMarks() {
     epoch: latestLinks.epoch,
     clip: latestLinks.clip || null,
     ends: latestLinks.ends || '',
-    checking: latestLinks.links.filter((l) => !markFor(l.u)).length,
+    checking: latestLinks.links.filter((l) => !markFor(verdictKey(l))).length,
     // `k` keeps each mark on its own element in the overlay while results scroll in and out. A hash, so no address
     // reaches the overlay window.
-    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, k: markKey(l.u), row: l.u.startsWith('mail:'), ...(markFor(l.u) || { pending: true }) }))
+    marks: latestLinks.links.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h, k: markKey(l.u), row: l.u.startsWith('mail:'), ...(markFor(verdictKey(l)) || { pending: true }) }))
   });
 }
 
@@ -1450,23 +1454,27 @@ function hintsFor(links, urls, forUrl) {
   const hints = {};
   for (const u of urls) {
     const l = links.find((x) => x.u === u);
-    if ((l && l.title) || query) hints[u] = { title: (l && l.title) || '', query };
+    if ((l && (l.title || l.words)) || query) hints[u] = { title: (l && l.title) || '', query, ...(l && l.words ? { text: l.words } : {}) };
   }
   return hints;
 }
 
+// A hovered link's verdict depends on its words too (X02): kept apart from the same address's verdict without them.
+const verdictKey = (l) => (l.words ? `${l.u}\n${l.words}` : l.u);
+
 async function checkLinks(links, page, forUrl) {
   clearTimeout(retryTimer);
-  const missing = links.map((l) => l.u).filter((u) => !markFor(u) && !pending.has(u));
-  if (!missing.length) return;
-  missing.forEach((u) => pending.add(u));
+  const waiting = links.filter((l) => !markFor(verdictKey(l)) && !pending.has(verdictKey(l)));
+  if (!waiting.length) return;
+  const missing = [...new Set(waiting.map((l) => l.u))];
+  waiting.forEach((l) => pending.add(verdictKey(l)));
   const store = (byUrl, final, fast) => {
-    for (const u of missing) {
-      const v = byUrl && byUrl[u];
+    for (const l of waiting) {
+      const v = byUrl && byUrl[l.u];
       if (!v) continue;
       const badge = (v.overall && v.overall.badge) || null;
       const kind = worstKind(v);
-      verdicts.set(u, { at: Date.now(), fast, mark: { badge, kind, label: v.overall ? v.overall.label : 'Checked', reason: badge ? reasonLine(v.reasons, kind) : '' } });
+      verdicts.set(verdictKey(l), { at: Date.now(), fast, mark: { badge, kind, label: v.overall ? v.overall.label : 'Checked', reason: badge ? reasonLine(v.reasons, kind) : '' } });
       if (final) count(page.private, badge);
     }
   };
@@ -1495,7 +1503,7 @@ async function checkLinks(links, page, forUrl) {
       }, RETRY_MS);
     }
   } finally {
-    missing.forEach((u) => pending.delete(u));
+    waiting.forEach((l) => pending.delete(verdictKey(l)));
   }
   publishMarks();
 }
@@ -1532,7 +1540,9 @@ function hoverLink(h, pageUrl) {
   let pageHost = '';
   try { pageHost = new URL(pageUrl).hostname; } catch { /* a private window: its address is not kept */ }
   if (pageHost && siteOf(u.hostname.replace(/^www\./, '')) === siteOf(pageHost.replace(/^www\./, ''))) return null;
-  return { u: u.href, x: h.x, y: h.y, w: h.w, h: h.h };
+  // Its words, as the page shows them: the scanner flags a link that shows one site and opens another (X02).
+  const words = String(h.n || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  return { u: u.href, x: h.x, y: h.y, w: h.w, h: h.h, ...(words ? { words } : {}) };
 }
 
 async function onHover(h) {
@@ -1548,10 +1558,12 @@ async function onHover(h) {
   const page = { private: Boolean(cur.private) };
   // Not an address: no search words or titles go along as hints for a hovered link (see hintsFor).
   const forUrl = `hover:${markKey(link.u)}`;
+  // The words never leave a private window, and are never logged.
+  if (page.private) delete link.words;
   latestLinks = { for: forUrl, links: [link], epoch: ++linkEpoch, hover: true };
   publishMarks();
   await checkLinks([link], page, forUrl);
-  const mark = markFor(link.u);
+  const mark = markFor(verdictKey(link));
   // Whether it was flagged, never the address.
   if (!page.private) log(`link under the pointer: ${mark ? mark.badge || 'clean' : 'not checked'}`);
 }
