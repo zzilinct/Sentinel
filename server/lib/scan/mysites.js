@@ -136,7 +136,7 @@ function imitation(p, s) {
   if (cand === name) return 'ending';
   if (extraWords(cand, name)) return 'extra';
   // A name that reads as ordinary words is its own name: "overdrive", not "onedrive" misspelled.
-  if (isRealWords(cand) || L.NOT_LOOKALIKES.has(cf)) return null;
+  if (isRealWords(cand) || L.NOT_LOOKALIKES.has(cf) || L.FOREIGN_WORDS.has(cf)) return null;
   if (cf === nf) return cand.replace(/[-_]/g, '') === name.replace(/[-_]/g, '') ? 'dash' : 'digit';
   if (nf.length < 5) return null;
   if (squash(cf) === squash(nf)) return 'double';
