@@ -344,9 +344,12 @@ function createWindow() {
   // Never bigger than the screen: at 1366x768 and 125% the work area is 1093x567, below even the smallest size, and
   // the bottom of the window sat under the taskbar out of reach.
   const area = screen.getPrimaryDisplay().workArea;
+  // Without Windows' own title bar the window is sized in device pixels and rounds up: at 150% a window as big as the
+  // work area came out 2 px wider and 1 px taller than it. Two pixels short of the edge, it fits.
+  const edge = process.platform === 'win32' ? 2 : 0;
   win = new BrowserWindow({
-    width: Math.min(1280, area.width),
-    height: Math.min(840, area.height),
+    width: Math.min(1280, area.width - edge),
+    height: Math.min(840, area.height - edge),
     minWidth: Math.min(960, area.width),
     minHeight: Math.min(640, area.height),
     show: false,

@@ -210,13 +210,20 @@ foreach ($s in @(@{ pct = 125; w = 1366; h = 768 }, @{ pct = 150; w = 1920; h = 
 [void][Qa]::SetScale(100)
 Say "scaling back: $([Qa]::Scale())"
 
-# 4b. The app window's own title bar: no white Windows bar in dark, the look's ground behind the real mark, Windows'
-# buttons over it, in every look; the bar's own pixels are read off the screen.
+# 5. Signed in (with "Stay signed in", ticked by default on the sign-in page): the right-click hands the file to the app's own scan, with the window brought forward from the tray.
 StopSentinel
 [void](StartSentinel); Start-Sleep 10
+$r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(async (x) => x.status + (x.ok ? '' : ' ' + (await x.text()).slice(0, 160))); const a = { email: 'qa-desktop-$(Get-Random)@example.com', password: 'Amber-kettle-river-58Tq' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Sam', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', Object.assign({ staySignedIn: true }, a))].join(','); })()"
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
+$paired = Until 40 { [bool](Info 'info()').pairedUserId }
+Check 'signed-in' $paired "sign-up, sign-in: $($r.value)"
+if (-not $paired) { Say "  diag: $(Cdp '127.0.0.1:4782' 'location.href')" }
+
+# 5b. The app window's own title bar (signed in, so the app's own pages and picker are there): no white Windows bar in dark, the look's ground behind the real mark, Windows'
+# buttons over it, in every look; the bar's own pixels are read off the screen.
 [void](Cdp 'main' "(process.mainModule.require('electron').BrowserWindow.getAllWindows().filter((w) => w.webContents.getURL().includes('127.0.0.1:4782')).forEach((w) => { w.show(); w.focus(); }), 1)")
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
-Start-Sleep 4
+[void](Until 30 { [string](Cdp '127.0.0.1:4782' "Boolean(window.SentinelLook && window.SentinelLook.set && document.querySelector('.frame'))").value -match 'true' })
 function PixelAt($x, $y) { $bmp = New-Object System.Drawing.Bitmap 1, 1; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$x, [int]$y, 0, 0, (New-Object System.Drawing.Size 1, 1)); $c = $bmp.GetPixel(0, 0); $g.Dispose(); $bmp.Dispose(); return $c }
 foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; accent = 'rose' }, @{ mode = 'dark'; accent = 'gold' }, @{ mode = 'light'; accent = 'gold' })) {
   $name = "frame-$($t.accent)-$($t.mode)"
@@ -229,15 +236,8 @@ foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; acc
   $tone = $(if ($t.mode -eq 'dark') { $sum -lt 150 } else { $sum -gt 600 })
   Check $name ($f[0] -eq 'true' -and $f[1] -eq 'true' -and $f[2] -notmatch 'rgba\(0, 0, 0, 0\)' -and $f[4] -eq 'true' -and [int]$f[5] -ge 28 -and $tone) "framed|mark|bar|page|buttons over it|height|words: $r; the bar's pixel on screen rgb($($px.R),$($px.G),$($px.B))"
 }
+[void](Cdp '127.0.0.1:4782' "window.SentinelLook.set({ mode: 'auto', accent: 'gold' }).then(() => 1)")
 
-# 5. Signed in (with "Stay signed in", ticked by default on the sign-in page): the right-click hands the file to the app's own scan, with the window brought forward from the tray.
-StopSentinel
-[void](StartSentinel); Start-Sleep 10
-$r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(async (x) => x.status + (x.ok ? '' : ' ' + (await x.text()).slice(0, 160))); const a = { email: 'qa-desktop-$(Get-Random)@example.com', password: 'Amber-kettle-river-58Tq' }; return [await post('/api/v1/auth/signup', Object.assign({ firstName: 'Sam', ageConfirmed: true, termsAccepted: true }, a)), await post('/api/v1/auth/login', Object.assign({ staySignedIn: true }, a))].join(','); })()"
-[void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
-$paired = Until 40 { [bool](Info 'info()').pairedUserId }
-Check 'signed-in' $paired "sign-up, sign-in: $($r.value)"
-if (-not $paired) { Say "  diag: $(Cdp '127.0.0.1:4782' 'location.href')" }
 Say (node (Join-Path $PSScriptRoot 'e2e-pro.js') "$data\sentinel.db")
 $inCases = @(
   @{ id = 'in-emoji'; name = "Holiday $emoji photos list.txt"; want = 'No threats found' },
