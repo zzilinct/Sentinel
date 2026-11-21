@@ -53,7 +53,8 @@ function repaint(text) {
       else if (f[0] === 'F' && lastPx) { if (!firstF) firstF = Number(f[1]); followed = Math.max(followed, Math.abs(Number(f[3]))); }
       else if (f[0] === 'S' && f[4] === 'settle') { via = 'settle'; ms = lastPx ? Number(f[1]) - lastPx : null; }
       else if (f[0] === 'S') moved = true;
-      else if (f[0] === 'M' && f.includes('fresh') && firstF) { via = 'fresh read'; ms = Math.round(Number(f[1]) - firstF); }
+      // No F before it: the marks stood still (they stepped aside, 1.21.1), so nothing was off to be put right.
+      else if (f[0] === 'M' && f.includes('fresh') && lastPx) { via = 'fresh read'; ms = firstF ? Math.round(Number(f[1]) - firstF) : 0; }
     } else if (f[0] === 'K') { yAfter = Number(f[2]); break; }
   }
   return { px: Math.round(px), ms, via, moved, yBefore, yAfter, followed: Math.round(followed), ...atRest(text) };
@@ -73,7 +74,7 @@ if (require.main === module && process.argv[3] === '--repaint') {
   else if (process.argv[5] === 'settle' && r.via !== 'settle') { console.log(`marks on ${label}: put right by a ${r.via}, not a settle, ${r.ms} ms after the pixels moved ${r.px} px`); process.exitCode = 1; }
   else if (r.ms > SETTLE_MS || r.off > 4 || (r.yBefore !== null && (r.yAfter === null || Math.abs(r.yAfter - r.yBefore) > 4))) {
     console.log(`marks on ${label}: put right by a ${r.via} ${r.ms} ms after the pixels moved ${r.px} px; flagged mark at ${r.yAfter}, its row at ${r.yBefore}; at rest ${r.off} px off`); process.exitCode = 1;
-  } else console.log(`marks on ${label}: the pixels saw ${r.px} px the rows never moved; put right by a ${r.via} ${r.ms} ms later, the flagged mark back on its row (${r.yBefore})`);
+  } else console.log(`marks on ${label}: the pixels saw ${r.px} px the rows never moved; the marks ${r.followed ? `followed ${r.followed} px and were put right` : 'stood still, stepped aside, and were shown again'} by a ${r.via}${r.followed || r.via === 'settle' ? ` ${r.ms} ms later` : ''}, the flagged mark on its row (${r.yBefore})`);
 } else if (require.main === module && process.argv[3] === '--tab') {
   const r = tabSwitch(fs.readFileSync(process.argv[2], 'utf8'));
   const label = process.argv[4] || 'a new tab';
