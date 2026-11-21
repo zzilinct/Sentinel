@@ -27,6 +27,19 @@ function ordinaryWords() {
   for (const w of COMMON_SHORT_WORDS) WORDS.add(w);
   return WORDS;
 }
+/*
+ * The most linked-to sites on the web (wellknown.txt, made by scripts/wellknown.js; its header names the source and
+ * licence). Read once. Where it is not shipped (the website's in-browser check) the set is empty and nothing changes.
+ */
+let POPULAR = null;
+function popularSites() {
+  if (POPULAR) return POPULAR;
+  let text = '';
+  try { text = String(require('fs').readFileSync(require('path').join(__dirname, 'wellknown.txt'), 'utf8') || ''); } catch { /* not shipped */ }
+  POPULAR = new Set(text.split(/\r?\n/).filter((l) => l && !l.startsWith('#')));
+  return POPULAR;
+}
+
 /** Is this name one to three ordinary words ("overdrive", "over-drive", "bluewater")? */
 function isRealWords(name) {
   const W = ordinaryWords();
@@ -421,7 +434,7 @@ function isUserContent(host) {
  *   owner     the brand that owns the registrable domain (so the name is not borrowed)
  *   official  the same, unless the page is user content on that brand's platform
  */
-function brandInfo(p) {
+function brandInfo(p, popular = popularSites()) {
   if (p.isIp) return { official: null, owner: null, inDomain: null, inSubdomain: null, lookalike: null };
   const sldFlat = deskin(p.sld);
   let owner = null;
@@ -459,6 +472,9 @@ function brandInfo(p) {
   // On a free hosting platform the name in front ("xfinitymaillog.weebly.com") is chosen by whoever made the page,
   // and run-on names are the norm there: a brand of six letters or more inside it counts, not only eight or more.
   const substringMin = p.hosting ? 6 : 8;
+  // One of the most linked-to sites on the web (see isWellKnown) has a name of its own: elle.com is not Zelle,
+  // lacoste.com is not La Poste. Only a spelling near a brand is relieved, never a disguise (see lookAlikeLetters).
+  const listed = popular.has(p.registrable) && isWellKnown(p, popular);
   for (const brand of L.PROTECTED_BRANDS) {
     const t = brand.token;
     // Short or common-word brands ("chase", "apple", "ups") only count as whole
@@ -516,16 +532,71 @@ function brandInfo(p) {
           const raw = rawOf.get(part) || part;
           const real = isRealWords(raw) || L.FOREIGN_WORDS.has(raw.toLowerCase());
           if (!doubled && real) { if (!wordLike) wordLike = { brand, word: raw }; continue; }
-          lookalike = brand;
           // "paypai", "robloxx": the same word at a glance. Not "goggles", a real word whose doubled letter is its own.
           const il = (s) => s.replace(/i/g, 'l');
-          visual = !real && (doubled || (part.length === t.length && il(part) === il(t)));
+          const eyeTwin = doubled || (part.length === t.length && il(part) === il(t));
+          if (listed && !eyeTwin && !lookAlikeLetters(raw)) { if (!wordLike) wordLike = { brand, word: raw, why: 'popular' }; continue; }
+          lookalike = brand;
+          visual = !real && eyeTwin;
           break;
         }
       }
     }
   }
-  return { official: null, owner: null, inDomain, inSubdomain, lookalike, visual, idn, wordLike: lookalike ? null : wordLike };
+  const popularLookalike = lookalike || wordLike || inDomain || inSubdomain ? null : popularCopy(p, sldFlat, popular);
+  return { official: null, owner: null, inDomain, inSubdomain, lookalike, visual, idn, wordLike: lookalike ? null : wordLike, popularLookalike };
+}
+
+/** A digit, "rn", "vv" or a sign standing in for a letter ("g00gle", "rnicrosoft"): a disguise, never a name of its own. */
+function lookAlikeLetters(raw) {
+  return deskin(raw) !== String(raw).toLowerCase().replace(/[^a-z]/g, '');
+}
+
+// The popular sites' names of eight letters or more (name -> site), and by length, made once per list.
+let popularIndex = { from: null };
+function popularNames(popular) {
+  if (popularIndex.from === popular) return popularIndex;
+  const sites = new Map();
+  const byLength = new Map();
+  for (const site of popular) {
+    const name = site.split('.')[0];
+    if (!/^[a-z]{8,}$/.test(name) || sites.has(name)) continue;
+    sites.set(name, site);
+    if (!byLength.has(name.length)) byLength.set(name.length, []);
+    byLength.get(name.length).push(name);
+  }
+  popularIndex = { from: popular, sites, byLength };
+  return popularIndex;
+}
+
+/**
+ * A copy of a popular site that is not a protected brand: one letter changed, added, left out, two side by side
+ * swapped, or a digit for a letter ("wikipedla" for wikipedia.org). Returns the popular site, or null. Never a popular
+ * site itself, never ordinary words, and never the same name on another ending (wikipedia.de).
+ */
+function popularCopy(p, sldFlat, popular) {
+  // The name as written, letters only ("techcrunch" keeps its "rn"), and as read (sldFlat: digits undone).
+  const plain = p.sld.toLowerCase().replace(/[^a-z]/g, '');
+  if (!popular.size || popular.has(p.registrable) || Math.max(plain.length, sldFlat.length) < 7 || L.NOT_LOOKALIKES.has(sldFlat) || isRealWords(p.sld)) return null;
+  const { sites, byLength } = popularNames(popular);
+  // The popular name itself on another ending is the same site's country address (wikipedia.de).
+  if (sites.has(plain)) return null;
+  if (sites.has(sldFlat)) return sites.get(sldFlat);   // a digit for a letter
+  for (const form of new Set([plain, sldFlat])) {
+    for (const n of [form.length - 1, form.length, form.length + 1]) {
+      for (const name of byLength.get(n) || []) if (oneEdit(form, name) || swapped(form, name)) return sites.get(name);
+    }
+  }
+  return null;
+}
+
+/** One letter changed, added or left out, in one pass (the copy check runs against thousands of names). */
+function oneEdit(a, b) {
+  if (a === b || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i++;
+  if (a.length === b.length) return a.slice(i + 1) === b.slice(i + 1);
+  return a.length > b.length ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
 }
 
 /**
@@ -542,7 +613,7 @@ function typedUrl(raw) {
 
 /**
  * A site whose own name is well known: a brand Sentinel protects, a site on its verified list, or one of the most
- * linked-to sites on the web (`popular`, the list knowledge.js loads from wellknown.txt). Its address is not the
+ * linked-to sites on the web (`popular`, popularSites() from wellknown.txt). Its address is not the
  * danger, so the shape of a link on it says nothing: links on cdn.discordapp.com, googleusercontent.com or
  * amazonaws.com are long, signed and random by design. What is served there still can be dangerous: the threat
  * lists, the download checks and the impersonation checks still apply to it.
@@ -559,5 +630,5 @@ function isWellKnown(p, popular = null) {
 
 module.exports = {
   analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent, isRealWords, isWellKnown,
-  decodeLabel, shownHost, skeleton, scriptsOf
+  decodeLabel, shownHost, skeleton, scriptsOf, popularSites
 };

@@ -60,6 +60,9 @@ const aboutPage = (p) => /\/(reviews?|news|articles?|story|blog|wiki|compare|com
 const MONEY_WORDS = ['free', 'gift', 'giftcard', 'giveaway', 'bonus', 'prize', 'winner', 'reward', 'claim', 'refund', 'cashback', 'lottery', 'survey', 'loyalty', 'win', 'robux', 'vbucks'];
 const CRYPTO_WORDS = ['btc', 'eth', 'bitcoin', 'ethereum', 'crypto', 'giveaway', 'airdrop', 'presale', 'wallet', 'walletconnect', 'restore', 'seed', 'staking', 'doubler', 'elon', 'dapp', 'defi', 'sync', 'rectify', 'mint', 'nft', 'swap', 'bridge', 'kyc', 'ledger', 'trezor', 'metamask', 'phantom'];
 const SHOP_WORDS = ['outlet', 'clearance', 'liquidation', 'closingdown', 'sale', 'off', 'discount', 'cheap', 'wholesale'];
+// U24's points for a one-letter-off copy of a popular site that is not a protected brand (url.popularCopy), beside a
+// throwaway ending or a young registration: as much as a brand's short-name look-alike. Alone it scores nothing.
+const POPULAR_COPY = 36;
 
 // A brand whose name is a few initials (DPD, Absa) shares them with many other bodies: Denver's police (dpd.denvergov.org),
 // a biosafety association (absa.org), a university group. Its letters on another address only lean on the brand next
@@ -347,7 +350,19 @@ const URL_CHECKS = [
     } },
 
   { id: 'U24', group: 'Impersonation', threat: 'scam', title: 'Not a misspelling of a well-known brand',
-    run: ({ brand, p, hint }) => {
+    run: ({ brand, p, hint, research }) => {
+      // One of the most linked-to sites on the web, spelled near a brand (elle.com, lacoste.com): a name of its own.
+      if (!brand.lookalike && brand.wordLike && brand.wordLike.why === 'popular') return pass(`${p.registrable} is one of the most linked-to sites on the web, a name of its own`);
+      // A copy of a popular site that is not a protected brand: honest names sit one letter from popular ones too
+      // (neocities.org and geocities.com), so alone it scores nothing and is not shown. On a throwaway ending, or on a
+      // domain registered in the last six months, it counts.
+      const copy = !brand.lookalike && !brand.wordLike && brand.popularLookalike;
+      if (copy) {
+        const reg = research && research.registration;
+        const young = Boolean(reg && reg.available && reg.createdAt && Date.now() - reg.createdAt < 180 * DAY);
+        if (L.RISKY_TLDS[p.suffix] || young) return fail(POPULAR_COPY, `Similar spelling to ${copy}`);
+        return pass(`Close to ${copy}, a popular site, with nothing else here leaning on it`);
+      }
       // Close in spelling but ordinary words ("overdrive" and "onedrive"): a different name, the way a person reads
       // it. A small note, which only matters next to other warning signs; none at all when the search result shows
       // the site under its own name (and not the brand's), or the person searched for it by name.

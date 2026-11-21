@@ -10,22 +10,9 @@
 const { db } = require('../db');
 const safeBrowsing = require('./safebrowsing');
 const feeds = require('./feeds');
-const fs = require('fs');
-const path = require('path');
-const { urlKey, isUserContent, isWellKnown } = require('./url');
+const { urlKey, isUserContent, isWellKnown, popularSites } = require('./url');
 
 const REPORTS_FOR_CONFIRMED = 3;
-
-// The most linked-to sites on the web (wellknown.txt, made by scripts/wellknown.js; its header names the source and
-// licence). Read once, on the first lookup.
-let popularSet = null;
-function popular() {
-  if (popularSet) return popularSet;
-  let text = '';
-  try { text = fs.readFileSync(path.join(__dirname, 'wellknown.txt'), 'utf8'); } catch { /* not shipped: brands and the verified list still count */ }
-  popularSet = new Set(text.split(/\r?\n/).filter((l) => l && !l.startsWith('#')));
-  return popularSet;
-}
 
 // Lists are queried by the exact host, the registrable domain and the host
 // without "www.", so a list that says "www.evil.com" still catches "evil.com".
@@ -95,7 +82,7 @@ async function lookup(p, { useSafeBrowsing = true } = {}) {
   // On a well-known site (url.isWellKnown) other listed pages say nothing about this one: URLhaus lists files people
   // uploaded to cdn.discordapp.com, github.com and drive.google.com, and a GIF beside them is not "likely malware".
   // There only this exact address, or the site's front page, being listed counts.
-  const wellKnown = isWellKnown(p, popular());
+  const wellKnown = isWellKnown(p, popularSites());
   if (!allowed && !userContent) {
     const frontKeys = [...new Set([p.host, bare, www])].map((h) => urlKey(`http://${h}/`)).filter(Boolean);
     const frontListings = new Set(frontKeys.flatMap(k => q.feedUrl.all(k).map(row => `${row.source}:${row.threat}`)));
