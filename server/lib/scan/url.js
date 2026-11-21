@@ -153,6 +153,128 @@ function deskin(s) {
   return out.replace(/[^a-z]/g, '');
 }
 
+/**
+ * An international name's label ("xn--mnchen-3ya") in the letters people see ("münchen"): RFC 3492 punycode, here
+ * so the server, the desktop and the static site (which has no url.domainToUnicode) all read a name the same way.
+ * null when the label does not decode to a name (a broken encoding, no letter outside a-z, a symbol): such a label
+ * is a disguise of its own, judged by U02.
+ */
+function decodeLabel(label) {
+  const s = String(label).toLowerCase();
+  if (!s.startsWith('xn--')) return s;
+  const input = s.slice(4);
+  if (!/^[a-z0-9-]+$/.test(input)) return null;
+  const d = input.lastIndexOf('-');
+  const out = d > 0 ? [...input.slice(0, d)].map((c) => c.charCodeAt(0)) : [];
+  const adapt = (delta, count, first) => {
+    delta = first ? Math.floor(delta / 700) : delta >> 1;
+    delta += Math.floor(delta / count);
+    let k = 0;
+    for (; delta > 455; k += 36) delta = Math.floor(delta / 35);
+    return k + Math.floor((36 * delta) / (delta + 38));
+  };
+  let n = 128;
+  let i = 0;
+  let bias = 72;
+  for (let at = d >= 0 ? d + 1 : 0; at < input.length;) {
+    const old = i;
+    for (let w = 1, k = 36; ; k += 36) {
+      if (at >= input.length) return null;
+      const c = input.charCodeAt(at++);
+      const digit = c >= 97 ? c - 97 : c >= 48 && c <= 57 ? c - 22 : 36;
+      if (digit >= 36) return null;
+      i += digit * w;
+      const t = k <= bias ? 1 : k >= bias + 26 ? 26 : k - bias;
+      if (digit < t) break;
+      w *= 36 - t;
+      if (i > 0x7fffffff || w > 0x7fffffff) return null;
+    }
+    bias = adapt(i - old, out.length + 1, old === 0);
+    n += Math.floor(i / (out.length + 1));
+    i %= out.length + 1;
+    if (n > 0x10ffff || (n >= 0xd800 && n <= 0xdfff)) return null;
+    out.splice(i++, 0, n);
+  }
+  const name = String.fromCodePoint(...out);
+  return /[^\x00-\x7f]/.test(name) && /^[\p{L}\p{M}\p{Nd}-]+$/u.test(name) ? name : null;
+}
+
+/** A host with each international label decoded; the host as written when one does not decode. */
+const shownHost = (host) => String(host).split('.').map((l) => decodeLabel(l) || l).join('.');
+
+/*
+ * Cyrillic, Greek and Armenian letters drawn like Latin ones, each as Unicode's confusables.txt (version 18.0.0, the
+ * "MA" table) maps it to a single Latin letter. Only those: letters it maps elsewhere (Greek kappa to the Latin kra,
+ * the Cyrillic soft sign to the tone six) are left out, so a name holding them never reads as a brand.
+ */
+const CONFUSABLES = {
+  // Cyrillic: 0430 0441 0501 0435 04BB 0456 0458 04CF 043E 0440 051B 0433 0455 051D 0445 0443
+  'а': 'a', 'с': 'c', 'ԁ': 'd', 'е': 'e', 'һ': 'h', 'і': 'i', 'ј': 'j', 'ӏ': 'l', 'о': 'o', 'р': 'p', 'ԛ': 'q', 'г': 'r',
+  'ѕ': 's', 'ԝ': 'w', 'х': 'x', 'у': 'y',
+  // Greek: 03B1 03F2 03B9 03F3 03BF 03C1 03C5 03BD 03B3
+  'α': 'a', 'ϲ': 'c', 'ι': 'i', 'ϳ': 'j', 'ο': 'o', 'ρ': 'p', 'υ': 'u', 'ν': 'v', 'γ': 'y',
+  // Armenian: 0581 0570 0578 0585 0566 057D 0561
+  'ց': 'g', 'հ': 'h', 'ո': 'n', 'օ': 'o', 'զ': 'q', 'ս': 'u', 'ա': 'w'
+};
+
+/**
+ * How a decoded label reads to the eye: accents dropped, then each letter in CONFUSABLES as its Latin twin.
+ * `disguised`: how many letters changed to get there. A letter left outside a-z means the name does not read as a
+ * Latin one at all ("яндекс" keeps its я), and such a skeleton is never compared with a brand.
+ */
+function skeleton(name) {
+  let disguised = 0;
+  let text = '';
+  for (const ch of String(name).normalize('NFC')) {
+    const bare = ch.normalize('NFD').replace(/\p{M}/gu, '');
+    const to = CONFUSABLES[bare] || bare;
+    if (to !== ch) disguised++;
+    text += to;
+  }
+  return { text, disguised };
+}
+
+// The writing systems a name's letters come from. A letter of none of these counts as 'Other'.
+const SCRIPTS = ['Latin', 'Cyrillic', 'Greek', 'Armenian', 'Han', 'Hiragana', 'Katakana', 'Hangul', 'Bopomofo', 'Arabic',
+  'Hebrew', 'Thai', 'Devanagari', 'Bengali', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Gujarati', 'Gurmukhi',
+  'Sinhala', 'Georgian', 'Ethiopic', 'Khmer', 'Lao', 'Myanmar', 'Tibetan', 'Cherokee', 'Thaana', 'Mongolian']
+  .map((s) => [s, new RegExp(`\\p{Script=${s}}`, 'u')]);
+// Unicode's "highly restrictive" profile (UTS 39, 5.2): one writing system, or Latin with the ones Japanese, Chinese
+// and Korean are written with alongside it.
+const TOGETHER = [['Latin', 'Han', 'Hiragana', 'Katakana'], ['Latin', 'Han', 'Bopomofo'], ['Latin', 'Han', 'Hangul']];
+
+/** The writing systems of a decoded label, and whether they are mixed the way a disguise mixes them. */
+function scriptsOf(name) {
+  const found = new Set();
+  for (const ch of String(name)) {
+    if (!/\p{L}/u.test(ch) || /[\p{Script=Common}\p{Script=Inherited}]/u.test(ch)) continue;
+    found.add((SCRIPTS.find(([, rx]) => rx.test(ch)) || ['Other'])[0]);
+  }
+  const list = [...found];
+  return { list, mixed: list.length > 1 && !TOGETHER.some((set) => list.every((s) => set.includes(s))) };
+}
+
+/**
+ * The brand an international label is drawn to look like ("pаypal" with a Cyrillic а is paypal), or null. Exact
+ * only: the whole name reads as the brand, or as the brand and a real word joined by a hyphen; the brand has five
+ * letters or more; at least one letter was changed to get there. No near spellings: an honest name in its own
+ * alphabet is never called a misspelling.
+ */
+function idnLookalike(label) {
+  if (!/^xn--/i.test(label)) return null;
+  const name = decodeLabel(label);
+  if (!name) return null;
+  const { text, disguised } = skeleton(name);
+  if (!disguised || !/^[a-z-]+$/.test(text)) return null;
+  for (const brand of L.PROTECTED_BRANDS) {
+    const t = brand.token;
+    if (t.length < 5) continue;
+    const rest = text.startsWith(`${t}-`) ? text.slice(t.length + 1) : text.endsWith(`-${t}`) ? text.slice(0, -t.length - 1) : null;
+    if (text === t || (rest && isRealWords(rest))) return { brand, name, scripts: scriptsOf(name).list };
+  }
+  return null;
+}
+
 function levenshtein(a, b) {
   if (a === b) return 0;
   if (!a.length) return b.length;
@@ -319,6 +441,10 @@ function brandInfo(p) {
   }
   if (owner) return { official: isUserContent(p.host) ? null : owner, owner, inDomain, inSubdomain, lookalike };
 
+  // Letters from another alphabet drawn like the brand's own ("pаypal" with a Cyrillic а), in the name or in front.
+  const idn = [p.sld, ...p.subdomains].map(idnLookalike).find(Boolean) || null;
+  if (idn) { lookalike = idn.brand; visual = true; }
+
   // Words from the name as written ("shopee0146" -> shopee) and with look-alike
   // characters undone ("paypa1-login" -> paypal, login).
   const labelWords = (label) => {
@@ -388,7 +514,7 @@ function brandInfo(p) {
           // letter: another word ("overdrive", not "onedrive"), which a person reads as a different name. Noted,
           // not treated as a disguise.
           const raw = rawOf.get(part) || part;
-          const real = isRealWords(raw);
+          const real = isRealWords(raw) || L.FOREIGN_WORDS.has(raw.toLowerCase());
           if (!doubled && real) { if (!wordLike) wordLike = { brand, word: raw }; continue; }
           lookalike = brand;
           // "paypai", "robloxx": the same word at a glance. Not "goggles", a real word whose doubled letter is its own.
@@ -399,7 +525,7 @@ function brandInfo(p) {
       }
     }
   }
-  return { official: null, owner: null, inDomain, inSubdomain, lookalike, visual, wordLike: lookalike ? null : wordLike };
+  return { official: null, owner: null, inDomain, inSubdomain, lookalike, visual, idn, wordLike: lookalike ? null : wordLike };
 }
 
 /**
@@ -432,5 +558,6 @@ function isWellKnown(p, popular = null) {
 }
 
 module.exports = {
-  analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent, isRealWords, isWellKnown
+  analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent, isRealWords, isWellKnown,
+  decodeLabel, shownHost, skeleton, scriptsOf
 };

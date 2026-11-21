@@ -1,0 +1,35 @@
+# Makes the FOREIGN_WORDS list in server/lib/scan/lists.js (scripts/foreign-words.js) from hermitdave/FrequencyWords
+# (content CC BY-SA 4.0): real words in six languages spelled close to a protected brand. Runs by hand, or on a push
+# to a words/ branch of its own (no other workflow runs there). The words are printed in the log and kept as an artifact, then committed by hand. Nothing else is fetched.
+name: Foreign words
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['words/**']
+
+permissions:
+  contents: read
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: The word lists
+        run: |
+          mkdir -p "$RUNNER_TEMP/words"
+          for lang in es de fr pt it nl; do
+            curl -fsSL -o "$RUNNER_TEMP/words/${lang}_50k.txt" "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/${lang}/${lang}_50k.txt"
+          done
+      - name: The words near a brand
+        run: node scripts/foreign-words.js --dir "$RUNNER_TEMP/words" | tee foreign-words.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: foreign-words
+          path: foreign-words.txt
+          retention-days: 7
