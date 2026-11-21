@@ -37,7 +37,7 @@ document.documentElement.classList.add('js');
     var M = window.SentinelMasks, logo = document.querySelector('.logo__mark svg');
     bar.innerHTML = '<span class="frame__mark">' + (M && M.svg ? M.svg('logo') : logo ? logo.outerHTML : '') + '</span><b>Sentinel</b><span class="frame__page"></span>';
     var page = bar.lastChild;
-    var name = function () { var t = document.title.replace(/\s*[-|]\s*Sentinel\s*$/, '').trim(); page.textContent = t && t !== 'Sentinel' ? t : ''; };
+    var name = function () { var t = document.title.replace(/\s*[-|·–]\s*Sentinel\s*$/, '').trim(); page.textContent = t && t !== 'Sentinel' ? t : ''; };
     name();
     document.body.prepend(bar);
     var title = document.querySelector('title');

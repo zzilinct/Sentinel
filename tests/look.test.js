@@ -397,6 +397,10 @@ test('the Windows app window: its own title bar in the look, the real mark, the 
   assert.match(read('desktop', 'src', 'preload.js'), /framed: process\.argv\.includes\('--sentinel-framed'\)/);
   const boot = read('web', 'assets', 'js', 'boot.js');
   assert.match(boot, /if \(!d \|\| !d\.framed\) return;/, 'only the app window draws the bar');
+  // "Overview · Sentinel" is shown as the page's name alone (the bar already says Sentinel).
+  const strip = new Function('t', `return t${boot.match(/document\.title(\.replace\([^;]+?\))\.trim\(\)/)[1]}.trim();`);
+  assert.equal(strip('Overview · Sentinel'), 'Overview');
+  assert.equal(strip('Sign in - Sentinel'), 'Sign in');
   assert.match(boot, /M\.svg\('logo'\)/, 'the mark is the site\'s vector mark, not the 16 px picture');
   const css = read('web', 'assets', 'css', 'sentinel.css');
   assert.match(css, /\.frame \{ display: none; \}/, 'never on the website');

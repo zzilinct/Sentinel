@@ -90,7 +90,8 @@ async function checkColour() {
           const m = await evalIn(browser, s, READ);
           seen.push(m.gold400);
           const ok = m.accent === id && m.checked.join() === id && m.gold400 !== gold.gold400 && m.btn !== gold.btn && m.contrast >= 4.5 && m.vt === ''
-            && ['red', 'orange', 'yellow', 'green', 'bg'].every((k) => m[k] === gold[k]);
+            // The page's ground takes the colour's tint too (look.js vibe()); the warning colours never move.
+            && ['red', 'orange', 'yellow', 'green'].every((k) => m[k] === gold[k]) && m.bg !== gold.bg;
           result(`${tag}: ${id} takes the whole page, keeps 4.5:1 (${m.contrast.toFixed(2)}) and leaves the warnings alone (${ms} ms)`, ok, ok ? undefined : { m, gold });
           if (!mobile) await shot(browser, s, `colour-${label}-${scheme}-${id}`);
         }

@@ -39,12 +39,18 @@ const PAINT = `Promise.all([...document.querySelectorAll('iframe')].map((f) => n
   const go = () => {
     const d = f.contentDocument, w = f.contentWindow;
     SentinelLook.paint(d.documentElement, { mode: f.dataset.scheme, accent: f.dataset.accent });
-    setTimeout(() => {
+    // Read in the frame's own next frame, and again a few times if its words have not caught up with its colours yet
+    // (a frame still settling once read the colours it first loaded with, while its picture was already right).
+    const rgb = (hex) => 'rgb(' + [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ') + ')';
+    let tries = 0;
+    const read = () => w.requestAnimationFrame(() => {
       const cs = w.getComputedStyle(d.documentElement), v = (k) => cs.getPropertyValue(k).trim();
       const h1 = d.querySelector('.hero h1');
-      done({ accent: f.dataset.accent, scheme: f.dataset.scheme, text: v('--text'), star: v('--star-1'), red: v('--red'), green: v('--green'),
-        body: w.getComputedStyle(d.body).color, h1: h1 ? w.getComputedStyle(h1).color : '', sky: Boolean(d.querySelector('canvas.cosmos')) });
-    }, 1500);
+      const out = { accent: f.dataset.accent, scheme: f.dataset.scheme, text: v('--text'), star: v('--star-1'), red: v('--red'), green: v('--green'),
+        body: w.getComputedStyle(d.body).color, h1: h1 ? w.getComputedStyle(h1).color : '', sky: Boolean(d.querySelector('canvas.cosmos')), tries };
+      if (out.body === rgb(out.text) || ++tries > 8) done(out); else setTimeout(read, 500);
+    });
+    setTimeout(read, 1500);
   };
   if (f.contentDocument && f.contentDocument.readyState === 'complete') go(); else f.addEventListener('load', go, { once: true });
 })))`;
