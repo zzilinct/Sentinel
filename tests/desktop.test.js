@@ -1310,7 +1310,7 @@ test('defense never acts on a guess: unreadable files need Defender to say so, a
   assert.match(src, /if \(!now \|\| \(entry\.sha256 && now !== entry\.sha256\)\) throw/);
   assert.match(src, /Export-ScheduledTask/, 'a removed task can be restored');
   assert.ok(read('desktop/src/downloads.js').includes('if (!now || now !== item.sha256) throw'));
-  assert.match(read('desktop/src/main.js'), /if \(await fullscreenInFront\(true\)\) return;/, 'no update over a fullscreen game, nor when Windows cannot say');
+  assert.match(read('desktop/src/main.js'), /if \(await fullscreenInFront\(process\.platform === 'win32'\)\) return;/, 'no update over a fullscreen game, nor when Windows cannot say');
   // Asked of the helper that already runs, not of a PowerShell that compiles C# each time (once a minute until 1.21.1).
   assert.doesNotMatch(read('desktop/src/main.js'), /SHQueryUserNotificationState\(out int s\)/, 'main.js starts no PowerShell to ask about full screen');
   assert.ok(require('../desktop/src/browsers.js')._test.WATCH_SCRIPT.includes("$pending.Result -eq 'busy'"), 'the helper answers "busy"');

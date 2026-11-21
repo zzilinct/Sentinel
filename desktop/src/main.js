@@ -992,9 +992,9 @@ async function autoInstallSoon() {
   if ((tries[version] || 0) >= 2) { stopLooking(); return; }
   const idleSeconds = powerMonitor.getSystemIdleTime();
   if (idleSeconds < 5 * 60) return;
-  // A game played with a controller leaves the keyboard and mouse idle, so fullscreen is asked of Windows itself; not
-  // knowing counts as busy.
-  if (await fullscreenInFront(true)) return;
+  // A game played with a controller leaves the keyboard and mouse idle, so fullscreen is asked of Windows itself; there,
+  // not knowing counts as busy.
+  if (await fullscreenInFront(process.platform === 'win32')) return;
   store.set('autoInstallTries', { [version]: (tries[version] || 0) + 1 });
   autoInstalling = true;
   appLog(`updating to ${version} by itself (nobody at the computer for ${Math.round(idleSeconds / 60)} min)`);
