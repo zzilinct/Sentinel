@@ -511,29 +511,74 @@ test('1.21.1: the taskbar\'s button in the colour, from an .ico Windows can read
   assert.match(main, /taskbarAccent = 'gold';\s+taskbarIcon\(look\(\)\.accent\);/, 'and a new window');
 });
 
-test('1.21.1: the pasted-command alarm in the page\'s own world takes the colour the companion hands over', async () => {
+test('1.21.1: the pasted-command alarm in the page\'s own world asks for the colour on its own box, and nothing stays on the page', async () => {
   const vm = require('vm');
   const src = read('extension', 'src', 'content', 'alarm.js');
-  const attrs = {};
-  class Element { getAttribute(k) { return k in attrs ? attrs[k] : null; } setAttribute(k, v) { attrs[k] = String(v); } removeAttribute(k) { delete attrs[k]; } attachShadow() { return {}; } }
-  class Document { createElement() { return {}; } }
+  // One page, two worlds: the DOM (elements, their styles, events) is shared, each world's globals are its own.
+  const listeners = [];
+  let acting = true;
+  class CSSStyleDeclaration {
+    constructor() { this.props = {}; }
+    getPropertyValue(k) { return this.props[k] || ''; }
+    setProperty(k, v) { this.props[k] = String(v); }
+    removeProperty(k) { delete this.props[k]; }
+    set cssText(v) { this.props = {}; }
+  }
+  class EventTarget { dispatchEvent(ev) { ev.target = this; for (const fn of listeners.slice()) fn(ev); return true; } }
+  class Element extends EventTarget {
+    constructor() { super(); this.style = new CSSStyleDeclaration(); this.dataset = {}; this.attrs = {}; this.kids = []; }
+    getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
+    setAttribute(k, v) { this.attrs[k] = String(v); }
+    removeAttribute(k) { delete this.attrs[k]; }
+    appendChild(n) { if (!this.kids.includes(n)) this.kids.push(n); n.parent = this; return n; }
+    remove() { if (this.parent) this.parent.kids = this.parent.kids.filter((k) => k !== this); }
+    attachShadow() { const root = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [], addEventListener() {} }; this.root = root; return root; }
+  }
+  class Document { createElement() { return new Element(); } }
+  class CustomEvent { constructor(type, o) { this.type = type; this.bubbles = Boolean(o && o.bubbles); } }
   const html = new Element();
-  const world = (extra) => vm.createContext({ Element, Document, document: { documentElement: html }, matchMedia: () => ({ matches: false }), history: {}, location: {}, ...extra });
-  const look = (live) => ({ storage: { local: { get: async () => ({ look: { live } }) } } });
+  const document = Object.assign(new Document(), { documentElement: html, body: null, activeElement: null });
+  const world = (extra) => {
+    const g = vm.createContext({ Element, Document, EventTarget, CSSStyleDeclaration, CustomEvent, document, navigator: { userActivation: { get isActive() { return acting; } } },
+      matchMedia: () => ({ matches: false }), history: {}, location: {}, addEventListener: (type, fn) => { listeners.push((ev) => { if (ev.type === type) fn(ev); }); }, ...extra });
+    g.globalThis = g;
+    vm.runInContext(src, g);
+    return g;
+  };
   const sapphire = L.ramp('sapphire', 'dark');
   const live = { acc: sapphire['--live'], hi: sapphire['--live-hi'], rgb: sapphire['--live-rgb'] };
-  // The companion's world: the colour is written on <html>, only while the guard is on.
-  const run = async (live, guard) => { const g = world({ chrome: look(live), SentinelStore: { get: async () => ({ commandGuard: guard }) } }); g.globalThis = g; vm.runInContext(src, g); await new Promise((r) => setTimeout(r, 10)); };
-  await run(live, true);
-  assert.equal(attrs['data-sentinel-tone'], `${live.acc} ${live.hi} ${live.rgb}`);
-  await run(live, false);
-  assert.ok(!('data-sentinel-tone' in attrs), 'the guard off: nothing is left on the page');
-  await run({ acc: '#d6b25a', hi: '#e2c47f', rgb: '214 178 90' }, true);
-  assert.ok(!('data-sentinel-tone' in attrs), 'gold: nothing is written');
-  // Only a colour is ever taken from the page's attribute.
+  const left = () => JSON.stringify([html.attrs, html.style.props, html.dataset]);
+  const draw = (page) => { const ctl = page.SentinelAlarm.show({ accent: 'calm', title: 'Stopped', buttons: [{ text: 'Go back', kind: 'go' }] }); const box = html.kids[html.kids.length - 1]; const css = box.root.innerHTML; ctl.close(); return { css, box }; };
+  const companion = async (guard, l = live) => { world({ chrome: { storage: { local: { get: async () => ({ look: { live: l } }) } } }, SentinelStore: { get: async () => ({ commandGuard: guard }) } }); await new Promise((r) => setTimeout(r, 10)); };
+
+  await companion(true);
+  // The companion's world writes nothing on the page by itself.
+  assert.equal(left(), JSON.stringify([{}, {}, {}]), 'nothing on <html> before a warning');
+  const page = world({});
+  const { css, box } = draw(page);
+  assert.match(css, new RegExp(`\\.go\\{background:${live.acc};`), 'the page world\'s alarm is in the colour');
+  assert.equal(box.style.getPropertyValue('--sentinel-tone'), '', 'taken off its own box again');
+  assert.equal(left(), JSON.stringify([{}, {}, {}]), 'and nothing on <html> after');
+  // A page asking for itself while nobody is acting on it learns nothing.
+  acting = false;
+  const probe = new Element();
+  probe.dispatchEvent(new CustomEvent('sentinel:tone', { bubbles: true }));
+  assert.equal(probe.style.getPropertyValue('--sentinel-tone'), '');
+  html.dispatchEvent(new CustomEvent('sentinel:tone', { bubbles: true }));
+  assert.equal(left(), JSON.stringify([{}, {}, {}]), 'never on <html>, even asked for');
+  acting = true;
+  // The guard off, or gold: no answer, and the alarm is gold.
+  listeners.length = 0;
+  await companion(false);
+  assert.match(draw(world({})).css, /\.go\{background:#d6b25a;/);
+  listeners.length = 0;
+  await companion(true, { acc: '#d6b25a', hi: '#e2c47f', rgb: '214 178 90' });
+  assert.match(draw(world({})).css, /\.go\{background:#d6b25a;/);
+  assert.equal(left(), JSON.stringify([{}, {}, {}]));
+  // Only a colour is ever taken from the answer.
   const toneOf = new Function(`return ${src.match(/const toneOf = (\(v\) => \{[^\n]+\});/)[1]}`)();
   assert.deepEqual(toneOf('#112233 #445566 1 2 3'), { acc: '#112233', hi: '#445566', rgb: '1 2 3' });
   for (const bad of ['red blue 1 2 3', '#112233 #445566 1 2 3;}*{x:y', '#112233 url(x) 1 2 3', '']) assert.equal(toneOf(bad), null, bad);
-  assert.match(src, /function show\(o\) \{\s+if \(shown\) shown\.close\(\);\s+pageTone\(\);/, 'read as the warning is drawn');
+  assert.doesNotMatch(src, /data-sentinel-tone/, 'no attribute on every page');
   assert.equal(read('extension', 'src', 'content', 'alarm.page.js'), src);
 });

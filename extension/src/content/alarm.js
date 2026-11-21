@@ -138,43 +138,58 @@
   let calm = '#d6b25a';
   // The same colour for the action, the focus ring and the links (css()): null keeps gold's own.
   let tone = null;
-  // The page's own world (the pasted-command guard, clipguard.js) cannot read the companion's storage. The companion's
-  // copy of this file hands the colour over on <html>, the one thing both worlds share, while that guard is on, and
-  // the page's copy reads it when it draws. Only a colour crosses, and it is checked as one, so a page that writes
-  // the attribute itself can change nothing but the alarm's colour.
-  const TONE = 'data-sentinel-tone';
-  const getAttr = Element.prototype.getAttribute, setAttr = Element.prototype.setAttribute;
-  const toneOf = (v) => { const m = /^(#[0-9a-f]{6}) (#[0-9a-f]{6}) (\d{1,3} \d{1,3} \d{1,3})$/.exec(v || ''); return m ? { acc: m[1], hi: m[2], rgb: m[3] } : null; };
+  // The page's own world (the pasted-command guard, clipguard.js) cannot read the companion's storage. As its warning is
+  // drawn, its copy of this file asks for the colour with an event on the warning's own box; the companion's copy
+  // answers by writing it on that box alone, and the page's copy reads it and takes it off again at once. Nothing is
+  // kept on the page: a page learns the colour only by asking for it itself, and only while the person is pressing or
+  // typing on it (the moment a copied command is caught), never from <html> on every page. Only a colour crosses,
+  // checked as one, so a page can change nothing but the alarm's own colour.
+  const ASK = 'sentinel:tone';
+  const TONE = '--sentinel-tone';
+  const Ask = globalThis.CustomEvent, dispatch = EventTarget.prototype.dispatchEvent;
+  const style = CSSStyleDeclaration.prototype, getProp = style.getPropertyValue, setProp = style.setProperty, dropProp = style.removeProperty;
+  const toneOf = (v) => { const m = /^(#[0-9a-f]{6}) (#[0-9a-f]{6}) (\d{1,3} \d{1,3} \d{1,3})$/.exec(String(v || '').trim()); return m ? { acc: m[1], hi: m[2], rgb: m[3] } : null; };
   let own = false;
+  let guard = false;
   try {
     const store = (globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome || {}).storage;
     own = Boolean(store);
     if (store) Promise.all([Promise.resolve(store.local.get('look')), globalThis.SentinelStore ? globalThis.SentinelStore.get({ commandGuard: true }).catch(() => ({})) : {}]).then(([r, set]) => {
       const l = (r && r.look && r.look.live) || {};
       const hex = (v) => /^#[0-9a-f]{6}$/.test(v || '');
+      guard = Boolean(set && set.commandGuard !== false);
       if (!hex(l.acc)) return;
       calm = l.acc;
       if (l.acc !== '#d6b25a' && hex(l.hi) && /^\d{1,3} \d{1,3} \d{1,3}$/.test(l.rgb || '')) tone = { acc: l.acc, hi: l.hi, rgb: l.rgb };
-      if (tone && set && set.commandGuard !== false && document.documentElement) setAttr.call(document.documentElement, TONE, `${tone.acc} ${tone.hi} ${tone.rgb}`);
-      else if (document.documentElement) document.documentElement.removeAttribute(TONE);
     }, () => {});
+    // The answer: on the asking box only, only with the guard on, only while the person is acting on the page.
+    if (store) globalThis.addEventListener(ASK, (ev) => {
+      const box = ev.target;
+      const acting = !globalThis.navigator || !navigator.userActivation || navigator.userActivation.isActive;
+      if (!tone || !guard || !acting || !box || !box.style || box === document.documentElement || box === document.body) return;
+      setProp.call(box.style, TONE, `${tone.acc} ${tone.hi} ${tone.rgb}`);
+    }, true);
   } catch { /* gold */ }
-  /** In the page's world, the colour the companion handed over, read as the warning is drawn. */
-  function pageTone() {
-    if (own || tone || !document.documentElement) return;
-    const t = toneOf(getAttr.call(document.documentElement, TONE));
+  /** In the page's world: the colour, asked for on the warning's box as it is drawn, then taken off it again. */
+  function pageTone(host) {
+    if (own || tone) return;
+    const at = document.documentElement || document;
+    at.appendChild(host);
+    dispatch.call(host, new Ask(ASK, { bubbles: true }));
+    const t = toneOf(getProp.call(host.style, TONE));
+    dropProp.call(host.style, TONE);
     if (t) { tone = t; calm = t.acc; }
   }
 
   function show(o) {
     if (shown) shown.close();
-    pageTone();
-    const accent = o.accent === 'calm' ? calm : o.accent || '#e5484d';
     const before = document.activeElement;
     const host = make.call(document, 'div');
     host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483647;';
     if (o.small) host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;';
     readMotion(host);
+    pageTone(host);
+    const accent = o.accent === 'calm' ? calm : o.accent || '#e5484d';
     const root = attach.call(host, { mode: 'closed' });
     const list = (o.steps || []).map((s) => `<li>${esc(s)}</li>`).join('');
     // The folded buttons are numbered after the open ones: one list, one click handler.
