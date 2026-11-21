@@ -239,6 +239,10 @@ async function main() {
   try {
     for (let i = 0; i < 80 && !m; i++) { await sleep(500); m = await marionette(mport).catch(() => null); }
     if (!m) throw new Error('Firefox did not open its Marionette port');
+    // Each command on stderr as it goes, so a run that stalls says where (the caller shows stderr after the verdict).
+    const sent = m.send.bind(m);
+    const t0 = Date.now();
+    m.send = (cmd, params) => { process.stderr.write(`${Math.round((Date.now() - t0) / 1000)}s ${cmd}\n`); return sent(cmd, params); };
     const session = await m.send('WebDriver:NewSession', { capabilities: { alwaysMatch: { acceptInsecureCerts: true } } });
     result.version = `Firefox/${session.capabilities.browserVersion}`;
 
