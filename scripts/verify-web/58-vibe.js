@@ -60,10 +60,10 @@ const PAINT = `Promise.all([...document.querySelectorAll('iframe')].map((f) => n
       const c = d.querySelector('canvas.hero__unmask');
       if (c && c.width && c.height) {
         try {
-          // The digits are most of what is drawn, each in the one ink at most .62 opaque: the commonest tinted colour at
+          // getImageData gives colours unpremultiplied. The digits are most of what is drawn, each in the one ink at most .62 opaque: the commonest tinted colour at
           // that cover is theirs (the marks' white light and the warnings' solid pills are left out by it).
           const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, count = {};
-          for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 40 && px[i + 3] < 170 && Math.max(px[i], px[i + 1], px[i + 2]) - Math.min(px[i], px[i + 1], px[i + 2]) > 8) { const k = [0, 1, 2].map((j) => (256 | Math.min(255, Math.round(px[i + j] * 255 / px[i + 3]))).toString(16).slice(1)).join(''); count[k] = (count[k] || 0) + 1; }
+          for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 40 && px[i + 3] < 170 && Math.max(px[i], px[i + 1], px[i + 2]) - Math.min(px[i], px[i + 1], px[i + 2]) > 8) { const k = [0, 1, 2].map((j) => (256 | px[i + j]).toString(16).slice(1)).join(''); count[k] = (count[k] || 0) + 1; }
           const top = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
           if (top && top[1] > 50) ink = '#' + top[0];
         } catch (e) { ink = 'unread'; }
