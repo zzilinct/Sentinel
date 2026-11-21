@@ -43,22 +43,26 @@
     label();
   }
 
-  // An older set: look.js is fetched once, the colours are worked out and kept as look-app.js keeps them, and drawn.
-  // The next page is drawn whole by boot.js before its first paint.
-  (function () {
+  // An older set: the colours are worked out again and kept as look-app.js keeps them, and drawn; the next page is
+  // drawn whole by boot.js before its first paint. Once every script is in: on the app's pages look-app.js keeps them
+  // itself, and a page that already has look.js (the colour preview) needs no second copy, which would replace the
+  // SentinelLook the page's own scripts extended. Only a page without one fetches it, once.
+  document.addEventListener('DOMContentLoaded', function () {
     var a = read(KEY.accent), v = {};
     try { v = JSON.parse(read(KEY.vars) || '{}') || {}; } catch (e) { /* worked out again */ }
-    if (!a || a === 'gold' || (v.accent === a && v.v === V)) return;
-    var s = document.createElement('script');
-    s.src = '/assets/js/look.js';
-    s.onload = function () {
+    if (app() || !a || a === 'gold' || (v.accent === a && v.v === V)) return;
+    var redo = function () {
       var L = window.SentinelLook;
       if (!L || !L.webVars || app() || L.normal({ accent: a }).accent !== a) return;
       try { localStorage.setItem(KEY.vars, JSON.stringify(L.webVars(a))); } catch (e) { /* this page only */ }
       draw();
     };
+    if (window.SentinelLook) { redo(); return; }
+    var s = document.createElement('script');
+    s.src = '/assets/js/look.js';
+    s.onload = redo;
     document.head.appendChild(s);
-  })();
+  });
 
   document.addEventListener('DOMContentLoaded', function () { if (!app()) label(); });
   // Auto follows the system, and the same choice made in another tab or in the app is drawn here too.
