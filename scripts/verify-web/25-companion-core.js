@@ -142,9 +142,9 @@ async function checkCompanionCore() {
     const tabsAt = await evalIn(browser, out.sessionId, 'chrome.tabs.query({}).then((t) => t.map((x) => x.url || x.pendingUrl || ""))');
     const openApp = await evalIn(browser, out.sessionId, "document.getElementById('openApp').getClientRects().length === 0");
     await out.close();
-    result(`companion-core: popup signed out, with no Windows app here and no live site, says to open the app and links only to the download, never to the site that is not live; a new install opened no tab there (shown in ${out.ms} ms)`,
+    result(`companion-core: popup signed out, with no Windows app here and no live site, says to open the app and links only to the download, never to the site that is not live; a new install opened its own settings page, not a tab there (shown in ${out.ms} ms)`,
       out.ready && /Open the Sentinel app first/.test(out.info.text) && /not live yet/.test(out.info.text) && out.info.links.some((l) => /^Get the Windows app -> https:\/\/github\.com\/zzilinct\/Sentinel\/releases/.test(l))
-        && !out.info.links.some((l) => l.includes(dead)) && openApp === true && !tabsAt.some((u) => u.startsWith(dead)) && !out.errors.length && out.ms < 8000,
+        && !out.info.links.some((l) => l.includes(dead)) && openApp === true && !tabsAt.some((u) => u.startsWith(dead)) && tabsAt.some((u) => u.startsWith(`${ext}/src/options.html`)) && !out.errors.length && out.ms < 8000,
       { ...out.info, tabs: tabsAt, openAppHidden: openApp, errors: out.errors });
 
     // Pairing, as with the Windows app: an account on 127.0.0.1:47821, signed in in this browser, then its connect page.

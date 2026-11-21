@@ -52,7 +52,11 @@
   const dayOf = (at) => new Date(at).toLocaleDateString(undefined, { weekday: 'long' });
 
   function protection(state) {
-    if (!state || !state.ok || !state.account || !state.account.signedIn) return { tone: 'off', word: 'Off', title: 'Sentinel is not signed in', line: 'Sign in to check pages in this browser and stop dangerous ones.' };
+    if (!state || !state.ok || !state.account || !state.account.signedIn) {
+      return { tone: 'off', word: 'Off', title: 'Sentinel is not signed in', line: state && state.reachable === false
+        ? 'Open the Sentinel app for Windows on this computer to sign in. Sentinel’s own website is not live yet.'
+        : 'Sign in to check pages in this browser and stop dangerous ones.' };
+    }
     if (state.siteAccess === false) return { tone: 'off', word: 'Off', title: 'Sentinel cannot see your pages yet', line: 'Firefox asks first. Open the Sentinel button in the toolbar and allow it on all websites.' };
     const settings = state.settings || {};
     if (!settings.enabled) return { tone: 'off', word: 'Off', title: 'Live scanning is off', line: 'Sentinel is not checking pages in this browser.' };

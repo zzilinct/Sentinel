@@ -985,9 +985,11 @@ ext.runtime.onInstalled.addListener(async (details) => {
   await restore();
   if (!account.signedIn) await connect();
   if (await wantsConnectTab(details.reason, account.signedIn)) {
-    // Never a tab that would not open: with no Windows app here and no live site, the popup says what to do instead.
+    // Never a tab that would not open: with no Windows app here and no live site, the companion's own settings page
+    // (packaged with it, nothing fetched) shows the install worked and says how to sign in.
     const { site, live: reachable } = await home((await getSettings()).apiBase);
     if (reachable) ext.tabs.create({ url: siteUrl(site, '/connect') });
+    else ext.runtime.openOptionsPage();
   }
 });
 
