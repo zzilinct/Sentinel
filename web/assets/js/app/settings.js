@@ -716,8 +716,10 @@
     { id: 'whats-new', group: 'help', kind: 'block', label: 'What changed', hint: 'The notes for the newest version of Sentinel.', words: ['changelog', 'release notes', 'new', 'version', 'about'], mount: whatsNewBlock },
     { id: 'false-alarm', group: 'help', kind: 'block', label: 'Report a false alarm', hint: 'Sentinel warned you about a site you know is safe. Tell us which one.', words: ['wrong', 'mistake', 'safe', 'false positive', 'report', 'feedback'], mount: falseAlarmBlock },
     { id: 'support', group: 'help', kind: 'custom', label: 'Write to us', hint: 'A question, a problem, or a scam Sentinel missed.', words: ['help', 'contact', 'support', 'email', 'privacy', 'terms'],
-      body: () => '<p class="set-sub">How Sentinel treats your data, and the rules for using it: <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms</a></p>',
-      control: () => (state.config.supportEmail ? `<a class="btn btn--sm" href="mailto:${esc(state.config.supportEmail)}">Email support</a>` : '') }
+      body: () => (state.config.supportEmail ? '' : '<p class="set-sub">Sentinel&rsquo;s own email address is not live yet. What you write on GitHub is public, so leave out personal details.</p>')
+        + '<p class="set-sub">How Sentinel treats your data, and the rules for using it: <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms</a></p>',
+      control: () => (state.config.supportEmail ? `<a class="btn btn--sm" href="mailto:${esc(state.config.supportEmail)}">Email support</a>`
+        : '<a class="btn btn--sm" href="https://github.com/zzilinct/Sentinel/issues" target="_blank" rel="noopener">Write on GitHub</a>') }
   ];
   const settingWords = (r) => `${r.label} ${r.hint} ${(r.words || []).join(' ')} ${SETTING_GROUPS.find(([g]) => g === r.group)[1]}`.toLowerCase();
   const settingMatches = (r, q) => q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => settingWords(r).includes(w));

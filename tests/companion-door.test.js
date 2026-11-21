@@ -247,6 +247,8 @@ test('never a green nobody earned', () => {
   assert.equal(Say.protection({ ...base, siteAccess: false }).word, 'Off', 'a browser that has not allowed it is not protected');
   assert.equal(Say.protection({ ...base, locked: 'hours' }).word, 'Paused');
   assert.equal(Say.protection({ ...base, account: { signedIn: true, plan: { modelLocked: true } } }).word, 'Paused');
+  // "Model" is the app's word for its versions; the companion says version, and that the confirmed list still works.
+  assert.doesNotMatch(Say.protection({ ...base, account: { signedIn: true, plan: { modelLocked: true } } }).line, /model/i);
   assert.match(Say.protection({ ...base, settings: { enabled: true, warnOnNavigate: false } }).title, /will not stop/);
 });
 

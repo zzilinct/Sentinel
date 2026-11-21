@@ -176,3 +176,25 @@ test('privacy page: no third-party script, style or font on the website', () => 
     }
   }
 });
+
+// The policy's own words and the date at its top move together: section 11 promises the date changes with the policy.
+// Changed privacy.html? Set "last updated" to today, then put the new date and fingerprint (printed below) here.
+const POLICY = { date: '21 November 2026', fingerprint: 'f2b0831d7d74ce41' };
+test('privacy page: its "last updated" date was set the last time its words changed', () => {
+  const html = read('web/privacy.html').replace(/\r\n/g, '\n');
+  const date = (/last updated (\d{1,2} [A-Z][a-z]+ \d{4})/.exec(html) || [])[1];
+  const fingerprint = require('crypto').createHash('sha256').update(html.replace(/last updated [^&<]+/, '')).digest('hex').slice(0, 16);
+  assert.equal(fingerprint, POLICY.fingerprint, `web/privacy.html changed: set its "last updated" to today and POLICY here to { date, fingerprint: '${fingerprint}' }`);
+  assert.equal(date, POLICY.date, 'the page shows the date the policy was last changed');
+});
+
+test('contact: before launch no page offers an email address on the domain that is not live yet', () => {
+  const brand = JSON.parse(read('brand.json'));
+  if (brand.launched) return;
+  const dead = new RegExp(`mailto:[^"]*@${brand.apexDomain.replace(/\./g, '\\.')}`);
+  const pages = [...fs.readdirSync(path.join(ROOT, 'web')).filter((x) => x.endsWith('.html')).map((f) => `web/${f}`),
+    ...fs.readdirSync(path.join(ROOT, 'web/partials')).map((f) => `web/partials/${f}`)];
+  for (const f of pages) assert.doesNotMatch(read(f), dead, `${f} offers a mailbox on ${brand.apexDomain}, which has no mail yet`);
+  // The app's Settings, Help: the server offers the mailbox only once the domain is live.
+  assert.match(read('server/routes/auth.routes.js'), /supportEmail: config\.brand\.launched \? config\.brand\.supportEmail : null/);
+});

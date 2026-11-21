@@ -257,9 +257,12 @@ test('pro plan: research + virus & malware on link scans, 40/week, 4 h delicate 
   assert.equal(live.data.byUrl['https://paypa1-secure-login.com/'].threats.scam.badge, 'red');
   assert.equal(live.data.live.usedMinutes, 1);
 
-  const email = await c.post('/api/v1/live/email', { emails: [{ key: 'm1', from: 'PayPal <help@paypa1-secure-login.com>', subject: 'Verify now', body: 'Verify your account' }] });
+  const kept = (await c.get('/api/v1/account/history')).data.items.length;
+  const email = await c.post('/api/v1/live/email', { emails: [{ key: 'm1', from: 'PayPal <help@paypa1-secure-login.com>', subject: 'Verify now', body: 'Verify your account https://paypa1-secure-login.com/' }] });
   assert.equal(email.status, 200);
   assert.ok(['likely', 'confirmed'].includes(email.data.results[0].verdict.threats.scam.level));
+  // The policy says nothing from an email checked this way is kept, from any window, private ones included.
+  assert.equal((await c.get('/api/v1/account/history')).data.items.length, kept, 'a live email check, even a flagged one with a flagged link, adds nothing to history');
 
   assert.equal((await c.post('/api/v1/scan/email', { from: 'a@b.com', body: 'hi' })).data.error.code, 'plan_required');
 });

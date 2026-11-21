@@ -111,7 +111,8 @@
     const check = left <= 0
       ? '<p class="small note">No page checks left this week.</p>'
       : `<button class="btn block ${first ? 'gold' : 'quiet'}" id="check" type="button">${esc(first ? said.action.text : 'Check again')}</button>`;
-    view.innerHTML = `${hero(said, new URL(url).hostname)}<div class="do">${main}${blocked ? '' : check}</div><div id="note">${note}</div>${statusLine()}`;
+    // A stopped page is the answer on its own: a "paused" line under "Sentinel stopped it" would say the opposite.
+    view.innerHTML = `${hero(said, new URL(url).hostname)}<div class="do">${main}${blocked ? '' : check}</div><div id="note">${note}</div>${blocked ? '' : statusLine()}`;
     wire(said);
   }
 
@@ -144,8 +145,10 @@
 
   async function main() {
     state = await send({ type: 'state' });
-    site = (state.settings && state.settings.apiBase) || '';
-    document.getElementById('openApp').href = `${site}/app`;
+    site = state.site || '';
+    const openApp = document.getElementById('openApp');
+    openApp.href = `${site}/app`;
+    openApp.hidden = state.reachable === false;
 
     if (!state.ok || !state.account || !state.account.signedIn) {
       const connected = await send({ type: 'connect' });
@@ -181,6 +184,17 @@
   }
 
   function signedOut() {
+    // Neither the Windows app on this computer nor a live Sentinel site to sign in on: say so, and what works today.
+    if (state.reachable === false) {
+      view.innerHTML = `
+        ${hero({ tone: 'none', mask: 'onyx', title: 'Open the Sentinel app first', line: 'The companion signs in through the Sentinel app for Windows. Sentinel’s own website, where you could sign in instead, is not live yet.', reason: '' })}
+        <div class="do do-row">
+          <a class="btn gold" href="https://github.com/zzilinct/Sentinel/releases/latest" target="_blank" rel="noopener">Get the Windows app</a>
+        </div>
+        <p class="small note">The app is open on this computer? <a href="#" class="link" id="recheck">Check again</a></p>`;
+      document.getElementById('recheck').onclick = async (ev) => { ev.preventDefault(); main(); };
+      return;
+    }
     view.innerHTML = `
       ${hero({ tone: 'none', mask: 'onyx', title: 'Welcome', line: 'Sign in to Sentinel to check pages in this browser and stop dangerous ones before they load.', reason: '' })}
       <div class="do do-row">

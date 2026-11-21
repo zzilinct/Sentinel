@@ -10,6 +10,7 @@
  * appear instantly from the checklist, then upgrade once research finishes.
  */
 import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError, keepLook, warns, levelsFrom, OLD_LEVEL_KEYS, DEFAULTS } from './lib/api.js';
+import { BRAND } from './lib/brand.js';
 const Store = globalThis.SentinelStore;
 // SentinelSay: the words of the warnings, shared with the block page, popup and settings.
 import './lib/say.js';
@@ -689,12 +690,33 @@ async function deepScan(url) {
   account.usage = data.usage;
   return data;
 }
+/** The Windows app on this computer, asked for its look: its answer in a moment, or null without the app. */
+const APP_ORIGIN = 'http://127.0.0.1:47821';
+async function appLook() {
+  try {
+    const res = await fetch(`${APP_ORIGIN}/api/v1/look`, { credentials: 'omit', signal: AbortSignal.timeout(1500) });
+    return res.ok ? res : null;
+  } catch { return null; }
+}
+
+/**
+ * Where the companion's links to Sentinel lead (sign in, create an account, open Sentinel). Paired, the Sentinel that
+ * paired it. Not yet paired, the Windows app on this computer when it answers, since the hosted site may not be live;
+ * `live` false says neither is there, so nothing links to a site that would not open.
+ */
+async function home(apiBase) {
+  if (apiBase !== DEFAULTS.apiBase) return { site: apiBase, live: true };
+  if (await appLook()) return { site: APP_ORIGIN, live: true };
+  return { site: apiBase, live: BRAND.launched === true };
+}
+
 const handlers = {
   async state(msg, sender) {
     fromOptions(sender);
     const settings = await getSettings();
     await refreshAccount();
-    return { settings, account, live, locked: liveBlockReason(), site: settings.apiBase, siteAccess: await siteAccess(), browser: globalThis.browser ? 'firefox' : 'chromium' };
+    const { site, live: reachable } = account.signedIn ? { site: settings.apiBase, live: true } : await home(settings.apiBase);
+    return { settings, account, live, locked: liveBlockReason(), site, reachable, siteAccess: await siteAccess(), browser: globalThis.browser ? 'firefox' : 'chromium' };
   },
   /**
    * The look (light or dark, and the accent) for the companion's own pages, which ask as they open (lib/lookhere.js).
@@ -707,11 +729,9 @@ const handlers = {
     const L = globalThis.SentinelLook;
     const { look: kept } = await ext.storage.local.get('look');
     let rec = L.record(kept);
-    try {
-      const res = await fetch('http://127.0.0.1:47821/api/v1/look', { credentials: 'omit', signal: AbortSignal.timeout(1500) });
-      // The app on this computer wins a tie: what it says is a choice, what was kept may only be the default.
-      if (res.ok) rec = L.merge(await res.json(), rec);
-    } catch { /* no app on this computer */ }
+    // The app on this computer wins a tie: what it says is a choice, what was kept may only be the default.
+    const res = await appLook();
+    if (res) rec = L.merge(await res.json(), rec);
     if (change && typeof change === 'object') {
       const now = Date.now();
       for (const k of L.KEYS) if (k in change) rec = L.merge(rec, { [k]: change[k], at: { [k]: now } });
@@ -965,8 +985,9 @@ ext.runtime.onInstalled.addListener(async (details) => {
   await restore();
   if (!account.signedIn) await connect();
   if (await wantsConnectTab(details.reason, account.signedIn)) {
-    const { apiBase } = await getSettings();
-    ext.tabs.create({ url: siteUrl(apiBase, '/connect') });
+    // Never a tab that would not open: with no Windows app here and no live site, the popup says what to do instead.
+    const { site, live: reachable } = await home((await getSettings()).apiBase);
+    if (reachable) ext.tabs.create({ url: siteUrl(site, '/connect') });
   }
 });
 

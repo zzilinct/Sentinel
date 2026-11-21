@@ -39,7 +39,7 @@ reports or analytics. There are none of the last two. The app never opens a susp
 | The site and path of each page you open. The part after `?` only when local signs say the site may not be what it seems (a raw IP, a punycode name, a name and password in the address, another address in the query, or an earlier flagged verdict for the site), never from a private window. The part after `#` never (`sendable()` and `looksOff()` in `extension/src/background.js`) | Your scanner: the Windows app on `127.0.0.1` once paired, otherwise Sentinel's servers | Check the page | Signed in, live scanning on | Live scanning switch in the companion |
 | The addresses of search results, links in web chats, a link your pointer rests on, trimmed the same way | Your scanner | Marks beside them | Signed in, live scanning on | Live scanning switch |
 | `mode: fast` or `mode: delicate` | Your scanner | Which checks to run | Every check | Fast is the default; Delicate is a choice in Settings |
-| Sender, reply-to, subject, a text excerpt (an opened email: up to 6,000 characters), link addresses, attachment names | Your scanner | Masks in Gmail and Outlook on the web | Email protection on (off until turned on), Pro and up | Email protection switch |
+| Sender, reply-to, subject, a text excerpt (an opened email: up to 6,000 characters), link addresses, attachment names | Your scanner | Masks in Gmail and Outlook on the web | Email protection on (off until turned on), Pro and up, also in a private window the companion is allowed in. The scanner keeps nothing from any email it checks this way | Email protection switch |
 | A link you choose to scan or report, or a site you trust or block | Your scanner | What you asked for | Only when you ask | Do not ask |
 | Your sign-in token | Your scanner | Know your plan and allowances | Every 15 minutes while signed in; the threat list every hour | Sign out |
 | Nothing (asks for the look) | `127.0.0.1:47821` | Use the theme chosen in the Windows app | When one of the companion's own pages opens | No switch, never leaves the computer |
@@ -136,7 +136,7 @@ table and the tables above say where it goes.
 | `desktop/src/models.js` | `install` | `fetch` | `exe.browser_download_url` | GitHub Releases: a model's manifest and installer (a model you choose) |
 | `desktop/src/models.js` | `install` | `fetch` | `manifest.browser_download_url` | GitHub Releases: a model's manifest and installer (a model you choose) |
 | `desktop/src/updater.js` | `check` | `autoUpdater.checkForUpdates` | `(none)` | GitHub Releases: update checks, every 2 hours |
-| `extension/src/background.js` | `look` | `fetch` | `http://127.0.0.1:47821/api/v1/look` | 127.0.0.1:47821, the Windows app (the look) |
+| `extension/src/background.js` | `appLook` | `fetch` | `${APP_ORIGIN}/api/v1/look` | 127.0.0.1:47821, the Windows app (the look, and whether the app is here for the companion's sign-in links) |
 | `extension/src/lib/api.js` | `apiFetch` | `fetch` | `${apiBase}${path}` | The companion's scanner: 127.0.0.1 paired, or Sentinel's servers |
 | `server/lib/auth.js` | `googleExchange` | `fetch` | `https://oauth2.googleapis.com/token` | Google (only "Continue with Google") |
 | `server/lib/mailer.js` | `send` | `fetch` | `https://api.resend.com/emails` | Resend (hosted account emails) |

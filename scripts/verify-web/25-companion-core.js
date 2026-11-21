@@ -18,6 +18,7 @@
  *   8. The Firefox build, where Firefox is on the runner (scripts/verify-companion-firefox.js).
  * Runners may visit real public sites; the scam pages are local and harmless.
  */
+const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { ROOT, sleep, result, serveFiles, launch, evalIn, openPage, goto, pageText, shot, typeText, TYPED_PW, watchErrors, pressKey, until, passBlock, NO_UPGRADE } = require('./_shared');
@@ -135,10 +136,16 @@ async function checkCompanionCore() {
 
     await goto(browser, web.sessionId, 'http://plain.test/plain.html');
     const out = await popup('signed-out');
+    // This server is not the Windows app (it has no look to give), and the hosted site is not live yet: a new install
+    // with neither opens no tab, and the popup says what works today instead of linking to a site that would not open.
+    const dead = JSON.parse(fs.readFileSync(path.join(ROOT, 'brand.json'), 'utf8')).origin;
+    const tabsAt = await evalIn(browser, out.sessionId, 'chrome.tabs.query({}).then((t) => t.map((x) => x.url || x.pendingUrl || ""))');
+    const openApp = await evalIn(browser, out.sessionId, "document.getElementById('openApp').getClientRects().length === 0");
     await out.close();
-    result(`companion-core: popup signed out says to sign in, with Sign in and Create account (shown in ${out.ms} ms)`,
-      out.ready && /Sign in to Sentinel/.test(out.info.text) && out.info.links.some((l) => /^Sign in -> .*\/connect$/.test(l)) && out.info.links.some((l) => /^Create account -> /.test(l)) && !out.errors.length && out.ms < 8000,
-      { ...out.info, errors: out.errors });
+    result(`companion-core: popup signed out, with no Windows app here and no live site, says to open the app and links only to the download, never to the site that is not live; a new install opened no tab there (shown in ${out.ms} ms)`,
+      out.ready && /Open the Sentinel app first/.test(out.info.text) && /not live yet/.test(out.info.text) && out.info.links.some((l) => /^Get the Windows app -> https:\/\/github\.com\/zzilinct\/Sentinel\/releases/.test(l))
+        && !out.info.links.some((l) => l.includes(dead)) && openApp === true && !tabsAt.some((u) => u.startsWith(dead)) && !out.errors.length && out.ms < 8000,
+      { ...out.info, tabs: tabsAt, openAppHidden: openApp, errors: out.errors });
 
     // Pairing, as with the Windows app: an account on 127.0.0.1:47821, signed in in this browser, then its connect page.
     await goto(browser, web.sessionId, `${base}/login`);
@@ -209,8 +216,8 @@ async function checkCompanionCore() {
     const badge = await evalIn(browser, opt.sessionId, `chrome.tabs.query({}).then((tabs) => { const t = tabs.find((x) => (x.url || '').includes(${JSON.stringify(TYPED_PW)})); return t ? chrome.action.getBadgeText({ tabId: t.id }) : null; })`);
     const stoppedPop = await popup('stopped-page');
     await stoppedPop.close();
-    result('companion-core: on a stopped page (the icon shows "!") the popup says what the block page says',
-      badge === '!' && /stopped it before it opened/i.test(stoppedPop.info.page || '') && /confirmed scam/.test(stoppedPop.info.text) && stoppedPop.info.host === TYPED_PW, { badge, page: stoppedPop.info.page, text: stoppedPop.info.text });
+    result('companion-core: on a stopped page (the icon shows "!") the popup says what the block page says, and no "paused" line under it says the opposite',
+      badge === '!' && /stopped it before it opened/i.test(stoppedPop.info.page || '') && /confirmed scam/.test(stoppedPop.info.text) && !/paused|model/i.test(stoppedPop.info.text) && stoppedPop.info.host === TYPED_PW, { badge, page: stoppedPop.info.page, text: stoppedPop.info.text });
     // The same site, opened anyway: the popup says it is flagged, and offers the one way out.
     await passBlock(browser, web.sessionId);
     await sleep(1000);
@@ -258,7 +265,8 @@ async function checkCompanionCore() {
     await pick('all');
     // A server address that is not https is refused, and the field goes back.
     const refused = await evalIn(browser, opt.sessionId, `(async () => { const e = document.getElementById('apiBase'); const was = e.value; e.value = 'http://sentinel.example.com'; e.dispatchEvent(new Event('change'));
-      await new Promise((r) => setTimeout(r, 300)); return { said: document.getElementById('saved').textContent, value: e.value, was }; })()`);
+      await new Promise((r) => setTimeout(r, 300)); const m = document.getElementById('saved'); const box = m.getBoundingClientRect();
+      return { said: m.textContent, value: e.value, was, panel: getComputedStyle(m).backgroundColor, inside: box.left >= 15 && box.right <= innerWidth - 15 }; })()`);
     // The keyboard: Tab to the Add button and the Sign out button, and the focus must be visible.
     const focusRing = async (selector, from) => {
       await evalIn(browser, opt.sessionId, `(() => { const f = document.querySelector(${JSON.stringify(from)}); f.scrollIntoView({ block: 'center' }); f.focus(); })()`);
@@ -276,8 +284,8 @@ async function checkCompanionCore() {
     const narrow = await evalIn(browser, opt.sessionId, 'document.documentElement.scrollWidth > innerWidth');
     await shot(browser, opt.sessionId, 'companion-core-options-narrow');
     await browser.send('Emulation.clearDeviceMetricsOverride', {}, opt.sessionId);
-    result('companion-core: options page: every switch is named, a change is kept after reload, a non-https server is refused and put back, it fits a narrow window, no console errors',
-      !optInfo.unnamed.length && kept === 'risky' && /https/.test(refused.said) && refused.value === refused.was && !optInfo.scroll && !narrow && !optErrors.length,
+    result('companion-core: options page: every switch is named, a change is kept after reload, a non-https server is refused (said on its own panel, never printed over a setting) and put back, it fits a narrow window, no console errors',
+      !optInfo.unnamed.length && kept === 'risky' && /https/.test(refused.said) && !/rgba\(0, 0, 0, 0\)|transparent/.test(refused.panel) && refused.inside && refused.value === refused.was && !optInfo.scroll && !narrow && !optErrors.length,
       { ...optInfo, kept, refused, narrow, errors: optErrors });
     result('companion-core: options page: the keyboard\'s focus is visible on its buttons, and its sections are headings a screen reader can jump between',
       visible(ringAdd) && visible(ringOut) && optInfo.headings.filter((h) => /^H2/.test(h)).length >= 4, { add: ringAdd, signOut: ringOut, headings: optInfo.headings });

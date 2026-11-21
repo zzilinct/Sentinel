@@ -61,9 +61,10 @@ function register(router) {
       verificationAvailable: config.mailConfigured,
       researchAvailable: config.researchEnabled,
       termsVersion: A.TERMS_VERSION,
-      // For Settings, Help: the version this server runs and who answers when Sentinel is wrong.
+      // For Settings, Help: the version this server runs and who answers when Sentinel is wrong. The mailbox only once
+      // its domain is live (brand.json launched); until then Help points to the GitHub page, where a message arrives.
       version: require('../../package.json').version,
-      supportEmail: config.brand.supportEmail,
+      supportEmail: config.brand.launched ? config.brand.supportEmail : null,
       plans: plans.publicPlans()
     });
   });
