@@ -58,6 +58,8 @@ body.app::before { opacity: .6; }
   .side__foot { grid-template-columns: auto 1fr; align-items: center; gap: 6px 10px; padding-top: 8px; }
   .side__foot > .usage-mini, .side__foot > .me { grid-column: 1 / -1; }
   .side__foot .legal-links { padding: 0; }
+  /* Each link keeps a 24 px target, so a finger or a shaky hand still lands on the one it means. */
+  .side__foot .legal-links a { display: inline-flex; align-items: center; min-height: 24px; }
   .usage-mini { display: grid; gap: 2px; padding: 8px 12px; }
   .usage-mini .meter { display: none; }
   .usage-mini__row, .usage-mini .meter + .usage-mini__row { margin: 0; line-height: 1.35; }
