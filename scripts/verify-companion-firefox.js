@@ -242,7 +242,10 @@ async function main() {
     // Each command on stderr as it goes, so a run that stalls says where (the caller shows stderr after the verdict).
     const sent = m.send.bind(m);
     const t0 = Date.now();
-    m.send = (cmd, params) => { process.stderr.write(`${Math.round((Date.now() - t0) / 1000)}s ${cmd}\n`); return sent(cmd, params); };
+    m.send = (cmd, params) => {
+      process.stderr.write(`${Math.round((Date.now() - t0) / 1000)}s ${cmd}\n`);
+      return sent(cmd, params).catch((err) => { process.stderr.write(`  ${cmd} failed: ${err.message}\n`); throw err; });
+    };
     const session = await m.send('WebDriver:NewSession', { capabilities: { alwaysMatch: { acceptInsecureCerts: true } } });
     result.version = `Firefox/${session.capabilities.browserVersion}`;
 
@@ -363,7 +366,8 @@ async function main() {
       result.privateMarks = p;
     }
   } finally {
-    if (m) { await m.send('Marionette:Quit', { flags: ['eForceQuit'] }).catch(() => {}); m.close(); }
+    // A Firefox that quits without answering would hold this run until its caller's timeout, hiding what went wrong.
+    if (m) { await Promise.race([m.send('Marionette:Quit', { flags: ['eForceQuit'] }).catch(() => {}), sleep(5000)]); m.close(); }
     child.kill();
     proxy.close();
     await sleep(1200);
