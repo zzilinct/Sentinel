@@ -389,6 +389,9 @@ async function refreshAll({ log = false, force = false } = {}) {
     const last = q.meta.get();
     if (!last || now() - last.fetched_at > FULL_REBUILD_MS) await rebuildTokens();
     else await updateTokens(added, removed);
+    // The end of the refresh, with the name index after the lists: until this line the server's processor time is
+    // this import (its own thread, below normal priority), which a profile of the server's main thread cannot see.
+    if (log) console.log(`  feeds     refreshed, name index ready (${Math.round((now() - began) / 1000)} s)`);
     return results;
   })();
   try {

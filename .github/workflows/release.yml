@@ -78,6 +78,9 @@ jobs:
           # latest.yml is what installed copies read to update themselves. It
           # names the versioned installer, so that file must keep its own name.
           Copy-Item desktop/dist/latest.yml release/latest.yml
+          # The installer's block map, beside it under the same name: installed copies then download only the blocks
+          # that changed since their own version (its block map is on that version's release), not the whole installer.
+          Copy-Item "$($exe.FullName).blockmap" "release/$($exe.Name).blockmap" -ErrorAction Stop
           Get-FileHash release/*.exe, release/*.zip -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content release/SHA256SUMS.txt
           Get-Content release/SHA256SUMS.txt
 

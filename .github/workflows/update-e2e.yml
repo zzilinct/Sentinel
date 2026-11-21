@@ -1,16 +1,23 @@
-# Automatic updates end to end on a GitHub-hosted Windows desktop: the release before the latest installs itself
-# up to the latest, untouched, and comes back in the tray (scripts/update-e2e.ps1). Never runs on a person's computer.
+# Automatic updates end to end on a GitHub-hosted Windows desktop (scripts/update-e2e.ps1). Never runs on a person's
+# computer. On a branch: this commit built as two versions, the first updating itself to the second from a feed on the
+# runner, with a browser left in front and only the changed blocks downloaded. After every release: the release before
+# the latest updating itself to the latest, from GitHub.
 name: Automatic update end to end
 
 on:
   workflow_dispatch:
+    inputs:
+      releases:
+        description: 'Test the published releases (the one before the latest, to the latest) instead of this commit'
+        type: boolean
+        default: false
   # After every release is built and published (a release made by a workflow cannot trigger this one directly).
   workflow_run:
     workflows: [Release]
     types: [completed]
   push:
     branches: ['work/e2e**']
-    paths: ['scripts/update-e2e.ps1', '.github/workflows/update-e2e.yml', 'desktop/src/updater.js']
+    paths: ['scripts/update-e2e.ps1', 'scripts/update-feed.js', '.github/workflows/update-e2e.yml', 'desktop/src/updater.js']
 
 permissions:
   contents: read
@@ -18,13 +25,34 @@ permissions:
 jobs:
   update:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
+    env:
+      RELEASES: ${{ github.event_name == 'workflow_run' || inputs.releases == true }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: env.RELEASES != 'true'
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Build this commit, and the same commit as the next version
+        if: env.RELEASES != 'true'
+        working-directory: desktop
+        shell: powershell
+        run: |
+          npm ci
+          npm run dist:win
+          Move-Item dist dist-now
+          $v = (node -p "require('./package.json').version").Split('.'); $v[2] = [int]$v[2] + 1
+          npm version ($v -join '.') --no-git-tag-version
+          npm run dist:win
       - shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/update-e2e.ps1 -Out update-e2e
+        run: |
+          if ($env:RELEASES -eq 'true') { ./scripts/update-e2e.ps1 -Out update-e2e }
+          else { ./scripts/update-e2e.ps1 -Out update-e2e -Installer (Get-ChildItem desktop/dist-now/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Next (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

@@ -39,6 +39,9 @@ test('danger red, warning orange and caution yellow are the same bytes in every 
   assert.match(overlay, /function tone\(badge\) \{ return L\.STATUS\[L\.scheme\(look\.mode\)\]/);
   assert.match(read('desktop', 'src', 'pages', 'card.js'), /const tone = \(badge\) => window\.SentinelLook\.STATUS\[/);
   for (const page of ['warn.html', 'guard.html', 'filescan.html']) assert.doesNotMatch(read('desktop', 'src', 'pages', page), /#e5484d|#f08a24|#f5c542/, `${page} names a status colour itself`);
+  // The right-click file result takes light and dark and the accent from card.js alone: its own cream and gold kept
+  // it gold in every colour until 1.21.1.
+  assert.doesNotMatch(read('desktop', 'src', 'pages', 'filescan.html'), /#[0-9a-f]{3,8}\b|<style/i, 'filescan.html paints no colours of its own');
 });
 
 test('gold is the default and keeps its hand-tuned values', () => {
@@ -224,7 +227,14 @@ test('the tray mask is gold untouched, and cast in another accent keeps its shap
   assert.deepEqual([blue[3], blue[7], blue[11]], [255, 255, 0], 'alpha is kept');
   assert.ok(Math.abs(L.toOklch('#' + [blue[2], blue[1], blue[0]].map((v) => v.toString(16).padStart(2, '0')).join(''))[0] - L.toOklch('#d6b25a')[0]) < 0.08, 'about the same lightness (the dark tuning sits a little lower)');
   assert.match(read('desktop', 'src', 'main.js'), /tray = new Tray\(trayImage\(look\(\)\.accent\)\)/);
-  assert.match(read('desktop', 'src', 'main.js'), /if \(tray\) tray\.setImage\(trayImage\(l\.accent\)\)/);
+  // The look reaches the tray through refreshTray, which also says at a glance whether live scanning watches: the
+  // tooltip names its state and the mask is dimmed while it does not (only "Sentinel <version>" until 1.21.1).
+  const main = read('desktop', 'src', 'main.js');
+  assert.match(main, /if \(tray\) refreshTray\(\);/);
+  assert.match(main, /showTrayGlance\(pw, up\);\r?\n\s*tray\.setContextMenu/);
+  assert.match(main, /on \? 'live scanning on' : wanted \? 'live scanning stopped, starting again' : 'live scanning off'/);
+  assert.match(main, /tray\.setToolTip\(g\.tip\);\r?\n\s*tray\.setImage\(trayImage\(look\(\)\.accent, !g\.on\)\);/);
+  assert.doesNotMatch(main, /tray\.setToolTip\(`Sentinel \$\{app\.getVersion\(\)\}`\)/);
   // The 16 px mark at 100% and the 32 px one at 200%, both cast in the accent.
   assert.match(read('desktop', 'src', 'main.js'), /\[\['icon16\.png', 1\], \['icon32\.png', 2\]\]/);
   assert.match(read('desktop', 'src', 'main.js'), /Look\.tintBitmap\(base\.toBitmap\(\), accent\)/);

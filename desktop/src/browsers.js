@@ -108,7 +108,8 @@ async function installed() {
  * Sentinel that cares is told from here, so nothing else has to keep asking. "Stop pasted commands" looks at the
  * clipboard often only while a browser is in front, and chat safety reads only the window in front.
  * Asked "clip" on its input, it answers which program wrote the clipboard and how many milliseconds ago a key or the
- * mouse was last used ("clip:powershell|5230"), for wallet guard (clipwatch.js).
+ * mouse was last used ("clip:powershell|5230"), for wallet guard (clipwatch.js). Asked "busy", it answers whether a
+ * game, video or presentation is full screen ("busy:3"), so nothing interrupts it (main.js fullscreenInFront).
  * Told "listen", it hears every clipboard change the moment it happens (a message-only window registered with
  * AddClipboardFormatListener, on its own thread) and says "clipboard:<sequence>|<tick>|<idle ms>|<owner>|<text>". The
  * text is given only when it is shaped like a wallet address or an IBAN, and is otherwise dropped on the spot: a
@@ -117,7 +118,7 @@ async function installed() {
  */
 const WATCH_SCRIPT = `
 $ErrorActionPreference = 'SilentlyContinue'
-Add-Type -Namespace SB -Name F -MemberDefinition '[DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p); [DllImport("user32.dll")] public static extern System.IntPtr GetClipboardOwner(); [DllImport("user32.dll")] public static extern bool GetLastInputInfo([In, Out] int[] p);'
+Add-Type -Namespace SB -Name F -MemberDefinition '[DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p); [DllImport("user32.dll")] public static extern System.IntPtr GetClipboardOwner(); [DllImport("user32.dll")] public static extern bool GetLastInputInfo([In, Out] int[] p); [DllImport("shell32.dll")] public static extern int SHQueryUserNotificationState(out int s);'
 Add-Type -TypeDefinition @'
 using System; using System.Diagnostics; using System.Runtime.InteropServices; using System.Text; using System.Text.RegularExpressions; using System.Threading;
 namespace SB {
@@ -269,6 +270,7 @@ while ($true) {
       $li = [int[]](8, 0); [void][SB.F]::GetLastInputInfo($li)
       [Console]::Out.WriteLine('clip:' + $c + '|' + (([int64][Environment]::TickCount - $li[1]) -band 4294967295)); [Console]::Out.Flush()
     }
+    elseif ($pending.Result -eq 'busy') { $q = 0; [void][SB.F]::SHQueryUserNotificationState([ref]$q); [Console]::Out.WriteLine('busy:' + $q); [Console]::Out.Flush() }
     elseif ($pending.Result -eq 'listen') { [SB.Clip]::Listen($true) }
     elseif ($pending.Result -eq 'quiet') { [SB.Clip]::Listen($false) }
     elseif ($pending.Result -eq 'runkeys') { [SB.RunKeys]::Start() }
@@ -280,7 +282,7 @@ let watcherRunning = null;   // the helper's latest answer: process names, or nu
 let watcherFront = null;     // the program whose window is in front ('' for none), or null before the helper says
 let watcherHandle = '';      // that window
 let frontHandler = null;     // told each time the window in front changes, and null when the helper ended
-const clipWaiters = [];      // answers owed for "clip"
+const waiters = { clip: [], busy: [] };   // answers owed for "clip" and "busy"
 let clipHandler = null;      // wallet guard's ear for clipboard changes, or null when it does not want them
 let clipHearing = false;     // the helper said "clipboard:on"
 let runKeysHandler = null;   // defense's ear for Run key changes: 'on', 'on|partial', 'off', 'changed', or 'gone'
@@ -317,7 +319,11 @@ function startProcessWatcher(onNames, extra = [], onGone = null) {
       else if (line.startsWith('clip:')) {
         const [owner, idle] = line.slice(5).split('|');
         const answer = { owner: owner || null, idle: Number(idle) };
-        clipWaiters.splice(0).forEach((done) => done(answer));
+        waiters.clip.splice(0).forEach((done) => done(answer));
+      }
+      else if (line.startsWith('busy:')) {
+        const answer = Number(line.slice(5));
+        waiters.busy.splice(0).forEach((done) => done(Number.isFinite(answer) ? answer : null));
       }
       else if (line.startsWith('runkeys:')) tellRunKeys(line.slice(8));
     }
@@ -330,7 +336,7 @@ function startProcessWatcher(onNames, extra = [], onGone = null) {
     if (ended) return;
     ended = true;
     const current = watcherChild === child || watcherChild === null;   // not a newer helper that already said 'on'
-    watcherChild = null; watcherRunning = null; watcherFront = null; clipHearing = false; clipWaiters.splice(0).forEach((done) => done(null));
+    watcherChild = null; watcherRunning = null; watcherFront = null; clipHearing = false; for (const w of Object.values(waiters)) w.splice(0).forEach((done) => done(null));
     if (current) { tellRunKeys('gone'); tellFront(null); if (onGone) onGone(); }
   };
   watcherChild.on('exit', gone);
@@ -390,13 +396,22 @@ function inFront() {
  * Who wrote the clipboard and how long since a key or the mouse was used: { owner, idle } (owner is a process name,
  * or null), from the running helper. null when the helper is not running or does not answer within a second.
  */
-function clipOwner() {
+function clipOwner() { return ask('clip'); }
+
+/**
+ * Windows' word on whether this is a moment to interrupt (SHQueryUserNotificationState: 2 busy, 3 a Direct3D game
+ * full screen, 4 a presentation), from the running helper. null when it cannot say.
+ */
+function busy() { return ask('busy'); }
+
+function ask(word) {
   if (!watcherChild) return Promise.resolve(null);
+  const list = waiters[word];
   return new Promise((resolve) => {
     const done = (answer) => { clearTimeout(timer); resolve(answer); };
-    const timer = setTimeout(() => { const i = clipWaiters.indexOf(done); if (i >= 0) clipWaiters.splice(i, 1); resolve(null); }, 1000);
-    clipWaiters.push(done);
-    try { watcherChild.stdin.write('clip\n'); } catch { done(null); }
+    const timer = setTimeout(() => { const i = list.indexOf(done); if (i >= 0) list.splice(i, 1); resolve(null); }, 1000);
+    list.push(done);
+    try { watcherChild.stdin.write(`${word}\n`); } catch { done(null); }
   });
 }
 
@@ -551,4 +566,4 @@ function watch({ onChange, everyMs = 15000, others = null }) {
 }
 
 module.exports = {
-  defaultBrowser, preferred, BROWSERS, installed, running, inFront, clipOwner, clipListen, clipListening, runKeysListen, frontListen, bringForward, watch, _test: { WATCH_SCRIPT } };
+  defaultBrowser, preferred, BROWSERS, installed, running, inFront, clipOwner, busy, clipListen, clipListening, runKeysListen, frontListen, bringForward, watch, _test: { WATCH_SCRIPT } };

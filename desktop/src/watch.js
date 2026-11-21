@@ -214,7 +214,13 @@ public class Glide {
   // scroll it, so the band is looked at once a second. A wheel turning (Poke) wakes the look at once.
   public static volatile bool Quiet;
   static readonly System.Threading.AutoResetEvent wake = new System.Threading.AutoResetEvent(false);
-  public static void Poke(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; wake.Set(); }
+  // A movement that no wheel, touchpad or mouse button came before, nor the browser's own positions since: a page
+  // repainting itself in place (a new row, a banner) looks the same to the pixels as a scroll, and so does the
+  // keyboard. Such a run is reported as unconfirmed ("lone") until one of those says the page really moves: the marks
+  // then step aside instead of riding the pixels onto other rows (scam masks on honest emails, until 1.21.1).
+  static volatile bool lone;
+  public static void Poke(int ms) { lone = false; Watch(ms); }
+  static void Watch(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; wake.Set(); }
   public static void Region(int x, int y, int w, int h) { lock (gate) { rx = x; ry = y; rw = Math.Max(0, w); rh = Math.Max(0, h); } }
   public static void Start() {
     if (started) return;
@@ -300,8 +306,8 @@ public class Glide {
           if (sure && s != 0) {
             Sent++; Total += -s; LastMove = Environment.TickCount;
             // A movement seen between scrolls (the keyboard, a page moving itself): watch every frame for a moment.
-            if (!woken) Poke(400);
-            Console.Out.WriteLine("{\"px\":{\"dy\":" + (-s) + ",\"t\":" + Environment.TickCount + "}}"); Console.Out.Flush();
+            if (!woken) { lone = true; Watch(400); }
+            Console.Out.WriteLine("{\"px\":{\"dy\":" + (-s) + ",\"t\":" + Environment.TickCount + (lone ? ",\"lone\":1" : "") + "}}"); Console.Out.Flush();
           }
         }
         prev = cur;
@@ -342,7 +348,12 @@ $docCache.Add($A::BoundingRectangleProperty); $docCache.Add($A::IsOffscreenPrope
 $anchor = $null; $anchorX = 0; $anchorY = 0; $lastDx = 0; $lastDy = 0; $moved = $false; $confirmedWheel = 0
 $appCheckFor = [IntPtr]::Zero; $isApp = $false
 $browsers = @('chrome', 'msedge', 'brave', 'opera', 'vivaldi', 'duckduckgo', 'firefox', 'librewolf')
-$private = '\b(InPrivate|Incognito|Private Browsing|Private Window|Privates Fenster|Navigation priv|Navegaci.n privada|Inc.gnito)\b|\(Private\)'
+# A private window, by the words each browser puts in its title, in the languages most people use (English, German,
+# French, Spanish, Portuguese, Italian, Dutch, Polish, Turkish, Russian, Japanese, Chinese, Korean). No word boundaries:
+# .NET counts an accented letter as part of the word, so "Navigation priv\b" never matched "Navigation privee" with
+# its accent, and French private windows were treated as ordinary ones until 1.21.1. A page title that happens to hold
+# one of these words is treated as private too: nothing kept, which is the safe way to be wrong.
+$private = 'InPrivate|Inc.gnito|Inkognito|Private Browsing|Private Window|Privates Fenster|Privater Modus|Navigation priv|Navegaci.n privada|Navega..o priv|Navega..o an.nima|\(An.nima\)|Navigazione anonima|Priv.navigatie|Tryb prywatny|\(Gizli\)|Gizli Gezinti|\(Private\)|\u043D\u043A\u043E\u0433\u043D\u0438\u0442\u043E|\u0440\u0438\u0432\u0430\u0442\u043D|\u30B7\u30FC\u30AF\u30EC\u30C3\u30C8|\u30D7\u30E9\u30A4\u30D9\u30FC\u30C8|\u65E0\u75D5|\u7121\u75D5|\u9690\u79C1|\u96B1\u79C1|\uC2DC\uD06C\uB9BF|\uC0AC\uC0DD\uD65C \uBCF4\uD638'
 # A shop's checkout, by the page's title (the window's title, already read above): only whether it reads like one leaves
 # this script, never the title. Its address is judged by the scanner (server/lib/scan/paycheck.js).
 $checkoutTitle = '\b(check ?out|place (your )?order|kasse|paiement)\b'
@@ -608,9 +619,12 @@ while ($true) {
     if ($doc) { $url = $doc.GetCurrentPattern($VP::Pattern).Current.Value; $r = $doc.Current.BoundingRectangle }
   } catch { $url = $null; $cachedDoc = $null }
   if (-not $url -or -not $r -or [double]::IsInfinity($r.Width) -or $r.Width -lt 200) {
-    if ($noDoc -ne $fname) { $noDoc = $fname; Write-Output (@{ browser = $fname; nodoc = $true } | ConvertTo-Json -Compress) }
+    if ($noDoc -ne $fname) { $noDoc = $fname; $noDocAt = $tick; Write-Output (@{ browser = $fname; nodoc = $true } | ConvertTo-Json -Compress) }
     Off 'no page'; continue
   }
+  # How long the browser took to give its page address once it was in front: the log says whether that time was the
+  # browser's (a cold start, its accessibility waking up) or the reader's, which looks again every 300 ms.
+  if ($noDoc) { Write-Output (@{ browser = $noDoc; docAfter = $tick - $noDocAt } | ConvertTo-Json -Compress) }
   $noDoc = ''
   $pageUrl = $url
   # The flagged page: another site in its window means it was left. Until then, about once a second for two minutes,
@@ -1078,6 +1092,7 @@ function onLine(line) {
   if (msg.raised || msg.noWindow) { const r = raiseWaiters.shift(); if (r) r(Boolean(msg.raised)); return; }
   if ('closed' in msg) { const r = closeWaiters.shift(); if (r) r({ closed: msg.closed === true, pid: Number(msg.pid) || 0 }); return; }
   if (msg.front) { if (msg.isBrowser) log(`${msg.front} is in front`); return; }
+  if (msg.docAfter !== undefined) { log(`${msg.browser} gave its page address ${Math.round(Number(msg.docAfter) || 0)} ms after it first gave none`); return; }
   if (msg.nodoc) { log(`${msg.browser} is in front, but Windows gave no page address (a start page, a dialog over the page, or the browser's accessibility is off)`); return; }
   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
   if (msg.awake) { log('in use again'); return; }
@@ -1091,7 +1106,7 @@ function onLine(line) {
   if (typeof msg.wheel === 'number') { if (opts.onWheel && latestLinks) opts.onWheel({ epoch: latestLinks.epoch, delta: msg.wheel, t: msg.t }); return; }
   if (msg.glideError) { log(`page following by pixels could not start: ${String(msg.glideError).slice(0, 200)}`); return; }
   // The page's own pixels moved by dy since the last frame (Glide): the surest word on a scroll, a frame late.
-  if (msg.px) { if (opts.onPixels && latestLinks) opts.onPixels({ epoch: latestLinks.epoch, dy: msg.px.dy, t: msg.px.t }); return; }
+  if (msg.px) { if (opts.onPixels && latestLinks) opts.onPixels({ epoch: latestLinks.epoch, dy: msg.px.dy, t: msg.px.t, lone: msg.px.lone === 1 }); return; }
   if (msg.shift) { if (opts.onShift && latestLinks) opts.onShift({ epoch: latestLinks.epoch, dx: msg.shift.dx, dy: msg.shift.dy, t: msg.shift.t, settle: msg.shift.settle === 1 }); return; }
   if ('hover' in msg) return onHover(msg.hover);
   if (msg.links) return onLinks(msg);

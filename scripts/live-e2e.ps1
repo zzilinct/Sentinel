@@ -294,12 +294,18 @@ Start-Sleep 30
 Footprint 'after browsing'
 # A minute with nothing in front but the desktop: what Sentinel uses while someone plays a game or works.
 Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-# Background work first (a threat-list import after the restart above), up to six minutes: at rest is what counts.
-for ($i = 0; $i -lt 18; $i++) {
+# Background work first, up to twelve minutes: at rest is what counts. On a fresh install that is the threat-list
+# import (its own thread in the server, below normal priority) and then its name index; server.log says when it ends.
+# Until 1.21.1 the wait was six minutes and the import was still running in the idle minute: the server's 4 to 18% of
+# one core there (runs 44401842122, 44834424724) was that import, not the server at rest, while the profile of the
+# server's main thread read 99.9% idle because the import runs on another thread.
+function ImportDone { $log = Get-Content "$data\logs\server.log" -Raw -ErrorAction SilentlyContinue; if (-not $log) { return $false }; $from = $log.LastIndexOf('starting embedded server'); $from -ge 0 -and $log.IndexOf('name index ready', $from) -gt 0 }
+for ($i = 0; $i -lt 36; $i++) {
   $a = @(SentinelProcesses | Measure-Object CPU -Sum).Sum; Start-Sleep 20; $b = @(SentinelProcesses | Measure-Object CPU -Sum).Sum
-  Say ("settling: {0:N1} s of processor time in 20 s" -f ($b - $a))
+  Say ("settling: {0:N1} s of processor time in 20 s; threat-list import finished: $(ImportDone)" -f ($b - $a))
   if (($b - $a) -lt 0.6) { break }
 }
+$importBefore = ImportDone
 # Every reg.exe started during the idle minute (defense used to start two a minute to read the Run keys).
 $regWatch = $false
 try { Register-CimIndicationEvent -Query "SELECT * FROM Win32_ProcessStartTrace WHERE ProcessName='reg.exe'" -SourceIdentifier RegStarts -ErrorAction Stop; $regWatch = $true } catch { Say "could not count reg.exe starts: $($_.Exception.Message)" }
@@ -317,6 +323,7 @@ if ($regWatch) {
 }
 Say ("idle minute: Sentinel used {0:N1} s of processor time in 60 s ({1:N1}% of one core)" -f ($after - $before), (($after - $before) / 60 * 100))
 Say "idle minute: $((CpuLine $i0 $i1 60).text)"
+Say "idle minute: threat-list import finished before it: $importBefore$(if (-not $importBefore) { "; finished by its end: $(ImportDone) (the server's share is the import of a fresh install)" })"
 Footprint 'after an idle minute'
 # Then a minute's CPU profile of the main process and the server (main.js, server-host.js), for review. Not inside the
 # measured minute: until 1.20.4 they were, and the minute read 8.4% of one core (run 44390657427), where the same

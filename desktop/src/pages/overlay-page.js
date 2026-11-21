@@ -584,6 +584,9 @@
   function pxActive(now) { return now - pxAt < PX_MS; }
   function onPixels(p) {
     var now = performance.now();
+    // Pixels that moved with nothing behind them yet (a page repainting in place looks like a scroll; so does the
+    // keyboard): the marks step aside where they are, and come back on the browser's word or the reader's settle.
+    if (p.lone) { setMoving(true); if (tracing) console.log('P ' + now.toFixed(1) + ' ' + p.dy + ' lone'); return; }
     // A new run starts from where the page rested: before the wheel's lead, if a gesture had begun.
     if (!pxActive(now)) pxY = gesture ? gesture.base : goal.y;
     pxAt = now;
