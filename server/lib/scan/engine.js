@@ -80,7 +80,7 @@ async function coreScan(p, { research: wanted, budgetMs, hint, onStage = () => {
   // Results computed before a feed import (including in-flight scans) cannot
   // satisfy a lookup after that import has completed.
   // What the search result says about the page (its title, what was searched) changes the answer: part of the key.
-  const hintKey = hint ? `|h:${require('crypto').createHash('sha1').update(`${hint.title}|${hint.query}`).digest('hex').slice(0, 12)}` : '';
+  const hintKey = hint ? `|h:${require('crypto').createHash('sha1').update(`${hint.title}|${hint.query}|${hint.text || ''}`).digest('hex').slice(0, 12)}` : '';
   const key = `${feeds.revision()}|${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}${hintKey}`;
   const cached = cacheGet(key);
   if (cached) return cached;
@@ -304,7 +304,9 @@ function cleanHint(h) {
   if (!h || typeof h !== 'object') return null;
   const title = String(h.title || '').replace(/\s+/g, ' ').trim().slice(0, 200);
   const query = String(h.query || '').replace(/\s+/g, ' ').trim().slice(0, 200);
-  return title || query ? { title, query } : null;
+  // The words of a hovered link (checklist X02): compared, never kept or logged.
+  const text = String(h.text || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  return title || query || text ? { title, query, text } : null;
 }
 
 async function scanUrl(raw, opts = {}) {

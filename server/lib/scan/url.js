@@ -628,7 +628,96 @@ function isWellKnown(p, popular = null) {
   return L.PROTECTED_BRANDS.some((b) => b.domains.some((d) => p.registrable === d || p.host === d || p.host.endsWith('.' + d)));
 }
 
+/*
+ * Link wrappers that carry the real address in a parameter: [host, path (any when null), parameters]. Google's /url,
+ * Facebook's and Instagram's link pages, Outlook's safe links, DuckDuckGo, YouTube, Slack and the ad-click trackers.
+ */
+const WRAPPERS = [
+  [/(^|\.)google\.[a-z.]+$/, /^\/url$/, ['q', 'url']],
+  [/(^|\.)facebook\.com$/, /^\/l\.php$/, ['u']],
+  [/^l\.instagram\.com$/, null, ['u']],
+  [/(^|\.)safelinks\.protection\.outlook\.com$/, null, ['url']],
+  [/(^|\.)duckduckgo\.com$/, /^\/l\//, ['uddg']],
+  [/(^|\.)youtube\.com$/, /^\/redirect$/, ['q']],
+  [/^slack-redir\.net$/, /^\/link$/, ['url']],
+  [/(^|\.)(clickserve\.dartsearch\.net|ad\.doubleclick\.net|googleadservices\.com|click\.linksynergy\.com|go\.redirectingat\.com)$/, null, ['adurl', 'url', 'murl', 'u', 'dest', 'destination']]
+];
+/** Where a link really goes, through up to three wrappers. */
+function unwrapLink(href) {
+  let url = String(href || '');
+  for (let i = 0; i < 3; i++) {
+    let u;
+    try { u = new URL(url); } catch { return url; }
+    const w = WRAPPERS.find(([host, path]) => host.test(u.hostname) && (!path || path.test(u.pathname)));
+    const inner = w && w[2].map((k) => u.searchParams.get(k)).find((v) => v && /^https?:\/\//i.test(v));
+    if (!inner) return url;
+    url = inner;
+  }
+  return url;
+}
+
+// A file name is not an address: "readme.md", "index.js" and "setup.py" end like country domains.
+const FILE_ENDING = /^(pdf|docx?|xlsx?|pptx?|txt|csv|md|js|mjs|cjs|ts|tsx|jsx|json|py|rb|rs|sh|php|html?|css|xml|ya?ml|ini|log|exe|msi|zip|rar|png|jpe?g|gif|svg|webp|mp[34]|mov)$/;
+
+/**
+ * A link whose words show one site and which opens another: { shown, real, brand }, or null. Words count only when
+ * they are themselves an address ("https://www.paypal.com/...", "www.paypal.com", or "paypal.com" written in lower
+ * case, so "ASP.NET" and "Node.js" stay names), or name a protected brand that the address imitates (brandInfo).
+ * Silent whenever it cannot tell or both sides are one owner: the same site or a subdomain, one brand's own sites
+ * (microsoft.com words over live.com), a shortener or an email service's click counter (the real address is not in
+ * the link), a web archive, or a well-known site's page about the shown one ("from?site=github.com").
+ * The words can only ever add a warning: they never make a link look safer. `wellKnown`: the link's site is well
+ * known (knowledge.js), when the caller knows it; otherwise isWellKnown's own lists decide.
+ */
+function shownVersusReal(text, href, wellKnown = null) {
+  const words = String(text || '').trim().slice(0, 120);
+  const real = analyze(unwrapLink(href));
+  if (!words || !real || real.isIp) return null;
+  const opaque = (list) => list.some((d) => real.host === d || real.host.endsWith(`.${d}`) || real.registrable === d);
+  if (L.URL_SHORTENERS.has(real.registrable) || L.URL_SHORTENERS.has(real.host) || opaque(L.CLICK_TRACKERS) || opaque(L.ARCHIVES)) return null;
+
+  const bare = words.replace(/^[<("'[\s]+|[>)"'\].,;:!?\s]+$/g, '');
+  const written = /^(https?:\/\/)?((www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+)(:\d+)?([/?#]\S*)?$/i.exec(bare);
+  const tld = written && written[2].split('.').pop();
+  const plain = written && !written[1] && !written[3];
+  const shown = written && /^[a-z]{2,24}$/i.test(tld) && !(plain && (written[2] !== written[2].toLowerCase() || (!written[6] && FILE_ENDING.test(tld)))) && analyze(written[0]);
+  const known = wellKnown === null ? isWellKnown(real) : wellKnown;
+  if (shown) {
+    if (shown.registrable === real.registrable) return null;
+    const owns = (b, q) => Boolean(b && b.domains.some((d) => q.registrable === d || q.host === d || q.host.endsWith(`.${d}`)));
+    if (owns(brandInfo(shown).owner, real) || owns(brandInfo(real).owner, shown)) return null;
+    // A well-known site under the same name on another ending (statista.de words over de.statista.com), or its page
+    // about the shown site.
+    if (known && (shown.sld === real.sld || decodeSafe(real.path + real.query).toLowerCase().split(/[/?&=#]/).includes(shown.registrable))) return null;
+    return { shown: shown.host.replace(/^www\./, ''), real: real.host, brand: null };
+  }
+
+  // Words that are a brand's name and little else ("PayPal", "Log in to PayPal", "Bank of America"), over an address
+  // made to look like that brand's and not well known. A headline or a citation that mentions the brand ("PayPal to
+  // acquire Curv", over the company's own newsroom) says nothing about the address.
+  if (known) return null;
+  const info = brandInfo(real);
+  if (info.owner) return null;
+  const resembled = [info.lookalike, info.inDomain, info.inSubdomain, info.wordLike && info.wordLike.brand].filter(Boolean);
+  if (!resembled.length) return null;
+  const single = words.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  for (const b of resembled) {
+    for (let i = 0; i < single.length; i++) {
+      for (let n = 1; n <= 3 && i + n <= single.length; n++) {
+        if (single.slice(i, i + n).join('') !== b.token) continue;
+        const rest = [...single.slice(0, i), ...single.slice(i + n)];
+        if (rest.every((w) => CLAIM_WORDS.has(w))) return { shown: b.domains[0], real: real.host, brand: b };
+      }
+    }
+  }
+  return null;
+}
+// What may stand beside a brand's name in a link that claims to be it: "Log in to PayPal", "PayPal account".
+const CLAIM_WORDS = new Set(['log', 'in', 'login', 'logon', 'sign', 'signin', 'on', 'to', 'your', 'my', 'the', 'account', 'accounts',
+  'official', 'site', 'website', 'page', 'secure', 'security', 'verify', 'here', 'go', 'visit', 'open', 'home', 'support', 'help',
+  'center', 'centre', 'customer', 'service', 'online', 'now', 'continue', 'with', 'www', 'com']);
+
 module.exports = {
   analyze, typedUrl, urlKey, deskin, levenshtein, entropy, hostWords, nameTokens, brandInfo, isUserContent, isRealWords, isWellKnown,
-  decodeLabel, shownHost, skeleton, scriptsOf, popularSites
+  decodeLabel, shownHost, skeleton, scriptsOf, popularSites, unwrapLink, shownVersusReal
 };

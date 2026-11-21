@@ -5,7 +5,8 @@
  * beside it with what Sentinel knows about where it leads, before you click.
  * The address is read from the link itself, through the redirect wrappers
  * sites put around links (Google's /url?q=, Facebook's l.php, Outlook's safe
- * links). The worker answers from its cache and Sentinel's threat list first,
+ * links). Its words go along (not from a private window) so a link that shows
+ * one site and opens another is caught. The worker answers from its cache and Sentinel's threat list first,
  * and asks the fast check only when live scanning is available, as it does for
  * search results. Nothing is added to the page: the mask is drawn in a closed
  * shadow root and never takes a click.
@@ -164,13 +165,18 @@
     if (!url) return;
     // A link within the site you are on: the page itself was checked when it opened.
     if (new URL(url).hostname === location.hostname) return;
-    let verdict = verdicts.get(url);
+    // What the link shows (its words, as a person reads them): a link that shows one site and opens another is
+    // flagged by the scanner. Only words that could name a site go: an address, or a few words.
+    const shown = String(anchor.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const text = /\w\.\w/.test(shown) || (shown && shown.split(' ').length <= 5) ? shown : '';
+    const key = `${url}\n${text}`;
+    let verdict = verdicts.get(key);
     if (!verdict) {
-      const res = await send({ type: 'hover-check', url });
+      const res = await send({ type: 'hover-check', url, text });
       verdict = res && res.ok && res.verdict && res.verdict.ok ? res.verdict : null;
       if (!verdict) return;
       if (verdicts.size > 500) verdicts.clear();
-      verdicts.set(url, verdict);
+      verdicts.set(key, verdict);
     }
     show(anchor, verdict);
   }

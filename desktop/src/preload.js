@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('sentinelDesktop', {
   setCommandShield: (enabled) => ipcRenderer.invoke('sentinel:set-command-shield', Boolean(enabled)),
   // Wallet guard: a copied wallet address swapped by malware is put back.
   setWalletGuard: (enabled) => ipcRenderer.invoke('sentinel:set-wallet-guard', Boolean(enabled)),
+  // The copied addresses its look-alike check remembers (ends and scrambled codes only), erased: { forgotten }.
+  forgetWallets: () => ipcRenderer.invoke('sentinel:wallet-forget'),
   // "Check something on screen": the switch and the shortcut (one of info().snip.keys).
   setSnip: (enabled, key) => ipcRenderer.invoke('sentinel:set-snip', Boolean(enabled), String(key || '')),
   // "Scan with Sentinel" in the right-click menu for files: the switch, and the file it handed over ({ name, size, data }), once.

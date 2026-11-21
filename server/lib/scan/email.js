@@ -5,7 +5,7 @@
  * full URL pipeline separately; this module covers the message itself.
  */
 const L = require('./lists');
-const { analyze, brandInfo, hostWords } = require('./url');
+const { analyze, brandInfo, hostWords, shownVersusReal } = require('./url');
 const { classify: classifyQr } = require('./qr');
 const { senderProof } = require('./sender');
 
@@ -236,16 +236,12 @@ function analyzeEmail(mail, how = {}) {
   add('E08', 'scam', 'Addresses you personally', wording(GENERIC_GREETING.test(body) ? warn(6, 'Generic greeting') : pass('No generic greeting')), () => locate(GENERIC_GREETING, [BODY]));
   add('E09', 'scam', 'No threats of closure or legal action', wording(THREAT.test(subject + ' ' + body) ? warn(12, 'Threatens your account or legal consequences if you do not act') : pass('No threats')), () => locate(THREAT, [SUBJECT, BODY]));
 
-  const mismatched = links.filter((l) => {
-    const shown = /(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}/i.exec(String(l.text || ''));
-    if (!shown) return false;
-    const a = analyze(shown[0]);
-    const b = analyze(String(l.href || ''));
-    return a && b && a.registrable !== b.registrable;
-  });
+  // The same comparison as a hovered link's (url.js shownVersusReal): wrappers unwrapped, one owner's sites and the
+  // mail services' own click counters left alone.
+  const mismatched = links.map((l) => ({ l, m: shownVersusReal(l.text, String(l.href || '')) })).filter((x) => x.m);
   add('E10', 'scam', 'Links go where they say they go', mismatched.length
-    ? fail(30, `Link text shows ${String(mismatched[0].text).slice(0, 40)} but opens ${(analyze(mismatched[0].href) || {}).host}`)
-    : pass(links.length ? `${links.length} link(s) checked` : 'No links'), () => mismatched.flatMap(linkAt));
+    ? fail(30, `Link text shows ${mismatched[0].m.shown} but opens ${mismatched[0].m.real}`)
+    : pass(links.length ? `${links.length} link(s) checked` : 'No links'), () => mismatched.flatMap((x) => linkAt(x.l)));
 
   const shortLinks = links.filter((l) => { const a = analyze(String(l.href || '')); return a && L.URL_SHORTENERS.has(a.registrable); });
   add('E11', 'scam', 'Links are not disguised with shorteners', shortLinks.length ? warn(12, `${shortLinks.length} shortened link(s)`) : pass('None'), () => shortLinks.flatMap(linkAt));

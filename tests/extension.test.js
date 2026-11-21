@@ -166,8 +166,14 @@ test('hovering a link: the real address behind redirect wrappers, a closed shado
   const handler = worker.slice(worker.indexOf("async 'hover-check'"), worker.indexOf("async 'live-email'"));
   assert.match(handler, /fromPage\(sender\)/);
   assert.match(handler, /if \(!settings\.enabled\) return/);
-  assert.match(handler, /localVerdict\(url\) \|\| cacheGet\('research', url\) \|\| cacheGet\('quick', url\)/, 'the cache and the list come first');
+  assert.match(handler, /localVerdict\(url\) \|\| cacheGet\('research', key\) \|\| cacheGet\('quick', key\)/, 'the cache and the list come first');
   assert.match(handler, /liveBatch\(\[url\], 'quick'/, 'then the fast check, which keeps to live scanning\'s own limits');
+  // The link's words go along for X02 (a link that shows one site and opens another), capped, and never from a
+  // private window; a verdict with words is cached apart from the one without.
+  assert.match(handler, /const words = !isPrivate && typeof text === 'string' \? text\.replace\(\/\\s\+\/g, ' '\)\.trim\(\)\.slice\(0, 120\) : ''/);
+  assert.match(handler, /const key = words \? `\$\{url\}\\n\$\{words\}` : url/);
+  assert.match(worker, /\.\.\.\(hints && !isPrivate \? \{ hints \} : \{\}\)/);
+  assert.match(code, /send\(\{ type: 'hover-check', url, text \}\)/);
 });
 
 test('the search overlay is a shadow-root overlay that never takes a click, and live hours are only spent on a tab in use', () => {

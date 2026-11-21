@@ -295,6 +295,35 @@ $clip = (Get-Clipboard -Raw) + ''
 Check 'wallet-own-copy' ($clip.Trim() -eq $btcA -and (& $catches) -eq $Repeat) "after copying two addresses with Ctrl+C between: clipboard is the second ($($clip.Trim() -eq $btcA)), swaps caught still $Repeat ($(& $catches))"
 Check 'wallet-log-private' (-not ((AppLog) -match '1A1zP1|1BvBMS')) 'app.log holds no wallet address'
 Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# 4a2. Address poisoning: an address copied, then, more than 10 s later (so never taken for a swap), one planted to
+# start and end the same. One quiet note, the clipboard left alone. Every address here is made up: a fixed start and
+# end around an invented middle. Photographed in Windows' light theme, then its dark one, with a new planted address
+# each time, since each pair is told once.
+$real = '0xa1b2' + ('5e' * 16) + 'c3d4'
+$looks = { ([regex]::Matches((AppLog), 'wallet address look-alike copied \(evm\)')).Count }
+$themeKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+$wasLight = (Get-ItemProperty $themeKey -ErrorAction SilentlyContinue).AppsUseLightTheme
+$lookalikes = @()
+foreach ($round in @(@(1, '07', 'light'), @(0, '9d', 'dark'))) {
+  SetTheme $round[0]; Start-Sleep 3
+  $before = & $looks
+  Set-Clipboard -Value $real; Start-Sleep 11
+  $planted = '0xa1b2' + ($round[1] * 16) + 'c3d4'
+  Set-Clipboard -Value $planted
+  $told = Until 10 { (& $looks) -gt $before }
+  Start-Sleep 2
+  Shot "wallet-lookalike-$($round[2])"
+  $kept = ((Get-Clipboard -Raw) + '').Trim() -eq $planted
+  Say "  look-alike ($($round[2])): told $told, clipboard left alone $kept"
+  if ($told -and $kept) { $lookalikes += $round[2] }
+  Start-Sleep 11
+}
+if ($null -ne $wasLight) { SetTheme $wasLight }
+Check 'wallet-lookalike' ($lookalikes.Count -eq 2) "a planted address with the same ends was told about once, clipboard untouched, in: $($lookalikes -join ', ')"
+Set-Clipboard -Value $real; Start-Sleep 11
+Check 'wallet-lookalike-once' ((& $looks) -eq 2) "copying the real one again told nothing new ($(& $looks) notes)"
+$settings = Get-Content "$data\settings.json" -Raw
+Check 'wallet-lookalike-private' (-not ((AppLog) -match 'a1b25e|a1b207|a1b29d') -and -not ($settings -match '5e5e5e5e5|07070707|9d9d9d9d') -and $settings -match '"walletSeen"') 'app.log and settings.json hold no copied address, only ends and codes'
 
 # 4b. The live-scanning corner as an island, over Edge: the mask springs open into a card with the words, a new
 # message morphs the card, and it closes back into the mask. Photographed mid-spring (bottom right of each frame).

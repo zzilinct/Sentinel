@@ -242,15 +242,18 @@ async function closeFlagged({ tabId, url }) {
 
 /* --------------------------------------------------------------- scanning */
 
-async function liveBatch(urls, phase, isPrivate = false) {
+// `hints`: a hovered link's words, by address (never from a private window). A verdict with words is kept apart from
+// the one without: the words can add a warning (the scanner's X02).
+async function liveBatch(urls, phase, isPrivate = false, hints = null) {
   const blocked = liveBlockReason();
   if (blocked) return { locked: blocked };
   if (phase === 'research' && !features().liveResearch) return { locked: 'plan', verdicts: {} };
 
+  const keyOf = (url) => (hints && hints[url] ? `${url}\n${hints[url].text}` : url);
   const out = {};
   const pending = [];
   for (const url of urls) {
-    const cached = cacheGet(phase, url) || (phase === 'quick' ? localVerdict(url) : null);
+    const cached = cacheGet(phase, keyOf(url)) || (phase === 'quick' ? localVerdict(url) : null);
     if (cached) out[url] = cached;
     else pending.push(url);
   }
@@ -259,11 +262,11 @@ async function liveBatch(urls, phase, isPrivate = false) {
       // Plans without delicate ask for fast outright: once Free's fast minutes are used up, a
       // delicate request would come back as plan_required instead of live_hours_exhausted.
       const mode = features().liveScanning ? 'delicate' : 'fast';
-      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate }, timeout: phase === 'research' ? 90000 : 20000 });
+      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate, ...(hints && !isPrivate ? { hints } : {}) }, timeout: phase === 'research' ? 90000 : 20000 });
       noteLive(data.live);
       for (const [url, verdict] of Object.entries(data.byUrl)) {
         out[url] = verdict;
-        if (verdict.ok) cacheSet(phase, url, verdict, isPrivate);
+        if (verdict.ok) cacheSet(phase, keyOf(url), verdict, isPrivate);
       }
     } catch (err) {
       handleApiError(err);
@@ -717,14 +720,19 @@ const handlers = {
     return liveBatch((urls || []).slice(0, 60), phase, Boolean(sender && sender.tab && sender.tab.incognito));
   },
   /** A link the pointer rests on (content/hover.js): the cache and the threat list first, then the fast check when live scanning allows it. */
-  async 'hover-check'({ url }, sender) {
+  async 'hover-check'({ url, text }, sender) {
     fromPage(sender);
     const settings = await getSettings();
     if (!settings.enabled) return { locked: 'disabled' };
     if (typeof url !== 'string' || url.length > 2048 || !/^https?:\/\//i.test(url)) return { verdict: null };
-    const known = localVerdict(url) || cacheGet('research', url) || cacheGet('quick', url);
+    const isPrivate = Boolean(sender.tab && sender.tab.incognito);
+    // The link's words go along so the scanner can see a link that shows one site and opens another. Never from a
+    // private window, never kept.
+    const words = !isPrivate && typeof text === 'string' ? text.replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+    const key = words ? `${url}\n${words}` : url;
+    const known = localVerdict(url) || cacheGet('research', key) || cacheGet('quick', key);
     if (known) return { verdict: known };
-    const { verdicts, locked } = await liveBatch([url], 'quick', Boolean(sender.tab && sender.tab.incognito));
+    const { verdicts, locked } = await liveBatch([url], 'quick', isPrivate, words ? { [url]: { text: words } } : null);
     return { verdict: (verdicts && verdicts[url]) || null, locked: locked || null };
   },
   async 'live-email'({ emails }, sender) {
