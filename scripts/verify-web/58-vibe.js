@@ -212,6 +212,13 @@ async function checkVibe() {
       fs.unlinkSync(page);
     }
 
+    // A device that chose sapphire under an older Sentinel kept an older set of its colours: the marketing pages work
+    // the set out again and draw all of it, instead of a page half in the old look until the app is opened.
+    await ev(`(localStorage.setItem('sentinel:theme', 'dark'), localStorage.setItem('sentinel:accent', 'sapphire'), localStorage.setItem('sentinel:look-vars', JSON.stringify({ v: 2, accent: 'sapphire', dark: { '--gold-400': '#5d8fe0' }, light: { '--gold-400': '#2f5fb0' } })), 1)`);
+    await goto(browser, s, `${sentinel.base}/pricing?at=${Date.now()}`, "document.querySelector('.nav__inner')");
+    const old = await until(browser, s, "(() => { const v = JSON.parse(localStorage.getItem('sentinel:look-vars') || '{}'); const n = document.documentElement.style.getPropertyValue('--night-rgb'); return v.v === SentinelLook.WEB_V && n ? { v: v.v, night: n, text: document.documentElement.style.getPropertyValue('--text') } : null; })()", 10000);
+    result('vibe: a colour kept by an older Sentinel is worked out again on the marketing pages, not drawn half in the old look', Boolean(old) && old.text === L.ramp('sapphire', 'dark')['--text'], old);
+
     // Settings in a phone's browser, without the Windows app: what needs the app is named, with no dead switches.
     await store('dark', 'sapphire');
     await goto(browser, s, `${sentinel.base}/app/settings?at=${Date.now()}`, "document.querySelector('[data-set-row]')");

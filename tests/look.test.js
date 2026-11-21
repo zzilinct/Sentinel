@@ -510,3 +510,30 @@ test('1.21.1: the taskbar\'s button in the colour, from an .ico Windows can read
   assert.match(main, /win\.setIcon\(windowIcon\(l\.accent\)\);\s+taskbarIcon\(l\.accent\);/, 'a new colour reaches the taskbar');
   assert.match(main, /taskbarAccent = 'gold';\s+taskbarIcon\(look\(\)\.accent\);/, 'and a new window');
 });
+
+test('1.21.1: the pasted-command alarm in the page\'s own world takes the colour the companion hands over', async () => {
+  const vm = require('vm');
+  const src = read('extension', 'src', 'content', 'alarm.js');
+  const attrs = {};
+  class Element { getAttribute(k) { return k in attrs ? attrs[k] : null; } setAttribute(k, v) { attrs[k] = String(v); } removeAttribute(k) { delete attrs[k]; } attachShadow() { return {}; } }
+  class Document { createElement() { return {}; } }
+  const html = new Element();
+  const world = (extra) => vm.createContext({ Element, Document, document: { documentElement: html }, matchMedia: () => ({ matches: false }), history: {}, location: {}, ...extra });
+  const look = (live) => ({ storage: { local: { get: async () => ({ look: { live } }) } } });
+  const sapphire = L.ramp('sapphire', 'dark');
+  const live = { acc: sapphire['--live'], hi: sapphire['--live-hi'], rgb: sapphire['--live-rgb'] };
+  // The companion's world: the colour is written on <html>, only while the guard is on.
+  const run = async (live, guard) => { const g = world({ chrome: look(live), SentinelStore: { get: async () => ({ commandGuard: guard }) } }); g.globalThis = g; vm.runInContext(src, g); await new Promise((r) => setTimeout(r, 10)); };
+  await run(live, true);
+  assert.equal(attrs['data-sentinel-tone'], `${live.acc} ${live.hi} ${live.rgb}`);
+  await run(live, false);
+  assert.ok(!('data-sentinel-tone' in attrs), 'the guard off: nothing is left on the page');
+  await run({ acc: '#d6b25a', hi: '#e2c47f', rgb: '214 178 90' }, true);
+  assert.ok(!('data-sentinel-tone' in attrs), 'gold: nothing is written');
+  // Only a colour is ever taken from the page's attribute.
+  const toneOf = new Function(`return ${src.match(/const toneOf = (\(v\) => \{[^\n]+\});/)[1]}`)();
+  assert.deepEqual(toneOf('#112233 #445566 1 2 3'), { acc: '#112233', hi: '#445566', rgb: '1 2 3' });
+  for (const bad of ['red blue 1 2 3', '#112233 #445566 1 2 3;}*{x:y', '#112233 url(x) 1 2 3', '']) assert.equal(toneOf(bad), null, bad);
+  assert.match(src, /function show\(o\) \{\s+if \(shown\) shown\.close\(\);\s+pageTone\(\);/, 'read as the warning is drawn');
+  assert.equal(read('extension', 'src', 'content', 'alarm.page.js'), src);
+});

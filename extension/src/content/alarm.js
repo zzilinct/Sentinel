@@ -138,19 +138,37 @@
   let calm = '#d6b25a';
   // The same colour for the action, the focus ring and the links (css()): null keeps gold's own.
   let tone = null;
+  // The page's own world (the pasted-command guard, clipguard.js) cannot read the companion's storage. The companion's
+  // copy of this file hands the colour over on <html>, the one thing both worlds share, while that guard is on, and
+  // the page's copy reads it when it draws. Only a colour crosses, and it is checked as one, so a page that writes
+  // the attribute itself can change nothing but the alarm's colour.
+  const TONE = 'data-sentinel-tone';
+  const getAttr = Element.prototype.getAttribute, setAttr = Element.prototype.setAttribute;
+  const toneOf = (v) => { const m = /^(#[0-9a-f]{6}) (#[0-9a-f]{6}) (\d{1,3} \d{1,3} \d{1,3})$/.exec(v || ''); return m ? { acc: m[1], hi: m[2], rgb: m[3] } : null; };
+  let own = false;
   try {
     const store = (globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome || {}).storage;
-    if (store) Promise.resolve(store.local.get('look')).then((r) => {
+    own = Boolean(store);
+    if (store) Promise.all([Promise.resolve(store.local.get('look')), globalThis.SentinelStore ? globalThis.SentinelStore.get({ commandGuard: true }).catch(() => ({})) : {}]).then(([r, set]) => {
       const l = (r && r.look && r.look.live) || {};
       const hex = (v) => /^#[0-9a-f]{6}$/.test(v || '');
       if (!hex(l.acc)) return;
       calm = l.acc;
       if (l.acc !== '#d6b25a' && hex(l.hi) && /^\d{1,3} \d{1,3} \d{1,3}$/.test(l.rgb || '')) tone = { acc: l.acc, hi: l.hi, rgb: l.rgb };
+      if (tone && set && set.commandGuard !== false && document.documentElement) setAttr.call(document.documentElement, TONE, `${tone.acc} ${tone.hi} ${tone.rgb}`);
+      else if (document.documentElement) document.documentElement.removeAttribute(TONE);
     }, () => {});
   } catch { /* gold */ }
+  /** In the page's world, the colour the companion handed over, read as the warning is drawn. */
+  function pageTone() {
+    if (own || tone || !document.documentElement) return;
+    const t = toneOf(getAttr.call(document.documentElement, TONE));
+    if (t) { tone = t; calm = t.acc; }
+  }
 
   function show(o) {
     if (shown) shown.close();
+    pageTone();
     const accent = o.accent === 'calm' ? calm : o.accent || '#e5484d';
     const before = document.activeElement;
     const host = make.call(document, 'div');
