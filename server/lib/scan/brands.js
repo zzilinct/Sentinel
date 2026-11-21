@@ -17,7 +17,9 @@ const BRANDS = [
   { token: 'venmo', domains: ['venmo.com'] },
   { token: 'zelle', domains: ['zellepay.com', 'zelle.com'] },
   { token: 'cashapp', domains: ['cash.app', 'square.com', 'squareup.com'] },
-  { token: 'stripe', domains: ['stripe.com', 'stripe.network'] },
+  // A brand's own name on a generic ending (stripe.dev, dropbox.tech, spotify.design) is its developer, design or
+  // engineering site. Listed one by one, and only the ones the brand itself runs: any other stays borrowed.
+  { token: 'stripe', domains: ['stripe.com', 'stripe.network', ...cc('stripe', ['dev', 'press'])] },
   { token: 'wise', domains: ['wise.com', 'transferwise.com'] },
   { token: 'revolut', domains: ['revolut.com', 'revolut.me'] },
   { token: 'chase', domains: ['chase.com', 'chase.co.uk', 'jpmorganchase.com', 'jpmorgan.com'] },
@@ -49,14 +51,14 @@ const BRANDS = [
   { token: 'office365', domains: ['office.com', 'office365.com', 'microsoft.com'] },
   { token: 'onedrive', domains: ['onedrive.com', 'live.com', 'microsoft.com', 'sharepoint.com'] },
   { token: 'sharepoint', domains: ['sharepoint.com', 'microsoft.com'] },
-  { token: 'google', domains: [...cc('google', GOOGLE_CC), 'googleapis.com', 'gstatic.com', 'googleusercontent.com', 'googlevideo.com', 'withgoogle.com', 'googlemail.com', 'goo.gl', 'g.co', 'gmail.com', 'youtube.com', 'google'] },
+  { token: 'google', domains: [...cc('google', GOOGLE_CC), 'googleapis.com', 'gstatic.com', 'googleusercontent.com', 'googlevideo.com', 'withgoogle.com', 'googlemail.com', 'goo.gl', 'g.co', 'gmail.com', 'youtube.com', 'google', ...cc('google', ['dev', 'org'])] },
   { token: 'gmail', domains: ['gmail.com', 'google.com'] },
   { token: 'youtube', domains: ['youtube.com', 'youtu.be', 'ytimg.com', 'youtube-nocookie.com'] },
   { token: 'amazon', domains: [...cc('amazon', AMAZON_CC), 'amazonaws.com', 'amazon.dev', 'a2z.com', 'amzn.to', 'media-amazon.com', 'primevideo.com', 'aboutamazon.com', 'amazonpay.com', 'amazon.jobs', 'amazon.science'] },
-  { token: 'netflix', domains: ['netflix.com', 'nflxext.com', 'nflximg.net', 'netflix.net'] },
-  { token: 'spotify', domains: ['spotify.com', 'spotify.link', 'scdn.co', 'spoti.fi'] },
-  { token: 'adobe', domains: ['adobe.com', 'adobe.io', 'adobelogin.com', 'typekit.net'] },
-  { token: 'dropbox', domains: ['dropbox.com', 'dropboxmail.com', 'dropboxusercontent.com', 'db.tt'] },
+  { token: 'netflix', domains: ['netflix.com', 'nflxext.com', 'nflximg.net', 'netflix.net', 'netflix.shop'] },
+  { token: 'spotify', domains: ['spotify.com', 'spotify.link', 'scdn.co', 'spoti.fi', 'spotify.design'] },
+  { token: 'adobe', domains: ['adobe.com', 'adobe.io', 'adobelogin.com', 'typekit.net', 'adobe.design'] },
+  { token: 'dropbox', domains: ['dropbox.com', 'dropboxmail.com', 'dropboxusercontent.com', 'db.tt', ...cc('dropbox', ['tech', 'design'])] },
   { token: 'docusign', domains: ['docusign.com', 'docusign.net'] },
   // Link shorteners: a page named for one pretends to be a short link you can trust to forward you.
   { token: 'tinyurl', domains: ['tinyurl.com'] },
@@ -103,13 +105,13 @@ const BRANDS = [
   { token: 'workday', domains: ['workday.com', 'myworkday.com', 'workdaysuite.com'] },
   { token: 'wetransfer', domains: ['wetransfer.com', 'we.tl'] },
   { token: 'zoom', domains: ['zoom.us', 'zoom.com', 'zoomgov.com'] },
-  { token: 'openai', domains: ['openai.com', 'chatgpt.com', 'oaistatic.com'] },
+  { token: 'openai', domains: ['openai.com', 'chatgpt.com', 'oaistatic.com', 'openai.fund'] },
   { token: 'chatgpt', domains: ['chatgpt.com', 'openai.com'] },
   { token: 'anthropic', domains: ['anthropic.com', 'claude.ai', 'claude.com'] },
   { token: 'deepseek', domains: ['deepseek.com'] },
 
   // Social
-  { token: 'facebook', domains: ['facebook.com', 'fb.com', 'fb.me', 'fbcdn.net', 'messenger.com', 'meta.com', 'facebook.net', 'facebookmail.com'] },
+  { token: 'facebook', domains: ['facebook.com', 'fb.com', 'fb.me', 'fbcdn.net', 'messenger.com', 'meta.com', 'facebook.net', 'facebookmail.com', 'facebook.design'] },
   { token: 'instagram', domains: ['instagram.com', 'cdninstagram.com', 'ig.me'] },
   { token: 'whatsapp', domains: ['whatsapp.com', 'whatsapp.net', 'wa.me'] },
   { token: 'linkedin', domains: ['linkedin.com', 'lnkd.in', 'licdn.com'] },
@@ -122,7 +124,7 @@ const BRANDS = [
   // Shopping and delivery
   { token: 'ebay', domains: cc('ebay', EBAY_CC).concat(['ebayimg.com', 'ebaystatic.com']) },
   { token: 'walmart', domains: ['walmart.com', 'walmart.ca', 'walmartimages.com'] },
-  { token: 'shopify', domains: ['shopify.com', 'myshopify.com', 'shopifycdn.com'] },
+  { token: 'shopify', domains: ['shopify.com', 'myshopify.com', 'shopifycdn.com', 'shopify.engineering'] },
   { token: 'shopee', domains: ['shopee.com', 'shopee.co.id', 'shopee.com.my', 'shopee.sg', 'shopee.ph', 'shopee.vn', 'shopee.co.th', 'shopee.tw', 'shopee.com.br'] },
   { token: 'aliexpress', domains: ['aliexpress.com', 'aliexpress.us', 'alicdn.com'] },
   { token: 'temu', domains: ['temu.com'] },
@@ -159,11 +161,11 @@ const BRANDS = [
   // Telecom
   { token: 'comcast', domains: ['comcast.com', 'comcast.net', 'xfinity.com'] },
   { token: 'xfinity', domains: ['xfinity.com', 'comcast.com', 'comcast.net'] },
-  { token: 'verizon', domains: ['verizon.com', 'verizonwireless.com', 'vzw.com'] },
+  { token: 'verizon', domains: ['verizon.com', 'verizonwireless.com', 'vzw.com', 'verizon.net'] },
   { token: 'tmobile', domains: ['t-mobile.com', 'tmobile.com'] },
 
   // Crypto
-  { token: 'binance', domains: ['binance.com', 'binance.us', 'bnbstatic.com'] },
+  { token: 'binance', domains: ['binance.com', 'binance.us', 'bnbstatic.com', ...cc('binance', ['org', 'vision'])] },
   { token: 'coinbase', domains: ['coinbase.com', 'cbhq.net', 'base.org'] },
   { token: 'walletconnect', domains: ['walletconnect.com', 'walletconnect.network', 'walletconnect.org', 'reown.com'] },
   { token: 'metamask', domains: ['metamask.io'] },
@@ -176,7 +178,7 @@ const BRANDS = [
   { token: 'phantom', domains: ['phantom.app', 'phantom.com'] },
   { token: 'exodus', domains: ['exodus.com'] },
   { token: 'opensea', domains: ['opensea.io'] },
-  { token: 'robinhood', domains: ['robinhood.com'] },
+  { token: 'robinhood', domains: ['robinhood.com', 'robinhood.engineering'] },
   { token: 'bybit', domains: ['bybit.com'] },
   { token: 'kucoin', domains: ['kucoin.com'] },
 
@@ -200,7 +202,7 @@ const BRANDS = [
   // Asia and enterprise sign-in: today's phishing feeds are full of them (naver.<something>.ltd, rakutenid.<...>)
   { token: 'naver', domains: ['naver.com', 'naver.net', 'navercorp.com'] },
   { token: 'kakao', domains: ['kakao.com', 'kakaocorp.com', 'daum.net', 'kakaobank.com'] },
-  { token: 'rakuten', domains: ['rakuten.co.jp', 'rakuten.com', 'rakuten.ne.jp', 'rakuten-card.co.jp', 'rakuten-bank.co.jp', 'rakuten-sec.co.jp', 'rakuten.fr', 'rakuten.de', 'rakuten.tv'] },
+  { token: 'rakuten', domains: ['rakuten.co.jp', 'rakuten.com', 'rakuten.ne.jp', 'rakuten-card.co.jp', 'rakuten-bank.co.jp', 'rakuten-sec.co.jp', 'rakuten.fr', 'rakuten.de', 'rakuten.tv', 'rakuten.today'] },
   // Web hosting and email accounts: "verify-networksolutions.<ending>/appsuite" copies its webmail sign-in.
   { token: 'networksolutions', domains: ['networksolutions.com'] },
   { token: 'okta', domains: ['okta.com', 'oktacdn.com', 'okta-emea.com', 'oktapreview.com', 'okta.dev'] },

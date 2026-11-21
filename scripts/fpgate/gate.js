@@ -11,6 +11,9 @@
  *        (main-flags.json) did not, or flag at a higher level, and that is not in the known baseline (baseline.json)
  *   node scripts/fpgate/gate.js --write-baseline
  *        record what this checkout's rules flag today as the known baseline (a deliberate, reviewed commit)
+ *   --ratchet       also fail while the baseline excuses more than these rules need: an entry no longer flagged, or
+ *                   flagged lower than recorded. The baseline can only shrink, in the same change that fixed a rule.
+ *   --trim-baseline drop those entries from baseline.json (and lower the lowered ones). Never adds one.
  *
  * Address only, as live scanning's fast check runs on an address its lists know nothing about (server/lib/scan/
  * offline.js): the checklist and Sentinel's shipped lists. No site is opened, resolved or looked up. Runs on GitHub's
@@ -22,7 +25,7 @@
  * baseline.json is what the rules of 1.18.1 already flagged in the sample when it was drawn (CI run 40606221962).
  * It mixes honest sites those rules get wrong (a brand's own country site, such as adidas.fr, read as borrowing the
  * brand) with real scams that rank in the list anyway. Known, not failures. Fixing a rule shrinks it; a domain the
- * gate reports as no longer flagged can be deleted from it.
+ * gate reports as no longer flagged is deleted from it (--ratchet, which CI runs on every branch, enforces that).
  */
 const fs = require('fs');
 const path = require('path');
@@ -56,7 +59,8 @@ function judge(root, domains) {
 
 /**
  * New false alarms: flagged here higher than both main and the known baseline allow.
- * Fixed: in the baseline, no longer flagged here (the baseline can be trimmed).
+ * Fixed: in the baseline, no longer flagged here. Lowered: still flagged, at a lower level than the baseline records.
+ * Both are stale: the baseline excuses more than these rules need.
  */
 function compare(branch, main, baseline) {
   const fresh = [];
@@ -65,7 +69,25 @@ function compare(branch, main, baseline) {
     if (rank(f.badge) > allowed) fresh.push({ domain, ...f, before: (main[domain] && main[domain].badge) || null });
   }
   const fixed = Object.keys(baseline).filter((d) => !branch[d]);
-  return { fresh, fixed };
+  const lowered = Object.keys(baseline).filter((d) => branch[d] && rank(branch[d].badge) < rank(baseline[d].badge));
+  return { fresh, fixed, lowered };
+}
+
+/** The baseline with its stale entries trimmed: fixed ones dropped, lowered ones recorded as they are now. */
+function trim(baseline, branch) {
+  const out = {};
+  for (const d of Object.keys(baseline).sort()) {
+    if (!branch[d]) continue;
+    out[d] = rank(branch[d].badge) < rank(baseline[d].badge) ? branch[d] : baseline[d];
+  }
+  return out;
+}
+
+/** What the baseline still excuses, counted by the rule that fired: where the remaining false alarms come from. */
+function byRule(baseline) {
+  const counts = {};
+  for (const f of Object.values(baseline)) for (const id of new Set(f.rules.map((r) => r.split(' ')[0]))) counts[id] = (counts[id] || 0) + 1;
+  return Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -91,9 +113,23 @@ function main() {
   const against = arg('--against');
   const mainFlags = against ? readJson(against) : {};
   if (!against) console.log('No main results given: judged against the baseline alone.');
-  const { fresh, fixed } = compare(flags, mainFlags, baseline);
+  const { fresh, fixed, lowered } = compare(flags, mainFlags, baseline);
 
-  for (const d of fixed) console.log(`  no longer flagged (can leave the baseline): ${d}`);
+  if (process.argv.includes('--trim-baseline')) {
+    const kept = trim(baseline, flags);
+    fs.writeFileSync(BASELINE, `${JSON.stringify(kept, null, 1)}\n`);
+    console.log(`Baseline trimmed: ${Object.keys(baseline).length} -> ${Object.keys(kept).length} domains.`);
+    return;
+  }
+
+  console.log(`Baseline: ${Object.keys(baseline).length} domains excused. By rule: ${byRule(baseline).map(([id, n]) => `${id} ${n}`).join(', ')}`);
+  for (const d of fixed) console.log(`  no longer flagged (leaves the baseline): ${d}`);
+  for (const d of lowered) console.log(`  flagged lower than recorded (${baseline[d].badge} -> ${flags[d].badge}): ${d}`);
+  const stale = fixed.length + lowered.length;
+  if (stale && process.argv.includes('--ratchet')) {
+    console.log(`\nThe baseline can only shrink: ${stale} entr${stale === 1 ? 'y is' : 'ies are'} stale. Run node scripts/fpgate/gate.js --trim-baseline and commit the result.`);
+    process.exitCode = 1;
+  }
   if (!fresh.length) {
     console.log('No new false alarms.');
     return;
@@ -109,4 +145,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { loadDomains, judge, compare };
+module.exports = { loadDomains, judge, compare, trim, byRule };
