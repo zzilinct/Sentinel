@@ -931,7 +931,7 @@
         <div class="set-main">
           <div class="set-find">${ICON.search}<input class="input" type="search" placeholder="Find a setting" aria-label="Find a setting" aria-describedby="set-count" autocomplete="off" spellcheck="false" data-set-find></div>
           <p class="sr-only" id="set-count" role="status" data-set-count></p>
-          ${desktop ? '' : `<div class="set-app"><p><b>Most of these work through the Sentinel app for Windows.</b> Here they say so instead of switching. Your account, plan and look work everywhere.</p><a class="btn btn--gold btn--sm" href="/download">${ICON.download}Download Sentinel</a></div>`}
+          ${desktop ? '' : `<div class="set-app"><p><b>Most of these work through the Sentinel app for Windows.</b> Here each one is only named, so the ones that work here are easy to find. Your account, plan and look work everywhere.</p><a class="btn btn--gold btn--sm" href="/download">${ICON.download}Download Sentinel</a></div>`}
           ${SETTING_GROUPS.map(([g, name]) => `<section class="set-group" id="${g}" data-set-group="${g}" aria-labelledby="set-g-${g}"><div class="set-fold">
             <h2 class="set-group__title" id="set-g-${g}">${name}</h2>${SETTINGS.filter((r) => r.group === g).map(rowHTML).join('')}</div></section>`).join('')}
           <div class="set-none" data-set-none hidden><p>Nothing matches.</p><button class="btn btn--sm" type="button" data-set-clear>Clear search</button></div>

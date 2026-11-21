@@ -14,24 +14,33 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { STATIC, sleep, result, serveFiles, launch, evalIn, openPage, goto, shot, startServer, until } = require('./_shared');
+const { STATIC, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, shot, startServer, until } = require('./_shared');
 const L = require('../../web/assets/js/look.js');
 
 const IDS = L.ACCENTS.map((a) => a.id);
 const median = (xs) => { const v = xs.filter((x) => Number.isFinite(x)).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : NaN; };
 
-// The sheet: one frame per colour and scheme, each the real home page, painted by look.js from the page that holds them.
-const SHEET = `<!doctype html><meta charset="utf-8"><title>Every colour</title>
+// The sheets: one frame per colour and scheme, each the real home page at a desktop's size or a phone's, painted by
+// look.js from the page that holds them.
+const SIZES = { desktop: { w: 1280, h: 800, k: 0.3 }, phone: { w: 390, h: 844, k: 0.45 } };
+const cell = (z) => [Math.round(z.w * z.k), Math.round(z.h * z.k)];
+const sheet = (z) => `<!doctype html><meta charset="utf-8"><title>Every colour</title>
 <style>
   body { margin: 0; padding: 18px; background: #0a0a0c; font: 600 13px/1.2 system-ui, sans-serif; color: #ddd; }
-  .grid { display: grid; grid-template-columns: repeat(${IDS.length}, 384px); gap: 14px 12px; }
+  .grid { display: grid; grid-template-columns: repeat(${IDS.length}, ${cell(z)[0]}px); gap: 14px 12px; }
   figure { margin: 0; } figcaption { margin: 0 0 6px; }
-  .cut { width: 384px; height: 240px; overflow: hidden; border-radius: 10px; }
-  iframe { width: 1280px; height: 800px; border: 0; transform: scale(.3); transform-origin: 0 0; }
+  .cut { width: ${cell(z)[0]}px; height: ${cell(z)[1]}px; overflow: hidden; border-radius: 10px; }
+  iframe { width: ${z.w}px; height: ${z.h}px; border: 0; transform: scale(${z.k}); transform-origin: 0 0; }
 </style>
 <script>try { sessionStorage.setItem('sentinel:intro', '1'); } catch (e) {}</script>
 <script src="/assets/js/look.js"></script>
 <div class="grid">${['dark', 'light'].map((s) => IDS.map((id) => `<figure><figcaption>${id} ${s}</figcaption><div class="cut"><iframe data-accent="${id}" data-scheme="${s}" src="/index.html"></iframe></div></figure>`).join('')).join('')}</div>`;
+// The app's own sheets are its frames, laid side by side from the pictures this check took.
+const board = (z, pics) => `<!doctype html><meta charset="utf-8"><style>
+  body { margin: 0; padding: 18px; background: #0a0a0c; font: 600 13px/1.2 system-ui, sans-serif; color: #ddd; }
+  .grid { display: grid; grid-template-columns: repeat(${IDS.length}, ${cell(z)[0]}px); gap: 14px 12px; }
+  figure { margin: 0; } figcaption { margin: 0 0 6px; } img { display: block; width: ${cell(z)[0]}px; height: ${cell(z)[1]}px; border-radius: 10px; }
+</style><div class="grid">${pics.map(([name, src]) => `<figure><figcaption>${name}</figcaption><img src="${src}"></figure>`).join('')}</div>`;
 
 // Each frame painted in its look, then read back: its words, its stars' tint, its hero line (the second weight of words),
 // its status colours. Read after the frame has settled: read at once, a frame still loading gave its first colours.
@@ -45,9 +54,21 @@ const PAINT = `Promise.all([...document.querySelectorAll('iframe')].map((f) => n
     let tries = 0;
     const read = () => w.requestAnimationFrame(() => {
       const cs = w.getComputedStyle(d.documentElement), v = (k) => cs.getPropertyValue(k).trim();
-      const h1 = d.querySelector('.hero h1');
+      const h1 = d.querySelector('.hero h1'), nav = d.querySelector('.nav__inner');
+      // The hero's binary under the pointer (home.js), as it rests with less motion: the mean of its lit pixels.
+      let ink = '';
+      const c = d.querySelector('canvas.hero__unmask');
+      if (c && c.width && c.height) {
+        try {
+          const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, sum = [0, 0, 0];
+          let n = 0;
+          for (let i = 0; i < px.length; i += 16) if (px[i + 3] > 120) { sum[0] += px[i] * 255 / px[i + 3]; sum[1] += px[i + 1] * 255 / px[i + 3]; sum[2] += px[i + 2] * 255 / px[i + 3]; n++; }
+          if (n > 50) ink = '#' + sum.map((x) => (256 | Math.min(255, Math.round(x / n))).toString(16).slice(1)).join('');
+        } catch (e) { ink = 'unread'; }
+      }
       const out = { accent: f.dataset.accent, scheme: f.dataset.scheme, text: v('--text'), star: v('--star-1'), red: v('--red'), green: v('--green'),
-        body: w.getComputedStyle(d.body).color, h1: h1 ? w.getComputedStyle(h1).color : '', sky: Boolean(d.querySelector('canvas.cosmos')), tries };
+        body: w.getComputedStyle(d.body).color, h1: h1 ? w.getComputedStyle(h1).color : '', sky: Boolean(d.querySelector('canvas.cosmos')), tries,
+        nav: nav ? w.getComputedStyle(nav).backgroundColor : '', glass: (() => { const p = d.createElement('i'); p.style.background = 'var(--glass)'; d.body.append(p); const g = w.getComputedStyle(p).backgroundColor; p.remove(); return g; })(), ink, bar: (d.querySelector('meta[name="theme-color"]') || {}).content || '', bg: v('--bg') };
       if (out.body === rgb(out.text) || ++tries > 8) done(out); else setTimeout(read, 500);
     });
     setTimeout(read, 1500);
@@ -92,20 +113,30 @@ const TIMER = `(() => {
 
 async function checkVibe() {
   if (!fs.existsSync(path.join(STATIC, 'index.html'))) throw new Error(`no static build in ${STATIC}: run npm run build:static`);
-  const files = await serveFiles({ '/': STATIC }, { '/__sheet.html': SHEET });
+  const files = await serveFiles({ '/': STATIC }, { '/__sheet.html': sheet(SIZES.desktop), '/__sheet-phone.html': sheet(SIZES.phone) });
   const sentinel = await startServer('vibe');
   const { browser, close } = await launch();
   try {
-    /* ------------------------------------------------------------- the sheet */
-    {
+    /* ------------------------------------------------------------ the sheets */
+    const apart = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+    const HUE = Object.fromEntries(L.ACCENTS.map((a) => [a.id, a.h]));
+    // The hero's binary is the colour's own: its hue within 30 degrees of the colour's (gold near gold's own,
+    // platinum nearly grey), never gold's on another colour.
+    const inkOk = (f) => {
+      if (!/^#[0-9a-f]{6}$/.test(f.ink)) return false;
+      const [, c, h] = L.toOklch(f.ink);
+      if (f.accent === 'platinum') return c < 0.05;
+      return c > 0.03 && apart(h, f.accent === 'gold' ? 85 : HUE[f.accent]) <= 30;
+    };
+    const boardSize = (z) => { const [cw, ch] = cell(z); return { width: 36 + IDS.length * cw + (IDS.length - 1) * 12, height: 36 + 2 * (ch + 30) + 14, deviceScaleFactor: 1, mobile: false }; };
+    for (const [size, z] of Object.entries(SIZES)) {
       const { sessionId: s } = await openPage(browser);
-      const w = 36 + IDS.length * 384 + (IDS.length - 1) * 12;
-      await browser.send('Emulation.setDeviceMetricsOverride', { width: w, height: 36 + 2 * 270 + 14, deviceScaleFactor: 1, mobile: false }, s);
+      await browser.send('Emulation.setDeviceMetricsOverride', boardSize(z), s);
       await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
-      await goto(browser, s, `${files.base}/__sheet.html`, "document.querySelectorAll('iframe').length === " + IDS.length * 2);
+      await goto(browser, s, `${files.base}/${size === 'phone' ? '__sheet-phone' : '__sheet'}.html`, "document.querySelectorAll('iframe').length === " + IDS.length * 2);
       const got = await evalIn(browser, s, PAINT, { timeout: 60000 });
       await sleep(4000);   // the masks' pictures and the stars, settled
-      await shot(browser, s, 'vibe-sheet-home');
+      await shot(browser, s, size === 'phone' ? 'vibe-sheet-home-phone' : 'vibe-sheet-home');
       const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
       const bad = got.filter((f) => {
         const r = L.ramp(f.accent, f.scheme);
@@ -114,13 +145,16 @@ async function checkVibe() {
         if (f.accent === 'gold') return !status || f.text === '' || f.star.toLowerCase() !== '#ffe2b0';
         return !status || f.text !== words || f.body !== rgb(words) || f.h1 !== rgb(r['--text-2']) || f.star !== r['--star-1'] || (f.scheme === 'dark' && !f.sky);
       });
-      result('vibe: every colour draws the whole home page in its own words, grounds and stars, dark and light, and the warning colours never move', got.length === IDS.length * 2 && !bad.length, { bad, got: got.map((f) => `${f.accent} ${f.scheme}: ${f.text} ${f.star}`) });
+      result(`vibe: every colour draws the whole home page in its own words, grounds and stars, dark and light, and the warning colours never move (${size})`, got.length === IDS.length * 2 && !bad.length, { bad, got: got.map((f) => `${f.accent} ${f.scheme}: ${f.text} ${f.star}`) });
+      // The top bar is the look's glass (no brown pill over a blue page), and the browser's own bar is the page's ground.
+      const off = got.filter((f) => !f.nav || f.nav !== f.glass || f.bar.toLowerCase() !== f.bg.toLowerCase());
+      result(`vibe: the top bar is the colour's glass and the browser's bar its ground, in every colour (${size})`, !off.length, got.map((f) => `${f.accent} ${f.scheme}: nav ${f.nav} glass ${f.glass} bar ${f.bar} bg ${f.bg}`));
+      if (size === 'desktop') result("vibe: the hero's binary reveal is drawn in the chosen colour, never gold on another colour", got.every(inkOk), got.map((f) => `${f.accent} ${f.scheme}: ${f.ink}`));
     }
 
     /* --------------------------------------------------------------- the app */
     const { sessionId: s } = await openPage(browser);
     const ev = (expr, opts) => evalIn(browser, s, expr, opts);
-    await browser.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false }, s);
     await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'no-preference' }] }, s);
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: TIMER }, s);
     await goto(browser, s, `${sentinel.base}/login`);
@@ -129,13 +163,64 @@ async function checkVibe() {
     await api('/auth/signup', { email, password: 'Vibe-Check-Lamp-2026', firstName: 'Sam', ageConfirmed: true, termsAccepted: true });
     await api('/auth/login', { email, password: 'Vibe-Check-Lamp-2026' });
     const store = (mode, accent) => ev(`(() => { localStorage.setItem('sentinel:theme', '${mode}'); ${accent === 'gold' ? "localStorage.removeItem('sentinel:accent');" : `localStorage.setItem('sentinel:accent', '${accent}');`} localStorage.removeItem('sentinel:look-at'); return true; })()`);
-    for (const scheme of ['dark', 'light']) for (const id of IDS) {
-      await store(scheme, id);
-      await goto(browser, s, `${sentinel.base}/app?at=${Date.now()}`, "document.querySelector('.side')");
-      await sleep(1600);
-      await shot(browser, s, `vibe-app-${id}-${scheme}`);
+    // Read from each frame: where the overview's greeting sits (offsets, so an entrance's transform does not count),
+    // whether the side bar scrolls inside itself, the island's ground, and how far the search box's hint overruns it.
+    const READ = `(() => {
+      const top = (el) => { let y = 0; for (; el; el = el.offsetParent) y += el.offsetTop; return y; };
+      const h1 = document.querySelector('.page-title h1'), side = document.querySelector('.side'), foot = document.querySelector('.side__foot');
+      const isl = document.querySelector('.lux-island'), q = document.querySelector('.scanbox input');
+      const c = document.createElement('canvas').getContext('2d');
+      let pad = 0;
+      if (q) { const cs = getComputedStyle(q); c.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + getComputedStyle(document.documentElement).getPropertyValue('--sans'); pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight); }
+      return { h1: h1 ? top(h1) : -1, inner: side && getComputedStyle(side).position === 'sticky' ? side.scrollHeight - side.clientHeight : 0,
+        foot: foot && foot.offsetParent ? Math.round(foot.getBoundingClientRect().bottom) : 0, h: innerHeight,
+        island: isl ? getComputedStyle(isl).backgroundColor : '', night: getComputedStyle(document.documentElement).getPropertyValue('--night-rgb').trim(),
+        hint: q ? Math.ceil(c.measureText(q.placeholder).width) - (q.clientWidth - pad) : 0 };
+    })()`;
+    const frames = [];
+    for (const [size, z] of Object.entries(SIZES)) {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width: z.w, height: z.h, deviceScaleFactor: 1, mobile: size === 'phone' }, s);
+      for (const scheme of ['dark', 'light']) for (const id of IDS) {
+        await store(scheme, id);
+        await goto(browser, s, `${sentinel.base}/app?at=${Date.now()}`, "document.querySelector('.page-title h1')");
+        const first = await ev(READ);
+        await sleep(900);
+        // A toast, so the island is seen in the colour too.
+        await ev("(window.UI && UI.toast('Your colour is saved.', 'success'), 1)");
+        await sleep(700);
+        const last = await ev(READ);
+        const name = `vibe-app-${id}-${scheme}${size === 'phone' ? '-phone' : ''}`;
+        await shot(browser, s, name);
+        frames.push({ size, id, scheme, name, first, last });
+      }
+    }
+    const desk = frames.filter((f) => f.size === 'desktop'), phone = frames.filter((f) => f.size === 'phone');
+    result("vibe: the overview's greeting stays where it was first drawn, at one height in every colour (the mask's room is held)", desk.every((f) => f.first.h1 === f.last.h1 && f.last.h1 > 0) && new Set(desk.map((f) => f.last.h1)).size === 1, desk.map((f) => `${f.id} ${f.scheme}: ${f.first.h1} then ${f.last.h1}`));
+    result("vibe: at 1280 by 800 the side bar holds every page, the plan's figures and the account without scrolling inside itself", desk.every((f) => f.last.inner <= 1 && f.last.foot > 0 && f.last.foot <= f.last.h), desk.map((f) => `${f.id} ${f.scheme}: overflow ${f.last.inner}, foot ${f.last.foot}/${f.last.h}`));
+    const night = (f) => (f.id === 'gold' ? 'rgb(11, 9, 6)' : `rgb(${f.last.night.split(/\s+/).join(', ')})`);
+    result("vibe: the toast island is the colour's own night, not gold's black and cream", frames.every((f) => f.last.island === night(f)), frames.map((f) => `${f.name}: ${f.last.island}`));
+    result("vibe: the phone's search box shows its whole hint", phone.every((f) => f.last.hint <= 0), phone.map((f) => `${f.name}: ${f.last.hint}`));
+    // The app's sheets: every colour, dark and light, at a desktop's size and a phone's, from the frames above.
+    for (const [size, z] of Object.entries(SIZES)) {
+      const pics = frames.filter((f) => f.size === size).map((f) => [`${f.id} ${f.scheme}`, `${f.name}.png`]);
+      const page = path.join(OUT, `vibe-board-${size}.html`);
+      fs.writeFileSync(page, board(z, pics));
+      const { sessionId: b } = await openPage(browser);
+      await browser.send('Emulation.setDeviceMetricsOverride', boardSize(z), b);
+      await goto(browser, b, require('url').pathToFileURL(page).href, '[...document.images].every((i) => i.complete)');
+      await shot(browser, b, size === 'phone' ? 'vibe-sheet-app-phone' : 'vibe-sheet-app');
+      fs.unlinkSync(page);
     }
 
+    // Settings in a phone's browser, without the Windows app: what needs the app is named, with no dead switches.
+    await store('dark', 'sapphire');
+    await goto(browser, s, `${sentinel.base}/app/settings?at=${Date.now()}`, "document.querySelector('[data-set-row]')");
+    await sleep(1200);
+    const set = await ev("({ dead: [...document.querySelectorAll('.set-row .switch')].filter((x) => x.offsetParent).length, rows: document.querySelectorAll('.set-row--app').length, tall: document.documentElement.scrollHeight })");
+    await shot(browser, s, 'vibe-app-settings-phone');
+    result("vibe: Settings in a phone's browser names what needs the Windows app, without a wall of dead switches", set.dead === 0 && set.rows > 0, set);
+
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false }, s);
     /* ------------------------------------------------------------- the press */
     await store('dark', 'gold');
     await goto(browser, s, `${sentinel.base}/app/settings?at=${Date.now()}#accent`, "document.querySelector('#accent .look__coin')");

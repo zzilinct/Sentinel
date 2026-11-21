@@ -131,7 +131,8 @@
   /** One row's frame: its name, hint, state line, control and body. Settings draws every row; the first-run step a few. */
   function rowHTML(r) {
     const label = r.kind === 'switch' ? `<label class="set-row__label" id="set-${r.id}-l" for="set-${r.id}-c">${esc(r.label)}</label>` : `<h3 class="set-row__label" id="set-${r.id}-l">${esc(r.label)}</h3>`;
-    return `<div class="set-row" id="${r.id}" data-set-row="${r.id}"><div class="set-fold">
+    // Without the Windows app a row that needs it is its name and one line saying so: no dead switch, no paragraph.
+    return `<div class="set-row${r.app && !desktop ? ' set-row--app' : ''}" id="${r.id}" data-set-row="${r.id}"><div class="set-fold">
       <div class="set-row__head"><div class="set-row__text">${label}<p class="set-row__hint" id="set-${r.id}-hint">${esc(r.hint)}</p><p class="set-row__state" data-set-state${r.seen ? ` data-${r.seen} role="status"` : ""}></p></div>
         <div class="set-row__control" data-set-control>${r.app && desktop ? '<span class="skeleton set-skel" aria-hidden="true"></span>' : ''}</div></div>
       <div class="set-row__body" data-set-body></div></div></div>`;

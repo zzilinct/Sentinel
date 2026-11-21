@@ -174,6 +174,17 @@
     vars['--haze-rgb'] = rgbOf(oklchHex(0.945, ink.c * WORDS.text, ink.h));
     vars['--sheet-rgb'] = sheet;
     vars['--words-rgb'] = words;
+    // Relief: the lit edge and the shadow under every raised panel (lux.css, app-lux.css), gold's cream and brown in the
+    // colour's own, so a card never casts a brown shadow on a blue page.
+    var haze = vars['--haze-rgb'];
+    vars['--hi'] = light ? 'rgb(255 255 255 / .85)' : 'rgb(' + haze + ' / .055)';
+    vars['--lo'] = light ? 'rgb(' + rgbOf(oklchHex(0.5, g.c * 3, g.h)) + ' / .24)' : 'rgb(0 0 0 / .62)';
+    vars['--neu-lo'] = vars['--lo'];
+    vars['--relief'] = light ? 'linear-gradient(150deg, rgb(255 255 255 / .5), transparent 60%)' : 'linear-gradient(150deg, rgb(' + haze + ' / .035), transparent 55%)';
+    // The surfaces that are dark in every theme (the island, the call answer, the hero's stage): gold's black lacquer
+    // and its warm glow, in the colour's own night.
+    vars['--night-rgb'] = rgbOf(oklchHex(toOklch('#0b0906')[0], g.c * 1.5, g.h));
+    vars['--night-hi'] = oklchHex(toOklch('#231c12')[0], g.c * 3, g.h);
     // The stars: a bright tint of the colour, near-white, and a neighbouring hue, as gold has warm, cream and blue.
     for (var i = 0; i < 3; i++) vars['--star-' + (i + 1)] = oklchHex([0.9, 0.97, 0.86][i], accent.stars[i].c, accent.stars[i].h);
     return vars;
@@ -247,6 +258,10 @@
       // The sign-in stage is dark in every theme (app.css .auth__art): its metal is the dark scheme's.
       var dm = GOLD.dark.web.metal.map(function (c) { return turn(c, accent, 'dark'); });
       out['--live-metal'] = 'linear-gradient(176deg, ' + dm[0] + ' 0%, ' + dm[1] + ' 34%, ' + dm[2] + ' 58%, ' + dm[3] + ' 76%, ' + dm[4] + ' 100%)';
+      // Gold's palest metal on those dark surfaces (#f3dca4: the call's verdict, the download page's ring), and the
+      // ledger's rim, cut from the same metal as gold's.
+      out['--live-200'] = dm[0];
+      out['--rim'] = 'linear-gradient(160deg, ' + dm[0] + ', ' + dm[2] + ' 34%, ' + dm[3] + ' 58%, ' + dm[4] + ' 82%, ' + dm[1] + ')';
     }
     var app = appSet(accent, scheme), live = appSet(accent, 'dark');
     out['--acc'] = app.acc;
@@ -360,6 +375,20 @@
     return look;
   }
 
+  /**
+   * What boot.js draws before the first paint and look-site.js on the marketing pages, which load no look.js: an
+   * accent's colours for both schemes, the stylesheets' own names only, kept on the device by look-app.js. WEB_V moves
+   * whenever the names or the colours change, so a device that kept an older set has it worked out again (look-site.js
+   * holds the same number) instead of a page half in the new look.
+   */
+  var WEB = /^--(gold|metal|line|sketch|btn-grad|gilt|text|muted|faint|bg|surface|field-bg|sheet|panel|glass|haze|glow|star|live|words|night|rim|relief|neu-lo|hi$|lo$)/;
+  var WEB_V = 3;
+  function webVars(id) {
+    var out = { v: WEB_V, accent: id };
+    ['dark', 'light'].forEach(function (s) { var all = ramp(id, s); out[s] = {}; for (var k in all) if (WEB.test(k)) out[s][k] = all[k]; });
+    return out;
+  }
+
   /** The look on a surface that stays dark in every theme (the corner island): its accent, in the dark scheme. */
   function dark(look) { return { mode: 'dark', accent: normal(look).accent }; }
 
@@ -369,7 +398,7 @@
     return normal({ mode: q.get('theme'), accent: q.get('accent') });
   }
 
-  var api = { PAGE: PAGE, ACCENTS: ACCENTS, STATUS: STATUS, CAUTION_INK: CAUTION_INK, GOLD: GOLD, SHEET: SHEET, LUX: LUX, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, overruled: overruled, rev: rev, KEYS: KEYS, TEXT: TEXT, DENSITY: DENSITY, type: type, scheme: scheme, paint: paint, dark: dark, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
+  var api = { WEB: WEB, WEB_V: WEB_V, webVars: webVars, PAGE: PAGE, ACCENTS: ACCENTS, STATUS: STATUS, CAUTION_INK: CAUTION_INK, GOLD: GOLD, SHEET: SHEET, LUX: LUX, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, overruled: overruled, rev: rev, KEYS: KEYS, TEXT: TEXT, DENSITY: DENSITY, type: type, scheme: scheme, paint: paint, dark: dark, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
   root.SentinelLook = api;
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
   // The companion's own pages (popup, block page, settings): the look the Windows app gave it (popup.js asks the app

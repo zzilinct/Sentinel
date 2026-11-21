@@ -598,7 +598,7 @@ path[fill="currentColor"][fill-rule="evenodd"] {
    rests on the plan that fits, the only thing here that moves: it springs across on transform alone, when the finder's
    answer changes, and never at rest. Every column is the same width, so moving it takes one number (--pick) and no
    measuring. The phone keeps the same table: each row's words sit above its four values, so nothing scrolls sideways. */
-.ledger { --label: 33%; --island: var(--spring); --rim: linear-gradient(160deg, #f3dca4, #8a6424 34%, #e9c983 58%, #7a561c 82%, #d2ac63); position: relative; border: 1.5px solid transparent; border-radius: 30px; background: var(--relief) padding-box, linear-gradient(var(--surface), var(--surface)) padding-box, var(--rim) border-box; box-shadow: var(--raise), 0 0 0 6px var(--surface), 0 0 0 7px var(--line-gold); }
+.ledger { --label: 33%; --island: var(--spring); --rim-own: var(--rim, linear-gradient(160deg, #f3dca4, #8a6424 34%, #e9c983 58%, #7a561c 82%, #d2ac63)); position: relative; border: 1.5px solid transparent; border-radius: 30px; background: var(--relief) padding-box, linear-gradient(var(--surface), var(--surface)) padding-box, var(--rim-own) border-box; box-shadow: var(--raise), 0 0 0 6px var(--surface), 0 0 0 7px var(--line-gold); }
 @supports (transition-timing-function: linear(0, 1)) {
   .ledger { --island: linear(0, .238, .62, .897, 1.028, 1.059, 1.046, 1.023, 1.006, .998, .997, .997, .999, 1, 1, 1, 1); }
 }
@@ -618,7 +618,7 @@ path[fill="currentColor"][fill-rule="evenodd"] {
   box-shadow: inset 1px 0 0 rgb(var(--gold-rgb) / .5), inset -1px 0 0 rgb(var(--gold-rgb) / .5), inset 0 -1px 0 rgb(var(--gold-rgb) / .5);
   transform: translateX(calc(var(--pick, 0) * 100%)); transition: transform .62s var(--island);
 }
-.ledger__lens::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: var(--rim); }
+.ledger__lens::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: var(--rim-own); }
 .ledger__crest { position: absolute; top: -19px; left: 50%; width: 38px; height: 38px; margin-left: -19px; padding: 5px; border-radius: 50%; color: var(--gold-300); background: var(--surface); box-shadow: 0 0 0 1px rgb(var(--gold-rgb) / .6), 0 3px 8px rgb(0 0 0 / .35); }
 .ledger__table { position: relative; width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--t-ui); }
 .ledger__table thead td:first-child { width: var(--label); }
@@ -1045,7 +1045,7 @@ path[fill="currentColor"][fill-rule="evenodd"] {
 /* ------------------------------------------------- reading position */
 
 .progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 120; pointer-events: none; transform-origin: 0 50%; transform: scaleX(var(--p, 0));
-  background: linear-gradient(90deg, var(--gold-400), var(--orange), var(--red)); box-shadow: 0 0 12px rgb(var(--gold-rgb) / .6); }
+  background: linear-gradient(90deg, var(--gold-400), var(--gold-200)); box-shadow: 0 0 12px rgb(var(--gold-rgb) / .6); }
 
 /* Chapter rail: one mark per section on wide screens, labelled on hover, and a way to jump. */
 .rail { position: fixed; left: 22px; top: 50%; z-index: 80; transform: translateY(-50%); display: none; flex-direction: column; gap: 14px; margin: 0; padding: 0; list-style: none; }

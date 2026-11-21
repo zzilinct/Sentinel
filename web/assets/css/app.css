@@ -44,6 +44,22 @@ body.app::before { opacity: .6; }
 .meter i { display: block; height: 100%; border-radius: 3px; background: var(--gold-400); transition: width .8s var(--ease-out); }
 .meter.is-full i { background: var(--orange); }
 .usage-mini .meter + .usage-mini__row { margin-top: 12px; }
+/* A laptop's height (800 px and less room): every page, the plan's figures, the account and the theme still fit
+   without the bar scrolling inside itself. The rows close up and the figures become two short columns of words; the
+   Overview keeps the meters. */
+@media (min-width: 901px) and (max-height: 900px) {
+  .side { padding-block: 14px 12px; }
+  .side .logo { padding-bottom: 12px; }
+  .side__label { margin: 12px 12px 4px; }
+  .side__link { min-height: 32px; padding-block: 3px; }
+  .side__settings { margin-top: 8px; }
+  .side__foot { gap: 6px; padding-top: 10px; }
+  .usage-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 10px 12px; }
+  .usage-mini .meter { display: none; }
+  .usage-mini__row { flex-direction: column; margin: 0; }
+  .usage-mini .meter + .usage-mini__row { margin-top: 0; }
+  .me { padding-block: 4px; }
+}
 
 .me { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r); cursor: pointer; transition: background .2s; background: none; border: 0; width: 100%; text-align: left; }
 .me:hover { background: rgb(var(--ink) / .04); }
@@ -63,6 +79,8 @@ body.app::before { opacity: .6; }
   .side__nav { display: flex; width: 100%; justify-content: space-around; }
   .side__link { flex: 1 1 0; min-width: 0; min-height: 48px; justify-content: center; flex-direction: column; gap: 3px; height: auto; padding: 7px 4px; font-size: var(--t-micro); text-align: center; }
   .main { padding-bottom: 90px !important; }
+  /* Whatever is scrolled or focused into view (a result, its last sentence) stops above the bar, not under it. */
+  html { scroll-padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
   .topbar-mobile { display: flex !important; }
 }
 
@@ -103,6 +121,12 @@ body.app::before { opacity: .6; }
 .scanbox input { flex: 1; min-width: 0; height: 44px; background: none; border: 0; outline: none; color: var(--text); font: var(--t-text) var(--mono); }
 .scanbox input::placeholder { color: var(--faint); font-family: var(--sans); }
 .scanbox .btn { --h: 44px; }
+/* A phone: the field has the whole row, so its hint reads whole, and Check is a full-width button under it. */
+@media (max-width: 480px) {
+  .scanbox { flex-wrap: wrap; row-gap: 6px; padding: 8px 8px 8px 16px; }
+  .scanbox input { flex: 1 1 calc(100% - 40px); }
+  .scanbox .btn { flex: 1 1 100%; }
+}
 .scan-meta { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: var(--t-note); color: var(--muted); }
 .scan-meta a { color: var(--gold-300); }
 

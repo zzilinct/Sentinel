@@ -36,13 +36,11 @@
       if (r.accent === 'gold') { localStorage.removeItem(KEY.accent); localStorage.removeItem(KEY.vars); } else {
         localStorage.setItem(KEY.accent, r.accent);
         var v = JSON.parse(localStorage.getItem(KEY.vars) || '{}');
-        if (v.accent !== r.accent || v.v !== 2) localStorage.setItem(KEY.vars, JSON.stringify({ v: 2, accent: r.accent, dark: webVars(r.accent, 'dark'), light: webVars(r.accent, 'light') }));
+        if (v.accent !== r.accent || v.v !== L.WEB_V) localStorage.setItem(KEY.vars, JSON.stringify(L.webVars(r.accent)));
       }
       localStorage.setItem(KEY.at, JSON.stringify(r.at));
     } catch (e) { /* this page only */ }
   }
-  // What boot.js needs before the first paint: the stylesheets' own names only (v 2: the words, grounds and stars too).
-  function webVars(id, s) { var all = L.ramp(id, s), out = {}; for (var k in all) if (/^--(gold|metal|line|sketch|btn-grad|gilt|text|muted|faint|bg|surface|field-bg|sheet|panel|glass|haze|glow|star|live|words)/.test(k)) out[k] = all[k]; return out; }
   var current = stored();
   L.paint(html, current);
   keep(current);   // a device that had the accent before boot.js drew it gets its colours kept now

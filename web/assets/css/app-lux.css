@@ -155,6 +155,9 @@ html.lux-app[data-theme="light"] {
 @keyframes lux-mask-in { from { transform: translateY(-40px) rotate(-18deg) scale(.86); opacity: 0; } }
 @keyframes lux-breathe { from { translate: 0 -5px; } to { translate: 0 5px; } }
 @media (max-width: 720px) { .lux-mask { display: none; } }
+/* Its room is held from the first paint (the mask's own width and its picture's 788 by 896), so the greeting never
+   drops when the mask arrives after it. */
+@media (min-width: 721px) { [data-tab="home"] > .view > .page-title { min-height: calc(clamp(84px, 10vw, 128px) * 896 / 788); } }
 
 /* ------------------------------------------------ entrances, by page */
 
@@ -271,7 +274,7 @@ html.lux-app[data-theme="light"] {
 .lux-island-host { position: fixed !important; left: 0 !important; bottom: 0 !important; right: auto !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .lux-island {
   position: fixed; z-index: 1000; top: 12px; left: 50%; width: 120px; height: 34px; border-radius: 22px; overflow: hidden; pointer-events: none;
-  background: #0b0906; color: #efe6d4; box-shadow: 0 18px 44px rgb(0 0 0 / .45), inset 0 0 0 1px rgb(210 172 99 / .22);
+  background: rgb(var(--night-rgb, 11 9 6)); color: rgb(var(--haze-rgb, 239 230 212)); box-shadow: 0 18px 44px rgb(0 0 0 / .45), inset 0 0 0 1px color-mix(in srgb, var(--live-200, #d2ac63) 22%, transparent);
   opacity: 0; transform: translateX(-50%) translateY(-8px) scale(.6);
   transition: opacity .2s ease, transform .5s var(--lux-settle), width .52s var(--lux-settle), height .52s var(--lux-settle);
 }

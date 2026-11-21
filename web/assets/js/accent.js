@@ -66,7 +66,7 @@
   let goldVars = null;
   function gold() {
     if (!goldVars) {
-      const theirs = [...html.style].filter((p) => /^--(gold|metal|line|sketch|btn-grad|gilt|text|muted|faint|bg|surface|field-bg|sheet|panel|glass|haze|glow|star|live|words)/.test(p)).map((p) => [p, html.style.getPropertyValue(p)]);
+      const theirs = [...html.style].filter((p) => L.WEB.test(p)).map((p) => [p, html.style.getPropertyValue(p)]);
       const theme = html.getAttribute('data-theme'), shown = sheet.textContent;
       sheet.textContent = '';
       theirs.forEach(([p]) => html.style.removeProperty(p));

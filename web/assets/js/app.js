@@ -903,7 +903,7 @@
       ${title(`${greet}, ${esc(u.firstName)}`,'Paste anything you are unsure about. Sentinel will tell you exactly what it finds.')}
       <form class="scanbox" data-quick>
         ${ICON.search}
-        <input name="url" type="text" autocomplete="off" spellcheck="false" placeholder="Paste a link, a message or a phone number" aria-label="What to check">
+        <input name="url" type="text" autocomplete="off" spellcheck="false" placeholder="Paste a link, message or phone number" aria-label="What to check">
         <button class="btn btn--gold" type="submit">Check</button>
       </form>
       <div class="scan-meta"><span>Sentinel works out what it is and says which check it runs.</span><a href="/app/check">Check an email, a file or a picture &rarr;</a></div>
