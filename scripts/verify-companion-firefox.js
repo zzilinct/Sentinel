@@ -326,6 +326,9 @@ async function main() {
     // A private window, once the person has allowed Sentinel there (Add-ons and themes, Run in Private Windows): the
     // same results page gets the same marks.
     const handles = async () => { const r = await m.send('WebDriver:GetWindowHandles'); return Array.isArray(r) ? r : r.value || []; };
+    // Off the block page first: reloading the add-on closes its own pages, and with no other tab open (a fresh install
+    // opens none now, when there is nowhere to sign in) that closed the window under the script.
+    await m.send('WebDriver:Navigate', { url: 'about:blank' }).catch(() => {});
     const before = await handles();
     await m.send('Marionette:SetContext', { value: 'chrome' });
     const opened = await m.send('WebDriver:ExecuteAsyncScript', {
