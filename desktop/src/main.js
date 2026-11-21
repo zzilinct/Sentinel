@@ -814,8 +814,8 @@ function trayImage(accent) {
 /**
  * Draws a look everywhere at once: Windows' light or dark for the app's own pages (each follows it through
  * prefers-color-scheme), the island and its marks, the tray icon, and the file the companion's popup asks the app's
- * server for (GET /api/v1/look). The taskbar's button is drawn by Windows from the installer's shortcut and stays
- * gold: a window's own relaunch icon (setAppDetails) was tried and Windows kept the shortcut's (CI, 1.21.1).
+ * server for (GET /api/v1/look), and Sentinel's own shortcuts, which the taskbar's button is drawn from
+ * (shortcutIcons: a window's own relaunch icon was tried in 1.21.1, and Windows kept the shortcut's).
  */
 const windowIcons = new Map();
 /** The window's mark, cast in the accent like the tray's. Gold is the installer's own file. */
@@ -839,7 +839,52 @@ function frameButtons(l) {
   const scheme = l.mode === 'auto' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : l.mode;
   return { color: '#00000000', symbolColor: Look.ramp(l.accent, scheme)['--text'] || Look.PAGE[scheme].text, height: FRAME_H };
 }
+/**
+ * The taskbar's button, the Start menu's and the desktop's Sentinel: Windows draws all three from Sentinel's own
+ * shortcuts, never from the window. When the accent changes, only those shortcuts that open this very Sentinel (their
+ * target is this program) are given an icon in it: an .ico cast like the window's mark, one file per accent in the
+ * app's folder (a new name, so Windows' icon cache cannot keep the old one). Gold points them back at the program's
+ * own icon. Target, arguments and the app's ID are left as they are; a shortcut that is missing, someone else's, or
+ * cannot be written is passed over without a word. Nothing runs unless the accent changed.
+ */
+function shortcutPaths() {
+  const env = process.env, name = 'Sentinel.lnk';
+  return [
+    path.join(env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', name),
+    path.join(env.PROGRAMDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', name),
+    path.join(app.getPath('desktop'), name),
+    path.join(env.PUBLIC || '', 'Desktop', name),
+    path.join(env.APPDATA || '', 'Microsoft', 'Internet Explorer', 'Quick Launch', 'User Pinned', 'TaskBar', name)
+  ];
+}
+function shortcutIcons(accent) {
+  if (process.platform !== 'win32' || !app.isPackaged || store.get('shortcutAccent', 'gold') === accent) return;
+  const fs = require('fs'), dir = app.getPath('userData');
+  let icon = process.execPath;
+  try {
+    if (accent !== 'gold') {
+      const images = [['icon16.png', 16], ['icon32.png', 32], ['icon48.png', 48], ['icon256.png', 256]].map(([file, size]) => {
+        const base = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', file));
+        return base.isEmpty() ? null : { size, png: nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), base.getSize()).toPNG() };
+      }).filter(Boolean);
+      if (!images.length) return;
+      icon = path.join(dir, `shortcut-${accent}.ico`);
+      fs.writeFileSync(icon, require('./ico').ico(images));
+    }
+    const exe = process.execPath.toLowerCase();
+    for (const lnk of shortcutPaths()) {
+      try {
+        if (shell.readShortcutLink(lnk).target.toLowerCase() !== exe) continue;
+        shell.writeShortcutLink(lnk, 'update', { icon, iconIndex: 0 });
+      } catch { /* missing, someone else's or read-only: left as it is */ }
+    }
+    // The other accents' files go: only the one in use is kept.
+    for (const f of fs.readdirSync(dir)) if (/^shortcut-[a-z]+\.ico$/.test(f) && path.join(dir, f) !== icon) try { fs.unlinkSync(path.join(dir, f)); } catch { /* in use */ }
+    store.set('shortcutAccent', accent);
+  } catch (err) { appLog(`shortcut icons: ${err.message}`); }
+}
 function applyLook(l) {
+  shortcutIcons(l.accent);
   nativeTheme.themeSource = l.mode === 'auto' ? 'system' : l.mode;
   overlay.setLook(l);
   if (tray) tray.setImage(trayImage(l.accent));

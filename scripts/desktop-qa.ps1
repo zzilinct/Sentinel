@@ -235,6 +235,13 @@ foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; acc
   $f = $r -split '\|'
   $tone = $(if ($t.mode -eq 'dark') { $sum -lt 150 } else { $sum -gt 600 })
   Check $name ($f[0] -eq 'true' -and $f[1] -eq 'true' -and $f[2] -notmatch 'rgba\(0, 0, 0, 0\)' -and $f[4] -eq 'true' -and [int]$f[5] -ge 28 -and $tone) "framed|mark|bar|page|buttons over it|height|words: $r; the bar's pixel on screen rgb($($px.R),$($px.G),$($px.B))"
+  # The taskbar's button is drawn from Sentinel's own shortcuts (main.js shortcutIcons): they carry the colour, and
+  # gold puts the program's own icon back. The picture above shows the taskbar.
+  $links = @("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Sentinel.lnk", "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Sentinel.lnk", "$env:PUBLIC\Desktop\Sentinel.lnk", "$([Environment]::GetFolderPath('Desktop'))\Sentinel.lnk") | Where-Object { Test-Path $_ }
+  $wsh = New-Object -ComObject WScript.Shell
+  $icons = @($links | ForEach-Object { "$($wsh.CreateShortcut($_).IconLocation) <- $($wsh.CreateShortcut($_).TargetPath)" }) -join '; '
+  $want = $(if ($t.accent -eq 'gold') { '\.exe,0 <-' } else { "shortcut-$($t.accent)\.ico,0 <-" })
+  Check "$name-shortcuts" ($links.Count -gt 0 -and @($links | Where-Object { $wsh.CreateShortcut($_).IconLocation -notmatch ($want -replace ' <-$', '') }).Count -eq 0) "Sentinel's shortcuts: $icons"
 }
 [void](Cdp '127.0.0.1:4782' "window.SentinelLook.set({ mode: 'auto', accent: 'gold' }).then(() => 1)")
 

@@ -565,3 +565,27 @@ test('1.21.1: the pasted-command alarm in the page\'s own world asks for the col
   assert.doesNotMatch(src, /data-sentinel-tone/, 'no attribute on every page');
   assert.equal(read('extension', 'src', 'content', 'alarm.page.js'), src);
 });
+
+test('1.21.1: the taskbar, Start menu and desktop Sentinel in the colour, through Sentinel\'s own shortcuts only', () => {
+  const { ico } = require('../desktop/src/ico');
+  const a = Buffer.from('png-one'), b = Buffer.from('png-number-two');
+  const f = ico([{ size: 32, png: a }, { size: 256, png: b }]);
+  assert.deepEqual([f.readUInt16LE(0), f.readUInt16LE(2), f.readUInt16LE(4)], [0, 1, 2]);
+  assert.deepEqual([f[6], f[7], f.readUInt16LE(10), f.readUInt16LE(12), f.readUInt32LE(14), f.readUInt32LE(18)], [32, 32, 1, 32, a.length, 38]);
+  assert.deepEqual([f[22], f[23], f.readUInt32LE(30), f.readUInt32LE(34)], [0, 0, b.length, 38 + a.length], '256 is written as 0');
+  assert.equal(f.subarray(38).toString(), 'png-onepng-number-two');
+  const main = read('desktop', 'src', 'main.js');
+  const fn = main.slice(main.indexOf('function shortcutIcons('), main.indexOf('function applyLook('));
+  // Only when the accent changed; only a shortcut whose target is this program; only its icon.
+  assert.match(fn, /store\.get\('shortcutAccent', 'gold'\) === accent\) return;/);
+  assert.match(fn, /if \(shell\.readShortcutLink\(lnk\)\.target\.toLowerCase\(\) !== exe\) continue;\s+shell\.writeShortcutLink\(lnk, 'update', \{ icon, iconIndex: 0 \}\);/);
+  assert.equal((fn.match(/writeShortcutLink/g) || []).length, 1, 'no other write');
+  assert.match(fn, /let icon = process\.execPath;/, 'gold: the program\'s own icon back');
+  assert.match(fn, /`shortcut-\$\{accent\}\.ico`/, 'a new file name per accent');
+  assert.match(fn, /catch \{ \/\* missing, someone else's or read-only: left as it is \*\/ \}/);
+  assert.doesNotMatch(fn, /setInterval|setTimeout|watch\(/, 'no polling');
+  assert.match(main, /function applyLook\(l\) \{\s+shortcutIcons\(l\.accent\);/);
+  const sc = main.slice(main.indexOf('function shortcutPaths('), main.indexOf('function shortcutIcons('));
+  assert.equal((sc.match(/'Sentinel\.lnk'/g) || []).length, 1);
+  assert.match(read('scripts', 'desktop-qa.ps1'), /Check "\$name-shortcuts"/, 'proved on a real Windows in CI');
+});
