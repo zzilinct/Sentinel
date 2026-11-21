@@ -1,45 +1,46 @@
 {
-  "version": "1.20.4",
+  "version": "1.21.0",
   "model": "Argus",
-  "summary": "A lighter live scan, steadier marks, and a clearer caution",
+  "summary": "Names in other alphabets, fewer false alarms, and look-alike wallet addresses",
   "groups": [
     {
-      "title": "Live scanning",
+      "title": "Look-alike names",
       "items": [
-        "Live scanning rests while you read a still page: it uses about a fifth of the processor it did and costs your browser far less. Any key or mouse move wakes it at once.",
-        "Marks on an inbox that repaints without moving now always settle back onto their messages."
+        "A site name written with letters from another alphabet to look like a brand (a PayPal with a Cyrillic letter) is now caught and the card names the brand it copies.",
+        "Honest international names written in one alphabet, such as münchen.de, no longer get a warning just for being international.",
+        "The website, the Windows app and the companion read these names the same way."
       ]
     },
     {
-      "title": "Colour",
+      "title": "Fewer false alarms",
       "items": [
-        "Caution on light pages is a soft graphite that never outweighs danger.",
-        "Warning cards show a full-height mask.",
-        "The companion's hover tip shows caution the same way."
+        "Popular real sites are no longer called misspellings of a brand: elle.com is not Zelle, lacoste.com is not La Poste. A digit or a doubled letter standing in for a brand's letter still alarms.",
+        "Real words in Spanish, German, French, Portuguese, Italian and Dutch are no longer read as misspelled brands.",
+        "A name spelled near a brand but made of ordinary words loses its small note when the site is well known or the name has been registered for two years or more.",
+        "More brands' own sites on other endings are recognised as theirs."
       ]
     },
     {
-      "title": "Speed",
+      "title": "Better detection",
       "items": [
-        "The Overview opens faster on a first visit, and the web app shows its main content sooner on phones."
+        "A link that shows one site and opens another is now noticed when you point at it on a web page, in the Windows app and the companion, not only in email. Email no longer flags ordinary tracking links for this.",
+        "A copy of a popular site spelled one letter off counts when the name is new or on a throwaway ending.",
+        "A newly registered name spelled near a brand that asks for a password or a code is treated as a look-alike."
       ]
     },
     {
-      "title": "Motion",
+      "title": "Wallet guard",
       "items": [
-        "Animation Off now also stops motion already under way."
+        "Warns when an address you copy looks like one you copied before but is a different address, a trick called address poisoning. Compare the middle before you send. Your clipboard is never changed.",
+        "It keeps only the kind of address, its first and last four characters and a scrambled code, for 30 days. Forget copied addresses in Settings clears it."
       ]
     },
     {
-      "title": "Blocked pages",
+      "title": "Fixes",
       "items": [
-        "Continue anyway on a blocked page goes to the address you asked for, and says when your browser may warn once more."
-      ]
-    },
-    {
-      "title": "Galaxy",
-      "items": [
-        "The galaxy's hold under a resting mouse now scales with the card's size."
+        "Marks beside search results never push a result's title onto a second line.",
+        "Threat-list updates use less processor time and run at a lower priority.",
+        "The caution title on light pages is easier to read."
       ]
     }
   ]

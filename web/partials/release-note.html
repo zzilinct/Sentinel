@@ -1,49 +1,50 @@
-<!-- Generated from changelog/1.20.4.md by scripts/release-note.js: npm run build:note. Do not edit. -->
-<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.20.4">
+<!-- Generated from changelog/1.21.0.md by scripts/release-note.js: npm run build:note. Do not edit. -->
+<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.21.0">
   <div class="wrap">
-    <h2 id="relnote-title">New in Sentinel 1.20.4 Argus</h2>
-    <p class="relnote__lead">A lighter live scan, steadier marks, and a clearer caution.</p>
+    <h2 id="relnote-title">New in Sentinel 1.21.0 Argus</h2>
+    <p class="relnote__lead">Names in other alphabets, fewer false alarms, and look-alike wallet addresses.</p>
     <p class="relnote__newer" data-release-newer hidden></p>
     <details class="relnote__all">
       <summary>Every change in this version</summary>
       <div class="relnote__groups">
         <section>
-          <h3>Live scanning</h3>
+          <h3>Look-alike names</h3>
           <ul>
-            <li>Live scanning rests while you read a still page: it uses about a fifth of the processor it did and costs your browser far less. Any key or mouse move wakes it at once.</li>
-            <li>Marks on an inbox that repaints without moving now always settle back onto their messages.</li>
+            <li>A site name written with letters from another alphabet to look like a brand (a PayPal with a Cyrillic letter) is now caught and the card names the brand it copies.</li>
+            <li>Honest international names written in one alphabet, such as münchen.de, no longer get a warning just for being international.</li>
+            <li>The website, the Windows app and the companion read these names the same way.</li>
           </ul>
         </section>
         <section>
-          <h3>Colour</h3>
+          <h3>Fewer false alarms</h3>
           <ul>
-            <li>Caution on light pages is a soft graphite that never outweighs danger.</li>
-            <li>Warning cards show a full-height mask.</li>
-            <li>The companion's hover tip shows caution the same way.</li>
+            <li>Popular real sites are no longer called misspellings of a brand: elle.com is not Zelle, lacoste.com is not La Poste. A digit or a doubled letter standing in for a brand's letter still alarms.</li>
+            <li>Real words in Spanish, German, French, Portuguese, Italian and Dutch are no longer read as misspelled brands.</li>
+            <li>A name spelled near a brand but made of ordinary words loses its small note when the site is well known or the name has been registered for two years or more.</li>
+            <li>More brands' own sites on other endings are recognised as theirs.</li>
           </ul>
         </section>
         <section>
-          <h3>Speed</h3>
+          <h3>Better detection</h3>
           <ul>
-            <li>The Overview opens faster on a first visit, and the web app shows its main content sooner on phones.</li>
+            <li>A link that shows one site and opens another is now noticed when you point at it on a web page, in the Windows app and the companion, not only in email. Email no longer flags ordinary tracking links for this.</li>
+            <li>A copy of a popular site spelled one letter off counts when the name is new or on a throwaway ending.</li>
+            <li>A newly registered name spelled near a brand that asks for a password or a code is treated as a look-alike.</li>
           </ul>
         </section>
         <section>
-          <h3>Motion</h3>
+          <h3>Wallet guard</h3>
           <ul>
-            <li>Animation Off now also stops motion already under way.</li>
+            <li>Warns when an address you copy looks like one you copied before but is a different address, a trick called address poisoning. Compare the middle before you send. Your clipboard is never changed.</li>
+            <li>It keeps only the kind of address, its first and last four characters and a scrambled code, for 30 days. Forget copied addresses in Settings clears it.</li>
           </ul>
         </section>
         <section>
-          <h3>Blocked pages</h3>
+          <h3>Fixes</h3>
           <ul>
-            <li>Continue anyway on a blocked page goes to the address you asked for, and says when your browser may warn once more.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Galaxy</h3>
-          <ul>
-            <li>The galaxy's hold under a resting mouse now scales with the card's size.</li>
+            <li>Marks beside search results never push a result's title onto a second line.</li>
+            <li>Threat-list updates use less processor time and run at a lower priority.</li>
+            <li>The caution title on light pages is easier to read.</li>
           </ul>
         </section>
       </div>
