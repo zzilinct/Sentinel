@@ -209,7 +209,10 @@ function decodeLabel(label) {
     out.splice(i++, 0, n);
   }
   const name = String.fromCodePoint(...out);
-  return /[^\x00-\x7f]/.test(name) && /^[\p{L}\p{M}\p{Nd}-]+$/u.test(name) ? name : null;
+  // The zero-width joiners Persian and Indic names are spelled with count between two letters of such a script;
+  // never beside a Latin letter, where they only hide.
+  const letters = name.replace(/(?<=[\p{M}]|[^\P{L}\p{Script=Latin}])[‌‍](?=[^\P{L}\p{Script=Latin}])/gu, '');
+  return /[^\x00-\x7f]/.test(name) && /^[\p{L}\p{M}\p{Nd}-]+$/u.test(letters) ? name : null;
 }
 
 /** A host with each international label decoded; the host as written when one does not decode. */
@@ -227,7 +230,10 @@ const CONFUSABLES = {
   // Greek: 03B1 03F2 03B9 03F3 03BF 03C1 03C5 03BD 03B3
   'α': 'a', 'ϲ': 'c', 'ι': 'i', 'ϳ': 'j', 'ο': 'o', 'ρ': 'p', 'υ': 'u', 'ν': 'v', 'γ': 'y',
   // Armenian: 0581 0570 0578 0585 0566 057D 0561
-  'ց': 'g', 'հ': 'h', 'ո': 'n', 'օ': 'o', 'զ': 'q', 'ս': 'u', 'ա': 'w'
+  'ց': 'g', 'հ': 'h', 'ո': 'n', 'օ': 'o', 'զ': 'q', 'ս': 'u', 'ա': 'w',
+  // Latin letters with no accent to drop: 0131 0251 0261 map to one letter; 00F8 0142 0111 map to a letter and a
+  // combining stroke, which skeleton() drops the way it drops any accent.
+  'ı': 'i', 'ɑ': 'a', 'ɡ': 'g', 'ø': 'o', 'ł': 'l', 'đ': 'd'
 };
 
 /**
@@ -252,9 +258,10 @@ const SCRIPTS = ['Latin', 'Cyrillic', 'Greek', 'Armenian', 'Han', 'Hiragana', 'K
   'Hebrew', 'Thai', 'Devanagari', 'Bengali', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Gujarati', 'Gurmukhi',
   'Sinhala', 'Georgian', 'Ethiopic', 'Khmer', 'Lao', 'Myanmar', 'Tibetan', 'Cherokee', 'Thaana', 'Mongolian']
   .map((s) => [s, new RegExp(`\\p{Script=${s}}`, 'u')]);
-// Unicode's "highly restrictive" profile (UTS 39, 5.2): one writing system, or Latin with the ones Japanese, Chinese
-// and Korean are written with alongside it.
-const TOGETHER = [['Latin', 'Han', 'Hiragana', 'Katakana'], ['Latin', 'Han', 'Bopomofo'], ['Latin', 'Han', 'Hangul']];
+// The writing systems with letters drawn like Latin ones (CONFUSABLES). Two of them in one name is how a disguise
+// mixes letters; Latin beside Thai, Devanagari, Han or Hangul has no letter that can pass for another, so it is a
+// name, not a disguise.
+const LOOKALIKE_SCRIPTS = new Set(['Latin', 'Cyrillic', 'Greek', 'Armenian']);
 
 /** The writing systems of a decoded label, and whether they are mixed the way a disguise mixes them. */
 function scriptsOf(name) {
@@ -264,12 +271,12 @@ function scriptsOf(name) {
     found.add((SCRIPTS.find(([, rx]) => rx.test(ch)) || ['Other'])[0]);
   }
   const list = [...found];
-  return { list, mixed: list.length > 1 && !TOGETHER.some((set) => list.every((s) => set.includes(s))) };
+  return { list, mixed: list.filter((s) => LOOKALIKE_SCRIPTS.has(s)).length > 1 };
 }
 
 /**
  * The brand an international label is drawn to look like ("pаypal" with a Cyrillic а is paypal), or null. Exact
- * only: the whole name reads as the brand, or as the brand and a real word joined by a hyphen; the brand has five
+ * only: the whole name reads as the brand, or as the brand and a real word, hyphened or glued on; the brand has five
  * letters or more; at least one letter was changed to get there. No near spellings: an honest name in its own
  * alphabet is never called a misspelling.
  */
@@ -282,8 +289,10 @@ function idnLookalike(label) {
   for (const brand of L.PROTECTED_BRANDS) {
     const t = brand.token;
     if (t.length < 5) continue;
-    const rest = text.startsWith(`${t}-`) ? text.slice(t.length + 1) : text.endsWith(`-${t}`) ? text.slice(0, -t.length - 1) : null;
-    if (text === t || (rest && isRealWords(rest))) return { brand, name, scripts: scriptsOf(name).list };
+    // Joined by a hyphen, or glued on ("paypalsecure"): the same brand-and-word rule brandInfo applies to plain names.
+    const rest = text.startsWith(t) ? text.slice(t.length) : text.endsWith(t) ? text.slice(0, -t.length) : null;
+    const word = rest && (rest.startsWith('-') ? rest.slice(1) : rest.endsWith('-') ? rest.slice(0, -1) : rest.length >= 4 ? rest : '');
+    if (text === t || (word && isRealWords(word))) return { brand, name, scripts: scriptsOf(name).list };
   }
   return null;
 }
@@ -475,12 +484,15 @@ function brandInfo(p, popular = popularSites()) {
   // One of the most linked-to sites on the web (see isWellKnown) has a name of its own: elle.com is not Zelle,
   // lacoste.com is not La Poste. Only a spelling near a brand is relieved, never a disguise (see lookAlikeLetters).
   const listed = popular.has(p.registrable) && isWellKnown(p, popular);
+  // The whole name is one word of its own, in English or another language ("telegrams", Italian "telegramma"): a
+  // brand inside it is that word's spelling, not a borrowed name.
+  const oneWord = ordinaryWords().has(sldFlat) || L.FOREIGN_WORDS.has(sldFlat);
   for (const brand of L.PROTECTED_BRANDS) {
     const t = brand.token;
     // Short or common-word brands ("chase", "apple", "ups") only count as whole
     // words; long distinctive ones ("coinbase", "microsoft") also as substrings.
     const inside = (flat, set) => set.has(t) || (t.length >= substringMin && flat.includes(t));
-    if (!inDomain && inside(sldFlat, words)) inDomain = brand;
+    if (!inDomain && (sldFlat === t || !oneWord) && inside(sldFlat, words)) inDomain = brand;
     // The brand at the start or end, joined to a real word the small built-in list does not know ("paypalresolution",
     // "applebees"): found here, and judged by the word it is joined to (see U22).
     const rest = sldFlat.startsWith(t) ? sldFlat.slice(t.length) : sldFlat.endsWith(t) ? sldFlat.slice(0, -t.length) : '';
@@ -530,8 +542,11 @@ function brandInfo(p, popular = popularSites()) {
           // letter: another word ("overdrive", not "onedrive"), which a person reads as a different name. Noted,
           // not treated as a disguise.
           const raw = rawOf.get(part) || part;
-          const real = isRealWords(raw) || L.FOREIGN_WORDS.has(raw.toLowerCase());
-          if (!doubled && real) { if (!wordLike) wordLike = { brand, word: raw }; continue; }
+          const foreign = L.FOREIGN_WORDS.has(raw.toLowerCase());
+          const real = isRealWords(raw) || foreign;
+          // A word in another language that is spelled with the doubled letter ("telegramm", German): read by hand, so
+          // its doubled letter is its own.
+          if ((!doubled && real) || foreign) { if (!wordLike) wordLike = { brand, word: raw }; continue; }
           // "paypai", "robloxx": the same word at a glance. Not "goggles", a real word whose doubled letter is its own.
           const il = (s) => s.replace(/i/g, 'l');
           const eyeTwin = doubled || (part.length === t.length && il(part) === il(t));
@@ -584,7 +599,8 @@ function popularCopy(p, sldFlat, popular) {
   if (sites.has(sldFlat)) return sites.get(sldFlat);   // a digit for a letter
   for (const form of new Set([plain, sldFlat])) {
     for (const n of [form.length - 1, form.length, form.length + 1]) {
-      for (const name of byLength.get(n) || []) if (oneEdit(form, name) || swapped(form, name)) return sites.get(name);
+      // The name with an "s" on the end, or without its own ("wikipedias"): how people write the plural, not a copy.
+      for (const name of byLength.get(n) || []) if ((oneEdit(form, name) && form !== `${name}s` && name !== `${form}s`) || swapped(form, name)) return sites.get(name);
     }
   }
   return null;
@@ -662,7 +678,8 @@ const FILE_ENDING = /^(pdf|docx?|xlsx?|pptx?|txt|csv|md|js|mjs|cjs|ts|tsx|jsx|js
 /**
  * A link whose words show one site and which opens another: { shown, real, brand }, or null. Words count only when
  * they are themselves an address ("https://www.paypal.com/...", "www.paypal.com", or "paypal.com" written in lower
- * case, so "ASP.NET" and "Node.js" stay names), or name a protected brand that the address imitates (brandInfo).
+ * case, so "ASP.NET" and "Node.js" stay names), name a protected brand that the address imitates (brandInfo), or
+ * hold a protected brand's own address anywhere in them ("Visit PayPal.com"), over a site that is not well known.
  * Silent whenever it cannot tell or both sides are one owner: the same site or a subdomain, one brand's own sites
  * (microsoft.com words over live.com), a shortener or an email service's click counter (the real address is not in
  * the link), a web archive, or a well-known site's page about the shown one ("from?site=github.com").
@@ -699,7 +716,6 @@ function shownVersusReal(text, href, wellKnown = null) {
   const info = brandInfo(real);
   if (info.owner) return null;
   const resembled = [info.lookalike, info.inDomain, info.inSubdomain, info.wordLike && info.wordLike.brand].filter(Boolean);
-  if (!resembled.length) return null;
   const single = words.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   for (const b of resembled) {
     for (let i = 0; i < single.length; i++) {
@@ -709,6 +725,12 @@ function shownVersusReal(text, href, wellKnown = null) {
         if (rest.every((w) => CLAIM_WORDS.has(w))) return { shown: b.domains[0], real: real.host, brand: b };
       }
     }
+  }
+  // A protected brand's own address inside a sentence, in any case ("Log in to PayPal.com to confirm"), over a site
+  // that is not well known and not the brand's: the commonest words of a phishing link.
+  for (const tok of words.match(/(?:[a-z0-9-]+\.)+[a-z]{2,24}/gi) || []) {
+    const q = analyze(tok);
+    if (q && L.PROTECTED_BRANDS.some((b) => b.domains.includes(q.registrable))) return { shown: q.host.replace(/^www\./, ''), real: real.host, brand: null };
   }
   return null;
 }

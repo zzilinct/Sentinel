@@ -129,7 +129,8 @@ const NOT_LOOKALIKES = new Set([
  *
  * Made by scripts/foreign-words.js on GitHub's machines from hermitdave/FrequencyWords, 2018 (the 50,000 most frequent
  * words of OpenSubtitles2018 per language; https://github.com/hermitdave/FrequencyWords, content CC BY-SA 4.0), then
- * read through by hand: first names and words built on a brand ("googlen", "amazone", "tresor") taken out. This
+ * read through by hand: first names and words built on a brand ("googlen", "amazone", "tresor") taken out, and
+ * "telegramm" (German) put in, which the script leaves out for its doubled letter. This
  * list is an adaptation of that content and is shared under the same licence, CC BY-SA 4.0.
  */
 const FOREIGN_WORDS = new Set([
@@ -156,7 +157,7 @@ const FOREIGN_WORDS = new Set([
   'revolucionarias', 'revolucionario', 'revolucionarios', 'revoluciones', 'revolucoes', 'revolue', 'revolutie', 'revoluties', 'revolutionaire', 'revolutionairen', 'revolutionar', 'revolutionare',
   'revolutionaren', 'revolutionen', 'revolutionieren', 'revolutionnaire', 'revolutionnaires', 'revolutionne', 'revolutionner', 'rhein', 'schein', 'schwan', 'stirpe', 'strade',
   'stram', 'surpasse', 'surpassee', 'surpassent', 'surpasser', 'tecla', 'telegraaf', 'telegrafieren', 'telegrafiert', 'telegrafo', 'telegrafos',
-  'telegramma', 'telegrammi', 'telegraphe', 'telegraphie', 'telle', 'trist', 'trugst', 'unhold', 'unpassend', 'unpasslich', 'venco',
+  'telegramm', 'telegramma', 'telegrammi', 'telegraphe', 'telegraphie', 'telle', 'trist', 'trugst', 'unhold', 'unpassend', 'unpasslich', 'venco',
   'vendo', 'vengo', 'venho', 'vento', 'verzon', 'verzonden', 'verzonken', 'verzonnen', 'welle', 'zellen', 'zelte',
   'zelve', 'zonzo'
 ]);
@@ -168,12 +169,15 @@ const URL_SHORTENERS = new Set([
 ]);
 
 // Email services' and mail filters' click counters: the address the reader will reach is not in the link, so the
-// link's words cannot be held against it (url.js shownVersusReal). Shorteners hide it the same way.
+// link's words cannot be held against it (url.js shownVersusReal). Shorteners hide it the same way. Among them
+// Iterable, Postmark, Customer.io, Pardot, Brevo (sendibt) and Campaign Monitor (createsend, cmail1 to cmail30).
 const CLICK_TRACKERS = [
   'list-manage.com', 'mailchi.mp', 'rs6.net', 'sendgrid.net', 'awstrack.me', 'mandrillapp.com', 'hubspotlinks.com',
   'klclick.com', 'klclick1.com', 'klclick2.com', 'klclick3.com', 'sparkpostmail.com', 'exct.net', 'mlsend.com',
-  'createsend1.com', 'cmail19.com', 'cmail20.com', 'mailgun.org', 'convertkit-mail.com', 'convertkit-mail2.com',
-  'urldefense.com', 'urldefense.proofpoint.com', 'mimecast.com', 'substack.com', 'beehiiv.com', 'app.link'
+  'createsend1.com', 'mailgun.org', 'convertkit-mail.com', 'convertkit-mail2.com',
+  'urldefense.com', 'urldefense.proofpoint.com', 'mimecast.com', 'substack.com', 'beehiiv.com', 'app.link',
+  'iterable.com', 'pstmrk.it', 'customeriomail.com', 'pardot.com', 'sendibt2.com', 'sendibt3.com',
+  'createsend.com', ...Array.from({ length: 30 }, (_, i) => `cmail${i + 1}.com`)
 ];
 
 // Free site builders and hosting subdomains: legitimate, but a favourite home for phishing kits.

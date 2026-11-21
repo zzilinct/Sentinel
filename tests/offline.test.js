@@ -68,13 +68,18 @@ test('offline: shipped threats are confirmed, verified sites trusted, and a list
 
 test('engine.js: the bundle the website loads gives the same answers, with the word list fetched and unpacked', async () => {
   const gz = fs.readFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'words.txt.gz'));
+  const popularGz = require('zlib').gzipSync(fs.readFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'wellknown.txt')));
   const fetched = [];
   const run = (body) => {
     const win = {};
     const ctx = {
       window: win,
       document: { currentScript: { src: 'https://example.github.io/sentinel/assets/js/engine.js' } },
-      fetch: async (url) => { fetched.push(url); return { ok: true, arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) }; },
+      fetch: async (url) => {
+        fetched.push(url);
+        const b = url.endsWith('wellknown.txt.gz') ? popularGz : body;
+        return { ok: true, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) };
+      },
       URL, Response, Blob, DecompressionStream, TextDecoder, console
     };
     vm.runInNewContext(engineBundle(), ctx);
@@ -82,12 +87,13 @@ test('engine.js: the bundle the website loads gives the same answers, with the w
   };
   const bundled = run(gz);
   // overdrive.com reads as two words only with the word list: it must not be taken for OneDrive.
-  for (const url of ['https://overdrive.com/', 'https://0nedrive-login.com/', 'paypal-account-verify.com/login', 'https://files-share.site/Invoice.pdf.exe', 'https://www.wikipedia.org']) {
+  // elle.com is one of the most linked-to sites: the bundle reads that list too, so it is not taken for Zelle.
+  for (const url of ['https://overdrive.com/', 'https://0nedrive-login.com/', 'paypal-account-verify.com/login', 'https://files-share.site/Invoice.pdf.exe', 'https://www.wikipedia.org', 'https://elle.com/']) {
     const a = await bundled.scan(url);
     const b = scanAddress(url);
     assert.deepEqual(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b)), url);
   }
-  assert.deepEqual(fetched, ['https://example.github.io/sentinel/assets/data/words.txt.gz'], 'the word list is fetched once, beside the page');
+  assert.deepEqual(fetched, ['https://example.github.io/sentinel/assets/data/words.txt.gz', 'https://example.github.io/sentinel/assets/data/wellknown.txt.gz'], 'the word list and the popular sites are fetched once, beside the page');
   // A host that already unpacked it (Content-Encoding: gzip) sends plain text.
   const plain = run(require('zlib').gunzipSync(gz));
   assert.equal((await plain.scan('https://overdrive.com/')).overall.badge, scanAddress('https://overdrive.com/').overall.badge);
@@ -97,13 +103,17 @@ test('engine.js: the bundle the website loads gives the same answers, with the w
   vm.runInNewContext(engineBundle(), {
     window: flaky,
     document: { currentScript: { src: 'https://example.github.io/sentinel/assets/js/engine.js' } },
-    fetch: async () => { if (++calls === 1) throw new TypeError('Failed to fetch'); return { ok: true, arrayBuffer: async () => gz.buffer.slice(gz.byteOffset, gz.byteOffset + gz.byteLength) }; },
+    fetch: async (url) => {
+      if (++calls === 1) throw new TypeError('Failed to fetch');
+      const b = url.endsWith('wellknown.txt.gz') ? popularGz : gz;
+      return { ok: true, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) };
+    },
     URL, Response, Blob, DecompressionStream, TextDecoder, console
   });
   const first = await flaky.SentinelEngine.scan('https://overdrive.com/');
   assert.equal(first.partial, true);
   const second = await flaky.SentinelEngine.scan('https://overdrive.com/');
-  assert.equal(calls, 2, 'fetched again');
+  assert.equal(calls, 4, 'both fetched again');
   assert.deepEqual(JSON.parse(JSON.stringify(second)), JSON.parse(JSON.stringify(scanAddress('https://overdrive.com/'))), 'and then the full check');
   assert.equal((await flaky.SentinelEngine.scan('not a link')).ok, false);
   // Nothing in the bundle may reach a server or the page's storage.

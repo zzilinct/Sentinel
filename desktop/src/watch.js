@@ -1541,7 +1541,9 @@ function hoverLink(h, pageUrl) {
   try { pageHost = new URL(pageUrl).hostname; } catch { /* a private window: its address is not kept */ }
   if (pageHost && siteOf(u.hostname.replace(/^www\./, '')) === siteOf(pageHost.replace(/^www\./, ''))) return null;
   // Its words, as the page shows them: the scanner flags a link that shows one site and opens another (X02).
-  const words = String(h.n || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  // Only words that could name a site go: an address, or a few words. The same test as the companion's (content/hover.js).
+  const shown = String(h.n || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const words = /\w\.\w/.test(shown) || (shown && shown.split(' ').length <= 5) ? shown : '';
   return { u: u.href, x: h.x, y: h.y, w: h.w, h: h.h, ...(words ? { words } : {}) };
 }
 

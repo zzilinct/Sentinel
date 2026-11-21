@@ -522,11 +522,11 @@
   ]
  },
  "arznei-telegramm.de": {
-  "badge": "orange",
+  "badge": "yellow",
   "threat": "scam",
   "rules": [
    "U22 Uses \"telegram\" but is not telegram.org",
-   "U24 Near-identical spelling of telegram.org"
+   "U24 \"telegramm\" is spelled like telegram.org, but is an ordinary word"
   ]
  },
  "aspwcdpij.cc": {
