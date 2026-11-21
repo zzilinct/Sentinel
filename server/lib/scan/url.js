@@ -485,8 +485,10 @@ function brandInfo(p, popular = popularSites()) {
   // lacoste.com is not La Poste. Only a spelling near a brand is relieved, never a disguise (see lookAlikeLetters).
   const listed = popular.has(p.registrable) && isWellKnown(p, popular);
   // The whole name is one word of its own, in English or another language ("telegrams", Italian "telegramma"): a
-  // brand inside it is that word's spelling, not a borrowed name.
-  const oneWord = ordinaryWords().has(sldFlat) || L.FOREIGN_WORDS.has(sldFlat);
+  // brand inside it is that word's spelling, not a borrowed name. Not on a risky ending (U24's list) unless the site is
+  // a popular one: there a word that holds a brand is still read as the brand (telegramm.top).
+  const wordsCount = !L.RISKY_TLDS[p.suffix] || popular.has(p.registrable);
+  const oneWord = wordsCount && (ordinaryWords().has(sldFlat) || L.FOREIGN_WORDS.has(sldFlat));
   for (const brand of L.PROTECTED_BRANDS) {
     const t = brand.token;
     // Short or common-word brands ("chase", "apple", "ups") only count as whole
@@ -542,7 +544,7 @@ function brandInfo(p, popular = popularSites()) {
           // letter: another word ("overdrive", not "onedrive"), which a person reads as a different name. Noted,
           // not treated as a disguise.
           const raw = rawOf.get(part) || part;
-          const foreign = L.FOREIGN_WORDS.has(raw.toLowerCase());
+          const foreign = wordsCount && L.FOREIGN_WORDS.has(raw.toLowerCase());
           const real = isRealWords(raw) || foreign;
           // A word in another language that is spelled with the doubled letter ("telegramm", German): read by hand, so
           // its doubled letter is its own.
