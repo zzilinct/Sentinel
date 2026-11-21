@@ -193,6 +193,15 @@ async function checkCompanionCore() {
     const mailKept = await evalIn(browser, opt.sessionId, 'chrome.storage.sync.get("emailProtection").then((s) => s.emailProtection)');
     result('companion-core: a new install has email protection off and checks links Fast, and a click in the options page turns email protection on',
       fresh.email === false && fresh.mode === 'fast' && chosen.email === true && mailKept === true, { fresh, chosen, kept: mailKept });
+    // Choosing Delicate says plainly, while it is chosen, who is asked and what may be opened; Fast hides it again.
+    const pickMode = (value) => evalIn(browser, opt.sessionId, `(() => { const s = document.getElementById('liveMode'); s.value = ${JSON.stringify(value)}; s.dispatchEvent(new Event('change')); const n = document.getElementById('delicateNote'); n.scrollIntoView({ block: 'center' }); return { shown: !n.hidden && n.offsetHeight > 0, text: n.textContent }; })()`);
+    const delicate = await pickMode('delicate');
+    await sleep(600);
+    await shot(browser, opt.sessionId, 'companion-core-options-delicate');
+    const backToFast = await pickMode('fast');
+    await sleep(600);
+    result('companion-core: choosing Delicate shows that Sentinel\'s servers open the page and Google Safe Browsing may be asked; Fast hides it',
+      delicate.shown && /open each page you visit/.test(delicate.text) && /Google Safe Browsing/.test(delicate.text) && !backToFast.shown, { delicate, backToFast: backToFast.shown });
 
     // A confirmed site: stopped at the door, the icon says "!", and the popup over the block page says the same.
     await goto(browser, web.sessionId, `http://${TYPED_PW}/account.html`, "document.getElementById('pass') && document.getElementById('pass').onclick");

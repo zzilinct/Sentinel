@@ -101,7 +101,7 @@ test('privacy: delicate scanning, which asks a registry about each site, is only
   assert.match(read('server/lib/plans.js'), /let mode = wanted === 'delicate' \? 'delicate' : 'fast';/);
   // The companion: fast by default, its choice sent with every check.
   for (const f of ['extension/src/lib/api.js', 'extension/src/options.js']) assert.match(read(f), /liveMode: 'fast'/, f);
-  assert.match(read('extension/src/options.html'), /<select id="liveMode"><option value="fast">Fast<\/option><option value="delicate">Delicate<\/option><\/select>/);
+  assert.match(read('extension/src/options.html'), /<select id="liveMode" aria-describedby="delicateNote"><option value="fast">Fast<\/option><option value="delicate">Delicate<\/option><\/select>/);
   const bg = read('extension/src/background.js');
   assert.equal((bg.match(/'\/api\/v1\/live\/visit', \{ method: 'POST', body: \{ url: sendable\(details\.url, isPrivate\), mode: liveMode\(settings\)/g) || []).length, 2);
   assert.match(bg, /const mode = liveMode\(settings\);/);
@@ -109,12 +109,35 @@ test('privacy: delicate scanning, which asks a registry about each site, is only
   assert.match(read('desktop/src/main.js'), /store\.get\('liveMode', 'fast'\)/);
 });
 
-test('privacy: the companion sends no fragment, and nothing past ? from a private window', async () => {
-  const src = /const sendable = \(url, isPrivate\) => (.+);/.exec(read('extension/src/background.js'));
-  assert.ok(src, 'sendable() is where an address is trimmed before it is sent');
-  const sendable = new Function('url', 'isPrivate', `return ${src[1]};`);
-  assert.equal(sendable('https://a.example/p?q=1#access_token=x', false), 'https://a.example/p?q=1');
-  assert.equal(sendable('https://a.example/p?q=1#t', true), 'https://a.example/p');
+test('privacy: the companion sends site and path; the query only when local signs say the site looks wrong', () => {
+  const bg = read('extension/src/background.js');
+  const fn = /function looksOff\(url\) \{[\s\S]*?\r?\n\}\r?\n/.exec(bg);
+  const line = /const sendable = \(url, isPrivate\) => .+;/.exec(bg);
+  assert.ok(fn && line, 'looksOff() and sendable() are where an address is trimmed before it is sent');
+  let flagged = null;
+  const make = new Function('cacheForHost', 'hostOf', 'isFlagged', `${fn[0]}${line[0]}\nreturn sendable;`);
+  const sendable = make((host) => (host === flagged ? { overall: { badge: 'orange' } } : null), (u) => new URL(u).hostname, () => true);
+  // An ordinary page: site and path only, never the query or the fragment.
+  assert.equal(sendable('https://shop.example/account?email=a%40b.example&token=9#access_token=x', false), 'https://shop.example/account');
+  // Local signs that the site may not be what it seems: the query helps the check; the fragment still never goes.
+  assert.equal(sendable('http://203.0.113.9/login?id=7#x', false), 'http://203.0.113.9/login?id=7');
+  assert.equal(sendable('https://xn--pypal-4ve.example/a?b=1', false), 'https://xn--pypal-4ve.example/a?b=1');
+  assert.equal(sendable('https://go.example/r?to=https%3A%2F%2Fother.example', false), 'https://go.example/r?to=https%3A%2F%2Fother.example');
+  flagged = 'odd.example';
+  assert.equal(sendable('https://odd.example/p?q=1', false), 'https://odd.example/p?q=1', 'an earlier warning about the site');
+  // A private window: never the query, whatever the signs.
+  assert.equal(sendable('http://203.0.113.9/login?id=7', true), 'http://203.0.113.9/login');
+  // Every live check goes through it: page visits and the batch (results, chat links, a link under the pointer).
+  assert.equal((bg.match(/url: sendable\(details\.url, isPrivate\)/g) || []).length, 2);
+  assert.match(bg, /const s = sendable\(url, isPrivate\); asked\.set\(s,/);
+  assert.match(bg, /body: \{ urls: \[\.\.\.asked\.keys\(\)\], mode,/);
+});
+
+test('privacy: choosing Delicate in the companion says the page is opened by Sentinel\'s servers and may go to Google Safe Browsing', () => {
+  assert.match(read('extension/src/options.html'), /<p class="small note-row" id="delicateNote" hidden>With Delicate on,[^<]*its servers also open each page you visit[^<]*may be checked with Google Safe Browsing/);
+  assert.match(read('extension/src/options.js'), /document\.getElementById\('delicateNote'\)\.hidden = mode\.value !== 'delicate'/);
+  // A fast scan asks no one: Safe Browsing is part of a delicate scan only.
+  assert.match(read('server/lib/scan/engine.js'), /knowledge\.lookup\(p, \{ useSafeBrowsing: Boolean\(research\) \}\)/);
 });
 
 test('privacy: companion email protection is off until it is turned on', () => {

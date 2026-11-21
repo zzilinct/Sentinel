@@ -36,8 +36,8 @@ reports or analytics. There are none of the last two. The app never opens a susp
 
 | What is sent | Where | Why | When | Can it be turned off |
 |---|---|---|---|---|
-| The address of each page you open (without the part after `#`; from a private window also without the part after `?`) | Your scanner: the Windows app on `127.0.0.1` once paired, otherwise Sentinel's servers | Check the page | Signed in, live scanning on | Live scanning switch in the companion |
-| The addresses of search results, links in web chats, a link your pointer rests on | Your scanner | Marks beside them | Signed in, live scanning on | Live scanning switch |
+| The site and path of each page you open. The part after `?` only when local signs say the site may not be what it seems (a raw IP, a punycode name, a name and password in the address, another address in the query, or an earlier flagged verdict for the site), never from a private window. The part after `#` never (`sendable()` and `looksOff()` in `extension/src/background.js`) | Your scanner: the Windows app on `127.0.0.1` once paired, otherwise Sentinel's servers | Check the page | Signed in, live scanning on | Live scanning switch in the companion |
+| The addresses of search results, links in web chats, a link your pointer rests on, trimmed the same way | Your scanner | Marks beside them | Signed in, live scanning on | Live scanning switch |
 | `mode: fast` or `mode: delicate` | Your scanner | Which checks to run | Every check | Fast is the default; Delicate is a choice in Settings |
 | Sender, reply-to, subject, a text excerpt (an opened email: up to 6,000 characters), link addresses, attachment names | Your scanner | Masks in Gmail and Outlook on the web | Email protection on (off until turned on), Pro and up | Email protection switch |
 | A link you choose to scan or report, or a site you trust or block | Your scanner | What you asked for | Only when you ask | Do not ask |
@@ -60,7 +60,7 @@ IP addresses under GitHub's own policy.
 |---|---|---|---|
 | The page's address without the part after `?` (live scanning) or as given (a pasted link) | The site being checked | Research: read the page | Delicate scans only. From Sentinel's servers, never from your device. Nothing from your browser session |
 | A site's name | Its domain registry, DNS | How old it is, does it resolve | Delicate scans |
-| The address being checked | Google Safe Browsing | A second opinion | Only if the operator sets a key; capped per day |
+| The address being checked | Google Safe Browsing | A second opinion | Delicate scans only, and only if the operator sets a key; capped per day. Never in a fast scan, never in the Windows app |
 | Your email address and the message | Resend | Account emails (confirm, reset) | When one is sent |
 | A one-time sign-in code | Google | "Continue with Google" | Only when you choose it |
 | As in section 1 | Threat lists, Have I Been Pwned, AI providers | As in section 1 | As in section 1 |
@@ -107,7 +107,9 @@ only; it is off by default.
 
 - Companion: live checks are Fast unless Delicate is chosen in its Settings (before: Delicate for every Pro plan).
 - Companion: email protection is off until turned on (before: on).
-- Companion: the part of an address after `#` is never sent.
+- Companion: sends a page's site and path only; the part after `?` only when local signs say the site may not be what it seems; the part after `#` never.
+- Companion: choosing Delicate shows, while it is chosen, that Sentinel's servers open the page and the address may be checked with Google Safe Browsing.
+- Server: Google Safe Browsing is asked only in a delicate scan (before: every scan, when a key was set).
 - Server: a client that names no mode gets Fast (before: Delicate for Pro and up).
 - Server: which minutes live scanning ran is kept 8 days (before: 21).
 - Hosted: no access log (before: every request's address, IP and browser, kept without limit); logs capped at 15 MB per service.

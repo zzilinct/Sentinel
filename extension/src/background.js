@@ -58,8 +58,24 @@ const hasLive = () => Boolean(features().liveScanning || features().liveFast);
 /** Delicate scanning only when it is chosen in Settings (and in the plan): it looks each site up with its registry. */
 const delicateOn = (settings) => Boolean(features().liveScanning && features().liveResearch && settings.liveMode === 'delicate');
 const liveMode = (settings) => (delicateOn(settings) ? 'delicate' : 'fast');
-/** A page's address without its fragment, which only the page itself reads (a sign-in token can sit there). */
-const sendable = (url, isPrivate) => String(url).replace(isPrivate ? /[?#].*$/ : /#.*$/, '');
+/**
+ * Local signs, read here and never sent, that a site may not be what it seems: a raw IP address, a spelled-out
+ * (punycode) name, a name and password inside the address, another address carried in the query (a redirect), or a
+ * scanner verdict already flagging this site. Only then can the query help the check.
+ */
+function looksOff(url) {
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  const host = u.hostname;
+  return /^\d{1,3}(\.\d{1,3}){3}$|^\[/.test(host) || /(^|\.)xn--/.test(host) || Boolean(u.username || u.password)
+    || /=(?:https?(?::|%3a)|www\.)/i.test(u.search) || Boolean(cacheForHost(hostOf(url), isFlagged));
+}
+/**
+ * What of an address goes to the scanner: its site and path. The part after ? (a search, a sign-in link's token, an
+ * email address) only when looksOff() says the site may not be what it seems, and never from a private window. The
+ * part after # (read only by the page itself) never.
+ */
+const sendable = (url, isPrivate) => String(url).replace(!isPrivate && looksOff(url) ? /#.*$/ : /[?#].*$/, '');
 
 function liveBlockReason() {
   if (!account.signedIn) return 'signed_out';
@@ -265,11 +281,16 @@ async function liveBatch(urls, phase, isPrivate = false) {
       // Plans without delicate ask for fast outright: once Free's fast minutes are used up, a
       // delicate request would come back as plan_required instead of live_hours_exhausted.
       const mode = liveMode(settings);
-      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate }, timeout: phase === 'research' ? 90000 : 20000 });
+      // Each address goes as sendable() trims it; its answer comes back to every address it stands for.
+      const asked = new Map();
+      for (const url of pending) { const s = sendable(url, isPrivate); asked.set(s, [...(asked.get(s) || []), url]); }
+      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: [...asked.keys()], mode, quick: phase !== 'research', private: isPrivate }, timeout: phase === 'research' ? 90000 : 20000 });
       noteLive(data.live);
-      for (const [url, verdict] of Object.entries(data.byUrl)) {
-        out[url] = verdict;
-        if (verdict.ok) cacheSet(phase, url, verdict, isPrivate);
+      for (const [sent, verdict] of Object.entries(data.byUrl)) {
+        for (const url of asked.get(sent) || []) {
+          out[url] = verdict;
+          if (verdict.ok) cacheSet(phase, url, verdict, isPrivate);
+        }
       }
     } catch (err) {
       handleApiError(err);
