@@ -13,6 +13,10 @@
 }
 
 .sentinel-masks--lead { margin: 0 6px 0 0; }
+/* A one-line title the marks would have wrapped (serp.js place): it stays one line and ends in an ellipsis before the
+   room kept for the marks (--sentinel-fit, their width), and the marks stand in that room, centred on the line. */
+.sentinel-fit { position: relative !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; padding-right: var(--sentinel-fit) !important; }
+.sentinel-fit > .sentinel-masks { position: absolute; top: 0; bottom: 0; right: 0; margin: 0; }
 .sentinel-masks--mail, .sentinel-masks--chat { margin-left: 6px; cursor: help; }
 
 /* A flagged link: its mask in cast gold on a dark tile, the same mark the Windows app draws (masks.js mark()). The

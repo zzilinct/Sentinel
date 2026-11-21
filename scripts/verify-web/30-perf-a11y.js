@@ -25,12 +25,14 @@ const ONE_PROCESS = '--disable-site-isolation-trials --disable-features=IsolateO
 const CATS = ['performance', 'accessibility', 'best-practices', 'seo'];
 const BUDGET = path.join(__dirname, 'perf-budget.json');
 
-function lighthouse(cli, url, form, headersFile, jsonOut, extraFlags = '') {
+function lighthouse(cli, url, form, headersFile, jsonOut, extraFlags = '', saveTrace = false) {
   // A page that never lets the main thread rest runs Lighthouse to this limit; at 45 s the trace grew too long to read
   // (NO_NAVSTART), so the limit is shorter and the report says the page was still busy.
   const args = [cli, url, '--quiet', '--output=json', `--output-path=${jsonOut}`, `--only-categories=${CATS.join(',')}`,
     `--chrome-flags=--headless=new --no-first-run --no-default-browser-check ${extraFlags}`.trim(), '--disable-full-page-screenshot', '--max-wait-for-load=20000'];
   if (form === 'desktop') args.push('--preset=desktop');
+  // The trace beside the report (<name>-0.trace.json), for finding what a page's main thread spends its time on.
+  if (saveTrace) args.push('--save-assets');
   if (headersFile) args.push(`--extra-headers=${headersFile}`);
   const chrome = CANDIDATES.chrome.map(expand).find((p) => fs.existsSync(p));
   return new Promise((resolve) => {
@@ -90,7 +92,7 @@ async function compare(cli, baseRoot, dir, signIn) {
         const headersFile = await signIn(server.base, `${who}-headers.json`);
         for (const key of only) {
           const [form, p] = key.split(' ');
-          const t = summarise(await lighthouse(cli, server.base + p, form, APP.includes(p) ? headersFile : null, path.join(dir, `${who}-${form}${p.replace(/\//g, '_')}-round${r}.json`), ONE_PROCESS));
+          const t = summarise(await lighthouse(cli, server.base + p, form, APP.includes(p) ? headersFile : null, path.join(dir, `${who}-${form}${p.replace(/\//g, '_')}-round${r}.json`), ONE_PROCESS, r === 1));
           (runs[who][key] = runs[who][key] || []).push(t);
           console.log(`      ${who} ${key} round ${r}: ${t.error ? `ERROR ${t.error.slice(0, 120)}` : `${t.scores.performance}  FCP ${t.fcp} ms  LCP ${t.lcp} ms  TBT ${t.tbt} ms  ${t.kb} KB  benchmark ${t.bench}`}`);
         }

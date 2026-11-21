@@ -191,7 +191,9 @@ async function importLines(feed, lines) {
   const listed = exposure.watching() ? [] : null;
   // The hosts of addresses this list names for the first time, other than a site's front page (exposure.js match).
   const pages = new Map();
-  const rows = lines.map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  // In the order of the tables' keys: each write lands beside the last, not on a random page of a large index.
+  // Unsorted, 300,000 made-up names took 29 s of processor time to import; sorted, 4.4 s.
+  const rows = lines.map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).sort();
   if (feed.kind === 'hosts') return importHosts(feed, rows);
 
   const putHost = (p, threat) => {
@@ -406,6 +408,10 @@ function refreshInBackground(options = {}) {
   if (config.dbPath === ':memory:') return refreshAll(options);
   if (worker) return worker;
   const { Worker } = require('worker_threads');
+  // The worker lowers its own priority (feed-worker.js); outside Linux that is the whole process's, put back after.
+  const os = require('os');
+  let was = null;
+  try { was = os.getPriority(); } catch { /* not readable: left as the worker sets it */ }
   worker = new Promise((resolve) => {
     let w;
     try { w = new Worker(require('path').join(__dirname, 'feed-worker.js'), { workerData: options }); } catch (err) { resolve({ ok: false, error: String(err.message || err) }); return; }
@@ -418,7 +424,10 @@ function refreshInBackground(options = {}) {
     const unchanged = msg && msg.ok && (msg.results || []).every((r) => !r.ok || r.unchanged);
     if (!unchanged) revision++;
     return msg;
-  }).finally(() => { worker = null; });
+  }).finally(() => {
+    worker = null;
+    if (was !== null && process.platform !== 'linux') { try { os.setPriority(was); } catch { /* best effort */ } }
+  });
   return worker;
 }
 
@@ -427,8 +436,8 @@ function start() {
   // Not in the first seconds: the app is starting, and the person is waiting for it.
   // A fresh install has no lists at all: every minute without them is a minute of weaker answers, so it starts soon.
   if (FEEDS.some(isStale)) setTimeout(() => refreshInBackground({ log: true }).catch(() => {}), readiness().ready ? 20000 : 3000).unref();
-  // Check hourly; each feed decides for itself whether it is due.
-  setInterval(() => refreshInBackground().catch(() => {}), 3600 * 1000).unref();
+  // Check hourly; each feed decides for itself whether it is due, and no thread starts when none is.
+  setInterval(() => { if (FEEDS.some(isStale)) refreshInBackground().catch(() => {}); }, 3600 * 1000).unref();
 }
 
 /**
@@ -445,6 +454,6 @@ function readiness() {
 
 module.exports = {
   revision: () => revision,
-  FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness, _test: { refreshFeed, isStale, dropRetired },
+  FEEDS, extract, importLines, refreshAll, rebuildTokens, start, readiness, _test: { refreshFeed, isStale, dropRetired, refreshInBackground },
   status: () => q.allStatus.all().filter((r) => !r.source.startsWith('_'))
 };

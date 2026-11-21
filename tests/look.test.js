@@ -159,7 +159,13 @@ test('caution is one real yellow, in ink on a pale yellow on light paper, never 
   assert.equal(token(light, 'yellow-edge'), 'var(--yellow-ink)');
   assert.equal(token(css, 'yellow-glyph'), 'currentColor', 'on dark the mask is the yellow itself');
   const card = read('desktop', 'src', 'pages', 'card.js');
-  assert.match(card, /\['--c-ink', CI\], \['--c-glyph', tone\(badge\)\], \['--c-edge', CI\]/, 'a light caution card says its title in caution\'s ink and edges its yellow mask in it');
+  assert.match(card, /\['--c-ink', CI\], \['--c-glyph', tone\(badge\)\], \['--c-edge', CI\], \['--c-stroke', '\.025em'\]/, 'a light caution card says its title in caution\'s ink and edges its yellow mask in it');
+  // The graphite has no hue to carry it: in the display serif's hairlines it read fainter than the sans line under it
+  // (run 44430566186, look-card-caution-light), so its title's strokes are drawn fuller there, and only there.
+  assert.match(card, /h1 \{[^}]*-webkit-text-stroke: var\(--c-stroke, 0px\) currentColor;/, 'the card title takes the fuller stroke');
+  const pop = read('extension', 'src', 'popup.css');
+  assert.equal([...pop.matchAll(/--yellow-ink: #645e53; --yellow-stroke: \.025em;/g)].length, 2, 'popup.css light blocks give caution its stroke');
+  assert.match(pop, /\.answer\[data-tone="caution"\] h1 \{ color: var\(--yellow-ink\); -webkit-text-stroke: var\(--yellow-stroke, 0px\) currentColor; \}/);
   assert.match(card, /const CI = window\.SentinelLook\.CAUTION_INK;/);
   assert.doesNotMatch(card, /--c-wash/, 'no solid yellow disc behind the mask');
   // Heading weight, danger > warning > caution in words too: caution's ink is one warm graphite, no darker than
