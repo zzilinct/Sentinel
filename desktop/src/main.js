@@ -336,8 +336,7 @@ if (!primary) {
   });
 }
 
-const APP_ID = 'com.usesentinel.desktop';
-app.setAppUserModelId(APP_ID);
+app.setAppUserModelId('com.usesentinel.desktop');
 
 /* ------------------------------------------------------------- window */
 
@@ -373,9 +372,6 @@ function createWindow() {
       spellcheck: false
     }
   });
-  // A new window carries no relaunch icon yet: the taskbar's button is gold until it is given the accent's.
-  taskbarAccent = 'gold';
-  taskbarIcon(look().accent);
 
   win.loadFile(path.join(__dirname, 'pages', 'loading.html'), { query: lookQuery() });
   win.once('ready-to-show', () => { if (!startHidden) win.show(); });
@@ -818,7 +814,8 @@ function trayImage(accent) {
 /**
  * Draws a look everywhere at once: Windows' light or dark for the app's own pages (each follows it through
  * prefers-color-scheme), the island and its marks, the tray icon, and the file the companion's popup asks the app's
- * server for (GET /api/v1/look). The installer's icon is a file in the installer and stays gold.
+ * server for (GET /api/v1/look). The taskbar's button is drawn by Windows from the installer's shortcut and stays
+ * gold: a window's own relaunch icon (setAppDetails) was tried and Windows kept the shortcut's (CI, 1.21.1).
  */
 const windowIcons = new Map();
 /** The window's mark, cast in the accent like the tray's. Gold is the installer's own file. */
@@ -836,30 +833,6 @@ function windowIcon(accent) {
   }
   return windowIcons.get(accent);
 }
-/**
- * The taskbar's button. Windows draws it from the Start menu shortcut that has the app's ID, not from the window, so
- * setIcon left it gold. A window that carries the same ID with a relaunch icon of its own is drawn with that icon
- * instead: an .ico in the accent (cast as the window's mark), written to the app's folder when the accent changes.
- * Gold points back at Sentinel's own file.
- */
-let taskbarAccent = 'gold';
-function taskbarIcon(accent) {
-  if (process.platform !== 'win32' || !win || win.isDestroyed() || accent === taskbarAccent) return;
-  let file = process.execPath;
-  try {
-    if (accent !== 'gold') {
-      const images = [['icon16.png', 16], ['icon32.png', 32], ['icon48.png', 48], ['icon256.png', 256]].map(([name, size]) => {
-        const base = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', name));
-        return base.isEmpty() ? null : { size, png: nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), base.getSize()).toPNG() };
-      }).filter(Boolean);
-      if (!images.length) return;
-      file = path.join(app.getPath('userData'), 'taskbar.ico');
-      require('fs').writeFileSync(file, require('./ico').ico(images));
-    }
-    win.setAppDetails({ appId: APP_ID, appIconPath: file, appIconIndex: 0, relaunchCommand: `"${process.execPath}"`, relaunchDisplayName: 'Sentinel' });
-    taskbarAccent = accent;
-  } catch (err) { appLog(`taskbar icon: ${err.message}`); }
-}
 /** Windows' minimise, maximise and close over the page's own title bar: on nothing (the page's ground shows through), in its ink. */
 const FRAME_H = 36;
 function frameButtons(l) {
@@ -872,7 +845,6 @@ function applyLook(l) {
   if (tray) tray.setImage(trayImage(l.accent));
   if (win && !win.isDestroyed()) {
     win.setIcon(windowIcon(l.accent));
-    taskbarIcon(l.accent);
     if (process.platform === 'win32') win.setTitleBarOverlay(frameButtons(l));
   }
   try { require('fs').writeFileSync(path.join(app.getPath('userData'), 'look.json'), JSON.stringify(l)); } catch { /* the companion keeps the look it has */ }

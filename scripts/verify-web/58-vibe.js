@@ -60,10 +60,12 @@ const PAINT = `Promise.all([...document.querySelectorAll('iframe')].map((f) => n
       const c = d.querySelector('canvas.hero__unmask');
       if (c && c.width && c.height) {
         try {
-          const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, sum = [0, 0, 0];
-          let n = 0;
-          for (let i = 0; i < px.length; i += 16) if (px[i + 3] > 120) { sum[0] += px[i] * 255 / px[i + 3]; sum[1] += px[i + 1] * 255 / px[i + 3]; sum[2] += px[i + 2] * 255 / px[i + 3]; n++; }
-          if (n > 50) ink = '#' + sum.map((x) => (256 | Math.min(255, Math.round(x / n))).toString(16).slice(1)).join('');
+          // The digits are most of what is drawn, each in the one ink: the commonest colour is theirs (the warnings'
+          // red and orange pills and the marks are far fewer pixels).
+          const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, count = {};
+          for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 60) { const k = [0, 1, 2].map((j) => (256 | Math.min(255, Math.round(px[i + j] * 255 / px[i + 3]))).toString(16).slice(1)).join(''); count[k] = (count[k] || 0) + 1; }
+          const top = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+          if (top && top[1] > 50) ink = '#' + top[0];
         } catch (e) { ink = 'unread'; }
       }
       const out = { accent: f.dataset.accent, scheme: f.dataset.scheme, text: v('--text'), star: v('--star-1'), red: v('--red'), green: v('--green'),
@@ -172,7 +174,8 @@ async function checkVibe() {
       const c = document.createElement('canvas').getContext('2d');
       let pad = 0;
       if (q) { const cs = getComputedStyle(q); c.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + getComputedStyle(document.documentElement).getPropertyValue('--sans'); pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight); }
-      return { h1: h1 ? top(h1) : -1, inner: side && getComputedStyle(side).position === 'sticky' ? side.scrollHeight - side.clientHeight : 0,
+      const nav = document.querySelector('.side__nav');
+      return { h1: h1 ? top(h1) : -1, inner: side && getComputedStyle(side).position === 'sticky' ? Math.max(side.scrollHeight - side.clientHeight, nav.scrollHeight - nav.clientHeight) : 0,
         foot: foot && foot.offsetParent ? Math.round(foot.getBoundingClientRect().bottom) : 0, h: innerHeight,
         island: isl ? getComputedStyle(isl).backgroundColor : '', night: getComputedStyle(document.documentElement).getPropertyValue('--night-rgb').trim(),
         hint: q ? Math.ceil(c.measureText(q.placeholder).width) - (q.clientWidth - pad) : 0 };
@@ -223,7 +226,7 @@ async function checkVibe() {
     await store('dark', 'sapphire');
     await goto(browser, s, `${sentinel.base}/app/settings?at=${Date.now()}`, "document.querySelector('[data-set-row]')");
     await sleep(1200);
-    const set = await ev("({ dead: [...document.querySelectorAll('.set-row .switch')].filter((x) => x.offsetParent).length, rows: document.querySelectorAll('.set-row--app').length, tall: document.documentElement.scrollHeight })");
+    const set = await ev("({ dead: [...document.querySelectorAll('.set-row .switch')].filter((x) => x.offsetParent && x.disabled).length, rows: document.querySelectorAll('.set-row--app').length, tall: document.documentElement.scrollHeight })");
     await shot(browser, s, 'vibe-app-settings-phone');
     result("vibe: Settings in a phone's browser names what needs the Windows app, without a wall of dead switches", set.dead === 0 && set.rows > 0, set);
 

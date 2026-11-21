@@ -48,17 +48,23 @@ body.app::before { opacity: .6; }
    without the bar scrolling inside itself. The rows close up and the figures become two short columns of words; the
    Overview keeps the meters. */
 @media (min-width: 901px) and (max-height: 900px) {
-  .side { padding-block: 14px 12px; }
-  .side .logo { padding-bottom: 12px; }
-  .side__label { margin: 12px 12px 4px; }
-  .side__link { min-height: 32px; padding-block: 3px; }
-  .side__settings { margin-top: 8px; }
-  .side__foot { gap: 6px; padding-top: 10px; }
-  .usage-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 10px 12px; }
+  .side { padding-block: 12px 10px; }
+  .side .logo { padding-bottom: 10px; }
+  .side .model-badge { margin-bottom: 10px; }
+  .side__label { margin: 8px 12px 2px; }
+  .side__link { min-height: 30px; padding-block: 2px; }
+  .side__settings { margin-top: 6px; }
+  /* The figures as one short line each; the theme button and the legal links share a row. */
+  .side__foot { grid-template-columns: auto 1fr; align-items: center; gap: 6px 10px; padding-top: 8px; }
+  .side__foot > .usage-mini, .side__foot > .me { grid-column: 1 / -1; }
+  .side__foot .legal-links { padding: 0; }
+  .usage-mini { display: grid; gap: 2px; padding: 8px 12px; }
   .usage-mini .meter { display: none; }
-  .usage-mini__row { flex-direction: column; margin: 0; }
-  .usage-mini .meter + .usage-mini__row { margin-top: 0; }
-  .me { padding-block: 4px; }
+  .usage-mini__row, .usage-mini .meter + .usage-mini__row { margin: 0; line-height: 1.35; }
+  .me { padding-block: 2px; }
+  /* Shorter still: the pages scroll on their own, the account and the theme never leave the window. */
+  .side { overflow: hidden; }
+  .side__nav { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 }
 
 .me { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r); cursor: pointer; transition: background .2s; background: none; border: 0; width: 100%; text-align: left; }

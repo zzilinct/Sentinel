@@ -494,23 +494,6 @@ test('1.21.1: the overview, Settings, the side bar and the camera, as a person m
   assert.match(read('web', 'assets', 'js', 'app', 'check.js'), /if \(!el\.isConnected \|\| document\.hidden\) \{ stop\(\); return; \}/);
 });
 
-test('1.21.1: the taskbar\'s button in the colour, from an .ico Windows can read', () => {
-  const { ico } = require('../desktop/src/ico');
-  const a = Buffer.from('png-one'), b = Buffer.from('png-number-two');
-  const f = ico([{ size: 32, png: a }, { size: 256, png: b }]);
-  assert.deepEqual([f.readUInt16LE(0), f.readUInt16LE(2), f.readUInt16LE(4)], [0, 1, 2]);
-  assert.deepEqual([f[6], f[7], f.readUInt16LE(10), f.readUInt16LE(12), f.readUInt32LE(14), f.readUInt32LE(18)], [32, 32, 1, 32, a.length, 38]);
-  assert.deepEqual([f[22], f[23], f.readUInt32LE(30), f.readUInt32LE(34)], [0, 0, b.length, 38 + a.length], '256 is written as 0');
-  assert.equal(f.subarray(38, 38 + a.length).toString(), 'png-one');
-  assert.equal(f.subarray(38 + a.length).toString(), 'png-number-two');
-  const main = read('desktop', 'src', 'main.js');
-  const id = JSON.parse(read('desktop', 'package.json')).build.appId;
-  assert.match(main, new RegExp(`const APP_ID = '${id.replace(/\./g, '\\.')}';\\s+app\\.setAppUserModelId\\(APP_ID\\);`), 'the same ID as the installer\'s shortcut');
-  assert.match(main, /win\.setAppDetails\(\{ appId: APP_ID, appIconPath: file, appIconIndex: 0, relaunchCommand: `"\$\{process\.execPath\}"`, relaunchDisplayName: 'Sentinel' \}\)/);
-  assert.match(main, /win\.setIcon\(windowIcon\(l\.accent\)\);\s+taskbarIcon\(l\.accent\);/, 'a new colour reaches the taskbar');
-  assert.match(main, /taskbarAccent = 'gold';\s+taskbarIcon\(look\(\)\.accent\);/, 'and a new window');
-});
-
 test('1.21.1: the pasted-command alarm in the page\'s own world asks for the colour on its own box, and nothing stays on the page', async () => {
   const vm = require('vm');
   const src = read('extension', 'src', 'content', 'alarm.js');
