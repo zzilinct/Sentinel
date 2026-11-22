@@ -58,7 +58,7 @@ const BRANDS = [
   { token: 'amazon', domains: [...cc('amazon', AMAZON_CC), 'amazonaws.com', 'amazon.dev', 'a2z.com', 'amzn.to', 'media-amazon.com', 'primevideo.com', 'aboutamazon.com', 'amazonpay.com', 'amazon.jobs', 'amazon.science'] },
   { token: 'netflix', domains: ['netflix.com', 'nflxext.com', 'nflximg.net', 'netflix.net', 'netflix.shop'] },
   { token: 'spotify', domains: ['spotify.com', 'spotify.link', 'scdn.co', 'spoti.fi', 'spotify.design'] },
-  { token: 'adobe', domains: ['adobe.com', 'adobe.io', 'adobelogin.com', 'typekit.net', 'adobe.design'] },
+  { token: 'adobe', domains: ['adobe.com', 'adobe.io', 'adobelogin.com', 'typekit.net'] },
   { token: 'dropbox', domains: ['dropbox.com', 'dropboxmail.com', 'dropboxusercontent.com', 'db.tt', ...cc('dropbox', ['tech', 'design'])] },
   { token: 'docusign', domains: ['docusign.com', 'docusign.net'] },
   // Link shorteners: a page named for one pretends to be a short link you can trust to forward you.
@@ -166,7 +166,7 @@ const BRANDS = [
   { token: 'tmobile', domains: ['t-mobile.com', 'tmobile.com'] },
 
   // Crypto
-  { token: 'binance', domains: ['binance.com', 'binance.us', 'bnbstatic.com', ...cc('binance', ['org', 'vision'])] },
+  { token: 'binance', domains: ['binance.com', 'binance.us', 'bnbstatic.com', 'binance.vision'] },
   { token: 'coinbase', domains: ['coinbase.com', 'cbhq.net', 'base.org'] },
   { token: 'walletconnect', domains: ['walletconnect.com', 'walletconnect.network', 'walletconnect.org', 'reown.com'] },
   { token: 'metamask', domains: ['metamask.io'] },

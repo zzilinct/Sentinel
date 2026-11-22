@@ -223,6 +223,14 @@
    "U37 \"adidas\" combined with \"online\": a classic combosquatting pattern"
   ]
  },
+ "adobe.design": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"adobe\" but is not adobe.com"
+  ],
+  "reason": "1.21.2: still not proven the brand own (Brand domains proven: binance.org ends on bnbchain.org with no Binance name on its certificate or RDAP; adobe.design has a one-name certificate, its own name servers and a redacted registrant), so kept out of brands.js; a yellow note until proven"
+ },
  "adobeshowcase.com": {
   "badge": "yellow",
   "threat": "scam",
@@ -621,6 +629,14 @@
   "rules": [
    "U22 Uses \"binance\" but is not binance.com"
   ]
+ },
+ "binance.org": {
+  "badge": "yellow",
+  "threat": "scam",
+  "rules": [
+   "U22 Uses \"binance\" but is not binance.com"
+  ],
+  "reason": "1.21.2: still not proven the brand own (Brand domains proven: binance.org ends on bnbchain.org with no Binance name on its certificate or RDAP; adobe.design has a one-name certificate, its own name servers and a redacted registrant), so kept out of brands.js; a yellow note until proven"
  },
  "bitcoinchaser.com": {
   "badge": "yellow",
