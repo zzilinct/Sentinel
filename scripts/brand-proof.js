@@ -91,8 +91,17 @@ async function rdap(url) {
 }
 
 /** The registrant's organisation from the registry, or else from the registrar the registry points to, with where it looked. */
+let bootstrap;
+/** The registry's own RDAP address for a domain's ending, from IANA's list (rdap.org, a relay, does not answer GitHub). */
+async function registryUrl(domain) {
+  bootstrap = bootstrap || (await rdap('https://data.iana.org/rdap/dns.json')) || { services: [] };
+  const end = domain.split('.').pop();
+  const hit = bootstrap.services.find(([ends]) => ends.includes(end));
+  return hit ? `${hit[1][0].replace(/\/$/, '')}/domain/${domain}` : `https://rdap.org/domain/${domain}`;
+}
+
 async function registrant(domain) {
-  const reg = await rdap(`https://rdap.org/domain/${domain}`);
+  const reg = await rdap(await registryUrl(domain));
   const org = rdapOrg(reg);
   if (org) return { org, seen: 'registry' };
   const link = registrarLink(reg);
