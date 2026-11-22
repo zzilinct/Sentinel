@@ -234,10 +234,10 @@ function shift({ epoch, dx, dy, t, settle }) {
 }
 
 /** The page's pixels moved by dy screen pixels in the last frame (watch.js Glide): the marks move by as much. */
-function pixels({ epoch, dy, t }) {
+function pixels({ epoch, dy, t, lone }) {
   if (!area || dryRun) return;
-  if (process.env.SENTINEL_OVERLAY_TRACE) { try { require('fs').appendFileSync(process.env.SENTINEL_OVERLAY_TRACE, `P ${Date.now()} ${t} ${dy}\n`); } catch { /* best effort */ } }
-  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:px', { epoch, dy: dy / scale, t: typeof t === 'number' ? t : null });
+  if (process.env.SENTINEL_OVERLAY_TRACE) { try { require('fs').appendFileSync(process.env.SENTINEL_OVERLAY_TRACE, `P ${Date.now()} ${t} ${dy}${lone ? ' lone' : ''}\n`); } catch { /* best effort */ } }
+  if (win && !win.isDestroyed() && ready) win.webContents.send('overlay:px', { epoch, dy: dy / scale, t: typeof t === 'number' ? t : null, lone: Boolean(lone) });
 }
 
 /** The overlay window's handle, as a decimal string, or '' when there is none. */

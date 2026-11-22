@@ -772,9 +772,28 @@ async function guardAction(action, arg) {
 
 function buildTray() {
   tray = new Tray(trayImage(look().accent));
-  tray.setToolTip(`Sentinel ${app.getVersion()}`);
   tray.on('click', () => showWindow());
   refreshTray();
+}
+
+/**
+ * The tray at a glance, without opening its menu: the tooltip says whether live scanning is on, off or has stopped,
+ * and the mask is dimmed whenever it is not watching. Losing protection silently is the worst thing a guard can do.
+ */
+function trayGlance(pw, up) {
+  const wanted = store.get('liveScanning', false);
+  const on = Boolean(pw.supported && wanted && pw.active);
+  const line = !pw.supported ? '' : on ? 'live scanning on' : wanted ? 'live scanning stopped, starting again' : 'live scanning off';
+  return { on: on || !pw.supported, tip: `Sentinel ${app.getVersion()}${line ? `: ${line}` : ''}${up.status === 'ready' ? `. Update ${up.version} ready` : ''}` };
+}
+let trayShown = '';
+function showTrayGlance(pw, up) {
+  const g = trayGlance(pw, up);
+  const key = `${look().accent}|${g.on}|${g.tip}`;
+  if (key === trayShown) return;
+  trayShown = key;
+  tray.setToolTip(g.tip);
+  tray.setImage(trayImage(look().accent, !g.on));
 }
 
 /* ---------------------------------------------------------------- look */
@@ -784,12 +803,16 @@ function look() { return Look.record(store.get('look')); }
 /** The query every page main.js opens is given, so it is drawn in the look before its first paint. */
 function lookQuery() { const l = look(); return { theme: l.mode, accent: l.accent }; }
 const trayImages = new Map();
-/** The tray's mask cast in the accent: the gold picture's own pixels turned to it, made once per accent. */
-function trayImage(accent) {
-  if (!trayImages.has(accent)) {
+/**
+ * The tray's mask cast in the accent: the gold picture's own pixels turned to it, made once per accent. `dim`: at
+ * 40% opacity, while live scanning is not watching (trayGlance).
+ */
+function trayImage(accent, dim = false) {
+  const id = `${accent}${dim ? '|dim' : ''}`;
+  if (!trayImages.has(id)) {
     const file = (name) => nativeImage.createFromPath(path.join(__dirname, '..', 'assets', name));
     // The menu bar on a Mac draws its icons in its own colours.
-    if (process.platform === 'darwin') { trayImages.set(accent, file('icon16.png')); return trayImages.get(accent); }
+    if (process.platform === 'darwin') { trayImages.set(id, file('icon16.png')); return trayImages.get(id); }
     // The hand-drawn 16 px mark at 100%, the 32 px one at 200%: Windows picks the one for the screen instead of
     // shrinking the large one into a blur. Each is cast in the accent the same way.
     const image = nativeImage.createEmpty();
@@ -797,12 +820,18 @@ function trayImage(accent) {
       const base = file(name);
       if (base.isEmpty()) continue;
       const size = base.getSize();
-      const cast = accent === 'gold' ? base : nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), size);
+      let cast = base;
+      if (accent !== 'gold' || dim) {
+        const bitmap = accent === 'gold' ? base.toBitmap() : Look.tintBitmap(base.toBitmap(), accent);
+        // Premultiplied pixels: colour and alpha fade together.
+        if (dim) for (let i = 0; i < bitmap.length; i++) bitmap[i] = Math.round(bitmap[i] * 0.4);
+        cast = nativeImage.createFromBitmap(bitmap, size);
+      }
       image.addRepresentation({ scaleFactor, width: size.width, height: size.height, dataURL: cast.toDataURL() });
     }
-    trayImages.set(accent, image.isEmpty() ? file('icon32.png') : image);
+    trayImages.set(id, image.isEmpty() ? file('icon32.png') : image);
   }
-  return trayImages.get(accent);
+  return trayImages.get(id);
 }
 /**
  * Draws a look everywhere at once: Windows' light or dark for the app's own pages (each follows it through
@@ -812,7 +841,7 @@ function trayImage(accent) {
 function applyLook(l) {
   nativeTheme.themeSource = l.mode === 'auto' ? 'system' : l.mode;
   overlay.setLook(l);
-  if (tray) tray.setImage(trayImage(l.accent));
+  if (tray) refreshTray();
   try { require('fs').writeFileSync(path.join(app.getPath('userData'), 'look.json'), JSON.stringify(l)); } catch { /* the companion keeps the look it has */ }
 }
 
@@ -833,6 +862,7 @@ function refreshTray() {
   const status = downloads.status();
   const pw = watch.status();
   const up = updater.status();
+  showTrayGlance(pw, up);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open Sentinel', click: () => showWindow() },
     { type: 'separator' },
@@ -892,12 +922,15 @@ async function startScanning() {
 }
 
 /**
- * Install a downloaded update without being asked, when it cannot interrupt anything: no browser open at all, or
- * none in front and nobody at the keyboard or mouse for five minutes (and Sentinel's own window not in use). A
- * browser coming to the front first simply means "not now": it is tried again a minute later. Sentinel comes back
- * in the tray afterwards, with live scanning as it was.
+ * Install a downloaded update without being asked, when it cannot interrupt anything: nobody at the keyboard or mouse
+ * for five minutes, and no game, video or presentation full screen. Windows' idle time is the whole computer's, so a
+ * browser left in front while someone walks away counts as away; which window is in front and which browsers are open
+ * are not asked. Quitting Sentinel installs it too (updater.js), and the tray and the notice offer it at once.
+ * Sentinel comes back in the tray afterwards, never in front, with live scanning as it was. Looked at once a minute
+ * only while an update waits: one question to Windows for the idle time.
  */
 let autoInstalling = false;
+let autoInstallTimer = null;
 
 /**
  * Auto scanning (a switch in Settings): fast live scanning starts by itself when a browser is opened, and
@@ -937,37 +970,35 @@ async function setAutoScan(enabled) {
   push('sentinel:settings', { autoScan: Boolean(enabled) });
   return { autoScan: Boolean(enabled), live: { ...watch.status(), enabled: store.get('liveScanning', false) } };
 }
-/** Is a fullscreen game, video or presentation in front? (SHQueryUserNotificationState: busy, Direct3D fullscreen, presentation.) */
-function fullscreenInFront() {
-  const script = `Add-Type -Namespace S -Name Q -MemberDefinition '[DllImport("shell32.dll")] public static extern int SHQueryUserNotificationState(out int s);'
-$s = 0; [void][S.Q]::SHQueryUserNotificationState([ref]$s); $s`;
-  return new Promise((resolve) => {
-    require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
-      { windowsHide: true, timeout: 15000 }, (err, out) => resolve(!err && [2, 3, 4].includes(Number(String(out).trim()))));
-  });
+/**
+ * Is a fullscreen game, video or presentation in front? (SHQueryUserNotificationState: busy, Direct3D fullscreen,
+ * presentation), asked of the helper that already runs (browsers.js), not of a new PowerShell each time. `unknown`
+ * is the answer when the helper cannot say.
+ */
+async function fullscreenInFront(unknown = false) {
+  const s = await browsers.busy();
+  return s === null ? unknown : [2, 3, 4].includes(s);
 }
 
 async function autoInstallSoon() {
-  if (autoInstalling || updater.status().status !== 'ready') return;
-  const idleSeconds = powerMonitor.getSystemIdleTime();
-  const browserInFront = Boolean(watch.status().window);
-  const usingSentinel = Boolean(win && !win.isDestroyed() && win.isVisible() && win.isFocused());
-  const open = await browsers.running().catch(() => ['unknown']);
-  const away = !browserInFront && idleSeconds >= 5 * 60 && !usingSentinel;
-  if (open.length && !away) return;
-  if (usingSentinel && idleSeconds < 5 * 60) return;
-  // Never in the middle of something: someone typing or moving the mouse, or a game or video fullscreen (a game
-  // played with a controller leaves the keyboard and mouse idle, so fullscreen is asked of Windows itself).
-  if (idleSeconds < 2 * 60 || await fullscreenInFront()) return;
+  const stopLooking = () => { clearInterval(autoInstallTimer); autoInstallTimer = null; };
+  if (updater.status().status !== 'ready') { stopLooking(); return; }
+  if (!autoInstallTimer) autoInstallTimer = setInterval(() => autoInstallSoon(), 60 * 1000).unref();
+  if (autoInstalling) return;
   const version = updater.status().version;
   // An update that failed to install twice is left for the person to install: trying again and again would
   // restart Sentinel over and over.
   const tries = store.get('autoInstallTries', {});
-  if ((tries[version] || 0) >= 2) return;
+  if ((tries[version] || 0) >= 2) { stopLooking(); return; }
+  const idleSeconds = powerMonitor.getSystemIdleTime();
+  if (idleSeconds < 5 * 60) return;
+  // A game played with a controller leaves the keyboard and mouse idle, so fullscreen is asked of Windows itself; there,
+  // not knowing counts as busy.
+  if (await fullscreenInFront(process.platform === 'win32')) return;
   store.set('autoInstallTries', { [version]: (tries[version] || 0) + 1 });
   autoInstalling = true;
-  appLog(`updating to ${version} by itself (${open.length ? `idle ${Math.round(idleSeconds / 60)} min` : 'no browser open'})`);
-  const r = await updater.install({ relaunch: true, hidden: !(win && !win.isDestroyed() && win.isVisible()) }).catch((err) => ({ ok: false, error: err.message }));
+  appLog(`updating to ${version} by itself (nobody at the computer for ${Math.round(idleSeconds / 60)} min)`);
+  const r = await updater.install({ relaunch: true, hidden: true }).catch((err) => ({ ok: false, error: err.message }));
   if (!r.ok) { autoInstalling = false; appLog(`automatic update did not start: ${r.error || 'unknown'}`); }
 }
 
@@ -2112,12 +2143,11 @@ app.whenReady().then(() => {
       refreshTray(); push('sentinel:update', s);
     },
     onReady: (version) => {
-      notify(`Sentinel ${version} is ready`, 'It installs by itself while you are not browsing. Click to update now.', () => { updater.install().catch(() => {}); });
+      notify(`Sentinel ${version} is ready`, 'It installs by itself when you step away from the computer, or when you quit Sentinel. Click to update now.', () => { updater.install().catch(() => {}); });
+      // Updates install themselves (see autoInstallSoon): looked at every minute while one is waiting.
       autoInstallSoon();
     }
   }));
-  // Updates install themselves (see autoInstallSoon): checked every minute while one is waiting.
-  setInterval(() => autoInstallSoon(), 60 * 1000).unref();
 
   // Installed builds start with the computer by default; development runs never
   // touch the system's startup items.

@@ -58,7 +58,20 @@ test('the reader only works on a browser that is in front and in use, and reads 
   const allowed = (i) => i > mailBlock || (i > searchBlock && i < mailBlock) || (i > flagBlock && i < flagEnd) || s.slice(Math.max(0, i - 60), i).includes('rowCache') || s.slice(Math.max(0, i - 80), i).includes('$cache.Add($VP::ValueProperty);') || s.slice(Math.max(0, i - 60), i).includes('$editCache.Add($A::IsPasswordProperty);');
   assert.ok(flagBlock > 0 && flagEnd > flagBlock);
   assert.ok(names.every(allowed), 'names are read only for a webmail inbox, a results page\'s links and a flagged page\'s boxes');
-  assert.ok(s.includes('InPrivate|Incognito|Private Browsing'), 'private windows are recognised by their title');
+  // Private windows are recognised by their title, in many languages. No \b: .NET's word boundary sits after an
+  // accented letter, so "Navigation priv\b" never matched French Firefox's "Navigation privée".
+  const privateRe = /\$private = '([^']+)'/.exec(s)[1];
+  assert.ok(!privateRe.includes('\\b'), 'no word boundaries in the private-window words');
+  const isPrivate = new RegExp(privateRe.replace(/\\u([0-9A-F]{4})/g, (m, h) => String.fromCharCode(parseInt(h, 16))), 'i');
+  for (const title of ['New Tab - Google Chrome (Incognito)', 'Neuer Tab - Google Chrome (Inkognito)', 'Nueva pestaña - Google Chrome (Incógnito)',
+    'Nova guia - Google Chrome (Anônima)', 'Nuova scheda - Google Chrome (In incognito)', 'Новая вкладка - Google Chrome (Инкогнито)',
+    '新しいタブ - Google Chrome (シークレット)', '新标签页 - Google Chrome (无痕模式)', '새 탭 - Chrome (시크릿 모드)', 'Yeni Sekme - Google Chrome (Gizli)',
+    'New tab - [InPrivate] - Microsoft Edge', 'Mozilla Firefox Private Browsing', 'Accueil — Navigation privée de Mozilla Firefox',
+    'Mozilla Firefox Privater Modus', 'Navegação privativa do Mozilla Firefox', 'Navigazione anonima di Mozilla Firefox', 'Privénavigatie van Mozilla Firefox',
+    'Приватный просмотр Mozilla Firefox', 'Mozilla Firefox プライベートブラウジング', 'Mozilla Firefox 隐私浏览', 'Mozilla Firefox 사생활 보호 모드']) {
+    assert.ok(isPrivate.test(title), `a private window: ${title}`);
+  }
+  for (const title of ['PayPal: Log in - Google Chrome', 'Accueil - Mozilla Firefox', 'Startseite - Microsoft Edge']) assert.ok(!isPrivate.test(title), `an ordinary window: ${title}`);
   // Before you pay: whether the title reads like a checkout leaves the reader, as true or false, never the title.
   assert.ok(s.includes('$pay = [bool]($title -match $checkoutTitle)') && s.includes('; pay = $pay; paykind = $payKind }'), 'a checkout by its title, as a yes or no (and a pay page as its kind)');
   assert.ok(!/title = \$title|\$title\s*}/.test(s), 'the window title itself is never written out');
@@ -501,7 +514,15 @@ test('the updater installs the file it downloaded, into its own folder, and noti
   assert.match(src, /autoInstallOnAppQuit = false/);
   assert.match(src, /const file = info\.downloadedFile;/);
   assert.match(src, /args\.push\(`\/D=\$\{path\.dirname\(process\.execPath\)\}`\)/);
-  assert.match(src, /if \(actual !== expected\)/, 'the checksum is checked again just before running it');
+  // Checked once when it arrives; quitting or shutting down then only starts it (a 125 MB hash inside before-quit
+  // could hold up a shutdown), and a sign-out or shutdown leaves it for the next start.
+  const ready = src.slice(src.indexOf("autoUpdater.on('update-downloaded'"), src.indexOf("autoUpdater.on('error'"));
+  assert.match(ready, /const checked = await sha512\(file\)[\s\S]*if \(checked !== expected\)[\s\S]*clearCache\('checksum mismatch'\)/);
+  const inst = src.slice(src.indexOf('async function install('));
+  assert.doesNotMatch(inst, /sha512\(/, 'no hashing at install or quit time');
+  assert.match(inst, /if \(now\.size !== size \|\| now\.mtimeMs !== mtimeMs\)/, 'a file changed after its check is not run');
+  assert.match(src, /app\.on\('session-end', \(\) => \{ sessionEnding = true; \}\);/);
+  assert.match(src, /if \(!downloaded \|\| installing \|\| sessionEnding\) return;/);
   assert.match(src, /did not take/);
   assert.match(read('desktop/build/installer.nsh'), /!macro customRemoveFiles/, 'uninstall removes only Sentinel\'s own files');
   assert.doesNotMatch(read('desktop/build/installer.nsh'), /RMDir \/r "\$INSTDIR"(\s|$)/, 'never the whole install folder');
@@ -515,7 +536,12 @@ test('uninstalling leaves no startup entry, no downloaded updates and no uninsta
   assert.match(un, /RMDir \/r "\$LOCALAPPDATA\\sentinel-desktop-updater"/, 'the cache folder updater.js names');
   assert.match(read('desktop/src/updater.js'), /'sentinel-desktop-updater'/);
   assert.match(nsh, /Delete "\$INSTDIR\\Uninstall Sentinel\.exe"/);
-  assert.match(read('desktop/src/updater.js'), /log\(`updated to \$\{current\}`\);\s*\/\/[^\n]*\n\s*clearCache\(/);
+  // Installed: the downloaded installer goes (tried again half a minute later while the finishing installer holds it),
+  // and installer.exe, the base of the next differential download, stays.
+  const up = read('desktop/src/updater.js');
+  assert.match(up, /if \(attempt\) log\(`updated to \$\{current\}`\);\s*\/\/[^\n]*\n\s*tidy\(/);
+  assert.match(up, /const dir = path\.join\(cacheDir\(\), 'pending'\);/);
+  assert.match(up, /if \(again\) setTimeout\(\(\) => tidy\(reason, false\), 30 \* 1000\)\.unref\(\);/);
   assert.match(read('desktop/src/main.js'), /store\.getSecret\('token'\) \? '\/app\/scan' : '\/guest'/, 'signed out, Open in Sentinel goes to the guest scan');
   assert.match(read('web/assets/js/guest.js'), /get\('url'\)[\s\S]*requestSubmit\(\)/);
 });
@@ -779,6 +805,26 @@ test('a settle that comes while the pixels are still being followed puts the mar
   assert.ok(Math.abs(ys[ys.length - 1]) < 1, `left at ${ys[ys.length - 1]}, not back on the rows at 0`);
 });
 
+test('pixels that move with no wheel, touchpad or button behind them do not carry the marks onto other rows', () => {
+  // Run 44834424724: an inbox repainting its rows (no scroll) moved the pixels 40 px, and for 880 ms the scam masks
+  // sat on the honest emails beside the scams. Such a run ("lone", watch.js Glide) only makes the marks step aside.
+  const o = overlaySandbox();
+  o.send('overlay:marks', { epoch: 1, marks: [] });
+  const aside = [];
+  const ys = o.run(1200, (t) => {
+    if (t >= 100 && t < 116) o.send('overlay:px', { epoch: 1, dy: -40, lone: true });
+    if (t >= 980 && t < 996) o.send('overlay:shift', { epoch: 1, dx: 0, dy: 0, t, settle: true });
+    if (t >= 120 && t < 900) aside.push(o.stepAside());
+  });
+  assert.ok(Math.max(...ys.map(Math.abs)) < 1, `the marks moved to ${Math.min(...ys)} px with pixels nothing confirmed`);
+  assert.ok(aside.every(Boolean), 'they stepped aside until the reader spoke');
+  const s = read('desktop/src/watch.js');
+  assert.match(s, /if \(!woken\) \{ lone = true; Watch\(400\); \}/, 'a run nothing woke the follower for is lone');
+  assert.match(s, /public static void Poke\(int ms\) \{ lone = false; Watch\(ms\); \}/, 'the wheel, the touchpad, a held button or the browser\'s own positions end it');
+  const { repaint } = require('../scripts/marks-at-rest.js');
+  assert.equal(repaint('K 911 203 x\n# inbox repaint one row up\nP 1000 50 -40\nF 4 -31.6 -40.0\nF 5 -40.0 -40.0\nS 1880 930 0 settle\n').followed, 40, 'live-e2e sees marks that rode the pixels');
+});
+
 test('live-e2e makes a repaint that only looks like a scroll, and fails unless the reader puts the marks right in time', () => {
   const { repaint, SETTLE_MS } = require('../scripts/marks-at-rest.js');
   // The test inbox's rows draw the next message's words (the R key) under their own names, sizes and places, and the
@@ -1001,7 +1047,7 @@ test('a page left still with nobody at the mouse or keyboard is looked at far le
   // The pixel follower: once a second while quiet, woken at once by the wheel, and asleep while there is nothing to follow.
   assert.match(SCRIPT, /if \(\$quiet -and \[Environment\]::TickCount - \$anchorAt -lt 1000\) \{ continue \}/, 'the anchor is asked once a second while quiet');
   assert.ok(SCRIPT.includes('int rest = (woken ? 16 : Quiet ? 1000 : 120)'));
-  assert.ok(SCRIPT.includes('public static void Poke(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; wake.Set(); }'));
+  assert.ok(SCRIPT.includes('static void Watch(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; wake.Set(); }'));
   assert.ok(SCRIPT.includes('wake.WaitOne(enabled ? 40 : System.Threading.Timeout.Infinite);'));
   assert.doesNotMatch(SCRIPT, /Thread\.Sleep\(40\)/);
 });
@@ -1069,11 +1115,20 @@ test('Start scanning brings the person\'s browser forward first; the gold line n
   assert.match(browsers, /UrlAssociations\\\\https\\\\UserChoice/);
 });
 
-test('updates install themselves only when nobody is browsing, and Sentinel comes back in the tray', () => {
+test('updates install themselves when nobody is at the computer, browser in front or not, and come back in the tray', () => {
   const main = read('desktop/src/main.js');
-  assert.match(main, /async function autoInstallSoon\(\)/);
-  assert.match(main, /idleSeconds >= 5 \* 60/);
-  assert.match(main, /hidden: !\(win && !win\.isDestroyed\(\) && win\.isVisible\(\)\)/);
+  const gate = main.slice(main.indexOf('async function autoInstallSoon()'), main.indexOf('/** "Scan with <browser>"'));
+  assert.ok(gate.length > 200);
+  // A browser left in front while someone walks away is away too: only the computer's idle time is asked.
+  assert.doesNotMatch(gate, /watch\.status\(\)\.window|browsers\.running\(\)/, 'the window in front and the open browsers do not hold an update back');
+  assert.match(gate, /if \(idleSeconds < 5 \* 60\) return;/);
+  // Tried twice at most, and then nothing more is asked of Windows each minute.
+  assert.ok(gate.indexOf("store.get('autoInstallTries'") < gate.indexOf('getSystemIdleTime'), 'the tries are counted before anything is asked');
+  assert.match(gate, />= 2\) \{ stopLooking\(\); return; \}/);
+  // Looked at each minute only while an update is ready; the new copy starts in the tray, never in front.
+  assert.match(gate, /if \(updater\.status\(\)\.status !== 'ready'\) \{ stopLooking\(\); return; \}/);
+  assert.doesNotMatch(main, /^ {2}setInterval\(\(\) => autoInstallSoon\(\), 60 \* 1000\)/m, 'no minute timer that runs for ever');
+  assert.match(gate, /updater\.install\(\{ relaunch: true, hidden: true \}\)/);
   assert.match(read('desktop/src/updater.js'), /function hiddenMarker\(\)/);
   assert.match(main, /const startHidden = /);
 });
@@ -1260,7 +1315,10 @@ test('defense never acts on a guess: unreadable files need Defender to say so, a
   assert.match(src, /if \(!now \|\| \(entry\.sha256 && now !== entry\.sha256\)\) throw/);
   assert.match(src, /Export-ScheduledTask/, 'a removed task can be restored');
   assert.ok(read('desktop/src/downloads.js').includes('if (!now || now !== item.sha256) throw'));
-  assert.match(read('desktop/src/main.js'), /if \(idleSeconds < 2 \* 60 \|\| await fullscreenInFront\(\)\) return;/, 'no update over a fullscreen game');
+  assert.match(read('desktop/src/main.js'), /if \(await fullscreenInFront\(process\.platform === 'win32'\)\) return;/, 'no update over a fullscreen game, nor when Windows cannot say');
+  // Asked of the helper that already runs, not of a PowerShell that compiles C# each time (once a minute until 1.21.1).
+  assert.doesNotMatch(read('desktop/src/main.js'), /SHQueryUserNotificationState\(out int s\)/, 'main.js starts no PowerShell to ask about full screen');
+  assert.ok(require('../desktop/src/browsers.js')._test.WATCH_SCRIPT.includes("$pending.Result -eq 'busy'"), 'the helper answers "busy"');
 });
 
 test('a wheel turned over something that does not scroll: the reader\'s confirmation puts the marks back', () => {
