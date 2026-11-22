@@ -40,7 +40,7 @@ const linksTo = (html, domain) => new RegExp(`https?://(?:[a-z0-9-]+\\.)*${domai
 /** An organisation's name as letters only ("Stripe, Inc." is "stripeinc"); privacy services are no name. */
 const orgKey = (s) => {
   const k = String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  return !k || /redacted|privacy|proxy|withheld|notdisclosed|dataprotected|domainsbyproxy|contactprivacy|perfectprivacy/.test(k) ? '' : k;
+  return !k || /redacted|privacy|proxy|withheld|notdisclosed|dataprotected|domainsbyproxy|contactprivacy|perfectprivacy|dnstination|identityprotect|whoisguard|masking|onbehalfof/.test(k) ? '' : k;
 };
 const sameOrg = (a, b, token) => Boolean(orgKey(a) && (orgKey(a) === orgKey(b) || orgKey(a).includes(token)));
 
@@ -107,7 +107,8 @@ async function registrant(domain) {
   const link = registrarLink(reg);
   if (!link) return { org: '', seen: reg ? 'registry, no registrar link' : 'no RDAP answer' };
   const at = await rdap(link.href);
-  return { org: rdapOrg(at), seen: at ? `registrar ${new URL(link.href).hostname}` : `no answer from ${new URL(link.href).hostname}` };
+  const card = JSON.stringify(((JSON.stringify(at || {}).match(/"registrant"[^\]]*\][^\]]*\]\]/) || [''])[0])).slice(0, 240);
+  return { org: rdapOrg(at), seen: at ? `registrar ${new URL(link.href).hostname} ${card}` : `no answer from ${new URL(link.href).hostname}` };
 }
 
 /** Does a certificate's names cover this host (exactly, or by a one-level wildcard)? */
@@ -127,6 +128,9 @@ async function answersFor(server, domain) {
   } catch { return false; }
 }
 
+/** Where on the brand's main site a name on a generic ending likely lived before: <ending>.<main>, <main>/<ending>. */
+const movedFrom = (domain, main) => { const end = domain.split('.').pop(); return [`https://${end}.${main}/`, `https://${main}/${end}`]; };
+
 /** The first proof found for one added domain, or null. */
 async function prove({ token, domain, proven }) {
   const main = proven[0];
@@ -134,6 +138,11 @@ async function prove({ token, domain, proven }) {
   if (to.host && within(to.host, proven)) return `redirect to ${to.host}`;
   const home = await finalHost(`https://${main}/`);
   if (linksTo(home.html, domain)) return `linked from ${main}`;
+  // The brand's own old address for it sends people there (press.stripe.com, the old Stripe Press, ends on stripe.press).
+  for (const from of movedFrom(domain, main)) {
+    const moved = await finalHost(from);
+    if (moved.host && within(moved.host, [domain])) return `${from} sends people there`;
+  }
   let mine = await cert(domain);
   if (!mine.names.length) mine = await cert(`www.${domain}`);
   const theirs = await cert(main);
