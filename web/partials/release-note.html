@@ -1,50 +1,58 @@
-<!-- Generated from changelog/1.21.0.md by scripts/release-note.js: npm run build:note. Do not edit. -->
-<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.21.0">
+<!-- Generated from changelog/1.21.1.md by scripts/release-note.js: npm run build:note. Do not edit. -->
+<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.21.1">
   <div class="wrap">
-    <h2 id="relnote-title">New in Sentinel 1.21.0 Argus</h2>
-    <p class="relnote__lead">Names in other alphabets, fewer false alarms, and look-alike wallet addresses.</p>
+    <h2 id="relnote-title">New in Sentinel 1.21.1 Argus</h2>
+    <p class="relnote__lead">Your colour everywhere, privacy you can check, calmer updates and sharper look-alike checks.</p>
     <p class="relnote__newer" data-release-newer hidden></p>
     <details class="relnote__all">
       <summary>Every change in this version</summary>
       <div class="relnote__groups">
         <section>
-          <h3>Look-alike names</h3>
+          <h3>Your colour</h3>
           <ul>
-            <li>A site name written with letters from another alphabet to look like a brand (a PayPal with a Cyrillic letter) is now caught and the card names the brand it copies.</li>
-            <li>Honest international names written in one alphabet, such as münchen.de, no longer get a warning just for being international.</li>
-            <li>The website, the Windows app and the companion read these names the same way.</li>
+            <li>Choosing a colour now changes the whole look: words, backgrounds, panels, the stars behind the dark pages, the island, the reading line, the website and the companion. Only the 3D mask and the danger, warning, caution and safe colours stay as they are.</li>
+            <li>The taskbar, Start menu and desktop Sentinel take the colour too, through Sentinel's own shortcuts only. A taskbar button that is already showing may keep gold until Sentinel starts again. Gold puts the normal icon back.</li>
+            <li>The window's title bar shows the page name alone, and its buttons follow the look.</li>
+            <li>Settings no longer shows switches that do nothing without the Windows app. The side bar fits small screens.</li>
           </ul>
         </section>
         <section>
-          <h3>Fewer false alarms</h3>
+          <h3>Privacy</h3>
           <ul>
-            <li>Popular real sites are no longer called misspellings of a brand: elle.com is not Zelle, lacoste.com is not La Poste. A digit or a doubled letter standing in for a brand's letter still alarms.</li>
-            <li>Real words in Spanish, German, French, Portuguese, Italian and Dutch are no longer read as misspelled brands.</li>
-            <li>A name spelled near a brand but made of ordinary words loses its small note when the site is well known or the name has been registered for two years or more.</li>
-            <li>More brands' own sites on other endings are recognised as theirs.</li>
+            <li>A new privacy map lists every request that leaves your computer or browser: what, where, why, when and how to turn it off. A test fails if a new one appears without a line in it.</li>
+            <li>The companion sends a page's site and path only. The part after ? goes only when the address already looks wrong, never from a private window, and the part after # never goes.</li>
+            <li>For a link your pointer rests on, the companion also sends the words that link shows, so a link that names one site and opens another can be warned about. Never from a private window.</li>
+            <li>The companion uses Fast scanning unless you choose Delicate, and says who Delicate asks. Email protection is off until you turn it on; if it was on for you before, you are told once and can turn it back on.</li>
+            <li>Scan history is kept 30 days, not 90. Have I Been Pwned only ever gets the first 5 of 40 characters of a password's hash.</li>
+            <li>Contact links point to GitHub until the Sentinel website has its own address.</li>
           </ul>
         </section>
         <section>
-          <h3>Better detection</h3>
+          <h3>Updates</h3>
           <ul>
-            <li>A link that shows one site and opens another is now noticed when you point at it on a web page, in the Windows app and the companion, not only in email. Email no longer flags ordinary tracking links for this.</li>
-            <li>A copy of a popular site spelled one letter off counts when the name is new or on a throwaway ending.</li>
-            <li>A newly registered name spelled near a brand that asks for a password or a code is treated as a look-alike.</li>
+            <li>Updates install at a calm moment: when the computer has been idle for 5 minutes and nothing is full screen. A sign-out or shutdown leaves the update for the next start.</li>
+            <li>Updates download only the parts that changed.</li>
+            <li>No more PowerShell every minute while waiting to install, and the downloaded installer is removed afterwards.</li>
           </ul>
         </section>
         <section>
-          <h3>Wallet guard</h3>
+          <h3>Detection</h3>
           <ul>
-            <li>Warns when an address you copy looks like one you copied before but is a different address, a trick called address poisoning. Compare the middle before you send. Your clipboard is never changed.</li>
-            <li>It keeps only the kind of address, its first and last four characters and a scrambled code, for 30 days. Forget copied addresses in Settings clears it.</li>
+            <li>A link whose words name a protected brand but which opens an unrelated site is flagged again. More mail click counters stay silent.</li>
+            <li>Names in other alphabets are read more carefully: honest Thai, Indic and Persian names pass, and a Cyrillic copy of a brand glued to a word is named as the brand.</li>
+            <li>A whole name that is one ordinary word, such as telegramm.de, is not treated as a copy of a brand. On a risky ending it still is.</li>
+            <li>The website's own check now knows the popular sites list, so it agrees with the app on names like elle.com.</li>
+            <li>Nine brand domains that could not be proven to belong to their brand were removed from the list.</li>
           </ul>
         </section>
         <section>
           <h3>Fixes</h3>
           <ul>
-            <li>Marks beside search results never push a result's title onto a second line.</li>
-            <li>Threat-list updates use less processor time and run at a lower priority.</li>
-            <li>The caution title on light pages is easier to read.</li>
+            <li>Marks beside results stay put when a page repaints instead of riding onto other rows.</li>
+            <li>The tray says whether live scanning is watching, and the mask dims while it is not.</li>
+            <li>Private windows are recognised in 13 languages.</li>
+            <li>The companion's result card takes your colour.</li>
+            <li>A fresh companion with nowhere to sign in opens its own settings page and says to open the Windows app.</li>
           </ul>
         </section>
       </div>
