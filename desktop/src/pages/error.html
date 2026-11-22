@@ -8,7 +8,7 @@
 <script src="../../shared/look.js"></script>
 <script src="paint.js"></script>
 <style>
-  html, body { height: 100%; margin: 0; background: #111215; color: #e9e6df; font: var(--t-text)/var(--lh-lead) var(--sans); }
+  html, body { height: 100%; margin: 0; background: var(--bg, #111215); color: var(--text, #e9e6df); font: var(--t-text)/var(--lh-lead) var(--sans); }
   body { display: grid; place-items: center; }
   .box { max-width: 460px; padding: 0 24px; text-align: center; }
   .mark { width: 56px; height: 56px; margin: 0 auto 18px; color: #e5484d; }
@@ -22,7 +22,7 @@
   button:focus-visible { outline: 2px solid var(--acc-hi); outline-offset: 2px; }
   small { display: block; margin-top: 16px; color: #8d8a82; font-size: var(--t-label); }
   @media (prefers-color-scheme: light) {
-    html, body { background: #f6f4ef; color: #1c1b18; }
+    html, body { background: var(--bg, #f6f4ef); color: var(--text, #1c1b18); }
     p { color: #55524b; }
     small { color: #6a675f; }
     code { background: #ebe7de; color: #2e2c27; }

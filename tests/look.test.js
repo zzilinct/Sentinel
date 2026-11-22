@@ -31,7 +31,7 @@ test('danger red, warning orange and caution yellow are the same bytes in every 
   const before = JSON.stringify(L.STATUS);
   for (const a of L.ACCENTS) for (const s of SCHEMES) {
     const keys = Object.keys(L.ramp(a.id, s));
-    assert.ok(keys.length > 0 && keys.every((k) => /^--(gold|acc|live|on-acc|metal|line-gold|sketch-gold|btn-grad|gilt)/.test(k) && !statusVar.test(k)), `${a.id} ${s}: ${keys.join(' ')}`);
+    assert.ok(keys.length > 0 && keys.every((k) => /^--(gold|acc|live|on-acc|metal|line|sketch|btn-grad|gilt|text|muted|faint|bg|surface|field-bg|sheet|panel|glass|haze|glow|star|words|night|rim|relief|neu-lo|hi$|lo$)/.test(k) && !statusVar.test(k)), `${a.id} ${s}: ${keys.join(' ')}`);
     assert.equal(JSON.stringify(L.STATUS), before);
   }
   // The island and the cards say a verdict in STATUS, never M.COLORS mixed with the accent and never a literal.
@@ -339,4 +339,269 @@ test('two devices offline: the later choice wins, and the device whose choice wa
   assert.match(app, /lost = sent \? L\.overruled\(current, sent, d\) : \[\];\s+var m = take\(d\);/, 'checked before the account\'s record is taken');
   assert.match(app, /localStorage\.setItem\(KEY\.sent, JSON\.stringify\(L\.record\(d\)\.at\)\)/, 'and what the account said is kept for next time');
   assert.match(app, /pending = null;\s+return n;/, 'shown by one picker, then gone');
+});
+
+test('a colour changes the whole look: its own pastel words, tinted grounds and stars, every weight as readable as gold\'s', () => {
+  const hue = (hex) => L.toOklch(hex)[2];
+  const apart = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+  for (const a of OTHERS) {
+    for (const s of SCHEMES) {
+      const r = L.ramp(a.id, s), page = L.PAGE[s];
+      for (const k of ['text', 'text-2', 'muted', 'faint']) {
+        // Never harder to read than gold's own words of that weight, on every ground of its own.
+        // Body words on dark: 13:1 at least (gold's cream is 16:1); the room goes to the colour.
+        const want = Math.min(L.contrast(page[k], page.bg), k === 'text' && s === 'dark' ? 13 : 99) - 0.05;
+        for (const g of ['--bg', '--bg-2', '--surface']) assert.ok(L.contrast(r['--' + k], r[g]) >= Math.min(want, 4.5) && L.contrast(r['--' + k], r['--bg']) >= want, `${a.id} ${s} --${k} ${r['--' + k]} on ${g} ${r[g]}`);
+      }
+      // Grounds keep gold's lightness, so the page is as dark or as light as before, only tinted.
+      for (const k of ['bg', 'surface', 'surface-3']) assert.ok(Math.abs(L.toOklch(r['--' + k])[0] - L.toOklch(page[k])[0]) < 0.012, `${a.id} ${s} --${k}`);
+    }
+    if (a.id === 'platinum') continue;
+    const r = L.ramp(a.id, 'dark');
+    const [l, c, h] = L.toOklch(r['--text']);
+    // Words are a light pastel of the colour, not gold's cream: light, clearly tinted, the colour's own hue.
+    assert.ok(l > 0.88 && c >= 0.035 && apart(h, a.h) <= 20, `${a.id} words ${r['--text']}: l ${l.toFixed(2)} c ${c.toFixed(3)} h ${h.toFixed(0)}`);
+    assert.ok(L.toOklch(r['--bg'])[1] >= 0.01 && apart(hue(r['--bg']), a.h) <= 20, `${a.id} ground ${r['--bg']} is tinted`);
+    assert.ok(apart(hue(r['--star-1']), a.h) <= 15 && L.toOklch(r['--star-1'])[1] >= 0.04, `${a.id} brightest stars ${r['--star-1']} are the colour`);
+    assert.ok(apart(hue(r['--text']), hue(L.PAGE.dark.text)) > 40, `${a.id} words are not the cream`);
+  }
+  // Gold keeps its cream, warm stars and amber bloom, and they are where the other colours' replace them.
+  const css = read('web', 'assets', 'css', 'sentinel.css');
+  assert.match(css, /--star-1: #ffe2b0; --star-2: #f4efe6; --star-3: #cfdcff;/);
+  assert.match(css, /--haze-rgb: 239 230 212;\s+--glow-rgb: 160 110 50;/);
+  for (const k of [/rgb\(239 230 212 \/ \.06\)/, /rgb\(160 110 50 \/ \.1[04]\)/]) {
+    assert.doesNotMatch(read('web', 'assets', 'css', 'lux.css'), k, 'lux.css bloom is the look\'s');
+    assert.doesNotMatch(read('web', 'assets', 'css', 'app-lux.css'), k, 'app-lux.css bloom is the look\'s');
+  }
+  const cosmos = read('web', 'assets', 'js', 'cosmos.js');
+  assert.doesNotMatch(cosmos, /fillStyle = s\.warm > 0\.7 \? '#ffe2b0'/, 'the stars are not locked to gold');
+  assert.match(cosmos, /getPropertyValue\(`--star-\$\{n\}`\)/);
+  assert.match(cosmos, /attributeFilter: \['data-theme', 'data-accent'\]/, 'the sky is drawn again when the colour changes');
+  assert.match(read('web', 'assets', 'js', 'galaxy.js'), /attributeFilter: \['data-theme', 'data-accent'\]/);
+  assert.match(read('web', 'assets', 'js', 'binary.js'), /getPropertyValue\('--live'\)/, 'the scanning digits are the colour');
+  // The marketing pages and boot.js keep and draw every one of these names, not only the gold ramp.
+  assert.match(read('web', 'assets', 'js', 'look-site.js'), /text\|muted\|faint\|bg\|surface/);
+  for (const f of ['look-app.js', 'accent.js']) assert.match(read('web', 'assets', 'js', f), /L\.(webVars|WEB)\b/, f);
+  // The Windows app's own pages draw the look's words and grounds where it has them.
+  assert.match(read('desktop', 'src', 'pages', 'overlay.html'), /--ink: var\(--text, #e9e6df\)/);
+  assert.match(read('desktop', 'src', 'pages', 'card.js'), /--ink: var\(--text, #e9e6df\)/);
+});
+
+test('a press paints from what was worked out: the same colours, no maths the second time', () => {
+  for (const a of L.ACCENTS) for (const s of SCHEMES) {
+    const one = L.ramp(a.id, s), two = L.ramp(a.id, s);
+    assert.deepEqual(one, two);
+    one['--acc'] = 'changed';
+    assert.notEqual(L.ramp(a.id, s)['--acc'], 'changed', 'a caller cannot change the kept ramp');
+  }
+  const t = process.hrtime.bigint();
+  for (let i = 0; i < 200; i++) for (const a of L.ACCENTS) L.ramp(a.id, 'dark');
+  assert.ok(Number(process.hrtime.bigint() - t) / 1e6 / 1200 < 0.2, 'a kept ramp is a copy, well under a fifth of a millisecond');
+  // The reveal starts at once (an ease-out), and the pictures never take the pointer, so a coin keeps its hover.
+  const css = read('web', 'assets', 'css', 'sentinel.css');
+  assert.match(css, /html\.look-vt::view-transition \{ pointer-events: none; \}/);
+  assert.match(css, /html\.look-vt::view-transition-new\(root\) \{ animation: look-in \.6s cubic-bezier\(\.22, 1, \.36, 1\) both; \}/);
+  assert.doesNotMatch(css, /\.look__coin:hover i \{ transform/, 'hover and chosen are separate properties, never one transform swapped for another');
+});
+
+test('the Windows app window: its own title bar in the look, the real mark, the icon in the colour', () => {
+  const main = read('desktop', 'src', 'main.js');
+  assert.match(main, /titleBarStyle: process\.platform === 'darwin' \? 'hiddenInset' : process\.platform === 'win32' \? 'hidden' : 'default'/);
+  assert.match(main, /titleBarOverlay: frameButtons\(look\(\)\)/);
+  assert.match(main, /win\.setTitleBarOverlay\(frameButtons\(l\)\)/, 'a new look repaints Windows\' buttons');
+  assert.match(main, /win\.setIcon\(windowIcon\(l\.accent\)\)/, 'and the window\'s icon');
+  assert.match(main, /additionalArguments: process\.platform === 'win32' \? \['--sentinel-framed'\]/);
+  assert.match(read('desktop', 'src', 'preload.js'), /framed: process\.argv\.includes\('--sentinel-framed'\)/);
+  const boot = read('web', 'assets', 'js', 'boot.js');
+  assert.match(boot, /if \(!d \|\| !d\.framed\) return;/, 'only the app window draws the bar');
+  // "Overview · Sentinel" is shown as the page's name alone (the bar already says Sentinel).
+  const strip = new Function('t', `return t${boot.match(/document\.title(\.replace\([^;]+?\))\.trim\(\)/)[1]}.trim();`);
+  assert.equal(strip('Overview · Sentinel'), 'Overview');
+  assert.equal(strip('Sign in - Sentinel'), 'Sign in');
+  assert.match(boot, /M\.svg\('logo'\)/, 'the mark is the site\'s vector mark, not the 16 px picture');
+  const css = read('web', 'assets', 'css', 'sentinel.css');
+  assert.match(css, /\.frame \{ display: none; \}/, 'never on the website');
+  assert.match(css, /html\.framed \.frame \{[^}]*background: var\(--bg\);[^}]*-webkit-app-region: drag;/);
+  // Light or dark, the buttons are drawn in the look's ink over the page's ground.
+  for (const s of SCHEMES) assert.ok(L.contrast(L.PAGE[s].text, L.PAGE[s].bg) > 12);
+});
+
+test('1.21.1: every surface takes the colour, and a device that kept an older set is not left half in the old look', () => {
+  const apart = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+  const rgbHex = (s) => '#' + s.match(/\d+/g).slice(0, 3).map((x) => (256 | Number(x)).toString(16).slice(1)).join('');
+  for (const a of OTHERS) {
+    const kept = L.webVars(a.id);
+    assert.equal(kept.v, L.WEB_V);
+    for (const s of SCHEMES) {
+      const r = L.ramp(a.id, s);
+      // Relief, the dark surfaces and the rim are worked out, and kept for the marketing pages.
+      for (const k of ['--hi', '--lo', '--neu-lo', '--relief', '--night-rgb', '--night-hi', '--live-200', '--rim']) {
+        assert.ok(r[k], `${a.id} ${s} ${k}`);
+        assert.equal(kept[s][k], r[k], `${a.id} ${s} ${k} kept`);
+      }
+      for (const k in kept[s]) assert.match(k, L.WEB);
+      const night = L.toOklch(rgbHex(r['--night-rgb']));
+      assert.ok(night[0] < 0.2, `${a.id} night is dark in every theme`);
+      if (a.id === 'platinum') continue;
+      assert.ok(apart(night[2], a.ground.h) <= 25, `${a.id} night ${r['--night-rgb']} is the colour's`);
+      // Light: the shadow under a raised card is the colour's, not gold's brown.
+      if (s === 'light') assert.ok(apart(L.toOklch(rgbHex(r['--lo']))[2], a.ground.h) <= 25, `${a.id} --lo ${r['--lo']}`);
+      assert.ok(apart(L.toOklch(r['--live-200'])[2], a.h) <= 25, `${a.id} --live-200 ${r['--live-200']}`);
+    }
+  }
+  // Gold keeps its stylesheets' own: none of these are drawn over it.
+  for (const s of SCHEMES) for (const k of ['--hi', '--lo', '--night-rgb', '--live-200', '--rim']) assert.ok(!(k in L.ramp('gold', s)), `gold ${s} ${k}`);
+  // look-site.js (no look.js on the marketing pages) knows the same names and the same version, and works an older
+  // set out again; look-app.js keeps the set from look.js.
+  const site = read('web', 'assets', 'js', 'look-site.js');
+  assert.equal(site.match(/var OURS = (\/.+\/);/)[1], String(L.WEB));
+  assert.equal(Number(site.match(/var V = (\d+);/)[1]), L.WEB_V);
+  assert.match(site, /v\.v === V\)\) return;/);
+  assert.match(site, /s\.src = '\/assets\/js\/look\.js'/);
+  assert.match(site, /localStorage\.setItem\(KEY\.vars, JSON\.stringify\(L\.webVars\(a\)\)\)/);
+  assert.match(read('web', 'assets', 'js', 'look-app.js'), /v\.v !== L\.WEB_V\) localStorage\.setItem\(KEY\.vars, JSON\.stringify\(L\.webVars\(r\.accent\)\)\)/);
+  assert.ok(!L.WEB.test('--look-x') && L.WEB.test('--lo') && L.WEB.test('--hi') && !L.WEB.test('--hint'), '--lo alone, never --look-x');
+
+  // The literals that kept gold on every colour are gone; gold's own stay only as the fallback of a colour's variable.
+  const fallbackless = (css) => css.replace(/var\(--[a-z0-9-]+,\s*[^()]*?\)/g, 'var()');
+  const GOLDS = /#f3dca4|#d6b25a|#e2c27f|#d2ac63|#231c12|#0b0906|#fff6dc|226 194 127|243 220 164|210 172 99|11 9 6\b/i;
+  const rule = (css, sel) => { const i = css.indexOf(sel); assert.ok(i >= 0, sel); return css.slice(i, css.indexOf('}', i)); };
+  const call = read('web', 'assets', 'css', 'call.css');
+  for (const sel of ['.call__plate {', '.call__verdict {', '.call__more a {']) assert.doesNotMatch(fallbackless(rule(call, sel)), GOLDS, sel);
+  assert.match(call, /:where\(:root\[data-accent\]:not\(\[data-accent="gold"\]\)\) \.call__answer \{ color: rgb\(var\(--haze-rgb\)\); \}/);
+  assert.doesNotMatch(fallbackless(rule(read('web', 'assets', 'css', 'download.css'), '.ss__ring {')), GOLDS);
+  const lux = read('web', 'assets', 'css', 'lux.css');
+  for (const sel of ['.motes span {', '.laser i {']) assert.doesNotMatch(fallbackless(rule(lux, sel)), GOLDS, sel);
+  assert.match(rule(lux, '.nav__inner {'), /background: var\(--glass\);/, 'the top bar is the look\'s glass');
+  assert.doesNotMatch(lux, /\.nav__inner \{ background: rgb\(241 234 221/);
+  const sentinel = read('web', 'assets', 'css', 'sentinel.css');
+  assert.doesNotMatch(rule(sentinel, '.progress {'), /--orange|--red/, 'the reading line is the colour, never the warning colours');
+  assert.match(rule(sentinel, '.ledger {'), /--rim-own: var\(--rim, linear-gradient/);
+  assert.doesNotMatch(fallbackless(rule(read('web', 'assets', 'css', 'app-lux.css'), '.lux-island {')), GOLDS, 'the island');
+  const home = read('web', 'assets', 'js', 'home.js');
+  for (const lit of ["'rgba(226,194,127,.26)'", "'rgba(9,7,5,.92)'", "'rgba(11,9,6,.85)'", "'226,194,127' :", "? '138,100,32'"]) assert.ok(!home.includes(lit), `home.js: ${lit}`);
+  assert.match(home, /tone = inks\(\);/);
+  assert.match(home, /attributeFilter: \['data-theme', 'data-accent'\]/, 'the hero is drawn again in a new colour');
+  const alarm = read('extension', 'src', 'content', 'alarm.js');
+  assert.match(alarm, /\.go\{background:\$\{t\.acc\};color:#131519\}\.go:hover\{background:\$\{t\.hi\}\}/);
+  assert.match(alarm, /\.brand \.go\{background:linear-gradient\(180deg,\$\{goGrad\}\)/);
+  assert.doesNotMatch(alarm.replace(/const t = tone \|\| \{[^}]+\};|: '#efd79c[^']+'|: 'rgba\(212,174,99,\.8\)'|let calm = '#d6b25a';|l\.acc !== '#d6b25a'/g, ''), /#d6b25a|#e2c47f|#c9a64e|#efd79c|212,174,99/, 'gold only as the fallback');
+  const boot = read('web', 'assets', 'js', 'boot.js');
+  assert.doesNotMatch(boot, /gold line|gold digits/i, 'the scan effect is described in the colour, not gold');
+  assert.match(boot, /querySelectorAll\('meta\[name="theme-color"\]'\)/, 'the browser\'s bar follows the look');
+});
+
+test('1.21.1: the overview, Settings, the side bar and the camera, as a person meets them', () => {
+  const lux = read('web', 'assets', 'css', 'app-lux.css'), luxJs = read('web', 'assets', 'js', 'app-lux.js');
+  // The mask's room is held from the first paint, in the picture's own proportions.
+  assert.match(lux, /\[data-tab="home"\] > \.view > \.page-title \{ min-height: calc\(clamp\(84px, 10vw, 128px\) \* 896 \/ 788\); \}/);
+  assert.match(lux, /\.lux-mask \{ width: clamp\(84px, 10vw, 128px\);/);
+  assert.match(luxJs, /onyx\.webp" width="788" height="896"/);
+  // A pointer within one half-degree step restyles nothing.
+  assert.match(luxJs, /if \(ry === lean\.ry && rx === lean\.rx\) return;/);
+  // Without the Windows app, its rows are a name and one line.
+  assert.match(read('web', 'assets', 'js', 'app', 'first.js'), /set-row\$\{r\.app && !desktop \? ' set-row--app' : ''\}/);
+  assert.match(read('web', 'assets', 'css', 'settings.css'), /\.set-row--app \.set-row__hint, \.set-row--app \.set-row__control, \.set-row--app \.set-row__body \{ display: none; \}/);
+  // A laptop's height fits the side bar; a phone's result stops above its bar.
+  const app = read('web', 'assets', 'css', 'app.css');
+  assert.match(app, /@media \(min-width: 901px\) and \(max-height: 900px\) \{[\s\S]*?\.usage-mini \.meter \{ display: none; \}/);
+  assert.match(app, /html \{ scroll-padding-bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\); \}/);
+  // The camera lets go when the page is hidden.
+  assert.match(read('web', 'assets', 'js', 'app', 'check.js'), /if \(!el\.isConnected \|\| document\.hidden\) \{ stop\(\); return; \}/);
+});
+
+test('1.21.1: the pasted-command alarm in the page\'s own world asks for the colour on its own box, and nothing stays on the page', async () => {
+  const vm = require('vm');
+  const src = read('extension', 'src', 'content', 'alarm.js');
+  // One page, two worlds: the DOM (elements, their styles, events) is shared, each world's globals are its own.
+  const listeners = [];
+  let acting = true;
+  class CSSStyleDeclaration {
+    constructor() { this.props = {}; }
+    getPropertyValue(k) { return this.props[k] || ''; }
+    setProperty(k, v) { this.props[k] = String(v); }
+    removeProperty(k) { delete this.props[k]; }
+    set cssText(v) { this.props = {}; }
+  }
+  class EventTarget { dispatchEvent(ev) { ev.target = this; for (const fn of listeners.slice()) fn(ev); return true; } }
+  class Element extends EventTarget {
+    constructor() { super(); this.style = new CSSStyleDeclaration(); this.dataset = {}; this.attrs = {}; this.kids = []; }
+    getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
+    setAttribute(k, v) { this.attrs[k] = String(v); }
+    removeAttribute(k) { delete this.attrs[k]; }
+    appendChild(n) { if (!this.kids.includes(n)) this.kids.push(n); n.parent = this; return n; }
+    remove() { if (this.parent) this.parent.kids = this.parent.kids.filter((k) => k !== this); }
+    attachShadow() { const root = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [], addEventListener() {} }; this.root = root; return root; }
+  }
+  class Document { createElement() { return new Element(); } }
+  class CustomEvent { constructor(type, o) { this.type = type; this.bubbles = Boolean(o && o.bubbles); } }
+  const html = new Element();
+  const document = Object.assign(new Document(), { documentElement: html, body: null, activeElement: null });
+  const world = (extra) => {
+    const g = vm.createContext({ Element, Document, EventTarget, CSSStyleDeclaration, CustomEvent, document, navigator: { userActivation: { get isActive() { return acting; } } },
+      matchMedia: () => ({ matches: false }), history: {}, location: {}, addEventListener: (type, fn) => { listeners.push((ev) => { if (ev.type === type) fn(ev); }); }, ...extra });
+    g.globalThis = g;
+    vm.runInContext(src, g);
+    return g;
+  };
+  const sapphire = L.ramp('sapphire', 'dark');
+  const live = { acc: sapphire['--live'], hi: sapphire['--live-hi'], rgb: sapphire['--live-rgb'] };
+  const left = () => JSON.stringify([html.attrs, html.style.props, html.dataset]);
+  const draw = (page) => { const ctl = page.SentinelAlarm.show({ accent: 'calm', title: 'Stopped', buttons: [{ text: 'Go back', kind: 'go' }] }); const box = html.kids[html.kids.length - 1]; const css = box.root.innerHTML; ctl.close(); return { css, box }; };
+  const companion = async (guard, l = live) => { world({ chrome: { storage: { local: { get: async () => ({ look: { live: l } }) } } }, SentinelStore: { get: async () => ({ commandGuard: guard }) } }); await new Promise((r) => setTimeout(r, 10)); };
+
+  await companion(true);
+  // The companion's world writes nothing on the page by itself.
+  assert.equal(left(), JSON.stringify([{}, {}, {}]), 'nothing on <html> before a warning');
+  const page = world({});
+  const { css, box } = draw(page);
+  assert.match(css, new RegExp(`\\.go\\{background:${live.acc};`), 'the page world\'s alarm is in the colour');
+  assert.equal(box.style.getPropertyValue('--sentinel-tone'), '', 'taken off its own box again');
+  assert.equal(left(), JSON.stringify([{}, {}, {}]), 'and nothing on <html> after');
+  // A page asking for itself while nobody is acting on it learns nothing.
+  acting = false;
+  const probe = new Element();
+  probe.dispatchEvent(new CustomEvent('sentinel:tone', { bubbles: true }));
+  assert.equal(probe.style.getPropertyValue('--sentinel-tone'), '');
+  html.dispatchEvent(new CustomEvent('sentinel:tone', { bubbles: true }));
+  assert.equal(left(), JSON.stringify([{}, {}, {}]), 'never on <html>, even asked for');
+  acting = true;
+  // The guard off, or gold: no answer, and the alarm is gold.
+  listeners.length = 0;
+  await companion(false);
+  assert.match(draw(world({})).css, /\.go\{background:#d6b25a;/);
+  listeners.length = 0;
+  await companion(true, { acc: '#d6b25a', hi: '#e2c47f', rgb: '214 178 90' });
+  assert.match(draw(world({})).css, /\.go\{background:#d6b25a;/);
+  assert.equal(left(), JSON.stringify([{}, {}, {}]));
+  // Only a colour is ever taken from the answer.
+  const toneOf = new Function(`return ${src.match(/const toneOf = (\(v\) => \{[^\n]+\});/)[1]}`)();
+  assert.deepEqual(toneOf('#112233 #445566 1 2 3'), { acc: '#112233', hi: '#445566', rgb: '1 2 3' });
+  for (const bad of ['red blue 1 2 3', '#112233 #445566 1 2 3;}*{x:y', '#112233 url(x) 1 2 3', '']) assert.equal(toneOf(bad), null, bad);
+  assert.doesNotMatch(src, /data-sentinel-tone/, 'no attribute on every page');
+  assert.equal(read('extension', 'src', 'content', 'alarm.page.js'), src);
+});
+
+test('1.21.1: the taskbar, Start menu and desktop Sentinel in the colour, through Sentinel\'s own shortcuts only', () => {
+  const { ico } = require('../desktop/src/ico');
+  const a = Buffer.from('png-one'), b = Buffer.from('png-number-two');
+  const f = ico([{ size: 32, png: a }, { size: 256, png: b }]);
+  assert.deepEqual([f.readUInt16LE(0), f.readUInt16LE(2), f.readUInt16LE(4)], [0, 1, 2]);
+  assert.deepEqual([f[6], f[7], f.readUInt16LE(10), f.readUInt16LE(12), f.readUInt32LE(14), f.readUInt32LE(18)], [32, 32, 1, 32, a.length, 38]);
+  assert.deepEqual([f[22], f[23], f.readUInt32LE(30), f.readUInt32LE(34)], [0, 0, b.length, 38 + a.length], '256 is written as 0');
+  assert.equal(f.subarray(38).toString(), 'png-onepng-number-two');
+  const main = read('desktop', 'src', 'main.js');
+  const fn = main.slice(main.indexOf('function shortcutIcons('), main.indexOf('function applyLook('));
+  // Only when the accent changed; only a shortcut whose target is this program; only its icon.
+  assert.match(fn, /store\.get\('shortcutAccent', 'gold'\) === accent\) return;/);
+  assert.match(fn, /if \(shell\.readShortcutLink\(lnk\)\.target\.toLowerCase\(\) !== exe\) continue;\s+shell\.writeShortcutLink\(lnk, 'update', \{ icon, iconIndex: 0 \}\);/);
+  assert.equal((fn.match(/writeShortcutLink/g) || []).length, 1, 'no other write');
+  assert.match(fn, /let icon = process\.execPath;/, 'gold: the program\'s own icon back');
+  assert.match(fn, /`shortcut-\$\{accent\}\.ico`/, 'a new file name per accent');
+  assert.match(fn, /catch \{ \/\* missing, someone else's or read-only: left as it is \*\/ \}/);
+  assert.doesNotMatch(fn, /setInterval|setTimeout|watch\(/, 'no polling');
+  assert.match(main, /function applyLook\(l\) \{\s+shortcutIcons\(l\.accent\);/);
+  const sc = main.slice(main.indexOf('function shortcutPaths('), main.indexOf('function shortcutIcons('));
+  assert.equal((sc.match(/'Sentinel\.lnk'/g) || []).length, 1);
+  assert.match(read('scripts', 'desktop-qa.ps1'), /Check "\$name-shortcuts"/, 'proved on a real Windows in CI');
 });

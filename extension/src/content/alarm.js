@@ -47,6 +47,10 @@
   }
 
   function css(accent, small) {
+    // The chosen colour's action, focus ring and links (tone), or gold's own when none was chosen.
+    const t = tone || { acc: '#d6b25a', hi: '#e2c47f', foot: '#c9a64e' };
+    const goGrad = tone ? `${t.hi} 0%,${t.acc} 34%,${t.acc} 62%,${t.hi} 100%` : '#efd79c 0%,#d6b066 34%,#b88e3d 62%,#e2c47f 100%';
+    const goGlow = tone ? `rgb(${t.rgb} / .8)` : 'rgba(212,174,99,.8)';
     return `
       :host{all:initial}
       /* A flex row with an auto margin centres the panel, and a panel taller than the window scrolls from its top
@@ -79,17 +83,17 @@
       button{all:unset;cursor:pointer;overflow-wrap:anywhere;font-weight:650;font-size:14px;padding:12px 18px;border-radius:12px;background:#1f2227;color:#ecebe7}
       .small button{font-size:13px;padding:8px 12px;border-radius:10px}
       button:hover{background:#272a30}
-      button:focus-visible,a:focus-visible{outline:2px solid #d6b25a;outline-offset:2px}
-      .go{background:#d6b25a;color:#131519}.go:hover{background:#e2c47f}
+      button:focus-visible,a:focus-visible{outline:2px solid ${t.acc};outline-offset:2px}
+      .go{background:${t.acc};color:#131519}.go:hover{background:${t.hi}}
       .quiet{background:none;color:#80868f;text-decoration:underline;padding:12px 6px}.quiet:hover{background:none;color:#c7cad0}
       .small .quiet{padding:8px 4px}
       .sure{margin:16px 0 0;padding:14px 16px;border-radius:12px;background:#1b1e23;color:#c7cad0}
       .sure[hidden]{display:none}
       .help{margin:18px 0 0;font-size:13.5px}
-      .help a{color:#d6b25a;text-decoration:underline}
+      .help a{color:${t.acc};text-decoration:underline}
       .foot{margin-top:24px;padding-top:16px;border-top:1px solid #23262b;display:flex;justify-content:space-between;gap:12px;color:#6e747c;font-size:12px}
       .small .foot{margin-top:12px;padding-top:10px}
-      .foot b{color:#c9a64e;letter-spacing:.22em;font-size:11px}
+      .foot b{color:${t.foot || t.acc};letter-spacing:.22em;font-size:11px}
       /* The block page's language over a page that stays: its mask lit in the colour of what was found, a serif title,
          one sentence, one gold action, the rest folded. One dark treatment, which reads over a light site or a dark one. */
       .brand.wrap{background:rgba(8,9,11,.9)}
@@ -103,12 +107,12 @@
       .brand #d p{font-size:17px;line-height:1.5;color:#efece5;margin:0}
       .brand ul{margin:10px 0 0;color:#b9b6ae}.brand ul li:before{display:none}.brand ul li{display:block}
       .brand .row{margin-top:26px}
-      .brand .go{background:linear-gradient(180deg,#efd79c 0%,#d6b066 34%,#b88e3d 62%,#e2c47f 100%) 0 0/100% 240%;color:#16130b;padding:14px 24px;border-radius:13px;
-        box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 12px 26px -14px rgba(212,174,99,.8);transition:background-position .5s ease}
+      .brand .go{background:linear-gradient(180deg,${goGrad}) 0 0/100% 240%;color:#16130b;padding:14px 24px;border-radius:13px;
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 12px 26px -14px ${goGlow};transition:background-position .5s ease}
       .brand .go:hover{background-position:0 100%}
       .brand .more{margin-top:20px;color:#b9b6ae;font-size:14px}
       .brand .more summary{cursor:pointer;width:fit-content;padding:6px 0;border-radius:4px}.brand .more summary:hover{color:#efece5}
-      .brand .more summary:focus-visible{outline:2px solid #d6b25a;outline-offset:2px}
+      .brand .more summary:focus-visible{outline:2px solid ${t.acc};outline-offset:2px}
       .brand .more .row{margin-top:10px;gap:8px 22px}
       .brand .more .help{margin:10px 0 0}
       .brand .foot{display:none}
@@ -132,19 +136,60 @@
   // 'calm' (a note, not a warning) is the accent the Windows app chose, as the popup keeps it (popup.js); gold until
   // there is one, and in the page's own world, which cannot read the companion's storage.
   let calm = '#d6b25a';
+  // The same colour for the action, the focus ring and the links (css()): null keeps gold's own.
+  let tone = null;
+  // The page's own world (the pasted-command guard, clipguard.js) cannot read the companion's storage. As its warning is
+  // drawn, its copy of this file asks for the colour with an event on the warning's own box; the companion's copy
+  // answers by writing it on that box alone, and the page's copy reads it and takes it off again at once. Nothing is
+  // kept on the page: a page learns the colour only by asking for it itself, and only while the person is pressing or
+  // typing on it (the moment a copied command is caught), never from <html> on every page. Only a colour crosses,
+  // checked as one, so a page can change nothing but the alarm's own colour.
+  const ASK = 'sentinel:tone';
+  const TONE = '--sentinel-tone';
+  const Ask = globalThis.CustomEvent, dispatch = EventTarget.prototype.dispatchEvent;
+  const style = CSSStyleDeclaration.prototype, getProp = style.getPropertyValue, setProp = style.setProperty, dropProp = style.removeProperty;
+  const toneOf = (v) => { const m = /^(#[0-9a-f]{6}) (#[0-9a-f]{6}) (\d{1,3} \d{1,3} \d{1,3})$/.exec(String(v || '').trim()); return m ? { acc: m[1], hi: m[2], rgb: m[3] } : null; };
+  let own = false;
+  let guard = false;
   try {
     const store = (globalThis.browser && globalThis.browser.runtime ? globalThis.browser : globalThis.chrome || {}).storage;
-    if (store) Promise.resolve(store.local.get('look')).then((r) => { const a = r && r.look && r.look.live && r.look.live.acc; if (/^#[0-9a-f]{6}$/.test(a || '')) calm = a; }, () => {});
+    own = Boolean(store);
+    if (store) Promise.all([Promise.resolve(store.local.get('look')), globalThis.SentinelStore ? globalThis.SentinelStore.get({ commandGuard: true }).catch(() => ({})) : {}]).then(([r, set]) => {
+      const l = (r && r.look && r.look.live) || {};
+      const hex = (v) => /^#[0-9a-f]{6}$/.test(v || '');
+      guard = Boolean(set && set.commandGuard !== false);
+      if (!hex(l.acc)) return;
+      calm = l.acc;
+      if (l.acc !== '#d6b25a' && hex(l.hi) && /^\d{1,3} \d{1,3} \d{1,3}$/.test(l.rgb || '')) tone = { acc: l.acc, hi: l.hi, rgb: l.rgb };
+    }, () => {});
+    // The answer: on the asking box only, only with the guard on, only while the person is acting on the page.
+    if (store) globalThis.addEventListener(ASK, (ev) => {
+      const box = ev.target;
+      const acting = !globalThis.navigator || !navigator.userActivation || navigator.userActivation.isActive;
+      if (!tone || !guard || !acting || !box || !box.style || box === document.documentElement || box === document.body) return;
+      setProp.call(box.style, TONE, `${tone.acc} ${tone.hi} ${tone.rgb}`);
+    }, true);
   } catch { /* gold */ }
+  /** In the page's world: the colour, asked for on the warning's box as it is drawn, then taken off it again. */
+  function pageTone(host) {
+    if (own || tone) return;
+    const at = document.documentElement || document;
+    at.appendChild(host);
+    dispatch.call(host, new Ask(ASK, { bubbles: true }));
+    const t = toneOf(getProp.call(host.style, TONE));
+    dropProp.call(host.style, TONE);
+    if (t) { tone = t; calm = t.acc; }
+  }
 
   function show(o) {
     if (shown) shown.close();
-    const accent = o.accent === 'calm' ? calm : o.accent || '#e5484d';
     const before = document.activeElement;
     const host = make.call(document, 'div');
     host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483647;';
     if (o.small) host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;';
     readMotion(host);
+    pageTone(host);
+    const accent = o.accent === 'calm' ? calm : o.accent || '#e5484d';
     const root = attach.call(host, { mode: 'closed' });
     const list = (o.steps || []).map((s) => `<li>${esc(s)}</li>`).join('');
     // The folded buttons are numbered after the open ones: one list, one click handler.

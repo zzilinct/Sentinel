@@ -76,7 +76,7 @@ html.lux-app[data-theme="light"] {
   background:
     radial-gradient(38vmax 30vmax at 18% 4%, rgb(var(--gold-rgb) / .1), transparent 70%),
     radial-gradient(30vmax 30vmax at 96% 42%, rgb(var(--ink) / .035), transparent 70%),
-    radial-gradient(44vmax 28vmax at 55% 106%, rgb(160 110 50 / .1), transparent 70%);
+    radial-gradient(44vmax 28vmax at 55% 106%, rgb(var(--glow-rgb) / .1), transparent 70%);
   animation: lux-mist 46s ease-in-out infinite alternate;
 }
 @keyframes lux-mist { to { transform: translate3d(-3%, 2%, 0) scale(1.06); } }
@@ -149,12 +149,15 @@ html.lux-app[data-theme="light"] {
 @keyframes lux-draw { to { stroke-dashoffset: 0; } }
 
 /* The onyx mask watches over the overview, leaning toward the pointer (app-lux.js) and breathing slowly. */
-.lux-mask { width: clamp(84px, 10vw, 128px); height: auto; margin-left: auto; align-self: center; pointer-events: none;
+.lux-mask { width: clamp(84px, 10vw, 128px); height: calc(clamp(84px, 10vw, 128px) * 896 / 788); margin-left: auto; align-self: center; pointer-events: none;
   filter: drop-shadow(0 18px 30px rgb(0 0 0 / .45)); animation: lux-mask-in 1.4s var(--lux-spring) .2s backwards; }
 .lux-mask img { display: block; width: 100%; height: auto; animation: lux-breathe 4.2s ease-in-out infinite alternate; transform: perspective(600px) rotateY(var(--ry, 0deg)) rotateX(var(--rx, 0deg)); transition: transform 1s var(--lux-out); }
 @keyframes lux-mask-in { from { transform: translateY(-40px) rotate(-18deg) scale(.86); opacity: 0; } }
 @keyframes lux-breathe { from { translate: 0 -5px; } to { translate: 0 5px; } }
 @media (max-width: 720px) { .lux-mask { display: none; } }
+/* Its room is held from the first paint (the mask's own width and its picture's 788 by 896), so the greeting never
+   drops when the mask arrives after it. */
+@media (min-width: 721px) { [data-tab="home"] > .view > .page-title { min-height: calc(clamp(84px, 10vw, 128px) * 896 / 788); } }
 
 /* ------------------------------------------------ entrances, by page */
 
@@ -271,7 +274,7 @@ html.lux-app[data-theme="light"] {
 .lux-island-host { position: fixed !important; left: 0 !important; bottom: 0 !important; right: auto !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .lux-island {
   position: fixed; z-index: 1000; top: 12px; left: 50%; width: 120px; height: 34px; border-radius: 22px; overflow: hidden; pointer-events: none;
-  background: #0b0906; color: #efe6d4; box-shadow: 0 18px 44px rgb(0 0 0 / .45), inset 0 0 0 1px rgb(210 172 99 / .22);
+  background: rgb(var(--night-rgb, 11 9 6)); color: rgb(var(--haze-rgb, 239 230 212)); box-shadow: 0 18px 44px rgb(0 0 0 / .45), inset 0 0 0 1px color-mix(in srgb, var(--live-200, #d2ac63) 22%, transparent);
   opacity: 0; transform: translateX(-50%) translateY(-8px) scale(.6);
   transition: opacity .2s ease, transform .5s var(--lux-settle), width .52s var(--lux-settle), height .52s var(--lux-settle);
 }
@@ -282,7 +285,7 @@ html.lux-app[data-theme="light"] {
   display: flex; align-items: flex-start; gap: 10px; padding: 10px 18px; font-size: var(--t-ui); line-height: 1.4;
   animation: lux-msg-in .32s var(--lux-out) .12s backwards;
 }
-.lux-island__msg i { flex: none; width: 7px; height: 7px; margin-top: 6.5px; border-radius: 50%; background: #e2c27f; box-shadow: 0 0 10px rgb(226 194 127 / .8); }
+.lux-island__msg i { flex: none; width: 7px; height: 7px; margin-top: 6.5px; border-radius: 50%; background: var(--gold-300); box-shadow: 0 0 10px rgb(var(--gold-rgb) / .8); }
 .lux-island__msg.is-success i { background: #4cb782; box-shadow: 0 0 10px rgb(76 183 130 / .8); }
 .lux-island__msg.is-error i { background: #e5484d; box-shadow: 0 0 10px rgb(229 72 77 / .8); }
 .lux-island__msg.is-out { animation: lux-msg-out .2s ease-in forwards; }

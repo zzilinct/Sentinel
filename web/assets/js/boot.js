@@ -20,7 +20,52 @@ document.documentElement.classList.add('js');
 })();
 
 /*
- * Motion: Full, Calm or Off, chosen once for this device, and the scan effect (the gold digits of delicate scanning),
+ * The browser's own bar (a phone's address bar, an installed app's title) in the page's ground: the look's Light or
+ * Dark and its colour, not only what the system prefers (head.html's two metas, for a page without script). Read
+ * once the stylesheets are in, and again only when the look is drawn anew.
+ */
+(function () {
+  var r = document.documentElement, queued = 0;
+  if (!window.MutationObserver || !window.requestAnimationFrame) return;
+  var paint = function () {
+    queued = 0;
+    var bg = getComputedStyle(r).getPropertyValue('--bg').trim(), metas = document.querySelectorAll('meta[name="theme-color"]');
+    if (bg) for (var i = 0; i < metas.length; i++) metas[i].setAttribute('content', bg);
+  };
+  var soon = function () { if (!queued) queued = requestAnimationFrame(paint); };
+  new MutationObserver(soon).observe(r, { attributes: true, attributeFilter: ['style', 'data-theme', 'data-accent'] });
+  if (window.matchMedia) { var mq = matchMedia('(prefers-color-scheme: light)'); if (mq.addEventListener) mq.addEventListener('change', soon); }
+  soon();
+})();
+
+/*
+ * The Windows app's title bar (main.js turns Windows' white one off for its window): a strip in the page's own ground
+ * with the Sentinel mark and the page's name, which the window is dragged by; Windows' three buttons sit over its right
+ * end (sentinel.css .frame). The name follows the page's title; nothing runs otherwise.
+ */
+(function () {
+  var d = window.sentinelDesktop;
+  if (!d || !d.framed) return;
+  var r = document.documentElement;
+  r.classList.add('framed');
+  document.addEventListener('DOMContentLoaded', function () {
+    var bar = document.createElement('div');
+    bar.className = 'frame';
+    bar.setAttribute('aria-hidden', 'true');
+    // The mark as the site draws it (masks.js), or as the page's own logo has it on the few pages without masks.js.
+    var M = window.SentinelMasks, logo = document.querySelector('.logo__mark svg');
+    bar.innerHTML = '<span class="frame__mark">' + (M && M.svg ? M.svg('logo') : logo ? logo.outerHTML : '') + '</span><b>Sentinel</b><span class="frame__page"></span>';
+    var page = bar.lastChild;
+    var name = function () { var t = document.title.replace(/\s*[-|·–]\s*Sentinel\s*$/, '').trim(); page.textContent = t && t !== 'Sentinel' ? t : ''; };
+    name();
+    document.body.prepend(bar);
+    var title = document.querySelector('title');
+    if (title) new MutationObserver(name).observe(title, { childList: true, characterData: true, subtree: true });
+  });
+})();
+
+/*
+ * Motion: Full, Calm or Off, chosen once for this device, and the scan effect (the faint digits of delicate scanning),
  * on or off. Set here before the first paint as <html data-motion> and <html data-scan-effect>, which every stylesheet
  * and script reads: nothing asks the system on its own. When the computer asks for less motion it is Off, whatever was
  * chosen. Calm keeps what answers you (a panel opening, a verdict arriving) and stops what moves by itself.
@@ -32,7 +77,7 @@ document.documentElement.classList.add('js');
  *   SentinelMotionLevel.system()          true when the computer asks for less motion (Off, locked)
  *   SentinelMotionLevel.control(opts)     the settings for it, ready to put on a page; { labelledBy: id } names the
  *                                         choices by a heading already on the page instead of their own
- *   SentinelMotionLevel.glide(seg, from)  under Full, the gold of a row of choices springs from where it was (a rect)
+ *   SentinelMotionLevel.glide(seg, from)  under Full, the lit choice in a row springs from where it was (a rect)
  * A change fires `sentinel:motion` on document. The Windows app is told too, for its live scanning overlay.
  */
 (function () {
@@ -108,8 +153,8 @@ document.documentElement.classList.add('js');
       sw.checked = scanEffect() && level !== 'off';
       sw.disabled = level === 'off';
       box.querySelector('[data-scan-note]').textContent = level === 'off'
-        ? 'Motion is off, so delicate scanning shows only the gold line and the marks.'
-        : 'Faint gold digits settle over the results while delicate scanning checks them.' + (level === 'calm' ? ' Calm shows fewer, turning slower.' : '');
+        ? 'Motion is off, so delicate scanning shows only the scan line and the marks.'
+        : 'Faint digits in your colour settle over the results while delicate scanning checks them.' + (level === 'calm' ? ' Calm shows fewer, turning slower.' : '');
     }
     radios.forEach(function (r) { r.addEventListener('change', function () { if (r.checked) set(r.value); }); });
     sw.addEventListener('change', function () { setScanEffect(sw.checked); });

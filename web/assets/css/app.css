@@ -44,6 +44,30 @@ body.app::before { opacity: .6; }
 .meter i { display: block; height: 100%; border-radius: 3px; background: var(--gold-400); transition: width .8s var(--ease-out); }
 .meter.is-full i { background: var(--orange); }
 .usage-mini .meter + .usage-mini__row { margin-top: 12px; }
+/* A laptop's height (800 px and less room): every page, the plan's figures, the account and the theme still fit
+   without the bar scrolling inside itself. The rows close up and the figures become two short columns of words; the
+   Overview keeps the meters. */
+@media (min-width: 901px) and (max-height: 900px) {
+  .side { padding-block: 12px 10px; }
+  .side .logo { padding-bottom: 10px; }
+  .side .model-badge { margin-bottom: 10px; }
+  .side__label { margin: 8px 12px 2px; }
+  .side__link { min-height: 30px; padding-block: 2px; }
+  .side__settings { margin-top: 6px; }
+  /* The figures as one short line each; the theme button and the legal links share a row. */
+  .side__foot { grid-template-columns: auto 1fr; align-items: center; gap: 6px 10px; padding-top: 8px; }
+  .side__foot > .usage-mini, .side__foot > .me { grid-column: 1 / -1; }
+  .side__foot .legal-links { padding: 0; }
+  /* Each link keeps a 24 px target, so a finger or a shaky hand still lands on the one it means. */
+  .side__foot .legal-links a { display: inline-flex; align-items: center; min-height: 24px; }
+  .usage-mini { display: grid; gap: 2px; padding: 8px 12px; }
+  .usage-mini .meter { display: none; }
+  .usage-mini__row, .usage-mini .meter + .usage-mini__row { margin: 0; line-height: 1.35; }
+  .me { padding-block: 2px; }
+  /* Shorter still: the pages scroll on their own, the account and the theme never leave the window. */
+  .side { overflow: hidden; }
+  .side__nav { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+}
 
 .me { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r); cursor: pointer; transition: background .2s; background: none; border: 0; width: 100%; text-align: left; }
 .me:hover { background: rgb(var(--ink) / .04); }
@@ -63,6 +87,8 @@ body.app::before { opacity: .6; }
   .side__nav { display: flex; width: 100%; justify-content: space-around; }
   .side__link { flex: 1 1 0; min-width: 0; min-height: 48px; justify-content: center; flex-direction: column; gap: 3px; height: auto; padding: 7px 4px; font-size: var(--t-micro); text-align: center; }
   .main { padding-bottom: 90px !important; }
+  /* Whatever is scrolled or focused into view (a result, its last sentence) stops above the bar, not under it. */
+  html { scroll-padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
   .topbar-mobile { display: flex !important; }
 }
 
@@ -103,6 +129,12 @@ body.app::before { opacity: .6; }
 .scanbox input { flex: 1; min-width: 0; height: 44px; background: none; border: 0; outline: none; color: var(--text); font: var(--t-text) var(--mono); }
 .scanbox input::placeholder { color: var(--faint); font-family: var(--sans); }
 .scanbox .btn { --h: 44px; }
+/* A phone: the field has the whole row, so its hint reads whole, and Check is a full-width button under it. */
+@media (max-width: 480px) {
+  .scanbox { flex-wrap: wrap; row-gap: 6px; padding: 8px 8px 8px 16px; }
+  .scanbox input { flex: 1 1 calc(100% - 40px); }
+  .scanbox .btn { flex: 1 1 100%; }
+}
 .scan-meta { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: var(--t-note); color: var(--muted); }
 .scan-meta a { color: var(--gold-300); }
 
@@ -603,32 +635,33 @@ button.usage-row.is-active { background: rgb(var(--gold-rgb) / .08); box-shadow:
 
 /* One stage for every sign-in page: the mask under its own light, the same dark in both themes, beside the form on a
    wide screen and a short band above it on a phone. Still at rest. The only motion is the light coming up while a
-   field has focus. Colours here are fixed, not tokens: the stage does not change with the theme. */
+   field has focus. The stage does not change with the theme: its light is the colour as the dark scheme draws it
+   (--live-*, look.js), gold when none is chosen. */
 body:has(.auth)::before { animation: none; }
 .auth { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); }
 .auth__art {
   position: sticky; top: 0; z-index: 1; isolation: isolate; overflow: hidden;
   height: 100vh; height: 100dvh; padding: clamp(32px, 4.4vw, 72px);
   display: flex; flex-direction: column; justify-content: flex-end;
-  background: radial-gradient(120% 90% at 50% 112%, #1d1710, transparent 62%), #09090b;
-  box-shadow: inset -1px 0 0 rgba(214, 178, 98, .3);
+  background: radial-gradient(120% 90% at 50% 112%, rgb(var(--live-rgb, 214 178 98) / .1), transparent 62%), #09090b;
+  box-shadow: inset -1px 0 0 rgb(var(--live-rgb, 214 178 98) / .3);
 }
 .auth__stage { position: absolute; z-index: -1; left: 50%; top: 39%; width: min(78%, 64vh); aspect-ratio: 1; transform: translate(-50%, -50%); display: grid; place-items: center; }
 .auth__stage::before {
   content: ''; position: absolute; inset: -22%; z-index: -1; border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(232, 196, 124, .6), rgba(190, 140, 62, .24) 54%, transparent);
+  background: radial-gradient(closest-side, rgb(var(--live-rgb, 232 196 124) / .6), rgb(var(--live-rgb, 190 140 62) / .24) 54%, transparent);
   opacity: .68; transition: opacity .9s var(--ease-out);
 }
 .auth:has(.input:focus) .auth__stage::before { opacity: 1; }
-.auth__scope { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: rgba(226, 196, 127, .34); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.auth__scope { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: color-mix(in srgb, var(--live-hi, #e2c47f) 34%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .auth__scope circle + circle { stroke-dasharray: 1 7; }
-.auth__scope path { fill: #e2c47f; stroke: none; }
+.auth__scope path { fill: var(--live-hi, #e2c47f); stroke: none; }
 .auth__mask { position: relative; width: 68%; height: auto; filter: drop-shadow(-14px 34px 34px rgba(0, 0, 0, .75)); }
 .auth__word {
   align-self: flex-start; font: 400 clamp(56px, min(6.6vw, 13vh), 112px)/1.1 var(--display); --track: .012em;
-  background: linear-gradient(176deg, #f3dca4 0%, #d2ac63 34%, #a67e38 58%, #e9c983 76%, #a8803a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  background: var(--live-metal, linear-gradient(176deg, #f3dca4 0%, #d2ac63 34%, #a67e38 58%, #e9c983 76%, #a8803a 100%)); -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.auth__word:focus-visible { outline: 2px solid #e2c47f; outline-offset: 4px; }
+.auth__word:focus-visible { outline: 2px solid var(--live-hi, #e2c47f); outline-offset: 4px; }
 .auth__line { margin-top: 10px; max-width: 26em; font-size: var(--t-lead); line-height: 1.45; color: #c9c5bb; }
 
 .auth__form { position: relative; z-index: 1; display: flex; flex-direction: column; padding: 32px clamp(24px, 6vw, 80px); }
@@ -661,7 +694,7 @@ body:has(.auth)::before { animation: none; }
 /* A short band above the form: the name and the line on the left, the mask at the right edge, the button still in view. */
 @media (max-width: 980px) {
   .auth { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
-  .auth__art { position: relative; height: auto; min-height: 148px; padding: 22px 24px 24px; justify-content: center; box-shadow: inset 0 -1px 0 rgba(214, 178, 98, .3); }
+  .auth__art { position: relative; height: auto; min-height: 148px; padding: 22px 24px 24px; justify-content: center; box-shadow: inset 0 -1px 0 rgb(var(--live-rgb, 214 178 98) / .3); }
   .auth__stage { left: auto; right: -34px; top: 50%; width: 210px; transform: translateY(-50%); }
   .auth__word { font-size: clamp(44px, 12.4vw, 60px); }
   .auth__line { margin-top: 4px; max-width: 12em; font-size: var(--t-ui); line-height: 1.35; }

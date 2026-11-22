@@ -60,8 +60,8 @@
 body::before {
   background:
     radial-gradient(40vmax 32vmax at 12% 6%, rgb(var(--gold-rgb) / .16), transparent 70%),
-    radial-gradient(34vmax 34vmax at 92% 40%, rgb(239 230 212 / .06), transparent 70%),
-    radial-gradient(48vmax 30vmax at 50% 104%, rgb(160 110 50 / .14), transparent 70%);
+    radial-gradient(34vmax 34vmax at 92% 40%, rgb(var(--haze-rgb) / .06), transparent 70%),
+    radial-gradient(48vmax 30vmax at 50% 104%, rgb(var(--glow-rgb) / .14), transparent 70%);
   animation-duration: 46s;
 }
 /* Film grain over the whole page. */
@@ -77,7 +77,7 @@ body::after {
 /* A chapter head's laser runs 12% past the head on both sides: on a phone or tablet that widened the page past the
    screen (download page, 390 px wide laid out at 426). Clipped sideways here, as the home page already was. */
 #main { overflow-x: clip; }
-.motes span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--gold-200); box-shadow: 0 0 8px 2px rgb(243 220 164 / .55); opacity: 0;
+.motes span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--gold-200); box-shadow: 0 0 8px 2px color-mix(in srgb, var(--live-200, #f3dca4) 55%, transparent); opacity: 0;
   animation: mote-rise 9s ease-in-out infinite both; will-change: transform, opacity; }
 @keyframes mote-rise { 0% { opacity: 0; transform: translate3d(0, 0, 0); } 50% { opacity: var(--o, .5); } 100% { opacity: 0; transform: translate3d(var(--dx, 0), var(--rise, -200px), 0); } }
 
@@ -118,9 +118,7 @@ body::after {
 .nav { inset: 14px 0 auto; padding: 0 20px; border: 0; background: none; transition: none; }
 .nav.is-scrolled { background: none; box-shadow: none; }
 .nav__inner { width: min(1240px, 100%); height: 64px; padding: 0 12px 0 20px; border-radius: 22px; gap: 20px;
-  background: rgb(27 23 18 / .8); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--raise-sm); }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .nav__inner { background: rgb(241 234 221 / .86); } }
-:root[data-theme="light"] .nav__inner { background: rgb(241 234 221 / .86); }
+  background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--raise-sm); }
 .logo { font: 400 var(--t-title-s)/1 var(--display); }
 .logo__mark { background: none; box-shadow: none; color: var(--gold-400); width: 28px; height: 28px; }
 .logo__mark svg { width: 24px; height: 24px; }
@@ -222,7 +220,7 @@ body::after {
 .laser path { fill: none; stroke: var(--gold-300); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .laser path:first-child { stroke: rgb(var(--gold-rgb) / .3); stroke-width: 7; }
 .laser i { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; border-radius: 2px; opacity: 0;
-  background: linear-gradient(90deg, transparent, var(--gold-300) 12%, #fff6dc 50%, var(--gold-300) 88%, transparent);
+  background: linear-gradient(90deg, transparent, var(--gold-300) 12%, rgb(var(--haze-rgb, 255 246 220)) 50%, var(--gold-300) 88%, transparent);
   box-shadow: 0 0 12px rgb(var(--gold-rgb) / .9), 0 0 30px rgb(var(--gold-rgb) / .5); }
 /* Centred by its insets, not `translate`: GSAP scales it, and would fold a translate in as pixels from one width. */
 .laser__flare { position: absolute; left: 27%; top: 50%; width: 46%; height: 70px; margin-top: -35px; border-radius: 50%; opacity: 0;

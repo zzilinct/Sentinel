@@ -43,7 +43,7 @@ button.ss__btn { cursor: pointer; }
 
 .ss__ring {
   position: absolute; left: 0; top: 0; z-index: 2; width: var(--w, 0); height: var(--h, 0); border-radius: 7px; pointer-events: none;
-  transform: translate(var(--x, 0), var(--y, 0)); box-shadow: 0 0 0 2px #f3dca4, 0 0 18px 3px rgb(243 220 164 / .55);
+  transform: translate(var(--x, 0), var(--y, 0)); box-shadow: 0 0 0 2px var(--live-200, #f3dca4), 0 0 18px 3px color-mix(in srgb, var(--live-200, #f3dca4) 55%, transparent);
 }
 .ss.is-live .ss__ring { transition: transform .62s var(--spring), width .62s var(--spring), height .62s var(--spring), opacity .2s ease; }
 

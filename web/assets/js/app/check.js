@@ -499,7 +499,8 @@
         video.srcObject = stream;
         try { await video.play(); } catch { /* it plays when it can */ }
         timer = setInterval(async () => {
-          if (!el.isConnected) { stop(); return; }
+          // Away from the page (another tab, the window hidden): the camera is let go, its light goes out, nothing decodes.
+          if (!el.isConnected || document.hidden) { stop(); return; }
           if (reading || !video.videoWidth) return;
           const text = qrFrom(video, video.videoWidth, video.videoHeight, [Math.min(640, Math.max(video.videoWidth, video.videoHeight))]);
           if (text == null) return;

@@ -53,6 +53,7 @@
   const dark = () => root.dataset.theme === 'dark' || (!root.dataset.theme && !matchMedia('(prefers-color-scheme: light)').matches);
   let sky = null;
   let stars = [];
+  let starTint = ['#ffe2b0', '#f4efe6', '#cfdcff'];
 
   function makeSky() {
     sky = document.createElement('canvas');
@@ -61,7 +62,8 @@
     document.body.prepend(sky);
     addEventListener('resize', () => { seed(); paint(); }, { passive: true });
     matchMedia('(prefers-color-scheme: light)').addEventListener('change', paint);
-    new MutationObserver(paint).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    // A colour chosen (look.js sets data-accent with its colours) tints the sky: drawn again once, never per frame.
+    new MutationObserver(paint).observe(root, { attributes: true, attributeFilter: ['data-theme', 'data-accent'] });
     seed();
     paint();
   }
@@ -111,10 +113,13 @@
     const ctx = sky.getContext('2d');
     ctx.clearRect(0, 0, innerWidth, innerHeight);
     if (!dark()) return;
+    // The colour's three star tints (sentinel.css --star-1..3: gold's warm, cream and blue; look.js for the others).
+    const cs = getComputedStyle(root);
+    const tint = starTint = [1, 2, 3].map((n) => cs.getPropertyValue(`--star-${n}`).trim() || ['#ffe2b0', '#f4efe6', '#cfdcff'][n - 1]);
     for (const s of stars) {
       const p = s;
       ctx.globalAlpha = s.a;
-      ctx.fillStyle = s.warm > 0.7 ? '#ffe2b0' : s.warm > 0.2 ? '#f4efe6' : '#cfdcff';
+      ctx.fillStyle = s.warm > 0.7 ? tint[0] : s.warm > 0.2 ? tint[1] : tint[2];
       ctx.beginPath();
       ctx.arc(p.x, p.y, s.r, 0, Math.PI * 2);
       ctx.fill();
@@ -284,7 +289,7 @@
         const ly = (p.y - cy) * scale + c;
         const fade = 1 - clamp01((Math.hypot(lx - c, ly - c) - R * 0.8) / (R * 0.2));
         bx.globalAlpha = s.a * fade * g;
-        bx.fillStyle = s.warm > 0.7 ? '#ffe2b0' : '#f4efe6';
+        bx.fillStyle = s.warm > 0.7 ? starTint[0] : starTint[1];
         const z = s.r * scale * 1.6;
         bx.fillRect(lx - z / 2, ly - z / 2, z, z);
       }

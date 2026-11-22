@@ -49,6 +49,12 @@
 .set-row__control:empty { display: none; }
 .set-row__value { color: var(--muted); font-size: var(--t-note); }
 .set-why { color: var(--gold-300); }
+/* A row that needs the Windows app, seen without it: its name and the line that says so. */
+.set-row--app .set-row__hint, .set-row--app .set-row__control, .set-row--app .set-row__body { display: none; }
+.set-row--app .set-row__head { min-height: 0; padding: calc(12px * var(--ds)) 0; }
+.set-row--app .set-row__label { color: var(--text-2); }
+.set-row--app .set-row__state { margin-top: 2px; }
+.set-row--app .set-why { color: var(--muted); }
 .set-skel { display: block; width: 42px; height: 24px; border-radius: 99px; }
 
 .set-row__body:not(:empty) { padding: 0 0 18px; }

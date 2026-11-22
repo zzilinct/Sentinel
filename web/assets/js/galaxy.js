@@ -631,7 +631,7 @@
   build();
   readInk();
   if (window.ResizeObserver) new ResizeObserver(function () { build(); still(); }).observe(host);
-  new MutationObserver(function () { readInk(); still(); }).observe(rootEl, { attributes: true, attributeFilter: ['data-theme'] });
+  new MutationObserver(function () { readInk(); still(); }).observe(rootEl, { attributes: true, attributeFilter: ['data-theme', 'data-accent'] });
   matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () { readInk(); still(); });
   // The pictures are fetched once the chapter is near; drawing starts when it is on screen.
   var nearby = new IntersectionObserver(function (es) {

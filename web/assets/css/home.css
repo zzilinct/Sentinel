@@ -41,7 +41,7 @@
 .hero__fine li::before { content: '\2766' / ''; color: var(--gold-400); font-size: var(--t-label); }
 /* ShinyText (React Bits, ported in motion.js): a band of light crosses the gold, letter after letter, now and again.
    A second background layer over the metal; only while .is-shining is on, so nothing repaints at rest. */
-.hero__word.is-shining span { background-image: linear-gradient(105deg, transparent 42%, rgb(255 249 232 / .85) 50%, transparent 58%), linear-gradient(var(--sheen, 176deg), var(--metal-stops));
+.hero__word.is-shining span { background-image: linear-gradient(105deg, transparent 42%, rgb(var(--haze-rgb) / .85) 50%, transparent 58%), linear-gradient(var(--sheen, 176deg), var(--metal-stops));
   background-size: 250% 100%, 100% 100%; background-repeat: no-repeat; animation: word-shine 1.3s cubic-bezier(.45, .05, .35, 1) calc(var(--i, 0) * 80ms) both; }
 @keyframes word-shine { from { background-position: 150% 0, 0 0; } to { background-position: -50% 0, 0 0; } }
 /* The dot field under the mask, and what Sentinel sees over it, brushed in by the pointer (home.js). */
@@ -287,8 +287,8 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .sec-galaxy .section__head { margin-bottom: 0; }
 .galaxy { --galaxy-line: var(--gold-rgb); --galaxy-card: var(--surface-2); --galaxy-dark: 1; --core: var(--gold-400);
   position: relative; height: clamp(480px, 72vh, 820px); margin-top: 28px; overflow: hidden; touch-action: pan-y; }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .galaxy { --galaxy-line: 60 45 20; --galaxy-dark: 0; --core: var(--gold-600, #8a6420); } }
-:root[data-theme="light"] .galaxy { --galaxy-line: 60 45 20; --galaxy-dark: 0; --core: var(--gold-600, #8a6420); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .galaxy { --galaxy-line: var(--words-rgb, 60 45 20); --galaxy-dark: 0; --core: var(--gold-600, #8a6420); } }
+:root[data-theme="light"] .galaxy { --galaxy-line: var(--words-rgb, 60 45 20); --galaxy-dark: 0; --core: var(--gold-600, #8a6420); }
 /* The cards fly out past the stage's edges: they dissolve into the page there rather than being cut. */
 .galaxy__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: default;
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);

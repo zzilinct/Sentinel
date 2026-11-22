@@ -834,6 +834,21 @@
       return t === 'light' || (t !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches);
     };
     let hostInk = 'rgba(239,230,212,.72)';
+    // The stage's inks in the chosen colour, read when it is painted: gold keeps its own hand-tuned ones. `night` is
+    // the lacquer the stage and its pills sit on, dark in every theme; `lit` the digits and the haze on it; `page` and
+    // `words` the digits and the addresses drawn on light paper.
+    let tone = null;
+    const inks = () => {
+      const r = document.documentElement, cs = getComputedStyle(r);
+      const own = r.dataset.accent && r.dataset.accent !== 'gold';
+      const rgb = (k, gold) => (own && cs.getPropertyValue(k).trim().split(/\s+/).join(',')) || gold;
+      const hex = (k, gold) => { const m = own && /^#([0-9a-f]{6})$/i.exec(cs.getPropertyValue(k).trim()); return m ? [16, 8, 0].map((b) => (parseInt(m[1], 16) >> b) & 255).join(',') : gold; };
+      const night = rgb('--night-rgb', '11,9,6');
+      const glow = own ? rgb('--glow-rgb', '160,110,50').split(',').map(Number) : null;
+      const mix = (t) => { const n = night.split(',').map(Number); return `rgb(${n.map((v, i) => Math.round(v + (glow[i] - v) * t)).join(',')})`; };
+      return { page: rgb('--gold-rgb', '138,100,32'), lit: hex('--live-hi', '226,194,127'), words: rgb('--words-rgb', '60,45,20'), cream: rgb('--haze-rgb', '239,230,212'), night,
+        stage: own ? [mix(0.22), mix(0.06), `rgb(${night})`] : ['#2c210f', '#140f08', '#090705'] };
+    };
     // One warning: a lit pill, and the address it is about under it. Centred on the stage when no x is given.
     function warning(u, W, label, col, host, y, x) {
       u.font = `500 13px ${MONO}`;
@@ -842,7 +857,7 @@
       const cx = x === undefined ? (W - tw) / 2 - 6 : Math.max(24, Math.min(x, W - tw - 34));
       u.save();
       u.strokeStyle = col;
-      u.fillStyle = 'rgba(11,9,6,.85)';
+      u.fillStyle = `rgba(${tone.night},.85)`;
       u.shadowColor = col;
       u.shadowBlur = 16;
       u.beginPath();
@@ -860,7 +875,7 @@
         u.font = `500 15px ${SANS}`;
         const hw = u.measureText(host).width;
         const hx = x === undefined ? (W - hw) / 2 : Math.max(8, Math.min(cx - 10, W - hw - 10));
-        if (x === undefined) { u.fillStyle = 'rgba(9,7,5,.82)'; u.fillRect(hx - 6, y + 22, hw + 12, 24); }
+        if (x === undefined) { u.fillStyle = `rgba(${tone.night},.82)`; u.fillRect(hx - 6, y + 22, hw + 12, 24); }
         // On the page, the binary steps aside so the address reads on the page itself.
         else if (onPage()) { u.save(); u.globalCompositeOperation = 'destination-out'; u.fillRect(hx - 8, y + 22, hw + 16, 26); u.restore(); }
         u.fillStyle = hostInk;
@@ -877,16 +892,17 @@
       const W = vw / vdpr;
       const H = vh / vdpr;
       u.setTransform(vdpr, 0, 0, vdpr, 0, 0);
+      tone = inks();
       const bg = u.createRadialGradient(W / 2, H * 0.4, 0, W / 2, H * 0.4, Math.max(W, H) * 0.7);
-      bg.addColorStop(0, '#2c210f');
-      bg.addColorStop(0.55, '#140f08');
-      bg.addColorStop(1, '#090705');
+      bg.addColorStop(0, tone.stage[0]);
+      bg.addColorStop(0.55, tone.stage[1]);
+      bg.addColorStop(1, tone.stage[2]);
       if (!onPage()) {
         u.fillStyle = bg;
         u.fillRect(0, 0, W, H);
       }
-      const ink = onPage() && paper() ? '138,100,32' : '226,194,127';
-      hostInk = onPage() && paper() ? 'rgba(60,45,20,.8)' : 'rgba(239,230,212,.72)';
+      const ink = onPage() && paper() ? tone.page : tone.lit;
+      hostInk = onPage() && paper() ? `rgba(${tone.words},.8)` : `rgba(${tone.cream},.72)`;
       let seed = 11;
       const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
       // Binary, row by row.
@@ -903,9 +919,9 @@
       // it leaves. The niche's height and the mask's are one ratio (home.css), so these hold at every size.
       if (narrow.matches) {
         const shade = u.createRadialGradient(W / 2, H * 0.5, 0, W / 2, H * 0.5, H * 0.46);
-        shade.addColorStop(0, 'rgba(9,7,5,.92)');
-        shade.addColorStop(0.6, 'rgba(9,7,5,.7)');
-        shade.addColorStop(1, 'rgba(9,7,5,0)');
+        shade.addColorStop(0, `rgba(${tone.night},.92)`);
+        shade.addColorStop(0.6, `rgba(${tone.night},.7)`);
+        shade.addColorStop(1, `rgba(${tone.night},0)`);
         u.fillStyle = shade;
         u.fillRect(0, 0, W, H);
         warning(u, W, 'Fake login page', C.red, null, H * 0.17);
@@ -1015,7 +1031,7 @@
       hctx.globalCompositeOperation = 'copy';
       hctx.drawImage(trail, 0, 0);
       hctx.globalCompositeOperation = 'source-in';
-      hctx.fillStyle = 'rgba(226,194,127,.26)';
+      hctx.fillStyle = `rgba(${tone.lit},.26)`;
       hctx.fillRect(0, 0, haze.width, haze.height);
       vctx.globalCompositeOperation = 'lighter';
       vctx.drawImage(haze, 0, 0, vw, vh);
@@ -1060,7 +1076,8 @@
     // Fonts and the three marks first, so the page underneath is drawn once, complete.
     Promise.all([document.fonts ? document.fonts.ready : null, ...marks.map((m) => (m.img.decode ? m.img.decode().catch(() => {}) : null))]).then(() => {
       if ('ResizeObserver' in window) new ResizeObserver(vsize).observe(view); else vsize();
-      new MutationObserver(() => { if (onPage()) vsize(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      // A new theme changes the page's inks; a new colour every ink, on the page and on the stage.
+      new MutationObserver((m) => { if (onPage() || m.some((x) => x.attributeName === 'data-accent')) vsize(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-accent'] });
     });
 
     // The pointer, read once a frame, in the stage's own pixels.

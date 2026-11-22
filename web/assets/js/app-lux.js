@@ -316,6 +316,7 @@
   if (fine) {
     const LIT = '.panel, .usage-list, .locked, .feature';
     let pending = null;
+    const lean = { ry: null, rx: null };
     addEventListener('pointermove', (e) => {
       if (pending) { pending.e = e; return; }
       pending = { e };
@@ -329,12 +330,16 @@
           lit.style.setProperty('--my', `${ev.clientY - r.top}px`);
         }
         if (reduced()) return;
-        // The logo and the overview's mask lean toward the pointer.
-        const x = ev.clientX / innerWidth - 0.5;
-        const y = ev.clientY / innerHeight - 0.5;
+        // The logo and the overview's mask lean toward the pointer, in half-degree steps: a pointer moving within one
+        // step restyles nothing, and their one-second ease is not restarted on every frame.
+        const ry = Math.round((ev.clientX / innerWidth - 0.5) * 44) / 2;
+        const rx = Math.round((0.5 - ev.clientY / innerHeight) * 28) / 2;
+        if (ry === lean.ry && rx === lean.rx) return;
+        lean.ry = ry;
+        lean.rx = rx;
         for (const el of document.querySelectorAll('.side .logo__mark, .lux-mask img')) {
-          el.style.setProperty('--ry', `${x * 22}deg`);
-          el.style.setProperty('--rx', `${-y * 14}deg`);
+          el.style.setProperty('--ry', `${ry}deg`);
+          el.style.setProperty('--rx', `${rx}deg`);
         }
       });
     }, { passive: true });

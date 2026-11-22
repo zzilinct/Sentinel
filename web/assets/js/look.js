@@ -19,13 +19,24 @@
   // deepened to 4.5:1 with gold's depth, every hue landed on one muddy shade, so each takes its own: rose and teal
   // stay as light as 4.5:1 allows (teal has no more depth to give on a screen), amethyst and sapphire go deep and
   // vivid, platinum to graphite. The website's colour preview (accent.js) uses these same rows.
+  //
+  // Each colour is a whole look, not a gold page with another button colour (vibe()): ink, the colour every word is
+  // drawn in, a pastel of the colour on dark and a deep ink of it on light (h, c); ground, the hue and depth the page
+  // and its panels are tinted with; stars, the three tints of the night sky behind the dark pages. Chosen by eye, one
+  // row each: rose's blush ink on wine-black under pearl and lilac stars, amethyst's lavender on plum, sapphire's ice
+  // blue on midnight, teal's sea glass on deep water, platinum's silver on graphite with white stars.
   var ACCENTS = [
     { id: 'gold', name: 'Gold' },
-    { id: 'rose', name: 'Rose', h: 354, c: 0.95, dark: { c: 1.55, l: -0.05 }, light: { c: 1.6, l: 0.01 } },
-    { id: 'amethyst', name: 'Amethyst', h: 308, c: 1, dark: { c: 1.7, l: -0.06 }, light: { c: 1.7, l: -0.045 } },
-    { id: 'sapphire', name: 'Sapphire', h: 262, c: 1.05, dark: { c: 1.75, l: -0.07 }, light: { c: 1.75, l: -0.075 } },
-    { id: 'teal', name: 'Teal', h: 200, c: 0.85, dark: { c: 1.65, l: -0.06 }, light: { c: 1, l: 0 } },
-    { id: 'platinum', name: 'Platinum', h: 255, c: 0.12, dark: { c: 0.2, l: 0 }, light: { c: 0.18, l: -0.1 } }
+    { id: 'rose', name: 'Rose', h: 354, c: 0.95, dark: { c: 1.55, l: -0.05 }, light: { c: 1.6, l: 0.01 },
+      ink: { h: 352, c: 0.036 }, ground: { h: 352, c: 0.016 }, stars: [{ h: 356, c: 0.075 }, { h: 30, c: 0.02 }, { h: 318, c: 0.06 }] },
+    { id: 'amethyst', name: 'Amethyst', h: 308, c: 1, dark: { c: 1.7, l: -0.06 }, light: { c: 1.7, l: -0.045 },
+      ink: { h: 306, c: 0.038 }, ground: { h: 302, c: 0.018 }, stars: [{ h: 306, c: 0.08 }, { h: 335, c: 0.025 }, { h: 268, c: 0.06 }] },
+    { id: 'sapphire', name: 'Sapphire', h: 262, c: 1.05, dark: { c: 1.75, l: -0.07 }, light: { c: 1.75, l: -0.075 },
+      ink: { h: 252, c: 0.036 }, ground: { h: 262, c: 0.02 }, stars: [{ h: 258, c: 0.07 }, { h: 230, c: 0.02 }, { h: 284, c: 0.065 }] },
+    { id: 'teal', name: 'Teal', h: 200, c: 0.85, dark: { c: 1.65, l: -0.06 }, light: { c: 1, l: 0 },
+      ink: { h: 188, c: 0.036 }, ground: { h: 212, c: 0.016 }, stars: [{ h: 192, c: 0.07 }, { h: 165, c: 0.03 }, { h: 232, c: 0.05 }] },
+    { id: 'platinum', name: 'Platinum', h: 255, c: 0.12, dark: { c: 0.2, l: 0 }, light: { c: 0.18, l: -0.1 },
+      ink: { h: 250, c: 0.012 }, ground: { h: 255, c: 0.007 }, stars: [{ h: 250, c: 0.008 }, { h: 236, c: 0.03 }, { h: 276, c: 0.022 }] }
   ];
   var BY_ID = {};
   for (var i = 0; i < ACCENTS.length; i++) BY_ID[ACCENTS[i].id] = ACCENTS[i];
@@ -113,13 +124,70 @@
     var o = toOklch(hex), L = o[0] + (tune.l || 0), C = o[1] * (isFinite(tune.c) ? tune.c : accent.c);
     var out = oklchHex(L, C, accent.h);
     if (!words) return out;
-    var grounds = typeof words === 'string' ? [words] : GROUND[scheme], up = typeof words === 'string' || scheme === 'dark';
+    var grounds = typeof words === 'string' ? [words] : GROUND[scheme].concat((accent.grounds && accent.grounds[scheme]) || []), up = typeof words === 'string' || scheme === 'dark';
     var worst = function (c) { var w = 99; for (var i = 0; i < grounds.length; i++) w = Math.min(w, contrast(c, grounds[i])); return w; };
     for (var n = 0; n < 60 && worst(out) < 4.5; n++) {
       L += up ? 0.01 : -0.01;
       out = oklchHex(L, C, accent.h);
     }
     return out;
+  }
+
+  // Gold's page as sentinel.css draws it: the grounds, darkest to lightest panel, and the four weights of words.
+  var PAGE = {
+    dark: { bg: '#111215', 'bg-2': '#131418', surface: '#16171b', 'surface-2': '#1a1b20', 'surface-3': '#212329', 'field-bg': '#0b0c0f', sheet: '#0c0d10',
+      text: '#efece5', 'text-2': '#b9b6ae', muted: '#a09d95', faint: '#928f87' },
+    light: { bg: '#efece6', 'bg-2': '#ebe8e1', surface: '#f2efe9', 'surface-2': '#f5f2ec', 'surface-3': '#e6e2da', 'field-bg': '#fbf9f5', sheet: '#f6f1e7',
+      text: '#16171a', 'text-2': '#3b3a36', muted: '#57554f', faint: '#66645d' }
+  };
+  var WORDS = { text: 1.45, 'text-2': 1.15, muted: 1, faint: 0.9 };
+
+  /**
+   * The rest of the look for a colour that is not gold: the words, the grounds, the lines and the stars. Every ground
+   * keeps gold's lightness and takes the colour's tint; every weight of words keeps gold's contrast on its ground (so
+   * nothing gets harder to read), drawn in the colour's ink. Gold has none of this: its page is the stylesheets'.
+   */
+  function vibe(accent, scheme) {
+    var page = PAGE[scheme], out = {}, k;
+    var g = accent.ground, ink = accent.ink, light = scheme === 'light';
+    for (k in page) {
+      if (k in WORDS) continue;
+      out[k] = oklchHex(toOklch(page[k])[0], g.c * (light ? 0.75 : 1), g.h);
+    }
+    for (k in WORDS) {
+      // Body words on dark need 13:1, not gold's 16: the room is spent on colour, and 13:1 is still far past 7:1.
+      var want = Math.min(contrast(page[k], page.bg), k === 'text' && !light ? 13 : 99), L = toOklch(page[k])[0] - (k === 'text' && !light ? 0.03 : 0);
+      var C = ink.c * WORDS[k] * (light ? 0.9 : 1);
+      var hex = oklchHex(L, C, ink.h);
+      for (var n = 0; n < 60 && contrast(hex, out.bg) < want; n++) hex = oklchHex(L += light ? -0.005 : 0.005, C, ink.h);
+      out[k] = hex;
+    }
+    var words = rgbOf(out.text), sheet = rgbOf(out.sheet), panel = rgbOf(light ? oklchHex(0.995, g.c * 0.3, g.h) : out.sheet);
+    var vars = {};
+    for (k in out) vars['--' + k] = out[k];
+    vars['--line'] = 'rgb(' + words + ' / ' + (light ? '.1' : '.07') + ')';
+    vars['--line-2'] = 'rgb(' + words + ' / ' + (light ? '.16' : '.12') + ')';
+    vars['--sketch'] = 'rgb(' + words + ' / ' + (light ? '.28' : '.24') + ')';
+    vars['--panel'] = 'rgb(' + panel + ' / ' + (light ? '.98' : '.97') + ')';
+    vars['--glass'] = 'rgb(' + rgbOf(out.surface) + ' / ' + (light ? '.8' : '.74') + ')';
+    // The haze over the dark pages' sky is the dark scheme's pastel in both schemes, as gold's cream is.
+    vars['--haze-rgb'] = rgbOf(oklchHex(0.945, ink.c * WORDS.text, ink.h));
+    vars['--sheet-rgb'] = sheet;
+    vars['--words-rgb'] = words;
+    // Relief: the lit edge and the shadow under every raised panel (lux.css, app-lux.css), gold's cream and brown in the
+    // colour's own, so a card never casts a brown shadow on a blue page.
+    var haze = vars['--haze-rgb'];
+    vars['--hi'] = light ? 'rgb(255 255 255 / .85)' : 'rgb(' + haze + ' / .055)';
+    vars['--lo'] = light ? 'rgb(' + rgbOf(oklchHex(0.5, g.c * 3, g.h)) + ' / .24)' : 'rgb(0 0 0 / .62)';
+    vars['--neu-lo'] = vars['--lo'];
+    vars['--relief'] = light ? 'linear-gradient(150deg, rgb(255 255 255 / .5), transparent 60%)' : 'linear-gradient(150deg, rgb(' + haze + ' / .035), transparent 55%)';
+    // The surfaces that are dark in every theme (the island, the call answer, the hero's stage): gold's black lacquer
+    // and its warm glow, in the colour's own night.
+    vars['--night-rgb'] = rgbOf(oklchHex(toOklch('#0b0906')[0], g.c * 1.5, g.h));
+    vars['--night-hi'] = oklchHex(toOklch('#231c12')[0], g.c * 3, g.h);
+    // The stars: a bright tint of the colour, near-white, and a neighbouring hue, as gold has warm, cream and blue.
+    for (var i = 0; i < 3; i++) vars['--star-' + (i + 1)] = oklchHex([0.9, 0.97, 0.86][i], accent.stars[i].c, accent.stars[i].h);
+    return vars;
   }
 
   function rgbOf(hex) { return hexRgb(hex).join(' '); }
@@ -142,10 +210,30 @@
    * `id` may also be { id, h, c, dark, light } (a hue in OKLCH degrees and a depth, 1 being gold's): the website's colour preview
    * turns gold to hues the product never offers, through this same function, and only there.
    */
+  // A ramp is worked out once per colour and scheme: a press on a colour paints from here, with no colour maths.
+  var made = {};
   function ramp(id, scheme) {
     scheme = scheme === 'light' ? 'light' : 'dark';
+    var key = typeof id === 'string' && BY_ID[id] ? id + ' ' + scheme : null;
+    if (!key) return build(id, scheme);
+    if (!made[key]) made[key] = build(id, scheme);
+    var copy = {};
+    for (var k in made[key]) copy[k] = made[key][k];
+    return copy;
+  }
+  function build(id, scheme) {
     var accent = id && typeof id === 'object' && isFinite(id.h) ? { id: String(id.id || 'preview'), h: Number(id.h), c: isFinite(id.c) ? Number(id.c) : 1, dark: id.dark, light: id.light } : BY_ID[id] || BY_ID.gold;
     var out = {};
+    if (accent.ink) {
+      // The accent's own words are held to 4.5:1 on its own grounds too, not only on gold's: both schemes' grounds
+      // first, as the live colours (the dark scheme's) are part of every ramp.
+      if (!accent.grounds) {
+        var v = { dark: vibe(accent, 'dark'), light: vibe(accent, 'light') };
+        accent.grounds = {};
+        for (var s in v) accent.grounds[s] = ['--bg', '--bg-2', '--surface', '--surface-2', '--surface-3', '--sheet'].map(function (k) { return v[s][k]; });
+      }
+      out = vibe(accent, scheme);
+    }
     if (accent.id !== 'gold') {
       var w = GOLD[scheme].web, t = function (hex, words) { return turn(hex, accent, scheme, words); };
       var stop = { 50: t(w[50], scheme === 'light'), 200: t(w[200], true), 300: t(w[300], true), 400: t(w[400], true), 500: t(w[500]), 600: t(w[600]) };
@@ -165,6 +253,15 @@
       out['--line-gold'] = 'rgb(' + rgb + ' / ' + (scheme === 'light' ? '.35' : '.28') + ')';
       out['--sketch-gold'] = 'rgb(' + rgb + ' / ' + (scheme === 'light' ? '.6' : '.55') + ')';
       out['--gold-glow'] = '0 14px ' + (scheme === 'light' ? '30px' : '34px') + ' -14px rgb(' + rgb + ' / ' + (scheme === 'light' ? '.6' : '.75') + ')';
+      // The deep bloom low on the page (lux.css, app-lux.css): gold's own is rgb(160 110 50).
+      out['--glow-rgb'] = rgbOf(t('#a06e32'));
+      // The sign-in stage is dark in every theme (app.css .auth__art): its metal is the dark scheme's.
+      var dm = GOLD.dark.web.metal.map(function (c) { return turn(c, accent, 'dark'); });
+      out['--live-metal'] = 'linear-gradient(176deg, ' + dm[0] + ' 0%, ' + dm[1] + ' 34%, ' + dm[2] + ' 58%, ' + dm[3] + ' 76%, ' + dm[4] + ' 100%)';
+      // Gold's palest metal on those dark surfaces (#f3dca4: the call's verdict, the download page's ring), and the
+      // ledger's rim, cut from the same metal as gold's.
+      out['--live-200'] = dm[0];
+      out['--rim'] = 'linear-gradient(160deg, ' + dm[0] + ', ' + dm[2] + ' 34%, ' + dm[3] + ' 58%, ' + dm[4] + ' 82%, ' + dm[1] + ')';
     }
     var app = appSet(accent, scheme), live = appSet(accent, 'dark');
     out['--acc'] = app.acc;
@@ -278,6 +375,20 @@
     return look;
   }
 
+  /**
+   * What boot.js draws before the first paint and look-site.js on the marketing pages, which load no look.js: an
+   * accent's colours for both schemes, the stylesheets' own names only, kept on the device by look-app.js. WEB_V moves
+   * whenever the names or the colours change, so a device that kept an older set has it worked out again (look-site.js
+   * holds the same number) instead of a page half in the new look.
+   */
+  var WEB = /^--(gold|metal|line|sketch|btn-grad|gilt|text|muted|faint|bg|surface|field-bg|sheet|panel|glass|haze|glow|star|live|words|night|rim|relief|neu-lo|hi$|lo$)/;
+  var WEB_V = 3;
+  function webVars(id) {
+    var out = { v: WEB_V, accent: id };
+    ['dark', 'light'].forEach(function (s) { var all = ramp(id, s); out[s] = {}; for (var k in all) if (WEB.test(k)) out[s][k] = all[k]; });
+    return out;
+  }
+
   /** The look on a surface that stays dark in every theme (the corner island): its accent, in the dark scheme. */
   function dark(look) { return { mode: 'dark', accent: normal(look).accent }; }
 
@@ -287,7 +398,7 @@
     return normal({ mode: q.get('theme'), accent: q.get('accent') });
   }
 
-  var api = { ACCENTS: ACCENTS, STATUS: STATUS, CAUTION_INK: CAUTION_INK, GOLD: GOLD, SHEET: SHEET, LUX: LUX, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, overruled: overruled, rev: rev, KEYS: KEYS, TEXT: TEXT, DENSITY: DENSITY, type: type, scheme: scheme, paint: paint, dark: dark, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
+  var api = { WEB: WEB, WEB_V: WEB_V, webVars: webVars, PAGE: PAGE, ACCENTS: ACCENTS, STATUS: STATUS, CAUTION_INK: CAUTION_INK, GOLD: GOLD, SHEET: SHEET, LUX: LUX, ramp: ramp, metal: metal, tintBitmap: tintBitmap, normal: normal, record: record, merge: merge, overruled: overruled, rev: rev, KEYS: KEYS, TEXT: TEXT, DENSITY: DENSITY, type: type, scheme: scheme, paint: paint, dark: dark, fromQuery: fromQuery, contrast: contrast, toOklch: toOklch };
   root.SentinelLook = api;
   if (typeof module === 'object' && module.exports) { module.exports = api; return; }
   // The companion's own pages (popup, block page, settings): the look the Windows app gave it (popup.js asks the app

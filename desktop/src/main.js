@@ -344,20 +344,27 @@ function createWindow() {
   // Never bigger than the screen: at 1366x768 and 125% the work area is 1093x567, below even the smallest size, and
   // the bottom of the window sat under the taskbar out of reach.
   const area = screen.getPrimaryDisplay().workArea;
+  // Without Windows' own title bar the window is sized in device pixels and rounds up: at 150% a window as big as the
+  // work area came out 2 px wider and 1 px taller than it. Two pixels short of the edge, it fits.
+  const edge = process.platform === 'win32' ? 2 : 0;
   win = new BrowserWindow({
-    width: Math.min(1280, area.width),
-    height: Math.min(840, area.height),
+    width: Math.min(1280, area.width - edge),
+    height: Math.min(840, area.height - edge),
     minWidth: Math.min(960, area.width),
     minHeight: Math.min(640, area.height),
     show: false,
     // The look's own ground (applyLook has set Windows' light or dark by now), so a light look never opens on black.
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0c0d10' : '#f6f4ef',
     title: 'Sentinel',
-    icon: ICON,
+    icon: windowIcon(look().accent),
     autoHideMenuBar: true,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // Windows: no white system bar. The page draws its own in the look (sentinel.css .frame, boot.js) and Windows'
+    // three buttons sit over it in the look's ink (frameButtons()).
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : process.platform === 'win32' ? 'hidden' : 'default',
+    ...(process.platform === 'win32' ? { titleBarOverlay: frameButtons(look()) } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      additionalArguments: process.platform === 'win32' ? ['--sentinel-framed'] : [],
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -836,12 +843,84 @@ function trayImage(accent, dim = false) {
 /**
  * Draws a look everywhere at once: Windows' light or dark for the app's own pages (each follows it through
  * prefers-color-scheme), the island and its marks, the tray icon, and the file the companion's popup asks the app's
- * server for (GET /api/v1/look). The taskbar and installer icons are files in the installer and stay gold.
+ * server for (GET /api/v1/look), and Sentinel's own shortcuts, which the taskbar's button is drawn from
+ * (shortcutIcons: a window's own relaunch icon was tried in 1.21.1, and Windows kept the shortcut's).
  */
+const windowIcons = new Map();
+/** The window's mark, cast in the accent like the tray's. Gold is the installer's own file. */
+function windowIcon(accent) {
+  if (accent === 'gold' || process.platform === 'darwin') return ICON;
+  if (!windowIcons.has(accent)) {
+    const image = nativeImage.createEmpty();
+    for (const [name, scaleFactor] of [['icon32.png', 1], ['icon48.png', 1.5], ['icon128.png', 4]]) {
+      const base = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', name));
+      if (base.isEmpty()) continue;
+      const size = base.getSize();
+      image.addRepresentation({ scaleFactor, width: size.width, height: size.height, dataURL: nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), size).toDataURL() });
+    }
+    windowIcons.set(accent, image.isEmpty() ? ICON : image);
+  }
+  return windowIcons.get(accent);
+}
+/** Windows' minimise, maximise and close over the page's own title bar: on nothing (the page's ground shows through), in its ink. */
+const FRAME_H = 36;
+function frameButtons(l) {
+  const scheme = l.mode === 'auto' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : l.mode;
+  return { color: '#00000000', symbolColor: Look.ramp(l.accent, scheme)['--text'] || Look.PAGE[scheme].text, height: FRAME_H };
+}
+/**
+ * The taskbar's button, the Start menu's and the desktop's Sentinel: Windows draws all three from Sentinel's own
+ * shortcuts, never from the window. When the accent changes, only those shortcuts that open this very Sentinel (their
+ * target is this program) are given an icon in it: an .ico cast like the window's mark, one file per accent in the
+ * app's folder (a new name, so Windows' icon cache cannot keep the old one). Gold points them back at the program's
+ * own icon. Target, arguments and the app's ID are left as they are; a shortcut that is missing, someone else's, or
+ * cannot be written is passed over without a word. Nothing runs unless the accent changed.
+ */
+function shortcutPaths() {
+  const env = process.env, name = 'Sentinel.lnk';
+  return [
+    path.join(env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', name),
+    path.join(env.PROGRAMDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', name),
+    path.join(app.getPath('desktop'), name),
+    path.join(env.PUBLIC || '', 'Desktop', name),
+    path.join(env.APPDATA || '', 'Microsoft', 'Internet Explorer', 'Quick Launch', 'User Pinned', 'TaskBar', name)
+  ];
+}
+function shortcutIcons(accent) {
+  if (process.platform !== 'win32' || !app.isPackaged || store.get('shortcutAccent', 'gold') === accent) return;
+  const fs = require('fs'), dir = app.getPath('userData');
+  let icon = process.execPath;
+  try {
+    if (accent !== 'gold') {
+      const images = [['icon16.png', 16], ['icon32.png', 32], ['icon48.png', 48], ['icon256.png', 256]].map(([file, size]) => {
+        const base = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', file));
+        return base.isEmpty() ? null : { size, png: nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), base.getSize()).toPNG() };
+      }).filter(Boolean);
+      if (!images.length) return;
+      icon = path.join(dir, `shortcut-${accent}.ico`);
+      fs.writeFileSync(icon, require('./ico').ico(images));
+    }
+    const exe = process.execPath.toLowerCase();
+    for (const lnk of shortcutPaths()) {
+      try {
+        if (shell.readShortcutLink(lnk).target.toLowerCase() !== exe) continue;
+        shell.writeShortcutLink(lnk, 'update', { icon, iconIndex: 0 });
+      } catch { /* missing, someone else's or read-only: left as it is */ }
+    }
+    // The other accents' files go: only the one in use is kept.
+    for (const f of fs.readdirSync(dir)) if (/^shortcut-[a-z]+\.ico$/.test(f) && path.join(dir, f) !== icon) try { fs.unlinkSync(path.join(dir, f)); } catch { /* in use */ }
+    store.set('shortcutAccent', accent);
+  } catch (err) { appLog(`shortcut icons: ${err.message}`); }
+}
 function applyLook(l) {
+  shortcutIcons(l.accent);
   nativeTheme.themeSource = l.mode === 'auto' ? 'system' : l.mode;
   overlay.setLook(l);
   if (tray) refreshTray();
+  if (win && !win.isDestroyed()) {
+    win.setIcon(windowIcon(l.accent));
+    if (process.platform === 'win32') win.setTitleBarOverlay(frameButtons(l));
+  }
   try { require('fs').writeFileSync(path.join(app.getPath('userData'), 'look.json'), JSON.stringify(l)); } catch { /* the companion keeps the look it has */ }
 }
 
@@ -2114,6 +2193,8 @@ app.whenReady().then(() => {
   store.init(app.getPath('userData'), safeStorage);
   // Before any window: the first one is drawn in the chosen look.
   step('look', () => applyLook(look()));
+  // Auto: Windows turning light or dark repaints the pages by themselves; the title bar's buttons follow here.
+  nativeTheme.on('updated', () => { if (win && !win.isDestroyed() && process.platform === 'win32' && look().mode === 'auto') win.setTitleBarOverlay(frameButtons(look())); });
   lock = parentlock.create(store);
   // A run that ended without quitting (Windows shutting down, Task Manager, or a crash) left nothing in the log at all.
   step('last run', () => {

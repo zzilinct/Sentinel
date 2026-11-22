@@ -122,7 +122,8 @@ if ($Part -eq 'install') {
   $t0 = Get-Date
   Start-Process $startLnk
   $w = $null
-  $shown = Until 60 { $script:w = SentinelWindows | Where-Object { $_ -match '\|\d+,\d+,(\d{4}|[5-9]\d\d),' } | Select-Object -First 1; [bool]$script:w }
+  # Without Windows' own title bar (1.21.1) the window's edge sits a few pixels left of the screen's: x may be negative.
+  $shown = Until 60 { $script:w = SentinelWindows | Where-Object { $_ -match '\|-?\d+,-?\d+,(\d{4}|[5-9]\d\d),' } | Select-Object -First 1; [bool]$script:w }
   $tookWindow = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1)
   $up = WaitUp
   $tookUp = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1)

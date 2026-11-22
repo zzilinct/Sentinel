@@ -1,5 +1,5 @@
 /*
- * Binary: delicate scanning, made quiet. While Sentinel digs into something, a thin field of faint gold digits settles
+ * Binary: delicate scanning, made quiet. While Sentinel digs into something, a thin field of faint digits settles
  * behind the wait, and a soft band moves down it as the real stages finish. Over each link the digits take the link's
  * colour once its verdict is in. Nothing flickers: a digit turns over every two seconds or so, the field fades in and
  * out as one layer, and no frame can differ from the last by more than a faint digit (scripts/verify-web/47-calm-dig.js
@@ -23,7 +23,7 @@
   var root = document.documentElement;
   function level() { return root.dataset.scanEffect === 'off' ? 'off' : root.dataset.motion === 'off' || root.dataset.motion === 'calm' ? root.dataset.motion : 'full'; }
   // Severity colours made for black: the yellow is lemon, nothing like the gold.
-  var COLORS = { gold: '#d6b25a', yellow: '#fff23a', orange: '#ff7a1a', red: '#ff3b3b', green: '#34e07a' };
+  var COLORS = { gold: '', yellow: '#fff23a', orange: '#ff7a1a', red: '#ff3b3b', green: '#34e07a' };
   var CW = 9;
   var CH = 14;
 
@@ -40,10 +40,13 @@
   var BAND_H = 90;
   var LINK_ALPHA = 0.18;
 
-  // Each digit in each colour, drawn once: the frames only place them.
+  // Each digit in each colour, drawn once per colour chosen: the frames only place them. The quiet digits are the
+  // chosen colour as light (look.js --live, gold's #d6b25a when none is painted); the verdicts keep their own.
   var atlas = null;
   function glyphs() {
-    if (atlas) return atlas;
+    var acc = (window.getComputedStyle ? getComputedStyle(root).getPropertyValue('--live').trim() : '') || '#d6b25a';
+    if (atlas && atlas.acc === acc) return atlas;
+    COLORS.gold = acc;
     var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     var names = Object.keys(COLORS);
     var c = document.createElement('canvas');
@@ -59,7 +62,7 @@
       g.shadowBlur = 4 * dpr;
       for (var d = 0; d < 2; d++) g.fillText(String(d), (d + 0.5) * Math.ceil(CW * dpr), (row + 0.5) * Math.ceil(CH * dpr));
     });
-    atlas = { canvas: c, dpr: dpr, w: Math.ceil(CW * dpr), h: Math.ceil(CH * dpr), row: names.reduce(function (m, n, i) { m[n] = i; return m; }, {}) };
+    atlas = { acc: acc, canvas: c, dpr: dpr, w: Math.ceil(CW * dpr), h: Math.ceil(CH * dpr), row: names.reduce(function (m, n, i) { m[n] = i; return m; }, {}) };
     return atlas;
   }
 

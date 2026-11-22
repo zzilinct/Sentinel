@@ -14,6 +14,8 @@ function on(channel, callback) {
 }
 
 contextBridge.exposeInMainWorld('sentinelDesktop', {
+  // The app window on Windows draws its own title bar (boot.js, sentinel.css .frame); main.js says which window that is.
+  framed: process.argv.includes('--sentinel-framed'),
   // Motion (Full, Calm or Off) and the scan effect: told when the page has loaded and on every change (pages/motion.js).
   onMotion: (callback) => ipcRenderer.on('sentinel:motion-level', (_event, m) => callback(m)),
   info: () => ipcRenderer.invoke('sentinel:info'),

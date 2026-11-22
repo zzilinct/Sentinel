@@ -218,6 +218,33 @@ $r = Cdp '127.0.0.1:4782' "(async () => { const post = (p, b) => fetch(p, { meth
 $paired = Until 40 { [bool](Info 'info()').pairedUserId }
 Check 'signed-in' $paired "sign-up, sign-in: $($r.value)"
 if (-not $paired) { Say "  diag: $(Cdp '127.0.0.1:4782' 'location.href')" }
+
+# 5b. The app window's own title bar (signed in, so the app's own pages and picker are there): no white Windows bar in dark, the look's ground behind the real mark, Windows'
+# buttons over it, in every look; the bar's own pixels are read off the screen.
+[void](Cdp 'main' "(process.mainModule.require('electron').BrowserWindow.getAllWindows().filter((w) => w.webContents.getURL().includes('127.0.0.1:4782')).forEach((w) => { w.show(); w.focus(); }), 1)")
+[void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
+[void](Until 30 { [string](Cdp '127.0.0.1:4782' "Boolean(window.SentinelLook && window.SentinelLook.set && document.querySelector('.frame'))").value -match 'true' })
+function PixelAt($x, $y) { $bmp = New-Object System.Drawing.Bitmap 1, 1; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$x, [int]$y, 0, 0, (New-Object System.Drawing.Size 1, 1)); $c = $bmp.GetPixel(0, 0); $g.Dispose(); $bmp.Dispose(); return $c }
+foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; accent = 'rose' }, @{ mode = 'dark'; accent = 'gold' }, @{ mode = 'light'; accent = 'gold' })) {
+  $name = "frame-$($t.accent)-$($t.mode)"
+  $r = [string](Cdp '127.0.0.1:4782' "(async () => { await window.SentinelLook.set({ mode: '$($t.mode)', accent: '$($t.accent)' }); await new Promise((r) => setTimeout(r, 1800)); const f = document.querySelector('.frame'), cs = f && getComputedStyle(f); return [document.documentElement.classList.contains('framed'), Boolean(f && f.querySelector('.frame__mark svg')), cs && cs.backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), Boolean(navigator.windowControlsOverlay && navigator.windowControlsOverlay.visible), f && Math.round(f.getBoundingClientRect().height), f && f.textContent].join('|'); })()").value
+  $b = (Cdp 'main' "JSON.stringify(process.mainModule.require('electron').BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('127.0.0.1:4782')).getBounds())").value | ConvertFrom-Json
+  $px = PixelAt ($b.x + $b.width / 2) ($b.y + 10)
+  $sum = [int]$px.R + [int]$px.G + [int]$px.B
+  Shot $name
+  $f = $r -split '\|'
+  $tone = $(if ($t.mode -eq 'dark') { $sum -lt 150 } else { $sum -gt 600 })
+  Check $name ($f[0] -eq 'true' -and $f[1] -eq 'true' -and $f[2] -notmatch 'rgba\(0, 0, 0, 0\)' -and $f[4] -eq 'true' -and [int]$f[5] -ge 28 -and $tone) "framed|mark|bar|page|buttons over it|height|words: $r; the bar's pixel on screen rgb($($px.R),$($px.G),$($px.B))"
+  # The taskbar's button is drawn from Sentinel's own shortcuts (main.js shortcutIcons): they carry the colour, and
+  # gold puts the program's own icon back. The picture above shows the taskbar.
+  $links = @("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Sentinel.lnk", "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Sentinel.lnk", "$env:PUBLIC\Desktop\Sentinel.lnk", "$([Environment]::GetFolderPath('Desktop'))\Sentinel.lnk") | Where-Object { Test-Path $_ }
+  $wsh = New-Object -ComObject WScript.Shell
+  $icons = @($links | ForEach-Object { "$($wsh.CreateShortcut($_).IconLocation) <- $($wsh.CreateShortcut($_).TargetPath)" }) -join '; '
+  $want = $(if ($t.accent -eq 'gold') { '\.exe,0 <-' } else { "shortcut-$($t.accent)\.ico,0 <-" })
+  Check "$name-shortcuts" ($links.Count -gt 0 -and @($links | Where-Object { $wsh.CreateShortcut($_).IconLocation -notmatch ($want -replace ' <-$', '') }).Count -eq 0) "Sentinel's shortcuts: $icons"
+}
+[void](Cdp '127.0.0.1:4782' "window.SentinelLook.set({ mode: 'auto', accent: 'gold' }).then(() => 1)")
+
 Say (node (Join-Path $PSScriptRoot 'e2e-pro.js') "$data\sentinel.db")
 $inCases = @(
   @{ id = 'in-emoji'; name = "Holiday $emoji photos list.txt"; want = 'No threats found' },
