@@ -48,6 +48,8 @@ test('RDAP: the registrant\'s organisation, and the registrar record a thin regi
     links: [{ rel: 'self', href: 'https://rdap.verisign.com/net/v1/domain/VERIZON.NET' },
       { rel: 'related', type: 'application/rdap+json', href: 'https://rdap.markmonitor.com/rdap/domain/VERIZON.NET' }] };
   assert.equal(rdapOrg(thin), '', 'a registrar is not the registrant');
+  assert.equal(rdapOrg(null), '', 'no answer is no registrant');
+  assert.equal(registrarLink(null), undefined);
   assert.equal(registrarLink(thin).href, 'https://rdap.markmonitor.com/rdap/domain/VERIZON.NET');
   assert.equal(rdapOrg({ entities: [{ roles: ['registrant'], vcardArray: vcard('Verizon Trademark Services LLC') }] }), 'Verizon Trademark Services LLC');
   assert.equal(rdapOrg({ entities: [{ roles: ['registrant'], vcardArray: vcard('REDACTED FOR PRIVACY') }] }), '');

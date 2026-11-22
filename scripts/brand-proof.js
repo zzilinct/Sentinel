@@ -72,7 +72,7 @@ function rdapOrg(json) {
     }
     return '';
   };
-  return walk(json && json.entities);
+  return walk((json && json.entities) || []);
 }
 
 /** The registrar's own RDAP record for the domain, which a thin registry (.com, .net) only points to. */
