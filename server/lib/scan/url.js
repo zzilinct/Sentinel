@@ -485,10 +485,12 @@ function brandInfo(p, popular = popularSites()) {
   // lacoste.com is not La Poste. Only a spelling near a brand is relieved, never a disguise (see lookAlikeLetters).
   const listed = popular.has(p.registrable) && isWellKnown(p, popular);
   // The whole name is one word of its own, in English or another language ("telegrams", Italian "telegramma"): a
-  // brand inside it is that word's spelling, not a borrowed name. Not on a risky ending (U24's list) unless the site is
-  // a popular one: there a word that holds a brand is still read as the brand (telegramm.top).
+  // brand inside it is that word's spelling, not a borrowed name. That holds on a risky ending too: the ending alone is
+  // one sign, and a word needs a second (a doubled letter, "login" in front) before it reads as the brand.
+  const oneWord = ordinaryWords().has(sldFlat) || L.FOREIGN_WORDS.has(sldFlat);
+  // A foreign word spelled with the brand's letter doubled ("telegramm") is the typing slip a copy uses. Off a risky
+  // ending, or on a popular site, it is the word; on a risky ending it is that second sign (telegramm.top).
   const wordsCount = !L.RISKY_TLDS[p.suffix] || popular.has(p.registrable);
-  const oneWord = wordsCount && (ordinaryWords().has(sldFlat) || L.FOREIGN_WORDS.has(sldFlat));
   for (const brand of L.PROTECTED_BRANDS) {
     const t = brand.token;
     // Short or common-word brands ("chase", "apple", "ups") only count as whole
