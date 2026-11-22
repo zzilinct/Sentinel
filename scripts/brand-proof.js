@@ -58,25 +58,44 @@ function cert(host) {
   });
 }
 
-async function registrant(domain) {
-  try {
-    const res = await fetch(`https://rdap.org/domain/${domain}`, { signal: AbortSignal.timeout(15000) });
-    if (!res.ok) return '';
-    const walk = (entities = []) => {
-      for (const e of entities) {
-        if ((e.roles || []).includes('registrant')) {
-          const v = (e.vcardArray && e.vcardArray[1]) || [];
-          const f = v.find((x) => x[0] === 'org') || v.find((x) => x[0] === 'fn');
-          if (f && orgKey(f[3])) return String(f[3]);
-        }
-        const inner = walk(e.entities);
-        if (inner) return inner;
+/** The registrant's organisation in one RDAP answer, or '' when it has none (or only a privacy service). */
+function rdapOrg(json) {
+  const walk = (entities = []) => {
+    for (const e of entities) {
+      if ((e.roles || []).includes('registrant')) {
+        const v = (e.vcardArray && e.vcardArray[1]) || [];
+        const f = v.find((x) => x[0] === 'org') || v.find((x) => x[0] === 'fn');
+        if (f && orgKey(f[3])) return String(f[3]);
       }
-      return '';
-    };
-    return walk((await res.json()).entities);
-  } catch { return ''; }
+      const inner = walk(e.entities);
+      if (inner) return inner;
+    }
+    return '';
+  };
+  return walk(json && json.entities);
 }
+
+/** The registrar's own RDAP record for the domain, which a thin registry (.com, .net) only points to. */
+const registrarLink = (json) => ((json && json.links) || []).find((l) => l.rel === 'related' && /\/domain\//i.test(String(l.href)) && (!l.type || /rdap/.test(l.type)));
+
+async function rdap(url) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { accept: 'application/rdap+json' } });
+    return res.ok ? await res.json() : null;
+  } catch { return null; }
+}
+
+/** The registrant's organisation from the registry, or else from the registrar the registry points to. */
+async function registrant(domain) {
+  const reg = await rdap(`https://rdap.org/domain/${domain}`);
+  const org = rdapOrg(reg);
+  if (org) return org;
+  const link = registrarLink(reg);
+  return link ? rdapOrg(await rdap(link.href)) : '';
+}
+
+/** Does a certificate's names cover this host (exactly, or by a one-level wildcard)? */
+const covers = (names, host) => names.some((n) => n === host || (n.startsWith('*.') && host.endsWith(n.slice(1)) && !host.slice(0, -n.length + 1).includes('.')));
 
 /** The first proof found for one added domain, or null. */
 async function prove({ token, domain, proven }) {
@@ -87,9 +106,14 @@ async function prove({ token, domain, proven }) {
   if (linksTo(home.html, domain)) return `linked from ${main}`;
   const [mine, theirs] = [await cert(domain), await cert(main)];
   if (sameOrg(mine.org, theirs.org, token)) return `certificate organisation "${mine.org}"`;
-  if (theirs.names.some((n) => n === domain || n === `*.${domain}`)) return `named in ${main}'s certificate`;
+  if (covers(theirs.names, domain)) return `named in ${main}'s certificate`;
+  // A certificate authority checks control of every name on a certificate, so one that names both is one owner's.
+  const shared = proven.find((p) => covers(mine.names, p) || covers(mine.names, `www.${p}`));
+  if (shared) return `its certificate also names ${shared}`;
   const [r, rMain] = [await registrant(domain), await registrant(main)];
   if (sameOrg(r, rMain, token)) return `RDAP registrant "${r}"`;
+  // What was seen, so a failing run says where each proof fell short.
+  console.log(`  ${domain}: ends on ${to.host || 'no answer'}; certificate "${mine.org}" for ${mine.names.length} name(s) ${mine.names.slice(0, 6).join(' ')}; ${main} certificate "${theirs.org}"; registrant "${r}", ${main} registrant "${rMain}"`);
   return null;
 }
 
@@ -113,4 +137,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch((err) => { console.error(err); process.exit(1); });
-module.exports = { addedDomains, linksTo, orgKey, sameOrg };
+module.exports = { addedDomains, linksTo, orgKey, sameOrg, covers, rdapOrg, registrarLink };

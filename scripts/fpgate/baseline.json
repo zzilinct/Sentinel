@@ -223,14 +223,6 @@
    "U37 \"adidas\" combined with \"online\": a classic combosquatting pattern"
   ]
  },
- "adobe.design": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"adobe\" but is not adobe.com"
-  ],
-  "reason": "1.21.1: dropped from brands.js because no redirect, link, certificate or RDAP registrant proved it the brand own (Brand domains proven, run 44951074099); a yellow note until proven"
- },
  "adobeshowcase.com": {
   "badge": "yellow",
   "threat": "scam",
@@ -629,14 +621,6 @@
   "rules": [
    "U22 Uses \"binance\" but is not binance.com"
   ]
- },
- "binance.org": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"binance\" but is not binance.com"
-  ],
-  "reason": "1.21.1: dropped from brands.js because no redirect, link, certificate or RDAP registrant proved it the brand own (Brand domains proven, run 44951074099); a yellow note until proven"
  },
  "bitcoinchaser.com": {
   "badge": "yellow",
@@ -1277,14 +1261,6 @@
    "U22 Uses \"dropbox\" but is not dropbox.com"
   ]
  },
- "dropbox.tech": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"dropbox\" but is not dropbox.com"
-  ],
-  "reason": "1.21.1: dropped from brands.js because no redirect, link, certificate or RDAP registrant proved it the brand own (Brand domains proven, run 44951074099); a yellow note until proven"
- },
  "dutchblockchainweek.com": {
   "badge": "yellow",
   "threat": "scam",
@@ -1391,14 +1367,6 @@
   "rules": [
    "U22 Uses \"facebook\" but is not facebook.com"
   ]
- },
- "facebook.design": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"facebook\" but is not facebook.com"
-  ],
-  "reason": "1.21.1: dropped from brands.js because no redirect, link, certificate or RDAP registrant proved it the brand own (Brand domains proven, run 44951074099); a yellow note until proven"
  },
  "facebooks.com": {
   "badge": "yellow",
@@ -1595,14 +1563,6 @@
    "U10 .ml has a very high share of scam registrations",
    "U22 Uses \"google\" but is not google.com"
   ]
- },
- "google.org": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"google\" but is not google.com"
-  ],
-  "reason": "1.21.1: dropped from brands.js because no redirect, link, certificate or RDAP registrant proved it the brand own (Brand domains proven, run 44951074099); a yellow note until proven"
  },
  "google.tk": {
   "badge": "yellow",
@@ -2751,14 +2711,6 @@
    "U22 Uses \"douyin\" but is not douyin.com"
   ]
  },
- "openai.fund": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"openai\" but is not openai.com"
-  ],
-  "reason": "1.21.1: dropped from brands.js because no redirect, link, certificate or RDAP registrant proved it the brand own (Brand domains proven, run 44951074099); a yellow note until proven"
- },
  "openseamap.org": {
   "badge": "yellow",
   "threat": "scam",
@@ -3233,14 +3185,6 @@
    "U22 Uses \"shopee\" but is not shopee.com"
   ]
  },
- "shopify.engineering": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"shopify\" but is not shopify.com"
-  ],
-  "reason": "1.21.1: dropped from brands.js because no redirect, link, certificate or RDAP registrant proved it the brand own (Brand domains proven, run 44951074099); a yellow note until proven"
- },
  "shopifypreview.com": {
   "badge": "yellow",
   "threat": "scam",
@@ -3449,14 +3393,6 @@
   "rules": [
    "U22 Uses \"stripe\" but is not stripe.com"
   ]
- },
- "stripe.press": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"stripe\" but is not stripe.com"
-  ],
-  "reason": "1.21.1: dropped from brands.js because no redirect, link, certificate or RDAP registrant proved it the brand own (Brand domains proven, run 44951074099); a yellow note until proven"
  },
  "stripesstores.com": {
   "badge": "yellow",
@@ -3881,14 +3817,6 @@
   "rules": [
    "U22 Uses \"blockchain\" but is not blockchain.com"
   ]
- },
- "verizon.net": {
-  "badge": "yellow",
-  "threat": "scam",
-  "rules": [
-   "U22 Uses \"verizon\" but is not verizon.com"
-  ],
-  "reason": "1.21.1: dropped from brands.js because no redirect, link, certificate or RDAP registrant proved it the brand own (Brand domains proven, run 44951074099); a yellow note until proven"
  },
  "walmartmoneycard.com": {
   "badge": "yellow",

@@ -51,7 +51,7 @@ test('the committed baseline is current: every entry is still flagged, at no low
 
 test('a brand\'s own sites on generic endings pass; the same names on endings it does not run still flag', () => {
   const offline = require('../server/lib/scan/offline');
-  for (const d of ['stripe.dev', 'dropbox.design', 'netflix.shop', 'spotify.design', 'google.dev', 'robinhood.engineering']) {
+  for (const d of ['stripe.dev', 'dropbox.design', 'netflix.shop', 'spotify.design', 'google.dev', 'robinhood.engineering', 'google.org', 'verizon.net', 'dropbox.tech', 'shopify.engineering', 'binance.org', 'facebook.design', 'adobe.design', 'stripe.press', 'openai.fund']) {
     assert.equal(offline.scanAddress(`https://${d}/`).overall.badge, null, d);
   }
   for (const d of ['stripe.top', 'dropbox.live', 'shopify.support', 'spotify.shop', 'google.cfd', 'robinhood.icu']) {
