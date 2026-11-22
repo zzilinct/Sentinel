@@ -107,8 +107,7 @@ async function registrant(domain) {
   const link = registrarLink(reg);
   if (!link) return { org: '', seen: reg ? 'registry, no registrar link' : 'no RDAP answer' };
   const at = await rdap(link.href);
-  const card = JSON.stringify(((JSON.stringify(at || {}).match(/"registrant"[^\]]*\][^\]]*\]\]/) || [''])[0])).slice(0, 240);
-  return { org: rdapOrg(at), seen: at ? `registrar ${new URL(link.href).hostname} ${card}` : `no answer from ${new URL(link.href).hostname}` };
+  return { org: rdapOrg(at), seen: at ? `registrar ${new URL(link.href).hostname}` : `no answer from ${new URL(link.href).hostname}` };
 }
 
 /** Does a certificate's names cover this host (exactly, or by a one-level wildcard)? */
@@ -138,10 +137,12 @@ async function prove({ token, domain, proven }) {
   if (to.host && within(to.host, proven)) return `redirect to ${to.host}`;
   const home = await finalHost(`https://${main}/`);
   if (linksTo(home.html, domain)) return `linked from ${main}`;
-  // The brand's own old address for it sends people there (press.stripe.com, the old Stripe Press, ends on stripe.press).
+  // The brand's own address for it sends people there (press.stripe.com, the old Stripe Press, ends on stripe.press),
+  // or is a page of the brand's that links to it.
   for (const from of movedFrom(domain, main)) {
     const moved = await finalHost(from);
     if (moved.host && within(moved.host, [domain])) return `${from} sends people there`;
+    if (moved.host && within(moved.host, proven) && linksTo(moved.html, domain)) return `linked from ${from}`;
   }
   let mine = await cert(domain);
   if (!mine.names.length) mine = await cert(`www.${domain}`);
@@ -179,4 +180,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch((err) => { console.error(err); process.exit(1); });
-module.exports = { addedDomains, linksTo, orgKey, sameOrg, covers, sharedName, ownDns, rdapOrg, registrarLink };
+module.exports = { addedDomains, linksTo, orgKey, sameOrg, covers, sharedName, ownDns, movedFrom, rdapOrg, registrarLink };

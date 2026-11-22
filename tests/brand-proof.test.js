@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { addedDomains, linksTo, sameOrg, covers, sharedName, ownDns, rdapOrg, registrarLink } = require('../scripts/brand-proof');
+const { addedDomains, linksTo, sameOrg, covers, sharedName, ownDns, movedFrom, rdapOrg, registrarLink } = require('../scripts/brand-proof');
 
 test('only domains a brand gains are checked, each against the ones it already had', () => {
   const before = [{ token: 'stripe', domains: ['stripe.com'] }];
@@ -57,6 +57,14 @@ test('own name servers: the brand hosts its zone itself and the domain uses that
   assert.ok(!ownDns(['ada.ns.cloudflare.com'], ['ns3.cloudflare.com', 'ns4.cloudflare.com'], 'cloudflare.com'));
   // A brand whose own zone sits with a DNS host proves nothing by sharing it.
   assert.ok(!ownDns(['ns1-01.azure-dns.com'], ['ns1-01.azure-dns.com'], 'microsoft.com'));
+});
+
+test('the brand\'s own old address for a site on a generic ending: <ending>.<main> and <main>/<ending>', () => {
+  assert.deepEqual(movedFrom('stripe.press', 'stripe.com'), ['https://press.stripe.com/', 'https://stripe.com/press']);
+});
+
+test('a privacy service in RDAP, MarkMonitor\'s DNStination among them, never ties two domains together', () => {
+  assert.ok(!sameOrg('DNStination Inc.', 'DNStination Inc.', 'binance'));
 });
 
 test('RDAP: the registrant\'s organisation, and the registrar record a thin registry points to', () => {
