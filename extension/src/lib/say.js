@@ -52,12 +52,16 @@
   const dayOf = (at) => new Date(at).toLocaleDateString(undefined, { weekday: 'long' });
 
   function protection(state) {
-    if (!state || !state.ok || !state.account || !state.account.signedIn) return { tone: 'off', word: 'Off', title: 'Sentinel is not signed in', line: 'Sign in to check pages in this browser and stop dangerous ones.' };
+    if (!state || !state.ok || !state.account || !state.account.signedIn) {
+      return { tone: 'off', word: 'Off', title: 'Sentinel is not signed in', line: state && state.reachable === false
+        ? 'Open the Sentinel app for Windows on this computer to sign in. Sentinel’s own website is not live yet.'
+        : 'Sign in to check pages in this browser and stop dangerous ones.' };
+    }
     if (state.siteAccess === false) return { tone: 'off', word: 'Off', title: 'Sentinel cannot see your pages yet', line: 'Firefox asks first. Open the Sentinel button in the toolbar and allow it on all websites.' };
     const settings = state.settings || {};
     if (!settings.enabled) return { tone: 'off', word: 'Off', title: 'Live scanning is off', line: 'Sentinel is not checking pages in this browser.' };
     if (state.locked === 'hours') return { tone: 'paused', word: 'Paused', title: 'Live checks are paused', line: `This week's live time is used up. It comes back on ${dayOf(state.live.resetsAt)}. Sites on Sentinel's confirmed list are still stopped.` };
-    if (state.account.plan && state.account.plan.modelLocked) return { tone: 'paused', word: 'Paused', title: 'Live checks are paused', line: 'The model Sentinel uses is one of the five newest, which come with Pro, Max and Ultimate. Choose another model in the Sentinel app to turn live checks back on.' };
+    if (state.account.plan && state.account.plan.modelLocked) return { tone: 'paused', word: 'Paused', title: 'Live checks are paused', line: 'This version of the Sentinel app is one of the five newest, which come with Pro, Max and Ultimate. Choose an earlier version on the app\'s Plan & usage page to turn live checks back on. Sites on Sentinel\'s confirmed list are still stopped.' };
     if (!settings.warnOnNavigate) return { tone: 'on', word: 'On', title: 'Sentinel is watching, but will not stop pages', line: 'Stop dangerous pages is off, so a flagged page stays open.' };
     return { tone: 'on', word: 'On', title: 'Sentinel is on in this browser', line: 'Pages are checked as they open. Sites on the confirmed list are stopped before they load.' };
   }

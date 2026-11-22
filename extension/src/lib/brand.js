@@ -2,5 +2,6 @@
 export const BRAND = {
   "name": "Sentinel",
   "origin": "https://www.usesentinel.technology",
-  "domain": "www.usesentinel.technology"
+  "domain": "www.usesentinel.technology",
+  "launched": false
 };

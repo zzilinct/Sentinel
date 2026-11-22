@@ -121,7 +121,7 @@ async function staged(req, res, work) {
     if (!res.headersSent) throw err;
     // The status line has gone: the failure travels as the last line, in the shape of any other error.
     const status = err.status || 500;
-    if (status >= 500) console.error(`[error] ${req.method} ${req.url}`, err);
+    if (status >= 500) console.error(`[error] ${req.method} ${String(req.url).replace(/[?#].*$/, '')}`, err);
     res.end(`${JSON.stringify({ error: { status, code: status >= 500 ? 'internal_error' : err.code, message: status >= 500 ? undefined : err.message } })}\n`);
   }
 }

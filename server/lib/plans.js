@@ -199,8 +199,9 @@ function hasTime(user, plan, mode) {
 function trackLive(user, wanted) {
   const plan = planFor(user);
   assertModel(plan);
-  // Clients from before there were two modes ask for nothing: give them the best their plan has.
-  let mode = wanted === 'fast' || wanted === 'delicate' ? wanted : (plan.features.liveScanning ? 'delicate' : 'fast');
+  // Delicate asks a domain registry about each site, so it is only ever a choice: a client that names no mode
+  // (an older companion) gets fast, which never leaves Sentinel's own lists and rules.
+  let mode = wanted === 'delicate' ? 'delicate' : 'fast';
   let fellBack = null;
   // A plan without delicate carries on as fast even once its fast time is gone, so it hears "used up" (429), not
   // "not in your plan" (403), which would switch live scanning off for good.

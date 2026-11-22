@@ -243,10 +243,14 @@ test('never a green nobody earned', () => {
   const base = { ok: true, account: { signedIn: true, plan: {} }, settings: { enabled: true, warnOnNavigate: true }, live: { resetsAt: Date.now() }, siteAccess: true };
   assert.equal(Say.protection(base).word, 'On');
   assert.equal(Say.protection(null).word, 'Off');
+  // Nowhere to sign in from this browser yet: the settings page says to open the app, not to sign in on a dead site.
+  assert.match(Say.protection({ ok: true, account: { signedIn: false }, reachable: false }).line, /Sentinel app for Windows.*not live yet/);
   assert.equal(Say.protection({ ...base, settings: { enabled: false } }).word, 'Off');
   assert.equal(Say.protection({ ...base, siteAccess: false }).word, 'Off', 'a browser that has not allowed it is not protected');
   assert.equal(Say.protection({ ...base, locked: 'hours' }).word, 'Paused');
   assert.equal(Say.protection({ ...base, account: { signedIn: true, plan: { modelLocked: true } } }).word, 'Paused');
+  // "Model" is the app's word for its versions; the companion says version, and that the confirmed list still works.
+  assert.doesNotMatch(Say.protection({ ...base, account: { signedIn: true, plan: { modelLocked: true } } }).line, /model/i);
   assert.match(Say.protection({ ...base, settings: { enabled: true, warnOnNavigate: false } }).title, /will not stop/);
 });
 

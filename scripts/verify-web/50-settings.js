@@ -109,7 +109,7 @@ async function checkSettings() {
           await shot(browser, s, `settings-${g}-${size}-${theme}`);
         }
         trust = await evalIn(browser, s, `(() => ({ data: [...document.querySelectorAll('#data [data-set-row]')].map((r) => r.id),
-          note: (document.querySelector('#whats-new .set-note') || {}).innerText || '', mail: (document.querySelector('#support a[href^="mailto:"]') || {}).href || '',
+          note: (document.querySelector('#whats-new .set-note') || {}).innerText || '', mail: (document.querySelector('#support a.btn') || {}).href || '',
           account: [...document.querySelectorAll('#account [data-set-row]')].map((r) => r.id) }))()`);
 
         await evalIn(browser, s, "(() => { const f = document.querySelector('[data-set-find]'); f.focus(); f.value = 'roblox'; f.dispatchEvent(new Event('input', { bubbles: true })); })()");
@@ -149,7 +149,8 @@ async function checkSettings() {
     result('settings: what chat safety and Check my texts are doing is read out as it changes', home.said.every((t) => /^status: Off. Turn it on/.test(t)), home.said);
     result('settings: Your data holds download, history, what live scanning remembers and delete, and Account no longer holds delete',
       trust.data.join() === 'download-data,history-data,live-memory,delete-account' && !trust.account.includes('delete-account'), trust);
-    result('settings: Help shows the newest release note and a way to write to support', /New in Sentinel \d+\.\d+\.\d+/.test(trust.note) && /^mailto:support@/.test(trust.mail), trust);
+    // Before launch the mailbox's domain does not exist, so the way to write is the GitHub page, where a message arrives.
+    result('settings: Help shows the newest release note and a way to write to us that works today', /New in Sentinel \d+\.\d+\.\d+/.test(trust.note) && /^https:\/\/github\.com\/zzilinct\/Sentinel\/issues/.test(trust.mail), trust);
     result('settings: the group list names every group, and your sites are listed', home.rail.length === 11 && /Appearance/.test(home.rail[0]) && /Motion/.test(home.rail[1]) && /mycu\.org/.test(home.sites), home);
     result('settings: nothing scrolls sideways', !wide.length, wide);
 

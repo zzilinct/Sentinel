@@ -12,7 +12,8 @@ export const ext = globalThis.browser && globalThis.browser.runtime ? globalThis
 export const DEFAULTS = {
   apiBase: BRAND.origin,
   enabled: true,
-  emailProtection: true,
+  liveMode: 'fast',        // Fast (lists and rules only) or delicate (also asks the domain registry about each site): a choice
+  emailProtection: false,  // Off until turned on: the sender, subject and text of an email go to the scanner to be checked
   warnOnNavigate: true,
   marksLevel: 'all',       // Marks beside links: every link (a quiet tick on clean ones), risky links, or serious only
   warningsLevel: 'all',    // Pop-up warnings: always (orange and red), danger only, or never (masks.js warns)

@@ -536,10 +536,11 @@ function sweep() {
   db.prepare('DELETE FROM password_resets WHERE expires_at < ?').run(t - day);
   db.prepare('DELETE FROM email_verifications WHERE expires_at < ?').run(t - day);
   db.prepare('DELETE FROM research_cache WHERE checked_at < ?').run(t - 3 * day);
-  db.prepare('DELETE FROM live_minutes WHERE minute < ?').run(Math.floor((t - 21 * day) / 60000));
-  db.prepare('DELETE FROM fast_minutes WHERE minute < ?').run(Math.floor((t - 21 * day) / 60000));
+  // Which minutes live scanning ran: only this week's are counted (plans.js), so a day past a week is all that is kept.
+  db.prepare('DELETE FROM live_minutes WHERE minute < ?').run(Math.floor((t - 8 * day) / 60000));
+  db.prepare('DELETE FROM fast_minutes WHERE minute < ?').run(Math.floor((t - 8 * day) / 60000));
   db.prepare('DELETE FROM usage_counters WHERE week < ?').run(t - 35 * day);
-  db.prepare('DELETE FROM scan_history WHERE created_at < ?').run(t - 90 * day);
+  db.prepare('DELETE FROM scan_history WHERE created_at < ?').run(t - 30 * day);
   db.prepare('DELETE FROM audit_log WHERE created_at < ?').run(t - 180 * day);
   // Exposure alerts: a visit is remembered 14 days, a site found on a list afterwards 30.
   db.prepare('DELETE FROM visit_marks WHERE day < ?').run(t - 14 * day);

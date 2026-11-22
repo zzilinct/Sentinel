@@ -239,6 +239,13 @@ async function main() {
   try {
     for (let i = 0; i < 80 && !m; i++) { await sleep(500); m = await marionette(mport).catch(() => null); }
     if (!m) throw new Error('Firefox did not open its Marionette port');
+    // Each command on stderr as it goes, so a run that stalls says where (the caller shows stderr after the verdict).
+    const sent = m.send.bind(m);
+    const t0 = Date.now();
+    m.send = (cmd, params) => {
+      process.stderr.write(`${Math.round((Date.now() - t0) / 1000)}s ${cmd}\n`);
+      return sent(cmd, params).catch((err) => { process.stderr.write(`  ${cmd} failed: ${err.message}\n`); throw err; });
+    };
     const session = await m.send('WebDriver:NewSession', { capabilities: { alwaysMatch: { acceptInsecureCerts: true } } });
     result.version = `Firefox/${session.capabilities.browserVersion}`;
 
@@ -319,6 +326,9 @@ async function main() {
     // A private window, once the person has allowed Sentinel there (Add-ons and themes, Run in Private Windows): the
     // same results page gets the same marks.
     const handles = async () => { const r = await m.send('WebDriver:GetWindowHandles'); return Array.isArray(r) ? r : r.value || []; };
+    // Off the block page first: reloading the add-on closes its own pages, and with no other tab open (a fresh install
+    // opens none now, when there is nowhere to sign in) that closed the window under the script.
+    await m.send('WebDriver:Navigate', { url: 'about:blank' }).catch(() => {});
     const before = await handles();
     await m.send('Marionette:SetContext', { value: 'chrome' });
     const opened = await m.send('WebDriver:ExecuteAsyncScript', {
@@ -359,7 +369,8 @@ async function main() {
       result.privateMarks = p;
     }
   } finally {
-    if (m) { await m.send('Marionette:Quit', { flags: ['eForceQuit'] }).catch(() => {}); m.close(); }
+    // A Firefox that quits without answering would hold this run until its caller's timeout, hiding what went wrong.
+    if (m) { await Promise.race([m.send('Marionette:Quit', { flags: ['eForceQuit'] }).catch(() => {}), sleep(5000)]); m.close(); }
     child.kill();
     proxy.close();
     await sleep(1200);

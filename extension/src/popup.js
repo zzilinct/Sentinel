@@ -28,6 +28,22 @@
   }
   pwLine();
 
+  /** Once after the update that made email protection a choice: say so, and offer it back in one press. */
+  async function emailNote() {
+    const el = document.getElementById('emailNote');
+    try { if (!(await ext.storage.local.get('emailNoteDue')).emailNoteDue) return; } catch { return; }
+    el.innerHTML = 'Email checking is now off until you turn it on. <button class="link" type="button" id="emailOn">Turn it back on</button> <button class="link" type="button" id="emailOff">Keep it off</button>';
+    el.hidden = false;
+    const answer = (on) => async () => {
+      // Either answer is a choice, saved as one, so the note never comes back.
+      try { await SentinelStore.set({ emailProtection: on }); await ext.storage.local.remove('emailNoteDue'); } catch { return; }
+      el.textContent = on ? 'Email checking is on.' : 'Email checking stays off. You can turn it on in Settings.';
+    };
+    document.getElementById('emailOn').onclick = answer(true);
+    document.getElementById('emailOff').onclick = answer(false);
+  }
+  emailNote();
+
   let state;
   let tab;
   let url;      // the address this popup is about; on the block page, the address it stopped
@@ -48,11 +64,12 @@
       return `<p class="status small" data-live="Off">Live scanning is not in this plan. <a class="link" href="${esc(site)}/pricing" target="_blank" rel="noopener">See plans</a></p>`;
     }
     const said = Say.protection(state);
-    // Plans with delicate scanning show its allowance; Free shows its fast minutes.
+    // Delicate scanning, when it is chosen in Settings, shows its allowance; otherwise the fast minutes.
+    const delicate = f.liveScanning && state.settings && state.settings.liveMode === 'delicate';
     const limits = state.account.plan.limits;
-    const used = (f.liveScanning ? state.live.usedMinutes : state.live.fastUsedMinutes) || 0;
-    const known = f.liveScanning ? state.live.limitMinutes : state.live.fastLimitMinutes;
-    const limit = known !== undefined && known !== 0 ? known : (f.liveScanning ? limits.liveMinutes : limits.fastMinutes);
+    const used = (delicate ? state.live.usedMinutes : state.live.fastUsedMinutes) || 0;
+    const known = delicate ? state.live.limitMinutes : state.live.fastLimitMinutes;
+    const limit = known !== undefined && known !== 0 ? known : (delicate ? limits.liveMinutes : limits.fastMinutes);
     const time = said.word === 'On' ? `<span>${timeLeftText(used, limit)}</span>` : '';
     return `<p class="status small" data-live="${said.word}"><b data-tone="${said.tone}">Live scanning ${said.word.toLowerCase()}</b>${time}</p>${said.word === 'On' ? '' : `<p class="status-why small">${esc(said.line)}</p>`}`;
   }
@@ -94,7 +111,8 @@
     const check = left <= 0
       ? '<p class="small note">No page checks left this week.</p>'
       : `<button class="btn block ${first ? 'gold' : 'quiet'}" id="check" type="button">${esc(first ? said.action.text : 'Check again')}</button>`;
-    view.innerHTML = `${hero(said, new URL(url).hostname)}<div class="do">${main}${blocked ? '' : check}</div><div id="note">${note}</div>${statusLine()}`;
+    // A stopped page is the answer on its own: a "paused" line under "Sentinel stopped it" would say the opposite.
+    view.innerHTML = `${hero(said, new URL(url).hostname)}<div class="do">${main}${blocked ? '' : check}</div><div id="note">${note}</div>${blocked ? '' : statusLine()}`;
     wire(said);
   }
 
@@ -127,8 +145,10 @@
 
   async function main() {
     state = await send({ type: 'state' });
-    site = (state.settings && state.settings.apiBase) || '';
-    document.getElementById('openApp').href = `${site}/app`;
+    site = state.site || '';
+    const openApp = document.getElementById('openApp');
+    openApp.href = `${site}/app`;
+    openApp.hidden = state.reachable === false;
 
     if (!state.ok || !state.account || !state.account.signedIn) {
       const connected = await send({ type: 'connect' });
@@ -164,6 +184,17 @@
   }
 
   function signedOut() {
+    // Neither the Windows app on this computer nor a live Sentinel site to sign in on: say so, and what works today.
+    if (state.reachable === false) {
+      view.innerHTML = `
+        ${hero({ tone: 'none', mask: 'onyx', title: 'Open the Sentinel app first', line: 'The companion signs in through the Sentinel app for Windows. Sentinel’s own website, where you could sign in instead, is not live yet.', reason: '' })}
+        <div class="do do-row">
+          <a class="btn gold" href="https://github.com/zzilinct/Sentinel/releases/latest" target="_blank" rel="noopener">Get the Windows app</a>
+        </div>
+        <p class="small note">The app is open on this computer? <a href="#" class="link" id="recheck">Check again</a></p>`;
+      document.getElementById('recheck').onclick = async (ev) => { ev.preventDefault(); main(); };
+      return;
+    }
     view.innerHTML = `
       ${hero({ tone: 'none', mask: 'onyx', title: 'Welcome', line: 'Sign in to Sentinel to check pages in this browser and stop dangerous ones before they load.', reason: '' })}
       <div class="do do-row">

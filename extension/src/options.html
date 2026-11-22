@@ -33,6 +33,9 @@
     <h2>Browsing</h2>
     <div class="rows">
       <label class="opt"><span><b>Live scanning</b><small>Masks on search results, and each page checked as it opens.</small></span><input type="checkbox" id="enabled"></label>
+      <label class="opt"><span><b>How links are checked</b><small>Fast uses Sentinel's lists and rules only, and asks no one else. Delicate (Pro and up) looks each site up as well.</small></span>
+        <select id="liveMode" aria-describedby="delicateNote"><option value="fast">Fast</option><option value="delicate">Delicate</option></select></label>
+      <p class="small note-row" id="delicateNote" hidden>With Delicate on, the public registry for each site's name is asked how old the site is. When Sentinel's online service does the checking, its servers also open each page you visit (without the part of its address after a question mark), and the address may be checked with Google Safe Browsing. None of them is told who you are. When the Windows app on this computer does the checking, nothing is opened: only the registry is asked.</p>
       <label class="opt"><span><b>Stop dangerous pages</b><small>Sites on the confirmed list never load. A page the scanner flags after it opens is closed.</small></span><input type="checkbox" id="warnOnNavigate"></label>
       <label class="opt"><span><b>Marks beside links</b><small>Sentinel checks every link either way. This only changes which ones get a mark. A warning or danger mark always shows.</small></span>
         <select id="marksLevel"><option value="all">Every link</option><option value="risky">Risky links</option><option value="danger">Serious only</option></select></label>
@@ -49,7 +52,7 @@
   <section class="group">
     <h2>Email and chat</h2>
     <div class="rows">
-      <label class="opt"><span><b>Email protection</b><small>Masks in Gmail and Outlook on the web (Pro and up).</small></span><input type="checkbox" id="emailProtection"></label>
+      <label class="opt"><span><b>Email protection</b><small>Masks in Gmail and Outlook on the web (Pro and up). Off until you turn it on: the sender, subject and text of each email you see are sent to your Sentinel scanner to be checked, and not kept.</small></span><input type="checkbox" id="emailProtection"></label>
       <label class="opt"><span><b>Hints in web chats</b><small>In Discord, WhatsApp, Messenger, Telegram and X messages, a quiet hint under a message that asks for a code, gift cards or crypto. Read in the page, never sent anywhere.</small></span><input type="checkbox" id="chatHints"></label>
     </div>
   </section>

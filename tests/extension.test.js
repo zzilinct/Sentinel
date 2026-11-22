@@ -172,7 +172,9 @@ test('hovering a link: the real address behind redirect wrappers, a closed shado
   // private window; a verdict with words is cached apart from the one without.
   assert.match(handler, /const words = !isPrivate && typeof text === 'string' \? text\.replace\(\/\\s\+\/g, ' '\)\.trim\(\)\.slice\(0, 120\) : ''/);
   assert.match(handler, /const key = words \? `\$\{url\}\\n\$\{words\}` : url/);
-  assert.match(worker, /\.\.\.\(hints && !isPrivate \? \{ hints \} : \{\}\)/);
+  // Keyed by the trimmed address the scanner is sent (sendable()), so the scanner finds them.
+  assert.match(worker, /if \(hints && hints\[url\] && !isPrivate\) sentHints\[s\] = hints\[url\];/);
+  assert.match(worker, /private: isPrivate, \.\.\.withHints \}/);
   assert.match(code, /send\(\{ type: 'hover-check', url, text \}\)/);
 });
 

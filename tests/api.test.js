@@ -257,9 +257,12 @@ test('pro plan: research + virus & malware on link scans, 40/week, 4 h delicate 
   assert.equal(live.data.byUrl['https://paypa1-secure-login.com/'].threats.scam.badge, 'red');
   assert.equal(live.data.live.usedMinutes, 1);
 
-  const email = await c.post('/api/v1/live/email', { emails: [{ key: 'm1', from: 'PayPal <help@paypa1-secure-login.com>', subject: 'Verify now', body: 'Verify your account' }] });
+  const kept = (await c.get('/api/v1/account/history')).data.items.length;
+  const email = await c.post('/api/v1/live/email', { emails: [{ key: 'm1', from: 'PayPal <help@paypa1-secure-login.com>', subject: 'Verify now', body: 'Verify your account https://paypa1-secure-login.com/' }] });
   assert.equal(email.status, 200);
   assert.ok(['likely', 'confirmed'].includes(email.data.results[0].verdict.threats.scam.level));
+  // The policy says nothing from an email checked this way is kept, from any window, private ones included.
+  assert.equal((await c.get('/api/v1/account/history')).data.items.length, kept, 'a live email check, even a flagged one with a flagged link, adds nothing to history');
 
   assert.equal((await c.post('/api/v1/scan/email', { from: 'a@b.com', body: 'hi' })).data.error.code, 'plan_required');
 });
@@ -273,7 +276,11 @@ test('max plan: 100/week, 24 h delicate, unlimited fast, manual email scans', as
   assert.equal(me.data.usage.liveMinutes.limit, 24 * 60);
   assert.equal(me.data.usage.fastMinutes.limit, null, 'fast is uncapped');
 
-  const live = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'], research: true });
+  // Delicate looks each site up with its registry, so it is only ever asked for: no mode named is fast.
+  const unnamed = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'] });
+  assert.equal(unnamed.data.mode, 'fast');
+  assert.equal(unnamed.data.researched, false);
+  const live = await c.post('/api/v1/live/batch', { urls: ['https://wallet-connect-restore.xyz/'], mode: 'delicate' });
   assert.equal(live.data.researched, true);
   assert.equal(live.data.byUrl['https://wallet-connect-restore.xyz/'].threats.scam.level, 'confirmed');
 

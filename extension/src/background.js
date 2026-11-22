@@ -10,6 +10,7 @@
  * appear instantly from the checklist, then upgrade once research finishes.
  */
 import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError, keepLook, warns, levelsFrom, OLD_LEVEL_KEYS, DEFAULTS } from './lib/api.js';
+import { BRAND } from './lib/brand.js';
 const Store = globalThis.SentinelStore;
 // SentinelSay: the words of the warnings, shared with the block page, popup and settings.
 import './lib/say.js';
@@ -55,6 +56,27 @@ const isFlagged = (v) => Boolean(v && v.overall && (v.overall.badge === 'red' ||
 const features = () => (account.plan && account.plan.features) || {};
 /** Fast live scanning is on every plan; delicate (liveScanning) from Pro up. */
 const hasLive = () => Boolean(features().liveScanning || features().liveFast);
+/** Delicate scanning only when it is chosen in Settings (and in the plan): it looks each site up with its registry. */
+const delicateOn = (settings) => Boolean(features().liveScanning && features().liveResearch && settings.liveMode === 'delicate');
+const liveMode = (settings) => (delicateOn(settings) ? 'delicate' : 'fast');
+/**
+ * Local signs, read here and never sent, that a site may not be what it seems: a raw IP address, a spelled-out
+ * (punycode) name, a name and password inside the address, another address carried in the query (a redirect), or a
+ * scanner verdict already flagging this site. Only then can the query help the check.
+ */
+function looksOff(url) {
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  const host = u.hostname;
+  return /^\d{1,3}(\.\d{1,3}){3}$|^\[/.test(host) || /(^|\.)xn--/.test(host) || Boolean(u.username || u.password)
+    || /=(?:https?(?::|%3a)|www\.)/i.test(u.search) || Boolean(cacheForHost(hostOf(url), isFlagged));
+}
+/**
+ * What of an address goes to the scanner: its site and path. The part after ? (a search, a sign-in link's token, an
+ * email address) only when looksOff() says the site may not be what it seems, and never from a private window. The
+ * part after # (read only by the page itself) never.
+ */
+const sendable = (url, isPrivate) => String(url).replace(!isPrivate && looksOff(url) ? /#.*$/ : /[?#].*$/, '');
 
 function liveBlockReason() {
   if (!account.signedIn) return 'signed_out';
@@ -247,7 +269,8 @@ async function closeFlagged({ tabId, url }) {
 async function liveBatch(urls, phase, isPrivate = false, hints = null) {
   const blocked = liveBlockReason();
   if (blocked) return { locked: blocked };
-  if (phase === 'research' && !features().liveResearch) return { locked: 'plan', verdicts: {} };
+  const settings = await getSettings();
+  if (phase === 'research' && !delicateOn(settings)) return { locked: 'fast', verdicts: {} };
 
   const keyOf = (url) => (hints && hints[url] ? `${url}\n${hints[url].text}` : url);
   const out = {};
@@ -261,12 +284,24 @@ async function liveBatch(urls, phase, isPrivate = false, hints = null) {
     try {
       // Plans without delicate ask for fast outright: once Free's fast minutes are used up, a
       // delicate request would come back as plan_required instead of live_hours_exhausted.
-      const mode = features().liveScanning ? 'delicate' : 'fast';
-      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: pending, mode, quick: phase !== 'research', private: isPrivate, ...(hints && !isPrivate ? { hints } : {}) }, timeout: phase === 'research' ? 90000 : 20000 });
+      const mode = liveMode(settings);
+      // Each address goes as sendable() trims it; its answer comes back to every address it stands for.
+      // A hovered link's words go keyed by the trimmed address the scanner sees.
+      const asked = new Map();
+      const sentHints = {};
+      for (const url of pending) {
+        const s = sendable(url, isPrivate);
+        asked.set(s, [...(asked.get(s) || []), url]);
+        if (hints && hints[url] && !isPrivate) sentHints[s] = hints[url];
+      }
+      const withHints = Object.keys(sentHints).length ? { hints: sentHints } : {};
+      const data = await apiFetch('/api/v1/live/batch', { method: 'POST', body: { urls: [...asked.keys()], mode, quick: phase !== 'research', private: isPrivate, ...withHints }, timeout: phase === 'research' ? 90000 : 20000 });
       noteLive(data.live);
-      for (const [url, verdict] of Object.entries(data.byUrl)) {
-        out[url] = verdict;
-        if (verdict.ok) cacheSet(phase, keyOf(url), verdict, isPrivate);
+      for (const [sent, verdict] of Object.entries(data.byUrl)) {
+        for (const url of asked.get(sent) || []) {
+          out[url] = verdict;
+          if (verdict.ok) cacheSet(phase, keyOf(url), verdict, isPrivate);
+        }
       }
     } catch (err) {
       handleApiError(err);
@@ -308,16 +343,15 @@ async function onNavigate(details) {
   let verdict = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url);
   if (!verdict) {
     try {
-      // From a private window only the page's address without its query goes out, and nothing about it is kept.
+      // Never the part after # (the page's own); from a private window not the query either, and nothing about it is kept.
       const tab = await ext.tabs.get(details.tabId).catch(() => null);
       const isPrivate = Boolean(tab && tab.incognito);
-      const url = isPrivate ? details.url.replace(/[?#].*$/, '') : details.url;
-      const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url, private: isPrivate }, timeout: 30000 });
+      const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: sendable(details.url, isPrivate), mode: liveMode(settings), private: isPrivate }, timeout: 30000 });
       noteLive(data.live);
       // Before you pay (server/lib/scan/paycheck.js): kept with the verdict, so a checkout opened again says it again.
       verdict = data.pay ? { ...data.verdict, pay: data.pay } : data.verdict;
       if (data.paypage) verdict = { ...verdict, paypage: data.paypage };
-      cacheSet(features().liveResearch ? 'research' : 'quick', details.url, verdict, isPrivate);
+      cacheSet(delicateOn(settings) ? 'research' : 'quick', details.url, verdict, isPrivate);
     } catch (err) {
       handleApiError(err);
       return;
@@ -391,9 +425,10 @@ async function realSiteFor(details) {
   try {
     const tab = await ext.tabs.get(details.tabId).catch(() => null);
     const isPrivate = Boolean(tab && tab.incognito);
-    const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: isPrivate ? details.url.replace(/[?#].*$/, '') : details.url, private: isPrivate }, timeout: 8000 });
+    const settings = await getSettings();
+    const data = await apiFetch('/api/v1/live/visit', { method: 'POST', body: { url: sendable(details.url, isPrivate), mode: liveMode(settings), private: isPrivate }, timeout: 8000 });
     noteLive(data.live);
-    cacheSet(features().liveResearch ? 'research' : 'quick', details.url, data.verdict, isPrivate);
+    cacheSet(delicateOn(settings) ? 'research' : 'quick', details.url, data.verdict, isPrivate);
     return data.verdict;
   } catch (err) {
     if (err.code === 'offline') scannerAway = Date.now();
@@ -665,12 +700,33 @@ async function deepScan(url) {
   account.usage = data.usage;
   return data;
 }
+/** The Windows app on this computer, asked for its look: its answer in a moment, or null without the app. */
+const APP_ORIGIN = 'http://127.0.0.1:47821';
+async function appLook() {
+  try {
+    const res = await fetch(`${APP_ORIGIN}/api/v1/look`, { credentials: 'omit', signal: AbortSignal.timeout(1500) });
+    return res.ok ? res : null;
+  } catch { return null; }
+}
+
+/**
+ * Where the companion's links to Sentinel lead (sign in, create an account, open Sentinel). Paired, the Sentinel that
+ * paired it. Not yet paired, the Windows app on this computer when it answers, since the hosted site may not be live;
+ * `live` false says neither is there, so nothing links to a site that would not open.
+ */
+async function home(apiBase) {
+  if (apiBase !== DEFAULTS.apiBase) return { site: apiBase, live: true };
+  if (await appLook()) return { site: APP_ORIGIN, live: true };
+  return { site: apiBase, live: BRAND.launched === true };
+}
+
 const handlers = {
   async state(msg, sender) {
     fromOptions(sender);
     const settings = await getSettings();
     await refreshAccount();
-    return { settings, account, live, locked: liveBlockReason(), site: settings.apiBase, siteAccess: await siteAccess(), browser: globalThis.browser ? 'firefox' : 'chromium' };
+    const { site, live: reachable } = account.signedIn ? { site: settings.apiBase, live: true } : await home(settings.apiBase);
+    return { settings, account, live, locked: liveBlockReason(), site, reachable, siteAccess: await siteAccess(), browser: globalThis.browser ? 'firefox' : 'chromium' };
   },
   /**
    * The look (light or dark, and the accent) for the companion's own pages, which ask as they open (lib/lookhere.js).
@@ -683,11 +739,9 @@ const handlers = {
     const L = globalThis.SentinelLook;
     const { look: kept } = await ext.storage.local.get('look');
     let rec = L.record(kept);
-    try {
-      const res = await fetch('http://127.0.0.1:47821/api/v1/look', { credentials: 'omit', signal: AbortSignal.timeout(1500) });
-      // The app on this computer wins a tie: what it says is a choice, what was kept may only be the default.
-      if (res.ok) rec = L.merge(await res.json(), rec);
-    } catch { /* no app on this computer */ }
+    // The app on this computer wins a tie: what it says is a choice, what was kept may only be the default.
+    const res = await appLook();
+    if (res) rec = L.merge(await res.json(), rec);
     if (change && typeof change === 'object') {
       const now = Date.now();
       for (const k of L.KEYS) if (k in change) rec = L.merge(rec, { [k]: change[k], at: { [k]: now } });
@@ -934,11 +988,23 @@ ext.runtime.onInstalled.addListener(async (details) => {
     const old = await Store.get(OLD_LEVEL_KEYS);
     if (old && Object.keys(old).length) { await Store.set(levelsFrom(old)); await Store.remove(OLD_LEVEL_KEYS); }
   } catch { /* kept as it was; tried again at the next update */ }
+  // Email protection used to be on unless switched off; now it is off until switched on. Once, on the first update
+  // since, someone who never chose either way is told in the popup (popup.js emailNote). A new install never is.
+  try {
+    const { emailDefaultOff } = await ext.storage.local.get('emailDefaultOff');
+    if (!emailDefaultOff) {
+      const chose = await Store.get(['emailProtection']);
+      await ext.storage.local.set({ emailDefaultOff: true, ...(details.reason === 'update' && !('emailProtection' in chose) ? { emailNoteDue: true } : {}) });
+    }
+  } catch { /* asked again at the next update */ }
   await restore();
   if (!account.signedIn) await connect();
   if (await wantsConnectTab(details.reason, account.signedIn)) {
-    const { apiBase } = await getSettings();
-    ext.tabs.create({ url: siteUrl(apiBase, '/connect') });
+    // Never a tab that would not open: with no Windows app here and no live site, the companion's own settings page
+    // (packaged with it, nothing fetched) shows the install worked and says how to sign in.
+    const { site, live: reachable } = await home((await getSettings()).apiBase);
+    if (reachable) ext.tabs.create({ url: siteUrl(site, '/connect') });
+    else ext.runtime.openOptionsPage();
   }
 });
 

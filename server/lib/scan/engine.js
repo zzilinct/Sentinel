@@ -89,7 +89,8 @@ async function coreScan(p, { research: wanted, budgetMs, hint, onStage = () => {
 
   const job = (async () => {
     onStage('knowledge');
-    const know = await knowledge.lookup(p);
+    // Google Safe Browsing (hosted, only with a key) is part of a delicate scan, a choice: a fast one asks no one.
+    const know = await knowledge.lookup(p, { useSafeBrowsing: Boolean(research) });
     onStage('compare');
     const brand = brandInfo(p);
     const ctx = {

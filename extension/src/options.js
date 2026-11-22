@@ -6,7 +6,8 @@
   const DEFAULTS = {
     apiBase: 'https://www.usesentinel.technology',
     enabled: true,
-    emailProtection: true,
+    liveMode: 'fast',
+    emailProtection: false,
     warnOnNavigate: true,
     marksLevel: 'all',
     warningsLevel: 'all',
@@ -94,6 +95,11 @@
         });
       });
     }
+    // Delicate says, plainly and while it is chosen, who it asks and what may be opened.
+    const mode = document.getElementById('liveMode');
+    const delicateNote = () => { document.getElementById('delicateNote').hidden = mode.value !== 'delicate'; };
+    delicateNote();
+    mode.addEventListener('change', delicateNote);
   });
 
   // Browsers keep add-ons out of private windows until the person allows them, and say so nowhere on the page.

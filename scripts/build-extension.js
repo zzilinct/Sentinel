@@ -62,7 +62,7 @@ for (const file of ['fonts.css', 'newsreader-opsz-16-72.woff2', 'newsreader-OFL.
 
 put(path.join(SRC, 'src', 'lib', 'brand.js'),
   '// Generated from brand.json by scripts/build-extension.js - edit brand.json instead.\n' +
-  `export const BRAND = ${JSON.stringify({ name: brand.name, origin: brand.origin, domain: brand.domain }, null, 2)};\n`);
+  `export const BRAND = ${JSON.stringify({ name: brand.name, origin: brand.origin, domain: brand.domain, launched: brand.launched === true }, null, 2)};\n`);
 
 const originPattern = `${brand.origin}/*`;
 manifest.homepage_url = brand.origin;

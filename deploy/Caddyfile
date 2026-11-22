@@ -16,8 +16,5 @@ www.usesentinel.technology {
 	reverse_proxy sentinel:8787 {
 		header_up X-Forwarded-For {remote_host}
 	}
-	log {
-		output stdout
-		format console
-	}
+	# No access log: it would keep every visitor's address and every page asked for (docs/privacy-map.md).
 }
