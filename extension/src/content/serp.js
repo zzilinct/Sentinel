@@ -318,22 +318,24 @@
     host.style.cssText = 'all:initial;position:fixed;top:0;left:0;z-index:2147483647;';
     const root = host.attachShadow({ mode: 'closed' });
     root.innerHTML = `<style>
-      :host{all:initial}
+      :host{all:initial;--s-hi:#ecd499;--s-acc:#d6b25a}
       .card{position:fixed;width:340px;max-width:calc(100vw - 24px);background:#15171b;color:#ecebe7;border:1px solid #2e3239;border-radius:16px;
         box-shadow:0 24px 60px rgba(0,0,0,.45);padding:18px 18px 16px;font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
         opacity:0;transform:translateY(6px) scale(.98);transition:opacity .16s ease,transform .16s ease}
       .card.on{opacity:1;transform:none}
-      .brand{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;color:#c9a64e;font-size:10.5px;letter-spacing:.2em;font-weight:700}
+      .brand{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;color:var(--s-acc);font-size:10.5px;letter-spacing:.2em;font-weight:700}
       .x{all:unset;cursor:pointer;color:#80868f;font-size:18px;line-height:1;padding:2px 6px;border-radius:6px}.x:hover{color:#fff;background:#23262c}
       .host{font:600 12px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#9aa0a8;margin-bottom:12px;word-break:break-all}
       .threats{display:grid;gap:8px;margin-bottom:12px}
       .t{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;background:#1c1f24;border:1px solid #272a30}
       .t svg{width:22px;height:22px;flex:none}.t b{font-weight:650;font-size:13px}.t span{margin-left:auto;color:#80868f;font-size:11px}
-      ul{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}li{display:flex;gap:8px;color:#c7cad0}li:before{content:"";flex:none;width:5px;height:5px;margin-top:7px;border-radius:50%;background:#c9a64e}
+      ul{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}li{display:flex;gap:8px;color:#c7cad0}li:before{content:"";flex:none;width:5px;height:5px;margin-top:7px;border-radius:50%;background:var(--s-acc)}
       .meta{color:#80868f;font-size:11px;margin-bottom:12px}
       .row{display:flex;gap:8px}button.a{all:unset;cursor:pointer;font-weight:600;font-size:12px;padding:8px 12px;border-radius:9px;background:#23262c;color:#ecebe7}
-      button.a:hover{background:#2c3037}button.p{background:#d6b25a;color:#15171b}button.p:hover{background:#e2c47f}
+      button.a:hover{background:#2c3037}button.p{background:var(--s-acc);color:#15171b}button.p:hover{background:var(--s-hi)}
     </style><div class="card" role="dialog" hidden></div>`;
+    // The card's brand, bullets and button in the accent too, as the veil above.
+    if (live) for (const [k, v] of Object.entries({ '--s-hi': live.hi, '--s-acc': live.acc })) if (/^[#0-9a-f ]{4,12}$/.test(String(v))) host.style.setProperty(k, v);
     document.documentElement.appendChild(host);
     popover = { host, card: root.querySelector('.card') };
     document.addEventListener('click', (ev) => { if (!popover.card.hidden && !ev.composedPath().includes(popover.card)) hide(); }, true);

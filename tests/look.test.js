@@ -197,6 +197,11 @@ test('the live surfaces have no gold of their own left: they draw the look', () 
     assert.match(read('desktop', 'src', 'pages', page), /<script src="\.\.\/\.\.\/shared\/look\.js"><\/script>/, `${page} loads the look before it paints`);
   }
   assert.doesNotMatch(read('desktop', 'src', 'main.js'), /appTheme|executeJavaScript\("localStorage/, 'the app no longer peeks into the page for its theme');
+  // The companion's result card (serp.js) draws its brand, bullets and button from the look, gold only as the default.
+  const serp = read('extension', 'src', 'content', 'serp.js');
+  const card = serp.slice(serp.indexOf('function ensurePopover()'), serp.indexOf('function showPopover'));
+  assert.doesNotMatch(card.replace(/:host\{[^}]*\}/, ''), /#c9a64e|#d6b25a|#e2c47f/, 'the result card has no gold of its own');
+  assert.match(card, /host\.style\.setProperty\(k, v\)/, 'the result card takes the accent');
   // Before the first paint only boot.js runs: it reads what look.js kept and computes nothing. look.js loads after.
   const head = read('web', 'partials', 'head.html');
   assert.match(head, /boot\.js"><\/script>\r?\n<script src="\/assets\/js\/look-site\.js" defer><\/script>/, 'look-site.js waits for the page');
