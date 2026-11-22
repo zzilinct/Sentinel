@@ -979,6 +979,11 @@ test('hover a link: the link under the resting pointer gets one mark, through re
   assert.equal(hoverLink({ u: scam, ...box, n: '  www.paypal.com \n' }, page).words, 'www.paypal.com');
   assert.equal(hoverLink({ u: scam, ...box, n: 'x'.repeat(300) }, page).words.length, 120);
   assert.equal('words' in hoverLink({ u: scam, ...box }, page), false);
+  // Only words that could name a site, as the companion sends them: a headline never leaves the reader.
+  assert.equal('words' in hoverLink({ u: scam, ...box, n: 'Read the whole story about this week in the city' }, page), false);
+  assert.equal(hoverLink({ u: scam, ...box, n: 'Log in to your account' }, page).words, 'Log in to your account');
+  const rule = "/\\w\\.\\w/.test(shown) || (shown && shown.split(' ').length <= 5) ? shown : ''";
+  for (const f of ['desktop/src/watch.js', 'extension/src/content/hover.js']) assert.ok(read(f).includes(rule), `${f} uses the same words rule`);
   assert.match(SCRIPT, /if \(\$hn -and -not \$isPrivate\) \{ \$hv\.n = \$hn\.Substring\(0, \[Math\]::Min\(120, \$hn\.Length\)\) \}/);
   assert.match(read('desktop/src/watch.js'), /if \(page\.private\) delete link\.words;/);
   const hints = watch._test.hintsFor([{ u: scam, words: 'www.paypal.com' }], [scam], `hover:abc`);

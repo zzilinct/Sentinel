@@ -53,5 +53,23 @@ test('the list builder folds words as a domain writes them and keeps only words 
   // paypai reads as paypal at a glance: never kept, so it stays a look-alike.
   const kept = near('correo 120\npaypai 5\npaypall 5\nmaison 900\ndiscorde 4\nzz 1\n', tokens);
   assert.deepEqual([...kept].sort(), ['correo', 'discorde']);
-  for (const w of L.FOREIGN_WORDS) assert.equal(near(`${w} 1`, L.PROTECTED_BRANDS.map((b) => b.token).filter((t) => t.length >= 5)).size, 1, `${w} is one the builder keeps`);
+  // telegramm (German) is the one put in by hand: the builder leaves out every word with a brand's letter doubled.
+  for (const w of L.FOREIGN_WORDS) assert.equal(near(`${w} 1`, L.PROTECTED_BRANDS.map((b) => b.token).filter((t) => t.length >= 5)).size, w === 'telegramm' ? 0 : 1, `${w} is one the builder keeps`);
+});
+
+test('a word of its own that holds a brand, and a word in another language spelled with a doubled letter, are words', () => {
+  // telegramm (German), telegramma (Italian), telegrams: the brand is inside the word's own spelling.
+  for (const h of ['telegramm.de', 'telegramma.it', 'telegrams.com']) {
+    assert.equal(info(h).lookalike, null, h);
+    assert.equal(scanAddress(`https://${h}/`).overall.badge, null, `${h} is not flagged`);
+  }
+  // On a risky ending the word relief does not hold: the doubled letter reads as the brand again.
+  assert.equal(info('telegramm.top').lookalike.token, 'telegram');
+  assert.equal(scanAddress('https://telegramm.top/').overall.badge, 'orange');
+  // The brand joined to bait is still borrowed.
+  assert.equal(info('telegrammsupport.com').inDomain.token, 'telegram');
+  assert.ok(scanAddress('https://telegrammsupport.com/').overall.badge);
+  // A plural of a popular site's name is how people write it, not a copy; one letter changed still is.
+  assert.equal(info('wikipedias.top').popularLookalike, null);
+  assert.equal(info('wikipedla.top').popularLookalike, 'wikipedia.org');
 });

@@ -68,6 +68,22 @@ test('negatives: one owner, an opaque wrapper, a name that is not an address, pl
   assert.equal(unwrapLink(`https://www.facebook.com/l.php?u=${enc(ELSEWHERE)}`), ELSEWHERE);
 });
 
+test('a brand\'s own address inside a sentence, in any case, over an unrelated host; never over a well-known site or a mail service', () => {
+  for (const text of ['Log in to paypal.com', 'Visit PayPal.com to confirm your details', 'Go to https://www.paypal.com/signin now', 'PayPal.com']) {
+    assert.deepEqual(shownVersusReal(text, ELSEWHERE), { shown: 'paypal.com', real: 'quiet-harbor.example', brand: null }, text);
+  }
+  // A news site's headline about the brand, the brand's own site, a name that is not a brand's address.
+  assert.equal(shownVersusReal('PayPal.com was down for an hour', 'https://www.bbc.co.uk/news/1', true), null);
+  assert.equal(shownVersusReal('Log in to paypal.com', 'https://www.paypal.com/signin'), null);
+  assert.equal(shownVersusReal('Built with Node.js and ASP.NET', ELSEWHERE), null);
+  // Mail services' click counters hold the real address out of sight: Iterable, Postmark, Customer.io, Pardot, Brevo,
+  // Campaign Monitor.
+  for (const href of ['https://links.iterable.com/u/click?_t=1', 'https://click.pstmrk.it/3s/x', 'https://e.customeriomail.com/e/c/1',
+    'https://go.pardot.com/e/1/2', 'https://r.sendibt3.com/tr/cl/1', 'https://shop.cmail7.com/t/y-l-1']) {
+    assert.equal(shownVersusReal('www.shop.com', href), null, href);
+  }
+});
+
 test('E10 uses the same comparison: a tracker-wrapped link to the same site no longer fails 30, a real mismatch still does', () => {
   const e10 = (body) => analyzeEmail({ from: 'News <news@example.org>', subject: 'hi', body }).checks.find((c) => c.id === 'E10');
   assert.equal(e10(`Read it at www.nytimes.com <https://example.us1.list-manage.com/track/click?u=1&id=2>`).status, 'pass');
@@ -76,6 +92,9 @@ test('E10 uses the same comparison: a tracker-wrapped link to the same site no l
   assert.equal(bad.status, 'fail');
   assert.equal(bad.points, 30);
   assert.equal(bad.detail, 'Link text shows paypal.com but opens quiet-harbor.example');
+  // The address inside a sentence, as the old E10 caught it.
+  const sentence = analyzeEmail({ from: 'News <news@example.org>', subject: 'hi', body: 'Hello', links: [{ text: 'Please log in to PayPal.com to confirm', href: ELSEWHERE }] });
+  assert.equal(sentence.checks.find((c) => c.id === 'E10').status, 'fail');
 });
 
 test('X02: link words only add a warning, never clear one, and are never sent from a private window', async () => {

@@ -30,6 +30,8 @@ function mash(seg) {
 // hyphens and digits of its encoding. U02 already weighs the encoding itself.
 const shownName = (p) => decodeLabel(p.sld) || p.sld;
 
+// "Latin", "Latin and Cyrillic", "Latin, Cyrillic and Greek".
+const andList = (list) => (list.length > 2 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list.join(' and '));
 const fail = (points, detail, extra) => ({ status: 'fail', points, detail, extra });
 const warn = (points, detail, extra) => ({ status: 'warn', points, detail, extra });
 const pass = (detail, points = 0) => ({ status: 'pass', points, detail });
@@ -140,8 +142,8 @@ const URL_CHECKS = [
       // Latin letters with Cyrillic, Greek or another alphabet inside one name (Unicode's highly restrictive
       // profile, UTS 39): honest names keep to one, or to Latin beside Chinese, Japanese or Korean.
       const mixed = names.map(scriptsOf).find((s) => s.mixed);
-      if (mixed) return fail(30, `Mixes ${mixed.list.join(' and ')} letters in one name`);
-      const written = [...new Set(names.flatMap((n) => scriptsOf(n).list))].join(' and ');
+      if (mixed) return fail(30, `Mixes ${andList(mixed.list)} letters in one name`);
+      const written = andList([...new Set(names.flatMap((n) => scriptsOf(n).list))]);
       // Drawn to read as a brand: U24 names the brand, and the points are its own.
       if (brand.idn) return pass(`Written in ${written} letters; the look-alike check names the brand they copy`);
       return pass(`An international name, written in ${written} letters`);
@@ -391,7 +393,8 @@ const URL_CHECKS = [
         return warn(12, `"${brand.wordLike.word}" is spelled like ${home}, but is an ordinary word`);
       }
       if (!brand.lookalike) return pass('No typosquatting');
-      if (brand.idn) return fail(70, `Written in ${brand.idn.scripts.join(' and ')} letters to look like ${brand.lookalike.domains[0]}`);
+      // Latin alone: accents or a changed letter ("paypál"), not another alphabet.
+      if (brand.idn) return fail(70, brand.idn.scripts.join() === 'Latin' ? `Written with altered letters to look like ${brand.lookalike.domains[0]}` : `Written in ${andList(brand.idn.scripts)} letters to look like ${brand.lookalike.domains[0]}`);
       // Nobody accidentally registers a one-letter-off "steamcommunity"; a word
       // one letter off "apple" is far more often innocent.
       const t = brand.lookalike.token;

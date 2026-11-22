@@ -110,6 +110,29 @@ test('only letters in the table count: an unmapped letter never matches, nor a n
   assert.equal(U.brandInfo(U.analyze(`https://${host(`${swap('paypal', CY, ['a'])}-help.com`)}/`)).idn.brand.token, 'paypal');
 });
 
+test('a Cyrillic copy glued to a word, and Latin letters with a stroke or another shape, are named as the brand', () => {
+  // paypal with one Cyrillic letter, glued to "secure": the closest real shape of the disguise.
+  const glued = host(`${swap('paypal', CY, ['a'])}secure.com`);
+  assert.equal(check(glued, 'U24').points, 70, glued);
+  assert.ok(scanAddress(`https://${glued}/`).overall.badge, `${glued} is flagged`);
+  // Dotless i, the script g, the alpha a, o with a stroke: one script, no accent to drop.
+  for (const [brand, name] of [['linkedin', `l${ch(0x131)}nkedin`], ['google', `goo${ch(0x261)}le`], ['paypal', `p${ch(0x251)}ypal`], ['facebook', `faceb${ch(0xf8)}ok`]]) {
+    const u24 = check(host(`${name}.com`), 'U24');
+    assert.equal(u24.points, 70, name);
+    assert.equal(u24.detail, `Written with altered letters to look like ${brand}.com`, name);
+  }
+});
+
+test('Latin beside an alphabet with no look-alike letters, and a joiner inside a Persian or Indic name, are honest', () => {
+  for (const h of [host(`shop${ch(0xe44, 0xe17, 0xe22)}.com`),            // Latin beside Thai
+    host(`${ch(0x645, 0x6cc, 0x200c, 0x62e, 0x648)}.ir`)]) {              // Persian, with the zero-width non-joiner
+    assert.equal(check(h, 'U02').status, 'pass', `${domainToUnicode(h)}: ${check(h, 'U02').detail}`);
+    assert.equal(scanAddress(`https://${h}/`).overall.badge, null, h);
+  }
+  // Three alphabets read "Latin, Cyrillic and Greek".
+  assert.match(check(host(`p${ch(CY.a)}yp${ch(GR.a)}l.com`), 'U02').detail, /^Mixes \w+, \w+ and \w+ letters in one name$/);
+});
+
 test('the decoder agrees with Node on every international name Sentinel knows', () => {
   const names = [...fs.readFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'wellknown.txt'), 'utf8').split(/\r?\n/),
     ...fs.readFileSync(path.join(ROOT, 'scripts', 'fpgate', 'domains.txt'), 'utf8').split(/\r?\n/), ...HONEST, ...FAKES.map((f) => f[1])];
@@ -130,7 +153,10 @@ test('the website\'s bundle gives the same verdict on international names as the
   vm.runInNewContext(engineBundle(), {
     window: win,
     document: { currentScript: { src: 'https://example.github.io/sentinel/assets/js/engine.js' } },
-    fetch: async () => ({ ok: true, arrayBuffer: async () => gz.buffer.slice(gz.byteOffset, gz.byteOffset + gz.byteLength) }),
+    fetch: async (url) => {
+      const b = url.endsWith('wellknown.txt.gz') ? require('zlib').gzipSync(fs.readFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'wellknown.txt'))) : gz;
+      return { ok: true, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) };
+    },
     URL, Response, Blob, DecompressionStream, TextDecoder, console
   });
   for (const h of [...FAKES.map((f) => f[1]), ...HONEST]) {
@@ -144,6 +170,8 @@ test('the plain sentence names the alphabet and the brand', () => {
   assert.equal(explain(u24), 'The name is written in Cyrillic letters that look like ordinary ones, to pass for paypal.com.');
   assert.match(explain(check(FAKES[1][1], 'U02')), /^The name mixes (Latin and Cyrillic|Cyrillic and Latin) letters/);
   assert.doesNotMatch(explain(u24) + explain(check(FAKES[1][1], 'U02')), /—/);
+  // An accent-only copy names no alphabet: its letters are Latin ones changed.
+  assert.equal(explain(check(host(`payp${ch(0xe1)}l.com`), 'U24')), 'The name uses letters with small marks or changed shapes, to pass for paypal.com.');
 });
 
 test('deskin, which compare, feeds and my sites also use, reads every plain name exactly as before', () => {

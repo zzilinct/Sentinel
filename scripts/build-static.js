@@ -172,13 +172,17 @@ function engineBundle() {
 (() => {
 'use strict';
 const wordsUrl = new URL('../data/words.txt.gz', document.currentScript.src).href;
+// The most linked-to sites (url.js popularSites): elle.com is not Zelle here either.
+const popularUrl = new URL('../data/wellknown.txt.gz', document.currentScript.src).href;
 let words = '';
+let popular = '';
 const builtins = {
   '../../config': { isProd: true },
   // Only urlKey hashes, for exact-address list lookups, which do not run here.
   crypto: { createHash() { throw new Error('No hashing here'); } },
-  fs: { readFileSync: () => null },
-  path: { join: () => '' },
+  // url.js reads only wellknown.txt this way; the word list comes through zlib.
+  fs: { readFileSync: (file) => (file === 'wellknown.txt' ? popular : null) },
+  path: { join: (...parts) => parts[parts.length - 1] },
   // url.js unpacks its word list with these; the list is fetched and unpacked before the first check.
   zlib: { gunzipSync: () => ({ toString: () => words }) }
 };
@@ -198,8 +202,8 @@ function loader() {
     return loaded[name].exports;
   };
 }
-async function fetchWords() {
-  const res = await fetch(wordsUrl);
+async function fetchText(url) {
+  const res = await fetch(url);
   if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   // A host may send it already unpacked (Content-Encoding: gzip); only a gzip file starts 1f 8b.
@@ -211,11 +215,12 @@ let engine = null;
 window.SentinelEngine = {
   /**
    * The fast check of one address, here in the browser: the same shape as the server's demo scan, plus local: true.
-   * If the word list could not be fetched, names are not read as words and the result says so (partial: true); the
+   * If the word list or the popular sites could not be fetched, the result says so (partial: true); the
    * next check fetches it again rather than running without it for the rest of the visit.
    */
   scan(raw) {
-    const got = ready || (ready = fetchWords().then((text) => { words = text; return true; }, () => { ready = null; return false; }));
+    const got = ready || (ready = Promise.all([fetchText(wordsUrl), fetchText(popularUrl)])
+      .then(([w, p]) => { words = w; popular = p; return true; }, () => { ready = null; return false; }));
     return got.then((ok) => {
       const v = (ok ? (engine = engine || loader()('./offline')) : loader()('./offline')).scanAddress(raw);
       return ok || !v.ok ? v : { ...v, partial: true };
@@ -271,6 +276,7 @@ async function main() {
   fs.writeFileSync(path.join(OUT, 'assets', 'js', 'engine.js'), engineBundle());
   fs.mkdirSync(path.join(OUT, 'assets', 'data'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'words.txt.gz'), path.join(OUT, 'assets', 'data', 'words.txt.gz'));
+  fs.writeFileSync(path.join(OUT, 'assets', 'data', 'wellknown.txt.gz'), require('zlib').gzipSync(fs.readFileSync(path.join(ROOT, 'server', 'lib', 'scan', 'wellknown.txt')), { level: 9 }));
   console.log(`  link checker    assets/js/engine.js, runs in the visitor's browser`);
 
   for (const page of PAGES) {

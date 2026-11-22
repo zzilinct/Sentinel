@@ -1,0 +1,35 @@
+# Every domain added to a brand in server/lib/scan/brands.js must be proven the brand's own (scripts/brand-proof.js):
+# it redirects to the brand's site, the brand's site links to it, its certificate or its RDAP record names the
+# brand's organisation. A wrong entry would mark a stranger's domain as the brand's. Opens those sites and asks RDAP,
+# so it runs here, never on a developer's own computer. Compared with main (on main, with the commit before the push).
+name: Brand domains proven
+
+on:
+  push:
+    branches: [main, 'work/**']
+    paths: ['server/lib/scan/brands.js', 'scripts/brand-proof.js', '.github/workflows/brand-proof.yml']
+  pull_request:
+    branches: [main]
+    paths: ['server/lib/scan/brands.js']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: The brand list before this change
+        env:
+          BASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.before || 'origin/main' }}
+        run: git show "$BASE:server/lib/scan/brands.js" > "$RUNNER_TEMP/base-brands.js"
+      - name: Each added domain, proven
+        run: node scripts/brand-proof.js --base "$RUNNER_TEMP/base-brands.js"
