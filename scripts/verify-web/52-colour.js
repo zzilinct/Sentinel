@@ -353,6 +353,8 @@ async function checkColour() {
     /* --------------------------------------------- hover is alive while a colour opens, and after it */
     {
       const { s, done } = await open(1366, 900, false, 'dark', 'no-preference');
+      // In front: a tab that is not draws no frames, and the browser skips a view transition on it (the class would never show).
+      await browser.send('Page.bringToFront', {}, s);
       const move = (x, y) => browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, s);
       const hot = () => evalIn(browser, s, `(() => { const h = document.querySelector('.swatch:hover'); return h ? { id: h.dataset.accent, lift: getComputedStyle(h.querySelector('.swatch__gem')).transform, vt: [...document.documentElement.classList].filter((c) => c.startsWith('vt-')).join(' ') } : null; })()`);
       const [tx, ty] = await at(s, gem('teal'));

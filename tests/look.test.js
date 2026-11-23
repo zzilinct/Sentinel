@@ -598,18 +598,18 @@ test('1.21.1: the taskbar, Start menu and desktop Sentinel in the colour, throug
   const main = read('desktop', 'src', 'main.js');
   const fn = main.slice(main.indexOf('function shortcutIcons('), main.indexOf('function applyLook('));
   // Only when the accent changed; only a shortcut whose target is this program; only its icon.
-  assert.match(fn, /store\.get\('shortcutAccent', 'gold'\) === accent\) return false;/);
+  assert.match(fn, /store\.get\('shortcutAccent', 'gold'\) === accent\) return;/);
   assert.match(fn, /if \(shell\.readShortcutLink\(lnk\)\.target\.toLowerCase\(\) !== exe\) continue;\s+shell\.writeShortcutLink\(lnk, 'update', \{ icon, iconIndex: 0 \}\);/);
   assert.equal((fn.match(/writeShortcutLink/g) || []).length, 1, 'no other write');
   assert.match(fn, /let icon = process\.execPath;/, 'gold: the program\'s own icon back');
   assert.match(fn, /`shortcut-\$\{accent\}\.ico`/, 'a new file name per accent');
   assert.match(fn, /catch \{ \/\* missing, someone else's or read-only: left as it is \*\/ \}/);
   assert.doesNotMatch(fn, /setInterval|setTimeout|watch\(/, 'no polling');
-  assert.match(main, /function applyLook\(l\) \{\s+const recoloured = shortcutIcons\(l\.accent\);/);
-  // 1.21.2: a window that is already open has its taskbar button made again from the shortcut just written, at once,
-  // without hiding it or moving focus, and only when the shortcuts were really rewritten.
-  assert.match(main, /if \(recoloured && win\.isVisible\(\)\) \{ win\.setSkipTaskbar\(true\); win\.setSkipTaskbar\(false\); \}/);
-  assert.doesNotMatch(main.slice(main.indexOf('function applyLook('), main.indexOf('/** The tray\'s update line')), /\.hide\(|\.focus\(|setTimeout|spawn|exec/, 'no hiding, focus, timer or program');
+  assert.match(main, /function applyLook\(l\) \{\s+shortcutIcons\(l\.accent\);/);
+  // 1.21.2: nothing inside the app makes Windows redraw an open window's taskbar button (CI tried a user task list, app details,
+  // the taskbar tab, hiding, minimising and the system icon refresh, reading the button through Windows' accessibility tree:
+  // none moved it), and the system-wide refresh is not Sentinel's to run. The button takes the colour when Sentinel next starts.
+  assert.doesNotMatch(main, /setSkipTaskbar|ie4uinit|setAppDetails|setUserTasks|SHChangeNotify/);
   const sc = main.slice(main.indexOf('function shortcutPaths('), main.indexOf('function shortcutIcons('));
   assert.equal((sc.match(/'Sentinel\.lnk'/g) || []).length, 1);
   assert.match(read('scripts', 'desktop-qa.ps1'), /Check "\$name-shortcuts"/, 'proved on a real Windows in CI');

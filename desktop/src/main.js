@@ -887,7 +887,7 @@ function shortcutPaths() {
   ];
 }
 function shortcutIcons(accent) {
-  if (process.platform !== 'win32' || !app.isPackaged || store.get('shortcutAccent', 'gold') === accent) return false;
+  if (process.platform !== 'win32' || !app.isPackaged || store.get('shortcutAccent', 'gold') === accent) return;
   const fs = require('fs'), dir = app.getPath('userData');
   let icon = process.execPath;
   try {
@@ -896,7 +896,7 @@ function shortcutIcons(accent) {
         const base = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', file));
         return base.isEmpty() ? null : { size, png: nativeImage.createFromBitmap(Look.tintBitmap(base.toBitmap(), accent), base.getSize()).toPNG() };
       }).filter(Boolean);
-      if (!images.length) return false;
+      if (!images.length) return;
       icon = path.join(dir, `shortcut-${accent}.ico`);
       fs.writeFileSync(icon, require('./ico').ico(images));
     }
@@ -910,20 +910,16 @@ function shortcutIcons(accent) {
     // The other accents' files go: only the one in use is kept.
     for (const f of fs.readdirSync(dir)) if (/^shortcut-[a-z]+\.ico$/.test(f) && path.join(dir, f) !== icon) try { fs.unlinkSync(path.join(dir, f)); } catch { /* in use */ }
     store.set('shortcutAccent', accent);
-    return true;
-  } catch (err) { appLog(`shortcut icons: ${err.message}`); return false; }
+  } catch (err) { appLog(`shortcut icons: ${err.message}`); }
 }
 function applyLook(l) {
-  const recoloured = shortcutIcons(l.accent);
+  shortcutIcons(l.accent);
   nativeTheme.themeSource = l.mode === 'auto' ? 'system' : l.mode;
   overlay.setLook(l);
   if (tray) refreshTray();
   if (win && !win.isDestroyed()) {
     win.setIcon(windowIcon(l.accent));
     if (process.platform === 'win32') win.setTitleBarOverlay(frameButtons(l));
-    // The taskbar reads a shortcut's icon when a window's button is made, not after: an open window's button is taken
-    // off the taskbar and put back (no hiding, no focus change), so it is made again from the shortcut just written.
-    if (recoloured && win.isVisible()) { win.setSkipTaskbar(true); win.setSkipTaskbar(false); }
   }
   try { require('fs').writeFileSync(path.join(app.getPath('userData'), 'look.json'), JSON.stringify(l)); } catch { /* the companion keeps the look it has */ }
 }
