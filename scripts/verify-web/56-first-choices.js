@@ -194,9 +194,9 @@ async function checkFirstChoices() {
         await evalIn(browser, s, 'document.fonts.ready.then(() => new Promise((r) => setTimeout(r, 700))).then(() => document.fonts.status)');
         const after = await evalIn(browser, s, GREET);
         const shifts = await evalIn(browser, s, 'window.__shifts');
-        // Where each sits in the page's own column (a box above the column, such as the confirm-your-email bar, is the page's, not the greeting's).
-        const d = ['h1', 'p', 'box'].map((k) => before[k] && after[k] ? Math.max(Math.abs((before[k][1] - before.view[1]) - (after[k][1] - after.view[1])), Math.abs(before[k][3] - after[k][3])) : 99);
-        above.push(`${name}: the column moved ${Math.round((after.view[1] - before.view[1]) * 10) / 10}px`);
+        // The whole page: nothing the greeting sits among (a bar above it, its sentence, the box under it) may move or change height.
+        const d = ['view', 'h1', 'p', 'box'].map((k) => before[k] && after[k] ? Math.max(Math.abs(before[k][1] - after[k][1]), Math.abs(before[k][3] - after[k][3])) : 99);
+        above.push(`${name}: the page's column moved ${Math.round((after.view[1] - before.view[1]) * 10) / 10}px`);
         // The greeting's block must not move or change height by even a pixel when the face changes; its width may (a face is wider or narrower).
         if (wasHeld < 1 || d.some((x) => x > 1)) moved.push({ at: name, wasHeld, before, after, shifts });
         await shot(browser, s, `greeting-fonts-after-${name.replace(' ', '-')}`);

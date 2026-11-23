@@ -35,7 +35,7 @@
    the font files over a sample of English; Georgia and Arial cover Windows, Mac and iPhone, Noto Serif and Roboto Android. */
 @font-face { font-family: 'Newsreader Stand-in'; src: local('Georgia'); size-adjust: 95.81%; ascent-override: 76.71%; descent-override: 27.66%; line-gap-override: 0%; }
 @font-face { font-family: 'Newsreader Stand-in Android'; src: local('Noto Serif'); size-adjust: 87.85%; ascent-override: 83.66%; descent-override: 30.16%; line-gap-override: 0%; }
-@font-face { font-family: 'Geist Stand-in'; src: local('Arial'); size-adjust: 105.13%; ascent-override: 95.59%; descent-override: 28.06%; line-gap-override: 0%; }
+@font-face { font-family: 'Geist Stand-in'; src: local('Arial'); size-adjust: 104.61%; ascent-override: 95.59%; descent-override: 28.06%; line-gap-override: 0%; }
 @font-face { font-family: 'Geist Stand-in Android'; src: local('Roboto'); size-adjust: 105.3%; ascent-override: 95.44%; descent-override: 28.02%; line-gap-override: 0%; }
 @font-face { font-family: 'Geist Mono Stand-in'; src: local('Consolas'); size-adjust: 109.13%; ascent-override: 92.09%; descent-override: 27.03%; line-gap-override: 0%; }
 
