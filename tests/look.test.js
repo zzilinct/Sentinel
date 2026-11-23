@@ -598,15 +598,51 @@ test('1.21.1: the taskbar, Start menu and desktop Sentinel in the colour, throug
   const main = read('desktop', 'src', 'main.js');
   const fn = main.slice(main.indexOf('function shortcutIcons('), main.indexOf('function applyLook('));
   // Only when the accent changed; only a shortcut whose target is this program; only its icon.
-  assert.match(fn, /store\.get\('shortcutAccent', 'gold'\) === accent\) return;/);
+  assert.match(fn, /store\.get\('shortcutAccent', 'gold'\) === accent\) return false;/);
   assert.match(fn, /if \(shell\.readShortcutLink\(lnk\)\.target\.toLowerCase\(\) !== exe\) continue;\s+shell\.writeShortcutLink\(lnk, 'update', \{ icon, iconIndex: 0 \}\);/);
   assert.equal((fn.match(/writeShortcutLink/g) || []).length, 1, 'no other write');
   assert.match(fn, /let icon = process\.execPath;/, 'gold: the program\'s own icon back');
   assert.match(fn, /`shortcut-\$\{accent\}\.ico`/, 'a new file name per accent');
   assert.match(fn, /catch \{ \/\* missing, someone else's or read-only: left as it is \*\/ \}/);
   assert.doesNotMatch(fn, /setInterval|setTimeout|watch\(/, 'no polling');
-  assert.match(main, /function applyLook\(l\) \{\s+shortcutIcons\(l\.accent\);/);
+  assert.match(main, /function applyLook\(l\) \{\s+const recoloured = shortcutIcons\(l\.accent\);/);
+  // 1.21.2: a window that is already open has its taskbar button made again from the shortcut just written, at once,
+  // without hiding it or moving focus, and only when the shortcuts were really rewritten.
+  assert.match(main, /if \(recoloured && win\.isVisible\(\)\) \{ win\.setSkipTaskbar\(true\); win\.setSkipTaskbar\(false\); \}/);
+  assert.doesNotMatch(main.slice(main.indexOf('function applyLook('), main.indexOf('/** The tray\'s update line')), /\.hide\(|\.focus\(|setTimeout|spawn|exec/, 'no hiding, focus, timer or program');
   const sc = main.slice(main.indexOf('function shortcutPaths('), main.indexOf('function shortcutIcons('));
   assert.equal((sc.match(/'Sentinel\.lnk'/g) || []).length, 1);
   assert.match(read('scripts', 'desktop-qa.ps1'), /Check "\$name-shortcuts"/, 'proved on a real Windows in CI');
+});
+
+test('1.21.2: boot.js never paints a set kept by an older Sentinel, and still names the colour', () => {
+  const vm = require('vm');
+  const boot = read('web', 'assets', 'js', 'boot.js');
+  const first = boot.slice(boot.indexOf('(function () {\n  try {'.replace(/\n/g, boot.includes('\r\n') ? '\r\n' : '\n')), boot.indexOf('})();') + 5);
+  const run = (kept) => {
+    const attrs = {}, style = {};
+    vm.runInNewContext(first, {
+      document: { documentElement: { setAttribute: (k, v) => { attrs[k] = v; }, style: { setProperty: (k, v) => { style[k] = v; } } } },
+      localStorage: { getItem: (k) => (k in kept ? kept[k] : null) },
+      matchMedia: () => ({ matches: false })
+    });
+    return { attrs, style };
+  };
+  const whole = L.webVars('sapphire');
+  // The current set: drawn whole, before the first paint.
+  const now = run({ 'sentinel:theme': 'dark', 'sentinel:accent': 'sapphire', 'sentinel:look-vars': JSON.stringify(whole) });
+  assert.equal(now.attrs['data-accent'], 'sapphire');
+  assert.deepEqual(now.style, whole.dark);
+  // A set from before the newer names: nothing of it is drawn (it would be half the old look), the colour is still named.
+  const { v, ...older } = whole;
+  for (const set of [older, { ...older, v: L.WEB_V - 1 }]) {
+    const was = run({ 'sentinel:theme': 'dark', 'sentinel:accent': 'sapphire', 'sentinel:look-vars': JSON.stringify(set) });
+    assert.deepEqual(was.style, {}, 'no stale colour drawn');
+    assert.equal(was.attrs['data-accent'], 'sapphire', 'the page still knows its colour');
+  }
+  // Nothing kept at all for a named colour: named, nothing drawn. No colour kept: untouched.
+  assert.deepEqual(run({ 'sentinel:accent': 'rose' }).style, {});
+  assert.equal(run({ 'sentinel:accent': 'rose' }).attrs['data-accent'], 'rose');
+  assert.deepEqual(run({}).attrs, {});
+  assert.equal(Number(boot.match(/v\.v !== (\d+)/)[1]), L.WEB_V, 'boot.js holds look.js\'s WEB_V');
 });

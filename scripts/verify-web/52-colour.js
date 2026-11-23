@@ -314,6 +314,65 @@ async function checkColour() {
           && ['red', 'orange', 'green'].every((c) => solid(o, sc, c))
           && [o.yellow.glyph, o.yellow.icon, o.mark].every((p) => p.fill === YEL && p.stroke === edge);
       })), seen);
+
+    /* ----------------------- a device that chose its colour before 1.21.1: the marketing pages never show a half-old look */
+    // What 1.20 kept for sapphire: the colours without the names added since (WEB_V 3). Seeded before any script runs, with
+    // a recorder of every change to <html>'s colours: no moment may show the stored (older) colours drawn.
+    {
+      const NEWER = ['--hi', '--lo', '--neu-lo', '--relief', '--night-rgb', '--night-hi', '--live-200', '--rim'];
+      const older = { accent: 'sapphire' };
+      for (const sc of ['dark', 'light']) older[sc] = Object.fromEntries(Object.entries(L.webVars('sapphire')[sc]).filter(([k]) => !NEWER.includes(k)));
+      for (const [page, scheme] of [['download.html', 'dark'], ['download.html', 'light'], ['pricing.html', 'dark'], ['index.html', 'light']]) {
+        const { targetId, sessionId: s } = await openPage(browser);
+        await browser.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, s);
+        await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'no-preference' }] }, s);
+        await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+          try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('sentinel:accent', 'sapphire'); localStorage.setItem('sentinel:look-vars', ${JSON.stringify(JSON.stringify(older))}); } } catch (e) {}
+          window.__seen = [];
+          const h = document.documentElement;
+          new MutationObserver(() => window.__seen.push({ accent: h.getAttribute('data-accent'), gold: Boolean(h.style.getPropertyValue('--gold-400')), night: Boolean(h.style.getPropertyValue('--night-rgb')) }))
+            .observe(h, { attributes: true, attributeFilter: ['style', 'data-accent'] });
+        })()` }, s);
+        await goto(browser, s, `${files.base}/${page}`, "document.querySelector('main, .hero, body')");
+        const kept = Boolean(await until(browser, s, "(() => { try { return JSON.parse(localStorage.getItem('sentinel:look-vars')).v === 3; } catch (e) { return false; } })()", 20000));
+        await sleep(600);
+        const got = await evalIn(browser, s, `(() => { const cs = getComputedStyle(document.documentElement), v = (n) => cs.getPropertyValue(n).trim();
+          return { accent: document.documentElement.dataset.accent, night: v('--night-rgb'), gold: v('--gold-400'), hi: v('--hi'), rim: v('--rim'), seen: window.__seen }; })()`);
+        const want = L.ramp('sapphire', scheme);
+        const half = got.seen.filter((x) => x.gold && !x.night);
+        result(`colour: marketing page ${page}, ${scheme}, colour chosen before 1.21.1: worked out again, drawn whole, never half in the old look`,
+          kept && got.accent === 'sapphire' && got.night === want['--night-rgb'] && got.gold === want['--gold-400'] && got.hi === want['--hi'] && got.rim === want['--rim'] && half.length === 0,
+          { kept, got, half });
+        await shot(browser, s, `colour-older-set-${page.replace('.html', '')}-${scheme}`);
+        await browser.send('Target.closeTarget', { targetId });
+      }
+    }
+
+    /* --------------------------------------------- hover is alive while a colour opens, and after it */
+    {
+      const { s, done } = await open(1366, 900, false, 'dark', 'no-preference');
+      const move = (x, y) => browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, s);
+      const hot = () => evalIn(browser, s, `(() => { const h = document.querySelector('.swatch:hover'); return h ? { id: h.dataset.accent, lift: getComputedStyle(h.querySelector('.swatch__gem')).transform, vt: [...document.documentElement.classList].filter((c) => c.startsWith('vt-')).join(' ') } : null; })()`);
+      const [tx, ty] = await at(s, gem('teal'));
+      const [sx, sy] = await at(s, gem('sapphire'));
+      await move(sx, sy);
+      await sleep(350);
+      const before = await hot();
+      // Press the sapphire gem; while its circle opens, the pointer is still over it, then moves on to teal.
+      for (const type of ['mousePressed', 'mouseReleased']) await browser.send('Input.dispatchMouseEvent', { type, x: sx, y: sy, button: 'left', clickCount: 1 }, s);
+      await sleep(250);
+      const during = await hot();
+      await move(tx, ty);
+      await sleep(250);
+      const onward = await hot();
+      await sleep(1200);
+      const after = await hot();
+      const lifted = (h) => Boolean(h) && h.lift !== 'none' && h.lift !== 'matrix(1, 0, 0, 1, 0, 0)';
+      result('colour: the pointer keeps its hover on a gem before, during and after the colour opens, and moving to the next gem hovers it at once',
+        Boolean(before) && before.id === 'sapphire' && lifted(before) && Boolean(during) && during.id === 'sapphire' && during.vt !== '' && Boolean(onward) && onward.id === 'teal' && lifted(onward) && Boolean(after) && after.id === 'teal' && lifted(after) && after.vt === '',
+        { before, during, onward, after });
+      await done();
+    }
   } finally { await close(); files.server.close(); }
 }
 

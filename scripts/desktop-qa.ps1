@@ -225,22 +225,40 @@ if (-not $paired) { Say "  diag: $(Cdp '127.0.0.1:4782' 'location.href')" }
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
 [void](Until 30 { [string](Cdp '127.0.0.1:4782' "Boolean(window.SentinelLook && window.SentinelLook.set && document.querySelector('.frame'))").value -match 'true' })
 function PixelAt($x, $y) { $bmp = New-Object System.Drawing.Bitmap 1, 1; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$x, [int]$y, 0, 0, (New-Object System.Drawing.Size 1, 1)); $c = $bmp.GetPixel(0, 0); $g.Dispose(); $bmp.Dispose(); return $c }
+# Gold pixels in the taskbar's strip (the bottom 56 rows, every other pixel): Sentinel's button is gold or it is not, with no
+# restart between. Explorer's folder is gold too, so the checks below compare with the strip's count before any change.
+function TaskbarGold() {
+  $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $h = [Math]::Min(56, $b.Height)
+  $bmp = New-Object System.Drawing.Bitmap $b.Width, $h; $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.CopyFromScreen($b.X, $b.Y + $b.Height - $h, 0, 0, (New-Object System.Drawing.Size $b.Width, $h))
+  $n = 0
+  for ($y = 0; $y -lt $h; $y += 2) { for ($x = 0; $x -lt $b.Width; $x += 2) { $c = $bmp.GetPixel($x, $y); if ($c.R -gt 150 -and $c.G -gt $c.R * 0.55 -and $c.G -lt $c.R * 0.9 -and $c.B -lt $c.R * 0.5) { $n++ } } }
+  $g.Dispose(); $bmp.Dispose(); return $n
+}
+Start-Sleep 2
+$goldBase = TaskbarGold
+Say "taskbar gold pixels before any change: $goldBase"
 foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; accent = 'rose' }, @{ mode = 'dark'; accent = 'gold' }, @{ mode = 'light'; accent = 'gold' })) {
   $name = "frame-$($t.accent)-$($t.mode)"
-  $r = [string](Cdp '127.0.0.1:4782' "(async () => { await window.SentinelLook.set({ mode: '$($t.mode)', accent: '$($t.accent)' }); await new Promise((r) => setTimeout(r, 1800)); const f = document.querySelector('.frame'), cs = f && getComputedStyle(f); return [document.documentElement.classList.contains('framed'), Boolean(f && f.querySelector('.frame__mark svg')), cs && cs.backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), Boolean(navigator.windowControlsOverlay && navigator.windowControlsOverlay.visible), f && Math.round(f.getBoundingClientRect().height), f && f.textContent].join('|'); })()").value
+  $r = [string](Cdp '127.0.0.1:4782' "(async () => { await window.SentinelLook.set({ mode: '$($t.mode)', accent: '$($t.accent)' }); await new Promise((r) => setTimeout(r, 1800)); const f = document.querySelector('.frame'), cs = f && getComputedStyle(f); return [document.documentElement.classList.contains('framed'), Boolean(f && f.querySelector('.frame__mark svg')), cs && cs.backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), Boolean(navigator.windowControlsOverlay && navigator.windowControlsOverlay.visible), f && Math.round(f.getBoundingClientRect().height), f && f.querySelector('.frame__page').textContent + '/' + document.title].join('|'); })()").value
   $b = (Cdp 'main' "JSON.stringify(process.mainModule.require('electron').BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('127.0.0.1:4782')).getBounds())").value | ConvertFrom-Json
   $px = PixelAt ($b.x + $b.width / 2) ($b.y + 10)
   $sum = [int]$px.R + [int]$px.G + [int]$px.B
   Shot $name
   $f = $r -split '\|'
   $tone = $(if ($t.mode -eq 'dark') { $sum -lt 150 } else { $sum -gt 600 })
-  Check $name ($f[0] -eq 'true' -and $f[1] -eq 'true' -and $f[2] -notmatch 'rgba\(0, 0, 0, 0\)' -and $f[4] -eq 'true' -and [int]$f[5] -ge 28 -and $tone) "framed|mark|bar|page|buttons over it|height|words: $r; the bar's pixel on screen rgb($($px.R),$($px.G),$($px.B))"
+  Check $name ($f[0] -eq 'true' -and $f[1] -eq 'true' -and $f[2] -notmatch 'rgba\(0, 0, 0, 0\)' -and $f[4] -eq 'true' -and [int]$f[5] -ge 28 -and $f[6] -match '^(.+)/\1\s*[-|·–]\s*Sentinel$' -and $tone) "framed|mark|bar|page|buttons over it|height|page name/title: $r; the bar's pixel on screen rgb($($px.R),$($px.G),$($px.B))"
   # The taskbar's button is drawn from Sentinel's own shortcuts (main.js shortcutIcons): they carry the colour, and
   # gold puts the program's own icon back. The picture above shows the taskbar.
   $links = @("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Sentinel.lnk", "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Sentinel.lnk", "$env:PUBLIC\Desktop\Sentinel.lnk", "$([Environment]::GetFolderPath('Desktop'))\Sentinel.lnk") | Where-Object { Test-Path $_ }
   $wsh = New-Object -ComObject WScript.Shell
   $icons = @($links | ForEach-Object { "$($wsh.CreateShortcut($_).IconLocation) <- $($wsh.CreateShortcut($_).TargetPath)" }) -join '; '
   $want = $(if ($t.accent -eq 'gold') { '\.exe,0 <-' } else { "shortcut-$($t.accent)\.ico,0 <-" })
+  # The window was open the whole time: its taskbar button changes colour with no restart (main.js applyLook).
+  Start-Sleep 2
+  Shot "$name-taskbar"
+  $tb = TaskbarGold
+  Check "$name-taskbar-button" $(if ($t.accent -eq 'gold') { $tb -ge $goldBase - 6 } else { $tb -le $goldBase - 12 }) "gold pixels in the taskbar strip: $tb now, $goldBase before any change (the button is gold again, or no longer gold, with no restart)"
   Check "$name-shortcuts" ($links.Count -gt 0 -and @($links | Where-Object { $wsh.CreateShortcut($_).IconLocation -notmatch ($want -replace ' <-$', '') }).Count -eq 0) "Sentinel's shortcuts: $icons"
 }
 [void](Cdp '127.0.0.1:4782' "window.SentinelLook.set({ mode: 'auto', accent: 'gold' }).then(() => 1)")

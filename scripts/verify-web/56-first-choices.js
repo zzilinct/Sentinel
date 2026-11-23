@@ -159,6 +159,55 @@ async function checkFirstChoices() {
     result('first-choices: Comfortable keeps the old sizes, Compact is tighter and never under 36px',
       heights.comfortable.seg === 38 && heights.comfortable.input === 46 && heights.compact.seg >= 36 && heights.compact.seg < 38 && heights.compact.input < 46 && heights.compact.input >= 36, heights);
 
+    /* ------------- the greeting does not move when the real fonts arrive (fonts held back, then let in) */
+    {
+      await evalIn(browser, s, "(localStorage.removeItem('sentinel:type'), 1)");
+      await browser.send('Network.enable', {}, s);
+      await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, s);
+      await browser.send('Network.setBypassServiceWorker', { bypass: true }, s);
+      await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*.woff2', requestStage: 'Request' }] }, s);
+      const held = [];
+      let holding = true;
+      browser.on('Fetch.requestPaused', (p, sid) => {
+        if (sid !== s) return;
+        if (holding) held.push(p.requestId); else browser.send('Fetch.continueRequest', { requestId: p.requestId }, s).catch(() => {});
+      });
+      const { identifier } = await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+        window.__shifts = [];
+        const rect = (e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; };
+        try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__shifts.push({ value: e.value, moved: (e.sources || []).map((x) => (x.node && (x.node.nodeName + '.' + (x.node.className || ''))) + ' ' + x.previousRect.y + '->' + x.currentRect.y) }); }).observe({ type: 'layout-shift', buffered: true }); } catch (e) {}
+      })()` }, s);
+      const GREET = "(() => { const g = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top * 10) / 10, Math.round(r.width), Math.round(r.height * 10) / 10]; }; return { h1: g('.page-title h1'), p: g('.page-title p'), box: g('[data-quick]'), text: (document.querySelector('.page-title h1') || {}).textContent, face: getComputedStyle(document.querySelector('.page-title h1')).fontFamily.slice(0, 24) }; })()";
+      const moved = [];
+      for (const [name, dims] of [['desktop', [1366, 900, false]], ['laptop', [1000, 800, false]], ['tablet', [768, 1024, false]], ['phone', [390, 844, true]], ['small phone', [360, 740, true]]]) {
+        await size(dims);
+        await media('dark');
+        holding = true;
+        held.length = 0;
+        await browser.send('Page.navigate', { url: `${server.base}/app` }, s);
+        await until(browser, s, "document.querySelector('.page-title h1') && document.querySelector('[data-quick]')", 25000);
+        await sleep(700);
+        const before = await evalIn(browser, s, GREET);
+        const wasHeld = held.length;
+        holding = false;
+        for (const id of held.splice(0)) await browser.send('Fetch.continueRequest', { requestId: id }, s).catch(() => {});
+        await evalIn(browser, s, 'document.fonts.ready.then(() => new Promise((r) => setTimeout(r, 700))).then(() => document.fonts.status)');
+        const after = await evalIn(browser, s, GREET);
+        const shifts = await evalIn(browser, s, 'window.__shifts');
+        const d = ['h1', 'p', 'box'].map((k) => before[k] && after[k] ? Math.max(...before[k].map((v, i) => (i === 1 || i === 3 ? Math.abs(v - after[k][i]) : 0))) : 99);
+        // The greeting's block must not move or change height by even a pixel when the face changes; its width may (a face is wider or narrower).
+        if (wasHeld < 1 || d.some((x) => x > 1)) moved.push({ at: name, wasHeld, before, after, shifts });
+        await shot(browser, s, `greeting-fonts-after-${name.replace(' ', '-')}`);
+        holding = true;
+      }
+      holding = false;
+      await browser.send('Fetch.disable', {}, s);
+      await browser.send('Network.setBypassServiceWorker', { bypass: false }, s);
+      await browser.send('Network.setCacheDisabled', { cacheDisabled: false }, s);
+      await browser.send('Page.removeScriptToEvaluateOnNewDocument', { identifier }, s);
+      result('first-choices: the greeting, its sentence and the box under them do not move by a pixel when the real fonts arrive, at five widths', !moved.length, moved);
+    }
+
     /* ---------------------------- in the Windows app: the step says the tray line the old notification said */
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: APP }, s);
     await media('dark');
