@@ -344,6 +344,8 @@ async function checkColour() {
           kept && got.accent === 'sapphire' && got.night === want['--night-rgb'] && got.gold === want['--gold-400'] && got.hi === want['--hi'] && got.rim === want['--rim'] && half.length === 0,
           { kept, got, half });
         await shot(browser, s, `colour-older-set-${page.replace('.html', '')}-${scheme}`);
+        // The choice was stored on the page's own origin, shared by every tab: left there it would colour the next check.
+        await evalIn(browser, s, 'localStorage.clear(); true');
         await browser.send('Target.closeTarget', { targetId });
       }
     }

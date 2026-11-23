@@ -177,8 +177,8 @@ async function checkFirstChoices() {
         const rect = (e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; };
         try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__shifts.push({ value: e.value, moved: (e.sources || []).map((x) => (x.node && (x.node.nodeName + '.' + (x.node.className || ''))) + ' ' + x.previousRect.y + '->' + x.currentRect.y) }); }).observe({ type: 'layout-shift', buffered: true }); } catch (e) {}
       })()` }, s);
-      const GREET = "(() => { const g = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top * 10) / 10, Math.round(r.width), Math.round(r.height * 10) / 10]; }; return { h1: g('.page-title h1'), p: g('.page-title p'), box: g('[data-quick]'), text: (document.querySelector('.page-title h1') || {}).textContent, face: getComputedStyle(document.querySelector('.page-title h1')).fontFamily.slice(0, 24), above: [...document.querySelectorAll('.main > *, .main > * > *, #view > *')].filter((e) => { const r = e.getBoundingClientRect(); return r.height > 0 && r.top < document.querySelector('.page-title h1').getBoundingClientRect().top + 1; }).slice(0, 12).map((e) => e.tagName + '.' + String(e.className).slice(0, 30) + ' ' + Math.round(e.getBoundingClientRect().top * 10) / 10 + '+' + Math.round(e.getBoundingClientRect().height * 10) / 10) }; })()";
-      const moved = [];
+      const GREET = "(() => { const g = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top * 10) / 10, Math.round(r.width), Math.round(r.height * 10) / 10]; }; return { view: g('#view'), h1: g('.page-title h1'), p: g('.page-title p'), box: g('[data-quick]'), text: (document.querySelector('.page-title h1') || {}).textContent, face: getComputedStyle(document.querySelector('.page-title h1')).fontFamily.slice(0, 24), above: [...document.querySelectorAll('.main > *, .main > * > *, #view > *')].filter((e) => { const r = e.getBoundingClientRect(); return r.height > 0 && r.top < document.querySelector('.page-title h1').getBoundingClientRect().top + 1; }).slice(0, 12).map((e) => e.tagName + '.' + String(e.className).slice(0, 30) + ' ' + Math.round(e.getBoundingClientRect().top * 10) / 10 + '+' + Math.round(e.getBoundingClientRect().height * 10) / 10) }; })()";
+      const moved = [], above = [];
       for (const [name, dims] of [['desktop', [1366, 900, false]], ['laptop', [1000, 800, false]], ['tablet', [768, 1024, false]], ['phone', [390, 844, true]], ['small phone', [360, 740, true]]]) {
         await size(dims);
         await media('dark');
@@ -194,7 +194,9 @@ async function checkFirstChoices() {
         await evalIn(browser, s, 'document.fonts.ready.then(() => new Promise((r) => setTimeout(r, 700))).then(() => document.fonts.status)');
         const after = await evalIn(browser, s, GREET);
         const shifts = await evalIn(browser, s, 'window.__shifts');
-        const d = ['h1', 'p', 'box'].map((k) => before[k] && after[k] ? Math.max(...before[k].map((v, i) => (i === 1 || i === 3 ? Math.abs(v - after[k][i]) : 0))) : 99);
+        // Where each sits in the page's own column (a box above the column, such as the confirm-your-email bar, is the page's, not the greeting's).
+        const d = ['h1', 'p', 'box'].map((k) => before[k] && after[k] ? Math.max(Math.abs((before[k][1] - before.view[1]) - (after[k][1] - after.view[1])), Math.abs(before[k][3] - after[k][3])) : 99);
+        above.push(`${name}: the column moved ${Math.round((after.view[1] - before.view[1]) * 10) / 10}px`);
         // The greeting's block must not move or change height by even a pixel when the face changes; its width may (a face is wider or narrower).
         if (wasHeld < 1 || d.some((x) => x > 1)) moved.push({ at: name, wasHeld, before, after, shifts });
         await shot(browser, s, `greeting-fonts-after-${name.replace(' ', '-')}`);
@@ -205,7 +207,7 @@ async function checkFirstChoices() {
       await browser.send('Network.setBypassServiceWorker', { bypass: false }, s);
       await browser.send('Network.setCacheDisabled', { cacheDisabled: false }, s);
       await browser.send('Page.removeScriptToEvaluateOnNewDocument', { identifier }, s);
-      result('first-choices: the greeting, its sentence and the box under them do not move by a pixel when the real fonts arrive, at five widths', !moved.length, moved);
+      result('first-choices: the greeting, its sentence and the box under them do not move by a pixel when the real fonts arrive, at five widths', !moved.length, { moved, above });
     }
 
     /* ---------------------------- in the Windows app: the step says the tray line the old notification said */
