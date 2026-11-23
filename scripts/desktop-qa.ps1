@@ -249,6 +249,37 @@ function TaskbarGold() {
 Start-Sleep 2
 $goldBase = TaskbarGold
 Say "gold pixels in Sentinel's taskbar button before any change: $goldBase"
+# LAB (throwaway branch): which call makes an open window's taskbar button take a new colour, with no restart?
+$names = @(); try { $A = [System.Windows.Automation.AutomationElement]; $tray = $A::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, (New-Object System.Windows.Automation.PropertyCondition($A::ClassNameProperty, 'Shell_TrayWnd'))); foreach ($b in $tray.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) { $names += "$($b.Current.ControlType.ProgrammaticName):$($b.Current.Name):$([int]$b.Current.BoundingRectangle.Width)" } } catch { $names += "uia failed: $($_.Exception.Message)" }
+Say "LAB taskbar elements: $($names -join ' | ')"
+Say "LAB gold before: $(TaskbarGold)"
+[void](Cdp '127.0.0.1:4782' "window.SentinelLook.set({ mode: 'dark', accent: 'sapphire' }).then(() => 1)")
+Start-Sleep 4
+Say "LAB after sapphire, nothing else: gold $(TaskbarGold)"
+Shot 'lab-0-sapphire'
+$W = "const E = process.mainModule.require('electron'); const w = E.BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('127.0.0.1:4782'));"
+$ico = "process.env.APPDATA + '\\Sentinel\\shortcut-sapphire.ico'"
+$tries = [ordered]@{
+  'setUserTasks' = "$W E.app.setUserTasks([]); 1"
+  'setAppDetails' = "$W w.setAppDetails({ appId: 'com.usesentinel.desktop', appIconPath: $ico, appIconIndex: 0, relaunchCommand: process.execPath, relaunchDisplayName: 'Sentinel' }); 1"
+  'skipTaskbar' = "$W w.setSkipTaskbar(true); w.setSkipTaskbar(false); 1"
+  'overlay' = "$W w.setOverlayIcon(E.nativeImage.createFromPath(process.env.APPDATA + '\\Sentinel\\shortcut-sapphire.ico'), 'x'); w.setOverlayIcon(null, ''); 1"
+  'minimizeRestore' = "$W w.minimize(); setTimeout(() => w.restore(), 400); 1"
+  'hideShow' = "$W w.hide(); setTimeout(() => w.show(), 400); 1"
+  'ie4uinit' = "$W process.mainModule.require('child_process').execFile('ie4uinit.exe', ['-show'], { windowsHide: true }, () => {}); 1"
+}
+foreach ($k in $tries.Keys) {
+  [void](Cdp 'main' $tries[$k])
+  Start-Sleep 3
+  $g = TaskbarGold
+  Say "LAB $k -> gold $g"
+  Shot "lab-$k"
+  if ($g -ge 0 -and $g -le 6) { Say "LAB WORKED: $k"; break }
+}
+Say "LAB end"
+Say '--- app.log'; Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-Object -Last 20 | ForEach-Object { Say "  $_" }
+StopSentinel
+exit 0
 foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; accent = 'rose' }, @{ mode = 'dark'; accent = 'gold' }, @{ mode = 'light'; accent = 'gold' })) {
   $name = "frame-$($t.accent)-$($t.mode)"
   $r = [string](Cdp '127.0.0.1:4782' "(async () => { await window.SentinelLook.set({ mode: '$($t.mode)', accent: '$($t.accent)' }); await new Promise((r) => setTimeout(r, 1800)); const f = document.querySelector('.frame'), cs = f && getComputedStyle(f); return [document.documentElement.classList.contains('framed'), Boolean(f && f.querySelector('.frame__mark svg')), cs && cs.backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), Boolean(navigator.windowControlsOverlay && navigator.windowControlsOverlay.visible), f && Math.round(f.getBoundingClientRect().height), f && f.querySelector('.frame__page').textContent + '/' + document.title].join('|'); })()").value

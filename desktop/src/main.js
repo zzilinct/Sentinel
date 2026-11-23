@@ -923,7 +923,7 @@ function applyLook(l) {
     if (process.platform === 'win32') win.setTitleBarOverlay(frameButtons(l));
     // The taskbar reads a shortcut's icon when a window's button is made, not after: an open window's button is taken
     // off the taskbar and put back (no hiding, no focus change), so it is made again from the shortcut just written.
-    if (recoloured && win.isVisible()) { win.setSkipTaskbar(true); win.setSkipTaskbar(false); }
+    /* LAB: nothing here */
   }
   try { require('fs').writeFileSync(path.join(app.getPath('userData'), 'look.json'), JSON.stringify(l)); } catch { /* the companion keeps the look it has */ }
 }
