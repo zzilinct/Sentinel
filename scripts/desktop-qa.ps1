@@ -225,19 +225,30 @@ if (-not $paired) { Say "  diag: $(Cdp '127.0.0.1:4782' 'location.href')" }
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
 [void](Until 30 { [string](Cdp '127.0.0.1:4782' "Boolean(window.SentinelLook && window.SentinelLook.set && document.querySelector('.frame'))").value -match 'true' })
 function PixelAt($x, $y) { $bmp = New-Object System.Drawing.Bitmap 1, 1; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$x, [int]$y, 0, 0, (New-Object System.Drawing.Size 1, 1)); $c = $bmp.GetPixel(0, 0); $g.Dispose(); $bmp.Dispose(); return $c }
-# Gold pixels in the taskbar's strip (the bottom 56 rows, every other pixel): Sentinel's button is gold or it is not, with no
-# restart between. Explorer's folder is gold too, so the checks below compare with the strip's count before any change.
+# Sentinel's own button on the taskbar, found through Windows' accessibility tree (its rectangle on the screen), and its
+# picture read: how many of its pixels are gold. The button is read, not the whole strip: Explorer's folder is gold too.
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+function TaskbarButton() {
+  $A = [System.Windows.Automation.AutomationElement]
+  $tray = $A::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, (New-Object System.Windows.Automation.PropertyCondition($A::ClassNameProperty, 'Shell_TrayWnd')))
+  if (-not $tray) { return $null }
+  foreach ($b in $tray.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
+    if ($b.Current.Name -match '^Sentinel' -and $b.Current.BoundingRectangle.Width -gt 10 -and $b.Current.BoundingRectangle.Width -lt 200) { return $b.Current.BoundingRectangle }
+  }
+  return $null
+}
 function TaskbarGold() {
-  $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $h = [Math]::Min(56, $b.Height)
-  $bmp = New-Object System.Drawing.Bitmap $b.Width, $h; $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.CopyFromScreen($b.X, $b.Y + $b.Height - $h, 0, 0, (New-Object System.Drawing.Size $b.Width, $h))
+  $r = TaskbarButton
+  if (-not $r) { return -1 }
+  $bmp = New-Object System.Drawing.Bitmap ([int]$r.Width), ([int]$r.Height); $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.CopyFromScreen([int]$r.X, [int]$r.Y, 0, 0, $bmp.Size)
   $n = 0
-  for ($y = 0; $y -lt $h; $y += 2) { for ($x = 0; $x -lt $b.Width; $x += 2) { $c = $bmp.GetPixel($x, $y); if ($c.R -gt 150 -and $c.G -gt $c.R * 0.55 -and $c.G -lt $c.R * 0.9 -and $c.B -lt $c.R * 0.5) { $n++ } } }
+  for ($y = 0; $y -lt $bmp.Height; $y++) { for ($x = 0; $x -lt $bmp.Width; $x++) { $c = $bmp.GetPixel($x, $y); if ($c.R -gt 130 -and $c.G -gt $c.R * 0.6 -and $c.G -lt $c.R * 0.95 -and ($c.G - $c.B) -gt 30 -and $c.B -lt $c.G * 0.75) { $n++ } } }
   $g.Dispose(); $bmp.Dispose(); return $n
 }
 Start-Sleep 2
 $goldBase = TaskbarGold
-Say "taskbar gold pixels before any change: $goldBase"
+Say "gold pixels in Sentinel's taskbar button before any change: $goldBase"
 foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; accent = 'rose' }, @{ mode = 'dark'; accent = 'gold' }, @{ mode = 'light'; accent = 'gold' })) {
   $name = "frame-$($t.accent)-$($t.mode)"
   $r = [string](Cdp '127.0.0.1:4782' "(async () => { await window.SentinelLook.set({ mode: '$($t.mode)', accent: '$($t.accent)' }); await new Promise((r) => setTimeout(r, 1800)); const f = document.querySelector('.frame'), cs = f && getComputedStyle(f); return [document.documentElement.classList.contains('framed'), Boolean(f && f.querySelector('.frame__mark svg')), cs && cs.backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), Boolean(navigator.windowControlsOverlay && navigator.windowControlsOverlay.visible), f && Math.round(f.getBoundingClientRect().height), f && f.querySelector('.frame__page').textContent + '/' + document.title].join('|'); })()").value
@@ -258,7 +269,7 @@ foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; acc
   Start-Sleep 2
   Shot "$name-taskbar"
   $tb = TaskbarGold
-  Check "$name-taskbar-button" $(if ($t.accent -eq 'gold') { $tb -ge $goldBase - 6 } else { $tb -le $goldBase - 12 }) "gold pixels in the taskbar strip: $tb now, $goldBase before any change (the button is gold again, or no longer gold, with no restart)"
+  Check "$name-taskbar-button" $(if ($t.accent -eq 'gold') { $tb -ge 25 } else { $tb -ge 0 -and $tb -le 6 }) "gold pixels in Sentinel's taskbar button: $tb now, $goldBase before any change (-1: the button was not found); the button is gold again, or no longer gold, with no restart"
   Check "$name-shortcuts" ($links.Count -gt 0 -and @($links | Where-Object { $wsh.CreateShortcut($_).IconLocation -notmatch ($want -replace ' <-$', '') }).Count -eq 0) "Sentinel's shortcuts: $icons"
 }
 [void](Cdp '127.0.0.1:4782' "window.SentinelLook.set({ mode: 'auto', accent: 'gold' }).then(() => 1)")
