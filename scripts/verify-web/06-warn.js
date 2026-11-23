@@ -108,7 +108,7 @@ async function checkWarn() {
     let named = false;
     for (const [view, size] of [['desktop', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }], ['phone', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }]]) {
       await browser.send('Emulation.setDeviceMetricsOverride', size, s);
-      await goto(browser, s, `${base}/app/check?url=${encodeURIComponent(`https://${idn}/`)}`, "document.querySelector('#view [data-form]')");
+      await goto(browser, s, `${base}/app/check?url=${encodeURIComponent(`https://${idn}/`)}&size=${view}`, "document.querySelector('#view [data-form]')");
       named = false;
       for (let i = 0; i < 120 && !named; i++) { await sleep(250); named = await evalIn(browser, s, "Boolean(document.querySelector('[data-warn]'))"); }
       await sleep(400);
