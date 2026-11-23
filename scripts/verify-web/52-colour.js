@@ -360,17 +360,18 @@ async function checkColour() {
       const before = await hot();
       // Press the sapphire gem; while its circle opens, the pointer is still over it, then moves on to teal.
       for (const type of ['mousePressed', 'mouseReleased']) await browser.send('Input.dispatchMouseEvent', { type, x: sx, y: sy, button: 'left', clickCount: 1 }, s);
-      await sleep(250);
-      const during = await hot();
+      // The first moment the circle is open (the class is on), then the pointer moves on to teal while it still is.
+      let during = null;
+      for (let i = 0; i < 30 && !(during && during.vt); i++) { during = await hot(); if (!during || !during.vt) await sleep(30); }
       await move(tx, ty);
-      await sleep(250);
+      await sleep(120);
       const onward = await hot();
       await sleep(1200);
       const after = await hot();
       const lifted = (h) => Boolean(h) && h.lift !== 'none' && h.lift !== 'matrix(1, 0, 0, 1, 0, 0)';
       result('colour: the pointer keeps its hover on a gem before, during and after the colour opens, and moving to the next gem hovers it at once',
-        Boolean(before) && before.id === 'sapphire' && lifted(before) && Boolean(during) && during.id === 'sapphire' && during.vt !== '' && Boolean(onward) && onward.id === 'teal' && lifted(onward) && Boolean(after) && after.id === 'teal' && lifted(after) && after.vt === '',
-        { before, during, onward, after });
+        Boolean(before) && before.id === 'sapphire' && lifted(before) && Boolean(during) && during.id === 'sapphire' && during.vt !== '' && Boolean(onward) && onward.id === 'teal' && lifted(onward) && onward.vt !== '' && Boolean(after) && after.id === 'teal' && lifted(after) && after.vt === '',
+        { before, during, onward, after, transitions: await evalIn(browser, s, 'window.__vts') });
       await done();
     }
   } finally { await close(); files.server.close(); }

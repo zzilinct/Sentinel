@@ -102,7 +102,9 @@ body.app::before { opacity: .6; }
 
 .page-title { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 30px; }
 .page-title h1 { font-size: var(--t-d3); }
-.page-title p { margin-top: 8px; color: var(--text-2); max-width: 60ch; }
+/* The sentence's room is in em, not ch: a ch is the width of a 0 in the font that is drawn, so the stand-in face and the real one
+   gave it different widths, and the sentence went from two lines to one the moment Geist arrived, moving the greeting. */
+.page-title p { margin-top: 8px; color: var(--text-2); max-width: 42em; }
 .page-title b { color: var(--gold-200); font-weight: 500; }
 
 .panel { border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); padding: calc(26px * var(--ds)); }
