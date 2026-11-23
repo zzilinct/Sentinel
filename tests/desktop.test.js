@@ -825,19 +825,6 @@ test('pixels that move with no wheel, touchpad or button behind them do not carr
   assert.equal(repaint('K 911 203 x\n# inbox repaint one row up\nP 1000 50 -40\nF 4 -31.6 -40.0\nF 5 -40.0 -40.0\nS 1880 930 0 settle\n').followed, 40, 'live-e2e sees marks that rode the pixels');
 });
 
-test('the end of the quiet wakes the look at the page at once, and live-e2e times the first keyboard scroll after it', () => {
-  const s = read('desktop/src/watch.js');
-  // The band is looked at once a second while quiet; a key has no wheel hook to wake it, so the end of the quiet must.
-  assert.match(s, /public static void Unquiet\(\) \{ if \(!Quiet\) return; Quiet = false; wake\.Set\(\); \}/);
-  assert.match(s, /if \(\$quiet\) \{ \[Glide\]::Quiet = \$true \} else \{ \[Glide\]::Unquiet\(\) \}/);
-  assert.match(s, /\$quiet = \$false; try \{ \[Glide\]::Unquiet\(\) \} catch \{ \}; break \}/);
-  assert.doesNotMatch(s, /\[Glide\]::Quiet = \$false/);
-  const { quietKey, QUIET_KEY_MS } = require('../scripts/marks-at-rest.js');
-  assert.equal(quietKey('P 100 1 -40 lone\n# quiet key 5000\nF 1 0 0\nP 5310 9 -120 lone\nP 5400 9 -120\n').ms, 310);
-  assert.equal(quietKey('# quiet key 5000\nF 1 0 0\n').ms, null, 'never seen moving');
-  assert.ok(QUIET_KEY_MS <= 600);
-  assert.match(read('scripts/live-e2e.ps1'), /--quiet-key "the keyboard scroll \$q after quiet"[\s\S]*if \(\$quietSlow\.Count\) \{ Say "note:[^\n]*\}/);
-});
 
 test('the end-to-end runs ask again of a refused debugging port, and wait for the page after a reload', () => {
   assert.match(read('scripts/desktop-e2e-lib.ps1'), /-notmatch 'ECONNREFUSED'\) \{ break \}; Start-Sleep 2/);

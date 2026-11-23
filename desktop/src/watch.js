@@ -214,9 +214,6 @@ public class Glide {
   // scroll it, so the band is looked at once a second. A wheel turning (Poke) wakes the look at once.
   public static volatile bool Quiet;
   static readonly System.Threading.AutoResetEvent wake = new System.Threading.AutoResetEvent(false);
-  // The quiet is over (a key or the mouse was touched): look now, not at the end of the second's wait. A keyboard
-  // scroll has no wheel to wake the band, and its first rows went by with the marks on them for up to a second.
-  public static void Unquiet() { if (!Quiet) return; Quiet = false; wake.Set(); }
   // A movement that no wheel, touchpad or mouse button came before, nor the browser's own positions since: a page
   // repainting itself in place (a new row, a banner) looks the same to the pixels as a scroll, and so does the
   // keyboard. Such a run is reported as unconfirmed ("lone") until one of those says the page really moves: the marks
@@ -442,7 +439,7 @@ while ($true) {
   try { [Wheel]::Enabled = [bool]$anchor; [Glide]::Enabled = [bool]$anchor } catch { }
   $now = [Environment]::TickCount
   $quiet = $lastWin -ne '' -and [SW]::IdleMs() -gt 10000 -and ($now - $lastMoveAt) -gt 10000 -and ($now - $changedAt) -gt 10000
-  try { if ($quiet) { [Glide]::Quiet = $true } else { [Glide]::Unquiet() } } catch { }
+  try { [Glide]::Quiet = $quiet } catch { }
   if ($quiet -and -not $wasQuiet) { Write-Output '{"quiet":true}' }
   $wasQuiet = $quiet
   if ($quiet -and $pause -ge 180 -and $pause -lt 1000) { $pause = 1000 }
@@ -480,7 +477,7 @@ while ($true) {
     $wait = if ([Environment]::TickCount -lt $stillAt) { 8 } elseif ($sinceMove -lt 1500) { 15 } elseif ($sinceMove -lt 10000) { 40 } elseif ($quiet) { 250 } else { 90 }
     if ($pendingLine.Wait($wait)) { $gotCmd = $true; break }
     # A touch of the mouse or keyboard ends the quiet at once: the next look is now, at the usual pace.
-    if ($quiet -and [SW]::IdleMs() -lt 10000) { $quiet = $false; try { [Glide]::Unquiet() } catch { }; break }
+    if ($quiet -and [SW]::IdleMs() -lt 10000) { $quiet = $false; try { [Glide]::Quiet = $false } catch { }; break }
     # Quiet, the anchor is asked where it is once a second: each ask costs the browser too, and nothing can scroll.
     if ($quiet -and [Environment]::TickCount - $anchorAt -lt 1000) { continue }
     $anchorAt = [Environment]::TickCount

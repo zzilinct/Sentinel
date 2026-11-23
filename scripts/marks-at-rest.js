@@ -59,19 +59,6 @@ function repaint(text) {
   }
   return { px: Math.round(px), ms, via, moved, yBefore, yAfter, followed: Math.round(followed), ...atRest(text) };
 }
-// A key pressed on a quiet page (from the last "# quiet key <ms>" line, live-e2e's clock): how long until the pixels
-// were seen moving (the first P line after it, the overlay's Date clock), or null when they never were.
-function quietKey(text) {
-  const lines = text.split(/\r?\n/);
-  let from = -1;
-  lines.forEach((l, i) => { if (/^# quiet key \d+$/.test(l)) from = i; });
-  if (from < 0) return { ms: null };
-  const at = Number(lines[from].split(' ').pop());
-  for (let i = from + 1; i < lines.length; i++) { const f = lines[i].split(' '); if (f[0] === 'P') return { ms: Number(f[1]) - at }; }
-  return { ms: null };
-}
-const QUIET_KEY_MS = 600;
-
 // The reader waits 700 ms after the pixels last moved before it reads again (watch.js); a read takes a moment more.
 const SETTLE_MS = 1000;
 
@@ -88,12 +75,6 @@ if (require.main === module && process.argv[3] === '--repaint') {
   else if (r.ms > SETTLE_MS || r.off > 4 || (r.yBefore !== null && (r.yAfter === null || Math.abs(r.yAfter - r.yBefore) > 4))) {
     console.log(`marks on ${label}: put right by a ${r.via} ${r.ms} ms after the pixels moved ${r.px} px; flagged mark at ${r.yAfter}, its row at ${r.yBefore}; at rest ${r.off} px off`); process.exitCode = 1;
   } else console.log(`marks on ${label}: the pixels saw ${r.px} px the rows never moved; the marks ${r.followed ? `followed ${r.followed} px and were put right` : 'stood still, stepped aside, and were shown again'} by a ${r.via}${r.followed || r.via === 'settle' ? ` ${r.ms} ms later` : ''}, the flagged mark on its row (${r.yBefore})`);
-} else if (require.main === module && process.argv[3] === '--quiet-key') {
-  const r = quietKey(fs.readFileSync(process.argv[2], 'utf8'));
-  const label = process.argv[4] || 'a key after quiet';
-  if (r.ms === null) { console.log(`marks on ${label}: the page was never seen moving`); process.exitCode = 1; }
-  else if (r.ms > QUIET_KEY_MS) { console.log(`marks on ${label}: the page was seen moving ${r.ms} ms after the key (limit ${QUIET_KEY_MS} ms)`); process.exitCode = 1; }
-  else console.log(`marks on ${label}: the page was seen moving ${r.ms} ms after the key`);
 } else if (require.main === module && process.argv[3] === '--tab') {
   const r = tabSwitch(fs.readFileSync(process.argv[2], 'utf8'));
   const label = process.argv[4] || 'a new tab';
@@ -106,4 +87,4 @@ if (require.main === module && process.argv[3] === '--repaint') {
   else { console.log(`marks at rest ${label}: ${r.off} px off their results (moved ${r.shift.toFixed(0)} px, browser says ${r.browser})`); process.exitCode = 1; }
 }
 
-module.exports = { atRest, tabSwitch, repaint, quietKey, SETTLE_MS, QUIET_KEY_MS };
+module.exports = { atRest, tabSwitch, repaint, SETTLE_MS };

@@ -176,18 +176,6 @@ $scan = [math]::Round($still.total - ([double]$s1['server'] - [double]$s0['serve
 Say "still page: $($still.text); live scanning (all but the server) $scan%; the reader went quiet $(@(Select-String -Path "$data\logs\watch.log" -Pattern 'looking less often' -SimpleMatch -ErrorAction SilentlyContinue).Count) time(s) so far"
 $stillFailed = $scan -gt 1.5
 Shot 'google-still'
-# 3b. The first keyboard scroll after the page went quiet: no wheel wakes the reader's look at the page's pixels, so
-# until 1.21.2 the marks stayed on the rows that went by for up to a second. Seen moving within 600 ms of the key,
-# three times (Page Down, Page Up, Page Down), each after the reader has gone quiet again.
-$quietSlow = @()
-for ($q = 1; $q -le 3; $q++) {
-  Start-Sleep 13
-  Add-Content "$Out\frames.txt" "# quiet key $([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
-  [K]::Tap($(if ($q -eq 2) { 0x21 } else { 0x22 })); Start-Sleep 2
-  $m = node (Join-Path $PSScriptRoot 'marks-at-rest.js') "$Out\frames.txt" --quiet-key "the keyboard scroll $q after quiet"
-  if ($LASTEXITCODE) { $quietSlow += $q }
-  Say $m
-}
 
 # 4. An inbox (a Pro feature, given above). Everyday mail and scams side by side: the scams should get a mask, the
 # rest a tick, and marks must stay inside the message list while it scrolls.
@@ -380,7 +368,4 @@ if ($regFailed) { Say 'FAILED: Run keys are still polled, or a new entry was not
 if ($marksOff.Count) { Say "FAILED: marks off their results at rest: $($marksOff -join ', ')"; exit 1 }
 if ($hoverFailed) { Say 'FAILED: resting on a flagged mark did not show its reasonLine() in the tip'; exit 1 }
 if ($idleFailed) { Say "FAILED: Sentinel at rest, the import over, costs more than the idle limit: $($idle.text)"; exit 1 }
-# Told, not failed: run 45281811180 saw no pixel report at all after a key on a quiet page (the marks were read again
-# instead of followed), so "seen moving within 600 ms" is not something the reader gives; kept until a measure that is.
-if ($quietSlow.Count) { Say "note: a keyboard scroll after quiet gave no pixel report in time (tries $($quietSlow -join ', ')); the marks were read again" }
 if ($stillFailed) { Say "FAILED: live scanning on a results page left still costs more than the idle limit: $scan% ($($still.text))"; exit 1 }
