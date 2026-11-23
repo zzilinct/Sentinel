@@ -178,7 +178,8 @@ async function checkFirstChoices() {
       const { identifier } = await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
         const g = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top * 10) / 10, Math.round(r.width), Math.round(r.height * 10) / 10]; };
         const mark = () => { if (window.__first || !document.querySelector('.page-title h1')) return; window.__first = { top: g('#view'), h1: g('.page-title h1'), p: g('.page-title p'), box: g('[data-quick]'), face: document.fonts.check('400 16px Geist') }; };
-        new MutationObserver(mark).observe(document, { childList: true, subtree: true });
+        // In the frame that first shows the greeting (what a person sees first), not in the microtask that draws it.
+        new MutationObserver(() => { if (!window.__first && document.querySelector('.page-title h1')) requestAnimationFrame(mark); }).observe(document, { childList: true, subtree: true });
       })()` }, s);
       const GREET = "(() => { const g = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top * 10) / 10, Math.round(r.width), Math.round(r.height * 10) / 10]; }; return { top: g('#view'), h1: g('.page-title h1'), p: g('.page-title p'), box: g('[data-quick]'), first: window.__first }; })()";
       const diff = (a, b) => ['top', 'h1', 'p', 'box'].map((k) => (a[k] && b[k] ? Math.max(Math.abs(a[k][1] - b[k][1]), k === 'top' ? 0 : Math.abs(a[k][3] - b[k][3])) : 99));
