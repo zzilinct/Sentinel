@@ -127,7 +127,9 @@ function Shot($name) {
 }
 # Ask one of Sentinel's windows (by part of its address) to evaluate an expression. Single quotes only inside it.
 # Nothing printed (run 44948789986 attempt 1, warn.html) is an answer too, never a PowerShell error.
-function Cdp($part, $expr) { $j = "$(node (Join-Path $PSScriptRoot 'e2e-cdp.js') $(if ($part -eq 'main') { 9334 } else { 9333 }) $part $expr)"; Say "  cdp $part -> $($j.Substring(0, [Math]::Min(400, $j.Length)))"; if (-not $j) { return [pscustomobject]@{ error = 'no answer' } }; return ($j | ConvertFrom-Json) }
+# A port that refuses (the app between two lives, or a window being rebuilt by a reload) never saw the expression, so
+# asking again is safe: up to four times, two seconds apart, before it is an answer.
+function Cdp($part, $expr) { for ($try = 1; $try -le 4; $try++) { $j = "$(node (Join-Path $PSScriptRoot 'e2e-cdp.js') $(if ($part -eq 'main') { 9334 } else { 9333 }) $part $expr)"; if ($j -notmatch 'ECONNREFUSED') { break }; Start-Sleep 2 }; Say "  cdp $part -> $($j.Substring(0, [Math]::Min(400, $j.Length)))"; if (-not $j) { return [pscustomobject]@{ error = 'no answer' } }; return ($j | ConvertFrom-Json) }
 # Press a button in the shield's window by its words.
 # The click waits for the answer to be sent: a button that closes the window (Yes, I did) would take the reply with it.
 function Press($label) { return (Cdp 'guard.html' "(() => { const b = [...document.querySelectorAll('#row button')].find((x) => x.textContent === '$label'); if (b) setTimeout(() => b.click(), 50); return Boolean(b); })()").value }

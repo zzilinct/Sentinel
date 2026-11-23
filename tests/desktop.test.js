@@ -839,6 +839,13 @@ test('the end of the quiet wakes the look at the page at once, and live-e2e time
   assert.match(read('scripts/live-e2e.ps1'), /--quiet-key "the keyboard scroll \$q after quiet"[\s\S]*if \(\$quietSlow\.Count\) \{[^\n]*exit 1 \}/);
 });
 
+test('the end-to-end runs ask again of a refused debugging port, and wait for the page after a reload', () => {
+  assert.match(read('scripts/desktop-e2e-lib.ps1'), /-notmatch 'ECONNREFUSED'\) \{ break \}; Start-Sleep 2/);
+  const qa = read('scripts/desktop-core-qa.ps1');
+  assert.match(qa, /\$kept = Until 40 \{ \(Shown '\[data-dl\]'\) -eq 'true' \}/);
+  assert.doesNotMatch(qa, /location\.reload\(\), 1'\); Start-Sleep 6/);
+});
+
 test('live-e2e makes a repaint that only looks like a scroll, and fails unless the reader puts the marks right in time', () => {
   const { repaint, SETTLE_MS } = require('../scripts/marks-at-rest.js');
   // The test inbox's rows draw the next message's words (the R key) under their own names, sizes and places, and the
