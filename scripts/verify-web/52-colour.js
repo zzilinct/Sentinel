@@ -364,13 +364,14 @@ async function checkColour() {
       const before = await hot();
       // Press the sapphire gem; while its circle opens, the pointer is still over it, then moves on to teal.
       for (const type of ['mousePressed', 'mouseReleased']) await browser.send('Input.dispatchMouseEvent', { type, x: sx, y: sy, button: 'left', clickCount: 1 }, s);
-      // The first moment the circle is open (the class is on), then the pointer moves on to teal while it still is.
-      let during = null;
-      for (let i = 0; i < 30 && !(during && during.vt); i++) { during = await hot(); if (!during || !during.vt) await sleep(30); }
+      // The circle held half open (as the check above does), so "during" is certain: hover is read inside it, and the pointer moves on inside it.
+      const held = await until(browser, s, `(() => { const a = document.getAnimations().find((x) => x.effect && x.effect.pseudoElement === '::view-transition-new(root)'); if (!a) return null; a.pause(); a.currentTime = 200; return true; })()`, 3000);
+      const during = held ? { ...(await hot()), vt: 'held open' } : null;
       await move(tx, ty);
       await sleep(120);
-      const onward = await hot();
-      await sleep(1200);
+      const onward = held ? { ...(await hot()), vt: 'held open' } : null;
+      await evalIn(browser, s, 'document.documentElement.getAnimations({ subtree: true }).forEach((a) => { try { a.play(); } catch (e) {} }); true');
+      await sleep(1400);
       const after = await hot();
       const lifted = (h) => Boolean(h) && h.lift !== 'none' && h.lift !== 'matrix(1, 0, 0, 1, 0, 0)';
       result('colour: the pointer keeps its hover on a gem before, during and after the colour opens, and moving to the next gem hovers it at once',

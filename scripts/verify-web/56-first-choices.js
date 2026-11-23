@@ -160,9 +160,8 @@ async function checkFirstChoices() {
       heights.comfortable.seg === 38 && heights.comfortable.input === 46 && heights.compact.seg >= 36 && heights.compact.seg < 38 && heights.compact.input < 46 && heights.compact.input >= 36, heights);
 
     /* ------------- the greeting does not move when the real fonts arrive */
-    // Fonts 120 ms late (a slow disk, a busy runner: the page waits for them, up to 400 ms) must change nothing at all: the
-    // greeting is first drawn where it stays. Fonts held for good (the stand-ins alone, then let in at once) are measured
-    // too and reported, at five widths, not failed on: only a confirm-your-email bar's wrapping can still move the page then.
+    // Fonts 120 ms late, and fonts held back for good and then let in (the page drawn in the stand-ins first), at five widths: the page
+    // top, the greeting, its sentence and the box under them are in the same place before and after, to the pixel.
     {
       await evalIn(browser, s, "(localStorage.removeItem('sentinel:type'), 1)");
       await browser.send('Network.enable', {}, s);
@@ -193,7 +192,7 @@ async function checkFirstChoices() {
         await evalIn(browser, s, 'document.fonts.ready.then(() => new Promise((r) => setTimeout(r, 900)))');
         const soon = await evalIn(browser, s, GREET);
         const dSoon = soon.first ? diff(soon.first, soon) : [99];
-        if (dSoon.some((x) => x > 0.5) || !soon.first || !soon.first.face) moved.push({ at: name, first: soon.first, last: soon });
+        if (dSoon.some((x) => x > 0.5) || !soon.first) moved.push({ at: name, first: soon.first, last: soon });
         await shot(browser, s, `greeting-fonts-soon-${name.replace(' ', '-')}`);
         // Held for good, then let in.
         mode = 'never';
@@ -205,14 +204,16 @@ async function checkFirstChoices() {
         mode = 'now';
         for (const id of held.splice(0)) await browser.send('Fetch.continueRequest', { requestId: id }, s).catch(() => {});
         await evalIn(browser, s, 'document.fonts.ready.then(() => new Promise((r) => setTimeout(r, 700)))');
-        held5.push(`${name}: stand-ins only, then the real faces: ${diff(beforeAll, await evalIn(browser, s, GREET)).join('/')} px (page top, greeting, sentence, box)`);
+        const dHeld = diff(beforeAll, await evalIn(browser, s, GREET));
+        held5.push(`${name}: ${dHeld.join('/')} px`);
+        if (dHeld.some((x) => x > 0.5)) moved.push({ at: `${name}, fonts held then let in`, before: beforeAll });
       }
       mode = 'now';
       await browser.send('Fetch.disable', {}, s);
       await browser.send('Network.setBypassServiceWorker', { bypass: false }, s);
       await browser.send('Network.setCacheDisabled', { cacheDisabled: false }, s);
       await browser.send('Page.removeScriptToEvaluateOnNewDocument', { identifier }, s);
-      result('first-choices: the app waits for its two faces (up to 400 ms), so the greeting, its sentence and the box under them are first drawn where they stay, at five widths', !moved.length, { moved, held5 });
+      result('first-choices: whether the real fonts come 120 ms late or after the page has been drawn in the stand-ins, the page top, greeting, sentence and box under them do not move a pixel, at five widths (held5: stand-ins then real faces, per width)', !moved.length, { moved, held5 });
     }
 
     /* ---------------------------- in the Windows app: the step says the tray line the old notification said */

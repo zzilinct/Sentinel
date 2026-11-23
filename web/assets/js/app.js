@@ -14,13 +14,6 @@
     sheet.onload = sheet.onerror = done;
     pre.after(sheet);
   })));
-  // The two faces the page is drawn in, asked for now and waited for beside the account (they were preloaded): the first
-  // screen is drawn in them, so no line wraps differently when they arrive and moves the greeting. A face that is not in
-  // within 400 ms is not waited for (the stand-ins in fonts.css are measured against the real faces).
-  const faces = Promise.race([
-    Promise.all([document.fonts.load('400 16px Geist'), document.fonts.load('400 32px Newsreader')]),
-    new Promise((done) => setTimeout(done, 400))
-  ]).catch(() => {});
   const desktop = window.sentinelDesktop || null;
   // Motion Off (boot.js data-motion): nothing glides or rises. Asked each time: it can change while the app is open.
   const still = () => document.documentElement.dataset.motion === 'off';
@@ -93,7 +86,6 @@
       return;
     }
 
-    await faces;
     $$('[data-glyph]').forEach((el) => { el.innerHTML = Masks.svg(el.dataset.glyph); });
     paintAccount();
     paintModelBadge();
