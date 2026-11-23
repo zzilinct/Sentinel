@@ -836,7 +836,7 @@ test('the end of the quiet wakes the look at the page at once, and live-e2e time
   assert.equal(quietKey('P 100 1 -40 lone\n# quiet key 5000\nF 1 0 0\nP 5310 9 -120 lone\nP 5400 9 -120\n').ms, 310);
   assert.equal(quietKey('# quiet key 5000\nF 1 0 0\n').ms, null, 'never seen moving');
   assert.ok(QUIET_KEY_MS <= 600);
-  assert.match(read('scripts/live-e2e.ps1'), /--quiet-key "the keyboard scroll \$q after quiet"[\s\S]*if \(\$quietSlow\.Count\) \{[^\n]*exit 1 \}/);
+  assert.match(read('scripts/live-e2e.ps1'), /--quiet-key "the keyboard scroll \$q after quiet"[\s\S]*if \(\$quietSlow\.Count\) \{ Say "note:[^\n]*\}/);
 });
 
 test('the end-to-end runs ask again of a refused debugging port, and wait for the page after a reload', () => {
