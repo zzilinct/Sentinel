@@ -147,3 +147,13 @@ test('first run: one step drawn from Settings rows, and the tray notification it
   assert.doesNotMatch(read('web/assets/js/app/settings.js'), /function (firstChoices|rowHTML|paintRow)\(/, 'one copy of the rows\' frame');
   assert.doesNotMatch(read('desktop/src/main.js'), /trayHintShown/);
 });
+
+test('a first visit asks for the first-run files beside app.js, with the key and files app.js uses', () => {
+  const boot = read('web/assets/js/boot.js');
+  const app = read('web/assets/js/app.js');
+  const key = /FIRST_KEY = '([^']+)'/.exec(app)[1];
+  assert.ok(boot.includes(`localStorage.getItem('${key}')`), 'boot.js reads the key app.js writes');
+  assert.ok(boot.includes("['script', '/assets/js/app/first.js'], ['style', '/assets/css/settings.css']"));
+  assert.match(app, /first: \['\/assets\/css\/settings\.css'\]/, 'app.js asks for the same two files');
+  assert.ok(boot.includes("!== '/app' || window.sentinelDesktop"), 'only the Overview, never the Windows app');
+});
