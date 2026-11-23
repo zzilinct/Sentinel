@@ -23,6 +23,15 @@ test('a list is written in the order of its key, whatever order it came in', asy
   assert.deepStrictEqual(stored, [...stored].sort());
 });
 
+test('the name index is rebuilt in the order of its key, with its index by host made again', async () => {
+  const n = await feeds.rebuildTokens();
+  assert.ok(n >= 300, `rebuilt ${n}`);
+  const stored = db.prepare('SELECT token, host FROM scam_tokens ORDER BY rowid').all().map((r) => `${r.token}\n${r.host}`);
+  assert.ok(stored.length >= n);
+  assert.deepStrictEqual(stored, [...stored].sort());
+  assert.ok(db.prepare("SELECT 1 FROM feeds.sqlite_master WHERE type = 'index' AND name = 'idx_scam_tokens_host'").get());
+});
+
 test('a refresh runs below normal priority, and the server has its own priority back afterwards', async () => {
   // Every list marked as just fetched: the refresh thread starts, finds nothing due, and fetches nothing.
   const mark = db.prepare('INSERT INTO feed_status (source, fetched_at, entries, ok, error) VALUES (?, ?, 1, 1, NULL) ON CONFLICT(source) DO UPDATE SET fetched_at = excluded.fetched_at, ok = 1');

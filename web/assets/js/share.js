@@ -4,15 +4,17 @@
  * /app/share?title=&text=&url= or, with a picture, as a form POST that sw.js receives and puts in the share box.
  *
  *   SentinelShare.route({ title, text, url, image }) -> { kind: 'link', url } | { kind: 'text', text } | { kind: 'image' } | { kind: 'empty' }
- *   SentinelShare.put(share) / take() / waiting() / clear()   the share box, on this device only (Cache Storage, read once)
+ *   SentinelShare.put(share) / take() / waiting()   the share box, on this device only (Cache Storage, read once)
  */
 (() => {
   'use strict';
 
-  // The share box: one entry, read once. sw.js writes the same two keys for a shared picture.
+  // The share box, read once. Each share is its own pair of keys, named by its time (/share/data/<ms>, and
+  // /share/image/<ms> for a picture; sw.js writes the same). Until 1.21.2 there was one pair, and the box was emptied by
+  // deleting it whole: a second share written meanwhile went with it, and its page found nothing (verify-web run
+  // 44948767446, two shares a moment apart).
   const BOX = 'sentinel-share';
   const DATA = '/share/data';
-  const IMAGE = '/share/image';
   // A share left waiting (sign-in never finished) is not kept for later.
   const FRESH_MS = 30 * 60 * 1000;
   // The most of a shared text kept: the Check page reads its start and its newest part (TEXT_MAX in app.js), so a long
@@ -46,9 +48,20 @@
   /** Keeps a share on this device until the check opens (signed out, that is after signing in). */
   async function put({ title = '', text = '', url = '' } = {}) {
     const c = await box();
-    await c.delete(IMAGE);
-    await c.put(DATA, new Response(JSON.stringify({ title, text, url, at: Date.now() }), { headers: { 'Content-Type': 'application/json' } }));
+    const at = Date.now();
+    await c.put(`${DATA}/${at}`, new Response(JSON.stringify({ title, text, url, at }), { headers: { 'Content-Type': 'application/json' } }));
   }
+
+  /** The box's keys as { key, kind: 'data'|'image', at }. A share from before 1.21.2 (no time in its name) is the oldest. */
+  async function entries(c) {
+    return (await c.keys()).map((key) => {
+      const m = /\/share\/(data|image)(?:\/(\d+))?$/.exec(key.url);
+      return m && { key, kind: m[1], at: Number(m[2] || 0) };
+    }).filter(Boolean);
+  }
+
+  /** Removes these entries, and only these: a share written while they were read has keys of its own and stays. */
+  const drop = (c, list) => Promise.all(list.map((e) => c.delete(e.key)));
 
   /**
    * The waiting share, if any, taken out of the box: { title, text, url, image: File|null } or null. `mine` is the
@@ -58,13 +71,18 @@
   async function take(mine) {
     let c;
     try { c = await box(); } catch { return null; }
-    const [d, i] = await Promise.all([c.match(DATA), c.match(IMAGE)]);
+    const all = await entries(c);
+    const newest = all.filter((e) => e.kind === 'data').reduce((a, e) => (!a || e.at > a.at ? e : a), null);
+    if (!newest) { await drop(c, all); return null; }
+    if (mine && newest.at > mine) return { newer: true };
+    const i = all.find((e) => e.kind === 'image' && e.at === newest.at);
+    const [d, p] = await Promise.all([c.match(newest.key), i ? c.match(i.key) : null]);
     const data = d ? await d.json().catch(() => null) : null;
-    if (mine && data && data.at > mine) return { newer: true };
-    const blob = i ? await i.blob() : null;
-    await clear();
+    const blob = p ? await p.blob() : null;
+    // This share and every older one: they were superseded.
+    await drop(c, all.filter((e) => e.at <= newest.at));
     if (!data || !(Date.now() - data.at < FRESH_MS)) return null;
-    const image = blob ? new File([blob], 'shared-picture', { type: blob.type || i.headers.get('Content-Type') || '' }) : null;
+    const image = blob ? new File([blob], 'shared-picture', { type: blob.type || p.headers.get('Content-Type') || '' }) : null;
     return { title: data.title || '', text: data.text || '', url: data.url || '', image };
   }
 
@@ -72,20 +90,19 @@
   async function waiting() {
     let c;
     try { c = await box(); } catch { return false; }
-    const d = await c.match(DATA);
-    const data = d ? await d.json().catch(() => null) : null;
-    if (data && Date.now() - data.at < FRESH_MS) return true;
-    // Only an old share is emptied out. With nothing there, the box is left alone: a share arriving this moment (the
-    // service worker writing it while this page starts) would otherwise be deleted before its own page reads it.
-    if (d) await clear();
+    const all = await entries(c);
+    for (const e of all.filter((x) => x.kind === 'data')) {
+      const d = await c.match(e.key);
+      const data = d ? await d.json().catch(() => null) : null;
+      if (data && Date.now() - data.at < FRESH_MS) return true;
+    }
+    // Only what was read, all of it old, is emptied out: a share arriving this moment (the service worker writing it
+    // while this page starts) has keys of its own and waits for its page.
+    await drop(c, all);
     return false;
   }
 
-  async function clear() {
-    try { await caches.delete(BOX); } catch { /* nothing waiting */ }
-  }
-
-  const api = { route, put, take, waiting, clear, BOX, DATA, IMAGE };
+  const api = { route, put, take, waiting, BOX, DATA };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else window.SentinelShare = api;
 })();

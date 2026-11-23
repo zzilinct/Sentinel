@@ -67,10 +67,11 @@ async function receiveShare(req) {
     const form = await req.formData();
     const word = (k) => String(form.get(k) || '');
     const file = form.getAll('image').find((f) => f && typeof f === 'object' && f.size);
+    // Keys of its own, named by its time (share.js entries): a page emptying the box of an earlier share never takes
+    // this one with it.
     const box = await caches.open(SHARE);
-    await box.delete('/share/image');
-    if (file) await box.put('/share/image', new Response(file, { headers: { 'Content-Type': file.type || 'application/octet-stream' } }));
-    await box.put('/share/data', new Response(JSON.stringify({ title: word('title'), text: word('text'), url: word('url'), at }), { headers: { 'Content-Type': 'application/json' } }));
+    if (file) await box.put(`/share/image/${at}`, new Response(file, { headers: { 'Content-Type': file.type || 'application/octet-stream' } }));
+    await box.put(`/share/data/${at}`, new Response(JSON.stringify({ title: word('title'), text: word('text'), url: word('url'), at }), { headers: { 'Content-Type': 'application/json' } }));
   } catch { /* the page says nothing arrived */ }
   return Response.redirect(`/app/share?box=${at}`, 303);
 }

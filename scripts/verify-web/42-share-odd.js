@@ -29,7 +29,8 @@ async function checkShareOdd() {
     };
     await phone(s);
     const api = (sid, p, body) => evalIn(browser, sid, `fetch('/api/v1${p}', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify(body || {}))} }).then((r) => r.status)`);
-    const box = () => evalIn(browser, s, "caches.open('sentinel-share').then(async (c) => ({ data: Boolean(await c.match('/share/data')), image: Boolean(await c.match('/share/image')) }))");
+    // Every share has keys of its own (/share/data/<ms>, /share/image/<ms>, share.js): what is in the box, of either kind.
+    const box = () => evalIn(browser, s, "caches.open('sentinel-share').then(async (c) => { const k = (await c.keys()).map((r) => r.url); return { data: k.some((u) => u.includes('/share/data')), image: k.some((u) => u.includes('/share/image')) }; })");
     /** Multipart form POSTs to /app/share, sent as navigations, as Android's share sheet sends them (one or several at once). */
     const post = async (shares, sid = s) => {
       await evalIn(browser, sid, `(() => { ${JSON.stringify(shares)}.forEach((fields, n) => { const f = document.createElement('form'); f.method = 'post'; f.enctype = 'multipart/form-data'; f.action = '/app/share'; f.id = 'android-share-' + n;

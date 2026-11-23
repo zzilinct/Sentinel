@@ -29,7 +29,8 @@ async function checkShare() {
     await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, s);
     await browser.send('Emulation.setUserAgentOverride', { userAgent: ANDROID, platform: 'Linux armv81' }, s);
     const here = () => evalIn(browser, s, 'location.pathname + location.search');
-    const box = () => evalIn(browser, s, "caches.open('sentinel-share').then(async (c) => { const d = await c.match('/share/data'); return { data: d ? await d.json() : null, image: Boolean(await c.match('/share/image')) }; })");
+    // Every share has keys of its own (/share/data/<ms>, /share/image/<ms>, share.js): the newest share's words, and whether a picture waits.
+    const box = () => evalIn(browser, s, "caches.open('sentinel-share').then(async (c) => { const k = (await c.keys()).map((r) => r.url); const d = k.filter((u) => u.includes('/share/data')).sort().pop(); return { data: d ? await (await c.match(d)).json() : null, image: k.some((u) => u.includes('/share/image')) }; })");
     const fits = () => evalIn(browser, s, 'document.documentElement.scrollWidth <= innerWidth + 1');
     const api = (p, body) => evalIn(browser, s, `fetch('/api/v1${p}', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify(body))} }).then((r) => r.status)`);
     /** A multipart form POST to /app/share, sent by the page as a navigation, as Android's share sheet sends one. */

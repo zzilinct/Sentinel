@@ -100,7 +100,11 @@ function extract(feed, text) {
   return lines.map((l) => l.split(/\s+/)[0]);
 }
 
-const CHUNK = 4000;
+// Rows per transaction. Each commit writes every page it touched to the log again, and a list's name index is touched
+// at random: at 4,000 rows a fresh install wrote about 11 times the size of its database (3 GB for 274 MB). On the
+// refresh thread, with its own connection and its own page cache, nothing else waits on its transactions, so they are
+// large; on the server's own thread (tests, an in-memory cache) they stay small, with a yield after each.
+const CHUNK = require('worker_threads').isMainThread ? 4000 : 200000;
 const FULL_REBUILD_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Every domain a feed must never mark: verified sites plus all official brand domains.
@@ -325,18 +329,28 @@ async function rebuildTokens() {
     ...db.prepare("SELECT DISTINCT host FROM feed_hosts WHERE threat = 'scam'").all()
   ].map((r) => (analyze(`http://${r.host}`) || {}).registrable).filter(Boolean))];
 
+  // In the order of the index's key (token, then host), like the lists themselves (importLines): written by name, each
+  // insert landed on a random page of an index of about a million rows.
+  const pairs = [];
+  for (const host of hosts) for (const token of nameTokens(host)) pairs.push(`${token}\n${host}`);
+  const count = hosts.length;
+  hosts.length = 0;
+  pairs.sort();
+  // The index by host is made again afterwards in one sorted pass, instead of a random write per row.
+  db.exec('DROP INDEX IF EXISTS feeds.idx_scam_tokens_host');
   db.exec('DELETE FROM scam_tokens');
-  for (let i = 0; i < hosts.length; i += CHUNK) {
+  for (let i = 0; i < pairs.length; i += CHUNK) {
     db.exec('BEGIN');
     try {
-      for (const host of hosts.slice(i, i + CHUNK)) for (const token of nameTokens(host)) q.tokenIns.run(token, host);
+      for (const pair of pairs.slice(i, i + CHUNK)) { const at = pair.indexOf('\n'); q.tokenIns.run(pair.slice(0, at), pair.slice(at + 1)); }
       db.exec('COMMIT');
     } catch (err) { db.exec('ROLLBACK'); throw err; }
     await tick();
   }
+  db.exec('CREATE INDEX IF NOT EXISTS feeds.idx_scam_tokens_host ON scam_tokens(host)');
   recomputeDf();
-  q.status.run('_token_rebuild', now(), hosts.length, 1, null);
-  return hosts.length;
+  q.status.run('_token_rebuild', now(), count, 1, null);
+  return count;
 }
 
 /** A feed is due when it has never loaded, last failed, or its own interval has passed. */
