@@ -58,7 +58,7 @@ async function checkAppCore() {
     // the first view's own styles (the box is a flex row only in app.css, which the page inlines for it).
     await browser.send('Emulation.setScriptExecutionDisabled', { value: true }, s);
     try {
-      await goto(browser, s, `${base}/app`, "document.querySelector('#view h1')");
+      await goto(browser, s, `${base}/app`);
       const bare = await evalIn(browser, s, `(() => { const q = (x) => document.querySelector(x); const box = q('#view .scanbox');
         return { name: q('#view h1 [data-name]') && q('#view h1 [data-name]').textContent, said: q('#view .page-title p') && q('#view .page-title p').textContent,
           input: Boolean(q('#view [data-quick] input[name=url]')), flex: box && getComputedStyle(box).display, bar: Boolean(q('#view .verify-bar')) }; })()`);
