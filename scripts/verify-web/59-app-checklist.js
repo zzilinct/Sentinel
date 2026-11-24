@@ -26,12 +26,12 @@ const STATUS = ['#e5484d', '#f08a24', '#f5c542', '#4cb782', '#b3261e', '#a14400'
 // call answered, the look left to the page (the window's own look is main.js's, not this page's).
 const STANDIN = `window.sentinelDesktop = new Proxy({ framed: true, look: undefined,
   info: async () => ({ version: '1.21.3', platform: 'win32', embeddedServer: true, openAtLogin: true, clipboardCheck: false, commandShield: true, walletGuard: true,
-    snip: { supported: true, enabled: true }, scanMenu: { supported: true, enabled: true }, exposureAlerts: false, mySites: true, weekRecap: false, pairedUserId: null,
+    snip: { supported: true, enabled: true, key: 'a', keys: [{ id: 'a', label: 'Ctrl+Shift+S' }] }, scanMenu: { supported: true, enabled: true }, exposureAlerts: false, mySites: true, weekRecap: false, pairedUserId: null,
     downloads: { active: true, folder: 'Downloads' }, live: { supported: true, enabled: false }, chatSafety: { supported: true, enabled: true }, parentLock: { enabled: false },
     remoteGuard: { supported: true, enabled: true }, textSafety: { supported: true, enabled: false }, liveMode: 'fast', marksLevel: 'all', warningsLevel: 'all', autoScan: false,
     defense: { supported: true, active: true, enabled: true, watched: ['Downloads'] }, browsers: { installed: [], running: [] }, update: { status: 'idle' } }),
-  recentDownloads: async () => [], mySites: async () => [], exposures: async () => [], lockStatus: async () => ({ enabled: false }), week: async () => null, defense: async () => ({ ledger: [] })
-}, { get: (k, n) => (n in k ? k[n] : typeof n !== 'string' || n === 'look' || n === 'setLook' || n === 'onLook' || n === 'then' ? undefined : /^on[A-Z]/.test(n) ? () => () => {} : async () => ({})) });`;
+  recentDownloads: async () => [], mySites: async () => [], exposures: async () => [], lockStatus: async () => ({ enabled: false }), week: undefined, takeMenuFile: async () => null, defense: async () => ({ ledger: [] })
+}, { get: (k, n) => (n in k ? k[n] : typeof n !== 'string' || n === 'look' || n === 'setLook' || n === 'onLook' || n === 'then' ? undefined : /^on[A-Z]/.test(n) ? () => () => {} : async () => null) });`;
 
 // what: the words in the report; sel: the element; n: how many there must be; only: 'desktop' or 'phone'; all: check each
 // one, not only the first; through: the pointer passes through it by design, so what is drawn over it is not a fault.
@@ -80,7 +80,7 @@ const WINDOWS = [
   ['loading', '/d/pages/loading.html', [{ what: 'first start: the mark', sel: '.mark' }, { what: 'first start: the bar', sel: '.bar' }], {}, "document.querySelector('.bar')", [800, 560]],
   ['error', '/d/pages/error.html', [{ what: 'did not start: the mark', sel: '.mark' }, { what: 'did not start: Try again', sel: '#retry' }, { what: 'did not start: Open log', sel: '#logs' },
     { what: 'did not start: Quit', sel: '#quit' }, { what: 'did not start: the countdown', sel: '#auto' }], { message: 'Sentinel could not start its checks.', log: 'sentinel.log', retryIn: '30' }, "document.getElementById('log').textContent", [800, 560]],
-  ['island', '/d/pages/overlay.html', [{ what: 'island: the corner', sel: '#corner' }, { what: 'island: its mask', sel: '#cornerMask svg' }, { what: 'island: a mark by each link', sel: '#marks .mark', n: 5, all: true }],
+  ['island', '/d/pages/overlay.html', [{ what: 'island: the corner', sel: '#corner', through: true }, { what: 'island: its mask', sel: '#cornerMask svg', through: true }, { what: 'island: a mark by each checked link (the fifth, still being checked, pulses by design)', sel: '#marks .mark:not(.is-pending)', n: 4, all: true, through: true }],
     {}, 'window.__on && window.__on["overlay:watching"]', [1366, 768]]
 ];
 const LOGIN = [
