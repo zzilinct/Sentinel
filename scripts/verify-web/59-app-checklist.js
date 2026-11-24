@@ -11,7 +11,8 @@
  *         A press on a colour coin draws the colour within 250 ms with no long task over 150 ms.
  *         Pictures: app-<page>-<size>-<theme>-<accent>-<text>.png; a failing line is named in the report.
  */
-const { sleep, result, launch, evalIn, openPage, goto, startServer, clickSel, until, shot, watchErrors } = require('./_shared');
+const path = require('path');
+const { ROOT, sleep, result, launch, evalIn, openPage, goto, startServer, serveFiles, clickSel, until, shot, watchErrors } = require('./_shared');
 
 const SIZES = { desktop: { width: 1366, height: 900, mobile: false }, phone: { width: 360, height: 740, mobile: true } };
 // The matrix: each size in these looks. Three accents besides gold, light and dark of each, Larger text twice.
@@ -69,6 +70,19 @@ const CHECKLIST = {
   '/app/assistants': [{ what: 'the assistants panel', sel: '.panel' }],
   '/app/recover': [{ what: 'the first question', sel: '.recover__what' }]
 };
+// The Windows app's own windows (desktop/src/pages), as 51-look serves them: a warning card, the first start, the page that
+// says the app did not start, and the live-scanning island with its marks on a page.
+const WINDOWS = [
+  ['warn', '/d/pages/warn.html', [{ what: 'warning card: mask', sel: '.mark' }, { what: 'warning card: title', sel: '#label' }, { what: 'warning card: the strongest reason', sel: '#why' },
+    { what: 'warning card: the address', sel: '#host' }, { what: 'warning card: what to do', sel: '#lead' }, { what: 'warning card: the other reasons', sel: '#reasons li' },
+    { what: 'warning card: go to the real site', sel: '#real' }, { what: 'warning card: Got it', sel: '#close' }, { what: 'warning card: where it was seen', sel: '#browser' }],
+    { badge: 'orange', label: 'Likely scam', host: 'paypa1-secure-login.example', reasons: ['The address imitates paypal.com', 'The site is three days old', 'It asks for a password'].join(String.fromCharCode(10)), real: 'paypal.com', browser: 'Microsoft Edge' }, "document.getElementById('real').textContent", [520, 560]],
+  ['loading', '/d/pages/loading.html', [{ what: 'first start: the mark', sel: '.mark' }, { what: 'first start: the bar', sel: '.bar' }], {}, "document.querySelector('.bar')", [800, 560]],
+  ['error', '/d/pages/error.html', [{ what: 'did not start: the mark', sel: '.mark' }, { what: 'did not start: Try again', sel: '#retry' }, { what: 'did not start: Open log', sel: '#logs' },
+    { what: 'did not start: Quit', sel: '#quit' }, { what: 'did not start: the countdown', sel: '#auto' }], { message: 'Sentinel could not start its checks.', log: 'sentinel.log', retryIn: '30' }, "document.getElementById('log').textContent", [800, 560]],
+  ['island', '/d/pages/overlay.html', [{ what: 'island: the corner', sel: '#corner' }, { what: 'island: its mask', sel: '#cornerMask svg' }, { what: 'island: a mark by each link', sel: '#marks .mark', n: 5, all: true }],
+    {}, 'window.__on && window.__on["overlay:watching"]', [1366, 768]]
+];
 const LOGIN = [
   { what: 'sign-in: the scope drawing', sel: '.auth__scope', only: 'desktop', through: true }, { what: 'sign-in: the mask', sel: '.auth__mask', cutOk: true },
   { what: 'sign-in: the Sentinel word', sel: '.auth__word' },
@@ -207,10 +221,10 @@ async function checkApp() {
       await ev(`(() => { localStorage.setItem('sentinel:theme', '${theme}'); ${accent === 'gold' ? "localStorage.removeItem('sentinel:accent');" : `localStorage.setItem('sentinel:accent', '${accent}');`}
         ${text === 'larger' ? `localStorage.setItem('sentinel:type', '{"text":"larger","density":"comfortable"}');` : "localStorage.removeItem('sentinel:type');"} return true; })()`);
     };
-    const visit = async (url, items, size, lk, name, ready) => {
+    const visit = async (url, items, size, lk, name, ready, base = server.base) => {
       const tag = `${name}-${size}-${lk[0]}-${lk[1]}-${lk[2]}`;
       errors.length = 0;
-      await goto(browser, s, `${server.base}${url}`, ready);
+      await goto(browser, s, `${base}${url}`, ready);
       await until(browser, s, "document.getAnimations().filter((a) => a.playState === 'running' && Number.isFinite(a.effect.getComputedTiming().endTime)).length === 0", 4000);
       await sleep(500);
       const why = await ev(`(${probe})(${JSON.stringify(items)}, ${JSON.stringify({ phone: size === 'phone', accent: lk[1] })})`);
@@ -261,6 +275,33 @@ async function checkApp() {
       }
     }
     await browser.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: inApp }, s);
+    // The Windows app's own windows: each in the looks, the way 51-look serves them.
+    const files = await serveFiles({ '/shared/fonts/': path.join(ROOT, 'web', 'assets', 'fonts'), '/shared/': path.join(ROOT, 'web', 'assets', 'js'), '/d/': path.join(ROOT, 'desktop', 'src') });
+    await browser.send('Page.setBypassCSP', { enabled: true }, s);
+    const hook = (await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: "window.sentinelOverlay = { on(n, f) { (window.__on = window.__on || {})[n] = f; }, interact() {}, act() {} };" }, s)).identifier;
+    const marks = [{ badge: 'red', kind: 'malware', label: 'Malware detected' }, { badge: null, kind: 'scam', label: 'No scam signs' }, { badge: 'orange', kind: 'scam', label: 'Likely scam' }, { badge: 'yellow', kind: 'scam', label: 'Suspicious' }, { pending: true }]
+      .map((m, i) => ({ k: `r${i}`, x: 80, y: 120 + i * 70, w: 380, h: 24, ...m }));
+    try {
+      for (const lk of LOOKS.slice(0, 4)) {
+        for (const [name, url, items, query, ready, [w, h]] of WINDOWS) {
+          await look('desktop', lk);
+          await browser.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }, s);
+          const q = new URLSearchParams({ ...query, theme: lk[0], accent: lk[1] });
+          const pageUrl = `${url}?${q}`;
+          if (name === 'island') {
+            const tag = `window-island-${lk[0]}-${lk[1]}`;
+            await goto(browser, s, `${files.base}${pageUrl}`, ready);
+            await ev(`(() => { document.body.style.background = '${lk[0] === 'light' ? '#ffffff' : '#202124'}'; __on['overlay:watching']({ appeared: true, browser: 'msedge' }); __on['overlay:page']({ host: 'paypa1-secure-login.example', search: false }); __on['overlay:marks']({ marks: ${JSON.stringify(marks)}, epoch: 0 }); __on['overlay:sweep']({ kind: 'search' }); return true; })()`);
+            await sleep(900);
+            const why = await ev(`(${probe})(${JSON.stringify(items)}, { phone: false, accent: ${JSON.stringify(lk[1])} })`);
+            if (lk[1] !== 'gold') why.push(...(await ev(`(${goldLeft})(${JSON.stringify(lk[1])}, ${JSON.stringify(STATUS)})`)));
+            await shot(browser, s, `app-${tag}`);
+            seen.push(tag);
+            for (const w2 of why) failures.push(`${tag}: ${w2}`);
+          } else await visit(pageUrl, items, 'desktop', lk, `window-${name}`, ready, files.base);
+        }
+      }
+    } finally { await browser.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: hook }, s); files.server.close(); }
     // Each fault once, with where it was seen, so one cause is one line.
     const byFault = new Map();
     for (const f of failures) { const [tag, ...rest] = f.split(': '); const k = rest.join(': '); byFault.set(k, [...(byFault.get(k) || []), tag]); }
