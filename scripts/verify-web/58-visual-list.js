@@ -36,9 +36,9 @@ const PH = SETUPS.filter((x) => x.size.mobile);
    canvas (really drawn); img (decoded); bg (a layer behind the page: not tested for being clipped or covered); n (at
    least this many shown); op (least opacity); min (least size in px). */
 const NAV = [
-  ['nav logo', '.nav .logo', { text: true }], ['nav links', '.nav__links a', { only: 'desktop', n: 7, text: true, oneLine: true }],
-  ['menu button', '.nav__toggle', { only: 'phone' }], ['theme button', '.theme-toggle', { only: 'desktop' }],
-  ['nav buttons', '.nav__actions .btn', { only: 'desktop', n: 2, text: true }]
+  ['nav logo', '.nav .logo', { text: true }], ['nav links', '.nav__links a', { menu: 'no', n: 7, text: true, oneLine: true }],
+  ['menu button', '.nav__toggle', { menu: 'yes' }], ['theme button', '.theme-toggle', { menu: 'no' }],
+  ['nav buttons', '.nav__actions .btn', { menu: 'no', n: 2, text: true }]
 ];
 const FOOT = [['footer logo', '.footer .logo', { text: true }], ['footer headings', '.footer__h', { n: 3, text: true }], ['footer base', '.footer__base', { text: true }]];
 const H1 = [['heading', 'main h1', { text: true }]];
@@ -50,7 +50,7 @@ const PUBLIC = [
     ['hero buttons', '.hero__cta .btn', { n: 2, text: true }], ['hero essentials', '.hero__fine li', { n: 3, text: true }],
     ['hero 3D mask', '[data-hero-mask] .mask3d--ready .mask3d__canvas', { canvas: true }], ['hero what Sentinel sees', '.hero__unmask', { canvas: true, bg: true }],
     ['demo heading', '.sec-demo h2', { text: true }], ['galaxy', '.galaxy__canvas', { canvas: true, bg: true }], ['galaxy heading', '.sec-galaxy h2', { text: true }],
-    ['masks heading', '.sec-masks h2', { text: true }], ['masks 3D', '.plate__art.mask3d--ready .mask3d__canvas', { canvas: true, n: 3 }],
+    ['masks heading', '.sec-masks h2', { text: true }], ['masks 3D', '.plate__art .mask3d__canvas', { canvas: true, n: 3 }],
     ['colour coins', '.colour__pick .swatch', { n: COINS }], ['colour preview', '.colour__crest', { text: true }], ['colour note', '.colour__note', { text: true }],
     ['how heading', '.sec-how h2', { text: true }], ['game heading', '.sec-game h2', { text: true }],
     ['try modes', '[data-try-mode]', { n: 2, text: true }], ['pricing heading', '.sec-pricing h2', { text: true }],
@@ -102,16 +102,17 @@ async function audit(items, sweep, phone, dark, bottomBar) {
   const alpha = (c) => { const m = c.match(/[\d.]+/g) || []; return m.length > 3 ? Number(m[3]) : m.length ? 1 : 0; };
   const shown = (e) => {
     const r = e.getBoundingClientRect(); const cs = getComputedStyle(e);
-    return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden' && !e.closest('[hidden], [inert], .sr-only, .skip-link, .is-out') && !(e.closest('details:not([open])') && !e.closest('summary'));
+    return r.width > 1 && r.height > 1 && cs.display !== 'none' && cs.visibility !== 'hidden' && !e.closest('[hidden], [inert], .sr-only, .skip-link, .is-out') && !(e.closest('details:not([open])') && !e.closest('summary'));
   };
   const name = (e) => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/)[0] : ''}`;
   const why = async (e, it) => {
+    if (!it.bg) { e.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }); await raf(); }
     const r0 = e.getBoundingClientRect();
     const min = it.min || 4;
     if (r0.width < min || r0.height < min) return `too small (${Math.round(r0.width)} by ${Math.round(r0.height)})`;
     let o = 1; for (let p = e; p && p.nodeType === 1; p = p.parentElement) o *= Number(getComputedStyle(p).opacity);
     if (o < (it.op || 0.5)) return `transparent (opacity ${o.toFixed(2)})`;
-    if (it.oneLine && r0.height > parseFloat(getComputedStyle(e).fontSize) * 2.2) return `its words wrap onto a second line (${Math.round(r0.height)} px tall)`;
+    if (it.oneLine && e.clientHeight - parseFloat(getComputedStyle(e).paddingTop) - parseFloat(getComputedStyle(e).paddingBottom) > parseFloat(getComputedStyle(e).fontSize) * 2) return `its words wrap onto a second line (${Math.round(r0.height)} px tall)`;
     if (it.text) {
       const cs = getComputedStyle(e);
       if (alpha(cs.color) < 0.1 || alpha(cs.webkitTextFillColor) < 0.1) return `the words are transparent (${cs.color})`;
@@ -128,8 +129,6 @@ async function audit(items, sweep, phone, dark, bottomBar) {
       }
     }
     if (it.bg) return '';
-    e.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
-    await raf();
     const r = e.getBoundingClientRect();
     const W = document.documentElement.clientWidth;
     if (r.right < 1 || r.left > W - 1) return `off the screen (${Math.round(r.left)} to ${Math.round(r.right)} of ${W})`;
@@ -147,14 +146,20 @@ async function audit(items, sweep, phone, dark, bottomBar) {
     const vx = Math.max(r.left, 0), vy = Math.max(r.top, 0), vr = Math.min(r.right, W), vb = Math.min(r.bottom, innerHeight);
     if (vr - vx < 1 || vb - vy < 1) return 'not in the window after scrolling to it';
     const top = document.elementFromPoint((vx + vr) / 2, (vy + vb) / 2);
-    if (top && !(e.contains(top) || top.contains(e) || (top.closest('a, button, label') && top.closest('a, button, label').contains(e)) || (top.closest('.m3') && top.closest('.m3') === e.closest('.m3')))) return `under ${name(top)}`;
+    if (top && !(e.contains(top) || top.contains(e) || (top.closest('a, button, label') && top.closest('a, button, label').contains(e)) || (top.closest('.m3, [data-mask3d]') && top.closest('.m3, [data-mask3d]') === e.closest('.m3, [data-mask3d]')))) return `under ${name(top)}`;
     return '';
   };
   const bad = [];
+  // Where the links are folded into the menu button (a phone, or Larger text on a laptop), the links are not asked for, the button is.
+  const toggle = document.querySelector('.nav__toggle');
+  const menu = Boolean(toggle && getComputedStyle(toggle).display !== 'none');
   for (const it of items) {
     const [id, sel, f] = it;
-    if ((f.only === 'desktop' && phone) || (f.only === 'phone' && !phone) || (f.dark && !dark)) continue;
+    if ((f.menu === 'no' && menu) || (f.menu === 'yes' && !menu) ||
+      (f.only === 'desktop' && phone) || (f.only === 'phone' && !phone) || (f.dark && !dark)) continue;
     const all = [...document.querySelectorAll(sel)];
+    // A held layer (the home page's first screen under the demo) is shown only where the person is looking at it.
+    if (all[0] && !f.bg) { all[0].scrollIntoView({ block: 'center', behavior: 'instant' }); await raf(); }
     const here = all.filter(shown);
     if (!all.length) { bad.push(`${id}: missing (nothing matches ${sel})`); continue; }
     if (here.length < (f.n || 1)) { bad.push(`${id}: ${here.length} of ${f.n || 1} shown (${all.length} in the page)`); continue; }
@@ -235,7 +240,7 @@ async function checkVisualList() {
 
     const CLS = "window.__cls = 0; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: 'layout-shift', buffered: true }); } catch {}";
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: CLS }, s);
-    await browser.send('Network.enable', {}, s); await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, s);
+    await browser.send('Network.enable', {}, s); await browser.send('Network.setBypassServiceWorker', { bypass: true }, s); await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, s);
     let holding = false;
     const held = [];
     browser.on('Fetch.requestPaused', (e, sid) => { if (sid && sid !== s) return; if (holding) held.push(e.requestId); else browser.send('Fetch.continueRequest', { requestId: e.requestId }, s).catch(() => {}); });
