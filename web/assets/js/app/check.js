@@ -16,9 +16,18 @@
     wireActions(out, v);
     restoreDrafts();
     riseMask(out);
-    // The answer is somewhere new on the page: keyboard and screen reader users are taken to its heading.
-    const heading = opts.focus && $('h2', out);
-    if (heading) { heading.tabIndex = -1; heading.focus(); }
+    if (opts.focus) toAnswer(out);
+  }
+
+  // The answer is somewhere new on the page: keyboard and screen reader users are taken to its heading, and everyone
+  // sees the heading with its first sentence. Focus alone scrolls only the heading in, which left that sentence under
+  // a phone's bottom bar; the head brought in by 'nearest' stops above the bar (html's scroll-padding-bottom, app.css).
+  function toAnswer(out) {
+    const heading = $('h2', out);
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+    (heading.closest('header') || heading).scrollIntoView({ block: 'nearest' });
   }
 
   // The verdict's real 3D mask, over its still picture, which stays where there is no WebGL and with reduced motion
@@ -615,8 +624,7 @@
       out.innerHTML = qrCard(qr) + (canWarn(qr.tone) ? warnRow() : '');
       wireWarn(out, () => window.SentinelWarnCard.fromQr(qr));
       // Read from a picture, the result is somewhere new on the page: keyboard and screen reader users are taken to it.
-      const heading = focus && $('h2', out);
-      if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: false }); }
+      if (focus) toAnswer(out);
       return qr;
     } catch (err) {
       out.innerHTML = friendlyError(err);

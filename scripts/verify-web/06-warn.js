@@ -103,13 +103,27 @@ async function checkWarn() {
     }
     // A name in Cyrillic letters drawn as PayPal (made here from its letters, never written out encoded): the result
     // names the brand it copies and the alphabet, on a computer and a phone, light and dark.
+    // Each size runs the check itself, as a person on that device does, so the page lands where the app puts it.
     const idn = require('url').domainToASCII(`${String.fromCodePoint(0x440, 0x430, 0x443, 0x440, 0x430, 0x4cf)}.com`);
-    await goto(browser, s, `${base}/app/check?url=${encodeURIComponent(`https://${idn}/`)}`, "document.querySelector('#view [data-form]')");
     let named = false;
-    for (let i = 0; i < 120 && !named; i++) { await sleep(250); named = await evalIn(browser, s, "Boolean(document.querySelector('[data-warn]'))"); }
     for (const [view, size] of [['desktop', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }], ['phone', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }]]) {
+      await browser.send('Emulation.setDeviceMetricsOverride', size, s);
+      await goto(browser, s, `${base}/app/check?url=${encodeURIComponent(`https://${idn}/`)}&size=${view}`, "document.querySelector('#view [data-form]')");
+      named = false;
+      for (let i = 0; i < 120 && !named; i++) { await sleep(250); named = await evalIn(browser, s, "Boolean(document.querySelector('[data-warn]'))"); }
+      await sleep(400);
+      // The answer's first sentence is in view and above the phone's bottom bar, not under it.
+      const lead = await evalIn(browser, s, `(() => {
+        const p = document.querySelector('[data-result] .result__lead');
+        const bar = document.querySelector('.side');
+        if (!p) return null;
+        const r = p.getBoundingClientRect();
+        const floor = bar && getComputedStyle(bar).position === 'fixed' ? bar.getBoundingClientRect().top : innerHeight;
+        return { top: Math.round(r.top), bottom: Math.round(r.bottom), floor: Math.round(floor), focused: document.activeElement && document.activeElement.tagName };
+      })()`);
+      result(`warn: on a ${view} the answer's first sentence shows above the bottom bar, with its heading focused`,
+        Boolean(lead && lead.top >= 0 && lead.bottom <= lead.floor && lead.focused === 'H2'), lead);
       for (const scheme of ['light', 'dark']) {
-        await browser.send('Emulation.setDeviceMetricsOverride', size, s);
         await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, s);
         await sleep(700);
         await shot(browser, s, `warn-idn-${view}-${scheme}`);

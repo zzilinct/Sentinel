@@ -63,9 +63,15 @@ test('a word of its own that holds a brand, and a word in another language spell
     assert.equal(info(h).lookalike, null, h);
     assert.equal(scanAddress(`https://${h}/`).overall.badge, null, `${h} is not flagged`);
   }
-  // On a risky ending the word relief does not hold: the doubled letter reads as the brand again.
+  // On a risky ending the foreign doubled letter reads as the brand's typing slip again: that is a second sign.
   assert.equal(info('telegramm.top').lookalike.token, 'telegram');
   assert.equal(scanAddress('https://telegramm.top/').overall.badge, 'orange');
+  // A word with no second sign stays a word there; the ending alone does not borrow the brand for it.
+  for (const h of ['telegrams.top', 'telegramma.top']) {
+    assert.equal(info(h).inDomain, null, h);
+    assert.equal(scanAddress(`https://${h}/`).overall.badge, null, `${h} is not flagged`);
+  }
+  assert.ok(scanAddress('https://login.telegrams.top/').overall.badge, 'login in front is the second sign');
   // The brand joined to bait is still borrowed.
   assert.equal(info('telegrammsupport.com').inDomain.token, 'telegram');
   assert.ok(scanAddress('https://telegrammsupport.com/').overall.badge);

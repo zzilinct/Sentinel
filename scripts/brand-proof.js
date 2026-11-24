@@ -4,8 +4,12 @@
  * stranger's domain as the brand's, so its look-alike checks go quiet there. Each added domain needs one of:
  *   redirect  https://<domain>/ ends on one of the brand's domains already listed before this change
  *   link      the brand's main site links to it
- *   tls       its certificate names the same organisation as the main site's, or the main site's certificate covers it
- *   rdap      RDAP names the same registrant as the main site's, or the brand by name
+ *   tls       its certificate names the same organisation as the main site's, the main site's certificate covers it,
+ *             or its own certificate also names a site under one of the brand's domains (a certificate authority checks
+ *             control of every name on a certificate, so both are one owner's)
+ *   dns       the brand's own name servers (under the main domain, the main domain's own set) answer for its zone
+ *   rdap      RDAP names the same registrant as the main site's, or the brand by name (asking the registrar when a thin
+ *             registry such as .com only points to it)
  *
  *   node scripts/brand-proof.js --base <old brands.js>
  *
@@ -15,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
+const dns = require('dns').promises;
 
 /** The domains each brand gains from `before` to `after`, with the ones it already had (the proven ones). */
 function addedDomains(before, after) {
@@ -35,7 +40,7 @@ const linksTo = (html, domain) => new RegExp(`https?://(?:[a-z0-9-]+\\.)*${domai
 /** An organisation's name as letters only ("Stripe, Inc." is "stripeinc"); privacy services are no name. */
 const orgKey = (s) => {
   const k = String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  return !k || /redacted|privacy|proxy|withheld|notdisclosed|dataprotected|domainsbyproxy|contactprivacy|perfectprivacy/.test(k) ? '' : k;
+  return !k || /redacted|privacy|proxy|withheld|notdisclosed|dataprotected|domainsbyproxy|contactprivacy|perfectprivacy|dnstination|identityprotect|whoisguard|masking|onbehalfof/.test(k) ? '' : k;
 };
 const sameOrg = (a, b, token) => Boolean(orgKey(a) && (orgKey(a) === orgKey(b) || orgKey(a).includes(token)));
 
@@ -51,32 +56,79 @@ function cert(host) {
     const s = tls.connect({ host, port: 443, servername: host, timeout: 15000 }, () => {
       const c = s.getPeerCertificate() || {};
       s.end();
-      resolve({ org: (c.subject && c.subject.O) || '', names: String(c.subjectaltname || '').split(/,\s*/).map((n) => n.replace(/^DNS:/, '')) });
+      resolve({ org: (c.subject && c.subject.O) || '', names: String(c.subjectaltname || '').split(/,\s*/).map((n) => n.replace(/^DNS:/, '')).filter(Boolean) });
     });
     s.on('error', () => resolve({ org: '', names: [] }));
     s.on('timeout', () => { s.destroy(); resolve({ org: '', names: [] }); });
   });
 }
 
-async function registrant(domain) {
-  try {
-    const res = await fetch(`https://rdap.org/domain/${domain}`, { signal: AbortSignal.timeout(15000) });
-    if (!res.ok) return '';
-    const walk = (entities = []) => {
-      for (const e of entities) {
-        if ((e.roles || []).includes('registrant')) {
-          const v = (e.vcardArray && e.vcardArray[1]) || [];
-          const f = v.find((x) => x[0] === 'org') || v.find((x) => x[0] === 'fn');
-          if (f && orgKey(f[3])) return String(f[3]);
-        }
-        const inner = walk(e.entities);
-        if (inner) return inner;
+/** The registrant's organisation in one RDAP answer, or '' when it has none (or only a privacy service). */
+function rdapOrg(json) {
+  const walk = (entities = []) => {
+    for (const e of entities) {
+      if ((e.roles || []).includes('registrant')) {
+        const v = (e.vcardArray && e.vcardArray[1]) || [];
+        const f = v.find((x) => x[0] === 'org') || v.find((x) => x[0] === 'fn');
+        if (f && orgKey(f[3])) return String(f[3]);
       }
-      return '';
-    };
-    return walk((await res.json()).entities);
-  } catch { return ''; }
+      const inner = walk(e.entities);
+      if (inner) return inner;
+    }
+    return '';
+  };
+  return walk((json && json.entities) || []);
 }
+
+/** The registrar's own RDAP record for the domain, which a thin registry (.com, .net) only points to. */
+const registrarLink = (json) => ((json && json.links) || []).find((l) => l.rel === 'related' && /\/domain\//i.test(String(l.href)) && (!l.type || /rdap/.test(l.type)));
+
+async function rdap(url) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { accept: 'application/rdap+json' } });
+    return res.ok ? await res.json() : null;
+  } catch { return null; }
+}
+
+/** The registrant's organisation from the registry, or else from the registrar the registry points to, with where it looked. */
+let bootstrap;
+/** The registry's own RDAP address for a domain's ending, from IANA's list (rdap.org, a relay, does not answer GitHub). */
+async function registryUrl(domain) {
+  bootstrap = bootstrap || (await rdap('https://data.iana.org/rdap/dns.json')) || { services: [] };
+  const end = domain.split('.').pop();
+  const hit = bootstrap.services.find(([ends]) => ends.includes(end));
+  return hit ? `${hit[1][0].replace(/\/$/, '')}/domain/${domain}` : `https://rdap.org/domain/${domain}`;
+}
+
+async function registrant(domain) {
+  const reg = await rdap(await registryUrl(domain));
+  const org = rdapOrg(reg);
+  if (org) return { org, seen: 'registry' };
+  const link = registrarLink(reg);
+  if (!link) return { org: '', seen: reg ? 'registry, no registrar link' : 'no RDAP answer' };
+  const at = await rdap(link.href);
+  return { org: rdapOrg(at), seen: at ? `registrar ${new URL(link.href).hostname}` : `no answer from ${new URL(link.href).hostname}` };
+}
+
+/** Does a certificate's names cover this host (exactly, or by a one-level wildcard)? */
+const covers = (names, host) => names.some((n) => n === host || (n.startsWith('*.') && host.endsWith(n.slice(1)) && !host.slice(0, -n.length + 1).includes('.')));
+/** The first of the brand's domains that a certificate name sits on or under ("misc.google.com" is under google.com). */
+const sharedName = (names, proven) => proven.find((p) => names.some((n) => { const h = n.replace(/^\*\./, ''); return h === p || h.endsWith(`.${p}`); }));
+
+const nameServers = async (d) => { try { return (await dns.resolveNs(d)).map((s) => s.toLowerCase().replace(/\.$/, '')).sort(); } catch { return []; } };
+/** The brand runs its own name servers (all under its main domain) and the domain is served by those very ones. */
+const ownDns = (mine, theirs, main) => mine.length > 0 && theirs.length > 0 && theirs.every((s) => s.endsWith(`.${main}`)) && mine.every((s) => theirs.includes(s));
+/** The name server really holds the domain's zone, not a delegation someone pointed at it. */
+async function answersFor(server, domain) {
+  try {
+    const r = new dns.Resolver({ timeout: 5000, tries: 2 });
+    r.setServers([(await dns.lookup(server, { family: 4 })).address]);
+    return (await r.resolveSoa(domain)).nsname !== undefined;
+  } catch { return false; }
+}
+
+/** Where on the brand's main site a name on a generic ending likely lived before: <ending>.<main>, <main>/<ending>. */
+const movedFrom = (domain, main) => { const end = domain.split('.').pop(); return [`https://${end}.${main}/`, `https://${main}/${end}`]; };
 
 /** The first proof found for one added domain, or null. */
 async function prove({ token, domain, proven }) {
@@ -85,11 +137,26 @@ async function prove({ token, domain, proven }) {
   if (to.host && within(to.host, proven)) return `redirect to ${to.host}`;
   const home = await finalHost(`https://${main}/`);
   if (linksTo(home.html, domain)) return `linked from ${main}`;
-  const [mine, theirs] = [await cert(domain), await cert(main)];
+  // The brand's own address for it sends people there (press.stripe.com, the old Stripe Press, ends on stripe.press),
+  // or is a page of the brand's that links to it.
+  for (const from of movedFrom(domain, main)) {
+    const moved = await finalHost(from);
+    if (moved.host && within(moved.host, [domain])) return `${from} sends people there`;
+    if (moved.host && within(moved.host, proven) && linksTo(moved.html, domain)) return `linked from ${from}`;
+  }
+  let mine = await cert(domain);
+  if (!mine.names.length) mine = await cert(`www.${domain}`);
+  const theirs = await cert(main);
   if (sameOrg(mine.org, theirs.org, token)) return `certificate organisation "${mine.org}"`;
-  if (theirs.names.some((n) => n === domain || n === `*.${domain}`)) return `named in ${main}'s certificate`;
+  if (covers(theirs.names, domain)) return `named in ${main}'s certificate`;
+  const shared = sharedName(mine.names, proven);
+  if (shared) return `its certificate also names a site on ${shared}`;
+  const [ns, nsMain] = [await nameServers(domain), await nameServers(main)];
+  if (ownDns(ns, nsMain, main) && await answersFor(ns[0], domain)) return `served by ${main}'s own name servers (${ns[0]})`;
   const [r, rMain] = [await registrant(domain), await registrant(main)];
-  if (sameOrg(r, rMain, token)) return `RDAP registrant "${r}"`;
+  if (sameOrg(r.org, rMain.org, token)) return `RDAP registrant "${r.org}"`;
+  // What was seen, so a failing run says where each proof fell short.
+  console.log(`  ${domain}: ends on ${to.host || 'no answer'}; certificate "${mine.org}" for ${mine.names.length} name(s) ${mine.names.slice(0, 6).join(' ')}; ${main} certificate "${theirs.org}"; name servers ${ns.join(' ') || 'none'} vs ${nsMain.join(' ') || 'none'}; registrant "${r.org}" (${r.seen}), ${main} registrant "${rMain.org}" (${rMain.seen})`);
   return null;
 }
 
@@ -113,4 +180,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch((err) => { console.error(err); process.exit(1); });
-module.exports = { addedDomains, linksTo, orgKey, sameOrg };
+module.exports = { addedDomains, linksTo, orgKey, sameOrg, covers, sharedName, ownDns, movedFrom, rdapOrg, registrarLink };
