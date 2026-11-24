@@ -656,3 +656,11 @@ test('1.21.3: a coin keeps its hover while a colour opens, drawn from where the 
   assert.match(css, /\.look__coin:hover i, \.look__coin\[data-hot\] i \{ translate: 0 -2px; \}/, 'drawn as hovered');
   assert.doesNotMatch(src, /setInterval|requestAnimationFrame/, 'no timer');
 });
+
+test('the Windows title bar draws its mark on every page, and no warm grey is left in the pages that take the look', () => {
+  // The sign-in pages load no masks.js, so the bar fetches it itself; before, the mark was an empty box there.
+  assert.match(read('web', 'assets', 'js', 'boot.js'), /js\.src = '\/assets\/js\/masks\.js';\s+js\.onload = mark;/, 'the bar fetches the mark when the page has none');
+  // Literal warm greys stayed cream in every other colour; each now reads the look's own ink.
+  assert.doesNotMatch(read('web', 'assets', 'css', 'app.css'), /\.auth__line \{[^}]*#c9c5bb/);
+  for (const f of ['overlay.html', 'chat.html', 'error.html', 'card.js']) assert.doesNotMatch(read('desktop', 'src', 'pages', f), /#b9b5ab; font-size|#b9b4a9; font-size|--btn: #ebe4d5|background: #e4e0d6|background: #ebe7de|color: #a9a59b/, f);
+});
