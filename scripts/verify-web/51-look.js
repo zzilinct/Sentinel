@@ -129,7 +129,8 @@ async function checkLook() {
       await ev('document.getAnimations({ subtree: true }).forEach((n) => { try { n.play(); } catch (e) {} }), true');
       await sleep(1400);
       const after = await lift();
-      const up = (h) => Boolean(h) && /^0(px)? -2px/.test(h.lift);
+      // Lifted: moved up by the spring, whatever point of it was read (it overshoots and settles, so never exactly 2px).
+      const up = (h) => Boolean(h) && parseFloat(String(h.lift).split(' ')[1]) < -0.5;
       // Teal was pressed, so it is the chosen coin and never lifts (it grows); the next coin, once the pointer is on it, lifts.
       result('look: a coin keeps its hover through the colour reveal, and the coin the pointer moves on to lifts at once',
         Boolean(before) && before.id === 'teal' && up(before) && Boolean(during) && during.vt && Boolean(onward) && onward.id === 'sapphire' && up(onward) && onward.vt && Boolean(after) && after.id === 'sapphire' && up(after) && !after.vt,
