@@ -368,8 +368,9 @@ async function checkColour() {
       const held = await until(browser, s, `(() => { const a = document.getAnimations().find((x) => x.effect && x.effect.pseudoElement === '::view-transition-new(root)'); if (!a) return null; a.pause(); a.currentTime = 200; return true; })()`, 3000);
       const during = held ? { ...(await hot()), vt: 'held open' } : null;
       await move(tx, ty);
-      await sleep(120);
-      const onward = held ? { ...(await hot()), vt: 'held open' } : null;
+      // The hover is a short transition on the gem: read it once it has begun to lift (up to a second), not at one fixed moment.
+      let onward = null;
+      for (let i = 0; i < 20 && held && !(onward && onward.lift && onward.lift !== 'matrix(1, 0, 0, 1, 0, 0)'); i++) { await sleep(50); onward = { ...(await hot()), vt: 'held open' }; }
       await evalIn(browser, s, 'document.documentElement.getAnimations({ subtree: true }).forEach((a) => { try { a.play(); } catch (e) {} }); true');
       await sleep(1400);
       const after = await hot();
