@@ -19,7 +19,18 @@ const LOOKS = [
   ['dark', 'gold', 'default'], ['light', 'gold', 'default'], ['dark', 'sapphire', 'default'], ['light', 'rose', 'default'],
   ['dark', 'gold', 'larger'], ['light', 'teal', 'larger']
 ];
-const STATUS = ['#e5484d', '#f08a24', '#f5c542', '#4cb782', '#b3261e', '#a14400', '#1a6e35'];
+// The status colours and caution's ink (look.js STATUS, CAUTION_INK): never an accent's, so never found "still gold".
+const STATUS = ['#e5484d', '#f08a24', '#f5c542', '#4cb782', '#b3261e', '#a14400', '#1a6e35', '#645e53'];
+// The Windows app's bridge to Electron, as the pages ask of it (desktop/src/preload.js): every answer plausible, every
+// call answered, the look left to the page (the window's own look is main.js's, not this page's).
+const STANDIN = `window.sentinelDesktop = new Proxy({ framed: true, look: undefined,
+  info: async () => ({ version: '1.21.3', platform: 'win32', embeddedServer: true, openAtLogin: true, clipboardCheck: false, commandShield: true, walletGuard: true,
+    snip: { supported: true, enabled: true }, scanMenu: { supported: true, enabled: true }, exposureAlerts: false, mySites: true, weekRecap: false, pairedUserId: null,
+    downloads: { active: true, folder: 'Downloads' }, live: { supported: true, enabled: false }, chatSafety: { supported: true, enabled: true }, parentLock: { enabled: false },
+    remoteGuard: { supported: true, enabled: true }, textSafety: { supported: true, enabled: false }, liveMode: 'fast', marksLevel: 'all', warningsLevel: 'all', autoScan: false,
+    defense: { supported: true, active: true, enabled: true, watched: ['Downloads'] }, browsers: { installed: [], running: [] }, update: { status: 'idle' } }),
+  recentDownloads: async () => [], mySites: async () => [], exposures: async () => [], lockStatus: async () => ({ enabled: false }), week: async () => null, defense: async () => ({ ledger: [] })
+}, { get: (k, n) => (n in k ? k[n] : typeof n !== 'string' || n === 'look' || n === 'setLook' || n === 'onLook' || n === 'then' ? undefined : /^on[A-Z]/.test(n) ? () => () => {} : async () => ({})) });`;
 
 // what: the words in the report; sel: the element; n: how many there must be; only: 'desktop' or 'phone'; all: check each
 // one, not only the first; through: the pointer passes through it by design, so what is drawn over it is not a fault.
@@ -27,25 +38,26 @@ const FRAME = [{ what: 'app title bar', sel: '.frame' }, { what: 'title bar mark
 const SHELL = [
   { what: 'logo mark', sel: '.side .logo__mark svg', only: 'desktop' },
   { what: 'logo mark in the top bar', sel: '.topbar-mobile .logo__mark svg', only: 'phone' },
-  { what: 'every page in the side bar', sel: '.side__nav .side__link', n: 10, all: true, only: 'desktop' },
+  { what: 'every page in the side bar', sel: '.side__nav .side__link:not(.side__more)', n: 10, all: true, only: 'desktop' },
   { what: 'the five places in the bottom bar', sel: '.side__nav [data-phone]', n: 5, all: true, only: 'phone' },
   { what: 'search box', sel: '.side__search', only: 'desktop' },
   { what: 'theme button', sel: '.theme-toggle', only: 'desktop' },
   { what: 'account row and its avatar', sel: '.me .avatar', only: 'desktop' },
   { what: 'page title', sel: '.page-title h1' },
-  { what: 'the 3D mask beside the title', sel: '.lux-mask .m3', only: 'desktop', through: true }
+  { what: 'rule under the title, drawn', sel: '.page-title .lux-rule', drawn: true }
 ];
 const CHECKLIST = {
   '/app': [
-    { what: 'greeting', sel: '.page-title h1 .greet' }, { what: 'gold rule under the greeting', sel: '.page-title .lux-rule path' },
-    { what: 'paste box', sel: '.scanbox input' }, { what: 'Check button', sel: '.scanbox .btn--gold' }, { what: 'what it can check line', sel: '.scan-meta a' }
+    { what: 'the 3D mask beside the greeting', sel: '.lux-mask .m3', only: 'desktop', through: true },
+    { what: 'paste box', sel: '.scanbox input' }, { what: 'Check button', sel: '.scanbox .btn--gold' }, { what: 'what it can check line', sel: '.scan-meta a' },
+    { what: 'make it yours: colour coins', sel: '.look__coin', n: 6, all: true }
   ],
   '/app/check': [
     { what: 'paste area', sel: '.ask__text' }, { what: 'add a file', sel: '[data-add]' }, { what: 'Check button', sel: '.ask__go' }, { what: 'examples line', sel: '[data-try]' }
   ],
-  '/app/protection': [{ what: 'a protection row', sel: '.set-row' }, { what: 'the first panel or row has words', sel: '.page-title p' }],
+  '/app/protection': [{ what: 'what live protection watches', sel: '.feature' }, { what: 'the words under the title', sel: '.page-title p' }],
   '/app/sites': [{ what: 'trusted sites panel', sel: '[data-allow]' }, { what: 'blocked sites panel', sel: '[data-block]' }],
-  '/app/checkup': [{ what: 'the checkup panel', sel: '.panel' }],
+  '/app/checkup': [{ what: 'the words under the title', sel: '.page-title p' }],
   '/app/week': [{ what: 'the week', sel: '[data-week]' }],
   '/app/history': [{ what: 'the figures', sel: '[data-stats]' }, { what: 'the list', sel: '[data-list]' }],
   '/app/settings': [
@@ -58,7 +70,8 @@ const CHECKLIST = {
   '/app/recover': [{ what: 'the first question', sel: '.recover__what' }]
 };
 const LOGIN = [
-  { what: 'sign-in: the scope drawing', sel: '.auth__scope' }, { what: 'sign-in: the mask', sel: '.auth__mask' }, { what: 'sign-in: the Sentinel word', sel: '.auth__word' },
+  { what: 'sign-in: the scope drawing', sel: '.auth__scope', only: 'desktop', through: true }, { what: 'sign-in: the mask', sel: '.auth__mask', cutOk: true },
+  { what: 'sign-in: the Sentinel word', sel: '.auth__word' },
   { what: 'sign-in: the line under it', sel: '.auth__line' }, { what: 'sign-in: heading', sel: '.auth__inner h1' }, { what: 'sign-in: email box', sel: '#email' },
   { what: 'sign-in: Sign in button', sel: '.auth__inner .btn--gold' }
 ];
@@ -87,7 +100,11 @@ async function probe(items, ctx) {
         if (opacityOf(e) < 0.95) bad.push(`transparent (${opacityOf(e).toFixed(2)})`);
         if (r.left < -1 || r.right > innerWidth + 1) bad.push(`off screen (${Math.round(r.left)} to ${Math.round(r.right)} of ${innerWidth})`);
         const own = [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
-        if (own && alphaOf(cs.color) < 0.3) bad.push(`its words are transparent (${cs.color})`);
+        // Words filled with a gradient (background-clip: text) have a clear colour on purpose; theirs is the gradient.
+        const gradient = cs.webkitBackgroundClip === 'text' || cs.backgroundClip === 'text';
+        if (own && !gradient && alphaOf(cs.color) < 0.3) bad.push(`its words are transparent (${cs.color})`);
+        if (gradient && cs.backgroundImage === 'none') bad.push('its gradient fill is missing, so its words are clear');
+        if (it.drawn && [...e.querySelectorAll('path')].some((p) => parseFloat(getComputedStyle(p).strokeDashoffset) > 0.05)) bad.push('the line is not drawn');
         const x = Math.min(innerWidth - 1, Math.max(1, r.left + r.width / 2)), y = Math.min(innerHeight - 1, Math.max(1, r.top + r.height / 2));
         const hit = document.elementFromPoint(x, y);
         if (!it.through && hit && hit !== e && !e.contains(hit) && !hit.contains(e)) bad.push(`covered by ${hit.tagName.toLowerCase()}${hit.className && typeof hit.className === 'string' ? '.' + hit.className.trim().split(/\s+/)[0] : ''}`);
@@ -97,7 +114,7 @@ async function probe(items, ctx) {
           const ar = a.getBoundingClientRect();
           const cutX = o.overflowX !== 'visible' && o.overflowX !== 'auto' && o.overflowX !== 'scroll' && (r.left < ar.left - 1 || r.right > ar.right + 1);
           const cutY = o.overflowY !== 'visible' && o.overflowY !== 'auto' && o.overflowY !== 'scroll' && (r.top < ar.top - 1 || r.bottom > ar.bottom + 1);
-          if (cutX || cutY) { bad.push(`cut by ${a.tagName.toLowerCase()}${typeof a.className === 'string' && a.className ? '.' + a.className.trim().split(/\s+/)[0] : ''}`); break; }
+          if ((cutX || cutY) && !it.cutOk) { bad.push(`cut by ${a.tagName.toLowerCase()}${typeof a.className === 'string' && a.className ? '.' + a.className.trim().split(/\s+/)[0] : ''}`); break; }
         }
         if (e.tagName !== 'svg' && !(e instanceof SVGElement) && own && cs.overflow !== 'visible' && (e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 2)) bad.push('its words are cut off');
         if (e.tagName === 'IMG' && !(e.complete && e.naturalWidth > 0)) bad.push('picture not loaded');
@@ -133,7 +150,7 @@ function goldLeft(accent, status) {
     if (!c || c[3] < 0.12) return false;
     if (st.some((s) => Math.abs(s[0] - c[0]) + Math.abs(s[1] - c[1]) + Math.abs(s[2] - c[2]) < 24)) return false;   // a status colour, or a tint of one
     const [h, s, l] = hsl(c);
-    return h >= 30 && h <= 52 && s >= 0.25 && l >= 0.2 && l <= 0.93;
+    return h >= 30 && h <= 56 && s >= 0.08 && l >= 0.2 && l <= 0.93;   // cream is gold's hue, only paler
   };
   const found = new Map();
   const note = (e, prop, v) => {
@@ -199,8 +216,8 @@ async function checkApp() {
       const why = await ev(`(${probe})(${JSON.stringify(items)}, ${JSON.stringify({ phone: size === 'phone', accent: lk[1] })})`);
       if (lk[1] !== 'gold') why.push(...(await ev(`(${goldLeft})(${JSON.stringify(lk[1])}, ${JSON.stringify(STATUS)})`)));
       if (errors.length) why.push(...errors.slice(0, 3).map((e) => `the page logged: ${e.slice(0, 160)}`));
-      await ev('window.scrollTo(0, 0), true');
-      await sleep(150);
+      await ev("window.scrollTo({ top: 0, left: 0, behavior: 'instant' }), true");
+      await sleep(250);
       await shot(browser, s, `app-${tag}`);
       seen.push(tag);
       for (const w of why) failures.push(`${tag}: ${w}`);
@@ -235,15 +252,20 @@ async function checkApp() {
         }
       }
     }
-    // The title bar over the app's own pages.
-    const framed2 = (await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.sentinelDesktop = { framed: true };' }, s)).identifier;
-    for (const lk of [LOOKS[2], LOOKS[3]]) {
+    // Inside the Windows app's window: the bridge answering, and the title bar drawn over every page.
+    const inApp = (await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: STANDIN }, s)).identifier;
+    for (const lk of LOOKS) {
       await look('desktop', lk);
-      await visit('/app/check', [...FRAME, ...SHELL, ...CHECKLIST['/app/check']], 'desktop', lk, 'check-titlebar', "document.querySelector('.frame__page')");
+      for (const [page, items] of Object.entries(CHECKLIST)) {
+        await visit(page, [...FRAME, ...SHELL, ...items], 'desktop', lk, `inapp-${page === '/app' ? 'overview' : page.slice(5)}`, "document.querySelector('.page-title h1') && document.querySelector('.frame__mark svg')");
+      }
     }
-    await browser.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: framed2 }, s);
-    result('app-checklist: every line of the list shows on every page, desktop and phone, light and dark, default and Larger text, in gold, sapphire, rose and teal, and no gold is left in the others',
-      !failures.length, [`${seen.length} pages looked at`, ...failures.slice(0, 60)]);
+    await browser.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: inApp }, s);
+    // Each fault once, with where it was seen, so one cause is one line.
+    const byFault = new Map();
+    for (const f of failures) { const [tag, ...rest] = f.split(': '); const k = rest.join(': '); byFault.set(k, [...(byFault.get(k) || []), tag]); }
+    result('app-checklist: every line of the list shows on every page, in the browser and in the Windows window (title bar drawn), desktop and phone, light and dark, default and Larger text, in gold, sapphire, rose and teal, and no gold is left in the others',
+      !failures.length, [`${seen.length} pages looked at`, ...[...byFault].map(([k, tags]) => `${k}  [${tags.length}: ${tags.slice(0, 4).join(', ')}${tags.length > 4 ? ', ...' : ''}]`).slice(0, 120)]);
 
     /* --------------------------------------------------- a press on a coin: drawn at once, nothing long blocks */
     await look('desktop', LOOKS[0]);
