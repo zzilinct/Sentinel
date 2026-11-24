@@ -60,6 +60,10 @@ PAGES['search.yahoo.com/search'] = PAGES['uk.search.yahoo.com/search'] = page('p
 const LONG = 'Wikipedia, the free encyclopedia that anyone can edit';
 PAGES['www.bing.com/search/long'] = page('long title - Search', `<style>#b_results { font: 18px/24px monospace; width: ${LONG.length + 1}ch; padding: 0; list-style: none; } #b_results h2 { font: inherit; }</style><ol id="b_results">
   <li class="b_algo"><h2><a target="_blank" href="https://www.bing.com/ck/a?!&amp;&amp;p=436ed1a9a09f655b&amp;ptn=3&amp;ver=2&amp;hsh=4&amp;u=a1${Buffer.from(HONEST[0]).toString('base64url')}&amp;ntb=1">${LONG}</a></h2></li></ol>`);
+// The same for a title of two lines whose second is one letter short of full: the marks must not make a third.
+const TWO = 'Wikipedia, the free encyclopedia that anyone';
+PAGES['www.bing.com/search/two'] = page('two lines - Search', `<style>#b_results { font: 18px/24px monospace; width: 25ch; padding: 0; list-style: none; } #b_results h2 { font: inherit; }</style><ol id="b_results">
+  <li class="b_algo"><h2><a target="_blank" href="https://www.bing.com/ck/a?!&amp;&amp;p=436ed1a9a09f655b&amp;ptn=3&amp;ver=2&amp;hsh=4&amp;u=a1${Buffer.from(HONEST[0]).toString('base64url')}&amp;ntb=1">${TWO}</a></h2></li></ol>`);
 const ENGINES = [
   ['Google', 'www.google.com/search?q=paypal+login'],
   ['Google in South Africa (google.co.za)', 'www.google.co.za/search?q=paypal+login'],
@@ -212,6 +216,23 @@ async function checkSerpEngines() {
     await shot(browser, s, 'serp-engines-bing-long-title');
     result('serp-engines: a Bing title one letter short of its line keeps to one line once its mark is in (it ends in an ellipsis), and the mark stays on that line',
       Boolean(long && long.marked && long.height <= long.line * 1.2 && long.inside), long);
+
+    await goto(browser, s, 'https://www.bing.com/search/two?q=wikipedia');
+    const first = await evalIn(browser, s, "(() => { const h = document.querySelector('#b_results h2'); return Math.round(h.getBoundingClientRect().height / parseFloat(getComputedStyle(h).lineHeight)); })()");
+    let two = null;
+    for (let i = 0; i < 60 && !(two && two.marked); i++) {
+      await sleep(250);
+      two = await evalIn(browser, s, `(() => {
+        const h = document.querySelector('#b_results h2'), g = h.querySelector('.sentinel-masks');
+        if (!g) return { marked: 0 };
+        const box = h.getBoundingClientRect(), m = g.getBoundingClientRect(), line = parseFloat(getComputedStyle(h).lineHeight);
+        return { marked: 1, lines: Math.round(box.height / line), inside: m.right <= box.right + 0.5 && m.width > 0 && m.top >= box.top - 0.5 && m.bottom <= box.bottom + 0.5 };
+      })()`);
+    }
+    await sleep(500);
+    await shot(browser, s, 'serp-engines-bing-two-line-title');
+    result('serp-engines: a Bing title of two lines keeps to two once its mark is in (it ends in an ellipsis), and the mark stays inside it',
+      first === 2 && Boolean(two && two.marked && two.lines === 2 && two.inside), { before: first, two });
 
     const opened = seen.filter((u) => LINK_HOSTS.some((h) => u.startsWith(`${h}/`)) || u.startsWith('www.bing.com/ck/') || u.startsWith('duckduckgo.com/l/'));
     result('serp-engines: no result was opened or fetched by the browser', !opened.length, { opened, pages: seen.length });
