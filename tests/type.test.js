@@ -99,12 +99,8 @@ test('Geist and Geist Mono are cut to the letters Sentinel shows, and never lose
   }
 });
 
-test('nothing shifts when a font arrives: optional for the body faces, swap for the headline, with stand-ins drawn to the same metrics', () => {
-  // The body faces (Geist, Geist Mono) are used if they are in within the browser's short wait and never swapped in after the
-  // page is drawn, which is what moved a confirm-your-email bar's lines (and the greeting under it) on a 360 px phone with
-  // the stand-in's near-miss widths; the headline face swaps, its lines being set by line-height.
-  assert.equal((fontsCss.match(/font-display: optional/g) || []).length, 2);
-  assert.equal((fontsCss.match(/font-display: swap/g) || []).length, 1);
+test('nothing shifts when a font arrives: swap, with stand-ins drawn to the same metrics', () => {
+  assert.equal((fontsCss.match(/font-display: swap/g) || []).length, faces.length);
   for (const family of ['Newsreader Stand-in', 'Geist Stand-in', 'Geist Mono Stand-in']) {
     assert.match(fontsCss, new RegExp(`font-family: '${family}'; src: local\\('[^']+'\\); size-adjust: [\\d.]+%; ascent-override: [\\d.]+%; descent-override: [\\d.]+%`), family);
     assert.match(fontsCss, new RegExp(`--(display|sans|mono): [^;]*'${family}'`), `${family} is not in a stack`);
