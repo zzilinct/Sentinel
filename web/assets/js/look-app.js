@@ -44,6 +44,16 @@
   var current = stored();
   L.paint(html, current);
   keep(current);   // a device that had the accent before boot.js drew it gets its colours kept now
+  // While a change opens, the browser's pictures cover the page and the pointer is over <html>, not over the coin under it:
+  // the coin loses :hover though the pointer has not moved. So the coin the pointer was over is drawn as hovered (data-hot),
+  // followed by where the pointer goes, until the change has finished.
+  var hot = null;
+  function heat(c) { if (hot === c) return; if (hot) hot.removeAttribute('data-hot'); hot = c || null; if (c) c.setAttribute('data-hot', ''); }
+  function follow(e) {
+    var all = document.querySelectorAll('.look__coin'), at = null;
+    for (var i = 0; i < all.length && !at; i++) { var r = all[i].getBoundingClientRect(); if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) at = all[i]; }
+    heat(at);
+  }
   function show(look, from) {
     var was = current;
     current = look;
@@ -58,7 +68,9 @@
     html.classList.add('look-vt');
     // A second press before the first has opened takes over: only the last one clears the class.
     var mine = ++show.n;
-    var done = function () { if (mine === show.n) html.classList.remove('look-vt'); };
+    heat(document.querySelector('.look__coin:hover'));
+    document.addEventListener('pointermove', follow, { passive: true });
+    var done = function () { if (mine === show.n) { html.classList.remove('look-vt'); document.removeEventListener('pointermove', follow); heat(null); } };
     document.startViewTransition(draw).finished.then(done, done);
   }
   show.n = 0;
