@@ -177,6 +177,22 @@ Say "still page: $($still.text); live scanning (all but the server) $scan%; the 
 $stillFailed = $scan -gt 1.5
 Shot 'google-still'
 
+# 3b. The first scroll after a rest: nobody has touched anything for 13 s, so the reader is resting (watch.js quiet),
+# then Down arrow (a step the follower can line up, unlike a Page Down jump). The page's pixels must say it moved within WAKE_MS of the key (scripts/marks-at-rest.js --wake).
+# Three keys, each after a rest of a different length, so the reader's own second is not always hit at the same moment.
+foreach ($rest in 13000, 13400, 13800) {
+  Start-Sleep -Milliseconds $rest
+  Add-Content "$Out\frames.txt" ("# quiet key " + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+  [K]::Tap(0x28); Start-Sleep -Milliseconds 450
+  Shot "quiet-key-$rest"   # where the page is a moment after the key: it must have moved, or the key proves nothing
+  Start-Sleep -Milliseconds 1550
+  [K]::Tap(0x24)
+}
+Start-Sleep 2
+$wake = node (Join-Path $PSScriptRoot 'marks-at-rest.js') "$Out\frames.txt" --wake
+$wakeFailed = [bool]$LASTEXITCODE
+Say $wake | Out-Null
+
 # 4. An inbox (a Pro feature, given above). Everyday mail and scams side by side: the scams should get a mask, the
 # rest a tick, and marks must stay inside the message list while it scrolls.
 Search 'http://127.0.0.1:47900/mail/' 'inbox'
@@ -368,4 +384,5 @@ if ($regFailed) { Say 'FAILED: Run keys are still polled, or a new entry was not
 if ($marksOff.Count) { Say "FAILED: marks off their results at rest: $($marksOff -join ', ')"; exit 1 }
 if ($hoverFailed) { Say 'FAILED: resting on a flagged mark did not show its reasonLine() in the tip'; exit 1 }
 if ($idleFailed) { Say "FAILED: Sentinel at rest, the import over, costs more than the idle limit: $($idle.text)"; exit 1 }
+if ($wakeFailed) { Say "FAILED: $wake"; exit 1 }
 if ($stillFailed) { Say "FAILED: live scanning on a results page left still costs more than the idle limit: $scan% ($($still.text))"; exit 1 }

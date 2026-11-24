@@ -21,7 +21,8 @@ async function checkAppCore() {
   try {
     const { sessionId: s } = await openPage(browser);
     const errors = await watchErrors(browser, s);
-    const view = "document.querySelector('#view .page-title h1, #view h1')";
+    // The Overview's heading is in the HTML before app.js runs (server/lib/appshell.js): ready is once app.js has taken it.
+    const view = "document.querySelector('#view .view:not([data-shell=\"\"]) .page-title h1, #view .view:not([data-shell=\"\"]) h1')";
     const open = async (url, ready = view) => {
       const t = Date.now();
       await goto(browser, s, base + url, ready);
@@ -49,6 +50,21 @@ async function checkAppCore() {
     const a = await api('/auth/signup', { email, password, firstName: 'Sam', ageConfirmed: true, termsAccepted: true });
     const b = await api('/auth/login', { email, password });
     if (a.status !== 201 || b.status !== 200) throw new Error(`the test account could not sign in: ${a.status} ${b.status}`);
+
+    /* ------------------------------------------- the Overview before any script */
+
+    // The server draws the Overview's first view into the page (server/lib/appshell.js), so the largest paint does not
+    // wait on app.js. With the page's scripts off nothing else can have drawn it: the name, the sentence, the box, and
+    // the first view's own styles (the box is a flex row only in app.css, which the page inlines for it).
+    await browser.send('Emulation.setScriptExecutionDisabled', { value: true }, s);
+    try {
+      await goto(browser, s, `${base}/app`);
+      const bare = await evalIn(browser, s, `(() => { const q = (x) => document.querySelector(x); const box = q('#view .scanbox');
+        return { name: q('#view h1 [data-name]') && q('#view h1 [data-name]').textContent, said: q('#view .page-title p') && q('#view .page-title p').textContent,
+          input: Boolean(q('#view [data-quick] input[name=url]')), flex: box && getComputedStyle(box).display, bar: Boolean(q('#view .verify-bar')) }; })()`);
+      result('appcore: the Overview is in the page before any script runs: the name, the sentence, the box, drawn in the page\'s own styles',
+        bare.name === 'Sam' && /^Paste anything you are unsure about/.test(bare.said || '') && bare.input && bare.flex === 'flex', bare);
+    } finally { await browser.send('Emulation.setScriptExecutionDisabled', { value: false }, s); }
 
     /* ------------------------------------------------------ every page */
 

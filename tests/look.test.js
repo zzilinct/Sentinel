@@ -501,7 +501,7 @@ test('1.21.1: the overview, Settings, the side bar and the camera, as a person m
   const lux = read('web', 'assets', 'css', 'app-lux.css'), luxJs = read('web', 'assets', 'js', 'app-lux.js');
   // The mask's room is held from the first paint, in the picture's own proportions.
   assert.match(lux, /\[data-tab="home"\] > \.view > \.page-title \{ min-height: calc\(clamp\(84px, 10vw, 128px\) \* 896 \/ 788\); \}/);
-  assert.match(lux, /\.lux-mask \{ width: clamp\(84px, 10vw, 128px\);/);
+  assert.match(lux, /\.lux-mask, \.lux-mask-room \{ width: clamp\(84px, 10vw, 128px\);/);
   assert.match(luxJs, /onyx\.webp" width="788" height="896"/);
   // A pointer within one half-degree step restyles nothing.
   assert.match(luxJs, /if \(ry === lean\.ry && rx === lean\.rx\) return;/);

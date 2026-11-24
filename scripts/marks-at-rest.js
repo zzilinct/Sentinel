@@ -62,7 +62,31 @@ function repaint(text) {
 // The reader waits 700 ms after the pixels last moved before it reads again (watch.js); a read takes a moment more.
 const SETTLE_MS = 1000;
 
-if (require.main === module && process.argv[3] === '--repaint') {
+// A key pressed on a page left still (the reader resting, watch.js quiet): how long until the pixels first said the page
+// moved. "# quiet key <ms>" lines carry the key's own time (Date.now); main's P lines carry theirs (13 digits; the
+// overlay page's own P lines count from its start, and are skipped). Until 1.21.3 the pixel reader slept up to a
+// second after the rest ended, so the first scroll after a rest lagged by as much.
+const WAKE_MS = 600;
+function wake(text) {
+  const keys = [];
+  const lines = text.split(/\r?\n/);
+  lines.forEach((l, i) => { const m = /^# quiet key (\d{13})/.exec(l); if (m) keys.push({ at: Number(m[1]), line: i, ms: null }); });
+  keys.forEach((k, n) => {
+    const end = n + 1 < keys.length ? keys[n + 1].line : lines.length;
+    for (let i = k.line + 1; i < end; i++) {
+      const f = lines[i].split(' ');
+      if (f[0] === 'P' && f[1].length === 13 && Number(f[1]) >= k.at) { k.ms = Number(f[1]) - k.at; break; }
+    }
+  });
+  return keys;
+}
+
+if (require.main === module && process.argv[3] === '--wake') {
+  const keys = wake(fs.readFileSync(process.argv[2], 'utf8'));
+  const text = keys.map((k) => (k.ms === null ? 'never' : `${k.ms} ms`)).join(', ');
+  if (!keys.length || keys.some((k) => k.ms === null || k.ms > WAKE_MS)) { console.log(`first scroll after a rest: the pixels first moved ${text || 'no key was pressed'} after the key (limit ${WAKE_MS} ms)`); process.exitCode = 1; }
+  else console.log(`first scroll after a rest: the pixels first moved ${text} after the key`);
+} else if (require.main === module && process.argv[3] === '--repaint') {
   const r = repaint(fs.readFileSync(process.argv[2], 'utf8'));
   const label = process.argv[4] || 'a repaint';
   if (Math.abs(r.px) < 20) { console.log(`marks on ${label}: the pixels never saw it move (${r.px} px), so nothing was shown`); process.exitCode = 1; }
@@ -87,4 +111,4 @@ if (require.main === module && process.argv[3] === '--repaint') {
   else { console.log(`marks at rest ${label}: ${r.off} px off their results (moved ${r.shift.toFixed(0)} px, browser says ${r.browser})`); process.exitCode = 1; }
 }
 
-module.exports = { atRest, tabSwitch, repaint, SETTLE_MS };
+module.exports = { atRest, tabSwitch, repaint, wake, SETTLE_MS, WAKE_MS };

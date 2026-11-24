@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="lux-app">
 <head>
 <!-- @include head -->
 <!-- @critical -->
@@ -102,6 +102,28 @@
     <div id="view"></div>
   </main>
 </div>
+
+<!--
+  The Overview's first view and the confirm-email bar, written once. For a signed-in /app the server draws them into
+  #view (server/lib/appshell.js), with the person's name in, so the largest paint no longer waits on app.js; app.js
+  (home, verifyBar) takes those over, or draws these when the Overview or the bar is opened from another page.
+-->
+<template id="home-top">
+<div class="page-title"><div><h1 data-lux="1"><span class="greet"><span data-part="late">Up late</span><span data-part="morning">Good morning</span><span data-part="afternoon">Good afternoon</span><span data-part="evening">Good evening</span></span>, <span data-name></span></h1><svg class="lux-rule" viewBox="0 0 260 26" aria-hidden="true" focusable="false"><path pathLength="1" d="M130 13H0M130 13h130"/><path class="lux-rule__c" pathLength="1" d="M130 3l10 10-10 10-10-10z"/><path pathLength="1" d="M120 13c-6-9-16-9-20 0 4 9 14 9 20 0M140 13c6-9 16-9 20 0-4 9-14 9-20 0"/></svg><p>Paste anything you are unsure about. Sentinel will tell you exactly what it finds.</p></div><div class="lux-mask-room" aria-hidden="true"></div></div>
+<form class="scanbox" data-quick action="/app/check" method="get">
+  <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+  <input name="url" type="text" autocomplete="off" spellcheck="false" placeholder="Paste a link, message or phone number" aria-label="What to check">
+  <button class="btn btn--gold" type="submit">Check</button>
+</form>
+<div class="scan-meta"><span>Sentinel works out what it is and says which check it runs.</span><a href="/app/check">Check an email, a file or a picture &rarr;</a></div>
+<div data-first></div>
+</template>
+<template id="verify-bar">
+<div class="verify-bar" role="status">
+  <span><b>Confirm your email address.</b> <span class="verify-bar__more">We sent a link to <span data-email></span>. Confirming it shows the address is yours, so nobody else can claim this account with it.</span></span>
+  <button class="btn btn--sm" type="button" data-resend>Resend email</button>
+</div>
+</template>
 
 <script src="/assets/js/masks.js" defer></script>
 <script src="/assets/js/steps.js" defer></script>

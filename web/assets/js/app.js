@@ -305,15 +305,27 @@
       else a.removeAttribute('aria-current');
     });
     $$('[data-desktop]', view).forEach((slot) => { (slot._off || []).forEach((off) => off()); slot._off = []; });
-    view.innerHTML = '';
-    const el = document.createElement('div');
+    // The Overview's first view, if the server drew it into the page (server/lib/appshell.js), stays as it is: it is
+    // what the person has been looking at, and home() carries on below it. Any other page clears it.
+    const drawn = name === 'home' && !state.me.user.needsTerms ? $('.view[data-shell=""]', view) : null;
+    if (!drawn) view.innerHTML = '';
+    const el = drawn || document.createElement('div');
     el.className = 'view';
     // Accounts that still owe the age confirmation and terms acceptance see
     // nothing else until they've given it. Google sign-ups land here.
     if (state.me.user.needsTerms) { view.appendChild(el); termsGate(el); return; }
     // The reminder lives beside the view, not inside it: every view replaces its own innerHTML.
-    if (state.config.verificationAvailable && !state.me.user.emailVerified) view.appendChild(verifyBar());
-    view.appendChild(el);
+    const bar = state.config.verificationAvailable && !state.me.user.emailVerified ? verifyBar() : null;
+    if (drawn) {
+      $$('.verify-bar[data-shell]', view).forEach((b) => { if (b !== bar) b.remove(); });
+      if (bar && !bar.isConnected) view.insertBefore(bar, el);
+      // app-lux.js: what is on screen is not staged to arrive again; the page's entrance starts from here.
+      document.dispatchEvent(new Event('sentinel:shell'));
+      el.dataset.shell = 'kept';   // still the server's (its entrance is CSS on this mark), no longer waiting to be taken
+    } else {
+      if (bar) view.appendChild(bar);
+      view.appendChild(el);
+    }
     fn(el, new URLSearchParams(location.search));
     // Every view draws its forms synchronously before it waits on anything, so what was typed can go back in now.
     restoreDrafts();
@@ -554,10 +566,10 @@
   }
 
   function verifyBar() {
-    const bar = h(`<div class="verify-bar" role="status">
-      <span><b>Confirm your email address.</b> <span class="verify-bar__more">We sent a link to ${esc(state.me.user.email)}. Confirming it shows the address is yours, so nobody else can claim this account with it.</span></span>
-      <button class="btn btn--sm" type="button" data-resend>Resend email</button>
-    </div>`);
+    // The server's own, when it drew one (appshell.js); else the page's template (app.html), which it is drawn from.
+    const bar = $('.verify-bar[data-shell=""]', view) || h($('#verify-bar').innerHTML);
+    if (bar.hasAttribute('data-shell')) bar.dataset.shell = 'kept';
+    $('[data-email]', bar).textContent = state.me.user.email;
     $('[data-resend]', bar).addEventListener('click', (ev) => busy(ev.currentTarget, 'Sending', async () => {
       try {
         const { verification } = await api('/auth/verify/resend', { method: 'POST', body: {} });
@@ -897,18 +909,19 @@
     const f = plan().features;
     const us = usage();
     const hour = new Date().getHours();
-    const greet = hour < 5 ? 'Up late' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    const part = hour < 5 ? 'late' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+    const greet = { late: 'Up late', morning: 'Good morning', afternoon: 'Good afternoon', evening: 'Good evening' }[part];
 
-    el.innerHTML = `
-      ${title(`${greet}, ${esc(u.firstName)}`,'Paste anything you are unsure about. Sentinel will tell you exactly what it finds.')}
-      <form class="scanbox" data-quick>
-        ${ICON.search}
-        <input name="url" type="text" autocomplete="off" spellcheck="false" placeholder="Paste a link, message or phone number" aria-label="What to check">
-        <button class="btn btn--gold" type="submit">Check</button>
-      </form>
-      <div class="scan-meta"><span>Sentinel works out what it is and says which check it runs.</span><a href="/app/check">Check an email, a file or a picture &rarr;</a></div>
-      <div data-first></div>
-
+    // Its top is the server's, already drawn into the page; opened from another page it is drawn here from the same
+    // template, without the rule that the page's own copy carries (app-lux.js dresses a heading with it as it arrives).
+    if (!$('.page-title', el)) {
+      el.innerHTML = $('#home-top').innerHTML;
+      $('h1', el).removeAttribute('data-lux');
+      $('.lux-rule', el).remove();
+    }
+    $('h1', el).textContent = `${greet}, ${u.firstName}`;
+    document.documentElement.dataset.part = part;
+    el.insertAdjacentHTML('beforeend', `
       <div class="usage-list u-mt-lg">
         ${scanCards(us)}
         <a class="usage-link" href="/app/check">${usageCard(ICON.shield, left('fileScans'), `/ ${us.fileScans.limit}`, 'Virus & malware scans left', us.fileScans.used, us.fileScans.limit)}</a>
@@ -923,7 +936,7 @@
       <div class="panel u-mt">
         <div class="panel__head"><div><h2>Recent scans</h2><p>Your last 30 days</p></div><a class="btn btn--sm" href="/app/history">View all</a></div>
         <div data-recent>${skel('recent', historyList([]))}</div>
-      </div>`;
+      </div>`);
 
     weekCard($('[data-week-card]', el));
     // One offer at a time: the first-run choices, then chat safety, then exposure alerts, each on a later visit.

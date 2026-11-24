@@ -138,7 +138,7 @@ async function browserPass(axeSource, base, email, password) {
     const busy = async () => (await browser.send('Performance.getMetrics', {}, s)).metrics.find((m) => m.name === 'TaskDuration').value;
     const visit = async (p, scheme) => {
       const t = Date.now();
-      await goto(browser, s, base + p, APP.includes(p) ? "document.querySelector('#view .page-title h1, #view h1')" : 'true');
+      await goto(browser, s, base + p, APP.includes(p) ? "document.querySelector('#view .view:not([data-shell=\"\"]) .page-title h1, #view .view:not([data-shell=\"\"]) h1')" : 'true');
       const ready = Date.now() - t;
       await sleep(2500); // the entrance motion settles, so colours are read as they rest
       if (scheme === 'dark') {

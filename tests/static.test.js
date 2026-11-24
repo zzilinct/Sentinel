@@ -213,7 +213,8 @@ test('the app page paints its side bar from styles inside it; its stylesheets no
   // What the side bar, the phone's top bar and the faces need is in it; what only a page or the website uses is not.
   for (const rule of ['@font-face', ':root', '.side__link{', '.side__nav{', '.topbar-mobile', '.logo', '.btn{', '.theme-toggle', '.skeleton']) assert.ok(css.includes(rule), `the first view's styles lack ${rule}`);
   for (const rule of ['.hero{', '.set-row', '.result{', '.pricing']) assert.ok(!css.includes(rule), `${rule} is not the first view's`);
-  assert.ok(css.length < 40 * 1024, `the first view's styles weigh ${css.length} bytes`);
+  // 1.21.3: 46 KB, from 40: the Overview's first view is in the page now (appshell.js), and html.lux-app, the app's palette, is on from the first byte.
+  assert.ok(css.length < 46 * 1024, `the first view's styles weigh ${css.length} bytes`);
   // Their faces and pictures are found from the page: a sheet's relative address is made absolute (CI run 43791630162
   // asked /app/geist-normal-300-700.woff2 before this).
   const urls = [...css.matchAll(/url\((['"]?)([^'")]+)\1\)/g)].map((m) => m[2]).filter((u) => !/^data:/.test(u));

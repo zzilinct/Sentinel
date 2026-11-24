@@ -89,6 +89,27 @@ async function checkStates() {
     result('states: the first-time stand-in copy is hidden from screen readers and Tab never reaches it',
       ghosts.some((g) => g.ghosts > 0) && ghosts.every((g) => g.hidden && !g.focused), ghosts);
 
+    /* ------------------------------ the confirm-email bar: its whole sentence, inside the bar, at every width and text size */
+    // A phone used to hide the sentence (and with it which address the link went to) so that it would not wrap; at Larger
+    // text it wrapped anyway. Now it wraps and the button drops under it: all the words stay, inside the bar, nothing scrolls sideways.
+    mode = 'pass';
+    const barFits = [];
+    for (const [w, text] of [[360, null], [360, 'larger'], [390, 'larger'], [1366, 'larger']]) {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width: w, height: w < 600 ? 740 : 900, deviceScaleFactor: 1, mobile: w < 600 }, s);
+      await evalIn(browser, s, `(${text ? `localStorage.setItem('sentinel:type', ${JSON.stringify(JSON.stringify({ text, density: 'comfortable' }))})` : "localStorage.removeItem('sentinel:type')"}, true)`);
+      await goto(browser, s, `${server.base}/app/history`, "document.querySelector('.verify-bar [data-resend]')");
+      await sleep(300);
+      const m = await evalIn(browser, s, `(() => { const bar = document.querySelector('.verify-bar'), more = bar.querySelector('.verify-bar__more'), btn = bar.querySelector('[data-resend]');
+        const r = bar.getBoundingClientRect(), b = btn.getBoundingClientRect(), t = more.getBoundingClientRect();
+        return { shown: getComputedStyle(more).display !== 'none' && t.height > 0, sentence: more.innerText.replace(/\\s+/g, ' ').trim(),
+          inside: b.left >= r.left - 1 && b.right <= r.right + 1 && t.left >= r.left - 1 && t.right <= r.right + 1, side: document.documentElement.scrollWidth - innerWidth, height: Math.round(r.height) }; })()`);
+      barFits.push({ at: `${w}${text ? ` ${text}` : ''}`, ...m });
+      if (w === 360) await shot(browser, s, `states-confirm-bar-${w}${text ? `-${text}` : ''}`);
+    }
+    await evalIn(browser, s, "(localStorage.removeItem('sentinel:type'), true)");
+    result('states: the confirm-email bar keeps its whole sentence and its button inside it, with no sideways scroll, at 360 px and at Larger text',
+      barFits.every((f) => f.shown && /^We sent a link to \S+@\S+\. Confirming it shows the address is yours/.test(f.sentence) && f.inside && f.side <= 0), barFits);
+
     const seen = { empty: [], fault: [], down: [], slow: [] };
     for (const [name, [width, height, mobile]] of Object.entries(SIZES)) {
       await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, s);

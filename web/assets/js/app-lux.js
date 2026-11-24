@@ -125,6 +125,13 @@
     scan();
   }
 
+  // app.js kept the Overview's first view that the server drew (appshell.js): it is already on screen and came up on CSS
+  // alone, so nothing of it is staged to arrive again; the page's entrance starts from here, for what is drawn below it.
+  document.addEventListener('sentinel:shell', () => {
+    view.querySelectorAll(PARTS).forEach((part) => seen.add(part));
+    newPage(null);
+  });
+
   let queued = false;
   new MutationObserver((records) => {
     const isView = (n) => n.nodeType === 1 && n.classList.contains('view');
@@ -247,6 +254,9 @@
     // In 3D when it can be (cosmos.js fetches the models): it turns to watch the pointer as it comes near. The models
     // wait until the browser is idle, as cosmos.js waits for a page's own masks, so the page is drawn first.
     head.insertAdjacentHTML('beforeend', '<div class="lux-mask" aria-hidden="true"><span class="m3" data-mask3d="onyx" data-pose="lay" data-look="380"><img src="/assets/img/masks/onyx.webp" width="788" height="896" alt=""></span></div>');
+    // The server's first view holds the mask's room empty (app.html, home-top); the mask takes its place, the same size.
+    const room = head.querySelector('.lux-mask-room');
+    if (room) room.remove();
     const load = () => window.SentinelLoadMask3D && window.SentinelLoadMask3D();
     if (window.requestIdleCallback) requestIdleCallback(load, { timeout: 1500 }); else setTimeout(load, 200);
   }

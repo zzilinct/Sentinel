@@ -23,6 +23,9 @@ document.documentElement.classList.add('js');
   } catch (e) { /* storage blocked: gold, as the system has it */ }
 })();
 
+/* The hour's word for the Overview's greeting (app.html, home-top), so the server's first view greets correctly before app.js runs. */
+(function () { var h = new Date().getHours(); document.documentElement.dataset.part = h < 5 ? 'late' : h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening'; })();
+
 /*
  * A first visit's Overview waits on the first-run choices (their script and stylesheet), which app.js asks for once it
  * has run: asked for here, beside app.js, so they are on the way when it wants them. Nothing after the first visit, in
