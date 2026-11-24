@@ -125,6 +125,13 @@
     scan();
   }
 
+  // app.js kept the Overview's first view that the server drew (appshell.js): it is already on screen and came up on CSS
+  // alone, so nothing of it is staged to arrive again; the page's entrance starts from here, for what is drawn below it.
+  document.addEventListener('sentinel:shell', () => {
+    view.querySelectorAll(PARTS).forEach((part) => seen.add(part));
+    newPage(null);
+  });
+
   let queued = false;
   new MutationObserver((records) => {
     const isView = (n) => n.nodeType === 1 && n.classList.contains('view');

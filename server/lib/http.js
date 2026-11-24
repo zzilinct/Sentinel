@@ -206,7 +206,7 @@ function renderHtml(base, file) {
 }
 
 /** Serve a file from `root`, resolving directories and extensionless paths to .html */
-function serveStatic(root, urlPath, req, res, status = 200) {
+function serveStatic(root, urlPath, req, res, status = 200, tweak = null) {
   let rel;
   try { rel = decodeURIComponent(urlPath.split('?')[0]); } catch { send(res, 400, 'Bad request'); return true; }
   if (rel.includes('\0')) { send(res, 400, 'Bad request'); return true; }
@@ -252,6 +252,20 @@ function serveStatic(root, urlPath, req, res, status = 200) {
   if (ext === '.html') {
     // Pages include partials, so the version covers every included file.
     const page = renderHtml(base, file);
+    // A page that differs by who asks (tweak(html) -> html, server/lib/appshell.js): never kept by a shared cache, and
+    // never compressed once for everyone; the same page when it has nothing to add.
+    if (tweak) {
+      headers.Vary = 'Accept-Encoding, Cookie';
+      const text = page.buffer.toString('utf8');
+      const mine = tweak(text);
+      if (mine !== text) {
+        const body = Buffer.from(mine, 'utf8');
+        const how = pick(body.length);
+        headers['Cache-Control'] = 'private, no-cache';
+        const packed = how === 'br' ? zlib.brotliCompressSync(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }) : how ? zlib.gzipSync(body, { level: 6 }) : body;
+        return reply(`W/"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 16)}"`, packed, how);
+      }
+    }
     const encoding = pick(page.buffer.length);
     return reply(`W/"${page.version}"`, encoding ? compress(`${file}|${page.version}|${encoding}`, page.buffer, encoding) : page.buffer, encoding);
   }

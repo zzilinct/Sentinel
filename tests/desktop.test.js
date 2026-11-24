@@ -1055,6 +1055,9 @@ test('a page left still with nobody at the mouse or keyboard is looked at far le
   // The pixel follower: once a second while quiet, woken at once by the wheel, and asleep while there is nothing to follow.
   assert.match(SCRIPT, /if \(\$quiet -and \[Environment\]::TickCount - \$anchorAt -lt 1000\) \{ continue \}/, 'the anchor is asked once a second while quiet');
   assert.ok(SCRIPT.includes('int rest = (woken ? 16 : Quiet ? 1000 : 120)'));
+  // 1.21.3: the rest ends the moment anyone touches the mouse or keyboard (Windows' last-input time, every 40 ms), not up to a second later.
+  assert.ok(SCRIPT.includes('if (!woken && Quiet) Rest(Math.Max(1, rest)); else wake.WaitOne(Math.Max(1, rest));'));
+  assert.match(SCRIPT, /static void Rest\(int ms\) \{[\s\S]*?wake\.WaitOne\(Math\.Min\(40, left\)\)[\s\S]*?if \(SW\.IdleMs\(\) < 10000\) \{ lone = true; Watch\(500\); return; \}/);
   assert.ok(SCRIPT.includes('static void Watch(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; wake.Set(); }'));
   assert.ok(SCRIPT.includes('wake.WaitOne(enabled ? 40 : System.Threading.Timeout.Infinite);'));
   assert.doesNotMatch(SCRIPT, /Thread\.Sleep\(40\)/);

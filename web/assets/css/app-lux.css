@@ -159,6 +159,14 @@ html.lux-app[data-theme="light"] {
    drops when the mask arrives after it. */
 @media (min-width: 721px) { [data-tab="home"] > .view > .page-title { min-height: calc(clamp(84px, 10vw, 128px) * 896 / 788); } }
 
+/* The Overview the server drew into the page (appshell.js) comes up with the page, before any script runs: its heading and
+   box settle in as the other headings do, on this alone. The greeting's words are the hour's, picked by boot.js. */
+[data-shell] > .page-title, [data-shell] > .scanbox, .verify-bar[data-shell] { animation: lux-pop .7s var(--lux-out) backwards; }
+[data-shell] > .scanbox { animation-delay: .08s; }
+.greet > span { display: none; }
+:root[data-part="late"] .greet > [data-part="late"], :root[data-part="morning"] .greet > [data-part="morning"],
+:root[data-part="afternoon"] .greet > [data-part="afternoon"], :root[data-part="evening"] .greet > [data-part="evening"] { display: inline; }
+
 /* ------------------------------------------------ entrances, by page */
 
 /* Waiting to enter: set by app-lux.js only, cleared when the part comes on screen. */
@@ -299,7 +307,8 @@ html.lux-app[data-theme="light"] {
 
 :root[data-motion="off"] {
   .lux-atmos i, .lux-rule *, .lux-word, .lux-mask, .lux-mask img, .lux-app .meter i, .lux-app .empty svg,
-  .lux-wipe, .lux-ghost, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i, .lux-app .warn-card { animation: none !important; }
+  .lux-wipe, .lux-ghost, .lux-tile, .lux-tile *, .lux-island__msg, .lux-app .week-bars__col i, .lux-app .warn-card,
+  [data-shell] > .page-title, [data-shell] > .scanbox, .verify-bar[data-shell] { animation: none !important; }
   .lux-wipe, .lux-ghost { display: none; }
   /* The island only fades in and out, at its size, and swaps its words in place. */
   .lux-island { transform: translateX(-50%); transition: opacity .15s ease; }

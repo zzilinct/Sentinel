@@ -11,6 +11,7 @@ require('./lib/dblock').claim();
 const { Router, sendJson, send, serveStatic, HttpError, parseUrl } = require('./lib/http');
 const security = require('./lib/security');
 const auth = require('./lib/auth');
+const appshell = require('./lib/appshell');
 const { sweep, acquireLock, backupAccounts, resetFeeds } = require('./lib/db');
 const seed = require('./seed');
 const feeds = require('./lib/scan/feeds');
@@ -86,7 +87,11 @@ function createServer() {
       // The call check is public now: someone on the phone with a scammer cannot stop to sign in.
       if (/^\/app\/call\/?$/.test(url.pathname)) { send(res, 302, null, { Location: '/call' }); return; }
       if (APP_ROUTES.test(url.pathname)) {
-        serveStatic(config.webDir, '/app.html', req, res);
+        // The Overview comes with its first view drawn, for someone signed in (lib/appshell.js).
+        const home = /^\/app\/?$/.test(url.pathname);
+        const me = home ? auth.currentUser(req) : null;
+        const user = me && auth.publicUser(me);
+        serveStatic(config.webDir, '/app.html', req, res, 200, home ? (html) => appshell.fill(html, user, Boolean(user) && config.mailConfigured && !user.emailVerified) : null);
         return;
       }
       if (serveStatic(config.webDir, url.pathname, req, res)) return;
