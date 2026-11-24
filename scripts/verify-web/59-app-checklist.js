@@ -44,6 +44,8 @@ const SHELL = [
   { what: 'search box', sel: '.side__search', only: 'desktop' },
   { what: 'theme button', sel: '.theme-toggle', only: 'desktop' },
   { what: 'account row and its avatar', sel: '.me .avatar', only: 'desktop' },
+  { what: 'the stars', sel: 'canvas.cosmos', only: 'dark', through: true, stars: true },
+  { what: 'floating motes', sel: '.lux-atmos i', n: 8, exists: true },
   { what: 'page title', sel: '.page-title h1' },
   { what: 'rule under the title, drawn', sel: '.page-title .lux-rule', drawn: true }
 ];
@@ -97,10 +99,11 @@ async function probe(items, ctx) {
   const opacityOf = (e) => { let o = 1; for (let n = e; n && n.nodeType === 1; n = n.parentElement) o *= parseFloat(getComputedStyle(n).opacity); return o; };
   const alphaOf = (c) => { const m = /\/\s*([\d.]+)\s*\)$|rgba\([^)]*,\s*([\d.]+)\)$/.exec(c); return m ? parseFloat(m[1] || m[2]) : 1; };
   for (const it of items) {
-    if ((it.only === 'desktop' && ctx.phone) || (it.only === 'phone' && !ctx.phone)) continue;
+    if ((it.only === 'desktop' && ctx.phone) || (it.only === 'phone' && !ctx.phone) || (it.only === 'dark' && ctx.theme !== 'dark')) continue;
     let els = [...document.querySelectorAll(it.sel)];
     const need = it.n || 1;
     if (els.length < need) { out.push(`${it.what}: missing (${els.length} of ${need} for ${it.sel})`); continue; }
+    if (it.exists) continue;
     els = els.slice(0, it.all ? els.length : 1);
     for (const e of els) {
       const bad = [];
@@ -131,6 +134,22 @@ async function probe(items, ctx) {
           if ((cutX || cutY) && !it.cutOk) { bad.push(`cut by ${a.tagName.toLowerCase()}${typeof a.className === 'string' && a.className ? '.' + a.className.trim().split(/\s+/)[0] : ''}`); break; }
         }
         if (e.tagName !== 'svg' && !(e instanceof SVGElement) && own && cs.overflow !== 'visible' && (e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 2)) bad.push('its words are cut off');
+        if (it.stars) {
+          // A 2D canvas can be read: the stars are drawn (not an empty sky), and in a colour other than gold none of them is gold's hue.
+          const c = e.getContext('2d'), d = c.getImageData(0, 0, e.width, e.height).data;
+          let lit = 0, warm = 0;
+          for (let i = 0; i < d.length; i += 16) {
+            if (d[i + 3] < 60) continue;
+            lit++;
+            const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), dd = mx - mn;
+            if (dd < 0.08) continue;
+            const h = (mx === r ? ((g - b) / dd + 6) % 6 : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4) * 60;
+            if (h >= 30 && h <= 56) warm++;
+          }
+          if (lit < 20) bad.push(`the sky is empty (${lit} lit points)`);
+          if (ctx.accent !== 'gold' && lit && warm / lit > 0.25) bad.push(`${Math.round((100 * warm) / lit)}% of the stars are still gold's hue`);
+        }
+        if (window.scrollY <= 0 && r.top < -1) bad.push(`starts ${Math.round(-r.top)} px above the top of the page`);
         if (e.tagName === 'IMG' && !(e.complete && e.naturalWidth > 0)) bad.push('picture not loaded');
         if (e.matches('.m3') && !e.querySelector('canvas, img')) bad.push('no picture or 3D model inside');
         const pic = e.matches('.m3') ? e.querySelector('canvas, img') : null;
@@ -227,10 +246,11 @@ async function checkApp() {
       await goto(browser, s, `${base}${url}`, ready);
       await until(browser, s, "document.getAnimations().filter((a) => a.playState === 'running' && Number.isFinite(a.effect.getComputedTiming().endTime)).length === 0", 4000);
       await sleep(500);
-      const why = await ev(`(${probe})(${JSON.stringify(items)}, ${JSON.stringify({ phone: size === 'phone', accent: lk[1] })})`);
+      const why = await ev(`(${probe})(${JSON.stringify(items)}, ${JSON.stringify({ phone: size === 'phone', accent: lk[1], theme: lk[0] })})`);
       if (lk[1] !== 'gold') why.push(...(await ev(`(${goldLeft})(${JSON.stringify(lk[1])}, ${JSON.stringify(STATUS)})`)));
-      if (errors.length) why.push(...errors.slice(0, 3).map((e) => `the page logged: ${e.slice(0, 160)}`));
-      await ev("window.scrollTo({ top: 0, left: 0, behavior: 'instant' }), true");
+      const noise = errors.filter((e) => !/favicon.ico/.test(e));
+      if (noise.length) why.push(...noise.slice(0, 3).map((e) => `the page logged: ${e.slice(0, 160)}`));
+      await ev("[document.scrollingElement, ...document.querySelectorAll('*')].forEach((e) => { if (e && e.scrollTop) e.scrollTop = 0; }), true");
       await sleep(250);
       await shot(browser, s, `app-${tag}`);
       seen.push(tag);
@@ -293,7 +313,7 @@ async function checkApp() {
             await goto(browser, s, `${files.base}${pageUrl}`, ready);
             await ev(`(() => { document.body.style.background = '${lk[0] === 'light' ? '#ffffff' : '#202124'}'; __on['overlay:watching']({ appeared: true, browser: 'msedge' }); __on['overlay:page']({ host: 'paypa1-secure-login.example', search: false }); __on['overlay:marks']({ marks: ${JSON.stringify(marks)}, epoch: 0 }); __on['overlay:sweep']({ kind: 'search' }); return true; })()`);
             await sleep(900);
-            const why = await ev(`(${probe})(${JSON.stringify(items)}, { phone: false, accent: ${JSON.stringify(lk[1])} })`);
+            const why = await ev(`(${probe})(${JSON.stringify(items)}, { phone: false, accent: ${JSON.stringify(lk[1])}, theme: ${JSON.stringify(lk[0])} })`);
             if (lk[1] !== 'gold') why.push(...(await ev(`(${goldLeft})(${JSON.stringify(lk[1])}, ${JSON.stringify(STATUS)})`)));
             await shot(browser, s, `app-${tag}`);
             seen.push(tag);
