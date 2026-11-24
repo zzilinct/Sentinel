@@ -178,12 +178,12 @@ $stillFailed = $scan -gt 1.5
 Shot 'google-still'
 
 # 3b. The first scroll after a rest: nobody has touched anything for 13 s, so the reader is resting (watch.js quiet),
-# then Page Down. The page's pixels must say it moved within WAKE_MS of the key (scripts/marks-at-rest.js --wake).
+# then Down arrow (a step the follower can line up, unlike a Page Down jump). The page's pixels must say it moved within WAKE_MS of the key (scripts/marks-at-rest.js --wake).
 # Three keys, each after a rest of a different length, so the reader's own second is not always hit at the same moment.
 foreach ($rest in 13000, 13400, 13800) {
   Start-Sleep -Milliseconds $rest
   Add-Content "$Out\frames.txt" ("# quiet key " + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
-  [K]::Tap(0x22); Start-Sleep -Milliseconds 450
+  [K]::Tap(0x28); Start-Sleep -Milliseconds 450
   Shot "quiet-key-$rest"   # where the page is a moment after the key: it must have moved, or the key proves nothing
   Start-Sleep -Milliseconds 1550
   [K]::Tap(0x24)
