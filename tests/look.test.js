@@ -404,7 +404,8 @@ test('a press paints from what was worked out: the same colours, no maths the se
   assert.ok(Number(process.hrtime.bigint() - t) / 1e6 / 1200 < 0.2, 'a kept ramp is a copy, well under a fifth of a millisecond');
   // The reveal starts at once (an ease-out), and the pictures never take the pointer, so a coin keeps its hover.
   const css = read('web', 'assets', 'css', 'sentinel.css');
-  assert.match(css, /html\.look-vt::view-transition \{ pointer-events: none; \}/);
+  // Every picture of the change, not only the root one: the browser hit-tests the pseudo-elements, and one left alone took the hover off the coin.
+  assert.match(css, /html\.look-vt::view-transition, html\.look-vt::view-transition-group\(\*\), html\.look-vt::view-transition-image-pair\(\*\),\s+html\.look-vt::view-transition-old\(\*\), html\.look-vt::view-transition-new\(\*\) \{ pointer-events: none; \}/);
   assert.match(css, /html\.look-vt::view-transition-new\(root\) \{ animation: look-in \.6s cubic-bezier\(\.22, 1, \.36, 1\) both; \}/);
   assert.doesNotMatch(css, /\.look__coin:hover i \{ transform/, 'hover and chosen are separate properties, never one transform swapped for another');
 });
