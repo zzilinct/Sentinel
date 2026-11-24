@@ -829,7 +829,7 @@ select.input option { background: var(--surface-3); color: var(--text); }
 /* On a phone's Check page the notice folds to one line, so the box and its Check button stay on screen. */
 /* A phone's bar is one line, on every page: its long sentence wrapped to six lines or seven by a few pixels of the face's width, so the
    page under it moved when Geist arrived. The sentence (which address the link went to) stays in Settings and in the mail itself. */
-@media (max-width: 560px) { .verify-bar { flex-wrap: nowrap; padding: 8px 8px 8px 14px; margin-bottom: 12px; } .verify-bar__more { display: none; } }
+@media (max-width: 560px) { .verify-bar { padding: 8px 8px 8px 14px; margin-bottom: 12px; } .verify-bar__more { display: none; } }
 .shell--guest { grid-template-columns: 1fr; }
 .shell--guest .main { max-width: 1040px; margin: 0 auto; }
 
