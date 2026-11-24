@@ -59,6 +59,10 @@ test('the heading the server draws and the one app.js draws are the same markup,
   assert.match(js, /document\.dispatchEvent\(new Event\('sentinel:shell'\)\)/);
   assert.match(lux, /document\.addEventListener\('sentinel:shell'[\s\S]*seen\.add\(part\)[\s\S]*newPage\(null\)/, 'what is drawn is never staged to arrive again');
   assert.doesNotMatch(js, /\$\{greet\}, \$\{esc\(u\.firstName\)\}/, 'the old copy of the heading is gone');
+  // The mask's room is held empty in the first view and the mask takes its place, so nothing below the heading moves when it arrives.
+  assert.match(html, /<div class="lux-mask-room" aria-hidden="true"><\/div>/);
+  assert.match(lux, /const room = head\.querySelector\('\.lux-mask-room'\);\s+if \(room\) room\.remove\(\);/);
+  assert.match(read('assets', 'css', 'app-lux.css'), /\.lux-mask, \.lux-mask-room \{ width: clamp\(84px, 10vw, 128px\);/);
   // The heading says the hour's word before any script (boot.js), from the words the template holds.
   for (const w of ['Up late', 'Good morning', 'Good afternoon', 'Good evening']) assert.ok(html.includes(`>${w}</span>`), w);
   assert.match(read('assets', 'js', 'boot.js'), /dataset\.part = h < 5 \? 'late' : h < 12 \? 'morning' : h < 18 \? 'afternoon' : 'evening'/);

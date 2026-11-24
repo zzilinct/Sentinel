@@ -1057,7 +1057,7 @@ test('a page left still with nobody at the mouse or keyboard is looked at far le
   assert.ok(SCRIPT.includes('int rest = (woken ? 16 : Quiet ? 1000 : 120)'));
   // 1.21.3: the rest ends the moment anyone touches the mouse or keyboard (Windows' last-input time, every 40 ms), not up to a second later.
   assert.ok(SCRIPT.includes('if (!woken && Quiet) Rest(Math.Max(1, rest)); else wake.WaitOne(Math.Max(1, rest));'));
-  assert.match(SCRIPT, /static void Rest\(int ms\) \{[\s\S]*?wake\.WaitOne\(Math\.Min\(40, left\)\)[\s\S]*?if \(SW\.IdleMs\(\) < 10000\) \{ lone = true; Watch\(500\); return; \}/);
+  assert.match(SCRIPT, /static void Rest\(int ms\) \{[\s\S]*?wake\.WaitOne\(Math\.Min\(40, left\)\)[\s\S]*?if \(SW\.IdleMs\(\) < 10000\) \{ lone = true; Watch\(500\);[\s\S]*?return; \}/);
   assert.ok(SCRIPT.includes('static void Watch(int ms) { int u = Environment.TickCount + ms; if (u - Until > 0) Until = u; wake.Set(); }'));
   assert.ok(SCRIPT.includes('wake.WaitOne(enabled ? 40 : System.Threading.Timeout.Infinite);'));
   assert.doesNotMatch(SCRIPT, /Thread\.Sleep\(40\)/);

@@ -281,7 +281,7 @@ public class Glide {
     int end = Environment.TickCount + ms;
     for (int left = ms; left > 0; left = end - Environment.TickCount) {
       if (wake.WaitOne(Math.Min(40, left))) return;
-      if (SW.IdleMs() < 10000) { lone = true; Watch(500); return; }
+      if (SW.IdleMs() < 10000) { lone = true; Watch(500); Console.Out.WriteLine("{\"woke\":1}"); Console.Out.Flush(); return; }
     }
   }
   static void Run() {
@@ -1108,6 +1108,7 @@ function onLine(line) {
   if (msg.idle) { log('nobody at the keyboard: paused'); return; }
   if (msg.awake) { log('in use again'); return; }
   if (msg.quiet) { log('page still and nobody at the mouse or keyboard: looking less often'); return; }
+  if (msg.woke) { log('the first touch of the mouse or keyboard after the rest: looking at the page at once'); return; }
   if ('win' in msg) {
     if (!msg.win) { clearTimeout(settleTimer); state.current = null; latestLinks = null; }
     setWindow(msg.win || null);

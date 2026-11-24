@@ -183,7 +183,9 @@ Shot 'google-still'
 foreach ($rest in 13000, 13400, 13800) {
   Start-Sleep -Milliseconds $rest
   Add-Content "$Out\frames.txt" ("# quiet key " + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
-  [K]::Tap(0x22); Start-Sleep 2
+  [K]::Tap(0x22); Start-Sleep -Milliseconds 450
+  Shot "quiet-key-$rest"   # where the page is a moment after the key: it must have moved, or the key proves nothing
+  Start-Sleep -Milliseconds 1550
   [K]::Tap(0x24)
 }
 Start-Sleep 2

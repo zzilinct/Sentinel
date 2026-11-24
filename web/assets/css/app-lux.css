@@ -149,12 +149,13 @@ html.lux-app[data-theme="light"] {
 @keyframes lux-draw { to { stroke-dashoffset: 0; } }
 
 /* The onyx mask watches over the overview, leaning toward the pointer (app-lux.js) and breathing slowly. */
-.lux-mask { width: clamp(84px, 10vw, 128px); height: calc(clamp(84px, 10vw, 128px) * 896 / 788); margin-left: auto; align-self: center; pointer-events: none;
-  filter: drop-shadow(0 18px 30px rgb(0 0 0 / .45)); animation: lux-mask-in 1.4s var(--lux-spring) .2s backwards; }
+/* The room is held by an empty one in the server's first view (appshell.js), which the mask replaces as it arrives. */
+.lux-mask, .lux-mask-room { width: clamp(84px, 10vw, 128px); height: calc(clamp(84px, 10vw, 128px) * 896 / 788); margin-left: auto; align-self: center; pointer-events: none; }
+.lux-mask { filter: drop-shadow(0 18px 30px rgb(0 0 0 / .45)); animation: lux-mask-in 1.4s var(--lux-spring) .2s backwards; }
 .lux-mask img { display: block; width: 100%; height: auto; animation: lux-breathe 4.2s ease-in-out infinite alternate; transform: perspective(600px) rotateY(var(--ry, 0deg)) rotateX(var(--rx, 0deg)); transition: transform 1s var(--lux-out); }
 @keyframes lux-mask-in { from { transform: translateY(-40px) rotate(-18deg) scale(.86); opacity: 0; } }
 @keyframes lux-breathe { from { translate: 0 -5px; } to { translate: 0 5px; } }
-@media (max-width: 720px) { .lux-mask { display: none; } }
+@media (max-width: 720px) { .lux-mask, .lux-mask-room { display: none; } }
 /* Its room is held from the first paint (the mask's own width and its picture's 788 by 896), so the greeting never
    drops when the mask arrives after it. */
 @media (min-width: 721px) { [data-tab="home"] > .view > .page-title { min-height: calc(clamp(84px, 10vw, 128px) * 896 / 788); } }
