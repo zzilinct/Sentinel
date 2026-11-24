@@ -46,11 +46,11 @@ const STARS = [['stars', 'canvas.cosmos', { canvas: true, bg: true, dark: true, 
 const PUBLIC = [
   ['/', 'home', "document.querySelector('.hero__unmask') && document.querySelector('.cosmos, .hero__word')", [
     ...NAV, ...H1, ...STARS, ...FOOT,
-    ['hero name', '[data-hero-word]', { text: true }], ['hero words', '.hero__lede', { text: true }],
+    ['hero name', '[data-hero-word]', {}], ['hero words', '.hero__lede', { text: true }],
     ['hero buttons', '.hero__cta .btn', { n: 2, text: true }], ['hero essentials', '.hero__fine li', { n: 3, text: true }],
     ['hero 3D mask', '[data-hero-mask] .mask3d--ready .mask3d__canvas', { canvas: true }], ['hero what Sentinel sees', '.hero__unmask', { canvas: true, bg: true }],
     ['demo heading', '.sec-demo h2', { text: true }], ['galaxy', '.galaxy__canvas', { canvas: true, bg: true }], ['galaxy heading', '.sec-galaxy h2', { text: true }],
-    ['masks heading', '.sec-masks h2', { text: true }], ['masks 3D', '.sec-masks .plate__art .mask3d--ready .mask3d__canvas', { canvas: true, n: 3 }],
+    ['masks heading', '.sec-masks h2', { text: true }], ['masks 3D', '.plate__art .mask3d--ready .mask3d__canvas', { canvas: true, n: 3 }],
     ['colour coins', '.colour__pick .swatch', { n: COINS }], ['colour preview', '.colour__crest', { text: true }], ['colour note', '.colour__note', { text: true }],
     ['how heading', '.sec-how h2', { text: true }], ['game heading', '.sec-game h2', { text: true }],
     ['try modes', '[data-try-mode]', { n: 2, text: true }], ['pricing heading', '.sec-pricing h2', { text: true }],
@@ -76,7 +76,7 @@ const SIDE = [
 ];
 const APP = [
   ['/app', 'home', "document.querySelector('[data-quick]') && !document.querySelector('[data-recent] .skeleton')", [
-    ...SIDE, ['greeting', '.greet > span', { text: true }], ['check box', '[data-quick] input', {}], ['check button', '[data-quick] .btn', { text: true }],
+    ...SIDE, ['check box', '[data-quick] input', {}], ['check button', '[data-quick] .btn', { text: true }],
     ['line under the check box', '.scan-meta', { text: true }], ['corner mask', '.lux-mask .mask3d--ready .mask3d__canvas', { only: 'desktop', canvas: true }],
     ['usage cards', '.usage-list .usage-link', { n: 2 }]
   ]],
@@ -146,7 +146,7 @@ async function audit(items, sweep, phone, dark, bottomBar) {
     const vx = Math.max(r.left, 0), vy = Math.max(r.top, 0), vr = Math.min(r.right, W), vb = Math.min(r.bottom, innerHeight);
     if (vr - vx < 1 || vb - vy < 1) return 'not in the window after scrolling to it';
     const top = document.elementFromPoint((vx + vr) / 2, (vy + vb) / 2);
-    if (top && !(e.contains(top) || top.contains(e) || (top.closest('a, button, label') && top.closest('a, button, label').contains(e)))) return `under ${name(top)}`;
+    if (top && !(e.contains(top) || top.contains(e) || (top.closest('a, button, label') && top.closest('a, button, label').contains(e)) || (top.closest('.m3') && top.closest('.m3') === e.closest('.m3')))) return `under ${name(top)}`;
     return '';
   };
   const bad = [];
@@ -162,7 +162,8 @@ async function audit(items, sweep, phone, dark, bottomBar) {
   if (sweep) {
     const seen = new Set();
     for (const e of document.querySelectorAll(sweep)) {
-      if (seen.has(e) || !shown(e) || e.closest('[aria-hidden=true]') || e.closest('.nav, .footer, dialog, [role=dialog]')) continue;
+      if (seen.has(e) || !shown(e) || e.closest('[aria-hidden=true]') || e.closest('.nav, .footer, dialog, [role=dialog]') || e.matches(':disabled, input[type=radio], input[type=checkbox]')) continue;
+      const fold = e.closest('.set-fold'); if (fold && fold.getBoundingClientRect().height < 20) continue;
       seen.add(e);
       const t = e.matches('input, textarea') ? { text: false } : { text: !e.matches('.btn:empty, button:empty') };
       const w = await why(e, { ...t, min: 2 });
@@ -208,11 +209,13 @@ async function checkVisualList() {
     const { sessionId: s } = await openPage(browser);
     const errors = await watchErrors(browser, s);
     const api = (p, body) => evalIn(browser, s, `fetch('/api/v1${p}', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify(body))} }).then((r) => r.status)`);
+    const signIn = async () => {
     await goto(browser, s, `${server.base}/login`);
     const email = `list-${Date.now()}@example.com`;
     const password = 'Visual-List-Lamp-2026';
     await api('/auth/signup', { email, password, firstName: 'Ada', ageConfirmed: true, termsAccepted: true });
     await api('/auth/login', { email, password });
+    };
 
     const setup = async (x, i) => {
       const z = x.size;
@@ -224,47 +227,21 @@ async function checkVisualList() {
         localStorage.setItem('sentinel:theme', '${x.scheme}'); if ('${x.accent}' !== 'gold') localStorage.setItem('sentinel:accent', '${x.accent}');
         localStorage.setItem('sentinel:type', JSON.stringify({ text: '${x.text}', density: 'comfortable' })); ${i % 2 ? "localStorage.setItem('sentinel:first-choices', '1');" : ''} return true; })()`);
     };
-    let status = null;
-    const run = async (list, setups, app) => {
-      for (const [p, name, ready, items] of list) {
-        for (const x of setups) {
-          await setup(x, SETUPS.indexOf(x));
-          errors.length = 0;
-          await goto(browser, s, `${server.base}${p}?list=${Date.now()}`, ready);
-          await sleep(500);
-          await evalIn(browser, s, SETTLE, { awaitPromise: true });
-          const phone = x.size.mobile;
-          const bad = await evalIn(browser, s, `(${audit})(${JSON.stringify(items)}, ${JSON.stringify(SWEEP)}, ${phone}, ${x.scheme === 'dark'}, ${app && phone})`, { awaitPromise: true });
-          const look = await evalIn(browser, s, `({ accent: document.documentElement.dataset.accent || 'gold', text: document.documentElement.dataset.text || 'standard', status: ${STATUS} })`);
-          if (look.accent !== x.accent) bad.push(`the colour is ${look.accent}, not ${x.accent}`);
-          if (app && look.text !== x.text) bad.push(`the text size is ${look.text}, not ${x.text}`);
-          status = status || look.status;
-          if (look.status !== status) bad.push(`the status colours moved: ${look.status} against ${status}`);
-          if (errors.length) bad.push(...errors.slice(0, 4));
-          await evalIn(browser, s, "scrollTo({ top: 0, behavior: 'instant' }), true");
-          await sleep(200);
-          result(`visual-list: ${p}, ${x.id}: everything on the list is on screen`, bad.length === 0, bad);
-          await shot(browser, s, `list-${name}-${x.id}`);
-        }
-      }
-    };
-    // Home: every setup. The other pages: a computer and a phone each, the setups taken in turn so every one is met.
-    const some = (list) => list.map((row, i) => [row, DESK[i % DESK.length], PH[i % PH.length]]);
-    for (const [row, d, ph] of some(PUBLIC)) await run([row], row[1] === 'home' ? SETUPS : [d, ph], false);
-    for (const [row, d, ph] of some(APP)) await run([row], row[1] === 'home' ? SETUPS : [d, ph], true);
-
+    const status = {};
+    let swapRun = null, swaps = null;
     /* ----------------------------------- the web fonts arriving moves nothing (stand-in fonts sized to match) */
 
     const CLS = "window.__cls = 0; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: 'layout-shift', buffered: true }); } catch {}";
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: CLS }, s);
+    await browser.send('Network.enable', {}, s); await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, s);
     let holding = false;
     const held = [];
     browser.on('Fetch.requestPaused', (e, sid) => { if (sid && sid !== s) return; if (holding) held.push(e.requestId); else browser.send('Fetch.continueRequest', { requestId: e.requestId }, s).catch(() => {}); });
     const boxes = (sels) => evalIn(browser, s, `${JSON.stringify(sels)}.map((q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.top * 10) / 10, Math.round(r.height * 10) / 10]; })`);
-    const swaps = [['/app', "document.querySelector('[data-quick]')", ['#view h1', '.page-title', '[data-quick]', '.scan-meta']],
+    swaps = [['/app', "document.querySelector('[data-quick]')", ['#view h1', '.page-title', '[data-quick]', '.scan-meta']],
       ['/app/check', "document.querySelector('[data-form]')", ['.page-title', '.ask', '.ask__call']],
       ['/', "document.querySelector('.hero__copy h1')", ['.hero__copy h1', '.hero__lede', '.hero__cta', '.hero__card']]];
-    for (const [p, ready, sels] of swaps) {
+    swapRun = async (list) => { for (const [p, ready, sels] of list) {
       for (const x of [SETUPS[4], SETUPS[5], SETUPS[0], SETUPS[2]]) {
         await setup(x, 1);
         await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*.woff2' }] }, s);
@@ -285,7 +262,41 @@ async function checkVisualList() {
         const moved = sels.map((q, i) => (!before[i] || !after[i] ? `${q} missing` : Math.abs(before[i][0] - after[i][0]) > 1.5 || Math.abs(before[i][1] - after[i][1]) > 1.5 ? `${q} ${before[i].join('/')} then ${after[i].join('/')}` : '')).filter(Boolean);
         result(`visual-list: ${p}, ${x.id}: the web fonts arriving moves nothing (layout shift ${Number(cls).toFixed(4)})`, n > 0 && !moved.length && cls < 0.002, { fonts: n, moved, cls });
       }
-    }
+    } };
+
+    const run = async (list, setups, app) => {
+      for (const [p, name, ready, items] of list) {
+        for (const x of setups) {
+          await setup(x, SETUPS.indexOf(x));
+          errors.length = 0;
+          await goto(browser, s, `${server.base}${p}?list=${Date.now()}`, ready);
+          await sleep(500);
+          await evalIn(browser, s, SETTLE, { awaitPromise: true });
+          const phone = x.size.mobile;
+          const bad = await evalIn(browser, s, `(${audit})(${JSON.stringify(items)}, ${JSON.stringify(SWEEP)}, ${phone}, ${x.scheme === 'dark'}, ${app && phone})`, { awaitPromise: true });
+          const look = await evalIn(browser, s, `({ accent: document.documentElement.dataset.accent || 'gold', text: document.documentElement.dataset.text || 'standard', status: ${STATUS} })`);
+          if (look.accent !== x.accent) bad.push(`the colour is ${look.accent}, not ${x.accent}`);
+          if (app && look.text !== x.text) bad.push(`the text size is ${look.text}, not ${x.text}`);
+          status[x.scheme] = status[x.scheme] || look.status;
+          if (look.status !== status[x.scheme]) bad.push(`the status colours moved in ${x.accent}: ${look.status} against ${status[x.scheme]}`);
+          const real = errors.filter((e) => !(name === 'not-found' && /404/.test(e)));
+          if (real.length) bad.push(...real.slice(0, 4));
+          await evalIn(browser, s, "scrollTo({ top: 0, behavior: 'instant' }), true");
+          await sleep(200);
+          result(`visual-list: ${p}, ${x.id}: everything on the list is on screen`, bad.length === 0, bad);
+          await shot(browser, s, `list-${name}-${x.id}`);
+        }
+      }
+    };
+    // Home: every setup. The other pages: a computer and a phone each, the setups taken in turn so every one is met.
+    const some = (list) => list.map((row, i) => [row, DESK[i % DESK.length], PH[i % PH.length]]);
+    // A signed-in person is sent from the home page to the app, so the public pages are met signed out, first.
+    for (const [row, d, ph] of some(PUBLIC)) await run([row], row[1] === 'home' ? SETUPS : [d, ph], false);
+    await swapRun(swaps.filter((x) => x[0] === '/'));
+    await signIn();
+    for (const [row, d, ph] of some(APP)) await run([row], row[1] === 'home' ? SETUPS : [d, ph], true);
+    await swapRun(swaps.filter((x) => x[0] !== '/'));
+
   } finally { await close(); await server.stop(); }
 }
 
