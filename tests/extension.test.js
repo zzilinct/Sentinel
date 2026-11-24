@@ -276,3 +276,13 @@ test('the block page goes where the worker says (companion-door.test.js) and say
   assert.match(block, /\$\('plain'\)\.hidden = !res\.plain;/);
   assert.match(fs.readFileSync(path.join(SRC, 'block.html'), 'utf8'), /<p class="more-row plain" id="plain" hidden>This address is not a secure one \(http\)\. Your browser may warn you once more before it opens\.<\/p>/);
 });
+
+test('1.21.3: marks never add a line to a title of two or more lines either: it keeps its lines and ends in an ellipsis', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const js = fs.readFileSync(path.join(__dirname, '..', 'extension', 'src', 'content', 'serp.js'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'extension', 'src', 'content', 'sentinel.css'), 'utf8');
+  assert.doesNotMatch(js, /was < line \* 1\.6/, 'not only a one-line title');
+  assert.match(js, /--sentinel-lines/);
+  assert.match(css, /\.sentinel-fit--lines \{[^}]*-webkit-line-clamp: var\(--sentinel-lines\)/);
+});

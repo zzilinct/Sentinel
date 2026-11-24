@@ -218,7 +218,6 @@ async function checkSerpEngines() {
       Boolean(long && long.marked && long.height <= long.line * 1.2 && long.inside), long);
 
     await goto(browser, s, 'https://www.bing.com/search/two?q=wikipedia');
-    const first = await evalIn(browser, s, "(() => { const h = document.querySelector('#b_results h2'); return Math.round(h.getBoundingClientRect().height / parseFloat(getComputedStyle(h).lineHeight)); })()");
     let two = null;
     for (let i = 0; i < 60 && !(two && two.marked); i++) {
       await sleep(250);
@@ -226,13 +225,16 @@ async function checkSerpEngines() {
         const h = document.querySelector('#b_results h2'), g = h.querySelector('.sentinel-masks');
         if (!g) return { marked: 0 };
         const box = h.getBoundingClientRect(), m = g.getBoundingClientRect(), line = parseFloat(getComputedStyle(h).lineHeight);
-        return { marked: 1, lines: Math.round(box.height / line), inside: m.right <= box.right + 0.5 && m.width > 0 && m.top >= box.top - 0.5 && m.bottom <= box.bottom + 0.5 };
+        // The title's own lines, from a copy without the marks (the page may have marked it before this read).
+        const c = h.cloneNode(true); c.querySelectorAll('.sentinel-masks').forEach((x) => x.remove()); c.removeAttribute('class'); c.removeAttribute('style'); h.parentNode.appendChild(c);
+        const own = Math.round(c.getBoundingClientRect().height / line); c.remove();
+        return { marked: 1, own, lines: Math.round(box.height / line), inside: m.right <= box.right + 0.5 && m.width > 0 && m.top >= box.top - 0.5 && m.bottom <= box.bottom + 0.5 };
       })()`);
     }
     await sleep(500);
     await shot(browser, s, 'serp-engines-bing-two-line-title');
     result('serp-engines: a Bing title of two lines keeps to two once its mark is in (it ends in an ellipsis), and the mark stays inside it',
-      first === 2 && Boolean(two && two.marked && two.lines === 2 && two.inside), { before: first, two });
+      Boolean(two && two.marked && two.own === 2 && two.lines === 2 && two.inside), two);
 
     const opened = seen.filter((u) => LINK_HOSTS.some((h) => u.startsWith(`${h}/`)) || u.startsWith('www.bing.com/ck/') || u.startsWith('duckduckgo.com/l/'));
     result('serp-engines: no result was opened or fetched by the browser', !opened.length, { opened, pages: seen.length });
