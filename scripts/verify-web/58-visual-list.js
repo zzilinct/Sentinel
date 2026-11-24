@@ -222,6 +222,7 @@ async function checkVisualList() {
       await browser.send('Emulation.setDeviceMetricsOverride', { width: z.width, height: z.height, deviceScaleFactor: z.dsf, mobile: z.mobile }, s);
       await browser.send('Emulation.setTouchEmulationEnabled', { enabled: z.mobile, maxTouchPoints: 5 }, s);
       await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: x.scheme }, { name: 'prefers-reduced-motion', value: x.motion }] }, s);
+      await goto(browser, s, `${server.base}/robots.txt`);   // on the site's own address, where its storage is
       // Even setups meet the first-run step on home; odd ones have finished it.
       await evalIn(browser, s, `(() => { for (const k of ['sentinel:theme', 'sentinel:accent', 'sentinel:type', 'sentinel:first-choices']) localStorage.removeItem(k);
         localStorage.setItem('sentinel:theme', '${x.scheme}'); if ('${x.accent}' !== 'gold') localStorage.setItem('sentinel:accent', '${x.accent}');
