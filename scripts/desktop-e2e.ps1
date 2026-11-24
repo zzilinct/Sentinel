@@ -303,6 +303,14 @@ $real = '0xa1b2' + ('5e' * 16) + 'c3d4'
 $looks = { ([regex]::Matches((AppLog), 'wallet address look-alike copied \(evm\)')).Count }
 $themeKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
 $wasLight = (Get-ItemProperty $themeKey -ErrorAction SilentlyContinue).AppsUseLightTheme
+# What Windows keeps of the notifications it was given (its own list, read by the runner only).
+function NoteStore {
+  $t = ''
+  foreach ($f in Get-ChildItem "$env:LOCALAPPDATA\Microsoft\Windows\Notifications" -Filter 'wpndatabase.db*' -ErrorAction SilentlyContinue) {
+    try { $h = [IO.File]::Open($f.FullName, 'Open', 'Read', 'ReadWrite'); $b = New-Object byte[] $h.Length; [void]$h.Read($b, 0, $b.Length); $h.Dispose(); $t += [Text.Encoding]::UTF8.GetString($b) + [Text.Encoding]::Unicode.GetString($b) } catch { }
+  }
+  return $t
+}
 $lookalikes = @()
 foreach ($round in @(@(1, '07', 'light'), @(0, '9d', 'dark'))) {
   SetTheme $round[0]; Start-Sleep 3
@@ -313,6 +321,13 @@ foreach ($round in @(@(1, '07', 'light'), @(0, '9d', 'dark'))) {
   $told = Until 10 { (& $looks) -gt $before }
   Start-Sleep 2
   Shot "wallet-lookalike-$($round[2])"
+  # The runner's do-not-disturb keeps the toast off the screen, but the notification centre lists it all the same: that
+  # is photographed (Win+N, and again to close), so the words and the icon the person is given are seen in both themes.
+  [K]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero); [K]::Tap(0x4E); [K]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero); Start-Sleep 3
+  Shot "wallet-lookalike-notification-$($round[2])"
+  [K]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero); [K]::Tap(0x4E); [K]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero); Start-Sleep 1
+  $stored = NoteStore
+  Say "  look-alike ($($round[2])): Windows' notification list holds it: $($stored -match 'Compare this wallet address')"
   $kept = ((Get-Clipboard -Raw) + '').Trim() -eq $planted
   Say "  look-alike ($($round[2])): told $told, clipboard left alone $kept"
   if ($told -and $kept) { $lookalikes += $round[2] }
