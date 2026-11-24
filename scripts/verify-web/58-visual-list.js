@@ -36,7 +36,7 @@ const PH = SETUPS.filter((x) => x.size.mobile);
    canvas (really drawn); img (decoded); bg (a layer behind the page: not tested for being clipped or covered); n (at
    least this many shown); op (least opacity); min (least size in px). */
 const NAV = [
-  ['nav logo', '.nav .logo', { text: true }], ['nav links', '.nav__links a', { only: 'desktop', n: 7, text: true }],
+  ['nav logo', '.nav .logo', { text: true }], ['nav links', '.nav__links a', { only: 'desktop', n: 7, text: true, oneLine: true }],
   ['menu button', '.nav__toggle', { only: 'phone' }], ['theme button', '.theme-toggle', { only: 'desktop' }],
   ['nav buttons', '.nav__actions .btn', { only: 'desktop', n: 2, text: true }]
 ];
@@ -50,7 +50,7 @@ const PUBLIC = [
     ['hero buttons', '.hero__cta .btn', { n: 2, text: true }], ['hero essentials', '.hero__fine li', { n: 3, text: true }],
     ['hero 3D mask', '[data-hero-mask] .mask3d--ready .mask3d__canvas', { canvas: true }], ['hero what Sentinel sees', '.hero__unmask', { canvas: true, bg: true }],
     ['demo heading', '.sec-demo h2', { text: true }], ['galaxy', '.galaxy__canvas', { canvas: true, bg: true }], ['galaxy heading', '.sec-galaxy h2', { text: true }],
-    ['masks heading', '.sec-masks h2', { text: true }], ['masks 3D', '.plate__art .mask3d--ready .mask3d__canvas', { canvas: true, n: 3 }],
+    ['masks heading', '.sec-masks h2', { text: true }], ['masks 3D', '.plate__art.mask3d--ready .mask3d__canvas', { canvas: true, n: 3 }],
     ['colour coins', '.colour__pick .swatch', { n: COINS }], ['colour preview', '.colour__crest', { text: true }], ['colour note', '.colour__note', { text: true }],
     ['how heading', '.sec-how h2', { text: true }], ['game heading', '.sec-game h2', { text: true }],
     ['try modes', '[data-try-mode]', { n: 2, text: true }], ['pricing heading', '.sec-pricing h2', { text: true }],
@@ -75,7 +75,7 @@ const SIDE = [
   ['page words', '#view .page-title p', { text: true }], ['stars', 'canvas.cosmos', { canvas: true, bg: true, dark: true, op: 0.2 }]
 ];
 const APP = [
-  ['/app', 'home', "document.querySelector('[data-quick]') && !document.querySelector('[data-recent] .skeleton')", [
+  ['/app', 'app-home', "document.querySelector('[data-quick]') && !document.querySelector('[data-recent] .skeleton')", [
     ...SIDE, ['check box', '[data-quick] input', {}], ['check button', '[data-quick] .btn', { text: true }],
     ['line under the check box', '.scan-meta', { text: true }], ['corner mask', '.lux-mask .mask3d--ready .mask3d__canvas', { only: 'desktop', canvas: true }],
     ['usage cards', '.usage-list .usage-link', { n: 2 }]
@@ -102,7 +102,7 @@ async function audit(items, sweep, phone, dark, bottomBar) {
   const alpha = (c) => { const m = c.match(/[\d.]+/g) || []; return m.length > 3 ? Number(m[3]) : m.length ? 1 : 0; };
   const shown = (e) => {
     const r = e.getBoundingClientRect(); const cs = getComputedStyle(e);
-    return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden' && !e.closest('[hidden], [inert], .sr-only, .skip-link');
+    return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden' && !e.closest('[hidden], [inert], .sr-only, .skip-link, .is-out') && !(e.closest('details:not([open])') && !e.closest('summary'));
   };
   const name = (e) => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/)[0] : ''}`;
   const why = async (e, it) => {
@@ -111,6 +111,7 @@ async function audit(items, sweep, phone, dark, bottomBar) {
     if (r0.width < min || r0.height < min) return `too small (${Math.round(r0.width)} by ${Math.round(r0.height)})`;
     let o = 1; for (let p = e; p && p.nodeType === 1; p = p.parentElement) o *= Number(getComputedStyle(p).opacity);
     if (o < (it.op || 0.5)) return `transparent (opacity ${o.toFixed(2)})`;
+    if (it.oneLine && r0.height > parseFloat(getComputedStyle(e).fontSize) * 2.2) return `its words wrap onto a second line (${Math.round(r0.height)} px tall)`;
     if (it.text) {
       const cs = getComputedStyle(e);
       if (alpha(cs.color) < 0.1 || alpha(cs.webkitTextFillColor) < 0.1) return `the words are transparent (${cs.color})`;
@@ -238,14 +239,14 @@ async function checkVisualList() {
     let holding = false;
     const held = [];
     browser.on('Fetch.requestPaused', (e, sid) => { if (sid && sid !== s) return; if (holding) held.push(e.requestId); else browser.send('Fetch.continueRequest', { requestId: e.requestId }, s).catch(() => {}); });
-    const boxes = (sels) => evalIn(browser, s, `${JSON.stringify(sels)}.map((q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.top * 10) / 10, Math.round(r.height * 10) / 10]; })`);
+    const boxes = (sels) => evalIn(browser, s, `${JSON.stringify(sels)}.map((q) => { const e = document.querySelector(q); if (!e) return null; let y = 0; for (let p = e; p; p = p.offsetParent) y += p.offsetTop; return [y, e.offsetHeight]; })`);
     swaps = [['/app', "document.querySelector('[data-quick]')", ['#view h1', '.page-title', '[data-quick]', '.scan-meta']],
       ['/app/check', "document.querySelector('[data-form]')", ['.page-title', '.ask', '.ask__call']],
       ['/', "document.querySelector('.hero__copy h1')", ['.hero__copy h1', '.hero__lede', '.hero__cta', '.hero__card']]];
     swapRun = async (list) => { for (const [p, ready, sels] of list) {
       for (const x of [SETUPS[4], SETUPS[5], SETUPS[0], SETUPS[2]]) {
         await setup(x, 1);
-        await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*.woff2' }] }, s);
+        await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*woff2*' }] }, s);
         holding = true; held.length = 0;
         await browser.send('Page.navigate', { url: `${server.base}${p}?swap=${Date.now()}` }, s);
         await until(browser, s, ready, 30000);
@@ -295,7 +296,7 @@ async function checkVisualList() {
     for (const [row, d, ph] of some(PUBLIC)) await run([row], row[1] === 'home' ? SETUPS : [d, ph], false);
     await swapRun(swaps.filter((x) => x[0] === '/'));
     await signIn();
-    for (const [row, d, ph] of some(APP)) await run([row], row[1] === 'home' ? SETUPS : [d, ph], true);
+    for (const [row, d, ph] of some(APP)) await run([row], row[1] === 'app-home' ? SETUPS : [d, ph], true);
     await swapRun(swaps.filter((x) => x[0] !== '/'));
 
   } finally { await close(); await server.stop(); }

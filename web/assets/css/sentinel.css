@@ -293,6 +293,18 @@ html.look-vt::view-transition-new(root) { animation: look-in .6s cubic-bezier(.2
   .nav.is-open .nav__actions { order: 4; padding-top: 8px; }
   .nav.is-open .nav__actions .btn { flex: 1; }
 }
+/* Larger text: the seven links no longer fit a laptop's width on one line each, so the menu opens sooner (as above). */
+:root[data-text="larger"] { @media (max-width: 1500px) {
+  .nav__links, .nav__actions { display: none; }
+  .nav__toggle { display: block; }
+  .nav.is-open { background: var(--panel); border-bottom-color: var(--line); }
+  .nav.is-open .nav__inner { flex-wrap: wrap; height: auto; padding: 16px 0 20px; }
+  .nav.is-open .nav__links, .nav.is-open .nav__actions { display: flex; width: 100%; margin: 0; }
+  .nav.is-open .nav__links { flex-direction: column; order: 3; padding-top: 12px; }
+  .nav.is-open .nav__actions { order: 4; padding-top: 8px; }
+  .nav.is-open .nav__actions .btn { flex: 1; }
+} }
+.nav__links a { white-space: nowrap; }
 
 /* ----------------------------------------------------------------- buttons */
 

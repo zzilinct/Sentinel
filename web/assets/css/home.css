@@ -348,7 +348,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
 .swatch:focus-visible .swatch__gem { outline: 2px solid var(--gold-300); outline-offset: 7px; }
 .colour__note { margin: 0; max-width: 46ch; color: var(--muted); font-size: var(--t-note); }
 
-.colour__view { position: relative; display: grid; gap: 16px; padding: 34px; border-radius: 30px; background: var(--relief), var(--surface); box-shadow: var(--raise); }
+.colour__view { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 34px; border-radius: 30px; background: var(--relief), var(--surface); box-shadow: var(--raise); }
 .colour__view::after { content: ''; position: absolute; inset: 10px; border-radius: 22px; border: 1px solid rgb(var(--gold-rgb) / .18); pointer-events: none; }
 .colour__crest { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
 .colour__mask { display: grid; width: 56px; height: 56px; color: var(--gold-300); filter: drop-shadow(0 8px 22px rgb(var(--gold-rgb) / .5)); }
