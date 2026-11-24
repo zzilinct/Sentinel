@@ -356,7 +356,7 @@ async function checkColour() {
       // In front: a tab that is not draws no frames, and the browser skips a view transition on it (the class would never show).
       await browser.send('Page.bringToFront', {}, s);
       const move = (x, y) => browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, s);
-      const hot = () => evalIn(browser, s, `(() => { const h = document.querySelector('.swatch:hover'); return h ? { id: h.dataset.accent, lift: getComputedStyle(h.querySelector('.swatch__gem')).transform, vt: document.documentElement.getAnimations({ subtree: true }).some((a) => a.effect && String(a.effect.pseudoElement || '').includes('view-transition')) ? 'running' : '' } : null; })()`);
+      const hot = () => evalIn(browser, s, `(() => { const h = document.querySelector('.swatch:hover, .swatch[data-hot]'); return h ? { id: h.dataset.accent, lift: getComputedStyle(h.querySelector('.swatch__gem')).transform, vt: document.documentElement.getAnimations({ subtree: true }).some((a) => a.effect && String(a.effect.pseudoElement || '').includes('view-transition')) ? 'running' : '' } : null; })()`);
       const [tx, ty] = await at(s, gem('teal'));
       const [sx, sy] = await at(s, gem('sapphire'));
       await move(sx, sy);

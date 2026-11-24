@@ -46,3 +46,12 @@ test('the gold button and chips draw from tokens, so an accent reaches them', ()
   assert.doesNotMatch(read('lux.css'), /\.btn--gold(:hover)? \{[^}]*#d2ac63/);
   assert.doesNotMatch(read('home.css'), /\.chip-q\[aria-selected="true"\] \{[^}]*#d2ac63/);
 });
+
+test('1.21.2: a gem keeps its hover while a colour opens, drawn from where the pointer is, and let go when it has finished', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'web/assets/js/accent.js'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'web/assets/css/home.css'), 'utf8');
+  assert.match(src, /heat\(from \|\| null\);\s+doc\.addEventListener\('pointermove', follow, \{ passive: true \}\);/, 'followed only while a change runs');
+  assert.match(src, /doc\.removeEventListener\('pointermove', follow\); heat\(null\);/, 'and let go');
+  assert.match(css, /\.swatch:hover \.swatch__gem, \.swatch\[data-hot\] \.swatch__gem \{ transform/, 'drawn as hovered');
+  assert.doesNotMatch(src, /setInterval|requestAnimationFrame/, 'no timer');
+});
