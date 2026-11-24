@@ -112,3 +112,14 @@ test('the held card keeps the pointer by a margin that follows its size, not a f
   assert.match(src, /m = order\[i\] === held \? holdMargin\(r\.w, r\.h\) : 0/);
   assert.doesNotMatch(src, /HOLD_MARGIN/);
 });
+
+test('1.21.3: a pointer at rest keeps the held card whatever its edge does; a pointer that moves is judged by the margin', () => {
+  // The card crept a few pixels past the margin from under a pointer that had not moved (CI: held 3, then null).
+  const card = { x: 100, y: 100, w: 76, h: 43 };
+  const below = card.y + card.h + G.holdMargin(card.w, card.h) + 5;
+  assert.equal(G.keeps(card, 120, below, 120, below), true, 'resting: kept');
+  assert.equal(G.keeps(card, 120, below, 120, below - 1), false, 'moved out: let go');
+  assert.equal(G.keeps(card, 120, card.y + card.h + 4, NaN, NaN), true, 'moved, within the margin: kept');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'web', 'assets', 'js', 'galaxy.js'), 'utf8');
+  assert.match(src, /keeps\(held\.rect, pointer\.x, pointer\.y, ax, ay\)/);
+});

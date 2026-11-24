@@ -303,22 +303,38 @@ $real = '0xa1b2' + ('5e' * 16) + 'c3d4'
 $looks = { ([regex]::Matches((AppLog), 'wallet address look-alike copied \(evm\)')).Count }
 $themeKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
 $wasLight = (Get-ItemProperty $themeKey -ErrorAction SilentlyContinue).AppsUseLightTheme
-$lookalikes = @()
+# What Windows keeps of the notifications it was given (its own list, read by the runner only).
+function NoteStore {
+  $t = ''
+  foreach ($f in Get-ChildItem "$env:LOCALAPPDATA\Microsoft\Windows\Notifications" -Filter 'wpndatabase.db*' -ErrorAction SilentlyContinue) {
+    try { $h = [IO.File]::Open($f.FullName, 'Open', 'Read', 'ReadWrite'); $b = New-Object byte[] $h.Length; [void]$h.Read($b, 0, $b.Length); $h.Dispose(); $t += [Text.Encoding]::UTF8.GetString($b) + [Text.Encoding]::Unicode.GetString($b) } catch { }
+  }
+  return $t
+}
+$noteWords = { ([regex]::Matches((NoteStore), 'Compare this wallet address')).Count }
+$lookalikes = @(); $listed = @()
 foreach ($round in @(@(1, '07', 'light'), @(0, '9d', 'dark'))) {
   SetTheme $round[0]; Start-Sleep 3
-  $before = & $looks
+  $before = & $looks; $noted = & $noteWords
   Set-Clipboard -Value $real; Start-Sleep 11
   $planted = '0xa1b2' + ($round[1] * 16) + 'c3d4'
   Set-Clipboard -Value $planted
   $told = Until 10 { (& $looks) -gt $before }
   Start-Sleep 2
   Shot "wallet-lookalike-$($round[2])"
+  # The runner's do-not-disturb keeps the toast off the screen, but the notification centre lists it all the same: that
+  # is photographed (Win+N, and again to close), so the words and the icon the person is given are seen in both themes.
+  [K]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero); [K]::Tap(0x4E); [K]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero); Start-Sleep 3
+  Shot "wallet-lookalike-notification-$($round[2])"
+  [K]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero); [K]::Tap(0x4E); [K]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero); Start-Sleep 1
+  if ((& $noteWords) -gt $noted) { $listed += $round[2] }
   $kept = ((Get-Clipboard -Raw) + '').Trim() -eq $planted
   Say "  look-alike ($($round[2])): told $told, clipboard left alone $kept"
   if ($told -and $kept) { $lookalikes += $round[2] }
   Start-Sleep 11
 }
 if ($null -ne $wasLight) { SetTheme $wasLight }
+Check 'wallet-lookalike-notification' ($listed.Count -eq 2) "Windows' own notification list gained the note each time (counted before and after), in: $($listed -join ', ')"
 Check 'wallet-lookalike' ($lookalikes.Count -eq 2) "a planted address with the same ends was told about once, clipboard untouched, in: $($lookalikes -join ', ')"
 Set-Clipboard -Value $real; Start-Sleep 11
 Check 'wallet-lookalike-once' ((& $looks) -eq 2) "copying the real one again told nothing new ($(& $looks) notes)"

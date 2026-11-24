@@ -111,6 +111,35 @@ async function checkLook() {
     const clicked = { accent: await ev('document.documentElement.dataset.accent'), kept: await ev("localStorage.getItem('sentinel:accent')"), vt: await ev("document.documentElement.classList.contains('look-vt')") };
     result('look: a coin pressed changes the whole app, opening out from the coin, and is remembered', clicked.accent === 'rose' && clicked.kept === 'rose' && !clicked.vt, clicked);
 
+    // The owner's complaint: a coin under the pointer lost its lift while the colour opened. Hover is read with the
+    // reveal held half open (a tab in front, or the browser skips the transition), then moved onto the next coin.
+    {
+      await browser.send('Page.bringToFront', {}, s);
+      const spot = (id) => ev(`(() => { const r = document.querySelector('.look__coin input[value="${id}"]').parentNode.getBoundingClientRect(); return [r.left + r.width / 2, r.top + 18]; })()`);
+      const lift = () => ev("(() => { const c = document.querySelector('.look__coin:hover, .look__coin[data-hot]'); return c ? { id: c.querySelector('input').value, lift: getComputedStyle(c.querySelector('i')).translate, vt: document.documentElement.classList.contains('look-vt') } : null; })()");
+      const mouse = (type, [x, y]) => browser.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }, s);
+      const [a, b] = [await spot('teal'), await spot('sapphire')];
+      await mouse('mouseMoved', a); await sleep(400);
+      const before = await lift();
+      await mouse('mousePressed', a); await mouse('mouseReleased', a);
+      const held = await until(browser, s, "(() => { const x = document.getAnimations().find((n) => n.effect && n.effect.pseudoElement === '::view-transition-new(root)'); if (!x) return null; x.pause(); x.currentTime = 200; return true; })()", 3000);
+      const during = held ? await lift() : null;
+      await mouse('mouseMoved', b); await sleep(150);
+      const onward = held ? await lift() : null;
+      await ev('document.getAnimations({ subtree: true }).forEach((n) => { try { n.play(); } catch (e) {} }), true');
+      await sleep(1400);
+      const after = await lift();
+      // Lifted: moved up by the spring, whatever point of it was read (it overshoots and settles, so never exactly 2px).
+      const up = (h) => Boolean(h) && parseFloat(String(h.lift).split(' ')[1]) < -0.5;
+      // Teal was pressed, so it is the chosen coin and never lifts (it grows); the next coin, once the pointer is on it, lifts.
+      result('look: a coin keeps its hover through the colour reveal, and the coin the pointer moves on to lifts at once',
+        Boolean(before) && before.id === 'teal' && up(before) && Boolean(during) && during.vt && Boolean(onward) && onward.id === 'sapphire' && up(onward) && onward.vt && Boolean(after) && after.id === 'sapphire' && up(after) && !after.vt,
+        { before, during, onward, after });
+      // Back to the look the keyboard step below starts from.
+      await store('dark', 'rose');
+      await open();
+    }
+
     // The picker by keyboard: the arrow keys move along the coins, the theme radios work the same way.
     await ev("document.querySelector('.look__coin input:checked').focus(), true");
     await pressKey(browser, s, 'ArrowDown');

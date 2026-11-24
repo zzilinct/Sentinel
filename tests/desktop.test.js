@@ -1415,3 +1415,10 @@ test('boot() does not hide the tech-support scam shield behind a local "remote":
   assert.match(boot, /remote\.flaggedPage\(\)/);
   assert.doesNotMatch(boot, /\b(const|let|var) remote\b/);
 });
+
+test('1.21.3: the wallet look-alike note is photographed in the notification centre, both themes, and counted in Windows own list', () => {
+  const e2e = read('scripts/desktop-e2e.ps1');
+  assert.match(e2e, /Shot "wallet-lookalike-notification-\$\(\$round\[2\]\)"/);
+  assert.match(e2e, /\[K\]::keybd_event\(0x5B, 0, 0, \[UIntPtr\]::Zero\); \[K\]::Tap\(0x4E\)/, 'Win+N');
+  assert.match(e2e, /Check 'wallet-lookalike-notification' \(\$listed\.Count -eq 2\)/);
+});

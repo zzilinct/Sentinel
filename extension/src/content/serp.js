@@ -468,9 +468,9 @@
     });
   }
 
-  // Marks never wrap a title. One that would push a one-line title onto a second line (live Bing, run 44430566186)
-  // makes the title give its last letters to an ellipsis instead (sentinel.css .sentinel-fit). Measured in one read
-  // before the marks go in and one after, not once per mark.
+  // Marks never add a line to a title. One that would push a title onto another line (live Bing, run 44430566186: a
+  // one-line title; and a two-line one onto a third) makes the title give its last letters to an ellipsis instead
+  // (sentinel.css .sentinel-fit). Measured in one read before the marks go in and one after, not once per mark.
   function place(pairs) {
     const before = pairs.map(([a]) => {
       const h = headingOf(a);
@@ -480,9 +480,15 @@
     for (const [a, verdict] of pairs) attach(a, verdict);
     // A title already fitted keeps its fit, with room for the marks it has now. offsetWidth: the width before the
     // marks' entrance scales them.
-    const grown = before.filter(([h, was, line]) => h.classList.contains('sentinel-fit') || (was < line * 1.6 && h.getBoundingClientRect().height > was + 1))
-      .map(([h]) => { const g = h.querySelector(':scope > .sentinel-masks'); return [h, g ? g.offsetWidth + 8 : 0]; });
-    for (const [h, room] of grown) { h.style.setProperty('--sentinel-fit', `${Math.ceil(room)}px`); h.classList.add('sentinel-fit'); }
+    const grown = before.filter(([h, was]) => h.classList.contains('sentinel-fit') || h.getBoundingClientRect().height > was + 1)
+      .map(([h, was, line]) => { const g = h.querySelector(':scope > .sentinel-masks'); return [h, g ? g.offsetWidth + 8 : 0, was, line]; });
+    for (const [h, room, was, line] of grown) {
+      h.style.setProperty('--sentinel-fit', `${Math.ceil(room)}px`);
+      // More than one line: it keeps the lines it had, the last ending in the ellipsis, the marks standing on that line.
+      const lines = Math.round(was / line);
+      if (lines > 1 && !h.classList.contains('sentinel-fit')) { h.style.setProperty('--sentinel-lines', String(lines)); h.style.setProperty('--sentinel-line', `${line}px`); h.classList.add('sentinel-fit--lines'); }
+      h.classList.add('sentinel-fit');
+    }
   }
 
   let queue = [];

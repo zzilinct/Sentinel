@@ -4,6 +4,11 @@ name: Evaluate detection
 
 on:
   workflow_dispatch:
+    inputs:
+      freeze:
+        description: 'Freeze today OpenPhish feed as the fixed sample (defanged) and commit it to this branch, instead of evaluating'
+        type: boolean
+        default: false
   push:
     branches: ['work/e2e**']
     paths: ['server/lib/scan/**', 'desktop/src/downloads.js', 'scripts/evaluate*', '.github/workflows/evaluate.yml']
@@ -12,7 +17,29 @@ permissions:
   contents: read
 
 jobs:
+  # The fixed sample every release is scored on (scripts/phish-sample.js): built here from the feed, never on a person's
+  # computer, and committed defanged, so no complete attack address is written anywhere. Not on main.
+  freeze:
+    if: inputs.freeze && github.ref_name != 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - run: node scripts/evaluate-modes.js --freeze scripts/evaluate-phish.frozen.txt
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/evaluate-phish.frozen.txt
+          git commit -m 'Freeze the phishing evaluation sample [skip ci]'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
   evaluate:
+    if: ${{ !inputs.freeze }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -21,7 +48,11 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts || npm install --ignore-scripts
-      - run: node scripts/evaluate-modes.js --sample 200 --misses misses.txt --save-phish phish.txt | tee evaluation.txt
+      # The frozen sample when there is one (the same addresses every release), else today's feed.
+      - run: |
+          SAMPLE=""
+          if [ -f scripts/evaluate-phish.frozen.txt ]; then SAMPLE="--phish scripts/evaluate-phish.frozen.txt"; fi
+          node scripts/evaluate-modes.js --sample 200 --misses misses.txt --save-phish phish.txt $SAMPLE | tee evaluation.txt
       - run: node scripts/evaluate-emails.js | tee -a evaluation.txt
       # Before and after on the very same addresses: main's rules score the phishing addresses this run just scored.
       - name: The same addresses with main's rules
@@ -29,7 +60,7 @@ jobs:
         run: |
           git fetch --depth=1 origin main
           git worktree add ../before FETCH_HEAD
-          cp scripts/evaluate-modes.js ../before/scripts/
+          cp scripts/evaluate-modes.js scripts/phish-sample.js ../before/scripts/
           node ../before/scripts/evaluate-modes.js --fast-only --phish phish.txt --misses misses-before.txt | tee before.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()

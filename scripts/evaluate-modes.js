@@ -20,6 +20,7 @@
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const { defang, parse, sampleId } = require('./phish-sample');
 
 const dbFile = path.join(os.tmpdir(), `sentinel-modes-${process.pid}.db`);
 process.env.DB_PATH = dbFile;
@@ -37,10 +38,20 @@ const MISSES = arg('--misses', '');
 const SAVE_PHISH = arg('--save-phish', '');
 const PHISH_IN = arg('--phish', '');
 const FAST_ONLY = process.argv.includes('--fast-only');
+// --freeze <file>: write today's feed as a frozen sample (defanged, see phish-sample.js) and stop. Run on CI only, then
+// commit the file; every later release is scored on those same addresses (--phish scripts/evaluate-phish.frozen.txt).
+const FREEZE = arg('--freeze', '');
 const ALL = ['scam', 'virus', 'malware'];
 const pct = (n, d) => (d ? `${((n / d) * 100).toFixed(1)}%` : 'n/a');
 
 async function main() {
+  if (FREEZE) {
+    const text = await (await fetch('https://openphish.com/feed.txt', { signal: AbortSignal.timeout(30000) })).text();
+    const urls = parse(text).slice(0, 300);
+    fs.writeFileSync(FREEZE, urls.map(defang).join('\n') + '\n');
+    console.log(`Froze ${urls.length} addresses, sample ${sampleId(urls)}`);
+    return;
+  }
   require('../server/seed').run({ quiet: true });
   const { db } = require('../server/lib/db');
   const feeds = require('../server/lib/scan/feeds');
@@ -54,7 +65,8 @@ async function main() {
   console.log(`  ${loaded.toLocaleString()} listed hosts and addresses loaded; OpenPhish held out\n`);
 
   const feedText = PHISH_IN ? fs.readFileSync(PHISH_IN, 'utf8') : await (await fetch('https://openphish.com/feed.txt', { signal: AbortSignal.timeout(30000) })).text();
-  const phish = [...new Set(feedText.split(/\r?\n/).map((s) => s.trim()).filter((u) => /^https?:/.test(u)))].slice(0, 300);
+  const phish = parse(feedText).slice(0, 300);
+  console.log(`Phishing sample ${sampleId(phish)}: ${phish.length} addresses, ${PHISH_IN ? 'a frozen file' : "today's feed"}\n`);
   if (SAVE_PHISH) fs.writeFileSync(SAVE_PHISH, phish.join('\n') + '\n');
   const legit = SAFE.map((h) => `https://${h}/`);
 
@@ -86,6 +98,14 @@ async function main() {
     const firstPerDomain = new Map();
     for (const v of okP) if (v.domain && !firstPerDomain.has(v.domain)) firstPerDomain.set(v.domain, v);
     const domCaught = [...firstPerDomain.values()].filter((v) => v.overall.badge).length;
+    // A list hit says the address is known from another list; an unlisted one is judged by the rules alone, so it is the
+    // number that tells whether a release got better. Listed ones change as the other lists do.
+    const known = (v) => Boolean(v.knowledge && v.knowledge.matches.length);
+    const listed = okP.filter(known);
+    const unlisted = okP.filter((v) => !known(v));
+    const flagged = (vs) => vs.filter((v) => v.overall.badge).length;
+    console.log(`  listed by a list       ${flagged(listed)}/${listed.length} = ${pct(flagged(listed), listed.length)}`);
+    console.log(`  unlisted (rules alone) ${flagged(unlisted)}/${unlisted.length} = ${pct(flagged(unlisted), unlisted.length)}`);
     console.log(`  by domain             ${domCaught}/${firstPerDomain.size} = ${pct(domCaught, firstPerDomain.size)}   (one address per domain)`);
     console.log(`  legitimate left alone ${okL.length - falseAlarms.length}/${okL.length} = ${pct(okL.length - falseAlarms.length, okL.length)}${falseAlarms.length ? `   false alarms: ${falseAlarms.map((v) => v.host).join(', ')}` : ''}`);
     console.log(`  right overall         ${success}/${okP.length + okL.length} = ${pct(success, okP.length + okL.length)}`);
@@ -115,7 +135,7 @@ async function main() {
   console.log('');
   if (MISSES) {
     const missed = phish.filter((u, i) => fastP.verdicts[i] && !fastP.verdicts[i].overall.badge);
-    fs.writeFileSync(MISSES, missed.join('\n') + '\n');
+    fs.writeFileSync(MISSES, missed.map(defang).join('\n') + '\n');
     console.log(`  ${missed.length} missed addresses written to ${MISSES}\n`);
   }
 

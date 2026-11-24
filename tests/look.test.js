@@ -647,3 +647,12 @@ test('1.21.2: boot.js never paints a set kept by an older Sentinel, and still na
   assert.deepEqual(run({}).attrs, {});
   assert.equal(Number(boot.match(/v\.v !== (\d+)/)[1]), L.WEB_V, 'boot.js holds look.js\'s WEB_V');
 });
+
+test('1.21.3: a coin keeps its hover while a colour opens, drawn from where the pointer is, and let go when it has finished', () => {
+  const src = read('web', 'assets', 'js', 'look-app.js');
+  const css = read('web', 'assets', 'css', 'sentinel.css');
+  assert.match(src, /heat\(document\.querySelector\('\.look__coin:hover'\)\);\s+document\.addEventListener\('pointermove', follow, \{ passive: true \}\);/, 'followed only while a change runs');
+  assert.match(src, /document\.removeEventListener\('pointermove', follow\); heat\(null\);/, 'and let go');
+  assert.match(css, /\.look__coin:hover i, \.look__coin\[data-hot\] i \{ translate: 0 -2px; \}/, 'drawn as hovered');
+  assert.doesNotMatch(src, /setInterval|requestAnimationFrame/, 'no timer');
+});

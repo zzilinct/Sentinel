@@ -112,7 +112,15 @@
   // its size). A tenth of its shorter side covers that share; the fixed 12 px before held a 20 px card from more than
   // half its own height away, and gave a large card no more room than a small one.
   function holdMargin(w, h) { return P.wobble + 0.1 * Math.min(w, h); }
-  var api = { P: P, MOBILE: MOBILE, profile: profile, slot: slot, spiral: spiral, room: room, holdMargin: holdMargin, Governor: Governor };
+  // Does a card keep the pointer it holds? A pointer that has not moved since it last kept the card (ax, ay) always does:
+  // the card's edge creeps as it settles, and a margin alone let it go from under a pointer at rest on a busy machine,
+  // so the card drifted off before the click. A pointer that moves is judged by the margin.
+  function keeps(r, x, y, ax, ay) {
+    if (x === ax && y === ay) return true;
+    var m = holdMargin(r.w, r.h);
+    return x >= r.x - m && x <= r.x + r.w + m && y >= r.y - m && y <= r.y + r.h + m;
+  }
+  var api = { P: P, MOBILE: MOBILE, profile: profile, slot: slot, spiral: spiral, room: room, holdMargin: holdMargin, keeps: keeps, Governor: Governor };
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; return; }
 
   /* ------------------------------------------------------------------- page */
@@ -552,10 +560,13 @@
     if (c) c.focus = Boolean(focus);
   }
   var touchHold = false;
+  var ax = NaN, ay = NaN;   // where the pointer stood when it last kept the held card
   function hover() {
     if (touchHold || (held && held.focus)) return;
+    if (held && held.rect && keeps(held.rect, pointer.x, pointer.y, ax, ay)) { ax = pointer.x; ay = pointer.y; return; }
     var c = at(pointer.x, pointer.y);
     if (c !== held) hold(c, false);
+    if (c) { ax = pointer.x; ay = pointer.y; } else ax = ay = NaN;
   }
 
   // The pointer is followed over the whole window and measured against the stage, so whatever floats over the
