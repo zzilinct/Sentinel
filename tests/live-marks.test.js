@@ -139,3 +139,11 @@ test('the overlay\'s tip never covers another mark: below, else above, else besi
   assert.deepStrictEqual(tipSpot(400, 600, 300, 64, 1016, 636, []), { left: 250, top: 516 }, 'at the bottom of the page: above');
   assert.match(html, /var at = tipSpot\(hit\._cx \+ shiftX, hit\._cy \+ shiftY, tip\.offsetWidth, tip\.offsetHeight/);
 });
+
+test('the first scroll after a rest: the key time is read against the first pixel report after it, and a missing one fails', () => {
+  const { wake, WAKE_MS } = require('../scripts/marks-at-rest.js');
+  const k = 1700000000000;
+  const trace = [`# quiet key ${k}`, `P ${k + 300} 5 -30`, 'P 12.3 -30 0', `# quiet key ${k + 20000}`, `P ${k + 20000 + 1100} 5 -30`, `# quiet key ${k + 40000}`, 'P 99.9 -30 0'].join('\n');
+  assert.deepStrictEqual(wake(trace).map((x) => x.ms), [300, 1100, null]);
+  assert.ok(300 <= WAKE_MS && 1100 > WAKE_MS);
+});
