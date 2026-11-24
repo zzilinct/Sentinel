@@ -46,9 +46,9 @@ const STARS = [['stars', 'canvas.cosmos', { canvas: true, bg: true, dark: true, 
 const PUBLIC = [
   ['/', 'home', "document.querySelector('.hero__unmask') && document.querySelector('.cosmos, .hero__word')", [
     ...NAV, ...H1, ...STARS, ...FOOT,
-    ['hero name', '[data-hero-word]', {}], ['hero words', '.hero__lede', { text: true }],
-    ['hero buttons', '.hero__cta .btn', { n: 2, text: true }], ['hero essentials', '.hero__fine li', { n: 3, text: true }],
-    ['hero 3D mask', '[data-hero-mask] .mask3d--ready .mask3d__canvas', { canvas: true }], ['hero what Sentinel sees', '.hero__unmask', { canvas: true, bg: true }],
+    ['hero name', '[data-hero-word]', { top: true }], ['hero words', '.hero__lede', { text: true, top: true }],
+    ['hero buttons', '.hero__cta .btn', { n: 2, text: true, top: true }], ['hero essentials', '.hero__fine li', { n: 3, text: true, top: true }],
+    ['hero 3D mask', '[data-hero-mask] .mask3d--ready .mask3d__canvas', { canvas: true, top: true }], ['hero what Sentinel sees', '.hero__unmask', { bg: true }],
     ['demo heading', '.sec-demo h2', { text: true }], ['galaxy', '.galaxy__canvas', { canvas: true, bg: true }], ['galaxy heading', '.sec-galaxy h2', { text: true }],
     ['masks heading', '.sec-masks h2', { text: true }], ['masks 3D', '.plate__art .mask3d__canvas', { canvas: true, n: 3 }],
     ['colour coins', '.colour__pick .swatch', { n: COINS }], ['colour preview', '.colour__crest', { text: true }], ['colour note', '.colour__note', { text: true }],
@@ -106,11 +106,14 @@ async function audit(items, sweep, phone, dark, bottomBar) {
   };
   const name = (e) => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/)[0] : ''}`;
   const why = async (e, it) => {
-    if (!it.bg) { e.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }); await raf(); }
+    if (it.top) { scrollTo({ top: 0, behavior: 'instant' }); await raf(); }
+    else if (!it.bg) { e.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }); await raf(); }
     const r0 = e.getBoundingClientRect();
     const min = it.min || 4;
     if (r0.width < min || r0.height < min) return `too small (${Math.round(r0.width)} by ${Math.round(r0.height)})`;
-    let o = 1; for (let p = e; p && p.nodeType === 1; p = p.parentElement) o *= Number(getComputedStyle(p).opacity);
+    // An entrance may still be playing (a picture fading in as it is reached): given up to a second and a half.
+    let o = 0;
+    for (let k = 0; k < 15 && o < (it.op || 0.5); k++) { if (k) await new Promise((r) => setTimeout(r, 100)); o = 1; for (let p = e; p && p.nodeType === 1; p = p.parentElement) o *= Number(getComputedStyle(p).opacity); }
     if (o < (it.op || 0.5)) return `transparent (opacity ${o.toFixed(2)})`;
     if (it.oneLine && e.clientHeight - parseFloat(getComputedStyle(e).paddingTop) - parseFloat(getComputedStyle(e).paddingBottom) > parseFloat(getComputedStyle(e).fontSize) * 2) return `its words wrap onto a second line (${Math.round(r0.height)} px tall)`;
     if (it.text) {
@@ -159,7 +162,8 @@ async function audit(items, sweep, phone, dark, bottomBar) {
       (f.only === 'desktop' && phone) || (f.only === 'phone' && !phone) || (f.dark && !dark)) continue;
     const all = [...document.querySelectorAll(sel)];
     // A held layer (the home page's first screen under the demo) is shown only where the person is looking at it.
-    if (all[0] && !f.bg) { all[0].scrollIntoView({ block: 'center', behavior: 'instant' }); await raf(); }
+    if (f.top) { scrollTo({ top: 0, behavior: 'instant' }); await raf(); }
+    else if (all[0] && !f.bg) { all[0].scrollIntoView({ block: 'center', behavior: 'instant' }); await raf(); }
     const here = all.filter(shown);
     if (!all.length) { bad.push(`${id}: missing (nothing matches ${sel})`); continue; }
     if (here.length < (f.n || 1)) { bad.push(`${id}: ${here.length} of ${f.n || 1} shown (${all.length} in the page)`); continue; }
@@ -269,6 +273,8 @@ async function checkVisualList() {
         const moved = sels.map((q, i) => (!before[i] || !after[i] ? `${q} missing` : Math.abs(before[i][0] - after[i][0]) > 1.5 || Math.abs(before[i][1] - after[i][1]) > 1.5 ? `${q} ${before[i].join('/')} then ${after[i].join('/')}` : '')).filter(Boolean);
         result(`visual-list: ${p}, ${x.id}: the web fonts arriving moves nothing (layout shift ${Number(cls).toFixed(4)})`, n > 0 && !moved.length && cls < 0.002, { fonts: n, moved, cls });
       }
+      if (list[0][0] === '/') console.log('CALIBRATION ' + JSON.stringify(await evalIn(browser, s, `(() => { const c = document.createElement('canvas').getContext('2d'); const T = 'The internet wears masks. Sentinel sees through them. Good evening, Ada Check something Paste a link, a message or a whole email'; const out = {};
+        for (const [real, fb] of [['Newsreader', 'Georgia'], ['Geist', 'Arial'], ['Geist Mono', 'Consolas']]) for (const px of [14, 16, 20, 28, 36, 48, 64]) { c.font = '400 ' + px + 'px "' + real + '"'; const a = c.measureText(T).width; c.font = '400 ' + px + 'px ' + fb; out[real + ' ' + px] = Math.round(a / c.measureText(T).width * 10000) / 100; } return out; })()`)));
     } };
 
     const run = async (list, setups, app) => {
