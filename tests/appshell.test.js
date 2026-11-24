@@ -27,7 +27,7 @@ test('a signed-in /app carries the greeting with the name, the box and the confi
   // What is drawn before the stylesheets arrive must already be styled: the page's inline styles hold the first view's rules.
   const style = body.slice(body.indexOf('<style'), body.indexOf('</style>'));
   for (const rule of ['.page-title{', '.scanbox{', '.verify-bar{', '.greet > span{', '.lux-rule{']) assert.ok(style.includes(rule), `${rule} is in the inline styles`);
-  assert.equal(head['Cache-Control'], 'private, no-cache', 'a page that holds a name is never shared');
+  assert.equal(head['Cache-Control'], 'private, no-store', 'a page that holds a name is never shared');
   assert.match(head.Vary, /Cookie/);
 });
 
@@ -44,7 +44,7 @@ test('no bar when none is owed; nothing drawn for an account that owes the terms
   for (const [user, owed] of [[{ ...SAM, needsTerms: true }, false], [null, false]]) {
     const got = await page((html) => appshell.fill(html, user, owed));
     assert.equal(got.body, plain.body, 'the page as everyone else gets it');
-    assert.notEqual(got.head['Cache-Control'], 'private, no-cache');
+    assert.notEqual(got.head['Cache-Control'], 'private, no-store');
   }
   assert.match(plain.body, /<div id="view"><\/div>/, 'app.js draws the first view');
   assert.match((await page((html) => html)).head.Vary, /Cookie/, '/app differs by who asks, so a cache must know');
@@ -66,4 +66,12 @@ test('the heading the server draws and the one app.js draws are the same markup,
   // The heading says the hour's word before any script (boot.js), from the words the template holds.
   for (const w of ['Up late', 'Good morning', 'Good afternoon', 'Good evening']) assert.ok(html.includes(`>${w}</span>`), w);
   assert.match(read('assets', 'js', 'boot.js'), /dataset\.part = h < 5 \? 'late' : h < 12 \? 'morning' : h < 18 \? 'afternoon' : 'evening'/);
+});
+
+test('the page with a person\'s name is never kept: no-store, and the service worker never touches /app', () => {
+  const sw = read('sw.js');
+  // Every fetch the worker answers is under /assets/ (or the share POST): a page is never cached, so a second person on this browser cannot be shown the first one's name.
+  assert.match(sw, /!url\.pathname\.startsWith\('\/assets\/'\)\) return;/);
+  assert.doesNotMatch(sw, /PRECACHE = \[[^\]]*'\/app/);
+  assert.doesNotMatch(sw, /cache\.put\([^)]*\/app['"\/]/);
 });

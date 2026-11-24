@@ -261,7 +261,7 @@ function serveStatic(root, urlPath, req, res, status = 200, tweak = null) {
       if (mine !== text) {
         const body = Buffer.from(mine, 'utf8');
         const how = pick(body.length);
-        headers['Cache-Control'] = 'private, no-cache';
+        headers['Cache-Control'] = 'private, no-store';
         const packed = how === 'br' ? zlib.brotliCompressSync(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }) : how ? zlib.gzipSync(body, { level: 6 }) : body;
         return reply(`W/"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 16)}"`, packed, how);
       }
