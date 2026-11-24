@@ -67,29 +67,52 @@ test('share: the manifest, the service worker and the server agree on the share 
   assert.match(sw, /k !== VERSION && k !== SHARE/);
   const share = require('../web/assets/js/share.js');
   assert.match(sw, new RegExp(`'${share.BOX}'`));
-  assert.ok(sw.includes(`'${share.DATA}'`) && sw.includes(`'${share.IMAGE}'`));
+  // Each share under keys of its own, named by its time, as share.js reads them.
+  assert.ok(sw.includes('`' + share.DATA + '/${at}`') && sw.includes('`/share/image/${at}`'));
+  assert.ok(!sw.includes('box.delete('));
   const html = fs.readFileSync(path.join(ROOT, 'web', 'app.html'), 'utf8');
   assert.ok(html.indexOf('share.js') > 0 && html.indexOf('share.js') < html.indexOf('/app.js'));
 });
 
+/**
+ * Cache Storage as browsers keep it: caches.delete(name) lets go of the name, and a Cache opened before keeps taking
+ * writes that nothing can open again. The service worker holds its box open while it writes a share.
+ */
+function fakeCaches() {
+  const named = new Map();
+  let deletes = 0;
+  const make = () => {
+    const m = new Map();
+    const url = (k) => new URL(typeof k === 'string' ? k : k.url, 'https://sentinel.test').href;
+    return {
+      put: async (k, res) => { m.set(url(k), await res.text()); },
+      match: async (k) => (m.has(url(k)) ? new Response(m.get(url(k))) : undefined),
+      delete: async (k) => m.delete(url(k)),
+      keys: async () => [...m.keys()].map((u) => ({ url: u }))
+    };
+  };
+  return {
+    open: async (n) => { if (!named.has(n)) named.set(n, make()); return named.get(n); },
+    delete: async (n) => { deletes++; return named.delete(n); },
+    deletes: () => deletes
+  };
+}
+const sharePut = async (c, text, at) => (await c.open('sentinel-share')).put(`/share/data/${at}`, new Response(JSON.stringify({ title: '', text, url: '', at })));
+
 test('share: a page starting while a share arrives never empties the box; only an old share is emptied', async () => {
   const share = require('../web/assets/js/share.js');
-  const store = new Map();
-  let deleted = 0;
-  global.caches = {
-    open: async () => ({ match: async (k) => (store.has(k) ? new Response(store.get(k)) : undefined) }),
-    delete: async () => { deleted++; store.clear(); return true; }
-  };
+  global.caches = fakeCaches();
   try {
-    // Nothing there yet (the service worker is still writing it): nothing is deleted.
     assert.equal(await share.waiting(), false);
-    assert.equal(deleted, 0);
-    store.set(share.DATA, JSON.stringify({ text: 'hi', at: Date.now() }));
+    await sharePut(caches, 'hi', Date.now());
     assert.equal(await share.waiting(), true);
-    assert.equal(deleted, 0);
-    store.set(share.DATA, JSON.stringify({ text: 'old', at: Date.now() - 31 * 60 * 1000 }));
+    assert.equal((await (await caches.open(share.BOX)).keys()).length, 1, 'a fresh share is left where it is');
+    const box = await caches.open(share.BOX);
+    for (const k of await box.keys()) await box.delete(k);
+    await sharePut(caches, 'old', Date.now() - 31 * 60 * 1000);
     assert.equal(await share.waiting(), false);
-    assert.equal(deleted, 1);
+    assert.equal((await box.keys()).length, 0, 'an old share is emptied out');
+    assert.equal(caches.deletes(), 0, 'the box itself is never deleted');
   } finally {
     delete global.caches;
   }
@@ -97,24 +120,44 @@ test('share: a page starting while a share arrives never empties the box; only a
 
 test('share: a page opened for one share leaves a newer share for its own page, and takes its own', async () => {
   const share = require('../web/assets/js/share.js');
-  const store = new Map();
-  global.caches = {
-    open: async () => ({ match: async (k) => (store.has(k) ? new Response(store.get(k)) : undefined) }),
-    delete: async () => { store.clear(); return true; }
-  };
+  global.caches = fakeCaches();
   try {
     const first = Date.now() - 50;
     const second = Date.now();
-    // Two shares a moment apart: the first one's page reads the box after the second share was written.
-    store.set(share.DATA, JSON.stringify({ text: 'Second share', at: second }));
+    await sharePut(caches, 'Second share', second);
     assert.deepEqual(await share.take(first), { newer: true });
-    assert.ok(store.has(share.DATA), 'the second share is still waiting for its own page');
-    const got = await share.take(second);
-    assert.equal(got.text, 'Second share');
-    assert.equal(store.size, 0);
+    assert.equal((await (await caches.open(share.BOX)).keys()).length, 1, 'the second share is still waiting for its own page');
+    assert.equal((await share.take(second)).text, 'Second share');
+    assert.equal((await (await caches.open(share.BOX)).keys()).length, 0);
     // A page that does not know its share (a GET share, or back from signing in) takes whatever is waiting.
-    store.set(share.DATA, JSON.stringify({ text: 'Any', at: Date.now() }));
+    await share.put({ text: 'Any' });
     assert.equal((await share.take()).text, 'Any');
+  } finally {
+    delete global.caches;
+  }
+});
+
+test('share: two shares a moment apart, the first page taking its own while the second is written: the second still reaches its page', async () => {
+  // verify-web run 44948767446: the first share's page emptied the box while the service worker was writing the second,
+  // and the second share's page found nothing.
+  const share = require('../web/assets/js/share.js');
+  global.caches = fakeCaches();
+  try {
+    const first = Date.now() - 40;
+    await sharePut(caches, 'First share', first);
+    const writing = await caches.open(share.BOX);   // the service worker, with the second share's form in hand
+    assert.equal((await share.take(first)).text, 'First share');
+    const second = Date.now();
+    await writing.put(`/share/data/${second}`, new Response(JSON.stringify({ title: '', text: 'Second share', url: '', at: second })));
+    const got = await share.take(second);
+    assert.ok(got, 'the second share was there for its page');
+    assert.equal(got.text, 'Second share');
+    // A picture keeps its own key beside its words, and goes with them.
+    await writing.put(`/share/image/${second + 1}`, new Response('png'));
+    await sharePut(caches, '', second + 1);
+    const pic = await share.take(second + 1);
+    assert.ok(pic.image);
+    assert.equal((await writing.keys()).length, 0);
   } finally {
     delete global.caches;
   }

@@ -14,7 +14,10 @@ async function main() {
   if (!t) return { error: `no window at ${part}`, windows: targets.map((x) => x.url.split('?')[0]) };
   const ws = new WebSocket(t.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = () => reject(new Error('could not connect')); });
+  // A window that closes or navigates away mid-answer closes the connection: said, instead of the process ending in
+  // silence (the timer below does not hold it open) and the script reading nothing.
   const call = (id, method, params) => new Promise((resolve) => {
+    ws.onclose = () => resolve({ result: { exceptionDetails: { text: 'the window went away before it answered' } } });
     ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id === id) resolve(d); };
     ws.send(JSON.stringify({ id, method, params }));
   });
@@ -40,4 +43,5 @@ async function main() {
 
 // A window that goes away mid-answer (it navigated, or its page process ended) never replies: give up, never hang the run.
 setTimeout(() => { console.log(JSON.stringify({ error: 'no answer in 45 s' })); process.exit(0); }, 45000 + (Number(process.env.E2E_MOTION_HOLD_MS) || 0)).unref();
-main().then((r) => console.log(JSON.stringify(r)), (err) => console.log(JSON.stringify({ error: String(err && err.message || err) })));
+// "fetch failed" alone does not say why: the debugging port refused (the app starting or restarting) or reset.
+main().then((r) => console.log(JSON.stringify(r)), (err) => console.log(JSON.stringify({ error: `${String(err && err.message || err)}${err && err.cause ? ` (${err.cause.code || err.cause.message})` : ''}` })));

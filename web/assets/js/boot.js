@@ -20,6 +20,22 @@ document.documentElement.classList.add('js');
 })();
 
 /*
+ * A first visit's Overview waits on the first-run choices (their script and stylesheet), which app.js asks for once it
+ * has run: asked for here, beside app.js, so they are on the way when it wants them. Nothing after the first visit, in
+ * the Windows app (it opens Settings' files instead), or on any other page. The key is app.js's FIRST_KEY.
+ */
+(function () {
+  try {
+    if (location.pathname.replace(/\/$/, '') !== '/app' || window.sentinelDesktop || localStorage.getItem('sentinel:first-choices')) return;
+    [['script', '/assets/js/app/first.js'], ['style', '/assets/css/settings.css']].forEach(function (f) {
+      var l = document.createElement('link');
+      l.rel = 'preload'; l.as = f[0]; l.href = f[1];
+      document.head.appendChild(l);
+    });
+  } catch (e) { /* storage blocked: app.js asks for them itself */ }
+})();
+
+/*
  * The browser's own bar (a phone's address bar, an installed app's title) in the page's ground: the look's Light or
  * Dark and its colour, not only what the system prefers (head.html's two metas, for a page without script). Read
  * once the stylesheets are in, and again only when the look is drawn anew.

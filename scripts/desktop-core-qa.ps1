@@ -246,8 +246,10 @@ if ($Part -eq 'install') {
   Arrive 'switch on.txt' (Text 'Bread and butter')
   $onOk = Until 60 { (DlLines 'switch on.txt') -ge 1 }
   Check 'switch-downloads' ($offOk -and $onOk) "off: the file that arrived was left alone $offOk; on: the next one was scanned $onOk"
-  [void](Cdp '127.0.0.1:4782' 'location.reload(), 1'); Start-Sleep 6
-  Check 'switch-downloads-kept' ((Shown '[data-dl]') -eq 'true') "after a reload the switch shows $(Shown '[data-dl]')"
+  [void](Cdp '127.0.0.1:4782' 'location.reload(), 1')
+  # The page is drawn again when its switch is there, not after a fixed six seconds (a slow runner took longer).
+  $kept = Until 40 { (Shown '[data-dl]') -eq 'true' }
+  Check 'switch-downloads-kept' $kept "after a reload the switch shows $(Shown '[data-dl]')"
   # Defense.
   Say "defense: $(Flip '[data-defense]' $false)"
   $off = (Cdp 'main' "process.mainModule.require('./defense').status().active").value

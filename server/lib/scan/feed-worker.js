@@ -20,11 +20,22 @@ const { parentPort, workerData } = require('worker_threads');
 try { os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* the system refused: it runs as before */ }
 
 (async () => {
+  let db = null;
+  let msg;
   try {
+    db = require('../db').db;
+    // A page cache that holds the lists' indexes (SQLite's default is 2 MB): without it every insert reads its page
+    // from disk again and writes it back, and a fresh install's import was waiting on the disk, not working. Freed
+    // when this thread's connection closes below, before the server is told.
+    db.exec('PRAGMA feeds.cache_size = -65536');
+    // Large transactions grow the log; once folded back into the file it is cut back, not left on disk at its peak.
+    db.exec('PRAGMA feeds.journal_size_limit = 16777216');
     const feeds = require('./feeds');
     const results = await feeds.refreshAll({ log: Boolean(workerData && workerData.log), force: Boolean(workerData && workerData.force) });
-    parentPort.postMessage({ ok: true, results, priority: os.getPriority() });
+    msg = { ok: true, results, priority: os.getPriority() };
   } catch (err) {
-    parentPort.postMessage({ ok: false, error: String(err && err.message || err) });
+    msg = { ok: false, error: String(err && err.message || err) };
   }
+  try { if (db) db.close(); } catch { /* closed with the thread */ }
+  parentPort.postMessage(msg);
 })();

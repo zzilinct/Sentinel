@@ -322,9 +322,15 @@ if ($regWatch) {
   if ($regStarts -gt 0) { $regFailed = $true }
 }
 Say ("idle minute: Sentinel used {0:N1} s of processor time in 60 s ({1:N1}% of one core)" -f ($after - $before), (($after - $before) / 60 * 100))
-Say "idle minute: $((CpuLine $i0 $i1 60).text)"
+$idle = CpuLine $i0 $i1 60
+Say "idle minute: $($idle.text)"
 Say "idle minute: threat-list import finished before it: $importBefore$(if (-not $importBefore) { "; finished by its end: $(ImportDone) (the server's share is the import of a fresh install)" })"
 Footprint 'after an idle minute'
+# At rest is held to the idle limit, the server included, once a fresh install's import is over.
+$idleFailed = $importBefore -and $idle.total -gt 1.5
+# How long a fresh install waited for its threat lists (server.log; 811 s in run 45050182668, before 1.21.2).
+$importLine = [regex]::Match([string](Get-Content "$data\logs\server.log" -Raw -ErrorAction SilentlyContinue), 'name index ready \((\d+) s\)')
+Say "threat-list import of a fresh install: $(if ($importLine.Success) { "$($importLine.Groups[1].Value) s" } else { 'not finished' })"
 # Then a minute's CPU profile of the main process and the server (main.js, server-host.js), for review. Not inside the
 # measured minute: until 1.20.4 they were, and the minute read 8.4% of one core (run 44390657427), where the same
 # minute without them is 0.2-0.5% (run 44394136089).
@@ -361,4 +367,5 @@ if ([version]$now -ne [version]$built) { Say "FAILED: updated itself from $built
 if ($regFailed) { Say 'FAILED: Run keys are still polled, or a new entry was not heard'; exit 1 }
 if ($marksOff.Count) { Say "FAILED: marks off their results at rest: $($marksOff -join ', ')"; exit 1 }
 if ($hoverFailed) { Say 'FAILED: resting on a flagged mark did not show its reasonLine() in the tip'; exit 1 }
+if ($idleFailed) { Say "FAILED: Sentinel at rest, the import over, costs more than the idle limit: $($idle.text)"; exit 1 }
 if ($stillFailed) { Say "FAILED: live scanning on a results page left still costs more than the idle limit: $scan% ($($still.text))"; exit 1 }
