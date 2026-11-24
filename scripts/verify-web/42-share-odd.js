@@ -47,7 +47,7 @@ async function checkShareOdd() {
       await sleep(400);
     };
     const text = (sid = s) => until(browser, sid, "(() => { const r = document.querySelector('[data-out] [data-text-result]'); return location.pathname === '/app/check' && r && { tone: r.dataset.textResult, title: r.querySelector('h2').textContent.trim(), why: r.innerText, box: document.querySelector('[data-check-text]').value, out: document.querySelector('[data-out]').innerText }; })()", 30000);
-    const freshApp = () => goto(browser, s, `${base}/app`, "document.querySelector('#view h1')");
+    const freshApp = () => goto(browser, s, `${base}/app`, "document.querySelector('#view .view:not([data-shell=\"\"]) h1')");
 
     const email = `share-odd-${Date.now()}@example.com`;
     const password = 'Share-Odd-Lamp-2026';

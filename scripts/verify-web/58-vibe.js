@@ -185,7 +185,7 @@ async function checkVibe() {
       await browser.send('Emulation.setDeviceMetricsOverride', { width: z.w, height: z.h, deviceScaleFactor: 1, mobile: size === 'phone' }, s);
       for (const scheme of ['dark', 'light']) for (const id of IDS) {
         await store(scheme, id);
-        await goto(browser, s, `${sentinel.base}/app?at=${Date.now()}`, "document.querySelector('.page-title h1')");
+        await goto(browser, s, `${sentinel.base}/app?at=${Date.now()}`, "document.querySelector('.view:not([data-shell=\"\"]) .page-title h1')");
         // From the first frame drawn in the page's own type: before the web fonts are in, the email bar above can be a
         // line taller in the fallback face, a shift of the fonts' own, not of anything this check is about.
         await ev('document.fonts.ready.then(() => true)');
