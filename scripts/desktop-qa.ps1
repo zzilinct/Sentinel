@@ -225,22 +225,51 @@ if (-not $paired) { Say "  diag: $(Cdp '127.0.0.1:4782' 'location.href')" }
 [void](Cdp '127.0.0.1:4782' "(location.href = '/app', 1)")
 [void](Until 30 { [string](Cdp '127.0.0.1:4782' "Boolean(window.SentinelLook && window.SentinelLook.set && document.querySelector('.frame'))").value -match 'true' })
 function PixelAt($x, $y) { $bmp = New-Object System.Drawing.Bitmap 1, 1; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$x, [int]$y, 0, 0, (New-Object System.Drawing.Size 1, 1)); $c = $bmp.GetPixel(0, 0); $g.Dispose(); $bmp.Dispose(); return $c }
+# Sentinel's own button on the taskbar, found through Windows' accessibility tree (its rectangle on the screen), and its
+# picture read: how many of its pixels are gold. The button is read, not the whole strip: Explorer's folder is gold too.
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+function TaskbarButton() {
+  $A = [System.Windows.Automation.AutomationElement]
+  $tray = $A::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, (New-Object System.Windows.Automation.PropertyCondition($A::ClassNameProperty, 'Shell_TrayWnd')))
+  if (-not $tray) { return $null }
+  foreach ($b in $tray.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
+    if ($b.Current.Name -match '^Sentinel' -and $b.Current.BoundingRectangle.Width -gt 10 -and $b.Current.BoundingRectangle.Width -lt 200) { return $b.Current.BoundingRectangle }
+  }
+  return $null
+}
+function TaskbarGold() {
+  $r = TaskbarButton
+  if (-not $r) { return -1 }
+  $bmp = New-Object System.Drawing.Bitmap ([int]$r.Width), ([int]$r.Height); $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.CopyFromScreen([int]$r.X, [int]$r.Y, 0, 0, $bmp.Size)
+  $n = 0
+  for ($y = 0; $y -lt $bmp.Height; $y++) { for ($x = 0; $x -lt $bmp.Width; $x++) { $c = $bmp.GetPixel($x, $y); if ($c.R -gt 130 -and $c.G -gt $c.R * 0.6 -and $c.G -lt $c.R * 0.95 -and ($c.G - $c.B) -gt 30 -and $c.B -lt $c.G * 0.75) { $n++ } } }
+  $g.Dispose(); $bmp.Dispose(); return $n
+}
+Start-Sleep 2
+$goldBase = TaskbarGold
+Say "gold pixels in Sentinel's taskbar button before any change: $goldBase"
 foreach ($t in @(@{ mode = 'dark'; accent = 'sapphire' }, @{ mode = 'light'; accent = 'rose' }, @{ mode = 'dark'; accent = 'gold' }, @{ mode = 'light'; accent = 'gold' })) {
   $name = "frame-$($t.accent)-$($t.mode)"
-  $r = [string](Cdp '127.0.0.1:4782' "(async () => { await window.SentinelLook.set({ mode: '$($t.mode)', accent: '$($t.accent)' }); await new Promise((r) => setTimeout(r, 1800)); const f = document.querySelector('.frame'), cs = f && getComputedStyle(f); return [document.documentElement.classList.contains('framed'), Boolean(f && f.querySelector('.frame__mark svg')), cs && cs.backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), Boolean(navigator.windowControlsOverlay && navigator.windowControlsOverlay.visible), f && Math.round(f.getBoundingClientRect().height), f && f.textContent].join('|'); })()").value
+  $r = [string](Cdp '127.0.0.1:4782' "(async () => { await window.SentinelLook.set({ mode: '$($t.mode)', accent: '$($t.accent)' }); await new Promise((r) => setTimeout(r, 1800)); const f = document.querySelector('.frame'), cs = f && getComputedStyle(f); return [document.documentElement.classList.contains('framed'), Boolean(f && f.querySelector('.frame__mark svg')), cs && cs.backgroundColor, getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(), Boolean(navigator.windowControlsOverlay && navigator.windowControlsOverlay.visible), f && Math.round(f.getBoundingClientRect().height), f && f.querySelector('.frame__page').textContent + '/' + document.title].join('|'); })()").value
   $b = (Cdp 'main' "JSON.stringify(process.mainModule.require('electron').BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('127.0.0.1:4782')).getBounds())").value | ConvertFrom-Json
   $px = PixelAt ($b.x + $b.width / 2) ($b.y + 10)
   $sum = [int]$px.R + [int]$px.G + [int]$px.B
   Shot $name
   $f = $r -split '\|'
   $tone = $(if ($t.mode -eq 'dark') { $sum -lt 150 } else { $sum -gt 600 })
-  Check $name ($f[0] -eq 'true' -and $f[1] -eq 'true' -and $f[2] -notmatch 'rgba\(0, 0, 0, 0\)' -and $f[4] -eq 'true' -and [int]$f[5] -ge 28 -and $tone) "framed|mark|bar|page|buttons over it|height|words: $r; the bar's pixel on screen rgb($($px.R),$($px.G),$($px.B))"
+  Check $name ($f[0] -eq 'true' -and $f[1] -eq 'true' -and $f[2] -notmatch 'rgba\(0, 0, 0, 0\)' -and $f[4] -eq 'true' -and [int]$f[5] -ge 28 -and $f[6] -match '^(.+)/\1\s*[-|·–]\s*Sentinel$' -and $tone) "framed|mark|bar|page|buttons over it|height|page name/title: $r; the bar's pixel on screen rgb($($px.R),$($px.G),$($px.B))"
   # The taskbar's button is drawn from Sentinel's own shortcuts (main.js shortcutIcons): they carry the colour, and
   # gold puts the program's own icon back. The picture above shows the taskbar.
   $links = @("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Sentinel.lnk", "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Sentinel.lnk", "$env:PUBLIC\Desktop\Sentinel.lnk", "$([Environment]::GetFolderPath('Desktop'))\Sentinel.lnk") | Where-Object { Test-Path $_ }
   $wsh = New-Object -ComObject WScript.Shell
   $icons = @($links | ForEach-Object { "$($wsh.CreateShortcut($_).IconLocation) <- $($wsh.CreateShortcut($_).TargetPath)" }) -join '; '
   $want = $(if ($t.accent -eq 'gold') { '\.exe,0 <-' } else { "shortcut-$($t.accent)\.ico,0 <-" })
+  # Read for the record: an open window's button is not redrawn from inside the app (see tests/look.test.js), so it is not a check.
+  Start-Sleep 2
+  Shot "$name-taskbar"
+  $tb = TaskbarGold
+  Say "gold pixels in Sentinel's taskbar button now: $tb (an open window's button keeps its colour until Sentinel next starts; the shortcuts below carry the new one)"
   Check "$name-shortcuts" ($links.Count -gt 0 -and @($links | Where-Object { $wsh.CreateShortcut($_).IconLocation -notmatch ($want -replace ' <-$', '') }).Count -eq 0) "Sentinel's shortcuts: $icons"
 }
 [void](Cdp '127.0.0.1:4782' "window.SentinelLook.set({ mode: 'auto', accent: 'gold' }).then(() => 1)")

@@ -159,6 +159,64 @@ async function checkFirstChoices() {
     result('first-choices: Comfortable keeps the old sizes, Compact is tighter and never under 36px',
       heights.comfortable.seg === 38 && heights.comfortable.input === 46 && heights.compact.seg >= 36 && heights.compact.seg < 38 && heights.compact.input < 46 && heights.compact.input >= 36, heights);
 
+    /* ------------- the greeting does not move when the real fonts arrive */
+    // Fonts 120 ms late, and fonts held back for good and then let in (the page drawn in the stand-ins first), at five widths: the page
+    // top, the greeting, its sentence and the box under them are in the same place before and after, to the pixel.
+    {
+      await evalIn(browser, s, "(localStorage.removeItem('sentinel:type'), 1)");
+      await browser.send('Network.enable', {}, s);
+      await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, s);
+      await browser.send('Network.setBypassServiceWorker', { bypass: true }, s);
+      await browser.send('Fetch.enable', { patterns: [{ urlPattern: '*.woff2', requestStage: 'Request' }] }, s);
+      const held = [];
+      let mode = 'soon';
+      browser.on('Fetch.requestPaused', (p, sid) => {
+        if (sid !== s) return;
+        if (mode === 'never') held.push(p.requestId); else setTimeout(() => browser.send('Fetch.continueRequest', { requestId: p.requestId }, s).catch(() => {}), mode === 'soon' ? 120 : 0);
+      });
+      const { identifier } = await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+        const g = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top * 10) / 10, Math.round(r.width), Math.round(r.height * 10) / 10]; };
+        const mark = () => { if (window.__first || !document.querySelector('.page-title h1')) return; window.__first = { top: g('#view'), h1: g('.page-title h1'), p: g('.page-title p'), box: g('[data-quick]'), face: document.fonts.check('400 16px Geist') }; };
+        // In the frame that first shows the greeting (what a person sees first), not in the microtask that draws it.
+        new MutationObserver(() => { if (!window.__first && document.querySelector('.page-title h1')) requestAnimationFrame(mark); }).observe(document, { childList: true, subtree: true });
+      })()` }, s);
+      const GREET = "(() => { const g = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top * 10) / 10, Math.round(r.width), Math.round(r.height * 10) / 10]; }; return { top: g('#view'), h1: g('.page-title h1'), p: g('.page-title p'), box: g('[data-quick]'), first: window.__first }; })()";
+      const diff = (a, b) => ['top', 'h1', 'p', 'box'].map((k) => (a[k] && b[k] ? Math.max(Math.abs(a[k][1] - b[k][1]), k === 'top' ? 0 : Math.abs(a[k][3] - b[k][3])) : 99));
+      const moved = [], held5 = [];
+      for (const [name, dims] of [['desktop', [1366, 900, false]], ['laptop', [1000, 800, false]], ['tablet', [768, 1024, false]], ['phone', [390, 844, true]], ['small phone', [360, 740, true]]]) {
+        await size(dims);
+        await media('dark');
+        mode = 'soon';
+        await browser.send('Page.navigate', { url: `${server.base}/app` }, s);
+        await until(browser, s, "document.querySelector('.page-title h1') && document.querySelector('[data-quick]')", 25000);
+        await evalIn(browser, s, 'document.fonts.ready.then(() => new Promise((r) => setTimeout(r, 900)))');
+        const soon = await evalIn(browser, s, GREET);
+        const dSoon = soon.first ? diff(soon.first, soon) : [99];
+        if (dSoon.some((x) => x > 0.5) || !soon.first) moved.push({ at: name, first: soon.first, last: soon });
+        await shot(browser, s, `greeting-fonts-soon-${name.replace(' ', '-')}`);
+        // Held for good, then let in.
+        mode = 'never';
+        held.length = 0;
+        await browser.send('Page.navigate', { url: `${server.base}/app` }, s);
+        await until(browser, s, "document.querySelector('.page-title h1') && document.querySelector('[data-quick]')", 25000);
+        await sleep(500);
+        const beforeAll = await evalIn(browser, s, GREET);
+        mode = 'now';
+        for (const id of held.splice(0)) await browser.send('Fetch.continueRequest', { requestId: id }, s).catch(() => {});
+        await evalIn(browser, s, 'document.fonts.ready.then(() => new Promise((r) => setTimeout(r, 700)))');
+        const dHeld = diff(beforeAll, await evalIn(browser, s, GREET));
+        held5.push(`${name}: ${dHeld.join('/')} px`);
+        // Fonts held for good, then let in: any movement at any of the five widths fails.
+        if (dHeld.some((x) => x > 0.5)) moved.push({ at: `${name}, fonts held then let in`, before: beforeAll });
+      }
+      mode = 'now';
+      await browser.send('Fetch.disable', {}, s);
+      await browser.send('Network.setBypassServiceWorker', { bypass: false }, s);
+      await browser.send('Network.setCacheDisabled', { cacheDisabled: false }, s);
+      await browser.send('Page.removeScriptToEvaluateOnNewDocument', { identifier }, s);
+      result('first-choices: whether the real fonts come 120 ms late or after the page has been drawn in the stand-ins, the page top, greeting, sentence and box under them do not move a pixel, at five widths (held5: stand-ins then real faces, per width)', !moved.length, { moved, held5 });
+    }
+
     /* ---------------------------- in the Windows app: the step says the tray line the old notification said */
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: APP }, s);
     await media('dark');

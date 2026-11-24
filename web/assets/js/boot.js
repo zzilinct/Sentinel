@@ -13,8 +13,12 @@ document.documentElement.classList.add('js');
     if (!a) return;
     var v = JSON.parse(localStorage.getItem('sentinel:look-vars') || '{}');
     var s = m === 'light' || m === 'dark' ? m : matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-    if (v.accent !== a || !v[s]) return;
+    if (!/^[a-z]+$/.test(a)) return;
     r.setAttribute('data-accent', a);
+    // v is look.js's WEB_V: a set kept by an older Sentinel lacks the newer names, and drawn as it is it paints a page half
+    // in the old look. It is left undrawn (gold, never a mixture; the name above is all the scripts need); look-site.js
+    // works the new set out once the page is in.
+    if (v.accent !== a || v.v !== 3 || !v[s]) return;
     for (var k in v[s]) if (/^--[a-z0-9-]+$/.test(k)) r.style.setProperty(k, v[s][k]);
   } catch (e) { /* storage blocked: gold, as the system has it */ }
 })();

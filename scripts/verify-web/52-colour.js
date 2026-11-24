@@ -314,6 +314,71 @@ async function checkColour() {
           && ['red', 'orange', 'green'].every((c) => solid(o, sc, c))
           && [o.yellow.glyph, o.yellow.icon, o.mark].every((p) => p.fill === YEL && p.stroke === edge);
       })), seen);
+
+    /* ----------------------- a device that chose its colour before 1.21.1: the marketing pages never show a half-old look */
+    // What 1.20 kept for sapphire: the colours without the names added since (WEB_V 3). Seeded before any script runs, with
+    // a recorder of every change to <html>'s colours: no moment may show the stored (older) colours drawn.
+    {
+      const NEWER = ['--hi', '--lo', '--neu-lo', '--relief', '--night-rgb', '--night-hi', '--live-200', '--rim'];
+      const older = { accent: 'sapphire' };
+      for (const sc of ['dark', 'light']) older[sc] = Object.fromEntries(Object.entries(L.webVars('sapphire')[sc]).filter(([k]) => !NEWER.includes(k)));
+      for (const [page, scheme] of [['download.html', 'dark'], ['download.html', 'light'], ['pricing.html', 'dark'], ['index.html', 'light']]) {
+        const { targetId, sessionId: s } = await openPage(browser);
+        await browser.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, s);
+        await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'no-preference' }] }, s);
+        await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+          try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('sentinel:accent', 'sapphire'); localStorage.setItem('sentinel:look-vars', ${JSON.stringify(JSON.stringify(older))}); } } catch (e) {}
+          window.__seen = [];
+          const h = document.documentElement;
+          new MutationObserver(() => window.__seen.push({ accent: h.getAttribute('data-accent'), gold: Boolean(h.style.getPropertyValue('--gold-400')), night: Boolean(h.style.getPropertyValue('--night-rgb')) }))
+            .observe(h, { attributes: true, attributeFilter: ['style', 'data-accent'] });
+        })()` }, s);
+        await goto(browser, s, `${files.base}/${page}`, "document.querySelector('main, .hero, body')");
+        const kept = Boolean(await until(browser, s, "(() => { try { return JSON.parse(localStorage.getItem('sentinel:look-vars')).v === 3; } catch (e) { return false; } })()", 20000));
+        await sleep(600);
+        const got = await evalIn(browser, s, `(() => { const cs = getComputedStyle(document.documentElement), v = (n) => cs.getPropertyValue(n).trim();
+          return { accent: document.documentElement.dataset.accent, night: v('--night-rgb'), gold: v('--gold-400'), hi: v('--hi'), rim: v('--rim'), seen: window.__seen }; })()`);
+        const want = L.ramp('sapphire', scheme);
+        const half = got.seen.filter((x) => x.gold && !x.night);
+        result(`colour: marketing page ${page}, ${scheme}, colour chosen before 1.21.1: worked out again, drawn whole, never half in the old look`,
+          kept && got.accent === 'sapphire' && got.night === want['--night-rgb'] && got.gold === want['--gold-400'] && got.hi === want['--hi'] && got.rim === want['--rim'] && half.length === 0,
+          { kept, got, half });
+        await shot(browser, s, `colour-older-set-${page.replace('.html', '')}-${scheme}`);
+        // The choice was stored on the page's own origin, shared by every tab: left there it would colour the next check.
+        await evalIn(browser, s, 'localStorage.clear(); true');
+        await browser.send('Target.closeTarget', { targetId });
+      }
+    }
+
+    /* --------------------------------------------- hover is alive while a colour opens, and after it */
+    {
+      const { s, done } = await open(1366, 900, false, 'dark', 'no-preference');
+      // In front: a tab that is not draws no frames, and the browser skips a view transition on it (the class would never show).
+      await browser.send('Page.bringToFront', {}, s);
+      const move = (x, y) => browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, s);
+      const hot = () => evalIn(browser, s, `(() => { const h = document.querySelector('.swatch:hover, .swatch[data-hot]'); return h ? { id: h.dataset.accent, lift: getComputedStyle(h.querySelector('.swatch__gem')).transform, vt: document.documentElement.getAnimations({ subtree: true }).some((a) => a.effect && String(a.effect.pseudoElement || '').includes('view-transition')) ? 'running' : '' } : null; })()`);
+      const [tx, ty] = await at(s, gem('teal'));
+      const [sx, sy] = await at(s, gem('sapphire'));
+      await move(sx, sy);
+      await sleep(350);
+      const before = await hot();
+      // Press the sapphire gem; while its circle opens, the pointer is still over it, then moves on to teal.
+      for (const type of ['mousePressed', 'mouseReleased']) await browser.send('Input.dispatchMouseEvent', { type, x: sx, y: sy, button: 'left', clickCount: 1 }, s);
+      // The circle held half open (as the check above does), so "during" is certain: hover is read inside it, and the pointer moves on inside it.
+      const held = await until(browser, s, `(() => { const a = document.getAnimations().find((x) => x.effect && x.effect.pseudoElement === '::view-transition-new(root)'); if (!a) return null; a.pause(); a.currentTime = 200; return true; })()`, 3000);
+      const during = held ? { ...(await hot()), vt: 'held open' } : null;
+      await move(tx, ty);
+      await sleep(120);
+      const onward = held ? { ...(await hot()), vt: 'held open' } : null;
+      await evalIn(browser, s, 'document.documentElement.getAnimations({ subtree: true }).forEach((a) => { try { a.play(); } catch (e) {} }); true');
+      await sleep(1400);
+      const after = await hot();
+      const lifted = (h) => Boolean(h) && h.lift !== 'none' && h.lift !== 'matrix(1, 0, 0, 1, 0, 0)';
+      result('colour: the pointer keeps its hover on a gem before, during and after the colour opens, and moving to the next gem hovers it at once',
+        Boolean(before) && before.id === 'sapphire' && lifted(before) && Boolean(during) && during.id === 'sapphire' && during.vt !== '' && Boolean(onward) && onward.id === 'teal' && lifted(onward) && onward.vt !== '' && Boolean(after) && after.id === 'teal' && lifted(after) && after.vt === '',
+        { before, during, onward, after, transitions: await evalIn(browser, s, 'window.__vts') });
+      await done();
+    }
   } finally { await close(); files.server.close(); }
 }
 

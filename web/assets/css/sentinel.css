@@ -270,7 +270,8 @@ html.framed :is(.nav, .lux-island) { margin-top: var(--frame-h); }
 html.look-vt::view-transition-old(root) { animation: none; }
 /* Out fast and settling (it was an ease-in-out, which showed nothing for the first tenth of a second and read as a lag),
    and the pictures never take the pointer, so the coin under it keeps its hover through the change. */
-html.look-vt::view-transition { pointer-events: none; }
+html.look-vt::view-transition, html.look-vt::view-transition-group(*), html.look-vt::view-transition-image-pair(*),
+html.look-vt::view-transition-old(*), html.look-vt::view-transition-new(*) { pointer-events: none; }
 html.look-vt::view-transition-new(root) { animation: look-in .6s cubic-bezier(.22, 1, .36, 1) both; }
 @keyframes look-in { from { clip-path: circle(0 at var(--look-x, 50%) var(--look-y, 50%)); } to { clip-path: circle(150vmax at var(--look-x, 50%) var(--look-y, 50%)); } }
 

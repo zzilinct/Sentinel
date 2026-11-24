@@ -340,7 +340,7 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   box-shadow: var(--raise-sm), inset 0 -4px 8px rgb(0 0 0 / .28), inset 0 0 0 1px rgb(255 255 255 / .12);
   transition: transform .5s var(--spring); }
 .swatch__name { transition: color .2s; }
-.swatch:hover .swatch__gem { transform: translateY(-3px) scale(1.07); }
+.swatch:hover .swatch__gem, .swatch[data-hot] .swatch__gem { transform: translateY(-3px) scale(1.07); }
 .swatch:active .swatch__gem { transform: scale(.92); transition-duration: .12s; }
 .swatch[aria-checked="true"] { color: var(--text); }
 .swatch[aria-checked="true"] .swatch__gem { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4.5px var(--text), 0 12px 26px -8px var(--sw), inset 0 -4px 8px rgb(0 0 0 / .28); }
@@ -382,7 +382,11 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
    down the page. Both are the browser's view transition: two pictures composited, nothing laid out per frame. */
 html.vt-pick::view-transition-old(root), html.vt-gold::view-transition-old(root) { animation: none; }
 /* The pictures never take a click: a second gem pressed while the first change runs reaches its button. */
-html.vt-pick::view-transition, html.vt-gold::view-transition { pointer-events: none; }
+html.vt-pick::view-transition, html.vt-gold::view-transition,
+html.vt-pick::view-transition-group(*), html.vt-gold::view-transition-group(*),
+html.vt-pick::view-transition-image-pair(*), html.vt-gold::view-transition-image-pair(*),
+html.vt-pick::view-transition-old(*), html.vt-gold::view-transition-old(*),
+html.vt-pick::view-transition-new(*), html.vt-gold::view-transition-new(*) { pointer-events: none; }
 html.vt-pick::view-transition-new(root) { animation: accent-open .72s cubic-bezier(.16, 1, .3, 1) both; }
 html.vt-gold::view-transition-new(root) { animation: gold-down .9s cubic-bezier(.65, 0, .35, 1) both; }
 @keyframes accent-open { from { clip-path: circle(0 at var(--vt-x) var(--vt-y)); } to { clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y)); } }

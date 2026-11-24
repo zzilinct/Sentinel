@@ -85,6 +85,13 @@
 
   let current = rest;
   let vt = null;
+  // While a change runs the browser puts its pictures over the page, and the pointer is then over <html>, not over the gem
+  // under it: the gem loses :hover, though the pointer has not moved. So the gem under the pointer is found by where the
+  // pointer is (this, and the click below), and drawn as hovered (data-hot) until the change has finished.
+  let hot = null;
+  const under = (x, y) => swatches.find((s) => { const r = s.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; });
+  const heat = (b) => { if (hot === b) return; if (hot) hot.removeAttribute('data-hot'); hot = b || null; if (b) b.setAttribute('data-hot', ''); };
+  const follow = (e) => heat(under(e.clientX, e.clientY));
   function apply(id) {
     current = id;
     if (id === rest) { if (own) html.setAttribute('data-accent', own); else html.removeAttribute('data-accent'); sheet.textContent = ''; } else { sheet.textContent = id === 'gold' ? gold() : css(id); html.dataset.accent = id; }
@@ -113,7 +120,10 @@
       if (how === 'gold') { band = doc.createElement('div'); band.className = 'gold-band'; band.setAttribute('aria-hidden', 'true'); doc.body.appendChild(band); }
     });
     vt = t;
+    heat(from || null);
+    doc.addEventListener('pointermove', follow, { passive: true });
     t.finished.finally(() => {
+      if (vt === t) { doc.removeEventListener('pointermove', follow); heat(null); }
       if (band) band.remove();
       if (vt === t) { vt = null; html.classList.remove('vt-pick', 'vt-gold'); }
     });
@@ -122,8 +132,7 @@
   // While a change runs, the browser shows pictures over the page and a click lands on <html>, not on the gem under
   // it, so the gem is found by where the click fell. The second click then finishes the first and wins.
   doc.addEventListener('click', (e) => {
-    const b = e.target.closest && e.target.closest('.swatch')
-      || (vt && swatches.find((s) => { const r = s.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; }));
+    const b = e.target.closest && e.target.closest('.swatch') || (vt && under(e.clientX, e.clientY));
     if (b) go(b.dataset.accent, 'pick', b);
   });
   group.addEventListener('keydown', (e) => {

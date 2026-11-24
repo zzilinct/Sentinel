@@ -404,7 +404,8 @@ test('a press paints from what was worked out: the same colours, no maths the se
   assert.ok(Number(process.hrtime.bigint() - t) / 1e6 / 1200 < 0.2, 'a kept ramp is a copy, well under a fifth of a millisecond');
   // The reveal starts at once (an ease-out), and the pictures never take the pointer, so a coin keeps its hover.
   const css = read('web', 'assets', 'css', 'sentinel.css');
-  assert.match(css, /html\.look-vt::view-transition \{ pointer-events: none; \}/);
+  // Every picture of the change, not only the root one: the browser hit-tests the pseudo-elements, and one left alone took the hover off the coin.
+  assert.match(css, /html\.look-vt::view-transition, html\.look-vt::view-transition-group\(\*\), html\.look-vt::view-transition-image-pair\(\*\),\s+html\.look-vt::view-transition-old\(\*\), html\.look-vt::view-transition-new\(\*\) \{ pointer-events: none; \}/);
   assert.match(css, /html\.look-vt::view-transition-new\(root\) \{ animation: look-in \.6s cubic-bezier\(\.22, 1, \.36, 1\) both; \}/);
   assert.doesNotMatch(css, /\.look__coin:hover i \{ transform/, 'hover and chosen are separate properties, never one transform swapped for another');
 });
@@ -606,7 +607,43 @@ test('1.21.1: the taskbar, Start menu and desktop Sentinel in the colour, throug
   assert.match(fn, /catch \{ \/\* missing, someone else's or read-only: left as it is \*\/ \}/);
   assert.doesNotMatch(fn, /setInterval|setTimeout|watch\(/, 'no polling');
   assert.match(main, /function applyLook\(l\) \{\s+shortcutIcons\(l\.accent\);/);
+  // 1.21.2: nothing inside the app makes Windows redraw an open window's taskbar button (CI tried a user task list, app details,
+  // the taskbar tab, hiding, minimising and the system icon refresh, reading the button through Windows' accessibility tree:
+  // none moved it), and the system-wide refresh is not Sentinel's to run. The button takes the colour when Sentinel next starts.
+  assert.doesNotMatch(main, /setSkipTaskbar|ie4uinit|setAppDetails|setUserTasks|SHChangeNotify/);
   const sc = main.slice(main.indexOf('function shortcutPaths('), main.indexOf('function shortcutIcons('));
   assert.equal((sc.match(/'Sentinel\.lnk'/g) || []).length, 1);
   assert.match(read('scripts', 'desktop-qa.ps1'), /Check "\$name-shortcuts"/, 'proved on a real Windows in CI');
+});
+
+test('1.21.2: boot.js never paints a set kept by an older Sentinel, and still names the colour', () => {
+  const vm = require('vm');
+  const boot = read('web', 'assets', 'js', 'boot.js');
+  const first = boot.slice(boot.indexOf('(function () {\n  try {'.replace(/\n/g, boot.includes('\r\n') ? '\r\n' : '\n')), boot.indexOf('})();') + 5);
+  const run = (kept) => {
+    const attrs = {}, style = {};
+    vm.runInNewContext(first, {
+      document: { documentElement: { setAttribute: (k, v) => { attrs[k] = v; }, style: { setProperty: (k, v) => { style[k] = v; } } } },
+      localStorage: { getItem: (k) => (k in kept ? kept[k] : null) },
+      matchMedia: () => ({ matches: false })
+    });
+    return { attrs, style };
+  };
+  const whole = L.webVars('sapphire');
+  // The current set: drawn whole, before the first paint.
+  const now = run({ 'sentinel:theme': 'dark', 'sentinel:accent': 'sapphire', 'sentinel:look-vars': JSON.stringify(whole) });
+  assert.equal(now.attrs['data-accent'], 'sapphire');
+  assert.deepEqual(now.style, whole.dark);
+  // A set from before the newer names: nothing of it is drawn (it would be half the old look), the colour is still named.
+  const { v, ...older } = whole;
+  for (const set of [older, { ...older, v: L.WEB_V - 1 }]) {
+    const was = run({ 'sentinel:theme': 'dark', 'sentinel:accent': 'sapphire', 'sentinel:look-vars': JSON.stringify(set) });
+    assert.deepEqual(was.style, {}, 'no stale colour drawn');
+    assert.equal(was.attrs['data-accent'], 'sapphire', 'the page still knows its colour');
+  }
+  // Nothing kept at all for a named colour: named, nothing drawn. No colour kept: untouched.
+  assert.deepEqual(run({ 'sentinel:accent': 'rose' }).style, {});
+  assert.equal(run({ 'sentinel:accent': 'rose' }).attrs['data-accent'], 'rose');
+  assert.deepEqual(run({}).attrs, {});
+  assert.equal(Number(boot.match(/v\.v !== (\d+)/)[1]), L.WEB_V, 'boot.js holds look.js\'s WEB_V');
 });
