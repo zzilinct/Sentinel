@@ -1,54 +1,32 @@
 {
-  "version": "1.21.1",
+  "version": "1.21.2",
   "model": "Argus",
-  "summary": "Your colour everywhere, privacy you can check, calmer updates and sharper look-alike checks",
+  "summary": "Seven brand sites proven and back, a faster first import, steadier sharing and a calmer colour change",
   "groups": [
-    {
-      "title": "Your colour",
-      "items": [
-        "Choosing a colour now changes the whole look: words, backgrounds, panels, the stars behind the dark pages, the island, the reading line, the website and the companion. Only the 3D mask and the danger, warning, caution and safe colours stay as they are.",
-        "The taskbar, Start menu and desktop Sentinel take the colour too, through Sentinel's own shortcuts only. A taskbar button that is already showing may keep gold until Sentinel starts again. Gold puts the normal icon back.",
-        "The window's title bar shows the page name alone, and its buttons follow the look.",
-        "Settings no longer shows switches that do nothing without the Windows app. The side bar fits small screens."
-      ]
-    },
-    {
-      "title": "Privacy",
-      "items": [
-        "A new privacy map lists every request that leaves your computer or browser: what, where, why, when and how to turn it off. A test fails if a new one appears without a line in it.",
-        "The companion sends a page's site and path only. The part after ? goes only when the address already looks wrong, never from a private window, and the part after # never goes.",
-        "For a link your pointer rests on, the companion also sends the words that link shows, so a link that names one site and opens another can be warned about. Never from a private window.",
-        "The companion uses Fast scanning unless you choose Delicate, and says who Delicate asks. Email protection is off until you turn it on; if it was on for you before, you are told once and can turn it back on.",
-        "Scan history is kept 30 days, not 90. Have I Been Pwned only ever gets the first 5 of 40 characters of a password's hash.",
-        "Contact links point to GitHub until the Sentinel website has its own address."
-      ]
-    },
-    {
-      "title": "Updates",
-      "items": [
-        "Updates install at a calm moment: when the computer has been idle for 5 minutes and nothing is full screen. A sign-out or shutdown leaves the update for the next start.",
-        "Updates download only the parts that changed.",
-        "No more PowerShell every minute while waiting to install, and the downloaded installer is removed afterwards."
-      ]
-    },
     {
       "title": "Detection",
       "items": [
-        "A link whose words name a protected brand but which opens an unrelated site is flagged again. More mail click counters stay silent.",
-        "Names in other alphabets are read more carefully: honest Thai, Indic and Persian names pass, and a Cyrillic copy of a brand glued to a word is named as the brand.",
-        "A whole name that is one ordinary word, such as telegramm.de, is not treated as a copy of a brand. On a risky ending it still is.",
-        "The website's own check now knows the popular sites list, so it agrees with the app on names like elle.com.",
-        "Nine brand domains that could not be proven to belong to their brand were removed from the list."
+        "Seven of the nine brand sites that 1.21.1 could not prove are back on the brand list, each proven the brand's own by its certificate, its registrant, its own old address or a link from its main site: google.org, verizon.net, dropbox.tech, shopify.engineering, facebook.design, stripe.press and openai.fund. adobe.design and binance.org stay out until they can be proven.",
+        "A real word on a risky ending, such as telegrams.top, no longer reads as a copy of a brand on that alone. It needs a second sign. telegramm.top and login.telegrams.top are still flagged.",
+        "On a phone, the first sentence of a result stays above the bottom bar."
       ]
     },
     {
-      "title": "Fixes",
+      "title": "Your colour",
       "items": [
-        "Marks beside results stay put when a page repaints instead of riding onto other rows.",
-        "The tray says whether live scanning is watching, and the mask dims while it is not.",
-        "Private windows are recognised in 13 languages.",
-        "The companion's result card takes your colour.",
-        "A fresh companion with nowhere to sign in opens its own settings page and says to open the Windows app."
+        "Pages that were open or visited with a colour chosen before 1.21.1 no longer show half in the old look and half in the new one while the app has not opened. They stay gold until the new look is worked out.",
+        "The greeting no longer jumps when the web fonts arrive: the stand-in font is sized to match.",
+        "The colour choices keep their hover while the page changes colour, even though the pointer has not moved.",
+        "The confirm-email bar on a phone fits on one line, and wraps at larger text so no button is cut.",
+        "A taskbar button that is already showing still keeps its old colour until Sentinel starts again. No way to change it from inside the running app was found."
+      ]
+    },
+    {
+      "title": "Speed and sharing",
+      "items": [
+        "The first import of the scam lists after install writes far less to the disk, so it finishes sooner.",
+        "A first visit to the phone app asks for the first-run choices earlier.",
+        "Sharing to Sentinel twice in a moment keeps both shares. A second share no longer deletes the first one's data before its page reads it."
       ]
     }
   ]
