@@ -1,36 +1,49 @@
-<!-- Generated from changelog/1.21.2.md by scripts/release-note.js: npm run build:note. Do not edit. -->
-<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.21.2">
+<!-- Generated from changelog/1.21.3.md by scripts/release-note.js: npm run build:note. Do not edit. -->
+<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.21.3">
   <div class="wrap">
-    <h2 id="relnote-title">New in Sentinel 1.21.2 Argus</h2>
-    <p class="relnote__lead">Seven brand sites proven and back, a faster first import, steadier sharing and a calmer colour change.</p>
+    <h2 id="relnote-title">New in Sentinel 1.21.3 Argus</h2>
+    <p class="relnote__lead">A faster first view of the phone app, steadier scrolling after a rest and calmer colour choices.</p>
     <p class="relnote__newer" data-release-newer hidden></p>
     <details class="relnote__all">
       <summary>Every change in this version</summary>
       <div class="relnote__groups">
         <section>
-          <h3>Detection</h3>
-          <ul>
-            <li>Seven of the nine brand sites that 1.21.1 could not prove are back on the brand list, each proven the brand's own by its certificate, its registrant, its own old address or a link from its main site: google.org, verizon.net, dropbox.tech, shopify.engineering, facebook.design, stripe.press and openai.fund. adobe.design and binance.org stay out until they can be proven.</li>
-            <li>A real word on a risky ending, such as telegrams.top, no longer reads as a copy of a brand on that alone. It needs a second sign. telegramm.top and login.telegrams.top are still flagged.</li>
-            <li>On a phone, the first sentence of a result stays above the bottom bar.</li>
-          </ul>
-        </section>
-        <section>
           <h3>Your colour</h3>
           <ul>
-            <li>Pages that were open or visited with a colour chosen before 1.21.1 no longer show half in the old look and half in the new one while the app has not opened. They stay gold until the new look is worked out.</li>
-            <li>The greeting no longer jumps when the web fonts arrive: the stand-in font is sized to match.</li>
-            <li>The colour choices keep their hover while the page changes colour, even though the pointer has not moved.</li>
-            <li>The confirm-email bar on a phone fits on one line, and wraps at larger text so no button is cut.</li>
-            <li>A taskbar button that is already showing still keeps its old colour until Sentinel starts again. No way to change it from inside the running app was found.</li>
+            <li>In the app, the colour choices keep their hover while the page changes colour, as they already did on the home page.</li>
           </ul>
         </section>
         <section>
-          <h3>Speed and sharing</h3>
+          <h3>Speed</h3>
           <ul>
-            <li>The first import of the scam lists after install writes far less to the disk, so it finishes sooner.</li>
-            <li>A first visit to the phone app asks for the first-run choices earlier.</li>
-            <li>Sharing to Sentinel twice in a moment keeps both shares. A second share no longer deletes the first one's data before its page reads it.</li>
+            <li>The phone app's first view, the Overview, is now sent as part of the page itself, so it no longer waits for the app's script before it can be drawn. Nothing was removed from it.</li>
+            <li>The page that holds your saved name is private and is not stored by the browser or the shared caches.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Live scanning</h3>
+          <ul>
+            <li>The first scroll after the page has been quiet is picked up sooner. The pixel reader now wakes on a key press or mouse move, not only on pixel movement.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Search results</h3>
+          <ul>
+            <li>A two-line result title keeps two lines when Sentinel adds its mark. A title that is too long ends in an ellipsis instead of growing a third line.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Phone</h3>
+          <ul>
+            <li>The confirm-email bar keeps its whole sentence on a 360 px screen, and fits at larger text sizes.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Behind the scenes</h3>
+          <ul>
+            <li>A flaky check on the home page's held card was fixed at its cause: a pointer at rest now keeps the held card whatever its edge does.</li>
+            <li>The wallet look-alike notification is now photographed in Windows' own notification list during testing, so it can be checked by eye.</li>
+            <li>Detection is now measured on a fixed sample of phishing addresses, with the rate for addresses on no list reported apart from list hits, so one release can be compared with the next.</li>
           </ul>
         </section>
       </div>
