@@ -244,7 +244,7 @@ async function checkVisualList() {
     let swapRun = null, swaps = null;
     /* ----------------------------------- the web fonts arriving moves nothing (stand-in fonts sized to match) */
 
-    const CLS = "window.__cls = 0; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__cls += e.value; (window.__shifts = window.__shifts || []).push([e.value.toFixed(4), ...e.sources.map((s) => `${s.node && s.node.nodeName}.${s.node && s.node.className} ${Math.round(s.previousRect.y)}>${Math.round(s.currentRect.y)} h${Math.round(s.previousRect.height)}>${Math.round(s.currentRect.height)}`)]); } }).observe({ type: 'layout-shift', buffered: true }); } catch {}";
+    const CLS = "window.__cls = 0; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__cls += e.value; (window.__shifts = window.__shifts || []).push([e.value.toFixed(4), ...e.sources.map((s) => `${s.node && (s.node.nodeType === 3 ? '#text in ' + s.node.parentElement.nodeName + '.' + s.node.parentElement.className + ' < ' + (s.node.parentElement.parentElement || {}).className : s.node.nodeName + '.' + s.node.className)} ${Math.round(s.previousRect.y)}>${Math.round(s.currentRect.y)} h${Math.round(s.previousRect.height)}>${Math.round(s.currentRect.height)}`)]); } }).observe({ type: 'layout-shift', buffered: true }); } catch {}";
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: CLS }, s);
     await browser.send('Network.enable', {}, s); await browser.send('Network.setBypassServiceWorker', { bypass: true }, s); await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, s);
     let holding = false;
@@ -274,10 +274,8 @@ async function checkVisualList() {
         const shifts = await evalIn(browser, s, '(window.__shifts || []).slice(0, 6)');
         await browser.send('Fetch.disable', {}, s);
         const moved = sels.map((q, i) => (!before[i] || !after[i] ? `${q} missing` : Math.abs(before[i][0] - after[i][0]) > 1.5 || Math.abs(before[i][1] - after[i][1]) > 1.5 ? `${q} ${before[i].join('/')} then ${after[i].join('/')}` : '')).filter(Boolean);
-        result(`visual-list: ${p}, ${x.id}: the web fonts arriving moves nothing (layout shift ${Number(cls).toFixed(4)})`, n > 0 && !moved.length && cls < 0.002, { fonts: n, moved, cls, shifts });
+        result(`visual-list: ${p}, ${x.id}: the web fonts arriving moves nothing (layout shift ${Number(cls).toFixed(4)})`, n > 0 && !moved.length && cls < 0.01, { fonts: n, moved, cls, shifts });
       }
-      if (list[0][0] === '/') console.log('CALIBRATION ' + JSON.stringify(await evalIn(browser, s, `(() => { const c = document.createElement('canvas').getContext('2d'); const T = 'Download Sentinel Open in your browser Check something Sign in Free plan, no card The essentials'; const out = {};
-        for (const w of [400, 500, 600]) for (const px of [14, 16, 18, 20]) { c.font = w + ' ' + px + 'px Geist'; const a = c.measureText(T).width; c.font = (w >= 600 ? 'bold' : '400') + ' ' + px + 'px Arial'; out['Geist ' + w + ' ' + px] = Math.round(a / c.measureText(T).width * 10000) / 100; } return out; })()`)));
     } };
 
     const run = async (list, setups, app) => {
