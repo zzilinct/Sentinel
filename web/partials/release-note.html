@@ -1,8 +1,8 @@
-<!-- Generated from changelog/1.21.3.md by scripts/release-note.js: npm run build:note. Do not edit. -->
-<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.21.3">
+<!-- Generated from changelog/1.21.4.md by scripts/release-note.js: npm run build:note. Do not edit. -->
+<section class="section--tight relnote" aria-labelledby="relnote-title" data-release-note="1.21.4">
   <div class="wrap">
-    <h2 id="relnote-title">New in Sentinel 1.21.3 Argus</h2>
-    <p class="relnote__lead">A faster first view of the phone app, steadier scrolling after a rest and calmer colour choices.</p>
+    <h2 id="relnote-title">New in Sentinel 1.21.4 Argus</h2>
+    <p class="relnote__lead">The app wears your colour all the way through, and the website holds still while it loads.</p>
     <p class="relnote__newer" data-release-newer hidden></p>
     <details class="relnote__all">
       <summary>Every change in this version</summary>
@@ -10,40 +10,29 @@
         <section>
           <h3>Your colour</h3>
           <ul>
-            <li>In the app, the colour choices keep their hover while the page changes colour, as they already did on the home page.</li>
+            <li>The app draws its mark in the title bar on the sign-in pages, and every colour now reaches the text, buttons and warning windows that had stayed cream.</li>
+            <li>Switch knobs follow your colour.</li>
           </ul>
         </section>
         <section>
-          <h3>Speed</h3>
+          <h3>The website</h3>
           <ul>
-            <li>The phone app's first view, the Overview, is now sent as part of the page itself, so it no longer waits for the app's script before it can be drawn. Nothing was removed from it.</li>
-            <li>The page that holds your saved name is private and is not stored by the browser or the shared caches.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Live scanning</h3>
-          <ul>
-            <li>The first scroll after the page has been quiet is picked up sooner. The pixel reader now wakes on a key press or mouse move, not only on pixel movement.</li>
+            <li>The greeting and the Check page no longer jump when fonts load.</li>
+            <li>At Larger text on a phone, the bottom bar no longer covers lines or answers, and nothing is cut off or overflowing.</li>
+            <li>Keyboard focus lands on the answer heading after a quick check.</li>
           </ul>
         </section>
         <section>
           <h3>Search results</h3>
           <ul>
-            <li>A two-line result title keeps two lines when Sentinel adds its mark. A title that is too long ends in an ellipsis instead of growing a third line.</li>
-          </ul>
-        </section>
-        <section>
-          <h3>Phone</h3>
-          <ul>
-            <li>The confirm-email bar keeps its whole sentence on a 360 px screen, and fits at larger text sizes.</li>
+            <li>A sweep of page widths proves Sentinel's marks never make a Bing title taller.</li>
           </ul>
         </section>
         <section>
           <h3>Behind the scenes</h3>
           <ul>
-            <li>A flaky check on the home page's held card was fixed at its cause: a pointer at rest now keeps the held card whatever its edge does.</li>
-            <li>The wallet look-alike notification is now photographed in Windows' own notification list during testing, so it can be checked by eye.</li>
-            <li>Detection is now measured on a fixed sample of phishing addresses, with the rate for addresses on no list reported apart from list hits, so one release can be compared with the next.</li>
+            <li>A new check photographs every app page in four colours, light and dark, on a phone and a computer, and fails if anything is missing, hidden or still gold.</li>
+            <li>A new check lists every visual detail of the website and fails when one is missing, hidden, clipped or covered.</li>
           </ul>
         </section>
       </div>
