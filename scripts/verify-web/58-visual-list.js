@@ -147,7 +147,7 @@ async function audit(items, sweep, phone, dark, bottomBar) {
     const cs = getComputedStyle(e);
     if (/hidden|clip/.test(cs.overflowX) && e.scrollWidth > e.clientWidth + 2 && !e.matches('canvas, img, svg')) return `its words are cut (${e.scrollWidth} in ${e.clientWidth})`;
     const vx = Math.max(r.left, 0), vy = Math.max(r.top, 0), vr = Math.min(r.right, W), vb = Math.min(r.bottom, innerHeight);
-    if (vr - vx < 1 || vb - vy < 1) return 'not in the window after scrolling to it';
+    if (vr - vx < 1 || vb - vy < 1) return `not in the window after scrolling to it (top ${Math.round(r.top)}, bottom ${Math.round(r.bottom)}, left ${Math.round(r.left)}, right ${Math.round(r.right)}, window ${W} by ${innerHeight}, scrolled ${Math.round(scrollY)})`;
     const top = document.elementFromPoint((vx + vr) / 2, (vy + vb) / 2);
     if (top && !(e.contains(top) || top.contains(e) || (top.closest('a, button, label') && top.closest('a, button, label').contains(e)) || (top.closest('.m3, [data-mask3d]') && top.closest('.m3, [data-mask3d]') === e.closest('.m3, [data-mask3d]')))) return `under ${name(top)}`;
     return '';
@@ -273,8 +273,6 @@ async function checkVisualList() {
         const moved = sels.map((q, i) => (!before[i] || !after[i] ? `${q} missing` : Math.abs(before[i][0] - after[i][0]) > 1.5 || Math.abs(before[i][1] - after[i][1]) > 1.5 ? `${q} ${before[i].join('/')} then ${after[i].join('/')}` : '')).filter(Boolean);
         result(`visual-list: ${p}, ${x.id}: the web fonts arriving moves nothing (layout shift ${Number(cls).toFixed(4)})`, n > 0 && !moved.length && cls < 0.002, { fonts: n, moved, cls });
       }
-      if (list[0][0] === '/') console.log('CALIBRATION ' + JSON.stringify(await evalIn(browser, s, `(() => { const c = document.createElement('canvas').getContext('2d'); const T = 'The internet wears masks. Sentinel sees through them. Good evening, Ada Check something Paste a link, a message or a whole email'; const out = {};
-        for (const [real, fb] of [['Newsreader', 'Georgia'], ['Geist', 'Arial'], ['Geist Mono', 'Consolas']]) for (const px of [14, 16, 20, 28, 36, 48, 64]) { c.font = '400 ' + px + 'px "' + real + '"'; const a = c.measureText(T).width; c.font = '400 ' + px + 'px ' + fb; out[real + ' ' + px] = Math.round(a / c.measureText(T).width * 10000) / 100; } return out; })()`)));
     } };
 
     const run = async (list, setups, app) => {
