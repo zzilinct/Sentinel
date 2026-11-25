@@ -183,7 +183,8 @@ body.app::before { opacity: .6; }
 .ask__says { max-width: 70ch; font-size: var(--t-ui); line-height: 1.6; color: var(--text-2); }
 .ask__says:empty, .ask__try[hidden] { display: none; }
 /* The first thing anyone sees here: what the box takes, each one a press away from an example. */
-.ask__try { max-width: 64ch; font-size: var(--t-ui); line-height: 1.75; color: var(--muted); }
+/* In em, not ch: a ch is the width of a 0 in the face drawn, so the stand-in and the real font wrapped this line differently. */
+.ask__try { max-width: 38em; font-size: var(--t-ui); line-height: 1.75; color: var(--muted); }
 .ask__try button {
   padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: var(--gold-300);
   text-decoration: underline; text-decoration-color: rgb(var(--gold-rgb) / .35); text-decoration-thickness: 1px; text-underline-offset: 4px;
