@@ -100,8 +100,10 @@ async function probe(items, ctx) {
   const alphaOf = (c) => { const m = /\/\s*([\d.]+)\s*\)$|rgba\([^)]*,\s*([\d.]+)\)$/.exec(c); return m ? parseFloat(m[1] || m[2]) : 1; };
   for (const it of items) {
     if ((it.only === 'desktop' && ctx.phone) || (it.only === 'phone' && !ctx.phone) || (it.only === 'dark' && ctx.theme !== 'dark')) continue;
-    let els = [...document.querySelectorAll(it.sel)];
     const need = it.n || 1;
+    // A part a page draws once its own script has come (the first visit to a page) is given a second and a half.
+    let els = [];
+    for (let k = 0; k < 30; k++) { els = [...document.querySelectorAll(it.sel)]; if (els.length >= need) break; await new Promise((r) => setTimeout(r, 50)); }
     if (els.length < need) { out.push(`${it.what}: missing (${els.length} of ${need} for ${it.sel})`); continue; }
     if (it.exists) continue;
     els = els.slice(0, it.all ? els.length : 1);
