@@ -26,8 +26,10 @@ test('1.21.3: the same addresses give the same sample id, and a different set a 
 
 test('1.21.3: the evaluation scores the frozen sample and reports the unlisted rate apart from list hits', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'evaluate-modes.js'), 'utf8');
-  assert.match(src, /unlisted \(rules alone\)/);
-  assert.match(src, /listed by a list/);
+  assert.match(src, /RULES ALONE \(no list loaded/);
+  assert.ok(src.indexOf('RULES ALONE (no list loaded') < src.indexOf('feeds.refreshAll'), 'the comparable pass runs before any list is loaded');
+  assert.match(src, /verdict digest/);
+  assert.match(src, /on a list \(moves with the lists\)/);
   assert.match(src, /fs\.writeFileSync\(MISSES, missed\.map\(defang\)/, 'misses are written defanged too');
   const yml = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'evaluate.yml'), 'utf8');
   assert.match(yml, /--phish scripts\/evaluate-phish\.frozen\.txt/);

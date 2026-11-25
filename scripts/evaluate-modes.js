@@ -58,12 +58,6 @@ async function main() {
   const engine = require('../server/lib/scan/engine');
   const SAFE = require('./evaluate-sites.json');
 
-  console.log('Loading the public threat lists (text files of addresses)...');
-  await feeds.refreshAll({ force: true });
-  for (const table of ['feed_urls', 'feed_hosts']) db.prepare(`DELETE FROM ${table} WHERE source = 'openphish'`).run();
-  const loaded = db.prepare('SELECT (SELECT COUNT(*) FROM feed_hosts) + (SELECT COUNT(*) FROM feed_urls) AS n').get().n;
-  console.log(`  ${loaded.toLocaleString()} listed hosts and addresses loaded; OpenPhish held out\n`);
-
   const feedText = PHISH_IN ? fs.readFileSync(PHISH_IN, 'utf8') : await (await fetch('https://openphish.com/feed.txt', { signal: AbortSignal.timeout(30000) })).text();
   const phish = parse(feedText).slice(0, 300);
   console.log(`Phishing sample ${sampleId(phish)}: ${phish.length} addresses, ${PHISH_IN ? 'a frozen file' : "today's feed"}\n`);
@@ -98,19 +92,46 @@ async function main() {
     const firstPerDomain = new Map();
     for (const v of okP) if (v.domain && !firstPerDomain.has(v.domain)) firstPerDomain.set(v.domain, v);
     const domCaught = [...firstPerDomain.values()].filter((v) => v.overall.badge).length;
-    // A list hit says the address is known from another list; an unlisted one is judged by the rules alone, so it is the
-    // number that tells whether a release got better. Listed ones change as the other lists do.
+    // A list hit says the address is known from another list. Which addresses the lists know changes from one run to the
+    // next (it was 278 of 300 on one run and 45 on another, same sample), so only RULES ALONE above compares releases.
     const known = (v) => Boolean(v.knowledge && v.knowledge.matches.length);
     const listed = okP.filter(known);
     const unlisted = okP.filter((v) => !known(v));
     const flagged = (vs) => vs.filter((v) => v.overall.badge).length;
-    console.log(`  listed by a list       ${flagged(listed)}/${listed.length} = ${pct(flagged(listed), listed.length)}`);
-    console.log(`  unlisted (rules alone) ${flagged(unlisted)}/${unlisted.length} = ${pct(flagged(unlisted), unlisted.length)}`);
+    console.log(`  on a list (moves with the lists) ${flagged(listed)}/${listed.length} = ${pct(flagged(listed), listed.length)}`);
+    console.log(`  on no list             ${flagged(unlisted)}/${unlisted.length} = ${pct(flagged(unlisted), unlisted.length)}`);
+    const bySource = {};
+    for (const v of listed) for (const s of new Set(v.knowledge.matches.map((m) => m.source))) bySource[s] = (bySource[s] || 0) + 1;
+    console.log(`  list hits by list      ${Object.entries(bySource).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${s} ${n}`).join(', ') || 'none'}`);
     console.log(`  by domain             ${domCaught}/${firstPerDomain.size} = ${pct(domCaught, firstPerDomain.size)}   (one address per domain)`);
     console.log(`  legitimate left alone ${okL.length - falseAlarms.length}/${okL.length} = ${pct(okL.length - falseAlarms.length, okL.length)}${falseAlarms.length ? `   false alarms: ${falseAlarms.map((v) => v.host).join(', ')}` : ''}`);
     console.log(`  right overall         ${success}/${okP.length + okL.length} = ${pct(success, okP.length + okL.length)}`);
     console.log(`  time per address      median ${p.median} ms, 95th percentile ${p.p95} ms\n`);
   };
+
+  // The comparable number: the same frozen addresses scored with NO list loaded (the database is fresh, so the list tables
+  // are empty). Only this commit's rules and the committed Sentinel database decide it, so two runs on one commit match;
+  // the digest of every verdict is printed to prove it. The list-backed numbers below move with the public lists.
+  for (const t of ['feed_hosts', 'feed_urls']) if (db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n) throw new Error(`rules-alone pass needs empty ${t}`);
+  const aloneP = await run('fast', phish, { research: false }, 16);
+  const aloneL = await run('fast', legit, { research: false }, 16);
+  const aloneFlag = aloneP.verdicts.filter((v) => v && v.overall.badge).length;
+  const aloneKept = aloneL.verdicts.filter((v) => v && !v.overall.badge).length;
+  const digest = require('crypto').createHash('sha256').update([...aloneP.verdicts, ...aloneL.verdicts].map((v) => (v ? v.overall.badge || '-' : '?')).join(',')).digest('hex').slice(0, 12);
+  console.log(`RULES ALONE (no list loaded; comparable between releases)
+  phishing flagged      ${aloneFlag}/${phish.length} = ${pct(aloneFlag, phish.length)}
+  legitimate left alone ${aloneKept}/${legit.length} = ${pct(aloneKept, legit.length)}
+  verdict digest        ${digest}
+`);
+
+  console.log('Loading the public threat lists (text files of addresses)...');
+  await feeds.refreshAll({ force: true });
+  for (const table of ['feed_urls', 'feed_hosts']) db.prepare(`DELETE FROM ${table} WHERE source = 'openphish'`).run();
+  const loaded = db.prepare('SELECT (SELECT COUNT(*) FROM feed_hosts) + (SELECT COUNT(*) FROM feed_urls) AS n').get().n;
+  console.log(`  ${loaded.toLocaleString()} listed hosts and addresses loaded; OpenPhish held out\n`);
+  const snapshot = db.prepare("SELECT source, entries, ok, fetched_at FROM feed_status WHERE substr(source, 1, 1) != '_' ORDER BY source").all();
+  console.log(`  list snapshot ${new Date().toISOString().slice(0, 10)}: ${snapshot.filter((r) => r.ok).length}/${snapshot.length} lists answered; ${snapshot.map((r) => `${r.source} ${r.ok ? r.entries : 'failed'}`).join(', ')}
+`);
 
   const fastP = await run('fast', phish, { research: false }, 16);
   const fastL = await run('fast', legit, { research: false }, 16);
