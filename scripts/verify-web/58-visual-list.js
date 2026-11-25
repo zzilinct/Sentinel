@@ -278,6 +278,9 @@ async function checkVisualList() {
         await until(browser, s, ready, 30000);
         await sleep(1200);
         const before = await boxes(sels);
+        const tree = () => evalIn(browser, s, `[...document.querySelectorAll('#view *, .hero *')].map((e) => { let y = 0; for (let p = e; p; p = p.offsetParent) y += p.offsetTop; return [e.tagName + '.' + String(e.className).slice(0, 24), y, e.offsetHeight]; })`);
+        const treeBefore = await tree();
+        if (p === '/app/check') await shot(browser, s, `list-fonts-held-${x.id}`);
         await evalIn(browser, s, 'window.__cls = 0; window.__shifts = []; true');
         holding = false;
         const n = held.length;
@@ -285,11 +288,13 @@ async function checkVisualList() {
         await evalIn(browser, s, 'document.fonts.ready.then(() => true)', { awaitPromise: true });
         await sleep(1200);
         const after = await boxes(sels);
+        const treeAfter = await tree();
+        const changed = treeBefore.map((b, i) => (treeAfter[i] && (Math.abs(b[1] - treeAfter[i][1]) > 1.5 || Math.abs(b[2] - treeAfter[i][2]) > 1.5) ? `${b[0]} y ${b[1]}>${treeAfter[i][1]} h ${b[2]}>${treeAfter[i][2]}` : '')).filter(Boolean).slice(0, 8);
         const cls = await evalIn(browser, s, 'window.__cls');
         const shifts = await evalIn(browser, s, '(window.__shifts || []).slice(0, 6)');
         await browser.send('Fetch.disable', {}, s);
         const moved = sels.map((q, i) => (!before[i] || !after[i] ? `${q} missing` : Math.abs(before[i][0] - after[i][0]) > 1.5 || Math.abs(before[i][1] - after[i][1]) > 1.5 ? `${q} ${before[i].join('/')} then ${after[i].join('/')}` : '')).filter(Boolean);
-        result(`visual-list: ${p}, ${x.id}: the web fonts arriving moves nothing (layout shift ${Number(cls).toFixed(4)})`, n > 0 && !moved.length && cls < 0.01, { fonts: n, moved, cls, shifts });
+        result(`visual-list: ${p}, ${x.id}: the web fonts arriving moves nothing (layout shift ${Number(cls).toFixed(4)})`, n > 0 && !moved.length && cls < 0.01, { fonts: n, moved, cls, shifts, changed });
       }
     } };
 
