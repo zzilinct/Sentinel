@@ -293,6 +293,18 @@ html.look-vt::view-transition-new(root) { animation: look-in .6s cubic-bezier(.2
   .nav.is-open .nav__actions { order: 4; padding-top: 8px; }
   .nav.is-open .nav__actions .btn { flex: 1; }
 }
+/* Larger text: the seven links no longer fit a laptop's width on one line each, so the menu opens sooner (as above). */
+:root[data-text="larger"] { @media (max-width: 1500px) {
+  .nav__links, .nav__actions { display: none; }
+  .nav__toggle { display: block; }
+  .nav.is-open { background: var(--panel); border-bottom-color: var(--line); }
+  .nav.is-open .nav__inner { flex-wrap: wrap; height: auto; padding: 16px 0 20px; }
+  .nav.is-open .nav__links, .nav.is-open .nav__actions { display: flex; width: 100%; margin: 0; }
+  .nav.is-open .nav__links { flex-direction: column; order: 3; padding-top: 12px; }
+  .nav.is-open .nav__actions { order: 4; padding-top: 8px; }
+  .nav.is-open .nav__actions .btn { flex: 1; }
+} }
+.nav__links a { white-space: nowrap; }
 
 /* ----------------------------------------------------------------- buttons */
 
@@ -317,6 +329,8 @@ html.look-vt::view-transition-new(root) { animation: look-in .6s cubic-bezier(.2
   isolation: isolate;
   overflow: hidden;
 }
+/* A flex or grid cell must not squeeze a button below its words: overflow hidden would cut them. */
+.btn { flex-shrink: 0; }
 .btn:hover { color: var(--gold-200); }
 /* Pressed into the surface, as a soft key would be. */
 .btn:active { transform: scale(.985); box-shadow: var(--press); }
@@ -517,9 +531,9 @@ path[fill="currentColor"][fill-rule="evenodd"] {
 .mask-card li { display: flex; gap: 10px; }
 .mask-card li::before { content: ''; flex: none; width: 4px; height: 4px; margin-top: 10px; border-radius: 50%; background: var(--c); }
 
-.severity { margin-top: 26px; display: flex; gap: 6px; }
+.severity { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 6px; }
 .severity button {
-  flex: 1; height: 34px; border-radius: var(--r-sm); border: 0; cursor: pointer;
+  flex: 1 0 auto; min-height: 34px; padding: 0 10px; border-radius: var(--r-sm); border: 0; cursor: pointer;
   background: rgb(var(--ink) / .04); box-shadow: inset 0 0 0 1px var(--line);
   color: var(--muted); font: 500 var(--t-label) var(--sans); transition: background .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease);
 }
@@ -665,7 +679,8 @@ path[fill="currentColor"][fill-rule="evenodd"] {
   .ledger__table td { padding: 6px 3px 13px; overflow-wrap: anywhere; font-size: var(--t-note); }
   .ledger__table .ledger__ask th { padding-top: 26px; }
   .ledger__ask small { max-width: none; }
-  .ledger__table .btn { padding-inline: 6px; width: 100%; }
+  /* Four plans share a phone's width: at Larger text a plan's name wraps inside its button instead of being cut. */
+  .ledger__table .btn { padding: 8px 6px; width: 100%; height: auto; min-height: 36px; white-space: normal; line-height: 1.15; text-align: center; }
   .ledger__masks { gap: 1px; }
   .ledger__masks svg { width: 24px; height: 24px; }
   .pricing__note { padding: 20px 18px 24px; }

@@ -511,7 +511,9 @@ test('1.21.1: the overview, Settings, the side bar and the camera, as a person m
   // A laptop's height fits the side bar; a phone's result stops above its bar.
   const app = read('web', 'assets', 'css', 'app.css');
   assert.match(app, /@media \(min-width: 901px\) and \(max-height: 900px\) \{[\s\S]*?\.usage-mini \.meter \{ display: none; \}/);
-  assert.match(app, /html \{ scroll-padding-bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\); \}/);
+  // The bar's real height (app.js tells it as --bar), so a scrolled-to line stops above a bar made taller by Larger text.
+  assert.match(app, /html \{ scroll-padding-bottom: calc\(var\(--bar, 76px\) \+ 12px\); \}/);
+  assert.match(read('web', 'assets', 'js', 'app.js'), /setProperty\('--bar'/);
   // The camera lets go when the page is hidden.
   assert.match(read('web', 'assets', 'js', 'app', 'check.js'), /if \(!el\.isConnected \|\| document\.hidden\) \{ stop\(\); return; \}/);
 });

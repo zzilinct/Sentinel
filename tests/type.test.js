@@ -102,7 +102,7 @@ test('Geist and Geist Mono are cut to the letters Sentinel shows, and never lose
 test('nothing shifts when a font arrives: swap, with stand-ins drawn to the same metrics', () => {
   assert.equal((fontsCss.match(/font-display: swap/g) || []).length, faces.length);
   for (const family of ['Newsreader Stand-in', 'Geist Stand-in', 'Geist Mono Stand-in']) {
-    assert.match(fontsCss, new RegExp(`font-family: '${family}'; src: local\\('[^']+'\\); size-adjust: [\\d.]+%; ascent-override: [\\d.]+%; descent-override: [\\d.]+%`), family);
+    assert.match(fontsCss, new RegExp(`font-family: '${family}'; (font-weight: [\\d ]+; )?src: (local\\('[^']+'\\)(, )?)+; size-adjust: [\\d.]+%; ascent-override: [\\d.]+%; descent-override: [\\d.]+%`), family);
     assert.match(fontsCss, new RegExp(`--(display|sans|mono): [^;]*'${family}'`), `${family} is not in a stack`);
   }
 });
