@@ -76,8 +76,21 @@ document.documentElement.classList.add('js');
     bar.className = 'frame';
     bar.setAttribute('aria-hidden', 'true');
     // The mark as the site draws it (masks.js), or as the page's own logo has it on the few pages without masks.js.
-    var M = window.SentinelMasks, logo = document.querySelector('.logo__mark svg');
-    bar.innerHTML = '<span class="frame__mark">' + (M && M.svg ? M.svg('logo') : logo ? logo.outerHTML : '') + '</span><b>Sentinel</b><span class="frame__page"></span>';
+    // The sign-in pages load no masks.js (it is the site's weight, not theirs), so in the window it is fetched here: a
+    // title bar with no mark in it is what a new person saw first.
+    bar.innerHTML = '<span class="frame__mark"></span><b>Sentinel</b><span class="frame__page"></span>';
+    var slot = bar.firstChild;
+    var mark = function () {
+      var M = window.SentinelMasks, logo = document.querySelector('.logo__mark svg');
+      slot.innerHTML = M && M.svg ? M.svg('logo') : logo ? logo.outerHTML : '';
+    };
+    if (window.SentinelMasks) mark();
+    else {
+      var js = document.createElement('script');
+      js.src = '/assets/js/masks.js';
+      js.onload = mark;
+      document.head.appendChild(js);
+    }
     var page = bar.lastChild;
     var name = function () { var t = document.title.replace(/\s*[-|·–]\s*Sentinel\s*$/, '').trim(); page.textContent = t && t !== 'Sentinel' ? t : ''; };
     name();

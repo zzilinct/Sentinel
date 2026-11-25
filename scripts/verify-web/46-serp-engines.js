@@ -64,6 +64,11 @@ PAGES['www.bing.com/search/long'] = page('long title - Search', `<style>#b_resul
 const TWO = 'Wikipedia, the free encyclopedia that anyone';
 PAGES['www.bing.com/search/two'] = page('two lines - Search', `<style>#b_results { font: 18px/24px monospace; width: 25ch; padding: 0; list-style: none; } #b_results h2 { font: inherit; }</style><ol id="b_results">
   <li class="b_algo"><h2><a target="_blank" href="https://www.bing.com/ck/a?!&amp;&amp;p=436ed1a9a09f655b&amp;ptn=3&amp;ver=2&amp;hsh=4&amp;u=a1${Buffer.from(HONEST[0]).toString('base64url')}&amp;ntb=1">${TWO}</a></h2></li></ol>`);
+// Thirty-five titles of one text in 35 widths, 4 px apart (a title of two lines, the width at which its second line is
+// nearly full, falls in a few of them), in a proportional font (a live Bing title wrapped once its mark was
+// in, run 44430566186, and the title was never named): whatever the width, the marks must not make a title taller.
+const SWEEP = Array.from({ length: 35 }, (_, i) => `<li class="b_algo" style="width: ${150 + i * 4}px"><h2><a target="_blank" href="https://www.bing.com/ck/a?!&amp;&amp;p=436ed1a9a09f655b&amp;ptn=3&amp;ver=2&amp;hsh=4&amp;u=a1${Buffer.from(HONEST[0]).toString('base64url')}&amp;ntb=1">${LONG}</a></h2></li>`).join('');
+PAGES['www.bing.com/search/sweep'] = page('widths - Search', `<style>#b_results { font: 12px/16px Arial, sans-serif; padding: 0; list-style: none; } #b_results h2 { font: inherit; margin: 0 0 6px; }</style><ol id="b_results">${SWEEP}</ol>`);
 const ENGINES = [
   ['Google', 'www.google.com/search?q=paypal+login'],
   ['Google in South Africa (google.co.za)', 'www.google.co.za/search?q=paypal+login'],
@@ -235,6 +240,20 @@ async function checkSerpEngines() {
     await shot(browser, s, 'serp-engines-bing-two-line-title');
     result('serp-engines: a Bing title of two lines keeps to two once its mark is in (it ends in an ellipsis), and the mark stays inside it',
       Boolean(two && two.marked && two.own === 2 && two.lines === 2 && two.inside), two);
+
+    await goto(browser, s, 'https://www.bing.com/search/sweep?q=wikipedia');
+    let sweep = null;
+    for (let i = 0; i < 60 && !(sweep && sweep.marked >= 35); i++) {
+      await sleep(250);
+      sweep = await evalIn(browser, s, `(() => {
+        const hs = [...document.querySelectorAll('#b_results h2')];
+        const grew = hs.filter((h) => { const g = h.querySelector('.sentinel-masks'); if (!g) return false; const was = h.getBoundingClientRect().height; g.style.setProperty('display', 'none', 'important');
+          const bare = h.getBoundingClientRect().height; g.style.removeProperty('display'); return was > bare + 1; }).map((h) => h.parentElement.style.width);
+        return { marked: hs.filter((h) => h.querySelector('.sentinel-masks')).length, grew };
+      })()`);
+    }
+    await sleep(500);
+    result('serp-engines: in 35 widths of one Bing title, no mark makes its title taller (no wrapped line, in any width)', Boolean(sweep && sweep.marked >= 35 && !sweep.grew.length), sweep);
 
     const opened = seen.filter((u) => LINK_HOSTS.some((h) => u.startsWith(`${h}/`)) || u.startsWith('www.bing.com/ck/') || u.startsWith('duckduckgo.com/l/'));
     result('serp-engines: no result was opened or fetched by the browser', !opened.length, { opened, pages: seen.length });

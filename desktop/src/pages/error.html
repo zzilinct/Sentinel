@@ -14,19 +14,19 @@
   .mark { width: 56px; height: 56px; margin: 0 auto 18px; color: #e5484d; }
   .mark svg { width: 100%; height: 100%; }
   h1 { margin: 0; font: 400 var(--t-title)/var(--lh-display) var(--display); }
-  p { margin: 8px 0 0; color: #a9a59b; font-size: var(--t-ui); }
-  code { display: block; margin: 14px 0 0; padding: 10px 12px; border-radius: 11px; background: #15171b; color: #c9c5bb; font: var(--t-note)/1.5 var(--mono); text-align: left; white-space: pre-wrap; word-break: break-word; }
+  p { margin: 8px 0 0; color: var(--muted, #a9a59b); font-size: var(--t-ui); }
+  code { display: block; margin: 14px 0 0; padding: 10px 12px; border-radius: 11px; background: #15171b; color: var(--text-2, #c9c5bb); font: var(--t-note)/1.5 var(--mono); text-align: left; white-space: pre-wrap; word-break: break-word; }
   .row { display: flex; gap: 10px; justify-content: center; margin-top: 22px; }
-  button { height: 40px; padding: 0 18px; border: 0; border-radius: 11px; cursor: pointer; font: 500 var(--t-ui) var(--sans); color: #e9e6df; background: #1e2126; }
+  button { height: 40px; padding: 0 18px; border: 0; border-radius: 11px; cursor: pointer; font: 500 var(--t-ui) var(--sans); color: var(--text, #e9e6df); background: color-mix(in srgb, var(--text, #e9e6df) 9%, var(--bg, #111215)); }
   button.primary { color: var(--on-acc); background: var(--acc-grad); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 14px 34px -14px rgb(var(--acc-rgb) / .75); }
   button:focus-visible { outline: 2px solid var(--acc-hi); outline-offset: 2px; }
-  small { display: block; margin-top: 16px; color: #8d8a82; font-size: var(--t-label); }
+  small { display: block; margin-top: 16px; color: var(--faint, #8d8a82); font-size: var(--t-label); }
   @media (prefers-color-scheme: light) {
     html, body { background: var(--bg, #f6f4ef); color: var(--text, #1c1b18); }
-    p { color: #55524b; }
-    small { color: #6a675f; }
-    code { background: #ebe7de; color: #2e2c27; }
-    button { color: #1c1b18; background: #e4e0d6; }
+    p { color: var(--muted, #55524b); }
+    small { color: var(--faint, #6a675f); }
+    code { background: color-mix(in srgb, var(--text, #1c1b18) 7%, var(--bg, #f6f4ef)); color: var(--text-2, #2e2c27); }
+    button { color: var(--text, #1c1b18); background: color-mix(in srgb, var(--text, #1c1b18) 10%, var(--bg, #f6f4ef)); }
     .mark { color: #b3261e; }
   }
 </style>

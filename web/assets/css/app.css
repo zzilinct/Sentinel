@@ -664,7 +664,7 @@ body:has(.auth)::before { animation: none; }
   background: var(--live-metal, linear-gradient(176deg, #f3dca4 0%, #d2ac63 34%, #a67e38 58%, #e9c983 76%, #a8803a 100%)); -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .auth__word:focus-visible { outline: 2px solid var(--live-hi, #e2c47f); outline-offset: 4px; }
-.auth__line { margin-top: 10px; max-width: 26em; font-size: var(--t-lead); line-height: 1.45; color: #c9c5bb; }
+.auth__line { margin-top: 10px; max-width: 26em; font-size: var(--t-lead); line-height: 1.45; color: rgb(var(--haze-rgb, 201 197 187) / .82); }
 
 .auth__form { position: relative; z-index: 1; display: flex; flex-direction: column; padding: 32px clamp(24px, 6vw, 80px); }
 .auth__inner { width: 100%; max-width: 400px; margin: auto; padding: 40px 0; }
@@ -986,7 +986,7 @@ label.seg__btn { display: inline-flex; align-items: center; }
 .consent__row input:checked { background: var(--gold-grad); box-shadow: inset 0 1px 0 rgb(255 255 255 / .4); }
 .switch { background: var(--bg-2); box-shadow: var(--press); }
 .switch:checked { background: var(--gold-grad); box-shadow: inset 0 1px 3px rgb(0 0 0 / .25); }
-.switch::after { background: linear-gradient(180deg, #fff, #e9e5dc); box-shadow: 2px 3px 6px rgb(0 0 0 / .35), -1px -1px 2px rgb(255 255 255 / .2); }
+.switch::after { background: linear-gradient(180deg, #fff, #e8e9ec); box-shadow: 2px 3px 6px rgb(0 0 0 / .35), -1px -1px 2px rgb(255 255 255 / .2); }
 .meter, .threat__meter { box-shadow: inset 1px 1px 3px var(--neu-lo); }
 .meter i { background: var(--gold-grad); }
 .avatar { box-shadow: inset 0 1px 0 rgb(255 255 255 / .4), var(--gold-glow); }
