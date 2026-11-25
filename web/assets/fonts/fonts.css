@@ -38,7 +38,9 @@
 @font-face { font-family: 'Geist Stand-in'; font-weight: 100 499; src: local('Arial'); size-adjust: 101.5%; ascent-override: 95.59%; descent-override: 28.06%; line-gap-override: 0%; }
 @font-face { font-family: 'Geist Stand-in'; font-weight: 500 599; src: local('Arial'); size-adjust: 103.9%; ascent-override: 95.59%; descent-override: 28.06%; line-gap-override: 0%; }
 @font-face { font-family: 'Geist Stand-in'; font-weight: 600 900; src: local('Arial Bold'), local('Arial-BoldMT'); size-adjust: 99%; ascent-override: 95.59%; descent-override: 28.06%; line-gap-override: 0%; }
-@font-face { font-family: 'Geist Stand-in Android'; src: local('Roboto'), local('Roboto Regular'), local('Roboto-Regular'); size-adjust: 102.15%; ascent-override: 95.44%; descent-override: 28.02%; line-gap-override: 0%; }
+@font-face { font-family: 'Geist Stand-in Android'; font-weight: 100 499; src: local('Roboto'), local('Roboto Regular'), local('Roboto-Regular'); size-adjust: 102.15%; ascent-override: 95.44%; descent-override: 28.02%; line-gap-override: 0%; }
+@font-face { font-family: 'Geist Stand-in Android'; font-weight: 500 599; src: local('Roboto Medium'), local('Roboto-Medium'); size-adjust: 102.15%; ascent-override: 95.44%; descent-override: 28.02%; line-gap-override: 0%; }
+@font-face { font-family: 'Geist Stand-in Android'; font-weight: 600 900; src: local('Roboto Bold'), local('Roboto-Bold'); size-adjust: 102.15%; ascent-override: 95.44%; descent-override: 28.02%; line-gap-override: 0%; }
 /* The wordmark is capitals at 72px and up, where the optical size is at its largest: its own width, not the text's. */
 @font-face { font-family: 'Wordmark Stand-in'; src: local('Georgia'); size-adjust: 92.5%; ascent-override: 76.71%; descent-override: 27.66%; line-gap-override: 0%; }
 @font-face { font-family: 'Wordmark Stand-in Android'; src: local('Noto Serif'), local('NotoSerif'), local('Noto Serif Regular'), local('NotoSerif-Regular'); size-adjust: 84.8%; ascent-override: 83.66%; descent-override: 30.16%; line-gap-override: 0%; }
