@@ -47,7 +47,7 @@ const PUBLIC = [
   ['/', 'home', "document.querySelector('.hero__unmask') && document.querySelector('.cosmos, .hero__word')", [
     ...NAV, ...H1, ...STARS, ...FOOT,
     ['hero name', '[data-hero-word]', { top: true }], ['hero words', '.hero__lede', { text: true, top: true }],
-    ['hero buttons', '.hero__cta .btn', { n: 2, text: true, top: true }], ['hero essentials', '.hero__fine li', { n: 3, text: true, top: true }],
+    ['hero buttons', '.hero .hero__cta .btn', { n: 2, text: true, top: true }], ['hero essentials', '.hero__fine li', { n: 3, text: true, top: true }],
     ['hero 3D mask', '[data-hero-mask] .mask3d--ready .mask3d__canvas', { canvas: true, top: true }], ['hero what Sentinel sees', '.hero__unmask', { bg: true }],
     ['demo heading', '.sec-demo h2', { text: true }], ['galaxy', '.galaxy__canvas', { canvas: true, bg: true }], ['galaxy heading', '.sec-galaxy h2', { text: true }],
     ['masks heading', '.sec-masks h2', { text: true }], ['masks 3D', '.plate__art .mask3d__canvas', { canvas: true, n: 3 }],
@@ -106,7 +106,8 @@ async function audit(items, sweep, phone, dark, bottomBar) {
   };
   const name = (e) => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/)[0] : ''}`;
   const why = async (e, it) => {
-    if (it.top) { scrollTo({ top: 0, behavior: 'instant' }); await raf(); }
+    scrollTo({ top: 0, behavior: 'instant' });
+    if (it.top && e.getBoundingClientRect().bottom <= innerHeight) await raf();
     else if (!it.bg) { e.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }); await raf(); }
     const r0 = e.getBoundingClientRect();
     const min = it.min || 4;
@@ -162,7 +163,8 @@ async function audit(items, sweep, phone, dark, bottomBar) {
       (f.only === 'desktop' && phone) || (f.only === 'phone' && !phone) || (f.dark && !dark)) continue;
     const all = [...document.querySelectorAll(sel)];
     // A held layer (the home page's first screen under the demo) is shown only where the person is looking at it.
-    if (f.top) { scrollTo({ top: 0, behavior: 'instant' }); await raf(); }
+    scrollTo({ top: 0, behavior: 'instant' });
+    if (f.top && all[0] && all[0].getBoundingClientRect().bottom <= innerHeight) await raf();
     else if (all[0] && !f.bg) { all[0].scrollIntoView({ block: 'center', behavior: 'instant' }); await raf(); }
     const here = all.filter(shown);
     if (!all.length) { bad.push(`${id}: missing (nothing matches ${sel})`); continue; }
@@ -242,7 +244,7 @@ async function checkVisualList() {
     let swapRun = null, swaps = null;
     /* ----------------------------------- the web fonts arriving moves nothing (stand-in fonts sized to match) */
 
-    const CLS = "window.__cls = 0; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: 'layout-shift', buffered: true }); } catch {}";
+    const CLS = "window.__cls = 0; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__cls += e.value; (window.__shifts = window.__shifts || []).push([e.value.toFixed(4), ...e.sources.map((s) => `${s.node && s.node.nodeName}.${s.node && s.node.className} ${Math.round(s.previousRect.y)}>${Math.round(s.currentRect.y)} h${Math.round(s.previousRect.height)}>${Math.round(s.currentRect.height)}`)]); } }).observe({ type: 'layout-shift', buffered: true }); } catch {}";
     await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: CLS }, s);
     await browser.send('Network.enable', {}, s); await browser.send('Network.setBypassServiceWorker', { bypass: true }, s); await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, s);
     let holding = false;
@@ -261,7 +263,7 @@ async function checkVisualList() {
         await until(browser, s, ready, 30000);
         await sleep(1200);
         const before = await boxes(sels);
-        await evalIn(browser, s, 'window.__cls = 0; true');
+        await evalIn(browser, s, 'window.__cls = 0; window.__shifts = []; true');
         holding = false;
         const n = held.length;
         for (const id of held) await browser.send('Fetch.continueRequest', { requestId: id }, s).catch(() => {});
@@ -269,10 +271,13 @@ async function checkVisualList() {
         await sleep(1200);
         const after = await boxes(sels);
         const cls = await evalIn(browser, s, 'window.__cls');
+        const shifts = await evalIn(browser, s, '(window.__shifts || []).slice(0, 6)');
         await browser.send('Fetch.disable', {}, s);
         const moved = sels.map((q, i) => (!before[i] || !after[i] ? `${q} missing` : Math.abs(before[i][0] - after[i][0]) > 1.5 || Math.abs(before[i][1] - after[i][1]) > 1.5 ? `${q} ${before[i].join('/')} then ${after[i].join('/')}` : '')).filter(Boolean);
-        result(`visual-list: ${p}, ${x.id}: the web fonts arriving moves nothing (layout shift ${Number(cls).toFixed(4)})`, n > 0 && !moved.length && cls < 0.002, { fonts: n, moved, cls });
+        result(`visual-list: ${p}, ${x.id}: the web fonts arriving moves nothing (layout shift ${Number(cls).toFixed(4)})`, n > 0 && !moved.length && cls < 0.002, { fonts: n, moved, cls, shifts });
       }
+      if (list[0][0] === '/') console.log('CALIBRATION ' + JSON.stringify(await evalIn(browser, s, `(() => { const c = document.createElement('canvas').getContext('2d'); const T = 'Download Sentinel Open in your browser Check something Sign in Free plan, no card The essentials'; const out = {};
+        for (const w of [400, 500, 600]) for (const px of [14, 16, 18, 20]) { c.font = w + ' ' + px + 'px Geist'; const a = c.measureText(T).width; c.font = (w >= 600 ? 'bold' : '400') + ' ' + px + 'px Arial'; out['Geist ' + w + ' ' + px] = Math.round(a / c.measureText(T).width * 10000) / 100; } return out; })()`)));
     } };
 
     const run = async (list, setups, app) => {
