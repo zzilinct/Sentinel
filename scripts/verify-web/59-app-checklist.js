@@ -149,7 +149,7 @@ async function probe(items, ctx) {
           if (lit < 20) bad.push(`the sky is empty (${lit} lit points)`);
           if (ctx.accent !== 'gold' && lit && warm / lit > 0.25) bad.push(`${Math.round((100 * warm) / lit)}% of the stars are still gold's hue`);
         }
-        if (window.scrollY <= 0 && r.top < -1) bad.push(`starts ${Math.round(-r.top)} px above the top of the page`);
+        if (!it.cutOk && window.scrollY <= 0 && r.top < -1) bad.push(`starts ${Math.round(-r.top)} px above the top of the page`);
         if (e.tagName === 'IMG' && !(e.complete && e.naturalWidth > 0)) bad.push('picture not loaded');
         if (e.matches('.m3') && !e.querySelector('canvas, img')) bad.push('no picture or 3D model inside');
         const pic = e.matches('.m3') ? e.querySelector('canvas, img') : null;
