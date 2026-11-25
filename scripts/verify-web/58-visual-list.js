@@ -77,12 +77,12 @@ const SIDE = [
 const APP = [
   ['/app', 'app-home', "document.querySelector('[data-quick]') && !document.querySelector('[data-recent] .skeleton')", [
     ...SIDE, ['check box', '[data-quick] input', {}], ['check button', '[data-quick] .btn', { text: true }],
-    ['line under the check box', '.scan-meta', { text: true }], ['corner mask', '.lux-mask .mask3d--ready .mask3d__canvas', { only: 'desktop', canvas: true }],
+    ['line under the check box', '.scan-meta', { text: true, clear: true }], ['corner mask', '.lux-mask .mask3d--ready .mask3d__canvas', { only: 'desktop', canvas: true }],
     ['usage cards', '.usage-list .usage-link', { n: 2 }]
   ]],
   ['/app/check', 'check', "document.querySelector('[data-form]')", [
     ...SIDE, ['check box', '.ask__text', {}], ['check button', '.ask__go', { text: true }], ['add a file', '.ask__add', { text: true }],
-    ['what goes here', '.ask__try', { text: true }], ['call line', '.ask__call', { text: true }]
+    ['what goes here', '.ask__try', { text: true, clear: true }], ['call line', '.ask__call', { text: true, clear: true }]
   ]],
   ['/app/history', 'history', "document.querySelector('#view h1') && !document.querySelector('#view .skeleton')", [...SIDE]],
   ['/app/settings', 'settings', "document.querySelectorAll('[data-set-row]').length > 20", [...SIDE, ['colour coins', '#accent .look__coin', { n: COINS }], ['text size', '#text-size [data-seg]', { n: 2, text: true }]]],
@@ -116,6 +116,12 @@ async function audit(items, sweep, phone, dark, bottomBar) {
     let o = 0;
     for (let k = 0; k < 15 && o < (it.op || 0.5); k++) { if (k) await new Promise((r) => setTimeout(r, 100)); o = 1; for (let p = e; p && p.nodeType === 1; p = p.parentElement) o *= Number(getComputedStyle(p).opacity); }
     if (o < (it.op || 0.5)) return `transparent (opacity ${o.toFixed(2)})`;
+    if (e.matches('input[placeholder]')) {
+      const cs = getComputedStyle(e); const g = document.createElement('canvas').getContext('2d');
+      g.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const room = e.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); const need = g.measureText(e.placeholder).width;
+      if (need > room + 1) return `its hint is cut ("${e.placeholder}" needs ${Math.round(need)} of ${Math.round(room)} px)`;
+    }
     if (it.oneLine && e.clientHeight - parseFloat(getComputedStyle(e).paddingTop) - parseFloat(getComputedStyle(e).paddingBottom) > parseFloat(getComputedStyle(e).fontSize) * 2) return `its words wrap onto a second line (${Math.round(r0.height)} px tall)`;
     if (it.text) {
       const cs = getComputedStyle(e);
@@ -188,6 +194,15 @@ async function audit(items, sweep, phone, dark, bottomBar) {
     if (bar && getComputedStyle(bar).position === 'fixed') {
       scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }); await raf();
       const floor = bar.getBoundingClientRect().top;
+      // What is scrolled to the end of the screen (a focused box, a heading) stops above the bar, however tall the bar is.
+      for (const [id, sel, f] of items) {
+        const e = f.clear && document.querySelector(sel);
+        if (!e) continue;
+        e.scrollIntoView({ block: 'end', behavior: 'instant' }); await raf();
+        const under = e.getBoundingClientRect().bottom - bar.getBoundingClientRect().top;
+        if (under > 0.5) bad.push(`${id}: scrolled to the end of the screen it is ${Math.round(under)} px under the bottom bar`);
+      }
+      scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }); await raf();
       let last = null, low = 0;
       for (const e of document.querySelectorAll('#main *')) {
         if (!shown(e) || e.closest('[aria-hidden=true], .toasts, .side, .topbar-mobile')) continue;
@@ -278,6 +293,22 @@ async function checkVisualList() {
       }
     } };
 
+    // The answer to a name written in Cyrillic letters as PayPal (made here from its letters, never written out): on a
+    // phone its first sentence is in the window above the bottom bar, at every text size, with its heading focused.
+    const answerAbove = async () => {
+      const idn = require('url').domainToASCII(`${String.fromCodePoint(0x440, 0x430, 0x443, 0x440, 0x430, 0x4cf)}.com`);
+      for (const x of PH) {
+        await setup(x, 1);
+        await goto(browser, s, `${server.base}/app/check?url=${encodeURIComponent(`https://${idn}/`)}&list=${Date.now()}`, "document.querySelector('#view [data-form]')");
+        const lead = await until(browser, s, "document.querySelector('[data-result] .result__lead')", 40000);
+        await sleep(900);
+        const m = await evalIn(browser, s, `(() => { const p = document.querySelector('[data-result] .result__lead'); if (!p) return null; const r = p.getBoundingClientRect(); const bar = document.querySelector('.side').getBoundingClientRect();
+          return { top: Math.round(r.top), bottom: Math.round(r.bottom), bar: Math.round(bar.top), tall: Math.round(r.height), window: innerHeight, focused: document.activeElement && document.activeElement.tagName }; })()`);
+        result(`visual-list: ${x.id}: the answer's first sentence stands above the bottom bar`, Boolean(lead && m && m.top >= 0 && m.bottom <= m.bar + 0.5 && m.focused === 'H2'), m);
+        await shot(browser, s, `list-answer-${x.id}`);
+      }
+    };
+
     const run = async (list, setups, app) => {
       for (const [p, name, ready, items] of list) {
         for (const x of setups) {
@@ -310,6 +341,7 @@ async function checkVisualList() {
     await signIn();
     for (const [row, d, ph] of some(APP)) await run([row], row[1] === 'app-home' ? SETUPS : [d, ph], true);
     await swapRun(swaps.filter((x) => x[0] !== '/'));
+    await answerAbove();
 
   } finally { await close(); await server.stop(); }
 }

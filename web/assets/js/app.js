@@ -45,6 +45,10 @@
   /* ================================================================ boot */
 
   async function boot() {
+    // The phone's bottom bar is taller at Larger text, and what scrolls into view must stop above the bar it really is
+    // (app.css reads --bar): its height, told as it changes.
+    const bar = $('.side');
+    if (bar && window.ResizeObserver) new ResizeObserver(() => document.documentElement.style.setProperty('--bar', `${bar.offsetHeight}px`)).observe(bar);
     // A share sent as /app/share?title=&text=&url= waits on this device, off the address bar, so that signing in first
     // (the address goes to the sign-in page) loses nothing and carries none of it along. Any other page empties the
     // share box: what was shared is not kept beyond the check it was for.
