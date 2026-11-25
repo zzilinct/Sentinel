@@ -41,6 +41,7 @@ const SHELL = [
   { what: 'logo mark in the top bar', sel: '.topbar-mobile .logo__mark svg', only: 'phone' },
   { what: 'every page in the side bar', sel: '.side__nav .side__link:not(.side__more)', n: 10, all: true, only: 'desktop' },
   { what: 'the five places in the bottom bar', sel: '.side__nav [data-phone]', n: 5, all: true, only: 'phone' },
+  { what: 'the bottom bar icons stand on one line', sel: '.side__nav [data-phone]', n: 5, all: true, only: 'phone', level: true },
   { what: 'search box', sel: '.side__search', only: 'desktop' },
   { what: 'theme button', sel: '.theme-toggle', only: 'desktop' },
   { what: 'account row and its avatar', sel: '.me .avatar', only: 'desktop' },
@@ -158,6 +159,12 @@ async function probe(items, ctx) {
         if (pic) { const pr = pic.getBoundingClientRect(); if (pr.width < 40 || pr.height < 40) bad.push('the model is too small to see'); if (pic.tagName === 'IMG' && !(pic.complete && pic.naturalWidth > 0)) bad.push('the model picture did not load'); }
       }
       if (bad.length) out.push(`${it.what}: ${bad.join(', ')} (${it.sel})`);
+    }
+    // level: the first thing in each (an icon) starts on one line, whatever the names under them take (the bottom bar's
+    // Live protection wraps to two lines at a phone's width, and centred it lifted its icon above the others').
+    if (it.level) {
+      const tops = els.map((x) => Math.round((x.firstElementChild || x).getBoundingClientRect().top));
+      if (Math.max(...tops) - Math.min(...tops) > 1) out.push(`${it.what}: not on one line (tops ${tops.join(', ')})`);
     }
   }
   if (document.documentElement.scrollWidth > innerWidth + 1) out.push(`the page scrolls sideways (${document.documentElement.scrollWidth} in ${innerWidth})`);

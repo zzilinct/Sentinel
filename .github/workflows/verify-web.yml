@@ -50,7 +50,7 @@ jobs:
         run: |
           python -m pip install --quiet qrcode pillow
           python scripts/verify-web-qr.py qr-samples
-      - run: node scripts/verify-web.js --skip share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level,app-checklist,visual-list --out verify-web
+      - run: node scripts/verify-web.js --skip share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level,app-checklist,visual-list,dig-colour,font-fit --out verify-web
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -83,10 +83,21 @@ jobs:
         id: chrome
         with:
           chrome-version: ${{ inputs.chrome_version }}
+      # The fonts Android has, installed on this runner from Google Fonts' own files (pinned), so the stand-ins for them are
+      # measured (scripts/verify-web/61-font-fit.js) and not scaled from the Windows ones.
+      - name: Install Roboto and Noto Serif
+        shell: pwsh
+        run: |
+          foreach ($f in @(@('roboto', 'Roboto[wdth,wght].ttf', 'Roboto'), @('notoserif', 'NotoSerif[wdth,wght].ttf', 'Noto Serif'))) {
+            $file = Join-Path $env:RUNNER_TEMP ($f[0] + '.ttf')
+            Invoke-WebRequest ('https://raw.githubusercontent.com/google/fonts/6ebe737e44fd64ee736bbc6feed6136a6dbfd222/ofl/' + $f[0] + '/' + [uri]::EscapeDataString($f[1])) -OutFile $file
+            Copy-Item $file (Join-Path (Join-Path $env:WINDIR 'Fonts') ($f[0] + '.ttf'))
+            New-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts' -Name ($f[2] + ' (TrueType)') -Value ($f[0] + '.ttf') -Force | Out-Null
+          }
       - run: node scripts/verify-web.js --only $env:CHECKS --out verify-web-features
         env:
           SENTINEL_CHROME: ${{ steps.chrome.outputs.chrome-path }}
-          CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level,app-checklist,visual-list' }}
+          CHECKS: ${{ inputs.checks || 'share,webchats,share-odd,webchats-odd,companion-a11y,companion-door,mask-rest,serp-engines,honest-result,calm-dig,downloads,pricing,download-page,hero-phone,auth-shell,settings,simple,states,first-choices,motion-level,app-checklist,visual-list,dig-colour,font-fit' }}
           CHECK_MINUTES: '25'
           REPEAT: ${{ inputs.repeat || '1' }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
