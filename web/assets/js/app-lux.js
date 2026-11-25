@@ -75,6 +75,9 @@
   function stage(el) {
     if (seen.has(el)) return;
     seen.add(el);
+    // Where focus already is (the answer's heading, which a quick scan hands focus to as it is drawn) is not hidden to
+    // enter: a hidden part drops focus, and the keyboard and screen reader user would be left on the page's body.
+    if (el.contains(document.activeElement) && document.activeElement !== document.body) return;
     // Inside a part that is itself entering, only list rows move on their own.
     const outer = el.parentElement && el.parentElement.closest('.lux-wait, .lux-in');
     if (outer && !el.matches('.list > li')) return;

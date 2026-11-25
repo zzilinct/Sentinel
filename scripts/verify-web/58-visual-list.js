@@ -299,7 +299,8 @@ async function checkVisualList() {
     } };
 
     // The answer to a name written in Cyrillic letters as PayPal (made here from its letters, never written out): on a
-    // phone its first sentence is in the window above the bottom bar, at every text size.
+    // phone its first sentence is in the window above the bottom bar, at every text size, and its heading has the focus,
+    // with motion on too (a part staged to enter is hidden, and a hidden part drops focus).
     const answerAbove = async () => {
       const idn = require('url').domainToASCII(`${String.fromCodePoint(0x440, 0x430, 0x443, 0x440, 0x430, 0x4cf)}.com`);
       for (const x of PH) {
@@ -309,7 +310,7 @@ async function checkVisualList() {
         await sleep(900);
         const m = await evalIn(browser, s, `(() => { const p = document.querySelector('[data-result] .result__lead'); if (!p) return null; const r = p.getBoundingClientRect(); const bar = document.querySelector('.side').getBoundingClientRect();
           return { top: Math.round(r.top), bottom: Math.round(r.bottom), bar: Math.round(bar.top), tall: Math.round(r.height), window: innerHeight, focused: document.activeElement && document.activeElement.tagName }; })()`);
-        result(`visual-list: ${x.id}: the answer's first sentence stands above the bottom bar`, Boolean(lead && m && m.top >= 0 && m.bottom <= m.bar + 0.5), m);
+        result(`visual-list: ${x.id}: the answer's first sentence stands above the bottom bar, its heading focused`, Boolean(lead && m && m.top >= 0 && m.bottom <= m.bar + 0.5 && m.focused === 'H2'), m);
         await shot(browser, s, `list-answer-${x.id}`);
       }
     };
@@ -325,6 +326,11 @@ async function checkVisualList() {
           const phone = x.size.mobile;
           const bad = await evalIn(browser, s, `(${audit})(${JSON.stringify(items)}, ${JSON.stringify(SWEEP)}, ${phone}, ${x.scheme === 'dark'}, ${app && phone})`, { awaitPromise: true });
           const look = await evalIn(browser, s, `({ accent: document.documentElement.dataset.accent || 'gold', text: document.documentElement.dataset.text || 'standard', status: ${STATUS} })`);
+          // A switch's knob is cream only in gold: in another colour it reads that colour (the Check's own gold-locked parts).
+          if (x.accent !== 'gold') {
+            const cream = await evalIn(browser, s, "[...document.querySelectorAll('.colour__switch, .switch')].filter((e) => getComputedStyle(e, '::after').backgroundImage.includes('233, 229, 220')).length");
+            if (cream) bad.push(`${cream} switch knob(s) still cream in ${x.accent}`);
+          }
           if (look.accent !== x.accent) bad.push(`the colour is ${look.accent}, not ${x.accent}`);
           if (app && look.text !== x.text) bad.push(`the text size is ${look.text}, not ${x.text}`);
           status[x.scheme] = status[x.scheme] || look.status;
