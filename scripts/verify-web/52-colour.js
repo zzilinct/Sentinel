@@ -368,18 +368,18 @@ async function checkColour() {
       const held = await until(browser, s, `(() => { const a = document.getAnimations().find((x) => x.effect && x.effect.pseudoElement === '::view-transition-new(root)'); if (!a) return null; a.pause(); a.currentTime = 200; return true; })()`, 3000);
       const during = held ? { ...(await hot()), vt: 'held open' } : null;
       await move(tx, ty);
-      // Two painted frames, not a wall-clock wait: a hover transition starts at the first frame after the style change, and on a
-      // loaded runner 120 ms can pass with no frame at all, so the read itself began the transition and saw its first instant
-      // (identity). The check is still that the next gem is hovered and lifting within the frames that follow the move.
-      await evalIn(browser, s, 'new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
+      // How long the next gem takes to start lifting once the pointer is on it, in frames, not a fixed wait: a fixed 120 ms
+      // was enough on most runs and not on a loaded runner. The lift must begin within the spring's own length (500 ms).
+      const lift = await evalIn(browser, s, `new Promise((r) => { const t0 = performance.now(); const g = document.querySelector('.swatch[data-accent="teal"] .swatch__gem');
+        const look = () => { const v = getComputedStyle(g).transform; if (v !== 'none' && v !== 'matrix(1, 0, 0, 1, 0, 0)') return r(Math.round(performance.now() - t0)); if (performance.now() - t0 > 1500) return r(null); requestAnimationFrame(look); }; look(); })`);
       const onward = held ? { ...(await hot()), vt: 'held open' } : null;
       await evalIn(browser, s, 'document.documentElement.getAnimations({ subtree: true }).forEach((a) => { try { a.play(); } catch (e) {} }); true');
       await sleep(1400);
       const after = await hot();
       const lifted = (h) => Boolean(h) && h.lift !== 'none' && h.lift !== 'matrix(1, 0, 0, 1, 0, 0)';
       result('colour: the pointer keeps its hover on a gem before, during and after the colour opens, and moving to the next gem hovers it at once',
-        Boolean(before) && before.id === 'sapphire' && lifted(before) && Boolean(during) && during.id === 'sapphire' && during.vt !== '' && Boolean(onward) && onward.id === 'teal' && lifted(onward) && onward.vt !== '' && Boolean(after) && after.id === 'teal' && lifted(after) && after.vt === '',
-        { before, during, onward, after, transitions: await evalIn(browser, s, 'window.__vts') });
+        Boolean(before) && before.id === 'sapphire' && lifted(before) && Boolean(during) && during.id === 'sapphire' && during.vt !== '' && Boolean(onward) && onward.id === 'teal' && lift !== null && lift <= 500 && lifted(onward) && onward.vt !== '' && Boolean(after) && after.id === 'teal' && lifted(after) && after.vt === '',
+        { before, during, onward, liftAfterMs: lift, after, transitions: await evalIn(browser, s, 'window.__vts') });
       await done();
     }
   } finally { await close(); files.server.close(); }
