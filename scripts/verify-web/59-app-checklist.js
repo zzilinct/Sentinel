@@ -169,6 +169,11 @@ async function probe(items, ctx) {
     if (it.level) {
       const tops = els.map((x) => Math.round((x.firstElementChild || x).getBoundingClientRect().top));
       if (Math.max(...tops) - Math.min(...tops) > 1) out.push(`${it.what}: not on one line (tops ${tops.join(', ')})`);
+      // The names under them too, where a name is words in the page (Check shows a short form drawn by CSS, which has no box to measure).
+      const words = els.map((x) => { const t = [...x.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim() && getComputedStyle(x).fontSize !== '0px'); if (!t) return null; const r = document.createRange(); r.selectNodeContents(t); return Math.round(r.getClientRects()[0].top); }).filter((v) => v != null);
+      if (words.length > 1 && Math.max(...words) - Math.min(...words) > 1) out.push(`${it.what}: the names are not on one line (tops ${words.join(', ')})`);
+      // A flex gap would count the short form's empty word as an item and drop its name below the rest (seen in 1.21.4's pictures).
+      if (els.some((x) => x.hasAttribute('data-short') && getComputedStyle(x).rowGap !== '0px')) out.push(`${it.what}: a gap under the icon moves the short name (Check) down`);
     }
   }
   if (document.documentElement.scrollWidth > innerWidth + 1) out.push(`the page scrolls sideways (${document.documentElement.scrollWidth} in ${innerWidth})`);
