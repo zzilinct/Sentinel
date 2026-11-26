@@ -71,6 +71,7 @@ const SPEC = [
   // [what, the real face, the stand-ins, weights, sizes, which text, letter-spacing]
   ['Newsreader headings', 'Newsreader', ['Newsreader Stand-in', 'Newsreader Stand-in Android'], [400], [21, 26, 36, 48, 72, 96], 'heads', '0'],
   ['hero wordmark', 'Newsreader', ['Wordmark Stand-in', 'Wordmark Stand-in Android'], [400], [72, 150, 250], 'word', '.035em'],
+  ['hero wordmark on a phone', 'Newsreader', ['Wordmark Phone Stand-in', 'Wordmark Phone Stand-in Android'], [400], [56, 62, 69], 'word', '.035em'],
   ['Geist', 'Geist', ['Geist Stand-in', 'Geist Stand-in Android'], [400, 500, 600], [12, 14, 16, 18], 'body', '0']
 ];
 
@@ -84,9 +85,9 @@ async function checkFit() {
     for (const r of rows) {
       const worst = Math.max(...r.errs.map((v) => (v == null ? 99 : Math.abs(v))));
       const base = Math.max(...r.base.map((v) => (v == null ? 99 : Math.abs(v))));
-      const asserted = r.what === 'hero wordmark' || (r.what === 'Geist' && (r.weight === 400 || !/Android/.test(r.stand)));
+      const asserted = r.what.startsWith('hero wordmark') || (r.what === 'Geist' && (r.weight === 400 || !/Android/.test(r.stand)));
       // The wordmark is one fixed word: exact. Text varies by what letters it has (two fair samples of the site's words differ by half a percent), so a percent.
-      const ok = r.loaded && worst <= (r.what === 'hero wordmark' ? 0.5 : 1) && base <= 1;
+      const ok = r.loaded && worst <= (r.what.startsWith('hero wordmark') ? 0.5 : 1) && base <= 1;
       result(`font-fit: ${r.what}: ${r.stand} at ${r.weight}: ${r.loaded ? `width ${worst}% off at worst, baseline ${base} px off` : 'not loaded on this machine'}${asserted ? '' : ' (said, not asserted)'}`, asserted ? ok : r.loaded, r);
     }
   } finally { await close(); await server.stop(); }
