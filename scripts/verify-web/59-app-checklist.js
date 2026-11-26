@@ -8,7 +8,11 @@
  *         drawn in gold's hue except the caution yellow and the warning orange (the status colours never move), and the
  *         colour's own tokens (--gold-*, --live*) must have moved: that is the "colour reaches everything" half. The
  *         Windows app's title bar (html.framed .frame, drawn by boot.js) is checked on the sign-in page and Check.
+ *         The phone's bottom bar keeps its icons on one line however many lines a name takes.
  *         A press on a colour coin draws the colour within 250 ms with no long task over 150 ms.
+ *         The other half of the list, the parts of the real Electron window a browser cannot draw (the title bar with the
+ *         page inside it, the tray icon, the taskbar button), is photographed on a Windows desktop by desktop-e2e.yml
+ *         (only: look, scripts/desktop-look-e2e.ps1): a part still gold in another colour fails there.
  *         Pictures: app-<page>-<size>-<theme>-<accent>-<text>.png; a failing line is named in the report.
  */
 const path = require('path');

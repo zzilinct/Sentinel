@@ -5,8 +5,10 @@
 #   What a photograph reads: the pixels of a part (its box from the page, or from UI Automation for the taskbar and the
 #   tray), the ones that carry a colour (saturated, not near black or white), and how many of those are gold's hue.
 #   Gold: nearly all of them. Another colour: almost none, and some of its own.
-#   The taskbar's button is drawn by Windows from Sentinel's shortcut, which the app re-casts for the new colour; a running
-#   window can keep the old one, so it is read live (said, not judged) and again after the app is started once more.
+#   The taskbar's button is drawn by Windows from Sentinel's window icon (live) and its shortcut (which the app re-casts
+#   for the new colour): read live, and again after the app is started once more.
+#   Signed in as a person would be (a new free account on the app's own server), the colour is pressed on the Overview's colour coins,
+#   the way a person presses it; the page, the app and the window follow.
 # Results go to $Out\results.txt; the script exits 1 when a check failed.
 param([string]$Installer = '', [string]$Out = 'e2e-look')
 $ErrorActionPreference = 'Continue'
@@ -18,23 +20,25 @@ Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @"
 using System; using System.Drawing;
 public static class Tint {
   // { pixels that carry a colour, of those how many are gold's hue (25 to 65 degrees) } inside a box of a picture.
-  static int[] Count(Func<int, int, Color> at, int w, int h, int x0, int y0, int bw, int bh) {
+  static int[] Count(Func<int, int, Color> at, int w, int h, int x0, int y0, int bw, int bh, float minS, float minL, int minA) {
     int coloured = 0, gold = 0;
     for (int y = Math.Max(0, y0); y < Math.Min(h, y0 + bh); y++) for (int x = Math.Max(0, x0); x < Math.Min(w, x0 + bw); x++) {
       Color c = at(x, y);
-      if (c.A < 128) continue;
+      if (c.A < minA) continue;
       float s = c.GetSaturation(), l = c.GetBrightness();
-      if (s < 0.3f || l < 0.15f || l > 0.9f) continue;
+      if (s < minS || l < minL || l > 0.92f) continue;
       coloured++;
       float hue = c.GetHue();
       if (hue >= 25 && hue <= 65) gold++;
     }
     return new[] { coloured, gold };
   }
-  public static int[] Box(Bitmap b, int x, int y, int w, int h) { return Count((px, py) => b.GetPixel(px, py), b.Width, b.Height, x, y, w, h); }
+  public static int[] Box(Bitmap b, int x, int y, int w, int h) { return Count((px, py) => b.GetPixel(px, py), b.Width, b.Height, x, y, w, h, 0.3f, 0.15f, 128); }
+  // A dimmed icon (the tray's, at 40%) over a dark flyout: paler and darker than the same icon at full strength.
+  public static int[] Soft(Bitmap b, int x, int y, int w, int h) { return Count((px, py) => b.GetPixel(px, py), b.Width, b.Height, x, y, w, h, 0.15f, 0.08f, 128); }
   // Electron's own bitmap of an icon: BGRA, colour already multiplied by alpha.
   public static int[] Bgra(byte[] d, int side) {
-    return Count((px, py) => { int i = (py * side + px) * 4; int a = d[i + 3]; if (a == 0) return Color.FromArgb(0, 0, 0, 0); return Color.FromArgb(a, Math.Min(255, d[i + 2] * 255 / a), Math.Min(255, d[i + 1] * 255 / a), Math.Min(255, d[i] * 255 / a)); }, side, side, 0, 0, side, side);
+    return Count((px, py) => { int i = (py * side + px) * 4; int a = d[i + 3]; if (a == 0) return Color.FromArgb(0, 0, 0, 0); return Color.FromArgb(a, Math.Min(255, d[i + 2] * 255 / a), Math.Min(255, d[i + 1] * 255 / a), Math.Min(255, d[i] * 255 / a)); }, side, side, 0, 0, side, side, 0.3f, 0.15f, 60);
   }
 }
 "@
@@ -46,19 +50,18 @@ function Judge($name, $accent, $r) {
   $ok = $c -ge 20 -and $(if ($accent -eq 'gold') { $frac -ge 0.8 } else { $frac -le 0.05 })
   Check "$name-$accent" $ok "$c pixels carry a colour, $g of them gold's hue ($frac)"
 }
-function Said($name, $accent, $r) { Say "  $name ($accent), read live, not judged: $($r[0]) pixels carry a colour, $($r[1]) of them gold's hue" }
 
 function Geometry {
   $o = ([string](Cdp 'main' @'
 (() => { const e = process.mainModule.require('electron'); const w = e.BrowserWindow.getAllWindows().find((x) => x.isVisible() && x.webContents.getURL().includes('127.0.0.1:4782')); if (!w) return ''; const r = e.screen.dipToScreenRect(w, w.getContentBounds()); return r.x + '|' + r.y; })()
 '@).value) -split '\|'
   $p = (Cdp '127.0.0.1:4782' @'
-(() => { const q = ['.frame__mark svg', '.auth__word', '.auth__inner .btn--gold']; return JSON.stringify({ d: devicePixelRatio, r: q.map((s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; }) }); })()
+(() => { const q = ['.frame__mark svg', '.side .logo__mark svg', '.scanbox .btn--gold']; return JSON.stringify({ d: devicePixelRatio, r: q.map((s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; }) }); })()
 '@).value
   if ($o.Count -ne 2 -or -not $p) { return $null }
   return @{ x = [double]$o[0]; y = [double]$o[1]; page = ($p | ConvertFrom-Json) }
 }
-$parts = @('title bar mark', 'the Sentinel word', 'Sign in button')
+$parts = @('title bar mark', 'side bar mark', 'Check button')
 
 # The window and its page, photographed, then each part read where the page says it is.
 function PhotographWindow($accent) {
@@ -76,17 +79,15 @@ function PhotographWindow($accent) {
   $bmp.Dispose()
 }
 
-# Chosen through the app's own bridge (what the page's colour picker calls, preload.js setLook), then the page reloaded: the
-# sign-in page has no picker of its own, and its colours come from the app's setting as it loads.
-$stamp = [long](([DateTimeOffset]::UtcNow).ToUnixTimeMilliseconds())
+# Pressed as a person presses it: the colour coin on the Overview (look-app.js draws it and tells the app, which recasts the
+# tray icon, the window's mark, the shortcuts and Windows' own buttons).
 function Choose($accent) {
-  $script:stamp += 1000
-  [void](Cdp '127.0.0.1:4782' "(() => { const t = $($script:stamp); window.sentinelDesktop.setLook({ mode: 'dark', accent: '$accent', text: 'standard', density: 'comfortable', at: { mode: t, accent: t, text: t, density: t } }).then(() => setTimeout(() => location.reload(), 50)); return true; })()")
-  [void](Until 20 { (Cdp '127.0.0.1:4782' "document.readyState + '|' + (document.documentElement.dataset.accent || 'gold')").value -eq "complete|$accent" })
+  $r = (Cdp '127.0.0.1:4782' "(() => { const c = document.querySelector('.look__coin:has(input[value=$accent])'); if (!c) return 'no coin'; c.click(); return 'pressed'; })()").value
+  [void](Until 20 { (Cdp '127.0.0.1:4782' "document.documentElement.dataset.accent || 'gold'").value -eq $accent })
   Start-Sleep 3
-  $r = (Cdp '127.0.0.1:4782' "document.documentElement.dataset.accent || 'gold'").value
-  Say "chosen $accent -> the page says $r"
-  return $r
+  $said = (Cdp '127.0.0.1:4782' "document.documentElement.dataset.accent || 'gold'").value
+  Say "chosen $accent ($r) -> the page says $said"
+  return $said
 }
 
 # The tray's icon as the app hands it to Windows (its own pixels), read from the main process.
@@ -119,12 +120,12 @@ function SentinelButton($classes, $pattern = 'Sentinel - *') {
   return $null
 }
 # The button's picture, read from a photograph of the screen: its middle part (the icon), not the highlight round it.
-function ReadButton($el, $name, $accent) {
+function ReadButton($el, $name, $accent, [switch]$Dim) {
   $r = $el.Current.BoundingRectangle
   Shot $name
   $bmp = [System.Drawing.Bitmap]::FromFile($script:lastShot)
   $x = [int]($r.X + $r.Width * 0.2); $y = [int]($r.Y + $r.Height * 0.1); $w = [int]($r.Width * 0.6); $h = [int]($r.Height * 0.7)
-  $res = [Tint]::Box($bmp, $x, $y, $w, $h)
+  $res = $(if ($Dim) { [Tint]::Soft($bmp, $x, $y, $w, $h) } else { [Tint]::Box($bmp, $x, $y, $w, $h) })
   $crop = $bmp.Clone((New-Object System.Drawing.Rectangle ([math]::Max(0, $x)), ([math]::Max(0, $y)), ([math]::Max(4, [math]::Min($w, $bmp.Width - $x))), ([math]::Max(4, [math]::Min($h, $bmp.Height - $y)))), $bmp.PixelFormat)
   $crop.Save((Join-Path $Out "$name-icon.png"), [System.Drawing.Imaging.ImageFormat]::Png); $crop.Dispose(); $bmp.Dispose()
   Say "  $name button '$($el.Current.Name)' at $([int]$r.X),$([int]$r.Y) $([int]$r.Width)x$([int]$r.Height)"
@@ -135,13 +136,13 @@ function DumpTaskbar {
 }
 # The tray: in the notification area, or behind its chevron (a new icon starts hidden there).
 function TrayButton {
-  $b = SentinelButton @('Shell_TrayWnd') 'Sentinel [0-9]*'
+  $b = SentinelButton @('Shell_TrayWnd') '*Sentinel [0-9]*'
   if ($b) { return $b }
   $chev = @(Buttons 'Shell_TrayWnd' | Where-Object { $_.Current.Name -like '*hidden icons*' -or $_.Current.Name -like '*Notification Chevron*' }) | Select-Object -First 1
   if ($chev) {
     try { ($chev.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)).Invoke() } catch { Say "  chevron: $($_.Exception.Message)" }
     Start-Sleep 2
-    return (SentinelButton @('TopLevelWindowForOverflowXamlIsland', 'NotifyIconOverflowWindow', 'Shell_TrayWnd') 'Sentinel [0-9]*')
+    return (SentinelButton @('TopLevelWindowForOverflowXamlIsland', 'NotifyIconOverflowWindow', 'Shell_TrayWnd') '*Sentinel [0-9]*')
   }
   return $null
 }
@@ -160,6 +161,11 @@ Check 'window-in-front' (Front 'Sentinel') 'the app window is in front, maximise
 Start-Sleep 4
 [void](Cdp 'main' $trayHook)
 Say "the window shows: $((Cdp '127.0.0.1:4782' 'location.pathname').value)"
+# A new free account on the app's own server (signing up signs in), then the Overview, where the colour coins are.
+$made = (Cdp '127.0.0.1:4782' "(async () => { const r = await fetch('/api/v1/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'look-$(Get-Random)@example.com', password: 'Lantern-orchard-62Wb', firstName: 'Robin', ageConfirmed: true, termsAccepted: true }) }); location.href = '/app'; return r.status; })()").value
+Say "an account made: $made"
+Check 'overview-open' (Until 40 { (Cdp '127.0.0.1:4782' "location.pathname + '|' + Boolean(document.querySelector('.look__coin')) + '|' + Boolean(document.querySelector('.scanbox .btn--gold'))").value -eq '/app|True|True' }) "the Overview with its colour coins is in the window: $((Cdp '127.0.0.1:4782' 'location.pathname').value)"
+Start-Sleep 3
 DumpTaskbar
 
 # 2. The window and its page, and the tray, in gold (as installed), then in three other colours, then gold again: the
@@ -171,9 +177,9 @@ foreach ($accent in 'sapphire', 'rose', 'teal', 'gold') {
   PhotographWindow $accent
   TrayImage $accent
   $tb = TrayButton
-  if ($tb) { Judge 'tray-on-screen' $accent (ReadButton $tb "tray-$accent" $accent); [K]::Tap(0x1B) } else { Say "  the tray icon is not reachable on this screen (UI Automation); its image above is what stands for it"; DumpTaskbar }
+  if ($tb) { Judge 'tray-on-screen' $accent (ReadButton $tb "tray-$accent" $accent -Dim); [K]::Tap(0x1B) } else { Say "  the tray icon is not reachable on this screen (UI Automation); its image above is what stands for it"; DumpTaskbar }
   $live = SentinelButton @('Shell_TrayWnd')
-  if ($live) { Said 'taskbar-live' $accent (ReadButton $live "taskbar-live-$accent" $accent) }
+  if ($live) { Judge 'taskbar-live' $accent (ReadButton $live "taskbar-live-$accent" $accent) } else { Check "taskbar-live-$accent" $false 'no Sentinel button on the taskbar' }
 }
 
 # 3. The taskbar's button after the app is started again in a colour: Windows draws it from the shortcut, which was re-cast.
