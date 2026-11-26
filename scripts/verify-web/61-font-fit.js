@@ -8,8 +8,8 @@
  *           ones (Noto Serif, Roboto) are installed on this runner by verify-web.yml, from Google Fonts' own files, so
  *           they are measured too, not scaled from the others. The hero wordmark (capitals at 72px and up, at the
  *           largest optical size) has its own stand-in.
- *           What is asserted: Geist (every weight on Windows, regular on Android) and the wordmark, within a half
- *           percent in width and a pixel in baseline. What is only said, with the size-adjust, ascent and descent that
+ *           What is asserted: Geist (every weight on Windows, regular on Android) and the wordmark, within a percent
+ *           in width (the wordmark within half) and a pixel in baseline. What is only said, with the size-adjust, ascent and descent that
  *           would make it exact: the heading face (it changes its optical size with its size, so one stand-in cannot
  *           match every size) and Android's medium and bold (a variable Roboto cannot be reached by those names here).
  *           A face the machine does not have fails the check, never skipped silently.
@@ -85,7 +85,8 @@ async function checkFit() {
       const worst = Math.max(...r.errs.map((v) => (v == null ? 99 : Math.abs(v))));
       const base = Math.max(...r.base.map((v) => (v == null ? 99 : Math.abs(v))));
       const asserted = r.what === 'hero wordmark' || (r.what === 'Geist' && (r.weight === 400 || !/Android/.test(r.stand)));
-      const ok = r.loaded && worst <= 0.5 && base <= 1;
+      // The wordmark is one fixed word: exact. Text varies by what letters it has (two fair samples of the site's words differ by half a percent), so a percent.
+      const ok = r.loaded && worst <= (r.what === 'hero wordmark' ? 0.5 : 1) && base <= 1;
       result(`font-fit: ${r.what}: ${r.stand} at ${r.weight}: ${r.loaded ? `width ${worst}% off at worst, baseline ${base} px off` : 'not loaded on this machine'}${asserted ? '' : ' (said, not asserted)'}`, asserted ? ok : r.loaded, r);
     }
   } finally { await close(); await server.stop(); }
