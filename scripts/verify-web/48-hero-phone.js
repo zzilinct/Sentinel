@@ -34,6 +34,27 @@ const MEASURE = `(() => {
     zWord: getComputedStyle(word).zIndex };
 })()`;
 
+// The blueprint's small labels (fig. I, the angle, the length) against what a person reads: the name's letters (the band the
+// capitals fill, not the taller line box), the words, the button, the panel and the mask. A label over any of them is a collision.
+const CLASH = `(() => {
+  const grow = (b, d) => ({ left: b.left - d, right: b.right + d, top: b.top - d, bottom: b.bottom + d });
+  const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const word = document.querySelector('[data-hero-word]'), fs = parseFloat(getComputedStyle(word).fontSize);
+  const things = [...word.querySelectorAll('span')].map((e) => { const r = e.getBoundingClientRect(); return ['the name', { left: r.left, right: r.right, top: r.top + 0.22 * fs, bottom: r.top + 0.89 * fs }]; });
+  for (const [what, sel] of [['the first words', '.hero__copy .unmasked'], ['the heading', '.hero__copy h1'], ['the paragraph', '.hero__lede'], ['a button', '.hero__cta .btn'], ['the panel', '.hero__card'], ['the mask', '[data-hero-mask]']]) {
+    for (const e of document.querySelectorAll(sel)) {
+      const rg = document.createRange(); rg.selectNodeContents(e);
+      for (const r of (sel === '.hero__cta .btn' || sel === '.hero__card' || sel === '[data-hero-mask]' ? [e.getBoundingClientRect()] : [...rg.getClientRects()])) if (r.width > 1) things.push([what, r]);
+    }
+  }
+  const out = [];
+  for (const t of document.querySelectorAll('.hero .sketch text')) {
+    const lb = grow(t.getBoundingClientRect(), 3);
+    for (const [what, b] of things) if (hit(lb, b)) { out.push(t.textContent + ' over ' + what); break; }
+  }
+  return out;
+})()`;
+
 function phoneProblems(m) {
   const out = [];
   if (m.sideways > 0) out.push(`scrolls sideways by ${m.sideways}`);
@@ -107,6 +128,19 @@ async function checkHeroPhone() {
       result(`hero-phone: 1366x900, ${scheme}, reduced motion: the name stands clear of the panel`, ok, ok ? undefined : m);
       await shot(browser, s, `hero-desktop-${scheme}-still`);
       await done();
+    }
+    // The blueprint's labels stay clear of everything read, at the sizes of real screens and at Larger text.
+    for (const [width, height] of [[1920, 1080], [1440, 900], [1366, 900], [1366, 768], [1280, 720], [1024, 768]]) {
+      for (const text of ['standard', 'larger']) {
+        const { s, done } = await open(width, height, false, 'dark', 'reduce');
+        await evalIn(browser, s, `localStorage.setItem('sentinel:type', '{"text":"${text}","density":"comfortable"}'); true`);
+        await goto(browser, s, `${files.base}/index.html`, "document.querySelector('.hero__unmask')");
+        await sleep(2200);
+        const hit = await evalIn(browser, s, CLASH);
+        result(`hero-phone: ${width}x${height}, ${text} text: the blueprint's small labels touch nothing that is read`, hit.length === 0, hit.length ? hit : undefined);
+        if (hit.length) await shot(browser, s, `hero-labels-${width}-${text}`);
+        await done();
+      }
     }
   } finally { await close(); files.server.close(); }
 }

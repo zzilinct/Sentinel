@@ -8,7 +8,11 @@
  *         drawn in gold's hue except the caution yellow and the warning orange (the status colours never move), and the
  *         colour's own tokens (--gold-*, --live*) must have moved: that is the "colour reaches everything" half. The
  *         Windows app's title bar (html.framed .frame, drawn by boot.js) is checked on the sign-in page and Check.
+ *         The phone's bottom bar keeps its icons on one line however many lines a name takes.
  *         A press on a colour coin draws the colour within 250 ms with no long task over 150 ms.
+ *         The other half of the list, the parts of the real Electron window a browser cannot draw (the title bar with the
+ *         page inside it, the tray icon, the taskbar button), is photographed on a Windows desktop by desktop-e2e.yml
+ *         (only: look, scripts/desktop-look-e2e.ps1): a part still gold in another colour fails there.
  *         Pictures: app-<page>-<size>-<theme>-<accent>-<text>.png; a failing line is named in the report.
  */
 const path = require('path');
@@ -41,6 +45,7 @@ const SHELL = [
   { what: 'logo mark in the top bar', sel: '.topbar-mobile .logo__mark svg', only: 'phone' },
   { what: 'every page in the side bar', sel: '.side__nav .side__link:not(.side__more)', n: 10, all: true, only: 'desktop' },
   { what: 'the five places in the bottom bar', sel: '.side__nav [data-phone]', n: 5, all: true, only: 'phone' },
+  { what: 'the bottom bar icons stand on one line', sel: '.side__nav [data-phone]', n: 5, all: true, only: 'phone', level: true },
   { what: 'search box', sel: '.side__search', only: 'desktop' },
   { what: 'theme button', sel: '.theme-toggle', only: 'desktop' },
   { what: 'account row and its avatar', sel: '.me .avatar', only: 'desktop' },
@@ -158,6 +163,17 @@ async function probe(items, ctx) {
         if (pic) { const pr = pic.getBoundingClientRect(); if (pr.width < 40 || pr.height < 40) bad.push('the model is too small to see'); if (pic.tagName === 'IMG' && !(pic.complete && pic.naturalWidth > 0)) bad.push('the model picture did not load'); }
       }
       if (bad.length) out.push(`${it.what}: ${bad.join(', ')} (${it.sel})`);
+    }
+    // level: the first thing in each (an icon) starts on one line, whatever the names under them take (the bottom bar's
+    // Live protection wraps to two lines at a phone's width, and centred it lifted its icon above the others').
+    if (it.level) {
+      const tops = els.map((x) => Math.round((x.firstElementChild || x).getBoundingClientRect().top));
+      if (Math.max(...tops) - Math.min(...tops) > 1) out.push(`${it.what}: not on one line (tops ${tops.join(', ')})`);
+      // The names under them too, where a name is words in the page (Check shows a short form drawn by CSS, which has no box to measure).
+      const words = els.map((x) => { const t = [...x.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim() && getComputedStyle(x).fontSize !== '0px'); if (!t) return null; const r = document.createRange(); r.selectNodeContents(t); return Math.round(r.getClientRects()[0].top); }).filter((v) => v != null);
+      if (words.length > 1 && Math.max(...words) - Math.min(...words) > 1) out.push(`${it.what}: the names are not on one line (tops ${words.join(', ')})`);
+      // A flex gap would count the short form's empty word as an item and drop its name below the rest (seen in 1.21.4's pictures).
+      if (els.some((x) => x.hasAttribute('data-short') && getComputedStyle(x).rowGap !== '0px')) out.push(`${it.what}: a gap under the icon moves the short name (Check) down`);
     }
   }
   if (document.documentElement.scrollWidth > innerWidth + 1) out.push(`the page scrolls sideways (${document.documentElement.scrollWidth} in ${innerWidth})`);

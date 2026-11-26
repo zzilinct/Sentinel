@@ -11,6 +11,12 @@
 .section__head h2 { font-size: var(--t-d2); }
 .section__head p { font-size: var(--t-lead); line-height: var(--lh-lead); }
 
+/* The wordmark is capitals at 72px and up, where the optical size is at its largest: its own width, not the text's. */
+@font-face { font-family: 'Wordmark Stand-in'; src: local('Georgia'); size-adjust: 100.3%; ascent-override: 73.28%; descent-override: 26.42%; line-gap-override: 0%; }
+@font-face { font-family: 'Wordmark Phone Stand-in'; src: local('Georgia'); size-adjust: 99.3%; ascent-override: 74.02%; descent-override: 26.69%; line-gap-override: 0%; }
+@font-face { font-family: 'Wordmark Phone Stand-in Android'; src: local('Noto Serif'), local('NotoSerif'), local('Noto Serif Regular'), local('NotoSerif-Regular'); size-adjust: 101.2%; ascent-override: 72.63%; descent-override: 26.19%; line-gap-override: 0%; }
+@font-face { font-family: 'Wordmark Stand-in Android'; src: local('Noto Serif'), local('NotoSerif'), local('Noto Serif Regular'), local('NotoSerif-Regular'); size-adjust: 102.2%; ascent-override: 71.92%; descent-override: 25.93%; line-gap-override: 0%; }
+
 /* ------------------------------------------------------------ I. hero */
 
 .hero { position: relative; min-height: 100dvh; min-height: max(100dvh, 880px); margin: 0 2.6vw; padding: 0; overflow: clip; overflow-clip-margin: 12px; }
@@ -21,7 +27,7 @@
 /* Centred by layout, never by `translate`: GSAP (motion.js drifts it with the scroll and the pointer) folds a CSS
    translate into its own transform as pixels, measured once, so the name slid right when the font or the window
    later made it wider. Flex centring spills an over-wide name evenly both ways, as the translate did. */
-.hero__word { position: absolute; left: 0; right: 0; top: 22%; margin-top: -.65em; display: flex; justify-content: center; align-items: flex-start; font: 400 clamp(72px, 14.6vw, 250px)/1.3 var(--display); --track: .035em; white-space: nowrap; user-select: none;
+.hero__word { position: absolute; left: 0; right: 0; top: 22%; margin-top: -.65em; display: flex; justify-content: center; align-items: flex-start; font: 400 clamp(72px, 14.6vw, 250px)/1.3 'Newsreader', 'Wordmark Stand-in', 'Wordmark Stand-in Android', ui-serif, Georgia, serif; --track: .035em; white-space: nowrap; user-select: none;
   background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 30px 60px rgb(0 0 0 / .45)); }
 /* The gold is painted only inside the box, so the line is tall enough to hold the capitals' top serifs. */
 .hero__word span { display: inline-block; background: var(--metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -252,6 +258,8 @@ body:has(.nav) .trio { display: grid; gap: 40px; margin-top: 30px; background: n
   .prelaunch__more { display: none; }
   .hero__stage { position: relative; display: grid; grid-template-rows: auto var(--niche-h); justify-items: center; align-items: center; margin: 18px -16px 0; }
   .hero__word { position: relative; left: auto; right: auto; top: auto; margin: 0; font-size: var(--word); }
+  /* Up to 445px wide the name is under 72px, where the optical size is still growing with the size: its own stand-ins (font-fit measures them). */
+  @media (max-width: 445px) { .hero__word { font-family: 'Newsreader', 'Wordmark Phone Stand-in', 'Wordmark Phone Stand-in Android', ui-serif, Georgia, serif; } }
   .hero__stage > :not(.hero__word, .hero__dots) { grid-area: 2 / 1; position: relative; left: auto; top: auto; translate: none; }
   .hero__stage > .sketch { width: 120vw; }
   .hero__stage > .hero__mask { z-index: 2; width: calc(var(--niche-h) * .46); }

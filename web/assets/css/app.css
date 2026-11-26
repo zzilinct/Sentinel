@@ -85,7 +85,10 @@ body.app::before { opacity: .6; }
   .side__link[data-short] { font-size: 0; }
   .side__link[data-short]::after { content: attr(data-short); font-size: var(--t-micro); }
   .side__nav { display: flex; width: 100%; justify-content: space-around; }
-  .side__link { flex: 1 1 0; min-width: 0; min-height: 48px; justify-content: center; flex-direction: column; gap: 3px; height: auto; padding: 7px 4px; font-size: var(--t-micro); text-align: center; }
+  /* Icons start on one line however many lines a name takes (Live protection takes two): centring them stepped each one by its own height. */
+  .side__link { flex: 1 1 0; min-width: 0; min-height: 48px; justify-content: flex-start; flex-direction: column; gap: 0; height: auto; padding: 7px 4px; font-size: var(--t-micro); text-align: center; }
+  /* The gap under the icon is the icon's own margin: a flex gap also counted the empty word of a name shown as its short form (Check), and dropped its label 3px below the others. */
+  .side__link > :first-child { margin-bottom: 3px; }
   .main { padding-bottom: calc(var(--bar, 78px) + 16px) !important; }
   /* Whatever is scrolled or focused into view (a result, its last sentence) stops above the bar, not under it. */
   html { scroll-padding-bottom: calc(var(--bar, 76px) + 12px); }
