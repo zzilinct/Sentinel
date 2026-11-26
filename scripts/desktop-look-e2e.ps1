@@ -76,11 +76,16 @@ function PhotographWindow($accent) {
   $bmp.Dispose()
 }
 
-# Chosen the way a person chooses it: the page's own look (SentinelLook.set), which draws it and tells the app.
+# Chosen through the app's own bridge (what the page's colour picker calls, preload.js setLook), then the page reloaded: the
+# sign-in page has no picker of its own, and its colours come from the app's setting as it loads.
+$stamp = [long](([DateTimeOffset]::UtcNow).ToUnixTimeMilliseconds())
 function Choose($accent) {
-  $r = (Cdp '127.0.0.1:4782' "(async () => { if (!window.SentinelLook) return 'no look on this page'; await window.SentinelLook.set({ mode: 'dark', accent: '$accent' }); return document.documentElement.dataset.accent || 'gold'; })()").value
-  Say "chosen $accent -> the page says $r"
+  $script:stamp += 1000
+  [void](Cdp '127.0.0.1:4782' "(() => { const t = $($script:stamp); window.sentinelDesktop.setLook({ mode: 'dark', accent: '$accent', text: 'standard', density: 'comfortable', at: { mode: t, accent: t, text: t, density: t } }).then(() => setTimeout(() => location.reload(), 50)); return true; })()")
+  [void](Until 20 { (Cdp '127.0.0.1:4782' "document.readyState + '|' + (document.documentElement.dataset.accent || 'gold')").value -eq "complete|$accent" })
   Start-Sleep 3
+  $r = (Cdp '127.0.0.1:4782' "document.documentElement.dataset.accent || 'gold'").value
+  Say "chosen $accent -> the page says $r"
   return $r
 }
 
@@ -105,9 +110,10 @@ function Buttons($class) {
   }
   return $out
 }
-function SentinelButton($classes) {
+# The taskbar's button is named 'Sentinel - 1 running window'; the tray's is its tooltip, 'Sentinel 1.21.4: live scanning off'.
+function SentinelButton($classes, $pattern = 'Sentinel - *') {
   foreach ($c in $classes) {
-    $hit = @(Buttons $c | Where-Object { $_.Current.Name -like 'Sentinel*' }) | Select-Object -First 1
+    $hit = @(Buttons $c | Where-Object { $_.Current.Name -like $pattern }) | Select-Object -First 1
     if ($hit -and -not $hit.Current.IsOffscreen) { return $hit }
   }
   return $null
@@ -129,13 +135,13 @@ function DumpTaskbar {
 }
 # The tray: in the notification area, or behind its chevron (a new icon starts hidden there).
 function TrayButton {
-  $b = SentinelButton @('Shell_TrayWnd')
+  $b = SentinelButton @('Shell_TrayWnd') 'Sentinel [0-9]*'
   if ($b) { return $b }
   $chev = @(Buttons 'Shell_TrayWnd' | Where-Object { $_.Current.Name -like '*hidden icons*' -or $_.Current.Name -like '*Notification Chevron*' }) | Select-Object -First 1
   if ($chev) {
     try { ($chev.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)).Invoke() } catch { Say "  chevron: $($_.Exception.Message)" }
     Start-Sleep 2
-    return (SentinelButton @('TopLevelWindowForOverflowXamlIsland', 'NotifyIconOverflowWindow', 'Shell_TrayWnd'))
+    return (SentinelButton @('TopLevelWindowForOverflowXamlIsland', 'NotifyIconOverflowWindow', 'Shell_TrayWnd') 'Sentinel [0-9]*')
   }
   return $null
 }
