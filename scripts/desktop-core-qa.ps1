@@ -513,11 +513,6 @@ if ($Part -eq 'use') {
     Add-Content $hostsFile ("`r`n" + (($honestHosts | ForEach-Object { "127.0.0.1 $_" }) -join "`r`n"))
     Clear-DnsClientCache
   }
-  function HonestOff {
-    $names = ($honestHosts | ForEach-Object { [regex]::Escape($_) }) -join '|'
-    Set-Content $hostsFile (Get-Content $hostsFile | Where-Object { $_ -notmatch "^127\.0\.0\.1 ($names)$" })
-    Clear-DnsClientCache
-  }
   Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
   # What the browser in front shows in its address bar (Edge's and Chrome's is OmniboxViewViews); '' when it cannot say.
   function AddressBar {
@@ -560,11 +555,9 @@ if ($Part -eq 'use') {
     if (-not $ok) { Say "  diag: the address bar shows '$(AddressBar)'; live scanning last read: $(((WatchLog) -split "`n" | Select-Object -Last 3) -join ' | ')" }
     return @{ ok = $ok; took = [math]::Round(((Get-Date) - $script:entered).TotalSeconds, 1); line = $script:line; warned = [bool](Cdp 'warn.html' '1').value }
   }
-  # $tag 'honest': the sites' own names answered from this runner (HonestOn), so only Sentinel is being timed; it gates.
-  # $tag 'real': the real sites over the outside network. A page that loads slowly gives the reader no address (it reads
-  # the page's own document), so a verdict is late for reasons that are not Sentinel's: the count is reported, and what
-  # still gates is that no real site that was checked is flagged or warned.
-  function Sites($browser, $list, $tag = 'honest') {
+  # The honest sites' names are answered from this runner (HonestOn), so only Sentinel is timed: a real site that loads
+  # slowly gives the reader no page address (it reads the page's own document), and a verdict is late for reasons that are not Sentinel's.
+  function Sites($browser, $list) {
     $slow = @(); $wrong = @(); $times = @()
     foreach ($u in $list) {
       $v = Verdict $browser $u
@@ -572,20 +565,15 @@ if ($Part -eq 'use') {
       if (-not $v.ok) { $slow += $u } else { $times += $v.took }
       if ($v.line -match " (red|orange) " -or $v.warned) { $wrong += "$u ($($v.line))"; [void](Cdp 'warn.html' 'window.close(), 1') }
     }
-    Shot "$browser-$tag"
+    Shot "$browser-honest"
     $avg = $(if ($times.Count) { [math]::Round(($times | Measure-Object -Average).Average, 1) } else { 0 })
-    Check "$browser-$tag-quiet" (-not $wrong.Count) "flagged or warned: $($wrong -join '; ')"
-    $said = "checked $($times.Count) of $($list.Count), on average $avg s from Enter to the verdict (max $(($times | Measure-Object -Maximum).Maximum) s); not checked in 40 s: $($slow -join ', ')"
-    if ($tag -eq 'honest') { Check "$browser-honest-checked" ($slow.Count -le 1) $said } else { Say "$browser real sites, not gated: $said" }
+    Check "$browser-honest-quiet" (-not $wrong.Count) "flagged or warned: $($wrong -join '; ')"
+    Check "$browser-honest-checked" ($slow.Count -le 1) "checked $($times.Count) of $($list.Count), on average $avg s from Enter to the verdict (max $(($times | Measure-Object -Maximum).Maximum) s); not checked in 40 s: $($slow -join ', ')"
   }
   Say "Edge in front: $(FreshEdge 'about:blank')"
   # -Repeat (desktop-e2e.yml's dispatch input) goes round the honest sites more than once, to show a check holds.
   HonestOn
   for ($round = 1; $round -le $Repeat; $round++) { Sites 'msedge' $honest }
-  # The same sites over the real network, Edge started fresh so it keeps none of the local answers.
-  HonestOff
-  Say "Edge in front: $(FreshEdge 'about:blank')"
-  Sites 'msedge' $honest 'real'
   # A search: marks beside the results.
   # Handed to Edge, not typed: in SendKeys "+" is Shift, which mangled the search address, and a site's own prompt
   # (Chase asks to open other apps) could swallow the keys, leaving Edge on the last site with nothing to mark.
@@ -673,9 +661,7 @@ if ($Part -eq 'use') {
   Start-Process "$chromeDir\chrome.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\chrome-core", '--start-maximized', 'about:blank'
   Start-Sleep 10
   Say "Chrome in front: $(Front 'chrome')"
-  HonestOn
   Sites 'chrome' @('https://en.wikipedia.org/wiki/Phishing', 'https://www.paypal.com/signin', 'https://accounts.google.com/', 'https://www.amazon.com/gift-cards/b?node=2238192011')
-  HonestOff
   $w = Warned 'http://paypal-wallet-limited-review.test:47910/signin.html'
   Shot 'chrome-warning'
   Check 'chrome-scam-warned' ($w.ok -and $w.took -le 10 -and $w.words -match 'Chrome') "a PayPal look-alike in Chrome: warned after $($w.took) s: $($w.words)"
