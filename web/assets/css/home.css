@@ -12,8 +12,8 @@
 .section__head p { font-size: var(--t-lead); line-height: var(--lh-lead); }
 
 /* The wordmark is capitals at 72px and up, where the optical size is at its largest: its own width, not the text's. */
-@font-face { font-family: 'Wordmark Stand-in'; src: local('Georgia'); size-adjust: 101.1%; ascent-override: 72.7%; descent-override: 26.21%; line-gap-override: 0%; }
-@font-face { font-family: 'Wordmark Stand-in Android'; src: local('Noto Serif'), local('NotoSerif'), local('Noto Serif Regular'), local('NotoSerif-Regular'); size-adjust: 104.3%; ascent-override: 70.47%; descent-override: 25.41%; line-gap-override: 0%; }
+@font-face { font-family: 'Wordmark Stand-in'; src: local('Georgia'); size-adjust: 100.3%; ascent-override: 73.28%; descent-override: 26.42%; line-gap-override: 0%; }
+@font-face { font-family: 'Wordmark Stand-in Android'; src: local('Noto Serif'), local('NotoSerif'), local('Noto Serif Regular'), local('NotoSerif-Regular'); size-adjust: 102.2%; ascent-override: 71.92%; descent-override: 25.93%; line-gap-override: 0%; }
 
 /* ------------------------------------------------------------ I. hero */
 
