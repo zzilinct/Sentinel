@@ -147,3 +147,15 @@ test('the first scroll after a rest: the key time is read against the first pixe
   assert.deepStrictEqual(wake(trace).map((x) => x.ms), [300, 1100, null]);
   assert.ok(300 <= WAKE_MS && 1100 > WAKE_MS);
 });
+
+test('1.21.5: Page Down on a quiet page: a page jump the follower cannot line up is told to the marks at once, and a missing report fails', () => {
+  const { wake, JUMP_MS } = require('../scripts/marks-at-rest.js');
+  const k = 1700000000000;
+  const trace = [`# quiet page-down ${k}`, `P ${k + 90} 5 0 lone`, `# quiet page-down ${k + 20000}`, `P ${k + 20000 + 700} 5 0 lone`, `# quiet page-down ${k + 40000}`, 'P 99.9 0 lone'].join('\n');
+  assert.deepStrictEqual(wake(trace, 'quiet page-down').map((x) => x.ms), [90, 700, null]);
+  assert.ok(90 <= JUMP_MS && 700 > JUMP_MS);
+  // The reader: a changed band that no shift lines up, with a key or the mouse used within half a second, is reported (lone, dy 0).
+  const s = read('desktop/src/watch.js');
+  assert.match(s, /else if \(!sure && Changed\(prev, cur\) && SW\.IdleMs\(\) < 500\) \{\s*lone = true; Watch\(400\);\s*Console\.Out\.WriteLine\("\{\\"px\\":\{\\"dy\\":0,/);
+  assert.match(s, /static bool Changed\(int\[\] a, int\[\] b\) \{[\s\S]*?< 40\) return false;[\s\S]*?return hi - lo >= 600;/, 'the same two tests Shift starts with: it changed, and the band has detail');
+});
