@@ -20,25 +20,25 @@ Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @"
 using System; using System.Drawing;
 public static class Tint {
   // { pixels that carry a colour, of those how many are gold's hue (25 to 65 degrees) } inside a box of a picture.
-  static int[] Count(Func<int, int, Color> at, int w, int h, int x0, int y0, int bw, int bh, float minS, float minL, int minA) {
+  static int[] Count(Func<int, int, Color> at, int w, int h, int x0, int y0, int bw, int bh, float minS, float minL, int minA, float maxL) {
     int coloured = 0, gold = 0;
     for (int y = Math.Max(0, y0); y < Math.Min(h, y0 + bh); y++) for (int x = Math.Max(0, x0); x < Math.Min(w, x0 + bw); x++) {
       Color c = at(x, y);
       if (c.A < minA) continue;
       float s = c.GetSaturation(), l = c.GetBrightness();
-      if (s < minS || l < minL || l > 0.92f) continue;
+      if (s < minS || l < minL || l > maxL) continue;
       coloured++;
       float hue = c.GetHue();
       if (hue >= 25 && hue <= 65) gold++;
     }
     return new[] { coloured, gold };
   }
-  public static int[] Box(Bitmap b, int x, int y, int w, int h) { return Count((px, py) => b.GetPixel(px, py), b.Width, b.Height, x, y, w, h, 0.3f, 0.15f, 128); }
-  // A dimmed icon (the tray's, at 40%) over a dark flyout: paler and darker than the same icon at full strength.
-  public static int[] Soft(Bitmap b, int x, int y, int w, int h) { return Count((px, py) => b.GetPixel(px, py), b.Width, b.Height, x, y, w, h, 0.15f, 0.08f, 128); }
+  public static int[] Box(Bitmap b, int x, int y, int w, int h) { return Count((px, py) => b.GetPixel(px, py), b.Width, b.Height, x, y, w, h, 0.3f, 0.15f, 128, 0.92f); }
+  // A dimmed icon (the tray's, at 40%) over the flyout: much paler than the same icon at full strength, so a lower bar for colour.
+  public static int[] Soft(Bitmap b, int x, int y, int w, int h) { return Count((px, py) => b.GetPixel(px, py), b.Width, b.Height, x, y, w, h, 0.06f, 0.05f, 128, 0.97f); }
   // Electron's own bitmap of an icon: BGRA, colour already multiplied by alpha.
   public static int[] Bgra(byte[] d, int side) {
-    return Count((px, py) => { int i = (py * side + px) * 4; int a = d[i + 3]; if (a == 0) return Color.FromArgb(0, 0, 0, 0); return Color.FromArgb(a, Math.Min(255, d[i + 2] * 255 / a), Math.Min(255, d[i + 1] * 255 / a), Math.Min(255, d[i] * 255 / a)); }, side, side, 0, 0, side, side, 0.3f, 0.15f, 60);
+    return Count((px, py) => { int i = (py * side + px) * 4; int a = d[i + 3]; if (a == 0) return Color.FromArgb(0, 0, 0, 0); return Color.FromArgb(a, Math.Min(255, d[i + 2] * 255 / a), Math.Min(255, d[i + 1] * 255 / a), Math.Min(255, d[i] * 255 / a)); }, side, side, 0, 0, side, side, 0.3f, 0.15f, 60, 0.92f);
   }
 }
 "@
@@ -162,7 +162,7 @@ Start-Sleep 4
 [void](Cdp 'main' $trayHook)
 Say "the window shows: $((Cdp '127.0.0.1:4782' 'location.pathname').value)"
 # A new free account on the app's own server (signing up signs in), then the Overview, where the colour coins are.
-$made = (Cdp '127.0.0.1:4782' "(async () => { const r = await fetch('/api/v1/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'look-$(Get-Random)@example.com', password: 'Lantern-orchard-62Wb', firstName: 'Robin', ageConfirmed: true, termsAccepted: true }) }); location.href = '/app'; return r.status; })()").value
+$made = (Cdp '127.0.0.1:4782' "(async () => { const em = 'look-$(Get-Random)@example.com'; const r = await fetch('/api/v1/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: em, password: 'Lantern-orchard-62Wb', firstName: 'Robin', ageConfirmed: true, termsAccepted: true }) }); const l = await fetch('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: em, password: 'Lantern-orchard-62Wb' }) }); location.href = '/app'; return r.status + '|' + l.status; })()").value
 Say "an account made: $made"
 Check 'overview-open' (Until 40 { (Cdp '127.0.0.1:4782' "location.pathname + '|' + Boolean(document.querySelector('.look__coin')) + '|' + Boolean(document.querySelector('.scanbox .btn--gold'))").value -eq '/app|True|True' }) "the Overview with its colour coins is in the window: $((Cdp '127.0.0.1:4782' 'location.pathname').value)"
 Start-Sleep 3
@@ -176,10 +176,12 @@ foreach ($accent in 'sapphire', 'rose', 'teal', 'gold') {
   Check "chosen-$accent" ($said -eq $accent) "the page's colour is $said"
   PhotographWindow $accent
   TrayImage $accent
+  # The taskbar's button first (the tray's flyout covers the bar while it is open), then the tray's icon.
+  $live = $null
+  [void](Until 10 { $script:live = SentinelButton @('Shell_TrayWnd'); [bool]$script:live })
+  if ($live) { Judge 'taskbar-live' $accent (ReadButton $live "taskbar-live-$accent" $accent) } else { Check "taskbar-live-$accent" $false 'no Sentinel button on the taskbar'; DumpTaskbar }
   $tb = TrayButton
   if ($tb) { Judge 'tray-on-screen' $accent (ReadButton $tb "tray-$accent" $accent -Dim); [K]::Tap(0x1B) } else { Say "  the tray icon is not reachable on this screen (UI Automation); its image above is what stands for it"; DumpTaskbar }
-  $live = SentinelButton @('Shell_TrayWnd')
-  if ($live) { Judge 'taskbar-live' $accent (ReadButton $live "taskbar-live-$accent" $accent) } else { Check "taskbar-live-$accent" $false 'no Sentinel button on the taskbar' }
 }
 
 # 3. The taskbar's button after the app is started again in a colour: Windows draws it from the shortcut, which was re-cast.
