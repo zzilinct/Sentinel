@@ -245,6 +245,16 @@ public class Glide {
     } finally { bmp.UnlockBits(data); }
     return p;
   }
+  // Did the band change a lot, and has it detail to have changed (not a blank page edge)? The same two tests Shift starts with.
+  static bool Changed(int[] a, int[] b) {
+    int n = Math.Min(a.Length, b.Length);
+    if (n < 80) return false;
+    long same = 0;
+    for (int i = 0; i < n; i++) same += Math.Abs(a[i] - b[i]);
+    if ((double)same / n < 40) return false;
+    long lo = long.MaxValue, hi = 0; for (int i = 0; i < n; i += 4) { lo = Math.Min(lo, a[i]); hi = Math.Max(hi, a[i]); }
+    return hi - lo >= 600;
+  }
   // How far the band moved between two copies: the shift that lines them up best, if one clearly does.
   public static int Shift(int[] a, int[] b, int max, out bool sure) {
     sure = false;
@@ -319,6 +329,13 @@ public class Glide {
             // A movement seen between scrolls (the keyboard, a page moving itself): watch every frame for a moment.
             if (!woken) { lone = true; Watch(400); }
             Console.Out.WriteLine("{\"px\":{\"dy\":" + (-s) + ",\"t\":" + Environment.TickCount + (lone ? ",\"lone\":1" : "") + "}}"); Console.Out.Flush();
+          }
+          // The whole band changed, nothing lines it up, and a key or the mouse was used a moment ago: the page jumped
+          // further than the band can follow (Edge moves a whole page at once on Page Down). How far is not known, but
+          // the marks are on other results now: they step aside this frame and come back on the browser's word.
+          else if (!sure && Changed(prev, cur) && SW.IdleMs() < 500) {
+            lone = true; Watch(400);
+            Console.Out.WriteLine("{\"px\":{\"dy\":0,\"t\":" + Environment.TickCount + ",\"lone\":1}}"); Console.Out.Flush();
           }
         }
         prev = cur;

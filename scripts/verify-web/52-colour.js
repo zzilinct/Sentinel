@@ -368,7 +368,10 @@ async function checkColour() {
       const held = await until(browser, s, `(() => { const a = document.getAnimations().find((x) => x.effect && x.effect.pseudoElement === '::view-transition-new(root)'); if (!a) return null; a.pause(); a.currentTime = 200; return true; })()`, 3000);
       const during = held ? { ...(await hot()), vt: 'held open' } : null;
       await move(tx, ty);
-      await sleep(120);
+      // Two painted frames, not a wall-clock wait: a hover transition starts at the first frame after the style change, and on a
+      // loaded runner 120 ms can pass with no frame at all, so the read itself began the transition and saw its first instant
+      // (identity). The check is still that the next gem is hovered and lifting within the frames that follow the move.
+      await evalIn(browser, s, 'new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
       const onward = held ? { ...(await hot()), vt: 'held open' } : null;
       await evalIn(browser, s, 'document.documentElement.getAnimations({ subtree: true }).forEach((a) => { try { a.play(); } catch (e) {} }); true');
       await sleep(1400);

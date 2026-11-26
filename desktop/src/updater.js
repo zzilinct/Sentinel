@@ -65,13 +65,18 @@ function cacheDir() {
   return path.join(process.env.LOCALAPPDATA || app.getPath('temp'), 'sentinel-desktop-updater');
 }
 
-/** Throw away every downloaded installer and electron-updater's record of them. Only our own cache folder. */
-function clearCache(reason) {
+/**
+ * Throw away every downloaded installer and electron-updater's record of them. Only our own cache folder.
+ * An install that did not take can have its installer still running from this folder (EPERM, seen on CI), so a
+ * failure is tried once more half a minute later, as tidy() does.
+ */
+function clearCache(reason, again = true) {
   try {
     fs.rmSync(cacheDir(), { recursive: true, force: true });
     log(`cleared the downloaded updates (${reason})`);
   } catch (err) {
-    log(`could not clear the downloaded updates: ${err.message}`);
+    log(`could not clear the downloaded updates yet: ${err.message}`);
+    if (again) setTimeout(() => clearCache(reason, false), 30 * 1000).unref();
   }
 }
 
@@ -250,4 +255,4 @@ async function install({ relaunch = true, hidden = false } = {}) {
   return { ok: true };
 }
 
-module.exports = { init, check, install, installFile, status, pinned, cacheDir, hiddenMarker, _test: { newer, tidy } };
+module.exports = { init, check, install, installFile, status, pinned, cacheDir, hiddenMarker, _test: { newer, tidy, clearCache } };

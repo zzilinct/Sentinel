@@ -193,6 +193,22 @@ $wake = node (Join-Path $PSScriptRoot 'marks-at-rest.js') "$Out\frames.txt" --wa
 $wakeFailed = [bool]$LASTEXITCODE
 Say $wake | Out-Null
 
+# 3c. The same rest, then Page Down: Edge jumps a whole page at once, further than the pixel follower can line up. The
+# marks must be told within JUMP_MS of the key (scripts/marks-at-rest.js --jump), and sit on their results once it is still.
+foreach ($rest in 13000, 13400) {
+  Start-Sleep -Milliseconds $rest
+  Add-Content "$Out\frames.txt" ("# quiet page-down " + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+  [K]::Tap(0x22); Start-Sleep -Milliseconds 450
+  Shot "quiet-pagedown-$rest"   # the page a moment after the key: it must have jumped, or the key proves nothing
+  Start-Sleep -Milliseconds 1550
+  [K]::Tap(0x24)
+}
+Start-Sleep 3
+MarksAtRest 'after a Page Down on a quiet page'
+$jump = node (Join-Path $PSScriptRoot 'marks-at-rest.js') "$Out\frames.txt" --jump
+$jumpFailed = [bool]$LASTEXITCODE
+Say $jump | Out-Null
+
 # 4. An inbox (a Pro feature, given above). Everyday mail and scams side by side: the scams should get a mask, the
 # rest a tick, and marks must stay inside the message list while it scrolls.
 Search 'http://127.0.0.1:47900/mail/' 'inbox'
@@ -385,4 +401,5 @@ if ($marksOff.Count) { Say "FAILED: marks off their results at rest: $($marksOff
 if ($hoverFailed) { Say 'FAILED: resting on a flagged mark did not show its reasonLine() in the tip'; exit 1 }
 if ($idleFailed) { Say "FAILED: Sentinel at rest, the import over, costs more than the idle limit: $($idle.text)"; exit 1 }
 if ($wakeFailed) { Say "FAILED: $wake"; exit 1 }
+if ($jumpFailed) { Say "FAILED: $jump"; exit 1 }
 if ($stillFailed) { Say "FAILED: live scanning on a results page left still costs more than the idle limit: $scan% ($($still.text))"; exit 1 }

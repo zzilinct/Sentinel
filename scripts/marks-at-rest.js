@@ -67,10 +67,15 @@ const SETTLE_MS = 1000;
 // overlay page's own P lines count from its start, and are skipped). Until 1.21.3 the pixel reader slept up to a
 // second after the rest ended, so the first scroll after a rest lagged by as much.
 const WAKE_MS = 600;
-function wake(text) {
+// Page Down on a page left still, in Edge, jumps a whole page at once: further than the follower can line up, so until
+// 1.21.5 no pixel report came at all and the marks stood on other results until the browser spoke. The first report (a
+// lone one: the marks step aside) must now come within a few frames of the key, the reader's own wake (40 ms) and a frame
+// or two, with room for a busy runner. "# quiet page-down <ms>" lines carry the key's time.
+const JUMP_MS = 250;
+function wake(text, tag = 'quiet key') {
   const keys = [];
   const lines = text.split(/\r?\n/);
-  lines.forEach((l, i) => { const m = /^# quiet key (\d{13})/.exec(l); if (m) keys.push({ at: Number(m[1]), line: i, ms: null }); });
+  lines.forEach((l, i) => { const m = new RegExp(`^# ${tag} (\\d{13})`).exec(l); if (m) keys.push({ at: Number(m[1]), line: i, ms: null }); });
   keys.forEach((k, n) => {
     const end = n + 1 < keys.length ? keys[n + 1].line : lines.length;
     for (let i = k.line + 1; i < end; i++) {
@@ -81,7 +86,12 @@ function wake(text) {
   return keys;
 }
 
-if (require.main === module && process.argv[3] === '--wake') {
+if (require.main === module && process.argv[3] === '--jump') {
+  const keys = wake(fs.readFileSync(process.argv[2], 'utf8'), 'quiet page-down');
+  const text = keys.map((k) => (k.ms === null ? 'never' : `${k.ms} ms`)).join(', ');
+  if (!keys.length || keys.some((k) => k.ms === null || k.ms > JUMP_MS)) { console.log(`Page Down on a quiet page: the marks were first told ${text || 'no key was pressed'} after the key (limit ${JUMP_MS} ms)`); process.exitCode = 1; }
+  else console.log(`Page Down on a quiet page: the marks were first told ${text} after the key`);
+} else if (require.main === module && process.argv[3] === '--wake') {
   const keys = wake(fs.readFileSync(process.argv[2], 'utf8'));
   const text = keys.map((k) => (k.ms === null ? 'never' : `${k.ms} ms`)).join(', ');
   if (!keys.length || keys.some((k) => k.ms === null || k.ms > WAKE_MS)) { console.log(`first scroll after a rest: the pixels first moved ${text || 'no key was pressed'} after the key (limit ${WAKE_MS} ms)`); process.exitCode = 1; }
@@ -111,4 +121,4 @@ if (require.main === module && process.argv[3] === '--wake') {
   else { console.log(`marks at rest ${label}: ${r.off} px off their results (moved ${r.shift.toFixed(0)} px, browser says ${r.browser})`); process.exitCode = 1; }
 }
 
-module.exports = { atRest, tabSwitch, repaint, wake, SETTLE_MS, WAKE_MS };
+module.exports = { atRest, tabSwitch, repaint, wake, SETTLE_MS, WAKE_MS, JUMP_MS };

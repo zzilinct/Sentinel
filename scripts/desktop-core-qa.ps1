@@ -494,6 +494,30 @@ if ($Part -eq 'use') {
     'https://cdn.discordapp.com/attachments/1093845729384756123/1187234567890123456/image.gif?ex=6789abcd&is=67885a4d&hm=3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a&',
     'https://raw.githubusercontent.com/nodejs/node/main/README.md'
   )
+  # The honest sites' own names, answered from this runner (scripts/honest-sites.js): a certificate the runner trusts, the
+  # runner's hosts file, a small page for every address. Edge then shows the real address and holds a real document.
+  $honestHosts = @($honest | ForEach-Object { ([Uri]$_).Host } | Select-Object -Unique)
+  $hostsFile = "$env:WINDIR\System32\drivers\etc\hosts"
+  function HonestOn {
+    if (-not $script:honestServer) {
+      $pw = "ci-$(Get-Random)"
+      $cert = New-SelfSignedCertificate -DnsName $honestHosts -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddDays(1)
+      $cer = Join-Path $Out 'honest.cer'; $pfx = Join-Path $env:RUNNER_TEMP 'honest.pfx'
+      [void](Export-Certificate -Cert $cert -FilePath $cer)
+      [void](Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root)
+      [void](Export-PfxCertificate -Cert $cert -FilePath $pfx -Password (ConvertTo-SecureString $pw -AsPlainText -Force))
+      $script:honestServer = Start-Process node -ArgumentList (Join-Path $PSScriptRoot 'honest-sites.js'), $pfx, $pw -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $Out 'honest.log') -RedirectStandardError (Join-Path $Out 'honest.err.log')
+      $up = Until 20 { try { (New-Object Net.Sockets.TcpClient('127.0.0.1', 443)).Connected } catch { $false } }
+      Check 'honest-sites-served' $up "the honest sites' stand-in server answers on 443: $up"
+    }
+    Add-Content $hostsFile ("`r`n" + (($honestHosts | ForEach-Object { "127.0.0.1 $_" }) -join "`r`n"))
+    Clear-DnsClientCache
+  }
+  function HonestOff {
+    $names = ($honestHosts | ForEach-Object { [regex]::Escape($_) }) -join '|'
+    Set-Content $hostsFile (Get-Content $hostsFile | Where-Object { $_ -notmatch "^127\.0\.0\.1 ($names)$" })
+    Clear-DnsClientCache
+  }
   Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
   # What the browser in front shows in its address bar (Edge's and Chrome's is OmniboxViewViews); '' when it cannot say.
   function AddressBar {
@@ -536,7 +560,11 @@ if ($Part -eq 'use') {
     if (-not $ok) { Say "  diag: the address bar shows '$(AddressBar)'; live scanning last read: $(((WatchLog) -split "`n" | Select-Object -Last 3) -join ' | ')" }
     return @{ ok = $ok; took = [math]::Round(((Get-Date) - $script:entered).TotalSeconds, 1); line = $script:line; warned = [bool](Cdp 'warn.html' '1').value }
   }
-  function Sites($browser, $list) {
+  # $tag 'honest': the sites' own names answered from this runner (HonestOn), so only Sentinel is being timed; it gates.
+  # $tag 'real': the real sites over the outside network. A page that loads slowly gives the reader no address (it reads
+  # the page's own document), so a verdict is late for reasons that are not Sentinel's: the count is reported, and what
+  # still gates is that no real site that was checked is flagged or warned.
+  function Sites($browser, $list, $tag = 'honest') {
     $slow = @(); $wrong = @(); $times = @()
     foreach ($u in $list) {
       $v = Verdict $browser $u
@@ -544,14 +572,20 @@ if ($Part -eq 'use') {
       if (-not $v.ok) { $slow += $u } else { $times += $v.took }
       if ($v.line -match " (red|orange) " -or $v.warned) { $wrong += "$u ($($v.line))"; [void](Cdp 'warn.html' 'window.close(), 1') }
     }
-    Shot "$browser-honest"
+    Shot "$browser-$tag"
     $avg = $(if ($times.Count) { [math]::Round(($times | Measure-Object -Average).Average, 1) } else { 0 })
-    Check "$browser-honest-quiet" (-not $wrong.Count) "flagged or warned: $($wrong -join '; ')"
-    Check "$browser-honest-checked" ($slow.Count -le 1) "checked $($times.Count) of $($list.Count), on average $avg s from Enter to the verdict (max $(($times | Measure-Object -Maximum).Maximum) s); not checked in 40 s: $($slow -join ', ')"
+    Check "$browser-$tag-quiet" (-not $wrong.Count) "flagged or warned: $($wrong -join '; ')"
+    $said = "checked $($times.Count) of $($list.Count), on average $avg s from Enter to the verdict (max $(($times | Measure-Object -Maximum).Maximum) s); not checked in 40 s: $($slow -join ', ')"
+    if ($tag -eq 'honest') { Check "$browser-honest-checked" ($slow.Count -le 1) $said } else { Say "$browser real sites, not gated: $said" }
   }
   Say "Edge in front: $(FreshEdge 'about:blank')"
   # -Repeat (desktop-e2e.yml's dispatch input) goes round the honest sites more than once, to show a check holds.
+  HonestOn
   for ($round = 1; $round -le $Repeat; $round++) { Sites 'msedge' $honest }
+  # The same sites over the real network, Edge started fresh so it keeps none of the local answers.
+  HonestOff
+  Say "Edge in front: $(FreshEdge 'about:blank')"
+  Sites 'msedge' $honest 'real'
   # A search: marks beside the results.
   # Handed to Edge, not typed: in SendKeys "+" is Shift, which mangled the search address, and a site's own prompt
   # (Chase asks to open other apps) could swallow the keys, leaving Edge on the last site with nothing to mark.
@@ -639,7 +673,9 @@ if ($Part -eq 'use') {
   Start-Process "$chromeDir\chrome.exe" -ArgumentList '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\chrome-core", '--start-maximized', 'about:blank'
   Start-Sleep 10
   Say "Chrome in front: $(Front 'chrome')"
+  HonestOn
   Sites 'chrome' @('https://en.wikipedia.org/wiki/Phishing', 'https://www.paypal.com/signin', 'https://accounts.google.com/', 'https://www.amazon.com/gift-cards/b?node=2238192011')
+  HonestOff
   $w = Warned 'http://paypal-wallet-limited-review.test:47910/signin.html'
   Shot 'chrome-warning'
   Check 'chrome-scam-warned' ($w.ok -and $w.took -le 10 -and $w.words -match 'Chrome') "a PayPal look-alike in Chrome: warned after $($w.took) s: $($w.words)"
@@ -862,6 +898,17 @@ if ($Part -eq 'update') {
     Say "installed $v, Sentinel processes: $(@(Get-Process Sentinel -ErrorAction SilentlyContinue).Count); $(((AppLog) -split "`n" | Where-Object { $_ -match 'updat' } | Select-Object -Last 1))"
   }
   $took = [int]((Get-Date) - $t0).TotalMinutes
+  if (-not $updated) {
+    # An install that did not take: what is on disk and running, so the cause is read from the run, not guessed.
+    $dir = Split-Path $exe
+    Say "diag: install folder files (name, bytes, written): $((Get-ChildItem $dir -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'exe|dll$' -and $_.Length -gt 1MB } | ForEach-Object { "$($_.Name) $($_.Length) $($_.LastWriteTime.ToString('HH:mm:ss'))" }) -join '; ')"
+    Say "diag: resources: $((Get-ChildItem (Join-Path $dir 'resources') -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Name) $($_.Length) $($_.LastWriteTime.ToString('HH:mm:ss'))" }) -join '; ')"
+    Say "diag: app-update.yml: $((Get-Content (Join-Path $dir 'resources\app-update.yml') -ErrorAction SilentlyContinue) -join ' | ')"
+    Say "diag: Sentinel processes: $((Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'Sentinel' } | ForEach-Object { "$($_.Name)#$($_.Id)" }) -join ' ')"
+    Say "diag: pending renames: $(((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -ErrorAction SilentlyContinue).PendingFileRenameOperations) -join ' ')"
+    $cdir = Join-Path $env:LOCALAPPDATA 'sentinel-desktop-updater'
+    Say "diag: cache: $((Get-ChildItem $cdir -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { "$($_.FullName.Substring($cdir.Length)) $($_.Length)" }) -join '; ')"
+  }
   $up = WaitUp
   Start-Sleep 15
   $ws = SentinelWindows

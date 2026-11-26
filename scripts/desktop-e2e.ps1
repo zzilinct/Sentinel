@@ -233,11 +233,22 @@ Start-Sleep 3
 $a = ClipStatus; Start-Sleep 6; $b = ClipStatus
 Check 'clickfix-slow-elsewhere' ($b.every -eq 1500 -and ($b.reads - $a.reads) -le 5) "another program in front: every $($b.every) ms, $($b.reads - $a.reads) reads in 6 s"
 # The same kind of command copied in another program is the person's own: told about, never taken off the clipboard.
-$command2 = 'powershell -w hidden -enc ' + [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes('Write-Output there'))
-Set-Clipboard -Value $command2
-$ok = Until 10 { (AppLog) -match 'copied command flagged \(copied in a program\)' }
-$clip = (Get-Clipboard -Raw) + ''
-Check 'clickfix-program-told' ($ok -and $clip.Trim() -eq $command2) "copied in Notepad: told ($ok), clipboard left alone: $($clip.Substring(0, [Math]::Min(40, $clip.Length)))"
+# -Repeat goes round this too (a different command each time, counted in the log), and a miss says what Sentinel was doing.
+$toldWhy = @()
+for ($round = 1; $round -le $Repeat; $round++) {
+  $command2 = 'powershell -w hidden -enc ' + [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("Write-Output there $round"))
+  $told0 = ([regex]::Matches((AppLog), 'copied command flagged \(copied in a program\)')).Count
+  $a = ClipStatus
+  $copied = Get-Date
+  Set-Clipboard -Value $command2
+  $ok = Until 10 { ([regex]::Matches((AppLog), 'copied command flagged \(copied in a program\)')).Count -gt $told0 }
+  $clip = (Get-Clipboard -Raw) + ''
+  $b = ClipStatus
+  if (-not ($ok -and $clip.Trim() -eq $command2)) {
+    $toldWhy += "round ${round}: told $ok, clipboard intact $($clip.Trim() -eq $command2), $($b.reads - $a.reads) reads in $([int]((Get-Date) - $copied).TotalSeconds) s, every $($b.every) ms, browsers: $((Get-Process msedge, chrome -ErrorAction SilentlyContinue).Count) processes, log: $((((AppLog) -split "`n" | Where-Object { $_ } | Select-Object -Last 3) -join ' | '))"
+  }
+}
+Check 'clickfix-program-told' (-not $toldWhy.Count) "copied in Notepad, $Repeat time(s): told every time, clipboard left alone$(if ($toldWhy.Count) { '; missed: ' + ($toldWhy -join ' // ') })"
 Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 # 4a. Wallet guard: a small helper standing in for a clipboard hijacker (harmless: it only sets the clipboard) copies a

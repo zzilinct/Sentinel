@@ -546,6 +546,41 @@ test('uninstalling leaves no startup entry, no downloaded updates and no uninsta
   assert.match(read('web/assets/js/guest.js'), /get\('url'\)[\s\S]*requestSubmit\(\)/);
 });
 
+test('1.21.5: clearing the downloaded updates survives an installer still holding its file (EPERM), and tries again half a minute later', (t) => {
+  const Module = require('module');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-clear-'));
+  const cache = path.join(dir, 'sentinel-desktop-updater');
+  fs.mkdirSync(path.join(cache, 'pending'), { recursive: true });
+  fs.writeFileSync(path.join(cache, 'pending', 'Sentinel-Setup-9.9.9.exe'), 'x');
+  const load = Module._load;
+  Module._load = function (req, ...rest) { return req === 'electron' ? { app: { getPath: () => dir, getVersion: () => '1.0.0', isPackaged: false } } : load.call(this, req, ...rest); };
+  const rm = fs.rmSync;
+  const env = process.env.LOCALAPPDATA;
+  process.env.LOCALAPPDATA = dir;
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const lines = [];
+  let calls = 0;
+  try {
+    delete require.cache[require.resolve('../desktop/src/updater')];
+    const updater = require('../desktop/src/updater');
+    updater.init({ log: (l) => lines.push(l) });   // wires the log only: the app is not packaged-and-updating in a test
+    fs.rmSync = (...a) => { if (++calls === 1) { const e = new Error("EPERM, Permission denied: 'x'"); e.code = 'EPERM'; throw e; } return rm(...a); };
+    updater._test.clearCache('a previous install did not take');
+    assert.ok(fs.existsSync(cache), 'the first try failed, so the folder is still there');
+    assert.match(lines.join('\n'), /could not clear the downloaded updates yet: EPERM/);
+    t.mock.timers.tick(30 * 1000);
+    assert.equal(calls, 2, 'tried again once');
+    assert.ok(!fs.existsSync(cache), 'and the second try cleared it');
+    assert.match(lines.join('\n'), /cleared the downloaded updates \(a previous install did not take\)/);
+  } finally {
+    fs.rmSync = rm;
+    Module._load = load;
+    if (env === undefined) delete process.env.LOCALAPPDATA; else process.env.LOCALAPPDATA = env;
+    delete require.cache[require.resolve('../desktop/src/updater')];
+    rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('a window whose page process ends comes back; a run that did not quit is logged; the tray\'s changes reach the app', () => {
   const main = read('desktop/src/main.js');
   assert.match(main, /contents\.on\('render-process-gone'[\s\S]*if \(w === win\) \{ contents\.reload\(\); return; \}[\s\S]*if \(overlay\.revive\(\)\) watch\.keepAbove\(overlay\.handle\(\)\)/);
