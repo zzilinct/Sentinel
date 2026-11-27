@@ -335,7 +335,8 @@ test('the words say it when Sentinel is not checking everything: paused, never "
   const out = Say.protection({ ...base, account: { signedIn: false } });
   assert.equal(out.tone, 'paused');
   assert.match(out.title, /on this device only/);
-  assert.match(out.line, /nothing is sent anywhere/);
+  assert.match(out.line, /no address goes to a scanner/);
+  assert.match(out.line, /can still get your browser.s request/);
   assert.match(Say.protection({ ...base, device: null, account: { signedIn: false } }).line, /has not been downloaded yet/);
   const away = Say.protection({ ...base, account: { signedIn: true, plan: {} }, away: true });
   assert.equal(away.tone, 'paused');

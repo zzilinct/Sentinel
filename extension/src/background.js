@@ -458,7 +458,7 @@ async function realSiteFor(details) {
   const known = cacheGet('research', details.url) || cacheGet('quick', details.url)
     || cacheForHost(hostOf(details.url), (v) => v.realSite) || cacheForHost(hostOf(details.url));
   if (known) return known;
-  // A site on the list kept on this device is answered there: its address goes nowhere, and a copy of a brand names the
+  // A site on the list kept on this device is answered there: its address is not sent to the scanner, and a copy of a brand names the
   // brand's real site from the same rule. Signed out there is no scanner to ask.
   if (!account.signedIn || listed(hostOf(details.url))) return lookalikeVerdict(details.url);
   if (Date.now() - scannerAway < AWAY_WAIT) return null;

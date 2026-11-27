@@ -56,7 +56,7 @@
       // Signed out, the device still checks what it can without a server; it says exactly that, never "on".
       if (state && state.ok && state.settings && state.settings.enabled) {
         const signIn = state.reachable === false ? 'Open the Sentinel app for Windows on this computer to check every page. Sentinel’s own website is not live yet.' : 'Sign in to check every page.';
-        return { tone: 'paused', word: 'Paused', title: 'Sentinel checks on this device only', line: `${state.device ? 'Sites on a public threat list and copies of well-known brands are caught here, and nothing is sent anywhere.' : 'Copies of well-known brands are caught here. The threat list has not been downloaded yet.'} ${signIn}` };
+        return { tone: 'paused', word: 'Paused', title: 'Sentinel checks on this device only', line: `${state.device ? 'Sites on a public threat list and copies of well-known brands are checked here, and no address goes to a scanner. A listed site opened by hand can still get your browser’s request before the page is stopped.' : 'Copies of well-known brands are caught here. The threat list has not been downloaded yet.'} ${signIn}` };
       }
       return { tone: 'off', word: 'Off', title: 'Sentinel is not signed in', line: state && state.reachable === false
         ? 'Open the Sentinel app for Windows on this computer to sign in. Sentinel’s own website is not live yet.'

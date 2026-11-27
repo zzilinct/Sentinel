@@ -524,6 +524,8 @@ async function checkCompanionCore() {
     const ffOut = `${ff.stdout || ''}${ff.stderr || ''}`.trim().split(/\r?\n/);
     result(`companion-core: the Firefox build marks every result on a search page (${/SKIP/.test(ffOut[0] || '') ? 'Firefox is not on this runner' : (ffOut[0] || '').replace(/^(PASS|FAIL)\s+/, '')})`,
       ff.status === 0 || ff.status === 2, { sync: sync.status, exit: ff.status, out: ffOut });
+    const ffDevice = ffOut.find((l) => /firefox device/.test(l));
+    result('companion-core: in Firefox, signed out, the marks say what only this device checked: a listed site flagged, the rest never "no warning signs"', /SKIP/.test(ffOut[0] || '') || /firefox device\): ok/.test(ffDevice || ''), { ffDevice });
   } finally {
     await withIt.close();
     await without.close();

@@ -24,7 +24,17 @@ const COPY = ['paypa', '1.com'].join('');   // a look-alike of a brand, put toge
 async function checkCompanionDevice() {
   // Where the scanner would be: counts everything, answers nothing.
   const scanner = [];
-  const recorder = http.createServer((req, res) => { scanner.push(req.url); res.writeHead(503); res.end(); });
+  // Signed in later (section 5) it answers the account and nothing else, until it is stopped.
+  let signedIn = false;
+  const recorder = http.createServer((req, res) => {
+    scanner.push(req.url);
+    if (signedIn && req.url.startsWith('/api/v1/auth/me')) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ user: { name: 'Test' }, plan: { id: 'free', features: { liveFast: true } }, usage: { liveMinutes: { used: 0, limit: null }, fastMinutes: { used: 0, limit: null } }, week: { resetsAt: Date.now() + 6e8 } }));
+      return;
+    }
+    res.writeHead(503); res.end();
+  });
   const recorderPort = await freePort();
   await new Promise((resolve) => recorder.listen(recorderPort, '127.0.0.1', resolve));
 
@@ -113,6 +123,29 @@ async function checkCompanionDevice() {
       await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, opt.sessionId);
       await sleep(300);
       await shot(browser, opt.sessionId, `companion-device-settings-${scheme}`);
+    }
+
+    /* 5. Signed in, then the scanner goes away: Sentinel says so, and no mark claims more than was checked. */
+    signedIn = true;
+    const account = await evalIn(browser, opt.sessionId, "chrome.storage.local.set({ authToken: 't' }).then(() => chrome.runtime.sendMessage({ type: 'refresh' })).then((r) => Boolean(r && r.account && r.account.signedIn))");
+    recorder.close();
+    recorder.closeAllConnections();
+    const away = await openPage(browser);
+    await goto(browser, away.sessionId, 'http://www.google.com/search?q=sentinel+away');
+    await until(browser, away.sessionId, "document.querySelectorAll('.sentinel-mask').length >= 3", 20000);
+    await sleep(1500);
+    const awayLabels = await evalIn(browser, away.sessionId, "[...document.querySelectorAll('.sentinel-mask')].map((x) => x.getAttribute('aria-label') || '')");
+    result('companion-device: signed in with the scanner gone, no result is called clear: the ordinary one says it was only checked on this device, the listed one is still flagged',
+      account && awayLabels.length === 3 && awayLabels.some((l) => /Confirmed scam/.test(l)) && awayLabels.some((l) => /checked on this device only/.test(l)) && !awayLabels.some((l) => /no warning signs found|a verified site/.test(l)), { account, awayLabels });
+    await shot(browser, away.sessionId, 'companion-device-away-search');
+    await browser.send('Target.closeTarget', { targetId: away.targetId }).catch(() => {});
+    await goto(browser, opt.sessionId, `${ext}/src/options.html`, "document.getElementById('headline') && document.getElementById('headline').textContent.length > 0");
+    const awayHead = await evalIn(browser, opt.sessionId, "document.getElementById('headline').textContent + ' | ' + document.getElementById('headLine').textContent");
+    result('companion-device: the settings headline says Sentinel cannot reach its scanner, never that it is on', /cannot reach its scanner/.test(awayHead) && /Pages are checked on this device only/.test(awayHead) && !/\bis on\b/.test(awayHead), { awayHead });
+    for (const scheme of ['dark', 'light']) {
+      await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, opt.sessionId);
+      await sleep(300);
+      await shot(browser, opt.sessionId, `companion-device-away-settings-${scheme}`);
     }
     console.log(`      chrome ${version}`);
   } finally {
