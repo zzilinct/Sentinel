@@ -34,7 +34,50 @@
 
 .set-group { scroll-margin-top: 84px; }
 .set-group__title { margin-top: 44px; padding-bottom: 12px; border-bottom: 1px solid var(--line-gold); font-size: var(--t-title); font-weight: 500; color: var(--text); }
-.set-app + .set-group .set-group__title, .set-find + .sr-only + .set-group .set-group__title { margin-top: 18px; }
+.set-sec > .set-group:first-child .set-group__title { margin-top: 18px; }
+.set-sec[hidden], .set-index[hidden], .set-back[hidden], .set-app[hidden] { display: none; }
+
+/* A phone with no section chosen: the sections as one list, a press opens its page. The way back is a link above it. */
+.set-index { display: grid; border-top: 1px solid var(--line-gold); }
+.set-index__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; padding: calc(14px * var(--ds)) 2px; border-bottom: 1px solid var(--line); color: var(--text); transition: background-color .2s; }
+.set-index__row span { display: grid; gap: 3px; min-width: 0; }
+.set-index__row b { font-size: var(--t-text); font-weight: 500; }
+.set-index__row small { color: var(--muted); font-size: var(--t-ui); }
+.set-index__row svg { flex: none; color: var(--gold-300); }
+.set-index__row:active { background: rgb(var(--ink) / .04); }
+.set-index__row:focus-visible, .set-back:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; border-radius: 4px; }
+/* A phone's section page opens on its own content: the search and the email reminder belong to the list (the reminder is on every other page). */
+@media (max-width: 900px) {
+  .set[data-in-section] .set-find { display: none; }
+  #view:has(.set[data-in-section]) .verify-bar { display: none; }
+}
+.set-back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: 0 0 -2px -6px; padding: 0 10px 0 4px; color: var(--gold-300); font-size: var(--t-ui); }
+.set-back:hover { color: var(--gold-200); }
+
+/* Appearance: what the colour, theme and text size choose, drawn once from the app's own variables and classes. It carries
+   no colour of its own, so it is always exactly the app. On a wide screen it sits beside the three rows that change it. */
+.look-prev { display: grid; grid-template-columns: 54px minmax(0, 1fr); margin: 18px 0 6px; max-width: 460px; border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--raise-sm), inset 0 0 0 1px var(--line); overflow: hidden; transition: background-color .3s, box-shadow .3s; }
+.look-prev__side { display: grid; align-content: start; justify-items: center; gap: 9px; padding: 14px 0; background: rgb(var(--ink) / .04); transition: background-color .3s; }
+.look-prev__ring { width: 26px; height: 26px; border-radius: 50%; border: 5px solid var(--gold-400); box-shadow: 0 0 10px rgb(var(--gold-rgb) / .35); transition: border-color .3s, box-shadow .3s; }
+.look-prev__side span { width: 22px; height: 4px; border-radius: 2px; background: var(--line-2); }
+.look-prev__side span:first-of-type { background: var(--gold-400); transition: background-color .3s; }
+.look-prev__page { display: grid; gap: 6px; padding: 16px 18px 18px; }
+.look-prev__page b { font-size: var(--t-text); font-weight: 500; color: var(--text); }
+.look-prev__page p { color: var(--muted); font-size: var(--t-ui); }
+/* The button fades with the rest: its three stops are registered colours, which a gradient on its own cannot be. */
+@property --pv1 { syntax: '<color>'; inherits: false; initial-value: #d6b066; }
+@property --pv2 { syntax: '<color>'; inherits: false; initial-value: #d6b066; }
+@property --pv3 { syntax: '<color>'; inherits: false; initial-value: #d6b066; }
+.look-prev .btn--gold { --pv1: var(--gold-200); --pv2: var(--gold-400); --pv3: var(--gold-600); background: linear-gradient(180deg, var(--pv1), var(--pv2) 50%, var(--pv3)); transition: --pv1 .35s, --pv2 .35s, --pv3 .35s; pointer-events: none; }
+.look-prev__row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 6px; }
+.look-prev__ok { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: var(--t-note); font-weight: 500; }
+.look-prev__ok i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+@media (min-width: 1180px) {
+  [data-set-group="look"] > .set-fold { display: grid; grid-template-columns: minmax(0, 1fr) 340px; column-gap: 44px; align-items: start; }
+  [data-set-group="look"] > .set-fold > * { grid-column: 1; }
+  [data-set-group="look"] > .set-fold > .set-group__title { grid-column: 1 / -1; }
+  [data-set-group="look"] > .set-fold > .look-prev { grid-column: 2; grid-row: 2 / span 3; margin-top: 22px; }
+}
 
 .set-row { scroll-margin-top: 84px; border-bottom: 1px solid var(--line); transition: grid-template-rows .55s var(--set-spring), border-color .3s; }
 .set-row.is-out { border-bottom-color: transparent; }
@@ -122,6 +165,6 @@
 }
 
 :root[data-motion="off"] {
-  .set-group, .set-row, .set-rail a::before, .first { transition: none; }
+  .set-group, .set-row, .set-rail a::before, .first, .look-prev, .look-prev * { transition: none; }
   .set-row.is-found .set-row__label::after { animation: none; transform: none; opacity: 1; }
 }

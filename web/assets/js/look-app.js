@@ -49,9 +49,12 @@
   // followed by where the pointer goes, until the change has finished.
   var hot = null;
   function heat(c) { if (hot === c) return; if (hot) hot.removeAttribute('data-hot'); hot = c || null; if (c) c.setAttribute('data-hot', ''); }
+  // Where each coin is, read once when a change starts: the pointer moving then reads no layout, however many coins there
+  // are. (Scrolling while a change opens, under a second, leaves the lift on the coin that was under the pointer.)
+  var spots = [];
   function follow(e) {
-    var all = document.querySelectorAll('.look__coin'), at = null;
-    for (var i = 0; i < all.length && !at; i++) { var r = all[i].getBoundingClientRect(); if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) at = all[i]; }
+    var at = null;
+    for (var i = 0; i < spots.length && !at; i++) { var r = spots[i]; if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) at = r.c; }
     heat(at);
   }
   function show(look, from) {
@@ -68,9 +71,10 @@
     html.classList.add('look-vt');
     // A second press before the first has opened takes over: only the last one clears the class.
     var mine = ++show.n;
+    spots = [].map.call(document.querySelectorAll('.look__coin'), function (c) { var r = c.getBoundingClientRect(); return { c: c, left: r.left, right: r.right, top: r.top, bottom: r.bottom }; });
     heat(document.querySelector('.look__coin:hover'));
     document.addEventListener('pointermove', follow, { passive: true });
-    var done = function () { if (mine === show.n) { html.classList.remove('look-vt'); document.removeEventListener('pointermove', follow); heat(null); } };
+    var done = function () { if (mine === show.n) { html.classList.remove('look-vt'); document.removeEventListener('pointermove', follow); heat(null); spots = []; } };
     document.startViewTransition(draw).finished.then(done, done);
   }
   show.n = 0;

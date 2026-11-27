@@ -500,21 +500,37 @@
    * The groups are fixed. The accent and look picker adds its rows to 'look', motion and the scan effect to 'moving'.
    */
   const SETTING_GROUPS = [
-    ['look', 'Appearance'], ['moving', 'Motion'], ['protection', 'Live protection'], ['guards', 'Everyday guards'],
+    ['look', 'Your look'], ['moving', 'Motion'], ['protection', 'Live protection'], ['guards', 'Everyday guards'],
     ['chat', 'Chat and texts'], ['alerts', 'Alerts'], ['lock', 'Parent lock'], ['account', 'Account and security'], ['data', 'Your data'], ['plan', 'Plan and app'], ['help', 'Help']
   ];
+  /* The page shows one section at a time: six of them, each holding some of the groups above. A phone opens on the list
+     of sections and a section is its own page with a way back; a wide screen keeps the list beside the page. A section id
+     is also a group id, so every address that ever pointed at a group still lands on it. */
+  const SETTING_SECTIONS = [
+    ['look', 'Appearance', 'Colour, theme, text size and motion', ['look', 'moving']],
+    ['protection', 'Protection', 'Live scanning, everyday guards, chat and alerts', ['protection', 'guards', 'chat', 'alerts']],
+    ['account', 'Account and security', 'Your details, password, two-step sign-in, devices and parent lock', ['account', 'lock']],
+    ['plan', 'Plan and app', 'Your plan, AI assistants and app updates', ['plan']],
+    ['data', 'Your data', 'What Sentinel keeps, and how to take it or erase it', ['data']],
+    ['help', 'Help', 'Questions, what is new and how to reach us', ['help']]
+  ];
+  /** The section an address names: a section, a group or one row. Anything else is no section. */
+  const sectionOf = (id) => {
+    const group = SETTINGS.find((r) => r.id === id)?.group || id;
+    const s = SETTING_SECTIONS.find((x) => x[3].includes(group));
+    return s ? s[0] : '';
+  };
   /** A switch saved through the app: `on` reads it, `off` says why it cannot work (past needing the app), `said` is the toast. */
   const appSwitch = (o) => ({ ...o, kind: 'switch', app: true, why: (info) => appWhy(info, o.method) || (o.off ? o.off(info) : '') });
   const facts = (summary, items) => `<details class="set-facts"><summary>${summary}</summary><ul>${items.map(([b, t]) => `<li><b>${b}</b> ${t}</li>`).join('')}</ul></details>`;
   const linkControl = (href) => `<a class="btn btn--sm" href="${href}">Open</a>`;
 
   const SETTINGS = [
-    ROW.theme, ROW.accent,
+    ROW.theme, ROW.accent, ROW['text-size'],
     { id: 'simple-view', group: 'look', kind: 'switch', label: 'Simple view', hint: 'Fewer pages and fewer words. A check shows its answer and what to do, in bigger type, with the details one press away. On this device.',
       words: ['simple', 'easy', 'less', 'basic', 'bigger', 'large', 'older', 'beginner', 'clutter', 'plain'],
       on: () => simpleView(), save: (input) => window.SentinelSimple.set(input.checked),
       said: (on) => (on ? 'Simple view is on. Pages you may not need are tucked away; search still finds every one.' : 'Simple view is off. Every page and detail is back.') },
-    ROW['text-size'],
     { id: 'density', group: 'look', kind: 'custom', label: 'Spacing', hint: 'Compact fits more on one screen. Buttons stay easy to press.',
       words: ['compact', 'dense', 'density', 'comfortable', 'padding', 'space', 'tight'],
       control: () => seg('set-density-l', [['comfortable', 'Comfortable'], ['compact', 'Compact']], window.SentinelType ? window.SentinelType.get().density : 'comfortable'),
@@ -928,16 +944,23 @@
     } catch (err) { failed(slot, err, () => { slot.innerHTML = ''; loadSessions(slot); }, { small: true, what: 'Your signed-in devices' }); }
   }
 
+  /* The Appearance page's preview: a small app drawn from the app's own classes and variables, so it is always the
+     colour, theme and text size chosen, with no colour of its own. Its green is the status green, whatever the colour. */
+  const lookPreview = `<div class="look-prev" aria-hidden="true"><div class="look-prev__side"><i class="look-prev__ring"></i><span></span><span></span><span></span></div>
+    <div class="look-prev__page"><b>Check a link</b><p>Paste anything that looks wrong.</p><div class="look-prev__row"><span class="btn btn--gold btn--sm">Check</span><span class="look-prev__ok"><i></i>Looks safe</span></div></div></div>`;
+
   function settingsView(el) {
     el.innerHTML = `${title('Settings', 'Every choice Sentinel offers, in one place. A change is saved the moment you make it.')}
       <div class="set" data-desktop>
-        <nav class="set-rail" aria-label="Settings groups">${SETTING_GROUPS.map(([g, name], i) => `<a href="#${g}" data-set-go="${g}"${i ? '' : ' aria-current="true"'}>${name}</a>`).join('')}</nav>
+        <nav class="set-rail" aria-label="Settings sections">${SETTING_SECTIONS.map(([s, name]) => `<a href="#${s}" data-set-go="${s}">${name}</a>`).join('')}</nav>
         <div class="set-main">
           <div class="set-find">${ICON.search}<input class="input" type="search" placeholder="Find a setting" aria-label="Find a setting" aria-describedby="set-count" autocomplete="off" spellcheck="false" data-set-find></div>
           <p class="sr-only" id="set-count" role="status" data-set-count></p>
           ${desktop ? '' : `<div class="set-app"><p><b>Most of these work through the Sentinel app for Windows.</b> Here each one is only named, so the ones that work here are easy to find. Your account, plan and look work everywhere.</p><a class="btn btn--gold btn--sm" href="/download">${ICON.download}Download Sentinel</a></div>`}
-          ${SETTING_GROUPS.map(([g, name]) => `<section class="set-group" id="${g}" data-set-group="${g}" aria-labelledby="set-g-${g}"><div class="set-fold">
-            <h2 class="set-group__title" id="set-g-${g}">${name}</h2>${SETTINGS.filter((r) => r.group === g).map(rowHTML).join('')}</div></section>`).join('')}
+          <nav class="set-index" aria-label="Settings sections" data-set-index>${SETTING_SECTIONS.map(([s, name, blurb]) => `<a class="set-index__row" href="/app/settings#${s}"><span><b>${name}</b><small>${blurb}</small></span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>`).join('')}</nav>
+          <a class="set-back" href="/app/settings" data-set-back><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Settings</a>
+          ${SETTING_SECTIONS.map(([s,,, gs]) => `<div class="set-sec" data-set-sec="${s}">${gs.map((g) => `<section class="set-group" id="${g}" data-set-group="${g}" aria-labelledby="set-g-${g}"><div class="set-fold">
+            <h2 class="set-group__title" id="set-g-${g}">${SETTING_GROUPS.find((x) => x[0] === g)[1]}</h2>${g === 'look' ? lookPreview : ''}${SETTINGS.filter((r) => r.group === g).map(rowHTML).join('')}</div></section>`).join('')}</div>`).join('')}
           <div class="set-none" data-set-none hidden><p>Nothing matches.</p><button class="btn btn--sm" type="button" data-set-clear>Clear search</button></div>
         </div>
       </div>`;
@@ -982,10 +1005,37 @@
       }
       none.hidden = shown > 0;
       count.textContent = !q ? '' : shown ? `${shown} setting${shown === 1 ? '' : 's'} shown` : 'Nothing matches.';
+      open(section);
     }
+
+    /* One section at a time. Searching shows every match from every section; clearing it goes back to the section. A phone
+       with no section chosen shows the list of them (the wide screen has it in the rail, and opens on Appearance). */
+    const wide = matchMedia('(min-width: 901px)');
+    const index = $('[data-set-index]', el);
+    const back = $('[data-set-back]', el);
+    const note = $('.set-app', el);
+    let section = sectionOf(location.hash.slice(1)) || (wide.matches ? 'look' : '');
+    function open(s) {
+      section = s;
+      const finding = Boolean(find.value.trim());
+      $$('[data-set-sec]', el).forEach((x) => { x.hidden = !finding && x.dataset.setSec !== s; });
+      index.hidden = finding || wide.matches || Boolean(s);
+      back.hidden = finding || wide.matches || !s;
+      // The note about the Windows app is the list's and the search's: a section's page starts with its own words.
+      if (note) note.hidden = !finding && !wide.matches && Boolean(s);
+      box.toggleAttribute('data-in-section', !finding && !wide.matches && Boolean(s));
+      $$('[data-set-go]', el).forEach((a) => (a.dataset.setGo === s && !finding ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current')));
+    }
+    const onWide = () => open(section || (wide.matches ? 'look' : ''));
+    wide.addEventListener('change', onWide);
+    box._off.push(() => wide.removeEventListener('change', onWide));
+    open(section);
     function goTo(id, found) {
       const target = id && (SETTINGS.some((r) => r.id === id) || SETTING_GROUPS.some(([g]) => g === id)) ? $(`#${id}`, el) : null;
       if (!target) return;   // an unknown or old address: the page as it is
+      if (!find.value.trim() && sectionOf(id) !== section) open(sectionOf(id));
+      // A section's own address is its top (the browser would otherwise leave the page at that group, the title above it out of sight).
+      if (id === sectionOf(id)) { scrollTo({ top: 0, behavior: glide() }); return; }
       target.scrollIntoView({ block: 'start', behavior: glide() });
       if (!found || !target.matches('.set-row')) return;
       target.classList.remove('is-found');
@@ -1004,22 +1054,16 @@
     });
     $('[data-set-clear]', el).addEventListener('click', () => { find.value = ''; filter(); find.focus(); });
 
-    /* The group list: a link per group, the one in view marked. Jumping does not add a history entry per click. */
-    const rail = $('.set-rail', el);
-    rail.addEventListener('click', (ev) => {
+    /* The section list beside the page (a wide screen): a press opens that section in place, with no history entry. */
+    $('.set-rail', el).addEventListener('click', (ev) => {
       const a = ev.target.closest('[data-set-go]');
       if (!a) return;
       ev.preventDefault();
+      if (find.value) { find.value = ''; filter(); }
       history.replaceState(history.state, '', `#${a.dataset.setGo}`);
-      goTo(a.dataset.setGo);
+      open(a.dataset.setGo);
+      scrollTo({ top: 0, behavior: glide() });
     });
-    if ('IntersectionObserver' in window) {
-      const io = new IntersectionObserver((entries) => {
-        for (const e of entries) if (e.isIntersecting) $$('[data-set-go]', rail).forEach((a) => (a.dataset.setGo === e.target.id ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current')));
-      }, { rootMargin: '-15% 0px -75% 0px' });
-      $$('[data-set-group]', el).forEach((g) => io.observe(g));
-      box._off.push(() => io.disconnect());
-    }
 
     /* The app says when something changed (the tray menu, another window, a parent lock): the rows follow. */
     if (desktop) {
