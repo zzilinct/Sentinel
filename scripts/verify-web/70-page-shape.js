@@ -14,10 +14,11 @@ const { spawn } = require('child_process');
 const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, shot } = require('./_shared');
 
 const BRAND_TITLE = ['Sign in to Pay', 'Pal'].join('');
-const SUSPECT = 'my-notes.pages.dev';     // a free-host name: the address alone scores 10, "suspect"
-const OWN = 'www.' + ['pay', 'pal'].join('') + '.com';
-const HONEST = 'acme-app.vercel.app';
-const PRIVATE = 'private-notes.pages.dev';
+// Free hosts and a brand domain whose endings Chrome does not force to https (.dev, .app and paypal.com are preloaded), so the local pages load.
+const SUSPECT = 'my-notes.glitch.me';     // a free-host name: the address alone scores 10, "suspect"
+const OWN = 'www.' + ['pay', 'pal'].join('') + '.me';
+const HONEST = 'acme-app.onrender.com';
+const PRIVATE = 'private-notes.glitch.me';
 
 async function checkPageShape() {
   const net = require('net');
@@ -76,6 +77,7 @@ async function checkPageShape() {
     })()`);
     if (!paired) throw new Error('the companion could not sign in to the test server');
 
+    const loadedTitle = (sess) => evalIn(browser, sess, 'document.title');
     const batchFor = (host) => sent.filter((r) => r.path.includes('/live/batch') && r.body.includes(host));
     const waitFor = async (test, tries = 80) => { for (let i = 0; i < tries && !test(); i++) await sleep(250); return test(); };
     // The mark on the tab, as the toolbar shows it.
@@ -87,6 +89,7 @@ async function checkPageShape() {
     /* 1. A free-host page with a password box and a protected brand in its title. */
     const a = await openPage(browser);
     await goto(browser, a.sessionId, `http://${SUSPECT}/signin.html`);
+    const titles = [await loadedTitle(a.sessionId)];
     const read = await waitFor(() => batchFor(SUSPECT).length > 0);
     let mark = null;
     for (let i = 0; i < 40 && !(mark && mark.text === '?'); i++) { await sleep(250); mark = await markOf(SUSPECT); }
@@ -100,6 +103,7 @@ async function checkPageShape() {
     /* 2. The brand's own host, same page: nothing to read, nothing sent, no mark. */
     const b = await openPage(browser);
     await goto(browser, b.sessionId, `http://${OWN}/signin.html`);
+    titles.push(await loadedTitle(b.sessionId));
     await sleep(6000);
     const ownMark = await markOf(OWN);
     result("page-shape: the same page on the brand's own host sends nothing and gets no mark", batchFor(OWN).length === 0 && Boolean(ownMark) && ownMark.text === '', { ownMark, batches: batchFor(OWN).length });
@@ -107,6 +111,8 @@ async function checkPageShape() {
     /* 3. An honest page with its own sign-in: read (the address is on a free host), nothing in it names a brand, no mark. */
     const c = await openPage(browser);
     await goto(browser, c.sessionId, `http://${HONEST}/home.html`);
+    titles.push(await loadedTitle(c.sessionId));
+    result('page-shape: the three stand-in pages really loaded (none is a browser error page)', titles[0] === BRAND_TITLE && titles[1] === BRAND_TITLE && titles[2] === 'Acme dashboard', { titles });
     const honestRead = await waitFor(() => batchFor(HONEST).length > 0, 40);
     await sleep(2000);
     const honestMark = await markOf(HONEST);
