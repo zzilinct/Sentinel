@@ -105,6 +105,10 @@ async function checkCompanionDevice() {
     /* 3. The words. */
     const said = await evalIn(browser, opt.sessionId, `chrome.runtime.sendMessage({ type: 'state' }).then((s) => { const v = globalThis.SentinelSay.protection(s); return { tone: v.tone, title: v.title, line: v.line, device: s.device }; })`);
     result('companion-device: signed out, Sentinel says it checks on this device only, never "on"', said.tone === 'paused' && /on this device only/.test(said.title) && said.device && said.device.count > 2000, said);
+    // The settings page as it opens now: the headline is read as the page loads, and the list has arrived since.
+    await goto(browser, opt.sessionId, `${ext}/src/options.html`, "document.getElementById('headline') && document.getElementById('headline').textContent.length > 0");
+    const headline = await evalIn(browser, opt.sessionId, "document.getElementById('headLine').textContent");
+    result('companion-device: the settings headline, opened after the list arrived, no longer says the list is missing', /threat list/.test(headline) && !/not been downloaded/.test(headline), { headline });
     for (const scheme of ['dark', 'light']) {
       await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, opt.sessionId);
       await sleep(300);
