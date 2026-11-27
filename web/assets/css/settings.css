@@ -46,7 +46,6 @@
 .set-index__row svg { flex: none; color: var(--gold-300); }
 .set-index__row:active { background: rgb(var(--ink) / .04); }
 .set-index__row:focus-visible, .set-back:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; border-radius: 4px; }
-@media (max-width: 900px) { .view[data-set-in] .page-title p { display: none; } }
 .set-back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: 0 0 -2px -6px; padding: 0 10px 0 4px; color: var(--gold-300); font-size: var(--t-ui); }
 .set-back:hover { color: var(--gold-200); }
 
