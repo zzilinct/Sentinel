@@ -1,34 +1,36 @@
 {
-  "version": "1.21.4",
+  "version": "1.21.5",
   "model": "Argus",
-  "summary": "The app wears your colour all the way through, and the website holds still while it loads",
+  "summary": "Your colour reaches the real app window, and marks follow a Page Down",
   "groups": [
     {
       "title": "Your colour",
       "items": [
-        "The app draws its mark in the title bar on the sign-in pages, and every colour now reaches the text, buttons and warning windows that had stayed cream.",
-        "Switch knobs follow your colour."
+        "Your colour now reaches the real app window: the title bar, the side bar, the Check button, the tray and the taskbar.",
+        "The delicate-scan digits follow your colour."
       ]
     },
     {
       "title": "The website",
       "items": [
-        "The greeting and the Check page no longer jump when fonts load.",
-        "At Larger text on a phone, the bottom bar no longer covers lines or answers, and nothing is cut off or overflowing.",
-        "Keyboard focus lands on the answer heading after a quick check."
+        "The phone bottom bar keeps its icons and names on one line.",
+        "The hero name no longer slides when fonts arrive.",
+        "Blueprint labels stay off the words at Larger text."
       ]
     },
     {
-      "title": "Search results",
+      "title": "Search results and updates",
       "items": [
-        "A sweep of page widths proves Sentinel's marks never make a Bing title taller."
+        "Marks follow a Page Down after the page has been quiet.",
+        "If an update's leftover installer is still busy, the downloaded update is cleared again shortly after instead of being left behind."
       ]
     },
     {
       "title": "Behind the scenes",
       "items": [
-        "A new check photographs every app page in four colours, light and dark, on a phone and a computer, and fails if anything is missing, hidden or still gold.",
-        "A new check lists every visual detail of the website and fails when one is missing, hidden, clipped or covered."
+        "A new check photographs the real app window in five colours.",
+        "Detection is now also scored with no list loaded, with a fingerprint of the verdicts and the list snapshot dates, so releases compare.",
+        "A flaky colour check and the honest-sites check were made steady at their causes."
       ]
     }
   ]
