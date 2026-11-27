@@ -124,6 +124,17 @@ async function main() {
   verdict digest        ${digest}
 `);
 
+  // The gate (scripts/evaluate-gate.js): rules alone on the frozen sample and every honest set against the committed baseline.
+  // Only these gate the release; list hits never do. The miss breakdown says where the rules-alone misses are.
+  // (Not in --fast-only: that is main's rules scored beside this branch's, with no baseline of their own.)
+  if (!FAST_ONLY) {
+    const gate = require('./evaluate-gate');
+    const now = gate.summarize(await gate.scoreAll(engine));
+    const failures = gate.compare(now, gate.baseline());
+    console.log(`${gate.print(now)}\n${failures.length ? failures.map((f) => `  FAIL ${f}`).join('\n') : '  gate holds'}\n`);
+    if (failures.length) process.exitCode = 1;
+  }
+
   console.log('Loading the public threat lists (text files of addresses)...');
   await feeds.refreshAll({ force: true });
   for (const table of ['feed_urls', 'feed_hosts']) db.prepare(`DELETE FROM ${table} WHERE source = 'openphish'`).run();

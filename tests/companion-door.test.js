@@ -17,7 +17,8 @@ const Say = require('../extension/src/lib/say.js');
 const RED = { url: 'http://bad.test/x', host: 'bad.test', threats: { scam: { badge: 'red' } }, reasons: [{ text: 'A fake sign-in' }, { text: 'Young address' }], overall: { badge: 'red', label: 'Confirmed scam' } };
 
 /** The worker with a browser that keeps its rules, like the real one. */
-function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null } = {}) {
+function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null, pageRead = null, batchVerdict = null, incognito = false } = {}) {
+  const batches = [];
   const dynamic = [];
   const session = [];
   const on = {};
@@ -35,18 +36,19 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null }
   const ext = {
     runtime: { id: 'me', getURL: (p) => `chrome-extension://me/${p}`, getManifest: () => ({ content_scripts: [], version: '1' }), onMessage: listener('m'), onMessageExternal: listener('x'), onInstalled: listener('i'), onStartup: listener('s'), lastError: null },
     storage: { local: area(local), session: area({}), sync: { get: async (d) => ({ ...d }), set: async () => {} }, onChanged: listener('c') },
-    tabs: { sendMessage: async (tabId, msg, opts) => { messages.push({ tabId, msg, opts }); return null; }, get: async () => ({ id: 7, url: tabUrl }), create: noop, query: async () => [], update: async (id, u) => { updates.push(u); }, onRemoved: listener('removed'), onActivated: listener('a') },
+    tabs: { sendMessage: async (tabId, msg, opts) => { messages.push({ tabId, msg, opts }); return null; }, get: async () => ({ id: 7, url: tabUrl, incognito }), create: noop, query: async () => [], update: async (id, u) => { updates.push(u); }, onRemoved: listener('removed'), onActivated: listener('a') },
     action: { setBadgeText: noop, setBadgeBackgroundColor: noop, setTitle: noop },
     alarms: { create: noop, onAlarm: listener('al') },
     contextMenus: { create: noop, onClicked: listener('cm') },
     notifications: { create: noop },
     webNavigation: { onBeforeNavigate: listener('before'), onErrorOccurred: listener('error'), onCommitted: listener('committed'), onCompleted: listener('done'), onHistoryStateUpdated: listener('h'), onReferenceFragmentUpdated: listener('f') },
     permissions: { contains: async () => true },
-    scripting: { executeScript: async (o) => { scripts.push(o); } },
+    scripting: { executeScript: async (o) => { scripts.push(o); return pageRead && /pagefacts/.test(String(o.files)) ? [{ result: pageRead }] : undefined; } },
     declarativeNetRequest: { getDynamicRules: async () => dynamic, updateDynamicRules: update(dynamic), getSessionRules: async () => session, updateSessionRules: update(session) }
   };
   const ctx = { chrome: ext, crypto: globalThis.crypto, TextEncoder, URL, btoa, atob, Uint8Array, AbortController, AbortSignal, setTimeout, clearTimeout, console, Promise,
-    fetch: async (u) => {
+    fetch: async (u, init) => {
+      if (batchVerdict && u.includes('/live/batch')) { const body = JSON.parse(init.body); batches.push(body); return { ok: true, json: async () => ({ byUrl: { [body.urls[0]]: batchVerdict } }) }; }
       if (fetchVerdict && u.includes('/live/visit')) return { ok: true, json: async () => ({ verdict: fetchVerdict }) };
       if (u.includes('/auth/me')) return { ok: true, json: async () => ({ user: {}, plan: { features: { liveFast: true } }, usage: { liveMinutes: {} }, week: {} }) };
       throw new Error('offline');
@@ -56,7 +58,7 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null }
   const blockTab = { id: 'me', url: 'chrome-extension://me/src/block.html', tab: { id: 7, active: true } };
   const call = async (type, msg = {}, sender = blockTab) => { await ctx.recalled; return JSON.parse(JSON.stringify(await ctx.handlers[type]({ type, ...msg }, sender))); };
   const settled = async () => { await ctx.inTabOrder('door', () => {}); };
-  return { ctx, dynamic, session, on, scripts, updates, messages, call, settled, blockTab };
+  return { ctx, dynamic, session, on, scripts, updates, messages, call, settled, blockTab, batches };
 }
 
 test('a listed site becomes one browser rule, for main pages only, and the same check matches what the rule matches', async () => {
@@ -176,6 +178,32 @@ test('Continue anyway goes to the address the person asked for: http when the br
   assert.equal((await sure.call('block-info', { url: 'https://bad.test/y' })).plain, false);
   // Nothing is left listening for navigation errors: the browser falls back from its own switch by itself.
   assert.equal(w.on.error, undefined);
+});
+
+test('1.22.0 page shape: a suspect page is read once loaded and only four facts go; an unremarkable page, a quiet address and a private window send nothing', async () => {
+  const url = 'https://my-notes.pages.dev/';
+  const suspect = { ok: true, url, host: 'my-notes.pages.dev', threats: { scam: { badge: null, score: 8 } }, reasons: [], overall: { badge: null } };
+  const yellow = { ...suspect, threats: { scam: { badge: 'yellow', score: 40 } }, overall: { badge: 'yellow', label: 'Suspicious' } };
+  const run = async (opts, first = suspect) => {
+    const w = worker({ tabUrl: url, fetchVerdict: first, batchVerdict: yellow, ...opts });
+    await w.ctx.recalled;
+    await w.on.committed({ frameId: 0, tabId: 7, url });
+    await w.on.done({ frameId: 0, tabId: 7, url });
+    await w.settled();
+    for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    return w;
+  };
+  const read = { password: true, crossForm: true, frame: false, brand: 'paypal', title: 'Sign in', text: 'never sent' };
+  const w = await run({ pageRead: read });
+  assert.ok(w.scripts.some((s) => String(s.files).includes('pagefacts')), 'the page was read');
+  assert.equal(w.batches.length, 1);
+  assert.deepEqual(w.batches[0].hints[w.batches[0].urls[0]], { facts: { password: true, crossForm: true, frame: false, brand: 'paypal' } }, 'four facts, no title, no text');
+  assert.equal(w.batches[0].private, false);
+
+  assert.equal((await run({ pageRead: { password: false, crossForm: false, frame: false, brand: null } })).batches.length, 0, 'nothing to say, nothing sent');
+  assert.equal((await run({ pageRead: read, incognito: true })).scripts.some((s) => String(s.files).includes('pagefacts')), false, 'a private window is never read');
+  const quiet = { ...suspect, threats: { scam: { badge: null, score: 2 } } };
+  assert.equal((await run({ pageRead: read }, quiet)).scripts.some((s) => String(s.files).includes('pagefacts')), false, 'an address that is not suspect is never read');
 });
 
 test('red after the page opened replaces it; orange warns over it and leaves it, with what was typed', async () => {

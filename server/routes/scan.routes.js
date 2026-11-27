@@ -351,7 +351,7 @@ function register(router) {
     if (!isPrivate && body.hints && typeof body.hints === 'object') {
       for (const u of urls) {
         const h = Object.prototype.hasOwnProperty.call(body.hints, u) ? body.hints[u] : null;
-        if (h && typeof h === 'object') hints[u] = { title: String(h.title || '').slice(0, 200), query: String(h.query || '').slice(0, 200), text: String(h.text || '').slice(0, 120) };
+        if (h && typeof h === 'object') hints[u] = { title: String(h.title || '').slice(0, 200), query: String(h.query || '').slice(0, 200), text: String(h.text || '').slice(0, 120), facts: h.facts };
       }
     }
     const verdicts = await engine.scanUrls(urls, {

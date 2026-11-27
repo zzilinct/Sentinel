@@ -38,13 +38,14 @@ reports or analytics. There are none of the last two. The app never opens a susp
 |---|---|---|---|---|
 | The site and path of each page you open. The part after `?` only when local signs say the site may not be what it seems (a raw IP, a punycode name, a name and password in the address, another address in the query, or an earlier flagged verdict for the site), never from a private window. The part after `#` never (`sendable()` and `looksOff()` in `extension/src/background.js`) | Your scanner: the Windows app on `127.0.0.1` once paired, otherwise Sentinel's servers | Check the page | Signed in, live scanning on | Live scanning switch in the companion |
 | The addresses of search results, links in web chats, a link your pointer rests on, trimmed the same way. For the link your pointer rests on, also the words shown on that link (up to 120 characters), never from a private window | Your scanner | Marks beside them; a link whose words name a different site gets a warning | Signed in, live scanning on | Live scanning switch |
+| For a page whose address already looks suspect (on a free hosting service, or scored 8 or more), after it has loaded: four facts read on your computer, namely whether the page has a password box, whether the form holding it sends it to another site, whether the page is one window-sized frame, and the name of the protected brand its title says (one of Sentinel's own list of company names, or none). Only when the page shows at least one of them, never from a private window | Your scanner | A page that asks for a password under another company's name on a free service gets a warning; the server never opens the page | Signed in, live scanning on | Live scanning switch |
 | `mode: fast` or `mode: delicate` | Your scanner | Which checks to run | Every check | Fast is the default; Delicate is a choice in Settings |
 | Sender, reply-to, subject, a text excerpt (an opened email: up to 6,000 characters), link addresses, attachment names | Your scanner | Masks in Gmail and Outlook on the web | Email protection on (off until turned on), Pro and up, also in a private window the companion is allowed in. The scanner keeps nothing from any email it checks this way | Email protection switch |
 | A link you choose to scan or report, or a site you trust or block | Your scanner | What you asked for | Only when you ask | Do not ask |
 | Your sign-in token | Your scanner | Know your plan and allowances | Every 15 minutes while signed in; the threat list every hour | Sign out |
 | Nothing (asks for the look) | `127.0.0.1:47821` | Use the theme chosen in the Windows app | When one of the companion's own pages opens | No switch, never leaves the computer |
 
-Never sent from the companion: page text, what you type, passwords (the password alarm keeps a salted hash on the
+Never sent from the companion: page text, the page's title (it is matched on your computer against a list of company names, and only a matched name goes), what you type, passwords (the password alarm keeps a salted hash on the
 computer), web chat messages, copied text, your browsing history.
 
 ## 3. Requests from the website and web app
