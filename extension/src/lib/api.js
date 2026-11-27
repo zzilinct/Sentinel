@@ -78,6 +78,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Whether the scanner answered the last time it was asked: `away` is when it did not, or 0. Every request goes through apiFetch, so this is always the latest. */
+export const reach = { away: 0 };
+
 /** Call the API with the stored bearer token (or the site session cookie as a fallback). */
 export async function apiFetch(path, { method = 'GET', body, timeout = 20000 } = {}) {
   const { apiBase } = await getSettings();
@@ -96,8 +99,10 @@ export async function apiFetch(path, { method = 'GET', body, timeout = 20000 } =
       signal: AbortSignal.timeout(timeout)
     });
   } catch (err) {
+    reach.away = Date.now();
     throw new ApiError('Sentinel is unreachable right now', 0, 'offline');
   }
+  reach.away = 0;
 
   let data = null;
   try { data = await res.json(); } catch { /* empty body */ }

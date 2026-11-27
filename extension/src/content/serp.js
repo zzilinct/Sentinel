@@ -202,7 +202,7 @@
       ok.className = 'sentinel-mask sentinel-mask--clear';
       ok.setAttribute('role', 'button');
       ok.setAttribute('tabindex', '0');
-      const label = verdict.knowledge && verdict.knowledge.trusted ? 'a verified site' : 'no warning signs found';
+      const label = verdict.device ? 'checked on this device only, not on a threat list' : verdict.knowledge && verdict.knowledge.trusted ? 'a verified site' : 'no warning signs found';
       ok.setAttribute('aria-label', `Sentinel: ${label}`);
       ok.innerHTML = Masks.tick();
       tips.set(ok, [verdict, null]);
@@ -291,7 +291,7 @@
     o.chip.classList.add('on');
   }
 
-  function scanFinished(checked, flagged, locked) {
+  function scanFinished(checked, flagged, locked, device) {
     if (!overlay) return;
     scanning = Math.max(0, scanning - 1);
     checkedTotal += checked;
@@ -301,8 +301,11 @@
     hideTimer = setTimeout(() => {
       overlay.veil.classList.remove('on');
       overlay.chip.classList.add('done');
+      // Said as it is: nothing checked is not "nothing flagged", and a scanner that was not asked is not a clean bill.
       overlay.txt.textContent = locked
         ? 'Sentinel is paused'
+        : !checkedTotal ? 'Sentinel could not check these results'
+        : device ? `${checkedTotal} checked on this device only${flagged ? `, ${flagged} flagged` : ''}`
         : flagged ? `${checkedTotal} checked, ${flagged} flagged` : `${checkedTotal} result${checkedTotal === 1 ? '' : 's'} checked, nothing flagged`;
       hideTimer = setTimeout(() => overlay.chip.classList.remove('on'), locked ? 600 : 2600);
     }, wait);
@@ -503,17 +506,19 @@
     let flagged = 0;
     let checked = 0;
     let locked = false;
+    let device = false;
     try {
       const quick = await send({ type: 'live-batch', urls, phase: 'quick' });
       // Not looked at yet (opened in the background): kept for when it is, or a tab opened behind another never got its marks.
       if (quick.locked === 'inactive') { queue = urls.concat(queue); waiting = true; return; }
       if (quick.locked) { queue = []; locked = true; return; }
       apply(quick.verdicts);
+      device = Boolean(quick.device);
       for (const v of Object.values(quick.verdicts || {})) { if (v && v.ok) { checked++; if (v.overall && v.overall.badge) flagged++; } }
       // Delicate scanning (Pro and up): follow up with researched verdicts, which may raise or clear masks.
       send({ type: 'live-batch', urls, phase: 'research' }).then((r) => { if (r.ok && !r.locked) apply(r.verdicts); });
     } finally {
-      if (show) scanFinished(checked, flagged, locked);
+      if (show) scanFinished(checked, flagged, locked, device);
       busy = false;
       if (queue.length && !waiting) setTimeout(flush, 50);
     }

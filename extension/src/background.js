@@ -9,8 +9,10 @@
  * Plans with delicate scanning (Pro and up) get a second, researched pass: masks
  * appear instantly from the checklist, then upgrade once research finishes.
  */
-import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError, keepLook, warns, levelsFrom, OLD_LEVEL_KEYS, DEFAULTS } from './lib/api.js';
+import { ext, apiFetch, getSettings, setToken, siteUrl, wantsConnectTab, COLORS, ApiError, keepLook, warns, levelsFrom, OLD_LEVEL_KEYS, DEFAULTS, reach } from './lib/api.js';
 import { BRAND } from './lib/brand.js';
+import { listed, lookalike, listInfo } from './lib/engine.js';
+import { recallList, refreshList } from './lib/device.js';
 const Store = globalThis.SentinelStore;
 // SentinelSay: the words of the warnings, shared with the block page, popup and settings.
 import './lib/say.js';
@@ -110,19 +112,41 @@ function handleApiError(err) {
   if (err.status === 401) { account = { signedIn: false, user: null, plan: null, usage: null, checkedAt: Date.now() }; setToken(null); }
 }
 
-/** Instant verdict for confirmed hosts from the locally cached threat list. */
+/**
+ * Instant verdict for confirmed hosts, from the locally cached threat lists: the small one the scanner serves (what the
+ * door holds) and the large public one kept on this device (lib/device.js). No scanner is asked for either.
+ */
 function localVerdict(url) {
   const host = hostOf(url);
   if (!host) return null;
   // The site and every address under it, as the door's requestDomains matches them: the two must always agree.
   let threat = null;
   for (let h = host; h && !threat; h = h.includes('.') ? h.slice(h.indexOf('.') + 1) : '') threat = intel.hosts.get(h);
+  threat = threat || listed(host);
   if (!threat) return null;
   const label = { scam: 'Confirmed scam', virus: 'Virus detected', malware: 'Malware detected' }[threat];
   const threats = { scam: null, virus: null, malware: null };
   threats[threat] = { level: 'confirmed', badge: 'red', label, score: 100, evidence: "Sentinel's confirmed threat list" };
   for (const t of Object.keys(threats)) if (!threats[t]) threats[t] = { level: 'safe', badge: null, label: 'No signs', score: 0 };
   return { ok: true, url, host, threats, overall: { level: 'confirmed', badge: 'red', label }, reasons: [{ id: 'K00', threat, text: `On Sentinel's confirmed ${threat} list` }], offline: true };
+}
+
+const NO_THREATS = () => ({ scam: { level: 'safe', badge: null, label: 'No signs', score: 0 }, virus: { level: 'safe', badge: null, label: 'No signs', score: 0 }, malware: { level: 'safe', badge: null, label: 'No signs', score: 0 } });
+/**
+ * An address that copies a well-known brand's (the scanner's own rule, run on this device): orange, never red, since a
+ * copy is a likelihood and a list is evidence. The brand's real address is offered on the block page.
+ */
+function lookalikeVerdict(url) {
+  const copy = lookalike(url);
+  if (!copy) return null;
+  const threats = NO_THREATS();
+  threats.scam = { level: 'likely', badge: 'orange', label: 'Likely scam', score: 70, evidence: `Copies ${copy.brand}` };
+  return { ok: true, url, host: copy.host, threats, overall: { level: 'likely', badge: 'orange', label: 'Likely scam' },
+    reasons: [{ id: 'D01', threat: 'scam', text: `This address looks like ${copy.brand} but is not` }], realSite: { host: copy.brand, url: `https://${copy.brand}/` }, offline: true };
+}
+/** What this device can say about an address on no list that copies no brand: that it was checked here, and nothing more. */
+function deviceClear(url) {
+  return { ok: true, url, host: hostOf(url) || '', threats: NO_THREATS(), overall: { level: 'safe', badge: null, label: 'Checked on this device' }, reasons: [], device: true };
 }
 
 /* ---------------------------------------------------------------- account */
@@ -171,6 +195,7 @@ async function recall() {
   if (stored.account) account = { ...stored.account, checkedAt: 0 };
   if (stored.live) live = stored.live;
   if (stored.intel) intel = { hosts: hostMap(stored.intel.hosts), at: stored.intel.at };
+  await recallList();
 }
 const recalled = recall();
 
@@ -178,6 +203,7 @@ async function restore() {
   await recalled;
   await refreshAccount(true);
   if (Date.now() - intel.at > 3600e3) syncIntel();
+  refreshList();
 }
 
 /* ---------------------------------------------------------- the door */
@@ -268,7 +294,9 @@ async function closeFlagged({ tabId, url }) {
 // the one without: the words can add a warning (the scanner's X02).
 async function liveBatch(urls, phase, isPrivate = false, hints = null) {
   const blocked = liveBlockReason();
-  if (blocked) return { locked: blocked };
+  // Signed out there is no scanner to ask: this device's lists and rules answer, and say that they are all that did.
+  const alone = blocked === 'signed_out';
+  if (blocked && !alone) return { locked: blocked };
   const settings = await getSettings();
   if (phase === 'research' && !delicateOn(settings)) return { locked: 'fast', verdicts: {} };
 
@@ -276,11 +304,15 @@ async function liveBatch(urls, phase, isPrivate = false, hints = null) {
   const out = {};
   const pending = [];
   for (const url of urls) {
-    const cached = cacheGet(phase, keyOf(url)) || (phase === 'quick' ? localVerdict(url) : null);
+    // A listed site or a copy of a brand is answered here and final: nothing about it is sent.
+    const cached = cacheGet(phase, keyOf(url)) || (phase === 'quick' ? localVerdict(url) || lookalikeVerdict(url) : null);
     if (cached) out[url] = cached;
     else pending.push(url);
   }
-  if (pending.length) {
+  let device = alone;
+  if (alone) {
+    for (const url of pending) out[url] = deviceClear(url);
+  } else if (pending.length) {
     try {
       // Plans without delicate ask for fast outright: once Free's fast minutes are used up, a
       // delicate request would come back as plan_required instead of live_hours_exhausted.
@@ -306,9 +338,11 @@ async function liveBatch(urls, phase, isPrivate = false, hints = null) {
     } catch (err) {
       handleApiError(err);
       if (err.code === 'live_hours_exhausted') return { locked: 'hours', verdicts: out };
+      // The scanner could not be reached: what this device knows is all there is, and the answer says so (never cached).
+      if (err.code === 'offline') { device = true; for (const url of pending) out[url] = deviceClear(url); }
     }
   }
-  return { verdicts: out };
+  return { verdicts: out, device };
 }
 
 async function paint(tabId, verdict) {
@@ -338,10 +372,13 @@ async function onNavigate(details) {
   if (!/^https?:/i.test(details.url)) return;
   await recalled;
   const settings = await getSettings();
-  if (!settings.enabled || liveBlockReason()) return;
+  const blocked = liveBlockReason();
+  // Signed out, this device still answers for what it knows (its lists and look-alikes); only the scanner is out of reach.
+  if (!settings.enabled || (blocked && blocked !== 'signed_out')) return;
 
-  let verdict = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url);
+  let verdict = localVerdict(details.url) || cacheGet('research', details.url) || cacheGet('quick', details.url) || lookalikeVerdict(details.url);
   if (!verdict) {
+    if (blocked) return;
     try {
       // Never the part after # (the page's own); from a private window not the query either, and nothing about it is kept.
       const tab = await ext.tabs.get(details.tabId).catch(() => null);
@@ -455,6 +492,9 @@ async function realSiteFor(details) {
   const known = cacheGet('research', details.url) || cacheGet('quick', details.url)
     || cacheForHost(hostOf(details.url), (v) => v.realSite) || cacheForHost(hostOf(details.url));
   if (known) return known;
+  // A site on the list kept on this device is answered there: its address is not sent to the scanner, and a copy of a brand names the
+  // brand's real site from the same rule. Signed out there is no scanner to ask.
+  if (!account.signedIn || listed(hostOf(details.url))) return lookalikeVerdict(details.url);
   if (Date.now() - scannerAway < AWAY_WAIT) return null;
   try {
     const tab = await ext.tabs.get(details.tabId).catch(() => null);
@@ -760,7 +800,7 @@ const handlers = {
     const settings = await getSettings();
     await refreshAccount();
     const { site, live: reachable } = account.signedIn ? { site: settings.apiBase, live: true } : await home(settings.apiBase);
-    return { settings, account, live, locked: liveBlockReason(), site, reachable, siteAccess: await siteAccess(), browser: globalThis.browser ? 'firefox' : 'chromium' };
+    return { settings, account, live, locked: liveBlockReason(), site, reachable, away: reach.away > 0, device: listInfo(), siteAccess: await siteAccess(), browser: globalThis.browser ? 'firefox' : 'chromium' };
   },
   /**
    * The look (light or dark, and the accent) for the companion's own pages, which ask as they open (lib/lookhere.js).
@@ -1088,7 +1128,7 @@ Promise.all([pwState(), ext.storage.local.get('pwalarmOn')]).then(([state, got])
 });
 
 ext.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'sentinel:intel') syncIntel();
+  if (alarm.name === 'sentinel:intel') { syncIntel(); refreshList(); }
   if (alarm.name === 'sentinel:account') refreshAccount(true);
 });
 
@@ -1166,6 +1206,16 @@ async function askedAddress(tabId, url) {
   if (!/^https:/i.test(url)) return url;
   const plain = url.replace(/^https:/i, 'http:');
   return (await askedHttp(tabId, plain)) ? plain : url;
+}
+// The large list on this device is kept as hashes, so the browser's one rule (syncDoor) cannot hold it. A navigation to a
+// site on it closes the door on that one address as it starts: the same session rule a red answer makes. The rule is
+// written while the browser sets the request up, so it can lose the race; then onNavigate (below) replaces the page.
+if (ext.webNavigation.onBeforeNavigate && dnr()) {
+  ext.webNavigation.onBeforeNavigate.addListener(async (d) => {
+    if (d.frameId !== 0) return;
+    await recalled;
+    if (listed(hostOf(d.url))) doorOnAddress(d.url);
+  }, { url: [{ schemes: ['http', 'https'] }] });
 }
 if (ext.webNavigation.onBeforeNavigate) ext.webNavigation.onBeforeNavigate.addListener(askedFor, { url: [{ schemes: ['http'] }] });
 

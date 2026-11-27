@@ -17,6 +17,7 @@ const net = require('net');
 const http = require('http');
 const path = require('path');
 const { spawn } = require('child_process');
+const { listFile } = require('./engine-bundle');
 
 const arg = (name, fallback) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : fallback; };
 const SERVER = arg('--server', 'http://127.0.0.1:47821').replace(/\/$/, '');
@@ -212,7 +213,12 @@ async function main() {
 
   // The "search engine": a local proxy that answers the results page and nothing else.
   let doorHits = 0;
+  // The public threat list, as the repository publishes it (one host: a result on the page below).
+  const LISTED = RESULTS[5][0].split('/')[2];
+  const LIST = listFile([{ host: LISTED, threat: 'scam' }]);
+  const listAsked = [];
   const proxy = http.createServer((req, res) => {
+    if (/^http:\/\/sentinel-list\.test\//.test(req.url)) { listAsked.push(req.headers.cookie || ''); res.writeHead(200, { 'Content-Type': 'application/octet-stream', ETag: '"ff-list"' }); res.end(LIST); return; }
     if (/^http:\/\/html\.duckduckgo\.com\//.test(req.url)) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(PAGE); return; }
     if (req.url.includes(DOOR_HOST)) doorHits++;
     res.writeHead(502); res.end();
@@ -277,6 +283,29 @@ async function main() {
     // Firefox keeps an add-on out of private windows until the person allows it: the settings page says so then.
     result.privateAtFirst = ext.privateAtFirst;
     result.privateNote = (await m.send('WebDriver:ExecuteScript', { script: "const n = document.getElementById('privateNote'); return n ? !n.hidden : null;", args: [] })).value;
+    // Signed out first: no account and no scanner, the threat list from the proxy, and the marks on the same page say what
+    // was checked and where. Never "no warning signs" for an address only this device looked at.
+    await m.send('WebDriver:ExecuteAsyncScript', {
+      script: `const [url, done] = arguments;
+        (async () => {
+          const b = window.browser || window.wrappedJSObject.browser;
+          await b.storage.local.set({ listUrl: url });
+          await b.alarms.create('sentinel:intel', { when: Date.now() + 200 });
+          for (let i = 0; i < 60; i++) { const s = await b.storage.local.get('listEtag'); if (s.listEtag) return true; await new Promise((r) => setTimeout(r, 250)); }
+          return false;
+        })().then(done, (e) => done({ error: String(e) }));`,
+      args: ['http://sentinel-list.test/threats.bin'], sandbox: null
+    });
+    await m.send('WebDriver:Navigate', { url: 'http://html.duckduckgo.com/html/?q=paypal+account+login+help' });
+    let labels = [];
+    for (let i = 0; i < 40 && labels.length < RESULTS.length; i++) {
+      await sleep(500);
+      const r = await m.send('WebDriver:ExecuteScript', { script: "return [...document.querySelectorAll('.sentinel-mask')].map((x) => x.getAttribute('aria-label') || '');", args: [] }).catch(() => null);
+      labels = (r && r.value) || [];
+    }
+    result.device = { listAsked: listAsked.length, labels: labels.length, listed: labels.filter((l) => /Confirmed scam/.test(l)).length, here: labels.filter((l) => /checked on this device only/.test(l)).length, clean: labels.filter((l) => /no warning signs found|a verified site/.test(l)).length };
+    await m.send('WebDriver:Navigate', { url: `moz-extension://${ext.host}/src/options.html` });
+    await sleep(1200);
     const paired = await m.send('WebDriver:ExecuteAsyncScript', {
       script: `const [token, server, done] = arguments;
         (async () => {
@@ -382,8 +411,11 @@ async function main() {
   const noteOk = result.privateNote === !result.privateAtFirst;
   const door = result.door || {};
   const doorOk = door.hits === 0 && /^moz-extension:\/\/.*block\.html#http:/.test(door.href || '') && /confirmed scam/.test(door.title || '');
-  const ok = result.results > 0 && result.marked >= result.results && result.seenOverlay && privateOk && noteOk && doorOk;
+  const dv = result.device || {};
+  const deviceOk = dv.listAsked > 0 && dv.listed >= 1 && dv.here >= 1 && dv.clean === 0;
+  const ok = deviceOk && result.results > 0 && result.marked >= result.results && result.seenOverlay && privateOk && noteOk && doorOk;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${result.version || 'firefox'}`);
+  console.log(`      signed out, on this device only (firefox device): ${deviceOk ? 'ok' : 'WRONG'} ${JSON.stringify(dv)}`);
   console.log(`      the door: ${JSON.stringify(door)}`);
   console.log(`      companion ${result.companion || '-'} installed as a temporary add-on (event page), signed in on the ${result.paired ? result.paired.plan : '?'} plan`);
   console.log(`      results on the page: ${result.results}, marked: ${result.marked} (clear ${result.kinds ? result.kinds.clear : 0}, yellow ${result.kinds ? result.kinds.yellow : 0}, orange ${result.kinds ? result.kinds.orange : 0}, red ${result.kinds ? result.kinds.red : 0})`);

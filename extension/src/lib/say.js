@@ -53,6 +53,11 @@
 
   function protection(state) {
     if (!state || !state.ok || !state.account || !state.account.signedIn) {
+      // Signed out, the device still checks what it can without a server; it says exactly that, never "on".
+      if (state && state.ok && state.settings && state.settings.enabled) {
+        const signIn = state.reachable === false ? 'Open the Sentinel app for Windows on this computer to check every page. Sentinel’s own website is not live yet.' : 'Sign in to check every page.';
+        return { tone: 'paused', word: 'Paused', title: 'Sentinel checks on this device only', line: `${state.device ? 'Sites on a public threat list and copies of well-known brands are checked here, and no address goes to a scanner. A listed site opened by hand can still get your browser’s request before the page is stopped.' : 'Copies of well-known brands are caught here. The threat list has not been downloaded yet.'} ${signIn}` };
+      }
       return { tone: 'off', word: 'Off', title: 'Sentinel is not signed in', line: state && state.reachable === false
         ? 'Open the Sentinel app for Windows on this computer to sign in. Sentinel’s own website is not live yet.'
         : 'Sign in to check pages in this browser and stop dangerous ones.' };
@@ -60,13 +65,22 @@
     if (state.siteAccess === false) return { tone: 'off', word: 'Off', title: 'Sentinel cannot see your pages yet', line: 'Firefox asks first. Open the Sentinel button in the toolbar and allow it on all websites.' };
     const settings = state.settings || {};
     if (!settings.enabled) return { tone: 'off', word: 'Off', title: 'Live scanning is off', line: 'Sentinel is not checking pages in this browser.' };
+    // The scanner did not answer the last time it was asked: pages are not being checked by it, and this says so.
+    if (state.away) return { tone: 'paused', word: 'Paused', title: 'Sentinel cannot reach its scanner', line: 'Pages are checked on this device only. Sites on the confirmed list are still stopped. Open the Sentinel app, or check your connection.' };
     if (state.locked === 'hours') return { tone: 'paused', word: 'Paused', title: 'Live checks are paused', line: `This week's live time is used up. It comes back on ${dayOf(state.live.resetsAt)}. Sites on Sentinel's confirmed list are still stopped.` };
     if (state.account.plan && state.account.plan.modelLocked) return { tone: 'paused', word: 'Paused', title: 'Live checks are paused', line: 'This version of the Sentinel app is one of the five newest, which come with Pro, Max and Ultimate. Choose an earlier version on the app\'s Plan & usage page to turn live checks back on. Sites on Sentinel\'s confirmed list are still stopped.' };
     if (!settings.warnOnNavigate) return { tone: 'on', word: 'On', title: 'Sentinel is watching, but will not stop pages', line: 'Stop dangerous pages is off, so a flagged page stays open.' };
     return { tone: 'on', word: 'On', title: 'Sentinel is on in this browser', line: 'Pages are checked as they open. Sites on the confirmed list are stopped before they load.' };
   }
 
-  const api = { page, protection };
+  /** "name@example.com · Pro plan": a part the account does not have is left out, never printed as "undefined". */
+  function who(account) {
+    const user = (account && account.user) || {};
+    const plan = (account && account.plan) || {};
+    return [user.email, plan.name ? `${plan.name} plan` : ''].filter((part) => typeof part === 'string' && part.trim()).join(' · ') || 'Signed in';
+  }
+
+  const api = { page, protection, who };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else globalThis.SentinelSay = Object.freeze(api);
 })();

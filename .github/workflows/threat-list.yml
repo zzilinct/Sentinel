@@ -1,0 +1,38 @@
+# The companion's threat list (scripts/build-threat-list.js): every host on the lists Sentinel reads, as one small file
+# the companion checks on the person's own device. Published to the orphan branch `threat-list` of this repository,
+# replaced each day, so it never adds history. The companion downloads that one public file; nothing goes up.
+name: Threat list
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  list:
+    # Only on the repository's own branch, never on a fork or another branch's schedule.
+    if: github.ref_name == 'main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts || npm install --ignore-scripts
+      - run: node scripts/build-threat-list.js "$RUNNER_TEMP/threats.bin"
+      - name: Publish the file
+        run: |
+          cd "$RUNNER_TEMP"
+          mkdir pub && mv threats.bin pub/ && cd pub
+          git init -q -b threat-list
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add threats.bin
+          git commit -q -m 'Threat list'
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" threat-list
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

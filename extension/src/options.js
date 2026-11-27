@@ -166,7 +166,7 @@
       out.hidden = true;
       return;
     }
-    acc.textContent = `${state.account.user.email} · ${state.account.plan.name} plan`;
+    acc.textContent = globalThis.SentinelSay.who(state.account);
     out.onclick = () => Promise.resolve(ext.runtime.sendMessage({ type: 'sign-out' })).finally(() => location.reload());
   });
 })();
